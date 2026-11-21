@@ -177,11 +177,14 @@ const NC_RISKS = [
 const NC_TOL = {
   exact: 'exact, to the cent',
   week: '±2 % — Seller Central\'s totals vs the Orders workbook',
-  ads: 'Overview ≥ PPC & Organic (all ad types vs Sponsored Products); equal within 1 % when Overview has only SP for those days',
+  sp: 'within 1 % — the same Sponsored Products spend on both screens',
+  organic: '±5 % — Overview: Seller Central sales less all-type ad sales (7-day); PPC & Organic: workbook sales less SP ad sales (30-day)',
+  shown: 'shown only — no other screen has it',
 };
 
-let NC = { at: 0, res: null, busy: null, soonT: 0, err: '' };
+let NC = { at: 0, res: null, busy: null, soonT: 0, err: '', ov: { ads: null, daily: null, adsAt: '', dailyAt: '' } };
 const NC_VIEWS = [['SP', 'Ridhi'], ['CPC', 'CPC'], ['ALL', 'Both']];
+const NC_BRAND = { SP: 'Ridhi', CPC: 'CPC', SHOP: 'Shopify' };
 const ncEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
 const ncMoney = v => (v == null || !isFinite(v) ? '—' : (v < 0 ? '−$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const ncNum = v => (v == null || !isFinite(v) ? '—' : Math.round(v).toLocaleString('en-US'));
@@ -191,27 +194,36 @@ const ncAdsOk = () => ncMay('ppcn') || ncMay('weekly');
 const ncAdBs = () => (typeof adBrands === 'function' ? adBrands() : ['SP', 'CPC']);
 const ncHm = ms => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 const ncChans = view => (view === 'ALL' ? ['SP', 'CPC'] : [view]);
+const ncDays = w => Array.from({ length: 7 }, (_, i) => sdShift(w, i));
 
-// Two numbers compared: the difference in $ and %, and the verdict. kind 'exact' = within half a cent (units: exact);
-// 'week' = within 2 % ('info': differs on purpose, explained); 'ads' = Overview ≥ PPC (explained) or within 1 %.
+// Two numbers compared: the difference in $ and %, and the verdict. 'exact' = within half a cent (units: exact); 'week' = within
+// 2 % ('info': differs on purpose, explained); 'sp' = within 1 %; 'organic' = within 5 % explained; 'onpurpose' = explained.
 function ncCompare(a, b, kind, unit) {
   const diff = ncR2(a - b);
   const pct = b ? (a - b) / Math.abs(b) * 100 : (a ? 100 : 0);
   let status;
   if (Math.abs(diff) < (unit === 'n' ? 0.5 : 0.005)) status = 'ok';
   else if (kind === 'week') status = Math.abs(pct) <= 2 ? 'info' : 'warn';
-  else if (kind === 'ads') status = Math.abs(pct) <= 1 ? 'ok' : a > b ? 'info' : 'warn';
+  else if (kind === 'sp') status = Math.abs(pct) <= 1 ? 'ok' : 'warn';
+  else if (kind === 'organic') status = Math.abs(pct) <= 5 ? 'info' : 'warn';
   else if (kind === 'onpurpose') status = 'info';
   else status = 'warn';
   return { diff, pct, status };
 }
-// A row of the checks table.
+/* MISSING IS NOT ZERO (22 Nov 2026). A side with no data — a brand not loaded, a week whose figures have not arrived — is shown
+ * as "— not loaded" with the reason, never as $0 and never as "differs". Every check passes its sides through here. */
 function ncRow(id, name, view, a, b, kind, why, unit) {
+  const tol = NC_TOL[kind === 'onpurpose' ? 'exact' : kind] || NC_TOL.exact;
+  if (a.v == null || b.v == null) return ncSkip(id, name, view, (why && why.missing) || 'Not loaded yet.', { a, b, tol });
   const c = ncCompare(a.v, b.v, kind, unit);
-  return { id, name, view, a, b, unit: unit || '$', kind, tol: NC_TOL[kind === 'onpurpose' ? 'exact' : kind] || NC_TOL.exact,
+  return { id, name, view, a, b, unit: unit || '$', kind, tol,
     diff: c.diff, pct: c.pct, status: c.status, why: c.status === 'ok' ? (why && why.ok) || '' : (why && why.off) || '' };
 }
-const ncSkip = (id, name, view, why) => ({ id, name, view, a: null, b: null, status: 'skip', why, diff: null, pct: null, tol: '' });
+// A check that could not run: not loaded, or not in this account's access. Its sides keep their labels; their values are null.
+const ncSkip = (id, name, view, why, more) => Object.assign({ id, name, view, a: null, b: null, status: 'skip', why, diff: null, pct: null, tol: '' }, more || {});
+// A figure only one screen has: shown, not compared, not counted.
+const ncNote = (id, name, view, a, why) => (a.v == null ? ncSkip(id, name, view, why.missing || 'Not loaded yet.', { tol: NC_TOL.shown })
+  : { id, name, view, a, b: null, unit: '$', kind: 'shown', tol: NC_TOL.shown, diff: null, pct: null, status: 'note', why: why.note || '' });
 
 /* ---------- the sums, each through the screen's OWN function ---------- */
 // The Sales Dashboard's sdSum for some channels (SD_CH swapped and put back at once, as the Dashboard does).
@@ -219,6 +231,10 @@ function ncSd(chans, from, to) {
   const keep = SD_CH;
   try { return ncR2(chans.reduce((t, ch) => { SD_CH = ch; return t + sdSum(from, to)[0]; }, 0)); } finally { SD_CH = keep; }
 }
+// Does the Sales Dashboard hold this channel at all (its own days, or Seller Central's)?
+const ncSdHas = ch => !!(SD && SD.d && SD.d[ch] && Object.keys(SD.d[ch]).length)
+  || (ch !== 'SHOP' && typeof tMatchBizDays === 'function' && Object.keys(tMatchBizDays(ch)).length > 0);
+const ncSdMissing = chans => chans.filter(ch => !ncSdHas(ch)).map(ch => NC_BRAND[ch] || ch);
 const ncSdAt = () => 'nightly ' + (SD.at || '—') + (SD_LIVE ? ' · today ' + SD_LIVE : '')
   + (typeof T_MATCH !== 'undefined' && T_MATCH.biz ? ' · Seller Central ' + (T_MATCH.biz.at || '?') : '');
 // PPC & Organic's store: the screen's own WEEKLY when it is loaded, else the Dashboard's copy of the same documents.
@@ -227,15 +243,50 @@ const ncWeeks = W => (W.weeks.length ? W.weeks : wWeeksList(26));
 // The rows PPC & Organic adds up for a brand pick: 'ALL' keeps every row (wRows), a brand keeps its own.
 const ncWRows = (W, view) => Object.values(W.rows).filter(r => view === 'ALL' || (r.brand || '') === view);
 const ncWSum = (rows, weeks, f) => ncR2(rows.reduce((s, r) => s + weeks.reduce((t, w) => t + (((r.weeks || {})[w] || {})[f] || 0), 0), 0));
+// Does PPC & Organic hold field f for brand b in week w (any of its rows)? A week nobody reported is missing, not $0.
+const ncWHas = (W, b, w, f) => !!W && Object.values(W.rows).some(r => r.brand === b && r.weeks && r.weeks[w] && r.weeks[w][f] != null);
+const ncWMissing = (W, chans, weeks, f) => chans.filter(b => !weeks.every(w => ncWHas(W, b, w, f))).map(b => NC_BRAND[b]);
 const ncWAt = W => (W.at ? 'sales ' + W.at : 'sales not pulled yet') + (W.adAt ? ' · ads ' + W.adAt : '');
 const ncWeekEnd = w => sdShift(w, 6);
+
+/* ---------- the Overview's figures, rebuilt read-only ----------
+ * The Overview draws its saved snapshot (audit/trends) with the nightly caches laid over it when it opens — tNightly: the daily cache
+ * (sales), the ads cache (Sponsored Products), then Amazon's own totals (matchBiz sales, matchAds ads), the last one winning — and
+ * then SAVES the result, which Numbers Check never does. So the same sources are read here, in the same order, into a copy:
+ * NC.ov.daily / NC.ov.ads (cache reads), T_MATCH (tMatchEnsure), TREND (loadTrends, sales only). matchAds holds the split by ad
+ * type; the ads cache is Sponsored Products only. Per brand and day: sales, sp / sb / sd spend, ad sales, and where the ad figures
+ * came from ('' = no ad figure from any source: that day is MISSING). The saved snapshot's ad figures are not used: once Amazon's
+ * totals have been laid over them they no longer say which type they were. */
+function ncOvDays(b) {
+  const out = {};
+  const cell = d => out[d] || (out[d] = { sales: null, sp: null, sb: null, sd: null, adSales: null, ad: '' });
+  const today = sdToday();
+  const st = (typeof TREND !== 'undefined' && TREND.d && TREND.d[b]) || {};
+  Object.entries(st).forEach(([d, v]) => { if (v && v[T_I.sales] != null) cell(d).sales = Number(v[T_I.sales]) || 0; });
+  Object.entries(((NC.ov.daily || {})[b]) || {}).forEach(([d, v]) => { if (d < today) cell(d).sales = Number(v[0]) || 0; });
+  Object.entries(((NC.ov.ads || {})[b]) || {}).forEach(([d, v]) => {
+    const c = cell(d);
+    c.sp = ncR2(Number(v[2]) || 0); c.sb = 0; c.sd = 0; c.adSales = ncR2(Number(v[4]) || 0); c.ad = 'ads';
+  });
+  if (typeof T_MATCH !== 'undefined' && T_MATCH.biz && typeof tMatchBizDays === 'function') {
+    Object.entries(tMatchBizDays(b)).forEach(([d, v]) => { cell(d).sales = ncR2(Number(v[0]) || 0); });
+  }
+  const ma = (typeof T_MATCH !== 'undefined' && T_MATCH.ads && T_MATCH.ads.d && T_MATCH.ads.d[b]) || {};
+  Object.entries(ma).forEach(([d, k]) => {
+    if (!k || !k.sp) return;                       // as the Overview: without Sponsored Products the day is not known
+    const c = cell(d), cost = a => (a ? Number(a[2]) || 0 : 0), sales = a => (a ? Number(a[3]) || 0 : 0);
+    c.sp = ncR2(cost(k.sp)); c.sb = ncR2(cost(k.sb)); c.sd = ncR2(cost(k.sd));
+    c.adSales = ncR2(sales(k.sp) + sales(k.sb) + sales(k.sd)); c.ad = 'matchAds';
+  });
+  return out;
+}
 
 /* ---------- THE CHECKS ---------- */
 // Every check, from what is in memory now. Never loads, never writes.
 function ncRun() {
   const out = [];
   const salesOk = ncMay('sales') && SD && SD.at;
-  const today = sdToday(), yest = sdShift(today, -1);
+  const today = sdToday();
   const monthStart = today.slice(0, 8) + '01', yearStart = today.slice(0, 4) + '-01-01';
 
   // --- 1–2. Dashboard Sales MTD / YTD = Sales Dashboard ---
@@ -247,17 +298,20 @@ function ncRun() {
       const name = `Dashboard ${label} = Sales Dashboard`;
       if (!ncMay('sales')) return out.push(ncSkip(id, name, vName, 'Sales Dashboard is not in your access.'));
       if (!salesOk || !dashSales || !dashSales[view]) return out.push(ncSkip(id, name, vName, 'Sales not loaded yet.'));
+      const miss = ncSdMissing(ncChans(view));
+      if (miss.length) return out.push(ncSkip(id, name, vName, `${miss.join(' and ')} sales not loaded — no days for ${miss.length > 1 ? 'them' : 'it'} on the Sales Dashboard.`));
       const a = { label: 'Dashboard', v: ncR2(dashSales[view][k]), at: dashSales[view].when };
       if (view !== 'ALL') {
         const b = { label: 'Sales Dashboard · ' + vName, v: ncSd([view], from, today), at: ncSdAt() };
         return out.push(ncRow(id, name, vName, a, b, 'exact', { off: 'The two screens add the same days differently — this should never happen.' }));
       }
-      const all = ncSd(['SP', 'CPC', 'SHOP'], from, today), shop = ncSd(['SHOP'], from, today);
-      const b = { label: 'Sales Dashboard · All', v: all, at: ncSdAt() };
+      const hasShop = ncSdHas('SHOP');
+      const all = ncSd(['SP', 'CPC', 'SHOP'], from, today), shop = hasShop ? ncSd(['SHOP'], from, today) : 0;
+      const b = { label: 'Sales Dashboard · All', v: all, at: ncSdAt() + (hasShop ? '' : ' · Shopify not loaded') };
       const r = ncRow(id, name, vName, a, b, shop ? 'onpurpose' : 'exact');
       // Explained only when the gap IS the Shopify figure, to the cent.
       if (shop && Math.abs(ncR2(a.v + shop - all)) >= 0.005) r.status = 'warn';
-      r.why = r.status === 'ok' ? '' : r.status === 'info'
+      r.why = r.status === 'ok' ? (hasShop ? '' : 'Shopify not loaded, so "All" is Ridhi + CPC here.') : r.status === 'info'
         ? `On purpose: Dashboard "Both" = Ridhi + CPC (Amazon only); Sales Dashboard "All" also counts Shopify (${ncMoney(shop)}).`
         : 'Dashboard Both ≠ Sales Dashboard Ridhi + CPC.';
       out.push(r);
@@ -269,31 +323,36 @@ function ncRun() {
   const adBs = ncAdBs();
   let dashAds = null;
   try { dashAds = ncAdsOk() && W ? DASH_CALC.ads() : null; } catch (e) { dashAds = null; }
+  const wLast = W ? ncWeeks(W)[ncWeeks(W).length - 1] : '';
   NC_VIEWS.forEach(([view, vName]) => {
     const id = 'ads-week', name = 'Dashboard Ad spend (latest week) = PPC & Organic';
     if (!ncAdsOk()) return out.push(ncSkip(id, name, vName, 'Advertising is not in your access.'));
     if (ncChans(view).some(b => !adBs.includes(b))) return out.push(ncSkip(id, name, vName, 'That brand\'s ads are not in your access.'));
     if (!W || !Object.keys(W.rows).length || !dashAds || !dashAds[view] || dashAds[view].empty) return out.push(ncSkip(id, name, vName, 'PPC & Organic not loaded yet.'));
-    const weeks = ncWeeks(W), last = weeks[weeks.length - 1];
+    const miss = ncWMissing(W, ncChans(view), [wLast], 'spend');
+    if (miss.length) return out.push(ncSkip(id, name, vName, `${miss.join(' and ')}: no ad figures for ${wLabel(wLast)} yet${wWeekDone(wLast) ? '' : ` (week still running, ${wDaysIn(wLast)} of 7 days; ads land 1–2 days late)`} — not $0.`));
     const rows = ncWRows(W, view);
-    const spend = ncWSum(rows, [last], 'spend'), rev = ncWSum(rows, [last], 'rev');
+    const spend = ncWSum(rows, [wLast], 'spend'), rev = ncWSum(rows, [wLast], 'rev');
     const tacosB = rev ? Math.round(spend / rev * 100) : null;
     const d = dashAds[view];
     const a = { label: 'Dashboard', v: ncR2(d.last.spend), at: d.when };
-    const b = { label: 'PPC & Organic · ' + wLabel(last), v: spend, at: ncWAt(W) };
+    const b = { label: 'PPC & Organic · ' + wLabel(wLast), v: spend, at: ncWAt(W) };
     const r = ncRow(id, name, vName, a, b, 'exact', { off: 'The Dashboard and PPC & Organic add the latest week differently.' });
     if (r.status === 'ok' && d.tacos !== tacosB) { r.status = 'warn'; r.why = `TACoS differs: Dashboard ${d.tacos}% vs PPC & Organic ${tacosB}%.`; }
-    r.sub = `TACoS ${d.tacos == null ? '—' : d.tacos + '%'} on both` + (wWeekDone(last) ? '' : ` · week still running (${wDaysIn(last)} of 7 days; ads land 1–2 days late)`);
+    r.sub = `TACoS ${d.tacos == null ? '—' : d.tacos + '%'} on both` + (wWeekDone(wLast) ? '' : ` · week still running (${wDaysIn(wLast)} of 7 days; ads land 1–2 days late)`);
     out.push(r);
   });
   if (ncAdsOk() && W && Object.keys(W.rows).length && adBs.length === 2) {
-    const weeks = ncWeeks(W), last = weeks[weeks.length - 1];
-    const both = ncWSum(ncWRows(W, 'ALL'), [last], 'spend');
-    const parts = ncR2(ncWSum(ncWRows(W, 'SP'), [last], 'spend') + ncWSum(ncWRows(W, 'CPC'), [last], 'spend'));
-    const n = Object.values(W.rows).filter(r => r.brand !== 'SP' && r.brand !== 'CPC').length;
-    out.push(ncRow('ads-both', 'PPC & Organic Ad spend: Both = Ridhi + CPC', 'Both',
-      { label: 'Both (every row)', v: both, at: ncWAt(W) }, { label: 'Ridhi + CPC', v: parts, at: ncWAt(W) }, 'exact',
-      { off: `"All" also counts ${n} row${n === 1 ? '' : 's'} with no brand — those show in Both but in neither brand.` }));
+    const name = 'PPC & Organic Ad spend (latest week): Both = Ridhi + CPC';
+    const miss = ncWMissing(W, ['SP', 'CPC'], [wLast], 'spend');
+    if (miss.length) out.push(ncSkip('ads-both', name, 'Both', `${miss.join(' and ')}: no ad figures for ${wLabel(wLast)} yet — not $0.`));
+    else {
+      const n = Object.values(W.rows).filter(r => r.brand !== 'SP' && r.brand !== 'CPC').length;
+      out.push(ncRow('ads-both', name, 'Both',
+        { label: 'Both (every row)', v: ncWSum(ncWRows(W, 'ALL'), [wLast], 'spend'), at: ncWAt(W) },
+        { label: 'Ridhi + CPC', v: ncR2(ncWSum(ncWRows(W, 'SP'), [wLast], 'spend') + ncWSum(ncWRows(W, 'CPC'), [wLast], 'spend')), at: ncWAt(W) }, 'exact',
+        { off: `"All" also counts ${n} row${n === 1 ? '' : 's'} with no brand — those show in Both but in neither brand.` }));
+    }
   }
 
   // --- 4. PPC & Organic weekly sales ≈ Sales Dashboard, the last FINISHED week ---
@@ -305,56 +364,42 @@ function ncRun() {
     const done = ncWeeks(W).filter(wWeekDone);
     const wk = done[done.length - 1];
     if (!wk) return out.push(ncSkip(id, name, vName, 'No finished week stored yet.'));
+    const miss = [...ncWMissing(W, ncChans(view), [wk], 'rev').map(x => x + ' (PPC & Organic)'), ...ncSdMissing(ncChans(view)).map(x => x + ' (Sales Dashboard)')];
+    if (miss.length) return out.push(ncSkip(id, name, vName, `${miss.join(', ')}: no sales for ${wLabel(wk)} — not loaded, not $0.`));
     const a = { label: 'PPC & Organic · ' + wLabel(wk), v: ncWSum(ncWRows(W, view), [wk], 'rev'), at: ncWAt(W) };
     const b = { label: 'Sales Dashboard · ' + (view === 'ALL' ? 'Ridhi + CPC' : vName), v: ncSd(ncChans(view), wk, ncWeekEnd(wk)), at: ncSdAt() };
     out.push(ncRow(id, name, vName, a, b, 'week', {
       off: 'PPC & Organic adds the Orders workbook per ASIN; the Sales Dashboard uses Seller Central\'s own totals where published (Amazon only on both; Shopify left out).' }));
   });
 
-  // --- 5. Overview ad spend over 13 finished weeks ≈ PPC & Organic, the same weeks ---
-  const tOk = ncMay('trends') && typeof TREND !== 'undefined' && TREND.d && (TREND.at || Object.keys(TREND.d.SP || {}).length || Object.keys(TREND.d.CPC || {}).length);
-  NC_VIEWS.forEach(([view, vName]) => {
-    const id = 'ovw-spend', name = 'Overview ad spend vs PPC & Organic (13 finished weeks)';
-    if (!ncMay('trends') || !ncAdsOk()) return out.push(ncSkip(id, name, vName, 'Overview or PPC is not in your access.'));
-    if (ncChans(view).some(b => !adBs.includes(b))) return out.push(ncSkip(id, name, vName, 'That brand\'s ads are not in your access.'));
-    if (!tOk || !W || !Object.keys(W.rows).length) return out.push(ncSkip(id, name, vName, 'Overview or PPC & Organic not loaded yet.'));
-    // only weeks whose seven days are all inside the Overview's ad window, and that PPC & Organic stores
-    const weeks = ncWeeks(W).filter(w => wWeekDone(w) && (!TREND.adFrom || w >= TREND.adFrom) && (!TREND.adTo || ncWeekEnd(w) <= TREND.adTo)).slice(-13);
-    if (!weeks.length) return out.push(ncSkip(id, name, vName, 'No finished week inside the Overview\'s ad window.'));
-    const days = new Set(weeks.flatMap(w => Array.from({ length: 7 }, (_, i) => sdShift(w, i))));
-    const tSum = ncR2(ncChans(view).reduce((s, b) => s + Object.entries(TREND.d[b] || {})
-      .reduce((t, [day, v]) => t + (days.has(day) ? Number(v[T_I.spend]) || 0 : 0), 0), 0));
-    const a = { label: `Overview · ${weeks.length} wk`, v: tSum, at: 'sales ' + (TREND.at || '—') + ' · ads ' + (TREND.adFrom || '?') + ' → ' + (TREND.adTo || '?') };
-    // Both: Ridhi + CPC rows (the Overview has no "no brand" bucket)
-    const pRows = ncWRows(W, view).filter(r => view !== 'ALL' || r.brand === 'SP' || r.brand === 'CPC');
-    const b = { label: `PPC & Organic · ${weeks.length} wk`, v: ncWSum(pRows, weeks, 'spend'), at: ncWAt(W) };
-    out.push(ncRow(id, name, vName, a, b, 'ads', {
-      off: 'Overview counts Sponsored Brands and Display too (where Amazon\'s matchAds holds the day); PPC & Organic is Sponsored Products only. Overview lower than PPC is NOT explained.' }));
-  });
+  // --- 5. Overview vs PPC & Organic, by ad type, over the finished weeks BOTH screens hold ---
+  const ov = ncOvChecks(W, adBs);
+  NC_OV.forEach(([id]) => ov.filter(r => r.id === id).forEach(r => out.push(r)));
 
   // --- 6. Inventory Age tile = Inventory Age screen (aged 181+ units, storage $) ---
   let dashAge = null;
   try { dashAge = ncMay('age') && AGE_LOADED ? DASH_CALC.age() : null; } catch (e) { dashAge = null; }
+  const ageRows = { units: [], storage: [] };
   NC_VIEWS.forEach(([view, vName]) => {
     const name1 = 'Dashboard Aged 181+ units = Inventory Age', name2 = 'Dashboard storage $ = Inventory Age';
-    if (!ncMay('age')) { out.push(ncSkip('age-units', name1, vName, 'Inventory Age is not in your access.')); return; }
-    const bs = ncChans(view).filter(b => AGE[b]);
-    if (!AGE_LOADED || !dashAge || !dashAge[view] || dashAge[view].empty || !bs.length) {
-      out.push(ncSkip('age-units', name1, vName, 'Inventory Age not loaded yet (or no snapshot).'));
-      out.push(ncSkip('age-storage', name2, vName, 'Inventory Age not loaded yet (or no snapshot).'));
-      return;
-    }
+    const skip = why => { ageRows.units.push(ncSkip('age-units', name1, vName, why)); ageRows.storage.push(ncSkip('age-storage', name2, vName, why)); };
+    if (!ncMay('age')) return skip('Inventory Age is not in your access.');
+    if (!AGE_LOADED || !dashAge || !dashAge[view] || dashAge[view].empty) return skip('Inventory Age not loaded yet (or no snapshot).');
+    const miss = ncChans(view).filter(b => !AGE[b]).map(b => NC_BRAND[b]);
+    if (miss.length) return skip(`${miss.join(' and ')}: no Inventory Age snapshot loaded — not 0 units.`);
+    const bs = ncChans(view);
     // Inventory Age's own way (renderAge, no search): its non-overlapping buckets, those starting at AGED_FROM, every row of the brands.
     const cols = totalCols([...new Set(bs.flatMap(b => AGE[b].cols))]);
     const aged = cols.filter(c => { const r = ageRange(c); return r && r[0] >= AGED_FROM; });
     let units = 0, storage = 0;
     bs.forEach(b => AGE[b].rows.forEach(r => { units += aged.reduce((s, c) => s + ((r.age || {})[c] || 0), 0); storage += r.storage || 0; }));
     const at = bs.map(b => AGE[b].at).filter(Boolean).map(d => d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })).join(' · ');
-    out.push(ncRow('age-units', name1, vName, { label: 'Dashboard', v: dashAge[view].units, at: dashAge[view].when },
+    ageRows.units.push(ncRow('age-units', name1, vName, { label: 'Dashboard', v: dashAge[view].units, at: dashAge[view].when },
       { label: 'Inventory Age', v: units, at: 'snapshot ' + at }, 'exact', { off: 'The tile and the screen add the buckets differently.' }, 'n'));
-    out.push(ncRow('age-storage', name2, vName, { label: 'Dashboard', v: ncR2(dashAge[view].storage), at: dashAge[view].when },
+    ageRows.storage.push(ncRow('age-storage', name2, vName, { label: 'Dashboard', v: ncR2(dashAge[view].storage), at: dashAge[view].when },
       { label: 'Inventory Age', v: ncR2(storage), at: 'snapshot ' + at }, 'exact', { off: 'The tile and the screen add storage differently.' }));
   });
+  out.push(...ageRows.units, ...ageRows.storage);
 
   // --- 7. Profit & Margin sales ≈ Sales Dashboard, the same days ---
   NC_VIEWS.forEach(([view, vName]) => {
@@ -364,6 +409,8 @@ function ncRun() {
     // Profit & Margin's own weeks (pfWeeks reads its picker; 4 weeks when the screen has not drawn), over the same rows it adds.
     const weeks = (W === WEEKLY && $('pfWeeks') ? pfWeeks() : ncWeeks(W).slice(-(Number($('pfWeeks') && $('pfWeeks').value) || 4)));
     if (!weeks.length) return out.push(ncSkip(id, name, vName, 'No weeks stored yet.'));
+    const miss = [...ncWMissing(W, ncChans(view), weeks.filter(wWeekDone), 'rev').map(x => x + ' (weekly store)'), ...ncSdMissing(ncChans(view)).map(x => x + ' (Sales Dashboard)')];
+    if (miss.length) return out.push(ncSkip(id, name, vName, `${miss.join(', ')}: sales not loaded for these weeks — not $0.`));
     const from = weeks[0], to = [ncWeekEnd(weeks[weeks.length - 1]), today].sort()[0];
     const a = { label: `Profit & Margin · ${weeks.length} wk`, v: ncWSum(ncWRows(W, view), weeks, 'rev'), at: ncWAt(W) };
     const b = { label: 'Sales Dashboard · ' + (view === 'ALL' ? 'Ridhi + CPC' : vName) + ` · ${sdShort(from)}–${sdShort(to)}`, v: ncSd(ncChans(view), from, to), at: ncSdAt() };
@@ -375,9 +422,98 @@ function ncRun() {
   return out;
 }
 
-// The verdict of a run: how many match, differ on purpose (explained), differ, or could not be checked.
+/* ---------- 5. Overview vs PPC & Organic, split by ad type ----------
+ * Like with like: Sponsored Products against Sponsored Products (the only type PPC & Organic has) — the same spend on both, so
+ * within 1 %. Sponsored Brands and Display are the Overview's alone: shown, not compared. Organic sales are compared with the
+ * documented gap. The window is the finished weeks BOTH screens hold for every brand in view (the newest 13), and the rows say
+ * which. Then each screen's Both against its Ridhi + CPC. */
+const NC_OV = [
+  ['ovw-sp', 'Sponsored Products ad spend: Overview = PPC & Organic'],
+  ['ovw-sb', 'Sponsored Brands ad spend (Overview only)'],
+  ['ovw-sd', 'Sponsored Display ad spend (Overview only)'],
+  ['ovw-total', 'Total ad spend, all types (Overview)'],
+  ['ovw-organic', 'Organic sales: Overview vs PPC & Organic'],
+  ['ovw-both', 'Overview: Both = Ridhi + CPC (all types)'],
+  ['ppc-both13', 'PPC & Organic: Both = Ridhi + CPC (same weeks)'],
+];
+function ncOvChecks(W, adBs) {
+  const out = [];
+  const name = id => (NC_OV.find(x => x[0] === id) || [id, id])[1];
+  const skipAll = (vName, why, ids) => (ids || NC_OV.slice(0, 5).map(x => x[0])).forEach(id => out.push(ncSkip(id, name(id), vName, why)));
+  if (!ncMay('trends') || !ncAdsOk()) { NC_VIEWS.forEach(([, vName]) => skipAll(vName, 'Overview or PPC & Organic is not in your access.')); return out; }
+  const OV = {};
+  adBs.forEach(b => { OV[b] = ncOvDays(b); });
+  const adDays = b => Object.keys(OV[b] || {}).filter(d => OV[b][d].ad).sort();
+  const ovHas = (b, w) => !!OV[b] && ncDays(w).every(d => OV[b][d] && OV[b][d].ad);
+  const ovSalesHas = (b, w) => !!OV[b] && ncDays(w).every(d => OV[b][d] && OV[b][d].sales != null);
+  const ovSum = (bs, weeks, f) => ncR2(bs.reduce((s, b) => s + weeks.reduce((t, w) => t + ncDays(w).reduce((u, d) => u + (((OV[b] || {})[d] || {})[f] || 0), 0), 0), 0));
+  const ppTo = b => (W ? ncWeeks(W).filter(w => ncWHas(W, b, w, 'spend')).pop() : '');
+  const span = weeks => `${wLabel(weeks[0])} → ${wLabel(weeks[weeks.length - 1])} · ${weeks.length} finished wk both screens hold`;
+  const ovAt = bs => bs.map(b => { const d = adDays(b); return `${NC_BRAND[b]} ads ${d.length ? sdShort(d[0]) + '→' + sdShort(d[d.length - 1]) : 'not loaded'}`; }).join(' · ')
+    + (typeof T_MATCH !== 'undefined' && T_MATCH.ads && T_MATCH.ads.at ? ` · matchAds ${T_MATCH.ads.at}` : '');
+  const ppAt = bs => bs.map(b => `${NC_BRAND[b]} to ${ppTo(b) ? wLabel(ppTo(b)) : '—'}`).join(' · ') + (W ? ' · ' + ncWAt(W) : '');
+  const wins = {};
+  NC_VIEWS.forEach(([view, vName]) => {
+    const bs = ncChans(view);
+    if (bs.some(b => !adBs.includes(b))) return skipAll(vName, 'That brand\'s ads are not in your access.');
+    // what is missing, brand by brand — said, never added up as $0
+    const why = [];
+    bs.forEach(b => {
+      if (!adDays(b).length) why.push(`${NC_BRAND[b]}: Overview ad figures not loaded`);
+      if (!W || !ncWeeks(W).some(w => ncWHas(W, b, w, 'spend'))) why.push(`${NC_BRAND[b]}: PPC & Organic ad figures not loaded`);
+    });
+    if (why.length) return skipAll(vName, why.join(' · ') + ' — not $0.');
+    const weeks = ncWeeks(W).filter(w => wWeekDone(w) && bs.every(b => ovHas(b, w) && ncWHas(W, b, w, 'spend'))).slice(-13);
+    if (!weeks.length) return skipAll(vName, `No finished week both screens hold (${ovAt(bs)}; PPC & Organic ${ppAt(bs)}).`);
+    wins[view] = weeks;
+    const sub = span(weeks);
+    const pRows = ncWRows(W, view).filter(r => view !== 'ALL' || r.brand === 'SP' || r.brand === 'CPC');
+    const A = (label, v) => ({ label: `Overview · ${label}`, v, at: ovAt(bs) });
+    const B = (label, v) => ({ label: `PPC & Organic · ${label}`, v, at: ppAt(bs) });
+    const sp = ncRow('ovw-sp', name('ovw-sp'), vName, A('Sponsored Products', ovSum(bs, weeks, 'sp')), B('Sponsored Products', ncWSum(pRows, weeks, 'spend')), 'sp',
+      { off: 'The same Sponsored Products spend should match: the Overview reads Amazon\'s campaign totals (matchAds, else the nightly ads cache), PPC & Organic the advertised-product report per ASIN.' });
+    sp.sub = sub;
+    out.push(sp);
+    const sb = ncNote('ovw-sb', name('ovw-sb'), vName, A('Sponsored Brands', ovSum(bs, weeks, 'sb')), { note: 'Only the Overview has Sponsored Brands (Amazon\'s matchAds). Days before matchAds count none.' });
+    const sd = ncNote('ovw-sd', name('ovw-sd'), vName, A('Sponsored Display', ovSum(bs, weeks, 'sd')), { note: 'Only the Overview has Sponsored Display (Amazon\'s matchAds). Days before matchAds count none.' });
+    const tot = ncNote('ovw-total', name('ovw-total'), vName, A('SP + SB + SD', ncR2(ovSum(bs, weeks, 'sp') + ovSum(bs, weeks, 'sb') + ovSum(bs, weeks, 'sd'))),
+      { note: `What the Overview's Ad Spend row adds up for these weeks. PPC & Organic has Sponsored Products only (${ncMoney(ncWSum(pRows, weeks, 'spend'))}).` });
+    [sb, sd, tot].forEach(r => { r.sub = sub; out.push(r); });
+    // organic: total sales less ad sales, over the same weeks, each screen its own way (the sums floored at 0, as both do)
+    const ovS = bs.every(b => weeks.every(w => ovSalesHas(b, w)));
+    const ppS = bs.every(b => weeks.every(w => ncWHas(W, b, w, 'rev') && ncWHas(W, b, w, 'adSales')));
+    const org = ncRow('ovw-organic', name('ovw-organic'), vName,
+      A('sales − ad sales', ovS ? Math.max(0, ncR2(ovSum(bs, weeks, 'sales') - ovSum(bs, weeks, 'adSales'))) : null),
+      B('sales − ad sales', ppS ? Math.max(0, ncR2(ncWSum(pRows, weeks, 'rev') - ncWSum(pRows, weeks, 'adSales'))) : null), 'organic',
+      { missing: `${!ovS ? 'Overview sales' : 'PPC & Organic sales or ad sales'} not loaded for every one of these weeks — not $0.`,
+        off: 'The Overview takes Seller Central\'s sales and every ad type\'s 7-day ad sales; PPC & Organic the Orders workbook and Sponsored Products\' 30-day ad sales.' });
+    org.sub = sub;
+    out.push(org);
+  });
+  // each screen's Both = its Ridhi + CPC, over the Both window
+  if (adBs.length === 2) {
+    const weeks = wins.ALL;
+    if (!weeks) ['ovw-both', 'ppc-both13'].forEach(id => out.push(ncSkip(id, name(id), 'Both', (out.find(r => r.view === 'Both' && r.status === 'skip') || {}).why || 'Not loaded yet.')));
+    else {
+      const sub = span(weeks);
+      const all = f => ncR2(['sp', 'sb', 'sd'].reduce((s, k) => s + ovSum(['SP', 'CPC'], weeks, k), 0));
+      const one = b => ncR2(['sp', 'sb', 'sd'].reduce((s, k) => s + ovSum([b], weeks, k), 0));
+      const r1 = ncRow('ovw-both', name('ovw-both'), 'Both', { label: 'Overview · Both', v: all(), at: ovAt(['SP', 'CPC']) },
+        { label: 'Overview · Ridhi + CPC', v: ncR2(one('SP') + one('CPC')), at: ovAt(['SP', 'CPC']) }, 'exact', { off: 'The Overview\'s Both is not its two brands added.' });
+      const n = Object.values(W.rows).filter(r => r.brand !== 'SP' && r.brand !== 'CPC').length;
+      const r2 = ncRow('ppc-both13', name('ppc-both13'), 'Both', { label: 'PPC & Organic · Both (every row)', v: ncWSum(ncWRows(W, 'ALL'), weeks, 'spend'), at: ppAt(['SP', 'CPC']) },
+        { label: 'PPC & Organic · Ridhi + CPC', v: ncR2(ncWSum(ncWRows(W, 'SP'), weeks, 'spend') + ncWSum(ncWRows(W, 'CPC'), weeks, 'spend')), at: ppAt(['SP', 'CPC']) }, 'exact',
+        { off: `"All" also counts ${n} row${n === 1 ? '' : 's'} with no brand — those show in Both but in neither brand.` });
+      [r1, r2].forEach(r => { r.sub = sub; out.push(r); });
+    }
+  }
+  return out;
+}
+
+// The verdict of a run: how many match, differ on purpose (explained), differ, could not be checked (not loaded / no access), or are
+// shown only (one screen has the figure).
 function ncCounts(res) {
-  const c = { ok: 0, info: 0, warn: 0, skip: 0 };
+  const c = { ok: 0, info: 0, warn: 0, skip: 0, note: 0 };
   (res || []).forEach(r => { c[r.status] = (c[r.status] || 0) + 1; });
   return c;
 }
@@ -394,7 +530,18 @@ async function ncLoad() {
     await tMatchEnsure();                                             // Seller Central's totals: two cache reads
   })().catch(() => {}));
   if (ncAdsOk() || ncMay('profit')) jobs.push((async () => { if (!ncW()) await dashLoadAds(); })().catch(() => {}));
-  if (ncMay('trends')) jobs.push((async () => { if (!TREND.at && !Object.keys(TREND.d.SP || {}).length && !Object.keys(TREND.d.CPC || {}).length) await loadTrends(); })().catch(() => {}));
+  // the Overview: its saved snapshot, and the caches it lays over it when it opens (ncOvDays) — each a read, kept in NC.ov, never saved
+  if (ncMay('trends')) jobs.push((async () => {
+    const got = await Promise.all([
+      !TREND.at && !Object.keys(TREND.d.SP || {}).length && !Object.keys(TREND.d.CPC || {}).length ? loadTrends() : null,
+      baCall({ cache: 'ads' }).catch(() => null),
+      baCall({ cache: 'daily' }).catch(() => null),
+      tMatchEnsure().catch(() => null),
+    ]);
+    const [, ads, daily] = got;
+    if (ads && ads.data && ads.data.d) { NC.ov.ads = ads.data.d; NC.ov.adsAt = ads.data.at || ''; }
+    if (daily && daily.data && daily.data.d) { NC.ov.daily = daily.data.d; NC.ov.dailyAt = daily.data.at || ''; }
+  })().catch(() => {}));
   if (ncMay('age')) jobs.push((async () => { if (!AGE_LOADED) await loadAgeCache(); })().catch(() => {}));
   await Promise.all(jobs);
 }
@@ -469,7 +616,12 @@ function ncRender() {
   const val = (r, side) => (r.unit === 'n' ? ncNum(side.v) : ncMoney(side.v));
   const mark = r => (r.status === 'ok' ? '<span class="nc-mark is-ok">✓ match</span>'
     : r.status === 'info' ? '<span class="nc-mark is-ok">✓ explained</span>'
-      : r.status === 'warn' ? '<span class="nc-mark is-warn">⚠ differs</span>' : '<span class="nc-mark is-skip">not checked</span>');
+      : r.status === 'warn' ? '<span class="nc-mark is-warn">⚠ differs</span>'
+        : r.status === 'note' ? '<span class="nc-mark is-note">shown only</span>'
+          : '<span class="nc-mark is-skip">' + (/access/.test(r.why || '') ? 'no access' : 'not loaded') + '</span>');
+  // a side with no data: never $0 — "— not loaded" (or "— not in your access"), grey
+  const none = r => `<span class="nc-na">— ${/access/.test(r.why || '') ? 'not in your access' : 'not loaded'}</span>`;
+  const side = (r, sd) => (!sd ? none(r) : `${sd.v == null ? none(r) : val(r, sd)}<span class="nc-sub">${ncEsc(sd.label)}</span>${sd.at ? `<span class="nc-sub">${ncEsc(sd.at)}</span>` : ''}`);
   // one heading row per check (its name and the allowed gap), then a row per brand
   let rows = '', lastId = '';
   (NC.res || []).forEach(r => {
@@ -479,12 +631,14 @@ function ncRender() {
       lastId = r.id;
     }
     rows += r.status === 'skip'
-      ? `<tr class="is-skip"><td>${ncEsc(r.view)}</td><td colspan="4" class="muted">—</td><td>${mark(r)}</td><td class="nc-why">${ncEsc(r.why)}</td></tr>`
+      ? `<tr class="is-skip"><td>${ncEsc(r.view)}</td><td class="num">${side(r, r.a)}</td><td class="num">${side(r, r.b)}</td><td class="num">—</td><td class="num">—</td><td>${mark(r)}</td><td class="nc-why">${ncEsc(r.why)}</td></tr>`
+      : r.status === 'note'
+      ? `<tr class="is-note"><td>${ncEsc(r.view)}${r.sub ? `<span class="nc-sub">${ncEsc(r.sub)}</span>` : ''}</td><td class="num">${side(r, r.a)}</td><td class="num"><span class="nc-na">— Overview only</span></td><td class="num">—</td><td class="num">—</td><td>${mark(r)}</td><td class="nc-why">${ncEsc(r.why)}</td></tr>`
       : `<tr class="is-${r.status === 'warn' ? 'warn' : 'ok'}"><td>${ncEsc(r.view)}${r.sub ? `<span class="nc-sub">${ncEsc(r.sub)}</span>` : ''}</td>`
         + `<td class="num">${val(r, r.a)}<span class="nc-sub">${ncEsc(r.a.label)}</span><span class="nc-sub">${ncEsc(r.a.at || '')}</span></td>`
         + `<td class="num">${val(r, r.b)}<span class="nc-sub">${ncEsc(r.b.label)}</span><span class="nc-sub">${ncEsc(r.b.at || '')}</span></td>`
         + `<td class="num">${r.unit === 'n' ? ncNum(r.diff) : ncMoney(r.diff)}</td><td class="num">${pct(r.pct)}</td>`
-        + `<td>${mark(r)}</td><td class="nc-why">${ncEsc(r.why || (r.status === 'ok' ? 'Same number on both screens.' : ''))}</td></tr>`;
+        + `<td>${mark(r)}</td><td class="nc-why">${ncEsc(r.why || (r.status !== 'ok' ? '' : Math.abs(r.diff) < (r.unit === 'n' ? 0.5 : 0.005) ? 'Same number on both screens.' : 'Within the allowed gap (' + r.tol.split(' — ')[0] + ').'))}</td></tr>`;
   });
   const rule = x => `<details><summary><b>${ncEsc(x.name)}</b><span>${ncEsc(x.line)}</span></summary><dl>`
     + [['Screens', x.screens], ['Data source', x.source], ['Formula', x.formula], ['Day cut-off', x.day], ['Included / excluded', x.incl],
@@ -496,8 +650,8 @@ function ncRender() {
     <div class="nc-kpis">
       ${kpi('is-ok', '✓ Matching', NC.res ? ncNum(c.ok) : '—', 'exactly the same')}
       ${kpi('is-ok', '✓ Explained', NC.res ? ncNum(c.info) : '—', 'differ on purpose, within the allowed gap')}
-      ${kpi(c.warn ? 'is-warn' : '', '⚠ Differing', NC.res ? ncNum(c.warn) : '—', c.skip ? `${c.skip} not checked (not loaded or not in your access)` : 'outside the allowed gap')}
-      ${kpi('', 'Last checked', NC.at ? ncHm(NC.at) : busy ? '…' : '—', NC.at ? new Date(NC.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · this browser' : 'checking…')}
+      ${kpi(c.warn ? 'is-warn' : '', '⚠ Differing', NC.res ? ncNum(c.warn) : '—', 'outside the allowed gap')}
+      ${kpi('', 'Last checked', NC.at ? ncHm(NC.at) : busy ? '…' : '—', NC.at ? new Date(NC.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · this browser' + (c.skip ? ` · ${c.skip} not loaded / no access` : '') + (c.note ? ` · ${c.note} shown only` : '') : 'checking…')}
     </div>
     <section class="nc-sec"><h2>Checks</h2><p class="muted">Ridhi, CPC and Both. "Explained" means the gap is the documented reason on the right and within the allowed gap.</p>
       <div class="nc-scroll"><table class="nc-tbl"><thead><tr><th>Brand</th><th class="num">Value A</th><th class="num">Value B</th><th class="num">Difference</th><th class="num">%</th><th>Result</th><th>Why</th></tr></thead>

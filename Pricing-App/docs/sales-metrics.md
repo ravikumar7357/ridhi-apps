@@ -480,9 +480,20 @@ Each of these is a place two screens can disagree. The ones marked "checked belo
 | Dashboard Ad spend (latest week) = PPC & Organic | Dashboard (DASH_CALC.ads) | PPC & Organic's latest-week card sums | exact, to the cent (and the same TACoS) | — |
 | PPC & Organic Ad spend: Both = Ridhi + CPC | every row | Ridhi rows + CPC rows | exact, to the cent | rows with no brand count in Both only |
 | PPC weekly sales vs Sales Dashboard (last finished week) | WEEKLY rev | sdSum, same 7 days (Ridhi + CPC for Both) | ±2 % — Seller Central's totals vs the Orders workbook | workbook per ASIN vs Seller Central's totals |
-| Overview ad spend vs PPC & Organic (13 finished weeks inside the Overview's ad window) | TREND spend | WEEKLY spend | Overview ≥ PPC & Organic (all ad types vs Sponsored Products); equal within 1 % when Overview has only SP for those days | Overview adds Sponsored Brands and Display |
+| Sponsored Products ad spend: Overview = PPC & Organic | Overview SP (matchAds sp, else the nightly ads cache) | WEEKLY spend (SP) | within 1 % — the same Sponsored Products spend on both screens | — |
+| Sponsored Brands / Sponsored Display ad spend | Overview (matchAds sb / sd) | — | shown only — no other screen has it | PPC & Organic has Sponsored Products only |
+| Total ad spend, all types | Overview SP + SB + SD | — | shown only — no other screen has it | — |
+| Organic sales: Overview vs PPC & Organic | Overview: sales − ad sales | PPC & Organic: sales − ad sales | ±5 % — Overview: Seller Central sales less all-type ad sales (7-day); PPC & Organic: workbook sales less SP ad sales (30-day) | Seller Central sales and every type's 7-day ad sales vs workbook sales and SP 30-day ad sales |
+| Overview: Both = Ridhi + CPC; PPC & Organic: Both = Ridhi + CPC (same weeks) | each screen's Both | its Ridhi + CPC | exact, to the cent | PPC & Organic's Both also counts rows with no brand |
 | Dashboard Aged 181+ units and storage $ = Inventory Age | DASH_CALC.age | Inventory Age's buckets (no search) | exact, to the cent | — |
 | Profit & Margin sales vs Sales Dashboard (its weeks) | WEEKLY rev over pfWeeks() | sdSum over the same days, to today | ±2 % — Seller Central's totals vs the Orders workbook | workbook vs Seller Central; the running week |
+
+The Overview rows use only the FINISHED weeks both screens hold for every brand in view (the newest 13), and say which. The
+Overview's figures are rebuilt read-only from what the Overview lays over its saved snapshot when it opens: the nightly daily and ads
+caches, then Amazon's matchBiz / matchAds totals (the only source that splits the ad types). Nothing is saved.
+
+**Missing is not zero.** A side with no data (a brand not loaded, a week whose figures have not arrived) shows "— not loaded" with
+the reason, in grey — never $0 and never "differs" — on every check. Not-loaded and shown-only rows are not counted in the chip.
 
 Each row shows both values, the difference in $ and %, ✓ / ⚠, the reason, and when each side's data is from. A check whose
 data is not loaded, or which the account may not see, says so and is not counted. Numbers Check reads only what the screens

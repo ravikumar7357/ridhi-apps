@@ -5248,6 +5248,10 @@
   .nc-mark.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
   .nc-mark.is-warn{background:var(--act-bg);color:var(--act-ink)}
   .nc-mark.is-skip{background:var(--soft);color:var(--muted)}
+  .nc-mark.is-note{background:var(--brand-bg);color:var(--brand-ink)}
+  .nc-na{color:var(--faint);font-weight:500;font-style:italic}
+  .nc-tbl tr.is-note td:first-child{box-shadow:inset 3px 0 0 var(--brand)}
+  .nc-tbl tr.is-skip td:first-child{box-shadow:inset 3px 0 0 var(--line)}
   .nc-rules{display:grid;gap:6px}
   .nc-rules details{border:1px solid var(--line);border-radius:10px;background:var(--card)}
   .nc-rules summary{display:flex;gap:10px;align-items:baseline;padding:9px 12px;cursor:pointer;list-style:none;font-size:13px;color:var(--ink)}

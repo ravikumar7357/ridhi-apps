@@ -244,13 +244,30 @@ console.log('== 3. the Dashboard\'s sales = the Sales Dashboard\'s (worked out i
 /* --- PPC & Organic, Overview, Inventory Age fixtures --- */
 const WK = { weeks: ['2026-10-11', '2026-10-18', '2026-10-25'], at: '2026-11-01 05:10', adAt: '2026-11-01 07:40',
   rows: {
-    A1: { brand: 'SP', weeks: { '2026-10-11': { u: 0, rev: 0, spend: 25 }, '2026-10-18': { u: 0, rev: 0, spend: 26 }, '2026-10-25': { u: 10, rev: 420.55, spend: 30, adSales: 120, sessions: 200 } } },
-    C1: { brand: 'CPC', weeks: { '2026-10-11': { spend: 10 }, '2026-10-18': { spend: 10 }, '2026-10-25': { u: 5, rev: 61, spend: 20, adSales: 40, sessions: 100 } } },
+    A1: { brand: 'SP', weeks: { '2026-10-11': { u: 0, rev: 0, spend: 25, adSales: 0 }, '2026-10-18': { u: 0, rev: 0, spend: 26, adSales: 0 }, '2026-10-25': { u: 10, rev: 420.55, spend: 30, adSales: 120, sessions: 200 } } },
+    C1: { brand: 'CPC', weeks: { '2026-10-11': { rev: 0, spend: 10, adSales: 0 }, '2026-10-18': { rev: 0, spend: 10, adSales: 0 }, '2026-10-25': { u: 5, rev: 61, spend: 20, adSales: 40, sessions: 100 } } },
     X1: { brand: '', weeks: { '2026-10-25': { u: 1, rev: 10, spend: 5 } } },
   } };
 const TR = { at: '2026-11-01T00:10:00Z', adAt: '2026-11-01', adFrom: '2026-08-01', adTo: '2026-10-31', pending: [], adDone: {},
   d: { SP: { '2026-10-12': [0, 0, 0, 0, 0, 25, 0, 0], '2026-10-19': [0, 0, 0, 0, 0, 26, 0, 0], '2026-10-26': [0, 0, 0, 0, 0, 35, 0, 0] },
-    CPC: { '2026-10-12': [0, 0, 0, 0, 0, 10, 0, 0], '2026-10-19': [0, 0, 0, 0, 0, 10, 0, 0], '2026-10-26': [0, 0, 0, 0, 0, 18, 0, 0] } } };
+    CPC: {} } };   // the saved Overview snapshot holds no CPC — as on real data, where the old check added that up as $0
+// What the Overview lays over its snapshot when it opens (read-only here): the nightly ads cache (Sponsored Products: [impr, clicks,
+// spend, ad orders, ad sales]) for 11–24 Oct, Amazon's own split totals (matchAds: sp / sb / sd, each [impr, clicks, cost, sales, orders])
+// for 25–31 Oct, and the nightly daily cache (sales) — every day of the three weeks, for both brands.
+const dayList = (from, n) => Array.from({ length: n }, (_, i) => new Date(Date.parse(from + 'T00:00:00Z') + i * 864e5).toISOString().slice(0, 10));
+const OVADS = { SP: {}, CPC: {} };
+dayList('2026-10-11', 14).forEach(d => {
+  OVADS.SP[d] = d === '2026-10-11' ? [100, 5, 25, 1, 0] : d === '2026-10-18' ? [100, 5, 26, 1, 0] : [0, 0, 0, 0, 0];
+  OVADS.CPC[d] = d === '2026-10-11' || d === '2026-10-18' ? [50, 2, 10, 0, 0] : [0, 0, 0, 0, 0];
+});
+const MATCHADS = { at: '2026-11-01 06:00', d: { SP: {}, CPC: {} } };
+dayList('2026-10-25', 7).forEach(d => {
+  const z = [0, 0, 0, 0, 0];
+  MATCHADS.d.SP[d] = d === '2026-10-26' ? { sp: [1000, 40, 30.2, 100, 9], sb: [200, 8, 5, 20, 2] } : d === '2026-10-27' ? { sp: z, sd: [300, 3, 2, 0, 0] } : { sp: z };
+  MATCHADS.d.CPC[d] = d === '2026-10-26' ? { sp: [500, 20, 18, 40, 4] } : { sp: z };
+});
+const OVDAILY = { SP: {}, CPC: {} };
+dayList('2026-10-11', 21).forEach(d => { OVDAILY.SP[d] = SDD.SP[d] || [0, 0, 0]; OVDAILY.CPC[d] = SDD.CPC[d] || [0, 0, 0]; });
 const AGE_COLS = ['inv-age-0-to-90-days', 'inv-age-91-to-180-days', 'inv-age-181-to-270-days', 'inv-age-271-to-365-days', 'inv-age-365-plus-days',
   'inv-age-0-to-30-days', 'inv-age-31-to-60-days', 'inv-age-61-to-90-days'];
 const ageRow = (sku, avail, storage, a) => ({ sku, asin: 'B' + sku, parent: 'P' + sku, product: sku, available: avail, storage, age: Object.fromEntries(AGE_COLS.map((c, i) => [c, a[i] || 0])) });
@@ -260,7 +277,7 @@ const AGEFIX = `AGE.SP = { cols: ${JSON.stringify(AGE_COLS)}, at: new Date('2026
 function fullFixture(C) {
   withSales(C, 'SP');
   C.run(`WEEKLY.weeks = ${JSON.stringify(WK.weeks)}; WEEKLY.rows = ${JSON.stringify(WK.rows)}; WEEKLY.at = '${WK.at}'; WEEKLY.adAt = '${WK.adAt}';`);
-  C.run(`TREND = ${JSON.stringify(TR)};`);
+  C.run(`TREND = ${JSON.stringify(TR)}; NC.ov.ads = ${JSON.stringify(OVADS)}; NC.ov.daily = ${JSON.stringify(OVDAILY)}; T_MATCH.ads = ${JSON.stringify(MATCHADS)};`);
   C.run(AGEFIX);
 }
 
@@ -373,20 +390,32 @@ let checks;
   eq('PPC weekly sales vs Sales Dashboard (Oct 25-31): Ridhi exact ✓', [st('ppc-sales', 'Ridhi'), get('ppc-sales', 'Ridhi').a.v, get('ppc-sales', 'Ridhi').b.v], ['ok', 420.55, 420.55]);
   eq('…CPC 61 vs 60 (+1.67 %) explained', [st('ppc-sales', 'CPC'), Math.round(get('ppc-sales', 'CPC').pct * 100) / 100], ['info', 1.67]);
   eq('…Both 491.55 vs 480.55 (+2.29 %) ⚠', [st('ppc-sales', 'Both'), Math.round(get('ppc-sales', 'Both').pct * 100) / 100], ['warn', 2.29]);
-  eq('Overview vs PPC ad spend (3 finished weeks): Ridhi 86 vs 81 explained (all types ≥ SP)', [st('ovw-spend', 'Ridhi'), get('ovw-spend', 'Ridhi').a.v, get('ovw-spend', 'Ridhi').b.v], ['info', 86, 81]);
-  eq('…CPC 38 vs 40: Overview LOWER than PPC ⚠', [st('ovw-spend', 'CPC'), get('ovw-spend', 'CPC').a.v, get('ovw-spend', 'CPC').b.v], ['warn', 38, 40]);
-  eq('…Both 124 vs 121 explained', [st('ovw-spend', 'Both'), get('ovw-spend', 'Both').a.v, get('ovw-spend', 'Both').b.v], ['info', 124, 121]);
+  const vals = (id, v) => [st(id, v), get(id, v).a && get(id, v).a.v, get(id, v).b && get(id, v).b.v];
+  eq('Overview: the saved snapshot holds no CPC — CPC still comes from the caches the Overview lays over it (not $0)', vals('ovw-sp', 'CPC').slice(1), [38, 40]);
+  eq('Sponsored Products: Ridhi Overview 25 + 26 + 30.20 = 81.20 vs PPC & Organic 81 (+0.25 %) ✓ within 1 %', vals('ovw-sp', 'Ridhi'), ['ok', 81.2, 81]);
+  eq('…CPC 38 vs 40 (−5 %) ⚠', vals('ovw-sp', 'CPC'), ['warn', 38, 40]);
+  eq('…Both 119.20 vs 121 (−1.49 %) ⚠', vals('ovw-sp', 'Both'), ['warn', 119.2, 121]);
+  ok('…the window is the 3 finished weeks both screens hold, and says so', /^Oct 11-17 → Oct 25-31 · 3 finished wk both screens hold$/.test(get('ovw-sp', 'Ridhi').sub), get('ovw-sp', 'Ridhi').sub);
+  eq('Sponsored Brands (Overview only, shown): Ridhi 5 · CPC 0 · Both 5', ['Ridhi', 'CPC', 'Both'].map(v => [st('ovw-sb', v), get('ovw-sb', v).a.v]), [['note', 5], ['note', 0], ['note', 5]]);
+  eq('Sponsored Display (Overview only, shown): Ridhi 2 · CPC 0 · Both 2', ['Ridhi', 'CPC', 'Both'].map(v => [st('ovw-sd', v), get('ovw-sd', v).a.v]), [['note', 2], ['note', 0], ['note', 2]]);
+  eq('Total ads, all types (Overview, shown): 88.20 · 38 · 126.20', ['Ridhi', 'CPC', 'Both'].map(v => [st('ovw-total', v), get('ovw-total', v).a.v]), [['note', 88.2], ['note', 38], ['note', 126.2]]);
+  eq('Organic sales: Ridhi 420.55 − 120 = 300.55 on both ✓', vals('ovw-organic', 'Ridhi'), ['ok', 300.55, 300.55]);
+  eq('…CPC Overview 60 − 40 = 20 vs PPC 61 − 40 = 21 (−4.8 %) explained', vals('ovw-organic', 'CPC'), ['info', 20, 21]);
+  eq('…Both 320.55 vs 321.55 (−0.3 %) explained', vals('ovw-organic', 'Both'), ['info', 320.55, 321.55]);
+  eq('Overview: Both = Ridhi + CPC (126.20) ✓', vals('ovw-both', 'Both'), ['ok', 126.2, 126.2]);
+  eq('PPC & Organic, same 3 weeks: Both (every row) 126 ≠ Ridhi + CPC 121 ⚠ (a row with no brand)', vals('ppc-both13', 'Both'), ['warn', 126, 121]);
   eq('Inventory Age tile = screen: units ✓ ✓ ✓', ['Ridhi', 'CPC', 'Both'].map(v => st('age-units', v)), ['ok', 'ok', 'ok']);
   eq('…storage ✓ ✓ ✓', ['Ridhi', 'CPC', 'Both'].map(v => st('age-storage', v)), ['ok', 'ok', 'ok']);
   eq('Profit & Margin sales vs Sales Dashboard (its 4-week pick = the 3 stored weeks, 11–31 Oct): ✓ explained ⚠', ['Ridhi', 'CPC', 'Both'].map(v => st('pm-sales', v)), ['ok', 'info', 'warn']);
   const n = C.run('ncCounts(ncRun())');
-  eq('counts: 15 match · 6 explained · 4 differ · 0 not checked', [n.ok, n.info, n.warn, n.skip], [15, 6, 4, 0]);
+  eq('counts: 18 match · 6 explained · 6 differ · 9 shown only · 0 not loaded', [n.ok, n.info, n.warn, n.note, n.skip], [18, 6, 6, 9, 0]);
   // the screen and the chip
   C.run("NC.res = ncRun(); NC.at = Date.now(); $('paneNcheck'); ncRender(); ncChipPaint();");
   const page = T(C, 'ncPane');
-  ok('the page: summary cards ✓ Matching 15 · ✓ Explained 6 · ⚠ Differing 4', /✓ Matching 15 .*✓ Explained 6 .*⚠ Differing 4/.test(page), page.slice(0, 300));
+  ok('the page: summary cards ✓ Matching 18 · ✓ Explained 6 · ⚠ Differing 6 · 9 shown only', /✓ Matching 18 .*✓ Explained 6 .*⚠ Differing 6 .*9 shown only/.test(page), page.slice(0, 400));
+  ok('…a shown-only row says "— Overview only" and "shown only"', /— Overview only — — shown only Only the Overview has Sponsored Brands/.test(page));
   ok('the page: the checks table and the rule book with its risk list', /Checks .*Value A .*Value B .*Rule book .*Worked out in more than one place/.test(page));
-  eq('chip on both pages: "⚠ 4 differences", amber', [C.$('ncChipDash').textContent, C.$('ncChipSd').textContent, C.$('ncChipDash').classList.contains('is-warn'), C.$('ncChipDash').hidden], ['⚠ 4 differences', '⚠ 4 differences', true, false]);
+  eq('chip on both pages: "⚠ 6 differences", amber', [C.$('ncChipDash').textContent, C.$('ncChipSd').textContent, C.$('ncChipDash').classList.contains('is-warn'), C.$('ncChipDash').hidden], ['⚠ 6 differences', '⚠ 6 differences', true, false]);
   C.run("NC.res = NC.res.filter(r => r.status !== 'warn'); ncChipPaint();");
   ok('…all matching: "🔒 Numbers checked ✓ HH:MM", green', /^🔒 Numbers checked ✓ \d\d:\d\d$/.test(C.$('ncChipSd').textContent) && !C.$('ncChipSd').classList.contains('is-warn'), C.$('ncChipSd').textContent);
   C.run("TAB_OK = t => t !== 'ncheck'; ncChipPaint();");
@@ -395,6 +424,41 @@ let checks;
   C.run("TAB_OK = t => ['sales', 'ncheck', 'dash'].includes(t);");
   const only = C.run('ncRun()');
   eq('a Sales-only account: only the sales checks run; the rest say "not in your access"', [...new Set(only.filter(r => r.status !== 'skip').map(r => r.id))], ['sales-mtd', 'sales-ytd']);
+}
+
+console.log('== 8c. a brand not loaded (the real-data case: Overview CPC) — "— not loaded", never $0, never "differs" ==');
+{
+  const C = app(NOW_A);
+  fullFixture(C);
+  C.run('delete NC.ov.ads.CPC; delete T_MATCH.ads.d.CPC;');          // the Overview's CPC ad figures did not arrive
+  let res = C.run('ncRun()');
+  const get = (id, view) => res.find(r => r.id === id && r.view === view) || {};
+  eq('Overview Sponsored Products, CPC: not loaded — no value, not $0', [get('ovw-sp', 'CPC').status, get('ovw-sp', 'CPC').a], ['skip', null]);
+  ok('…the reason names the brand and the side', /^CPC: Overview ad figures not loaded — not \$0\.$/.test(get('ovw-sp', 'CPC').why), get('ovw-sp', 'CPC').why);
+  eq('…every CPC and Both Overview row is "not loaded" (SP, SB, SD, total, organic, and Both = Ridhi + CPC on each screen)',
+    ['ovw-sp', 'ovw-sb', 'ovw-sd', 'ovw-total', 'ovw-organic'].flatMap(id => ['CPC', 'Both'].map(v => get(id, v).status)).concat([get('ovw-both', 'Both').status, get('ppc-both13', 'Both').status]), Array(12).fill('skip'));
+  eq('…Ridhi still checks: Sponsored Products ✓', get('ovw-sp', 'Ridhi').status, 'ok');
+  ok('…no Overview row for CPC or Both says "differs"', !res.some(r => r.status === 'warn' && /^(ovw-|ppc-both13)/.test(r.id) && r.view !== 'Ridhi'));
+  C.run("NC.res = ncRun(); NC.at = Date.now(); ncRender();");
+  const page = strip(C.$('ncPane').innerHTML);
+  const at = page.indexOf('Sponsored Products ad spend');
+  ok('the page shows "— not loaded" and the reason for CPC, never $0.00', /CPC — not loaded — not loaded — — not loaded CPC: Overview ad figures not loaded — not \$0\./.test(page.slice(at, at + 1200)), page.slice(at, at + 1200));
+  // the same rule on every other check: no CPC sales on the Sales Dashboard, no CPC Inventory Age snapshot
+  C.run('delete SD.d.CPC; AGE.CPC = null;');
+  res = C.run('ncRun()');
+  eq('Sales MTD / YTD, CPC and Both: not loaded', ['sales-mtd', 'sales-ytd'].flatMap(id => ['CPC', 'Both'].map(v => get(id, v).status)), ['skip', 'skip', 'skip', 'skip']);
+  ok('…"CPC sales not loaded"', /^CPC sales not loaded/.test(get('sales-mtd', 'CPC').why), get('sales-mtd', 'CPC').why);
+  eq('Inventory Age, CPC and Both: not loaded (not 0 units)', ['age-units', 'age-storage'].flatMap(id => ['CPC', 'Both'].map(v => get(id, v).status)), ['skip', 'skip', 'skip', 'skip']);
+  eq('…Ridhi still checks', [get('sales-mtd', 'Ridhi').status, get('age-units', 'Ridhi').status], ['ok', 'ok']);
+  eq('PPC weekly sales vs Sales Dashboard, CPC: not loaded (no CPC days on the Sales Dashboard)', get('ppc-sales', 'CPC').status, 'skip');
+  C.run('NC.res = ncRun(); ncChipPaint();');
+  eq('the chip counts only real differences (a not-loaded row is not a difference)', C.$('ncChipDash').textContent, (n => '⚠ ' + n + ' difference' + (n === 1 ? '' : 's'))(C.run("NC.res.filter(r => r.status === 'warn').length")));
+  // a running week whose ads have not landed: not loaded, not $0
+  const D = app(NOW_A);
+  fullFixture(D);
+  D.run("WEEKLY.weeks.push('2026-11-01'); WEEKLY.rows.A1.weeks['2026-11-01'] = { u: 1, rev: 50 }; WEEKLY.rows.C1.weeks['2026-11-01'] = { u: 1, rev: 10 };");
+  const r2 = D.run('ncRun()').find(r => r.id === 'ads-week' && r.view === 'Ridhi');
+  ok('Dashboard Ad spend for a running week with no ad report yet: not loaded ("ads land 1–2 days late"), not "$0 = $0"', r2.status === 'skip' && /no ad figures for Nov 1-7 yet .*ads land 1–2 days late/.test(r2.why), r2.status + ' ' + r2.why);
 }
 
 console.log('== 8b. what a check reads: caches and Firestore only — no write, no Amazon, no AI ==');
@@ -411,7 +475,7 @@ console.log('== 8b. what a check reads: caches and Firestore only — no write, 
   return Promise.resolve().then(async () => {
     for (let i = 0; i < 50; i++) await new Promise(r => setImmediate(r));
     const res = C.run('NC.res');
-    eq('backend calls: only cache reads (daily, matchBiz, matchAds)', calls.map(p => JSON.stringify(p)).sort(), ['{"cache":"daily"}', '{"cache":"matchAds"}', '{"cache":"matchBiz"}']);
+    eq('backend calls: only cache reads (daily, ads, matchBiz, matchAds)', [...new Set(calls.map(p => JSON.stringify(p)))].sort(), ['{"cache":"ads"}', '{"cache":"daily"}', '{"cache":"matchAds"}', '{"cache":"matchBiz"}']);
     ok('Firestore: only reads (audit/weekly, audit/trends, age/SP, age/CPC)', ['audit/weekly', 'audit/trends', 'age/SP', 'age/CPC'].every(x => reads.includes(x)), reads.join(', '));
     eq('no write of any kind', writes, []);
     ok('…and it still checked the sales numbers from the nightly cache', res && res.some(r => r.id === 'sales-mtd' && r.status === 'ok'), res && res.map(r => r.id + ':' + r.status).join(' '));
