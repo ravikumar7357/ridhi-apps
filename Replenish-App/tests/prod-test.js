@@ -22566,6 +22566,21 @@ console.log('\n== the vendor portal: a Completed tab (Ravi, 28 Sep: "jo vendor c
   A.setVP(Object.assign({}, A.VP(), { tab: 'done' }));
   A.renderVp();
   ok('the Completed tab draws the finished line and not the open one', /ZZDONE-6060/.test(els.vpBody.innerHTML) && !/ZZOPEN-6060/.test(els.vpBody.innerHTML));
+  /* COMPLETED AS CARDS (Ravi, 21 Nov): a finished bulk order follows the View box; a finished custom line keeps its table. */
+  const bulk = { id: 'vpo_bulk_1', orderNo: 'VPO-BULK-1', orderType: 'cut', status: 'In Production', vendorName: 'RBP-Bagru', orderDate: '12/09/2026',
+    lines: [{ lineId: 'b1', sku: 'BKDONE-6060', qty: 4, vendorQty: 4, kind: 'cut', color: 'Indigo', size: '60x60' },
+      { lineId: 'b2', sku: 'BKOPEN-6060', qty: 4, vendorQty: 1, kind: 'cut', color: 'Indigo', size: '60x60' }] };
+  const wasView = els.vpView.value;
+  A.setVP(Object.assign({}, A.VP(), { rows: [bulk, shop], tab: 'done' }));
+  els.vpView.value = 'board'; A.renderVp();
+  const board = els.vpBody.innerHTML;
+  ok('Completed on the colour board: the finished bulk line is on a card, the open one is not',
+    /class="vpb-card"/.test(board) && /BKDONE-6060/.test(board) && !/BKOPEN-6060/.test(board), board.slice(0, 300));
+  ok('…and the finished custom line is still drawn, in its own table', /ZZDONE-6060/.test(board) && !/ZZOPEN-6060/.test(board));
+  els.vpView.value = 'orders'; A.renderVp();
+  ok('Completed with View = orders: one card per finished bulk order',
+    /data-vporder="vpo_bulk_1"/.test(els.vpBody.innerHTML) && /BKDONE-6060/.test(els.vpBody.innerHTML) && !/BKOPEN-6060/.test(els.vpBody.innerHTML));
+  els.vpView.value = wasView;
   A.setVP(wasVP); ME.admin = wasAdmin;
 }
 console.log('\n== never more accepted than the order (Ravi, 28 Sep: "accept sirf order ke equal hi ho … dikhay ki usne delivery itne ka diya")');
