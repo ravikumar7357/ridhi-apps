@@ -1302,47 +1302,149 @@ function lrTitleFix(row, ctx, o) {
   const lenRule = (cfg.issues || []).find(i => i.detector === 'title_length' && i.on !== false);
   const max = Math.min(+o.max || 75, lenRule && +(lenRule.params || {}).max ? +lenRule.params.max : 75);
   let held = '';
+  const pre = t;                                     // the title with its real mistakes corrected — what any shortening starts from
   if (t.length > max) {
     const own = lrSwFacts(r, cfg, null, { title: t }).colour;
     const fl = Object.assign({}, f, { colour: [f.colour, own].find(c => c && String(c).split(/\s+/).some(w => w.length > 2 && lrHas(t, w))) || f.colour });
-    const was = t;
-    const min = lenRule && +(lenRule.params || {}).min || 0;
-    // the suggestion-words rule: its filler words, then the 74–75 short forms — never the product's own name, the brand, the colour or the
-    // size (protected there); "Inch" never goes
-    const sw = x => {
-      let s = lrSuggestWords(x, { mode: 'title', facts: fl, fits: y => y.length <= max, shortFrom: lrAllow(cfg).shortFrom });
-      if (/\bInch\b/.test(x) && !/\bInch\b/.test(s.after)) s = lrSuggestWords(x, { mode: 'title', facts: fl, fits: y => y.length <= max, short: false });
-      return s.after;
-    };
-    // 7a MATERIAL FIRST (22 Nov 2026): "100% Cotton", "Cotton", "Linen" and the comma each leaves — from the end, before any other word;
-    // 7b then the suggestion-words rule
-    let m0 = LR_TF_GUARD ? lrDropMaterial(t, fl, x => x.length <= max, min) : t;
-    let a = m0.length > max ? sw(m0) : m0;
-    // 7c the shape word (Square, Round, Rectangle, Oval — our format): only now, the last one first, before "Can't fit"
-    for (let k = 0; LR_TF_GUARD && a.length > max && k < 3; k++) {
-      const hits = [...m0.matchAll(/\b(?:square|rectangle|rectangular|oblong|round|circle|circular|oval)\b/gi)];
-      if (!hits.length) break;
-      const h = hits[hits.length - 1];
-      m0 = (m0.slice(0, h.index) + ' ' + m0.slice(h.index + h[0].length)).replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').trim();
-      a = m0.length > max ? sw(m0) : m0;
+    if (LR_TF_GUARD) {
+      /* 7 THE REMOVE-ALLOWLIST (22 Nov 2026): ONLY the material, the approved filler (whole phrases), the 74–75 short forms and — last — the
+       * shape word may go (lrShortenTitle). Every other word stays: brand, colour, product (any product, known or not), size, "Inch". */
+      t = lrShortenTitle(t, { max, min: lenRule && +(lenRule.params || {}).min || 0, shortFrom: lrAllow(cfg).shortFrom,
+        names: f.names || [], keep: [fl.colour].concat(lrBrandWords(r, cfg)).filter(Boolean) }).after;
+    } else {
+      // the rule before 22 Nov (debugTitleFix's "before"): the suggestion-words rule alone
+      let sw = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, shortFrom: lrAllow(cfg).shortFrom });
+      if (/\bInch\b/.test(t) && !/\bInch\b/.test(sw.after)) sw = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, short: false });
+      t = sw.after;
     }
-    // material first, then word by word, ended under the title-length rule's minimum: the rule's word-by-word order alone, when that fits
-    if (LR_TF_GUARD && min && a.length < min && a !== t) { const b = sw(t); if (b.length >= min && b.length <= max) a = b; }
-    t = a;
-    if (t !== was) fixes.push(`Shortened to ${t.length} characters`);
+    if (t !== pre) fixes.push(`Shortened to ${t.length} characters`);
   }
   // the rule before 22 Nov (debugTitleFix's "before"): whatever the suggestion-words rule left, held only when still too long
   if (!LR_TF_GUARD) return { before, after: t, fixes, held: t.length > max ? `${LR_SW_IMPORTANT} (${t.length} characters, over ${max})` : '', probs };
   // 8 NOTHING PROTECTED IS LOST (22 Nov 2026): the brand, the product's own name, the colour the title had, and the size it now carries
   // must all still be there, within the length — else no suggestion at all: "Can't fit: needs a manual title".
   const lost = lrTitleLost(before, t, r, cfg, f, fixes);
-  if (t.length > max || lost.length) {
-    held = `${LR_CANT_FIT}${lost.length ? ` — it would lose ${lost.join(', ')}` : ` (${t.length} characters, over ${max})`}`;
+  // THE SAFETY CHECK (22 Nov 2026): every word of the corrected title that is not on the remove-allowlist is still in the new one
+  const missing = lrTitleMissing(pre, t, { names: f.names || [], keep: [f.colour].concat(lrBrandWords(r, cfg)).filter(Boolean) });
+  if (t.length > max || lost.length || missing.length) {
+    held = lost.length || missing.length
+      ? `${LR_BLOCKED} — it would lose ${lost.concat(missing.map(w => `"${w}"`)).join(', ')}`
+      : `${LR_CANT_FIT} (${t.length} characters, over ${max})`;
     return { before, after: before, fixes: [], held, probs };
   }
   return { before, after: t, fixes, held, probs };
 }
 const LR_CANT_FIT = 'Can\'t fit: needs a manual title';
+const LR_BLOCKED = 'Blocked by the safety check';
+
+/* ================= THE TITLE REMOVE-ALLOWLIST (22 Nov 2026) — the ONE place that says what a title suggestion may take out =================
+ * When a title is too long, ONLY these may go, in this order: (a) the material ("100% Cotton", "Pure Cotton", "Cotton", "Linen" and the
+ * comma each leaves — lrDropMaterial), (b) the approved filler below, whole phrases, the last one first (a joining word it leaves dangling —
+ * "for", "with", "and", "&" — goes with it), (c) the 74–75 short forms (lrSwShortForms), (d) last, the shape word (Square, Round, Rectangle,
+ * Oval). Every other word stays — brand, colour, product (any product, even one Sellora has never seen), size, "Inch" — and the word order
+ * never changes. Still too long: no suggestion ("Can't fit: needs a manual title"). lrTitleMissing is the safety check every suggestion
+ * passes (Fix, Fix all, Fix all titles, ✨ AI title): every word of the old title that is not on this list must be in the new one.
+ * A filler phrase never cuts a product phrase in half ("Dining Table Cover": only "Dining" may go, "Table Cover" stays whole); it may take
+ * a word off a product phrase only when what is left is itself a product ("Dinner Napkins" → "Napkins"). To allow another filler: add it
+ * below — one line. */
+const LR_TITLE_FILLER = [
+  // where and when it is used
+  'for Dining Table', 'for Kitchen Table', 'for Dining Room', 'for Living Room', 'for Bedroom', 'for Dining', 'for Kitchen', 'for Home Decor', 'for Home',
+  'for Party', 'for Wedding', 'for Everyday Use', 'for Couch Sofa', 'for Couch', 'for Sofa',
+  'Dining Table', 'Kitchen Table', 'Dining Room', 'Living Room', 'Dining', 'Kitchen', 'Dinner', 'Party', 'Wedding', 'Everyday Use', 'Everyday',
+  'Restaurant', 'Buffet', 'Banquet', 'Home Decor', 'Decor', 'Decorative', 'Farmhouse', 'Housewarming', 'House Warming', 'Gifts', 'Gift', 'Gifting',
+  // how it is cared for
+  'Machine Washable', 'Washable', 'Reusable', 'Wrinkle Free', 'Wrinkle Resistant', 'Stain Resistant', 'Eco Friendly',
+  // praise and low-value words (the suggestion-words rule's low-value list; "Light" and "Neutral" left out — they can be a colour)
+  'Gift Ideas', 'Indian', 'India', 'Colorful', 'Colourful', 'Beautiful', 'Elegant', 'Stylish', 'Cute', 'Lovely', 'Pretty', 'Nice', 'Perfect', 'Unique',
+  'Best', 'Great', 'Amazing', 'Awesome', 'Fancy', 'Trendy', 'Attractive', 'Gorgeous', 'Premium', 'Luxury',
+];
+const LR_TITLE_JOINERS = new Set(['for', 'with', 'and', '&']);
+const LR_TITLE_MATERIAL_RE = /(?:\b100\s*%\s*)?(?:\b(?:pure|organic)\s+)?\b(?:cotton|linen)\b|\b100\s*%(?=[\s,]|$)/gi;
+const LR_TITLE_SHAPE_RE = /\b(?:square|rectangle|rectangular|oblong|round|circle|circular|oval)\b/gi;
+// A phrase as a whole-word pattern, plural-tolerant ("Dinner Napkin" finds "Dinner Napkins"): built once per phrase.
+const lrPhraseRe = p => new RegExp('(^|[^\\p{L}\\p{N}])(' + String(p).trim().split(/\s+/).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:s|es)?').join('\\s+') + ')(?=$|[^\\p{L}\\p{N}])', 'giu');
+const LR_TITLE_FILLER_RE = LR_TITLE_FILLER.slice().sort((a, b) => b.length - a.length).map(p => ({ p, re: lrPhraseRe(p) }));
+const LR_TITLE_PRODUCT_RE = LR_SW_PRODUCTS.map(p => ({ p, re: lrPhraseRe(p) }));
+const lrSpans = (text, re) => [...String(text).matchAll(re)].map(m => ({ s: m.index + m[1].length, e: m.index + m[1].length + m[2].length }));
+// Is this text, whole, one of the product phrases ("Napkins")?
+const lrIsProductText = text => { const x = String(text).trim(); return !!x && LR_TITLE_PRODUCT_RE.some(({ re }) => lrSpans(x, re).some(sp => sp.s === 0 && sp.e === x.length)); };
+/** The approved filler in a title, whole phrases (the longest first), that may go: never through the colour, the brand or the product's own
+ *  name (o.keep, o.names), never leaving half a product phrase. [{ s, e, p }], in text order. */
+function lrTitleFillerHits(text, o) {
+  o = o || {};
+  const t = String(text);
+  const guard = [].concat(o.keep || [], o.names || []).filter(p => p && String(p).trim().length > 1).flatMap(p => lrSpans(t, lrPhraseRe(p)));
+  const products = LR_TITLE_PRODUCT_RE.flatMap(({ re }) => lrSpans(t, re));
+  const hits = [];
+  LR_TITLE_FILLER_RE.forEach(({ p, re }) => lrSpans(t, re).forEach(h => {
+    if (guard.some(g => g.s < h.e && h.s < g.e) || hits.some(x => x.s < h.e && h.s < x.e)) return;
+    // a product phrase it overlaps must be left whole, or be left as a product of its own ("Dinner Napkins" → "Napkins")
+    const cuts = products.filter(pr => pr.s < h.e && h.s < pr.e && !(h.s <= pr.s && pr.e <= h.e));
+    if (cuts.some(pr => !lrIsProductText(t.slice(pr.s, Math.max(pr.s, h.s)) + ' ' + t.slice(Math.min(pr.e, h.e), pr.e)))) return;
+    hits.push(Object.assign({ p }, h));
+  }));
+  return hits.sort((a, b) => a.s - b.s);
+}
+// Take [s, e) out of a title, with a joining word it leaves dangling ("for" / "with" / "and" / "&" before nothing it can join), tidied.
+function lrTitleCut(text, s, e) {
+  let t = String(text).slice(0, s) + ' ' + String(text).slice(e);
+  for (let k = 0; k < 3; k++) {
+    t = t.replace(/(^|\s)(?:for|with|and|&)(?=\s*(?:$|[-–—,|]|\s(?:for|with|and|&)\b))/gi, '$1');
+    t = t.replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/,(\s*[-–—])/g, '$1').replace(/^[\s,\-–—]+|[\s,]+$/g, '').replace(/\s+[-–—]\s*$/, '').trim();
+  }
+  return t;
+}
+/** THE ONE TITLE SHORTENING: { after, fits } — only the remove-allowlist goes, in its order, its word order kept. o: { max, min, shortFrom,
+ *  names (the product's own name), keep (colour, brand words) }. */
+function lrShortenTitle(text, o) {
+  o = o || {};
+  const max = +o.max || 75, min = +o.min || 0;
+  const fits = x => x.length <= max;
+  let t = String(text || '');
+  if (fits(t)) return { after: t, fits: true };
+  // (a) the material
+  t = lrDropMaterial(t, { names: o.names || [], product: [], colour: (o.keep || [])[0] || '' }, fits, min);
+  // (b) the approved filler, whole phrases, the last one first — never under the length rule's minimum
+  for (let k = 0; k < 30 && !fits(t); k++) {
+    const next = lrTitleFillerHits(t, o).reverse().map(h => lrTitleCut(t, h.s, h.e)).find(x => x.length >= min);
+    if (!next) break;
+    t = next;
+  }
+  // (c) the short forms, only at 74–75
+  const short = () => { if (!fits(t)) { const sh = lrSwShortForms(t, fits, +o.shortFrom || lrAllow((typeof LR !== 'undefined' && LR) || LR_DEFAULT).shortFrom); if (sh) t = sh.text; } };
+  short();
+  // (d) last, the shape word — the last one first, never inside the product's own name
+  for (let k = 0; k < 3 && !fits(t); k++) {
+    const keepSp = [].concat(o.names || []).filter(Boolean).flatMap(p => lrSpans(t, lrPhraseRe(p)));
+    const hits = [...t.matchAll(LR_TITLE_SHAPE_RE)].filter(m => !keepSp.some(g => g.s < m.index + m[0].length && m.index < g.e));
+    if (!hits.length) break;
+    const h = hits[hits.length - 1];
+    t = lrTitleCut(t, h.index, h.index + h[0].length);
+    short();
+  }
+  return { after: t, fits: fits(t) };
+}
+// A title's words as the safety check compares them: case aside; "18x18" = "18 x 18"; Inch = Inches = In = "; Set of 4 = 4 Pack; Pcs = Pieces.
+function lrTitleWords(text) {
+  const s = String(text || '').toLowerCase().replace(/&amp;/g, '&')
+    .replace(/(\d)\s*[x×*]\s*(?=\d)/g, '$1 ')
+    .replace(/\b(?:set|pack) of (\d+)\b/g, '$1 pack').replace(/\bpcs\b/g, 'pieces')
+    .replace(/(\d)\s*(?:"|”|″)/g, '$1 inch').replace(/(\d)\s*(?:inches|inch|inc\.?|in\.?)(?![a-z])/g, '$1 inch')
+    .replace(/&/g, ' and ');
+  return s.split(/[^\p{L}\p{N}%.]+/u).map(w => w.replace(/^\.+|\.+$/g, '')).filter(Boolean);
+}
+/** THE SAFETY CHECK: the words of the old title that are NOT on the remove-allowlist and are missing from the new one — [] when the new
+ *  title may go. o: { names, keep (as lrTitleFillerHits), allow: [words a correction may change — a misspelt word, another brand's name] }. */
+function lrTitleMissing(oldT, newT, o) {
+  o = o || {};
+  let t = String(oldT || '').replace(LR_TITLE_MATERIAL_RE, ' ');
+  lrTitleFillerHits(t, o).sort((a, b) => b.s - a.s).forEach(h => { t = t.slice(0, h.s) + ' ' + t.slice(h.e); });
+  t = t.replace(LR_TITLE_SHAPE_RE, ' ');
+  const allow = new Set([].concat(o.allow || []).flatMap(lrTitleWords));
+  const now = new Set(lrTitleWords(newT));
+  return [...new Set(lrTitleWords(t).filter(w => !LR_TITLE_JOINERS.has(w) && !allow.has(w) && !now.has(w)))];
+}
 // The product-name guard (lrSwFacts names protected, material first, step 8). debugTitleFix() (listing/debug-title-fix.js) turns it off to
 // show what the suggestions were before 22 Nov, then back on.
 let LR_TF_GUARD = true;
