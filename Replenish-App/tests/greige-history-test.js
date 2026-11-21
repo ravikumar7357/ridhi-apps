@@ -192,6 +192,10 @@ console.log('== the lines open Demand → RFD with only that fabric (Ravi, 21 No
   ctx.__T.gdToFlow('drfd', '');
   ok('the plain Demand → RFD button clears it, so the whole list shows',
     box.value === '' && seen.drawn === '' && /if \(t\.getAttribute\('data-gdflow'\)\) \{ gdToFlow\(t\.getAttribute\('data-gdflow'\), ''\);/.test(code));
+  /* Ravi, 21 Nov: Send to printer "should open the list of those products which needs that fabric" */
+  ok('Send to printer on an RFD lot opens only the products that need that fabric',
+    code.includes(`data-gdlines="' + esc(r.fabric) + '" title="The products waiting for ' + esc(r.fabric) + ' on Demand → RFD">Send to printer</button>`)
+    && !code.includes('data-gdflow="drfd">Send to printer'));
 }
 
 console.log('== the Inventory\'s cloth types: one drop-down beside the search box (Ravi, 21 Nov) ==');

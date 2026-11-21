@@ -922,9 +922,9 @@ function venByName(n) {
 function poFind(no) { return (DB.gpo || []).filter(function (p) { return p.poNo === no; })[0] || null; }
 function poFileName(po) { return String(po.poNo || 'PO').replace(/[\/\\:*?"<>|]+/g, '-') + '.pdf'; }
 
-/* THE DESCRIPTION OF GOODS, as RIDHI writes it on a PO: the quality, the count, the loom width,
- * and "Gray Fabric" -- "Sheeting 30S 67" Gray Fabric". All of it is already in Master data; the
- * line can still be written over by hand for anything unusual (a Voil 120"(Mullmull)). */
+/* The old built description -- "Sheeting 30S 67" Gray Fabric" (quality, count, loom width). No screen or PO shows it now
+ * (Ravi, 21 Nov: the greige is named as Master data names it); lmMigrate still uses it to recognise old lines that
+ * stored it as their description. */
 function poDesc(rfd) {
   var m = mstOf(rfd); if (!m) return '';
   var base = String(m.rfd || '').replace(/\s*\d+(\.\d+)?\s*$/, '').trim()
@@ -1580,7 +1580,9 @@ var I = {
 
 /* A PO LINE IS THE GREIGE BOUGHT, AND WHAT IT BECOMES (Ravi, 13 Oct: "main article griege fabric, uske against
  * me kya RFD ready fabric hoga wo description me"). */
-function lineGreigeText(l) { return poDesc(l.rfd) || l.greige || ''; }
+/* The greige is named as Master data names it, everywhere: screens, the printed PO and the mail (Ravi, 21 Nov: the built
+ * "Sheeting 20S 98\" Gray Fabric" was not the actual greige name). */
+function lineGreigeText(l) { return String(l.greige || ''); }
 function lineRfdText(l) { return l.desc || ('RFD ready: ' + (l.rfd || '')); }
 var r1 = function (n) { return Math.round((n || 0) * 10) / 10; };
 var m1 = function (n) { return r1(n).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); };
@@ -1813,7 +1815,7 @@ function poPanel(po) {
     var left = l.pending > 0.05 ? stillDueCell(po, l.pending)
       : (l.received > l.ordered + 0.05 ? '<span class="d extra">' + nf(l.received - l.ordered) + ' m extra</span>' : '<span class="pill pill-ok">complete</span>');
     return '<tr><td class="num muted">' + (i + 1) + '</td>'
-      + '<td class="tl"><b>' + esc(lineGreigeText(l)) + '</b><div class="sub">' + esc(l.greige) + '</div></td>'
+      + '<td class="tl"><b>' + esc(lineGreigeText(l)) + '</b></td>'
       + '<td class="tl">' + esc(lineRfdText(l)) + '</td>'
       + '<td class="tl">' + esc(fmtD(l.due || po.date)) + '</td>'
       + '<td class="num">' + nf(l.ordered) + ' m</td>'
@@ -1970,7 +1972,7 @@ function rdPoHtml(po) {
   var p = gpoProgress(po), chs = chOfPo(po.poNo);
   var lines = '<table class="ct mini"><thead><tr><th>Greige fabric</th><th>RFD ready fabric</th><th class="num">Ordered</th><th class="num">Received</th><th class="num">Due</th></tr></thead><tbody>'
     + p.lines.map(function (l) {
-      return '<tr><td class="tl"><b>' + esc(lineGreigeText(l)) + '</b><div class="sub">' + esc(l.greige) + '</div></td>'
+      return '<tr><td class="tl"><b>' + esc(lineGreigeText(l)) + '</b></td>'
         + '<td class="tl">' + esc(l.rfd) + '</td><td class="num">' + nf(l.ordered) + ' m</td><td class="num">' + nf(l.received) + ' m</td>'
         + '<td class="num">' + (l.pending > 0.05 ? '<b class="due">' + nf(l.pending) + ' m</b>' : '<span class="pill pill-ok">complete</span>') + '</td></tr>';
     }).join('')
@@ -1992,7 +1994,7 @@ function rdDraw() {
   $('dPo').innerHTML = rdPoHtml(po);
   $('dLines').innerHTML = Object.keys(RD.lines).map(function (k) {
     var li = +k, l = pg.lines[li], ps = RD.lines[li];
-    return '<div class="dl"><div class="dl-top"><div><div class="b">' + esc(lineGreigeText(l)) + '</div><div class="sub">' + esc(l.greige) + ' → RFD ' + esc(l.rfd)
+    return '<div class="dl"><div class="dl-top"><div><div class="b">' + esc(lineGreigeText(l)) + '</div><div class="sub">→ RFD ' + esc(l.rfd)
       + ' · <b>' + nf(l.pending) + ' m still due</b> · up to ' + nf(rdRoom(l)) + ' m with the 10% allowance</div></div>'
       + '<label class="fld lotf" for="lot-' + li + '"><span>Lot no.</span><input id="lot-' + li + '" value="' + esc(RD.lot[li] || '') + '" readonly title="Given by the register; it cannot be changed"></label></div>'
       + '<div class="prh"><span></span><span>Bale no.</span><span>Metres (on challan) *</span><span></span></div>'
@@ -2332,7 +2334,7 @@ function poDraw() {
         + opts.map(function (o) {
           return '<option value="' + esc(o.greige) + '"' + (o.greige === l.greige ? ' selected' : '') + '>' + esc(o.greige) + '</option>';
         }).join('') + '</select>'
-        + '<div class="muted" style="font-size:10.5px;margin-top:3px">' + esc(poDesc(l.rfd)) + '</div></td>'
+        + '</td>'
         /* THE RFD NAME IS READ, NOT TYPED: it comes from the fabric pair in Master data. */
         + '<td style="text-align:left"><div class="frozen" title="Set by Master data">' + esc(lineRfdText(l)) + '</div>'
         + (spec ? '<div class="muted" style="font-size:10.5px;margin-top:3px">' + esc(spec) + '</div>' : '') + '</td>'
@@ -2540,46 +2542,120 @@ function lotThans(lot) {
 function cutOpen(lot) {
   var g = fabLot(lot);
   if (!g || g.rfdLeft <= 0.05) { lmSay('warn', 'Lot ' + lot + ' has no RFD on the shelf.'); return; }
-  CUT = { lot: lot, pick: {}, qty: '' };
+  CUT = { lot: lot, pick: {}, qty: '', lines: cutLinesFor(cutRfdOf(g)), lpick: {} };
   $('cutTitle').textContent = 'Send to cutting · ' + lot;
   $('cutDate').value = lmToday(); $('cutTo').value = ''; $('cutRem').value = '';
   $('cutErr').classList.add('hide');
   cutDraw();
   $('lmCut').classList.remove('hide');
 }
+/** The RFD fabric a lot's cloth is, by the name the flow and PPC use. */
+function cutRfdOf(g) { return g.rfdFabric || fabRfdOfGreige(g.fabricType) || g.fabricType; }
 function cutDraw() {
-  var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), rfd = g.rfdFabric || fabRfdOfGreige(g.fabricType) || g.fabricType;
+  var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), rfd = cutRfdOf(g);
+  $('cutErr').classList.add('hide');   // a tick changed: the last refusal may no longer be true
   var head = '<div class="dl-top"><div><b class="mono">' + esc(CUT.lot) + '</b> · RFD <b>' + esc(rfd) + '</b>'
     + '<div class="sub">' + (g.poNo ? esc(g.poNo) + ' · ' : '') + (g.processor ? 'from ' + esc(g.processor) + ' · ' : '') + '<b>' + nf(g.rfdLeft) + ' m on the shelf</b></div></div>';
   if (!thans.length) {
-    $('cutBody').innerHTML = '<div class="dl">' + head + '</div><label class="fld" style="max-width:240px"><span>Metres to cutting * (this lot has no thans listed)</span>'
+    $('cutBody').innerHTML = cutLinesHtml() + '<div class="dl">' + head + '</div><label class="fld" style="max-width:240px"><span>Metres to cutting * (this lot has no thans listed)</span>'
       + '<input type="text" inputmode="decimal" autocomplete="off" data-num="7" data-cutqty="1" value="' + esc(CUT.qty) + '"></label></div>';
-    $('cutTot').innerHTML = 'Going to cutting: <b>' + m1(parseFloat(CUT.qty) || 0) + ' m</b>';
+    $('cutTot').innerHTML = cutTotHtml(parseFloat(CUT.qty) || 0, '');
     return;
   }
   var picked = thans.filter(function (t) { return CUT.pick[t.than]; }), pm = r1(picked.reduce(function (s, t) { return s + t.m; }, 0));
-  $('cutBody').innerHTML = '<div class="dl">' + head + '<div class="row"><button type="button" class="jw-btn" data-cutall="1">' + (picked.length === thans.length ? 'Clear all' : 'All ' + thans.length + ' thans') + '</button></div></div>'
+  $('cutBody').innerHTML = cutLinesHtml() + '<div class="dl">' + head + '<div class="row"><button type="button" class="jw-btn" data-cutall="1">' + (picked.length === thans.length ? 'Clear all' : 'All ' + thans.length + ' thans') + '</button></div></div>'
     + '<div class="balegrid">' + thans.map(function (t) {
       var on = !!CUT.pick[t.than];
       return '<label class="bale' + (on ? ' on' : '') + '"><input type="checkbox" data-cutthan="' + esc(t.than) + '"' + (on ? ' checked' : '') + '><span>Than ' + esc(t.than) + '</span><b>' + m1(t.m) + ' m</b></label>';
     }).join('') + '</div></div>';
-  $('cutTot').innerHTML = 'Going to cutting: <b>' + plural(picked.length, 'than') + ' · ' + m1(pm) + ' m</b>';
+  $('cutTot').innerHTML = cutTotHtml(pm, plural(picked.length, 'than') + ' · ');
+}
+/* ---- THE PRODUCTS THE CLOTH GOES FOR (Ravi, 21 Nov: "Link it to the lines") ----
+ * Above the thans: the no-printing lines of this fabric still waiting for cloth, or marked ready and not cut (the flow's
+ * flowCutLines). Ravi's rules: at least one line is ticked, and the ticked thans cover the ticked lines -- the extra goes
+ * with them, less is refused. The save takes the thans off the shelf and marks those lines' fabric ready in ONE write, so
+ * the shelf and the lines never disagree; the lines then show on Cutting Data with the lot.
+ * Errors: the save is stock, so it is refused out loud in the window; the list loads quietly ("Loading…") and a failed
+ * read goes to the console. Inside the ERP only -- run on its own the desk has no production flow, so no line to tick. */
+function cutLinesFor(rfd) {
+  if (typeof flowCutLines !== 'function') return [];
+  if (!gdFlowReady()) {
+    if (typeof flowEnsureData === 'function') flowEnsureData().then(function () { if (CUT) { CUT.lines = cutLinesFor(rfd); cutDraw(); } },
+      function (e) { console.warn('Send to cutting: the products waiting for ' + rfd + ' could not be read', e); });
+    return null;
+  }
+  return flowCutLines(rfd);
+}
+function cutLinesPicked() { return (CUT.lines || []).filter(function (l) { return CUT.lpick[l.key]; }); }
+function cutLinesNeed(lines) { return r1(lines.reduce(function (s, l) { return s + (+l.metres || 0); }, 0)); }
+function cutLinesHtml() {
+  if (CUT.lines === null) return '<div class="dl"><div class="sub">Loading the products waiting for this cloth…</div></div>';
+  if (!CUT.lines.length) return '<div class="dl"><div class="sub">No product on the no-printing route is waiting for this fabric, so nothing can go to cutting. Plan the line in PPC first.</div></div>';
+  return '<div class="dl"><div class="b" style="margin-bottom:6px">For these products *</div><table class="ct mini"><thead><tr><th></th><th>Order</th><th>SKU</th><th class="num">Pcs</th><th class="num">Needs</th></tr></thead><tbody>'
+    + CUT.lines.map(function (l) {
+      return '<tr><td><input type="checkbox" data-cutline="' + esc(l.key) + '"' + (CUT.lpick[l.key] ? ' checked' : '') + ' aria-label="For ' + esc(l.orderNo + ' ' + l.sku) + '"></td>'
+        + '<td class="tl b">' + esc(l.orderNo) + (l.ready ? ' <span class="pill pill-sea" title="Fabric already marked ready; its cloth is held on the shelf">ready</span>' : '') + '</td>'
+        + '<td class="tl mono">' + esc(l.sku) + '</td><td class="num">' + nf(l.pcs) + '</td><td class="num">' + m1(l.metres) + ' m</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+/** The window's bottom line: what the ticked products need against what is going, and the extra or the shortfall. */
+function cutTotHtml(going, thans) {
+  var need = cutLinesNeed(cutLinesPicked()), gap = r1(going - need);
+  return 'For ' + plural(cutLinesPicked().length, 'product') + ': <b>' + m1(need) + ' m</b> · Going to cutting: <b>' + thans + m1(going) + ' m</b>'
+    + (need > 0 && gap > 0.05 ? ' · ' + m1(gap) + ' m extra' : '')
+    + (gap < -0.05 ? ' · <span style="color:var(--bad);font-weight:700">' + m1(-gap) + ' m short</span>' : '');
+}
+/** Why this cloth cannot go yet, in the window's words; '' when it can. */
+function cutLinesCheck(going) {
+  if (CUT.lines === null) return 'The products are still loading. Try again in a moment.';
+  var lines = cutLinesPicked(), need = cutLinesNeed(lines);
+  if (!lines.length) return 'Tick the products this cloth is for.';
+  if (going < need - 0.05) return 'The thans come to ' + m1(going) + ' m; the ticked products need ' + m1(need) + ' m. Tick another than or fewer products.';
+  return '';
+}
+/** The flow's side of the save: each ticked line's fabric marked ready, carrying the lot and this entry. The old mark is
+ *  kept on the entry (lineWas) so removing the entry puts each line back exactly as it was. */
+function cutLinesPatch(row, lines) {
+  var patch = {}, at = new Date().toISOString();
+  row.lines = lines.map(function (l) { return l.key; });
+  row.lineWas = {};
+  row.forOrders = uniq(lines.map(function (l) { return l.orderNo; })).join(', ');
+  lines.forEach(function (l) {
+    row.lineWas[l.key] = l.was || null;
+    patch['pt_flowDemand/' + l.key + '/fabricReady'] = { at: at, by: (typeof ME !== 'undefined' && ME && ME.email) || row.by || '', what: row.fabricType, metres: l.metres,
+      note: 'Sent to cutting · ' + row.lot, lot: row.lot, cutEntry: row.id };
+  });
+  return patch;
+}
+/** Removing a cutting entry: the lines it was for go back to how they were. */
+function cutLinesUndoPatch(row) {
+  var patch = {};
+  (row.lines || []).forEach(function (k) { patch['pt_flowDemand/' + k + '/fabricReady'] = (row.lineWas || {})[k] || null; });
+  return patch;
+}
+/** Keep the flow on this screen in step with what was just written (it reads its own copy, FLOW.dem). */
+function cutFlowKeep(patch) {
+  if (typeof FLOW === 'undefined' || !FLOW) return;
+  var dem = Object.assign({}, FLOW.dem || {});
+  Object.keys(patch).forEach(function (p) { var k = p.split('/')[1]; dem[k] = Object.assign({}, dem[k] || {}, { fabricReady: patch[p] }); });
+  FLOW.dem = dem;
 }
 function cutSave() {
   var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), date = $('cutDate').value;
   var picked = thans.length ? thans.filter(function (t) { return CUT.pick[t.than]; }) : null;
   var q = picked ? r1(picked.reduce(function (s, t) { return s + t.m; }, 0)) : (parseFloat(CUT.qty) || 0);
-  var rfd = g.rfdFabric || fabRfdOfGreige(g.fabricType) || g.fabricType, err = '';
+  var rfd = cutRfdOf(g), err = '';
   if (!(q > 0)) err = picked ? 'Tick the thans that are going to cutting.' : 'How many metres are going to cutting?';
-  else err = fabEntryCheck({ txnType: 'ISSUE_TO_CUTTING', date: date, lot: CUT.lot, fabric: rfd, qty: q });
+  else err = cutLinesCheck(q) || fabEntryCheck({ txnType: 'ISSUE_TO_CUTTING', date: date, lot: CUT.lot, fabric: rfd, qty: q });
   if (err) { $('cutErr').textContent = err; $('cutErr').classList.remove('hide'); return; }
   var row = { id: uid(), date: date, lot: CUT.lot, fabricType: rfd, txnType: 'ISSUE_TO_CUTTING', qty: q, party: $('cutTo').value.trim() || 'Cutting',
     bill: '', orderNo: g.poNo || '', done: false, by: meUser().name };
   if (picked) row.thans = picked.map(function (t) { return t.than; });
   if ($('cutRem').value.trim()) row.remark = $('cutRem').value.trim();
-  DB.fab.push(row); lmSaveDb();
+  var flowPatch = cutLinesPatch(row, cutLinesPicked());
+  DB.fab.push(row); lmSaveDb(flowPatch); cutFlowKeep(flowPatch);
   $('lmCut').classList.add('hide');
-  lmSay('ok', (picked ? plural(picked.length, 'than') + ', ' : '') + nf(q) + ' m of RFD ' + rfd + ' from ' + CUT.lot + ' sent to cutting.');
+  lmSay('ok', (picked ? plural(picked.length, 'than') + ', ' : '') + nf(q) + ' m of RFD ' + rfd + ' from ' + CUT.lot + ' sent to cutting for ' + row.forOrders + '.');
   CUT = null; render();
 }
 
@@ -3177,7 +3253,8 @@ function invDetail(r, col) {
         + '<td class="tl">' + esc(g.processor || '—') + '</td><td class="tl">' + esc(fmtD(invLastDate(back) || g.date)) + '</td>'
         + '<td class="num">' + nf(came) + ' m</td><td class="num">' + (g.rfdOut ? nf(g.rfdOut) + ' m' : '—') + '</td>'
         + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(g.rfdLeft) + ' m</td>'
-        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdflow="drfd">Send to printer</button>'
+        /* Send to printer opens the products that need this fabric, not the whole list (Ravi, 21 Nov) */
+        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdlines="' + esc(r.fabric) + '" title="The products waiting for ' + esc(r.fabric) + ' on Demand → RFD">Send to printer</button>'
         + '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button></div></td></tr>';
     });
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
@@ -3281,7 +3358,7 @@ function invHistCause(r) {
 }
 function invHistDetails(r, po) {
   var bill = { RECEIVE_GREIGE: 'challan ', ISSUE_TO_RFD: 'our challan ', RECEIVE_RFD: 'their challan ' }[r.txnType] || 'bill ';
-  return [r.lot ? 'Lot ' + r.lot : '', r.bill ? bill + r.bill : '', po ? 'PO ' + po : '', r.note || r.remark || '']
+  return [r.lot ? 'Lot ' + r.lot : '', r.bill ? bill + r.bill : '', po ? 'PO ' + po : '', r.forOrders ? 'for ' + r.forOrders : '', r.note || r.remark || '']
     .filter(Boolean).join(' · ');
 }
 /* THE STOCK HISTORY, FOLDED BY DATE (Ravi, 21 Nov: "put an dropdown in the date … till then it should show only opening
@@ -3516,6 +3593,7 @@ function renderLedger() {
         + (r.returned
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + nf(r.gross)
             + ' on the challan, ' + nf(r.returned) + ' sent back</div>' : '')
+        + (r.forOrders ? '<div class="muted" style="font-size:10.5px;font-weight:400">for ' + esc(r.forOrders) + '</div>' : '')
         + (r.remark && r.txnType !== 'DAMAGE'
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + esc(r.remark) + '</div>' : '')
         + '</td>'
@@ -4463,7 +4541,8 @@ function wireEntry() {
     /* Every figure in the app is worked out from these rows, so the button says what goes first. */
     if (!armed(this, 'Press again to remove ' + nf(fabQty(r)) + ' m from lot ' + r.lot)) return;
     DB.fab = DB.fab.filter(function (x) { return x.id !== EN_ID; });
-    lmSaveDb(); entryClose(); render();
+    var back = cutLinesUndoPatch(r);   // a cutting entry's products wait for cloth again
+    lmSaveDb(back); cutFlowKeep(back); entryClose(); render();
     lmSay('ok', (FAB_LABEL[r.txnType] || r.txnType) + ' of ' + nf(fabQty(r)) + ' m taken off lot ' + r.lot + '.');
   });
 
@@ -4488,7 +4567,7 @@ function wireEntry() {
 
 function wireUsersRfd() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-issall],[data-issbale],[data-rradd],[data-rrrm],[data-rrfin],[data-rr],[data-appr],[data-urm],#userAdd,#rrSave,[data-cut],[data-cutall],[data-cutthan],#cutSave') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-issall],[data-issbale],[data-rradd],[data-rrrm],[data-rrfin],[data-rr],[data-appr],[data-urm],#userAdd,#rrSave,[data-cut],[data-cutall],[data-cutthan],[data-cutline],#cutSave') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
     if (g('data-issall') && ISS) { var lot = g('data-issall'), bs = lotBales(lot), all = bs.every(function (b) { return ISS.pick[lot][b.than]; }); ISS.pick[lot] = {}; if (!all) bs.forEach(function (b) { ISS.pick[lot][b.than] = true; }); issDraw(); return; }
@@ -4500,6 +4579,7 @@ function wireUsersRfd() {
     if (g('data-cut')) { cutOpen(g('data-cut')); return; }
     if (g('data-cutall') && CUT) { var ts = lotThans(CUT.lot), every = ts.every(function (x) { return CUT.pick[x.than]; }); CUT.pick = {}; if (!every) ts.forEach(function (x) { CUT.pick[x.than] = true; }); cutDraw(); return; }
     if (g('data-cutthan') && CUT) { CUT.pick[g('data-cutthan')] = t.checked; cutDraw(); return; }
+    if (g('data-cutline') && CUT) { CUT.lpick[g('data-cutline')] = t.checked; cutDraw(); return; }
     if (t.id === 'cutSave') { cutSave(); return; }
     if (g('data-rr')) { var z = g('data-rr').split('|'); rrOpen(z[0], z[1] || ''); return; }
     if (g('data-appr')) { var y = g('data-appr').split('|'); rrDecide(y[0], y[1] === 'ok', t); return; }
@@ -4517,7 +4597,7 @@ function wireUsersRfd() {
   document.addEventListener('change', userEdit);
   document.addEventListener('input', function (ev) {
     var el = ev.target;
-    if (CUT && el.getAttribute && el.getAttribute('data-cutqty')) { CUT.qty = el.value; $('cutTot').innerHTML = 'Going to cutting: <b>' + m1(parseFloat(el.value) || 0) + ' m</b>'; return; }
+    if (CUT && el.getAttribute && el.getAttribute('data-cutqty')) { CUT.qty = el.value; $('cutTot').innerHTML = cutTotHtml(parseFloat(el.value) || 0, ''); return; }
     var lot = el.getAttribute && el.getAttribute('data-rrlot'); if (!lot || !RR) return;
     RR.thans[lot][+el.getAttribute('data-pi')][el.getAttribute('data-f')] = el.value; rrSums();
   });
@@ -4561,9 +4641,11 @@ function gdSnap() {
 }
 /* WHAT CHANGED IS WHAT IS WRITTEN: one PO or one ledger row at a time, so two people working at once do not
  * overwrite each other's rows. */
-function lmSaveDb() {
+/** Saves what changed on the desk as one patch. alsoWrite (optional) is more paths written in that same patch -- the
+ *  flow's lines a cutting entry is for -- so the two never land apart. */
+function lmSaveDb(alsoWrite) {
   if (!DB || GD_STATE !== 'ok') return;   // never write a desk this screen could not read
-  var now = gdSnap(), was = GD_SNAP || { gpo: {}, fab: {}, mst: '', ven: '', co: '' }, patch = {};
+  var now = gdSnap(), was = GD_SNAP || { gpo: {}, fab: {}, mst: '', ven: '', co: '' }, patch = Object.assign({}, alsoWrite || {});
   ['gpo', 'fab'].forEach(function (k) {
     Object.keys(now[k]).forEach(function (id) { if (was[k][id] !== now[k][id]) patch[GD_NODE + '/' + k + '/' + id] = JSON.parse(now[k][id]); });
     Object.keys(was[k]).forEach(function (id) { if (!(id in now[k])) patch[GD_NODE + '/' + k + '/' + id] = null; });

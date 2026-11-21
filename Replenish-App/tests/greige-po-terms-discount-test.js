@@ -37,6 +37,19 @@ ok('an old PO line with no discount field is full price', G.gpoLineMoney({ metre
 const two = po([line(1000, 44, '2.5'), line(500, 60, '')]);
 ok('the PO total is the lines after their discounts', G.gpoTotals(two).amount === 42900 + 30000 && G.gpoTotals(two).disc === 1100);
 
+console.log('== the greige is named as Master data names it (Ravi, 21 Nov) ==');
+{
+  /* Master data has a spec that used to be turned into "Cambric 60S 48\" Gray Fabric"; the PO must still say the greige name */
+  G.setDB({ gpo: [], fab: [], ven: [{ name: 'Test Mill', email: 'mill@example.test' }], co: { name: 'Test Co' }, users: [], me: '',
+    mst: [{ rfd: 'Cambric 44', greige: 'Greige Cambric 48', warp: '60', greigeWidth: 48 }] });
+  const p = po([line(1000, 44, '')]);
+  const paper = text(G.poDocBody(p)), wa = G.poWaText(p);
+  ok('the printed PO says "Greige Cambric 48", not a built "Gray Fabric" name', /Greige Cambric 48/.test(paper) && !/Gray Fabric/.test(paper));
+  ok('so does the WhatsApp text (the mail itself names no lines; the PO goes with it)', /Greige Cambric 48/.test(wa) && !/Gray Fabric/.test(wa));
+  ok('so do the screens: no PO view shows the built name', !code.includes('esc(poDesc(') && code.includes("function lineGreigeText(l) { return String(l.greige || ''); }"));
+  ok('the greige name is not shown twice on a PO line', !code.includes("esc(lineGreigeText(l)) + '</b><div class=\"sub\">' + esc(l.greige)"));
+}
+
 console.log('== the printed PO ==');
 const paper = G.poDocBody(po([line(1000, 44, '2.5')], 'Payment in 30 days.\nGoods as per sample.'));
 ok('a Disc % column between Rate and per', /<th>Rate<\/th><th>Disc %<\/th><th>per<\/th>/.test(paper));
