@@ -80,10 +80,20 @@
     <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
-      <button id="tabSales" class="nav">Sales Dashboard</button>
+      <!-- THE SALES DROP-DOWN (21 Nov 2026): the Listing menu's columns (styles.css "THE LISTING DROP-DOWN"), four groups.
+           A group with no screen this account can open hides, and the numbers count only the groups on show (class "num").
+           To add a screen: one button line inside its group, e.g. in Check & alerts
+             <button id="tabNcheck" class="nav">Numbers Check</button>
+           (plus its key in data-tabs above, its pane and its TABS / TAB_TITLE entry in nav.js, as for every screen,
+           and one #tabNcheck{--ic:…} icon line in styles.css). -->
+      <div class="navcol"><div class="navcol-h num">Overview</div>
+      <button id="tabSales" class="nav">Sales Dashboard</button></div>
+      <div class="navcol"><div class="navcol-h num">Check &amp; alerts</div></div>
+      <div class="navcol"><div class="navcol-h num">Analyse</div>
       <button id="tabProfit" class="nav">Profit &amp; Margin</button>
       <button id="tabSa" class="nav">Sales Analysis</button>
-      <button id="tabPlaudit" class="nav">Parent Listing Review</button>
+      <button id="tabPlaudit" class="nav">Parent Listing Review</button></div>
+      <div class="navcol"><div class="navcol-h num">Act</div></div>
       <!-- MOVED to the Replenishment app, which is where these two are worked now. Hidden rather
            than deleted: the code below still runs, so anything that turns out to have been missed in
            the move can be checked against the original before it is finally removed. -->
