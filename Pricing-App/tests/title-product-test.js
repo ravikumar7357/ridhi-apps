@@ -21,11 +21,19 @@ const TBX = [
   ['RTBX327', 'Ridhi Hand Block Print Tissue Box Cover Square 100% Cotton, Indigo Mughal Jaal', 'Indigo Mughal Jaal'],
 ];
 TBX.forEach(([sku, title, color]) => { SAMPLE.push(mk(sku, title)); CAT.SP[sku] = { color, size: '4.5x4.5x5', subcat: 'Tissue Box Cover' }; });
+// the real colours of the family (Taupe, Goldenrod Yellow, Light Steel Blue)
+[['RTBXT', 'Taupe'], ['RTBXG', 'Goldenrod Yellow'], ['RTBXB', 'Light Steel Blue']].forEach(([sku, color]) => {
+  SAMPLE.push(mk(sku, `Ridhi Hand Block Print Tissue Box Cover Square 100% Cotton, ${color}`));
+  CAT.SP[sku] = { color, size: '4.5x4.5x5', subcat: 'Tissue Box Cover' };
+});
+// filler in a phrase ("Dining Table Cover") and a shape word: the filler goes whole, the shape stays
+SAMPLE.push(mk('RTCF', 'Ridhi Hand Block Print Rectangle Tablecloth 60 x 90 Inch Cotton Dining Table Cover Party - Blue', 'PTCF'));
+CAT.SP.RTCF = { color: 'Blue', size: '60x90', subcat: 'Rectangle Tablecloth' };
 // a title that cannot fit without losing a protected word (a long colour, no material, no filler)
 SAMPLE.push(mk('RTBXL', 'Ridhi Tissue Box Cover Green Stripe With Pink Paisley Buta And Golden Mughal Jaal Border', 'PTBXL'));
 CAT.SP.RTBXL = { color: 'Green Stripe With Pink Paisley Buta And Golden Mughal Jaal Border', size: '4.5x4.5x5', subcat: 'Tissue Box Cover' };
 
-const EXPORT = '\n;globalThis.__R = { lrTitleFix, lrSwFacts, lrTitleLost: typeof lrTitleLost === "function" ? lrTitleLost : null, lrDropMaterial: typeof lrDropMaterial === "function" ? lrDropMaterial : null,'
+const EXPORT = '\n;globalThis.__R = { lrTitleFix, lrSwFacts, lrSuggestWords, lrTitleLost: typeof lrTitleLost === "function" ? lrTitleLost : null, lrDropMaterial: typeof lrDropMaterial === "function" ? lrDropMaterial : null,'
   + ' setGuard: v => { LR_TF_GUARD = v; }, LR_CANT_FIT: typeof LR_CANT_FIT === "undefined" ? "" : LR_CANT_FIT };';
 const SRC = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'app', 'listing', 'listing-rules.js'), 'utf8');
 const OPTS = { ws: true, sp: true, fa: true, lh: true, ctx: { imOnly() {}, leOnly() {}, leShow() {}, leListEnsure() {}, imListRender() {} } };   // as title-fix-test loads Fix all
@@ -54,6 +62,24 @@ console.log('== the Tissue Box Cover family, now ==');
       !y.held && /^Ridhi /.test(y.after) && /Tissue Box Cover/.test(y.after) && y.after.includes(CAT.SP[sku].color) && /4\.5x4\.5x5 Inch/.test(y.after) && y.after.length <= 75, y.held || y.after);
   });
   eq('RTBX129: material first, then the filler word "Square" (still over 75 without it)', fix('RTBX129').after, 'Ridhi Hand Block Print Tissue Box Cover Blue Floral Bunch 4.5x4.5x5 Inch');
+}
+
+console.log('== the real colours: the shape word stays when the title fits with it ==');
+{
+  eq('Taupe → "…Tissue Box Cover Square Taupe 4.5x4.5x5 Inch" (Square kept)', fix('RTBXT').after, 'Ridhi Hand Block Print Tissue Box Cover Square Taupe 4.5x4.5x5 Inch');
+  // 46 + " Goldenrod Yellow" + the size = 78: nothing else may go (brand, print, product, colour, size), so the shape goes — the very last step
+  eq('Goldenrod Yellow (78 with Square): the shape goes only as the very last step → 71', [fix('RTBXG').after, fix('RTBXG').after.length], ['Ridhi Hand Block Print Tissue Box Cover Goldenrod Yellow 4.5x4.5x5 Inch', 71]);
+  eq('Light Steel Blue: "Light" is part of its colour, never a low-value word → the shape goes last', fix('RTBXB').after, 'Ridhi Hand Block Print Tissue Box Cover Light Steel Blue 4.5x4.5x5 Inch');
+}
+
+console.log('== filler in whole phrases; the shape is protected ==');
+{
+  const y = fix('RTCF');
+  ok('"Cotton" first, then "Dining Table Cover" whole (never "Table" or "Dining" left behind); "Rectangle" kept', !y.held && /Rectangle Tablecloth/.test(y.after) && !/\b(?:Dining|Table|Cover)\b/.test(y.after.replace('Tablecloth', '')) && y.after.length <= 75, y.held || y.after);
+  const s = R.lrSuggestWords('Ridhi Tablecloth Rectangle 60x90 Inch Block Print Table Cover - Red', { mode: 'title', facts: { product: ['tablecloth'], colour: 'Red', brands: ['ridhi'] }, fits: x => x.length <= 64 });
+  ok('the suggestion-words rule in a title: "Table Cover" goes whole — never "… Block Print Table - Red"', !/Print Table -/.test(s.after) && /Block Print - Red$/.test(s.after), s.after);
+  const k = R.lrSuggestWords('tablecloth table cover dining table rectangle', { mode: 'kw', facts: { product: ['tablecloth'] }, fits: x => x.length <= 30 });
+  ok('search terms are not changed by it (phrases and shapes: titles only)', typeof k.after === 'string');
 }
 
 console.log('== can\'t fit: no suggestion ==');
@@ -104,9 +130,10 @@ console.log('== window.debugTitleFix() on the same listings ==');
   console.log = () => {}; console.table = () => {};
   let d;
   try { d = globalThis.__D(); } finally { [console.log, console.table] = keep; }
-  ok('it lists the 4 RTBX suggestions that dropped "Tissue Box Cover" before, in 1 family', d && d.dropped.filter(x => /^RTBX/.test(x.sku)).length === 4 && d.families >= 1, d && JSON.stringify(d.dropped.map(x => x.sku)));
+  // 6 of the 7 family titles lost part of "Tissue Box Cover" before (Taupe, short enough, kept it and lost only "Square")
+  ok('it lists the 6 RTBX suggestions that dropped "Tissue Box Cover" before, in 1 family', d && JSON.stringify(d.dropped.filter(x => /^RTBX/.test(x.sku)).map(x => x.sku).sort()) === JSON.stringify(['RTBX119', 'RTBX129', 'RTBX14', 'RTBX327', 'RTBXB', 'RTBXG']) && d.families >= 1, d && JSON.stringify(d.dropped.map(x => x.sku)));
   ok('…each with what it lost and its suggestion now', d.dropped.filter(x => /^RTBX1/.test(x.sku)).every(x => /product name/.test(x.lost) && /Tissue Box Cover/.test(x.now)), JSON.stringify(d.dropped[0]));
-  ok('the RTBX prefix table: before → now for every RTBX listing (5)', d.prefix.length === 5 && d.prefix.find(p => p.sku === 'RTBX119').now === 'Ridhi Hand Block Print Tissue Box Cover Square Green Stripe 4.5x4.5x5 Inch', JSON.stringify(d.prefix));
+  ok('the RTBX prefix table: before → now for every RTBX listing (8)', d.prefix.length === 8 && d.prefix.find(p => p.sku === 'RTBX119').now === 'Ridhi Hand Block Print Tissue Box Cover Square Green Stripe 4.5x4.5x5 Inch', JSON.stringify(d.prefix));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

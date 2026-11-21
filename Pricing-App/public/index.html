@@ -12777,6 +12777,24 @@ function lrSuggestWords(text, o) {
   mark('identity', LR_SW_P.identity);
   mark('product', lrSwPhrases((f.product || []).concat(mode === 'title' && f.names && LR_TF_GUARD ? f.names : [])));   // a title: the product's own name too (lrSwFacts names)
   if (f.shape) mark('shape', LR_SW_SHAPES[f.shape].map(w => [lrSwKey(w)]));
+  // OUR FORMAT (22 Nov 2026): in a title every shape word (Square, Round, Rectangle, Oval…) is protected like the product — lrTitleFix
+  // drops one only as its very last step, before "Can't fit"
+  if (mode === 'title' && LR_TF_GUARD) mark('shape', [...LR_SW_SHAPE_OF.keys()].map(k => [k]));
+  // WHOLE PHRASES (22 Nov 2026): in a title a known phrase ("Table Cover", "Dining Table", "Dinner Napkins") goes whole — a word that goes
+  // takes its unprotected phrase-mates with it, never leaving half ("Table"). Overlapping phrases are one group ("Dining Table Cover").
+  if (mode === 'title' && LR_TF_GUARD) {
+    let g = 0;
+    const phrases = LR_SW_P.products.concat(LR_SW_P.uses).filter(p => p.length > 1).sort((a, b) => b.length - a.length);
+    for (let i = 0; i < toks.length; i++) {
+      phrases.forEach(p => {
+        if (i + p.length > toks.length || !p.every((k, j) => toks[i + j].k === k)) return;
+        const id = (toks.slice(i, i + p.length).find(t => t.grp) || {}).grp || ++g;
+        const old = new Set(toks.slice(i, i + p.length).map(t => t.grp).filter(Boolean));
+        toks.forEach(t => { if (old.has(t.grp)) t.grp = id; });
+        for (let j = 0; j < p.length; j++) toks[i + j].grp = id;
+      });
+    }
+  }
   const mats = f.material ? String(f.material).split(/[\s,&/+-]+/).filter(Boolean) : LR_SW_MATERIAL_DEFAULT;
   mark('material', mats.map(w => [lrSwKey(w)]).filter(p => p[0] && !LR_SW_STOP_SET.has(p[0])));
   if (mode !== 'title') mark('uses', LR_SW_P.uses);         // a title keeps its brand, product, shape, material, size, print and colour (RULE 3)
@@ -12793,7 +12811,10 @@ function lrSuggestWords(text, o) {
   const now = () => (shortText != null ? shortText : mode === 'kw' ? live().map(t => t.w).filter(Boolean).join(' ') : tidy(live().map(t => t.raw).join(' ')));
   const fits = () => (typeof o.fits === 'function' ? !!o.fits(now()) : true);
   let seq = 0;                                       // the order the words went in (removed[].n)
-  const drop = (t, why) => { t.out = why; t.n = ++seq; };
+  const drop = (t, why) => {
+    t.out = why; t.n = ++seq;
+    if (t.grp) toks.forEach(x => { if (x !== t && x.grp === t.grp && !x.out && !x.cls) { x.out = why; x.n = seq; } });   // the whole phrase
+  };
   // 0 always: the risky words (another brand's name, a restricted claim) — quietly, nothing is said about them here
   const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
   if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
@@ -13348,8 +13369,16 @@ function lrTitleFix(row, ctx, o) {
     };
     // 7a MATERIAL FIRST (22 Nov 2026): "100% Cotton", "Cotton", "Linen" and the comma each leaves — from the end, before any other word;
     // 7b then the suggestion-words rule
-    let a = LR_TF_GUARD ? lrDropMaterial(t, fl, x => x.length <= max, min) : t;
-    if (a.length > max) a = sw(a);
+    let m0 = LR_TF_GUARD ? lrDropMaterial(t, fl, x => x.length <= max, min) : t;
+    let a = m0.length > max ? sw(m0) : m0;
+    // 7c the shape word (Square, Round, Rectangle, Oval — our format): only now, the last one first, before "Can't fit"
+    for (let k = 0; LR_TF_GUARD && a.length > max && k < 3; k++) {
+      const hits = [...m0.matchAll(/\b(?:square|rectangle|rectangular|oblong|round|circle|circular|oval)\b/gi)];
+      if (!hits.length) break;
+      const h = hits[hits.length - 1];
+      m0 = (m0.slice(0, h.index) + ' ' + m0.slice(h.index + h[0].length)).replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').trim();
+      a = m0.length > max ? sw(m0) : m0;
+    }
     // material first, then word by word, ended under the title-length rule's minimum: the rule's word-by-word order alone, when that fits
     if (LR_TF_GUARD && min && a.length < min && a !== t) { const b = sw(t); if (b.length >= min && b.length <= max) a = b; }
     t = a;

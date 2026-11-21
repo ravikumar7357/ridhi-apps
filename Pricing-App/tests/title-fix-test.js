@@ -155,10 +155,10 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
       S1: 'Ridhi Cloth Napkins 100% Cotton 20 x 20 Inch Block Print - Navy',
       D1: 'Ridhi Cloth Napkins 100% Cotton 14 x 20 Inch Block Print - Teal',
       // 22 Nov 2026: too long → the material ("100% Cotton") goes first, then the suggestion-words rule, then the 74–75 short forms
-      L1: 'Ridhi Cloth Napkins 18 x 18 Inch Block Print Reusable Dinner - Ivory',
+      L1: 'Ridhi Cloth Napkins 18 x 18 Inch Block Print Reusable Kitchen Party - Ivory',   // the repeated "Dinner Napkins" goes whole
       K1: 'Ridhi Block Print Cloth Napkins 20 x 20 Inch Reusable Dinner - Mustard',
-      M1: 'Ridhi Cloth Napkins 18 x 18 Inch Block Print Reusable Dinner Party - Olive',
-      C1: 'Ridhi Cloth Napkins 20 x 20 Inch Block Print Reusable Dinner Set - Black',
+      M1: 'Ridhi Cloth Napkins 18 x 18 Inch Block Print Reusable for Party - Olive',
+      C1: 'Ridhi Cloth Napkins 20 x 20 Inch Block Print Reusable Set - Black',
       X1: 'Ridhi Cloth Napkins 18x18 Inch Block Print Indigo Blue & Rust Orange Stripe',
     };
     Object.entries(expect).forEach(([sku, t]) => ok(`${sku} → "${t}"`, p(sku).ok && p(sku).after === t, p(sku).after + ' · ' + p(sku).why));
@@ -305,11 +305,11 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     await ready(C);
     const p2 = planOf(C, 'P2');
     // OUR TITLE FORMAT (20 Nov 2026): its own words in its own order; the low-value words go first — the colour, size and "Inch" stay
-    ok('P2 (a long colour): "100% Cotton" goes first, then the repeated "Napkins Set"; its own colour whole and "Inch" stay, no short form needed', p2.ok && p2.after === 'Ridhi Cloth Napkins 18 x 18 Inch Reusable Dinner - Dusty Rose Pink Stripe' && !p2.shortForms.length,
+    ok('P2 (a long colour): "100% Cotton" goes first, then the repeated "Dinner Napkins" (whole); its own colour whole and "Inch" stay, no short form needed', p2.ok && p2.after === 'Ridhi Cloth Napkins 18 x 18 Inch Reusable Set - Dusty Rose Pink Stripe' && !p2.shortForms.length,
       p2.after + ' · ' + p2.after.length + ' · ' + p2.shortForms + ' · ' + p2.why);
     C.ttClick({ dataset: { tt: 'cancel' } });
     const l1 = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.sku === 'L1'), C.hCtx()).get('L1');
-    ok('L1: "100% Cotton" goes first, then the repeated "Napkins" and the joining words; "Reusable Dinner" fits and stays, the print stays', l1.ok && !l1.dropped.length && /Block Print Reusable Dinner - Ivory$/.test(l1.after) && l1.after.length <= 75, l1.dropped + ' · ' + l1.after);
+    ok('L1: "100% Cotton" goes first, then the repeated "Dinner Napkins" whole and the joining word; "Reusable Kitchen Party" fits and stays, the print stays', l1.ok && !l1.dropped.length && /Block Print Reusable Kitchen Party - Ivory$/.test(l1.after) && l1.after.length <= 75, l1.dropped + ' · ' + l1.after);
   }
 
   console.log('== a long print in the template ("Hand Block Print"): "Hand" is never dropped (19 Nov 2026) ==');
@@ -326,13 +326,13 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     const tc = (sku, color, size) => C.ttBuild('SP', C.HEALTH.SP.rows.find(r => r.sku === sku), C.hCtx(), { va: { color, size, material: 'Cotton', item_shape: 'Rectangle' } });
     const b1 = tc('TC1', 'Mustard', '60x102');
     // OUR TITLE FORMAT (20 Nov 2026): its own words and order; "Hand Block Print" (the family's words) put in its place, whole — "Hand" never dropped
-    ok('TC1: "Hand Block Print" (as its sibling writes it) added before the shape, whole; to fit 75 "Cotton" goes first (22 Nov), then "Table Cover"; its own order kept',
-      b1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60 x 102 Inch Dining - Mustard' && !b1.why && b1.fixWhat.includes('Missing "Hand Block Print"'), b1.after + ' · ' + b1.after.length + ' · ' + b1.why);
+    ok('TC1: "Hand Block Print" (as its sibling writes it) added before the shape, whole; to fit 75 "Cotton" goes first (22 Nov), then "Dining Table Cover" whole (never half a phrase); the shape stays; its own order kept',
+      b1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60 x 102 Inch - Mustard' && !b1.why && b1.fixWhat.includes('Missing "Hand Block Print"'), b1.after + ' · ' + b1.after.length + ' · ' + b1.why);
     const b2 = tc('TC2', 'Red', '60x90');
     ok('…a title with no mistake is left exactly as it is', b2.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch Hand Block Print - Red' && /no mistake/.test(b2.why), b2.after + ' · ' + b2.why);
     C.TT.read.set('SP|TC1', { va: { color: 'Mustard', size: '60x102', material: 'Cotton', item_shape: 'Rectangle' }, pt: 'TABLECLOTH', at: now });
     const p1 = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.parent === 'TCP'), C.hCtx()).get('TC1');
-    ok('…and it passes every title rule — ready to send', p1 && p1.ok && p1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60 x 102 Inch Dining - Mustard', p1 && (p1.why || p1.after));
+    ok('…and it passes every title rule — ready to send', p1 && p1.ok && p1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60 x 102 Inch - Mustard', p1 && (p1.why || p1.after));
   }
 
   console.log('== the rules re-check holds a new title back ==');
