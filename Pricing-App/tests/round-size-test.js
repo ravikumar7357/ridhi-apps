@@ -37,7 +37,9 @@ Object.assign(CAT.SP, EXTRA_CAT);
 const EXPORT = '\n;globalThis.__R = { hTitleSizes, lrIsRound: typeof lrIsRound === "function" ? lrIsRound : null, lrSizeWant, lrTitleFix, lrTitleProblems,'
   + ' lrRoundTwo: typeof lrRoundTwo === "function" ? lrRoundTwo : null, lrSizeOurs, lrSizeOk, lrSizeLoose, setRound: v => { if (typeof LR_ROUND_ON !== "undefined") LR_ROUND_ON = v; } };';
 const SRC_NOW = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-rules.js'), 'utf8');
-const SRC_HEAD = cp.execSync('git show HEAD:Pricing-App/src/app/listing/listing-rules.js', { cwd: path.join(__dirname, '..', '..') }).toString();
+// the rules just before the round change (744cef8f), when the history is there — for the check that "round OFF" equals them
+let SRC_BEFORE = '';
+try { SRC_BEFORE = cp.execSync('git show 744cef8f:Pricing-App/src/app/listing/listing-rules.js', { cwd: path.join(__dirname, '..', '..'), stdio: ['ignore', 'pipe', 'ignore'] }).toString(); } catch (e) { SRC_BEFORE = ''; }
 const open = src => { const A = load({ src: src + EXPORT }); const R = globalThis.__R; return { A, R }; };
 
 console.log('== the sizes a title holds ==');
@@ -95,16 +97,22 @@ console.log('== the rules on round titles ==');
   ok('RUN110 (a runner, not round) with "110 Inch": still "Missing size", as today', found('RUN110').some(x => /Missing size/.test(x)), found('RUN110').join(' | '));
 }
 
-console.log('== the whole sample, judged by the rules at HEAD and now ==');
+console.log('== the whole sample, judged with round sizes OFF (the rules before 22 Nov: W x H only) and ON ==');
 {
-  const judge = src => {
-    const { A } = open(src);
+  // "before" = the same file with LR_ROUND_ON false — stable after every commit (comparing with git HEAD only worked before this one
+  // was committed). The rules before the change, where the history is there (not in a shallow CI checkout), must agree with it.
+  const judge = (src, on) => {
+    const { A, R } = open(src);
+    R.setRound(on);
+    A.reset();
     const ctx = A.hCtx();
     const out = {};
     A.rows.forEach(r => { out[r.brand + '|' + r.sku] = A.healthOf(r, ctx).found.map(f => f.detector + ': ' + f.detail).sort(); });
+    R.setRound(true);
     return out;
   };
-  const before = judge(SRC_HEAD), after = judge(SRC_NOW);
+  const before = judge(SRC_NOW, false), after = judge(SRC_NOW, true);
+  if (SRC_BEFORE) eq('round sizes OFF judges exactly as the rules before the change (744cef8f) did', judge(SRC_BEFORE, false), before);
   const changed = Object.keys(after).filter(k => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
   const nonRound = changed.filter(k => !ROUND_SKUS.includes(k.split('|')[1]));
   eq('no finding changes on a non-round listing (the 19 sample listings + the runner)', nonRound, []);
