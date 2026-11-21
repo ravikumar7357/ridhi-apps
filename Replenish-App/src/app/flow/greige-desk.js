@@ -922,9 +922,9 @@ function venByName(n) {
 function poFind(no) { return (DB.gpo || []).filter(function (p) { return p.poNo === no; })[0] || null; }
 function poFileName(po) { return String(po.poNo || 'PO').replace(/[\/\\:*?"<>|]+/g, '-') + '.pdf'; }
 
-/* THE DESCRIPTION OF GOODS, as RIDHI writes it on a PO: the quality, the count, the loom width,
- * and "Gray Fabric" -- "Sheeting 30S 67" Gray Fabric". All of it is already in Master data; the
- * line can still be written over by hand for anything unusual (a Voil 120"(Mullmull)). */
+/* The old built description -- "Sheeting 30S 67" Gray Fabric" (quality, count, loom width). No screen or PO shows it now
+ * (Ravi, 21 Nov: the greige is named as Master data names it); lmMigrate still uses it to recognise old lines that
+ * stored it as their description. */
 function poDesc(rfd) {
   var m = mstOf(rfd); if (!m) return '';
   var base = String(m.rfd || '').replace(/\s*\d+(\.\d+)?\s*$/, '').trim()
@@ -1580,7 +1580,9 @@ var I = {
 
 /* A PO LINE IS THE GREIGE BOUGHT, AND WHAT IT BECOMES (Ravi, 13 Oct: "main article griege fabric, uske against
  * me kya RFD ready fabric hoga wo description me"). */
-function lineGreigeText(l) { return poDesc(l.rfd) || l.greige || ''; }
+/* The greige is named as Master data names it, everywhere: screens, the printed PO and the mail (Ravi, 21 Nov: the built
+ * "Sheeting 20S 98\" Gray Fabric" was not the actual greige name). */
+function lineGreigeText(l) { return String(l.greige || ''); }
 function lineRfdText(l) { return l.desc || ('RFD ready: ' + (l.rfd || '')); }
 var r1 = function (n) { return Math.round((n || 0) * 10) / 10; };
 var m1 = function (n) { return r1(n).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); };
@@ -1813,7 +1815,7 @@ function poPanel(po) {
     var left = l.pending > 0.05 ? stillDueCell(po, l.pending)
       : (l.received > l.ordered + 0.05 ? '<span class="d extra">' + nf(l.received - l.ordered) + ' m extra</span>' : '<span class="pill pill-ok">complete</span>');
     return '<tr><td class="num muted">' + (i + 1) + '</td>'
-      + '<td class="tl"><b>' + esc(lineGreigeText(l)) + '</b><div class="sub">' + esc(l.greige) + '</div></td>'
+      + '<td class="tl"><b>' + esc(lineGreigeText(l)) + '</b></td>'
       + '<td class="tl">' + esc(lineRfdText(l)) + '</td>'
       + '<td class="tl">' + esc(fmtD(l.due || po.date)) + '</td>'
       + '<td class="num">' + nf(l.ordered) + ' m</td>'
@@ -1970,7 +1972,7 @@ function rdPoHtml(po) {
   var p = gpoProgress(po), chs = chOfPo(po.poNo);
   var lines = '<table class="ct mini"><thead><tr><th>Greige fabric</th><th>RFD ready fabric</th><th class="num">Ordered</th><th class="num">Received</th><th class="num">Due</th></tr></thead><tbody>'
     + p.lines.map(function (l) {
-      return '<tr><td class="tl"><b>' + esc(lineGreigeText(l)) + '</b><div class="sub">' + esc(l.greige) + '</div></td>'
+      return '<tr><td class="tl"><b>' + esc(lineGreigeText(l)) + '</b></td>'
         + '<td class="tl">' + esc(l.rfd) + '</td><td class="num">' + nf(l.ordered) + ' m</td><td class="num">' + nf(l.received) + ' m</td>'
         + '<td class="num">' + (l.pending > 0.05 ? '<b class="due">' + nf(l.pending) + ' m</b>' : '<span class="pill pill-ok">complete</span>') + '</td></tr>';
     }).join('')
@@ -1992,7 +1994,7 @@ function rdDraw() {
   $('dPo').innerHTML = rdPoHtml(po);
   $('dLines').innerHTML = Object.keys(RD.lines).map(function (k) {
     var li = +k, l = pg.lines[li], ps = RD.lines[li];
-    return '<div class="dl"><div class="dl-top"><div><div class="b">' + esc(lineGreigeText(l)) + '</div><div class="sub">' + esc(l.greige) + ' → RFD ' + esc(l.rfd)
+    return '<div class="dl"><div class="dl-top"><div><div class="b">' + esc(lineGreigeText(l)) + '</div><div class="sub">→ RFD ' + esc(l.rfd)
       + ' · <b>' + nf(l.pending) + ' m still due</b> · up to ' + nf(rdRoom(l)) + ' m with the 10% allowance</div></div>'
       + '<label class="fld lotf" for="lot-' + li + '"><span>Lot no.</span><input id="lot-' + li + '" value="' + esc(RD.lot[li] || '') + '" readonly title="Given by the register; it cannot be changed"></label></div>'
       + '<div class="prh"><span></span><span>Bale no.</span><span>Metres (on challan) *</span><span></span></div>'
@@ -2332,7 +2334,7 @@ function poDraw() {
         + opts.map(function (o) {
           return '<option value="' + esc(o.greige) + '"' + (o.greige === l.greige ? ' selected' : '') + '>' + esc(o.greige) + '</option>';
         }).join('') + '</select>'
-        + '<div class="muted" style="font-size:10.5px;margin-top:3px">' + esc(poDesc(l.rfd)) + '</div></td>'
+        + '</td>'
         /* THE RFD NAME IS READ, NOT TYPED: it comes from the fabric pair in Master data. */
         + '<td style="text-align:left"><div class="frozen" title="Set by Master data">' + esc(lineRfdText(l)) + '</div>'
         + (spec ? '<div class="muted" style="font-size:10.5px;margin-top:3px">' + esc(spec) + '</div>' : '') + '</td>'
