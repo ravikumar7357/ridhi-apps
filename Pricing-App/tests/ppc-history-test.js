@@ -53,6 +53,7 @@ function setup(opts) {
     baCall: async () => ({}), showTab: t => { ctx.tabs.push(t); }, tabs: [],
     plcColor: () => '#000', PLC: { d: {}, at: '' }, plcMsg() {}, plcAgg: () => ({ names: [], place: {} }), COST: {}, PF_MODEL: { oh: 0, sal: 0 },
   };
+  Object.assign(ctx, opts.ctx || {});   // a test's own stubs (ngram-test: a backend that fails, then answers; timers that run at once)
   const names = ['staItem', 'staNegItem', 'staBidItem', 'staRlMove', 'staRlSave', 'staRedownload', 'staUndoAdd', 'staRlChip', 'staPager', 'staWho', 'plxItem',
     'ppchEvent', 'ppchMoveEvent', 'ppchMoveAct', 'ppchTrailOf', 'ppchOldTrail', 'ppchDevLabel', 'ppchDeviceId', 'ppchDevice', 'ppchPerson', 'ppchNeedPerson',
     'ppchDlgClose', 'ppchModel', 'ppchFilter', 'ppchStepsOf', 'ppchSums', 'ppchCsvLines', 'ppchLoad', 'ppchAll', 'ensurePpch', 'renderPpch', 'ppchGo',

@@ -16,7 +16,7 @@ const strip = html => String(html).replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&
 // search-terms.js before the pattern index was shared (the PPC History commit, 21 Nov 2026).
 const BEFORE = '51f8c075';
 const NAMES = ['ST', 'STS', 'STA', 'STA_SET_DEF', 'staModel', 'staDataLine', 'staStatus', 'renderSt', 'staDlgOk', 'staOpen',
-  'NG', 'NGS', 'ngBuild', 'ngClassOf', 'ngCls', 'ngNext', 'ngPlan', 'ngHarvest', 'ngWordRow', 'ngRows', 'ngCsvLines', 'NG_CSV_COLS', 'renderNg', 'ensureNgram', 'ngQuick', 'getNGX: () => NGX', 'staGramIndex'];
+  'NG', 'NGS', 'ngBuild', 'ngClassOf', 'ngCls', 'ngNext', 'ngPlan', 'ngHarvest', 'ngWordRow', 'ngRows', 'ngCsvLines', 'NG_CSV_COLS', 'renderNg', 'ensureNgram', 'ngQuick', 'getNGX: () => NGX', 'staGramIndex', 'ngDistinct', 'ensureSt', 'staLoadSure'];
 
 // An IST stamp "yyyy-MM-dd HH:mm" for now (the caches' own format): fresh data.
 const nowIst = () => new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 16).replace('T', ' ');
@@ -268,6 +268,102 @@ const byGram = (C, b, gram) => C.getNGX().rows.find(g => g.brand === b && g.gram
     E.C.ST.loaded = true; E.C.ST.extra = true;
     E.C.renderNg();
     ok('no search terms yet: the quiet empty line, and the status red', /No search terms yet/.test(E.$('ngTable').innerHTML) && /is-bad/.test(E.$('ngMsg').innerHTML));
+  }
+
+  console.log('== loading: tried again by itself, the error and "Try again" when it keeps failing (22 Nov) ==');
+  {
+    // The caches as the backend answers them, from the sample account.
+    const src = page();
+    const S0 = src.C.ST;
+    const caches = { srchTerm: { at: nowIst(), d: {} }, stSettled: { at: nowIst(), d: S0.set.d }, targeting: { d: S0.tgts }, adGroup: { d: S0.ag }, adEntities: { at: nowIst(), d: S0.ent.d } };
+    const NOT_READY = 'Backend not configured — config/api was not read';
+    const backend = st => async q => {
+      if (q.cache === 'srchTerm') st.calls++;
+      if (q.cache === 'srchTerm' && (st.fail === Infinity || st.calls <= st.fail)) throw new Error(NOT_READY);
+      if (caches[q.cache]) return { data: JSON.parse(JSON.stringify(caches[q.cache])) };
+      throw new Error('nothing cached');
+    };
+    // Timers: a retry wait runs at once (the test records what the page says while it waits).
+    const fresh = st => {
+      const S = setup({ ngram: true, names: NAMES, ctx: {
+        baCall: q => backend(st)(q),
+        setTimeout: (f, ms) => { if (ms >= 2000) st.waits.push([ms, S.$('ngTable').innerHTML + S.$('stTable').innerHTML]); Promise.resolve().then(f); return 0; } } });
+      return S;
+    };
+    // 1. Two failed reads (the backend settings not read yet), then the answer: the page draws by itself.
+    const st1 = { calls: 0, fail: 2, waits: [] };
+    const A1 = fresh(st1);
+    A1.$('paneNgram').classList.remove('hide');
+    await A1.C.ensureNgram();
+    ok('a failed first load is tried again by itself, then the page draws', A1.C.ST.loaded && st1.calls === 3 && /"plastic"/.test(A1.$('ngTable').innerHTML) && !/is-bad/.test(A1.$('ngMsg').innerHTML),
+      `calls ${st1.calls}, loaded ${A1.C.ST.loaded}: ${strip(A1.$('ngTable').innerHTML).slice(0, 120)}`);
+    ok('…waiting 2 s, then 4 s, and saying which try it is on', st1.waits.map(w => w[0]).join(',') === '2000,4000' && /trying again \(2 of 5\)/.test(st1.waits[1][1]), JSON.stringify(st1.waits.map(w => w[0])));
+    // 2. It keeps failing: after every try, the real error and "Try again"; nothing is kept as loaded.
+    const st2 = { calls: 0, fail: Infinity, waits: [] };
+    const A2 = fresh(st2);
+    A2.$('paneNgram').classList.remove('hide');
+    await A2.C.ensureNgram();
+    const t2 = A2.$('ngTable').innerHTML;
+    ok('a lasting failure: five tries over about 20 s', st2.calls === 5 && st2.waits.reduce((t, w) => t + w[0], 0) === 20000, `calls ${st2.calls}`);
+    ok('…then the real error text and "Try again", in the quiet style', new RegExp(NOT_READY).test(t2) && /data-staretry="1"[^>]*>Try again</.test(t2) && /class="muted"/.test(t2), strip(t2));
+    ok('…the status line red, with the error', /is-bad/.test(A2.$('ngMsg').innerHTML) && /could not be read/.test(A2.$('ngMsg').innerHTML) && new RegExp(NOT_READY).test(A2.$('ngMsg').innerHTML));
+    ok('…and the failure is not kept as loaded', !A2.C.ST.loaded);
+    st2.fail = 0;
+    A2.$('ngTable').listeners.click.forEach(f => f({ target: { closest: s => (s === '[data-staretry]' ? {} : null) } }));
+    await new Promise(r => setImmediate(r));
+    await A2.C.staLoadSure();
+    await new Promise(r => setImmediate(r));
+    ok('"Try again" reads again, and the page draws', A2.C.ST.loaded && /"plastic"/.test(A2.$('ngTable').innerHTML), strip(A2.$('ngTable').innerHTML).slice(0, 120));
+    // 3. Search Term Analysis's own first load: the same.
+    const st3 = { calls: 0, fail: Infinity, waits: [] };
+    const A3 = fresh(st3);
+    A3.$('paneSt').classList.remove('hide');
+    await A3.C.ensureSt();
+    ok('Search Term Analysis: the error and "Try again", not "No search terms yet"', new RegExp(NOT_READY).test(A3.$('stTable').innerHTML) && /data-staretry/.test(A3.$('stTable').innerHTML)
+      && !/No search terms yet/.test(A3.$('stTitle').textContent) && /is-bad/.test(A3.$('stMsg').innerHTML), strip(A3.$('stTable').innerHTML));
+    st3.fail = 0;
+    await A3.C.ensureSt();
+    ok('Search Term Analysis: tried again, it draws', A3.C.ST.loaded && /plastic/.test(A3.$('stTable').innerHTML));
+  }
+
+  console.log('== the boxes count each search term once; Next step says only what to do (22 Nov) ==');
+  {
+    const S = page();
+    const { C, $ } = S;
+    $('paneNgram').classList.remove('hide');
+    await C.ensureNgram();
+    const rows = C.getNGX().rows.filter(g => g.words === 1);
+    const money0 = v => '$' + Math.round(v).toLocaleString('en-US');
+    const waste = rows.filter(g => C.ngCls(g, 10) === 'waste'), win = rows.filter(g => C.ngCls(g, 10) === 'winner');
+    const uniq = list => { const m = new Set(); list.forEach(g => g.terms.forEach(r => m.add(r))); return [...m]; };
+    const dw = uniq(waste), dwi = uniq(win);
+    const dwSp = dw.reduce((t, r) => t + r.sp, 0), sumSp = waste.reduce((t, g) => t + g.sp, 0);
+    const dwiS = dwi.reduce((t, r) => t + r.s, 0), sumS = win.reduce((t, g) => t + g.s, 0);
+    const box = $('ngBoxes').innerHTML;
+    ok(`Waste box: ${money0(dwSp)} spend in ${dw.length} terms, each counted once (the patterns add up to ${money0(sumSp)})`, box.includes(`${money0(dwSp)} spend in ${dw.length} search terms, each counted once`) && sumSp > dwSp, strip(box).slice(0, 200));
+    ok(`Winner box: ${money0(dwiS)} sales in ${dwi.length} terms, each counted once (the patterns add up to ${money0(sumS)})`, box.includes(`${money0(dwiS)} sales in ${dwi.length} search terms, each counted once`) && sumS > dwiS);
+    ok('ngDistinct: a term in three patterns counts once', (() => { const r = { sp: 5, s: 9 }; const d = C.ngDistinct([{ terms: [r] }, { terms: [r] }, { terms: [r, { sp: 1, s: 0 }] }]); return d.n === 2 && d.sp === 6 && d.s === 9; })());
+    ok('the table keeps each pattern\'s own figures', /\$47\.00/.test($('ngTable').innerHTML));
+    const t = $('ngTable').innerHTML, txt = strip(t);
+    const nextOf = gram => { const i = t.indexOf('"' + gram + '"'); const row = t.slice(i, t.indexOf('</tr>', i)); return row.slice(row.lastIndexOf('<td class="sta-next">')); };
+    ok('Waste: the button only ("Negate in 2 campaigns"); the plan on hover', />Negate in 2 campaigns</.test(nextOf('vinyl')) && !strip(nextOf('vinyl')).includes('Negative phrase · campaign level') && /title="Negative phrase · campaign level/.test(nextOf('vinyl')), nextOf('vinyl'));
+    ok('Next step no longer repeats the Classification reason', !txt.includes('Watch: ') && !/Negative phrase · campaign level · /.test(txt));
+    ok('protected Waste: "Lower bids instead →"', />Lower bids instead →</.test(nextOf('ridhi')));
+    ok('Winner: "Harvest best term"', />Harvest best term</.test(nextOf('linen')));
+    // boho: 6 clicks and no order — the clicks to reach 10, or to tell (at the 1% line), whichever is more.
+    const bohoN = Number((/Wait for more clicks \(~(\d+)\)/.exec(nextOf('boho')) || [])[1]);
+    ok(`Needs data: "Wait for more clicks (~N)" (boho ~${bohoN})`, /Wait for more clicks \(~\d+\)/.test(nextOf('cotton')) && bohoN >= 4, strip(nextOf('boho')));
+    ok('Mixed: "Watch"', /<span class="sta-hold"[^>]*>Watch</.test(nextOf('floral')));
+    // No unit cost and no target: "Set a target ACoS →" opens Lists & settings on that brand.
+    const N = page({ noTarget: true });
+    N.$('paneNgram').classList.remove('hide');
+    await N.C.ensureNgram();
+    const nt = N.$('ngTable').innerHTML, ni = nt.indexOf('"linen"'), nrow = nt.slice(ni, nt.indexOf('</tr>', ni));
+    ok('no unit cost or target: "Set a target ACoS →"', /data-ngact="tgt"[^>]*>Set a target ACoS →</.test(nrow), strip(nrow));
+    N.$('ngTable').listeners.click.forEach(f => f({ target: { closest: s => (s === 'button[data-ngact]' ? { dataset: { ngact: 'tgt', k: 'w:SP|linen' } } : null) } }));
+    ok('…and it opens Lists & settings', !N.$('stSet').classList.contains('hide'));
+    const csv = C.ngCsvLines(rows, 10);
+    ok('CSV: Next step short, Why the classification reason', csv.some(l => l.startsWith('Ridhi,vinyl,') && /,Negate in 2 campaigns,ACoS 156\.7% over break-even/.test(l)), csv.find(l => l.startsWith('Ridhi,vinyl,')));
   }
 
   console.log('== speed: a re-filter on 20,000 terms ==');

@@ -340,14 +340,15 @@ async function staSetSave(b, data) {
 /* ---------- loading ---------- */
 
 // Called when the tab opens: the caches, the optional caches, stock / sales / costs, the review list and the lists, all at
-// the same time; then draw; then the product titles in the background (they name ASINs and find product words).
+// the same time; then draw; then the product titles in the background (they name ASINs and find product words). A read that
+// fails is tried again by itself (staLoadSure); the screen says which try it is on, then the error with "Try again".
 async function ensureSt() {
-  if (!ST.loaded || !ST.extra) {
+  if (!staHave()) {
     stMsg('Loading the search terms, targets, ad groups, the review list and the lists…');
     $('stTable').innerHTML = '';
     stFoot('');
   }
-  await staLoad();
+  await staLoadSure();
   renderSt();
 }
 // Everything Search Term Analysis and Placement read, once (both pages share it): the nightly caches, the Ads backend's,
@@ -358,6 +359,8 @@ function staLoad() {
   if (!STA_LOADING) STA_LOADING = staLoad_().finally(() => { STA_LOADING = null; });
   return STA_LOADING;
 }
+// The three nightly caches every view needs, and how this screen names them in an error.
+const STA_CORE = [['srchTerm', 'search terms'], ['targeting', 'targets'], ['adGroup', 'ad groups']];
 async function staLoad_() {
   {
     // A cache the backend has not written yet answers "nothing cached" — that is null here, not an error.
@@ -376,12 +379,18 @@ async function staLoad_() {
     };
     const jobs = [];
     if (!ST.loaded) {
-      jobs.push(Promise.all([grab('srchTerm'), grab('targeting'), grab('adGroup')]).then(([t, g, a]) => {
+      jobs.push(Promise.all(STA_CORE.map(([n]) => grab(n))).then(([t, g, a]) => {
+        // One of the three could not be read (not "not written yet"): nothing is kept as loaded, so the next try reads
+        // them again (21 Nov: right after sign-in, before the backend settings are read, a failed read stuck until a reload).
+        const bad = STA_CORE.find(([n]) => ST.src[n] && !ST.src[n].ok && !ST.src[n].off);
+        if (bad) { ST.loadErr = `The ${bad[1]} could not be read: ${ST.src[bad[0]].err}`; return; }
         ST.terms = (t && t.d) || {};
         ST.tgts = (g && g.d) || {};
         ST.ag = (a && a.d) || {};
         ST.at = (t && t.at) || '';
         ST.loaded = true;
+        ST.had = true;
+        ST.loadErr = '';
       }));
     }
     if (!ST.extra) {
@@ -410,8 +419,59 @@ async function staLoad_() {
     staTitlesLater();
   }
 }
+// Is there search-term data to draw — loaded now, read before (kept on screen while newer data loads), or handed over by
+// the Overview (ads-health.js)?
+const staHave = () => !!(ST.loaded || ST.had);
+// The load, tried again by itself while the nightly caches cannot be read: after 2, 4, 6 and 8 seconds (about 20 s in all).
+// Each try redraws the screens on view (they say which try it is); true once the data is here, false when every try failed
+// (ST.loadErr says why). Nothing is kept from a failure: the next call starts again. Callers share one run.
+const STA_RETRY_WAITS = [2000, 4000, 6000, 8000];
+let STA_SURE = null, STA_TRY = 0;
+function staLoadSure() {
+  if (ST.loaded && ST.extra) return Promise.resolve(true);
+  if (!STA_SURE) {
+    STA_SURE = (async () => {
+      for (let i = 0; ; i++) {
+        STA_TRY = i + 1;
+        try { await staLoad(); } catch (e) { ST.loadErr = String((e && (e.message || e.code)) || e); }
+        if (ST.loaded) return true;
+        if (i >= STA_RETRY_WAITS.length) return false;
+        staRedrawAds();
+        await new Promise(res => setTimeout(res, STA_RETRY_WAITS[i]));
+      }
+    })().finally(() => { STA_SURE = null; STA_TRY = 0; });
+  }
+  return STA_SURE;
+}
+// Redraw the screens that read this data and are on view (after a try, or newer data).
+function staRedrawAds() {
+  const open = id => $(id) && !$(id).classList.contains('hide');
+  if (open('paneSt') && !open('stDlg') && !open('stRl')) renderSt();
+  if (open('panePlc') && typeof renderPlx === 'function') renderPlx();
+  if (open('paneNgram') && typeof renderNg === 'function') renderNg();
+}
+// No search-term data to draw: loading (with the try it is on), or the error and "Try again" — in the screen's status line
+// and its table. ids: { msg, table, foot, clear: ids emptied }.
+function staNotLoaded(ids) {
+  const busy = !!(STA_SURE || STA_LOADING);
+  const err = ST.loadErr || 'No answer from the backend';
+  ids.clear.forEach(id => { if ($(id)) $(id).innerHTML = ''; });
+  $(ids.foot).innerHTML = '';
+  const retry = '<button type="button" class="sta-btn sm" data-staretry="1">Try again</button>';
+  if (busy) {
+    const n = STA_RETRY_WAITS.length + 1;
+    staStatus(ids.msg, { summary: STA_TRY > 1 ? `Loading the search terms — trying again (${STA_TRY} of ${n})…` : 'Loading the search terms, targets and lists…', notes: 0, block: false,
+      html: STA_TRY > 1 ? `<span class="sta-dash">The last try: ${staEsc(err)}</span>` : '<span>Reading the nightly search terms, targets and ad groups.</span>' });
+    $(ids.table).innerHTML = `<tbody><tr><td class="muted" style="padding:14px">${STA_TRY > 1 ? `Could not read the search terms yet — trying again (${STA_TRY} of ${n})…` : 'Loading the search terms…'}</td></tr></tbody>`;
+  } else {
+    staStatus(ids.msg, { summary: '<span class="sta-bad">✗ The search terms could not be read</span>', notes: 1, block: true,
+      html: `<span class="sta-bad">${staEsc(err)}</span><span>${retry}</span>` + (staSrcLine() ? `<span>${staSrcLine()}</span>` : '') });
+    $(ids.table).innerHTML = `<tbody><tr><td class="muted" style="padding:14px">The search terms could not be read: ${staEsc(err)}. ${retry}</td></tr></tbody>`;
+  }
+}
 // Newer data behind a screen opened from this browser's copy (baCache): read again and redraw — not while a dialog is open
-// (the redraw waits for the next one). The caches this screen reads; Placement's decisions come from the same ones.
+// (the redraw waits for the next one). The caches this screen reads; Placement's and N-Gram Analysis's come from the same ones.
+// While it loads, the screens keep drawing the data they had (staHave).
 const STA_CACHES = ['srchTerm', 'targeting', 'adGroup', 'adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent', 'plcSettled', 'plcRecent'];
 let STA_NEWER_T = 0;
 window.addEventListener('sellora-cache', e => {
@@ -421,11 +481,9 @@ window.addEventListener('sellora-cache', e => {
   STA_NEWER_T = setTimeout(async () => {
     ST.loaded = false;
     ST.extra = false;
-    try { await staLoad(); } catch (x) { return; }
+    try { await staLoadSure(); } catch (x) { return; }
     STM = null;
-    const open = id => $(id) && !$(id).classList.contains('hide');
-    if (open('paneSt') && !open('stDlg') && !open('stRl')) renderSt();
-    if (open('panePlc') && typeof renderPlx === 'function') renderPlx();
+    staRedrawAds();
   }, 900);
 });
 // Listing Health's titles, once, after the first draw: product words come from them, and own ASINs are named.
@@ -1435,6 +1493,15 @@ function renderSt() {
   const nF = ['stFMt', 'stFCt', 'stFV', 'stFTag'].filter(id => $(id).value).length;
   $('stMoreN').textContent = nF;
   $('stMoreN').classList.toggle('hide', !nF);
+  // Nothing read yet: loading (with its try), or the error and "Try again" — never "No search terms yet" for a failed read.
+  if (!staHave() && !isCp) {
+    staNotLoaded({ msg: 'stMsg', table: 'stTable', foot: 'stFoot', clear: ['stBoxes', 'stSum'] });
+    $('stTitle').textContent = 'Search terms';
+    $('stSub').textContent = '';
+    staActBar(null);
+    staSelBar();
+    return;
+  }
   const haveAny = ['SP', 'CPC'].some(b => ((ST.terms[b] || {}).rows || []).length || ((ST.tgts[b] || {}).rows || []).length
     || (ST.set && ST.set.d && ST.set.d[b]));
   if (!haveAny && !isCp) {
@@ -3662,7 +3729,9 @@ $('stMoreBtn').addEventListener('click', () => {
   $('stMoreBtn').setAttribute('aria-expanded', on ? 'false' : 'true');
 });
 // "Set a target ACoS" in the data line (no unit costs) opens Lists & settings.
-$('stMsg').addEventListener('click', e => { if (e.target.closest('[data-settgt]')) staSetOpen(); });
+$('stMsg').addEventListener('click', e => { if (e.target.closest('[data-settgt]')) staSetOpen(); else if (e.target.closest('[data-staretry]')) ensureSt(); });
+// "Try again" after a load that failed every try.
+$('stTable').addEventListener('click', e => { if (e.target.closest('[data-staretry]')) ensureSt(); });
 // "Show them" under the strip: every brand leak, in All terms, through the Tag filter (so it can be cleared like any filter).
 $('stSum').addEventListener('click', e => {
   if (!e.target.closest('[data-leaks]')) return;

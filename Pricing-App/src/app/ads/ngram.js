@@ -185,30 +185,42 @@ function ngWordRow(g) {
     cps: plan.neg.map(c => ({ cid: c.cid, cn: c.cn, sp: c.sp, s: c.s, o: c.o, n: c.n })), tag: g.tag === 'comp' ? 'competitor' : g.tag, protect: g.protect ? NG_TAGS[g.protect].toLowerCase() : '',
     cat: 'burn', kind: 'word', burned: g.zsp, stake: g.zsp, hay: g.gram };
 }
-// The next step of a pattern under the Minimum clicks choice: { act: 'neg' | 'harvest' | 'low' | '', text, n, r }.
+// The next step of a pattern under the Minimum clicks choice: { act: 'neg' | 'harvest' | 'low' | 'tgt' | '', short, text, n, r }.
+// short: only what to do, for the Next step cell (the Classification cell already says why); text: the longer line, for the
+// opened row, the tooltip and the CSV.
 function ngNext(g, min) {
   const cls = ngCls(g, min);
-  if (g.info.stale) return { act: '', text: g.info.stale + ': no suggestions' };
+  const out = (act, short, text, more) => Object.assign({ act, short, text: text || short }, more || {});
+  if (g.info.stale) return out('', 'Wait for fresh data', g.info.stale + ': no suggestions');
   if (cls === 'waste') {
-    if (g.protect) return { act: 'low', text: `${NG_TAGS[g.protect]}: never negated — a lower bid on its terms instead` };
-    if (!g.info.settled) return { act: '', text: 'Negatives wait for the settled report (this is the 30-day one: its last 7 days\' sales are not all in)' };
-    if (g.words > STA.NEG.negativePhrase.words) return { act: '', text: `A negative phrase takes ${STA.NEG.negativePhrase.words} words at most` };
+    if (g.protect) return out('low', 'Lower bids instead →', `${NG_TAGS[g.protect]}: never negated — a lower bid on its terms instead`);
+    if (!g.info.settled) return out('', 'Wait for the settled report', 'Negatives wait for the settled report (this is the 30-day one: its last 7 days\' sales are not all in)');
+    if (g.words > STA.NEG.negativePhrase.words) return out('', 'Watch', `A negative phrase takes ${STA.NEG.negativePhrase.words} words at most`);
     const P = ngPlan(g);
-    if (!P.neg.length) return { act: '', text: P.kept.length && !P.at.length && !P.queued.length ? 'It sells in every campaign it spent in: nothing to negate'
-      : P.queued.length ? 'Already in the review list where it does not sell' : 'Already negated at Amazon where it does not sell' };
+    if (!P.neg.length) {
+      return P.kept.length && !P.at.length && !P.queued.length ? out('', 'Watch', 'It sells in every campaign it spent in: nothing to negate')
+        : P.queued.length ? out('', 'In the review list', 'Already in the review list where it does not sell') : out('', 'Already negated', 'Already negated at Amazon where it does not sell');
+    }
     const left = STA.DAY_MAX - staDayCount(g.brand);
-    if (left <= 0) return { act: '', text: `The day's limit of ${STA.DAY_MAX} negatives for ${staBrandName(g.brand)} is reached` };
-    return { act: 'neg', n: P.neg.length, text: `Negative phrase · campaign level · ${staInt(P.neg.length)} campaign${P.neg.length === 1 ? '' : 's'}`
-      + (P.kept.length ? ` · kept in ${staInt(P.kept.length)} where it sells` : '') };
+    if (left <= 0) return out('', 'Day\'s limit reached', `The day's limit of ${STA.DAY_MAX} negatives for ${staBrandName(g.brand)} is reached`);
+    return out('neg', `Negate in ${staInt(P.neg.length)} campaign${P.neg.length === 1 ? '' : 's'}`, `Negative phrase · campaign level · ${staInt(P.neg.length)} campaign${P.neg.length === 1 ? '' : 's'}`
+      + (P.kept.length ? ` · kept in ${staInt(P.kept.length)} where it sells` : ''), { n: P.neg.length });
   }
   if (cls === 'winner') {
     const h = ngHarvest(g);
-    if (!h.r) return { act: '', text: 'Watch: ' + h.why };
-    return { act: 'harvest', r: h.r, text: `"${h.r.term}" as an exact keyword: ${staInt(h.r.o)} orders at ${staPct(h.r.acos)}` };
+    if (!h.r) return out('', 'Watch', 'Watch: ' + h.why);
+    return out('harvest', 'Harvest best term', `"${h.r.term}" as an exact keyword: ${staInt(h.r.o)} orders at ${staPct(h.r.acos)}`, { r: h.r });
   }
-  return { act: '', text: 'Watch: ' + ngWhy(g, min) };
+  if (cls === 'need') {
+    if (!g.p) return out('', 'Watch', 'Watch: ' + ngWhy(g, min));
+    const toTell = !(g.o > 0) ? staNeed(g.p, g.c, NG.NEG_CHANCE) : 0;
+    const more = Math.max(g.c < min ? min - g.c : 0, toTell);
+    return more > 0 ? out('', `Wait for more clicks (~${staInt(more)})`, 'Watch: ' + ngWhy(g, min)) : out('', 'Wait for more spend', 'Watch: ' + ngWhy(g, min));
+  }
+  // Mixed: with no unit cost or target ACoS it cannot be judged on profit — a target switches that on.
+  if (g.tgt == null) return out('tgt', 'Set a target ACoS →', `No unit cost or target ACoS for ${staBrandName(g.brand)}: set one in Lists & settings to judge it on profit`);
+  return out('', 'Watch', 'Watch: ' + ngWhy(g, min));
 }
-
 /* ---------- the rows on screen ---------- */
 function ngFilters() {
   return { brand: $('ngBrand').value || 'ALL', q: staLow($('ngFilter').value), size: NGS.size, min: NGS.min, cls: NGS.cls };
@@ -228,18 +240,13 @@ function ngSorted(rows) {
 }
 
 /* ---------- drawing ---------- */
+// Called when the tab opens: draws what is there (or "Loading…"), then waits for Search Term Analysis's load — the same one,
+// tried again by itself while the caches cannot be read (staLoadSure) — and draws again. A failure is never kept: the next
+// open, or "Try again", reads again.
 async function ensureNgram() {
-  if (!ST.loaded || !ST.extra) {
-    ngStatusLoading();
-    $('ngTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">Loading the search terms…</td></tr></tbody>';
-    $('ngBoxes').innerHTML = '';
-    $('ngFoot').innerHTML = '';
-  }
-  try { await staLoad(); } catch (e) { /* drawn below as "not loaded" */ }
   renderNg();
-}
-function ngStatusLoading() {
-  staStatus('ngMsg', { summary: 'Loading the search terms, targets and lists…', notes: 0, block: false, html: '<span>N-Gram Analysis reads the same data as Search Term Analysis: no extra call to Amazon.</span>' });
+  try { await staLoadSure(); } catch (e) { ST.loadErr = String((e && e.message) || e); }
+  renderNg();
 }
 // After a change made anywhere (the review list, the lists): drawn again when on screen.
 function ngAfterChange() {
@@ -256,14 +263,21 @@ function renderNg() {
   ngRlBadge();
   $('ngSize').querySelectorAll('[data-n]').forEach(x => { const on = Number(x.dataset.n) === NGS.size; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
   $('ngClass').value = NGS.cls;
+  // Nothing read yet: loading (with its try), or the error and "Try again" (Search Term Analysis's own words).
+  if (!staHave()) {
+    staNotLoaded({ msg: 'ngMsg', table: 'ngTable', foot: 'ngFoot', clear: ['ngBoxes', 'ngActBar'] });
+    $('ngSub').textContent = '';
+    ngSelBar();
+    return;
+  }
   const haveAny = ['SP', 'CPC'].some(b => ((ST.terms[b] || {}).rows || []).length || (ST.set && ST.set.d && ST.set.d[b]));
-  if (!ST.loaded || !haveAny) {
-    staStatus('ngMsg', { summary: ST.loaded ? '<span class="sta-bad">✗ No search terms yet</span>' : '<span class="sta-bad">✗ The search terms are not loaded</span>', notes: 1, block: true,
-      html: `<span>${ST.loaded ? 'The nightly run has not collected any search-term data yet, or the last one came back empty. Patterns show once it does.'
-        : 'Search Term Analysis\'s data could not be read. Open Search Term Analysis to see why, or try again later.'}</span><span>${staSrcLine()}</span>` });
+  if (!haveAny) {
+    staStatus('ngMsg', { summary: '<span class="sta-bad">✗ No search terms yet</span>', notes: 1, block: true,
+      html: '<span>The nightly run has not collected any search-term data yet, or the last one came back empty. Patterns show once it does.</span>'
+        + (staSrcLine() ? '<span>' + staSrcLine() + '</span>' : '') });
     ['ngBoxes', 'ngActBar'].forEach(id => { $(id).innerHTML = ''; });
     $('ngSub').textContent = '';
-    $('ngTable').innerHTML = `<tbody><tr><td class="muted" style="padding:14px">${ST.loaded ? 'No search terms yet.' : 'The search terms are not loaded yet.'}</td></tr></tbody>`;
+    $('ngTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">No search terms yet.</td></tr></tbody>';
     $('ngFoot').innerHTML = '';
     ngSelBar();
     return;
@@ -307,7 +321,17 @@ function ngDataLine(M, brands) {
   staStatus('ngMsg', { summary: sum.join(' · '), notes: lines.filter(l => l[1]).length + Math.max(0, src.notes - 1), block: stale.length > 0 || src.block,
     html: lines.map(l => `<span>${l[0]}</span>`).join('') });
 }
-// The four boxes (Search Term Analysis's look); a click sets the classification.
+// The search terms behind a set of patterns, each counted once (a term holding three Waste patterns is one term, its spend
+// counted once): { n, sp, s }. Terms too small to be listed one by one (the tail) cannot be told apart, so they are left out.
+function ngDistinct(list) {
+  const seen = new Set();
+  list.forEach(g => g.terms.forEach(r => seen.add(r)));
+  let sp = 0, s = 0;
+  seen.forEach(r => { sp += r.sp || 0; s += r.s || 0; });
+  return { n: seen.size, sp, s };
+}
+// The four boxes (Search Term Analysis's look); a click sets the classification. Their spend, sales and terms count each
+// search term once (ngDistinct); the table's rows are per pattern, and do not add up.
 function ngBoxes(cnt, f) {
   const IC = {
     waste: '<path d="M12 2c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2-6 1.5 1 2 2.5 2 4 1-1 1.5-4 1-8Z"/>',
@@ -315,8 +339,6 @@ function ngBoxes(cnt, f) {
     mixed: '<path d="M4 12h16"/><path d="M8 8l-4 4 4 4"/><path d="M16 8l4 4-4 4"/>',
     need: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   };
-  const terms = list => { const s = new Set(); list.forEach(g => g.terms.forEach(r => s.add(r))); return s.size + list.reduce((t, g) => t + (g.tn || 0), 0); };
-  const sum = (list, k) => list.reduce((t, g) => t + (g[k] || 0), 0);
   const box = (k, c, label, big, unit, q, go) => `
     <button type="button" class="adx-box sta-box${NGS.cls === k ? ' on' : ''}" data-box="${k}" style="--c:${c};--adx-glow:.10" aria-pressed="${NGS.cls === k}" aria-label="${staEsc(label + ': ' + big + ' ' + unit + '. ' + go)}">
       <div class="adx-l"><span class="adx-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg></span>${label}</div>
@@ -324,10 +346,10 @@ function ngBoxes(cnt, f) {
       <div class="sta-q">${q}</div>
       <div class="sta-go"><span>${go} →</span></div>
     </button>`;
-  const w = cnt.waste, wi = cnt.winner;
+  const w = cnt.waste, wi = cnt.winner, dw = ngDistinct(w), dwi = ngDistinct(wi);
   $('ngBoxes').innerHTML =
-    box('waste', 'var(--bad)', 'Waste patterns', staInt(w.length), 'patterns', `${staMoney0(sum(w, 'sp'))} spend in ${staInt(terms(w))} terms.`, 'Negate where they don\'t sell')
-    + box('winner', 'var(--accent)', 'Winner patterns', staInt(wi.length), 'patterns', `${staMoney0(sum(wi, 's'))} sales in ${staInt(terms(wi))} terms.`, 'Harvest the best term')
+    box('waste', 'var(--bad)', 'Waste patterns', staInt(w.length), 'patterns', `${staMoney0(dw.sp)} spend in ${staInt(dw.n)} search term${dw.n === 1 ? '' : 's'}, each counted once.`, 'Negate where they don\'t sell')
+    + box('winner', 'var(--accent)', 'Winner patterns', staInt(wi.length), 'patterns', `${staMoney0(dwi.s)} sales in ${staInt(dwi.n)} search term${dwi.n === 1 ? '' : 's'}, each counted once.`, 'Harvest the best term')
     + box('mixed', 'var(--rev)', 'Mixed', staInt(cnt.mixed.length), 'patterns', 'Between target and break-even, or few orders.', 'Watch')
     + box('need', 'var(--brand)', 'Needs data', staInt(cnt.need.length), 'patterns', `Fewer than ${staInt(f.min)} clicks, or not conclusive yet.`, 'Wait for more clicks');
 }
@@ -359,10 +381,12 @@ function ngDraw(rows, f, M) {
     const tick = can ? `<input type="checkbox" class="sta-cb" data-ngsel="${staEsc(g.key)}"${NGS.sel.has(g.key) ? ' checked' : ''} aria-label="Select ${staEsc(g.gram)}">` : '<span class="sta-cbgap"></span>';
     const caret = `<button type="button" class="sta-caret" data-ngopen="${staEsc(g.key)}" aria-expanded="${open}" aria-controls="ngS-${staEsc(g.key)}" aria-label="${open ? 'Hide' : 'Show'} the terms behind ${staEsc(g.gram)}">${open ? '▾' : '▸'}</button>`;
     const tags = g.tags.map(t => staBadge(NG_TAGS[t], t === 'blocked' || t === 'comp' || t === 'season' ? 'warn' : 'info')).join('');
-    const btn = nx.act === 'neg' ? `<button type="button" class="sta-btn neg sm" data-ngact="neg" data-k="${staEsc(g.key)}" title="A campaign-level negative phrase in each campaign where it has no order, after the usual checks">Negate in ${staInt(nx.n)} campaign${nx.n === 1 ? '' : 's'}</button>`
-      : nx.act === 'harvest' ? `<button type="button" class="sta-btn sm" data-ngact="harvest" data-k="${staEsc(g.key)}" title="Search Term Analysis's Add as exact dialog for this term">Harvest best term</button>`
-        : nx.act === 'low' ? `<button type="button" class="sta-btn dim sm" data-ngact="low" data-k="${staEsc(g.key)}" title="Its search terms in Search Term Analysis, where a lower bid can be set">Lower bids instead</button>` : '';
-    const nextCell = nx.act ? `<td class="sta-next"><small>${staEsc(nx.text)}</small>${btn}</td>` : `<td class="sta-next"><span class="sta-hold">${staEsc(nx.text)}</span></td>`;
+    // Next step: only what to do — the button, or a short word (the why is in the Classification cell; the longer line on hover).
+    const tip = staEsc(nx.text);
+    const btn = nx.act === 'neg' ? `<button type="button" class="sta-btn neg sm" data-ngact="neg" data-k="${staEsc(g.key)}" title="${tip}">${staEsc(nx.short)}</button>`
+      : nx.act === 'harvest' ? `<button type="button" class="sta-btn sm" data-ngact="harvest" data-k="${staEsc(g.key)}" title="${tip}">${staEsc(nx.short)}</button>`
+        : nx.act === 'low' || nx.act === 'tgt' ? `<button type="button" class="sta-btn dim sm" data-ngact="${nx.act}" data-k="${staEsc(g.key)}" title="${tip}">${staEsc(nx.short)}</button>` : '';
+    const nextCell = btn ? `<td class="sta-next">${btn}</td>` : `<td class="sta-next"><span class="sta-hold" title="${tip}">${staEsc(nx.short)}</span></td>`;
     const row = `<tr${NGS.sel.has(g.key) ? ' class="sel"' : ''}>
       <td class="sta-stick">${tick}<div class="sta-tc"><div class="sta-term">${caret}"${staEsc(g.term)}"</div>
         <div class="sta-under">${f.brand === 'ALL' ? staBadge(staBrandName(g.brand), 'brand-' + g.brand) : ''}${tags}</div></div></td>
@@ -460,6 +484,12 @@ function ngToSt(brand, text) {
   showTab('st');
 }
 
+// Lists & settings, on the brand given (a pattern's, or the one picked here), for its target ACoS.
+function ngSetTarget(brand) {
+  staSetOpen();
+  if (brand === 'SP' || brand === 'CPC') { STS_B = brand; staSetDraw(); }
+}
+
 /* ---------- export ---------- */
 const NG_CSV_COLS = ['Brand', 'N-gram', 'Words', 'Classification', 'Protected', 'Tags', 'Search terms', 'Clicks', 'Ad spend', 'Ad sales', 'Orders', 'ACoS %', 'CVR %',
   'Campaigns', 'Converting terms', 'Spend with no order', 'Target ACoS %', 'Break-even ACoS %', 'Next step', 'Why'];
@@ -470,7 +500,7 @@ function ngCsvLines(rows, min) {
     const nx = ngNext(g, min);
     return [staBrandName(g.brand), g.term, g.words, NG_CLS.find(x => x[0] === ngCls(g, min))[1], g.protect ? NG_TAGS[g.protect] : '', g.tags.map(t => NG_TAGS[t]).join('; '),
       g.n, g.c, staR2(g.sp), staR2(g.s), g.o, r1(g.acos), r1(g.cvr), g.ncp, g.conv, staR2(g.zsp), r1(g.tgt), r1(g.be),
-      nx.act === 'neg' ? `Negate in ${nx.n} campaigns` : nx.act === 'harvest' ? `Harvest "${nx.r.term}"` : nx.act === 'low' ? 'Lower bids instead' : '', nx.act ? nx.text : ngWhy(g, min)].map(cell).join(',');
+      nx.act === 'harvest' ? `Harvest "${nx.r.term}"` : nx.short.replace(/ →$/, ''), ngWhy(g, min)].map(cell).join(',');
   }));
 }
 function ngCsv() {
@@ -544,6 +574,7 @@ $('ngActBar').addEventListener('change', e => {
 });
 try { const z = Number(localStorage.getItem('ngSize')); if ([50, 100, 250].includes(z)) NGS.pgSize = z; } catch (e) { /* no storage */ }
 $('ngTable').addEventListener('click', e => {
+  if (e.target.closest('[data-staretry]')) { ensureNgram(); return; }
   const th = e.target.closest('th[data-sort]');
   if (th && !e.target.closest('input')) {
     const k = th.dataset.sort;
@@ -568,6 +599,7 @@ $('ngTable').addEventListener('click', e => {
     if (act.dataset.ngact === 'neg' && nx.act === 'neg') staOpen('word', g.key, ngWordRow(g));
     else if (act.dataset.ngact === 'harvest' && nx.act === 'harvest') staOpen('exact', nx.r.key, ngHarvestRow(nx.r));
     else if (act.dataset.ngact === 'low') ngToSt(g.brand, g.gram);
+    else if (act.dataset.ngact === 'tgt') ngSetTarget(g.brand);
     return;
   }
   const term = e.target.closest('button[data-ngterm]');
@@ -614,7 +646,7 @@ $('ngSelAdd').addEventListener('click', async () => {
 $('ngSelClear').addEventListener('click', () => { NGS.sel.clear(); renderNg(); });
 $('ngRlBtn').addEventListener('click', () => { if (ST.loaded && ST_RL.where) staRlOpen(); });
 $('ngCsv').addEventListener('click', ngCsv);
-$('ngMsg').addEventListener('click', e => { if (e.target.closest('[data-settgt]')) staSetOpen(); });
+$('ngMsg').addEventListener('click', e => { if (e.target.closest('[data-settgt]')) ngSetTarget($('ngBrand').value); else if (e.target.closest('[data-staretry]')) ensureNgram(); });
 $('ngLegendBtn').addEventListener('click', () => { ngLegend(); $('ngLegend').classList.remove('hide'); });
 $('ngLegendX').addEventListener('click', () => $('ngLegend').classList.add('hide'));
 $('ngLegend').addEventListener('click', e => { if (e.target === $('ngLegend')) $('ngLegend').classList.add('hide'); });

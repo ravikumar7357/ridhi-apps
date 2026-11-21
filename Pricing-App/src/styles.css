@@ -4722,7 +4722,8 @@
   /* The figures' headings may take two lines ("Converting terms"), so Next step stays on screen at laptop widths. */
   #paneNgram #ngTable thead th.num{white-space:normal;min-width:64px;max-width:96px;vertical-align:bottom;line-height:1.25}
   #paneNgram #ngTable td.sta-ev.sta-ev-s{min-width:200px;max-width:250px}
-  #paneNgram #ngTable td.sta-next{min-width:180px}
+  #paneNgram #ngTable td.sta-next{min-width:150px}
+  #paneNgram #ngTable td.sta-next button.sta-btn.sm{margin-top:0;white-space:nowrap}
   #paneNgram .ng-split{position:sticky;left:16px;width:min(1400px,calc(100vw - 96px));display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:12px 24px;white-space:normal}
   #paneNgram .ng-col{min-width:0}
   #paneNgram table.xl.ng-mini td{white-space:normal}
