@@ -50,6 +50,7 @@
  * SCRIPT PROPERTIES
  *   CLAUDE_API_KEY       the Anthropic API key. Read here only, sent only to api.anthropic.com, never returned, never logged.
  *   AI_MODEL             default 'claude-sonnet-5-5'            AI_MODEL_FAST   default 'claude-haiku-5-5'
+ *   AI_MODEL_PLAN        Plan my moves only (set to 'claude-sonnet-5-5'); unset → AI_MODEL_FAST
  *   AI_MONTH_LIMIT_USD   default 50 (AI_LIMIT_DEF, set here in code: the editor allows only 50 properties) — no call once it is reached
  *   AI_USAGE_YYYYMM      written here: { usd, inTok, outTok, calls } for the month (script time zone)
  *   AI_FALLBACK          '1' turns on the server-side refusal fallback on Sonnet (OFF by default, so the model and its price are known)
@@ -918,7 +919,8 @@ function aiPlan_(p, who) {
     });
     var month = aiMonth_();
     if (month.usd >= month.limit) return { ok: false, error: 'Monthly AI limit reached', monthUsd: aiRound_(month.usd), limitUsd: month.limit };
-    var model = prop_('AI_MODEL_FAST') || 'claude-haiku-5-5';
+    // Plan my moves has its own model setting (claude-sonnet-5-5 since 20 Nov), so the quick rewrite button stays on AI_MODEL_FAST
+    var model = prop_('AI_MODEL_PLAN') || prop_('AI_MODEL_FAST') || 'claude-haiku-5-5';
     var user = 'TASK: plan\nFACTS: ' + JSON.stringify({ brand: brand, day: day, rows: rows, rules: rules, want: aiCut_(p.want, 300) });
     // the same rows the same day: the kept plan, free
     var cache = CacheService.getScriptCache();
