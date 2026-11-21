@@ -140,11 +140,6 @@ function vprFabricOf(o, l) {
   let m = {}; try { m = cutSkuOf(l.sku) || {}; } catch (e) { m = {}; }
   return { cloth: String((run ? l.fabricType : '') || (due && due.l.fabric) || m.fabric || '').trim(), sub: run ? (l.sku || '') : 'printed as pieces' };
 }
-function vprFabricCell(o, l) {
-  const { cloth, sub } = vprFabricOf(o, l);
-  return `<td style="text-align:left;line-height:1.3">${cloth ? `<b style="font-size:12.5px">${esc(cloth)}</b>` : '<span class="muted">—</span>'}`
-    + `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(sub)}</div></td>`;
-}
 /** Receive: "Receive 5 m" and ✎, or a box when the printer entered nothing; a shared cloth line says where it goes. */
 function vprRecvCell(o, l, id) {
   if (!vprReady()) return `<td><span class="muted" style="font-size:11px">${VPR.err ? 'could not read the figures — press Refresh' : 'reading…'}</span></td>`;
@@ -174,47 +169,14 @@ function vprSplitHint(v) {
 }
 
 /* ---- the table ---- */
-/** One table for every tab: each line still to show, the oldest due date first, late lines red and due-soon yellow (voDueTone). */
+/** One table for every tab: the order sheet of the sketch (vpSheetCells, vendor-portal.js, 21 Nov) and Receive at the end. */
 function vprSheet(rows, f) {
-  const may = vprMay(), on = !!(f && vpLineOn(f)), items = [];
-  rows.forEach(o => voLines(o).forEach((l, i) => {
-    if (!l || l.cancelled || !vpPartOk(o, l) || !vpQOk(o, l, f) || (on && !voLineMatches(l, f))) return;
-    items.push({ o, l, i, due: voDueOf(o, l) });
-  }));
-  const dueIso = x => (x.due && x.due.due) || voWant(x.l) || '9999';
-  items.sort((a, b) => dueIso(a).localeCompare(dueIso(b)) || String(a.o.orderNo || a.o.id).localeCompare(String(b.o.orderNo || b.o.id)));
-  if (!items.length) return `<div class="card" style="padding:34px;text-align:center;color:var(--muted)">No line to show.</div>`;
-  /* TO RECEIVE (Ravi, 21 Nov: "the amount which is actually pending with the printer and has to be received in the coming time"): what was
-   * ordered (with approved extra) less what came in — rejected goods are still owed. What came in is the small line under it. */
-  const COLS = ['Order', 'Image', 'Item', 'Fabric', 'Ordered', 'Sent by printer', 'To receive', 'Due'].concat(may ? ['Receive'] : []);
-  const body = items.map(({ o, l, i, due }) => {
-    const run = o.orderType === 'running', unit = run ? 'm' : 'pcs', list = vpVsOf(o, l), sent = vpVsSum(list), wait = vpVsWait(list);
-    const what = run ? [l.fabricType, l.printDirection].filter(Boolean).join(' · ') : (l.articleSubtype || l.articleType || '');
-    const sub = [l.color, l.sku, run ? '' : l.size].filter(Boolean).join(' · ');
-    const pic = l.img ? ptImgCellSrc(l.sku, l.img) : (run ? vpRunPic(l, 38, true) : ptImgCell(l.sku));
-    const ord = vpOrdOf(o, l), extra = vpVsApproved(list), rc = vpRecvOf(l, o);
-    return `<tr class="${vpDueClass(due)}">`
-      + `<td style="text-align:left;font-weight:700;font-size:12.5px">${esc(vpIsShop(o) && (l.shopRef || l.shopOrderNo) ? (l.shopRef || l.shopOrderNo) : (o.orderNo || o.id))}<div class="muted" style="font-size:11px;font-weight:400">${esc(o.orderDate || '')}</div></td>`
-      + pic
-      + `<td style="text-align:left;font-size:12.5px;line-height:1.35">${esc(what) || '<span class="muted">—</span>'}${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</td>`
-      + vprFabricCell(o, l)
-      + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span>${extra > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${nf(extra)} approved</div>` : ''}</td>`
-      + `<td class="num">${sent > 0 ? `<b>${nf(sent)}</b>` : '<span class="muted">—</span>'}${wait > 0 ? `<div style="font-size:10.5px;color:#b45309">+${nf(wait)} waiting approval</div>` : ''}${vpRejNote(o, l, unit)}</td>`
-      + vprToReceiveCell(ord, rc, unit)
-      + `<td style="text-align:left;font-size:12px;white-space:nowrap">${voDueHtml(due, voWant(l))}</td>`
-      + (may ? vprRecvCell(o, l, o.id + '|' + i) : '')
-      + '</tr>';
-  }).join('');
-  return `<div class="card xlwrap" style="padding:0"><table class="xl"><thead><tr>${COLS.map(h => `<th${['Ordered', 'Sent by printer', 'To receive'].includes(h) ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const may = vprMay(), items = vpSheetLines(rows, f);
+  if (!items.length) return VP_SHEET_EMPTY;
+  const body = items.map(({ o, l, i, due }) => `<tr class="${vpDueClass(due)}">` + vpSheetCells(o, l, '')
+    + (may ? vprRecvCell(o, l, o.id + '|' + i) : '') + '</tr>').join('');
+  return vpSheetTable(VP_SHEET_COLS.concat(may ? ['Receive'] : []), body);
 }
-
-/** "6 m" still owed by the printer, and "4 m received" under it; "all in" once nothing is owed. */
-function vprToReceiveCell(ord, rc, unit) {
-  const left = vprToReceive(ord, rc.qty);
-  const got = rc.qty > 0 ? `<div style="font-size:10.5px;color:#166534">${nf(rc.qty)} ${unit} received</div>` : '';
-  return `<td class="num" title="${esc(rc.how)}">${left > 0 ? `<b style="color:var(--bad)">${nf(left)}</b> <span class="muted" style="font-size:10px">${unit}</span>` : '<span class="pill pill-ok">all in</span>'}${got}</td>`;
-}
-const vprToReceive = (ordered, received) => flowR2(Math.max(0, ordered - received));
 
 /* ---- taking it in ---- */
 /** Take in q on one portal line, shared over its flow lines; '' when saved, else what is wrong (nothing is saved then). One save at a time:
