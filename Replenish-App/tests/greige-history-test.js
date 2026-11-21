@@ -13,7 +13,7 @@ function desk(me) {
   const anchor = '  return { open: open,';
   const code = fs.readFileSync(SRC, 'utf8');
   if (code.split(anchor).length !== 2) throw new Error('greige-desk.js: the closing "return { open" line moved; update this test');
-  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histCauseCell, histDays, setDB: function (v) { DB = v; } };\n' + anchor);
+  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histDays, histDayName, histMonthName, histDayBadges, setDB: function (v) { DB = v; } };\n' + anchor);
   const ctx = { console, window: { document: {} }, ME: me || { admin: true } };
   vm.createContext(ctx);
   vm.runInContext(opened, ctx);
@@ -108,12 +108,6 @@ console.log('== a statement: the signed metres sit in the Cause, the balance at 
   ok('what went out: "−1,200" in red', /color:var\(--bad\)[^>]*>−1,200</.test(G.histOut(1200)));
   ok('a movement in shows "+", one out shows "−", none shows nothing (no "+0")',
     /\+800</.test(G.histMove({ inQty: 800, outQty: 0 })) && /−500</.test(G.histMove({ inQty: 0, outQty: 500 })) && G.histMove({ inQty: 0, outQty: 0 }) === '');
-  const cell = G.histCauseCell('Greige received', G.histIn(800));
-  ok('the metres are inside the Cause cell, at its right',
-    /^<td class="tl"><div style="display:flex;justify-content:space-between[^"]*"><div>Greige received<\/div><div style="text-align:right"><span[^>]*>\+800<\/span><\/div><\/div><\/td>$/.test(cell), cell);
-  const code = fs.readFileSync(SRC, 'utf8');
-  ok('the columns are Date | Cause | Balance (no separate In and Out)',
-    /<th>Date<\/th><th style="min-width:320px">Cause<\/th><th class="num">Balance<\/th>/.test(code) && !/<th class="num">In<\/th><th class="num">Out<\/th>/.test(code));
 }
 
 console.log('== an opening and a closing balance for each date (Ravi, 21 Nov) ==');
@@ -128,11 +122,25 @@ console.log('== an opening and a closing balance for each date (Ravi, 21 Nov) ==
   ok('each day opens where the day before closed', days[1].opening === days[0].closing && days[2].opening === days[1].closing);
   ok('27 Sep: 700 − 500 = 200; 10 Oct: 200 + 150 = 350', days[1].closing === 200 && days[2].closing === 350);
   ok('no lines, no days', G.histDays([]).length === 0);
-  ok('a day\'s line shows only what moved — never "in +0" or "out −0"',
-    /\[i \? said\('in '\) \+ histIn\(i\) : '', o \? said\('out '\) \+ histOut\(o\) : ''\]\.filter\(Boolean\)/.test(fs.readFileSync(SRC, 'utf8')));
+}
+
+console.log('== each date folds to its opening and closing; a click shows what moved (Ravi, 21 Nov) ==');
+{
+  ok('a date reads with its weekday: 2026-11-20 is "Fri 20 Nov"', G.histDayName('2026-11-20') === 'Fri 20 Nov', G.histDayName('2026-11-20'));
+  ok('…the right weekday across a month end: 2026-12-01 is "Tue 1 Dec"', G.histDayName('2026-12-01') === 'Tue 1 Dec');
+  ok('the month heading: "November 2026"', G.histMonthName('2026-11-20') === 'November 2026');
+  ok('no date, no name', G.histDayName('') === '' && G.histMonthName('') === '');
+  const both = G.histDayBadges({ inQty: 594, outQty: 300 });
+  ok('a folded date shows what moved as labels: "+594 in" green, "−300 out" red', /pill-ok[^>]*>\+594 in</.test(both) && /pill-out[^>]*>\u2212300 out</.test(both));
+  ok('…only what moved — never "+0 in" or "−0 out"', !/0 out/.test(G.histDayBadges({ inQty: 594, outQty: 0 })) && !/in</.test(G.histDayBadges({ inQty: 0, outQty: 300 })));
   const code = fs.readFileSync(SRC, 'utf8');
-  ok('each day is drawn as Opening balance → its movements → Closing balance with the day\'s in and out',
-    /histDays\(page\.lines\)\.map/.test(code) && /histCauseCell\('<b>Opening balance<\/b>', ''\)/.test(code) && /'<b>Closing balance<\/b> <span class="muted"[^']*' \+ day \+ '<\/span>', inOut\(d\.inQty, d\.outQty\)/.test(code));
+  ok('a date opens only when clicked (each date remembers itself), and Open all opens every one',
+    /if \(on\) h \+= d\.lines\.map/.test(code) && /INV_HIST\.open\[day\] = !INV_HIST\.open\[day\]/.test(code) && /function invHistOpenAll\(\)/.test(code));
+  ok('opening a fabric starts with every date folded', /INV_HIST\.to = ''; INV_HIST\.open = \{\};/.test(code));
+  ok('the period on top in four figures: Opening, Came in, Went out, Closing',
+    /figure\('Opening'/.test(code) && /figure\('Came in'/.test(code) && /figure\('Went out'/.test(code) && /figure\('Closing'/.test(code));
+  ok('a movement is labelled "in" (green) when cloth came in, "out" (red) when it went out',
+    /\(came \? '<span class="pill pill-ok" title="came in">in<\/span>' : '<span class="pill pill-out" title="went out">out<\/span>'\)/.test(code));
 }
 
 console.log('== the Inventory\'s cloth types: one drop-down beside the search box (Ravi, 21 Nov) ==');

@@ -41259,11 +41259,13 @@ function invOpenPo(poNo, chId) {
 }
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histpo],#histXlsx') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx') : null;
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
     if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
     if (d && d.getAttribute('data-invh')) { invHistOpen(d.getAttribute('data-invh')); return; }
     if (d && d.getAttribute('data-histshelf')) { INV_HIST.shelf = d.getAttribute('data-histshelf'); invHistDraw(); return; }
+    if (d && d.getAttribute('data-histday')) { var day = d.getAttribute('data-histday'); INV_HIST.open[day] = !INV_HIST.open[day]; invHistDraw(); return; }
+    if (d && d.id === 'histAll') { invHistOpenAll(); return; }
     if (d && d.getAttribute('data-histpo')) { var p = d.getAttribute('data-histpo').split('|'); $('lmHist').classList.add('hide'); invOpenPo(p[0], p[1]); return; }
     if (d && d.id === 'histXlsx') { invHistXlsx(); return; }
   });
@@ -41281,7 +41283,7 @@ function wireInventory() {
  * figure on the page. A row with a PO opens that PO (and its challan) on Greige POs.
  * Errors: it only reads, so nothing here can lose data. The one thing that can fail is the Excel file; that says so in
  * the toast and on the console, and nothing is downloaded. */
-var INV_HIST = { fabric: '', shelf: 'rfd', from: '', to: '' };
+var INV_HIST = { fabric: '', shelf: 'rfd', from: '', to: '', open: {} };   // open: the dates shown opened
 var INV_SHELF_LABEL = { rfd: 'RFD on shelf', greige: 'Greige in store' };
 
 /** The fabric's name on the Inventory page: a button to its history for whoever may see the fabric ledger. */
@@ -41291,7 +41293,7 @@ function invFabricName(fabric) {
     + esc(fabric) + '</button>';
 }
 function invHistOpen(fabric) {
-  INV_HIST.fabric = fabric; INV_HIST.shelf = 'rfd'; INV_HIST.from = ''; INV_HIST.to = '';
+  INV_HIST.fabric = fabric; INV_HIST.shelf = 'rfd'; INV_HIST.from = ''; INV_HIST.to = ''; INV_HIST.open = {};
   invHistMount();
   $('histFrom').value = ''; $('histTo').value = '';
   var m = mstOf(fabric);
@@ -41317,6 +41319,13 @@ function invHistMount() {
     + '<div id="histBody"></div></div>';
   document.body.appendChild(box);
 }
+/** Open every date, or close them all when all are already open. */
+function invHistOpenAll() {
+  var H = INV_HIST, days = histDays(fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to).lines);
+  var all = days.length && days.every(function (d) { return H.open[d.date]; });
+  H.open = {}; if (!all) days.forEach(function (d) { H.open[d.date] = true; });
+  invHistDraw();
+}
 /** The PO an entry belongs to: its own, or its lot's (an issue to RFD or to cutting is written against the lot). */
 function invHistPoOf(r, lotPo) { return String(r.orderNo || lotPo[r.lot] || '').trim(); }
 /** The cause line and the details under it, as the floor says them. */
@@ -41329,19 +41338,17 @@ function invHistDetails(r, po) {
   return [r.lot ? 'Lot ' + r.lot : '', r.bill ? bill + r.bill : '', po ? 'PO ' + po : '', r.note || r.remark || '']
     .filter(Boolean).join(' · ');
 }
-/* THE STOCK HISTORY AS AN ACCOUNTING STATEMENT (Ravi, 21 Nov: "put these in the cause only and make proper accounting
- * type statement"). Date | Cause | Balance, like a bank statement: an Opening balance line, then each movement with its
- * metres at the right of the Cause — "+1,200" in green when it came in, "−1,200" in red when it went out — and the
- * balance after it, then a Closing balance line with what came in and went out in total. The Excel keeps plain numbers. */
+/* THE STOCK HISTORY, FOLDED BY DATE (Ravi, 21 Nov: "put an dropdown in the date … till then it should show only opening
+ * and closing balance and also in and out should be hidden and only pops up when it is clicked on the date").
+ * On top, the period in four figures: Opening · Came in · Went out · Closing. Below, one line per date — the date with
+ * its weekday, what moved that day ("+594 in", "−300 out") and its opening and closing balance — under a month heading.
+ * A click on the date opens its movements: an "in" label (green) for cloth that came in, "out" (red) for cloth that went out, the details,
+ * and the balance after each. "Open all" opens every date. A movement with a PO still opens that PO. The Excel keeps
+ * plain numbers. */
 function histIn(m) { return '<span style="color:var(--ok-ink);font-weight:600;white-space:nowrap">+' + nf(m) + '</span>'; }
 function histOut(m) { return '<span style="color:var(--bad);font-weight:600;white-space:nowrap">−' + nf(m) + '</span>'; }
 /** One movement's metres, signed: what came in, or what went out. */
 function histMove(x) { return x.inQty ? histIn(x.inQty) : x.outQty ? histOut(x.outQty) : ''; }
-/** The Cause cell: the words on the left, the signed metres on the right. */
-function histCauseCell(words, move) {
-  return '<td class="tl"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:18px">'
-    + '<div>' + words + '</div><div style="text-align:right">' + move + '</div></div></td>';
-}
 /** The history split into days (Ravi, 21 Nov: "opening balance and closing balance for each date"): each day opens on
  *  the balance before its first movement and closes on the balance after its last, with what came in and went out that
  *  day. The lines keep their order; a day is every line with the same date. */
@@ -41353,6 +41360,19 @@ function histDays(lines) {
     d.lines.push(x); d.closing = x.closing; d.inQty += x.inQty || 0; d.outQty += x.outQty || 0;
   });
   return days;
+}
+var HIST_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+var HIST_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** A business date (YYYY-MM-DD) read as that calendar day, wherever the PC's clock is. */
+function histDateParts(ymd) { var p = String(ymd || '').split('-').map(Number); return { y: p[0], m: p[1] - 1, d: p[2], w: new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay() }; }
+/** "Fri 20 Nov" — the day line's date. */
+function histDayName(ymd) { var p = histDateParts(ymd); return p.y ? HIST_WEEKDAYS[p.w] + ' ' + p.d + ' ' + HIST_MONTHS[p.m].slice(0, 3) : ''; }
+/** "November 2026" — the heading over a month's dates. */
+function histMonthName(ymd) { var p = histDateParts(ymd); return p.y ? HIST_MONTHS[p.m] + ' ' + p.y : ''; }
+/** A day's labels: "+594 in" in green, "−300 out" in red — only what moved. */
+function histDayBadges(d) {
+  var pill = function (cls, words) { return '<span class="pill ' + cls + '" style="font-weight:600;margin-right:6px">' + words + '</span>'; };
+  return (d.inQty ? pill('pill-ok', '+' + nf(d.inQty) + ' in') : '') + (d.outQty ? pill('pill-out', '−' + nf(d.outQty) + ' out') : '');
 }
 function invHistDraw() {
   var H = INV_HIST, page = fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to), lotPo = {};
@@ -41366,34 +41386,39 @@ function invHistDraw() {
       : 'No ' + INV_SHELF_LABEL[H.shelf] + ' entries for ' + H.fabric + ' yet.') + '</div>';
     return;
   }
-  /* a day's in and out, showing only what moved (no '+0' or '−0') */
-  var inOut = function (i, o) {
-    var said = function (w) { return '<span class="muted" style="font-weight:400">' + w + '</span>'; };
-    return [i ? said('in ') + histIn(i) : '', o ? said('out ') + histOut(o) : ''].filter(Boolean).join(said(' · '));
+  var days = histDays(page.lines), allOpen = days.every(function (d) { return H.open[d.date]; });
+  var figure = function (label, value) {
+    return '<div style="background:var(--soft);border-radius:var(--r-sm);padding:9px 12px"><div class="muted" style="font-size:12px">' + label + '</div>'
+      + '<div style="font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">' + value + '</div></div>';
   };
-  var body = histDays(page.lines).map(function (d) {
-    var day = esc(fmtD(d.date));
-    var open = '<tr class="histday"><td class="tl b" style="white-space:nowrap">' + day + '</td>'
-      + histCauseCell('<b>Opening balance</b>', '') + '<td class="num b">' + nf(d.opening) + '</td></tr>';
-    var moves = d.lines.map(function (x) {
-      var r = x.row, po = invHistPoOf(r, lotPo), bad = r.txnType === 'DAMAGE' ? ' style="color:var(--bad)"' : '';
-      return '<tr' + (po ? ' class="xrow" data-histpo="' + esc(po + '|' + (r.chId || '')) + '" title="Open PO ' + esc(po) + '"' : '') + '>'
-        + '<td></td>'
-        + histCauseCell('<div' + bad + '>' + esc(invHistCause(r)) + '</div><div class="sub">' + esc(invHistDetails(r, po)) + '</div>', histMove(x))
-        + '<td class="num">' + nf(x.closing) + '</td></tr>';
+  var summary = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:0 0 12px">'
+    + figure('Opening' + (H.from ? ' on ' + esc(fmtD(H.from)) : ''), nf(page.opening)) + figure('Came in', page.inQty ? histIn(page.inQty) : '0')
+    + figure('Went out', page.outQty ? histOut(page.outQty) : '0') + figure('Closing' + (H.to ? ' on ' + esc(fmtD(H.to)) : ''), nf(page.closing)) + '</div>';
+  var bar = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 6px">'
+    + '<span class="muted" style="font-size:12px">Click a date to see what moved that day</span>'
+    + '<button type="button" class="ghost" id="histAll" style="height:30px;padding:0 12px">' + (allOpen ? 'Close all' : 'Open all') + '</button></div>';
+  var month = '', rows = days.map(function (d) {
+    var on = !!H.open[d.date], m = histMonthName(d.date), h = '';
+    if (m !== month) { month = m; h += '<tr><td colspan="4" class="tl" style="padding:12px 8px 4px;font-size:12px;font-weight:700;color:var(--muted);border-bottom:0">' + esc(m) + '</td></tr>'; }
+    h += '<tr class="xrow" data-histday="' + esc(d.date) + '" aria-expanded="' + on + '" title="' + (on ? 'Hide' : 'Show') + ' what moved on ' + esc(fmtD(d.date)) + '">'
+      + '<td class="tl" style="white-space:nowrap;font-weight:700"><span style="display:inline-block;width:14px;color:var(--muted)">' + (on ? '▾' : '▸') + '</span>' + esc(histDayName(d.date)) + '</td>'
+      + '<td class="tl">' + histDayBadges(d) + '<span class="muted" style="font-size:12px">' + plural(d.lines.length, 'movement') + '</span></td>'
+      + '<td class="num muted">' + nf(d.opening) + '</td><td class="num b">' + nf(d.closing) + '</td></tr>';
+    if (on) h += d.lines.map(function (x) {
+      var r = x.row, po = invHistPoOf(r, lotPo), came = !!x.inQty, bad = r.txnType === 'DAMAGE' ? ';color:var(--bad)' : '';
+      return '<tr' + (po ? ' class="xrow" data-histpo="' + esc(po + '|' + (r.chId || '')) + '" title="Open PO ' + esc(po) + '"' : '') + ' style="background:var(--soft)">'
+        + '<td class="num">' + (came ? '<span class="pill pill-ok" title="came in">in</span>' : '<span class="pill pill-out" title="went out">out</span>') + '</td>'
+        + '<td class="tl"><div style="' + bad + '">' + esc(invHistCause(r)) + '</div><div class="sub">' + esc(invHistDetails(r, po)) + '</div></td>'
+        + '<td class="num">' + histMove(x) + '</td><td class="num">' + nf(x.closing) + '</td></tr>';
     }).join('');
-    var close = '<tr class="histday-end"><td></td>' + histCauseCell('<b>Closing balance</b> <span class="muted" style="font-weight:400">' + day + '</span>', inOut(d.inQty, d.outQty))
-      + '<td class="num b">' + nf(d.closing) + '</td></tr>';
-    return open + moves + close;
+    return h;
   }).join('');
-  var total = '<tr class="tot"><td></td>' + histCauseCell('Total' + (H.from || H.to ? ' for these dates' : ''), inOut(page.inQty, page.outQty))
-    + '<td class="num">' + nf(page.closing) + '</td></tr>';
-  $('histBody').innerHTML = '<div class="box scroll" style="max-height:60vh;overflow:auto"><table class="ct li"><thead><tr>'
-    + '<th>Date</th><th style="min-width:320px">Cause</th><th class="num">Balance</th></tr></thead>'
-    + '<tbody>' + body + total + '</tbody></table></div><div class="lm-why">Metres. '
-    + (H.to ? 'The closing balance is the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure at the end of ' + esc(fmtD(H.to)) + '.'
-      : 'The closing balance matches the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure on the Inventory page.')
-    + ' Click a row with a PO to open it.</div>';
+  $('histBody').innerHTML = summary + bar + '<div class="box scroll" style="max-height:55vh;overflow:auto"><table class="ct li"><thead><tr>'
+    + '<th style="width:150px">Date</th><th>That day</th><th class="num" style="width:110px">Opening</th><th class="num" style="width:110px">Closing</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table></div><div class="lm-why">Metres. '
+    + (H.to ? 'The closing figure is the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' at the end of ' + esc(fmtD(H.to)) + '.'
+      : 'The closing figure matches the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure on the Inventory page.')
+    + ' A movement with a PO opens that PO.</div>';
 }
 /** The same page as an Excel file, made by the app's own writer (the PPC report's). */
 function invHistXlsx() {
