@@ -216,6 +216,12 @@ function aiCheck(c, field, value, o) {
       try { ttCheck(c.brand, c.row, t, c.ctx).fails.forEach(f => add(fails, f)); } catch (e) { add(notes, 'the title rules could not be run here'); }
     } else if (typeof lcCheck === 'function') {
       lcCheck('item_name', [t], { title: t, brand: c.brand, sku: c.sku }).forEach(f => add(f.bad || /Listing Rules|Size/.test(f.msg) ? fails : notes, f.msg));
+      // the title safety check (22 Nov 2026, listing-rules.js lrTitleMissing) — ttCheck runs it on the other path
+      const was = c.now && c.now.title;
+      if (was && typeof lrTitleMissing === 'function') {
+        const miss = lrTitleMissing(was, t, {});
+        if (miss.length) add(fails, `${typeof LR_BLOCKED === 'string' ? LR_BLOCKED : 'Blocked by the safety check'} — it would lose ${miss.map(w => `"${w}"`).join(', ')}`);
+      }
     }
   } else if (field === 'kw') {
     const t = aiLine(text);

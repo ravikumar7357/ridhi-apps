@@ -14,8 +14,18 @@ const anchor = '  return { open: open,';
 if (code.split(anchor).length !== 2) throw new Error('greige-desk.js: the closing "return { open" line moved; update this test');
 const ctx = { console, window: { document: {} } };
 vm.createContext(ctx);
-vm.runInContext(code.replace(anchor, '  globalThis.__GDT = { cleanNumber: cleanNumber };\n' + anchor), ctx);
+vm.runInContext(code.replace(anchor, '  globalThis.__GDT = { cleanNumber: cleanNumber, rdNextBale: rdNextBale };\n' + anchor), ctx);
 const clean = ctx.__GDT.cleanNumber;
+const nextBale = list => ctx.__GDT.rdNextBale(list.map(t => ({ than: t, m: '' })));
+
+console.log('== the next bale / than number keeps the format (Ravi, 21 Nov: after "001" came "2") ==');
+ok('after 001 comes 002', nextBale(['001']) === '002');
+ok('after 009 comes 010, after 099 comes 100', nextBale(['009']) === '010' && nextBale(['099']) === '100');
+ok('a short number becomes 3 digits: after 1 comes 002', nextBale(['1']) === '002');
+ok('a mill\'s own longer numbers keep their width: after 2360 comes 2361, after 0042 comes 0043', nextBale(['2360']) === '2361' && nextBale(['0042']) === '0043');
+ok('the last typed number counts, an empty box after it is skipped', nextBale(['001', '002', '']) === '003');
+ok('a bale with letters gives no guess', nextBale(['A-7']) === '' && nextBale([]) === '');
+ok('Receive RFD uses the same rule (no second copy)', /ps = RR\.thans\[l\]; ps\.push\(\{ than: rdNextBale\(ps\), m: '' \}\)/.test(code) && !/String\(\+last \+ 1\)/.test(code));
 
 console.log('== what can be typed ==');
 ok('the screenshot\'s "E99890" keeps only the number', clean('E99890') === '99890');

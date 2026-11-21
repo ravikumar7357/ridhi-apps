@@ -13,7 +13,7 @@ function desk(me) {
   const anchor = '  return { open: open,';
   const code = fs.readFileSync(SRC, 'utf8');
   if (code.split(anchor).length !== 2) throw new Error('greige-desk.js: the closing "return { open" line moved; update this test');
-  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histCauseCell, histDays, setDB: function (v) { DB = v; } };\n' + anchor);
+  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histDays, histDayName, histMonthName, histDayBadges, invNeedState, invCoverPct, invNeedCell, invActionCell, invWorthShowing, setDB: function (v) { DB = v; } };\n' + anchor);
   const ctx = { console, window: { document: {} }, ME: me || { admin: true } };
   vm.createContext(ctx);
   vm.runInContext(opened, ctx);
@@ -108,12 +108,6 @@ console.log('== a statement: the signed metres sit in the Cause, the balance at 
   ok('what went out: "−1,200" in red', /color:var\(--bad\)[^>]*>−1,200</.test(G.histOut(1200)));
   ok('a movement in shows "+", one out shows "−", none shows nothing (no "+0")',
     /\+800</.test(G.histMove({ inQty: 800, outQty: 0 })) && /−500</.test(G.histMove({ inQty: 0, outQty: 500 })) && G.histMove({ inQty: 0, outQty: 0 }) === '');
-  const cell = G.histCauseCell('Greige received', G.histIn(800));
-  ok('the metres are inside the Cause cell, at its right',
-    /^<td class="tl"><div style="display:flex;justify-content:space-between[^"]*"><div>Greige received<\/div><div style="text-align:right"><span[^>]*>\+800<\/span><\/div><\/div><\/td>$/.test(cell), cell);
-  const code = fs.readFileSync(SRC, 'utf8');
-  ok('the columns are Date | Cause | Balance (no separate In and Out)',
-    /<th>Date<\/th><th style="min-width:320px">Cause<\/th><th class="num">Balance<\/th>/.test(code) && !/<th class="num">In<\/th><th class="num">Out<\/th>/.test(code));
 }
 
 console.log('== an opening and a closing balance for each date (Ravi, 21 Nov) ==');
@@ -128,11 +122,80 @@ console.log('== an opening and a closing balance for each date (Ravi, 21 Nov) ==
   ok('each day opens where the day before closed', days[1].opening === days[0].closing && days[2].opening === days[1].closing);
   ok('27 Sep: 700 − 500 = 200; 10 Oct: 200 + 150 = 350', days[1].closing === 200 && days[2].closing === 350);
   ok('no lines, no days', G.histDays([]).length === 0);
-  ok('a day\'s line shows only what moved — never "in +0" or "out −0"',
-    /\[i \? said\('in '\) \+ histIn\(i\) : '', o \? said\('out '\) \+ histOut\(o\) : ''\]\.filter\(Boolean\)/.test(fs.readFileSync(SRC, 'utf8')));
+}
+
+console.log('== each date folds to its opening and closing; a click shows what moved (Ravi, 21 Nov) ==');
+{
+  ok('a date reads with its weekday: 2026-11-20 is "Fri 20 Nov"', G.histDayName('2026-11-20') === 'Fri 20 Nov', G.histDayName('2026-11-20'));
+  ok('…the right weekday across a month end: 2026-12-01 is "Tue 1 Dec"', G.histDayName('2026-12-01') === 'Tue 1 Dec');
+  ok('the month heading: "November 2026"', G.histMonthName('2026-11-20') === 'November 2026');
+  ok('no date, no name', G.histDayName('') === '' && G.histMonthName('') === '');
+  const both = G.histDayBadges({ inQty: 594, outQty: 300 });
+  ok('a folded date shows what moved as labels: "+594 in" green, "−300 out" red', /pill-ok[^>]*>\+594 in</.test(both) && /pill-out[^>]*>\u2212300 out</.test(both));
+  ok('…only what moved — never "+0 in" or "−0 out"', !/0 out/.test(G.histDayBadges({ inQty: 594, outQty: 0 })) && !/in</.test(G.histDayBadges({ inQty: 0, outQty: 300 })));
   const code = fs.readFileSync(SRC, 'utf8');
-  ok('each day is drawn as Opening balance → its movements → Closing balance with the day\'s in and out',
-    /histDays\(page\.lines\)\.map/.test(code) && /histCauseCell\('<b>Opening balance<\/b>', ''\)/.test(code) && /'<b>Closing balance<\/b> <span class="muted"[^']*' \+ day \+ '<\/span>', inOut\(d\.inQty, d\.outQty\)/.test(code));
+  ok('a date opens only when clicked (each date remembers itself), and Open all opens every one',
+    /if \(on\) h \+= d\.lines\.map/.test(code) && /INV_HIST\.open\[day\] = !INV_HIST\.open\[day\]/.test(code) && /function invHistOpenAll\(\)/.test(code));
+  ok('opening a fabric starts with every date folded', /INV_HIST\.to = ''; INV_HIST\.open = \{\};/.test(code));
+  ok('the period on top in four figures: Opening, Came in, Went out, Closing',
+    /figure\('Opening'/.test(code) && /figure\('Came in'/.test(code) && /figure\('Went out'/.test(code) && /figure\('Closing'/.test(code));
+  ok('a movement is labelled "in" (green) when cloth came in, "out" (red) when it went out',
+    /\(came \? '<span class="pill pill-ok" title="came in">in<\/span>' : '<span class="pill pill-out" title="went out">out<\/span>'\)/.test(code));
+}
+
+console.log('== the Inventory, laid out to act on (Ravi, 21 Nov) ==');
+{
+  const row = (need, free, short, greigeM, greige) => ({ fabric: 'Canvas', ppc: { name: 'Canvas', need, lines: 39, free, desk: free, short, onWay: 0, greigeM, greige } });
+  const shortRow = row(6772, 594, 6178, 7040, 'Canvas 48" Greige'), coveredRow = row(547, 1022, 0, 0, 'Duck 64" Greige');
+  ok('what PPC asks of a fabric: short, covered, or none',
+    G.invNeedState(shortRow) === 'short' && G.invNeedState(coveredRow) === 'ok' && G.invNeedState({ ppc: null }) === 'none' && G.invNeedState(row(0, 0, 0, 0, '')) === 'none');
+  ok('short but covered by greige on its way counts as covered', G.invNeedState(row(500, 100, 400, 0, 'X')) === 'ok');
+  ok('the bar: 594 of 6,772 is 9% covered; more free than needed stops at 100%', G.invCoverPct(shortRow.ppc) === 9 && G.invCoverPct(coveredRow.ppc) === 100);
+  const need = G.invNeedCell(shortRow, false);
+  ok('the need cell: metres, lines, the bar and "9% covered · 6,178 short"', /<b>6,772 m<\/b>/.test(need) && /39 lines/.test(need) && /width:9%/.test(need) && /9% covered/.test(need) && /6,178 short/.test(need));
+  ok('a fabric PPC does not need says so', /no PPC demand/.test(G.invNeedCell({ ppc: null }, false)));
+  ok('Action: a short fabric gets "Raise PO · 7,040 m" (the same greige PO as before)', /data-ppcpo="Canvas\|7040"[^>]*>Raise PO · 7,040 m</.test(G.invActionCell(shortRow, false)));
+  /* Ravi, 21 Nov: "remove those fabrics from inventory completely whose says add greige name" */
+  const noName = (stock) => Object.assign(row(75, 0, 75, 79, ''), { owned: stock, onOrder: 0 });
+  ok('a short fabric with no greige name is left out of the Inventory, even with cloth on the shelf',
+    G.invWorthShowing(noName(0)) === false && G.invWorthShowing(noName(120)) === false);
+  ok('…and no row anywhere says "add greige name" any more', !/add greige name/.test(G.invActionCell(row(75, 0, 75, 79, ''), false)) && !/data-ppcpo/.test(G.invActionCell(row(75, 0, 75, 79, ''), false)));
+  ok('a short fabric with a greige name stays, even with no stock', G.invWorthShowing(Object.assign(row(75, 0, 75, 79, 'Canvas Greige'), { owned: 0, onOrder: 0 })) === true);
+  ok('a covered fabric stays, and so does one with only stock or only a PO and no PPC need',
+    G.invWorthShowing(Object.assign(row(547, 1022, 0, 0, ''), { owned: 0, onOrder: 0 })) === true
+    && G.invWorthShowing({ ppc: null, owned: 40, onOrder: 0 }) === true && G.invWorthShowing({ ppc: null, owned: 0, onOrder: 900 }) === true);
+  ok('a fabric with nothing at all stays out', G.invWorthShowing({ ppc: null, owned: 0, onOrder: 0 }) === false && G.invWorthShowing({ ppc: null, owned: 0.04, onOrder: 0 }) === false);
+  ok('the Inventory list uses this one rule', /\}\)\.filter\(invWorthShowing\)/.test(fs.readFileSync(SRC, 'utf8')));
+  ok('…a covered fabric shows "covered"', /pill-ok">covered</.test(G.invActionCell(coveredRow, false)));
+  const code = fs.readFileSync(SRC, 'utf8');
+  ok('a filter by what needs doing: All · Short for PPC · Covered · No PPC demand', /\['all', 'short', 'ok', 'none'\]\.map/.test(code) && /data-invshow="' \+ k \+ '"/.test(code));
+  ok('short fabrics come first, then covered, then those not needed', /var INV_SHOW_ORDER = \{ short: 0, ok: 1, none: 2 \};/.test(code));
+  ok('the stock columns sit under "Where the cloth is now →"', /Where the cloth is now (→|\\u2192)/.test(code));
+  ok('the long note is gone from the toolbar', !/PPC demand is what the production plans need in RFD; short is after the RFD free today/.test(code));
+  ok('no Total row under the Inventory (metres of different cloths added together)', !/<tfoot><tr><td class="frz" style="text-align:left">Total/.test(code));
+  ok('"18 lines" is a link to Demand → RFD for that fabric', /data-gdlines="Canvas"[^>]*>39 lines</.test(need) && /if \(t\.getAttribute\('data-gdlines'\)\) \{ gdToFlow\('drfd', t\.getAttribute\('data-gdlines'\)\)/.test(code));
+}
+
+console.log('== the lines open Demand → RFD with only that fabric (Ravi, 21 Nov) ==');
+{
+  /* The real gdToFlow, run against a pretend app page: its tab switch and the flow's search box. */
+  const code = fs.readFileSync(SRC, 'utf8'), anchor = '  return { open: open,';
+  const box = { value: 'old search' }, seen = {};
+  const ctx = { console, window: { document: { getElementById: id => (id === 'flQ' ? box : null) } },
+    showTab: t => { seen.tab = t; }, ensureFlow: () => { seen.drawn = box.value; } };
+  vm.createContext(ctx);
+  vm.runInContext(code.replace(anchor, '  globalThis.__T = { gdToFlow: gdToFlow, view: function () { return FLOW_VIEW; } };\n' + anchor), ctx);
+  ctx.FLOW_VIEW = 'ppc';
+  ctx.__T.gdToFlow('drfd', 'Canvas');
+  ok('a click on the lines opens the flow on Demand → RFD', seen.tab === 'flow' && ctx.FLOW_VIEW === 'drfd');
+  ok('…with the fabric in its search box, before the list is drawn', box.value === 'Canvas' && seen.drawn === 'Canvas');
+  ctx.__T.gdToFlow('drfd', '');
+  ok('the plain Demand → RFD button clears it, so the whole list shows',
+    box.value === '' && seen.drawn === '' && /if \(t\.getAttribute\('data-gdflow'\)\) \{ gdToFlow\(t\.getAttribute\('data-gdflow'\), ''\);/.test(code));
+  /* Ravi, 21 Nov: Send to printer "should open the list of those products which needs that fabric" */
+  ok('Send to printer on an RFD lot opens only the products that need that fabric',
+    code.includes(`data-gdlines="' + esc(r.fabric) + '" title="The products waiting for ' + esc(r.fabric) + ' on Demand → RFD">Send to printer</button>`)
+    && !code.includes('data-gdflow="drfd">Send to printer'));
 }
 
 console.log('== the Inventory\'s cloth types: one drop-down beside the search box (Ravi, 21 Nov) ==');

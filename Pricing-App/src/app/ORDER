@@ -68,11 +68,15 @@ sales/sales-analysis.js
 listing/listing-optimiser.js
 listing/image-quality.js
 listing/image-manager.js
+listing/debug-90244.js
+listing/debug-round.js
+listing/debug-title-fix.js
 listing/picture-check.js
 listing/listing-errors.js
 listing/listing-content.js
 listing/bought-together.js
 ads/ppc-new.js
 ads/product-why.js
+sales/sales-check.js
 core/dashboard.js
 core/version-check.js

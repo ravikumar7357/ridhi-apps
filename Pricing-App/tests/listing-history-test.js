@@ -188,7 +188,10 @@ const runAll = async (C, r) => { await C.SQ.run.checked; await C.sqApprove(); C.
     const cols = [...sec.matchAll(/<div class="navcol"><div class="navcol-h">([^<]+)<\/div>([^]*?)<\/div>(?=\r\n|$)/g)].map(m => [m[1], [...m[2].matchAll(/id="tab(\w+)"/g)].map(x => x[1]).join(',')]);
     ok('the Listing menu: 1 · Fix & improve (Optimiser, Errors, Image Manager, Create Listing) · 2 · Check (Health, Audit, BSR, Family & Category Check, A+ Content, IP & Trademark Guard) · 3 · Rules & ideas (Rules, Bought Together) · 4 · Records (History)',
       JSON.stringify(cols) === JSON.stringify([['1 · Fix &amp; improve', 'Opt,Lerr,Img,Create'], ['2 · Check', 'Health,Audit,Bsr,Fam,Aplus,Ipg'], ['3 · Rules &amp; ideas', 'Lrules,Basket'], ['4 · Records', 'Lhist']]), JSON.stringify(cols));
-    ok('…and only the Listing menu has columns', (html.match(/class="navcol"/g) || []).length === 4 && /<div class="navsec" id="secAds">\r\n\s*<button /.test(html));
+    // (21 Nov 2026) the Sales menu has the same columns: four groups, two still empty
+    ok('…and only the Listing and Sales menus have columns (4 + 4)', (html.match(/class="navcol"/g) || []).length === 8
+      && ((html.match(/<div class="navsec" id="secSales">([^]*?)\r\n    <\/div><\/div>/) || ['', ''])[1].match(/class="navcol"/g) || []).length === 4
+      && /<div class="navsec" id="secAds">\r\n\s*<button /.test(html));
     const cases = [[['img'], true], [['lerr'], true], [['lrules'], true], [['health'], true], [['opt'], true], [['weekly', 'trends'], false], [['sales'], false]];
     const res = cases.map(([tabs, want]) => {
       const { C } = setup({ me: { tabs } });

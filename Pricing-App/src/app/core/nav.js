@@ -10,7 +10,7 @@
 // Every tab by key. Button id = 'tab' + capId(key), pane id = 'pane' + capId(key). The order matters only
 // for which tab opens first: the first one the account is allowed.
 // 'dash' (20 Nov 2026) is the Dashboard (core/dashboard.js): first, so it is the screen that opens after sign-in.
-const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
+const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'ngram', 'plc', 'ppch', 'deals', 'tiktok', 'carousel', 'opt', 'img',
   'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg', 'create'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
@@ -20,7 +20,7 @@ const TAB_TITLE = { dash: 'Dashboard', link: 'By Amazon Link', new: 'New Product
   age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
   trends: 'Overview', st: 'Search Term Analysis', ngram: 'N-Gram Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard',
-  profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
+  profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', ncheck: 'Numbers Check', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History',
   fam: 'Family & Category Check', aplus: 'A+ Content', ipg: 'IP & Trademark Guard', create: 'Create Listing' };
@@ -37,7 +37,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ngram: 'st' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ngram: 'st', ncheck: 'sales' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js); Numbers Check: with the Sales Dashboard (sales/sales-check.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -56,7 +56,25 @@ function setGroupOpen(g, open) {
   g.head.classList.toggle('open', open);
   g.head.setAttribute('aria-expanded', String(open));
   g.sec.classList.toggle('open', open);
+  fitNavPanel(g.sec);
 }
+/* PANELS LINED UP WITH THEIR BUTTON (21 Nov 2026). The Sales panel opens just under the bar, like Listing's, with its left
+ * edge under the Sales button (styles.css #secSales.open uses --nav-left). When that would run past the right edge of the screen
+ * it moves left just enough, and never past the left edge. Only the panels named here: every other menu places itself as before.
+ * Nothing to do in the phone drawer, where the panel is a plain list. */
+const NAV_FIT = ['secSales'];
+function fitNavPanel(sec) {
+  if (!NAV_FIT.includes(sec.id)) return;
+  sec.style.removeProperty('--nav-left');
+  if (!sec.classList.contains('open') || window.matchMedia('(max-width:860px)').matches) return;
+  const head = document.querySelector('[aria-controls="' + sec.id + '"]'), bar = sec.offsetParent;   // its button; the top bar it hangs from
+  if (!head || !bar) return;
+  const room = document.documentElement.clientWidth - 16, width = sec.getBoundingClientRect().width;
+  const left = Math.max(16, Math.min(head.getBoundingClientRect().left, room - width));                 // screen position wanted
+  sec.style.setProperty('--nav-left', Math.round(left - bar.getBoundingClientRect().left - bar.clientLeft) + 'px');
+}
+// A window made narrower (or wider) while the panel is open: place it again.
+window.addEventListener('resize', () => document.querySelectorAll('.navsec.open').forEach(fitNavPanel));
 // Empty on purpose: the open groups were once remembered across visits and are not any more. Nothing calls it.
 function saveGroups() { /* a menu is not a shape to remember */ }
 /* ONE MENU OPEN AT A TIME, and it closes as soon as something is picked, the page is clicked, or
@@ -196,6 +214,7 @@ function showTab(which) {
   if (which === 'profit') ensureProfit();
   if (which === 'sa') ensureSa();
   if (which === 'plaudit') ensurePlaudit();
+  if (which === 'ncheck') ensureNcheck();   // Numbers Check (sales/sales-check.js): only what is already loaded or cached, read-only
   if (which === 'opt') ensureOpt();
   if (which === 'img') ensureImg();
   if (which === 'lerr') ensureLerr();

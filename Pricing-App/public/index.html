@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 75 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 79 files of src/ joined into one page.
      The real, grouped source: Pricing-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, research, sales, inventory, listing, ads
@@ -538,10 +538,11 @@
   .nav.on,.nav.on:hover{background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
   /* THE LISTING DROP-DOWN (13 Nov 2026): a wide panel of four columns — 1 Fix & improve · 2 Check · 3 Rules & ideas · 4 Records —
      each screen with a small line icon. Scoped to #secListing: every other menu is untouched. The buttons, their ids, clicks and
-     access are the same (a hidden screen stays hidden; a column with none left hides). In the phone drawer it stays the plain list. */
-  #secListing .nav::before{content:"";flex:none;width:16px;height:16px;background:var(--muted);mask:var(--ic) center/contain no-repeat;-webkit-mask:var(--ic) center/contain no-repeat}
-  #secListing .nav:hover::before{background:var(--ink)}
-  #secListing .nav.on::before{background:var(--brand-ink)}
+     access are the same (a hidden screen stays hidden; a column with none left hides). In the phone drawer it stays the plain list.
+     SALES (21 Nov 2026) is the second menu on these same rules — :is(#secListing,#secSales); another menu joins by adding its id. */
+  :is(#secListing,#secSales) .nav::before{content:"";flex:none;width:16px;height:16px;background:var(--muted);mask:var(--ic) center/contain no-repeat;-webkit-mask:var(--ic) center/contain no-repeat}
+  :is(#secListing,#secSales) .nav:hover::before{background:var(--ink)}
+  :is(#secListing,#secSales) .nav.on::before{background:var(--brand-ink)}
   #tabOpt{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5'/%3E%3C/svg%3E")}
   #tabLerr{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E")}
   #tabImg{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Ccircle cx='9' cy='9' r='2'/%3E%3Cpath d='m21 15-5-5L5 21'/%3E%3C/svg%3E")}
@@ -555,19 +556,35 @@
   #tabLrules{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6'/%3E%3C/svg%3E")}
   #tabBasket{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 1 1 0 10h-2M8 12h8'/%3E%3C/svg%3E")}
   #tabLhist{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3Cpath d='M12 7v5l4 2'/%3E%3C/svg%3E")}
-  #secListing .navcol:not(:has(> .nav:not(.hide))){display:none}
-  #secListing .navcol-h{padding:6px 12px 8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+  /* The Sales drop-down (21 Nov 2026) uses these same rules: Sales Dashboard · Profit & Margin · Sales Analysis · Parent Listing Review. */
+  #tabSales{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='m19 9-5 5-4-4-3 3'/%3E%3C/svg%3E")}
+  #tabProfit{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 18V6'/%3E%3C/svg%3E")}
+  #tabSa{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='13.5' cy='6.5' r='.5'/%3E%3Ccircle cx='17.5' cy='10.5' r='.5'/%3E%3Ccircle cx='8.5' cy='7.5' r='.5'/%3E%3Ccircle cx='6.5' cy='12.5' r='.5'/%3E%3Cpath d='M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1a1.6 1.6 0 0 1 1.6-1.7h2c3 0 5.6-2.5 5.6-5.6C22 6 17.5 2 12 2z'/%3E%3C/svg%3E")}
+  #tabPlaudit{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='6' rx='1'/%3E%3Crect x='2' y='16' width='6' height='6' rx='1'/%3E%3Crect x='16' y='16' width='6' height='6' rx='1'/%3E%3Cpath d='M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8'/%3E%3C/svg%3E")}
+  #tabNcheck{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4M9.5 16l1.8 1.8 3.2-3.3'/%3E%3C/svg%3E")}
+  :is(#secListing,#secSales) .navcol:not(:has(> .nav:not(.hide))){display:none}
+  :is(#secListing,#secSales) .navcol-h{padding:6px 12px 8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+  /* A heading marked .num is numbered by the browser: a hidden group (no screen this account can open) is not counted, so the
+     numbers on show never skip — 1 · Overview, 2 · Analyse. The Listing headings carry their numbers in the text, as before. */
+  :is(#secListing,#secSales){counter-reset:navcol}
+  :is(#secListing,#secSales) .navcol{counter-increment:navcol}
+  :is(#secListing,#secSales) .navcol-h.num::before{content:counter(navcol) " · "}
   @media (min-width:861px){
-    .navwrap:has(> #secListing){position:static}        /* the wide panel hangs from the whole bar, so it never runs off the screen */
-    #secListing.open{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,220px);top:calc(100% + 6px);left:50%;right:auto;
-      transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);padding:12px;overflow-x:auto;animation:navInX .12s ease-out}
-    #secListing .navcol{min-width:0;padding:0 6px}
-    #secListing .navcol + .navcol{border-left:1px solid var(--line)}
-    #secListing .nav{white-space:nowrap}
+    .navwrap:has(> :is(#secListing,#secSales)){position:static}        /* the wide panel hangs from the whole bar, so it never runs off the screen */
+    :is(#secListing,#secSales).open{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,220px);top:calc(100% + 6px);right:auto;
+      width:max-content;max-width:calc(100vw - 32px);padding:12px;overflow-x:auto}
+    #secListing.open{left:50%;transform:translateX(-50%);animation:navInX .12s ease-out}
+    /* SALES opens just under the bar like Listing, but left-aligned with its own button: nav.js (fitNavPanel) sets --nav-left from
+       the button, moved left just enough when the panel would pass the right edge of the screen (never past the left edge). */
+    #secSales.open{left:var(--nav-left,0px)}
+    :is(#secListing,#secSales) .navcol{min-width:0;padding:0 6px}
+    /* the line goes between groups ON SHOW: a hidden group never leaves a line before the first one */
+    :is(#secListing,#secSales) .navcol:has(> .nav:not(.hide)) ~ .navcol{border-left:1px solid var(--line)}
+    :is(#secListing,#secSales) .nav{white-space:nowrap}
   }
   @keyframes navInX{from{opacity:0;transform:translate(-50%,-4px)}}
-  @media (max-width:860px){ #secListing .navcol-h{display:none} }
-  @media (prefers-reduced-motion:reduce){ #secListing.open{animation:none} }
+  @media (max-width:860px){ :is(#secListing,#secSales) .navcol-h{display:none} }
+  @media (prefers-reduced-motion:reduce){ :is(#secListing,#secSales).open{animation:none} }
   /* The TEST tag on a menu row: a small amber pill with a dot. */
   .navtag{display:inline-flex;align-items:center;gap:5px;margin-left:4px;padding:1px 7px 1px 6px;
     border-radius:var(--r-pill);background:var(--act-bg);color:var(--act-ink);font-size:10px;font-weight:700;
@@ -5316,6 +5333,84 @@
   /* stopped: another screen is open or the tab is hidden */
   #paneDash.dash-paused *,#paneDash.dash-paused *::before,#paneDash.dash-paused *::after{animation-play-state:paused}
   @media (prefers-reduced-motion:reduce){ #paneDash *,#paneDash *::before,#paneDash *::after{animation:none;transition:none} }
+  /* ================= NUMBERS CHECK (21 Nov 2026, app/sales/sales-check.js) =================
+     The chip on the Dashboard (under the greeting) and on the Sales Dashboard (top bar), and the Numbers Check page: summary cards,
+     the checks table, the rule book. Only the app's own tokens, so light and dark follow the theme. */
+  .nc-chip{display:inline-flex;align-items:center;gap:6px;width:auto;height:28px;min-height:0;margin:0;padding:0 12px;
+    border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:var(--r-pill);
+    background:var(--accent-bg);color:var(--accent-ink);box-shadow:none;font-size:12.5px;font-weight:600;line-height:1;
+    white-space:nowrap;cursor:pointer}
+  .nc-chip[hidden]{display:none}
+  .nc-chip:hover{filter:brightness(.97)}
+  .nc-chip.is-warn{border-color:color-mix(in srgb,var(--act) 40%,transparent);background:var(--act-bg);color:var(--act-ink)}
+  .nc-chip.is-wait{border-color:var(--line);background:var(--soft);color:var(--muted)}
+  #paneDash .nc-chip{margin-top:10px}
+  #paneNcheck .nc-wrap{max-width:1280px}
+  .nc-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:16px}
+  .nc-head p{margin:0;color:var(--muted);font-size:13px;flex:1 1 360px}
+  .nc-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px}
+  @media (max-width:900px){ .nc-kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .nc-kpi{padding:14px 16px;border:1px solid var(--card-line);border-radius:var(--r-card);background:var(--card);box-shadow:var(--sh-1)}
+  .nc-kpi .lbl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .nc-kpi .val{margin-top:8px;font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.2}
+  .nc-kpi .sub{margin-top:4px;font-size:12px;color:var(--muted)}
+  .nc-kpi.is-ok .val{color:var(--accent-ink)}
+  .nc-kpi.is-warn .val{color:var(--act-ink)}
+  .nc-sec{margin:0 0 20px;padding:16px;border:1px solid var(--card-line);border-radius:var(--r-card);background:var(--card);box-shadow:var(--sh-1)}
+  .nc-sec h2{margin:0 0 4px;font-size:16px;font-weight:700;color:var(--ink)}
+  .nc-sec > .muted{margin:0 0 12px;font-size:12.5px}
+  .nc-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .nc-tbl{width:100%;min-width:820px;border-collapse:collapse;font-size:13px}
+  .nc-tbl th{padding:8px 10px;border-bottom:1px solid var(--line);background:var(--soft);color:var(--muted);font-size:11.5px;font-weight:600;
+    text-align:left;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+  .nc-tbl td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+  .nc-tbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .nc-tbl td.num{min-width:150px;max-width:220px;white-space:normal}
+  .nc-tbl tr.nc-grp td{padding:12px 10px 6px;border-bottom:0;background:transparent}
+  .nc-tbl tr.nc-grp .nc-name{font-size:13.5px}
+  .nc-tbl .nc-tol{margin-left:10px;font-size:11.5px;color:var(--muted)}
+  .nc-tbl tr.is-skip td{color:var(--muted)}
+  .nc-tbl tr.is-warn td:first-child{box-shadow:inset 3px 0 0 var(--act)}
+  .nc-tbl tr.is-ok td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+  .nc-tbl .nc-name{font-weight:600;color:var(--ink)}
+  .nc-tbl .nc-sub{display:block;margin-top:2px;font-size:11.5px;font-weight:400;color:var(--muted)}
+  .nc-tbl .nc-why{min-width:240px;max-width:420px;font-size:12px;color:var(--muted);white-space:normal}
+  .nc-mark{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:var(--r-pill);font-size:12px;font-weight:700;white-space:nowrap}
+  .nc-mark.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  .nc-mark.is-warn{background:var(--act-bg);color:var(--act-ink)}
+  .nc-mark.is-skip{background:var(--soft);color:var(--muted)}
+  .nc-mark.is-note{background:var(--brand-bg);color:var(--brand-ink)}
+  .nc-mark.is-defn{background:var(--rev-bg);color:var(--rev-ink)}
+  .nc-tbl tr.is-defn td:first-child{box-shadow:inset 3px 0 0 var(--rev)}
+  .nc-diag{margin-top:14px}
+  .nc-diag h3{margin:16px 0 4px;font-size:14px;color:var(--ink)}
+  .nc-diag .nc-tbl td:nth-child(-n+2){white-space:nowrap}
+  /* PPC & Organic: a row with no brand (ads/ppc-organic.js wRenderUnassigned) */
+  .w-unas{display:inline-block;margin-left:6px;padding:0 6px;border-radius:var(--r-pill);background:var(--act-bg);color:var(--act-ink);font:600 10.5px/16px inherit;font-family:inherit;vertical-align:1px}
+  .nc-na{color:var(--faint);font-weight:500;font-style:italic}
+  .nc-tbl tr.is-note td:first-child{box-shadow:inset 3px 0 0 var(--brand)}
+  .nc-tbl tr.is-skip td:first-child{box-shadow:inset 3px 0 0 var(--line)}
+  .nc-rules{display:grid;gap:6px}
+  .nc-rules details{border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  .nc-rules summary{display:flex;gap:10px;align-items:baseline;padding:9px 12px;cursor:pointer;list-style:none;font-size:13px;color:var(--ink)}
+  .nc-rules summary::-webkit-details-marker{display:none}
+  .nc-rules summary::before{content:"▸";color:var(--faint);transition:transform .12s ease}
+  .nc-rules details[open] summary::before{transform:rotate(90deg)}
+  .nc-rules summary b{flex:none;min-width:150px}
+  .nc-rules summary span{color:var(--muted)}
+  .nc-rules dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0;padding:4px 14px 12px 34px;font-size:12.5px}
+  .nc-rules dt{color:var(--muted);font-weight:600}
+  .nc-rules dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
+  .nc-rules code{font-size:11.5px}
+  .nc-risk{margin:12px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink)}
+  .nc-risk li{margin:3px 0}
+  @media (max-width:700px){
+    .nc-rules summary{flex-wrap:wrap}
+    .nc-rules summary b{min-width:0}
+    .nc-rules dl{grid-template-columns:1fr;padding-left:14px}
+    .nc-kpi .val{font-size:20px}
+  }
+  @media (prefers-reduced-motion:reduce){ .nc-rules summary::before{transition:none} }
 </style>
 </head>
 <body>
@@ -5376,13 +5471,24 @@
       <button id="tabKw" class="nav">Keywords</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
+    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,ncheck,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
-      <button id="tabSales" class="nav">Sales Dashboard</button>
+      <!-- THE SALES DROP-DOWN (21 Nov 2026): the Listing menu's columns (styles.css "THE LISTING DROP-DOWN"), four groups.
+           A group with no screen this account can open hides, and the numbers count only the groups on show (class "num").
+           To add a screen: one button line inside its group, e.g. in Check & alerts
+             <button id="tabSalert" class="nav">Sales Alerts</button>
+           (plus its key in data-tabs above, its pane and its TABS / TAB_TITLE entry in nav.js, as for every screen,
+           and one #tabSalert{--ic:…} icon line in styles.css). -->
+      <div class="navcol"><div class="navcol-h num">Overview</div>
+      <button id="tabSales" class="nav">Sales Dashboard</button></div>
+      <div class="navcol"><div class="navcol-h num">Check &amp; alerts</div>
+      <button id="tabNcheck" class="nav">Numbers Check</button></div>
+      <div class="navcol"><div class="navcol-h num">Analyse</div>
       <button id="tabProfit" class="nav">Profit &amp; Margin</button>
       <button id="tabSa" class="nav">Sales Analysis</button>
-      <button id="tabPlaudit" class="nav">Parent Listing Review</button>
+      <button id="tabPlaudit" class="nav">Parent Listing Review</button></div>
+      <div class="navcol"><div class="navcol-h num">Act</div></div>
       <!-- MOVED to the Replenishment app, which is where these two are worked now. Hidden rather
            than deleted: the code below still runs, so anything that turns out to have been missed in
            the move can be checked against the original before it is finally removed. -->
@@ -6234,6 +6340,9 @@
     <!-- Sales that failed the nightly cross-check. Held back rather than shown, and said so here. -->
     <div id="wCheckBanner" class="card hide"
          style="padding:10px 14px;margin-bottom:12px;border-left:4px solid var(--bad);font-size:13px"></div>
+    <!-- Rows with no brand (22 Nov 2026, wRenderUnassigned): listed, never dropped from "All"; no number changes. -->
+    <div id="wUnassigned" class="card hide"
+         style="padding:10px 14px;margin-bottom:12px;border-left:4px solid var(--act);font-size:13px"></div>
     <div class="card" style="padding:12px 14px">
       <div class="toolbar">
         <select id="wBrand" style="flex:0 0 140px">
@@ -6641,8 +6750,14 @@
   </div><!-- /paneTrends -->
 
   <!-- ============ Sales Dashboard ============ -->
+  <!-- NUMBERS CHECK (21 Nov 2026, app/sales/sales-check.js): the rule book for every sales / ads / stock number, and the same number
+       compared across screens. Drawn by the script; reads only what is loaded or cached. -->
+  <div id="paneNcheck" class="hide"><div id="ncPane"></div></div>
+
   <div id="paneSales" class="hide">
     <div class="toolbar sa-gap-12 sa-sd-head">
+      <!-- the Numbers Check chip (sales/sales-check.js ncChipPaint): hidden until a check has run -->
+      <button id="ncChipSd" class="nc-chip" type="button" hidden></button>
       <span id="sdMsg" class="muted"></span>
       <button id="sdRefresh" class="ghost sa-btn-sm"
         title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>
@@ -10330,7 +10445,7 @@ $('search').addEventListener('input', () => {
 // Every tab by key. Button id = 'tab' + capId(key), pane id = 'pane' + capId(key). The order matters only
 // for which tab opens first: the first one the account is allowed.
 // 'dash' (20 Nov 2026) is the Dashboard (core/dashboard.js): first, so it is the screen that opens after sign-in.
-const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
+const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'ngram', 'plc', 'ppch', 'deals', 'tiktok', 'carousel', 'opt', 'img',
   'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg', 'create'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
@@ -10340,7 +10455,7 @@ const TAB_TITLE = { dash: 'Dashboard', link: 'By Amazon Link', new: 'New Product
   age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
   trends: 'Overview', st: 'Search Term Analysis', ngram: 'N-Gram Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard',
-  profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
+  profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', ncheck: 'Numbers Check', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History',
   fam: 'Family & Category Check', aplus: 'A+ Content', ipg: 'IP & Trademark Guard', create: 'Create Listing' };
@@ -10357,7 +10472,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ngram: 'st' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ngram: 'st', ncheck: 'sales' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js); Numbers Check: with the Sales Dashboard (sales/sales-check.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -10376,7 +10491,25 @@ function setGroupOpen(g, open) {
   g.head.classList.toggle('open', open);
   g.head.setAttribute('aria-expanded', String(open));
   g.sec.classList.toggle('open', open);
+  fitNavPanel(g.sec);
 }
+/* PANELS LINED UP WITH THEIR BUTTON (21 Nov 2026). The Sales panel opens just under the bar, like Listing's, with its left
+ * edge under the Sales button (styles.css #secSales.open uses --nav-left). When that would run past the right edge of the screen
+ * it moves left just enough, and never past the left edge. Only the panels named here: every other menu places itself as before.
+ * Nothing to do in the phone drawer, where the panel is a plain list. */
+const NAV_FIT = ['secSales'];
+function fitNavPanel(sec) {
+  if (!NAV_FIT.includes(sec.id)) return;
+  sec.style.removeProperty('--nav-left');
+  if (!sec.classList.contains('open') || window.matchMedia('(max-width:860px)').matches) return;
+  const head = document.querySelector('[aria-controls="' + sec.id + '"]'), bar = sec.offsetParent;   // its button; the top bar it hangs from
+  if (!head || !bar) return;
+  const room = document.documentElement.clientWidth - 16, width = sec.getBoundingClientRect().width;
+  const left = Math.max(16, Math.min(head.getBoundingClientRect().left, room - width));                 // screen position wanted
+  sec.style.setProperty('--nav-left', Math.round(left - bar.getBoundingClientRect().left - bar.clientLeft) + 'px');
+}
+// A window made narrower (or wider) while the panel is open: place it again.
+window.addEventListener('resize', () => document.querySelectorAll('.navsec.open').forEach(fitNavPanel));
 // Empty on purpose: the open groups were once remembered across visits and are not any more. Nothing calls it.
 function saveGroups() { /* a menu is not a shape to remember */ }
 /* ONE MENU OPEN AT A TIME, and it closes as soon as something is picked, the page is clicked, or
@@ -10516,6 +10649,7 @@ function showTab(which) {
   if (which === 'profit') ensureProfit();
   if (which === 'sa') ensureSa();
   if (which === 'plaudit') ensurePlaudit();
+  if (which === 'ncheck') ensureNcheck();   // Numbers Check (sales/sales-check.js): only what is already loaded or cached, read-only
   if (which === 'opt') ensureOpt();
   if (which === 'img') ensureImg();
   if (which === 'lerr') ensureLerr();
@@ -12468,24 +12602,70 @@ const lrFmtDate = date => date ? date.toLocaleDateString('en-GB', { day: 'numeri
 /** The approved way to write a size, taken from the example the rule carries ("14 x 36 Inch"). */
 function lrSizeOk(text, example) {
   const shape = String(example || '14 x 36 Inch').replace(/\d+(?:\.\d+)?/g, 'N');
-  return String(text).replace(/\d+(?:\.\d+)?/g, 'N') === shape || String(text).replace(/\d+(?:\.\d+)?/g, 'N') === shape.replace('N x N', 'N x N x N');
+  const mine = String(text).replace(/\d+(?:\.\d+)?/g, 'N');
+  // a ROUND size is one number, its diameter ("110 Inch"), with the example's unit — hTitleSizes finds one only on a round product
+  return mine === shape || mine === shape.replace('N x N', 'N x N x N') || mine === shape.replace(/N(?: x N)+/, 'N');
 }
 /** The short forms a person uses to fit 75 characters (Part A1): the unit as Inc, In, In., in, " ″ ” or left out, Inches as
  *  Inch / In, Centimeter as cm, and no spaces around x, X or × — "18x18", "18X18 Inc", "18×18", "18 x 18 In". */
 function lrSizeLoose(text) {
-  return /^N\s*[x×X]\s*N(?:\s*[x×X]\s*N)?\s*(?:inches|inch|inc\.?|in\.?|"|”|″|cm)?$/i.test(String(text).replace(/\d+(?:\.\d+)?/g, 'N'));
+  const t = String(text).replace(/\d+(?:\.\d+)?/g, 'N');
+  return /^N\s*[x×X]\s*N(?:\s*[x×X]\s*N)?\s*(?:inches|inch|inc\.?|in\.?|"|”|″|cm)?$/i.test(t)
+    || /^N\s*(?:inches|inch|inc\.?|in\.?|"|”|″|cm)$/i.test(t);          // a round size: one number, always with its unit
 }
 /** Every W x H (or W x H x D) written in a title, exactly as written, with the unit that follows it. */
 // Returns [{ text, a, b, c }]: the text as written, the two or three numbers (c is null for W x H). Inc, In and In. read as inch.
-function hTitleSizes(title) {
+/* ROUND PRODUCTS (22 Nov 2026). On a ROUND product a size is also ONE number with a unit after it — its diameter: "110 Inch", '110"',
+ * "70 In", "90 Inches", "180 cm" — returned as { text, a, b: a, c: null, one: true, round: true }, so every rule that compares two
+ * numbers reads it as equal (never "smaller number first"). A number with no unit is never a size ("100% Cotton", "Set of 4",
+ * "4 Seater"), nor one right after of / set / pack ("Set of 4 In Blue"), nor one under 3. On a round product each W x H carries
+ * round: true too (two equal numbers are written as the one — lrSizeWant). `round`: lrIsRound(row) where the listing is known;
+ * left out, the title alone decides (lrRoundTitle). Every other product: W x H only, exactly as before. */
+function hTitleSizes(title, round) {
   const out = [];
+  const t = String(title || '');
   const unit = '(?:"|”|″|inc\\.?(?![a-z])|in\\.?(?![a-z])|inch(?:es)?(?![a-z])|cm(?![a-z]))';
   const re = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${unit}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?)(?:\\s*${unit}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?))?(\\s*${unit})?`, 'gi');
+  if (round === undefined) round = lrRoundTitle(t);
+  round = !!round && LR_ROUND_ON;
   let match;
-  while ((match = re.exec(String(title || '')))) {
-    out.push({ text: match[0].trim(), a: +match[1], b: +match[2], c: match[3] ? +match[3] : null });
+  while ((match = re.exec(t))) {
+    const size = { text: match[0].trim(), a: +match[1], b: +match[2], c: match[3] ? +match[3] : null };
+    if (round) size.round = true;
+    out.push([match.index, match.index + match[0].length, size]);
   }
-  return out;
+  if (round) {
+    const one = new RegExp(`(?<![\\w.×*])(\\d+(?:\\.\\d+)?)\\s*${unit}`, 'gi');
+    while ((match = one.exec(t))) {
+      const at = match.index, end = at + match[0].length, n = +match[1];
+      if (out.some(([s, e]) => s < end && at < e)) continue;                                  // part of a W x H
+      if (/^\s*[x×X*]\s*\d/.test(t.slice(end)) || /\b(?:of|set|pack|pcs|pieces)\s*$/i.test(t.slice(0, at)) || n < 3) continue;
+      out.push([at, end, { text: match[0].trim(), a: n, b: n, c: null, one: true, round: true }]);
+    }
+    out.sort((x, y) => x[0] - y[0]);
+  }
+  return out.map(x => x[2]);
+}
+/* Is this a ROUND product? Any of: its title says "Round", Amazon's item_shape is Round, its catalogue sub-category is a round one
+ * ("Round Tablecloth", "Round Placemat", round cushion covers, coasters, rugs …). A title that names another shape (Square, Rectangle,
+ * Oval) is never judged round. LR_ROUND_ON: debugRoundSizes() (listing/debug-round.js) turns it off to count "before". */
+const LR_ROUND_RE = /\bround\b/i;
+const LR_OTHER_SHAPE_RE = /\b(?:square|rectangle|rectangular|oval)\b/i;
+let LR_ROUND_ON = true;
+const lrRoundTitle = title => LR_ROUND_ON && LR_ROUND_RE.test(String(title || '')) && !LR_OTHER_SHAPE_RE.test(String(title || ''));
+function lrIsRound(row, title) {
+  if (!LR_ROUND_ON) return false;
+  if (!row) return lrRoundTitle(title);
+  const t = String(title != null ? title : hTitleText(row));
+  if (LR_OTHER_SHAPE_RE.test(t)) return false;
+  if (LR_ROUND_RE.test(t)) return true;
+  let va = row.va;
+  if (!va && row.sku && typeof lmGet === 'function') { const m = lmGet(row.sku, row.brand); va = m && m.va; }
+  const v = va && va.item_shape;
+  const shape = Array.isArray(v) ? (v[0] && v[0].value != null ? v[0].value : '') : v;
+  if (LR_ROUND_RE.test(String(shape || ''))) return true;
+  const cat = (row.brand && row.sku && typeof LR_CAT !== 'undefined' && LR_CAT[row.brand] && LR_CAT[row.brand][row.sku]) || {};
+  return LR_ROUND_RE.test(String(cat.subcat || ''));
 }
 /** A size's written shape, read by meaning (Part A2): "18x18" = "18 x 18" = "18×18", and "18x18 Inc" = "18 x 18 Inch" — but a
  *  size with a unit and one without are still two shapes, as are two and three numbers. */
@@ -12652,7 +12832,7 @@ function lrSwFacts(row, cfg, va, o) {
   const title = o.title != null ? String(o.title) : hTitleText(row);
   const colour = one(['color', 'color_name']) || String(row.amzColor || '') || String(cat.color || '') || lrColorOf(row);
   let size = one(['size', 'size_name']) || String(cat.size || '');
-  if (!size) { const t = hTitleSizes(title)[0]; if (t) size = t.a + 'x' + t.b; }
+  if (!size) { const t = hTitleSizes(title, lrIsRound(row, title))[0]; if (t) size = t.one ? String(t.a) : t.a + 'x' + t.b; }
   const shape = lrSwShapeOf(size, [one(['item_shape']), lrShape(cat.subcat)].filter(Boolean).join(' '));
   const material = one(['material']) || (tpl && tpl.material) || String(cat.material || '');
   const pt = String(o.pt || row.pt || '').replace(/_/g, ' ');
@@ -12665,7 +12845,17 @@ function lrSwFacts(row, cfg, va, o) {
   let found = LR_SW_PROD_KEEP.get(within);
   if (!found) { if (LR_SW_PROD_KEEP.size > 2000) LR_SW_PROD_KEEP.clear(); found = LR_SW_PRODUCTS.filter(p => lrHas(within, p)); LR_SW_PROD_KEEP.set(within, found); }
   product.push(...found);
-  return { colour, shape, material, size, product, brands: lrBrandWords(row, cfg) };
+  /* THE PRODUCT'S OWN NAME as this title writes it (22 Nov 2026): its template's product, its catalogue sub-category (with and without
+   * its shape word), its product type — each one the title holds ("Tissue Box Cover"). A title suggestion never cuts it (lrSuggestWords,
+   * title mode) and never leaves it out (lrTitleFix step 8, title-fix ttCheck). Not added to `product`: where a missing size goes and the
+   * "Missing product" check stay exactly as they were. Only needed when the product words this rule knows ("napkin", "tablecloth"…) are
+   * not in the title — those are protected already, and a second name ("Napkins Set" after "Cloth Napkins") stays a repeat. */
+  const names = [];
+  if (!product.some(p => lrHas(title, p))) [tpl && tpl.product, cat.subcat, String(cat.subcat || '').replace(/\b(?:square|rectangle|rectangular|round|oval)\b/gi, ''), pt].forEach(src0 => {
+    const p = String(src0 || '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    if (p.length > 2 && /[a-z]{3}/i.test(p) && lrHas(title, p) && !names.some(n => lrNorm(n) === lrNorm(p))) names.push(p);
+  });
+  return { colour, shape, material, size, product, names, brands: lrBrandWords(row, cfg) };
 }
 // The short forms, mildest first: added one at a time in this order; when that overshoots, the fewest that fit (ties: the earlier ones).
 const LR_SW_SHORT = [
@@ -12746,8 +12936,26 @@ function lrSuggestWords(text, o) {
   if (f.colour) mark('colour', lrSwPhrases([String(f.colour)]));       // the whole colour as written ("Indigo Blue and Rust Orange" keeps its "and")
   mark('colour', [...colourKeys].map(k => [k]));
   mark('identity', LR_SW_P.identity);
-  mark('product', lrSwPhrases(f.product || []));
+  mark('product', lrSwPhrases((f.product || []).concat(mode === 'title' && f.names && LR_TF_GUARD ? f.names : [])));   // a title: the product's own name too (lrSwFacts names)
   if (f.shape) mark('shape', LR_SW_SHAPES[f.shape].map(w => [lrSwKey(w)]));
+  // OUR FORMAT (22 Nov 2026): in a title every shape word (Square, Round, Rectangle, Oval…) is protected like the product — lrTitleFix
+  // drops one only as its very last step, before "Can't fit"
+  if (mode === 'title' && LR_TF_GUARD) mark('shape', [...LR_SW_SHAPE_OF.keys()].map(k => [k]));
+  // WHOLE PHRASES (22 Nov 2026): in a title a known phrase ("Table Cover", "Dining Table", "Dinner Napkins") goes whole — a word that goes
+  // takes its unprotected phrase-mates with it, never leaving half ("Table"). Overlapping phrases are one group ("Dining Table Cover").
+  if (mode === 'title' && LR_TF_GUARD) {
+    let g = 0;
+    const phrases = LR_SW_P.products.concat(LR_SW_P.uses).filter(p => p.length > 1).sort((a, b) => b.length - a.length);
+    for (let i = 0; i < toks.length; i++) {
+      phrases.forEach(p => {
+        if (i + p.length > toks.length || !p.every((k, j) => toks[i + j].k === k)) return;
+        const id = (toks.slice(i, i + p.length).find(t => t.grp) || {}).grp || ++g;
+        const old = new Set(toks.slice(i, i + p.length).map(t => t.grp).filter(Boolean));
+        toks.forEach(t => { if (old.has(t.grp)) t.grp = id; });
+        for (let j = 0; j < p.length; j++) toks[i + j].grp = id;
+      });
+    }
+  }
   const mats = f.material ? String(f.material).split(/[\s,&/+-]+/).filter(Boolean) : LR_SW_MATERIAL_DEFAULT;
   mark('material', mats.map(w => [lrSwKey(w)]).filter(p => p[0] && !LR_SW_STOP_SET.has(p[0])));
   if (mode !== 'title') mark('uses', LR_SW_P.uses);         // a title keeps its brand, product, shape, material, size, print and colour (RULE 3)
@@ -12764,7 +12972,10 @@ function lrSuggestWords(text, o) {
   const now = () => (shortText != null ? shortText : mode === 'kw' ? live().map(t => t.w).filter(Boolean).join(' ') : tidy(live().map(t => t.raw).join(' ')));
   const fits = () => (typeof o.fits === 'function' ? !!o.fits(now()) : true);
   let seq = 0;                                       // the order the words went in (removed[].n)
-  const drop = (t, why) => { t.out = why; t.n = ++seq; };
+  const drop = (t, why) => {
+    t.out = why; t.n = ++seq;
+    if (t.grp) toks.forEach(x => { if (x !== t && x.grp === t.grp && !x.out && !x.cls) { x.out = why; x.n = seq; } });   // the whole phrase
+  };
   // 0 always: the risky words (another brand's name, a restricted claim) — quietly, nothing is said about them here
   const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
   if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
@@ -12985,23 +13196,24 @@ const LR_DET = {
   // with no unit at all is title_template's "Missing Inch" (never two findings for one mistake)
   size_format: (row, ctx, params) => {
     const title = hTitleText(row);
-    const bad = hTitleSizes(title).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title)));
+    const bad = hTitleSizes(title, lrIsRound(row, title)).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title) || lrRoundTwo(size)));
+    if (bad && lrRoundTwo(bad)) return `"${bad.text}" — a round size is one number: "${lrSizeWant(bad, row, ctx, title)}"`;
     if (bad && lrSizeOurs(bad.text, ctx.cfg, title, params.example)) return `"${bad.text}" — the family writes "${lrSizeWant(bad, row, ctx, title)}"`;
     return bad ? `"${bad.text}"` : '';               // the heading reads: Size not in our format: "60×60 Inches" (LR_WHAT_TEXT)
   },
   dimension_order: row => {
-    const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
+    const wrong = hTitleSizes(hTitleText(row), lrIsRound(row)).find(size => size.c === null && size.a > size.b);
     return wrong ? `${wrong.a} x ${wrong.b} should be ${wrong.b} x ${wrong.a}` : '';
   },
   variation_value_missing: (row, ctx) => {
     const title = hTitleText(row);
     if (!title || !row.parent) return '';
     const group = ctx.parents.get(row.parent + '|' + row.brand);
-    return group && group.sized > 0 && !hTitleSizes(title).length ? `no size in the title; ${group.sized} sibling(s) name theirs` : '';
+    return group && group.sized > 0 && !hTitleSizes(title, lrIsRound(row, title)).length ? `no size in the title; ${group.sized} sibling(s) name theirs` : '';
   },
   variation_naming: (row, ctx) => {
     const title = hTitleText(row);
-    const size = hTitleSizes(title)[0];
+    const size = hTitleSizes(title, lrIsRound(row, title))[0];
     if (!size || !row.parent) return '';
     if (lrNear(title, ctx.cfg)) return '';        // 74–75 characters: the short form was chosen to fit (Part A1)
     const group = ctx.parents.get(row.parent + '|' + row.brand);
@@ -13133,6 +13345,7 @@ const LR_SIZE_OURS_RE = /^\d+(?:\.\d+)?(?: x |x)\d+(?:\.\d+)?(?:(?: x |x)\d+(?:\
 function lrSizeOurs(text, cfg, title, example) {
   const t = String(text);
   if (LR_SIZE_OURS_RE.test(t)) return true;
+  if (/^\d+(?:\.\d+)? Inch$/.test(t)) return true;          // a round size, our way ("110 Inch") — only a round product has one
   if (example && lrSizeOk(t, example)) return true;
   return lrNear(title, cfg) && lrSizeLoose(t);
 }
@@ -13172,8 +13385,12 @@ function lrSizeWant(size, row, ctx, title) {
   const nums = size.c === null ? [Math.min(size.a, size.b), Math.max(size.a, size.b)] : [size.a, size.b, size.c];
   const unit = (String(size.text).match(LR_UNIT_RE) || [])[1] || '';
   const keep = /^(in\.?|"|”|″)$/i.test(unit) && lrNear(title, ctx.cfg) ? (unit === 'in' || unit === 'in.' ? 'In' : unit) : 'Inch';
-  return nums.join(lrSizeSep(row, ctx, size.text)) + (/^["”″]$/.test(keep) ? keep : ' ' + keep);
+  // a ROUND size is one number — also when it was written as two equal ones ("110x110 Inch" → "110 Inch"), never the other way round
+  const one = size.one || lrRoundTwo(size);
+  return (one ? String(size.a) : nums.join(lrSizeSep(row, ctx, size.text))) + (/^["”″]$/.test(keep) ? keep : ' ' + keep);
 }
+// A round product's size written as two EQUAL numbers ("110x110 Inch"): its own way is the one number ("110 Inch").
+const lrRoundTwo = size => !!(size && size.round && !size.one && size.c === null && size.a === size.b);
 /** What is wrong with a title (never its word order): [{ k: spell | shape | missing | repeat, what (the heading), from, to, part }]. */
 function lrTitleProblems(row, ctx) {
   const title = hTitleText(row);
@@ -13190,8 +13407,8 @@ function lrTitleProblems(row, ctx) {
     const to = lrSpellOf(w, ctx, protect);
     if (to) { said.add(w); out.push({ k: 'spell', what: `Spelling: ${w} → ${to}`, from: w, to }); }
   });
-  // the shape the size says
-  const size = hTitleSizes(title)[0];
+  // the shape the size says (a round product's size: lrIsRound — one number is its diameter)
+  const size = hTitleSizes(title, lrIsRound(row, title))[0];
   const sm = title.match(LR_SHAPE_RE);
   if (sm && size && size.c === null) {
     const s = sm[1].toLowerCase();
@@ -13236,11 +13453,12 @@ function lrTitleFix(row, ctx, o) {
   const probs = lrTitleProblems(r, ctx);
   // 1 a misspelt word, a shape the size contradicts: that word only
   probs.filter(p => p.k === 'spell' || p.k === 'shape').forEach(p => { t = t.replace(new RegExp(`\\b${lrRx(p.from)}\\b`), p.to); fixes.push(p.what); });
-  // 2 the size: our format, the family's way, the smaller number first, "Inch" after it
-  const size = hTitleSizes(t)[0];
+  // 2 the size: our format, the family's way, the smaller number first, "Inch" after it; a round product's: one number ("110 Inch")
+  const round = lrIsRound(r, before);
+  const size = hTitleSizes(t, round)[0];
   if (size) {
     const ex = ((cfg.issues || []).find(i => i.detector === 'size_format') || {}).params || {};
-    const wrong = !lrSizeOurs(size.text, cfg, t, ex.example) || lrSizeOffFamily(size, r, ctx, t) || (size.c === null && size.a > size.b) || !LR_UNIT_RE.test(size.text);
+    const wrong = !lrSizeOurs(size.text, cfg, t, ex.example) || lrSizeOffFamily(size, r, ctx, t) || (size.c === null && size.a > size.b) || !LR_UNIT_RE.test(size.text) || lrRoundTwo(size);
     if (wrong) {
       const want = lrSizeWant(size, r, ctx, t);
       if (want !== size.text) { t = t.replace(size.text, want); fixes.push(LR_UNIT_RE.test(size.text) ? `Size: ${size.text} → ${want}` : 'Missing "Inch" after the size'); }
@@ -13255,15 +13473,17 @@ function lrTitleFix(row, ctx, o) {
       t = b != null ? t.slice(0, b) + ' ' + lrCaps(p.value) + t.slice(b) : lrCaps(p.value) + ' ' + t;
       fixes.push('Missing colour');
     } else if (p.part === 'product' && p.value) {
-      const s = hTitleSizes(t)[0];
+      const s = hTitleSizes(t, round)[0];
       const at = s ? t.indexOf(s.text) : -1;
       t = at >= 0 ? t.slice(0, at) + lrCaps(p.value) + ' ' + t.slice(at) : t + ' ' + lrCaps(p.value);
       fixes.push('Missing product');
     } else if (p.part === 'size' && p.value) {
       const nums = String(p.value).match(/\d+(?:\.\d+)?/g) || [];
-      if (nums.length >= 2) {
+      // a round product's size is its one number ("110 Inch") — also when the facts give two equal ones
+      const roundOne = round && (nums.length === 1 || (nums.length === 2 && +nums[0] === +nums[1]));
+      if (nums.length >= 2 || roundOne) {
         const sz = nums.slice(0, 3).map(Number);
-        const txt = (sz.length === 2 ? [Math.min(sz[0], sz[1]), Math.max(sz[0], sz[1])] : sz).join(lrSizeSep(r, ctx)) + ' Inch';
+        const txt = roundOne ? sz[0] + ' Inch' : (sz.length === 2 ? [Math.min(sz[0], sz[1]), Math.max(sz[0], sz[1])] : sz).join(lrSizeSep(r, ctx)) + ' Inch';
         const prod = (f.product || []).map(pw => { const m = t.match(new RegExp(`\\b${lrRx(pw)}\\b`, 'i')); return m ? m.index + m[0].length : -1; }).filter(i => i >= 0).sort((a, b) => b - a)[0];
         t = prod != null ? t.slice(0, prod) + ' ' + txt + t.slice(prod) : t + ' ' + txt;
         fixes.push('Missing size');
@@ -13296,16 +13516,200 @@ function lrTitleFix(row, ctx, o) {
   const lenRule = (cfg.issues || []).find(i => i.detector === 'title_length' && i.on !== false);
   const max = Math.min(+o.max || 75, lenRule && +(lenRule.params || {}).max ? +lenRule.params.max : 75);
   let held = '';
+  const pre = t;                                     // the title with its real mistakes corrected — what any shortening starts from
   if (t.length > max) {
     const own = lrSwFacts(r, cfg, null, { title: t }).colour;
     const fl = Object.assign({}, f, { colour: [f.colour, own].find(c => c && String(c).split(/\s+/).some(w => w.length > 2 && lrHas(t, w))) || f.colour });
-    let s = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, shortFrom: lrAllow(cfg).shortFrom });
-    if (/\bInch\b/.test(t) && !/\bInch\b/.test(s.after)) s = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, short: false });   // "Inch" never goes
-    if (s.after !== t) fixes.push(`Shortened to ${s.after.length} characters`);
-    t = s.after;
-    if (!s.fits) held = `${LR_SW_IMPORTANT} (${t.length} characters, over ${max})`;
+    if (LR_TF_GUARD) {
+      /* 7 THE REMOVE-ALLOWLIST (22 Nov 2026): ONLY the material, the approved filler (whole phrases), the 74–75 short forms and — last — the
+       * shape word may go (lrShortenTitle). Every other word stays: brand, colour, product (any product, known or not), size, "Inch". */
+      t = lrShortenTitle(t, { max, min: lenRule && +(lenRule.params || {}).min || 0, shortFrom: lrAllow(cfg).shortFrom,
+        names: f.names || [], keep: [fl.colour].concat(lrBrandWords(r, cfg)).filter(Boolean) }).after;
+    } else {
+      // the rule before 22 Nov (debugTitleFix's "before"): the suggestion-words rule alone
+      let sw = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, shortFrom: lrAllow(cfg).shortFrom });
+      if (/\bInch\b/.test(t) && !/\bInch\b/.test(sw.after)) sw = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, short: false });
+      t = sw.after;
+    }
+    if (t !== pre) fixes.push(`Shortened to ${t.length} characters`);
+  }
+  // the rule before 22 Nov (debugTitleFix's "before"): whatever the suggestion-words rule left, held only when still too long
+  if (!LR_TF_GUARD) return { before, after: t, fixes, held: t.length > max ? `${LR_SW_IMPORTANT} (${t.length} characters, over ${max})` : '', probs };
+  // 8 NOTHING PROTECTED IS LOST (22 Nov 2026): the brand, the product's own name, the colour the title had, and the size it now carries
+  // must all still be there, within the length — else no suggestion at all: "Can't fit: needs a manual title".
+  const lost = lrTitleLost(before, t, r, cfg, f, fixes);
+  // THE SAFETY CHECK (22 Nov 2026): every word of the corrected title that is not on the remove-allowlist is still in the new one
+  const missing = lrTitleMissing(pre, t, { names: f.names || [], keep: [f.colour].concat(lrBrandWords(r, cfg)).filter(Boolean) });
+  if (t.length > max || lost.length || missing.length) {
+    held = lost.length || missing.length
+      ? `${LR_BLOCKED} — it would lose ${lost.concat(missing.map(w => `"${w}"`)).join(', ')}`
+      : `${LR_CANT_FIT} (${t.length} characters, over ${max})`;
+    return { before, after: before, fixes: [], held, probs };
   }
   return { before, after: t, fixes, held, probs };
+}
+const LR_CANT_FIT = 'Can\'t fit: needs a manual title';
+const LR_BLOCKED = 'Blocked by the safety check';
+
+/* ================= THE TITLE REMOVE-ALLOWLIST (22 Nov 2026) — the ONE place that says what a title suggestion may take out =================
+ * When a title is too long, ONLY these may go, in this order: (a) the material ("100% Cotton", "Pure Cotton", "Cotton", "Linen" and the
+ * comma each leaves — lrDropMaterial), (b) the approved filler below, whole phrases, the last one first (a joining word it leaves dangling —
+ * "for", "with", "and", "&" — goes with it), (c) the 74–75 short forms (lrSwShortForms), (d) last, the shape word (Square, Round, Rectangle,
+ * Oval). Every other word stays — brand, colour, product (any product, even one Sellora has never seen), size, "Inch" — and the word order
+ * never changes. Still too long: no suggestion ("Can't fit: needs a manual title"). lrTitleMissing is the safety check every suggestion
+ * passes (Fix, Fix all, Fix all titles, ✨ AI title): every word of the old title that is not on this list must be in the new one.
+ * A filler phrase never cuts a product phrase in half ("Dining Table Cover": only "Dining" may go, "Table Cover" stays whole); it may take
+ * a word off a product phrase only when what is left is itself a product ("Dinner Napkins" → "Napkins"). To allow another filler: add it
+ * below — one line. */
+const LR_TITLE_FILLER = [
+  // where and when it is used
+  'for Dining Table', 'for Kitchen Table', 'for Dining Room', 'for Living Room', 'for Bedroom', 'for Dining', 'for Kitchen', 'for Home Decor', 'for Home',
+  'for Party', 'for Wedding', 'for Everyday Use', 'for Couch Sofa', 'for Couch', 'for Sofa',
+  'Dining Table', 'Kitchen Table', 'Dining Room', 'Living Room', 'Dining', 'Kitchen', 'Dinner', 'Party', 'Wedding', 'Everyday Use', 'Everyday',
+  'Restaurant', 'Buffet', 'Banquet', 'Home Decor', 'Decor', 'Decorative', 'Farmhouse', 'Housewarming', 'House Warming', 'Gifts', 'Gift', 'Gifting',
+  // how it is cared for
+  'Machine Washable', 'Washable', 'Reusable', 'Wrinkle Free', 'Wrinkle Resistant', 'Stain Resistant', 'Eco Friendly',
+  // praise and low-value words (the suggestion-words rule's low-value list; "Light" and "Neutral" left out — they can be a colour)
+  'Gift Ideas', 'Indian', 'India', 'Colorful', 'Colourful', 'Beautiful', 'Elegant', 'Stylish', 'Cute', 'Lovely', 'Pretty', 'Nice', 'Perfect', 'Unique',
+  'Best', 'Great', 'Amazing', 'Awesome', 'Fancy', 'Trendy', 'Attractive', 'Gorgeous', 'Premium', 'Luxury',
+];
+const LR_TITLE_JOINERS = new Set(['for', 'with', 'and', '&']);
+const LR_TITLE_MATERIAL_RE = /(?:\b100\s*%\s*)?(?:\b(?:pure|organic)\s+)?\b(?:cotton|linen)\b|\b100\s*%(?=[\s,]|$)/gi;
+const LR_TITLE_SHAPE_RE = /\b(?:square|rectangle|rectangular|oblong|round|circle|circular|oval)\b/gi;
+// A phrase as a whole-word pattern, plural-tolerant ("Dinner Napkin" finds "Dinner Napkins"): built once per phrase.
+const lrPhraseRe = p => new RegExp('(^|[^\\p{L}\\p{N}])(' + String(p).trim().split(/\s+/).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:s|es)?').join('\\s+') + ')(?=$|[^\\p{L}\\p{N}])', 'giu');
+const LR_TITLE_FILLER_RE = LR_TITLE_FILLER.slice().sort((a, b) => b.length - a.length).map(p => ({ p, re: lrPhraseRe(p) }));
+const LR_TITLE_PRODUCT_RE = LR_SW_PRODUCTS.map(p => ({ p, re: lrPhraseRe(p) }));
+const lrSpans = (text, re) => [...String(text).matchAll(re)].map(m => ({ s: m.index + m[1].length, e: m.index + m[1].length + m[2].length }));
+// Is this text, whole, one of the product phrases ("Napkins")?
+const lrIsProductText = text => { const x = String(text).trim(); return !!x && LR_TITLE_PRODUCT_RE.some(({ re }) => lrSpans(x, re).some(sp => sp.s === 0 && sp.e === x.length)); };
+/** The approved filler in a title, whole phrases (the longest first), that may go: never through the colour, the brand or the product's own
+ *  name (o.keep, o.names), never leaving half a product phrase. [{ s, e, p }], in text order. */
+function lrTitleFillerHits(text, o) {
+  o = o || {};
+  const t = String(text);
+  const guard = [].concat(o.keep || [], o.names || []).filter(p => p && String(p).trim().length > 1).flatMap(p => lrSpans(t, lrPhraseRe(p)));
+  const products = LR_TITLE_PRODUCT_RE.flatMap(({ re }) => lrSpans(t, re));
+  const hits = [];
+  LR_TITLE_FILLER_RE.forEach(({ p, re }) => lrSpans(t, re).forEach(h => {
+    if (guard.some(g => g.s < h.e && h.s < g.e) || hits.some(x => x.s < h.e && h.s < x.e)) return;
+    // a product phrase it overlaps must be left whole, or be left as a product of its own ("Dinner Napkins" → "Napkins")
+    const cuts = products.filter(pr => pr.s < h.e && h.s < pr.e && !(h.s <= pr.s && pr.e <= h.e));
+    if (cuts.some(pr => !lrIsProductText(t.slice(pr.s, Math.max(pr.s, h.s)) + ' ' + t.slice(Math.min(pr.e, h.e), pr.e)))) return;
+    hits.push(Object.assign({ p }, h));
+  }));
+  return hits.sort((a, b) => a.s - b.s);
+}
+// Take [s, e) out of a title, with a joining word it leaves dangling ("for" / "with" / "and" / "&" before nothing it can join), tidied.
+function lrTitleCut(text, s, e) {
+  let t = String(text).slice(0, s) + ' ' + String(text).slice(e);
+  for (let k = 0; k < 3; k++) {
+    t = t.replace(/(^|\s)(?:for|with|and|&)(?=\s*(?:$|[-–—,|]|\s(?:for|with|and|&)\b))/gi, '$1');
+    t = t.replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/,(\s*[-–—])/g, '$1').replace(/^[\s,\-–—]+|[\s,]+$/g, '').replace(/\s+[-–—]\s*$/, '').trim();
+  }
+  return t;
+}
+/** THE ONE TITLE SHORTENING: { after, fits } — only the remove-allowlist goes, in its order, its word order kept. o: { max, min, shortFrom,
+ *  names (the product's own name), keep (colour, brand words) }. */
+function lrShortenTitle(text, o) {
+  o = o || {};
+  const max = +o.max || 75, min = +o.min || 0;
+  const fits = x => x.length <= max;
+  let t = String(text || '');
+  if (fits(t)) return { after: t, fits: true };
+  // (a) the material
+  t = lrDropMaterial(t, { names: o.names || [], product: [], colour: (o.keep || [])[0] || '' }, fits, min);
+  // (b) the approved filler, whole phrases, the last one first — never under the length rule's minimum
+  for (let k = 0; k < 30 && !fits(t); k++) {
+    const next = lrTitleFillerHits(t, o).reverse().map(h => lrTitleCut(t, h.s, h.e)).find(x => x.length >= min);
+    if (!next) break;
+    t = next;
+  }
+  // (c) the short forms, only at 74–75
+  const short = () => { if (!fits(t)) { const sh = lrSwShortForms(t, fits, +o.shortFrom || lrAllow((typeof LR !== 'undefined' && LR) || LR_DEFAULT).shortFrom); if (sh) t = sh.text; } };
+  short();
+  // (d) last, the shape word — the last one first, never inside the product's own name
+  for (let k = 0; k < 3 && !fits(t); k++) {
+    const keepSp = [].concat(o.names || []).filter(Boolean).flatMap(p => lrSpans(t, lrPhraseRe(p)));
+    const hits = [...t.matchAll(LR_TITLE_SHAPE_RE)].filter(m => !keepSp.some(g => g.s < m.index + m[0].length && m.index < g.e));
+    if (!hits.length) break;
+    const h = hits[hits.length - 1];
+    t = lrTitleCut(t, h.index, h.index + h[0].length);
+    short();
+  }
+  return { after: t, fits: fits(t) };
+}
+// A title's words as the safety check compares them: case aside; "18x18" = "18 x 18"; Inch = Inches = In = "; Set of 4 = 4 Pack; Pcs = Pieces.
+function lrTitleWords(text) {
+  const s = String(text || '').toLowerCase().replace(/&amp;/g, '&')
+    .replace(/(\d)\s*[x×*]\s*(?=\d)/g, '$1 ')
+    .replace(/\b(?:set|pack) of (\d+)\b/g, '$1 pack').replace(/\bpcs\b/g, 'pieces')
+    .replace(/(\d)\s*(?:"|”|″)/g, '$1 inch').replace(/(\d)\s*(?:inches|inch|inc\.?|in\.?)(?![a-z])/g, '$1 inch')
+    .replace(/&/g, ' and ');
+  return s.split(/[^\p{L}\p{N}%.]+/u).map(w => w.replace(/^\.+|\.+$/g, '')).filter(Boolean);
+}
+/** THE SAFETY CHECK: the words of the old title that are NOT on the remove-allowlist and are missing from the new one — [] when the new
+ *  title may go. o: { names, keep (as lrTitleFillerHits), allow: [words a correction may change — a misspelt word, another brand's name] }. */
+function lrTitleMissing(oldT, newT, o) {
+  o = o || {};
+  let t = String(oldT || '').replace(LR_TITLE_MATERIAL_RE, ' ');
+  lrTitleFillerHits(t, o).sort((a, b) => b.s - a.s).forEach(h => { t = t.slice(0, h.s) + ' ' + t.slice(h.e); });
+  t = t.replace(LR_TITLE_SHAPE_RE, ' ');
+  const allow = new Set([].concat(o.allow || []).flatMap(lrTitleWords));
+  const now = new Set(lrTitleWords(newT));
+  return [...new Set(lrTitleWords(t).filter(w => !LR_TITLE_JOINERS.has(w) && !allow.has(w) && !now.has(w)))];
+}
+// The product-name guard (lrSwFacts names protected, material first, step 8). debugTitleFix() (listing/debug-title-fix.js) turns it off to
+// show what the suggestions were before 22 Nov, then back on.
+let LR_TF_GUARD = true;
+/* 7a of lrTitleFix: the material words first ("100% Cotton", "Pure Cotton", "Cotton", "Linen", a lone "100%"), the last one first, each with
+ * the comma it leaves (", "), until the title fits — never inside the product's own name, the product words or the colour, and never one
+ * that would take the title under `min` (the title-length rule's minimum: then the suggestion-words rule shortens it word by word). */
+function lrDropMaterial(text, facts, fits, min) {
+  let t = String(text);
+  const keep = [].concat(facts.names || [], facts.product || [], facts.colour ? [facts.colour] : []).filter(p => p && String(p).length > 2);
+  const inKeep = (s, e) => keep.some(p => {
+    const low = t.toLowerCase(), want = String(p).toLowerCase();
+    for (let at = low.indexOf(want); at >= 0; at = low.indexOf(want, at + 1)) if (at < e && s < at + want.length) return true;
+    return false;
+  });
+  for (let guard = 0; guard < 8 && !fits(t); guard++) {
+    const hits = [...t.matchAll(/(?:\b100\s*%\s*)?(?:\b(?:pure|organic)\s+)?\b(?:cotton|linen)\b|\b100\s*%(?=[\s,]|$)/gi)].filter(m => !inKeep(m.index, m.index + m[0].length));
+    if (!hits.length) break;
+    const cut = m => {
+      let s0 = m.index, e0 = m.index + m[0].length;
+      const after = t.slice(e0).match(/^\s*,/);
+      if (after) e0 += after[0].length;                                  // "100% Cotton, Green" → "Green"
+      else { const bef = t.slice(0, s0).match(/,\s*$/); if (bef) s0 -= bef[0].length; }   // "Square, 100% Cotton" → "Square"
+      return (t.slice(0, s0) + ' ' + t.slice(e0)).replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/^[\s,]+|[\s,]+$/g, '').trim();
+    };
+    const next = hits.slice().reverse().map(cut).find(x => x.length >= (+min || 0));
+    if (!next) break;
+    t = next;
+  }
+  return t;
+}
+/* THE PRODUCT IS STILL NAMED (22 Nov 2026): the product names the old title held — the product's own name (lrSwFacts names: "Tissue Box
+ * Cover") and the product words ("Cloth Napkins", "Tablecloth") — at least ONE must still be in the new title, whole. A second one said
+ * again ("Cloth Napkins … Dinner Napkins Set") may go, as the repeated-word rule always did. Returns the name that went (the product's own
+ * name first, the longest), or '' when the product is still named. */
+function lrProductLost(before, after, f) {
+  const had = [...new Set([].concat(f.names || [], f.product || []))].filter(p => p && lrHas(before, p));
+  if (!had.length || had.some(p => lrHas(after, p))) return '';
+  const own = (f.names || []).filter(p => had.includes(p));
+  return (own.length ? own : had).slice().sort((a, b) => String(b).length - String(a).length)[0];
+}
+// 8 of lrTitleFix: what a suggestion would lose that it may never lose — [words], empty when nothing.
+function lrTitleLost(before, after, row, cfg, f, fixes) {
+  const lost = [];
+  const was = (w, x) => lrHas(before, w) && !lrHas(x, w);
+  lrBrandWords(row, cfg).filter(w => lrHas(before, w)).forEach(w => { if (!lrHas(after, w)) lost.push(`the brand "${w}"`); });
+  const gone = lrProductLost(before, after, f);
+  if (gone) lost.push(`the product name "${gone}"`);
+  String(f.colour || '').split(/[^A-Za-z]+/).filter(w => w.length > 2 && !LR_SW_STOP_SET.has(w.toLowerCase()))
+    .forEach(w => { if (was(w, after)) lost.push(`the colour word "${w}"`); });
+  if ((fixes || []).includes('Missing size') && !hTitleSizes(after, lrIsRound(row, before)).length) lost.push('the size');
+  return lost;
 }
 // "amber marigold" → "Amber Marigold" (a value from an attribute put into a title).
 const lrCaps = v => String(v || '').replace(/\s+/g, ' ').trim().replace(/\b[a-z]/g, ch => ch.toUpperCase());
@@ -13644,7 +14048,7 @@ function hCtx(rowsAll) {
     const group = parents.get(parentKey) || { sized: 0, bp: 0, shapes: new Map(), examples: new Map() };
     const title = hTitleText(row);
     if (lrNorm(title).includes('block print')) group.bp++;   // how many children say Block Print (the Block Print rule's proof)
-    const size = hTitleSizes(title)[0];
+    const size = hTitleSizes(title, lrIsRound(row, title))[0];
     if (size) {
       group.sized++;
       const shape = lrSizeShape(size.text);
@@ -13814,11 +14218,11 @@ const LR_FIX_TEXT = {
   main_photo_check: () => 'Replace the main picture in Image Manager: pure white background, no text or logo on it.',
   size_format: (hit, row, ctx, params) => {
     const title = hTitleText(row);
-    const bad = hTitleSizes(title).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title)));
+    const bad = hTitleSizes(title, lrIsRound(row, title)).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title) || lrRoundTwo(size)));
     return bad ? `Write the size as "${lrSizeWant(bad, row, ctx, title)}" (the family's own way). It says "${bad.text}".` : 'Write the size like "54x54 Inch".';
   },
   dimension_order: (hit, row) => {
-    const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
+    const wrong = hTitleSizes(hTitleText(row), lrIsRound(row)).find(size => size.c === null && size.a > size.b);
     return wrong ? `Put the smaller number first: "${wrong.b} x ${wrong.a}".` : 'Put the smaller number first.';
   },
   variation_value_missing: (hit, row, ctx) => {
@@ -13827,7 +14231,7 @@ const LR_FIX_TEXT = {
   },
   variation_naming: (hit, row, ctx) => {
     const group = ctx.parents.get(row.parent + '|' + row.brand);
-    const size = hTitleSizes(hTitleText(row))[0];
+    const size = hTitleSizes(hTitleText(row), lrIsRound(row))[0];
     return `Write the size like its siblings: "${group ? group.commonExample : ''}"${size ? ` (it says "${size.text}")` : ''}.`;
   },
   title_keyword: (hit, row, ctx, params) => {
@@ -23941,7 +24345,7 @@ function faCards(kids) {
 // A child as a seller knows it: Colour · Size (from the title Amazon shows), else its SKU.
 function faLabel(kid, ctx) {
   const row = lrFresh(Object.assign({}, kid.row, { brand: kid.brand }), ctx || hCtx());
-  const size = (hTitleSizes(hTitleText(row))[0] || {}).text || '';
+  const size = (hTitleSizes(hTitleText(row), lrIsRound(row))[0] || {}).text || '';   // a round product's one-number size too
   return [lrColorOf(row), size].filter(Boolean).join(' · ') || kid.sku;
 }
 
@@ -25235,7 +25639,7 @@ function kfItemOf(brand, row, ctx, kid) {
   let full = lrKwBytes(kw) >= bytes && (!lmCut || lrKwBytes(kw) > lrKwBytes(lmKw));
   if (!full && lmKw && !lmCut && lrKwBytes(lmKw) >= bytes) { kw = lmKw; full = true; }   // a live read kept 300 letters; the cache has it whole
   if (read) { kw = read.kw; full = true; }                                 // read whole for this, from Amazon
-  const label = kid && typeof faLabel === 'function' ? faLabel(kid, ctx) : [typeof lrColorOf === 'function' ? lrColorOf(fresh) : '', (hTitleSizes(hTitleText(fresh))[0] || {}).text || ''].filter(Boolean).join(' · ') || row.sku;
+  const label = kid && typeof faLabel === 'function' ? faLabel(kid, ctx) : [typeof lrColorOf === 'function' ? lrColorOf(fresh) : '', (hTitleSizes(hTitleText(fresh), lrIsRound(fresh))[0] || {}).text || ''].filter(Boolean).join(' · ') || row.sku;
   const pt = (read && read.pt) || (kid && kid.lr && kid.lr.pt) || (m && m.pt) || '';
   return { key, brand, sku: row.sku, asin: row.asin || '', parent: row.parent || row.asin || row.sku || '—', label, title: hTitleText(fresh), kw, full, pt, brands: kfBrands(fresh, ctx.cfg),
     // what the suggestion-words rule protects for this listing (its product, real shape, material, own colour, size)
@@ -25704,7 +26108,7 @@ function ttParts(brand, row, ctx, amz) {
   if (aNums && cNums && !ttSameNums(aNums, cNums)) clash.push(`size — Amazon says ${aNums.join(' x ')}, the catalogue says ${cNums.join(' x ')}`);
   const nums = aNums || cNums;
   parts.size = nums ? lrSizeText(nums.join('x'), example) : ''; src.size = aNums ? 'Amazon' : cNums ? 'catalogue' : '';
-  const tSize = hTitleSizes(title)[0];
+  const tSize = hTitleSizes(title, lrIsRound(fresh, title))[0];        // a round product's one-number size is its diameter
   if (nums && tSize && !ttSameNums([tSize.a, tSize.b].concat(tSize.c != null ? [tSize.c] : []), nums)) clash.push(`size — the title says “${tSize.text}”, ${src.size === 'Amazon' ? 'Amazon' : 'the catalogue'} says ${nums.join(' x ')}`);
   // shape: Amazon's item shape, else the catalogue sub-category's
   const norm = s => String(s || '').toLowerCase().replace(/rectangular/, 'rectangle');
@@ -25849,6 +26253,19 @@ function ttCheck(brand, row, title, ctx, ctx2) {
   });
   const brands = lrBrandWords(was, ctx.cfg);
   if (brands.length && !brands.some(word => lrFind(title, word) === 0)) fails.push('the brand is not at the start');
+  // MISSING PRODUCT ON THE NEW TITLE (22 Nov 2026): the product must still be named — its own name ("Tissue Box Cover") or one of the
+  // product names the old title held (listing-rules.js lrProductLost, the same rule Title Fix shortens by); else it never "passes"
+  const oldT = hTitleText(was);
+  const fOld = lrSwFacts(was, ctx.cfg, null, { title: oldT });
+  const gone = lrProductLost(oldT, title, fOld);
+  if (gone) fails.push(`Missing product: "${gone}" is not in the new title`);
+  // THE SAFETY CHECK (22 Nov 2026, listing-rules.js lrTitleMissing): every word of the old title that is not on the remove-allowlist must
+  // still be there — the words a correction changes (a misspelt word, a shape the size contradicts, another brand's name) aside
+  const corrected = lrTitleProblems(was, ctx).filter(p => p.from).map(p => p.from);
+  const riskFn = typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, was, ctx.cfg) : null;
+  const risky = riskFn ? (riskFn(oldT) || []).map(sp => oldT.slice(sp.s, sp.e)) : [];
+  const missing = lrTitleMissing(oldT, title, { names: fOld.names || [], keep: [fOld.colour].concat(brands).filter(Boolean), allow: corrected.concat(risky) });
+  if (missing.length) fails.push(`${LR_BLOCKED} — it would lose ${missing.map(w => `"${w}"`).join(', ')}`);
   // no other brand's name and no restricted claim in a new title (IP & Trademark Guard; a word allowed on purpose for the listing is fine)
   if (typeof ipgTitleRisk === 'function') ipgTitleRisk(brand, row.sku, was, title, ctx.cfg).forEach(why => fails.push(why));
   return { pass: !fails.length && !ttSafe(title).length, fails: fails.concat(ttSafe(title)) };
@@ -31985,6 +32402,12 @@ function aiCheck(c, field, value, o) {
       try { ttCheck(c.brand, c.row, t, c.ctx).fails.forEach(f => add(fails, f)); } catch (e) { add(notes, 'the title rules could not be run here'); }
     } else if (typeof lcCheck === 'function') {
       lcCheck('item_name', [t], { title: t, brand: c.brand, sku: c.sku }).forEach(f => add(f.bad || /Listing Rules|Size/.test(f.msg) ? fails : notes, f.msg));
+      // the title safety check (22 Nov 2026, listing-rules.js lrTitleMissing) — ttCheck runs it on the other path
+      const was = c.now && c.now.title;
+      if (was && typeof lrTitleMissing === 'function') {
+        const miss = lrTitleMissing(was, t, {});
+        if (miss.length) add(fails, `${typeof LR_BLOCKED === 'string' ? LR_BLOCKED : 'Blocked by the safety check'} — it would lose ${miss.map(w => `"${w}"`).join(', ')}`);
+      }
     }
   } else if (field === 'kw') {
     const t = aiLine(text);
@@ -47911,6 +48334,32 @@ function wRenderCheck() {
   });
 }
 
+/* UNASSIGNED ROWS (22 Nov 2026). A row whose brand was never recorded (saved before every write set one) is counted in "All" and in
+ * neither Ridhi nor CPC. Listed here with its ad spend over the weeks on show, so a brand total that looks short can be explained —
+ * nothing is moved and no number changes. Numbers Check (sales/sales-check.js) uses the same rows. */
+// The rows with no brand and their totals over some weeks: { rows: [{ asin, spend, rev }], spend, rev }.
+function wUnassigned(weeks) {
+  const rows = Object.entries(WEEKLY.rows).filter(([, r]) => !r.brand).map(([asin, r]) => ({
+    asin,
+    spend: Math.round(weeks.reduce((s, w) => s + (((r.weeks || {})[w] || {}).spend || 0), 0) * 100) / 100,
+    rev: Math.round(weeks.reduce((s, w) => s + (((r.weeks || {})[w] || {}).rev || 0), 0) * 100) / 100,
+  })).sort((a, b) => b.spend - a.spend || b.rev - a.rev);
+  return { rows, spend: Math.round(rows.reduce((s, r) => s + r.spend, 0) * 100) / 100, rev: Math.round(rows.reduce((s, r) => s + r.rev, 0) * 100) / 100 };
+}
+// Fill (or hide) the note above the grid: how many rows have no brand, their ad spend and sales in the weeks shown, and their ASINs.
+function wRenderUnassigned(weeks) {
+  const el = $('wUnassigned');
+  if (!el) return;
+  const u = wUnassigned(weeks);
+  el.classList.toggle('hide', !u.rows.length);
+  if (!u.rows.length) { el.innerHTML = ''; return; }
+  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const money = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  el.innerHTML = `<b>${u.rows.length} ASIN${u.rows.length === 1 ? '' : 's'} with no brand (Unassigned)</b> — ${money(u.spend)} ad spend and ${money(u.rev)} sales in the weeks shown.`
+    + ' They are in "All" but in neither Ridhi nor CPC. '
+    + `<span class="muted">${u.rows.map(r => esc(r.asin) + (r.spend ? ' (' + money(r.spend) + ')' : '')).join(', ')}</span>`;
+}
+
 // Cells add up field by field. Only the four STORED figures are summed here — every ratio is worked
 // out afterwards from the parent's totals, because averaging children's percentages would weight a
 // child that sold twice the same as one that sold two thousand.
@@ -48058,7 +48507,9 @@ function renderWeekly() {
       ? (tot == null ? '<span class="muted">—</span>' : `${Math.round(tot)}% / ${Math.round(100 - tot)}%`)
       : fmt(tot);
 
-    return `<tr><td class="frz" style="font-family:ui-monospace,monospace">${esc(r.asin)}</td>`
+    // A row with no brand (an old saved row: nothing writes one any more) — tagged, so it is not taken for Ridhi or CPC.
+    const unas = !r.brand ? ' <span class="w-unas" title="No brand: counted in All, in neither Ridhi nor CPC">Unassigned</span>' : '';
+    return `<tr><td class="frz" style="font-family:ui-monospace,monospace">${esc(r.asin)}${unas}</td>`
       + `<td class="frz2" title="${esc(r.title)}">${esc(r.title.slice(0, 34)) || '<span class="muted">—</span>'}</td>`
       + (byParent ? `<td class="num"><span class="muted">${r.kids}</span></td>` : '')
       + `<td class="num" style="font-weight:700">${totTxt}</td>${cells}</tr>`;
@@ -48069,6 +48520,7 @@ function renderWeekly() {
     + '</tbody>';
 
   // --- the rest of the tab ---
+  wRenderUnassigned(weeks);
   renderWeeklyKpis(rows, weeks);
   renderWeeklyRange();
   renderWeeklyAlerts(rows, weeks);
@@ -50610,7 +51062,7 @@ function loKeepWords(reply, brand, asin, sku) {
   // the backend's reordering; a competitor's ASIN (no row of ours) keeps the backend's suggestion, its risky words out
   if (row.sku && rows.some(r => r.sku === row.sku) && typeof lrTitleFix === 'function' && typeof hCtx === 'function') {
     const fx = lrTitleFix(Object.assign({}, row, { shownTitle: sug.current }), hCtx(), { title: sug.current, max: +sug.cap || 75, risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, row, cfg) : null });
-    Object.assign(sug, { suggested: fx.after, newLen: fx.after.length, why: fx.fixes.length ? fx.fixes : ['No mistake to correct — the title keeps its own format and word order.'] });
+    Object.assign(sug, { suggested: fx.after, newLen: fx.after.length, why: fx.held ? [fx.held] : fx.fixes.length ? fx.fixes : ['No mistake to correct — the title keeps its own format and word order.'] });
     return reply;
   }
   const facts = lrSwFacts(row, cfg, null, { title: sug.current });
@@ -53965,6 +54417,249 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 // Sizes measured on screen (image-quality.js) move the "Too small" card.
 IMQ.onSize = imCardsSoon;
 if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', imStick);
+/* ============================== FILE: src/app/listing/debug-90244.js ============================== */
+/* ================= LISTING · DEBUG: ERROR 90244 ("We can't accept the Ounce you entered for Unit Count") — read only (22 Nov 2026) =================
+ * Console only: window.debug90244() — the app is one module, so its own names (IML, LH, baCall…) cannot be reached from DevTools.
+ * Does, and prints as tables (also returns the same object):
+ *   1. every listing of both brands whose Amazon issues include ERROR 90244 (Image Manager's list, IML — the list Listing Errors reads)
+ *   2. every Listing History row that changed unit_count (any screen, any SKU)
+ *   3. Listing History for the SKUs asked (default RTC14 and RTC75-6060)
+ *   4. the backend's own send log for those SKUs (?lfix=history — the attribute paths each send carried)
+ *   5. Amazon's current unit_count for those SKUs, as THIS seller submitted it (?lfix=get — a read of the listing)
+ * NEVER writes: no Firestore write, no send, no patch. Step 5 is a READ from Amazon; debug90244({ amazon: false }) skips it.
+ * Usage: debug90244()  ·  debug90244({ skus: ['RTC14'], brand: 'SP' })  ·  debug90244({ amazon: false }) */
+async function debug90244(opts) {
+  opts = opts || {};
+  const skus = (opts.skus && opts.skus.length ? opts.skus : ['RTC14', 'RTC75-6060']).map(s => String(s).trim()).filter(Boolean);
+  const brand = opts.brand || 'SP';
+  const out = { errors: [], unitCountSends: [], history: {}, sendLog: {}, amazon: {}, problems: [] };
+  const say = (title, rows) => { try { console.log(title); if (rows && rows.length) console.table(rows); } catch (e) { /* no console */ } };
+  const step = async (name, fn) => { try { await fn(); } catch (e) { out.problems.push(name + ': ' + String((e && e.message) || e)); } };
+  const when = at => { try { return new Date(at).toISOString().replace('T', ' ').slice(0, 16); } catch (e) { return String(at || ''); } };
+
+  // 1. listings with ERROR 90244 — Image Manager's saved list (the shared listing cache first), never the Amazon read
+  await step('listings with 90244', async () => {
+    for (const b of ['SP', 'CPC']) if (!IML[b]) await imListLoad(b);
+    ['SP', 'CPC'].forEach(b => ((IML[b] && IML[b].items) || []).forEach(it => (it.iss || []).forEach(i => {
+      if (String(i.c) === '90244') out.errors.push({ brand: b, sku: it.sku, asin: it.asin || '', parent: it.psku || '', severity: i.s, message: i.m, attrs: (i.a || []).join(',') });
+    })));
+    say(`1. ${out.errors.length} listing${out.errors.length === 1 ? '' : 's'} with ERROR 90244` + (IML.SP && IML.SP.at ? ` (list as at ${IML.SP.at})` : ''), out.errors);
+  });
+
+  // 2–3. Listing History (Firestore /history listing_* documents — the same read the Listing History screen makes)
+  await step('Listing History', async () => {
+    if (!Array.isArray(LH.rows) || LH.loading) await lhLoad(true);
+    const rows = LH.rows || [];
+    const row = r => ({ at: when(r.at), sku: r.sku, brand: r.brand, screen: r.screen, field: r.field, attr: r.attr, old: r.old, new: r.new, result: r.result, by: r.name || '' });
+    out.unitCountSends = rows.filter(r => /unit_count/i.test(r.attr || '') || /unit count/i.test(r.field || '')).map(row);
+    say(`2. ${out.unitCountSends.length} Listing History row${out.unitCountSends.length === 1 ? '' : 's'} that changed unit_count (of ${rows.length} read)`, out.unitCountSends);
+    skus.forEach(sku => {
+      out.history[sku] = rows.filter(r => String(r.sku) === sku).map(row);
+      say(`3. Listing History for ${sku}: ${out.history[sku].length} row${out.history[sku].length === 1 ? '' : 's'}`, out.history[sku]);
+    });
+  });
+
+  // 4. the backend's own send log (Script Properties LFIX_LOG, newest 200 sends): which attribute paths each send carried
+  for (const sku of skus) {
+    await step('send log ' + sku, async () => {
+      const r = await baCall({ lfix: 'history', sku });
+      out.sendLog[sku] = ((r && r.rows) || []).map(x => ({ at: String(x.at || '').replace('T', ' ').slice(0, 16), by: x.by || '', brand: x.brand || '', paths: (x.paths || []).join(' · '), status: x.status || '', submission: x.submissionId || '' }));
+      const uc = out.sendLog[sku].filter(x => /unit_count/.test(x.paths)).length;
+      say(`4. Backend send log for ${sku}: ${out.sendLog[sku].length} send${out.sendLog[sku].length === 1 ? '' : 's'}, ${uc} with /attributes/unit_count`, out.sendLog[sku]);
+    });
+  }
+
+  // 5. Amazon's current unit_count for those SKUs, as this seller submitted it — a READ (getListingsItem), nothing sent
+  if (opts.amazon !== false) {
+    for (const sku of skus) {
+      await step('Amazon read ' + sku, async () => {
+        const g = await baCall({ lfix: 'get', brand, sku });
+        const at = (g && g.attributes) || {};
+        out.amazon[sku] = {
+          productType: g.productType || '', asin: g.asin || '',
+          unit_count: at.unit_count || null,
+          item_package_quantity: at.item_package_quantity || null,
+          number_of_items: at.number_of_items || null,
+          issues90244: (g.issues || []).filter(i => String(i.code) === '90244').map(i => i.message),
+        };
+        say(`5. Amazon now, ${sku} (${out.amazon[sku].productType}): unit_count = ${JSON.stringify(out.amazon[sku].unit_count)}`
+          + ` · item_package_quantity = ${JSON.stringify(out.amazon[sku].item_package_quantity)} · number_of_items = ${JSON.stringify(out.amazon[sku].number_of_items)}`
+          + (out.amazon[sku].issues90244.length ? ` · 90244: ${out.amazon[sku].issues90244.join(' | ')}` : ' · no 90244 on this read'));
+      });
+    }
+  }
+  if (out.problems.length) say('Could not read: ' + out.problems.join(' · '));
+  return out;
+}
+try { window.debug90244 = debug90244; } catch (e) { /* no window (tests) */ }
+/* ============================== FILE: src/app/listing/debug-round.js ============================== */
+/* ================= LISTING · DEBUG: ROUND sizes, before / after (22 Nov 2026) — read only =================
+ * Console only: window.debugRoundSizes() — the app is one module, so its own names cannot be reached from DevTools.
+ * Judges every listing Listing Health holds (both brands) twice with the rules' own healthOf: once with round sizes OFF (the rules as
+ * they were — W x H only) and once ON (listing-rules.js hTitleSizes / lrIsRound). Prints and returns:
+ *   rules      per rule: listings found before, after, the change
+ *   gone       the listings whose "Missing size" went away — each with its title and why it counts as round
+ *   changed    every listing whose findings changed, round or not; nonRound = those that are NOT round (should be none)
+ * NEVER writes, sends or reads Amazon: Listing Health's snapshot must already be loaded (open Listing Health first). The rules' cached
+ * context is rebuilt for each pass and dropped after, so the screens judge again with the rules as they are now. */
+// The two ways a title with no size is reported: "Missing size" (title_template), or — in a family whose children name sizes —
+// "no size in the title; N sibling(s) name theirs" (variation_value_missing).
+const LR_NOSIZE_RE = /Missing size|no size in the title/;
+function debugRoundSizes() {
+  const say = (title, rows) => { try { console.log(title); if (rows && rows.length) console.table(rows); } catch (e) { /* no console */ } };
+  if (typeof H_LOADED === 'undefined' || !H_LOADED || !LR) {
+    say('Listing Health is not loaded yet — open Listing Health, wait for it to draw, then run debugRoundSizes() again.');
+    return null;
+  }
+  const rows = ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(row => Object.assign({}, row, { brand: b })));
+  const judge = on => {
+    LR_ROUND_ON = on;
+    H_CTX = null;                                   // the cached context counted each family's sizes one way: count them again
+    const ctx = hCtx();
+    const per = {}, byRow = new Map();
+    rows.forEach(row => {
+      let found = [];
+      try { found = (healthOf(row, ctx).found || []); } catch (e) { found = []; }
+      const keys = [];
+      found.forEach(f => {
+        per[f.detector] = (per[f.detector] || 0) + 1;
+        keys.push(f.detector + ': ' + f.detail);
+      });
+      byRow.set(row.brand + '|' + row.sku, keys);
+    });
+    return { per, byRow };
+  };
+  let before, after;
+  try {
+    before = judge(false);
+    after = judge(true);
+  } finally {
+    LR_ROUND_ON = true;
+    H_CTX = null;
+  }
+  const rules = [...new Set([...Object.keys(before.per), ...Object.keys(after.per)])].sort()
+    .map(d => ({ rule: d, before: before.per[d] || 0, after: after.per[d] || 0, change: (after.per[d] || 0) - (before.per[d] || 0) }));
+  const ctx = hCtx();
+  const why = row => {
+    const t = hTitleText(row);
+    if (/\bround\b/i.test(t)) return 'title says Round';
+    const m = typeof lmGet === 'function' ? lmGet(row.sku, row.brand) : null;
+    const v = m && m.va && m.va.item_shape;
+    if (/round/i.test(String(Array.isArray(v) ? (v[0] || {}).value : v || ''))) return 'Amazon item_shape Round';
+    const cat = (LR_CAT[row.brand] || {})[row.sku] || {};
+    return /round/i.test(String(cat.subcat || '')) ? 'sub-category ' + cat.subcat : '';
+  };
+  const changed = [], gone = [];
+  rows.forEach(row => {
+    const key = row.brand + '|' + row.sku;
+    const a = before.byRow.get(key) || [], b = after.byRow.get(key) || [];
+    if (a.join('\n') === b.join('\n')) return;
+    const fresh = lrFresh(row, ctx);
+    const round = lrIsRound(fresh);
+    const entry = { brand: row.brand === 'SP' ? 'Ridhi' : row.brand, sku: row.sku, round: round ? why(fresh) || 'round' : 'NOT round', title: hTitleText(fresh),
+      before: a.filter(x => !b.includes(x)).join(' | '), after: b.filter(x => !a.includes(x)).join(' | ') };
+    changed.push(entry);
+    if (a.some(x => LR_NOSIZE_RE.test(x)) && !b.some(x => LR_NOSIZE_RE.test(x))) gone.push(entry);
+  });
+  const nonRound = changed.filter(c => c.round === 'NOT round');
+  const missing = m => [...m.byRow.values()].filter(keys => keys.some(x => LR_NOSIZE_RE.test(x))).length;
+  say(`Listings judged: ${rows.length}. No size found ("Missing size" / "no size in the title"): ${missing(before)} before → ${missing(after)} after.`);
+  say('Per rule, before → after', rules.filter(r => r.change));
+  say(`No size found → size found on ${gone.length} listing${gone.length === 1 ? '' : 's'}`, gone);
+  say(`Findings changed on ${changed.length} listing${changed.length === 1 ? '' : 's'} — ${nonRound.length} of them NOT round (should be 0)`, changed);
+  return { judged: rows.length, missingBefore: missing(before), missingAfter: missing(after), rules, gone, changed, nonRound };
+}
+try { window.debugRoundSizes = debugRoundSizes; } catch (e) { /* no window (tests) */ }
+/* ============================== FILE: src/app/listing/debug-title-fix.js ============================== */
+/* ================= LISTING · DEBUG: Title Fix before / after THE REMOVE-ALLOWLIST (22 Nov 2026) — read only =================
+ * Console only: window.debugTitleFix() — the app is one module, so its own names cannot be reached from DevTools.
+ * Works out every listing's title suggestion (listing-rules.js lrTitleFix, at Fix all titles' length) twice: as before 22 Nov
+ * (LR_TF_GUARD off — the suggestion-words rule alone, which could cut any word it did not know, e.g. "Tissue Box Cover") and now (THE
+ * REMOVE-ALLOWLIST: only the material, the approved filler, the 74–75 short forms and — last — the shape may go; every other word stays,
+ * else "Can't fit: needs a manual title"; the safety check lrTitleMissing blocks anything else). Prints / returns:
+ *   changed     every suggestion that changed: the title, the suggestion before → now
+ *   blocked     every OLD suggestion the safety check now blocks, with the words it would have lost
+ *   nowBlocked  the listings whose suggestion is held now by the safety check, with its reason
+ *   unsafe      the NEW suggestions missing a product / brand / colour / size word — must be [] (0)
+ *   dropped     the old suggestions that lost a product name (brand, SKU, family, title, the old suggestion, what it lost, now)
+ *   families    how many families those are in
+ *   prefix      the listings whose SKU starts with opts.prefix (default "RTBX"): the old suggestion → the new one
+ * NEVER writes, sends or reads Amazon: Listing Health's snapshot must already be loaded (open Listing Health first).
+ * Usage: debugTitleFix()  ·  debugTitleFix({ prefix: 'RTCR' })  ·  debugTitleFix({ prefix: '' }) (no prefix table) */
+function debugTitleFix(opts) {
+  opts = opts || {};
+  const say = (title, rows) => { try { console.log(title); if (rows && rows.length) console.table(rows); } catch (e) { /* no console */ } };
+  if (typeof H_LOADED === 'undefined' || !H_LOADED || !LR) {
+    say('Listing Health is not loaded yet — open Listing Health, wait for it to draw, then run debugTitleFix() again.');
+    return null;
+  }
+  const prefix = String(opts.prefix == null ? 'RTBX' : opts.prefix).toUpperCase();
+  const rows = ['SP', 'CPC'].flatMap(b => ((HEALTH[b] && HEALTH[b].rows) || []).map(row => Object.assign({}, row, { brand: b })));
+  const ctx = hCtx();
+  const max = typeof ttLimits === 'function' ? ttLimits(ctx.cfg).max : 75;
+  const run = on => {
+    LR_TF_GUARD = on;
+    const out = new Map();
+    rows.forEach(row => {
+      try {
+        const fresh = lrFresh(row, ctx);
+        out.set(row.brand + '|' + row.sku, { fresh, fx: lrTitleFix(fresh, ctx, { max }) });
+      } catch (e) { /* that listing is skipped */ }
+    });
+    return out;
+  };
+  let before, after;
+  try { before = run(false); after = run(true); } finally { LR_TF_GUARD = true; }
+  const brandName = b => (b === 'SP' ? 'Ridhi' : b);
+  const offered = fx => !fx.held && fx.after !== fx.before;                    // a suggestion someone could send
+  const textOf = n => (!n ? '' : n.fx.held ? n.fx.held : n.fx.after === n.fx.before ? '(no change)' : n.fx.after);
+  const nowOf = key => textOf(after.get(key));
+  // the safety check as ttCheck runs it: the words a real correction changes (a misspelling, another brand's name) may differ
+  const missingOf = (fresh, oldT, newT) => {
+    const f = lrSwFacts(fresh, ctx.cfg, null, { title: oldT });
+    let allow = [];
+    try { allow = lrTitleProblems(fresh, ctx).filter(p => p.from).map(p => p.from); } catch (e) { /* none */ }
+    try {
+      const risk = typeof ipgKwRisk === 'function' ? ipgKwRisk(fresh.brand, fresh.sku, fresh, ctx.cfg) : null;
+      if (risk) allow = allow.concat((risk(oldT) || []).map(sp => oldT.slice(sp.s, sp.e)));
+    } catch (e) { /* no IP guard */ }
+    return lrTitleMissing(oldT, newT, { names: f.names || [], keep: [f.colour].concat(lrBrandWords(fresh, ctx.cfg)).filter(Boolean), allow });
+  };
+  const changed = [], blocked = [], nowBlocked = [], unsafe = [], dropped = [];
+  after.forEach(({ fresh, fx }, key) => {
+    const b = before.get(key);
+    const was = b ? textOf(b) : '', now = textOf(after.get(key));
+    const base = { brand: brandName(fresh.brand), sku: fresh.sku, family: fresh.parent || '', title: fx.before };
+    if (was !== now) changed.push(Object.assign({}, base, { before: was, now, chars: fx.held ? '' : fx.after.length }));
+    if (fx.held && fx.held.startsWith(LR_BLOCKED)) nowBlocked.push(Object.assign({}, base, { why: fx.held }));
+    if (b && offered(b.fx)) {
+      const miss = missingOf(b.fresh, b.fx.before, b.fx.after);
+      if (miss.length) blocked.push(Object.assign({}, base, { before: b.fx.after, missing: miss.join(', '), now }));
+      const f = lrSwFacts(b.fresh, ctx.cfg, null, { title: b.fx.before });
+      const lost = lrTitleLost(b.fx.before, b.fx.after, b.fresh, ctx.cfg, f, b.fx.fixes).filter(l => /product name/.test(l));
+      if (lost.length) dropped.push(Object.assign({}, base, { before: b.fx.after, lost: lost.join(', '), now }));
+    }
+    if (offered(fx)) {                                                         // the NEW suggestion: nothing it may never lose is gone
+      const f = lrSwFacts(fresh, ctx.cfg, null, { title: fx.before });
+      const lost = lrTitleLost(fx.before, fx.after, fresh, ctx.cfg, f, fx.fixes);
+      const miss = missingOf(fresh, fx.before, fx.after);
+      if (lost.length || miss.length) unsafe.push(Object.assign({}, base, { now: fx.after, lost: lost.concat(miss.map(w => `"${w}"`)).join(', ') }));
+    }
+  });
+  const families = new Set(dropped.map(d => d.brand + '|' + d.family)).size;
+  const pre = prefix ? [...after.keys()].filter(k => k.split('|')[1].toUpperCase().startsWith(prefix)).map(k => {
+    const a = after.get(k), b = before.get(k);
+    return { sku: a.fresh.sku, title: a.fx.before, before: b ? textOf(b) : '', now: nowOf(k), chars: a.fx.held ? '' : a.fx.after.length };
+  }) : [];
+  say(`Listings judged: ${rows.length} (length ${max}). Title suggestions that CHANGED with the remove-allowlist: ${changed.length}.`, changed);
+  say(`Old suggestions the safety check now BLOCKS (the words they would lose): ${blocked.length}.`, blocked);
+  say(`Held now by the safety check: ${nowBlocked.length}.`, nowBlocked);
+  say(`New suggestions missing a product / brand / colour / size word: ${unsafe.length}${unsafe.length ? ' — PLEASE REPORT THESE' : ' ✓'}.`, unsafe);
+  say(`Old suggestions that DROPPED a product name: ${dropped.length}, in ${families} famil${families === 1 ? 'y' : 'ies'}.`, dropped);
+  if (prefix) say(`${prefix}…: ${pre.length} listing${pre.length === 1 ? '' : 's'} — the suggestion before → now`, pre);
+  return { judged: rows.length, max, changed, blocked, nowBlocked, unsafe, dropped, families, prefix: pre };
+}
+try { window.debugTitleFix = debugTitleFix; } catch (e) { /* no window (tests) */ }
 /* ============================== FILE: src/app/listing/picture-check.js ============================== */
 /* ================= LISTING · PICTURE CHECK: the main pictures a person must judge (white background, no text or logo) =================
  * Screens: Image Manager (tab 'img') → the "Picture check (N)" chip in its toolbar (#imPcChip) opens #imPcWrap in place of the list.
@@ -59232,6 +59927,808 @@ function pwDrawer(ctx) {
 }
 
 /* ####################################################################################################
+ * GROUP: src/app/sales/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/sales/sales-check.js ============================== */
+/* ================= SALES · NUMBERS CHECK: the rule book, and the same number compared across screens (21 Nov 2026) =================
+ * Screens: Numbers Check (tab 'ncheck', Sales menu → Check & alerts; it comes with the Sales Dashboard — TAB_INHERIT in core/nav.js),
+ *   and ONE chip on the Dashboard (under the greeting) and on the Sales Dashboard (top bar): "🔒 Numbers checked ✓ HH:MM" (green) or
+ *   "⚠ N differences" (amber). A click opens this screen.
+ * Does: changes NO number anywhere. It writes the rules every sales / ads / stock number follows (NC_RULES, the same text as
+ *   docs/sales-metrics.md), and compares the same number where two screens show it, with each screen's OWN functions:
+ *     Dashboard Sales MTD / YTD (DASH_CALC.sales)        = Sales Dashboard (sdSum)
+ *     Dashboard Ad spend, latest week (DASH_CALC.ads)    = PPC & Organic's latest-week card (renderWeeklyKpis' sums)
+ *     PPC & Organic sales, last finished week            ≈ Sales Dashboard, the same seven days
+ *     Overview ad spend, 13 finished weeks (TREND)       ≈ PPC & Organic, the same weeks
+ *     Dashboard "Aged 181+" and storage (DASH_CALC.age)  = Inventory Age (its buckets and totals)
+ *     Profit & Margin sales, its weeks (pfWeeks)         ≈ Sales Dashboard, the same days
+ *   each for Ridhi, CPC and Both, and "Both = Ridhi + CPC" where a screen adds Both up on its own.
+ * Reads ONLY what is loaded or cached, read-only: SD (else this browser's copy, else the nightly cache — never ensureSales' top-up),
+ *   Seller Central's totals (tMatchEnsure: the matchBiz / matchAds caches), PPC & Organic's store (WEEKLY, else the Dashboard's own
+ *   copy — dashLoadAds), the Ad Console's snapshot (loadTrends), Inventory Age's snapshot (loadAgeCache). NEVER wNightly, tNightly,
+ *   an Amazon refresh, AI, or a write anywhere.
+ * When: the screen opening, "Check again", and the Dashboard's loads landing (ncSoon, no loading of its own). window.salesCheck() runs
+ *   the same checks from the console and prints them as a table.
+ * Main functions: salesCheck, ncRun, ensureNcheck, ncRender, ncChipPaint, ncSoon; data NC_RULES, NC_RISKS, NC_TOL. */
+
+/* ---------- THE RULE BOOK: one entry per number. Keep docs/sales-metrics.md in step (tests/sales-metrics-test.js checks it). ---------- */
+// Fields: name · line (one plain sentence) · screens · source · formula · day (cut-off) · incl (what is in / out) · brand · round · fresh.
+const NC_RULES = [
+  { name: 'Sales', line: 'Money customers ordered for, on the US portal day — before refunds, without tax or shipping.',
+    screens: 'Sales Dashboard (every card), Dashboard (Sales MTD / YTD, 90-day line)',
+    source: 'Nightly cache "daily" (Orders workbooks + Shopify), kept in this browser (sd.daily.v1); the live top-up (daily:recent) overwrites the last 3 days, then the month + 7 days (at most 40). Ridhi / CPC days that Seller Central has published are replaced by its Business Report "Ordered Product Sales" (matchBiz cache).',
+    formula: 'sdSum(from, to)[0] = Σ day[0] for from ≤ day ≤ to (inclusive), rounded to the cent after adding.',
+    day: 'US Pacific (PT) — the "US portal day", the same as Seller Central. Shopify days are the store\'s own date (created_at), not PT.',
+    incl: 'Amazon.com only (other marketplaces dropped, a blank channel kept). Pending counted. Cancelled dropped. MCF dropped. Refunds NOT taken off (ordered sales). Shopify: every order except "voided" (a refunded order still counts), price × quantity, before discounts, no shipping or tax.',
+    brand: 'Sales Dashboard toggle: Ridhi (SP) · CPC · Shopify · All (= all three). Dashboard "Both" = Ridhi + CPC — no Shopify.',
+    round: 'Cents inside; shown as whole dollars (sdMoney).',
+    fresh: 'Nightly; today from the live top-up (re-read when the tab opens, at most every 10 min). Seller Central publishes a day 1–2 days late, so the newest days stay on the workbooks.' },
+  { name: 'Units (Quantity)', line: 'Units ordered on the US portal day.',
+    screens: 'Sales Dashboard (period table "Quantity", Custom Range)',
+    source: 'As Sales: day[1]; Business Report "Units Ordered" where published.', formula: 'Σ day[1] over the range.',
+    day: 'PT (Shopify: store date).', incl: 'As Sales.', brand: 'As Sales.', round: 'Whole units (sdNum).', fresh: 'As Sales.' },
+  { name: 'Orders (Order items)', line: 'How many orders came in — counted two ways, see the note.',
+    screens: 'Sales Dashboard ("Order items" row, Custom Range), Overview ("Order items" row; its KPI card says "Orders")',
+    source: 'day[2]: Business Report "Total Order Items" for days Seller Central has published; the workbooks\' count of DISTINCT order ids for the newest days; Shopify counts orders.',
+    formula: 'Σ day[2] over the range. Workbook: a new order id = one more (the lines of one order sit together).',
+    day: 'PT.', incl: 'As Sales.', brand: 'As Sales.', round: 'Whole numbers.',
+    fresh: 'As Sales — so the newest 1–2 days count orders while older days count order items (mixed in one row).' },
+  { name: 'Avg $ / item', line: 'Sales ÷ units in the Custom Range.', screens: 'Sales Dashboard (Custom Range)',
+    source: 'sdRange over the two dates.', formula: 'sales ÷ units (sum[0] / sum[1]) — per UNIT, though the label says item.',
+    day: 'PT.', incl: 'As Sales.', brand: 'The channel on view.', round: '2 decimals ("$12.34"); "—" with no units.', fresh: 'As Sales.' },
+  { name: 'Today', line: 'Today so far, on the US portal day — a part day.', screens: 'Sales Dashboard',
+    source: 'As Sales.', formula: 'sdSum(today, today); today = sdToday() (PT).', day: 'PT — in India the morning still shows the US day before.',
+    incl: 'As Sales.', brand: 'As Sales.', round: 'Whole $.', fresh: 'Live top-up.' },
+  { name: 'Yesterday', line: 'The last complete US portal day.', screens: 'Sales Dashboard', source: 'As Sales.',
+    formula: 'sdSum(yesterday, yesterday).', day: 'PT.', incl: 'As Sales.', brand: 'As Sales.', round: 'Whole $.', fresh: 'Live top-up.' },
+  { name: 'Last 7 days', line: 'The 7 complete days ending yesterday, against the same 7 dates last year.', screens: 'Sales Dashboard',
+    source: 'As Sales.', formula: 'sdSum(yesterday − 6, yesterday); %Δ vs sdSum of the same dates a year earlier.', day: 'PT.',
+    incl: 'As Sales.', brand: 'As Sales.', round: 'Whole $; %Δ 1 decimal.', fresh: 'As Sales.' },
+  { name: 'WTD (week to date)', line: 'Not shown as such. The nearest is PPC & Organic\'s running week (Sunday → Saturday, "n of 7 days").',
+    screens: 'PPC & Organic, Product Performance (running week column)', source: 'PPC & Organic store (WEEKLY).',
+    formula: 'Σ of the week\'s cells so far; never compared until the week finishes (wWeekDone).', day: 'Weeks start Sunday; "finished" is judged in PT.',
+    incl: 'As PPC weekly sales.', brand: 'As PPC weekly sales.', round: 'Whole $.', fresh: 'Nightly.' },
+  { name: 'MTD', line: 'This month so far INCLUDING today; the %Δ compares complete days only, both years.',
+    screens: 'Sales Dashboard, Dashboard (Sales MTD card, ticker)', source: 'As Sales.',
+    formula: 'Value = sdSum(month start, today). %Δ = sdSum(month start, yesterday) vs the same dates last year.',
+    day: 'PT.', incl: 'As Sales.', brand: 'As Sales (Dashboard Both = Ridhi + CPC).', round: 'Whole $; %Δ 1 decimal.', fresh: 'As Sales.' },
+  { name: 'YTD', line: 'This year so far including today; %Δ on complete days, both years.', screens: 'Sales Dashboard, Dashboard (Sales YTD card)',
+    source: 'As Sales.', formula: 'Value = sdSum(1 Jan, today). %Δ = sdSum(1 Jan, yesterday) vs the same dates last year.',
+    day: 'PT.', incl: 'As Sales.', brand: 'As Sales (Dashboard Both = Ridhi + CPC).', round: 'Whole $; %Δ 1 decimal.', fresh: 'As Sales.' },
+  { name: 'LY and %Δ', line: 'Last year = the same calendar dates a year earlier; %Δ = (now − LY) ÷ LY.',
+    screens: 'Sales Dashboard (cards, period table, monthly table), Dashboard (MTD / YTD cards)',
+    source: 'As Sales (the nightly history holds last year).', formula: 'sdLastYear(date) = year − 1, same month-day. sdDelta / dashDelta: (now − was) ÷ was × 100, ▲ / ▼.',
+    day: 'PT. 29 Feb has no last-year day.', incl: 'As Sales.', brand: 'As Sales.', round: '1 decimal; "—" when last year is 0 (never "+100%").',
+    fresh: 'As Sales. NOTE the period table compares MTD / YTD INCLUDING today with last year up to yesterday; the cards use complete days on both sides.' },
+  { name: 'Expected — month', line: 'Where the month lands if the last 7 complete days keep up.', screens: 'Sales Dashboard',
+    source: 'As Sales.', formula: 'MTD to yesterday + (Last 7 days ÷ 7) × (days in month − complete days so far). On the 1st: (Last 7 days ÷ 7) × days in month. Compared with the whole of last month, and with the same number of days of last month.',
+    day: 'PT.', incl: 'As Sales.', brand: 'As Sales.', round: 'Whole $; %Δ 1 decimal.', fresh: 'As Sales.' },
+  { name: 'Monthly TY vs LY', line: 'Each month this year beside the same month last year.', screens: 'Sales Dashboard (table + chart)',
+    source: 'As Sales.', formula: 'sdSum(YYYY-MM-01, last day) for each year; a month neither year has is left out.', day: 'PT.',
+    incl: 'As Sales.', brand: 'As Sales.', round: 'Whole $; %Δ 1 decimal.', fresh: 'As Sales.' },
+  { name: 'PPC weekly sales', line: 'Sales per ASIN per Sunday→Saturday week, added from the Orders workbooks.',
+    screens: 'PPC & Organic, Product Performance (rows), Profit & Margin, Parent Listing Review, Dashboard (PPC · weekly bars)',
+    source: 'Cache "weekly" (Orders workbook, per ASIN) merged into Firestore audit/weekly + weeklyrows/* (WEEKLY).',
+    formula: 'Σ revenue (col G) of the week\'s rows per ASIN; a parent adds its children.', day: 'Weeks keyed by the Sunday; rows dated by the PT purchase date.',
+    incl: 'Amazon.com only, MCF and Cancelled out, refunds not taken off. No Shopify. Workbook figures — never Seller Central\'s.',
+    brand: 'By the workbook the ASIN came from (book 0 = Ridhi, 1 = CPC). "All" keeps every row, also a row with no brand.',
+    round: 'Cents when added (wAddCell); whole $ on screen.', fresh: 'Nightly; folded in when PPC & Organic / Product Performance / Parent Listing Review open.' },
+  { name: 'Ad spend', line: 'What the ads cost — Sponsored Products only on most screens; all ad types on Overview.',
+    screens: 'PPC & Organic, Product Performance, Dashboard (Ad spend · latest week), Overview, Placement, Search Term Analysis, Profit & Margin',
+    source: 'PPC & Organic / Product Performance / Profit & Margin / Dashboard: cache adsAsin (Sponsored Products, per ASIN per week) in WEEKLY. Product Performance "All" row: matchAds (SP). Overview: matchAds SP + SB + SD where it holds the day, else SP. Placement: nightly placement cache (SP, 30 days) or settled 7-day pack. Search Term Analysis: target rows (SP, settled 7-day or 30-day pack).',
+    formula: 'Σ cost over the cells / days in view. Dashboard: Σ spend of the newest week in WEEKLY (often still running).',
+    day: 'Report days are PT; weeks Sunday → Saturday.', incl: 'Sponsored Products (+ Brands, Display on Overview where matchAds holds the day).',
+    brand: 'Each brand is its own ads profile; Both = the two added.', round: 'Whole $ (Placement / Search terms: whole or 2 decimals).',
+    fresh: 'Ads land 1–2 days after the day; nightly.' },
+  { name: 'Ad sales', line: 'Sales Amazon credits to an ad click.',
+    screens: 'PPC & Organic, Product Performance, Overview, Placement, Search Term Analysis',
+    source: 'Weekly per ASIN: SP 30-day attributed sales (adsAsin). Product Performance All row: matchAds SP 7-day. Overview: matchAds SP 7-day + SB + SD where held, else SP 30-day. Placement table: 30-day; Placement cards / Search terms: 7-day settled where available.',
+    formula: 'Σ attributed sales over the cells / days.', day: 'PT report days.', incl: 'Attribution window differs by screen (7 vs 30 days).',
+    brand: 'Per ads profile.', round: 'Whole $.', fresh: 'A 30-day window keeps growing for 30 days after the click.' },
+  { name: 'Organic sales', line: 'Sales not credited to an ad.', screens: 'PPC & Organic, Product Performance, Overview',
+    source: 'From Sales and Ad sales of the same cell / period.', formula: 'max(0, sales − ad sales). Product Performance: over the days the ad report covers only.',
+    day: 'As its inputs.', incl: 'As its inputs.', brand: 'As its inputs.', round: 'Whole $.', fresh: 'As Ad sales.' },
+  { name: 'TACoS', line: 'Ad spend ÷ TOTAL sales.', screens: 'PPC & Organic, Product Performance, Overview, Profit & Margin, Dashboard (Ad spend card, ticker), Search Term Analysis (Campaign × Product)',
+    source: 'Ad spend and Sales of that screen.', formula: 'spend ÷ sales × 100 — five variants: PPC & Organic (SP ÷ workbook sales), Product Performance rows (ad-covered days only), PP All row (matchAds SP ÷ Seller Central), Overview (all ad types ÷ Seller Central), PP chart (no overlay).',
+    day: 'As its inputs.', incl: 'As its inputs.', brand: 'As its inputs.',
+    round: 'Dashboard / PPC & Organic card: whole % (Math.round); grids 1 decimal under 10 %, else whole; Overview 1 decimal.', fresh: 'As Ad spend.' },
+  { name: 'ACoS', line: 'Ad spend ÷ AD sales.', screens: 'PPC & Organic, Product Performance, Overview, Placement, Search Term Analysis',
+    source: 'Ad spend and Ad sales of that screen.', formula: 'spend ÷ ad sales × 100; "—" with no ad sales.', day: 'As its inputs.',
+    incl: 'Window differs: 30-day (PPC & Organic, Placement table, Campaign × Product), 7-day (PP All row, Placement cards, Search terms), all types (Overview).',
+    brand: 'Per ads profile.', round: 'PPC & Organic card whole %; Overview / Placement 1 decimal; Campaign × Product whole %.', fresh: 'As Ad sales.' },
+  { name: 'ROAS', line: 'Ad sales ÷ ad spend.', screens: 'Overview, Product Performance, Search Term Analysis (text)', source: 'As ACoS.',
+    formula: 'ad sales ÷ spend (Search terms also 100 ÷ ACoS).', day: 'As its inputs.', incl: 'As ACoS.', brand: 'Per ads profile.', round: '2 decimals.', fresh: 'As Ad sales.' },
+  { name: 'Organic share', line: 'The part of sales not credited to ads.', screens: 'PPC & Organic (card + Ad % / Organic % grid), Product Performance, Overview',
+    source: 'Sales and Ad sales.', formula: 'PPC & Organic card: (sales − ad sales) ÷ sales × 100, NOT floored. Grid: 100 − ad %, floored at 0. Overview / PP: max(0, sales − ad sales) ÷ sales.',
+    day: 'As its inputs.', incl: 'As its inputs.', brand: 'As its inputs.', round: 'Whole % (card); 1 decimal (Overview).', fresh: 'As Ad sales.' },
+  { name: 'Sessions', line: 'Visits to the product pages.', screens: 'PPC & Organic, Product Performance, Overview (Sessions box), Parent Listing Review',
+    source: 'Per ASIN per week: Amazon traffic report (cache "sessions"). Overview box and PP All row: Seller Central "Sessions – Total" (matchBiz), else the weekly cache.',
+    formula: 'Σ sessions. A parent adds its children (one visit to two sizes counts twice).', day: 'Weeks Sunday → Saturday; PT.',
+    incl: 'Amazon only.', brand: 'Per brand.', round: 'Whole numbers.', fresh: 'Weekly traffic report; can be missing for the running week.' },
+  { name: 'CVR', line: 'Two different numbers carry this name — units ÷ sessions, or ad orders ÷ clicks.',
+    screens: 'PPC & Organic (CVR = units ÷ sessions), Product Performance ("Unit session %" = units ÷ sessions; "SP conv. rate" = ad orders ÷ clicks), Overview / Placement / Search Term Analysis (CVR = orders ÷ clicks)',
+    source: 'As the inputs.', formula: 'units ÷ sessions × 100, or (ad) orders ÷ clicks × 100.', day: 'As its inputs.', incl: 'As its inputs.',
+    brand: 'As its inputs.', round: '1 decimal.', fresh: 'As its inputs.' },
+  { name: 'CTR', line: 'Clicks ÷ impressions.', screens: 'Overview, Product Performance (by campaign type)', source: 'Ad report impressions and clicks.',
+    formula: 'clicks ÷ impressions × 100.', day: 'PT report days.', incl: 'Overview: all ad types where matchAds holds the day.', brand: 'Per ads profile.',
+    round: '1 decimal (Overview card: 2).', fresh: 'As Ad spend.' },
+  { name: 'CPC', line: 'Cost per click.', screens: 'Overview, Product Performance, Placement, Search Term Analysis', source: 'Ad spend and clicks.',
+    formula: 'spend ÷ clicks; "—" with no clicks.', day: 'As its inputs.', incl: 'As Ad spend.', brand: 'Per ads profile.', round: '2 decimals.', fresh: 'As Ad spend.' },
+  { name: 'Fees (est.)', line: 'An ESTIMATE: referral 15 % + FBA 11 % of sales — not Amazon\'s real fees.', screens: 'Profit & Margin',
+    source: 'The fee model PF_MODEL in Firestore audit/costs (editable: ref 15, fba 11, returns 10, overhead 10, salary 10).',
+    formula: 'sales × ref % + sales × fba %.', day: 'Profit & Margin\'s weeks.', incl: 'Gross ordered sales; no refunds.', brand: 'Ridhi / CPC / All (no ads-brand limit).',
+    round: 'Whole $ (the sum rounded).', fresh: 'As PPC weekly sales.' },
+  { name: 'COGS', line: 'Unit cost × units sold.', screens: 'Profit & Margin', source: 'Unit costs typed per ASIN (audit/costs) × WEEKLY units.',
+    formula: 'unit cost × units; a parent adds child by child (only children with a cost).', day: 'Profit & Margin\'s weeks.', incl: 'Rows with a cost only.',
+    brand: 'As Profit & Margin.', round: 'Whole $.', fresh: 'Costs: when typed; units nightly.' },
+  { name: 'Profit', line: 'Sales less estimated fees, ads, COGS, returns, overhead and salary.', screens: 'Profit & Margin',
+    source: 'pfMoney(cell, unit cost).', formula: 'sales − referral − FBA − ad spend − COGS − returns (10 % of COGS) − overhead (10 % of sales) − salary (10 % of sales).',
+    day: 'Profit & Margin\'s weeks (the newest is the running week).', incl: 'Costed rows; gross ordered sales; returns only as the modelled %.',
+    brand: 'As Profit & Margin.', round: 'Whole $; per unit 2 decimals.', fresh: 'As PPC weekly sales.' },
+  { name: 'Margin', line: 'Profit ÷ sales.', screens: 'Profit & Margin', source: 'pfMoney.', formula: 'profit ÷ sales × 100; the card: Σ profit ÷ Σ sales of costed rows.',
+    day: 'As Profit.', incl: 'As Profit.', brand: 'As Profit.', round: '1 decimal.', fresh: 'As Profit.' },
+  { name: 'ROI', line: 'Profit ÷ COGS.', screens: 'Profit & Margin', source: 'pfMoney.', formula: 'profit ÷ COGS × 100.', day: 'As Profit.',
+    incl: 'As Profit.', brand: 'As Profit.', round: 'Whole %.', fresh: 'As Profit.' },
+  { name: 'Aged units (181+)', line: 'Units in FBA that are 181 days old or more.', screens: 'Inventory Age, Dashboard (Aged 181+ tile, ticker)',
+    source: 'Firestore age/SP, age/CPC — Amazon\'s FBA inventory planning report, saved on "Refresh both brands" (at most 1,500 rows each).',
+    formula: 'Keep the coarsest age buckets that do not overlap (totalCols); add every bucket STARTING at 181 days or later.', day: 'The snapshot\'s time.',
+    incl: 'FBA only; the snapshot\'s rows.', brand: 'Ridhi / CPC / Both (the two added).', round: 'Whole units.', fresh: 'Only as new as the last Refresh (amber after 7 days).' },
+  { name: 'Storage $', line: 'Amazon\'s estimated monthly storage fee for the stock in the snapshot.', screens: 'Inventory Age, Dashboard (Aged 181+ tile)',
+    source: 'age/{brand}: the report\'s first storage fee / cost / charge column (long-term storage left out).', formula: 'Σ storage over the rows.',
+    day: 'The snapshot\'s time.', incl: 'As Aged units.', brand: 'As Aged units.', round: '2 decimals.', fresh: 'As Aged units.' },
+  { name: 'Sales Analysis units / amount / share', line: 'Units and money per SKU per month, and each one\'s share of the month\'s units.',
+    screens: 'Sales Analysis', source: 'Firestore salesanalysis/{brand} + sarows/*, rebuilt by its button from the Orders workbook (no Amazon call).',
+    formula: 'qty = Σ units, amt = Σ revenue per SKU-month (each rounded); share = units ÷ all units that month; rank = this month + last month.',
+    day: 'PT months.', incl: 'Amazon.com only, MCF and Cancelled out, refunds not taken off. Workbook figures — never Seller Central\'s.',
+    brand: 'One brand at a time.', round: 'Whole numbers; share 1 decimal.', fresh: 'When last rebuilt.' },
+  { name: 'Parent Listing Review figures', line: 'Last week, the 6-week average, run rate and cover per parent.', screens: 'Parent Listing Review',
+    source: 'WEEKLY (sales, units, spend, sessions), Listing Health stock, launch dates.',
+    formula: 'Avg = Σ of the last 6 finished weeks ÷ 6 (Prime Day week left out; INCLUDES last week). Run rate = last week × 52. "DOS" = stock ÷ last week\'s units ÷ (52 ÷ 12) — MONTHS of cover.',
+    day: 'Finished weeks (PT).', incl: 'As PPC weekly sales.', brand: 'Ridhi / CPC / Both within the ads brands.', round: 'Whole $; % whole; DOS 1 decimal.', fresh: 'Nightly.' },
+];
+
+/* ---------- THE SAME NUMBER WORKED OUT IN MORE THAN ONE PLACE ---------- */
+const NC_RISKS = [
+  'Sales MTD / YTD: Sales Dashboard (sdSum) and Dashboard (DASH_CALC.sales, through sdSum with the channel swapped) — checked below.',
+  'Sales: Sales Dashboard uses Seller Central\'s totals where published; PPC & Organic, Profit & Margin, Parent Listing Review and Sales Analysis add up the Orders workbooks — checked below (PPC week, Profit & Margin).',
+  '"Both" / "All": Dashboard Both = Ridhi + CPC; Sales Dashboard All = Ridhi + CPC + Shopify; PPC & Organic All = every row, also one with no brand.',
+  'Ad spend: PPC & Organic / Dashboard (SP per ASIN), Product Performance All row (matchAds SP), Overview (SP + SB + SD), Placement and Search terms (SP, 30-day or settled 7-day) — checked below (Dashboard, Overview).',
+  'TACoS: five definitions (see the rule) and three colour bands (≤10/20, 15/30, >20).',
+  'ACoS: the same formula with 7-day, 30-day or all-type inputs — Placement shows both windows on one screen.',
+  'CVR: units ÷ sessions (PPC & Organic, PP "Unit session %") vs orders ÷ clicks (Overview, Placement, Search terms, PP "SP conv. rate").',
+  'Sessions: per-ASIN traffic report added up vs Seller Central\'s total.',
+  'Orders: Business Report order items vs distinct workbook orders, in one row (Sales Dashboard, Overview).',
+  'Organic share: floored at 0 in grids, not on the PPC & Organic card.',
+  'Aged 181+ and storage: Inventory Age (renderAge / renderAgeKpis) and the Dashboard tile (DASH_CALC.age) — checked below.',
+  'Fee model: Profit & Margin (audit/costs: returns 10 % of COGS) and Settings / New Product (returns 3 % of price) are separate copies.',
+  'Parent roll-up: Profit & Margin (pfRows), PPC & Organic (wRows) and Parent Listing Review (plRows) each group children on their own.',
+  'Weeks: PT everywhere except wWeeksList (browser date), which sets PPC & Organic\'s and Profit & Margin\'s week list.',
+];
+
+/* ---------- TOLERANCES, per check (also shown on the screen) ---------- */
+const NC_TOL = {
+  exact: 'exact, to the cent',
+  week: '±2 % — Seller Central\'s totals vs the Orders workbook',
+  sp: 'within 1 % — the same Sponsored Products spend on both screens',
+  organic: '±5 % — Overview: Seller Central sales less all-type ad sales (7-day); PPC & Organic: workbook sales less SP ad sales (30-day)',
+  shown: 'shown only — no other screen has it',
+  defn: 'definition differs — needs a manager decision (not a bug)',
+};
+
+let NC = { at: 0, res: null, busy: null, soonT: 0, err: '', ov: { ads: null, daily: null, asin: null, adsAt: '', dailyAt: '', asinAt: '' }, diag: { sp: [], pm: [], days: [] } };
+const NC_VIEWS = [['SP', 'Ridhi'], ['CPC', 'CPC'], ['ALL', 'Both']];
+const NC_BRAND = { SP: 'Ridhi', CPC: 'CPC', SHOP: 'Shopify' };
+const ncEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+const ncMoney = v => (v == null || !isFinite(v) ? '—' : (v < 0 ? '−$' : '$') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const ncNum = v => (v == null || !isFinite(v) ? '—' : Math.round(v).toLocaleString('en-US'));
+const ncR2 = v => Math.round(v * 100) / 100;
+const ncMay = t => typeof TAB_OK === 'function' && !!TAB_OK(t);
+const ncAdsOk = () => ncMay('ppcn') || ncMay('weekly');
+const ncAdBs = () => (typeof adBrands === 'function' ? adBrands() : ['SP', 'CPC']);
+const ncHm = ms => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+const ncChans = view => (view === 'ALL' ? ['SP', 'CPC'] : [view]);
+const ncDays = w => Array.from({ length: 7 }, (_, i) => sdShift(w, i));
+
+// Two numbers compared: the difference in $ and %, and the verdict. 'exact' = within half a cent (units: exact); 'week' = within
+// 2 % ('info': differs on purpose, explained); 'sp' = within 1 %; 'organic' = within 5 % explained; 'onpurpose' = explained.
+function ncCompare(a, b, kind, unit) {
+  const diff = ncR2(a - b);
+  const pct = b ? (a - b) / Math.abs(b) * 100 : (a ? 100 : 0);
+  let status;
+  if (Math.abs(diff) < (unit === 'n' ? 0.5 : 0.005)) status = 'ok';
+  else if (kind === 'week') status = Math.abs(pct) <= 2 ? 'info' : 'warn';
+  else if (kind === 'sp') status = Math.abs(pct) <= 1 ? 'ok' : 'warn';
+  else if (kind === 'organic') status = Math.abs(pct) <= 5 ? 'info' : 'warn';
+  else if (kind === 'onpurpose') status = 'info';
+  else if (kind === 'defn') status = 'defn';
+  else status = 'warn';
+  return { diff, pct, status };
+}
+/* MISSING IS NOT ZERO (22 Nov 2026). A side with no data — a brand not loaded, a week whose figures have not arrived — is shown
+ * as "— not loaded" with the reason, never as $0 and never as "differs". Every check passes its sides through here. */
+function ncRow(id, name, view, a, b, kind, why, unit) {
+  const tol = NC_TOL[kind === 'onpurpose' ? 'exact' : kind] || NC_TOL.exact;
+  if (a.v == null || b.v == null) return ncSkip(id, name, view, (why && why.missing) || 'Not loaded yet.', { a, b, tol });
+  const c = ncCompare(a.v, b.v, kind, unit);
+  return { id, name, view, a, b, unit: unit || '$', kind, tol,
+    diff: c.diff, pct: c.pct, status: c.status, why: c.status === 'ok' ? (why && why.ok) || '' : (why && why.off) || '' };
+}
+// A check that could not run: not loaded, or not in this account's access. Its sides keep their labels; their values are null.
+const ncSkip = (id, name, view, why, more) => Object.assign({ id, name, view, a: null, b: null, status: 'skip', why, diff: null, pct: null, tol: '' }, more || {});
+// A figure only one screen has: shown, not compared, not counted.
+const ncNote = (id, name, view, a, why) => (a.v == null ? ncSkip(id, name, view, why.missing || 'Not loaded yet.', { tol: NC_TOL.shown })
+  : { id, name, view, a, b: null, unit: '$', kind: 'shown', tol: NC_TOL.shown, diff: null, pct: null, status: 'note', why: why.note || '' });
+
+/* ---------- the sums, each through the screen's OWN function ---------- */
+// The Sales Dashboard's sdSum for some channels (SD_CH swapped and put back at once, as the Dashboard does).
+function ncSd(chans, from, to) {
+  const keep = SD_CH;
+  try { return ncR2(chans.reduce((t, ch) => { SD_CH = ch; return t + sdSum(from, to)[0]; }, 0)); } finally { SD_CH = keep; }
+}
+// Does the Sales Dashboard hold this channel at all (its own days, or Seller Central's)?
+const ncSdHas = ch => !!(SD && SD.d && SD.d[ch] && Object.keys(SD.d[ch]).length)
+  || (ch !== 'SHOP' && typeof tMatchBizDays === 'function' && Object.keys(tMatchBizDays(ch)).length > 0);
+const ncSdMissing = chans => chans.filter(ch => !ncSdHas(ch)).map(ch => NC_BRAND[ch] || ch);
+const ncSdAt = () => 'nightly ' + (SD.at || '—') + (SD_LIVE ? ' · today ' + SD_LIVE : '')
+  + (typeof T_MATCH !== 'undefined' && T_MATCH.biz ? ' · Seller Central ' + (T_MATCH.biz.at || '?') : '');
+// PPC & Organic's store: the screen's own WEEKLY when it is loaded, else the Dashboard's copy of the same documents.
+const ncW = () => (WEEKLY.weeks.length && Object.keys(WEEKLY.rows).length ? WEEKLY : (typeof DASH !== 'undefined' && DASH.weekly) || null);
+const ncWeeks = W => (W.weeks.length ? W.weeks : wWeeksList(26));
+// The rows PPC & Organic adds up for a brand pick: 'ALL' keeps every row (wRows), a brand keeps its own.
+const ncWRows = (W, view) => Object.values(W.rows).filter(r => view === 'ALL' || (r.brand || '') === view);
+const ncWSum = (rows, weeks, f) => ncR2(rows.reduce((s, r) => s + weeks.reduce((t, w) => t + (((r.weeks || {})[w] || {})[f] || 0), 0), 0));
+// Does PPC & Organic hold field f for brand b in week w (any of its rows)? A week nobody reported is missing, not $0.
+const ncWHas = (W, b, w, f) => !!W && Object.values(W.rows).some(r => r.brand === b && r.weeks && r.weeks[w] && r.weeks[w][f] != null);
+const ncWMissing = (W, chans, weeks, f) => chans.filter(b => !weeks.every(w => ncWHas(W, b, w, f))).map(b => NC_BRAND[b]);
+const ncWAt = W => (W.at ? 'sales ' + W.at : 'sales not pulled yet') + (W.adAt ? ' · ads ' + W.adAt : '');
+const ncWeekEnd = w => sdShift(w, 6);
+
+/* ---------- the Overview's figures, rebuilt read-only ----------
+ * The Overview draws its saved snapshot (audit/trends) with the nightly caches laid over it when it opens — tNightly: the daily cache
+ * (sales), the ads cache (Sponsored Products), then Amazon's own totals (matchBiz sales, matchAds ads), the last one winning — and
+ * then SAVES the result, which Numbers Check never does. So the same sources are read here, in the same order, into a copy:
+ * NC.ov.daily / NC.ov.ads (cache reads), T_MATCH (tMatchEnsure), TREND (loadTrends, sales only). matchAds holds the split by ad
+ * type; the ads cache is Sponsored Products only. Per brand and day: sales, sp / sb / sd spend, ad sales, and where the ad figures
+ * came from ('' = no ad figure from any source: that day is MISSING). The saved snapshot's ad figures are not used: once Amazon's
+ * totals have been laid over them they no longer say which type they were. */
+function ncOvDays(b) {
+  const out = {};
+  const cell = d => out[d] || (out[d] = { sales: null, sp: null, sb: null, sd: null, adSales: null, ad: '' });
+  const today = sdToday();
+  const st = (typeof TREND !== 'undefined' && TREND.d && TREND.d[b]) || {};
+  Object.entries(st).forEach(([d, v]) => { if (v && v[T_I.sales] != null) cell(d).sales = Number(v[T_I.sales]) || 0; });
+  Object.entries(((NC.ov.daily || {})[b]) || {}).forEach(([d, v]) => { if (d < today) cell(d).sales = Number(v[0]) || 0; });
+  Object.entries(((NC.ov.ads || {})[b]) || {}).forEach(([d, v]) => {
+    const c = cell(d);
+    c.sp = ncR2(Number(v[2]) || 0); c.sb = 0; c.sd = 0; c.adSales = ncR2(Number(v[4]) || 0); c.ad = 'ads';
+  });
+  if (typeof T_MATCH !== 'undefined' && T_MATCH.biz && typeof tMatchBizDays === 'function') {
+    Object.entries(tMatchBizDays(b)).forEach(([d, v]) => { cell(d).sales = ncR2(Number(v[0]) || 0); });
+  }
+  const ma = (typeof T_MATCH !== 'undefined' && T_MATCH.ads && T_MATCH.ads.d && T_MATCH.ads.d[b]) || {};
+  Object.entries(ma).forEach(([d, k]) => {
+    if (!k || !k.sp) return;                       // as the Overview: without Sponsored Products the day is not known
+    const c = cell(d), cost = a => (a ? Number(a[2]) || 0 : 0), sales = a => (a ? Number(a[3]) || 0 : 0);
+    c.sp = ncR2(cost(k.sp)); c.sb = ncR2(cost(k.sb)); c.sd = ncR2(cost(k.sd));
+    c.adSales = ncR2(sales(k.sp) + sales(k.sb) + sales(k.sd)); c.ad = 'matchAds';
+  });
+  return out;
+}
+
+/* ---------- THE CHECKS ---------- */
+// Every check, from what is in memory now. Never loads, never writes.
+function ncRun() {
+  const out = [];
+  NC.diag = { sp: [], pm: [], days: [] };          // "Why they differ" — worked out again with every run
+  const salesOk = ncMay('sales') && SD && SD.at;
+  const today = sdToday();
+  const monthStart = today.slice(0, 8) + '01', yearStart = today.slice(0, 4) + '-01-01';
+
+  // --- 1–2. Dashboard Sales MTD / YTD = Sales Dashboard ---
+  let dashSales = null;
+  try { dashSales = salesOk ? DASH_CALC.sales() : null; } catch (e) { dashSales = null; }
+  [['mtd', 'Sales MTD', monthStart], ['ytd', 'Sales YTD', yearStart]].forEach(([k, label, from]) => {
+    NC_VIEWS.forEach(([view, vName]) => {
+      const id = 'sales-' + k;
+      const name = `Dashboard ${label} = Sales Dashboard`;
+      if (!ncMay('sales')) return out.push(ncSkip(id, name, vName, 'Sales Dashboard is not in your access.'));
+      if (!salesOk || !dashSales || !dashSales[view]) return out.push(ncSkip(id, name, vName, 'Sales not loaded yet.'));
+      const miss = ncSdMissing(ncChans(view));
+      if (miss.length) return out.push(ncSkip(id, name, vName, `${miss.join(' and ')} sales not loaded — no days for ${miss.length > 1 ? 'them' : 'it'} on the Sales Dashboard.`));
+      const a = { label: 'Dashboard', v: ncR2(dashSales[view][k]), at: dashSales[view].when };
+      if (view !== 'ALL') {
+        const b = { label: 'Sales Dashboard · ' + vName, v: ncSd([view], from, today), at: ncSdAt() };
+        return out.push(ncRow(id, name, vName, a, b, 'exact', { off: 'The two screens add the same days differently — this should never happen.' }));
+      }
+      const hasShop = ncSdHas('SHOP');
+      const all = ncSd(['SP', 'CPC', 'SHOP'], from, today), shop = hasShop ? ncSd(['SHOP'], from, today) : 0;
+      const b = { label: 'Sales Dashboard · All', v: all, at: ncSdAt() + (hasShop ? '' : ' · Shopify not loaded') };
+      const r = ncRow(id, name, vName, a, b, shop ? 'onpurpose' : 'exact');
+      // Explained only when the gap IS the Shopify figure, to the cent.
+      if (shop && Math.abs(ncR2(a.v + shop - all)) >= 0.005) r.status = 'warn';
+      r.why = r.status === 'ok' ? (hasShop ? '' : 'Shopify not loaded, so "All" is Ridhi + CPC here.') : r.status === 'info'
+        ? `On purpose: Dashboard "Both" = Ridhi + CPC (Amazon only); Sales Dashboard "All" also counts Shopify (${ncMoney(shop)}).`
+        : 'Dashboard Both ≠ Sales Dashboard Ridhi + CPC.';
+      out.push(r);
+    });
+  });
+
+  // --- 3. Dashboard Ad spend (latest week) = PPC & Organic's latest-week card; Both = Ridhi + CPC ---
+  const W = ncW();
+  const adBs = ncAdBs();
+  let dashAds = null;
+  try { dashAds = ncAdsOk() && W ? DASH_CALC.ads() : null; } catch (e) { dashAds = null; }
+  const wLast = W ? ncWeeks(W)[ncWeeks(W).length - 1] : '';
+  NC_VIEWS.forEach(([view, vName]) => {
+    const id = 'ads-week', name = 'Dashboard Ad spend (latest week) = PPC & Organic';
+    if (!ncAdsOk()) return out.push(ncSkip(id, name, vName, 'Advertising is not in your access.'));
+    if (ncChans(view).some(b => !adBs.includes(b))) return out.push(ncSkip(id, name, vName, 'That brand\'s ads are not in your access.'));
+    if (!W || !Object.keys(W.rows).length || !dashAds || !dashAds[view] || dashAds[view].empty) return out.push(ncSkip(id, name, vName, 'PPC & Organic not loaded yet.'));
+    const miss = ncWMissing(W, ncChans(view), [wLast], 'spend');
+    if (miss.length) return out.push(ncSkip(id, name, vName, `${miss.join(' and ')}: no ad figures for ${wLabel(wLast)} yet${wWeekDone(wLast) ? '' : ` (week still running, ${wDaysIn(wLast)} of 7 days; ads land 1–2 days late)`} — not $0.`));
+    const rows = ncWRows(W, view);
+    const spend = ncWSum(rows, [wLast], 'spend'), rev = ncWSum(rows, [wLast], 'rev');
+    const tacosB = rev ? Math.round(spend / rev * 100) : null;
+    const d = dashAds[view];
+    const a = { label: 'Dashboard', v: ncR2(d.last.spend), at: d.when };
+    const b = { label: 'PPC & Organic · ' + wLabel(wLast), v: spend, at: ncWAt(W) };
+    const r = ncRow(id, name, vName, a, b, 'exact', { off: 'The Dashboard and PPC & Organic add the latest week differently.' });
+    if (r.status === 'ok' && d.tacos !== tacosB) { r.status = 'warn'; r.why = `TACoS differs: Dashboard ${d.tacos}% vs PPC & Organic ${tacosB}%.`; }
+    r.sub = `TACoS ${d.tacos == null ? '—' : d.tacos + '%'} on both` + (wWeekDone(wLast) ? '' : ` · week still running (${wDaysIn(wLast)} of 7 days; ads land 1–2 days late)`);
+    out.push(r);
+  });
+  if (ncAdsOk() && W && Object.keys(W.rows).length && adBs.length === 2) {
+    const name = 'PPC & Organic Ad spend (latest week): Both = Ridhi + CPC';
+    const miss = ncWMissing(W, ['SP', 'CPC'], [wLast], 'spend');
+    if (miss.length) out.push(ncSkip('ads-both', name, 'Both', `${miss.join(' and ')}: no ad figures for ${wLabel(wLast)} yet — not $0.`));
+    else {
+      const n = Object.values(W.rows).filter(r => r.brand !== 'SP' && r.brand !== 'CPC').length;
+      out.push(ncRow('ads-both', name, 'Both',
+        { label: 'Both (every row)', v: ncWSum(ncWRows(W, 'ALL'), [wLast], 'spend'), at: ncWAt(W) },
+        { label: 'Ridhi + CPC', v: ncR2(ncWSum(ncWRows(W, 'SP'), [wLast], 'spend') + ncWSum(ncWRows(W, 'CPC'), [wLast], 'spend')), at: ncWAt(W) }, 'exact',
+        { off: `"All" also counts ${n} row${n === 1 ? '' : 's'} with no brand — those show in Both but in neither brand.` }));
+    }
+  }
+
+  // --- 4. PPC & Organic weekly sales ≈ Sales Dashboard, the last FINISHED week ---
+  NC_VIEWS.forEach(([view, vName]) => {
+    const id = 'ppc-sales', name = 'PPC weekly sales vs Sales Dashboard (last finished week)';
+    if (!ncAdsOk() || !ncMay('sales')) return out.push(ncSkip(id, name, vName, 'Needs both Advertising and the Sales Dashboard in your access.'));
+    if (ncChans(view).some(b => !adBs.includes(b))) return out.push(ncSkip(id, name, vName, 'That brand\'s ads are not in your access.'));
+    if (!W || !Object.keys(W.rows).length || !salesOk) return out.push(ncSkip(id, name, vName, 'PPC & Organic or Sales not loaded yet.'));
+    const done = ncWeeks(W).filter(wWeekDone);
+    const wk = done[done.length - 1];
+    if (!wk) return out.push(ncSkip(id, name, vName, 'No finished week stored yet.'));
+    const miss = [...ncWMissing(W, ncChans(view), [wk], 'rev').map(x => x + ' (PPC & Organic)'), ...ncSdMissing(ncChans(view)).map(x => x + ' (Sales Dashboard)')];
+    if (miss.length) return out.push(ncSkip(id, name, vName, `${miss.join(', ')}: no sales for ${wLabel(wk)} — not loaded, not $0.`));
+    const a = { label: 'PPC & Organic · ' + wLabel(wk), v: ncWSum(ncWRows(W, view), [wk], 'rev'), at: ncWAt(W) };
+    const b = { label: 'Sales Dashboard · ' + (view === 'ALL' ? 'Ridhi + CPC' : vName), v: ncSd(ncChans(view), wk, ncWeekEnd(wk)), at: ncSdAt() };
+    out.push(ncRow(id, name, vName, a, b, 'week', {
+      off: 'PPC & Organic adds the Orders workbook per ASIN; the Sales Dashboard uses Seller Central\'s own totals where published (Amazon only on both; Shopify left out).' }));
+  });
+
+  // --- 5. Overview vs PPC & Organic, by ad type, over the finished weeks BOTH screens hold ---
+  const ov = ncOvChecks(W, adBs);
+  NC_OV.forEach(([id]) => ov.filter(r => r.id === id).forEach(r => out.push(r)));
+
+  // --- 6. Inventory Age tile = Inventory Age screen (aged 181+ units, storage $) ---
+  let dashAge = null;
+  try { dashAge = ncMay('age') && AGE_LOADED ? DASH_CALC.age() : null; } catch (e) { dashAge = null; }
+  const ageRows = { units: [], storage: [] };
+  NC_VIEWS.forEach(([view, vName]) => {
+    const name1 = 'Dashboard Aged 181+ units = Inventory Age', name2 = 'Dashboard storage $ = Inventory Age';
+    const skip = why => { ageRows.units.push(ncSkip('age-units', name1, vName, why)); ageRows.storage.push(ncSkip('age-storage', name2, vName, why)); };
+    if (!ncMay('age')) return skip('Inventory Age is not in your access.');
+    if (!AGE_LOADED || !dashAge || !dashAge[view] || dashAge[view].empty) return skip('Inventory Age not loaded yet (or no snapshot).');
+    const miss = ncChans(view).filter(b => !AGE[b]).map(b => NC_BRAND[b]);
+    if (miss.length) return skip(`${miss.join(' and ')}: no Inventory Age snapshot loaded — not 0 units.`);
+    const bs = ncChans(view);
+    // Inventory Age's own way (renderAge, no search): its non-overlapping buckets, those starting at AGED_FROM, every row of the brands.
+    const cols = totalCols([...new Set(bs.flatMap(b => AGE[b].cols))]);
+    const aged = cols.filter(c => { const r = ageRange(c); return r && r[0] >= AGED_FROM; });
+    let units = 0, storage = 0;
+    bs.forEach(b => AGE[b].rows.forEach(r => { units += aged.reduce((s, c) => s + ((r.age || {})[c] || 0), 0); storage += r.storage || 0; }));
+    const at = bs.map(b => AGE[b].at).filter(Boolean).map(d => d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })).join(' · ');
+    ageRows.units.push(ncRow('age-units', name1, vName, { label: 'Dashboard', v: dashAge[view].units, at: dashAge[view].when },
+      { label: 'Inventory Age', v: units, at: 'snapshot ' + at }, 'exact', { off: 'The tile and the screen add the buckets differently.' }, 'n'));
+    ageRows.storage.push(ncRow('age-storage', name2, vName, { label: 'Dashboard', v: ncR2(dashAge[view].storage), at: dashAge[view].when },
+      { label: 'Inventory Age', v: ncR2(storage), at: 'snapshot ' + at }, 'exact', { off: 'The tile and the screen add storage differently.' }));
+  });
+  out.push(...ageRows.units, ...ageRows.storage);
+
+  // --- 7. Profit & Margin sales ≈ Sales Dashboard, its FINISHED weeks only (22 Nov 2026: the running week and today left out, like
+  // every other check), and why they differ, week by week and day by day (NC.diag.pm / NC.diag.days) ---
+  let pmSpan = null;
+  NC_VIEWS.forEach(([view, vName]) => {
+    const id = 'pm-sales', name = 'Profit & Margin sales vs Sales Dashboard (finished weeks)';
+    if (!ncMay('profit') || !ncMay('sales')) return out.push(ncSkip(id, name, vName, 'Profit & Margin is not in your access.'));
+    if (!W || !Object.keys(W.rows).length || !salesOk) return out.push(ncSkip(id, name, vName, 'PPC weekly store or Sales not loaded yet.'));
+    // Profit & Margin's own weeks (pfWeeks reads its picker; 4 weeks when the screen has not drawn), over the same rows it adds —
+    // then only the finished ones.
+    const picked = (W === WEEKLY && $('pfWeeks') ? pfWeeks() : ncWeeks(W).slice(-(Number($('pfWeeks') && $('pfWeeks').value) || 4)));
+    const weeks = picked.filter(wWeekDone);
+    if (!weeks.length) return out.push(ncSkip(id, name, vName, `No finished week in Profit & Margin's pick (${picked.length} week${picked.length === 1 ? '' : 's'}, all still running).`));
+    const miss = [...ncWMissing(W, ncChans(view), weeks, 'rev').map(x => x + ' (weekly store)'), ...ncSdMissing(ncChans(view)).map(x => x + ' (Sales Dashboard)')];
+    if (miss.length) return out.push(ncSkip(id, name, vName, `${miss.join(', ')}: sales not loaded for these weeks — not $0.`));
+    const from = weeks[0], to = ncWeekEnd(weeks[weeks.length - 1]);
+    const a = { label: `Profit & Margin · ${weeks.length} finished wk`, v: ncWSum(ncWRows(W, view), weeks, 'rev'), at: ncWAt(W) };
+    const b = { label: 'Sales Dashboard · ' + (view === 'ALL' ? 'Ridhi + CPC' : vName) + ` · ${sdShort(from)}–${sdShort(to)}`, v: ncSd(ncChans(view), from, to), at: ncSdAt() };
+    const r = ncRow(id, name, vName, a, b, 'week', {
+      off: 'Profit & Margin adds the Orders workbook per ASIN; the Sales Dashboard uses Seller Central\'s totals where published — see "Why they differ" below, week by week.' });
+    const left = picked.filter(w => !wWeekDone(w));
+    r.sub = `${wLabel(weeks[0])} → ${wLabel(weeks[weeks.length - 1])} · ${weeks.length} finished wk` + (left.length ? ` (running week ${left.map(wLabel).join(', ')} and today left out)` : '');
+    out.push(r);
+    pmSpan = pmSpan && pmSpan.weeks.length >= weeks.length ? pmSpan : { weeks };
+    // week by week: Profit & Margin · the Sales Dashboard's own workbook days · the Sales Dashboard as shown (Seller Central where published)
+    weeks.forEach(w => {
+      const chans = ncChans(view), end = ncWeekEnd(w);
+      NC.diag.pm.push({ view: vName, w, label: wLabel(w), pm: ncWSum(ncWRows(W, view), [w], 'rev'), wb: ncSdRaw(chans, w, end), sd: ncSd(chans, w, end) });
+    });
+  });
+  // day by day, both brands: where Seller Central's total and the Orders workbook differ most (the gap's own days)
+  if (pmSpan) {
+    const from = pmSpan.weeks[0], to = ncWeekEnd(pmSpan.weeks[pmSpan.weeks.length - 1]);
+    ['SP', 'CPC'].forEach(b => {
+      if (!ncSdHas(b)) return;
+      const sc = typeof tMatchBizDays === 'function' ? tMatchBizDays(b) : {}, own = (SD.d && SD.d[b]) || {};
+      for (let d = from; d <= to; d = sdShift(d, 1)) {
+        const wb = own[d] ? Number(own[d][0]) || 0 : null, s = sc[d] ? Number(sc[d][0]) || 0 : null;
+        if (wb == null && s == null) continue;
+        NC.diag.days.push({ brand: NC_BRAND[b], day: d, wb, sc: s, diff: wb != null && s != null ? ncR2(s - wb) : null,
+          units: own[d] && sc[d] ? [Number(own[d][1]) || 0, Number(sc[d][1]) || 0] : null });
+      }
+    });
+    NC.diag.days.sort((x, y) => Math.abs(y.diff || 0) - Math.abs(x.diff || 0));
+  }
+  return out;
+}
+// The Sales Dashboard's OWN workbook days (SD.d — before Seller Central's totals are laid over them) for some channels.
+function ncSdRaw(chans, from, to) {
+  return ncR2(chans.reduce((t, ch) => t + Object.entries((SD.d && SD.d[ch]) || {})
+    .reduce((u, [d, v]) => u + (d >= from && d <= to ? Number(v[0]) || 0 : 0), 0), 0));
+}
+
+/* ---------- 5. Overview vs PPC & Organic, split by ad type ----------
+ * Like with like: Sponsored Products against Sponsored Products (the only type PPC & Organic has) — the same spend on both, so
+ * within 1 %. Sponsored Brands and Display are the Overview's alone: shown, not compared. Organic sales are compared with the
+ * documented gap. The window is the finished weeks BOTH screens hold for every brand in view (the newest 13), and the rows say
+ * which. Then each screen's Both against its Ridhi + CPC. */
+// ASIN → brand from Listing Health's rows, when it is loaded (never loaded from here); {} otherwise.
+function ncHealthBrands() {
+  const m = {};
+  if (typeof HEALTH === 'undefined' || !HEALTH) return m;
+  ['SP', 'CPC'].forEach(b => ((HEALTH[b] && HEALTH[b].rows) || []).forEach(r => {
+    const a = String(r.asin || '').trim().toUpperCase();
+    if (a && !m[a]) m[a] = b;
+  }));
+  return m;
+}
+// PPC & Organic's rows with no brand that belong to a view: for a brand, those Listing Health puts under it; for Both, all of them.
+function ncUnassigned(W, view, hb) {
+  const rows = Object.entries(W.rows).filter(([a, r]) => !r.brand && (view === 'ALL' || hb[a.toUpperCase()] === view)).map(([, r]) => r);
+  return { n: rows.length, rows };
+}
+// A view's rows INCLUDING its unassigned ones (ncUnassigned): a brand's own rows + those; Both = every row.
+const ncWRowsU = (W, view, hb) => (view === 'ALL' ? Object.values(W.rows) : ncWRows(W, view).concat(ncUnassigned(W, view, hb).rows));
+
+const NC_OV = [
+  ['ovw-sp', 'Sponsored Products ad spend: Overview = PPC & Organic'],
+  ['ovw-sb', 'Sponsored Brands ad spend (Overview only)'],
+  ['ovw-sd', 'Sponsored Display ad spend (Overview only)'],
+  ['ovw-total', 'Total ad spend, all types (Overview)'],
+  ['ovw-organic', 'Organic sales: Overview vs PPC & Organic'],
+  ['ovw-both', 'Overview: Both = Ridhi + CPC (all types)'],
+  ['ppc-both13', 'PPC & Organic: Both = Ridhi + CPC (same weeks)'],
+];
+function ncOvChecks(W, adBs) {
+  const out = [];
+  const name = id => (NC_OV.find(x => x[0] === id) || [id, id])[1];
+  const skipAll = (vName, why, ids) => (ids || NC_OV.slice(0, 5).map(x => x[0])).forEach(id => out.push(ncSkip(id, name(id), vName, why)));
+  if (!ncMay('trends') || !ncAdsOk()) { NC_VIEWS.forEach(([, vName]) => skipAll(vName, 'Overview or PPC & Organic is not in your access.')); return out; }
+  const OV = {};
+  adBs.forEach(b => { OV[b] = ncOvDays(b); });
+  const hb = ncHealthBrands();
+  const adDays = b => Object.keys(OV[b] || {}).filter(d => OV[b][d].ad).sort();
+  const ovHas = (b, w) => !!OV[b] && ncDays(w).every(d => OV[b][d] && OV[b][d].ad);
+  const ovSalesHas = (b, w) => !!OV[b] && ncDays(w).every(d => OV[b][d] && OV[b][d].sales != null);
+  const ovSum = (bs, weeks, f) => ncR2(bs.reduce((s, b) => s + weeks.reduce((t, w) => t + ncDays(w).reduce((u, d) => u + (((OV[b] || {})[d] || {})[f] || 0), 0), 0), 0));
+  const ppTo = b => (W ? ncWeeks(W).filter(w => ncWHas(W, b, w, 'spend')).pop() : '');
+  const span = weeks => `${wLabel(weeks[0])} → ${wLabel(weeks[weeks.length - 1])} · ${weeks.length} finished wk both screens hold`;
+  const ovAt = bs => bs.map(b => { const d = adDays(b); return `${NC_BRAND[b]} ads ${d.length ? sdShort(d[0]) + '→' + sdShort(d[d.length - 1]) : 'not loaded'}`; }).join(' · ')
+    + (typeof T_MATCH !== 'undefined' && T_MATCH.ads && T_MATCH.ads.at ? ` · matchAds ${T_MATCH.ads.at}` : '');
+  const ppAt = bs => bs.map(b => `${NC_BRAND[b]} to ${ppTo(b) ? wLabel(ppTo(b)) : '—'}`).join(' · ') + (W ? ' · ' + ncWAt(W) : '');
+  const wins = {};
+  NC_VIEWS.forEach(([view, vName]) => {
+    const bs = ncChans(view);
+    if (bs.some(b => !adBs.includes(b))) return skipAll(vName, 'That brand\'s ads are not in your access.');
+    // what is missing, brand by brand — said, never added up as $0
+    const why = [];
+    bs.forEach(b => {
+      if (!adDays(b).length) why.push(`${NC_BRAND[b]}: Overview ad figures not loaded`);
+      if (!W || !ncWeeks(W).some(w => ncWHas(W, b, w, 'spend'))) why.push(`${NC_BRAND[b]}: PPC & Organic ad figures not loaded`);
+    });
+    if (why.length) return skipAll(vName, why.join(' · ') + ' — not $0.');
+    const weeks = ncWeeks(W).filter(w => wWeekDone(w) && bs.every(b => ovHas(b, w) && ncWHas(W, b, w, 'spend'))).slice(-13);
+    if (!weeks.length) return skipAll(vName, `No finished week both screens hold (${ovAt(bs)}; PPC & Organic ${ppAt(bs)}).`);
+    wins[view] = weeks;
+    const sub = span(weeks);
+    /* UNASSIGNED INCLUDED (22 Nov 2026). PPC & Organic's rows with no brand are in its "All" but in neither brand. Here a brand also
+     * takes the unassigned rows whose ASIN Listing Health puts under it; Both takes every row. Said on the row. */
+    const pRows = ncWRowsU(W, view, hb);
+    const brandOnly = ncWRows(W, view).filter(r => view !== 'ALL' || r.brand === 'SP' || r.brand === 'CPC');
+    const unas = ncUnassigned(W, view, hb);
+    const unasTxt = !unas.n ? '' : view === 'ALL'
+      ? ` · incl. ${unas.n} unassigned ASIN${unas.n === 1 ? '' : 's'} (${ncMoney(ncWSum(unas.rows, weeks, 'spend'))})`
+      : ` · incl. ${unas.n} unassigned ASIN${unas.n === 1 ? '' : 's'} Listing Health puts under ${vName} (${ncMoney(ncWSum(unas.rows, weeks, 'spend'))})`;
+    const A = (label, v) => ({ label: `Overview · ${label}`, v, at: ovAt(bs) });
+    const B = (label, v) => ({ label: `PPC & Organic · ${label}`, v, at: ppAt(bs) });
+    const sp = ncRow('ovw-sp', name('ovw-sp'), vName, A('Sponsored Products', ovSum(bs, weeks, 'sp')), B('Sponsored Products' + unasTxt, ncWSum(pRows, weeks, 'spend')), 'sp',
+      { off: 'The same Sponsored Products spend should match: the Overview reads Amazon\'s campaign totals (matchAds, else the nightly ads cache), PPC & Organic the advertised-product report per ASIN — see "Why they differ" below, week by week.' });
+    sp.sub = sub;
+    out.push(sp);
+    // week by week: Overview SP · Amazon's per-ASIN report as the nightly cached it (adsAsin) · PPC & Organic's brand rows · its unassigned rows
+    weeks.forEach(w => {
+      const cache = NC.ov.asin ? ncR2(bs.reduce((s, b) => s + Object.values(NC.ov.asin[b] || {}).reduce((t, byWk) => t + (byWk[w] ? Number(byWk[w][2]) || 0 : 0), 0), 0)) : null;
+      // ASINs that both brands' reports hold for this week: PPC & Organic keeps ONE cell per ASIN, so the later brand's figures overwrite the earlier's
+      const both = NC.ov.asin ? Object.keys(NC.ov.asin.SP || {}).filter(a => (NC.ov.asin.SP[a] || {})[w] && (NC.ov.asin.CPC || {})[a] && NC.ov.asin.CPC[a][w]) : [];
+      const sharedSp = ncR2(both.reduce((s, a) => s + bs.reduce((t, b) => t + (Number(((NC.ov.asin[b] || {})[a] || {})[w] && NC.ov.asin[b][a][w][2]) || 0), 0), 0));
+      NC.diag.sp.push({ view: vName, w, label: wLabel(w), ov: ovSum(bs, [w], 'sp'), cache, ppc: ncWSum(brandOnly, [w], 'spend'),
+        unas: ncWSum(unas.rows, [w], 'spend'), shared: both.length, sharedSp });
+    });
+    const sb = ncNote('ovw-sb', name('ovw-sb'), vName, A('Sponsored Brands', ovSum(bs, weeks, 'sb')), { note: 'Only the Overview has Sponsored Brands (Amazon\'s matchAds). Days before matchAds count none.' });
+    const sd = ncNote('ovw-sd', name('ovw-sd'), vName, A('Sponsored Display', ovSum(bs, weeks, 'sd')), { note: 'Only the Overview has Sponsored Display (Amazon\'s matchAds). Days before matchAds count none.' });
+    const tot = ncNote('ovw-total', name('ovw-total'), vName, A('SP + SB + SD', ncR2(ovSum(bs, weeks, 'sp') + ovSum(bs, weeks, 'sb') + ovSum(bs, weeks, 'sd'))),
+      { note: `What the Overview's Ad Spend row adds up for these weeks. PPC & Organic has Sponsored Products only (${ncMoney(ncWSum(pRows, weeks, 'spend'))}).` });
+    [sb, sd, tot].forEach(r => { r.sub = sub; out.push(r); });
+    // organic: total sales less ad sales, over the same weeks, each screen its own way (the sums floored at 0, as both do)
+    const ovS = bs.every(b => weeks.every(w => ovSalesHas(b, w)));
+    const ppS = bs.every(b => weeks.every(w => ncWHas(W, b, w, 'rev') && ncWHas(W, b, w, 'adSales')));
+    /* DEFINITION DIFFERS (22 Nov 2026) — not a bug, a choice for a manager. Both definitions are shown, and a third figure: PPC &
+     * Organic's own workbook sales less the Overview's ad sales (all types, 7-day), which splits the gap into the part that is the
+     * SALES source and the part that is the AD-SALES definition. Neither screen changes. */
+    const X = ovS ? Math.max(0, ncR2(ovSum(bs, weeks, 'sales') - ovSum(bs, weeks, 'adSales'))) : null;
+    const Y = ppS ? Math.max(0, ncR2(ncWSum(pRows, weeks, 'rev') - ncWSum(pRows, weeks, 'adSales'))) : null;
+    const Z = ovS && ppS ? Math.max(0, ncR2(ncWSum(pRows, weeks, 'rev') - ovSum(bs, weeks, 'adSales'))) : null;
+    const org = ncRow('ovw-organic', name('ovw-organic'), vName,
+      A('Seller Central sales − all ad types\' 7-day ad sales', X),
+      B('workbook sales − Sponsored Products\' 30-day ad sales', Y), 'defn',
+      { missing: `${!ovS ? 'Overview sales' : 'PPC & Organic sales or ad sales'} not loaded for every one of these weeks — not $0.`,
+        ok: 'The two definitions give the same figure for these weeks.',
+        off: `Definition differs — needs a manager decision. Overview: Seller Central sales less every ad type's 7-day ad sales. PPC & Organic: Orders-workbook sales less Sponsored Products' 30-day ad sales.`
+          + (Z != null ? ` Of the ${ncMoney(ncR2(X - Y))} gap, ${ncMoney(ncR2(X - Z))} is the sales source (Seller Central vs workbook) and ${ncMoney(ncR2(Z - Y))} the ad-sales definition.` : '') });
+    if (Z != null) org.extra = { label: 'PPC & Organic on the Overview definition (its workbook sales − all ad types\' 7-day ad sales)', v: Z };
+    org.sub = sub;
+    out.push(org);
+  });
+  // each screen's Both = its Ridhi + CPC, over the Both window
+  if (adBs.length === 2) {
+    const weeks = wins.ALL;
+    if (!weeks) ['ovw-both', 'ppc-both13'].forEach(id => out.push(ncSkip(id, name(id), 'Both', (out.find(r => r.view === 'Both' && r.status === 'skip') || {}).why || 'Not loaded yet.')));
+    else {
+      const sub = span(weeks);
+      const all = f => ncR2(['sp', 'sb', 'sd'].reduce((s, k) => s + ovSum(['SP', 'CPC'], weeks, k), 0));
+      const one = b => ncR2(['sp', 'sb', 'sd'].reduce((s, k) => s + ovSum([b], weeks, k), 0));
+      const r1 = ncRow('ovw-both', name('ovw-both'), 'Both', { label: 'Overview · Both', v: all(), at: ovAt(['SP', 'CPC']) },
+        { label: 'Overview · Ridhi + CPC', v: ncR2(one('SP') + one('CPC')), at: ovAt(['SP', 'CPC']) }, 'exact', { off: 'The Overview\'s Both is not its two brands added.' });
+      const n = Object.values(W.rows).filter(r => r.brand !== 'SP' && r.brand !== 'CPC').length;
+      const r2 = ncRow('ppc-both13', name('ppc-both13'), 'Both', { label: 'PPC & Organic · Both (every row)', v: ncWSum(ncWRows(W, 'ALL'), weeks, 'spend'), at: ppAt(['SP', 'CPC']) },
+        { label: 'PPC & Organic · Ridhi + CPC', v: ncR2(ncWSum(ncWRows(W, 'SP'), weeks, 'spend') + ncWSum(ncWRows(W, 'CPC'), weeks, 'spend')), at: ppAt(['SP', 'CPC']) }, 'exact',
+        { off: `"All" also counts ${n} row${n === 1 ? '' : 's'} with no brand — those show in Both but in neither brand.` });
+      [r1, r2].forEach(r => { r.sub = sub; out.push(r); });
+    }
+  }
+  return out;
+}
+
+// The verdict of a run: how many match, differ on purpose (explained), differ, could not be checked (not loaded / no access), or are
+// shown only (one screen has the figure).
+function ncCounts(res) {
+  const c = { ok: 0, info: 0, warn: 0, skip: 0, note: 0, defn: 0 };
+  (res || []).forEach(r => { c[r.status] = (c[r.status] || 0) + 1; });
+  return c;
+}
+
+/* ---------- loading: only what a screen would read, read-only ---------- */
+async function ncLoad() {
+  const jobs = [];
+  if (ncMay('sales')) jobs.push((async () => {
+    if (typeof SD_BUSY !== 'undefined' && SD_BUSY) { try { await SD_BUSY; } catch (e) { /* the saved copy stays */ } }
+    if (!SD.at && !sdLoadLocal()) {
+      const reply = await baCall({ cache: 'daily' });                 // the nightly history, a cache read
+      if (!SD.at && reply && reply.data && reply.data.at) SD = { at: reply.data.at, d: reply.data.d || {} };
+    }
+    await tMatchEnsure();                                             // Seller Central's totals: two cache reads
+  })().catch(() => {}));
+  if (ncAdsOk() || ncMay('profit')) jobs.push((async () => { if (!ncW()) await dashLoadAds(); })().catch(() => {}));
+  // the Overview: its saved snapshot, and the caches it lays over it when it opens (ncOvDays) — each a read, kept in NC.ov, never saved
+  if (ncMay('trends')) jobs.push((async () => {
+    const got = await Promise.all([
+      !TREND.at && !Object.keys(TREND.d.SP || {}).length && !Object.keys(TREND.d.CPC || {}).length ? loadTrends() : null,
+      baCall({ cache: 'ads' }).catch(() => null),
+      baCall({ cache: 'daily' }).catch(() => null),
+      tMatchEnsure().catch(() => null),
+      baCall({ cache: 'adsAsin' }).catch(() => null),        // Amazon's per-ASIN ad report as the nightly cached it ("Why they differ")
+    ]);
+    const [, ads, daily, , asin] = got;
+    if (asin && asin.data && asin.data.d) { NC.ov.asin = asin.data.d; NC.ov.asinAt = asin.data.at || ''; }
+    if (ads && ads.data && ads.data.d) { NC.ov.ads = ads.data.d; NC.ov.adsAt = ads.data.at || ''; }
+    if (daily && daily.data && daily.data.d) { NC.ov.daily = daily.data.d; NC.ov.dailyAt = daily.data.at || ''; }
+  })().catch(() => {}));
+  if (ncMay('age')) jobs.push((async () => { if (!AGE_LOADED) await loadAgeCache(); })().catch(() => {}));
+  await Promise.all(jobs);
+}
+
+// Run every check: load what is missing (unless noLoad), compare, keep the result, repaint the chip and this screen.
+// window.salesCheck() — the same from the console; returns the rows and prints them as a table.
+async function salesCheck(opts) {
+  opts = opts || {};
+  if (NC.busy) return NC.busy;
+  const run = (async () => {
+    await 0;                                       // NC.busy is set before any of this runs
+    try {
+      if (!opts.noLoad) await ncLoad();
+      NC.res = ncRun();
+      NC.at = Date.now();
+      NC.err = '';
+    } catch (e) {
+      NC.err = String((e && e.message) || e || '');
+    } finally {
+      if (NC.busy === run) NC.busy = null;
+    }
+    ncChipPaint();
+    if (ncShown()) ncRender();
+    if (!opts.quiet && typeof console !== 'undefined' && console.table && NC.res) {
+      console.table(NC.res.map(r => ({ check: r.name, brand: r.view, A: r.a ? r.a.label + ' ' + r.a.v : '', B: r.b ? r.b.label + ' ' + r.b.v : '',
+        diff: r.diff, pct: r.pct == null ? '' : r.pct.toFixed(2) + '%', result: r.status, why: r.why })));
+      [['Sponsored Products, week by week', NC.diag.sp], ['Profit & Margin vs Sales Dashboard, week by week', NC.diag.pm], ['Seller Central vs workbook, by day', (NC.diag.days || []).slice(0, 12)]]
+        .forEach(([t, rows]) => { if (rows && rows.length) { console.log(t); console.table(rows); } });
+    }
+    return NC.res;
+  })();
+  NC.busy = run;
+  return run;
+}
+try { window.salesCheck = salesCheck; } catch (e) { /* no window (tests) */ }
+
+// The Dashboard's loads landing: check again on what is now in memory (no loading of its own), once things settle.
+function ncSoon() {
+  clearTimeout(NC.soonT);
+  NC.soonT = setTimeout(() => { salesCheck({ noLoad: true, quiet: true }); }, 700);
+}
+
+/* ---------- the chip: Dashboard (under the greeting) and Sales Dashboard (top bar) ---------- */
+function ncChipPaint() {
+  ['ncChipDash', 'ncChipSd'].forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    const c = ncCounts(NC.res);
+    const ran = NC.res && (c.ok + c.info + c.warn) > 0;
+    if (!ncMay('ncheck') || !ran) { el.hidden = true; return; }
+    el.hidden = false;
+    el.classList.toggle('is-warn', c.warn > 0);
+    el.textContent = c.warn ? `⚠ ${c.warn} difference${c.warn === 1 ? '' : 's'}` : `🔒 Numbers checked ✓ ${ncHm(NC.at)}`;
+    el.title = c.warn
+      ? `${c.warn} number${c.warn === 1 ? '' : 's'} differ between screens — open Numbers Check`
+      : `Every number compared matched (${c.ok} exact, ${c.info} differ on purpose) — open Numbers Check`;
+  });
+}
+
+/* ---------- WHY THEY DIFFER: the gaps taken apart, week by week (22 Nov 2026) ----------
+ * Sponsored Products: Overview (Amazon's campaign totals) − Amazon's per-ASIN report as the nightly cached it (adsAsin) = what the
+ *   per-ASIN report does not carry (the backend skips a report row with no ASIN); that report − PPC & Organic (brand rows +
+ *   unassigned) = what was lost merging it into PPC & Organic (an ASIN both brands' reports hold keeps ONE cell — the later brand's
+ *   figures overwrite the earlier's). Profit & Margin: its weekly sales − the Sales Dashboard's own workbook days = what the weekly
+ *   per-ASIN cache adds differently; the workbook days − the Sales Dashboard as shown = Seller Central's totals laid over them, and
+ *   the days where that is biggest. Nothing here is judged; it is the arithmetic, for whoever looks into it. */
+function ncDiagHtml() {
+  const d = NC.diag || {};
+  const m = v => (v == null ? '<span class="nc-na">—</span>' : ncMoney(v));
+  const pct = (a, b) => (a == null || !b ? '' : ` <span class="nc-sub" style="display:inline">(${(a / b * 100 > 0 ? '+' : '') + (a / b * 100).toFixed(2)}%)</span>`);
+  const tbl = (head, rows) => `<div class="nc-scroll"><table class="nc-tbl"><thead><tr>${head.map((h, i) => `<th${i > 1 ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  let html = '';
+  if ((d.sp || []).length) {
+    html += '<h3>Sponsored Products: Overview vs PPC & Organic, week by week</h3><p class="muted">Overview − Amazon\'s per-ASIN report = spend the per-ASIN report does not carry (its rows with no ASIN are skipped). Per-ASIN report − PPC & Organic = spend lost merging it in (an ASIN in both brands\' reports keeps one cell).</p>'
+      + tbl(['Brand', 'Week', 'Overview SP', 'Amazon per-ASIN report', 'PPC & Organic (brand rows)', '+ unassigned', 'Gap after unassigned', 'Overview − per-ASIN report', 'Per-ASIN report − PPC', 'ASINs in both brands\' reports'],
+        d.sp.map(x => {
+          const p = ncR2(x.ppc + x.unas), gap = ncR2(x.ov - p);
+          return `<tr><td>${ncEsc(x.view)}</td><td>${ncEsc(x.label)}</td><td class="num">${m(x.ov)}</td><td class="num">${m(x.cache)}</td><td class="num">${m(x.ppc)}</td>`
+            + `<td class="num">${m(x.unas)}</td><td class="num">${m(gap)}${pct(gap, p)}</td><td class="num">${x.cache == null ? m(null) : m(ncR2(x.ov - x.cache))}</td>`
+            + `<td class="num">${x.cache == null ? m(null) : m(ncR2(x.cache - p))}</td><td class="num">${x.shared ? `${x.shared} · ${ncMoney(x.sharedSp)}` : '0'}</td></tr>`;
+        }).join(''));
+  }
+  if ((d.pm || []).length) {
+    html += '<h3>Profit & Margin vs Sales Dashboard, week by week</h3><p class="muted">Profit & Margin adds the weekly per-ASIN cache; the Sales Dashboard\'s own workbook days are the same Orders workbooks added per day; the Sales Dashboard as shown lays Seller Central\'s totals over them.</p>'
+      + tbl(['Brand', 'Week', 'Profit & Margin', 'Sales Dashboard workbook days', 'Sales Dashboard as shown', 'P&M − workbook days', 'Workbook − Seller Central', 'P&M − shown'],
+        d.pm.map(x => `<tr><td>${ncEsc(x.view)}</td><td>${ncEsc(x.label)}</td><td class="num">${m(x.pm)}</td><td class="num">${m(x.wb)}</td><td class="num">${m(x.sd)}</td>`
+          + `<td class="num">${m(ncR2(x.pm - x.wb))}${pct(ncR2(x.pm - x.wb), x.wb)}</td><td class="num">${m(ncR2(x.wb - x.sd))}${pct(ncR2(x.wb - x.sd), x.sd)}</td>`
+          + `<td class="num">${m(ncR2(x.pm - x.sd))}${pct(ncR2(x.pm - x.sd), x.sd)}</td></tr>`).join(''));
+  }
+  const days = (d.days || []).filter(x => x.diff != null && Math.abs(x.diff) >= 0.01).slice(0, 12);
+  if (days.length) {
+    html += '<h3>Days where Seller Central and the Orders workbook differ most</h3><p class="muted">Seller Central counts what was ORDERED that US day. The workbook leaves out Cancelled, MCF and other marketplaces, and gets the newest orders after the nightly run — open the day in Seller Central and the Orders workbook to see which orders.</p>'
+      + tbl(['Brand', 'Day', 'Orders workbook', 'Seller Central', 'Seller Central − workbook', 'Units (workbook / Seller Central)'],
+        days.map(x => `<tr><td>${ncEsc(x.brand)}</td><td>${ncEsc(x.day)}</td><td class="num">${m(x.wb)}</td><td class="num">${m(x.sc)}</td><td class="num">${m(x.diff)}${pct(x.diff, x.wb)}</td>`
+          + `<td class="num">${x.units ? x.units.join(' / ') : '—'}</td></tr>`).join(''));
+  }
+  return html ? `<section class="nc-sec nc-diag"><h2>Why they differ</h2><p class="muted">The arithmetic behind the gaps above, from the same loaded data. window.salesCheckDiag() returns it.</p>${html}</section>` : '';
+}
+try { window.salesCheckDiag = () => NC.diag; } catch (e) { /* no window (tests) */ }
+
+/* ---------- the screen ---------- */
+const ncShown = () => !!$('paneNcheck') && !$('paneNcheck').classList.contains('hide');
+async function ensureNcheck() {
+  ncRender();
+  await salesCheck({ quiet: true });
+}
+// Draw the screen: summary cards, the checks table, the rule book.
+function ncRender() {
+  const root = $('ncPane');
+  if (!root) return;
+  const c = ncCounts(NC.res);
+  const busy = !!NC.busy;
+  const kpi = (cls, label, val, sub) => `<div class="nc-kpi ${cls}"><div class="lbl">${label}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const pct = v => (v == null || !isFinite(v) ? '—' : (v > 0 ? '+' : '') + v.toFixed(2) + '%');
+  const val = (r, side) => (r.unit === 'n' ? ncNum(side.v) : ncMoney(side.v));
+  const mark = r => (r.status === 'ok' ? '<span class="nc-mark is-ok">✓ match</span>'
+    : r.status === 'info' ? '<span class="nc-mark is-ok">✓ explained</span>'
+      : r.status === 'warn' ? '<span class="nc-mark is-warn">⚠ differs</span>'
+        : r.status === 'note' ? '<span class="nc-mark is-note">shown only</span>'
+        : r.status === 'defn' ? '<span class="nc-mark is-defn">definition differs — needs manager decision</span>'
+          : '<span class="nc-mark is-skip">' + (/access/.test(r.why || '') ? 'no access' : 'not loaded') + '</span>');
+  // a side with no data: never $0 — "— not loaded" (or "— not in your access"), grey
+  const none = r => `<span class="nc-na">— ${/access/.test(r.why || '') ? 'not in your access' : 'not loaded'}</span>`;
+  const side = (r, sd) => (!sd ? none(r) : `${sd.v == null ? none(r) : val(r, sd)}<span class="nc-sub">${ncEsc(sd.label)}</span>${sd.at ? `<span class="nc-sub">${ncEsc(sd.at)}</span>` : ''}`);
+  // one heading row per check (its name and the allowed gap), then a row per brand
+  let rows = '', lastId = '';
+  (NC.res || []).forEach(r => {
+    if (r.id !== lastId) {
+      const tol = (NC.res.find(x => x.id === r.id && x.tol) || {}).tol;
+      rows += `<tr class="nc-grp"><td colspan="7"><span class="nc-name">${ncEsc(r.name)}</span>${tol ? `<span class="nc-tol">allowed: ${ncEsc(tol)}</span>` : ''}</td></tr>`;
+      lastId = r.id;
+    }
+    rows += r.status === 'skip'
+      ? `<tr class="is-skip"><td>${ncEsc(r.view)}</td><td class="num">${side(r, r.a)}</td><td class="num">${side(r, r.b)}</td><td class="num">—</td><td class="num">—</td><td>${mark(r)}</td><td class="nc-why">${ncEsc(r.why)}</td></tr>`
+      : r.status === 'note'
+      ? `<tr class="is-note"><td>${ncEsc(r.view)}${r.sub ? `<span class="nc-sub">${ncEsc(r.sub)}</span>` : ''}</td><td class="num">${side(r, r.a)}</td><td class="num"><span class="nc-na">— Overview only</span></td><td class="num">—</td><td class="num">—</td><td>${mark(r)}</td><td class="nc-why">${ncEsc(r.why)}</td></tr>`
+      : `<tr class="is-${r.status === 'warn' ? 'warn' : r.status === 'defn' ? 'defn' : 'ok'}"><td>${ncEsc(r.view)}${r.sub ? `<span class="nc-sub">${ncEsc(r.sub)}</span>` : ''}</td>`
+        + `<td class="num">${val(r, r.a)}<span class="nc-sub">${ncEsc(r.a.label)}</span><span class="nc-sub">${ncEsc(r.a.at || '')}</span></td>`
+        + `<td class="num">${val(r, r.b)}<span class="nc-sub">${ncEsc(r.b.label)}</span><span class="nc-sub">${ncEsc(r.b.at || '')}</span>`
+        + (r.extra ? `<span class="nc-sub"><b>${val(r, r.extra)}</b> ${ncEsc(r.extra.label)}</span>` : '') + '</td>'
+        + `<td class="num">${r.unit === 'n' ? ncNum(r.diff) : ncMoney(r.diff)}</td><td class="num">${pct(r.pct)}</td>`
+        + `<td>${mark(r)}</td><td class="nc-why">${ncEsc(r.why || (r.status !== 'ok' ? '' : Math.abs(r.diff) < (r.unit === 'n' ? 0.5 : 0.005) ? 'Same number on both screens.' : 'Within the allowed gap (' + r.tol.split(' — ')[0] + ').'))}</td></tr>`;
+  });
+  const rule = x => `<details><summary><b>${ncEsc(x.name)}</b><span>${ncEsc(x.line)}</span></summary><dl>`
+    + [['Screens', x.screens], ['Data source', x.source], ['Formula', x.formula], ['Day cut-off', x.day], ['Included / excluded', x.incl],
+      ['Brands', x.brand], ['Rounding', x.round], ['How fresh', x.fresh]].map(([k, v]) => `<dt>${k}</dt><dd>${ncEsc(v)}</dd>`).join('') + '</dl></details>';
+  root.innerHTML = `<div class="nc-wrap">
+    <div class="nc-head"><p>The same number, compared where two screens show it — each side worked out by its own screen's code, from data already loaded or cached. Nothing is refreshed from Amazon and nothing is written.</p>
+      <button type="button" id="ncAgain" class="ghost sa-btn-sm"${busy ? ' disabled' : ''}>${busy ? 'Checking…' : 'Check again'}</button></div>
+    ${NC.err ? `<div class="err">${ncEsc(NC.err)}</div>` : ''}
+    <div class="nc-kpis">
+      ${kpi('is-ok', '✓ Matching', NC.res ? ncNum(c.ok) : '—', 'exactly the same')}
+      ${kpi('is-ok', '✓ Explained', NC.res ? ncNum(c.info) : '—', 'differ on purpose, within the allowed gap')}
+      ${kpi(c.warn ? 'is-warn' : '', '⚠ Differing', NC.res ? ncNum(c.warn) : '—', 'outside the allowed gap')}
+      ${kpi('', 'Last checked', NC.at ? ncHm(NC.at) : busy ? '…' : '—', NC.at ? new Date(NC.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · this browser' + (c.skip ? ` · ${c.skip} not loaded / no access` : '') + (c.note ? ` · ${c.note} shown only` : '') + (c.defn ? ` · ${c.defn} definition differs` : '') : 'checking…')}
+    </div>
+    <section class="nc-sec"><h2>Checks</h2><p class="muted">Ridhi, CPC and Both. "Explained" means the gap is the documented reason on the right and within the allowed gap.</p>
+      <div class="nc-scroll"><table class="nc-tbl"><thead><tr><th>Brand</th><th class="num">Value A</th><th class="num">Value B</th><th class="num">Difference</th><th class="num">%</th><th>Result</th><th>Why</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="7" class="muted">${busy ? 'Checking…' : 'Not checked yet.'}</td></tr>`}</tbody></table></div></section>
+    ${ncDiagHtml()}
+    <section class="nc-sec"><h2>Rule book</h2><p class="muted">${NC_RULES.length} numbers — one line each; open one for its source, formula, day cut-off, what is in and out, brands, rounding and freshness. The same text is in docs/sales-metrics.md.</p>
+      <div class="nc-rules">${NC_RULES.map(rule).join('')}</div>
+      <h2 style="margin-top:16px">Worked out in more than one place</h2><ul class="nc-risk">${NC_RISKS.map(t => `<li>${ncEsc(t)}</li>`).join('')}</ul></section>
+  </div>`;
+}
+
+// The buttons: "Check again" on the screen, and either chip → this screen.
+document.addEventListener('click', e => {
+  const t = e.target && e.target.closest ? e.target : null;
+  if (!t) return;
+  if (t.closest('#ncAgain')) { salesCheck({ quiet: true }); ncRender(); return; }
+  if (t.closest('#ncChipDash') || t.closest('#ncChipSd')) { if (ncMay('ncheck')) showTab('ncheck'); }
+});
+
+/* ####################################################################################################
  * GROUP: src/app/core/
  * #################################################################################################### */
 /* ============================== FILE: src/app/core/dashboard.js ============================== */
@@ -59740,7 +61237,8 @@ function dashRun(key) {
   const timer = setTimeout(() => { if (DASH.st[key].s === 'loading') { DASH.st[key].s = 'timeout'; dashChanged(key); } }, DASH_TIMEOUT);
   Promise.resolve().then(DASH_LOAD[key]).then(() => { DASH.st[key] = { s: 'ok', ms: dashMs() }; DASH.lastFresh = Date.now(); },
     e => { DASH.st[key] = { s: 'fail', why: String((e && e.message) || e || '') }; })
-    .then(() => { clearTimeout(timer); delete DASH.memo[key]; if (DASH.st[key].s === 'ok') dashStore(key); dashChanged(key); dashLiveLine(); });
+    .then(() => { clearTimeout(timer); delete DASH.memo[key]; if (DASH.st[key].s === 'ok') dashStore(key); dashChanged(key); dashLiveLine();
+      if (typeof ncSoon === 'function') ncSoon(key); });   // Numbers Check runs again on what just loaded (sales/sales-check.js)
 }
 // Every source, in order: Sales · PPC · Inventory first, then Listing Health, then the four that read the listing lists.
 function dashPrefetch() {
@@ -60041,7 +61539,7 @@ function dashRender() {
   const slot = id => `<div class="dash-slot" id="dash-${id}"></div>`;
   root.innerHTML = '<div class="dash-glow dash-aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div><canvas class="dash-dots" aria-hidden="true"></canvas>'
     + `<header class="dash-hero"><div><h3 class="dash-hi"><span class="dash-hi-t">${hi}${who ? ', ' : ''}</span>${who ? `<span class="dash-name">${dashEsc(who)}</span>` : ''}</h3>`
-    + `<div class="dash-date"><span class="dash-clock">${dashClockText()}</span><span>${dashEsc(date)}</span><span class="dash-live"><i></i><b>Live</b> <span class="dash-live-t"></span></span></div></div>`
+    + `<div class="dash-date"><span class="dash-clock">${dashClockText()}</span><span>${dashEsc(date)}</span><span class="dash-live"><i></i><b>Live</b> <span class="dash-live-t"></span></span></div><button type="button" class="nc-chip" id="ncChipDash" hidden></button></div>`
     + `<div class="dash-brands" role="group" aria-label="Brand"><span class="dash-pill" aria-hidden="true"></span>${brand('ALL', 'Both')}${brand('SP', 'Ridhi')}${brand('CPC', 'CPC')}</div></header>`
     + slot('ticker')
     + `<section class="dash-grid dash-kpis">${['kSales', 'kYtd', 'kAds', 'kList'].map(slot).join('')}</section>`
@@ -60055,6 +61553,7 @@ function dashRender() {
   dashPaint(DASH_SLOTS, 'intro');
   dashDotsStart(root);
   dashLoops();
+  if (typeof ncChipPaint === 'function') ncChipPaint();   // the Numbers Check chip under the greeting (sales/sales-check.js)
 }
 // The brand switch's sliding pill: under the brand on view (moved with GSAP, or by a CSS transition without it).
 function dashPill(move) {

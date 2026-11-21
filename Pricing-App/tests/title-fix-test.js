@@ -154,10 +154,12 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
       T1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Rust',
       S1: 'Ridhi Cloth Napkins 100% Cotton 20 x 20 Inch Block Print - Navy',
       D1: 'Ridhi Cloth Napkins 100% Cotton 14 x 20 Inch Block Print - Teal',
-      L1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Ivory',
-      K1: 'Ridhi Block Print Cloth Napkins 100% Cotton 20 x 20 Inch Reusable - Mustard',
-      M1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Olive',
-      C1: 'Ridhi Cloth Napkins 100% Cotton 20 x 20 Inch Block Print Reusable - Black',
+      // THE REMOVE-ALLOWLIST (22 Nov 2026): too long → only the material, the approved filler (whole phrases), the 74–75 short forms and —
+      // last — the shape go; every other word stays ("Dinner" goes, "Napkins" stays; "Napkins Set" stays whole)
+      L1: 'Ridhi Cloth Napkins 18 x 18 Inch Block Print Reusable Napkins - Ivory',
+      K1: 'Ridhi Block Print Cloth Napkins 20 x 20 Inch Reusable Dinner - Mustard',
+      M1: 'Ridhi Cloth Napkins 18 x 18 Inch Block Print Reusable Napkins - Olive',
+      C1: 'Ridhi Cloth Napkins 20 x 20 Inch Block Print Reusable Napkins Set - Black',
     };
     Object.entries(expect).forEach(([sku, t]) => ok(`${sku} → "${t}"`, p(sku).ok && p(sku).after === t, p(sku).after + ' · ' + p(sku).why));
     const diff = (x, y) => { const a = x.split(' '), b = y.split(' '); return a.length === b.length ? a.filter((w, i) => w !== b[i]).length : -1; };
@@ -180,8 +182,10 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
 
     console.log('== held back, with the reason — nothing guessed, nothing reordered ==');
     ok('A1: its mistakes corrected in place (Inch, 14 x 20, Block Print) — but its brand is not at the start, so it is held for a person (Sellora never reorders)', !p('A1').ok && /the brand is not at the start/.test(p('A1').why) && /^Napkins Ridhi/.test(p('A1').after), p('A1').why + ' · ' + p('A1').after);
-    ok('X1: with only its important words left (brand, product, material, size, print, its whole colour) it is over 75 → held back: "Only important words left — edit by hand", nothing important dropped',
-      !p('X1').ok && /^Only important words left — edit by hand \(\d+ characters, over 75\)/.test(p('X1').why) && p('X1').after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Indigo Blue and Rust Orange Stripe', p('X1').why + ' · ' + p('X1').after);
+    // THE REMOVE-ALLOWLIST: X1 loses its material and "Reusable" — every other word (its second "Napkins", its long colour) stays, and it is
+    // still over 75 → no suggestion: "Can't fit: needs a manual title"
+    ok('X1: only the allowlist may go ("100% Cotton", "Reusable") — still over 75 with the rest → held back: "Can\'t fit: needs a manual title", nothing suggested',
+      !p('X1').ok && /^Can't fit: needs a manual title \(\d+ characters, over 75\)/.test(p('X1').why) && p('X1').after === KIDS.X1.title, p('X1').why + ' · ' + p('X1').after);
 
     console.log('== the popup ==');
     const pop = C.el('spModalBox').innerHTML;
@@ -302,11 +306,11 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     await ready(C);
     const p2 = planOf(C, 'P2');
     // OUR TITLE FORMAT (20 Nov 2026): its own words in its own order; the low-value words go first — the colour, size and "Inch" stay
-    ok('P2 (a long colour): the uses go ("Reusable Dinner Napkins Set"), its own colour whole and "Inch" stay, no short form needed', p2.ok && p2.after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch - Dusty Rose Pink Stripe' && !p2.shortForms.length,
+    ok('P2 (a long colour): "100% Cotton", "Reusable" and "Dinner" go (the allowlist); "Napkins Set" stays whole; its own colour whole and "Inch" stay, no short form needed', p2.ok && p2.after === 'Ridhi Cloth Napkins 18 x 18 Inch Napkins Set - Dusty Rose Pink Stripe' && !p2.shortForms.length,
       p2.after + ' · ' + p2.after.length + ' · ' + p2.shortForms + ' · ' + p2.why);
     C.ttClick({ dataset: { tt: 'cancel' } });
     const l1 = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.sku === 'L1'), C.hCtx()).get('L1');
-    ok('L1: the repeated "Napkins" and then "Dinner" go, "Reusable" fits and stays, the print stays', l1.ok && !l1.dropped.length && /Block Print Reusable - Ivory$/.test(l1.after) && l1.after.length <= 75, l1.dropped + ' · ' + l1.after);
+    ok('L1: only the allowlist goes ("100% Cotton", "for Kitchen Party", "Dinner") — "Napkins" stays, "Reusable" fits and stays, the print stays', l1.ok && !l1.dropped.length && /Block Print Reusable Napkins - Ivory$/.test(l1.after) && l1.after.length <= 75, l1.dropped + ' · ' + l1.after);
   }
 
   console.log('== a long print in the template ("Hand Block Print"): "Hand" is never dropped (19 Nov 2026) ==');
@@ -323,13 +327,13 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     const tc = (sku, color, size) => C.ttBuild('SP', C.HEALTH.SP.rows.find(r => r.sku === sku), C.hCtx(), { va: { color, size, material: 'Cotton', item_shape: 'Rectangle' } });
     const b1 = tc('TC1', 'Mustard', '60x102');
     // OUR TITLE FORMAT (20 Nov 2026): its own words and order; "Hand Block Print" (the family's words) put in its place, whole — "Hand" never dropped
-    ok('TC1: "Hand Block Print" (as its sibling writes it) added before the shape, whole; to fit 75 the low-value words go ("Dining Table Cover"); its own order kept',
-      b1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60 x 102 Inch Cotton - Mustard' && !b1.why && b1.fixWhat.includes('Missing "Hand Block Print"'), b1.after + ' · ' + b1.after.length + ' · ' + b1.why);
+    ok('TC1: "Hand Block Print" (as its sibling writes it) added before the shape, whole; to fit 75 "Cotton" and "Dining" go (the allowlist), "Table Cover" stays whole, then the 74–75 short forms; the shape stays; its own order kept',
+      b1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60x102 Inch Table Cover Mustard' && !b1.why && b1.fixWhat.includes('Missing "Hand Block Print"'), b1.after + ' · ' + b1.after.length + ' · ' + b1.why);
     const b2 = tc('TC2', 'Red', '60x90');
     ok('…a title with no mistake is left exactly as it is', b2.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch Hand Block Print - Red' && /no mistake/.test(b2.why), b2.after + ' · ' + b2.why);
     C.TT.read.set('SP|TC1', { va: { color: 'Mustard', size: '60x102', material: 'Cotton', item_shape: 'Rectangle' }, pt: 'TABLECLOTH', at: now });
     const p1 = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.parent === 'TCP'), C.hCtx()).get('TC1');
-    ok('…and it passes every title rule — ready to send', p1 && p1.ok && p1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60 x 102 Inch Cotton - Mustard', p1 && (p1.why || p1.after));
+    ok('…and it passes every title rule — ready to send', p1 && p1.ok && p1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60x102 Inch Table Cover Mustard', p1 && (p1.why || p1.after));
   }
 
   console.log('== the rules re-check holds a new title back ==');

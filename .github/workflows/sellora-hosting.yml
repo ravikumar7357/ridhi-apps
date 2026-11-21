@@ -48,7 +48,7 @@ jobs:
       - name: Tests
         run: |
           set -e
-          for t in listing-errors listing-content; do
+          for t in listing-errors listing-content sales-metrics; do
             if node "tests/$t-test.js" > "/tmp/$t.log" 2>&1; then echo "$t: $(tail -1 /tmp/$t.log)"
             else echo "::error::$t-test failed"; grep -E "FAIL|Error" "/tmp/$t.log" | head -40; tail -5 "/tmp/$t.log"; exit 1; fi
           done

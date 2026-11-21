@@ -75,7 +75,7 @@ function faCards(kids) {
 // A child as a seller knows it: Colour · Size (from the title Amazon shows), else its SKU.
 function faLabel(kid, ctx) {
   const row = lrFresh(Object.assign({}, kid.row, { brand: kid.brand }), ctx || hCtx());
-  const size = (hTitleSizes(hTitleText(row))[0] || {}).text || '';
+  const size = (hTitleSizes(hTitleText(row), lrIsRound(row))[0] || {}).text || '';   // a round product's one-number size too
   return [lrColorOf(row), size].filter(Boolean).join(' · ') || kid.sku;
 }
 
