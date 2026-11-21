@@ -12,8 +12,10 @@ export const SECRET_NAMES = [
   'SUPABASE_SERVICE_KEY',                                   // shared with the rone-capture functions
   'SP_CLIENT_ID', 'SP_CLIENT_SECRET', 'SP_REFRESH_TOKEN',
   'CPC_CLIENT_ID', 'CPC_CLIENT_SECRET', 'CPC_REFRESH_TOKEN',
-  'SP_ADS_CLIENT_ID', 'SP_ADS_CLIENT_SECRET', 'SP_ADS_REFRESH_TOKEN', 'SP_ADS_PROFILE_ID',
-  'CPC_ADS_CLIENT_ID', 'CPC_ADS_CLIENT_SECRET', 'CPC_ADS_REFRESH_TOKEN', 'CPC_ADS_PROFILE_ID',
+  // No *_ADS_PROFILE_ID here (21 Nov): the profile is found by itself, as Apps Script does, and an empty secret stops the
+  // deploy. To pin one anyway, set SP_ADS_PROFILE_ID / CPC_ADS_PROFILE_ID as plain environment variables.
+  'SP_ADS_CLIENT_ID', 'SP_ADS_CLIENT_SECRET', 'SP_ADS_REFRESH_TOKEN',
+  'CPC_ADS_CLIENT_ID', 'CPC_ADS_CLIENT_SECRET', 'CPC_ADS_REFRESH_TOKEN',
   'SHOPIFY_STORE', 'SHOPIFY_TOKEN', 'CPC_SHOPIFY_STORE', 'CPC_SHOPIFY_TOKEN',
   'META_TOKEN', 'META_AD_ACCOUNT', 'CPC_META_TOKEN', 'CPC_META_AD_ACCOUNT',
 ] as const;

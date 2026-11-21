@@ -48,8 +48,8 @@ a whole day.
    | `SUPABASE_SERVICE_KEY` | Already there: the Supabase key the `rone-capture` functions use. Shared, not copied. |
    | `SP_CLIENT_ID`, `SP_CLIENT_SECRET`, `SP_REFRESH_TOKEN` | Ridhi's Amazon Sales API (SP-API) |
    | `CPC_CLIENT_ID`, `CPC_CLIENT_SECRET`, `CPC_REFRESH_TOKEN` | CPC's Amazon Sales API |
-   | `SP_ADS_CLIENT_ID`, `SP_ADS_CLIENT_SECRET`, `SP_ADS_REFRESH_TOKEN`, `SP_ADS_PROFILE_ID` | Ridhi's Amazon Ads API |
-   | `CPC_ADS_CLIENT_ID`, `CPC_ADS_CLIENT_SECRET`, `CPC_ADS_REFRESH_TOKEN`, `CPC_ADS_PROFILE_ID` | CPC's Amazon Ads API |
+   | `SP_ADS_CLIENT_ID`, `SP_ADS_CLIENT_SECRET`, `SP_ADS_REFRESH_TOKEN` | Ridhi's Amazon Ads API (the profile is found by itself) |
+   | `CPC_ADS_CLIENT_ID`, `CPC_ADS_CLIENT_SECRET`, `CPC_ADS_REFRESH_TOKEN` | CPC's Amazon Ads API |
    | `SHOPIFY_STORE`, `SHOPIFY_TOKEN` | Ridhi's Shopify store (`…myshopify.com`) and Admin API token (`shpat_…`) |
    | `CPC_SHOPIFY_STORE`, `CPC_SHOPIFY_TOKEN` | CPC's Shopify store and token |
    | `META_TOKEN`, `META_AD_ACCOUNT` | Ridhi's Meta token and ad account (`act_…`). Use a **System User** token with `ads_read`: a personal token expires in about 60 days. |
