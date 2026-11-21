@@ -398,7 +398,7 @@ function renderVp() {
     tabs.classList.toggle('hide', false);
     if (!shopN && !histOrders.length && VP.tab === 'shop') VP.tab = 'bulk';
     $('vpTabDone').classList.toggle('hide', !doneN);
-    if ((!doneN || vprOn()) && VP.tab === 'done') VP.tab = 'bulk';   // the office has History in its place (printer-receive.js, 20 Nov)
+    if (!doneN && VP.tab === 'done') VP.tab = 'bulk';
     if ($('vpTabVs')) $('vpTabVs').classList.toggle('hide', !vsN && VP.tab !== 'vsent');
     $('vpTabShop').classList.toggle('hide', !shopN && !histOrders.length);
     /* WHAT I HAVE SENT (Ravi, 20 Nov): gone from the office's printer's view (History covers what came in); a printer's own sign-in keeps
@@ -414,7 +414,6 @@ function renderVp() {
     paint('vpTabShop', VP.tab === 'shop', 'Custom orders', shopN);
     paint('vpTabVs', VP.tab === 'vsent', 'Vendor sent', vsN);
     paint('vpTabDone', VP.tab === 'done', 'Completed', doneN);
-    if (vprOn()) $('vpTabDone').classList.add('hide');   // after paint, which sets the whole class
     paint('vpTabHist', VP.tab === 'hist', 'What I have sent', histN);
     if ($('vpTabHist')) $('vpTabHist').classList.toggle('hide', !histShown);   // after paint, which sets the whole class
     /* Counted as things still to hear about, not as things ever asked — a printer wants to know what
