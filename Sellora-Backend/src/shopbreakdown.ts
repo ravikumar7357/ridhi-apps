@@ -15,7 +15,7 @@
 
 import { call } from './http.ts';
 import { storeHost, SHOP_API_VERSION } from './shopify.ts';
-import { ptDay } from './time.ts';
+import { ptDay, dayIn, PT } from './time.ts';
 
 export interface Breakdown { orders: number; gross: number; discounts: number; returns: number; shipping: number; taxes: number }
 const empty = (): Breakdown => ({ orders: 0, gross: 0, discounts: 0, returns: 0, shipping: 0, taxes: 0 });
@@ -36,10 +36,19 @@ export async function ordersUpdatedSince(store: string, token: string, fromMs: n
   return out;
 }
 
-/** The breakdown for each Pacific day from `fromDay` on (days with nothing are absent). */
-export function foldBreakdown(orders: any[], fromDay: string): Map<string, Breakdown> {
+/** The store's own timezone (Shopify Settings → General), e.g. "Asia/Kolkata" — the day Shopify's own report uses. */
+export async function storeTimezone(store: string, token: string): Promise<string> {
+  const r = await call('Shopify shop', `https://${storeHost(store)}/admin/api/${SHOP_API_VERSION}/shop.json?fields=iana_timezone`, { headers: { 'X-Shopify-Access-Token': token.trim() } });
+  const j = await r.json() as { shop?: { iana_timezone?: string } };
+  return (j.shop && j.shop.iana_timezone) || PT;
+}
+
+/** The breakdown for each day from `fromDay` on (days with nothing are absent), counted in timezone `tz`
+ * (21 Nov: the store's own, so it matches Shopify's report; Pacific when none is given). */
+export function foldBreakdown(orders: any[], fromDay: string, tz: string = PT): Map<string, Breakdown> {
   const out = new Map<string, Breakdown>();
-  const at = (iso: string) => { const d = ptDay(Date.parse(iso)); if (d < fromDay) return null; let b = out.get(d); if (!b) { b = empty(); out.set(d, b); } return b; };
+  const dayOf = (ms: number) => (tz === PT ? ptDay(ms) : dayIn(ms, tz));
+  const at = (iso: string) => { const d = dayOf(Date.parse(iso)); if (d < fromDay) return null; let b = out.get(d); if (!b) { b = empty(); out.set(d, b); } return b; };
   for (const o of orders) {
     if (o.test) continue;
     const gross = (o.line_items || []).reduce((t: number, li: any) => t + n(li.price) * n(li.quantity), 0);

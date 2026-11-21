@@ -2,6 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { foldBreakdown, totals } from '../src/shopbreakdown.ts';
 
+test("the store's own timezone decides the day (India: 8 PM Pacific is the next morning)", () => {
+  const o = [{ id: 9, created_at: '2026-11-20T20:00:00-08:00', financial_status: 'paid', total_discounts: '0', total_tax: '0',
+    line_items: [{ price: '50.00', quantity: 1 }], shipping_lines: [], refunds: [] }];
+  assert.deepEqual([...foldBreakdown(o, '2026-11-19').keys()], ['2026-11-20']);                    // Pacific
+  assert.deepEqual([...foldBreakdown(o, '2026-11-19', 'Asia/Kolkata').keys()], ['2026-11-21']);   // India
+});
+
 test("Shopify's total sales breakdown: sales on the order's day, refunds on the refund's day", () => {
   const orders = [
     // 20 Nov (Pacific): two items, $10 discount, $5 shipping, $3 tax

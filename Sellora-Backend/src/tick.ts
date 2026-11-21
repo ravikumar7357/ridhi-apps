@@ -17,7 +17,7 @@ import { askReport, reportStatus, downloadReport, foldAds, findProfile, type AdT
 import { ordersBetween, foldShop, type Tot } from './shopify.ts';
 import { insights, insightsHourly, accountInfo } from './meta.ts';
 import { usdRates } from './fx.ts';
-import { ordersUpdatedSince, foldBreakdown, totals } from './shopbreakdown.ts';
+import { ordersUpdatedSince, foldBreakdown, totals, storeTimezone } from './shopbreakdown.ts';
 import { ptDay, ptMidnight, shiftDay, daysBetween, hourStart, dayIn, zonedHour, PT } from './time.ts';
 import { BRANDS, brandConfig, type Env, type BrandConfig, type Brand } from './config.ts';
 import { backfillOnce } from './backfill.ts';
@@ -102,12 +102,21 @@ export async function shopify(db: Db, cfg: BrandConfig, now: number): Promise<St
 }
 
 /* ---------------- Shopify's total sales breakdown (shopbreakdown.ts) ----------------
- * The last 7 Pacific days, today included, read again every run (a refund can come days after its order). */
+ * The last 7 days, today included, read again every run (a refund can come days after its order). Counted in the STORE's
+ * own timezone, the day Shopify's own report uses (Ravi, 21 Nov: "do it for our timezone for now") — read from Shopify
+ * once and kept; set SHOP_BREAKDOWN_TZ (e.g. America/Los_Angeles) in the environment to count another way. */
 export const BREAKDOWN_DAYS = 7;
 export async function shopifyBreakdown(db: Db, cfg: BrandConfig, now: number): Promise<StepOut> {
-  const b = cfg.brand, s = cfg.shop!, today = ptDay(now), from = shiftDay(today, -(BREAKDOWN_DAYS - 1));
-  const orders = await ordersUpdatedSince(s.store, s.token, ptMidnight(from));
-  const byDay = foldBreakdown(orders, from), at = nowIso(now);
+  const b = cfg.brand, s = cfg.shop!, key = 'shop_tz:' + b;
+  let tz = String(process.env.SHOP_BREAKDOWN_TZ || '').trim();
+  if (!tz) {
+    const st = await db.getState<{ tz?: string; store?: string }>(key);
+    tz = st.store === s.store && st.tz ? st.tz : '';
+    if (!tz) { tz = await storeTimezone(s.store, s.token); await db.setState(key, { tz, store: s.store }); }
+  }
+  const today = dayIn(now, tz), from = shiftDay(today, -(BREAKDOWN_DAYS - 1));
+  const orders = await ordersUpdatedSince(s.store, s.token, zonedHour(from, 0, tz));
+  const byDay = foldBreakdown(orders, from, tz), at = nowIso(now);
   const rows = daysBetween(from, today).map(d => {
     const x = byDay.get(d) || { orders: 0, gross: 0, discounts: 0, returns: 0, shipping: 0, taxes: 0 }, t = totals(x);
     return { brand: b, day: d, orders: x.orders, gross: x.gross, discounts: x.discounts, returns: x.returns, net: t.net,
@@ -115,7 +124,7 @@ export async function shopifyBreakdown(db: Db, cfg: BrandConfig, now: number): P
   });
   const n = await db.upsert('shop_breakdown', rows, 'brand,day');
   const y = rows.find(r => r.day === shiftDay(today, -1));
-  return { rows: n, details: { orders: orders.length, yesterdayTotal: y && y.total } };
+  return { rows: n, details: { tz, orders: orders.length, yesterday: y && { day: y.day, gross: y.gross, discounts: y.discounts, returns: y.returns, taxes: y.taxes, total: y.total } } };
 }
 
 /* ---------------- Amazon ads ---------------- */
