@@ -13,7 +13,7 @@ function desk(me) {
   const anchor = '  return { open: open,';
   const code = fs.readFileSync(SRC, 'utf8');
   if (code.split(anchor).length !== 2) throw new Error('greige-desk.js: the closing "return { open" line moved; update this test');
-  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histDays, histDayName, histMonthName, histDayBadges, invNeedState, invCoverPct, invNeedCell, invActionCell, setDB: function (v) { DB = v; } };\n' + anchor);
+  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histDays, histDayName, histMonthName, histDayBadges, invNeedState, invCoverPct, invNeedCell, invActionCell, invWorthShowing, setDB: function (v) { DB = v; } };\n' + anchor);
   const ctx = { console, window: { document: {} }, ME: me || { admin: true } };
   vm.createContext(ctx);
   vm.runInContext(opened, ctx);
@@ -155,13 +155,43 @@ console.log('== the Inventory, laid out to act on (Ravi, 21 Nov) ==');
   ok('the need cell: metres, lines, the bar and "9% covered · 6,178 short"', /<b>6,772 m<\/b>/.test(need) && /39 lines/.test(need) && /width:9%/.test(need) && /9% covered/.test(need) && /6,178 short/.test(need));
   ok('a fabric PPC does not need says so', /no PPC demand/.test(G.invNeedCell({ ppc: null }, false)));
   ok('Action: a short fabric gets "Raise PO · 7,040 m" (the same greige PO as before)', /data-ppcpo="Canvas\|7040"[^>]*>Raise PO · 7,040 m</.test(G.invActionCell(shortRow, false)));
-  ok('…without a greige name it says what to do instead', /add greige name/.test(G.invActionCell(row(75, 0, 75, 79, ''), false)) && !/data-ppcpo/.test(G.invActionCell(row(75, 0, 75, 79, ''), false)));
+  /* Ravi, 21 Nov: "remove those fabrics from inventory completely whose says add greige name" */
+  const noName = (stock) => Object.assign(row(75, 0, 75, 79, ''), { owned: stock, onOrder: 0 });
+  ok('a short fabric with no greige name is left out of the Inventory, even with cloth on the shelf',
+    G.invWorthShowing(noName(0)) === false && G.invWorthShowing(noName(120)) === false);
+  ok('…and no row anywhere says "add greige name" any more', !/add greige name/.test(G.invActionCell(row(75, 0, 75, 79, ''), false)) && !/data-ppcpo/.test(G.invActionCell(row(75, 0, 75, 79, ''), false)));
+  ok('a short fabric with a greige name stays, even with no stock', G.invWorthShowing(Object.assign(row(75, 0, 75, 79, 'Canvas Greige'), { owned: 0, onOrder: 0 })) === true);
+  ok('a covered fabric stays, and so does one with only stock or only a PO and no PPC need',
+    G.invWorthShowing(Object.assign(row(547, 1022, 0, 0, ''), { owned: 0, onOrder: 0 })) === true
+    && G.invWorthShowing({ ppc: null, owned: 40, onOrder: 0 }) === true && G.invWorthShowing({ ppc: null, owned: 0, onOrder: 900 }) === true);
+  ok('a fabric with nothing at all stays out', G.invWorthShowing({ ppc: null, owned: 0, onOrder: 0 }) === false && G.invWorthShowing({ ppc: null, owned: 0.04, onOrder: 0 }) === false);
+  ok('the Inventory list uses this one rule', /\}\)\.filter\(invWorthShowing\)/.test(fs.readFileSync(SRC, 'utf8')));
   ok('…a covered fabric shows "covered"', /pill-ok">covered</.test(G.invActionCell(coveredRow, false)));
   const code = fs.readFileSync(SRC, 'utf8');
   ok('a filter by what needs doing: All · Short for PPC · Covered · No PPC demand', /\['all', 'short', 'ok', 'none'\]\.map/.test(code) && /data-invshow="' \+ k \+ '"/.test(code));
   ok('short fabrics come first, then covered, then those not needed', /var INV_SHOW_ORDER = \{ short: 0, ok: 1, none: 2 \};/.test(code));
   ok('the stock columns sit under "Where the cloth is now →"', /Where the cloth is now (→|\\u2192)/.test(code));
   ok('the long note is gone from the toolbar', !/PPC demand is what the production plans need in RFD; short is after the RFD free today/.test(code));
+  ok('no Total row under the Inventory (metres of different cloths added together)', !/<tfoot><tr><td class="frz" style="text-align:left">Total/.test(code));
+  ok('"18 lines" is a link to Demand → RFD for that fabric', /data-gdlines="Canvas"[^>]*>39 lines</.test(need) && /if \(t\.getAttribute\('data-gdlines'\)\) \{ gdToFlow\('drfd', t\.getAttribute\('data-gdlines'\)\)/.test(code));
+}
+
+console.log('== the lines open Demand → RFD with only that fabric (Ravi, 21 Nov) ==');
+{
+  /* The real gdToFlow, run against a pretend app page: its tab switch and the flow's search box. */
+  const code = fs.readFileSync(SRC, 'utf8'), anchor = '  return { open: open,';
+  const box = { value: 'old search' }, seen = {};
+  const ctx = { console, window: { document: { getElementById: id => (id === 'flQ' ? box : null) } },
+    showTab: t => { seen.tab = t; }, ensureFlow: () => { seen.drawn = box.value; } };
+  vm.createContext(ctx);
+  vm.runInContext(code.replace(anchor, '  globalThis.__T = { gdToFlow: gdToFlow, view: function () { return FLOW_VIEW; } };\n' + anchor), ctx);
+  ctx.FLOW_VIEW = 'ppc';
+  ctx.__T.gdToFlow('drfd', 'Canvas');
+  ok('a click on the lines opens the flow on Demand → RFD', seen.tab === 'flow' && ctx.FLOW_VIEW === 'drfd');
+  ok('…with the fabric in its search box, before the list is drawn', box.value === 'Canvas' && seen.drawn === 'Canvas');
+  ctx.__T.gdToFlow('drfd', '');
+  ok('the plain Demand → RFD button clears it, so the whole list shows',
+    box.value === '' && seen.drawn === '' && /if \(t\.getAttribute\('data-gdflow'\)\) \{ gdToFlow\(t\.getAttribute\('data-gdflow'\), ''\);/.test(code));
 }
 
 console.log('== the Inventory\'s cloth types: one drop-down beside the search box (Ravi, 21 Nov) ==');

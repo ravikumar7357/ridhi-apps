@@ -3004,7 +3004,7 @@ function invAll() {
     return { fabric: n, type: invType(n), greige: fabGreigeOf(n), onOrder: o ? o.m : 0,
       inStoreGreige: g, atProcessor: p, inStoreRfd: r, owned: g + p + r,
       ppc: ppc && !ppc.__loading ? (ppc[n.toUpperCase()] || null) : null };
-  }).filter(function (x) { return x.owned > 0.05 || x.onOrder > 0.05 || (x.ppc && x.ppc.need > 0.05); })
+  }).filter(invWorthShowing)
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
 }
 /* THE INVENTORY, LAID OUT TO ACT ON (Ravi, 21 Nov: "the page seems very dirty in format make it better with the functions I
@@ -3026,6 +3026,14 @@ function invNeedState(r) {
   if (!p || !(p.need > 0.05)) return 'none';
   return p.short > 0.05 && p.greigeM > 0 ? 'short' : 'ok';
 }
+/** A fabric earns an Inventory row when it has cloth, a PO, or a PPC need the desk can act on. A short fabric with no greige
+ *  name in Master data is left out (Ravi, 21 Nov: "remove those fabrics … whose says add greige name"): no PO can be raised
+ *  for it here, so the row only said "add greige name". It still shows on Demand → RFD; once Setup gives it a greige name it
+ *  comes back here with its Raise PO button. */
+function invWorthShowing(r) {
+  if (invNeedState(r) === 'short' && !r.ppc.greige) return false;
+  return r.owned > 0.05 || r.onOrder > 0.05 || invNeedState(r) !== 'none';
+}
 /** How much of the PPC need the RFD free covers, in whole percent (0–100). */
 function invCoverPct(p) { return p && p.need > 0.05 ? Math.min(100, Math.round((p.free || 0) / p.need * 100)) : 0; }
 function invNeedCell(r, loading) {
@@ -3037,7 +3045,9 @@ function invNeedCell(r, loading) {
   var words = p.short > 0.05
     ? pct + '% covered · <span style="color:var(--bad);font-weight:700">' + nf(p.short) + ' short</span>' + (p.greigeM ? '' : ' · covered by what is on its way')
     : 'fully covered';
-  return '<td class="tl" title="' + esc(tip) + '"><div><b>' + nf(p.need) + ' m</b> <span class="muted" style="font-size:11px">· ' + plural(p.lines, 'line') + '</span></div>'
+  /* the lines open Demand → RFD with only this fabric's lines (Ravi, 21 Nov) */
+  return '<td class="tl" title="' + esc(tip) + '"><div><b>' + nf(p.need) + ' m</b> <span class="muted" style="font-size:11px">· </span>'
+    + '<button type="button" class="link" data-gdlines="' + esc(p.name) + '" style="font-size:11px;padding:0" title="See these lines on Demand → RFD">' + plural(p.lines, 'line') + '</button></div>'
     + '<div style="height:6px;border-radius:3px;background:var(--soft);overflow:hidden;margin:5px 0 3px" role="img" aria-label="' + pct + '% covered">'
     + '<div style="height:100%;width:' + pct + '%;background:' + col + '"></div></div>'
     + '<div class="muted" style="font-size:11px">' + nf(p.free) + ' m RFD free · ' + words + '</div></td>';
@@ -3046,7 +3056,6 @@ function invActionCell(r, loading) {
   if (loading) return '<td></td>';
   var p = r.ppc, st = invNeedState(r);
   if (st === 'short' && p.greige) return '<td><button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(p.name) + '|' + p.greigeM + '" style="white-space:nowrap;padding:4px 10px;font-size:12px" title="Raise a greige PO for what PPC is short of (with the processor’s share)">Raise PO · ' + nf(p.greigeM) + ' m</button></td>';
-  if (st === 'short') return '<td><span class="pill pill-low" title="No greige name in Master data, so no greige PO can be raised. Add it in Setup → Master Database.">add greige name</span></td>';
   if (st === 'ok') return '<td><span class="pill pill-ok">covered</span></td>';
   return '<td></td>';
 }
@@ -3066,7 +3075,6 @@ function renderInv() {
   if (!withPpc || loading) UI.invShow = 'all';
   var shown = function (k) { return inView.filter(function (x) { return k === 'all' || invNeedState(x) === k; }); };
   var rows = shown(UI.invShow).sort(function (a, b) { return INV_SHOW_ORDER[invNeedState(a)] - INV_SHOW_ORDER[invNeedState(b)]; });
-  var sum = function (k) { return rows.reduce(function (a, x) { return a + (x[k] || 0); }, 0); };
   UI.invCols = withPpc ? 8 : 6;
   var tools = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'
     + (withPpc && !loading ? '<div class="seg" role="tablist" aria-label="Show">' + ['all', 'short', 'ok', 'none'].map(function (k) {
@@ -3095,11 +3103,7 @@ function renderInv() {
         + (UI.invOpen.indexOf(r.fabric + '|') === 0 ? invDetail(r, UI.invOpen.split('|')[1]) : '');
     }).join('') || emptyRow(UI.invCols, UI.invShow !== 'all' ? 'No fabric is ' + INV_SHOW_LABEL[UI.invShow].toLowerCase() + (UI.inv === 'all' ? '.' : ' in ' + UI.inv + '.')
       : 'Nothing on order or in stock' + (UI.inv === 'all' ? '.' : ' for ' + UI.inv + '.')))
-    + '</tbody>'
-    + (rows.length > 1 ? '<tfoot><tr><td class="frz" style="text-align:left">Total' + (UI.inv === 'all' ? '' : ' · ' + esc(UI.inv)) + '</td>'
-      + (withPpc ? '<td class="tl">' + dash(rows.reduce(function (a, x) { return a + (x.ppc ? x.ppc.need : 0); }, 0)) + '</td><td></td>' : '')
-      + '<td class="num">' + dash(sum('onOrder')) + '</td><td class="num">' + dash(sum('inStoreGreige')) + '</td><td class="num">' + dash(sum('atProcessor')) + '</td>'
-      + '<td class="num">' + dash(sum('inStoreRfd')) + '</td><td class="num">' + dash(sum('owned')) + '</td></tr></tfoot>' : '')
+    + '</tbody>'   /* no Total row (Ravi, 21 Nov): metres of different cloths added together told nobody anything */
     + '</table></div></div>'
     + (withPpc ? '<div class="lm-why">Metres. The bar shows how much of the PPC need the RFD free covers; Raise PO orders the greige with '
       + Math.round((typeof GD_LOSS !== 'undefined' ? GD_LOSS : 0.05) * 100) + '% for what the processor takes.</div>' : '');
@@ -4731,10 +4735,13 @@ function gdPoFor(rfd, metres) {
   lmSay('ok', nf(metres) + ' m of ' + greige + ' for PPC is on the PO. Pick the supplier and the rate.');
 }
 /** Over to the production flow, at one of its Demand tabs. */
-function gdToFlow(view) {
+function gdToFlow(view, find) {
   if (typeof showTab !== 'function') return;
   showTab('flow');
   try { FLOW_VIEW = view || 'drfd'; } catch (e) { /* the flow picks its own */ }
+  /* `find` (a fabric's name) goes in the flow's search box, so only that fabric's lines show; the app's page, not the desk's */
+  var box = window.document.getElementById('flQ');
+  if (box && find != null) box.value = find;
   if (typeof ensureFlow === 'function') ensureFlow();
 }
 
@@ -4791,9 +4798,10 @@ function gdOpenMasterData(view) {
 
 function wireGd() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-ppcpo],[data-gdflow]') : null; if (!t) return;
+    var t = ev.target.closest ? ev.target.closest('[data-ppcpo],[data-gdflow],[data-gdlines]') : null; if (!t) return;
     if (t.getAttribute('data-ppcpo')) { var p = t.getAttribute('data-ppcpo').split('|'); gdPoFor(p[0], +p[1]); return; }
-    if (t.getAttribute('data-gdflow')) { gdToFlow(t.getAttribute('data-gdflow')); return; }
+    if (t.getAttribute('data-gdflow')) { gdToFlow(t.getAttribute('data-gdflow'), ''); return; }   // the whole list: no fabric left in the search
+    if (t.getAttribute('data-gdlines')) { gdToFlow('drfd', t.getAttribute('data-gdlines')); return; }
   });
 }
 
