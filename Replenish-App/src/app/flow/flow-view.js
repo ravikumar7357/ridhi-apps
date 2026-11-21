@@ -514,6 +514,12 @@ function flowByPrintTable(rows) {
 }
 /* WHAT THE CUTTING DEPARTMENT CUTS FROM, for a planned line: the printed fabric (from the store, or back from the
  * printer), how much, for how many pieces of the order. */
+/** Which lot the Greige Desk sent to cutting for this line, so the cutting master knows whose thans they are (Ravi, 21 Nov). */
+function flowCutFromLot(s) {
+  const fr = s.demand && s.demand.fabricReady;
+  if (!fr || !fr.cutEntry || !fr.lot) return '';
+  return `<div style="font-size:10.5px;color:#166534"><b>${esc(fr.lot)}</b> · ${nf(+fr.metres || 0)} m sent to cutting</div>`;
+}
 function flowCutFrom(x) {
   const p = x.s.plan;
   /* THE CUTTING ROUTE (16 Oct: the column said "—"). No printer: the line is cut from RFD — or, ticked "already printed / in
@@ -522,7 +528,8 @@ function flowCutFrom(x) {
     const colour = String(((cutSkuOf(x.r.sku) || {}).color) || x.r.color || '').trim();
     const m = flowR2((+p.fabric.metres || 0) || (+p.fabric.perPc || 0) * (+x.r.qty || 0));
     return `<b>${esc(p.fabric.name)}</b>${p.fabric.noRfd && colour ? ' · ' + esc(colour) : ''} <span class="pill ${p.fabric.noRfd ? 'ok' : 'mute'}" style="font-size:10.5px">${p.fabric.noRfd ? 'printed, in hand' : 'RFD'}</span>`
-      + `<div class="muted" style="font-size:10.5px">${nf(m)} m for ${nf(x.r.qty)} pcs</div>`;
+      + `<div class="muted" style="font-size:10.5px">${nf(m)} m for ${nf(x.r.qty)} pcs</div>`
+      + flowCutFromLot(x.s);
   }
   if (!p || !flowPrinted(x.s.route)) return '<span class="muted">—</span>';
   const w = flowPrintWhat(x.r, p), m = flowR2(+(p.fabric && p.fabric.metres) || 0), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
