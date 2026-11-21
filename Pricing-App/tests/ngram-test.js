@@ -552,54 +552,89 @@ const byGram = (C, b, gram) => C.getNGX().rows.find(g => g.brand === b && g.gram
     const V = C.getNGX().views[1];
     const g = gram => V.find(x => x.brand === 'SP' && x.gram === gram);
     const M = C.getNGX().M;
-    // 3. The evidence, per campaign.
+    // 1, 3. Per campaign: $0 (the default, and the table's rule) ticks every campaign where it has no order — as before the
+    // evidence check; $5 / $10 / $20 tick only with the chance test and that much spent. The chance shows either way.
     ok('the yardstick: the campaign\'s own order rate with 3+ orders, else the brand\'s (as Search Term Analysis)', (() => {
       const a = C.ngCpRate(g('vinyl'), 'c1'), z = C.ngCpRate(g('vinyl'), 'c9');
       return a.w === 'its campaign' && Math.abs(a.p - 25 / 300) < 1e-9 && z.w === 'the brand' && Math.abs(z.p - M.rate.SP.b.o / M.rate.SP.b.c) < 1e-9;
     })());
     const vp = C.ngPlan(g('vinyl'));
     const ch1 = Math.pow(1 - 25 / 300, 60);
-    ok(`vinyl: negated in both no-order campaigns (enough clicks there), kept where it sells; evidence "0 in 60 clicks · ${C.staChance(ch1)} chance"`, vp.neg.map(c => c.cid).sort().join() === 'c1,c2' && vp.kept.map(c => c.cid).join() === 'c3'
+    ok(`vinyl at $0: both no-order campaigns ticked, kept where it sells; the chance shown "0 in 60 clicks · ${C.staChance(ch1)} chance"`, vp.neg.map(c => c.cid).sort().join() === 'c1,c2' && vp.kept.map(c => c.cid).join() === 'c3'
       && vp.neg.find(c => c.cid === 'c1').ev === `0 in 60 clicks · ${C.staChance(ch1)} chance` && vp.neg.every(c => c.can && c.on) && vp.kept.every(c => !c.can), JSON.stringify(vp.neg.map(c => c.ev)));
-    const pp = C.ngPlan(g('plastic'));
-    ok('plastic: negated in c1 (90 clicks, <0.1%), kept in c2 — 60 clicks could still be chance at its 3.5%', pp.neg.map(c => c.cid).join() === 'c1' && pp.thin.map(c => c.cid).join() === 'c2'
-      && pp.thin[0].why === '60 clicks, $18.00' && pp.thin[0].can && !pp.thin[0].on && /^0 in 90 clicks · <0\.1% chance$/.test(pp.neg[0].ev), JSON.stringify([pp.neg.map(c => c.ev), pp.thin.map(c => c.ev + ' / ' + c.why)]));
+    const pp0 = C.ngPlan(g('plastic')), pp10 = C.ngPlan(g('plastic'), 10);
+    ok('plastic at $0: ticked in both campaigns, no chance test — c2\'s "0 in 60 clicks · 11.8% chance" shown as information', pp0.neg.map(c => c.cid).join() === 'c1,c2' && !pp0.thin.length
+      && pp0.neg.find(c => c.cid === 'c2').ev === '0 in 60 clicks · 11.8% chance', JSON.stringify(pp0.neg.map(c => c.ev)));
+    ok('plastic at $10: only c1; c2 "Kept: not enough data here (60 clicks, $18.00)", unticked but tickable — could still be luck', pp10.neg.map(c => c.cid).join() === 'c1' && pp10.thin.map(c => c.cid).join() === 'c2'
+      && pp10.thin[0].why === '60 clicks, $18.00' && pp10.thin[0].can && !pp10.thin[0].on && /could still be luck/.test(C.ngCpWhy(pp10.thin[0])), C.ngCpWhy(pp10.thin[0]));
     const pn = C.ngNext(g('plastic'), 10);
-    ok('…"Negate in 1 campaign", the other kept without enough data', pn.act === 'neg' && pn.short === 'Negate in 1 campaign' && /kept in 1 without enough data/.test(pn.text), pn.text);
-    // The "decorative" case: $7.20 and $5.97 in two campaigns, $30 in a third.
-    const dec = Object.assign(Object.create(g('plastic')), { _plan: null, terms: [], tcp: null, tag: '', gram: 'decorative', term: 'decorative',
+    ok('the table\'s button uses $0: "Negate in 2 campaigns" on plastic', pn.act === 'neg' && pn.short === 'Negate in 2 campaigns' && C.ngNos(g('plastic'), 10) === 45, pn.short);
+    // The "decorative" case: $30 in c1 (200 clicks), $7.20 in c2 (4 clicks), $5.97 in c3 (300 clicks).
+    const dec = Object.assign(Object.create(g('plastic')), { terms: [], tcp: null, tag: '', gram: 'decorative', term: 'decorative',
       cps: new Map([['c1', { cid: 'c1', cn: 'SP - Runner - Broad', c: 200, sp: 30, s: 0, o: 0, n: 4 }], ['c2', { cid: 'c2', cn: 'SP - Napkins - Auto', c: 4, sp: 7.2, s: 0, o: 0, n: 1 }],
         ['c3', { cid: 'c3', cn: 'SP - Exact', c: 300, sp: 5.97, s: 0, o: 0, n: 2 }]]) });
-    const dp = C.ngPlan(dec);
-    ok('"decorative": ticked only where it spent $10+ with under 1% chance — "Kept: not enough data here (4 clicks, $7.20)"', dp.neg.map(c => c.cid).join() === 'c1' && dp.thin.map(c => c.cid).sort().join() === 'c2,c3'
-      && C.ngCpWhy(dp.thin.find(c => c.cid === 'c2')).startsWith('Kept: not enough data here (4 clicks, $7.20)') && /judged from \$10\.00 spent here/.test(C.ngCpWhy(dp.thin.find(c => c.cid === 'c3'))),
-      dp.thin.map(C.ngCpWhy).join(' | '));
-    ok('a blocked word is negated in every no-order campaign, at any spend (its class)', (() => { const p = C.ngPlan(g('cheap')); return p.neg.length === 1 && /blocked word: negated at any spend/.test(p.neg[0].ev) && !p.thin.length; })());
-    const allNeg = Object.assign(Object.create(dec), { _plan: null, cps: new Map([['c2', { cid: 'c2', cn: 'SP - Napkins - Auto', c: 4, sp: 7.2, s: 0, o: 0, n: 1 }]]) });
-    const an = C.ngNext(Object.assign(allNeg, { base: 'waste', wk: 'nosale', c: 400, protect: '', words: 1, info: g('plastic').info }), 10);
-    ok('no campaign with enough data: no button — "Not enough data in any one campaign" and Search Term Analysis', an.act === 'st' && an.short === 'Not enough data in any one campaign', JSON.stringify(an));
+    const decAt = v => C.ngPlan(dec, v).neg.map(c => c.cid).sort().join();
+    ok('"decorative": $0 ticks all three; $5 c1 and c3; $10 and $20 c1 only', decAt(0) === 'c1,c2,c3' && decAt(5) === 'c1,c3' && decAt(10) === 'c1' && decAt(20) === 'c1', [0, 5, 10, 20].map(decAt).join(' / '));
+    const d10 = C.ngPlan(dec, 10);
+    ok('…at $10: "Kept: not enough data here (4 clicks, $7.20)", and c3 under the $10 minimum', C.ngCpWhy(d10.thin.find(c => c.cid === 'c2')).startsWith('Kept: not enough data here (4 clicks, $7.20)')
+      && /under the \$10\.00 minimum spend per campaign/.test(C.ngCpWhy(d10.thin.find(c => c.cid === 'c3'))), d10.thin.map(C.ngCpWhy).join(' | '));
+    ok('a blocked word is ticked in every no-order campaign at any minimum (its class)', [0, 20].every(v => { const p = C.ngPlan(g('cheap'), v); return p.neg.length === 1 && /blocked word: negated at any spend/.test(p.neg[0].ev) && !p.thin.length; }));
 
-    // 1. The popup's campaign table (Amazon's record of the campaigns gives their kind).
+    // 1. At $0 the ticked campaigns are the old rule's: ngram.js of 7b86904c (before the evidence check) on the same sample.
+    let oldNg = null;
+    try { oldNg = cp.execSync('git show 7b86904c:Pricing-App/src/app/ads/ngram.js', { cwd: __dirname, maxBuffer: 1e8 }).toString('utf8'); } catch (e) { oldNg = null; }
+    if (!oldNg) ok('commit 7b86904c readable with git', false);
+    else {
+      const O = setup({ ngram: true, ngText: oldNg, names: ['ST', 'STS', 'STA_SET_DEF', 'staModel', 'ngPlan', 'ngNext', 'ngCls', 'renderNg', 'ensureNgram', 'getNGX: () => NGX'] });
+      account(O.C, { extra: true });
+      O.$('paneNgram').classList.remove('hide');
+      await O.C.ensureNgram();
+      const N = page({ extra: true });
+      N.$('paneNgram').classList.remove('hide');
+      await N.C.ensureNgram();
+      let n = 0;
+      const diff = [];
+      [0, 1, 2, 3].forEach(sz => N.C.getNGX().views[sz].forEach(gn => {
+        if (N.C.ngCls(gn, 10) !== 'waste' || gn.protect) return;
+        const go = O.C.getNGX().views[sz].find(x => x.key === gn.key);
+        if (!go) { diff.push(gn.key + ' missing'); return; }
+        n++;
+        const a = O.C.ngPlan(go).neg.map(c => c.cid).sort().join(), z = N.C.ngPlan(gn, 0).neg.map(c => c.cid).sort().join();
+        const xa = O.C.ngNext(go, 10), xz = N.C.ngNext(gn, 10);
+        if (a !== z || xa.act !== xz.act || (xa.act === 'neg' && xa.short !== xz.short)) diff.push(`${gn.key}: ${a} / ${z} · ${xa.short} / ${xz.short}`);
+      }));
+      ok(`at $0 the ticked campaigns and the Negate buttons are the old rule's (${n} Waste rows, every size)`, n > 5 && !diff.length, diff.join(' | '));
+    }
+
+    // 1. The popup's campaign table (Amazon's record of the campaigns gives their kind), at the $0 default.
     C.ST.ent.d.SP.cp = { c1: ['SP - Runner - Broad', 'ENABLED', 50, 'LEGACY_FOR_SALES', 0, 0, 0, 'MANUAL', 0], c2: ['SP - Napkins - Auto', 'ENABLED', 40, 'AUTO_FOR_SALES', 0, 0, 0, 'AUTO', 0] };
     C.staOpen('word', g('plastic').key, C.ngWordRow(g('plastic')));
     const body = $('stDlgBody').innerHTML, bt = strip(body).replace(/&lt;/g, '<');
-    ok('the popup: a table — ✓ | Campaign | Spend | Clicks | Orders | Terms | Evidence | What happens', /<div class="sta-dcp"><table class="xl"><thead><tr><th class="sta-dcb">/.test(body)
+    ok('the popup: a table — ✓ | Campaign | Spend | Clicks | Orders | Terms | Evidence | What happens', /<div class="sta-dcp" id="stDlgCp"><table class="xl"><thead><tr><th class="sta-dcb">/.test(body)
       && /Campaign Spend Clicks Orders Terms Evidence What happens/.test(bt) && !/sta-cplist/.test(body), bt.slice(0, 200));
     ok('…one row per campaign, by spend, the name with "N ad groups · kind" under it', bt.indexOf('SP - Runner - Broad') < bt.indexOf('SP - Napkins - Auto') && /SP - Runner - Broad 1 ad group · Manual/.test(bt) && /SP - Napkins - Auto 1 ad group · Auto/.test(bt), bt);
-    ok('…ticked only with evidence: c1 "Negate here", c2 "Kept: not enough data here (60 clicks, $18.00)" unticked', /data-cp="0" checked/.test(body) && !/data-cp="1" checked/.test(body)
-      && /Negate here/.test(bt) && /Kept: not enough data here 60 clicks, \$18\.00/.test(bt) && /0 in 90 clicks · <0\.1% chance/.test(bt));
-    ok('…"1 of 2 campaigns ticked · $27.00 spend with no orders", and the button counts the ticked', $('stDlgCpN').textContent === '1 of 2 campaigns ticked · $27.00 spend with no orders' && $('stDlgOk').textContent === 'Add 1 negative to review list', $('stDlgCpN').textContent);
+    ok('…"Minimum spend per campaign": $0 · $5 · $10 · $20, $0 at first', /<select id="stDlgCpMin"><option value="0" selected>\$0<\/option><option value="5">\$5<\/option><option value="10">\$10<\/option><option value="20">\$20<\/option><\/select>/.test(body)
+      && /Minimum spend per campaign/.test(bt));
+    ok('…at $0 both campaigns ticked, the chance on each row: "2 of 2 campaigns ticked · $45.00", "Add 2 negatives"', /data-cp="0" checked/.test(body) && /data-cp="1" checked/.test(body)
+      && /0 in 90 clicks · <0\.1% chance/.test(bt) && /0 in 60 clicks · 11\.8% chance/.test(bt) && $('stDlgCpN').textContent === '2 of 2 campaigns ticked · $45.00 spend with no orders'
+      && $('stDlgOk').textContent === 'Add 2 negatives to review list', $('stDlgCpN').textContent);
     ok('…"Select all eligible · Clear" above it; the figures card adds "Spend with no orders"; example terms as chips', /data-cpall="1">Select all eligible/.test(body) && /data-cpnone="1">Clear/.test(body)
       && /<small>Spend with no orders<\/small><b>\$45\.00<\/b>/.test(body) && (body.match(/class="sta-tchip"/g) || []).length === 2 && !/For example: /.test(body));
     ok('…the dialog is the wide one, with "Download Excel" in its footer', $('stDlg').classList.contains('sta-dlgword') && !$('stDlgXlsx').classList.contains('hide'));
     const fire = (el, type, target) => $(el).listeners[type].forEach(f => f({ target }));
-    fire('stDlgBody', 'change', { dataset: { cp: '1' }, checked: true });
-    ok('ticking the kept one by hand: "2 of 2", the button says 2', $('stDlgCpN').textContent.startsWith('2 of 2 campaigns ticked · $45.00') && $('stDlgOk').textContent === 'Add 2 negatives to review list');
     const btnOf = s => ({ closest: q => (q === s ? {} : null) });
+    // The picker: $10.
+    fire('stDlgBody', 'change', { id: 'stDlgCpMin', value: '10', dataset: {} });
+    ok('$10: only c1 ticked ("1 of 2 · $27.00", "Add 1 negative"), c2 "Kept: not enough data here"; remembered on this device', /data-cp="0" checked/.test($('stDlgCp').innerHTML) && !/data-cp="1" checked/.test($('stDlgCp').innerHTML)
+      && /Kept: not enough data here/.test($('stDlgCp').innerHTML) && $('stDlgCpN').textContent === '1 of 2 campaigns ticked · $27.00 spend with no orders' && $('stDlgOk').textContent === 'Add 1 negative to review list'
+      && S.store.ngCpFloor === '10', $('stDlgCpN').textContent);
+    // 3. By hand.
+    fire('stDlgBody', 'change', { dataset: { cp: '1' }, checked: true });
+    ok('ticking c2 by hand: "2 of 2", the button says 2', $('stDlgCpN').textContent.startsWith('2 of 2 campaigns ticked · $45.00') && $('stDlgOk').textContent === 'Add 2 negatives to review list');
     fire('stDlgBody', 'click', btnOf('[data-cpnone]'));
-    ok('"Clear": none ticked, nothing to add', $('stDlgCpN').textContent.startsWith('0 of 2') && $('stDlgOk').disabled && /Tick at least one campaign/.test($('stDlgChecks').innerHTML));
+    ok('"Clear": none ticked — "Tick campaigns to negate", disabled', $('stDlgCpN').textContent.startsWith('0 of 2') && $('stDlgOk').disabled && $('stDlgOk').textContent === 'Tick campaigns to negate');
     fire('stDlgBody', 'click', btnOf('[data-cpall]'));
-    ok('"Select all eligible": back to the campaigns with evidence (1)', $('stDlgCpN').textContent.startsWith('1 of 2') && !$('stDlgOk').disabled);
+    ok('"Select all eligible": back to the ticks of the minimum chosen ($10: 1)', $('stDlgCpN').textContent.startsWith('1 of 2') && !$('stDlgOk').disabled);
     // 2. The popup's Excel file.
     $('stDlgXlsx').listeners.click.forEach(f => f());
     let f1 = dl.files.slice(-1)[0];
@@ -612,54 +647,86 @@ const byGram = (C, b, gram) => C.getNGX().rows.find(g => g.brand === b && g.gram
     ok('Campaigns: the columns of the brief', vals(cpS[0]).join('|') === C.NG_XL_CP.join('|') && C.NG_XL_CP.join('|') === 'Campaign|Campaign ID|Brand|Negate|Why|Spend|Clicks|Orders|Sales|ACoS %|Search terms|Top terms');
     const c1r = cpS.find(r => r[0].v === 'SP - Runner - Broad'), c2r = cpS.find(r => r[0].v === 'SP - Napkins - Auto');
     ok('…one row per campaign: Negate Yes / No as ticked, the Why with its evidence, IDs as text', c1r[3].v === 'Yes' && c2r[3].v === 'No' && c1r[1].v === 'c1' && /^Negate here — 0 in 90 clicks · <0\.1% chance at its campaign's 8\.3% order rate$/.test(c1r[4].v)
-      && /^Kept: not enough data here \(60 clicks, \$18\.00\)/.test(c2r[4].v), c1r[4].v + ' / ' + c2r[4].v);
+      && /^Kept: not enough data here \(60 clicks, \$18\.00\) — 0 in 60 clicks · 11\.8% chance/.test(c2r[4].v), c1r[4].v + ' / ' + c2r[4].v);
     ok('…numbers as numbers, money with 2 decimals (style), headings bold', c1r[5].v === 27 && c1r[5].s === 2 && c1r[6].v === 90 && c1r[6].s === 0 && cpS[0][0].s === 1 && /numFmtId="4"/.test(B.z['xl/styles.xml']) && /<cols><col min="1"/.test(B.z['xl/worksheets/sheet1.xml']));
     const tot = cpS[cpS.length - 1];
     ok('…a total row, in bold, that adds up', tot[0].v === 'Total' && tot[0].s === 1 && tot[5].v === 45 && tot[5].s === 3 && tot[6].v === 150 && tot[3].v === '1 Yes', JSON.stringify(vals(tot)));
     ok('Search terms: every term behind it, with campaign, ad group and its verdict', vals(tS[0]).join('|') === C.NG_XL_TERMS.join('|') && tS.length === g('plastic').terms.length + 2
       && tS.some(r => r[0].v === 'plastic table runner' && r[1].v === 'SP - Runner - Broad' && r[2].v === 'Runner broad' && r[4].v === 27) && tS[tS.length - 1][4].v === 45, JSON.stringify(tS.map(vals)));
     const sum = Object.fromEntries(sS.slice(1).map(r => [r[0].v, r[1] ? r[1].v : '']));
-    ok('Summary: pattern, brand, window, class and reason, totals, campaigns to negate, sales at risk, downloaded at / by', sum.Pattern === 'plastic' && sum.Brand === 'Ridhi' && /settled 14 Oct – 12 Nov/.test(sum.Window)
+    ok('Summary: pattern, brand, window, class and reason, totals, campaigns to negate, the minimum chosen, downloaded at / by', sum.Pattern === 'plastic' && sum.Brand === 'Ridhi' && /settled 14 Oct – 12 Nov/.test(sum.Window)
       && sum.Class === 'Waste · no sales' && /0 orders in 150 clicks/.test(sum.Reason) && sum.Spend === 45 && sum['Campaigns to negate'] === 1 && sum['Spend with no orders in them'] === 27 && sum['Sales at risk'] === 0
-      && /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(sum['Downloaded at']) && sum['Downloaded by'] === C.ppchPerson() && !!sum['Downloaded by'], JSON.stringify(sum));
+      && sum['Minimum spend per campaign'] === 10 && /^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(sum['Downloaded at']) && sum['Downloaded by'] === C.ppchPerson() && !!sum['Downloaded by'], JSON.stringify(sum));
     // The ticks in the dialog go into the file.
     fire('stDlgBody', 'change', { dataset: { cp: '1' }, checked: true });
     $('stDlgXlsx').listeners.click.forEach(f => f());
     B = book(dl.files.slice(-1)[0].bytes);
-    ok('…the file follows the ticks in the dialog (both Yes now)', B.sheets.Campaigns.filter(r => r[3] && r[3].v === 'Yes').length === 2);
+    ok('…the file follows the ticks in the dialog (both Yes now, c2 "Ticked by hand")', B.sheets.Campaigns.filter(r => r[3] && r[3].v === 'Yes').length === 2
+      && /^Ticked by hand — 0 in 60 clicks/.test(B.sheets.Campaigns.find(r => r[0].v === 'SP - Napkins - Auto')[4].v));
     // Only the ticked go to the review list.
     fire('stDlgBody', 'click', btnOf('[data-cpall]'));
     const before = C.ST_RL.items.length;
     await C.staDlgOk();
     const added = C.ST_RL.items.slice(before);
     ok('"Add 1 negative": one review item, the ticked campaign only', added.length === 1 && added[0].cid === 'c1' && added[0].neg.type === 'negativePhrase', JSON.stringify(added.map(x => x.cid)));
-    // A file name holds no character a file name can't.
+    // The minimum is remembered: the next popup opens at $10; back to $0.
+    C.staOpen('word', g('vinyl').key, C.ngWordRow(g('vinyl')));
+    ok('the next popup opens at the remembered $10', /<option value="10" selected>/.test($('stDlgBody').innerHTML));
+    fire('stDlgBody', 'change', { id: 'stDlgCpMin', value: '0', dataset: {} });
+    ok('…and back to $0 (remembered too)', S.store.ngCpFloor === '0' && $('stDlgCpN').textContent.startsWith('2 of 3'));
+    ok('a campaign where it sells: shown, "Kept: sells here", never tickable', /<tr class="is-off"><td class="sta-dcb"><input type="checkbox" class="sta-cb" data-cp="\d" disabled/.test($('stDlgCp').innerHTML) && /Kept: sells here/.test($('stDlgCp').innerHTML)
+      && /3 orders · \$30\.00 sales/.test($('stDlgCp').innerHTML));
+    $('stDlg').classList.add('hide');
     ok('file names: characters a file name cannot hold are taken out', C.staFileName('a/b:c*?"<>|d.') === 'a b c d' && C.staFileName('christmas') === 'christmas');
     $('ngBrand').value = 'SP';
     ok('one brand on screen: "<pattern>.xlsx"', C.ngXlsxName(g('vinyl')) === 'vinyl.xlsx');
     $('ngBrand').value = 'ALL';
-    // The vinyl dialog: the campaign where it sells shows, but cannot be ticked.
-    C.staOpen('word', g('vinyl').key, C.ngWordRow(g('vinyl')));
-    ok('a campaign where it sells: shown, "Kept: sells here", cannot be ticked', /<tr class="is-off"><td class="sta-dcb"><input type="checkbox" class="sta-cb" data-cp="\d" disabled/.test($('stDlgBody').innerHTML) && /Kept: sells here/.test($('stDlgBody').innerHTML)
-      && /3 orders · \$30\.00 sales/.test($('stDlgBody').innerHTML));
-    $('stDlg').classList.add('hide');
-    // By word's own dialog: every campaign "Negate here", ticked, no Excel.
+    // By word's own dialog: every campaign "Negate here", ticked, no minimum, no Excel.
     const bw = C.staModel('ALL').words.find(w => w.cps && w.cps.length);
     if (bw) {
       C.staOpen('word', bw.key, bw);
-      ok('By word\'s dialog: the same table, its campaigns ticked, no Excel button', /class="sta-dcp"/.test($('stDlgBody').innerHTML) && (($('stDlgBody').innerHTML.match(/data-cp="\d+" checked/g) || []).length === bw.cps.length)
-        && $('stDlgXlsx').classList.contains('hide'));
+      ok('By word\'s dialog: the same table, its campaigns ticked, no minimum picker, no Excel button', /class="sta-dcp"/.test($('stDlgBody').innerHTML) && (($('stDlgBody').innerHTML.match(/data-cp="\d+" checked/g) || []).length === bw.cps.length)
+        && !/stDlgCpMin/.test($('stDlgBody').innerHTML) && $('stDlgXlsx').classList.contains('hide'));
       $('stDlg').classList.add('hide');
     }
-    // An opened Waste row: "Download Excel" in What the action does; the thin campaign listed with its evidence.
+    // An opened Waste row: "Download Excel" in What the action does; c1 now waiting in the review list.
     C.NGS.open.add(g('plastic').key);
     C.renderNg();
     const t0 = $('ngTable').innerHTML;
-    ok('an opened Waste row: "Download Excel", and "Kept: not enough data here (60 clicks, $18.00)"', new RegExp(`data-ngxl="${g('plastic').key.replace('|', '\\|')}"[^>]*>Download Excel<`).test(t0) && /Kept: not enough data here \(60 clicks, \$18\.00\)/.test(t0));
+    ok('an opened Waste row: "Download Excel", every campaign and what happens there', new RegExp(`data-ngxl="${g('plastic').key.replace('|', '\\|')}"[^>]*>Download Excel<`).test(t0) && /In the review list/.test(t0));
     const nFiles = dl.files.length;
     $('ngTable').listeners.click.forEach(f => f({ target: { closest: s => (s === 'button[data-ngxl]' ? { dataset: { ngxl: g('plastic').key } } : null) } }));
     ok('…which downloads the same file', dl.files.length === nFiles + 1 && dl.files.slice(-1)[0].name === 'plastic - Ridhi.xlsx');
     C.NGS.open.clear();
+
+    // 2. Every Waste pattern opens its popup: "Campaigns & Excel" where there is no Negate button.
+    C.renderNg();
+    const rowAt = gram => { const h = $('ngTable').innerHTML, i = h.indexOf('"' + gram + '"'); return h.slice(i, h.indexOf('</tr>', i)); };
+    ok('sells in every campaign (jute): "Lower bids where it sells →" and "Campaigns & Excel"', /data-ngact="st"[^>]*>Lower bids where it sells →<\/button><button[^>]*data-ngact="cps"[^>]*>Campaigns &amp; Excel</.test(rowAt('jute')), strip(rowAt('jute')));
+    ok('a protected pattern (ridhi): "Lower bids instead →" and "Campaigns & Excel"', /data-ngact="low"[^>]*>Lower bids instead →<\/button><button[^>]*data-ngact="cps"/.test(rowAt('ridhi')), strip(rowAt('ridhi')));
+    ok('a row with a Negate button needs no second way in', !/data-ngact="cps"/.test(rowAt('vinyl')));
+    const clickAct = (act, key) => $('ngTable').listeners.click.forEach(f => f({ target: { closest: s => (s === 'button[data-ngact]' ? { dataset: { ngact: act, k: key } } : null) } }));
+    clickAct('cps', g('jute').key);
+    const jb = $('stDlgBody').innerHTML;
+    ok('…it opens the same popup: every campaign with its reason, the figures, the chips — nothing ticked', !$('stDlg').classList.contains('hide') && /Add negative phrase "jute"/.test($('stDlgTitle').textContent)
+      && (jb.match(/data-cp=/g) || []).length === 2 && !/ checked/.test(jb) && (jb.match(/Kept: sells here/g) || []).length === 2 && /sta-figs7/.test(jb) && /class="sta-tchip"/.test(jb), strip(jb).slice(0, 300));
+    ok('…"Tick campaigns to negate", disabled; "Download Excel" there and enabled', $('stDlgOk').textContent === 'Tick campaigns to negate' && $('stDlgOk').disabled && !$('stDlgXlsx').classList.contains('hide') && !$('stDlgXlsx').disabled);
+    $('stDlgXlsx').listeners.click.forEach(f => f());
+    const jf = dl.files.slice(-1)[0], JB = book(jf.bytes);
+    ok('…its file: "jute - Ridhi.xlsx", each campaign "No" with its reason', jf.name === 'jute - Ridhi.xlsx' && JB.sheets.Campaigns.slice(1, -1).every(r => r[3].v === 'No' && /^Kept: sells here — /.test(r[4].v)), JSON.stringify(JB.sheets.Campaigns.map(vals)));
+    clickAct('cps', g('ridhi').key);
+    ok('the protected pattern\'s popup: every campaign "Protected", none tickable', /Add negative phrase "ridhi"/.test($('stDlgTitle').textContent) && !/data-cp="\d" (checked|>)/.test($('stDlgBody').innerHTML)
+      && /Brand term: never negated/.test($('stDlgBody').innerHTML) && $('stDlgOk').disabled);
+    $('stDlg').classList.add('hide');
+    // 4. Nothing to negate: said in counts.
+    const mix = Object.assign(Object.create(g('jute')), { terms: [{ cid: 'c4', noNeg: 'brand term', sp: 3 }], tcp: null, gram: 'mixpattern', wk: 'nosale',
+      cps: new Map([['c1', { cid: 'c1', cn: 'A', c: 20, sp: 9, s: 30, o: 2, n: 1 }], ['c2', { cid: 'c2', cn: 'B', c: 10, sp: 6, s: 0, o: 0, n: 1 }], ['c3', { cid: 'c3', cn: 'C', c: 9, sp: 4, s: 20, o: 1, n: 1 }],
+        ['c4', { cid: 'c4', cn: 'D', c: 5, sp: 3, s: 0, o: 0, n: 1 }]]) });
+    C.ST_RL.items.push({ id: 'q1', kind: 'neg', brand: 'SP', term: 'mixpattern', cid: 'c2', status: 'review' });
+    const mx = C.ngNext(mix, 10);
+    C.ST_RL.items.pop();
+    ok('nothing to negate, in counts: "Sells in 2 campaigns · protected in 1 · 1 in the review list"', mx.act === 'st' && mx.short === 'Sells in 2 campaigns · protected in 1 · 1 in the review list' && mx.pop, JSON.stringify(mx));
+    ok('…never "No campaign left to negate" any more', !/No campaign left to negate/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'app', 'ads', 'ngram.js'), 'utf8')));
 
     // 4. Two kinds of Waste.
     ok('which rule made it Waste: plastic and cheap "no sales", vinyl and jute "over break-even"', g('plastic').wk === 'nosale' && g('cheap').wk === 'nosale' && g('vinyl').wk === 'be' && g('jute').wk === 'be');
@@ -683,7 +750,7 @@ const byGram = (C, b, gram) => C.getNGX().rows.find(g => g.brand === b && g.gram
     ok('…drawn as the line, the Negate button, then the link', /<small>Sells in 1 campaign: lower bids there, negate where it never sold<\/small><button[^>]*data-ngact="neg"[^>]*>Negate in 2 campaigns<\/button><button[^>]*data-ngact="st"[^>]*>Lower bids where it sells →/.test(vr), strip(vr));
 
     // 6. No-order spend, and the Waste view's first sort.
-    ok('No-order spend: the spend in the campaigns to negate (vinyl $15 + $12)', C.ngNos(g('vinyl'), 10) === 27 && C.ngNos(g('plastic'), 10) === 27 && C.ngNos(g('linen'), 10) == null);
+    ok('No-order spend: the spend in the campaigns to negate at $0 (vinyl $15 + $12, plastic $27 + $18)', C.ngNos(g('vinyl'), 10) === 27 && C.ngNos(g('plastic'), 10) === 45 && C.ngNos(g('linen'), 10) == null);
     ok('…a sortable column, and the Waste view sorts by it, highest first', C.NGS.sort.k === 'nos' && C.NGS.sort.d === -1 && /data-sort="nos"[^>]*>No-order spend/.test($('ngTable').innerHTML)
       && C.getNGLAST().map(x => C.ngNos(x, 10) == null ? -1 : C.ngNos(x, 10)).every((v, i, a) => !i || a[i - 1] >= v), JSON.stringify(C.getNGLAST().map(x => [x.gram, C.ngNos(x, 10)])));
     ok('…leaving Waste, the sort goes back to spend', (() => { C.ngSetCls('winner'); const k = C.NGS.sort.k; C.ngSetCls('waste'); return k === 'sp' && C.NGS.sort.k === 'nos'; })());
@@ -703,9 +770,14 @@ const byGram = (C, b, gram) => C.getNGX().rows.find(g => g.brand === b && g.gram
       && pS.length === last.length + 2 && pS.slice(1, -1).map(r => r[0].v).join() === last.map(x => x.term).join() && pS.find(r => r[0].v === 'vinyl')[2].v === 'Waste · over break-even'
       && pS.find(r => r[0].v === 'vinyl')[4].v === 27 && pS.find(r => r[0].v === 'vinyl')[8].v === 2, JSON.stringify(pS.map(vals).slice(0, 4)));
     const negRows = last.flatMap(x => (C.ngNext(x, 10).act === 'neg' ? C.ngPlan(x).neg.map(c => [x.term, c]) : []));
-    ok(`Campaigns: one row per pattern × campaign to negate (${negRows.length}), with its evidence, a total`, vals(wcS[0]).join('|') === 'Pattern|Campaign|Campaign ID|Spend|Clicks|Orders|Evidence' && wcS.length === negRows.length + 2
-      && wcS.some(r => r[0].v === 'vinyl' && r[2].v === 'c1' && /^0 in 60 clicks · 0\.5% chance$/.test(r[6].v)) && !wcS.some(r => r[0].v === 'plastic')  /* plastic: c1 now in the review list, c2 without enough data */
-      && Math.abs(wcS[wcS.length - 1][3].v - negRows.reduce((t, [, c]) => t + c.sp, 0)) < 0.005 && Math.abs(pS[pS.length - 1][4].v - wcS[wcS.length - 1][3].v) < 0.005);
+    const allRows = last.flatMap(x => C.ngPlanAll(C.ngPlan(x)).map(c => [x.term, c]));
+    ok(`Campaigns: every campaign of every Waste pattern (${allRows.length}), Negate Yes / No by the $0 default (${negRows.length} Yes) and the reason`, vals(wcS[0]).join('|') === 'Pattern|Campaign|Campaign ID|Negate|Reason|Spend|Clicks|Orders|Evidence'
+      && wcS.length === allRows.length + 2 && wcS.filter(r => r[3] && r[3].v === 'Yes').length === negRows.length && wcS[wcS.length - 1][3].v === `${negRows.length} Yes`
+      && wcS.some(r => r[0].v === 'vinyl' && r[2].v === 'c1' && r[3].v === 'Yes' && /^Negate here — 0 in 60 clicks · 0.5% chance/.test(r[4].v))
+      && wcS.some(r => r[0].v === 'vinyl' && r[2].v === 'c3' && r[3].v === 'No' && /^Kept: sells here — 3 orders/.test(r[4].v))
+      && wcS.some(r => r[0].v === 'plastic' && r[2].v === 'c1' && r[3].v === 'No' && /^In the review list/.test(r[4].v))
+      && wcS.filter(r => r[0].v === 'jute').every(r => r[3].v === 'No') && wcS.filter(r => r[0].v === 'ridhi').every(r => r[3].v === 'No' && /^Protected — Brand term: never negated/.test(r[4].v))
+      && Math.abs(pS[pS.length - 1][4].v - negRows.reduce((t, [, c]) => t + c.sp, 0)) < 0.005, JSON.stringify(wcS.map(vals).slice(0, 6)));
     const ws = Object.fromEntries(wsS.slice(1).map(r => [r[0].v, r[1] ? r[1].v : '']));
     ok('Summary: the filters, window, totals, downloaded at / by', ws.Brand === 'Both brands' && ws.Classification === 'Waste' && ws['Minimum clicks'] === 10 && ws['Pattern size'] === '1-word' && /settled/.test(ws.Window)
       && ws['Waste patterns'] === last.length && ws['Campaign negatives'] === negRows.length && !!ws['Downloaded by'], JSON.stringify(ws));

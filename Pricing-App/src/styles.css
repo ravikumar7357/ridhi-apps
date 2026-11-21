@@ -4791,6 +4791,8 @@
   .sta-dcphead{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin:14px 0 6px;font-size:12.5px}
   .sta-dcphead>b{font-weight:600;color:var(--ink)}
   .sta-dcphead>#stDlgCpN{margin-left:auto}
+  .sta-dcpmin{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:12.5px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
+  .sta-dcpmin select{width:auto;height:28px;padding:0 26px 0 8px;font-size:12.5px}
   .sta-dcp{max-height:45vh;overflow:auto;border:1px solid var(--line);border-radius:var(--r-row);background:var(--card)}
   .sta-dcp table.xl{width:100%;font-size:12.5px}
   .sta-dcp table.xl th,.sta-dcp table.xl td{text-align:left;padding:7px 9px;vertical-align:top}

@@ -2361,10 +2361,30 @@ function staDayCount(b) {
 const STA_CP_WHAT = { neg: ['Negate here', 'bad'], thin: ['Kept: not enough data here', 'warn'], kept: ['Kept: sells here', 'ok'], prot: ['Protected', 'info'],
   at: ['Already negated', ''], queued: ['In the review list', ''] };
 // The campaigns of the word dialog, by spend: N-Gram Analysis hands every campaign of its plan with what happens there
-// (r.cpAll: { cid, cn, sp, c, o, s, n, what, can, on, ev, why }); By word's campaigns are each "Negate here", ticked.
-function staWordCpRows(r) {
-  const list = r.cpAll || r.cps.map(c => Object.assign({ what: 'neg', can: true, on: true, ev: c.o ? `${staInt(c.o)} order${c.o === 1 ? '' : 's'} · ${staMoney(c.s)} sales` : '' }, c));
-  return list.slice().sort((a, z) => z.sp - a.sp);
+// (r.cpAll: { cid, cn, sp, c, o, s, n, what, can, on, ev, why }; r.cpAt(floor): the same at a "Minimum spend per campaign");
+// By word's campaigns are each "Negate here", ticked.
+function staWordCpRows(r, floor) {
+  const list = typeof r.cpAt === 'function' ? r.cpAt(floor || 0) : r.cpAll || r.cps.map(c => Object.assign({ what: 'neg', can: true, on: true, ev: c.o ? `${staInt(c.o)} order${c.o === 1 ? '' : 's'} · ${staMoney(c.s)} sales` : '' }, c));
+  return list.slice().sort((a, z) => z.sp - a.sp || (a.cid < z.cid ? -1 : 1));
+}
+// The word dialog's campaign table (drawn again when the minimum spend per campaign changes).
+function staWordCpTable(r, rows) {
+  return '<table class="xl"><thead><tr><th class="sta-dcb"><span class="sta-sr">Tick</span></th><th>Campaign</th><th class="num">Spend</th><th class="num">Clicks</th><th class="num">Orders</th><th class="num">Terms</th><th>Evidence</th><th>What happens</th></tr></thead><tbody>'
+    + rows.map((c, i) => `<tr${c.can ? '' : ' class="is-off"'}><td class="sta-dcb"><input type="checkbox" class="sta-cb" data-cp="${i}"${c.on ? ' checked' : ''}${c.can ? '' : ' disabled'} aria-label="${staEsc((c.can ? 'Negate in ' : 'Cannot negate in ') + c.cn)}"></td>
+      <td><div class="sta-dcn" title="${staEsc(c.cn)}">${staEsc(c.cn || 'Campaign ' + c.cid)}</div><small>${staEsc(staCpMeta(r.brand, c.cid))}</small></td>
+      <td class="num">${staMoney(c.sp)}</td><td class="num">${c.c != null ? staInt(c.c) : staDash}</td><td class="num">${staInt(c.o)}</td><td class="num">${c.n != null ? staInt(c.n) : staDash}</td>
+      <td class="sta-dev">${staEsc(c.ev || '')}</td><td>${staBadge(STA_CP_WHAT[c.what][0], STA_CP_WHAT[c.what][1])}${c.why ? `<small>${staEsc(c.why)}</small>` : ''}</td></tr>`).join('')
+    + '</tbody></table>';
+}
+// A new "Minimum spend per campaign" in the word dialog: remembered (the row's floorSave), the default ticks worked out again.
+function staDlgCpFloor(v) {
+  if (!STD || typeof STD.row.cpAt !== 'function') return;
+  STD.cpMin = Number(v) || 0;
+  if (typeof STD.row.floorSave === 'function') STD.row.floorSave(STD.cpMin);
+  STD.cpRows = staWordCpRows(STD.row, STD.cpMin);
+  STD.cpOn = new Set(STD.cpRows.map((c, i) => (c.on && c.can ? i : -1)).filter(i => i >= 0));
+  $('stDlgCp').innerHTML = staWordCpTable(STD.row, STD.cpRows);
+  staDlgCheck();
 }
 // A campaign's second line: its ad groups (at Amazon, not archived) and its kind — "3 ad groups · Manual".
 function staCpMeta(b, cid) {
@@ -2461,20 +2481,20 @@ function staOpen(kind, key, row) {
   } else if (kind === 'word') {
     $('stDlgTitle').textContent = `Add negative phrase "${r.term}"`;
     sub.innerHTML = `${staEsc(staBrandName(r.brand))} · in ${staInt(r.n)} search terms. A negative phrase stops every search holding these words in this order, in the campaigns ticked.`;
-    const cpRows = staWordCpRows(r);
+    // N-Gram's rows bring a "Minimum spend per campaign" ($0 · $5 · $10 · $20, the one remembered on this device).
+    const floors = typeof r.cpAt === 'function' ? r.floors || [0] : null;
+    STD.cpMin = floors && floors.includes(r.floor) ? r.floor : 0;
+    const cpRows = staWordCpRows(r, STD.cpMin);
     STD.cpRows = cpRows;
     STD.cpOn = new Set(cpRows.map((c, i) => (c.on ? i : -1)).filter(i => i >= 0));
     // Up to 6 of its terms (the top ones by spend) as chips, and how many more.
     const ex = r.terms.slice(0, 6), more = Math.max(0, (r.n || 0) - ex.length);
     by.innerHTML = `<div class="sta-figs sta-figs7">${['Terms', 'Clicks', 'Spend', 'Spend with no orders', 'Orders', 'Sales', 'Campaigns'].map((l, i) => `<div><small>${l}</small><b>${[staInt(r.n), staInt(r.c), staMoney(r.sp), staMoney(r.zsp || 0), staInt(r.o), staMoney(r.s), staInt(cpRows.length)][i]}</b></div>`).join('')}</div>
       <div class="sta-figs-7 sta-exterms"><span>For example</span>${ex.map(t => `<span class="sta-tchip">${staEsc(t)}</span>`).join('')}${more ? `<span class="sta-dash">+${staInt(more)} more</span>` : ''}</div>
-      <div class="sta-dcphead"><b>Campaigns</b><span><button type="button" class="sta-linkbtn" data-cpall="1">Select all eligible</button> · <button type="button" class="sta-linkbtn" data-cpnone="1">Clear</button></span><span id="stDlgCpN" class="sta-dash"></span></div>
-      <div class="sta-dcp"><table class="xl"><thead><tr><th class="sta-dcb"><span class="sta-sr">Tick</span></th><th>Campaign</th><th class="num">Spend</th><th class="num">Clicks</th><th class="num">Orders</th><th class="num">Terms</th><th>Evidence</th><th>What happens</th></tr></thead><tbody>`
-      + cpRows.map((c, i) => `<tr${c.can ? '' : ' class="is-off"'}><td class="sta-dcb"><input type="checkbox" class="sta-cb" data-cp="${i}"${c.on ? ' checked' : ''}${c.can ? '' : ' disabled'} aria-label="${staEsc((c.can ? 'Negate in ' : 'Cannot negate in ') + c.cn)}"></td>
-        <td><div class="sta-dcn" title="${staEsc(c.cn)}">${staEsc(c.cn || 'Campaign ' + c.cid)}</div><small>${staEsc(staCpMeta(r.brand, c.cid))}</small></td>
-        <td class="num">${staMoney(c.sp)}</td><td class="num">${c.c != null ? staInt(c.c) : staDash}</td><td class="num">${staInt(c.o)}</td><td class="num">${c.n != null ? staInt(c.n) : staDash}</td>
-        <td class="sta-dev">${staEsc(c.ev || '')}</td><td>${staBadge(STA_CP_WHAT[c.what][0], STA_CP_WHAT[c.what][1])}${c.why ? `<small>${staEsc(c.why)}</small>` : ''}</td></tr>`).join('')
-      + `</tbody></table></div>
+      <div class="sta-dcphead"><b>Campaigns</b><span><button type="button" class="sta-linkbtn" data-cpall="1">Select all eligible</button> · <button type="button" class="sta-linkbtn" data-cpnone="1">Clear</button></span>`
+      + (floors ? `<label class="sta-dcpmin" title="$0: every campaign where it has no order is ticked. $5, $10, $20: only where it spent that much and 0 orders is under ${Math.round(STA.NEG_CHANCE * 100)}% chance by luck. Any campaign with no order can still be ticked by hand.">Minimum spend per campaign <select id="stDlgCpMin">${floors.map(v => `<option value="${v}"${v === STD.cpMin ? ' selected' : ''}>${staMoney0(v)}</option>`).join('')}</select></label>` : '')
+      + `<span id="stDlgCpN" class="sta-dash"></span></div>
+      <div class="sta-dcp" id="stDlgCp">${staWordCpTable(r, cpRows)}</div>
       <div id="stDlgChecks" class="sta-checks"></div>`;
   }
   // The word dialog is wider (its campaign table), and has "Download Excel" when the row brings its own file (N-Gram).
@@ -2668,7 +2688,8 @@ function staDlgCheck() {
     $('stDlgCpN').textContent = `${staInt(picks.length)} of ${staInt(STD.cpRows.length)} campaign${STD.cpRows.length === 1 ? '' : 's'} ticked · ${staMoney(picks.filter(c => !(c.o > 0)).reduce((t, c) => t + (c.sp || 0), 0))} spend with no orders`;
     if (r.protect) bad(`A ${staEsc(r.protect)}: never negated.`);
     else out.push(staCheck('ok', 'Not a product word, brand term, main keyword or seasonal word'));
-    if (!picks.length) bad('Tick at least one campaign.');
+    // Nothing ticked (a pattern opened to see its campaigns, or all cleared): nothing to add — said quietly, not as an error.
+    if (!picks.length) { out.push(staCheck('warn', 'No campaign ticked: tick the campaigns to negate it in.')); block = true; }
     const risk = picks.reduce((t, c) => t + (c.s || 0), 0);
     out.push(staCheck(risk > 0 ? 'warn' : 'ok', risk > 0 ? `Sales at risk: ${staMoney(risk)} in those campaigns came through terms holding it.` : 'Sales at risk: none'));
     if (r.term.split(/\s+/).length > STA.NEG.negativePhrase.words) bad('A negative phrase can hold 4 words at most.');
@@ -2678,7 +2699,7 @@ function staDlgCheck() {
     if (at.length) out.push(staCheck('warn', `${at.length} of these campaigns already have it at Amazon: left out.`));
     const day = staDayCount(r.brand);
     if (day + picks.length > STA.DAY_MAX) bad(`That would pass the day's limit of ${STA.DAY_MAX} negatives for ${staBrandName(r.brand)} (${day} today).`);
-    $('stDlgOk').textContent = `Add ${picks.length} negative${picks.length === 1 ? '' : 's'} to review list`;
+    $('stDlgOk').textContent = picks.length ? `Add ${picks.length} negative${picks.length === 1 ? '' : 's'} to review list` : 'Tick campaigns to negate';
   }
   $('stDlgChecks').innerHTML = out.join('');
   $('stDlgOk').disabled = block;
@@ -3938,6 +3959,7 @@ $('stDlgBody').addEventListener('input', e => {
 });
 // A campaign ticked or not in the word dialog (kept on STD, so the checks read it without the page).
 $('stDlgBody').addEventListener('change', e => {
+  if (e.target && e.target.id === 'stDlgCpMin') { staDlgCpFloor(e.target.value); return; }
   const cb = e.target && e.target.dataset && e.target.dataset.cp != null && STD && STD.cpOn ? e.target : null;
   if (cb) { const i = Number(cb.dataset.cp); if (cb.checked) STD.cpOn.add(i); else STD.cpOn.delete(i); }
   staDlgCheck();
@@ -3954,7 +3976,7 @@ $('stDlgBody').addEventListener('click', e => {
   else if (e.target.closest('[data-cpnone]')) staDlgCpSet(false);
 });
 // "Download Excel": the row's own file (N-Gram Analysis), with the campaigns ticked now.
-$('stDlgXlsx').addEventListener('click', () => { if (STD && typeof STD.row.xlsx === 'function') STD.row.xlsx(new Set((STD.picks || []).map(c => c.cid))); });
+$('stDlgXlsx').addEventListener('click', () => { if (STD && typeof STD.row.xlsx === 'function') STD.row.xlsx(new Set((STD.picks || []).map(c => c.cid)), STD.cpMin || 0); });
 $('stDlgOk').addEventListener('click', staDlgOk);
 $('stDlgApply').addEventListener('click', staDlgApply);
 $('stDlgCancel').addEventListener('click', staClose);

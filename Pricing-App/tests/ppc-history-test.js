@@ -62,7 +62,8 @@ function setup(opts) {
     'PPCH_CSV_ITEM', 'PPCH_CSV_STEP', 'PPCH_SHARED', 'PPCH_VERB'];
   // opts.stText: search-terms.js from another commit (ngram-test: By word before the shared pattern index); opts.ngram: also
   // load ads/ngram.js, where src/app/ORDER puts it (right after search-terms.js).
-  const src = (opts.stText || L('search-terms.js')) + (opts.ngram ? '\n' + L('ngram.js') : '') + (opts.plc ? '\n' + L('placement.js') : '') + '\n' + L('placement-decide.js') + '\n' + L('ppc-history.js')
+  // opts.ngText: ngram.js from another commit (ngram-test: the negate plan before the per-campaign evidence check).
+  const src = (opts.stText || L('search-terms.js')) + (opts.ngram ? '\n' + (opts.ngText || L('ngram.js')) : '') + (opts.plc ? '\n' + L('placement.js') : '') + '\n' + L('placement-decide.js') + '\n' + L('ppc-history.js')
     + '\n;return { ' + names.concat(opts.names || []).join(', ') + ', ST_RL, PPCH, setJust: v => { STA_JUST = v; } };';
   const C = new Function(...Object.keys(ctx), src)(...Object.values(ctx));
   C.ST_RL.where = opts.where || 'local';
