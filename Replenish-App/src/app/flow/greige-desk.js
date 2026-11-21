@@ -41,8 +41,9 @@ function money(n) {
  * which is UTC: from midnight to half past five in the morning, India time, every entry, PO and
  * "days out" count was stamped with yesterday's date. The date is built from the local calendar now,
  * which is also how every other date in this file is read back (Date.parse of 'YYYY-MM-DDT00:00:00'). */
-function lmToday() {
-  var d = new Date(), two = function (n) { return (n < 10 ? '0' : '') + n; };
+/** The business day (YYYY-MM-DD) on this PC's clock — today, or the day a stored moment (UTC) fell on. */
+function lmToday(moment) {
+  var d = moment ? new Date(moment) : new Date(), two = function (n) { return (n < 10 ? '0' : '') + n; };
   return d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate());
 }
 function uid() { return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
@@ -314,13 +315,6 @@ function lmSample() {
   };
 }
 
-function lmLoad() {
-  try {
-    var raw = localStorage.getItem(LM_KEY);
-    if (raw) { DB = JSON.parse(raw); if (DB && DB.fab && DB.gpo && DB.mst) { lmMigrate(); return; } }
-  } catch (e) { /* a blocked or cleared store is not a reason to show nothing */ }
-  DB = lmSample();
-}
 /* ANYTHING TYPED BEFORE THE COLUMNS WERE CUT STILL OPENS. The warp and weft used to be four boxes
  * (a count and a fold each); they are one box now, written the way a sales note writes it. */
 function lmMigrate() {
@@ -362,11 +356,6 @@ function lmMigrate() {
     });
   }
 }
-
-function lmSaveDb() { try { localStorage.setItem(LM_KEY, JSON.stringify(DB)); } catch (e) { /* nothing to do */ } }
-
-/** Put the sample registers back -- the Reset button. Done here because this file owns the register. */
-function lmResetSample() { DB = lmSample(); lmSaveDb(); }
 
 /* core/stock.js -- The stock rules: fabric names and specs, lot balances, the fabric roll-up, and what the ledger accepts.
  * An ES module. Its imports are worked out from the code by the split script. */
@@ -1011,6 +1000,11 @@ function dashAlerts() {
   (DB.fab || []).forEach(function (r) {
     if (r.approval && r.approval.status === 'pending') out.push({ bad: true, tag: 'Approve', what: nf(fabQty(r)) + ' m of RFD on ' + r.lot + ' shrank ' + r.approval.pct + '%', who: r.party + ', waiting for approval', go: 'po' });
   });
+  /* …and a PO the store asked to close: the accounts head approves it (Ravi, 21 Nov). */
+  (DB.gpo || []).forEach(function (po) {
+    if (po.closeAsk) out.push({ bad: true, tag: 'Approve', what: 'Close ' + po.poNo + ' with ' + nf(gpoProgress(po).pending) + ' m not supplied',
+      who: 'asked by ' + (po.closeAsk.by || 'the store') + ' on challan ' + (po.closeAsk.challan || '—'), go: 'po' });
+  });
 
   /* A cloth the cutting table cannot be given at all. */
   fabFlowRows(DB.fab || []).forEach(function (e) {
@@ -1636,10 +1630,11 @@ function millCell(name) {
 /* ---- status, in words and colour ------------------------------------------------------------ */
 function poPill(po) {
   var st = gpoStatus(po), p = gpoProgress(po), late = gpoLateDays(po);
+  var asked = po.closeAsk ? ' · close asked by ' + esc(po.closeAsk.by || 'the store') : '';
   if (st === 'cancelled') return '<span class="pill pill-mute">Cancelled</span>';
-  if (st === 'received') return '<span class="pill pill-ok">' + I.check + ' Received' + (po.closed ? ' · ' + nf(po.closed.short) + ' m not supplied' : '') + '</span>';
-  if (st === 'part') return '<span class="pill ' + (late ? 'pill-out' : 'pill-low') + '">' + I.dot + ' Part received · ' + nf(p.pending) + ' m due' + (late ? ' · ' + late + ' d late' : '') + '</span>';
-  return '<span class="pill ' + (late ? 'pill-out' : 'pill-sea') + '">' + I.dot + ' Sent' + (late ? ' · ' + late + ' d late' : '') + '</span>';
+  if (st === 'received') return '<span class="pill pill-ok">' + I.check + ' Received' + (po.closed ? ' · ' + nf(gpoNotSupplied(po)) + ' m not supplied' : '') + '</span>';
+  if (st === 'part') return '<span class="pill ' + (late ? 'pill-out' : 'pill-low') + '">' + I.dot + ' Part received · ' + nf(p.pending) + ' m due' + (late ? ' · ' + late + ' d late' : '') + asked + '</span>';
+  return '<span class="pill ' + (late ? 'pill-out' : 'pill-sea') + '">' + I.dot + ' Sent' + (late ? ' · ' + late + ' d late' : '') + asked + '</span>';
 }
 function checkPill(c) {
   var k = chCheck(c);
@@ -1651,15 +1646,21 @@ function checkPill(c) {
 }
 
 /* ---- the filters ---------------------------------------------------------------------------- */
+/* "Closed short" is a Received PO that was closed before all of it came (Ravi, 21 Nov: it was hidden among the
+ * POs that got every metre). */
+var PO_STATUS_FILTERS = ['sent', 'part', 'received', 'closedshort', 'cancelled'];
+function poHasStatus(po, want) {
+  if (want === 'closedshort') return !!po.closed && gpoStatus(po) === 'received' && gpoNotSupplied(po) > 0.05;
+  return gpoStatus(po) === want;
+}
 function poPass(po) {
   if (PV.mill && po.mill !== PV.mill) return false;
   if (PV.from && po.date < PV.from) return false;
   if (PV.to && po.date > PV.to) return false;
-  var st = gpoStatus(po);
   if (PV.st === 'late' && !gpoLateDays(po)) return false;
   if (PV.st === 'tocheck' && !chOfPo(po.poNo).some(chToCheck)) return false;
   if (PV.st === 'short' && !chOfPo(po.poNo).some(function (c) { return chCheck(c).shortN > 0; })) return false;
-  if (['open', 'sent', 'part', 'received', 'closed', 'cancelled'].indexOf(PV.st) >= 0 && st !== PV.st) return false;
+  if (PO_STATUS_FILTERS.indexOf(PV.st) >= 0 && !poHasStatus(po, PV.st)) return false;
   if (UI.q) {
     var hay = [po.poNo, po.mill].concat((po.lines || []).map(function (l) { return l.greige + ' ' + l.rfd + ' ' + (l.desc || ''); }),
       chOfPo(po.poNo).map(function (c) { return c.no + ' ' + c.vehicle + ' ' + c.lr + ' ' + c.rows.map(function (r) { return r.lot; }).join(' '); })).join(' ').toLowerCase();
@@ -1675,7 +1676,7 @@ function chPass(c) {
   if (PV.st === 'tocheck' && !chToCheck(c)) return false;
   if (PV.st === 'short' && !(chCheck(c).shortN > 0)) return false;
   if (PV.st === 'late' && !(po && gpoLateDays(po))) return false;
-  if (['open', 'sent', 'part', 'received', 'closed', 'cancelled'].indexOf(PV.st) >= 0 && !(po && gpoStatus(po) === PV.st)) return false;
+  if (PO_STATUS_FILTERS.indexOf(PV.st) >= 0 && !(po && poHasStatus(po, PV.st))) return false;
   if (UI.q) {
     var hay = [c.no, c.mill, c.po, c.transporter, c.invoice, c.lr].concat(c.rows.map(function (r) { return r.fabricType + ' ' + r.lot + ' ' + fabRfdOfGreige(r.fabricType); })).join(' ').toLowerCase();
     if (hay.indexOf(UI.q) < 0) return false;
@@ -1750,7 +1751,7 @@ function poRow(po) {
   var chs = chOfPo(po.poNo), open = !!PV.openPo[po.poNo], l0 = (po.lines || [])[0] || {}, more = (po.lines || []).length - 1;
   var acts = '';
   var canRcv = ['open', 'sent', 'part'].indexOf(st) >= 0 && p.pending > 0.05;
-  if (canRcv) acts += '<button type="button" class="jw-btn jw-primary" data-rcv="' + esc(po.poNo) + '">Receive</button>';
+  if (canRcv) acts += '<button type="button" class="jw-btn jw-primary" data-rcv="' + esc(po.poNo) + '">Receive greige</button>';
   if (issLotsOf(po).length) acts += '<button type="button" class="jw-btn jw-wa" data-iss="' + esc(po.poNo) + '">Issue to RFD</button>';
   if (rrLotsOf(po).length) acts += '<button type="button" class="jw-btn jw-wa" data-rr="' + esc(po.poNo) + '">Receive RFD</button>';
   if (['open', 'sent', 'part'].indexOf(st) >= 0) acts += '<button type="button" class="jw-btn" data-pedit="' + esc(po.poNo) + '">Edit</button>';
@@ -1779,7 +1780,7 @@ function poPanel(po) {
   var items = p.lines.map(function (l, i) {
     var pc = l.ordered ? Math.min(100, l.received / l.ordered * 100) : 0, m = gpoLineMoney(l);
     var sent = fabLots().filter(function (g) { return String(g.poNo).toUpperCase() === po.poNo.toUpperCase() && String(g.fabricType).toLowerCase() === String(l.greige).toLowerCase(); }).reduce(function (s, g) { return s + g.toRfd; }, 0);
-    var left = l.pending > 0.05 ? '<b class="due">' + nf(l.pending) + ' m</b>'
+    var left = l.pending > 0.05 ? stillDueCell(po, l.pending)
       : (l.received > l.ordered + 0.05 ? '<span class="d extra">' + nf(l.received - l.ordered) + ' m extra</span>' : '<span class="pill pill-ok">complete</span>');
     return '<tr><td class="num muted">' + (i + 1) + '</td>'
       + '<td class="tl"><b>' + esc(lineGreigeText(l)) + '</b><div class="sub">' + esc(l.greige) + '</div></td>'
@@ -1795,7 +1796,7 @@ function poPanel(po) {
   var lineTable = '<div class="box scroll"><table class="ct li"><thead><tr><th class="num">#</th><th>Greige fabric</th><th>RFD ready fabric</th><th>Due on</th>'
     + '<th class="num">Ordered</th><th class="num">Received</th><th class="num">Still due</th><th class="num">Sent to RFD</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>'
     + '<tbody>' + items + '<tr class="tot"><td></td><td class="tl" colspan="3">Total</td><td class="num">' + nf(p.ordered) + ' m</td><td class="num">' + nf(p.received) + ' m</td>'
-    + '<td class="num">' + (p.pending > 0.05 ? '<b class="due">' + nf(p.pending) + ' m</b>' : '—') + '</td><td></td><td></td><td class="num b">' + RUPEE + money(t.amount) + '</td></tr></tbody></table></div>';
+    + '<td class="num">' + (p.pending > 0.05 ? stillDueCell(po, p.pending) : '—') + '</td><td></td><td></td><td class="num b">' + RUPEE + money(t.amount) + '</td></tr></tbody></table></div>';
   var head = '<div class="panel-head"><div class="sect">Line items</div>'
     + '<div class="row">' + (issLotsOf(po).length ? '<button type="button" class="ghost" data-iss="' + esc(po.poNo) + '">Issue to RFD</button>' : '')
     + (rrLotsOf(po).length ? '<button type="button" class="ghost" data-rr="' + esc(po.poNo) + '">Receive RFD</button>' : '')
@@ -1811,13 +1812,43 @@ function poPanel(po) {
       + chs.map(function (c) { return chRow(c, false); }).join('') + '</tbody></table></div>';
   }
   var sups = (DB.gpo || []).filter(function (x) { return x.supplementOf === po.poNo; });
-  var foot = (sups.length ? '<div class="panel-foot"><span>Supplement POs: ' + sups.map(function (x) { return '<b>' + esc(x.poNo) + '</b> (' + nf(gpoTotals(x).metres) + ' m)'; }).join(', ') + '</span></div>' : '') + '<div class="panel-foot"><span class="muted">' + esc(inrWords(t.amount)) + '</span><span class="grow"></span>'
-    + (po.closed ? '<span class="muted">Closed ' + esc(fmtD(po.closed.at)) + ' · ' + nf(po.closed.short) + ' m not supplied (' + esc(po.closed.by || '') + ')</span>'
-      + '<button type="button" class="ghost" id="pc-' + esc(po.id) + '" data-pclose="' + esc(po.poNo) + '">Reopen the PO</button>'
-      : (st === 'part' ? '<button type="button" class="ghost" id="pc-' + esc(po.id) + '" data-pclose="' + esc(po.poNo) + '">Close the PO</button>' : ''))
-
-    + '<button type="button" class="ghost" data-doc="' + esc(po.poNo) + '">Open the PO</button></div>';
+  /* "Open the PO" is gone from here (Ravi, 21 Nov): Print and the mail button on the PO's row open the same page. */
+  var foot = (sups.length ? '<div class="panel-foot"><span>Supplement POs: ' + sups.map(function (x) { return '<b>' + esc(x.poNo) + '</b> (' + nf(gpoTotals(x).metres) + ' m)'; }).join(', ') + '</span></div>' : '')
+    + '<div class="panel-foot"><span class="muted">' + esc(inrWords(t.amount)) + '</span><span class="grow"></span>' + poCloseNote(po) + poCloseButtons(po) + '</div>'
+    + poHistoryHtml(po);
   return '<div class="panel">' + head + list + foot + '</div>';
+}
+/** A line's "still due": amber while the PO is open; on a closed PO it is what was never supplied, in grey. */
+function stillDueCell(po, m) {
+  return po.closed ? '<span class="muted">' + nf(m) + ' m not supplied</span>' : '<b class="due">' + nf(m) + ' m</b>';
+}
+/** Who closed or cancelled it, a close the store asked for, or one the accounts head turned down. */
+function poCloseNote(po) {
+  if (po.closed) return '<span class="muted">Closed ' + esc(fmtD(po.closed.at)) + ' · ' + nf(gpoNotSupplied(po)) + ' m not supplied (' + esc(gpoClosedBy(po)) + ')</span>';
+  if (po.status === 'cancelled') return '<span class="muted">Cancelled ' + esc(fmtD((po.cancelled || {}).at)) + (po.cancelled && po.cancelled.by ? ' by ' + esc(po.cancelled.by) : '') + '</span>';
+  if (po.closeAsk) return '<span class="pill pill-low">Close asked by ' + esc(po.closeAsk.by || 'the store') + ' on challan ' + esc(po.closeAsk.challan || '') + ' · waiting for accounts</span>';
+  if (po.closeDown) return '<span class="muted">Close turned down by ' + esc(po.closeDown.by || '') + ': ' + esc(po.closeDown.reason || '') + '</span>';
+  return '';
+}
+/** Close / Reopen / Cancel / Undo cancel: for the accounts department only (right gdpo). */
+function poCloseButtons(po) {
+  if (!canPoClose()) return '';
+  var st = gpoStatus(po), id = esc(po.id), no = esc(po.poNo), btn = function (pre, attr, words) {
+    return '<button type="button" class="ghost" id="' + pre + id + '" ' + attr + '="' + no + '">' + words + '</button>';
+  };
+  if (po.closed) return btn('pc-', 'data-pclose', 'Reopen the PO');
+  if (st === 'cancelled') return btn('px-', 'data-pcancel', 'Undo cancel');
+  var nothingCame = gpoProgress(po).received <= 0.05;
+  return (st === 'sent' || st === 'part' ? btn('pc-', 'data-pclose', 'Close the PO') : '') + (nothingCame ? btn('px-', 'data-pcancel', 'Cancel the PO') : '');
+}
+/** The PO's own history: every close, cancel, reopen, request and decision, newest first. */
+function poHistoryHtml(po) {
+  var log = (po.log || []).slice().reverse();
+  if (!log.length) return '';
+  return '<div class="panel-foot" style="display:block"><div class="sect" style="margin:0 0 4px">History</div>'
+    + log.map(function (e) {
+      return '<div class="sub">' + esc(fmtD(lmToday(e.at))) + ' · <b>' + esc(e.what) + '</b>' + (e.by ? ' by ' + esc(e.by) : '') + (e.note ? ' · ' + esc(e.note) : '') + '</div>';
+    }).join('') + '</div>';
 }
 /* One challan row; `wide` adds the mill and the PO for the Challans view. */
 function chRow(c, wide) {
@@ -1846,7 +1877,8 @@ function renderPo() {
   var bar = '<div class="pobar"><button type="button" data-act="po">+ Greige PO</button>'
     + '<span class="muted" style="align-self:center;font-size:12.5px">Greige is received against its PO: press <b>Receive</b> on an open PO.</span></div>';
   var filters = '<div class="card filters"><div class="frow">'
-    + '<select id="pvSt" aria-label="Status">' + opt('', 'Any status', PV.st) + opt('sent', 'Sent', PV.st) + opt('part', 'Part received', PV.st) + opt('received', 'Received', PV.st) + '</select>'
+    + '<select id="pvSt" aria-label="Status">' + opt('', 'Any status', PV.st) + opt('sent', 'Sent', PV.st) + opt('part', 'Part received', PV.st) + opt('received', 'Received', PV.st)
+    + opt('closedshort', 'Closed short', PV.st) + opt('cancelled', 'Cancelled', PV.st) + '</select>'
     + '<select id="pvMill" aria-label="Supplier">' + opt('', 'All suppliers', PV.mill) + mills.map(function (m) { return opt(m, m, PV.mill); }).join('') + '</select>'
     + '<span class="pair"><label class="inl" for="pvFrom">From</label><input id="pvFrom" type="date" value="' + esc(PV.from) + '"></span>'
     + '<span class="pair"><label class="inl" for="pvTo">To</label><input id="pvTo" type="date" value="' + esc(PV.to) + '"></span>'
@@ -1867,9 +1899,9 @@ function renderPo() {
         + '<th class="num">Pieces</th><th class="num">Metres</th><th>Checked</th></tr></thead><tbody>' + chs.map(function (c) { return chRow(c, true); }).join('') + '</tbody></table>'
       : '<div class="empty">No challan matches these filters.</div>';
   }
-  return bar + rrApprovalsHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
+  return bar + rrApprovalsHtml() + closeAsksHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
     + '<p class="foot">A PO rarely comes in one go. The supplier sends greige over several challans, and each challan is a bundle '
-    + 'of bales with the metres written against them. When the last one is in, close the PO and what never came is written on it. Every challan is written into the fabric ledger as a new lot, so stock, the '
+    + 'of bales with the metres written against them. When the last one is in, accounts close the PO and what never came is written on it. Every challan is written into the fabric ledger as a new lot, so stock, the '
     + 'processor and the dashboard count it at once.</p>';
 }
 
@@ -1973,7 +2005,9 @@ function rdSums() {
   $('dTotal').innerHTML = '<span>Challan total</span><span class="tnum">' + plural(tp, 'bale') + ' · ' + m1(tm) + ' m</span>';
   /* THE LAST CHALLAN CLOSES THE PO -- offered only while something would still be left open. */
   $('dCloseWrap').hidden = !(after > 0.05);
-  $('dCloseTxt').textContent = 'This is the supplier’s last challan: close the PO with ' + nf(after) + ' m not supplied';
+  /* Accounts close it at once; anyone else's tick asks the accounts head (Ravi, 21 Nov). */
+  $('dCloseTxt').textContent = canPoClose() ? 'This is the supplier’s last challan: close the PO with ' + nf(after) + ' m not supplied'
+    : 'This is the supplier’s last challan: ask accounts to close the PO (' + nf(after) + ' m not supplied)';
 }
 function openDrawer(poNo) {
   var po = poFind(poNo), st = gpoStatus(po);
@@ -2052,25 +2086,145 @@ function rdSave() {
     if (l.sup) DB.fab.push({ id: uid(), chId: chId, date: date, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
       qty: l.sup, party: po.mill, bill: no, orderNo: sup.poNo, supplementOf: po.poNo, lr: lr, invoice: inv, transporter: trn, done: false });
   });
-  var closing = $('dClose').checked && !$('dCloseWrap').hidden, shortM = 0;
-  if (closing) { shortM = gpoProgress(po).pending; po.closed = { at: date, short: shortM, by: 'challan ' + no }; }
+  var lastOne = $('dClose').checked && !$('dCloseWrap').hidden, endWords = '';
+  if (lastOne) endWords = ' ' + poLastChallan(po, no, meUser().name);
+  else if (po.closeAsk && gpoStatus(po) === 'received') gpoClearAsk(po, meUser().name, 'everything has come');
   lmSaveDb();
   PV.openPo[po.poNo] = true; PV.openCh[chId] = true;
   var c = chBy(chId);
   closeDrawer(); if (UI.tab !== 'inv') UI.tab = 'po'; render();
   lmSay('ok', 'Challan ' + no + ' in against ' + po.poNo + ': ' + plural(chPcs(c), 'bale') + ', ' + m1(chM(c)) + ' m, as '
-    + lmList(lines.map(function (l) { return l.lot; })) + '.' + (closing ? ' ' + po.poNo + ' closed with ' + nf(shortM) + ' m not supplied.' : '')
+    + lmList(lines.map(function (l) { return l.lot; })) + '.' + endWords
     + (sup ? ' Supplement PO ' + sup.poNo + ' raised and received for ' + nf(gpoTotals(sup).metres) + ' m.' : ''));
 }
-/* CLOSING A PO BY HAND: the supplier has said the rest is not coming. What did come stays; what did not is
- * written on the PO as not supplied, and the PO leaves every "still due" figure. Reopened, it counts again. */
+/* ==== CLOSING, CANCELLING AND THE STORE'S CLOSE REQUEST (Ravi, 21 Nov) ====
+ * A PO is closed when the supplier has said the rest is not coming: what did come stays, what did not is "not supplied"
+ * and the PO leaves every "still due" figure. A PO nothing ever came on can also be cancelled (the order was called off).
+ * WHO: closing, cancelling and reopening are the accounts department's (right gdpo). The store's "last challan" tick only
+ * ASKS; the accounts head (right gdpoappr) approves it, or turns it down with a reason. Accounts' own tick closes at once.
+ * "NOT SUPPLIED" is ordered − received, worked out every time (gpoNotSupplied), so a challan removed after the close still
+ * shows the right figure. closed.short is still written for older readers, never read.
+ * Every close, cancel, reopen, request and decision adds a line to the PO's own history (po.log): what, when (UTC), who.
+ * ERRORS: these rules change only the PO; saving is lmSaveDb's (a failed save says "Not saved"). A press without the
+ * right, or a turn-down without a reason, is refused with a message saying what to do — never ignored quietly. */
+var canPoClose = function () { return gdHas('gdpo'); };
+var canPoApprove = function () { return gdHas('gdpoappr'); };
+
+/** The metres a closed PO will never get: ordered and not come, worked out now. 0 for a PO that is not closed. */
+function gpoNotSupplied(po) { return po && po.closed ? gpoProgress(po).pending : 0; }
+/** Who closed it, in words: "by hand, Priya" / "asked by Ramesh on challan SBM/1241, approved, Neha". Older closes
+ *  wrote only `by` ("closed by hand", "challan SBM/1241"). */
+function gpoClosedBy(po) {
+  var c = po.closed || {};
+  return c.how ? c.how + (c.by ? ', ' + c.by : '') : (c.by || '');
+}
+/** One line in the PO's own history. */
+function gpoLog(po, what, who, note) {
+  po.log = (po.log || []).concat([{ at: new Date().toISOString(), what: what, by: who || '', note: note || '' }]);
+}
+/** Close the PO; a request still waiting is answered by it. Returns the metres not supplied. */
+function gpoClose(po, who, how, day) {
+  var short = gpoProgress(po).pending;
+  if (po.closeAsk) gpoClearAsk(po, who, 'the PO was closed');
+  po.closed = { at: day || lmToday(), short: short, by: who || '', how: how };
+  delete po.closeDown;
+  gpoLog(po, 'closed', who, how + ' · ' + nf(short) + ' m not supplied');
+  return short;
+}
+function gpoReopen(po, who) { delete po.closed; gpoLog(po, 'reopened', who, nf(gpoProgress(po).pending) + ' m due again'); }
+/** Cancel: only a PO nothing has come on. Returns why not, or ''. */
+function gpoCancel(po, who) {
+  if (gpoProgress(po).received > 0.05) return po.poNo + ' has greige in already, so it cannot be cancelled. Close it instead.';
+  if (po.closeAsk) gpoClearAsk(po, who, 'the PO was cancelled');
+  po.status = 'cancelled'; po.cancelled = { at: lmToday(), by: who || '' };
+  gpoLog(po, 'cancelled', who);
+  return '';
+}
+function gpoUncancel(po, who) { delete po.status; delete po.cancelled; gpoLog(po, 'cancel undone', who); }
+/** The store's request to close, made with the challan it came on. A newer request replaces an older one. */
+function gpoAskClose(po, who, challan) {
+  po.closeAsk = { at: new Date().toISOString(), by: who || '', challan: challan || '' };
+  delete po.closeDown;
+  gpoLog(po, 'close asked', who, 'on challan ' + (challan || '—') + ' · ' + nf(gpoProgress(po).pending) + ' m not come');
+}
+function gpoClearAsk(po, who, why) { delete po.closeAsk; gpoLog(po, 'close request cleared', who, why); }
+/** The accounts head's answer to a request. Returns why it could not be done, or ''. */
+function gpoDecideAsk(po, who, approve, reason) {
+  var ask = po.closeAsk;
+  if (!ask) return 'No close request is waiting on ' + po.poNo + '.';
+  if (!approve && !String(reason || '').trim()) return 'Type why the close is turned down, so the store knows.';
+  delete po.closeAsk;
+  if (approve) { gpoClose(po, who, 'asked by ' + (ask.by || 'the store') + ' on challan ' + (ask.challan || '—') + ', approved'); return ''; }
+  po.closeDown = { at: new Date().toISOString(), by: who || '', reason: String(reason).trim(), askedBy: ask.by || '' };
+  gpoLog(po, 'close turned down', who, String(reason).trim());
+  return '';
+}
+/** The "last challan" tick on a saved challan: accounts close the PO, anyone else asks. Returns the words for the message. */
+function poLastChallan(po, no, who) {
+  if (canPoClose()) return po.poNo + ' closed with ' + nf(gpoClose(po, who, 'on challan ' + no)) + ' m not supplied.';
+  gpoAskClose(po, who, no);
+  return 'Accounts are asked to close ' + po.poNo + '; until then it stays open.';
+}
+
+/* ---- the buttons ---- */
+var NOT_ACCOUNTS = 'Closing, cancelling and reopening a greige PO is for the accounts department. Ask them to do it.';
+/** Close the PO / Reopen the PO (each asks for a second press). */
 function poCloseToggle(no, btn) {
   var po = poFind(no); if (!po) return;
-  if (po.closed) { delete po.closed; lmSaveDb(); render(); lmSay('ok', po.poNo + ' is open again: ' + nf(gpoProgress(po).pending) + ' m due.'); return; }
+  if (!canPoClose()) { lmSay('warn', NOT_ACCOUNTS); return; }
+  var who = meUser().name;
+  if (po.closed) {
+    if (!armed(btn, 'Press again to reopen ' + po.poNo)) return;
+    gpoReopen(po, who); lmSaveDb(); render();
+    lmSay('ok', po.poNo + ' is open again: ' + nf(gpoProgress(po).pending) + ' m due.');
+    return;
+  }
   var due = gpoProgress(po).pending;
   if (!armed(btn, 'Press again to close with ' + nf(due) + ' m not supplied')) return;
-  po.closed = { at: lmToday(), short: due, by: 'closed by hand' };
-  lmSaveDb(); render(); lmSay('ok', po.poNo + ' closed. ' + nf(due) + ' m was not supplied.');
+  gpoClose(po, who, 'by hand'); lmSaveDb(); render();
+  lmSay('ok', po.poNo + ' closed. ' + nf(due) + ' m was not supplied.');
+}
+/** Cancel the PO / Undo cancel (each asks for a second press). */
+function poCancelToggle(no, btn) {
+  var po = poFind(no); if (!po) return;
+  if (!canPoClose()) { lmSay('warn', NOT_ACCOUNTS); return; }
+  var who = meUser().name, undo = gpoStatus(po) === 'cancelled';
+  if (!armed(btn, undo ? 'Press again to bring ' + po.poNo + ' back' : 'Press again to cancel ' + po.poNo)) return;
+  if (undo) { gpoUncancel(po, who); lmSaveDb(); render(); lmSay('ok', po.poNo + ' is back: ' + nf(gpoProgress(po).pending) + ' m due.'); return; }
+  var why = gpoCancel(po, who);
+  if (why) { lmSay('warn', why); return; }
+  lmSaveDb(); render(); lmSay('ok', po.poNo + ' cancelled. It no longer counts as due.');
+}
+/** The accounts head approves a close request, or turns it down with the reason typed beside it. */
+function poAskDecide(no, approve, btn) {
+  var po = poFind(no); if (!po) return;
+  if (!canPoApprove()) { lmSay('warn', 'Only the accounts head approves closing a PO.'); return; }
+  var reason = approve ? '' : (($('pkr-' + po.id) || {}).value || '');
+  if (!approve && !String(reason).trim()) { lmSay('warn', 'Type why the close is turned down, so the store knows.'); return; }
+  if (!approve && !armed(btn, 'Press again to turn it down')) return;
+  var why = gpoDecideAsk(po, meUser().name, approve, reason);
+  if (why) { lmSay('warn', why); return; }
+  lmSaveDb(); render();
+  lmSay(approve ? 'ok' : 'warn', approve ? po.poNo + ' closed. ' + nf(gpoNotSupplied(po)) + ' m was not supplied.'
+    : 'Turned down: ' + po.poNo + ' stays open. The reason is on the PO.');
+}
+/** The requests waiting for the accounts head, the same card as RFD receipts waiting for approval. */
+function closeAsksHtml() {
+  var list = (DB.gpo || []).filter(function (po) { return po.closeAsk; });
+  if (!list.length) return '';
+  return '<div class="card approvals"><div class="kpihead"><span class="kpiname">POs the store asked to close</span><span class="kpiwhen">the last challan is in</span></div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>PO</th><th>Supplier</th><th>Last challan</th><th class="num">Not supplied</th><th>Asked by</th><th></th></tr></thead><tbody>'
+    + list.map(function (po) {
+      var a = po.closeAsk, id = esc(po.id), no = esc(po.poNo);
+      return '<tr><td class="tl b">' + no + '</td><td class="tl">' + esc(po.mill) + '</td><td class="tl mono">' + esc(a.challan || '—') + '</td>'
+        + '<td class="num"><b class="due">' + nf(gpoProgress(po).pending) + ' m</b></td>'
+        + '<td class="tl">' + esc(a.by || '') + '<div class="sub">' + esc(fmtD(lmToday(a.at))) + '</div></td>'
+        + '<td>' + (canPoApprove()
+          ? '<div class="actions"><button type="button" class="jw-btn jw-wa" data-pask="' + no + '|ok">Approve</button>'
+            + '<input id="pkr-' + id + '" aria-label="Why the close of ' + no + ' is turned down" placeholder="Why not (needed to turn down)" style="min-width:180px">'
+            + '<button type="button" class="jw-btn" id="pkd-' + id + '" data-pask="' + no + '|no">Turn down</button></div>'
+          : '<span class="muted">for the accounts head</span>') + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
 }
 
 
@@ -2220,49 +2374,12 @@ function poWaUrl(po) {
   return 'https://wa.me/' + (d.length >= 11 ? d : '') + '?text=' + encodeURIComponent(poWaText(po));
 }
 
-/* ---- WHO IS WORKING, AND WHAT THEY MAY DO (Ravi, 13 Oct: "make fabric ledger access specific on the basis of user") ---- *
- * Each person in Users & access has a ledger right -- no access, view only, or view and edit -- and may or may
- * not approve a shrinkage. "Working as" in the top bar says who is at the keyboard. This page has no sign-in,
- * so it models the rights; the Replenish app enforces them with each person's own login. */
-function meUser() {
-  var list = DB.users || [];
-  return list.filter(function (x) { return x.id === DB.me; })[0] || list[0] || { id: '', name: 'Admin', role: 'Admin', ledger: 'edit', approve: true };
-}
+/* ---- WHAT THE PERSON AT THE KEYBOARD MAY DO: read from meUser() (their own login's rights, further down) ---- */
 var canLedger = function () { return meUser().ledger !== 'none'; };
 var canLedgerEdit = function () { return meUser().ledger === 'edit'; };
 var canApprove = function () { return !!meUser().approve; };
 var isAdmin = function () { return meUser().role === 'Admin'; };
-function meFill() {
-  var sel = $('meSel'); if (!sel) return;
-  sel.innerHTML = (DB.users || []).filter(function (x) { return x.active !== false; }).map(function (x) {
-    return '<option value="' + esc(x.id) + '"' + (x.id === meUser().id ? ' selected' : '') + '>' + esc(x.name) + ' · ' + esc(x.role) + '</option>';
-  }).join('');
-  [].forEach.call(document.querySelectorAll('.navgrp[data-tab="ledger"]'), function (b) { b.hidden = !canLedger(); });
-}
 var LEDGER_LABEL = { none: 'No access', view: 'View only', edit: 'View & edit' };
-function renderMstUsers() {
-  var admin = isAdmin();
-  var rows = (DB.users || []).map(function (x, i) {
-    if (!admin) {
-      return '<tr><td class="frz" style="text-align:left"><b>' + esc(x.name) + '</b></td><td>' + esc(x.role) + '</td><td>' + esc(LEDGER_LABEL[x.ledger] || x.ledger) + '</td>'
-        + '<td>' + (x.approve ? 'Yes' : '—') + '</td><td></td></tr>';
-    }
-    return '<tr><td class="frz" style="text-align:left"><input data-ui="' + i + '" data-uf="name" value="' + esc(x.name) + '" style="width:170px;font-weight:700" aria-label="Name"></td>'
-      + '<td><select data-ui="' + i + '" data-uf="role" style="width:130px" aria-label="Role">' + ['Admin', 'Store', 'Accounts', 'Production', 'Other'].map(function (r) { return '<option' + (r === x.role ? ' selected' : '') + '>' + r + '</option>'; }).join('') + '</select></td>'
-      + '<td><select data-ui="' + i + '" data-uf="ledger" style="width:150px" aria-label="Fabric ledger access">' + ['none', 'view', 'edit'].map(function (k) { return '<option value="' + k + '"' + (k === x.ledger ? ' selected' : '') + '>' + LEDGER_LABEL[k] + '</option>'; }).join('') + '</select></td>'
-      + '<td><input type="checkbox" data-ui="' + i + '" data-uf="approve"' + (x.approve ? ' checked' : '') + ' style="width:16px;height:16px" aria-label="Can approve shrinkage"></td>'
-      + '<td>' + (x.id === meUser().id ? '<span class="muted">you</span>' : '<button type="button" class="lm-x" data-urm="' + i + '" aria-label="Remove ' + esc(x.name) + '">&times;</button>') + '</td></tr>';
-  }).join('');
-  return '<div class="card"><div class="ff-cap">Who may open the <b>fabric ledger</b> (no access, view only, or view and edit) and who may <b>approve</b> an RFD receipt that shrank more than '
-    + RR_SHRINK_LIMIT + '%. Pick who is working in the top bar. ' + (admin ? 'Changes save as you make them.' : 'Only an Admin changes these.') + '</div>'
-    + '<div class="ff-grid"><table class="xl xl-dense lm-lines"><thead><tr><th class="frz">Name *</th><th>Role</th><th>Fabric ledger</th><th>Approves shrinkage</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-    + (admin ? '<div class="row" style="margin-top:12px"><button type="button" id="userAdd">+ Add a user</button></div>' : '') + '</div>';
-}
-/* At least one Admin who can edit the ledger and approve must always remain, or nobody could change this again. */
-function usersSafe() {
-  return (DB.users || []).some(function (x) { return x.role === 'Admin' && x.ledger === 'edit' && x.approve && x.active !== false && String(x.name || '').trim(); });
-}
-
 /* ---- ISSUE TO RFD, FROM THE PO, BALE BY BALE (Ravi, 13 Oct: "make issue to RFD on the basis of bales") ---- *
  * The bales of a lot are the ones its challan brought in. Ticking bales is what goes out; the metres are the
  * bales' own (as the supplier's challan wrote them). A bale that has gone is not offered again. Older issues
@@ -2687,7 +2804,7 @@ function poShow(no) {
 /* ---- wiring: the PO list, the challans, the drawer and the new-PO dialog -------------------------- */
 function wirePurchaseOrders() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-act],[data-sent],[data-porm],[data-doc],[data-rcv],[data-tpo],[data-tch],[data-fill],[data-kpi],[data-pv],[data-pvclear],[data-dr],[data-pclose],[data-pedit],[data-iss],[data-isspick],#docCopy,#issSave') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-act],[data-sent],[data-porm],[data-doc],[data-rcv],[data-tpo],[data-tch],[data-fill],[data-kpi],[data-pv],[data-pvclear],[data-dr],[data-pclose],[data-pcancel],[data-pask],[data-pedit],[data-iss],[data-isspick],#docCopy,#issSave') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
     if (t.id === 'docCopy') {
@@ -2713,6 +2830,8 @@ function wirePurchaseOrders() {
     }
     if (g('data-doc')) { poShow(g('data-doc')); return; }
     if (g('data-pclose')) { poCloseToggle(g('data-pclose'), t); return; }
+    if (g('data-pcancel')) { poCancelToggle(g('data-pcancel'), t); return; }
+    if (g('data-pask')) { var pa = g('data-pask').split('|'); poAskDecide(pa[0], pa[1] === 'ok', t); return; }
     if (g('data-pedit')) { poOpen(g('data-pedit')); return; }
     if (g('data-iss')) { var ip = g('data-iss').split('|'); issOpen(ip[0], ip[1] || ''); return; }
     if (t.id === 'issSave') { issSave(); return; }
@@ -3198,7 +3317,7 @@ function renderLedger() {
     + lfSelect('fabric', 'Fabric', fabrics)
     + lfSelect('party', 'Party', parties)
     + lfSelect('po', 'PO', pos)
-    + lfSelect('done', 'Status', ['open', 'done'], ['Still open', 'Fulfilled'])
+    + lfSelect('done', 'Status', ['open', 'done'], ['Not yet fulfilled', 'Fulfilled'])   /* "open" is a PO's word (Ravi, 21 Nov) */
     + (lfOn() ? '<button type="button" class="jw-btn" id="lfClear">Clear the filter</button>' : '')
     + '</div></div>';
 
@@ -3206,7 +3325,7 @@ function renderLedger() {
     ? all.length + ' movement' + (all.length === 1 ? '' : 's')
     : '<b>' + rows.length + '</b> of ' + all.length + ' movements';
   var openN = rows.filter(function (r) { return !r.done; }).length;
-  if (openN !== rows.length) count += ' · <b>' + openN + '</b> still open';
+  if (openN !== rows.length) count += ' · <b>' + openN + '</b> not yet fulfilled';
 
   return '<div class="row" style="margin-bottom:10px;align-items:center">'
     + '<span class="muted" style="font-size:12px;align-self:center">Add a movement:</span>'
@@ -3253,16 +3372,27 @@ function renderLedger() {
         + (r.remark && r.txnType !== 'DAMAGE'
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + esc(r.remark) + '</div>' : '')
         + '</td>'
-        + '<td style="white-space:nowrap">' + (!canLedgerEdit() ? '<span class="muted">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
+        + '<td style="white-space:nowrap">' + (!canLedgerEdit() ? '<span class="muted" title="' + esc(fulfilledBy(r)) + '">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
         + (!canLedgerEdit() ? '' : '<button type="button" class="jw-btn jw-primary" data-edit="' + esc(r.id) + '">Edit</button> ')
         + (!canLedgerEdit() ? '' : r.done
           ? '<button type="button" class="jw-btn jw-wa" data-done="' + esc(r.id) + '" '
-            + 'title="Dealt with. Click to put it back on the list.">✓ Fulfilled</button>'
+            + 'title="' + esc(fulfilledBy(r)) + '. Click to put it back on the list.">✓ Fulfilled</button>'
           : '<button type="button" class="jw-btn" data-done="' + esc(r.id) + '" '
             + 'title="Mark this movement as dealt with">Mark fulfilled</button>')
         + '</td></tr>';
     }).join('') || emptyRow(10, lfOn() || UI.q ? 'No movement matches the filter.' : 'The register is empty.'))
     + '</tbody></table></div></div>';
+}
+
+/** Tick or untick "fulfilled", keeping who did it and when (Ravi, 21 Nov: a tick nobody can trace is no use). */
+function markFulfilled(r, done, who) {
+  r.done = done;
+  if (done) { r.doneBy = who || ''; r.doneAt = new Date().toISOString(); } else { delete r.doneBy; delete r.doneAt; }
+}
+/** "Fulfilled by Priya on 21-Nov-26" — or just "Dealt with" for a tick from before names were kept. */
+function fulfilledBy(r) {
+  if (!r.done) return '';
+  return r.doneBy ? 'Fulfilled by ' + r.doneBy + (r.doneAt ? ' on ' + fmtD(lmToday(r.doneAt)) : '') : 'Dealt with';
 }
 
 /* ---- wiring: the ledger rows and the filter bar ---------------------------------------------------- */
@@ -3280,8 +3410,9 @@ function wireLedger() {
       /* A WORKING MARK, NOT A FIGURE. Fulfilled says somebody has dealt with this row -- chased it,
        * filed it, tallied it against the paper. It changes no balance anywhere: what the cloth did
        * is a fact, and a tick cannot alter it. */
+      if (!canLedgerEdit()) { lmSay('warn', 'Marking a movement fulfilled needs the right to correct the fabric ledger.'); return; }
       var dr = (DB.fab || []).filter(function (x) { return x.id === g('data-done'); })[0];
-      if (dr) { dr.done = !dr.done; lmSaveDb(); render(); }
+      if (dr) { markFulfilled(dr, !dr.done, meUser().name); lmSaveDb(); render(); }
       return;
     }
     if (g('data-del')) {
@@ -4364,7 +4495,9 @@ function gdClearAll() { DB.gpo = []; DB.fab = []; gdSaveAll(); }
 /* ---- WHO IS WORKING: the person signed in to the app, and the rights they hold ---- *
  * gdesk opens the desk; gdled shows the fabric ledger; gdledit lets them add and correct it; gdappr approves an RFD
  * receipt that shrank more than 5%. An admin holds all four. */
-var GD_RIGHTS = [['gdesk', 'Open the Greige Desk'], ['gdled', 'See the fabric ledger'], ['gdledit', 'Add to and correct the fabric ledger'], ['gdappr', 'Approve an RFD receipt that shrank more than 5%']];
+var GD_RIGHTS = [['gdesk', 'Open the Greige Desk'], ['gdled', 'See the fabric ledger'], ['gdledit', 'Add to and correct the fabric ledger'], ['gdappr', 'Approve an RFD receipt that shrank more than 5%'],
+  /* Ravi, 21 Nov: closing a greige PO is the accounts department's; the store's "last challan" asks the accounts head. */
+  ['gdpo', 'Close, cancel and reopen greige POs'], ['gdpoappr', 'Approve the store’s request to close a greige PO']];
 /* AN EMPTY TABS LIST IS NO ACCESS, as it is everywhere else in the app (auth.js: a failed or empty perms read
  * gives nothing). It used to hand all four rights to such an account. Only the desk run on its own, with no
  * app login at all, still opens with every right. */

@@ -848,7 +848,7 @@ const ERP_GROUPS = [
   { name: 'Production flow', items: [['flppc', 'PPC and PPC completed'], ['fldem', 'Demand: RFD fabric out'], ['flacc', 'Demand: accessories'], ['flchl', 'Printed fabric in · history'], ['flcut', 'To cut'], ['flraw', 'Raw cutting in store'], ['flwip', 'WIP with karigars']] },
   { name: 'Making', items: [['pcut', 'Cutting Data'], ['pbase', 'Job Work Register'], ['ppress', 'Press Inventory'], ['qc', 'Quality Control — checks'], ['qcalt', 'QC — issue for alteration'], ['qcret', 'QC — receive back']] },
   { name: 'Finished & dispatch', items: [['fgi', 'Finished Goods'], ['fgacc', 'Finished Goods — From QC, to accept'], ['fba', 'FBA Dispatch']] },
-  { name: 'Materials', items: [['fab', 'Fabric Inventory'], ['acc', 'Accessories'], ['gdesk', 'Greige Desk — open'], ['gdled', 'Greige Desk — fabric ledger'], ['gdledit', 'Greige Desk — correct ledger'], ['gdappr', 'Greige Desk — approve shrinkage >5%']] },
+  { name: 'Materials', items: [['fab', 'Fabric Inventory'], ['acc', 'Accessories'], ['gdesk', 'Greige Desk — open'], ['gdled', 'Greige Desk — fabric ledger'], ['gdledit', 'Greige Desk — correct ledger'], ['gdappr', 'Greige Desk — approve shrinkage >5%'], ['gdpo', 'Greige Desk — close, cancel, reopen POs (accounts)'], ['gdpoappr', 'Greige Desk — approve the store's close request (accounts head)']] },
   { name: 'Setup', items: [['pmdb', 'Master Database'], ['mst', 'Masters']] },
   { name: 'Vendors & printers', items: [['vreq', 'Vendor Order Requests'], ['vord', 'Vendor Orders'], ['rfd', 'RFD Requirements'], ['vend', 'Vendor Portal'], ['vlog', 'History'], ['palloc', 'Printer Allocation'], ['vpview', "Printer's portal (view only)"]] },
   /* boxes some records still hold for screens that no longer exist — shown so nothing is hidden; they open nothing */
@@ -907,7 +907,7 @@ function roleAccess(role) {
   if (role.access) return JSON.parse(JSON.stringify(role.access));
   if (role.admin) return { admin: true, sellora: ALL_SELLORA.slice(), erp: ALL_ERP.slice(), rights: RIGHTS.map(r => r[0]) };
   const sellora = role.sellora === 'all' ? ALL_SELLORA.slice() : (role.sellora || []).slice();
-  const erp = role.erp === 'director' ? ALL_ERP.filter(k => !['shopprod', 'shopret', 'vend', 'gdappr'].includes(k)) : (role.erp || []).slice();
+  const erp = role.erp === 'director' ? ALL_ERP.filter(k => !['shopprod', 'shopret', 'vend', 'gdappr', 'gdpoappr'].includes(k)) : (role.erp || []).slice();
   return { admin: false, sellora, erp, rights: (role.rights || []).slice() };
 }
 
