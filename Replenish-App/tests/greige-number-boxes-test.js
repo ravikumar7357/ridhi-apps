@@ -35,6 +35,8 @@ ok('no browser number box is left for metres or rates', !boxes.some(b => /type=\
 [['PO metres', /data-f="metres"/], ['PO rate', /data-f="rate"/], ['bale metres (receive greige)', /aria-label="Metres, bale/], ['than metres (receive RFD)', /aria-label="Metres, than/],
   ['measured at the door', /data-chk=/], ['issue to RFD', /data-issqty=/], ['send to cutting', /data-cutqty=/], ['entry metres', /id=\\"enQty\\"/], ['entry sent back', /id=\\"enReturned\\"/]]
   .forEach(([what, re]) => { const b = named(re); ok(what + ' is a number-only box', b.length >= 1 && b.every(x => /data-num=\\?"7\\?"/.test(x)), b.map(x => x.slice(0, 80)).join(' | ') || 'not found'); });
+ok('a discount % takes 3 digits before the point', clean('1234.567', 3) === '123.56' && clean('2.5', 3) === '2.5');
+ok('the PO line discount box is a 3-digit number-only box', /data-f="disc"[^>]*data-num="' \+ PCT_WHOLE_DIGITS \+ '"/.test(code) && /var NUM_WHOLE_DIGITS = 7, NUM_DECIMALS = 2, PCT_WHOLE_DIGITS = 3;/.test(code));
 ok('each box is cleaned to its own digit limit', /cleanNumber\(was, parseInt\(el\.getAttribute\('data-num'\), 10\)\)/.test(code));
 ok('the boxes are cleaned as they are typed', /addEventListener\('input', function \(ev\) \{\s*var el = ev\.target;\s*if \(!el \|\| !el\.hasAttribute \|\| !el\.hasAttribute\('data-num'\)\) return;/.test(code));
 
