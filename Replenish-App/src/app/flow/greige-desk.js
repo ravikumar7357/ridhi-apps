@@ -3179,7 +3179,8 @@ function invDetail(r, col) {
         + '<td class="tl">' + esc(g.processor || '—') + '</td><td class="tl">' + esc(fmtD(invLastDate(back) || g.date)) + '</td>'
         + '<td class="num">' + nf(came) + ' m</td><td class="num">' + (g.rfdOut ? nf(g.rfdOut) + ' m' : '—') + '</td>'
         + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(g.rfdLeft) + ' m</td>'
-        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdflow="drfd">Send to printer</button>'
+        /* Send to printer opens the products that need this fabric, not the whole list (Ravi, 21 Nov) */
+        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdlines="' + esc(r.fabric) + '" title="The products waiting for ' + esc(r.fabric) + ' on Demand → RFD">Send to printer</button>'
         + '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button></div></td></tr>';
     });
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
