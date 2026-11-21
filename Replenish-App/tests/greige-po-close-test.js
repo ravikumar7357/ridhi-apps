@@ -21,7 +21,7 @@ function desk() {
   if (code.split(anchor).length !== 2) throw new Error('greige-desk.js: the closing "return { open" line moved; update this test');
   const names = ['gpoStatus', 'gpoProgress', 'gpoNotSupplied', 'gpoClosedBy', 'gpoClose', 'gpoReopen', 'gpoCancel', 'gpoUncancel', 'gpoAskClose',
     'gpoDecideAsk', 'poLastChallan', 'poPill', 'poPanel', 'poCloseButtons', 'poHasStatus', 'closeAsksHtml', 'dashAlerts', 'markFulfilled',
-    'fulfilledBy', 'canPoClose', 'canPoApprove', 'stillDueCell'];
+    'fulfilledBy', 'canPoClose', 'canPoApprove', 'stillDueCell', 'meUser'];
   const opened = code.replace(anchor, '  globalThis.__GDT = { ' + names.map(n => n + ': ' + n).join(', ')
     + ', setDB: function (v) { DB = v; } };\n' + anchor);
   const ctx = { console, window: { document: {} } };
@@ -169,6 +169,19 @@ console.log('== closes made before today\'s change still read ==');
   const p = po('PO/14', 1000); p.closed = { at: '2026-11-01', short: 50, by: 'challan SBM/9' };
   desk1([p], [challan(p, 950)]);
   ok('an old close (only "by") is shown as it was written', G.gpoClosedBy(p) === 'challan SBM/9' && G.gpoStatus(p) === 'received');
+}
+
+console.log('== one copy of each: the person comes from their own login ==');
+{
+  /* The desk once carried the stand-alone model's copies too (a sample users list, browser-only saving); the later
+   * copies won, so the first were dead code. Removed 21 Nov; this keeps them from coming back. */
+  const code = fs.readFileSync(SRC, 'utf8');
+  const twice = ['lmLoad', 'lmResetSample', 'lmSaveDb', 'meUser', 'meFill', 'renderMstUsers', 'usersSafe']
+    .filter(n => (code.match(new RegExp('^function ' + n + '\\(', 'gm')) || []).length !== 1);
+  ok('each of the seven is written once', twice.length === 0, twice.join(', '));
+  G.setDB({ gpo: [], fab: [], mst: [], ven: [], co: {}, users: [{ id: 'u1', name: 'Sample Admin', role: 'Admin', ledger: 'edit', approve: true }], me: 'u1' });
+  G.signIn(STORE);
+  ok('the person at the keyboard is the signed-in one, not a sample user', G.meUser().name === 'Ramesh' && G.meUser().ledger === 'edit' && G.meUser().approve === false);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -38412,13 +38412,6 @@ function lmSample() {
   };
 }
 
-function lmLoad() {
-  try {
-    var raw = localStorage.getItem(LM_KEY);
-    if (raw) { DB = JSON.parse(raw); if (DB && DB.fab && DB.gpo && DB.mst) { lmMigrate(); return; } }
-  } catch (e) { /* a blocked or cleared store is not a reason to show nothing */ }
-  DB = lmSample();
-}
 /* ANYTHING TYPED BEFORE THE COLUMNS WERE CUT STILL OPENS. The warp and weft used to be four boxes
  * (a count and a fold each); they are one box now, written the way a sales note writes it. */
 function lmMigrate() {
@@ -38460,11 +38453,6 @@ function lmMigrate() {
     });
   }
 }
-
-function lmSaveDb() { try { localStorage.setItem(LM_KEY, JSON.stringify(DB)); } catch (e) { /* nothing to do */ } }
-
-/** Put the sample registers back -- the Reset button. Done here because this file owns the register. */
-function lmResetSample() { DB = lmSample(); lmSaveDb(); }
 
 /* core/stock.js -- The stock rules: fabric names and specs, lot balances, the fabric roll-up, and what the ledger accepts.
  * An ES module. Its imports are worked out from the code by the split script. */
@@ -40483,49 +40471,12 @@ function poWaUrl(po) {
   return 'https://wa.me/' + (d.length >= 11 ? d : '') + '?text=' + encodeURIComponent(poWaText(po));
 }
 
-/* ---- WHO IS WORKING, AND WHAT THEY MAY DO (Ravi, 13 Oct: "make fabric ledger access specific on the basis of user") ---- *
- * Each person in Users & access has a ledger right -- no access, view only, or view and edit -- and may or may
- * not approve a shrinkage. "Working as" in the top bar says who is at the keyboard. This page has no sign-in,
- * so it models the rights; the Replenish app enforces them with each person's own login. */
-function meUser() {
-  var list = DB.users || [];
-  return list.filter(function (x) { return x.id === DB.me; })[0] || list[0] || { id: '', name: 'Admin', role: 'Admin', ledger: 'edit', approve: true };
-}
+/* ---- WHAT THE PERSON AT THE KEYBOARD MAY DO: read from meUser() (their own login's rights, further down) ---- */
 var canLedger = function () { return meUser().ledger !== 'none'; };
 var canLedgerEdit = function () { return meUser().ledger === 'edit'; };
 var canApprove = function () { return !!meUser().approve; };
 var isAdmin = function () { return meUser().role === 'Admin'; };
-function meFill() {
-  var sel = $('meSel'); if (!sel) return;
-  sel.innerHTML = (DB.users || []).filter(function (x) { return x.active !== false; }).map(function (x) {
-    return '<option value="' + esc(x.id) + '"' + (x.id === meUser().id ? ' selected' : '') + '>' + esc(x.name) + ' · ' + esc(x.role) + '</option>';
-  }).join('');
-  [].forEach.call(document.querySelectorAll('.navgrp[data-tab="ledger"]'), function (b) { b.hidden = !canLedger(); });
-}
 var LEDGER_LABEL = { none: 'No access', view: 'View only', edit: 'View & edit' };
-function renderMstUsers() {
-  var admin = isAdmin();
-  var rows = (DB.users || []).map(function (x, i) {
-    if (!admin) {
-      return '<tr><td class="frz" style="text-align:left"><b>' + esc(x.name) + '</b></td><td>' + esc(x.role) + '</td><td>' + esc(LEDGER_LABEL[x.ledger] || x.ledger) + '</td>'
-        + '<td>' + (x.approve ? 'Yes' : '—') + '</td><td></td></tr>';
-    }
-    return '<tr><td class="frz" style="text-align:left"><input data-ui="' + i + '" data-uf="name" value="' + esc(x.name) + '" style="width:170px;font-weight:700" aria-label="Name"></td>'
-      + '<td><select data-ui="' + i + '" data-uf="role" style="width:130px" aria-label="Role">' + ['Admin', 'Store', 'Accounts', 'Production', 'Other'].map(function (r) { return '<option' + (r === x.role ? ' selected' : '') + '>' + r + '</option>'; }).join('') + '</select></td>'
-      + '<td><select data-ui="' + i + '" data-uf="ledger" style="width:150px" aria-label="Fabric ledger access">' + ['none', 'view', 'edit'].map(function (k) { return '<option value="' + k + '"' + (k === x.ledger ? ' selected' : '') + '>' + LEDGER_LABEL[k] + '</option>'; }).join('') + '</select></td>'
-      + '<td><input type="checkbox" data-ui="' + i + '" data-uf="approve"' + (x.approve ? ' checked' : '') + ' style="width:16px;height:16px" aria-label="Can approve shrinkage"></td>'
-      + '<td>' + (x.id === meUser().id ? '<span class="muted">you</span>' : '<button type="button" class="lm-x" data-urm="' + i + '" aria-label="Remove ' + esc(x.name) + '">&times;</button>') + '</td></tr>';
-  }).join('');
-  return '<div class="card"><div class="ff-cap">Who may open the <b>fabric ledger</b> (no access, view only, or view and edit) and who may <b>approve</b> an RFD receipt that shrank more than '
-    + RR_SHRINK_LIMIT + '%. Pick who is working in the top bar. ' + (admin ? 'Changes save as you make them.' : 'Only an Admin changes these.') + '</div>'
-    + '<div class="ff-grid"><table class="xl xl-dense lm-lines"><thead><tr><th class="frz">Name *</th><th>Role</th><th>Fabric ledger</th><th>Approves shrinkage</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-    + (admin ? '<div class="row" style="margin-top:12px"><button type="button" id="userAdd">+ Add a user</button></div>' : '') + '</div>';
-}
-/* At least one Admin who can edit the ledger and approve must always remain, or nobody could change this again. */
-function usersSafe() {
-  return (DB.users || []).some(function (x) { return x.role === 'Admin' && x.ledger === 'edit' && x.approve && x.active !== false && String(x.name || '').trim(); });
-}
-
 /* ---- ISSUE TO RFD, FROM THE PO, BALE BY BALE (Ravi, 13 Oct: "make issue to RFD on the basis of bales") ---- *
  * The bales of a lot are the ones its challan brought in. Ticking bales is what goes out; the metres are the
  * bales' own (as the supplier's challan wrote them). A bale that has gone is not offered again. Older issues
