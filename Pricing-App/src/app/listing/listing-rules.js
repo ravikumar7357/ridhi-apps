@@ -388,24 +388,70 @@ const lrFmtDate = date => date ? date.toLocaleDateString('en-GB', { day: 'numeri
 /** The approved way to write a size, taken from the example the rule carries ("14 x 36 Inch"). */
 function lrSizeOk(text, example) {
   const shape = String(example || '14 x 36 Inch').replace(/\d+(?:\.\d+)?/g, 'N');
-  return String(text).replace(/\d+(?:\.\d+)?/g, 'N') === shape || String(text).replace(/\d+(?:\.\d+)?/g, 'N') === shape.replace('N x N', 'N x N x N');
+  const mine = String(text).replace(/\d+(?:\.\d+)?/g, 'N');
+  // a ROUND size is one number, its diameter ("110 Inch"), with the example's unit — hTitleSizes finds one only on a round product
+  return mine === shape || mine === shape.replace('N x N', 'N x N x N') || mine === shape.replace(/N(?: x N)+/, 'N');
 }
 /** The short forms a person uses to fit 75 characters (Part A1): the unit as Inc, In, In., in, " ″ ” or left out, Inches as
  *  Inch / In, Centimeter as cm, and no spaces around x, X or × — "18x18", "18X18 Inc", "18×18", "18 x 18 In". */
 function lrSizeLoose(text) {
-  return /^N\s*[x×X]\s*N(?:\s*[x×X]\s*N)?\s*(?:inches|inch|inc\.?|in\.?|"|”|″|cm)?$/i.test(String(text).replace(/\d+(?:\.\d+)?/g, 'N'));
+  const t = String(text).replace(/\d+(?:\.\d+)?/g, 'N');
+  return /^N\s*[x×X]\s*N(?:\s*[x×X]\s*N)?\s*(?:inches|inch|inc\.?|in\.?|"|”|″|cm)?$/i.test(t)
+    || /^N\s*(?:inches|inch|inc\.?|in\.?|"|”|″|cm)$/i.test(t);          // a round size: one number, always with its unit
 }
 /** Every W x H (or W x H x D) written in a title, exactly as written, with the unit that follows it. */
 // Returns [{ text, a, b, c }]: the text as written, the two or three numbers (c is null for W x H). Inc, In and In. read as inch.
-function hTitleSizes(title) {
+/* ROUND PRODUCTS (22 Nov 2026). On a ROUND product a size is also ONE number with a unit after it — its diameter: "110 Inch", '110"',
+ * "70 In", "90 Inches", "180 cm" — returned as { text, a, b: a, c: null, one: true, round: true }, so every rule that compares two
+ * numbers reads it as equal (never "smaller number first"). A number with no unit is never a size ("100% Cotton", "Set of 4",
+ * "4 Seater"), nor one right after of / set / pack ("Set of 4 In Blue"), nor one under 3. On a round product each W x H carries
+ * round: true too (two equal numbers are written as the one — lrSizeWant). `round`: lrIsRound(row) where the listing is known;
+ * left out, the title alone decides (lrRoundTitle). Every other product: W x H only, exactly as before. */
+function hTitleSizes(title, round) {
   const out = [];
+  const t = String(title || '');
   const unit = '(?:"|”|″|inc\\.?(?![a-z])|in\\.?(?![a-z])|inch(?:es)?(?![a-z])|cm(?![a-z]))';
   const re = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${unit}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?)(?:\\s*${unit}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?))?(\\s*${unit})?`, 'gi');
+  if (round === undefined) round = lrRoundTitle(t);
+  round = !!round && LR_ROUND_ON;
   let match;
-  while ((match = re.exec(String(title || '')))) {
-    out.push({ text: match[0].trim(), a: +match[1], b: +match[2], c: match[3] ? +match[3] : null });
+  while ((match = re.exec(t))) {
+    const size = { text: match[0].trim(), a: +match[1], b: +match[2], c: match[3] ? +match[3] : null };
+    if (round) size.round = true;
+    out.push([match.index, match.index + match[0].length, size]);
   }
-  return out;
+  if (round) {
+    const one = new RegExp(`(?<![\\w.×*])(\\d+(?:\\.\\d+)?)\\s*${unit}`, 'gi');
+    while ((match = one.exec(t))) {
+      const at = match.index, end = at + match[0].length, n = +match[1];
+      if (out.some(([s, e]) => s < end && at < e)) continue;                                  // part of a W x H
+      if (/^\s*[x×X*]\s*\d/.test(t.slice(end)) || /\b(?:of|set|pack|pcs|pieces)\s*$/i.test(t.slice(0, at)) || n < 3) continue;
+      out.push([at, end, { text: match[0].trim(), a: n, b: n, c: null, one: true, round: true }]);
+    }
+    out.sort((x, y) => x[0] - y[0]);
+  }
+  return out.map(x => x[2]);
+}
+/* Is this a ROUND product? Any of: its title says "Round", Amazon's item_shape is Round, its catalogue sub-category is a round one
+ * ("Round Tablecloth", "Round Placemat", round cushion covers, coasters, rugs …). A title that names another shape (Square, Rectangle,
+ * Oval) is never judged round. LR_ROUND_ON: debugRoundSizes() (listing/debug-round.js) turns it off to count "before". */
+const LR_ROUND_RE = /\bround\b/i;
+const LR_OTHER_SHAPE_RE = /\b(?:square|rectangle|rectangular|oval)\b/i;
+let LR_ROUND_ON = true;
+const lrRoundTitle = title => LR_ROUND_ON && LR_ROUND_RE.test(String(title || '')) && !LR_OTHER_SHAPE_RE.test(String(title || ''));
+function lrIsRound(row, title) {
+  if (!LR_ROUND_ON) return false;
+  if (!row) return lrRoundTitle(title);
+  const t = String(title != null ? title : hTitleText(row));
+  if (LR_OTHER_SHAPE_RE.test(t)) return false;
+  if (LR_ROUND_RE.test(t)) return true;
+  let va = row.va;
+  if (!va && row.sku && typeof lmGet === 'function') { const m = lmGet(row.sku, row.brand); va = m && m.va; }
+  const v = va && va.item_shape;
+  const shape = Array.isArray(v) ? (v[0] && v[0].value != null ? v[0].value : '') : v;
+  if (LR_ROUND_RE.test(String(shape || ''))) return true;
+  const cat = (row.brand && row.sku && typeof LR_CAT !== 'undefined' && LR_CAT[row.brand] && LR_CAT[row.brand][row.sku]) || {};
+  return LR_ROUND_RE.test(String(cat.subcat || ''));
 }
 /** A size's written shape, read by meaning (Part A2): "18x18" = "18 x 18" = "18×18", and "18x18 Inc" = "18 x 18 Inch" — but a
  *  size with a unit and one without are still two shapes, as are two and three numbers. */
@@ -572,7 +618,7 @@ function lrSwFacts(row, cfg, va, o) {
   const title = o.title != null ? String(o.title) : hTitleText(row);
   const colour = one(['color', 'color_name']) || String(row.amzColor || '') || String(cat.color || '') || lrColorOf(row);
   let size = one(['size', 'size_name']) || String(cat.size || '');
-  if (!size) { const t = hTitleSizes(title)[0]; if (t) size = t.a + 'x' + t.b; }
+  if (!size) { const t = hTitleSizes(title, lrIsRound(row, title))[0]; if (t) size = t.one ? String(t.a) : t.a + 'x' + t.b; }
   const shape = lrSwShapeOf(size, [one(['item_shape']), lrShape(cat.subcat)].filter(Boolean).join(' '));
   const material = one(['material']) || (tpl && tpl.material) || String(cat.material || '');
   const pt = String(o.pt || row.pt || '').replace(/_/g, ' ');
@@ -585,7 +631,17 @@ function lrSwFacts(row, cfg, va, o) {
   let found = LR_SW_PROD_KEEP.get(within);
   if (!found) { if (LR_SW_PROD_KEEP.size > 2000) LR_SW_PROD_KEEP.clear(); found = LR_SW_PRODUCTS.filter(p => lrHas(within, p)); LR_SW_PROD_KEEP.set(within, found); }
   product.push(...found);
-  return { colour, shape, material, size, product, brands: lrBrandWords(row, cfg) };
+  /* THE PRODUCT'S OWN NAME as this title writes it (22 Nov 2026): its template's product, its catalogue sub-category (with and without
+   * its shape word), its product type — each one the title holds ("Tissue Box Cover"). A title suggestion never cuts it (lrSuggestWords,
+   * title mode) and never leaves it out (lrTitleFix step 8, title-fix ttCheck). Not added to `product`: where a missing size goes and the
+   * "Missing product" check stay exactly as they were. Only needed when the product words this rule knows ("napkin", "tablecloth"…) are
+   * not in the title — those are protected already, and a second name ("Napkins Set" after "Cloth Napkins") stays a repeat. */
+  const names = [];
+  if (!product.some(p => lrHas(title, p))) [tpl && tpl.product, cat.subcat, String(cat.subcat || '').replace(/\b(?:square|rectangle|rectangular|round|oval)\b/gi, ''), pt].forEach(src0 => {
+    const p = String(src0 || '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    if (p.length > 2 && /[a-z]{3}/i.test(p) && lrHas(title, p) && !names.some(n => lrNorm(n) === lrNorm(p))) names.push(p);
+  });
+  return { colour, shape, material, size, product, names, brands: lrBrandWords(row, cfg) };
 }
 // The short forms, mildest first: added one at a time in this order; when that overshoots, the fewest that fit (ties: the earlier ones).
 const LR_SW_SHORT = [
@@ -666,8 +722,26 @@ function lrSuggestWords(text, o) {
   if (f.colour) mark('colour', lrSwPhrases([String(f.colour)]));       // the whole colour as written ("Indigo Blue and Rust Orange" keeps its "and")
   mark('colour', [...colourKeys].map(k => [k]));
   mark('identity', LR_SW_P.identity);
-  mark('product', lrSwPhrases(f.product || []));
+  mark('product', lrSwPhrases((f.product || []).concat(mode === 'title' && f.names && LR_TF_GUARD ? f.names : [])));   // a title: the product's own name too (lrSwFacts names)
   if (f.shape) mark('shape', LR_SW_SHAPES[f.shape].map(w => [lrSwKey(w)]));
+  // OUR FORMAT (22 Nov 2026): in a title every shape word (Square, Round, Rectangle, Oval…) is protected like the product — lrTitleFix
+  // drops one only as its very last step, before "Can't fit"
+  if (mode === 'title' && LR_TF_GUARD) mark('shape', [...LR_SW_SHAPE_OF.keys()].map(k => [k]));
+  // WHOLE PHRASES (22 Nov 2026): in a title a known phrase ("Table Cover", "Dining Table", "Dinner Napkins") goes whole — a word that goes
+  // takes its unprotected phrase-mates with it, never leaving half ("Table"). Overlapping phrases are one group ("Dining Table Cover").
+  if (mode === 'title' && LR_TF_GUARD) {
+    let g = 0;
+    const phrases = LR_SW_P.products.concat(LR_SW_P.uses).filter(p => p.length > 1).sort((a, b) => b.length - a.length);
+    for (let i = 0; i < toks.length; i++) {
+      phrases.forEach(p => {
+        if (i + p.length > toks.length || !p.every((k, j) => toks[i + j].k === k)) return;
+        const id = (toks.slice(i, i + p.length).find(t => t.grp) || {}).grp || ++g;
+        const old = new Set(toks.slice(i, i + p.length).map(t => t.grp).filter(Boolean));
+        toks.forEach(t => { if (old.has(t.grp)) t.grp = id; });
+        for (let j = 0; j < p.length; j++) toks[i + j].grp = id;
+      });
+    }
+  }
   const mats = f.material ? String(f.material).split(/[\s,&/+-]+/).filter(Boolean) : LR_SW_MATERIAL_DEFAULT;
   mark('material', mats.map(w => [lrSwKey(w)]).filter(p => p[0] && !LR_SW_STOP_SET.has(p[0])));
   if (mode !== 'title') mark('uses', LR_SW_P.uses);         // a title keeps its brand, product, shape, material, size, print and colour (RULE 3)
@@ -684,7 +758,10 @@ function lrSuggestWords(text, o) {
   const now = () => (shortText != null ? shortText : mode === 'kw' ? live().map(t => t.w).filter(Boolean).join(' ') : tidy(live().map(t => t.raw).join(' ')));
   const fits = () => (typeof o.fits === 'function' ? !!o.fits(now()) : true);
   let seq = 0;                                       // the order the words went in (removed[].n)
-  const drop = (t, why) => { t.out = why; t.n = ++seq; };
+  const drop = (t, why) => {
+    t.out = why; t.n = ++seq;
+    if (t.grp) toks.forEach(x => { if (x !== t && x.grp === t.grp && !x.out && !x.cls) { x.out = why; x.n = seq; } });   // the whole phrase
+  };
   // 0 always: the risky words (another brand's name, a restricted claim) — quietly, nothing is said about them here
   const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
   if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
@@ -905,23 +982,24 @@ const LR_DET = {
   // with no unit at all is title_template's "Missing Inch" (never two findings for one mistake)
   size_format: (row, ctx, params) => {
     const title = hTitleText(row);
-    const bad = hTitleSizes(title).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title)));
+    const bad = hTitleSizes(title, lrIsRound(row, title)).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title) || lrRoundTwo(size)));
+    if (bad && lrRoundTwo(bad)) return `"${bad.text}" — a round size is one number: "${lrSizeWant(bad, row, ctx, title)}"`;
     if (bad && lrSizeOurs(bad.text, ctx.cfg, title, params.example)) return `"${bad.text}" — the family writes "${lrSizeWant(bad, row, ctx, title)}"`;
     return bad ? `"${bad.text}"` : '';               // the heading reads: Size not in our format: "60×60 Inches" (LR_WHAT_TEXT)
   },
   dimension_order: row => {
-    const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
+    const wrong = hTitleSizes(hTitleText(row), lrIsRound(row)).find(size => size.c === null && size.a > size.b);
     return wrong ? `${wrong.a} x ${wrong.b} should be ${wrong.b} x ${wrong.a}` : '';
   },
   variation_value_missing: (row, ctx) => {
     const title = hTitleText(row);
     if (!title || !row.parent) return '';
     const group = ctx.parents.get(row.parent + '|' + row.brand);
-    return group && group.sized > 0 && !hTitleSizes(title).length ? `no size in the title; ${group.sized} sibling(s) name theirs` : '';
+    return group && group.sized > 0 && !hTitleSizes(title, lrIsRound(row, title)).length ? `no size in the title; ${group.sized} sibling(s) name theirs` : '';
   },
   variation_naming: (row, ctx) => {
     const title = hTitleText(row);
-    const size = hTitleSizes(title)[0];
+    const size = hTitleSizes(title, lrIsRound(row, title))[0];
     if (!size || !row.parent) return '';
     if (lrNear(title, ctx.cfg)) return '';        // 74–75 characters: the short form was chosen to fit (Part A1)
     const group = ctx.parents.get(row.parent + '|' + row.brand);
@@ -1053,6 +1131,7 @@ const LR_SIZE_OURS_RE = /^\d+(?:\.\d+)?(?: x |x)\d+(?:\.\d+)?(?:(?: x |x)\d+(?:\
 function lrSizeOurs(text, cfg, title, example) {
   const t = String(text);
   if (LR_SIZE_OURS_RE.test(t)) return true;
+  if (/^\d+(?:\.\d+)? Inch$/.test(t)) return true;          // a round size, our way ("110 Inch") — only a round product has one
   if (example && lrSizeOk(t, example)) return true;
   return lrNear(title, cfg) && lrSizeLoose(t);
 }
@@ -1092,8 +1171,12 @@ function lrSizeWant(size, row, ctx, title) {
   const nums = size.c === null ? [Math.min(size.a, size.b), Math.max(size.a, size.b)] : [size.a, size.b, size.c];
   const unit = (String(size.text).match(LR_UNIT_RE) || [])[1] || '';
   const keep = /^(in\.?|"|”|″)$/i.test(unit) && lrNear(title, ctx.cfg) ? (unit === 'in' || unit === 'in.' ? 'In' : unit) : 'Inch';
-  return nums.join(lrSizeSep(row, ctx, size.text)) + (/^["”″]$/.test(keep) ? keep : ' ' + keep);
+  // a ROUND size is one number — also when it was written as two equal ones ("110x110 Inch" → "110 Inch"), never the other way round
+  const one = size.one || lrRoundTwo(size);
+  return (one ? String(size.a) : nums.join(lrSizeSep(row, ctx, size.text))) + (/^["”″]$/.test(keep) ? keep : ' ' + keep);
 }
+// A round product's size written as two EQUAL numbers ("110x110 Inch"): its own way is the one number ("110 Inch").
+const lrRoundTwo = size => !!(size && size.round && !size.one && size.c === null && size.a === size.b);
 /** What is wrong with a title (never its word order): [{ k: spell | shape | missing | repeat, what (the heading), from, to, part }]. */
 function lrTitleProblems(row, ctx) {
   const title = hTitleText(row);
@@ -1110,8 +1193,8 @@ function lrTitleProblems(row, ctx) {
     const to = lrSpellOf(w, ctx, protect);
     if (to) { said.add(w); out.push({ k: 'spell', what: `Spelling: ${w} → ${to}`, from: w, to }); }
   });
-  // the shape the size says
-  const size = hTitleSizes(title)[0];
+  // the shape the size says (a round product's size: lrIsRound — one number is its diameter)
+  const size = hTitleSizes(title, lrIsRound(row, title))[0];
   const sm = title.match(LR_SHAPE_RE);
   if (sm && size && size.c === null) {
     const s = sm[1].toLowerCase();
@@ -1156,11 +1239,12 @@ function lrTitleFix(row, ctx, o) {
   const probs = lrTitleProblems(r, ctx);
   // 1 a misspelt word, a shape the size contradicts: that word only
   probs.filter(p => p.k === 'spell' || p.k === 'shape').forEach(p => { t = t.replace(new RegExp(`\\b${lrRx(p.from)}\\b`), p.to); fixes.push(p.what); });
-  // 2 the size: our format, the family's way, the smaller number first, "Inch" after it
-  const size = hTitleSizes(t)[0];
+  // 2 the size: our format, the family's way, the smaller number first, "Inch" after it; a round product's: one number ("110 Inch")
+  const round = lrIsRound(r, before);
+  const size = hTitleSizes(t, round)[0];
   if (size) {
     const ex = ((cfg.issues || []).find(i => i.detector === 'size_format') || {}).params || {};
-    const wrong = !lrSizeOurs(size.text, cfg, t, ex.example) || lrSizeOffFamily(size, r, ctx, t) || (size.c === null && size.a > size.b) || !LR_UNIT_RE.test(size.text);
+    const wrong = !lrSizeOurs(size.text, cfg, t, ex.example) || lrSizeOffFamily(size, r, ctx, t) || (size.c === null && size.a > size.b) || !LR_UNIT_RE.test(size.text) || lrRoundTwo(size);
     if (wrong) {
       const want = lrSizeWant(size, r, ctx, t);
       if (want !== size.text) { t = t.replace(size.text, want); fixes.push(LR_UNIT_RE.test(size.text) ? `Size: ${size.text} → ${want}` : 'Missing "Inch" after the size'); }
@@ -1175,15 +1259,17 @@ function lrTitleFix(row, ctx, o) {
       t = b != null ? t.slice(0, b) + ' ' + lrCaps(p.value) + t.slice(b) : lrCaps(p.value) + ' ' + t;
       fixes.push('Missing colour');
     } else if (p.part === 'product' && p.value) {
-      const s = hTitleSizes(t)[0];
+      const s = hTitleSizes(t, round)[0];
       const at = s ? t.indexOf(s.text) : -1;
       t = at >= 0 ? t.slice(0, at) + lrCaps(p.value) + ' ' + t.slice(at) : t + ' ' + lrCaps(p.value);
       fixes.push('Missing product');
     } else if (p.part === 'size' && p.value) {
       const nums = String(p.value).match(/\d+(?:\.\d+)?/g) || [];
-      if (nums.length >= 2) {
+      // a round product's size is its one number ("110 Inch") — also when the facts give two equal ones
+      const roundOne = round && (nums.length === 1 || (nums.length === 2 && +nums[0] === +nums[1]));
+      if (nums.length >= 2 || roundOne) {
         const sz = nums.slice(0, 3).map(Number);
-        const txt = (sz.length === 2 ? [Math.min(sz[0], sz[1]), Math.max(sz[0], sz[1])] : sz).join(lrSizeSep(r, ctx)) + ' Inch';
+        const txt = roundOne ? sz[0] + ' Inch' : (sz.length === 2 ? [Math.min(sz[0], sz[1]), Math.max(sz[0], sz[1])] : sz).join(lrSizeSep(r, ctx)) + ' Inch';
         const prod = (f.product || []).map(pw => { const m = t.match(new RegExp(`\\b${lrRx(pw)}\\b`, 'i')); return m ? m.index + m[0].length : -1; }).filter(i => i >= 0).sort((a, b) => b - a)[0];
         t = prod != null ? t.slice(0, prod) + ' ' + txt + t.slice(prod) : t + ' ' + txt;
         fixes.push('Missing size');
@@ -1216,16 +1302,200 @@ function lrTitleFix(row, ctx, o) {
   const lenRule = (cfg.issues || []).find(i => i.detector === 'title_length' && i.on !== false);
   const max = Math.min(+o.max || 75, lenRule && +(lenRule.params || {}).max ? +lenRule.params.max : 75);
   let held = '';
+  const pre = t;                                     // the title with its real mistakes corrected — what any shortening starts from
   if (t.length > max) {
     const own = lrSwFacts(r, cfg, null, { title: t }).colour;
     const fl = Object.assign({}, f, { colour: [f.colour, own].find(c => c && String(c).split(/\s+/).some(w => w.length > 2 && lrHas(t, w))) || f.colour });
-    let s = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, shortFrom: lrAllow(cfg).shortFrom });
-    if (/\bInch\b/.test(t) && !/\bInch\b/.test(s.after)) s = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, short: false });   // "Inch" never goes
-    if (s.after !== t) fixes.push(`Shortened to ${s.after.length} characters`);
-    t = s.after;
-    if (!s.fits) held = `${LR_SW_IMPORTANT} (${t.length} characters, over ${max})`;
+    if (LR_TF_GUARD) {
+      /* 7 THE REMOVE-ALLOWLIST (22 Nov 2026): ONLY the material, the approved filler (whole phrases), the 74–75 short forms and — last — the
+       * shape word may go (lrShortenTitle). Every other word stays: brand, colour, product (any product, known or not), size, "Inch". */
+      t = lrShortenTitle(t, { max, min: lenRule && +(lenRule.params || {}).min || 0, shortFrom: lrAllow(cfg).shortFrom,
+        names: f.names || [], keep: [fl.colour].concat(lrBrandWords(r, cfg)).filter(Boolean) }).after;
+    } else {
+      // the rule before 22 Nov (debugTitleFix's "before"): the suggestion-words rule alone
+      let sw = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, shortFrom: lrAllow(cfg).shortFrom });
+      if (/\bInch\b/.test(t) && !/\bInch\b/.test(sw.after)) sw = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, short: false });
+      t = sw.after;
+    }
+    if (t !== pre) fixes.push(`Shortened to ${t.length} characters`);
+  }
+  // the rule before 22 Nov (debugTitleFix's "before"): whatever the suggestion-words rule left, held only when still too long
+  if (!LR_TF_GUARD) return { before, after: t, fixes, held: t.length > max ? `${LR_SW_IMPORTANT} (${t.length} characters, over ${max})` : '', probs };
+  // 8 NOTHING PROTECTED IS LOST (22 Nov 2026): the brand, the product's own name, the colour the title had, and the size it now carries
+  // must all still be there, within the length — else no suggestion at all: "Can't fit: needs a manual title".
+  const lost = lrTitleLost(before, t, r, cfg, f, fixes);
+  // THE SAFETY CHECK (22 Nov 2026): every word of the corrected title that is not on the remove-allowlist is still in the new one
+  const missing = lrTitleMissing(pre, t, { names: f.names || [], keep: [f.colour].concat(lrBrandWords(r, cfg)).filter(Boolean) });
+  if (t.length > max || lost.length || missing.length) {
+    held = lost.length || missing.length
+      ? `${LR_BLOCKED} — it would lose ${lost.concat(missing.map(w => `"${w}"`)).join(', ')}`
+      : `${LR_CANT_FIT} (${t.length} characters, over ${max})`;
+    return { before, after: before, fixes: [], held, probs };
   }
   return { before, after: t, fixes, held, probs };
+}
+const LR_CANT_FIT = 'Can\'t fit: needs a manual title';
+const LR_BLOCKED = 'Blocked by the safety check';
+
+/* ================= THE TITLE REMOVE-ALLOWLIST (22 Nov 2026) — the ONE place that says what a title suggestion may take out =================
+ * When a title is too long, ONLY these may go, in this order: (a) the material ("100% Cotton", "Pure Cotton", "Cotton", "Linen" and the
+ * comma each leaves — lrDropMaterial), (b) the approved filler below, whole phrases, the last one first (a joining word it leaves dangling —
+ * "for", "with", "and", "&" — goes with it), (c) the 74–75 short forms (lrSwShortForms), (d) last, the shape word (Square, Round, Rectangle,
+ * Oval). Every other word stays — brand, colour, product (any product, even one Sellora has never seen), size, "Inch" — and the word order
+ * never changes. Still too long: no suggestion ("Can't fit: needs a manual title"). lrTitleMissing is the safety check every suggestion
+ * passes (Fix, Fix all, Fix all titles, ✨ AI title): every word of the old title that is not on this list must be in the new one.
+ * A filler phrase never cuts a product phrase in half ("Dining Table Cover": only "Dining" may go, "Table Cover" stays whole); it may take
+ * a word off a product phrase only when what is left is itself a product ("Dinner Napkins" → "Napkins"). To allow another filler: add it
+ * below — one line. */
+const LR_TITLE_FILLER = [
+  // where and when it is used
+  'for Dining Table', 'for Kitchen Table', 'for Dining Room', 'for Living Room', 'for Bedroom', 'for Dining', 'for Kitchen', 'for Home Decor', 'for Home',
+  'for Party', 'for Wedding', 'for Everyday Use', 'for Couch Sofa', 'for Couch', 'for Sofa',
+  'Dining Table', 'Kitchen Table', 'Dining Room', 'Living Room', 'Dining', 'Kitchen', 'Dinner', 'Party', 'Wedding', 'Everyday Use', 'Everyday',
+  'Restaurant', 'Buffet', 'Banquet', 'Home Decor', 'Decor', 'Decorative', 'Farmhouse', 'Housewarming', 'House Warming', 'Gifts', 'Gift', 'Gifting',
+  // how it is cared for
+  'Machine Washable', 'Washable', 'Reusable', 'Wrinkle Free', 'Wrinkle Resistant', 'Stain Resistant', 'Eco Friendly',
+  // praise and low-value words (the suggestion-words rule's low-value list; "Light" and "Neutral" left out — they can be a colour)
+  'Gift Ideas', 'Indian', 'India', 'Colorful', 'Colourful', 'Beautiful', 'Elegant', 'Stylish', 'Cute', 'Lovely', 'Pretty', 'Nice', 'Perfect', 'Unique',
+  'Best', 'Great', 'Amazing', 'Awesome', 'Fancy', 'Trendy', 'Attractive', 'Gorgeous', 'Premium', 'Luxury',
+];
+const LR_TITLE_JOINERS = new Set(['for', 'with', 'and', '&']);
+const LR_TITLE_MATERIAL_RE = /(?:\b100\s*%\s*)?(?:\b(?:pure|organic)\s+)?\b(?:cotton|linen)\b|\b100\s*%(?=[\s,]|$)/gi;
+const LR_TITLE_SHAPE_RE = /\b(?:square|rectangle|rectangular|oblong|round|circle|circular|oval)\b/gi;
+// A phrase as a whole-word pattern, plural-tolerant ("Dinner Napkin" finds "Dinner Napkins"): built once per phrase.
+const lrPhraseRe = p => new RegExp('(^|[^\\p{L}\\p{N}])(' + String(p).trim().split(/\s+/).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:s|es)?').join('\\s+') + ')(?=$|[^\\p{L}\\p{N}])', 'giu');
+const LR_TITLE_FILLER_RE = LR_TITLE_FILLER.slice().sort((a, b) => b.length - a.length).map(p => ({ p, re: lrPhraseRe(p) }));
+const LR_TITLE_PRODUCT_RE = LR_SW_PRODUCTS.map(p => ({ p, re: lrPhraseRe(p) }));
+const lrSpans = (text, re) => [...String(text).matchAll(re)].map(m => ({ s: m.index + m[1].length, e: m.index + m[1].length + m[2].length }));
+// Is this text, whole, one of the product phrases ("Napkins")?
+const lrIsProductText = text => { const x = String(text).trim(); return !!x && LR_TITLE_PRODUCT_RE.some(({ re }) => lrSpans(x, re).some(sp => sp.s === 0 && sp.e === x.length)); };
+/** The approved filler in a title, whole phrases (the longest first), that may go: never through the colour, the brand or the product's own
+ *  name (o.keep, o.names), never leaving half a product phrase. [{ s, e, p }], in text order. */
+function lrTitleFillerHits(text, o) {
+  o = o || {};
+  const t = String(text);
+  const guard = [].concat(o.keep || [], o.names || []).filter(p => p && String(p).trim().length > 1).flatMap(p => lrSpans(t, lrPhraseRe(p)));
+  const products = LR_TITLE_PRODUCT_RE.flatMap(({ re }) => lrSpans(t, re));
+  const hits = [];
+  LR_TITLE_FILLER_RE.forEach(({ p, re }) => lrSpans(t, re).forEach(h => {
+    if (guard.some(g => g.s < h.e && h.s < g.e) || hits.some(x => x.s < h.e && h.s < x.e)) return;
+    // a product phrase it overlaps must be left whole, or be left as a product of its own ("Dinner Napkins" → "Napkins")
+    const cuts = products.filter(pr => pr.s < h.e && h.s < pr.e && !(h.s <= pr.s && pr.e <= h.e));
+    if (cuts.some(pr => !lrIsProductText(t.slice(pr.s, Math.max(pr.s, h.s)) + ' ' + t.slice(Math.min(pr.e, h.e), pr.e)))) return;
+    hits.push(Object.assign({ p }, h));
+  }));
+  return hits.sort((a, b) => a.s - b.s);
+}
+// Take [s, e) out of a title, with a joining word it leaves dangling ("for" / "with" / "and" / "&" before nothing it can join), tidied.
+function lrTitleCut(text, s, e) {
+  let t = String(text).slice(0, s) + ' ' + String(text).slice(e);
+  for (let k = 0; k < 3; k++) {
+    t = t.replace(/(^|\s)(?:for|with|and|&)(?=\s*(?:$|[-–—,|]|\s(?:for|with|and|&)\b))/gi, '$1');
+    t = t.replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/,(\s*[-–—])/g, '$1').replace(/^[\s,\-–—]+|[\s,]+$/g, '').replace(/\s+[-–—]\s*$/, '').trim();
+  }
+  return t;
+}
+/** THE ONE TITLE SHORTENING: { after, fits } — only the remove-allowlist goes, in its order, its word order kept. o: { max, min, shortFrom,
+ *  names (the product's own name), keep (colour, brand words) }. */
+function lrShortenTitle(text, o) {
+  o = o || {};
+  const max = +o.max || 75, min = +o.min || 0;
+  const fits = x => x.length <= max;
+  let t = String(text || '');
+  if (fits(t)) return { after: t, fits: true };
+  // (a) the material
+  t = lrDropMaterial(t, { names: o.names || [], product: [], colour: (o.keep || [])[0] || '' }, fits, min);
+  // (b) the approved filler, whole phrases, the last one first — never under the length rule's minimum
+  for (let k = 0; k < 30 && !fits(t); k++) {
+    const next = lrTitleFillerHits(t, o).reverse().map(h => lrTitleCut(t, h.s, h.e)).find(x => x.length >= min);
+    if (!next) break;
+    t = next;
+  }
+  // (c) the short forms, only at 74–75
+  const short = () => { if (!fits(t)) { const sh = lrSwShortForms(t, fits, +o.shortFrom || lrAllow((typeof LR !== 'undefined' && LR) || LR_DEFAULT).shortFrom); if (sh) t = sh.text; } };
+  short();
+  // (d) last, the shape word — the last one first, never inside the product's own name
+  for (let k = 0; k < 3 && !fits(t); k++) {
+    const keepSp = [].concat(o.names || []).filter(Boolean).flatMap(p => lrSpans(t, lrPhraseRe(p)));
+    const hits = [...t.matchAll(LR_TITLE_SHAPE_RE)].filter(m => !keepSp.some(g => g.s < m.index + m[0].length && m.index < g.e));
+    if (!hits.length) break;
+    const h = hits[hits.length - 1];
+    t = lrTitleCut(t, h.index, h.index + h[0].length);
+    short();
+  }
+  return { after: t, fits: fits(t) };
+}
+// A title's words as the safety check compares them: case aside; "18x18" = "18 x 18"; Inch = Inches = In = "; Set of 4 = 4 Pack; Pcs = Pieces.
+function lrTitleWords(text) {
+  const s = String(text || '').toLowerCase().replace(/&amp;/g, '&')
+    .replace(/(\d)\s*[x×*]\s*(?=\d)/g, '$1 ')
+    .replace(/\b(?:set|pack) of (\d+)\b/g, '$1 pack').replace(/\bpcs\b/g, 'pieces')
+    .replace(/(\d)\s*(?:"|”|″)/g, '$1 inch').replace(/(\d)\s*(?:inches|inch|inc\.?|in\.?)(?![a-z])/g, '$1 inch')
+    .replace(/&/g, ' and ');
+  return s.split(/[^\p{L}\p{N}%.]+/u).map(w => w.replace(/^\.+|\.+$/g, '')).filter(Boolean);
+}
+/** THE SAFETY CHECK: the words of the old title that are NOT on the remove-allowlist and are missing from the new one — [] when the new
+ *  title may go. o: { names, keep (as lrTitleFillerHits), allow: [words a correction may change — a misspelt word, another brand's name] }. */
+function lrTitleMissing(oldT, newT, o) {
+  o = o || {};
+  let t = String(oldT || '').replace(LR_TITLE_MATERIAL_RE, ' ');
+  lrTitleFillerHits(t, o).sort((a, b) => b.s - a.s).forEach(h => { t = t.slice(0, h.s) + ' ' + t.slice(h.e); });
+  t = t.replace(LR_TITLE_SHAPE_RE, ' ');
+  const allow = new Set([].concat(o.allow || []).flatMap(lrTitleWords));
+  const now = new Set(lrTitleWords(newT));
+  return [...new Set(lrTitleWords(t).filter(w => !LR_TITLE_JOINERS.has(w) && !allow.has(w) && !now.has(w)))];
+}
+// The product-name guard (lrSwFacts names protected, material first, step 8). debugTitleFix() (listing/debug-title-fix.js) turns it off to
+// show what the suggestions were before 22 Nov, then back on.
+let LR_TF_GUARD = true;
+/* 7a of lrTitleFix: the material words first ("100% Cotton", "Pure Cotton", "Cotton", "Linen", a lone "100%"), the last one first, each with
+ * the comma it leaves (", "), until the title fits — never inside the product's own name, the product words or the colour, and never one
+ * that would take the title under `min` (the title-length rule's minimum: then the suggestion-words rule shortens it word by word). */
+function lrDropMaterial(text, facts, fits, min) {
+  let t = String(text);
+  const keep = [].concat(facts.names || [], facts.product || [], facts.colour ? [facts.colour] : []).filter(p => p && String(p).length > 2);
+  const inKeep = (s, e) => keep.some(p => {
+    const low = t.toLowerCase(), want = String(p).toLowerCase();
+    for (let at = low.indexOf(want); at >= 0; at = low.indexOf(want, at + 1)) if (at < e && s < at + want.length) return true;
+    return false;
+  });
+  for (let guard = 0; guard < 8 && !fits(t); guard++) {
+    const hits = [...t.matchAll(/(?:\b100\s*%\s*)?(?:\b(?:pure|organic)\s+)?\b(?:cotton|linen)\b|\b100\s*%(?=[\s,]|$)/gi)].filter(m => !inKeep(m.index, m.index + m[0].length));
+    if (!hits.length) break;
+    const cut = m => {
+      let s0 = m.index, e0 = m.index + m[0].length;
+      const after = t.slice(e0).match(/^\s*,/);
+      if (after) e0 += after[0].length;                                  // "100% Cotton, Green" → "Green"
+      else { const bef = t.slice(0, s0).match(/,\s*$/); if (bef) s0 -= bef[0].length; }   // "Square, 100% Cotton" → "Square"
+      return (t.slice(0, s0) + ' ' + t.slice(e0)).replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/^[\s,]+|[\s,]+$/g, '').trim();
+    };
+    const next = hits.slice().reverse().map(cut).find(x => x.length >= (+min || 0));
+    if (!next) break;
+    t = next;
+  }
+  return t;
+}
+/* THE PRODUCT IS STILL NAMED (22 Nov 2026): the product names the old title held — the product's own name (lrSwFacts names: "Tissue Box
+ * Cover") and the product words ("Cloth Napkins", "Tablecloth") — at least ONE must still be in the new title, whole. A second one said
+ * again ("Cloth Napkins … Dinner Napkins Set") may go, as the repeated-word rule always did. Returns the name that went (the product's own
+ * name first, the longest), or '' when the product is still named. */
+function lrProductLost(before, after, f) {
+  const had = [...new Set([].concat(f.names || [], f.product || []))].filter(p => p && lrHas(before, p));
+  if (!had.length || had.some(p => lrHas(after, p))) return '';
+  const own = (f.names || []).filter(p => had.includes(p));
+  return (own.length ? own : had).slice().sort((a, b) => String(b).length - String(a).length)[0];
+}
+// 8 of lrTitleFix: what a suggestion would lose that it may never lose — [words], empty when nothing.
+function lrTitleLost(before, after, row, cfg, f, fixes) {
+  const lost = [];
+  const was = (w, x) => lrHas(before, w) && !lrHas(x, w);
+  lrBrandWords(row, cfg).filter(w => lrHas(before, w)).forEach(w => { if (!lrHas(after, w)) lost.push(`the brand "${w}"`); });
+  const gone = lrProductLost(before, after, f);
+  if (gone) lost.push(`the product name "${gone}"`);
+  String(f.colour || '').split(/[^A-Za-z]+/).filter(w => w.length > 2 && !LR_SW_STOP_SET.has(w.toLowerCase()))
+    .forEach(w => { if (was(w, after)) lost.push(`the colour word "${w}"`); });
+  if ((fixes || []).includes('Missing size') && !hTitleSizes(after, lrIsRound(row, before)).length) lost.push('the size');
+  return lost;
 }
 // "amber marigold" → "Amber Marigold" (a value from an attribute put into a title).
 const lrCaps = v => String(v || '').replace(/\s+/g, ' ').trim().replace(/\b[a-z]/g, ch => ch.toUpperCase());
@@ -1564,7 +1834,7 @@ function hCtx(rowsAll) {
     const group = parents.get(parentKey) || { sized: 0, bp: 0, shapes: new Map(), examples: new Map() };
     const title = hTitleText(row);
     if (lrNorm(title).includes('block print')) group.bp++;   // how many children say Block Print (the Block Print rule's proof)
-    const size = hTitleSizes(title)[0];
+    const size = hTitleSizes(title, lrIsRound(row, title))[0];
     if (size) {
       group.sized++;
       const shape = lrSizeShape(size.text);
@@ -1734,11 +2004,11 @@ const LR_FIX_TEXT = {
   main_photo_check: () => 'Replace the main picture in Image Manager: pure white background, no text or logo on it.',
   size_format: (hit, row, ctx, params) => {
     const title = hTitleText(row);
-    const bad = hTitleSizes(title).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title)));
+    const bad = hTitleSizes(title, lrIsRound(row, title)).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title) || lrRoundTwo(size)));
     return bad ? `Write the size as "${lrSizeWant(bad, row, ctx, title)}" (the family's own way). It says "${bad.text}".` : 'Write the size like "54x54 Inch".';
   },
   dimension_order: (hit, row) => {
-    const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
+    const wrong = hTitleSizes(hTitleText(row), lrIsRound(row)).find(size => size.c === null && size.a > size.b);
     return wrong ? `Put the smaller number first: "${wrong.b} x ${wrong.a}".` : 'Put the smaller number first.';
   },
   variation_value_missing: (hit, row, ctx) => {
@@ -1747,7 +2017,7 @@ const LR_FIX_TEXT = {
   },
   variation_naming: (hit, row, ctx) => {
     const group = ctx.parents.get(row.parent + '|' + row.brand);
-    const size = hTitleSizes(hTitleText(row))[0];
+    const size = hTitleSizes(hTitleText(row), lrIsRound(row))[0];
     return `Write the size like its siblings: "${group ? group.commonExample : ''}"${size ? ` (it says "${size.text}")` : ''}.`;
   },
   title_keyword: (hit, row, ctx, params) => {

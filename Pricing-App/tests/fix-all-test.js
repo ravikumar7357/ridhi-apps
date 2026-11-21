@@ -111,7 +111,7 @@ async function startTitles(C, gk, sku) {
     C.FA.open.add('SP|PB|title');
     const open = C.faBlockHtml('SP', 'PB');
     ok('"› Show all 10" lists the children: name (colour · size) · SKU · before → after', (open.match(/class="fa-kid"/g) || []).length === 8 && /Show the other 2/.test(open)
-      && /<b>Blue · 18 x 18 Inch<\/b><small>L0<\/small>/.test(open) && /fa-was">Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable Dinner Napkins for…<\/span> → <span class="fa-new">Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Blue</.test(open),
+      && /<b>Blue · 18 x 18 Inch<\/b><small>L0<\/small>/.test(open) && /fa-was">Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable Dinner Napkins for…<\/span> → <span class="fa-new">Ridhi Cloth Napkins 18 x 18 Inch Block Print Reusable Dinner Napkins - Blue</.test(open),
       strip(open).slice(0, 900));
     C.FA.open.clear();
 
@@ -124,11 +124,12 @@ async function startTitles(C, gk, sku) {
     ok('each child gets ITS OWN title: its own colour after " - ", its own size, 10 different titles', run.jobs.every(j => afterOf(j.sku).endsWith(' - ' + A.cat[j.sku].color) && afterOf(j.sku).includes(sizeText(A.cat[j.sku].size)) && afterOf(j.sku).length <= 75)
       && new Set(run.jobs.map(j => afterOf(j.sku))).size === 10, run.jobs.map(j => j.sku + ': ' + afterOf(j.sku)).join(' | '));
     ok('…and each patch names only that child: item_name with its own title', patchCalls(C, false).every(c => c.patches.length === 1 && c.patches[0].path === '/attributes/item_name' && c.patches[0].value[0].value === afterOf(c.sku)));
-    ok('…brand, product, size, colour, material and print kept; the uses lose their repeat and the words that do not fit ("Reusable" fits and stays)', run.jobs.every(j => /^Ridhi Cloth Napkins 100% Cotton \d+ x \d+ Inch Block Print Reusable - \w+$/.test(afterOf(j.sku))), run.jobs.map(j => afterOf(j.sku)).join(' | '));
+    // 22 Nov 2026: too long → "100% Cotton" goes first, then the repeated "Napkins", the joining words and the uses that do not fit
+    ok('…brand, product, size, colour and print kept; "100% Cotton" goes first, then the approved filler ("for Kitchen Party Wedding", then "Dinner" when needed) — "Napkins" always stays', run.jobs.every(j => /^Ridhi Cloth Napkins \d+ x \d+ Inch Block Print Reusable (?:Dinner )?Napkins - \w+$/.test(afterOf(j.sku))), run.jobs.map(j => afterOf(j.sku)).join(' | '));
     const pop = C.el('spModalBox').innerHTML;
     ok('the popup: "10 Amazon will accept · 0 Amazon says no", each title before → after, [Approve & send 10] [Cancel]', /10 changes · ✓ 10 will accept · ✗ 0 says no · ⚠ 0 not checked/.test(strip(pop))
-      && /<small>Title:<\/small> <span class="sq-rem">− Dinner Napkins for Kitchen Party Wedding<\/span> <span class="sq-size">\(72 of 75\)<\/span>/.test(pop)
-      && /› Show full text/.test(pop) && /<small>After<\/small> Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Blue</.test(pop)
+      && /<small>Title:<\/small> <span class="sq-rem">− 100% Cotton for Kitchen Party Wedding<\/span> <span class="sq-size">\(75 of 75\)<\/span>/.test(pop)
+      && /› Show full text/.test(pop) && /<small>After<\/small> Ridhi Cloth Napkins 18 x 18 Inch Block Print Reusable Dinner Napkins - Blue</.test(pop)
       && /data-sq="approve">Approve &amp; send 10</.test(pop) && /data-sq="cancel">Cancel</.test(pop), strip(pop).slice(0, 400));
     A.review = Object.fromEntries(run.jobs.map(j => [j.sku, JSON.stringify(j.body.patches)]));
 
@@ -187,7 +188,7 @@ async function startTitles(C, gk, sku) {
     const plans = C.faPlans(g, C.hCtx());
     const p5 = plans.find(p => p.sku === 'L5'), p6 = plans.find(p => p.sku === 'L6');
     ok('L5: its brand is not at the start → held for your OK (Sellora never puts the words in another order)', g.kids.length === 10 && !p5.ok && /the brand is not at the start/.test(p5.why), p5.why);
-    ok('L6: still over 75 with only its important words left (its long colour whole) → held, "edit by hand"', !p6.ok && /Only important words left — edit by hand/.test(p6.why), p6.why);
+    ok('L6: still over 75 with only its protected words left (its long colour whole) → held, "Can\'t fit: needs a manual title"', !p6.ok && /^Can't fit: needs a manual title/.test(p6.why), p6.why);
     ok('the row offers "Fix 8 titles" (its own 8 that can be fixed)', />Fix 8 titles</.test(C.faBlockHtml('SP', 'PB')));
     await startTitles(C, 'SP|PB|title');
     ok('Fix all sends only the 8 to Amazon\'s check; the 2 wait for your OK', patchCalls(C, false).length === 8 && C.SQ.run.opts.held.length === 2 && !C.SQ.run.jobs.some(j => ['L5', 'L6'].includes(j.sku)));

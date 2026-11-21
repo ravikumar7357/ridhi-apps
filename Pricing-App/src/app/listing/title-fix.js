@@ -132,7 +132,7 @@ function ttParts(brand, row, ctx, amz) {
   if (aNums && cNums && !ttSameNums(aNums, cNums)) clash.push(`size — Amazon says ${aNums.join(' x ')}, the catalogue says ${cNums.join(' x ')}`);
   const nums = aNums || cNums;
   parts.size = nums ? lrSizeText(nums.join('x'), example) : ''; src.size = aNums ? 'Amazon' : cNums ? 'catalogue' : '';
-  const tSize = hTitleSizes(title)[0];
+  const tSize = hTitleSizes(title, lrIsRound(fresh, title))[0];        // a round product's one-number size is its diameter
   if (nums && tSize && !ttSameNums([tSize.a, tSize.b].concat(tSize.c != null ? [tSize.c] : []), nums)) clash.push(`size — the title says “${tSize.text}”, ${src.size === 'Amazon' ? 'Amazon' : 'the catalogue'} says ${nums.join(' x ')}`);
   // shape: Amazon's item shape, else the catalogue sub-category's
   const norm = s => String(s || '').toLowerCase().replace(/rectangular/, 'rectangle');
@@ -277,6 +277,19 @@ function ttCheck(brand, row, title, ctx, ctx2) {
   });
   const brands = lrBrandWords(was, ctx.cfg);
   if (brands.length && !brands.some(word => lrFind(title, word) === 0)) fails.push('the brand is not at the start');
+  // MISSING PRODUCT ON THE NEW TITLE (22 Nov 2026): the product must still be named — its own name ("Tissue Box Cover") or one of the
+  // product names the old title held (listing-rules.js lrProductLost, the same rule Title Fix shortens by); else it never "passes"
+  const oldT = hTitleText(was);
+  const fOld = lrSwFacts(was, ctx.cfg, null, { title: oldT });
+  const gone = lrProductLost(oldT, title, fOld);
+  if (gone) fails.push(`Missing product: "${gone}" is not in the new title`);
+  // THE SAFETY CHECK (22 Nov 2026, listing-rules.js lrTitleMissing): every word of the old title that is not on the remove-allowlist must
+  // still be there — the words a correction changes (a misspelt word, a shape the size contradicts, another brand's name) aside
+  const corrected = lrTitleProblems(was, ctx).filter(p => p.from).map(p => p.from);
+  const riskFn = typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, was, ctx.cfg) : null;
+  const risky = riskFn ? (riskFn(oldT) || []).map(sp => oldT.slice(sp.s, sp.e)) : [];
+  const missing = lrTitleMissing(oldT, title, { names: fOld.names || [], keep: [fOld.colour].concat(brands).filter(Boolean), allow: corrected.concat(risky) });
+  if (missing.length) fails.push(`${LR_BLOCKED} — it would lose ${missing.map(w => `"${w}"`).join(', ')}`);
   // no other brand's name and no restricted claim in a new title (IP & Trademark Guard; a word allowed on purpose for the listing is fine)
   if (typeof ipgTitleRisk === 'function') ipgTitleRisk(brand, row.sku, was, title, ctx.cfg).forEach(why => fails.push(why));
   return { pass: !fails.length && !ttSafe(title).length, fails: fails.concat(ttSafe(title)) };

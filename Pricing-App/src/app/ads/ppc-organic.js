@@ -821,6 +821,32 @@ function wRenderCheck() {
   });
 }
 
+/* UNASSIGNED ROWS (22 Nov 2026). A row whose brand was never recorded (saved before every write set one) is counted in "All" and in
+ * neither Ridhi nor CPC. Listed here with its ad spend over the weeks on show, so a brand total that looks short can be explained —
+ * nothing is moved and no number changes. Numbers Check (sales/sales-check.js) uses the same rows. */
+// The rows with no brand and their totals over some weeks: { rows: [{ asin, spend, rev }], spend, rev }.
+function wUnassigned(weeks) {
+  const rows = Object.entries(WEEKLY.rows).filter(([, r]) => !r.brand).map(([asin, r]) => ({
+    asin,
+    spend: Math.round(weeks.reduce((s, w) => s + (((r.weeks || {})[w] || {}).spend || 0), 0) * 100) / 100,
+    rev: Math.round(weeks.reduce((s, w) => s + (((r.weeks || {})[w] || {}).rev || 0), 0) * 100) / 100,
+  })).sort((a, b) => b.spend - a.spend || b.rev - a.rev);
+  return { rows, spend: Math.round(rows.reduce((s, r) => s + r.spend, 0) * 100) / 100, rev: Math.round(rows.reduce((s, r) => s + r.rev, 0) * 100) / 100 };
+}
+// Fill (or hide) the note above the grid: how many rows have no brand, their ad spend and sales in the weeks shown, and their ASINs.
+function wRenderUnassigned(weeks) {
+  const el = $('wUnassigned');
+  if (!el) return;
+  const u = wUnassigned(weeks);
+  el.classList.toggle('hide', !u.rows.length);
+  if (!u.rows.length) { el.innerHTML = ''; return; }
+  const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+  const money = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  el.innerHTML = `<b>${u.rows.length} ASIN${u.rows.length === 1 ? '' : 's'} with no brand (Unassigned)</b> — ${money(u.spend)} ad spend and ${money(u.rev)} sales in the weeks shown.`
+    + ' They are in "All" but in neither Ridhi nor CPC. '
+    + `<span class="muted">${u.rows.map(r => esc(r.asin) + (r.spend ? ' (' + money(r.spend) + ')' : '')).join(', ')}</span>`;
+}
+
 // Cells add up field by field. Only the four STORED figures are summed here — every ratio is worked
 // out afterwards from the parent's totals, because averaging children's percentages would weight a
 // child that sold twice the same as one that sold two thousand.
@@ -968,7 +994,9 @@ function renderWeekly() {
       ? (tot == null ? '<span class="muted">—</span>' : `${Math.round(tot)}% / ${Math.round(100 - tot)}%`)
       : fmt(tot);
 
-    return `<tr><td class="frz" style="font-family:ui-monospace,monospace">${esc(r.asin)}</td>`
+    // A row with no brand (an old saved row: nothing writes one any more) — tagged, so it is not taken for Ridhi or CPC.
+    const unas = !r.brand ? ' <span class="w-unas" title="No brand: counted in All, in neither Ridhi nor CPC">Unassigned</span>' : '';
+    return `<tr><td class="frz" style="font-family:ui-monospace,monospace">${esc(r.asin)}${unas}</td>`
       + `<td class="frz2" title="${esc(r.title)}">${esc(r.title.slice(0, 34)) || '<span class="muted">—</span>'}</td>`
       + (byParent ? `<td class="num"><span class="muted">${r.kids}</span></td>` : '')
       + `<td class="num" style="font-weight:700">${totTxt}</td>${cells}</tr>`;
@@ -979,6 +1007,7 @@ function renderWeekly() {
     + '</tbody>';
 
   // --- the rest of the tab ---
+  wRenderUnassigned(weeks);
   renderWeeklyKpis(rows, weeks);
   renderWeeklyRange();
   renderWeeklyAlerts(rows, weeks);

@@ -77,13 +77,24 @@
       <button id="tabKw" class="nav">Keywords</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
+    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,ncheck,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
-      <button id="tabSales" class="nav">Sales Dashboard</button>
+      <!-- THE SALES DROP-DOWN (21 Nov 2026): the Listing menu's columns (styles.css "THE LISTING DROP-DOWN"), four groups.
+           A group with no screen this account can open hides, and the numbers count only the groups on show (class "num").
+           To add a screen: one button line inside its group, e.g. in Check & alerts
+             <button id="tabSalert" class="nav">Sales Alerts</button>
+           (plus its key in data-tabs above, its pane and its TABS / TAB_TITLE entry in nav.js, as for every screen,
+           and one #tabSalert{--ic:…} icon line in styles.css). -->
+      <div class="navcol"><div class="navcol-h num">Overview</div>
+      <button id="tabSales" class="nav">Sales Dashboard</button></div>
+      <div class="navcol"><div class="navcol-h num">Check &amp; alerts</div>
+      <button id="tabNcheck" class="nav">Numbers Check</button></div>
+      <div class="navcol"><div class="navcol-h num">Analyse</div>
       <button id="tabProfit" class="nav">Profit &amp; Margin</button>
       <button id="tabSa" class="nav">Sales Analysis</button>
-      <button id="tabPlaudit" class="nav">Parent Listing Review</button>
+      <button id="tabPlaudit" class="nav">Parent Listing Review</button></div>
+      <div class="navcol"><div class="navcol-h num">Act</div></div>
       <!-- MOVED to the Replenishment app, which is where these two are worked now. Hidden rather
            than deleted: the code below still runs, so anything that turns out to have been missed in
            the move can be checked against the original before it is finally removed. -->
@@ -934,6 +945,9 @@
     <!-- Sales that failed the nightly cross-check. Held back rather than shown, and said so here. -->
     <div id="wCheckBanner" class="card hide"
          style="padding:10px 14px;margin-bottom:12px;border-left:4px solid var(--bad);font-size:13px"></div>
+    <!-- Rows with no brand (22 Nov 2026, wRenderUnassigned): listed, never dropped from "All"; no number changes. -->
+    <div id="wUnassigned" class="card hide"
+         style="padding:10px 14px;margin-bottom:12px;border-left:4px solid var(--act);font-size:13px"></div>
     <div class="card" style="padding:12px 14px">
       <div class="toolbar">
         <select id="wBrand" style="flex:0 0 140px">
@@ -1299,8 +1313,14 @@
   </div><!-- /paneTrends -->
 
   <!-- ============ Sales Dashboard ============ -->
+  <!-- NUMBERS CHECK (21 Nov 2026, app/sales/sales-check.js): the rule book for every sales / ads / stock number, and the same number
+       compared across screens. Drawn by the script; reads only what is loaded or cached. -->
+  <div id="paneNcheck" class="hide"><div id="ncPane"></div></div>
+
   <div id="paneSales" class="hide">
     <div class="toolbar sa-gap-12 sa-sd-head">
+      <!-- the Numbers Check chip (sales/sales-check.js ncChipPaint): hidden until a check has run -->
+      <button id="ncChipSd" class="nc-chip" type="button" hidden></button>
       <span id="sdMsg" class="muted"></span>
       <button id="sdRefresh" class="ghost sa-btn-sm"
         title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>
