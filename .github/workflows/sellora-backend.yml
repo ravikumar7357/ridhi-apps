@@ -8,7 +8,8 @@
 # Deploy key: the SAME key Sellora's pages deploy with (FIREBASE_SERVICE_ACCOUNT → github-action-1397622174@…, Ravi 21 Nov:
 # "firebase deploys it with github"), unless SELLORA_BACKEND_DEPLOY_KEY is set. Besides its hosting roles it needs, on
 # price-research-48ff3: Cloud Functions Admin, Cloud Run Admin, Service Account User, Cloud Scheduler Admin, Secret Manager
-# Admin, Artifact Registry Administrator (a missing one is named in the deploy log). Without a key the tests still run and
+# Admin, Artifact Registry Administrator, Firebase Extensions Viewer (Firebase reads the extensions list before any functions
+# deploy — 21 Nov: a 403 there stopped the first deploy). A missing one is named in the deploy log. Without a key the tests still run and
 # nothing is deployed. The API keys themselves are NOT here: they live in Firebase's Secret Manager (see Sellora-Backend/README.md).
 name: Sellora backend — test, deploy
 
