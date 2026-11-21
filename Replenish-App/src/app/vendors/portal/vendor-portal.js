@@ -786,12 +786,26 @@ function vpSheetCells(o, l, note) {
   const extra = vpVsApproved(vpVsOf(o, l));
   return `<td style="font-size:12px;white-space:nowrap">${esc(o.orderDate || '') || '<span class="muted">—</span>'}</td>`
     + pic
-    + `<td style="text-align:left;font-weight:700;font-size:12.5px">${esc(vpIsShop(o) && (l.shopRef || l.shopOrderNo) ? (l.shopRef || l.shopOrderNo) : (o.orderNo || o.id))}${note || ''}</td>`
+    + vpOrderNoCell(o, l, note)
     + `<td style="text-align:left;font-size:12.5px;line-height:1.35">${esc(what) || '<span class="muted">—</span>'}${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</td>`
     + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span>${extra > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${nf(extra)} approved</div>` : ''}</td>`
     + `<td class="num">${nf(vpOnTheWay(vpVsSum(vpVsOf(o, l)), rc.qty))}</td>`
     + vpToReceiveCell(ord, rc, unit)
     + `<td style="text-align:left;font-size:12px;white-space:nowrap">${voDueHtml(due, voWant(l))}</td>`;
+}
+/* ORDER NUMBER = THE ACTUAL ORDER (21 Nov: "the order against which the order was sent i.e. the actual order id"): the customer
+ * order(s) the line was made for, in bold, with our printer order number small under it so the challan can still be matched. A line
+ * made for stock has no actual order: it shows the printer order number alone, as before. */
+function vpOrderNoCell(o, l, note) {
+  const vpo = String(o.orderNo || o.id || ''), actual = vpActualOrders(o, l);
+  const head = actual.length ? `${esc(actual.join(', '))}<div class="muted" style="font-size:11px;font-weight:400">${esc(vpo)}</div>` : esc(vpo);
+  return `<td style="text-align:left;font-weight:700;font-size:12.5px">${head}${note || ''}</td>`;
+}
+/** The customer orders behind a line: a Shopify standing order's own reference, else every order the line was made for (forOrders), once each. */
+function vpActualOrders(o, l) {
+  if (vpIsShop(o) && (l.shopRef || l.shopOrderNo)) return [String(l.shopRef || l.shopOrderNo)];
+  const fo = Array.isArray(l.forOrders) ? l.forOrders : Object.values(l.forOrders || {});
+  return [...new Set(fo.map(x => String((x && x.orderNo) || '').trim()).filter(Boolean))];
 }
 /* TO RECEIVE (Ravi, 21 Nov: "the amount which is actually pending with the printer and has to be received in the coming time"): what was
  * ordered (with approved extra) less what came in — rejected goods are still owed. What came in is the small line under it; "all in" once
