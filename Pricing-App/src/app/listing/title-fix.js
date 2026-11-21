@@ -132,7 +132,7 @@ function ttParts(brand, row, ctx, amz) {
   if (aNums && cNums && !ttSameNums(aNums, cNums)) clash.push(`size — Amazon says ${aNums.join(' x ')}, the catalogue says ${cNums.join(' x ')}`);
   const nums = aNums || cNums;
   parts.size = nums ? lrSizeText(nums.join('x'), example) : ''; src.size = aNums ? 'Amazon' : cNums ? 'catalogue' : '';
-  const tSize = hTitleSizes(title)[0];
+  const tSize = hTitleSizes(title, lrIsRound(fresh, title))[0];        // a round product's one-number size is its diameter
   if (nums && tSize && !ttSameNums([tSize.a, tSize.b].concat(tSize.c != null ? [tSize.c] : []), nums)) clash.push(`size — the title says “${tSize.text}”, ${src.size === 'Amazon' ? 'Amazon' : 'the catalogue'} says ${nums.join(' x ')}`);
   // shape: Amazon's item shape, else the catalogue sub-category's
   const norm = s => String(s || '').toLowerCase().replace(/rectangular/, 'rectangle');

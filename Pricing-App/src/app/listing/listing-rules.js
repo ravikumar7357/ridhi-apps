@@ -388,24 +388,70 @@ const lrFmtDate = date => date ? date.toLocaleDateString('en-GB', { day: 'numeri
 /** The approved way to write a size, taken from the example the rule carries ("14 x 36 Inch"). */
 function lrSizeOk(text, example) {
   const shape = String(example || '14 x 36 Inch').replace(/\d+(?:\.\d+)?/g, 'N');
-  return String(text).replace(/\d+(?:\.\d+)?/g, 'N') === shape || String(text).replace(/\d+(?:\.\d+)?/g, 'N') === shape.replace('N x N', 'N x N x N');
+  const mine = String(text).replace(/\d+(?:\.\d+)?/g, 'N');
+  // a ROUND size is one number, its diameter ("110 Inch"), with the example's unit — hTitleSizes finds one only on a round product
+  return mine === shape || mine === shape.replace('N x N', 'N x N x N') || mine === shape.replace(/N(?: x N)+/, 'N');
 }
 /** The short forms a person uses to fit 75 characters (Part A1): the unit as Inc, In, In., in, " ″ ” or left out, Inches as
  *  Inch / In, Centimeter as cm, and no spaces around x, X or × — "18x18", "18X18 Inc", "18×18", "18 x 18 In". */
 function lrSizeLoose(text) {
-  return /^N\s*[x×X]\s*N(?:\s*[x×X]\s*N)?\s*(?:inches|inch|inc\.?|in\.?|"|”|″|cm)?$/i.test(String(text).replace(/\d+(?:\.\d+)?/g, 'N'));
+  const t = String(text).replace(/\d+(?:\.\d+)?/g, 'N');
+  return /^N\s*[x×X]\s*N(?:\s*[x×X]\s*N)?\s*(?:inches|inch|inc\.?|in\.?|"|”|″|cm)?$/i.test(t)
+    || /^N\s*(?:inches|inch|inc\.?|in\.?|"|”|″|cm)$/i.test(t);          // a round size: one number, always with its unit
 }
 /** Every W x H (or W x H x D) written in a title, exactly as written, with the unit that follows it. */
 // Returns [{ text, a, b, c }]: the text as written, the two or three numbers (c is null for W x H). Inc, In and In. read as inch.
-function hTitleSizes(title) {
+/* ROUND PRODUCTS (22 Nov 2026). On a ROUND product a size is also ONE number with a unit after it — its diameter: "110 Inch", '110"',
+ * "70 In", "90 Inches", "180 cm" — returned as { text, a, b: a, c: null, one: true, round: true }, so every rule that compares two
+ * numbers reads it as equal (never "smaller number first"). A number with no unit is never a size ("100% Cotton", "Set of 4",
+ * "4 Seater"), nor one right after of / set / pack ("Set of 4 In Blue"), nor one under 3. On a round product each W x H carries
+ * round: true too (two equal numbers are written as the one — lrSizeWant). `round`: lrIsRound(row) where the listing is known;
+ * left out, the title alone decides (lrRoundTitle). Every other product: W x H only, exactly as before. */
+function hTitleSizes(title, round) {
   const out = [];
+  const t = String(title || '');
   const unit = '(?:"|”|″|inc\\.?(?![a-z])|in\\.?(?![a-z])|inch(?:es)?(?![a-z])|cm(?![a-z]))';
   const re = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${unit}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?)(?:\\s*${unit}?\\s*[x×X*]\\s*(\\d+(?:\\.\\d+)?))?(\\s*${unit})?`, 'gi');
+  if (round === undefined) round = lrRoundTitle(t);
+  round = !!round && LR_ROUND_ON;
   let match;
-  while ((match = re.exec(String(title || '')))) {
-    out.push({ text: match[0].trim(), a: +match[1], b: +match[2], c: match[3] ? +match[3] : null });
+  while ((match = re.exec(t))) {
+    const size = { text: match[0].trim(), a: +match[1], b: +match[2], c: match[3] ? +match[3] : null };
+    if (round) size.round = true;
+    out.push([match.index, match.index + match[0].length, size]);
   }
-  return out;
+  if (round) {
+    const one = new RegExp(`(?<![\\w.×*])(\\d+(?:\\.\\d+)?)\\s*${unit}`, 'gi');
+    while ((match = one.exec(t))) {
+      const at = match.index, end = at + match[0].length, n = +match[1];
+      if (out.some(([s, e]) => s < end && at < e)) continue;                                  // part of a W x H
+      if (/^\s*[x×X*]\s*\d/.test(t.slice(end)) || /\b(?:of|set|pack|pcs|pieces)\s*$/i.test(t.slice(0, at)) || n < 3) continue;
+      out.push([at, end, { text: match[0].trim(), a: n, b: n, c: null, one: true, round: true }]);
+    }
+    out.sort((x, y) => x[0] - y[0]);
+  }
+  return out.map(x => x[2]);
+}
+/* Is this a ROUND product? Any of: its title says "Round", Amazon's item_shape is Round, its catalogue sub-category is a round one
+ * ("Round Tablecloth", "Round Placemat", round cushion covers, coasters, rugs …). A title that names another shape (Square, Rectangle,
+ * Oval) is never judged round. LR_ROUND_ON: debugRoundSizes() (listing/debug-round.js) turns it off to count "before". */
+const LR_ROUND_RE = /\bround\b/i;
+const LR_OTHER_SHAPE_RE = /\b(?:square|rectangle|rectangular|oval)\b/i;
+let LR_ROUND_ON = true;
+const lrRoundTitle = title => LR_ROUND_ON && LR_ROUND_RE.test(String(title || '')) && !LR_OTHER_SHAPE_RE.test(String(title || ''));
+function lrIsRound(row, title) {
+  if (!LR_ROUND_ON) return false;
+  if (!row) return lrRoundTitle(title);
+  const t = String(title != null ? title : hTitleText(row));
+  if (LR_OTHER_SHAPE_RE.test(t)) return false;
+  if (LR_ROUND_RE.test(t)) return true;
+  let va = row.va;
+  if (!va && row.sku && typeof lmGet === 'function') { const m = lmGet(row.sku, row.brand); va = m && m.va; }
+  const v = va && va.item_shape;
+  const shape = Array.isArray(v) ? (v[0] && v[0].value != null ? v[0].value : '') : v;
+  if (LR_ROUND_RE.test(String(shape || ''))) return true;
+  const cat = (row.brand && row.sku && typeof LR_CAT !== 'undefined' && LR_CAT[row.brand] && LR_CAT[row.brand][row.sku]) || {};
+  return LR_ROUND_RE.test(String(cat.subcat || ''));
 }
 /** A size's written shape, read by meaning (Part A2): "18x18" = "18 x 18" = "18×18", and "18x18 Inc" = "18 x 18 Inch" — but a
  *  size with a unit and one without are still two shapes, as are two and three numbers. */
@@ -572,7 +618,7 @@ function lrSwFacts(row, cfg, va, o) {
   const title = o.title != null ? String(o.title) : hTitleText(row);
   const colour = one(['color', 'color_name']) || String(row.amzColor || '') || String(cat.color || '') || lrColorOf(row);
   let size = one(['size', 'size_name']) || String(cat.size || '');
-  if (!size) { const t = hTitleSizes(title)[0]; if (t) size = t.a + 'x' + t.b; }
+  if (!size) { const t = hTitleSizes(title, lrIsRound(row, title))[0]; if (t) size = t.one ? String(t.a) : t.a + 'x' + t.b; }
   const shape = lrSwShapeOf(size, [one(['item_shape']), lrShape(cat.subcat)].filter(Boolean).join(' '));
   const material = one(['material']) || (tpl && tpl.material) || String(cat.material || '');
   const pt = String(o.pt || row.pt || '').replace(/_/g, ' ');
@@ -905,23 +951,24 @@ const LR_DET = {
   // with no unit at all is title_template's "Missing Inch" (never two findings for one mistake)
   size_format: (row, ctx, params) => {
     const title = hTitleText(row);
-    const bad = hTitleSizes(title).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title)));
+    const bad = hTitleSizes(title, lrIsRound(row, title)).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title) || lrRoundTwo(size)));
+    if (bad && lrRoundTwo(bad)) return `"${bad.text}" — a round size is one number: "${lrSizeWant(bad, row, ctx, title)}"`;
     if (bad && lrSizeOurs(bad.text, ctx.cfg, title, params.example)) return `"${bad.text}" — the family writes "${lrSizeWant(bad, row, ctx, title)}"`;
     return bad ? `"${bad.text}"` : '';               // the heading reads: Size not in our format: "60×60 Inches" (LR_WHAT_TEXT)
   },
   dimension_order: row => {
-    const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
+    const wrong = hTitleSizes(hTitleText(row), lrIsRound(row)).find(size => size.c === null && size.a > size.b);
     return wrong ? `${wrong.a} x ${wrong.b} should be ${wrong.b} x ${wrong.a}` : '';
   },
   variation_value_missing: (row, ctx) => {
     const title = hTitleText(row);
     if (!title || !row.parent) return '';
     const group = ctx.parents.get(row.parent + '|' + row.brand);
-    return group && group.sized > 0 && !hTitleSizes(title).length ? `no size in the title; ${group.sized} sibling(s) name theirs` : '';
+    return group && group.sized > 0 && !hTitleSizes(title, lrIsRound(row, title)).length ? `no size in the title; ${group.sized} sibling(s) name theirs` : '';
   },
   variation_naming: (row, ctx) => {
     const title = hTitleText(row);
-    const size = hTitleSizes(title)[0];
+    const size = hTitleSizes(title, lrIsRound(row, title))[0];
     if (!size || !row.parent) return '';
     if (lrNear(title, ctx.cfg)) return '';        // 74–75 characters: the short form was chosen to fit (Part A1)
     const group = ctx.parents.get(row.parent + '|' + row.brand);
@@ -1053,6 +1100,7 @@ const LR_SIZE_OURS_RE = /^\d+(?:\.\d+)?(?: x |x)\d+(?:\.\d+)?(?:(?: x |x)\d+(?:\
 function lrSizeOurs(text, cfg, title, example) {
   const t = String(text);
   if (LR_SIZE_OURS_RE.test(t)) return true;
+  if (/^\d+(?:\.\d+)? Inch$/.test(t)) return true;          // a round size, our way ("110 Inch") — only a round product has one
   if (example && lrSizeOk(t, example)) return true;
   return lrNear(title, cfg) && lrSizeLoose(t);
 }
@@ -1092,8 +1140,12 @@ function lrSizeWant(size, row, ctx, title) {
   const nums = size.c === null ? [Math.min(size.a, size.b), Math.max(size.a, size.b)] : [size.a, size.b, size.c];
   const unit = (String(size.text).match(LR_UNIT_RE) || [])[1] || '';
   const keep = /^(in\.?|"|”|″)$/i.test(unit) && lrNear(title, ctx.cfg) ? (unit === 'in' || unit === 'in.' ? 'In' : unit) : 'Inch';
-  return nums.join(lrSizeSep(row, ctx, size.text)) + (/^["”″]$/.test(keep) ? keep : ' ' + keep);
+  // a ROUND size is one number — also when it was written as two equal ones ("110x110 Inch" → "110 Inch"), never the other way round
+  const one = size.one || lrRoundTwo(size);
+  return (one ? String(size.a) : nums.join(lrSizeSep(row, ctx, size.text))) + (/^["”″]$/.test(keep) ? keep : ' ' + keep);
 }
+// A round product's size written as two EQUAL numbers ("110x110 Inch"): its own way is the one number ("110 Inch").
+const lrRoundTwo = size => !!(size && size.round && !size.one && size.c === null && size.a === size.b);
 /** What is wrong with a title (never its word order): [{ k: spell | shape | missing | repeat, what (the heading), from, to, part }]. */
 function lrTitleProblems(row, ctx) {
   const title = hTitleText(row);
@@ -1110,8 +1162,8 @@ function lrTitleProblems(row, ctx) {
     const to = lrSpellOf(w, ctx, protect);
     if (to) { said.add(w); out.push({ k: 'spell', what: `Spelling: ${w} → ${to}`, from: w, to }); }
   });
-  // the shape the size says
-  const size = hTitleSizes(title)[0];
+  // the shape the size says (a round product's size: lrIsRound — one number is its diameter)
+  const size = hTitleSizes(title, lrIsRound(row, title))[0];
   const sm = title.match(LR_SHAPE_RE);
   if (sm && size && size.c === null) {
     const s = sm[1].toLowerCase();
@@ -1156,11 +1208,12 @@ function lrTitleFix(row, ctx, o) {
   const probs = lrTitleProblems(r, ctx);
   // 1 a misspelt word, a shape the size contradicts: that word only
   probs.filter(p => p.k === 'spell' || p.k === 'shape').forEach(p => { t = t.replace(new RegExp(`\\b${lrRx(p.from)}\\b`), p.to); fixes.push(p.what); });
-  // 2 the size: our format, the family's way, the smaller number first, "Inch" after it
-  const size = hTitleSizes(t)[0];
+  // 2 the size: our format, the family's way, the smaller number first, "Inch" after it; a round product's: one number ("110 Inch")
+  const round = lrIsRound(r, before);
+  const size = hTitleSizes(t, round)[0];
   if (size) {
     const ex = ((cfg.issues || []).find(i => i.detector === 'size_format') || {}).params || {};
-    const wrong = !lrSizeOurs(size.text, cfg, t, ex.example) || lrSizeOffFamily(size, r, ctx, t) || (size.c === null && size.a > size.b) || !LR_UNIT_RE.test(size.text);
+    const wrong = !lrSizeOurs(size.text, cfg, t, ex.example) || lrSizeOffFamily(size, r, ctx, t) || (size.c === null && size.a > size.b) || !LR_UNIT_RE.test(size.text) || lrRoundTwo(size);
     if (wrong) {
       const want = lrSizeWant(size, r, ctx, t);
       if (want !== size.text) { t = t.replace(size.text, want); fixes.push(LR_UNIT_RE.test(size.text) ? `Size: ${size.text} → ${want}` : 'Missing "Inch" after the size'); }
@@ -1175,15 +1228,17 @@ function lrTitleFix(row, ctx, o) {
       t = b != null ? t.slice(0, b) + ' ' + lrCaps(p.value) + t.slice(b) : lrCaps(p.value) + ' ' + t;
       fixes.push('Missing colour');
     } else if (p.part === 'product' && p.value) {
-      const s = hTitleSizes(t)[0];
+      const s = hTitleSizes(t, round)[0];
       const at = s ? t.indexOf(s.text) : -1;
       t = at >= 0 ? t.slice(0, at) + lrCaps(p.value) + ' ' + t.slice(at) : t + ' ' + lrCaps(p.value);
       fixes.push('Missing product');
     } else if (p.part === 'size' && p.value) {
       const nums = String(p.value).match(/\d+(?:\.\d+)?/g) || [];
-      if (nums.length >= 2) {
+      // a round product's size is its one number ("110 Inch") — also when the facts give two equal ones
+      const roundOne = round && (nums.length === 1 || (nums.length === 2 && +nums[0] === +nums[1]));
+      if (nums.length >= 2 || roundOne) {
         const sz = nums.slice(0, 3).map(Number);
-        const txt = (sz.length === 2 ? [Math.min(sz[0], sz[1]), Math.max(sz[0], sz[1])] : sz).join(lrSizeSep(r, ctx)) + ' Inch';
+        const txt = roundOne ? sz[0] + ' Inch' : (sz.length === 2 ? [Math.min(sz[0], sz[1]), Math.max(sz[0], sz[1])] : sz).join(lrSizeSep(r, ctx)) + ' Inch';
         const prod = (f.product || []).map(pw => { const m = t.match(new RegExp(`\\b${lrRx(pw)}\\b`, 'i')); return m ? m.index + m[0].length : -1; }).filter(i => i >= 0).sort((a, b) => b - a)[0];
         t = prod != null ? t.slice(0, prod) + ' ' + txt + t.slice(prod) : t + ' ' + txt;
         fixes.push('Missing size');
@@ -1564,7 +1619,7 @@ function hCtx(rowsAll) {
     const group = parents.get(parentKey) || { sized: 0, bp: 0, shapes: new Map(), examples: new Map() };
     const title = hTitleText(row);
     if (lrNorm(title).includes('block print')) group.bp++;   // how many children say Block Print (the Block Print rule's proof)
-    const size = hTitleSizes(title)[0];
+    const size = hTitleSizes(title, lrIsRound(row, title))[0];
     if (size) {
       group.sized++;
       const shape = lrSizeShape(size.text);
@@ -1734,11 +1789,11 @@ const LR_FIX_TEXT = {
   main_photo_check: () => 'Replace the main picture in Image Manager: pure white background, no text or logo on it.',
   size_format: (hit, row, ctx, params) => {
     const title = hTitleText(row);
-    const bad = hTitleSizes(title).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title)));
+    const bad = hTitleSizes(title, lrIsRound(row, title)).find(size => LR_UNIT_RE.test(size.text) && (!lrSizeOurs(size.text, ctx.cfg, title, params.example) || lrSizeOffFamily(size, row, ctx, title) || lrRoundTwo(size)));
     return bad ? `Write the size as "${lrSizeWant(bad, row, ctx, title)}" (the family's own way). It says "${bad.text}".` : 'Write the size like "54x54 Inch".';
   },
   dimension_order: (hit, row) => {
-    const wrong = hTitleSizes(hTitleText(row)).find(size => size.c === null && size.a > size.b);
+    const wrong = hTitleSizes(hTitleText(row), lrIsRound(row)).find(size => size.c === null && size.a > size.b);
     return wrong ? `Put the smaller number first: "${wrong.b} x ${wrong.a}".` : 'Put the smaller number first.';
   },
   variation_value_missing: (hit, row, ctx) => {
@@ -1747,7 +1802,7 @@ const LR_FIX_TEXT = {
   },
   variation_naming: (hit, row, ctx) => {
     const group = ctx.parents.get(row.parent + '|' + row.brand);
-    const size = hTitleSizes(hTitleText(row))[0];
+    const size = hTitleSizes(hTitleText(row), lrIsRound(row))[0];
     return `Write the size like its siblings: "${group ? group.commonExample : ''}"${size ? ` (it says "${size.text}")` : ''}.`;
   },
   title_keyword: (hit, row, ctx, params) => {
