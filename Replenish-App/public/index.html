@@ -53780,9 +53780,11 @@ function renderVp() {
   const empty = `<div class="card" style="padding:34px;text-align:center;color:var(--muted)">${
     all.length ? 'No order matches those filters.' : 'No orders yet.'}</div>`;
   if (office) vprEnsure();
+  /* COMPLETED AS CARDS (Ravi, 21 Nov): finished bulk orders follow the View box like the Bulk tab (colour board, orders,
+   * product or table), for the office and the printer alike; finished custom lines keep their own table below. */
   body.innerHTML = nag + (rows.length
     ? office ? vprSheet(rows, f)
-    : doneTab ? (rows.some(o => !vpIsShop(o)) ? vpTable(rows.filter(o => !vpIsShop(o)), f) : '') + (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '')
+    : doneTab ? (rows.some(o => !vpIsShop(o)) ? vpViewOf(rows.filter(o => !vpIsShop(o)), f) : '') + (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '')
     : (VP.tab === 'shop' ? vpCustomSheet(rows, f)
       : vpViewOf(rows, f))
     : empty);
