@@ -28,8 +28,9 @@ const PARTS = [line(VO, 'const voLines ='), line(VO, 'const voParts ='), line(VP
   line(FR, 'const flowQtyTxt ='), line(FR, 'let FLOW_VOIX ='), line(FR, 'const FLOW_CLOTH_OVER ='), line(FR, 'const flowMostOf ='), line(FR, 'const flowChUnit ='), cut(FR, 'flowVoIndex'), cut(FR, 'flowExtraAsks'), cut(FR, 'flowExtraAnswer'),
   line(PR, 'const VPR ='), line(PR, 'const VPR_RETRY_MS ='), cut(PR, 'vprEnsure'), line(PR, 'const vprOn ='), line(PR, 'const vprMay ='), line(PR, 'const vprReady ='), (src => { const i = src.indexOf('const vprKeys ='); return src.slice(i, src.indexOf('};\n', i) + 3); })(PR),
   line(PR, 'let VPR_IX ='), cut(PR, 'vprDueIndex'), cut(PR, 'vprTargets'), cut(PR, 'vprOffer'), cut(PR, 'vprKeysPending'), cut(PR, 'vprReceiveLine'), cut(PR, 'vprSplit'), cut(PR, 'vprShareOut'),
-  cut(PR, 'vprWholePieces'), cut(PR, 'vprRoundMetres'), line(PR, 'const vprOnlyGiven ='), cut(PR, 'vprFabricCell'), cut(PR, 'vprRecvCell'),
-  cut(PR, 'vprSplitHint'), cut(PR, 'vprSheet'), cut(PR, 'vprReceive'), cut(PR, 'vprBarSync'), cut(PR, 'vprTabSync'), line(PR, 'const VPR_HIST ='), line(PR, 'const vprHistRows ='), cut(PR, 'vprHistTotals'), cut(PR, 'vprHistHtml'), (src => { const i = src.indexOf('const VP_DUE_ONLY ='); return src.slice(i, src.indexOf('\n};', i) + 3); })(VP), cut(VP, 'vpDueOnlyOk'), cut(VP, 'vpDueChip'), cut(VP, 'vpRejNote'), line(PR, 'const VPR_REJ_REASONS ='), line(PR, 'const VPR_REJ ='), cut(PR, 'vprReject'), line(PR, 'const vprRejLink ='), cut(PR, 'vprFabricOf'), cut(PR, 'vprHistRejects'), line(PR, 'const vprIsoOfDmy ='), line(PR, 'const vprSkuFabric ='), cut(PR, 'vprHistOld'), (src => { const i = src.indexOf('const vprHistAll ='); return src.slice(i, src.indexOf('\nfunction', i) + 1); })(PR), cut(PR, 'vprRejSeen'), cut(PR, 'vprToReceiveCell'), line(PR, 'const vprToReceive ='), line(PR, 'const vprHistId ='), (src => { const i = src.indexOf('const vprHistEditLink ='); return src.slice(i, src.indexOf('function vprHistEditForm', i)); })(PR), cut(PR, 'vprRejectReceived'), line(PR, 'const vprRejPending ='), (src => { const i = src.indexOf('const flowMixTxt ='); return src.slice(i, src.indexOf("'0'; };", i) + 7); })(FR)].join('\n');
+  cut(PR, 'vprWholePieces'), cut(PR, 'vprRoundMetres'), line(PR, 'const vprOnlyGiven ='), cut(PR, 'vprRecvCell'),
+  line(VP, 'const VP_SHEET_COLS ='), line(VP, 'const VP_SHEET_NUM ='), line(VP, 'const VP_SHEET_EMPTY ='), cut(VP, 'vpSheetLines'), cut(VP, 'vpSheetCells'), cut(VP, 'vpToReceiveCell'), line(VP, 'const vpToReceive ='), line(VP, 'const vpOnTheWay ='), cut(VP, 'vpSheetTable'),
+  cut(PR, 'vprSplitHint'), cut(PR, 'vprSheet'), cut(PR, 'vprReceive'), cut(PR, 'vprBarSync'), cut(PR, 'vprTabSync'), line(PR, 'const VPR_HIST ='), line(PR, 'const vprHistRows ='), cut(PR, 'vprHistTotals'), cut(PR, 'vprHistHtml'), (src => { const i = src.indexOf('const VP_DUE_ONLY ='); return src.slice(i, src.indexOf('\n};', i) + 3); })(VP), cut(VP, 'vpDueOnlyOk'), cut(VP, 'vpDueChip'), cut(VP, 'vpRejNote'), line(PR, 'const VPR_REJ_REASONS ='), line(PR, 'const VPR_REJ ='), cut(PR, 'vprReject'), line(PR, 'const vprRejLink ='), cut(PR, 'vprFabricOf'), cut(PR, 'vprHistRejects'), line(PR, 'const vprIsoOfDmy ='), line(PR, 'const vprSkuFabric ='), cut(PR, 'vprHistOld'), (src => { const i = src.indexOf('const vprHistAll ='); return src.slice(i, src.indexOf('\nfunction', i) + 1); })(PR), cut(PR, 'vprRejSeen'), line(PR, 'const vprHistId ='), (src => { const i = src.indexOf('const vprHistEditLink ='); return src.slice(i, src.indexOf('function vprHistEditForm', i)); })(PR), cut(PR, 'vprRejectReceived'), line(PR, 'const vprRejPending ='), (src => { const i = src.indexOf('const flowMixTxt ='); return src.slice(i, src.indexOf("'0'; };", i) + 7); })(FR)].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
 
@@ -54,7 +55,7 @@ function load(o) {
   };
   function flowDueRecvSaveSaid() { ctx.flowDueRecvSave.said = 'Received from RBP-Bagru on RFD-1.'; }
   const names = Object.keys(ctx);
-  const A = new Function(...names, PARTS + '\nreturn { vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowExtraAsks, flowExtraAnswer, vprSplit, vprOffer, vprRecvCell, vprSheet, vprReceive, vprBarSync, vprTabSync, vprEnsure, VPR, VPR_HIST, vprHistRows, vprHistTotals, vprHistHtml, vpDueOnlyOk, vpDueChip, vpSentKept, vprHistOld, flowMostOf, vprToReceiveCell, vprRejectReceived, vprHistEditLink, vprReject, vpRejNote, vprRejSeen, vprRejPending, VPR_REJ };')(...names.map(k => ctx[k]));
+  const A = new Function(...names, PARTS + '\nreturn { vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowExtraAsks, flowExtraAnswer, vprSplit, vprOffer, vprRecvCell, vprSheet, vprReceive, vprBarSync, vprTabSync, vprEnsure, VPR, VPR_HIST, vprHistRows, vprHistTotals, vprHistHtml, vpDueOnlyOk, vpDueChip, vpSentKept, vprHistOld, flowMostOf, vpToReceiveCell, vpOnTheWay, vprRejectReceived, vprHistEditLink, vprReject, vpRejNote, vprRejSeen, vprRejPending, VPR_REJ };')(...names.map(k => ctx[k]));
   return Object.assign(A, { patches: ctx.patches, puts, saves, said, syncs, els, ctx });
 }
 
@@ -163,12 +164,19 @@ const L = { lineId: 'a', sku: 'X', qty: 4 };
     const pc = load(Object.assign({ rows: [pcs2], due: [due('A__D1', 3, 2.5, { unit: 'pcs' }), due('A__D2', 3, 2.5, { unit: 'pcs' })] }, recv)).vprRecvCell(pcs2, pcs2.lines[0], 'o3|0');
     ok('pieces: the most is whole on each line (2 + 2), so "Receive 4 pcs" is offered, not 5', /Receive 4 pcs/.test(pc), pc);
 
-    const sheet = at(o5, { master: {} }).vprSheet([o5], {});
+    /* THE ORDER SHEET (21 Nov, the sketch): Date, Image, Order Number, Item, Ordered, Sent by printer, Received, Due Date — and Receive. */
+    const o5d = Object.assign(cloth({ k: mb(5) }, { a: 4 }), { orderDate: '12/11/2026' });
+    const sheet = at(o5d, { master: {} }).vprSheet([o5d], {});
     const heads = (sheet.match(/<th[^>]*>([^<]*)<\/th>/g) || []).map(x => x.replace(/<[^>]+>/g, '')).join('|');
-    ok('the one table: Order, Image, Item, Fabric, Ordered, Sent by printer, To receive, Due, Receive', heads === 'Order|Image|Item|Fabric|Ordered|Sent by printer|To receive|Due|Receive', heads);
-    ok('…the Fabric column names the cloth (Sheeting 82) and the printed fabric SKU', /<b[^>]*>Sheeting 82<\/b><div[^>]*>RBPSF9-H-82/.test(sheet), sheet.slice(0, 1500));
+    ok('the one table: Date, Image, Order Number, Item, Ordered, Sent by printer, To receive, Due Date, Receive',
+      heads === 'Date|Image|Order Number|Item|Ordered|Sent by printer|To receive|Due Date|Receive', heads);
+    const cells = ((sheet.match(/<tbody><tr[^>]*>([\s\S]*?)<\/tr>/) || [])[1] || '').split('</td>').map(c => c.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+    ok('…the row reads: order date, order number, the cloth, 10 m ordered, 1 on its way (5 sent, 4 in), 6 m to receive with "4 m received" under it',
+      cells[0] === '12/11/2026' && cells[2] === 'VPO-9' && /Sheeting 82/.test(cells[3]) && cells[4] === '10 m' && cells[5] === '1' && cells[6] === '6 m 4 m received', JSON.stringify(cells));
+    ok('…Sent by printer is the number alone — no batches, no approval note', !/batch\(es\)|waiting approval/.test(sheet));
+    ok('…as many cells as headings', cells.filter(Boolean).length >= 8 && (sheet.match(/<tbody><tr[^>]*>[\s\S]*?<\/tr>/)[0].match(/<td/g) || []).length === 9);
     const view = load({ rows: [o5], due: [D16, D18], me: { tabs: ['vpview'] }, vp: { viewAs: true } }).vprSheet([o5], {});
-    ok('the view-only box: the same table without Receive, and nothing to press', !/>Receive</.test(view) && !/data-vprgo/.test(view) && /Sheeting 82/.test(view));
+    ok('the view-only box: the same table without Receive, and nothing to press', !/>Receive</.test(view) && !/data-vprgo/.test(view) && />Order Number</.test(view));
     ok('a printer’s own sign-in never gets Receive', !/data-vprgo/.test(load({ rows: [o5], due: [D16, D18], me: { tabs: ['flchl'] }, vp: { viewAs: true }, vendor: true }).vprSheet([o5], {})));
 
     const R = at(o5);
@@ -319,9 +327,12 @@ const L = { lineId: 'a', sku: 'X', qty: 4 };
     ok('cloth may come 10% over the ORDER: ordered 100 m, 50 m in → at most 60 m (was 55)', T.flowMostOf('m', 100, 50) === 60);
     ok('…nothing in yet: 110 m; all 110 in: 0', T.flowMostOf('m', 100, 0) === 110 && T.flowMostOf('m', 100, 110) === 0);
     ok('…pieces never come over: ordered 4, 1 in → 3', T.flowMostOf('pcs', 4, 1) === 3);
-    const c1 = T.vprToReceiveCell(10, { qty: 4, how: '' }, 'm');
+    const c1 = T.vpToReceiveCell(10, { qty: 4, how: '' }, 'm');
     ok('To receive: ordered 10 m, 4 m in → 6 m still to come, "4 m received" under it', /<b[^>]*>6<\/b> <span[^>]*>m<\/span>/.test(c1) && /4 m received/.test(c1), c1);
-    ok('…all in: says so', /all in/.test(T.vprToReceiveCell(4, { qty: 4, how: '' }, 'pcs')));
+    ok('…all in: says so', /all in/.test(T.vpToReceiveCell(4, { qty: 4, how: '' }, 'pcs')));
+    ok('…more came than ordered (cloth over): still all in, never a minus figure', /all in/.test(T.vpToReceiveCell(10, { qty: 11, how: '' }, 'm')));
+    ok('Sent by printer is what is on its way: sent 40, 32 in → 8; all in → 0; received more than entered → 0, never minus',
+      T.vpOnTheWay(40, 32) === 8 && T.vpOnTheWay(60, 60) === 0 && T.vpOnTheWay(0, 5) === 0 && T.vpOnTheWay(2.5, 1.25) === 1.25);
 
     const ch = closed => ({ 'RFD-1': Object.assign({ no: 'RFD-1', orderNo: 'SHP-7', lines: [{ key: 'SHP-7__C1', sku: 'C1', pcs: 5, print: { kind: 'sku' }, item: 'Tablecloth', fabric: 'Cambric 60' }],
       receipts: { r1: { date: '2026-11-18', at: '2026-11-18T10:00:00Z', items: { 'SHP-7__C1': 5 } } } }, closed ? { closed: { at: 't', why: 'all received' } } : {}) });
