@@ -15,7 +15,7 @@ export const SECRET_NAMES = [
   'SP_ADS_CLIENT_ID', 'SP_ADS_CLIENT_SECRET', 'SP_ADS_REFRESH_TOKEN', 'SP_ADS_PROFILE_ID',
   'CPC_ADS_CLIENT_ID', 'CPC_ADS_CLIENT_SECRET', 'CPC_ADS_REFRESH_TOKEN', 'CPC_ADS_PROFILE_ID',
   'SHOPIFY_STORE', 'SHOPIFY_TOKEN', 'CPC_SHOPIFY_STORE', 'CPC_SHOPIFY_TOKEN',
-  'META_TOKEN', 'META_AD_ACCOUNT', 'CPC_META_AD_ACCOUNT',
+  'META_TOKEN', 'META_AD_ACCOUNT', 'CPC_META_TOKEN', 'CPC_META_AD_ACCOUNT',
 ] as const;
 
 /** The ERP data project (Mumbai). Not a secret; SUPABASE_URL in the environment points the backend elsewhere (a test project). */
@@ -48,6 +48,8 @@ export function brandConfig(env: Env, brand: Brand): BrandConfig {
     brand, sales,
     ads: adsCred ? { ...adsCred, profileId: env(p + 'ADS_PROFILE_ID') } : null,
     shop: env(s + 'SHOPIFY_STORE') && env(s + 'SHOPIFY_TOKEN') ? { store: env(s + 'SHOPIFY_STORE'), token: env(s + 'SHOPIFY_TOKEN') } : null,
-    meta: env('META_TOKEN') && env(s + 'META_AD_ACCOUNT') ? { token: env('META_TOKEN'), account: env(s + 'META_AD_ACCOUNT') } : null,
+    // Each brand its own Meta token (Ravi, 21 Nov: one for Ridhi, one for CPC); a brand without one uses Ridhi's.
+    meta: (env(s + 'META_TOKEN') || env('META_TOKEN')) && env(s + 'META_AD_ACCOUNT')
+      ? { token: env(s + 'META_TOKEN') || env('META_TOKEN'), account: env(s + 'META_AD_ACCOUNT') } : null,
   };
 }

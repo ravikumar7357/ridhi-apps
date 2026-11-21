@@ -52,8 +52,8 @@ a whole day.
    | `CPC_ADS_CLIENT_ID`, `CPC_ADS_CLIENT_SECRET`, `CPC_ADS_REFRESH_TOKEN`, `CPC_ADS_PROFILE_ID` | CPC's Amazon Ads API |
    | `SHOPIFY_STORE`, `SHOPIFY_TOKEN` | Ridhi's Shopify store (`…myshopify.com`) and Admin API token (`shpat_…`) |
    | `CPC_SHOPIFY_STORE`, `CPC_SHOPIFY_TOKEN` | CPC's Shopify store and token |
-   | `META_TOKEN` | A Meta **System User** token with `ads_read`. A personal token expires in about 60 days. |
-   | `META_AD_ACCOUNT`, `CPC_META_AD_ACCOUNT` | Each brand's ad account (`act_…`) |
+   | `META_TOKEN`, `META_AD_ACCOUNT` | Ridhi's Meta token and ad account (`act_…`). Use a **System User** token with `ads_read`: a personal token expires in about 60 days. |
+   | `CPC_META_TOKEN`, `CPC_META_AD_ACCOUNT` | CPC's Meta token and ad account. If `CPC_META_TOKEN` is `none`, Ridhi's token is used for CPC's account. |
 
    Every name must exist, because the deploy checks them all. For something that doesn't apply, set the value to
    `none`: for example a profile ID you want found automatically, or a brand with no Meta account. That part is then

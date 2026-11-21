@@ -87,8 +87,13 @@ test('brand settings: Ridhi has no prefix for Shopify and Meta, "none" counts as
   const sp = brandConfig(env, 'SP'), cpc = brandConfig(env, 'CPC');
   assert.equal(sp.shop!.store, 'ridhi.myshopify.com');
   assert.equal(cpc.shop, null);
-  assert.equal(sp.meta!.account, 'act_999');
-  assert.equal(cpc.meta, null);
+  assert.deepEqual(sp.meta, { token: 'metatoken', account: 'act_999' });
+  assert.deepEqual(cpc.meta, { token: 'cpcmetatoken', account: 'act_888' });
+  // no CPC token of its own → Ridhi's token is used for CPC's account; no CPC account → no Meta for CPC
+  const e2 = (n: string) => (n === 'CPC_META_TOKEN' ? '' : env(n));
+  assert.deepEqual(brandConfig(e2, 'CPC').meta, { token: 'metatoken', account: 'act_888' });
+  const e3 = (n: string) => (n === 'CPC_META_AD_ACCOUNT' ? '' : env(n));
+  assert.equal(brandConfig(e3, 'CPC').meta, null);
   assert.equal(cpc.sales!.clientId, 'cpcid');
   assert.equal(cpc.ads!.profileId, '222');
 });

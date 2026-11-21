@@ -68,6 +68,6 @@ export const ENV: Record<string, string> = {
   SP_ADS_CLIENT_ID: 'adsid', SP_ADS_CLIENT_SECRET: 'adssec', SP_ADS_REFRESH_TOKEN: 'adsrefresh-cccccccccccc', SP_ADS_PROFILE_ID: '111',
   CPC_ADS_CLIENT_ID: 'adsid', CPC_ADS_CLIENT_SECRET: 'adssec', CPC_ADS_REFRESH_TOKEN: 'adsrefresh-cccccccccccc', CPC_ADS_PROFILE_ID: '222',
   SHOPIFY_STORE: 'ridhi.myshopify.com', SHOPIFY_TOKEN: 'shpat_x', CPC_SHOPIFY_STORE: 'none', CPC_SHOPIFY_TOKEN: 'none',
-  META_TOKEN: 'metatoken', META_AD_ACCOUNT: 'act_999', CPC_META_AD_ACCOUNT: 'none',
+  META_TOKEN: 'metatoken', META_AD_ACCOUNT: 'act_999', CPC_META_TOKEN: 'cpcmetatoken', CPC_META_AD_ACCOUNT: 'act_888',
 };
 export const env = (n: string) => { const v = String(ENV[n] || '').trim(); return /^(none|-|n\/a)$/i.test(v) ? '' : v; };

@@ -30,8 +30,16 @@ function services(opts: { adsStatus?: string; failSales?: string } = {}) {
       { id: 2, created_at: '2026-11-19T22:00:00-08:00', financial_status: 'paid', line_items: [{ price: '15.00', quantity: 1 }] },
     ] }) : null,
     u => u.hostname === 'graph.facebook.com' && u.pathname === '/v23.0/act_999' ? json({ timezone_name: 'Asia/Kolkata' }) : null,
-    u => u.hostname === 'graph.facebook.com' && u.pathname.endsWith('/insights')
-      ? json({ data: [{ date_start: '2026-11-20', spend: '120.50', clicks: '300', impressions: '9000', actions: [{ action_type: 'purchase', value: '4' }], action_values: [{ action_type: 'purchase', value: '210.00' }] }] }) : null,
+    u => u.hostname === 'graph.facebook.com' && u.pathname === '/v23.0/act_888' ? json({ timezone_name: 'America/Los_Angeles' }) : null,
+    (u, init) => {
+      if (u.hostname !== 'graph.facebook.com' || !u.pathname.endsWith('/insights')) return null;
+      // each account answers only to its own brand's token
+      const auth = (init.headers as Record<string, string>).Authorization;
+      const want = u.pathname.includes('act_888') ? 'Bearer cpcmetatoken' : 'Bearer metatoken';
+      if (auth !== want) return json({ error: { message: 'wrong token' } }, 400);
+      const spend = u.pathname.includes('act_888') ? '80.00' : '120.50';
+      return json({ data: [{ date_start: '2026-11-20', spend, clicks: '300', impressions: '9000', actions: [{ action_type: 'purchase', value: '4' }], action_values: [{ action_type: 'purchase', value: '210.00' }] }] });
+    },
     u => u.hostname === 'docs.google.com' ? new Response(snapCsv()) : null,
   ]);
 }
@@ -43,7 +51,7 @@ test('one full run writes every source, and logs one line per step', async () =>
     const bad = out.filter(r => !r.ok);
     assert.deepEqual(bad, [], JSON.stringify(bad));
     assert.deepEqual(out.map(r => r.job + ':' + (r.brand || '')), [
-      'backfill:', 'amazon_sales:SP', 'shopify:SP', 'amazon_ads:SP', 'meta_ads:SP', 'amazon_sales:CPC', 'amazon_ads:CPC',
+      'backfill:', 'amazon_sales:SP', 'shopify:SP', 'amazon_ads:SP', 'meta_ads:SP', 'amazon_sales:CPC', 'amazon_ads:CPC', 'meta_ads:CPC',
     ]);
     assert.equal(db.runs.length, out.length);
 
@@ -69,8 +77,11 @@ test('one full run writes every source, and logs one line per step', async () =>
     // Ads: first run only asks (nothing to collect yet); Meta in the account's own timezone (India: already 21 Nov)
     assert.equal(db.rows('ads_daily').filter(r => r.source === 'ads_api').length, 0);
     assert.equal(db.state['amazon_ads:SP'].t.sp.pendingId, 'rep-spCampaigns');
-    const meta = db.rows('ads_daily').find(r => r.ad_type === 'meta');
+    const meta = db.rows('ads_daily').find(r => r.ad_type === 'meta' && r.brand === 'SP');
     assert.deepEqual([meta.day, meta.spend, meta.orders, meta.sales, meta.day_tz], ['2026-11-20', 120.5, 4, 210, 'Asia/Kolkata']);
+    // CPC with its own token and account
+    const cpcMeta = db.rows('ads_daily').find(r => r.ad_type === 'meta' && r.brand === 'CPC');
+    assert.deepEqual([cpcMeta.spend, cpcMeta.day_tz], [80, 'America/Los_Angeles']);
     assert.ok(db.rows('ads_daily').some(r => r.ad_type === 'total' && r.source === 'apps_script'));
   } finally { f.restore(); }
 });
