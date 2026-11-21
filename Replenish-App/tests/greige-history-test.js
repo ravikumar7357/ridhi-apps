@@ -13,7 +13,7 @@ function desk(me) {
   const anchor = '  return { open: open,';
   const code = fs.readFileSync(SRC, 'utf8');
   if (code.split(anchor).length !== 2) throw new Error('greige-desk.js: the closing "return { open" line moved; update this test');
-  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, setDB: function (v) { DB = v; } };\n' + anchor);
+  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histCauseCell, histDays, setDB: function (v) { DB = v; } };\n' + anchor);
   const ctx = { console, window: { document: {} }, ME: me || { admin: true } };
   vm.createContext(ctx);
   vm.runInContext(opened, ctx);
@@ -100,6 +100,39 @@ console.log('== who sees the link ==');
   const noLedger = desk({ email: 'staff@example.com', tabs: ['gdesk'] }); noLedger.setDB({ mst: [], fab: [], users: [] });
   ok('without fabric-ledger access the name is plain text', noLedger.invFabricName('Cambric 44') === '<b>Cambric 44</b>');
   ok('a name with odd characters is written as text, never as HTML', !/<img/.test(admin.invFabricName('<img src=x>')));
+}
+
+console.log('== a statement: the signed metres sit in the Cause, the balance at the right (Ravi, 21 Nov) ==');
+{
+  ok('what came in: "+1,200" in green', /color:var\(--ok-ink\)[^>]*>\+1,200</.test(G.histIn(1200)));
+  ok('what went out: "−1,200" in red', /color:var\(--bad\)[^>]*>−1,200</.test(G.histOut(1200)));
+  ok('a movement in shows "+", one out shows "−", none shows nothing (no "+0")',
+    /\+800</.test(G.histMove({ inQty: 800, outQty: 0 })) && /−500</.test(G.histMove({ inQty: 0, outQty: 500 })) && G.histMove({ inQty: 0, outQty: 0 }) === '');
+  const cell = G.histCauseCell('Greige received', G.histIn(800));
+  ok('the metres are inside the Cause cell, at its right',
+    /^<td class="tl"><div style="display:flex;justify-content:space-between[^"]*"><div>Greige received<\/div><div style="text-align:right"><span[^>]*>\+800<\/span><\/div><\/div><\/td>$/.test(cell), cell);
+  const code = fs.readFileSync(SRC, 'utf8');
+  ok('the columns are Date | Cause | Balance (no separate In and Out)',
+    /<th>Date<\/th><th style="min-width:320px">Cause<\/th><th class="num">Balance<\/th>/.test(code) && !/<th class="num">In<\/th><th class="num">Out<\/th>/.test(code));
+}
+
+console.log('== an opening and a closing balance for each date (Ravi, 21 Nov) ==');
+{
+  /* Two receipts and an issue on 25 Sep, one issue on 27 Sep, one receipt on 10 Oct. */
+  const fab = [greigeIn('2026-09-25', 800), greigeIn('2026-09-25', 200, { lot: 'LOT-2' }), sentForRfd('2026-09-25', 300),
+    sentForRfd('2026-09-27', 500), greigeIn('2026-10-10', 150, { lot: 'LOT-3' })];
+  const days = G.histDays(ledger(fab, 'greige').lines);
+  ok('one day per date, in order', days.map(d => d.date).join() === '2026-09-25,2026-09-27,2026-10-10', days.map(d => d.date).join());
+  ok('25 Sep opens on 0 and closes on 700 (800 + 200 − 300)', days[0].opening === 0 && days[0].closing === 700, days[0].opening + ' → ' + days[0].closing);
+  ok('…with its in and out for that day', days[0].inQty === 1000 && days[0].outQty === 300 && days[0].lines.length === 3);
+  ok('each day opens where the day before closed', days[1].opening === days[0].closing && days[2].opening === days[1].closing);
+  ok('27 Sep: 700 − 500 = 200; 10 Oct: 200 + 150 = 350', days[1].closing === 200 && days[2].closing === 350);
+  ok('no lines, no days', G.histDays([]).length === 0);
+  ok('a day\'s line shows only what moved — never "in +0" or "out −0"',
+    /\[i \? said\('in '\) \+ histIn\(i\) : '', o \? said\('out '\) \+ histOut\(o\) : ''\]\.filter\(Boolean\)/.test(fs.readFileSync(SRC, 'utf8')));
+  const code = fs.readFileSync(SRC, 'utf8');
+  ok('each day is drawn as Opening balance → its movements → Closing balance with the day\'s in and out',
+    /histDays\(page\.lines\)\.map/.test(code) && /histCauseCell\('<b>Opening balance<\/b>', ''\)/.test(code) && /'<b>Closing balance<\/b> <span class="muted"[^']*' \+ day \+ '<\/span>', inOut\(d\.inQty, d\.outQty\)/.test(code));
 }
 
 console.log('== the Inventory\'s cloth types: one drop-down beside the search box (Ravi, 21 Nov) ==');
