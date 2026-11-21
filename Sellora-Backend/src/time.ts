@@ -52,6 +52,32 @@ export function hourStart(ms: number): number {
   return Math.floor(ms / 3600000) * 3600000;
 }
 
+/* ---- any timezone (21 Nov: Meta counts hours on the ad account's clock — Ridhi's is India time) ---- */
+const fmts = new Map<string, Intl.DateTimeFormat>();
+function zoneParts(ms: number, tz: string): Record<string, string> {
+  let f = fmts.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+    fmts.set(tz, f);
+  }
+  const o: Record<string, string> = {};
+  for (const p of f.formatToParts(new Date(ms))) o[p.type] = p.value;
+  return o;
+}
+/** The day in a timezone, "2026-11-21". */
+export function dayIn(ms: number, tz: string): string {
+  const p = zoneParts(ms, tz);
+  return `${p.year}-${p.month}-${p.day}`;
+}
+/** The instant a wall-clock hour of a day starts in a timezone (e.g. 13:00 on 21 Nov in Asia/Kolkata). */
+export function zonedHour(day: string, hour: number, tz: string): number {
+  const base = Date.parse(day + 'T00:00:00Z') + hour * 3600000;
+  const off = (ms: number) => { const p = zoneParts(ms, tz); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(ms / 1000) * 1000; };
+  let t = base - off(base);
+  t = base - off(t);
+  return t;
+}
+
 /** Every day from a to b, both included. */
 export function daysBetween(a: string, b: string): string[] {
   const out: string[] = [];

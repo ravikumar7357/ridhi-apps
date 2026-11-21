@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ptDay, ptMidnight, isoPT, shiftDay, offsetMin, daysBetween } from '../src/time.ts';
+import { ptDay, ptMidnight, isoPT, shiftDay, offsetMin, daysBetween, zonedHour, dayIn } from '../src/time.ts';
 import { parseMetric } from '../src/amazon.ts';
 import { foldShop, storeHost } from '../src/shopify.ts';
 import { foldAds } from '../src/ads.ts';
@@ -29,6 +29,15 @@ test('Pacific day of an instant, and the ISO form Amazon reads', () => {
   assert.equal(isoPT(ptMidnight('2026-11-20')), '2026-11-20T00:00:00-08:00');
   assert.equal(shiftDay('2026-11-20', -364), '2025-11-21');                // same weekday last year
   assert.deepEqual(daysBetween('2026-11-28', '2026-12-01'), ['2026-11-28', '2026-11-29', '2026-11-30', '2026-12-01']);
+});
+
+test('an hour on another clock becomes the right instant and Pacific day', () => {
+  // 21 Nov 10:00 in India (UTC+5:30) = 04:30 UTC = 20 Nov 20:30 Pacific
+  assert.equal(new Date(zonedHour('2026-11-21', 10, 'Asia/Kolkata')).toISOString(), '2026-11-21T04:30:00.000Z');
+  assert.equal(ptDay(zonedHour('2026-11-21', 10, 'Asia/Kolkata')), '2026-11-20');
+  assert.equal(dayIn(Date.parse('2026-11-21T05:35:00Z'), 'Asia/Kolkata'), '2026-11-21');
+  // the Pacific clock itself, across the night clocks go back
+  assert.equal(new Date(zonedHour('2026-11-01', 3, 'America/Los_Angeles')).toISOString(), '2026-11-01T11:00:00.000Z');
 });
 
 test('an Amazon metrics bucket is read as Pacific day and instant', () => {

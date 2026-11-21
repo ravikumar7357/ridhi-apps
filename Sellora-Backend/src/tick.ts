@@ -15,9 +15,9 @@ import type { Db } from './supabase.ts';
 import { orderMetrics } from './amazon.ts';
 import { askReport, reportStatus, downloadReport, foldAds, findProfile, type AdType, type AdDay } from './ads.ts';
 import { ordersBetween, foldShop, type Tot } from './shopify.ts';
-import { insights, accountInfo } from './meta.ts';
+import { insights, insightsHourly, accountInfo } from './meta.ts';
 import { usdRates } from './fx.ts';
-import { ptDay, ptMidnight, shiftDay, daysBetween, hourStart, PT } from './time.ts';
+import { ptDay, ptMidnight, shiftDay, daysBetween, hourStart, dayIn, zonedHour, PT } from './time.ts';
 import { BRANDS, brandConfig, type Env, type BrandConfig, type Brand } from './config.ts';
 import { backfillOnce } from './backfill.ts';
 
@@ -136,8 +136,14 @@ export async function amazonAds(db: Db, cfg: BrandConfig, now: number): Promise<
 }
 
 /* ---------------- Meta ads ---------------- */
-/* An ad account may report in its own currency (Ridhi's: rupees). Spend and sales are stored in US dollars at that day's
- * rate, like everything else in sellora; the account's own figures, its currency and the rate are kept beside them. */
+/* Two things make Meta's figures unlike the rest, and both are put right here:
+ *  - CURRENCY: an ad account may report in its own (Ridhi's: rupees). Spend and sales are stored in US dollars at the
+ *    day's ECB rate; the account's own figures, its currency and the rate are kept beside them.
+ *  - THE DAY: Meta counts a day on the ad account's clock (Ridhi's: India time, 13½ hours ahead of Pacific). Read by the
+ *    HOUR on that clock, each hour is turned into the moment it was and counted in its PACIFIC day, like Amazon and Shopify
+ *    (21 Nov: Today's TACoS read 247% early in the Pacific morning — a whole India day of Meta against two US hours).
+ *    When Meta gives no purchases by the hour, a day's purchases are shared out by each hour's share of that day's spend. */
+export const META_PT_DAYS = 7;       // Pacific days written each run (today + the 6 before), all wholly inside what is read
 export async function metaAds(db: Db, cfg: BrandConfig, now: number): Promise<StepOut> {
   const b = cfg.brand, m = cfg.meta!, key = 'meta:' + b;
   const st = await db.getState<{ tz?: string; currency?: string; account?: string }>(key);
@@ -147,17 +153,39 @@ export async function metaAds(db: Db, cfg: BrandConfig, now: number): Promise<St
     tz = info.tz; currency = info.currency;
     await db.setState(key, { tz, currency, account: m.account });
   }
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
-  const from = shiftDay(today, -7);
-  const days = await insights(m.token, m.account, from, today);
-  const fx = await usdRates(currency!, from, today);
-  const rows = await db.upsert('ads_daily', [...days].map(([d, v]) => {
+  // The account's days to read: enough to cover the Pacific days written, whichever side of Pacific its clock is.
+  const accToday = dayIn(now, tz!), accFrom = shiftDay(accToday, -(META_PT_DAYS + 1));
+  const hours = await insightsHourly(m.token, m.account, accFrom, accToday);
+  if (!hours.some(h => h.orders || h.sales)) {
+    const daily = await insights(m.token, m.account, accFrom, accToday);
+    const spendOn = new Map<string, number>(), countOn = new Map<string, number>();
+    for (const h of hours) { spendOn.set(h.day, (spendOn.get(h.day) || 0) + h.spend); countOn.set(h.day, (countOn.get(h.day) || 0) + 1); }
+    for (const h of hours) {
+      const d = daily.get(h.day); if (!d) continue;
+      const share = (spendOn.get(h.day) || 0) > 0 ? h.spend / spendOn.get(h.day)! : 1 / (countOn.get(h.day) || 1);
+      h.orders = d.orders * share; h.sales = d.sales * share;
+    }
+  }
+  // Each account hour → its Pacific day.
+  const ptToday = ptDay(now), ptFrom = shiftDay(ptToday, -(META_PT_DAYS - 1));
+  const byDay = new Map<string, AdDay>();
+  for (const h of hours) {
+    const d = ptDay(zonedHour(h.day, h.hour, tz!));
+    if (d < ptFrom || d > ptToday) continue;
+    const t = byDay.get(d) || { impressions: 0, clicks: 0, spend: 0, orders: 0, sales: 0 };
+    t.impressions += h.impressions; t.clicks += h.clicks; t.spend += h.spend; t.orders += h.orders; t.sales += h.sales;
+    byDay.set(d, t);
+  }
+  const fx = await usdRates(currency!, ptFrom, ptToday);
+  const rows = await db.upsert('ads_daily', [...byDay].map(([d, v]) => {
     const rate = fx.get(d);
     if (!rate) throw new Error(`no ${currency} → USD rate for ${d}`);
-    const usd = { ...v, spend: Math.round(v.spend * rate * 100) / 100, sales: Math.round(v.sales * rate * 100) / 100 };
-    return { ...adRow(b, 'meta', d, usd, 'meta_api', tz!, now), currency, fx_rate: rate, spend_native: v.spend, sales_native: v.sales };
+    const usd = { impressions: v.impressions, clicks: v.clicks, orders: Math.round(v.orders),
+      spend: Math.round(v.spend * rate * 100) / 100, sales: Math.round(v.sales * rate * 100) / 100 };
+    return { ...adRow(b, 'meta', d, usd, 'meta_api', PT, now), currency, fx_rate: rate,
+      spend_native: Math.round(v.spend * 100) / 100, sales_native: Math.round(v.sales * 100) / 100 };
   }), 'brand,ad_type,day');
-  return { rows, details: { days: days.size, tz, currency, rate: fx.get(today) } };
+  return { rows, details: { hours: hours.length, days: byDay.size, accountTz: tz, currency, rate: fx.get(ptToday) } };
 }
 
 /* ---------------- the run ---------------- */

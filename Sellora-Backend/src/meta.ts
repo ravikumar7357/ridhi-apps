@@ -19,6 +19,41 @@ export async function accountInfo(token: string, account: string): Promise<{ tz:
   return { tz: (j && j.timezone_name) || 'America/Los_Angeles', currency: String((j && j.currency) || 'USD').toUpperCase() };
 }
 
+export interface MetaHour { day: string; hour: number; impressions: number; clicks: number; spend: number; orders: number; sales: number }
+
+/** The same figures by HOUR on the account's own clock (Meta's hourly_stats_aggregated_by_advertiser_time_zone), from
+ * `from` to `to` (the account's days). Hourly figures come in many rows, so every page is read. */
+export async function insightsHourly(token: string, account: string, from: string, to: string): Promise<MetaHour[]> {
+  const q = new URLSearchParams({
+    level: 'account', time_increment: '1', limit: '500',
+    breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone',
+    fields: 'spend,clicks,impressions,actions,action_values',
+    time_range: JSON.stringify({ since: from, until: to }),
+  });
+  let url = `${GRAPH}/${accountId(account)}/insights?${q}`;
+  const out: MetaHour[] = [];
+  for (let page = 0; page < 40 && url; page++) {
+    const j = await callJson<{ data?: any[]; paging?: { next?: string } }>('Meta insights by hour', url, {
+      headers: { Authorization: 'Bearer ' + token.trim() },
+    });
+    for (const r of (j && j.data) || []) {
+      const h = Number(String(r.hourly_stats_aggregated_by_advertiser_time_zone || '').slice(0, 2));
+      if (!Number.isInteger(h) || h < 0 || h > 23) continue;
+      out.push({ day: String(r.date_start), hour: h, impressions: Number(r.impressions) || 0, clicks: Number(r.clicks) || 0,
+        spend: Number(r.spend) || 0, orders: pickPurchase(r.actions), sales: pickPurchase(r.action_values) });
+    }
+    url = (j && j.paging && j.paging.next) || '';
+  }
+  return out;
+}
+
+/** The purchase count / value Meta reports, by the usual action types. */
+function pickPurchase(list: any[] | undefined): number {
+  let v = 0;
+  for (const a of list || []) if (a.action_type === 'purchase' || a.action_type === 'omni_purchase') v = Math.max(v, Number(a.value) || 0);
+  return v;
+}
+
 /** Spend, clicks, impressions and the purchases Meta counts, per day from `from` to `to` (the account's days). */
 export async function insights(token: string, account: string, from: string, to: string): Promise<Map<string, AdDay>> {
   const q = new URLSearchParams({
