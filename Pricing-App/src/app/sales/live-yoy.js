@@ -365,7 +365,32 @@ function yoyRenderAds(V, today) {
  * compared "by the same time" exactly as Amazon is. YOY[brand].meta = { configured, days:{date:{spend, clicks, impressions,
  * purchases, value}} } — { configured:false } until META_TOKEN and the ad account are in Script Properties.
  * amzAds = the Amazon ad totals for the day (yoyRenderAds), or null while that report is pending. */
+/* SHOPIFY'S TOTAL SALES BREAKDOWN (Ravi, 21 Nov 2026: "show total sales in Shopify") — Shopify Analytics' own lines for
+ * the brands and days on view, from the new backend (YOY_HIST.bd: brand → day → [gross, discounts, returns, net, shipping,
+ * taxes, total, orders]); returns count on the day of the refund, as Shopify counts them. The same as live.html. */
+function yoyRenderBreakdown(from, to, keys) {
+  const host = $('yoyShopBd'); if (!host) return;
+  const B = (YOY_HIST && YOY_HIST.bd) || null;
+  if (!B) { host.innerHTML = ''; return; }
+  const t = [0, 0, 0, 0, 0, 0, 0, 0]; let n = 0, first = '';
+  for (let d = from; d <= to; d = sdShift(d, 1)) {
+    let got = false;
+    keys.forEach(k => { const r = (B[k] || {})[d]; if (r) { r.forEach((v, i) => { t[i] += Number(v) || 0; }); got = true; } });
+    if (got) { n++; if (!first) first = d; }
+  }
+  const days = Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1;
+  const m = v => (v < 0 ? '−' : '') + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const neg = v => (v ? m(-v) : m(0));
+  const span = from === to ? yoyDate(from) : yoyDate(from, false) + ' – ' + yoyDate(to);
+  if (!n) { host.innerHTML = `<div class="yoy-bd"><div class="yoy-bd-h"><b>Total sales breakdown</b><span>${span}</span></div><p class="yoy-bd-note">Shopify's breakdown is kept from 15 Nov 2026 — not for these days.</p></div>`; return; }
+  const rows = [['Gross sales', m(t[0])], ['Discounts', neg(t[1])], ['Sales reversals', neg(t[2])], ['Net sales', m(t[3]), 'yoy-bd-sum'],
+    ['Shipping charges', m(t[4])], ['Return fees', m(0)], ['Taxes', m(t[5])], ['Total sales', m(t[6]), 'yoy-bd-total']];
+  host.innerHTML = `<div class="yoy-bd"><div class="yoy-bd-h"><b>Total sales breakdown</b><span>${span} · ${yoyInt(t[7])} orders${n < days ? ` · ${n} of ${days} days (kept from ${yoyDate(first, false)})` : ''}</span></div>
+    <table>${rows.map(r => `<tr class="${r[2] || ''}"><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>
+    <p class="yoy-bd-note">As Shopify Analytics counts it · sales reversals are refunds and cancellations on the day they happened · Pacific days</p></div>`;
+}
 function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzLwSame, amzAds) {
+  if (YOY_PERIOD === 'day') yoyRenderBreakdown(V.day, V.day, V.keys);
   const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
   const set = (id, v, sub, cls) => { $(id).textContent = v; $(id).className = 'val' + (cls ? ' ' + cls : ''); $(id + 'Sub').textContent = sub || ''; };
   const chg = (a, b) => { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'yoy-up' : 'yoy-down']; };
@@ -602,6 +627,7 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
     + yoyCard('yoy-b-spend', 'Ad spend', spend ? yoyMoney(spend) : '—', adNote ? adNote.slice(3) : 'Products + Brands + Display')
     + yoyCard('yoy-b-tacos', 'TACoS', spend ? pc(spend, adA) : '—', 'ad spend ÷ Amazon sales' + adNote)
     + yoyCard('sd-b-indigo', 'Best day', best.amz ? yoyMoney(best.amz[1]) : '—', best.amz ? yoyDate(best.amz[0], false) : 'today is the first day');
+  yoyRenderBreakdown(start, end, amzK);
   $('yoyPShop').innerHTML = shopOn
     ? yoyCard('sd-b-cyan', NAME + ' sales', yoyMoney(shp.sales), yoyInt(shp.orders) + ' orders · ' + yoyInt(shp.units) + ' units')
       + yoyCard('sd-b-orange', 'vs last year', cS, 'last year ' + yoyMoney(shpLy.sales) + (shpLy.sales ? '' : ' · the store opened in January 2026'), kS)

@@ -26,7 +26,7 @@
      .js files are served with an hour's cache. -->
 <script src="/products.js?v=3" defer></script>
 <!-- Live vs Last Year's figures from Sellora's own backend (Supabase sellora.page_data), shared with live.html. Ravi 21 Nov 2026. -->
-<script src="/live-data.js?v=1" defer></script>
+<script src="/live-data.js?v=2" defer></script>
 <style>
   /* Listing optimiser: what a rewrite removed and what it added, marked in place. */
   .lo-gone{text-decoration:line-through;opacity:.45}
@@ -1165,6 +1165,30 @@
   .yoy-b-organic .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322c55e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10Z'/%3E%3Cpath d='M2 21c0-3 1.9-5.4 5.2-6'/%3E%3C/svg%3E")}
   .yoy-b-clicks{--glow:#64748b}
   .yoy-b-clicks .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 9 5 12 1.8-5.2L21 14Z'/%3E%3Cpath d='M7.2 2.2 8 5.1M5.1 8l-2.9-.8M14 4.1 12 6M6 12l-1.9 2'/%3E%3C/svg%3E")}
+  /* ===== Live vs Last Year, quieter (Ravi, 21 Nov 2026: "enhance the UI … not that much colours") — this screen only:
+     white sections without a coloured edge or wash, the channel named by a small dot, plain cards without coloured glows
+     or icons. Colour stays for meaning: up / down, and this year in the charts. The same look as public/live.html. */
+  #paneYoy .yoy-sec{border-top:1px solid var(--card-line);background:var(--card);box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  #paneYoy .yoy-sec-tag{color:var(--ink);background:none;padding:0;font-size:16px;gap:8px}
+  #paneYoy .yoy-sec-tag::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--sec)}
+  #paneYoy .sd-card{--glow-a:0%;background:color-mix(in srgb,var(--ink) 2.5%,var(--card));border-color:transparent;box-shadow:none}
+  #paneYoy .sd-card .lbl{min-height:0;text-transform:uppercase;letter-spacing:.05em;font-size:11.5px}
+  #paneYoy .sd-card .lbl::before{display:none}
+  #paneYoy .yoy-split i:first-child{background:#8A94A3} #paneYoy .yoy-split i:last-child{background:#C7CDD6}
+  /* Shopify's Total sales breakdown (21 Nov): a plain statement like Shopify's own; on view in every period. */
+  #paneYoy .yoy-sec > .yoy-bdrow{display:grid !important;grid-template-columns:minmax(0,560px);margin-bottom:14px}
+  #paneYoy .yoy-sec > .yoy-bdrow:empty{display:none !important}
+  .yoy-bd{background:var(--card);border:1px solid var(--card-line);border-radius:12px;padding:14px 16px 10px}
+  .yoy-bd-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .yoy-bd-h b{font-size:15px}
+  .yoy-bd-h span{font-size:12.5px;color:var(--muted)}
+  .yoy-bd table td{padding:9px 10px;border-bottom:0}
+  .yoy-bd table tr:nth-child(odd) td{background:color-mix(in srgb,var(--ink) 3%,var(--card))}
+  .yoy-bd table td:first-child{color:var(--muted);border-radius:6px 0 0 6px}
+  .yoy-bd table td:last-child{color:var(--ink);border-radius:0 6px 6px 0}
+  .yoy-bd table tr.yoy-bd-sum td{font-weight:700;color:var(--ink);border-top:0;padding-top:9px}
+  .yoy-bd table tr.yoy-bd-total td{font-weight:700;color:var(--ink);border-top:1px solid var(--card-line);font-size:15px}
+  .yoy-bd-note{font-size:12px;color:var(--muted);margin:8px 2px 2px}
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
   td{padding:10px 0;border-bottom:1px solid var(--line)}
   /* The calculator's figure column. Kept out of the grids, where it made every last column semi-bold. */
@@ -2877,6 +2901,8 @@
     <div data-chan="shop" class="yoy-sec">
     <div class="yoy-sec-h"><span class="yoy-sec-tag">Shopify</span><span class="yoy-sec-sub" id="yoyShopNote">Shopify Admin API · Pacific day</span></div>
     <div class="sd-kpis yoy-kpis yoy-ponly" id="yoyPShop"></div>
+    <!-- Shopify's own Total sales breakdown (Ravi, 21 Nov 2026) — the day or period on view; drawn by yoyRenderBreakdown. -->
+    <div class="yoy-bdrow" id="yoyShopBd"></div>
     <div class="sd-kpis yoy-kpis yoy-k4">
       <div class="sd-card sd-b-cyan" title="The brand's Shopify store today, Pacific day (the same day as the Amazon figures). Line-item sales, no shipping or tax.">
         <div class="lbl">Sales today</div><div class="val" id="yoyShToday">—</div><div class="sub" id="yoyShTodaySub">—</div></div>
@@ -13801,7 +13827,32 @@ function yoyRenderAds(V, today) {
  * compared "by the same time" exactly as Amazon is. YOY[brand].meta = { configured, days:{date:{spend, clicks, impressions,
  * purchases, value}} } — { configured:false } until META_TOKEN and the ad account are in Script Properties.
  * amzAds = the Amazon ad totals for the day (yoyRenderAds), or null while that report is pending. */
+/* SHOPIFY'S TOTAL SALES BREAKDOWN (Ravi, 21 Nov 2026: "show total sales in Shopify") — Shopify Analytics' own lines for
+ * the brands and days on view, from the new backend (YOY_HIST.bd: brand → day → [gross, discounts, returns, net, shipping,
+ * taxes, total, orders]); returns count on the day of the refund, as Shopify counts them. The same as live.html. */
+function yoyRenderBreakdown(from, to, keys) {
+  const host = $('yoyShopBd'); if (!host) return;
+  const B = (YOY_HIST && YOY_HIST.bd) || null;
+  if (!B) { host.innerHTML = ''; return; }
+  const t = [0, 0, 0, 0, 0, 0, 0, 0]; let n = 0, first = '';
+  for (let d = from; d <= to; d = sdShift(d, 1)) {
+    let got = false;
+    keys.forEach(k => { const r = (B[k] || {})[d]; if (r) { r.forEach((v, i) => { t[i] += Number(v) || 0; }); got = true; } });
+    if (got) { n++; if (!first) first = d; }
+  }
+  const days = Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1;
+  const m = v => (v < 0 ? '−' : '') + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const neg = v => (v ? m(-v) : m(0));
+  const span = from === to ? yoyDate(from) : yoyDate(from, false) + ' – ' + yoyDate(to);
+  if (!n) { host.innerHTML = `<div class="yoy-bd"><div class="yoy-bd-h"><b>Total sales breakdown</b><span>${span}</span></div><p class="yoy-bd-note">Shopify's breakdown is kept from 15 Nov 2026 — not for these days.</p></div>`; return; }
+  const rows = [['Gross sales', m(t[0])], ['Discounts', neg(t[1])], ['Sales reversals', neg(t[2])], ['Net sales', m(t[3]), 'yoy-bd-sum'],
+    ['Shipping charges', m(t[4])], ['Return fees', m(0)], ['Taxes', m(t[5])], ['Total sales', m(t[6]), 'yoy-bd-total']];
+  host.innerHTML = `<div class="yoy-bd"><div class="yoy-bd-h"><b>Total sales breakdown</b><span>${span} · ${yoyInt(t[7])} orders${n < days ? ` · ${n} of ${days} days (kept from ${yoyDate(first, false)})` : ''}</span></div>
+    <table>${rows.map(r => `<tr class="${r[2] || ''}"><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>
+    <p class="yoy-bd-note">As Shopify Analytics counts it · sales reversals are refunds and cancellations on the day they happened · Pacific days</p></div>`;
+}
 function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzLwSame, amzAds) {
+  if (YOY_PERIOD === 'day') yoyRenderBreakdown(V.day, V.day, V.keys);
   const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
   const set = (id, v, sub, cls) => { $(id).textContent = v; $(id).className = 'val' + (cls ? ' ' + cls : ''); $(id + 'Sub').textContent = sub || ''; };
   const chg = (a, b) => { if (!b) return ['—', '']; const p = Math.round((a / b - 1) * 100); return [(p > 0 ? '+' : '') + p + '%', p >= 0 ? 'yoy-up' : 'yoy-down']; };
@@ -14038,6 +14089,7 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
     + yoyCard('yoy-b-spend', 'Ad spend', spend ? yoyMoney(spend) : '—', adNote ? adNote.slice(3) : 'Products + Brands + Display')
     + yoyCard('yoy-b-tacos', 'TACoS', spend ? pc(spend, adA) : '—', 'ad spend ÷ Amazon sales' + adNote)
     + yoyCard('sd-b-indigo', 'Best day', best.amz ? yoyMoney(best.amz[1]) : '—', best.amz ? yoyDate(best.amz[0], false) : 'today is the first day');
+  yoyRenderBreakdown(start, end, amzK);
   $('yoyPShop').innerHTML = shopOn
     ? yoyCard('sd-b-cyan', NAME + ' sales', yoyMoney(shp.sales), yoyInt(shp.orders) + ' orders · ' + yoyInt(shp.units) + ' units')
       + yoyCard('sd-b-orange', 'vs last year', cS, 'last year ' + yoyMoney(shpLy.sales) + (shpLy.sales ? '' : ' · the store opened in January 2026'), kS)

@@ -172,6 +172,42 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
 .tile .v.glow { animation: glow 1.2s ease-out; border-radius: 6px; }
 @media (prefers-reduced-motion: reduce) { .big .tile, .chart .bar, .chart .draw, .tile .v.glow { animation: none; } }
 @media (max-width: 760px) { .strip, .big { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .big .tile { min-height: 0; padding: 14px; } .big .tile .v { font-size: 24px; } .brand { margin-left: 0; } }
+
+/* ===== QUIETER LOOK (Ravi, 21 Nov 2026: "enhance the UI … not that much colours") =====
+   White panels and cards on a light grey page, thin rules, one ink colour for text. Colour is kept for meaning only:
+   green / amber for up / down, blue for "this year" in the charts, and a small dot naming each channel. */
+:root { --bg: #F4F5F7; --soft: #F8F9FA; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --soft: #20252C; } }
+:root[data-theme="dark"] { --soft: #20252C; }
+.box { background: var(--panel); border: 1px solid var(--rule); border-top: 1px solid var(--rule); border-radius: 14px; padding: 16px 18px 18px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04); }
+.boxh .tag { color: var(--ink); background: none; padding: 0; font: 800 16px/1 var(--f-display); display: inline-flex; align-items: center; gap: 8px; }
+.boxh .tag::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--sec); }
+.big .tile, .tile { background: var(--soft); border: 1px solid transparent; box-shadow: none; border-radius: 10px; }
+.big .tile .k { color: var(--muted); font-weight: 600; letter-spacing: .05em; }
+.big .tile .v { font-weight: 700; }
+.tile.hl { border-color: var(--rule); box-shadow: none; }
+.tcard, section.card { background: var(--panel); border-color: var(--rule); }
+.refresh { background: var(--ink); color: var(--panel); }
+.seg { background: var(--soft); border-color: var(--rule); }
+.split i.a { background: #8A94A3; } .split i.s { background: #C7CDD6; }
+.evcard { border-top: 1px solid var(--rule); } .evcard.live { border-top: 3px solid #E11D48; box-shadow: none; }
+.evcard.done, .evcard.soon { --evc: var(--rule); }
+/* Shopify's Total sales breakdown: a plain statement, like Shopify's own. */
+.bdrow { display: grid; grid-template-columns: minmax(0, 560px); }
+.bdrow:empty { display: none; }
+.bd { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px 10px; }
+.bdh { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.bdh h2 { font: 700 16px/1.2 var(--f-display); margin: 0; }
+.bdh span { font-size: 12.5px; color: var(--muted); }
+.bdt { font-size: 14px; }
+.bdt td { padding: 9px 10px; border-bottom: 0; }
+.bdt tr:nth-child(odd) td { background: var(--soft); }
+.bdt td:first-child { color: var(--ink2); border-radius: 6px 0 0 6px; }
+.bdt td:last-child { font-weight: 600; color: var(--ink); border-radius: 0 6px 6px 0; }
+.bdt tr.sum td, .bdt tr.total td { font-weight: 700; color: var(--ink); }
+.bdt tr.total td { border-top: 1px solid var(--rule); font-size: 15px; }
+.bdnote { font-size: 12px; color: var(--muted); margin: 8px 2px 2px; }
 </style></head><body>
 
 <div class="wrap">
@@ -251,6 +287,8 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
     <div class="strip big ponly" id="pShop"></div>
     <div class="strip big four dayonly" id="shopStrip"></div>
     <div class="strip big four dayonly" id="metaStrip"></div>
+    <!-- Shopify's own Total sales breakdown (Ravi, 21 Nov: "show total sales in Shopify") — the day or period on view. -->
+    <div class="bdrow" id="shopBd"></div>
     <div class="two dayonly">
       <section class="card">
         <h2>Hour by hour</h2>
@@ -285,7 +323,7 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
 </div>
 <div class="tip" id="tip" hidden></div>
 <script src="products.js?v=3"></script>
-<script src="live-data.js?v=1"></script>
+<script src="live-data.js?v=2"></script>
 
 <script>
 /* The published CSV of the sheet liveSnapshotJob writes (Pricing-API/SalesLive.gs → Script Property LIVE_SHEET_ID). */
@@ -438,7 +476,34 @@ function tableCard(id, title, cols, rows) {
 /* Shopify & Meta, then all channels (Ravi, 2026-11-20). brands[k].yoy.shop = { now, last, lastWeek } — the brand's Shopify
    store by PACIFIC hour (Pricing-API/SalesLive.gs liveShop_), compared "by the same time" exactly as Amazon is.
    brands[k].yoy.meta = { configured, days } — { configured:false } until META_TOKEN and the ad account are set. */
+/* SHOPIFY'S TOTAL SALES BREAKDOWN (Ravi, 21 Nov 2026: "show total sales in Shopify … not that much colours") — Shopify
+ * Analytics' own lines, summed over the brands and the days on view: gross − discounts − returns = net; + shipping + return
+ * fees + taxes = total. Returns count on the day of the refund, as Shopify counts them. From the new backend
+ * (DATA.hist.bd: brand → day → [gross, discounts, returns, net, shipping, taxes, total, orders]); kept from 15 Nov 2026. */
+function renderBreakdown(from, to, keys) {
+  const host = $('shopBd'); if (!host) return;
+  const B = (DATA.hist && DATA.hist.bd) || null;
+  if (!B) { host.innerHTML = ''; return; }
+  const t = [0, 0, 0, 0, 0, 0, 0, 0]; let n = 0, first = '';
+  const sh = (d, k) => new Date(Date.parse(d + 'T12:00:00Z') + k * 864e5).toISOString().slice(0, 10);
+  for (let d = from; d <= to; d = sh(d, 1)) {
+    let got = false;
+    keys.forEach(k => { const r = (B[k] || {})[d]; if (r) { r.forEach((v, i) => { t[i] += Number(v) || 0; }); got = true; } });
+    if (got) { n++; if (!first) first = d; }
+  }
+  const days = Math.round((Date.parse(to) - Date.parse(from)) / 864e5) + 1;
+  const m = v => (v < 0 ? '−' : '') + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const neg = v => (v ? m(-v) : m(0));
+  const span = from === to ? dname(from, true) : dname(from, false) + ' – ' + dname(to, true);
+  if (!n) { host.innerHTML = `<div class="bd"><div class="bdh"><h2>Total sales breakdown</h2><span>${span}</span></div><p class="bdnote">Shopify's breakdown is kept from 15 Nov 2026 — not for these days.</p></div>`; return; }
+  const rows = [['Gross sales', m(t[0])], ['Discounts', neg(t[1])], ['Sales reversals', neg(t[2])], ['Net sales', m(t[3]), 'sum'],
+    ['Shipping charges', m(t[4])], ['Return fees', m(0)], ['Taxes', m(t[5])], ['Total sales', m(t[6]), 'total']];
+  host.innerHTML = `<div class="bd"><div class="bdh"><h2>Total sales breakdown</h2><span>${span} · ${int(t[7])} orders${n < days ? ` · ${n} of ${days} days (kept from ${dname(first, false)})` : ''}</span></div>
+    <table class="bdt">${rows.map(r => `<tr class="${r[2] || ''}"><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>
+    <p class="bdnote">As Shopify Analytics counts it · sales reversals are refunds and cancellations on the day they happened · Pacific days</p></div>`;
+}
 function renderShop(live, frac, amz, amzLy, amzLw, amzAds) {
+  if (PERIOD === 'day') renderBreakdown(DATA.day, DATA.day, ($('brand').value === 'ALL' ? Object.keys(BRANDS) : [$('brand').value]));
   const key = $('brand').value, on = (key === 'ALL' ? Object.keys(BRANDS) : [key]).filter(k => DATA.brands[k] && DATA.brands[k].yoy);
   const shops = on.map(k => DATA.brands[k].yoy.shop).filter(s => s && s.now);
   const errs = on.map(k => DATA.brands[k].yoy.shop && DATA.brands[k].yoy.shop.err).filter(Boolean);
@@ -770,6 +835,7 @@ function renderPeriod(tot, lySame, lyDay) {
     + tile('Ad spend', spend ? usd(spend) : '—', adNote ? adNote.slice(3) : 'Products + Brands + Display', '', false, '#ef4444')
     + tile('TACoS', spend ? pc(spend, adA) : '—', 'ad spend ÷ Amazon sales' + adNote, '', false, '#f59e0b')
     + tile('Best day', best.amz ? usd(best.amz[1]) : '—', best.amz ? dname(best.amz[0], false) : 'today is the first day', '', false, '#6366f1');
+  renderBreakdown(start, end, amzK);
   $('pShop').innerHTML = shopOn
     ? tile(NAME + ' sales', usd(shp.sales), `${int(shp.orders)} orders · ${int(shp.units)} units`, '', false, '#95BF47')
       + tile('vs last year', cS, `last year ${usd(shpLy.sales)}` + (shpLy.sales ? '' : ' · the store opened in January 2026'), kS, false, '#95BF47')

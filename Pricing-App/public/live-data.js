@@ -45,13 +45,15 @@
   const CACHE = {};
   function overlay(base, top) {
     const out = JSON.parse(JSON.stringify(base));
-    for (const part of ['daily', 'ads']) {
+    for (const part of ['daily', 'ads']) {          // brand → channel / ad type → day
       out[part] = out[part] || {};
       for (const b of Object.keys(top[part] || {})) {
         out[part][b] = out[part][b] || {};
         for (const k of Object.keys(top[part][b])) out[part][b][k] = Object.assign({}, out[part][b][k] || {}, top[part][b][k]);
       }
     }
+    out.shop_breakdown = out.shop_breakdown || {};   // brand → day
+    for (const b of Object.keys(top.shop_breakdown || {})) out.shop_breakdown[b] = Object.assign({}, out.shop_breakdown[b] || {}, top.shop_breakdown[b]);
     for (const f of ['asOf', 'day', 'ly', 'lw', 'm4', 'hours', 'events', 'runs']) out[f] = top[f];
     return out;
   }
@@ -136,7 +138,9 @@
     // Meta spend per day (US dollars; the ad account's own day — Ridhi's runs on India time), for the period totals.
     const meta = {};
     BRANDS.forEach(b => { const M = ((pd.ads || {})[b] || {}).meta || {}; meta[b] = {}; Object.keys(M).forEach(k => { meta[b][k] = +M[k][2] || 0; }); });
-    return { ok: true, at: pd.asOf, through, d, ads, meta, shopCpcFrom: Object.keys(d.SHOP_CPC).sort()[0] || '', adsAt: pd.asOf };
+    // Shopify's own Total sales breakdown per store and Pacific day: [gross, discounts, returns, net, shipping, taxes, total, orders].
+    const bd = pd.shop_breakdown || {};
+    return { ok: true, at: pd.asOf, through, d, ads, meta, bd, shopCpcFrom: Object.keys(d.SHOP_CPC).sort()[0] || '', adsAt: pd.asOf };
   }
 
   // What live.html read from the published sheet (DATA): today against the same weekday last year, 15 Nov – 1 Dec run.
