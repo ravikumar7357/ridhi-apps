@@ -13,7 +13,7 @@ function desk(me) {
   const anchor = '  return { open: open,';
   const code = fs.readFileSync(SRC, 'utf8');
   if (code.split(anchor).length !== 2) throw new Error('greige-desk.js: the closing "return { open" line moved; update this test');
-  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histDays, histDayName, histMonthName, histDayBadges, setDB: function (v) { DB = v; } };\n' + anchor);
+  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histDays, histDayName, histMonthName, histDayBadges, invNeedState, invCoverPct, invNeedCell, invActionCell, setDB: function (v) { DB = v; } };\n' + anchor);
   const ctx = { console, window: { document: {} }, ME: me || { admin: true } };
   vm.createContext(ctx);
   vm.runInContext(opened, ctx);
@@ -141,6 +141,27 @@ console.log('== each date folds to its opening and closing; a click shows what m
     /figure\('Opening'/.test(code) && /figure\('Came in'/.test(code) && /figure\('Went out'/.test(code) && /figure\('Closing'/.test(code));
   ok('a movement is labelled "in" (green) when cloth came in, "out" (red) when it went out',
     /\(came \? '<span class="pill pill-ok" title="came in">in<\/span>' : '<span class="pill pill-out" title="went out">out<\/span>'\)/.test(code));
+}
+
+console.log('== the Inventory, laid out to act on (Ravi, 21 Nov) ==');
+{
+  const row = (need, free, short, greigeM, greige) => ({ fabric: 'Canvas', ppc: { name: 'Canvas', need, lines: 39, free, desk: free, short, onWay: 0, greigeM, greige } });
+  const shortRow = row(6772, 594, 6178, 7040, 'Canvas 48" Greige'), coveredRow = row(547, 1022, 0, 0, 'Duck 64" Greige');
+  ok('what PPC asks of a fabric: short, covered, or none',
+    G.invNeedState(shortRow) === 'short' && G.invNeedState(coveredRow) === 'ok' && G.invNeedState({ ppc: null }) === 'none' && G.invNeedState(row(0, 0, 0, 0, '')) === 'none');
+  ok('short but covered by greige on its way counts as covered', G.invNeedState(row(500, 100, 400, 0, 'X')) === 'ok');
+  ok('the bar: 594 of 6,772 is 9% covered; more free than needed stops at 100%', G.invCoverPct(shortRow.ppc) === 9 && G.invCoverPct(coveredRow.ppc) === 100);
+  const need = G.invNeedCell(shortRow, false);
+  ok('the need cell: metres, lines, the bar and "9% covered · 6,178 short"', /<b>6,772 m<\/b>/.test(need) && /39 lines/.test(need) && /width:9%/.test(need) && /9% covered/.test(need) && /6,178 short/.test(need));
+  ok('a fabric PPC does not need says so', /no PPC demand/.test(G.invNeedCell({ ppc: null }, false)));
+  ok('Action: a short fabric gets "Raise PO · 7,040 m" (the same greige PO as before)', /data-ppcpo="Canvas\|7040"[^>]*>Raise PO · 7,040 m</.test(G.invActionCell(shortRow, false)));
+  ok('…without a greige name it says what to do instead', /add greige name/.test(G.invActionCell(row(75, 0, 75, 79, ''), false)) && !/data-ppcpo/.test(G.invActionCell(row(75, 0, 75, 79, ''), false)));
+  ok('…a covered fabric shows "covered"', /pill-ok">covered</.test(G.invActionCell(coveredRow, false)));
+  const code = fs.readFileSync(SRC, 'utf8');
+  ok('a filter by what needs doing: All · Short for PPC · Covered · No PPC demand', /\['all', 'short', 'ok', 'none'\]\.map/.test(code) && /data-invshow="' \+ k \+ '"/.test(code));
+  ok('short fabrics come first, then covered, then those not needed', /var INV_SHOW_ORDER = \{ short: 0, ok: 1, none: 2 \};/.test(code));
+  ok('the stock columns sit under "Where the cloth is now →"', /Where the cloth is now (→|\\u2192)/.test(code));
+  ok('the long note is gone from the toolbar', !/PPC demand is what the production plans need in RFD; short is after the RFD free today/.test(code));
 }
 
 console.log('== the Inventory\'s cloth types: one drop-down beside the search box (Ravi, 21 Nov) ==');

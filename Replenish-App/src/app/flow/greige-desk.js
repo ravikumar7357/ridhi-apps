@@ -3007,13 +3007,52 @@ function invAll() {
   }).filter(function (x) { return x.owned > 0.05 || x.onOrder > 0.05 || (x.ppc && x.ppc.need > 0.05); })
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
 }
+/* THE INVENTORY, LAID OUT TO ACT ON (Ravi, 21 Nov: "the page seems very dirty in format make it better with the functions I
+ * have"). Every function stays; the page reads in this order:
+ *   - one toolbar: the cloth-type drop-down and search (in the top bar), + RFD opening stock, Demand → RFD
+ *   - a filter by what needs doing: All · Short for PPC · Covered · No PPC demand (counts on each)
+ *   - per fabric: its PPC need with a bar for how much the RFD free covers, an Action (Raise PO · m, or what blocks it),
+ *     then where the cloth is now — greige ordered → in store → at processor → RFD on shelf — and the total. Every
+ *     figure still opens what makes it up; the fabric's name still opens its stock history.
+ *   - short fabrics first, then covered, then those PPC does not need.
+ * PPC demand exists only in the app (gdPpcMap); run on its own the desk shows the stock columns alone. */
+var INV_SHOW_LABEL = { all: 'All', short: 'Short for PPC', ok: 'Covered', none: 'No PPC demand' };
+var INV_SHOW_ORDER = { short: 0, ok: 1, none: 2 };
+UI.invShow = 'all';
+/** What PPC's demand asks of this fabric: 'short' (greige to order), 'ok' (covered, or covered by what is on its way),
+ *  or 'none' (PPC does not need it). */
+function invNeedState(r) {
+  var p = r && r.ppc;
+  if (!p || !(p.need > 0.05)) return 'none';
+  return p.short > 0.05 && p.greigeM > 0 ? 'short' : 'ok';
+}
+/** How much of the PPC need the RFD free covers, in whole percent (0–100). */
+function invCoverPct(p) { return p && p.need > 0.05 ? Math.min(100, Math.round((p.free || 0) / p.need * 100)) : 0; }
+function invNeedCell(r, loading) {
+  if (loading) return '<td class="tl muted">…</td>';
+  var p = r.ppc;
+  if (invNeedState(r) === 'none') return '<td class="tl muted" style="font-size:12px">no PPC demand</td>';
+  var pct = invCoverPct(p), col = pct >= 100 ? 'var(--ok-ink)' : pct >= 50 ? 'var(--warn-ink)' : 'var(--bad)';
+  var tip = 'RFD free ' + nf(p.free) + ' m' + (p.desk > 0.05 ? ' (' + nf(p.desk) + ' m on this desk)' : '') + (p.onWay > 0.05 ? ' · ' + nf(p.onWay) + ' m greige on its way' : '');
+  var words = p.short > 0.05
+    ? pct + '% covered · <span style="color:var(--bad);font-weight:700">' + nf(p.short) + ' short</span>' + (p.greigeM ? '' : ' · covered by what is on its way')
+    : 'fully covered';
+  return '<td class="tl" title="' + esc(tip) + '"><div><b>' + nf(p.need) + ' m</b> <span class="muted" style="font-size:11px">· ' + plural(p.lines, 'line') + '</span></div>'
+    + '<div style="height:6px;border-radius:3px;background:var(--soft);overflow:hidden;margin:5px 0 3px" role="img" aria-label="' + pct + '% covered">'
+    + '<div style="height:100%;width:' + pct + '%;background:' + col + '"></div></div>'
+    + '<div class="muted" style="font-size:11px">' + nf(p.free) + ' m RFD free · ' + words + '</div></td>';
+}
+function invActionCell(r, loading) {
+  if (loading) return '<td></td>';
+  var p = r.ppc, st = invNeedState(r);
+  if (st === 'short' && p.greige) return '<td><button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(p.name) + '|' + p.greigeM + '" style="white-space:nowrap;padding:4px 10px;font-size:12px" title="Raise a greige PO for what PPC is short of (with the processor’s share)">Raise PO · ' + nf(p.greigeM) + ' m</button></td>';
+  if (st === 'short') return '<td><span class="pill pill-low" title="No greige name in Master data, so no greige PO can be raised. Add it in Setup → Master Database.">add greige name</span></td>';
+  if (st === 'ok') return '<td><span class="pill pill-ok">covered</span></td>';
+  return '<td></td>';
+}
 function renderInv() {
   var all = invAll(), types = uniq(all.map(function (x) { return x.type; })).sort();
   if (UI.inv !== 'all' && types.indexOf(UI.inv) < 0) UI.inv = 'all';
-  var rows = all.filter(function (x) {
-    return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type));
-  });
-  var sum = function (k) { return rows.reduce(function (a, x) { return a + (x[k] || 0); }, 0); };
   var count = function (t) { return all.filter(function (x) { return t === 'all' || x.type === t; }).length; };
   /* EVERY CLOTH TYPE IN ONE DROP-DOWN BESIDE THE SEARCH BOX (Ravi, 21 Nov: the row of chips ran off the screen with the
    * real fabrics). "All" first, then each type with how many fabrics it holds. */
@@ -3021,50 +3060,49 @@ function renderInv() {
     + ['all'].concat(types).map(function (t) {
       return '<option value="' + esc(t) + '"' + (UI.inv === t ? ' selected' : '') + '>' + esc(t === 'all' ? 'All' : t) + ' (' + count(t) + ')</option>';
     }).join('') + '</select>';
-  /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, before what is on order — and the greige PO for what is short, from
-   * here. And the RFD already on the floor goes in as opening stock from here too. Only in the app (gdPpcMap). */
-  var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap;
-  UI.invCols = withPpc ? 7 : 6;
-  var ppcCell = function (r) {
-    if (ppcMap && ppcMap.__loading) return '<td class="num muted">…</td>';
-    var p = r.ppc; if (!p) return '<td class="num">' + dash(0) + '</td>';
-    /* What the old Greige for PPC tab showed (Ravi, 15 Oct: "remove this and integrate … under the ppc demand column"):
-     * need, the RFD free against it, short, what is already on its way, and the greige to order. */
-    var sm = 'font-size:10.5px;line-height:1.5';
-    return '<td class="num"><b>' + nf(p.need) + ' m</b><div class="muted" style="' + sm + '">' + plural(p.lines, 'line') + '</div>'
-      + '<div class="muted" style="' + sm + '">RFD free ' + nf(p.free) + ' m' + (p.desk > 0.05 ? ' (' + nf(p.desk) + ' m this desk)' : '') + '</div>'
-      + (p.short > 0.05 ? '<div style="' + sm + ';color:var(--bad);font-weight:700">short ' + nf(p.short) + ' m</div>'
-        + (p.onWay > 0.05 ? '<div class="muted" style="' + sm + '">' + nf(p.onWay) + ' m greige on its way</div>' : '')
-        + (p.greigeM ? '<div style="' + sm + ';font-weight:700">greige to order ' + nf(p.greigeM) + ' m</div>' : '<div style="' + sm + ';color:var(--ok-ink,#166534)">covered by what is on its way</div>')
-        : '<div style="' + sm + ';color:var(--ok-ink,#166534)">covered</div>')
-      + (p.greigeM && p.greige ? '<button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(p.name) + '|' + p.greigeM + '" style="margin-top:4px;padding:3px 10px;font-size:12px">Raise greige PO · ' + nf(p.greigeM) + ' m</button>'
-        : p.greigeM ? '<div class="err-in" style="font-size:10.5px">no greige name in Master data</div>' : '') + '</td>';
-  };
-  var tools = '<div class="row" style="margin:0 0 10px;align-items:center">'
+  /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, and the greige PO for what is short, from here. Only in the app. */
+  var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap, loading = !!(ppcMap && ppcMap.__loading);
+  var inView = all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type)); });
+  if (!withPpc || loading) UI.invShow = 'all';
+  var shown = function (k) { return inView.filter(function (x) { return k === 'all' || invNeedState(x) === k; }); };
+  var rows = shown(UI.invShow).sort(function (a, b) { return INV_SHOW_ORDER[invNeedState(a)] - INV_SHOW_ORDER[invNeedState(b)]; });
+  var sum = function (k) { return rows.reduce(function (a, x) { return a + (x[k] || 0); }, 0); };
+  UI.invCols = withPpc ? 8 : 6;
+  var tools = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'
+    + (withPpc && !loading ? '<div class="seg" role="tablist" aria-label="Show">' + ['all', 'short', 'ok', 'none'].map(function (k) {
+        return '<button type="button" role="tab" class="segbtn' + (UI.invShow === k ? ' on' : '') + '" aria-selected="' + (UI.invShow === k) + '" data-invshow="' + k + '">'
+          + INV_SHOW_LABEL[k] + ' <span class="n">' + shown(k).length + '</span></button>';
+      }).join('') + '</div>' : '')
+    + '<span style="margin-left:auto"></span>'
     + (canLedgerEdit() ? '<button type="button" class="ghost" data-act="OPENING_RFD" title="RFD already on the floor: its own lot, so it is issued like any other and never counted as cloth back from a processor.">+ RFD opening stock</button>' : '')
-    + (withPpc ? '<button type="button" class="ghost" data-gdflow="drfd">Open the flow’s Demand → RFD</button>' : '')
-    + (withPpc ? '<span class="muted" style="font-size:12px;align-self:center">PPC demand is what the production plans need in RFD; short is after the RFD free today; the PO button orders the greige for it (with ' + Math.round((typeof GD_LOSS !== 'undefined' ? GD_LOSS : 0.05) * 100) + '% for what the processor takes).</span>' : '')
+    + (withPpc ? '<button type="button" class="ghost" data-gdflow="drfd" title="Open the flow’s Demand → RFD">Demand → RFD</button>' : '')
     + '</div>';
-  var table = tools + '<div class="card"><div class="ff-grid"><table class="xl">'
-    + th(withPpc ? ['Fabric', 'PPC demand', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'] : ['Fabric', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'],
-      withPpc ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5])
+  var stockHeads = ['Greige ordered', 'Greige in store', 'At RFD processor', 'RFD on shelf'];
+  var group = '<tr><th class="frz"></th>' + (withPpc ? '<th></th><th></th>' : '')
+    + '<th colspan="4" style="text-align:center;color:var(--muted);font-weight:600;border-bottom:0">Where the cloth is now →</th><th></th></tr>';
+  var heads = th(withPpc ? ['Fabric', 'PPC need, covered by RFD', 'Action'].concat(stockHeads, ['Total']) : ['Fabric'].concat(stockHeads, ['Total']),
+    withPpc ? [3, 4, 5, 6, 7] : [1, 2, 3, 4, 5]).replace('<thead>', '<thead>' + group);
+  var table = tools + '<div class="card"><div class="ff-grid"><table class="xl">' + heads
     + '<tbody>' + (rows.map(function (r) {
       return '<tr><td class="frz" style="text-align:left">' + invFabricName(r.fabric)
         + (r.greige ? '<div class="muted" style="font-size:10.5px">bought as ' + esc(r.greige) + '</div>' : '') + '</td>'
-        + (withPpc ? ppcCell(r) : '')
+        + (withPpc ? invNeedCell(r, loading) + invActionCell(r, loading) : '')
         + invCell(r, 'order', r.onOrder, 'color:var(--warn-ink)')
         + invCell(r, 'store', r.inStoreGreige, '')
         + invCell(r, 'proc', r.atProcessor, 'color:var(--proc-ink)')
         + invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700')
         + '<td class="num" style="font-weight:700">' + dash(r.owned) + '</td></tr>'
         + (UI.invOpen.indexOf(r.fabric + '|') === 0 ? invDetail(r, UI.invOpen.split('|')[1]) : '');
-    }).join('') || emptyRow(UI.invCols, 'Nothing on order or in stock' + (UI.inv === 'all' ? '.' : ' for ' + UI.inv + '.')))
+    }).join('') || emptyRow(UI.invCols, UI.invShow !== 'all' ? 'No fabric is ' + INV_SHOW_LABEL[UI.invShow].toLowerCase() + (UI.inv === 'all' ? '.' : ' in ' + UI.inv + '.')
+      : 'Nothing on order or in stock' + (UI.inv === 'all' ? '.' : ' for ' + UI.inv + '.')))
     + '</tbody>'
     + (rows.length > 1 ? '<tfoot><tr><td class="frz" style="text-align:left">Total' + (UI.inv === 'all' ? '' : ' · ' + esc(UI.inv)) + '</td>'
-      + (withPpc ? '<td class="num">' + dash(rows.reduce(function (a, x) { return a + (x.ppc ? x.ppc.need : 0); }, 0)) + '</td>' : '')
+      + (withPpc ? '<td class="tl">' + dash(rows.reduce(function (a, x) { return a + (x.ppc ? x.ppc.need : 0); }, 0)) + '</td><td></td>' : '')
       + '<td class="num">' + dash(sum('onOrder')) + '</td><td class="num">' + dash(sum('inStoreGreige')) + '</td><td class="num">' + dash(sum('atProcessor')) + '</td>'
       + '<td class="num">' + dash(sum('inStoreRfd')) + '</td><td class="num">' + dash(sum('owned')) + '</td></tr></tfoot>' : '')
-    + '</table></div></div>';
+    + '</table></div></div>'
+    + (withPpc ? '<div class="lm-why">Metres. The bar shows how much of the PPC need the RFD free covers; Raise PO orders the greige with '
+      + Math.round((typeof GD_LOSS !== 'undefined' ? GD_LOSS : 0.05) * 100) + '% for what the processor takes.</div>' : '');
   return table;
 }
 
@@ -3162,7 +3200,7 @@ function invOpenPo(poNo, chId) {
 }
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow]') : null;
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
     if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
     if (d && d.getAttribute('data-invh')) { invHistOpen(d.getAttribute('data-invh')); return; }
@@ -3171,6 +3209,7 @@ function wireInventory() {
     if (d && d.id === 'histAll') { invHistOpenAll(); return; }
     if (d && d.getAttribute('data-histpo')) { var p = d.getAttribute('data-histpo').split('|'); $('lmHist').classList.add('hide'); invOpenPo(p[0], p[1]); return; }
     if (d && d.id === 'histXlsx') { invHistXlsx(); return; }
+    if (d && d.getAttribute('data-invshow')) { UI.invShow = d.getAttribute('data-invshow'); UI.invOpen = ''; render(); return; }
   });
   document.addEventListener('change', function (ev) {
     if (ev.target.id === 'invType') { UI.inv = ev.target.value || 'all'; UI.invOpen = ''; render(); return; }
