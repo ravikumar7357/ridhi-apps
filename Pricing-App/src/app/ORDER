@@ -69,6 +69,7 @@ listing/image-quality.js
 listing/image-manager.js
 listing/debug-90244.js
 listing/debug-round.js
+listing/debug-title-fix.js
 listing/picture-check.js
 listing/listing-errors.js
 listing/listing-content.js

@@ -631,7 +631,17 @@ function lrSwFacts(row, cfg, va, o) {
   let found = LR_SW_PROD_KEEP.get(within);
   if (!found) { if (LR_SW_PROD_KEEP.size > 2000) LR_SW_PROD_KEEP.clear(); found = LR_SW_PRODUCTS.filter(p => lrHas(within, p)); LR_SW_PROD_KEEP.set(within, found); }
   product.push(...found);
-  return { colour, shape, material, size, product, brands: lrBrandWords(row, cfg) };
+  /* THE PRODUCT'S OWN NAME as this title writes it (22 Nov 2026): its template's product, its catalogue sub-category (with and without
+   * its shape word), its product type — each one the title holds ("Tissue Box Cover"). A title suggestion never cuts it (lrSuggestWords,
+   * title mode) and never leaves it out (lrTitleFix step 8, title-fix ttCheck). Not added to `product`: where a missing size goes and the
+   * "Missing product" check stay exactly as they were. Only needed when the product words this rule knows ("napkin", "tablecloth"…) are
+   * not in the title — those are protected already, and a second name ("Napkins Set" after "Cloth Napkins") stays a repeat. */
+  const names = [];
+  if (!product.some(p => lrHas(title, p))) [tpl && tpl.product, cat.subcat, String(cat.subcat || '').replace(/\b(?:square|rectangle|rectangular|round|oval)\b/gi, ''), pt].forEach(src0 => {
+    const p = String(src0 || '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    if (p.length > 2 && /[a-z]{3}/i.test(p) && lrHas(title, p) && !names.some(n => lrNorm(n) === lrNorm(p))) names.push(p);
+  });
+  return { colour, shape, material, size, product, names, brands: lrBrandWords(row, cfg) };
 }
 // The short forms, mildest first: added one at a time in this order; when that overshoots, the fewest that fit (ties: the earlier ones).
 const LR_SW_SHORT = [
@@ -712,7 +722,7 @@ function lrSuggestWords(text, o) {
   if (f.colour) mark('colour', lrSwPhrases([String(f.colour)]));       // the whole colour as written ("Indigo Blue and Rust Orange" keeps its "and")
   mark('colour', [...colourKeys].map(k => [k]));
   mark('identity', LR_SW_P.identity);
-  mark('product', lrSwPhrases(f.product || []));
+  mark('product', lrSwPhrases((f.product || []).concat(mode === 'title' && f.names && LR_TF_GUARD ? f.names : [])));   // a title: the product's own name too (lrSwFacts names)
   if (f.shape) mark('shape', LR_SW_SHAPES[f.shape].map(w => [lrSwKey(w)]));
   const mats = f.material ? String(f.material).split(/[\s,&/+-]+/).filter(Boolean) : LR_SW_MATERIAL_DEFAULT;
   mark('material', mats.map(w => [lrSwKey(w)]).filter(p => p[0] && !LR_SW_STOP_SET.has(p[0])));
@@ -1274,13 +1284,87 @@ function lrTitleFix(row, ctx, o) {
   if (t.length > max) {
     const own = lrSwFacts(r, cfg, null, { title: t }).colour;
     const fl = Object.assign({}, f, { colour: [f.colour, own].find(c => c && String(c).split(/\s+/).some(w => w.length > 2 && lrHas(t, w))) || f.colour });
-    let s = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, shortFrom: lrAllow(cfg).shortFrom });
-    if (/\bInch\b/.test(t) && !/\bInch\b/.test(s.after)) s = lrSuggestWords(t, { mode: 'title', facts: fl, fits: x => x.length <= max, short: false });   // "Inch" never goes
-    if (s.after !== t) fixes.push(`Shortened to ${s.after.length} characters`);
-    t = s.after;
-    if (!s.fits) held = `${LR_SW_IMPORTANT} (${t.length} characters, over ${max})`;
+    const was = t;
+    const min = lenRule && +(lenRule.params || {}).min || 0;
+    // the suggestion-words rule: its filler words, then the 74–75 short forms — never the product's own name, the brand, the colour or the
+    // size (protected there); "Inch" never goes
+    const sw = x => {
+      let s = lrSuggestWords(x, { mode: 'title', facts: fl, fits: y => y.length <= max, shortFrom: lrAllow(cfg).shortFrom });
+      if (/\bInch\b/.test(x) && !/\bInch\b/.test(s.after)) s = lrSuggestWords(x, { mode: 'title', facts: fl, fits: y => y.length <= max, short: false });
+      return s.after;
+    };
+    // 7a MATERIAL FIRST (22 Nov 2026): "100% Cotton", "Cotton", "Linen" and the comma each leaves — from the end, before any other word;
+    // 7b then the suggestion-words rule
+    let a = LR_TF_GUARD ? lrDropMaterial(t, fl, x => x.length <= max, min) : t;
+    if (a.length > max) a = sw(a);
+    // material first, then word by word, ended under the title-length rule's minimum: the rule's word-by-word order alone, when that fits
+    if (LR_TF_GUARD && min && a.length < min && a !== t) { const b = sw(t); if (b.length >= min && b.length <= max) a = b; }
+    t = a;
+    if (t !== was) fixes.push(`Shortened to ${t.length} characters`);
+  }
+  // the rule before 22 Nov (debugTitleFix's "before"): whatever the suggestion-words rule left, held only when still too long
+  if (!LR_TF_GUARD) return { before, after: t, fixes, held: t.length > max ? `${LR_SW_IMPORTANT} (${t.length} characters, over ${max})` : '', probs };
+  // 8 NOTHING PROTECTED IS LOST (22 Nov 2026): the brand, the product's own name, the colour the title had, and the size it now carries
+  // must all still be there, within the length — else no suggestion at all: "Can't fit: needs a manual title".
+  const lost = lrTitleLost(before, t, r, cfg, f, fixes);
+  if (t.length > max || lost.length) {
+    held = `${LR_CANT_FIT}${lost.length ? ` — it would lose ${lost.join(', ')}` : ` (${t.length} characters, over ${max})`}`;
+    return { before, after: before, fixes: [], held, probs };
   }
   return { before, after: t, fixes, held, probs };
+}
+const LR_CANT_FIT = 'Can\'t fit: needs a manual title';
+// The product-name guard (lrSwFacts names protected, material first, step 8). debugTitleFix() (listing/debug-title-fix.js) turns it off to
+// show what the suggestions were before 22 Nov, then back on.
+let LR_TF_GUARD = true;
+/* 7a of lrTitleFix: the material words first ("100% Cotton", "Pure Cotton", "Cotton", "Linen", a lone "100%"), the last one first, each with
+ * the comma it leaves (", "), until the title fits — never inside the product's own name, the product words or the colour, and never one
+ * that would take the title under `min` (the title-length rule's minimum: then the suggestion-words rule shortens it word by word). */
+function lrDropMaterial(text, facts, fits, min) {
+  let t = String(text);
+  const keep = [].concat(facts.names || [], facts.product || [], facts.colour ? [facts.colour] : []).filter(p => p && String(p).length > 2);
+  const inKeep = (s, e) => keep.some(p => {
+    const low = t.toLowerCase(), want = String(p).toLowerCase();
+    for (let at = low.indexOf(want); at >= 0; at = low.indexOf(want, at + 1)) if (at < e && s < at + want.length) return true;
+    return false;
+  });
+  for (let guard = 0; guard < 8 && !fits(t); guard++) {
+    const hits = [...t.matchAll(/(?:\b100\s*%\s*)?(?:\b(?:pure|organic)\s+)?\b(?:cotton|linen)\b|\b100\s*%(?=[\s,]|$)/gi)].filter(m => !inKeep(m.index, m.index + m[0].length));
+    if (!hits.length) break;
+    const cut = m => {
+      let s0 = m.index, e0 = m.index + m[0].length;
+      const after = t.slice(e0).match(/^\s*,/);
+      if (after) e0 += after[0].length;                                  // "100% Cotton, Green" → "Green"
+      else { const bef = t.slice(0, s0).match(/,\s*$/); if (bef) s0 -= bef[0].length; }   // "Square, 100% Cotton" → "Square"
+      return (t.slice(0, s0) + ' ' + t.slice(e0)).replace(/\s{2,}/g, ' ').replace(/\s+([,.;:])/g, '$1').replace(/^[\s,]+|[\s,]+$/g, '').trim();
+    };
+    const next = hits.slice().reverse().map(cut).find(x => x.length >= (+min || 0));
+    if (!next) break;
+    t = next;
+  }
+  return t;
+}
+/* THE PRODUCT IS STILL NAMED (22 Nov 2026): the product names the old title held — the product's own name (lrSwFacts names: "Tissue Box
+ * Cover") and the product words ("Cloth Napkins", "Tablecloth") — at least ONE must still be in the new title, whole. A second one said
+ * again ("Cloth Napkins … Dinner Napkins Set") may go, as the repeated-word rule always did. Returns the name that went (the product's own
+ * name first, the longest), or '' when the product is still named. */
+function lrProductLost(before, after, f) {
+  const had = [...new Set([].concat(f.names || [], f.product || []))].filter(p => p && lrHas(before, p));
+  if (!had.length || had.some(p => lrHas(after, p))) return '';
+  const own = (f.names || []).filter(p => had.includes(p));
+  return (own.length ? own : had).slice().sort((a, b) => String(b).length - String(a).length)[0];
+}
+// 8 of lrTitleFix: what a suggestion would lose that it may never lose — [words], empty when nothing.
+function lrTitleLost(before, after, row, cfg, f, fixes) {
+  const lost = [];
+  const was = (w, x) => lrHas(before, w) && !lrHas(x, w);
+  lrBrandWords(row, cfg).filter(w => lrHas(before, w)).forEach(w => { if (!lrHas(after, w)) lost.push(`the brand "${w}"`); });
+  const gone = lrProductLost(before, after, f);
+  if (gone) lost.push(`the product name "${gone}"`);
+  String(f.colour || '').split(/[^A-Za-z]+/).filter(w => w.length > 2 && !LR_SW_STOP_SET.has(w.toLowerCase()))
+    .forEach(w => { if (was(w, after)) lost.push(`the colour word "${w}"`); });
+  if ((fixes || []).includes('Missing size') && !hTitleSizes(after, lrIsRound(row, before)).length) lost.push('the size');
+  return lost;
 }
 // "amber marigold" → "Amber Marigold" (a value from an attribute put into a title).
 const lrCaps = v => String(v || '').replace(/\s+/g, ' ').trim().replace(/\b[a-z]/g, ch => ch.toUpperCase());

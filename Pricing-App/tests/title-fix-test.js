@@ -154,10 +154,12 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
       T1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Rust',
       S1: 'Ridhi Cloth Napkins 100% Cotton 20 x 20 Inch Block Print - Navy',
       D1: 'Ridhi Cloth Napkins 100% Cotton 14 x 20 Inch Block Print - Teal',
-      L1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Ivory',
-      K1: 'Ridhi Block Print Cloth Napkins 100% Cotton 20 x 20 Inch Reusable - Mustard',
-      M1: 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print Reusable - Olive',
-      C1: 'Ridhi Cloth Napkins 100% Cotton 20 x 20 Inch Block Print Reusable - Black',
+      // 22 Nov 2026: too long → the material ("100% Cotton") goes first, then the suggestion-words rule, then the 74–75 short forms
+      L1: 'Ridhi Cloth Napkins 18 x 18 Inch Block Print Reusable Dinner - Ivory',
+      K1: 'Ridhi Block Print Cloth Napkins 20 x 20 Inch Reusable Dinner - Mustard',
+      M1: 'Ridhi Cloth Napkins 18 x 18 Inch Block Print Reusable Dinner Party - Olive',
+      C1: 'Ridhi Cloth Napkins 20 x 20 Inch Block Print Reusable Dinner Set - Black',
+      X1: 'Ridhi Cloth Napkins 18x18 Inch Block Print Indigo Blue & Rust Orange Stripe',
     };
     Object.entries(expect).forEach(([sku, t]) => ok(`${sku} → "${t}"`, p(sku).ok && p(sku).after === t, p(sku).after + ' · ' + p(sku).why));
     const diff = (x, y) => { const a = x.split(' '), b = y.split(' '); return a.length === b.length ? a.filter((w, i) => w !== b[i]).length : -1; };
@@ -180,26 +182,27 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
 
     console.log('== held back, with the reason — nothing guessed, nothing reordered ==');
     ok('A1: its mistakes corrected in place (Inch, 14 x 20, Block Print) — but its brand is not at the start, so it is held for a person (Sellora never reorders)', !p('A1').ok && /the brand is not at the start/.test(p('A1').why) && /^Napkins Ridhi/.test(p('A1').after), p('A1').why + ' · ' + p('A1').after);
-    ok('X1: with only its important words left (brand, product, material, size, print, its whole colour) it is over 75 → held back: "Only important words left — edit by hand", nothing important dropped',
-      !p('X1').ok && /^Only important words left — edit by hand \(\d+ characters, over 75\)/.test(p('X1').why) && p('X1').after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print - Indigo Blue and Rust Orange Stripe', p('X1').why + ' · ' + p('X1').after);
+    // 22 Nov 2026: material is no longer kept before everything else — X1 fits once "100% Cotton" goes (then the 74–75 short forms)
+    ok('X1: "100% Cotton" goes first, then the repeated "Napkins" and "Reusable", then the 74–75 short forms → fits, brand, product, size, print and its whole colour kept',
+      p('X1').ok && p('X1').after === 'Ridhi Cloth Napkins 18x18 Inch Block Print Indigo Blue & Rust Orange Stripe' && p('X1').after.length <= 75, p('X1').why + ' · ' + p('X1').after);
 
     console.log('== the popup ==');
     const pop = C.el('spModalBox').innerHTML;
     const t = strip(pop);
-    ok('title, sum line: "N children · every new title passes every title rule · 3 held back"', /Fix all titles — Parent PB/.test(t) && new RegExp(`${n - 3} children · every new title passes every title rule · 3 held back`).test(t), t.slice(0, 300));
+    ok('title, sum line: "N children · every new title passes every title rule · 2 held back"', /Fix all titles — Parent PB/.test(t) && new RegExp(`${n - 2} children · every new title passes every title rule · 2 held back`).test(t), t.slice(0, 300));
     ok('per child: SKU, colour · size, current → new title, characters before → after, what it fixes', /<b>S1<\/b><small>Navy · 20 x 20 Inch<\/small>/.test(pop) && /<small>Now<\/small> /.test(pop) && /<small>New<\/small> /.test(pop)
       && /data-tt-n="SP\|S1">\d+<\/span> characters/.test(pop) && /Fixes: Size: 20x20 Inches → 20 x 20 Inch/.test(t), t.slice(0, 900));
     ok('the changes marked: words that go struck through, words that come in highlighted', /<span class="kf-cut">Napkns<\/span>/.test(pop) && /<span class="tt-add">Napkins<\/span>/.test(pop) && /<span class="tt-add">Block<\/span>/.test(pop));
-    ok('each one: "✓ Passes every title rule", a tick (ticked), "Edit new title"', (pop.match(/✓ Passes every title rule/g) || []).length === n - 3 && (pop.match(/data-tt-tick="[^"]+" checked/g) || []).length === n - 3 && (pop.match(/Edit new title/g) || []).length === n - 3);
-    ok('held-back children listed with the reason (and Edit by hand)', (pop.match(/⚠ Held back: /g) || []).length === 3 && /⚠ Held back: 58 characters, under 60 — add words by hand/.test(pop) && (pop.match(/data-tt="hand"/g) || []).length === 3);
-    ok('Select all, search, and the button "Check with Amazon & send N"', /data-tt-all checked/.test(pop) && /data-tt-q/.test(pop) && new RegExp(`data-tt="go">Check with Amazon &amp; send ${n - 3}<`).test(pop));
+    ok('each one: "✓ Passes every title rule", a tick (ticked), "Edit new title"', (pop.match(/✓ Passes every title rule/g) || []).length === n - 2 && (pop.match(/data-tt-tick="[^"]+" checked/g) || []).length === n - 2 && (pop.match(/Edit new title/g) || []).length === n - 2);
+    ok('held-back children listed with the reason (and Edit by hand)', (pop.match(/⚠ Held back: /g) || []).length === 2 && /⚠ Held back: 58 characters, under 60 — add words by hand/.test(pop) && (pop.match(/data-tt="hand"/g) || []).length === 2);
+    ok('Select all, search, and the button "Check with Amazon & send N"', /data-tt-all checked/.test(pop) && /data-tt-q/.test(pop) && new RegExp(`data-tt="go">Check with Amazon &amp; send ${n - 2}<`).test(pop));
     ok('…no source line: the words are the title\'s own (nothing taken from a template)', !/from Amazon: |Listing Rules: /.test(t), (t.match(/from Amazon[^·]*/) || [''])[0]);
 
     console.log('== tick, Select all, search, Edit (judged again live) ==');
     C.ttInput({ dataset: { ttTick: 'SP|K1' }, checked: false });
-    ok('untick K1 → "… · N ticked", button one less', new RegExp(`Check with Amazon &amp; send ${n - 4}`).test(C.el('spModalBox').innerHTML) || C.TT.run.sel.size === n - 4);
+    ok('untick K1 → "… · N ticked", button one less', new RegExp(`Check with Amazon &amp; send ${n - 3}`).test(C.el('spModalBox').innerHTML) || C.TT.run.sel.size === n - 3);
     C.ttInput({ dataset: { ttAll: '' }, checked: true });
-    ok('Select all → all ticked again', C.TT.run.sel.size === n - 3);
+    ok('Select all → all ticked again', C.TT.run.sel.size === n - 2);
     C.ttInput({ dataset: { ttQ: '' }, value: 'plum' });
     ok('search "plum" → the search kept (the rows not matching hidden)', C.TT.run.q === 'plum');
     C.ttInput({ dataset: { ttQ: '' }, value: '' });
@@ -216,26 +219,26 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     C.ttGo();
     await C.SQ.run.checked;
     const sq = C.SQ.run;
-    ok(`Amazon checks the ${n - 4} that pass (D1's failing edit held back with its reason), nothing sent yet`, patchCalls(C, false).length === n - 4 && patchCalls(C, true).length === 0 && sq.jobs.length === n - 4
+    ok(`Amazon checks the ${n - 3} that pass (D1's failing edit held back with its reason), nothing sent yet`, patchCalls(C, false).length === n - 3 && patchCalls(C, true).length === 0 && sq.jobs.length === n - 3
       && !sq.jobs.some(j => j.sku === 'D1') && sq.opts.held.some(h => h.sku === 'D1' && /the edited title fails: still: Dimension order/.test(h.why)) && C.SQ.screens.slice(-1)[0] === 'Titles · Fix all', sq.opts.held.map(h => h.sku + ': ' + h.why).join(' | '));
     ok('the edited S1 goes as edited; each patch is only that child\'s item_name', patchCalls(C, false).find(c => c.sku === 'S1').patches[0].value[0].value === 'Ridhi Cloth Napkins 100% Cotton 20 x 20 Inch Block Print Set - Navy'
       && patchCalls(C, false).every(c => c.patches.length === 1 && c.patches[0].path === '/attributes/item_name' && c.productType === 'NAPKIN'));
     await C.sqApprove();
-    ok('Approve & send: sent for real, one by one', patchCalls(C, true).length === n - 4);
+    ok('Approve & send: sent for real, one by one', patchCalls(C, true).length === n - 3);
     C.sqClose();
     await pr;
     ok('the result in words: "N accepted · …" (kept for the Listing Errors card)', /accepted/.test(C.TT.last.get('SP') || ''), C.TT.last.get('SP'));
-    ok('every send kept with its OLD title (listingrules/fixlog): row "ttl", "Title problems"', C.FA.log.length === n - 4 && C.FA.log.every(r => r.row === 'ttl' && r.name === 'Title problems' && r.before.title && r.after.title && r.before.title !== r.after.title)
+    ok('every send kept with its OLD title (listingrules/fixlog): row "ttl", "Title problems"', C.FA.log.length === n - 3 && C.FA.log.every(r => r.row === 'ttl' && r.name === 'Title problems' && r.before.title && r.after.title && r.before.title !== r.after.title)
       && C.FA.log.find(r => r.sku === 'S1').before.title === KIDS.S1.title, JSON.stringify(C.FA.log[0]));
     const lh = A => A.saved.filter(x => /^history\/listing_/.test(x.path)).flatMap(x => Object.values(x.data.rows || {}));
     const hrows = lh({ saved });
-    ok('Listing History rows, screen "Titles · Fix all"', hrows.length >= n - 4 && hrows.every(r => r.screen === 'Titles · Fix all' && r.field === 'Title'), JSON.stringify(hrows[0]));
+    ok('Listing History rows, screen "Titles · Fix all"', hrows.length >= n - 3 && hrows.every(r => r.screen === 'Titles · Fix all' && r.field === 'Title'), JSON.stringify(hrows[0]));
     ok('…and Listing History names the screen once ("Titles · Fix all", not "… · Fix all · Fix all")', C.lhScreen({ screen: 'Titles · Fix all', runN: 7 }) === 'Titles · Fix all' && C.lhScreen({ screen: 'Listing Health', runN: 7 }) === 'Workspace · Fix all');
     await wait(() => !C.LI_WS.inflight && !C.LI_WS.q.length);
     const left = C.ttRows('SP').map(r => r.row.sku);
-    ok('the sent children leave the problem rows (waiting for Amazon); the held ones and D1 stay', ['T1', 'S1', 'L1', 'K1', 'M1', 'C1'].every(s => !left.includes(s)) && ['D1', 'O1', 'A1', 'X1'].every(s => left.includes(s)), left.join());
+    ok('the sent children leave the problem rows (waiting for Amazon); the held ones and D1 stay', ['T1', 'S1', 'L1', 'K1', 'M1', 'C1', 'X1'].every(s => !left.includes(s)) && ['D1', 'O1', 'A1'].every(s => left.includes(s)), left.join());
     const g2 = C.faGroups('SP', 'PB', C.faKids('SP', 'PB'));
-    ok('…in the Workspace too: each title row counts them as waiting', g2.filter(g => g.kind === 'ttl').every(g => g.kids.every(k => ['D1', 'O1', 'A1', 'X1'].includes(k.sku))) && g2.some(g => g.waiting.some(w => w.kid.sku === 'S1')),
+    ok('…in the Workspace too: each title row counts them as waiting', g2.filter(g => g.kind === 'ttl').every(g => g.kids.every(k => ['D1', 'O1', 'A1'].includes(k.sku))) && g2.some(g => g.waiting.some(w => w.kid.sku === 'S1')),
       g2.filter(g => g.kind === 'ttl').map(g => g.key + ':' + g.kids.map(k => k.sku).join('/') + ' w' + g.waiting.length).join(' '));
 
     console.log('== Put back ==');
@@ -260,7 +263,7 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     await C.sqApprove();
     const st = Object.fromEntries(C.SQ.run.jobs.map(j => [j.sku, j.state]));
     ok('K1 rejected (an ERROR on item_name), L1 still working, the others accepted', st.K1 === 'rejected' && st.L1 === 'working' && Object.entries(st).filter(([s]) => !['K1', 'L1'].includes(s)).every(([, v]) => v === 'accepted'), JSON.stringify(st));
-    ok('"✅ 5 accepted · ❌ 1 rejected (A value Amazon does not accept) · ⏳ 1"', /✅ 5 accepted · ❌ 1 rejected \(A value Amazon does not accept\) · ⏳ 1/.test(strip(C.el('spModalBox').innerHTML)), strip(C.el('spModalBox').innerHTML).slice(0, 300));
+    ok('"✅ 6 accepted · ❌ 1 rejected (A value Amazon does not accept) · ⏳ 1"', /✅ 6 accepted · ❌ 1 rejected \(A value Amazon does not accept\) · ⏳ 1/.test(strip(C.el('spModalBox').innerHTML)), strip(C.el('spModalBox').innerHTML).slice(0, 300));
     C.sqClose();
     await pr;
     ok('with the facts already held (the ListingMatch cache), the popup read nothing from Amazon first', read0 === 0 && C.TT.readV === 1);
@@ -302,11 +305,11 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     await ready(C);
     const p2 = planOf(C, 'P2');
     // OUR TITLE FORMAT (20 Nov 2026): its own words in its own order; the low-value words go first — the colour, size and "Inch" stay
-    ok('P2 (a long colour): the uses go ("Reusable Dinner Napkins Set"), its own colour whole and "Inch" stay, no short form needed', p2.ok && p2.after === 'Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch - Dusty Rose Pink Stripe' && !p2.shortForms.length,
+    ok('P2 (a long colour): "100% Cotton" goes first, then the repeated "Napkins Set"; its own colour whole and "Inch" stay, no short form needed', p2.ok && p2.after === 'Ridhi Cloth Napkins 18 x 18 Inch Reusable Dinner - Dusty Rose Pink Stripe' && !p2.shortForms.length,
       p2.after + ' · ' + p2.after.length + ' · ' + p2.shortForms + ' · ' + p2.why);
     C.ttClick({ dataset: { tt: 'cancel' } });
     const l1 = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.sku === 'L1'), C.hCtx()).get('L1');
-    ok('L1: the repeated "Napkins" and then "Dinner" go, "Reusable" fits and stays, the print stays', l1.ok && !l1.dropped.length && /Block Print Reusable - Ivory$/.test(l1.after) && l1.after.length <= 75, l1.dropped + ' · ' + l1.after);
+    ok('L1: "100% Cotton" goes first, then the repeated "Napkins" and the joining words; "Reusable Dinner" fits and stays, the print stays', l1.ok && !l1.dropped.length && /Block Print Reusable Dinner - Ivory$/.test(l1.after) && l1.after.length <= 75, l1.dropped + ' · ' + l1.after);
   }
 
   console.log('== a long print in the template ("Hand Block Print"): "Hand" is never dropped (19 Nov 2026) ==');
@@ -323,13 +326,13 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     const tc = (sku, color, size) => C.ttBuild('SP', C.HEALTH.SP.rows.find(r => r.sku === sku), C.hCtx(), { va: { color, size, material: 'Cotton', item_shape: 'Rectangle' } });
     const b1 = tc('TC1', 'Mustard', '60x102');
     // OUR TITLE FORMAT (20 Nov 2026): its own words and order; "Hand Block Print" (the family's words) put in its place, whole — "Hand" never dropped
-    ok('TC1: "Hand Block Print" (as its sibling writes it) added before the shape, whole; to fit 75 the low-value words go ("Dining Table Cover"); its own order kept',
-      b1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60 x 102 Inch Cotton - Mustard' && !b1.why && b1.fixWhat.includes('Missing "Hand Block Print"'), b1.after + ' · ' + b1.after.length + ' · ' + b1.why);
+    ok('TC1: "Hand Block Print" (as its sibling writes it) added before the shape, whole; to fit 75 "Cotton" goes first (22 Nov), then "Table Cover"; its own order kept',
+      b1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60 x 102 Inch Dining - Mustard' && !b1.why && b1.fixWhat.includes('Missing "Hand Block Print"'), b1.after + ' · ' + b1.after.length + ' · ' + b1.why);
     const b2 = tc('TC2', 'Red', '60x90');
     ok('…a title with no mistake is left exactly as it is', b2.after === 'Ridhi Tablecloth Rectangle 100% Cotton 60 x 90 Inch Hand Block Print - Red' && /no mistake/.test(b2.why), b2.after + ' · ' + b2.why);
     C.TT.read.set('SP|TC1', { va: { color: 'Mustard', size: '60x102', material: 'Cotton', item_shape: 'Rectangle' }, pt: 'TABLECLOTH', at: now });
     const p1 = C.ttPlans('SP', C.ttRows('SP').filter(r => r.row.parent === 'TCP'), C.hCtx()).get('TC1');
-    ok('…and it passes every title rule — ready to send', p1 && p1.ok && p1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60 x 102 Inch Cotton - Mustard', p1 && (p1.why || p1.after));
+    ok('…and it passes every title rule — ready to send', p1 && p1.ok && p1.after === 'Ridhi Hand Block Print Rectangle Tablecloth 60 x 102 Inch Dining - Mustard', p1 && (p1.why || p1.after));
   }
 
   console.log('== the rules re-check holds a new title back ==');
@@ -387,8 +390,8 @@ const ready = C => wait(() => C.TT.run && C.TT.run.plans.length && !C.TT.run.tot
     console.log = () => {}; console.table = () => {};
     let r;
     try { r = C.ttReport(); } finally { console.log = log; console.table = table; }
-    ok('ttReport(): children and families it would fix, held back by reason, 3 examples before → after', r.counts.Ridhi.childrenWithATitleProblem === C.ttRows('SP').length && r.counts.Ridhi.fixedNow === 8 && r.counts.Ridhi.familiesFixed === 2
-      && r.counts.Ridhi.heldBack === 3 && r.examples.length === 3 && r.examples.every(x => x.before && x.after && x.before !== x.after) && Object.keys(r.heldBackBy).length === 3, JSON.stringify(r));
+    ok('ttReport(): children and families it would fix, held back by reason, 3 examples before → after', r.counts.Ridhi.childrenWithATitleProblem === C.ttRows('SP').length && r.counts.Ridhi.fixedNow === 9 && r.counts.Ridhi.familiesFixed === 2
+      && r.counts.Ridhi.heldBack === 2 && r.examples.length === 3 && r.examples.every(x => x.before && x.after && x.before !== x.after) && Object.keys(r.heldBackBy).length === 2, JSON.stringify(r));
   }
 
   console.log('== wired in: ORDER, the styles ==');

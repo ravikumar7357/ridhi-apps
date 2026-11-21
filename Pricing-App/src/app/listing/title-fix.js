@@ -277,6 +277,11 @@ function ttCheck(brand, row, title, ctx, ctx2) {
   });
   const brands = lrBrandWords(was, ctx.cfg);
   if (brands.length && !brands.some(word => lrFind(title, word) === 0)) fails.push('the brand is not at the start');
+  // MISSING PRODUCT ON THE NEW TITLE (22 Nov 2026): the product must still be named — its own name ("Tissue Box Cover") or one of the
+  // product names the old title held (listing-rules.js lrProductLost, the same rule Title Fix shortens by); else it never "passes"
+  const oldT = hTitleText(was);
+  const gone = lrProductLost(oldT, title, lrSwFacts(was, ctx.cfg, null, { title: oldT }));
+  if (gone) fails.push(`Missing product: "${gone}" is not in the new title`);
   // no other brand's name and no restricted claim in a new title (IP & Trademark Guard; a word allowed on purpose for the listing is fine)
   if (typeof ipgTitleRisk === 'function') ipgTitleRisk(brand, row.sku, was, title, ctx.cfg).forEach(why => fails.push(why));
   return { pass: !fails.length && !ttSafe(title).length, fails: fails.concat(ttSafe(title)) };
