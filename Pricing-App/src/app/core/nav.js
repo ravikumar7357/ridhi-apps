@@ -139,8 +139,19 @@ window.addEventListener('hashchange', () => {
 });
 // Open one tab: mark its button, show its pane and hide every other pane and panel, set the page title,
 // mark the menu group it sits in, and call its ensure… loader (each screen's own file) so it fills itself.
+// The address points at a place inside the page (#someId that is not a screen, and is on the page): leave the scroll to it.
+// A function, not a const: showTab runs once while the page is still being set up (above).
+function navAnchorHash() {
+  let h = '';
+  try { h = decodeURIComponent(String(location.hash || '').slice(1)); } catch (e) { h = ''; }
+  return !!h && !TABS.includes(h) && !!document.getElementById(h);
+}
 function showTab(which) {
+  // A new screen opens at the top (22 Nov review: it opened at the old screen's scroll); the same screen drawn again keeps
+  // its place, and so does an address pointing inside the page.
+  const changed = TAB_NOW !== which;
   TAB_NOW = which;
+  if (changed && !navAnchorHash() && typeof window.scrollTo === 'function') window.scrollTo(0, 0);
   // (TAB_HASH is still undefined during the load-time showTab above: only 'replace' / 'push' write the address)
   if ((TAB_HASH === 'replace' || TAB_HASH === 'push') && location.hash !== '#' + which) history[TAB_HASH === 'push' ? 'pushState' : 'replaceState'](null, '', '#' + which);
   // --- buttons and panes ---

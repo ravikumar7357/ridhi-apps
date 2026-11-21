@@ -4632,8 +4632,8 @@
   .plx-big b.plx-good{color:var(--accent-ink)}
   .plx-big b.plx-bad{color:var(--bad-ink)}
   .plx-sub{font-size:12.5px;color:var(--muted);margin-top:3px}
-  .plx-tags{display:flex;gap:5px;margin-top:9px}
-  .plx-tags span{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px;
+  .plx-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+  .plx-tags span{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px;white-space:nowrap;
     color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
   .plx-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:7px;vertical-align:0}
   .sta-scope table.xl tr.plx-camp td{background:var(--soft);padding-top:10px;padding-bottom:10px}
@@ -4664,7 +4664,20 @@
   .plx-lg small i{width:9px;height:9px;border-radius:3px;display:inline-block}
   .plx-lg b{display:block;font-size:16px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:2px}
   .plx-lg.tot{padding-left:22px;border-left:1px solid var(--line)}
-  .plx-chart{overflow-x:auto;padding:4px 16px 14px}
+  .plx-chart{overflow:hidden;padding:4px 16px 14px}
+  .plx-chart svg{display:block;max-width:100%}
+  /* 22 Nov review: each half says its window (the decisions: settled 7-day; the chart and tables: the nightly 30-day), the
+     line between them says the totals differ; Decision and Action right after the first column, the numbers tighter. */
+  .plx-win{margin-left:8px;font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--muted);padding:2px 8px;border-radius:999px;
+    box-shadow:inset 0 0 0 1px var(--line);vertical-align:2px;white-space:nowrap}
+  .plx-win:empty{display:none}
+  .plx-split{margin:18px 2px 0;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:10px}
+  .plx-split::before,.plx-split::after{content:"";flex:1;height:1px;background:var(--line)}
+  .sta-scope #plxTable td.sta-ev.plx-dec{min-width:220px;max-width:290px}
+  .sta-scope #plxTable th.sta-stick,.sta-scope #plxTable td.sta-stick{min-width:210px;max-width:280px}
+  .sta-scope #plxTable th.num,.sta-scope #plxTable td.num{padding-left:8px;padding-right:8px}
+  .sta-scope #plxTable th.num{white-space:nowrap;line-height:1.25;vertical-align:bottom}
+  .sta-scope #plxTable .plx-acts{gap:4px}
   @media (max-width:1100px){.plx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:1100px){.sta-sum{grid-template-columns:repeat(4,minmax(0,1fr))!important}.sta-legcols{grid-template-columns:1fr}}
   @media (max-width:1100px){.sta-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -4724,6 +4737,14 @@
   #paneNgram #ngTable td.sta-ev.sta-ev-s{min-width:200px;max-width:250px}
   #paneNgram #ngTable td.sta-next{min-width:150px}
   #paneNgram #ngTable td.sta-next button.sta-btn.sm{margin-top:0;white-space:nowrap}
+  /* 22 Nov review: Waste with nothing to negate says why, then "Open in Search Term Analysis"; merged rows list the others;
+     Protected only is a flag, set apart from the four class chips; the single-term n-grams the filter found. */
+  #paneNgram #ngTable td.sta-next .sta-hold{display:block}
+  #paneNgram #ngTable td.sta-next button.ng-gost{margin-top:4px}
+  #paneNgram .ng-same{margin-top:2px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+  #paneNgram .sta-actbar .ng-flag{display:inline-flex;align-items:center;margin-left:6px;padding-left:10px;border-left:1px solid var(--line)}
+  #paneNgram #ngTable tr.ng-solo>td{white-space:normal;padding:10px 14px;background:var(--soft)}
+  #paneNgram #ngTable tr.ng-solo button.sta-btn.sm{margin-top:0;margin-left:6px}
   #paneNgram .ng-split{position:sticky;left:16px;width:min(1400px,calc(100vw - 96px));display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:12px 24px;white-space:normal}
   #paneNgram .ng-col{min-width:0}
   #paneNgram table.xl.ng-mini td{white-space:normal}

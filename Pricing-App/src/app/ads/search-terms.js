@@ -130,6 +130,10 @@ const STA_DTI = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short
 const staMoney = v => '$' + STA_NF2.format(Number(v) || 0);
 const staMoney0 = v => '$' + STA_NF0.format(Math.round(Number(v) || 0));
 const staPct = v => v == null || !isFinite(v) ? '—' : v.toFixed(1) + '%';
+// A chance (0–1) as a %: under 0.1% reads "<0.1%", never "0.0%" (N-Gram Analysis, Search Term Analysis, the dialogs).
+const staChance = v => v == null || !isFinite(v) ? '—' : v < 0.001 ? '<0.1%' : (v * 100).toFixed(1) + '%';
+// Orders, but no unit cost or target to judge them against: one wording on every page (Placement's chip, N-Gram's Mixed).
+const STA_NOTGT = 'Has orders · not judged (no target)';
 // ROAS from an ACoS in % (ROAS = 100 ÷ ACoS).
 const staRoas = acos => acos > 0 && isFinite(acos) ? (100 / acos).toFixed(2) : '—';
 const staInt = v => STA_NF0.format(Number(v) || 0);
@@ -742,6 +746,14 @@ function staModelBrand(b, M, rlOpen) {
     const s = ' ' + staNorm(t) + ' ';
     return brandTerms.find(w => w && s.includes(' ' + w + ' ')) || '';
   };
+  // The other brand's brand terms (its Lists & settings) are a sister brand here: never negated (22 Nov review — "ridhi
+  // pillow covers" spending in Cotton Print Club). One check for Search Term Analysis's terms, By word and N-Gram Analysis.
+  const sisterTerms = (staSet(other).brandTerms || []).map(staNorm).filter(w => w && !brandTerms.includes(w));
+  const isSister = t => {
+    if (isBrand(t)) return '';
+    const s = ' ' + staNorm(t) + ' ';
+    return sisterTerms.find(w => s.includes(' ' + w + ' ')) || '';
+  };
   // Main keywords: our own keywords (any match type), by the products of the ad groups that hold them.
   const ownKw = new Map();
   tgts.forEach(x => {
@@ -753,7 +765,7 @@ function staModelBrand(b, M, rlOpen) {
   terms.forEach(x => { const k = staKey(x.t); brandOrders.set(k, (brandOrders.get(k) || 0) + (x.o > x.c ? 0 : x.o || 0)); });
   const rawOf = new Map();
   (S.blocked || []).concat(S.competitors || []).forEach(w => { if (staNorm(w)) rawOf.set(staNorm(w), String(w).trim().toLowerCase()); });
-  M.protect[b] = { own, sister, isBrand, ownKw, brandOrders, rawOf, blocked: (S.blocked || []).map(staNorm).filter(Boolean),
+  M.protect[b] = { own, sister, isBrand, isSister, ownKw, brandOrders, rawOf, blocked: (S.blocked || []).map(staNorm).filter(Boolean),
     competitors: (S.competitors || []).map(staNorm).filter(Boolean) };
   const P = M.protect[b];
 
@@ -858,6 +870,9 @@ function staModelBrand(b, M, rlOpen) {
       if (P.own.has(tl)) tags.push(['own', 'Own product', 'One of this brand\'s own ASINs: a defence placement, never negated or scaled here.' + (staTitle(tl) ? ' ' + staTitle(tl) : '')]);
       else if (P.sister.has(tl)) tags.push(['sister', 'Sister brand', `An ASIN of ${staBrandName(other)}: never negated or scaled here — agree which brand owns this shopper.`]);
       else tags.push(['comp', 'Competitor ASIN', 'A product page that is not yours.']);
+    } else {
+      const sisHit = P.isSister(term);
+      if (sisHit) tags.push(['sister', 'Sister brand', `Holds "${sisHit}", a brand term of ${staBrandName(other)}: never negated here — agree which brand owns this shopper.`]);
     }
     if (ai.types.has(row.tk)) tags.push(['product', 'Product word', `"${term}" is what this ad group sells: never negated in this product's campaigns. A lower bid, or a look at the listing, instead.`]);
     const okw = P.ownKw.get(row.tk);
@@ -893,7 +908,7 @@ function staModelBrand(b, M, rlOpen) {
     }
     row.tags = tags;
     row.tagSet = new Set(tags.map(t => t[0]));
-    row.noNeg = row.tagSet.has('brand') ? 'brand term' : row.tagSet.has('own') ? 'own product' : row.tagSet.has('sister') ? 'sister-brand product'
+    row.noNeg = row.tagSet.has('brand') ? 'brand term' : row.tagSet.has('own') ? 'own product' : row.tagSet.has('sister') ? (row.asin ? 'sister-brand product' : 'sister-brand term')
       : row.tagSet.has('product') ? 'product word' : row.tagSet.has('season') ? 'seasonal term' : '';
     row.main = row.tagSet.has('main');
     row.containsProduct = [...ai.types].some(k => k && row.tk.includes(k));
@@ -1107,7 +1122,7 @@ function staVerdict(r, info) {
   if (info.stale) { r.hold = info.stale + ': no suggestions'; b.push(['Data incomplete', 'warn']); return finish(); }
   if (r.ai.launch) { r.hold = staLaunchHold(r.ai); b.push(['Launch', 'info']); return finish(); }
   if (r.ai.isNew || r.kwNew) { r.hold = `Fewer than ${STA.AGE_DAYS} days of ads: judged from ${staDay(r.kwNew || r.ai.newFrom)}`; b.push(['New', 'info']); return finish(); }
-  const chancePct = r.chance != null ? (r.chance * 100).toFixed(1) + '%' : '';
+  const chancePct = r.chance != null ? staChance(r.chance) : '';
   // The short evidence line: orders in clicks, ROAS against break-even. The statistics stay on the badge's hover.
   const roasBe = be != null && be > 0 ? ` · break-even ${staRoas(be)}` : '';
   const short = `${staInt(r.o)} order${r.o === 1 ? '' : 's'} in <b>${staInt(r.c)} clicks</b> · ROAS <b>${r.sp > 0 ? (r.s / r.sp).toFixed(2) : '—'}</b>${roasBe}`;
@@ -1193,7 +1208,7 @@ function staVerdict(r, info) {
     b.push(['Over target', 'warn']);
   } else {
     b.push([r.o >= STA.SCALE_ORDERS ? 'Winner' : 'Selling', 'ok']);
-    if (r.tagSet.has('own') || r.tagSet.has('sister')) r.hold = 'Own or sister-brand ASIN: not scaled here';
+    if (r.asin && (r.tagSet.has('own') || r.tagSet.has('sister'))) r.hold = 'Own or sister-brand ASIN: not scaled here';
     else if (r.own && r.o >= STA.SCALE_ORDERS && r.acos <= tgt * STA.SCALE_SHARE) {
       r.cat = 'scale';
       r.scaleKind = 'raise';
@@ -1354,7 +1369,7 @@ function staWords(b, M, mine, P, info, rlOpen, bAgg) {
       if (p && Math.pow(1 - p, x.c) >= STA.CHANCE) return;
     } else if (!(x.sp > 0)) return;
     const k = staKey(gram);
-    const protect = allTypes.has(k) ? 'product word' : P.isBrand(gram) ? 'brand term' : staSeasonOf(gram) ? 'seasonal word'
+    const protect = allTypes.has(k) ? 'product word' : P.isBrand(gram) ? 'brand term' : P.isSister(gram) ? 'sister-brand term' : staSeasonOf(gram) ? 'seasonal word'
       : P.ownKw.has(k) ? 'your own keyword' : !tagged && words.every(w => typeWords.has(staSing(w))) ? 'part of a product word' : '';
     if (protect && !tagged) return;
     const key = 'w:' + b + '|' + gram;
@@ -2115,7 +2130,7 @@ function staDrawBurnTgt(L) {
     const p = g.rate && g.rate.p;
     const ev = `${staInt(g.o)} order${g.o === 1 ? '' : 's'} in <b>${staInt(g.c)} clicks</b> · ROAS <b>${g.sp > 0 ? (g.s / g.sp).toFixed(2) : '—'}</b>`
       + (g.beUse ? ` · break-even ${staRoas(g.beUse)}` : '') + (g.kind === 'poor' ? ' · converts at under half the usual rate' : '');
-    const tip = g.kind === 'none' && g.chance != null && p ? `0 orders in ${g.c} clicks happens only ${(g.chance * 100).toFixed(1)}% of the time at ${(p * 100).toFixed(1)}% (${g.rate.w}).`
+    const tip = g.kind === 'none' && g.chance != null && p ? `0 orders in ${g.c} clicks happens only ${staChance(g.chance)} of the time at ${(p * 100).toFixed(1)}% (${g.rate.w}).`
       : g.kind === 'loss' ? `${staMoney(g.sp)} of ads for ${staMoney(g.s)} of sales: every sale costs more in ads than it brings, whatever the unit cost.`
       : g.kind === 'be' ? `ACoS ${staPct(g.acos)} vs break-even ${staPct(g.beUse)}: ${staMoney(g.burned)} over.`
         : g.kind === 'poor' ? `Under half ${g.rate.w}'s rate; ACoS ${staPct(g.acos)} over target ${staPct(g.tgtUse)}.` : (g.hold || '');
@@ -2556,7 +2571,7 @@ function staDlgCheck() {
     if (!r.ent && !r.kid) idNote();
   } else if (kind === 'pause') {
     if (r.type === 'target' && r.noPause) bad(`A ${staEsc(r.noPause)}: lowered, never paused.`);
-    else out.push(staCheck('ok', r.type === 'target' ? `0 orders in ${staInt(r.c)} clicks: ${r.chance != null ? (r.chance * 100).toFixed(1) + '% chance of that' : 'no sales'}`
+    else out.push(staCheck('ok', r.type === 'target' ? `0 orders in ${staInt(r.c)} clicks: ${r.chance != null ? staChance(r.chance) + ' chance of that' : 'no sales'}`
       : `The lead path for the same product sells it at ${staPct(r.leadAcos)} ACoS`));
     if (!r.ent && !r.kid) idNote();
   } else if (kind === 'exact' || kind === 'asinT') {

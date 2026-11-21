@@ -9,6 +9,11 @@
  * holds, so the rows do not add up to the account. Left out: ASIN terms (product pages), data-check rows, and terms already
  * blocked by a negative (at Amazon, or a done review item).
  *
+ * WHAT IS A PATTERN (22 Nov review: 13 of 51 Waste rows were one search term cut into pieces). An n-gram needs NG.MIN_TERMS
+ * distinct search terms: one held by a single term is not a pattern — it is left out, and that term is judged in Search Term
+ * Analysis. N-grams with exactly the same search terms are one row, named by the shortest ("same terms: …"); n-grams that
+ * start or end with a stop word (STA_STOP: "dish towels for") are left out.
+ *
  * THE CLASSES (per brand; with Both brands one row per brand and pattern). The numbers are in NG and STA, and in the legend.
  *   Needs data  fewer clicks than the Minimum clicks choice; or 0 orders that could still be chance (the chance of 0 orders
  *               at the brand's order rate is NG.NEG_CHANCE or more), or under NG.NOSALE_MIN_SP spent.
@@ -16,14 +21,16 @@
  *               spend-weighted break-even of its terms; or ACoS over NG.LOSS_ACOS with NG.LOSS_MIN_SP+ spent. A blocked word or
  *               a competitor brand (Lists & settings) is Waste at any spend.
  *   Winner      NG.WIN_ORDERS+ orders at or under the spend-weighted target of its terms.
- *   Mixed       the rest: between target and break-even, or too few orders.
- *   Protected   a badge on any class: brand term, product word, main keyword, seasonal, own or sister ASIN — never negated.
+ *   Mixed       the rest: between target and break-even, or too few orders; with no target, "Has orders · not judged".
+ *   Protected   a flag on any class, not a class: brand term, sister-brand term, product word, main keyword, seasonal, own
+ *               or sister ASIN — never negated. "Protected only" shows just them.
  *   Without unit costs or a target setting for a brand, "above break-even" and Winner are off for it.
  *
  * THE ACTIONS, always through the shared review list and Search Term Analysis's own dialogs and checks:
  *   Waste   "Negate in N campaigns": a campaign-level negative phrase in each campaign where the pattern spent and has no
  *           order there (staOpen('word', …) with the pattern shaped like a By word row; staWordItems). Campaigns where it
- *           sells are kept. A protected pattern gets "Lower bids instead" (its terms in Search Term Analysis).
+ *           sells are kept. A protected pattern gets "Lower bids instead" (its terms in Search Term Analysis). A Waste
+ *           pattern with no campaign left to negate says why, with "Open in Search Term Analysis →" — never "Watch".
  *   Winner  "Harvest best term": its term with the lowest ACoS among those with NG.HARVEST_ORDERS+ orders, within target,
  *           without its own exact keyword yet — Search Term Analysis's "Add as exact" dialog for that term.
  *   Mixed / Needs data: a short "Watch" reason.
@@ -39,15 +46,17 @@ const NG = {
   WIN_ORDERS: 2,                    // orders a Winner needs, at or under target
   HARVEST_ORDERS: STA.EXACT_ORDERS, // orders the harvested term needs (3), as "Add as exact" in Search Term Analysis
   CP_MIN_SP: 0.5,                   // a campaign takes part in the plan with this much spend (as By word)
+  MIN_TERMS: 2,                     // distinct search terms a pattern needs; one term is judged in Search Term Analysis
   TERMS_SHOWN: 15,                  // terms listed under an opened pattern
 };
-const NG_CLS = [['waste', 'Waste', 'bad'], ['winner', 'Winner', 'ok'], ['mixed', 'Mixed', 'warn'], ['need', 'Needs data', ''], ['prot', 'Protected', 'info']];
-const NG_CHIP = { waste: 'neg', winner: 'exact', mixed: 'reduce', need: 'hold', prot: 'review' };
+// The four classes: each pattern is in exactly one (the chips add up to All). Protected is a flag on top (NGS.prot).
+const NG_CLS = [['waste', 'Waste', 'bad'], ['winner', 'Winner', 'ok'], ['mixed', 'Mixed', 'warn'], ['need', 'Needs data', '']];
+const NG_CHIP = { waste: 'neg', winner: 'exact', mixed: 'reduce', need: 'hold' };
 const NG_TAGS = { brand: 'Brand term', product: 'Product word', main: 'Main keyword', season: 'Seasonal', own: 'Own product', sister: 'Sister brand',
   blocked: 'Blocked word', comp: 'Competitor brand' };
-// The screen's choices: brand, pattern size (0 = all), minimum clicks, classification, filter text, sort, page, rows per
-// page, the opened rows, the ticked rows (key → pattern).
-let NGS = { size: 1, min: NG.MIN_CLICKS, cls: '', sort: { k: 'sp', d: -1 }, pg: 0, pgSize: 100, open: new Set(), sel: new Map() };
+// The screen's choices: brand, pattern size (0 = all), minimum clicks, classification, Protected only, filter text, sort,
+// page, rows per page, the opened rows, the ticked rows (key → pattern).
+let NGS = { size: 1, min: NG.MIN_CLICKS, cls: '', prot: false, sort: { k: 'sp', d: -1 }, pg: 0, pgSize: 100, open: new Set(), sel: new Map() };
 // The patterns of the model drawn last (rebuilt with the model: a new load, the lists, the review list).
 let NGX = null;
 // The rows of the last draw, every page (the export); the last "Added …" note.
@@ -55,10 +64,13 @@ let NG_LAST = [], NG_NOTE = { t: 0, text: '' };
 
 /* ---------- the patterns, once per model ---------- */
 // Every pattern of every brand in the model, with its figures over the terms not yet negated (plus the tail), what protects
-// it, its yardsticks and its class before the Minimum clicks choice. Cached on the model.
+// it, its yardsticks and its class before the Minimum clicks choice; then the rows each size shows (ngViews). Cached on the
+// model. { M, rows (every n-gram), views (size → rows on screen), solo (size → n-grams of one search term) }.
 function ngBuild(M) {
   if (NGX && NGX.M === M) return NGX;
   const rows = [];
+  const ix = new Map();
+  M.rows.forEach((r, i) => ix.set(r, i));
   M.brands.forEach(b => {
     const idx = (M.grams || {})[b];
     const P = M.protect[b];
@@ -71,6 +83,9 @@ function ngBuild(M) {
     const p = bc > 0 && bo > 0 ? bo / bc : null;
     const costsOn = !!(ST.costs || staFb(b));
     idx.forEach(x => {
+      const wds = x.gram.split(' ');
+      // A stop word at either end adds nothing to the pattern inside it ("dish towels for", "desk organizers and").
+      if (STA_STOP.has(wds[0]) || STA_STOP.has(wds[wds.length - 1])) return;
       const live = x.terms.filter(r => !r.negated);
       if (!live.length && !x.tn) return;
       const g = { key: 'w:' + b + '|' + x.gram, brand: b, gram: x.gram, words: x.words, terms: live, n: live.length + x.tn, tn: x.tn,
@@ -96,14 +111,15 @@ function ngBuild(M) {
       g.chance = p && g.c > 0 ? Math.pow(1 - p, g.c) : p ? 1 : null;
       g.ncp = [...g.cps.values()].filter(c => c.sp > 0 || c.o > 0).length;
       // What protects it, and your own lists.
-      const k = staKey(x.gram), wds = x.gram.split(' ');
+      const k = staKey(x.gram);
       const tags = [];
       if (P.isBrand(x.gram)) tags.push('brand');
+      else if (P.isSister(x.gram)) tags.push('sister');
       if (allTypes.has(k) || wds.every(wd => typeWords.has(staSing(wd)))) tags.push('product');
       if (P.ownKw.has(k) || (P.brandOrders.get(k) || 0) >= STA.MAIN_ORDERS) tags.push('main');
       if (staSeasonOf(x.gram)) tags.push('season');
       if (wds.some(wd => P.own.has(wd))) tags.push('own');
-      else if (wds.some(wd => P.sister.has(wd))) tags.push('sister');
+      else if (wds.some(wd => P.sister.has(wd)) && !tags.includes('sister')) tags.push('sister');
       g.tag = P.blocked.includes(x.gram) ? 'blocked' : P.competitors.includes(x.gram) ? 'comp' : '';
       if (g.tag) tags.push(g.tag);
       g.tags = tags;
@@ -111,26 +127,56 @@ function ngBuild(M) {
       g.term = g.tag ? (P.rawOf.get(x.gram) || x.gram) : x.gram;
       Object.assign(g, ngClassOf(g));
       g.hay = x.gram;
+      g.tcp = x.tcp;
+      // Its set of search terms: the same set means the same row (the tail by its figures — its terms are not listed).
+      g.sig = b + '|' + live.map(r => ix.get(r)).sort((a, z) => a - z).join(',') + (x.tn ? `|${x.tn},${x.tc},${Math.round(x.tail * 100)},${x.to}` : '');
+      g.solo = g.n < NG.MIN_TERMS;
       rows.push(g);
     });
   });
-  return (NGX = { M, rows });
+  return (NGX = Object.assign({ M, rows }, ngViews(rows)));
+}
+// The rows each size shows: n-grams of one search term apart (solo), and those with exactly the same search terms merged into
+// one row named by the shortest — a blocked word or competitor brand first, then fewer words, fewer numbers, fewer letters.
+// The others are listed under it (same); a protected one protects the row. Size 0 merges across sizes.
+function ngViews(rows) {
+  const views = { 0: [], 1: [], 2: [], 3: [] }, solo = { 0: [], 1: [], 2: [], 3: [] };
+  const groups = { 0: new Map(), 1: new Map(), 2: new Map(), 3: new Map() };
+  rows.forEach(g => {
+    [0, g.words].forEach(sz => {
+      if (!groups[sz]) return;
+      if (g.solo) { solo[sz].push(g); return; }
+      const m = groups[sz];
+      (m.get(g.sig) || m.set(g.sig, []).get(g.sig)).push(g);
+    });
+  });
+  const nums = g => g.gram.split(' ').filter(w => /^\d/.test(w)).length;
+  const rank = (a, z) => (a.tag ? 0 : 1) - (z.tag ? 0 : 1) || a.words - z.words || nums(a) - nums(z) || a.gram.length - z.gram.length || (a.gram < z.gram ? -1 : 1);
+  Object.keys(groups).forEach(sz => groups[sz].forEach(list => {
+    if (list.length === 1) { views[sz].push(list[0]); return; }
+    list.sort(rank);
+    const lead = list[0], rest = list.slice(1);
+    const tags = [...new Set(list.flatMap(g => g.tags))];
+    const pro = lead.protect || (rest.find(g => g.protect) || {}).protect || '';
+    views[sz].push(Object.assign(Object.create(lead), { same: rest.map(g => g.gram), tags, protect: pro, hay: list.map(g => g.gram).join(' | ') }));
+  }));
+  return { views, solo };
 }
 // The class before the Minimum clicks choice, and the line saying why: { base, why }.
 function ngClassOf(g) {
-  const pct = v => (v * 100).toFixed(1) + '%';
+  const pct = v => (v * 100).toFixed(1) + '%', ch = staChance;
   if (g.tag) return { base: 'waste', why: (g.tag === 'blocked' ? 'One of your blocked words' : 'A competitor brand') + ' (Lists & settings): waste at any spend' };
   if (!(g.o > 0)) {
     if (!g.p) return { base: 'need', why: 'Nothing in this brand has sold yet to compare with' };
-    if (g.chance >= NG.NEG_CHANCE) return { base: 'need', why: `0 orders in ${staInt(g.c)} clicks could still be chance (${pct(g.chance)} at the brand's ${pct(g.p)}): about ${staInt(staNeed(g.p, g.c, NG.NEG_CHANCE))} more clicks to tell` };
+    if (g.chance >= NG.NEG_CHANCE) return { base: 'need', why: `0 orders in ${staInt(g.c)} clicks could still be chance (${ch(g.chance)} at the brand's ${pct(g.p)}): about ${staInt(staNeed(g.p, g.c, NG.NEG_CHANCE))} more clicks to tell` };
     if (g.sp < NG.NOSALE_MIN_SP) return { base: 'need', why: `0 orders on ${staMoney(g.sp)}: judged from ${staMoney(NG.NOSALE_MIN_SP)} of spend` };
-    return { base: 'waste', why: `0 orders in ${staInt(g.c)} clicks: only ${pct(g.chance)} chance of that at the brand's ${pct(g.p)}` };
+    return { base: 'waste', why: `0 orders in ${staInt(g.c)} clicks: only ${ch(g.chance)} chance of that at the brand's ${pct(g.p)}` };
   }
   if (g.be != null && g.o >= NG.BE_ORDERS && g.acos > g.be) return { base: 'waste', why: `ACoS ${staPct(g.acos)} over break-even ${staPct(g.be)} on ${staInt(g.o)} orders` };
   if (g.acos != null && g.acos > NG.LOSS_ACOS && g.sp >= NG.LOSS_MIN_SP) return { base: 'waste', why: `ACoS ${staPct(g.acos)}: the ads cost more than the sales` };
   if (g.tgt != null && g.o >= NG.WIN_ORDERS && g.acos <= g.tgt) return { base: 'winner', why: `ACoS ${staPct(g.acos)} at or under target ${staPct(g.tgt)} on ${staInt(g.o)} orders` };
-  if (!g.costsOn) return { base: 'mixed', why: `${staInt(g.o)} order${g.o === 1 ? '' : 's'} at ACoS ${staPct(g.acos)}: no unit cost or target, so not judged on profit` };
-  if (g.tgt == null) return { base: 'mixed', why: `${staInt(g.o)} order${g.o === 1 ? '' : 's'} at ACoS ${staPct(g.acos)}: its products have no unit cost` };
+  if (!g.costsOn) return { base: 'mixed', why: `${STA_NOTGT}: ${staInt(g.o)} order${g.o === 1 ? '' : 's'} at ACoS ${staPct(g.acos)}, no unit cost or target ACoS for ${staBrandName(g.brand)}` };
+  if (g.tgt == null) return { base: 'mixed', why: `${STA_NOTGT}: ${staInt(g.o)} order${g.o === 1 ? '' : 's'} at ACoS ${staPct(g.acos)}, its products have no unit cost` };
   if (g.o < NG.WIN_ORDERS || (g.acos > g.be && g.o < NG.BE_ORDERS)) return { base: 'mixed', why: `${staInt(g.o)} order${g.o === 1 ? '' : 's'} at ACoS ${staPct(g.acos)}: too few orders to judge` };
   return { base: 'mixed', why: `ACoS ${staPct(g.acos)}: between target ${staPct(g.tgt)} and break-even ${staPct(g.be)}` };
 }
@@ -145,12 +191,17 @@ function ngWhy(g, min) {
 /* ---------- what each pattern's action would do ---------- */
 const ngOpenRl = f => ST_RL.items.some(x => STA_OPEN_ST.includes(x.status) && f(x));
 // The negate plan of a Waste pattern: per campaign where it spent, negate (no order there) or keep (it sells there), and the
-// campaigns where it is already negated at Amazon or waiting in the review list. { neg, kept, at, queued }.
+// campaigns where every one of its terms is protected there (Search Term Analysis's own check, noNeg: a brand or sister-brand
+// term, a product word of that ad group, seasonal…), already negated at Amazon, or waiting in the review list.
+// { neg, kept, prot, at, queued }.
 function ngPlan(g) {
-  if (g._plan) return g._plan;
-  const out = { neg: [], kept: [], at: [], queued: [] };
+  if (Object.prototype.hasOwnProperty.call(g, '_plan') && g._plan) return g._plan;
+  const out = { neg: [], kept: [], prot: [], at: [], queued: [] };
+  const allProt = new Map();
+  g.terms.forEach(r => allProt.set(r.cid, (allProt.has(r.cid) ? allProt.get(r.cid) : true) && !!r.noNeg));
   [...g.cps.values()].filter(c => c.sp >= NG.CP_MIN_SP || c.o > 0).sort((a, z) => z.sp - a.sp).forEach(c => {
     if (c.o > 0) out.kept.push(c);
+    else if (allProt.get(c.cid) && !(g.tcp && g.tcp.get(c.cid))) out.prot.push(c);
     else if (staNegAtAmazon(g.brand, 'cp|' + c.cid, g.gram, 'np') === true) out.at.push(c);
     else if (ngOpenRl(x => x.kind === 'neg' && x.brand === g.brand && staNorm(x.term) === g.gram && x.cid === c.cid)) out.queued.push(c);
     else out.neg.push(c);
@@ -160,7 +211,7 @@ function ngPlan(g) {
 // The term a Winner harvests: the lowest ACoS among its terms with NG.HARVEST_ORDERS+ orders, within target, with no exact
 // keyword of its own yet. { r } or { why }.
 function ngHarvest(g) {
-  if (g._harv) return g._harv;
+  if (Object.prototype.hasOwnProperty.call(g, '_harv') && g._harv) return g._harv;
   const sel = g.terms.filter(r => r.o >= NG.HARVEST_ORDERS && r.acos != null && r.tgtUse != null && r.acos <= r.tgtUse);
   const ok = sel.filter(r => !r.own && !r.exactElsewhere.length && !r.ptElsewhere.length && r.status !== 'In review'
     && !ngOpenRl(x => (x.kind === 'exact' || x.kind === 'asinT') && x.key === r.key)
@@ -185,9 +236,10 @@ function ngWordRow(g) {
     cps: plan.neg.map(c => ({ cid: c.cid, cn: c.cn, sp: c.sp, s: c.s, o: c.o, n: c.n })), tag: g.tag === 'comp' ? 'competitor' : g.tag, protect: g.protect ? NG_TAGS[g.protect].toLowerCase() : '',
     cat: 'burn', kind: 'word', burned: g.zsp, stake: g.zsp, hay: g.gram };
 }
-// The next step of a pattern under the Minimum clicks choice: { act: 'neg' | 'harvest' | 'low' | 'tgt' | '', short, text, n, r }.
+// The next step of a pattern under the Minimum clicks choice: { act: 'neg' | 'harvest' | 'low' | 'tgt' | 'st' | '', short, text, n, r }.
 // short: only what to do, for the Next step cell (the Classification cell already says why); text: the longer line, for the
-// opened row, the tooltip and the CSV.
+// opened row, the tooltip and the CSV. 'st': a Waste pattern with no campaign left to negate — the exact reason, and "Open in
+// Search Term Analysis →" (a Waste row never says "Watch").
 function ngNext(g, min) {
   const cls = ngCls(g, min);
   const out = (act, short, text, more) => Object.assign({ act, short, text: text || short }, more || {});
@@ -195,14 +247,19 @@ function ngNext(g, min) {
   if (cls === 'waste') {
     if (g.protect) return out('low', 'Lower bids instead →', `${NG_TAGS[g.protect]}: never negated — a lower bid on its terms instead`);
     if (!g.info.settled) return out('', 'Wait for the settled report', 'Negatives wait for the settled report (this is the 30-day one: its last 7 days\' sales are not all in)');
-    if (g.words > STA.NEG.negativePhrase.words) return out('', 'Watch', `A negative phrase takes ${STA.NEG.negativePhrase.words} words at most`);
+    if (g.words > STA.NEG.negativePhrase.words) return out('st', 'Too long for a negative phrase', `A negative phrase takes ${STA.NEG.negativePhrase.words} words at most`);
     const P = ngPlan(g);
     if (!P.neg.length) {
-      return P.kept.length && !P.at.length && !P.queued.length ? out('', 'Watch', 'It sells in every campaign it spent in: nothing to negate')
-        : P.queued.length ? out('', 'In the review list', 'Already in the review list where it does not sell') : out('', 'Already negated', 'Already negated at Amazon where it does not sell');
+      const n = (list, t) => (list.length ? [`${t} in ${staInt(list.length)} campaign${list.length === 1 ? '' : 's'}`] : []);
+      const parts = n(P.kept, 'sells').concat(n(P.prot, 'protected'), n(P.at, 'already negated at Amazon'), n(P.queued, 'in the review list'));
+      const one = [P.kept, P.prot, P.at, P.queued].filter(l => l.length).length === 1;
+      const short = !parts.length ? 'No campaign spent enough on it' : !one ? 'No campaign left to negate'
+        : P.kept.length ? 'Sells everywhere it spends' : P.prot.length ? 'Protected in every campaign' : P.at.length ? 'Already negated' : 'In the review list';
+      const text = parts.length ? `Nothing to negate: ${parts.join(', ')}` : `No campaign spent ${staMoney(NG.CP_MIN_SP)} or more on it`;
+      return out('st', short, text);
     }
     const left = STA.DAY_MAX - staDayCount(g.brand);
-    if (left <= 0) return out('', 'Day\'s limit reached', `The day's limit of ${STA.DAY_MAX} negatives for ${staBrandName(g.brand)} is reached`);
+    if (left <= 0) return out('st', 'Day\'s limit reached', `The day's limit of ${STA.DAY_MAX} negatives for ${staBrandName(g.brand)} is reached`);
     return out('neg', `Negate in ${staInt(P.neg.length)} campaign${P.neg.length === 1 ? '' : 's'}`, `Negative phrase · campaign level · ${staInt(P.neg.length)} campaign${P.neg.length === 1 ? '' : 's'}`
       + (P.kept.length ? ` · kept in ${staInt(P.kept.length)} where it sells` : ''), { n: P.neg.length });
   }
@@ -223,15 +280,16 @@ function ngNext(g, min) {
 }
 /* ---------- the rows on screen ---------- */
 function ngFilters() {
-  return { brand: $('ngBrand').value || 'ALL', q: staLow($('ngFilter').value), size: NGS.size, min: NGS.min, cls: NGS.cls };
+  return { brand: $('ngBrand').value || 'ALL', q: staLow($('ngFilter').value), size: NGS.size, min: NGS.min, cls: NGS.cls, prot: NGS.prot };
 }
-// The patterns that pass brand, size, filter text (the pattern, or any of its terms, campaigns and ad groups) — before the
-// classification, which the boxes and chips count.
-function ngRows(X, f) {
-  return X.rows.filter(g => (f.brand === 'ALL' || g.brand === f.brand) && (!f.size || g.words === f.size)
+// The patterns of the size chosen (merged, one term apart: ngViews) that pass brand and filter text (the pattern, the n-grams
+// merged into it, or any of its terms, campaigns and ad groups) — before the classification, which the boxes and chips count.
+// solo: true for the n-grams of one search term instead (left out of the table, judged in Search Term Analysis).
+function ngRows(X, f, solo) {
+  const list = (solo ? X.solo : X.views)[f.size || 0] || [];
+  return list.filter(g => (f.brand === 'ALL' || g.brand === f.brand)
     && (!f.q || g.hay.includes(f.q) || g.terms.some(r => r.hay.includes(f.q))));
 }
-const ngClsPass = (g, cls, min) => !cls || (cls === 'prot' ? !!g.protect : ngCls(g, min) === cls);
 const NG_SORTS = { term: g => g.gram, n: g => g.n, c: g => g.c, sp: g => g.sp, s: g => g.s, o: g => g.o, acos: g => (g.acos == null ? -1 : g.acos),
   cvr: g => (g.cvr == null ? -1 : g.cvr), ncp: g => g.ncp, conv: g => g.conv };
 function ngSorted(rows) {
@@ -286,14 +344,17 @@ function renderNg() {
   const X = ngBuild(M);
   const f = ngFilters();
   ngDataLine(M, f.brand === 'ALL' ? M.brands : [f.brand]);
-  const base = ngRows(X, f);
-  const cnt = { waste: [], winner: [], mixed: [], need: [], prot: [] };
-  base.forEach(g => { cnt[ngCls(g, f.min)].push(g); if (g.protect) cnt.prot.push(g); });
-  ngBoxes(cnt, f);
-  ngChips(cnt, base.length);
-  const rows = ngSorted(f.cls ? (f.cls === 'prot' ? cnt.prot : cnt[f.cls]) : base);
+  // Protected only narrows first (a flag, not a class); the four classes then add up to All.
+  const all = ngRows(X, f);
+  const nProt = all.filter(g => g.protect).length;
+  const base = f.prot ? all.filter(g => g.protect) : all;
+  const cnt = { waste: [], winner: [], mixed: [], need: [] };
+  base.forEach(g => cnt[ngCls(g, f.min)].push(g));
+  ngBoxes(cnt, f, M);
+  ngChips(cnt, base.length, nProt);
+  const rows = ngSorted(f.cls ? cnt[f.cls] || [] : base);
   NG_LAST = rows;
-  ngDraw(rows, f, M);
+  ngDraw(rows, f, M, ngRows(X, f, true));
 }
 // The status dropdown: the window, the brands, unit costs and targets, Amazon's data.
 function ngDataLine(M, brands) {
@@ -332,31 +393,40 @@ function ngDistinct(list) {
 }
 // The four boxes (Search Term Analysis's look); a click sets the classification. Their spend, sales and terms count each
 // search term once (ngDistinct); the table's rows are per pattern, and do not add up.
-function ngBoxes(cnt, f) {
+function ngBoxes(cnt, f, M) {
   const IC = {
     waste: '<path d="M12 2c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-3.5 2-6 1.5 1 2 2.5 2 4 1-1 1.5-4 1-8Z"/>',
     winner: '<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>',
     mixed: '<path d="M4 12h16"/><path d="M8 8l-4 4 4 4"/><path d="M16 8l4 4-4 4"/>',
     need: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   };
-  const box = (k, c, label, big, unit, q, go) => `
-    <button type="button" class="adx-box sta-box${NGS.cls === k ? ' on' : ''}" data-box="${k}" style="--c:${c};--adx-glow:.10" aria-pressed="${NGS.cls === k}" aria-label="${staEsc(label + ': ' + big + ' ' + unit + '. ' + go)}">
+  // A box with no rows has no link: there is nothing to go to.
+  const box = (k, c, label, n, unit, q, go) => `
+    <button type="button" class="adx-box sta-box${NGS.cls === k ? ' on' : ''}" data-box="${k}" style="--c:${c};--adx-glow:.10" aria-pressed="${NGS.cls === k}" aria-label="${staEsc(label + ': ' + staInt(n) + ' ' + unit + (n ? '. ' + go : ''))}">
       <div class="adx-l"><span class="adx-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg></span>${label}</div>
-      <div class="sta-big"><b>${big}</b><span>${unit}</span></div>
+      <div class="sta-big"><b>${staInt(n)}</b><span>${unit}</span></div>
       <div class="sta-q">${q}</div>
-      <div class="sta-go"><span>${go} →</span></div>
+      ${n ? `<div class="sta-go"><span>${go} →</span></div>` : ''}
     </button>`;
   const w = cnt.waste, wi = cnt.winner, dw = ngDistinct(w), dwi = ngDistinct(wi);
+  // Mixed: "between target and break-even" only where a target exists; without one, Placement's words for the same thing.
+  const brands = f.brand === 'ALL' ? M.brands : [f.brand];
+  const on = brands.filter(b => ST.costs || staFb(b)).length;
+  const mixTgt = cnt.mixed.length ? cnt.mixed.some(g => g.tgt != null) : on > 0, mixNo = cnt.mixed.length ? cnt.mixed.some(g => g.tgt == null) : on < brands.length;
+  const mixQ = mixTgt && mixNo ? `Between target and break-even, or few orders · without a target: ${STA_NOTGT.toLowerCase()}.`
+    : mixNo ? STA_NOTGT + '.' : 'Between target and break-even, or few orders.';
   $('ngBoxes').innerHTML =
-    box('waste', 'var(--bad)', 'Waste patterns', staInt(w.length), 'patterns', `${staMoney0(dw.sp)} spend in ${staInt(dw.n)} search term${dw.n === 1 ? '' : 's'}, each counted once.`, 'Negate where they don\'t sell')
-    + box('winner', 'var(--accent)', 'Winner patterns', staInt(wi.length), 'patterns', `${staMoney0(dwi.s)} sales in ${staInt(dwi.n)} search term${dwi.n === 1 ? '' : 's'}, each counted once.`, 'Harvest the best term')
-    + box('mixed', 'var(--rev)', 'Mixed', staInt(cnt.mixed.length), 'patterns', 'Between target and break-even, or few orders.', 'Watch')
-    + box('need', 'var(--brand)', 'Needs data', staInt(cnt.need.length), 'patterns', `Fewer than ${staInt(f.min)} clicks, or not conclusive yet.`, 'Wait for more clicks');
+    box('waste', 'var(--bad)', 'Waste patterns', w.length, 'patterns', `${staMoney0(dw.sp)} spend in ${staInt(dw.n)} search term${dw.n === 1 ? '' : 's'}, each counted once.`, 'Negate where they don\'t sell')
+    + box('winner', 'var(--accent)', 'Winner patterns', wi.length, 'patterns', `${staMoney0(dwi.s)} sales in ${staInt(dwi.n)} search term${dwi.n === 1 ? '' : 's'}, each counted once.`, 'Harvest the best term')
+    + box('mixed', 'var(--rev)', 'Mixed', cnt.mixed.length, 'patterns', mixQ, mixNo && !mixTgt ? 'Set a target ACoS' : 'Watch')
+    + box('need', 'var(--brand)', 'Needs data', cnt.need.length, 'patterns', `Fewer than ${staInt(f.min)} clicks, or not conclusive yet.`, 'Wait for more clicks');
 }
-// The classification chips, like Search Term Analysis's next-step chips.
-function ngChips(cnt, all) {
+// The classification chips, like Search Term Analysis's next-step chips: the four classes add up to All. Protected only is a
+// separate toggle at the end (a flag on any class), with how many are protected.
+function ngChips(cnt, all, nProt) {
   const chip = (k, t, c) => `<button type="button" class="sta-chip${NGS.cls === k ? ' on' : ''}${k ? ' a-' + NG_CHIP[k] : ''}" data-a="${k}" aria-pressed="${NGS.cls === k}">${t}<span>${staInt(c)}</span></button>`;
   $('ngActBar').innerHTML = '<span class="sta-actl">Classification</span>' + chip('', 'All', all) + NG_CLS.map(([k, t]) => chip(k, t, cnt[k].length)).join('')
+    + `<span class="ng-flag"><button type="button" class="sta-chip ng-prot${NGS.prot ? ' on' : ''}" data-prot="1" aria-pressed="${NGS.prot}" title="Brand and sister-brand terms, product words, main keywords, seasonal words, own and sister ASINs: never negated">Protected only<span>${staInt(nProt)}</span></button></span>`
     + `<label class="sta-pgsz ng-rows">Rows <select id="ngPgSize" aria-label="Rows per page">${[50, 100, 250].map(n => `<option${n === NGS.pgSize ? ' selected' : ''}>${n}</option>`).join('')}</select></label>`;
 }
 function ngRlBadge() {
@@ -366,13 +436,17 @@ function ngRlBadge() {
 }
 const ngClsBadge = (g, min) => { const k = ngCls(g, min), c = NG_CLS.find(x => x[0] === k); return staBadge(c[1], c[2]); };
 // The table: one row per pattern, with a caret that opens its terms and what the action does.
-function ngDraw(rows, f, M) {
+// solo: the n-grams of one search term that pass the same filters (left out; counted in the line above the table, and listed
+// at its end when the filter text finds some).
+function ngDraw(rows, f, M, solo) {
   const pages = Math.max(1, Math.ceil(rows.length / NGS.pgSize));
   if (NGS.pg >= pages) NGS.pg = pages - 1;
   const page = rows.slice(NGS.pg * NGS.pgSize, (NGS.pg + 1) * NGS.pgSize);
   const sizeTxt = f.size ? `${f.size}-word` : '1-, 2- and 3-word';
-  $('ngSub').innerHTML = `${staInt(rows.length)} ${sizeTxt} pattern${rows.length === 1 ? '' : 's'}${f.cls ? ' · ' + NG_CLS.find(x => x[0] === f.cls)[1].toLowerCase() : ''} · ${staEsc(staWindowTxt(M))}. `
-    + 'Each search term counts once for every pattern it holds.';
+  const soloTerms = [...new Set((solo || []).flatMap(g => g.terms.map(r => r.term)))];
+  $('ngSub').innerHTML = `${staInt(rows.length)} ${sizeTxt} pattern${rows.length === 1 ? '' : 's'}${f.cls ? ' · ' + NG_CLS.find(x => x[0] === f.cls)[1].toLowerCase() : ''}${f.prot ? ' · protected only' : ''} · ${staEsc(staWindowTxt(M))}. `
+    + `Each search term counts once for every pattern it holds; a pattern needs ${NG.MIN_TERMS}+ search terms`
+    + (solo && solo.length ? ` — ${staInt(solo.length)} n-gram${solo.length === 1 ? '' : 's'} of a single search term left out (judged as that term in Search Term Analysis).` : '.');
   const S = NGS.sort, th = (t, k, tip) => staTh(t, k, 1, tip, S);
   const COLS = 12;
   const body = page.map(g => {
@@ -386,11 +460,15 @@ function ngDraw(rows, f, M) {
     const btn = nx.act === 'neg' ? `<button type="button" class="sta-btn neg sm" data-ngact="neg" data-k="${staEsc(g.key)}" title="${tip}">${staEsc(nx.short)}</button>`
       : nx.act === 'harvest' ? `<button type="button" class="sta-btn sm" data-ngact="harvest" data-k="${staEsc(g.key)}" title="${tip}">${staEsc(nx.short)}</button>`
         : nx.act === 'low' || nx.act === 'tgt' ? `<button type="button" class="sta-btn dim sm" data-ngact="${nx.act}" data-k="${staEsc(g.key)}" title="${tip}">${staEsc(nx.short)}</button>` : '';
-    const nextCell = btn ? `<td class="sta-next">${btn}</td>` : `<td class="sta-next"><span class="sta-hold" title="${tip}">${staEsc(nx.short)}</span></td>`;
+    // Waste with nothing to negate: the exact reason, and its terms in Search Term Analysis.
+    const nextCell = btn ? `<td class="sta-next">${btn}</td>`
+      : nx.act === 'st' ? `<td class="sta-next"><span class="sta-hold" title="${tip}">${staEsc(nx.short)}</span><button type="button" class="sta-btn dim sm ng-gost" data-ngact="st" data-k="${staEsc(g.key)}">Open in Search Term Analysis →</button></td>`
+        : `<td class="sta-next"><span class="sta-hold" title="${tip}">${staEsc(nx.short)}</span></td>`;
+    const same = g.same && g.same.length ? `<div class="sta-s ng-same" title="${staEsc(g.same.join(', '))}">same terms: ${staEsc(g.same.slice(0, 3).map(x => '"' + x + '"').join(', '))}${g.same.length > 3 ? ` +${g.same.length - 3}` : ''}</div>` : '';
     const row = `<tr${NGS.sel.has(g.key) ? ' class="sel"' : ''}>
-      <td class="sta-stick">${tick}<div class="sta-tc"><div class="sta-term">${caret}"${staEsc(g.term)}"</div>
+      <td class="sta-stick">${tick}<div class="sta-tc"><div class="sta-term">${caret}"${staEsc(g.term)}"</div>${same}
         <div class="sta-under">${f.brand === 'ALL' ? staBadge(staBrandName(g.brand), 'brand-' + g.brand) : ''}${tags}</div></div></td>
-      <td class="sta-ev sta-ev-s">${ngClsBadge(g, f.min)}${g.protect && ngCls(g, f.min) !== 'prot' ? staBadge('Protected', 'info', NG_TAGS[g.protect] + ': never negated') : ''}<div class="sta-why">${staEsc(ngWhy(g, f.min))}</div></td>
+      <td class="sta-ev sta-ev-s">${ngClsBadge(g, f.min)}${g.protect ? staBadge('Protected', 'info', NG_TAGS[g.protect] + ': never negated') : ''}<div class="sta-why">${staEsc(ngWhy(g, f.min))}</div></td>
       <td class="num">${staInt(g.n)}</td><td class="num">${staInt(g.c)}</td><td class="num">${staMoney(g.sp)}</td><td class="num">${staMoney(g.s)}</td>
       <td class="num">${staInt(g.o)}</td><td class="num"><b>${g.acos != null ? staPct(g.acos) : staDash}</b></td><td class="num">${g.cvr != null ? staPct(g.cvr) : staDash}</td>
       <td class="num">${staInt(g.ncp)}</td><td class="num">${staInt(g.conv)}</td>${nextCell}</tr>`;
@@ -403,7 +481,12 @@ function ngDraw(rows, f, M) {
     + th('Search terms', 'n', 'Search terms holding the pattern (each term counts once for every pattern it holds)') + th('Clicks', 'c') + th('Ad spend', 'sp') + th('Ad sales', 's')
     + th('Orders', 'o') + th('ACoS', 'acos') + th('CVR', 'cvr', 'Orders ÷ clicks') + th('Campaigns', 'ncp', 'Campaigns it spent in') + th('Converting terms', 'conv', 'Its search terms with at least one order')
     + '<th>Next step</th></tr></thead><tbody>'
-    + (body || `<tr><td colspan="${COLS}" class="muted" style="padding:14px">${NGX.rows.length ? 'Nothing matches these filters.' : 'No word pattern in these search terms yet.'}</td></tr>`) + '</tbody>';
+    + (body || `<tr><td colspan="${COLS}" class="muted" style="padding:14px">${NGX.rows.length ? 'Nothing matches these filters.' : 'No word pattern in these search terms yet.'}</td></tr>`)
+    // The filter text found n-grams of a single search term: not patterns — pointed to where each is judged.
+    + (f.q && soloTerms.length && NGS.pg === pages - 1 ? `<tr class="ng-solo"><td colspan="${COLS}"><span class="sta-s">Also ${staInt(solo.length)} n-gram${solo.length === 1 ? '' : 's'} of a single search term — not a pattern, judged as that term in Search Term Analysis: `
+      + soloTerms.slice(0, 5).map(t => `"${staEsc(t)}"`).join(', ') + (soloTerms.length > 5 ? ` and ${staInt(soloTerms.length - 5)} more` : '')
+      + `</span> <button type="button" class="sta-btn dim sm" data-ngst="1">Open in Search Term Analysis →</button></td></tr>` : '')
+    + '</tbody>';
   staPager(rows.length, 'patterns', 'a term counts once for every pattern it holds, so the rows do not add up to the account', { pg: NGS.pg, size: NGS.pgSize, foot: ngFoot });
   ngSelBar();
 }
@@ -425,18 +508,23 @@ function ngSubRow(g, f, nx, cols) {
     + `<tbody>${tr || '<tr><td colspan="8" class="muted">Only terms too small to list one by one.</td></tr>'}</tbody></table>`
     + `<small class="sta-s ng-more">${more > 0 ? `${staInt(more)} more term${more === 1 ? '' : 's'} · ` : ''}${g.tn ? `${staInt(g.tn)} small term${g.tn === 1 ? '' : 's'} not listed one by one (${staMoney(g.sp - g.terms.reduce((t, r) => t + r.sp, 0))})` : ''}${g.negN ? `${g.tn ? ' · ' : ''}${staInt(g.negN)} already negated, left out` : ''}</small></div>`;
   let right = '';
+  const P = ngPlan(g);
+  const li = (c, t, cls) => `<li class="${cls}"><b>${staEsc(c.cn || 'Campaign ' + c.cid)}</b> <span class="sta-dash">${staMoney(c.sp)}${c.o ? ` · ${staInt(c.o)} order${c.o === 1 ? '' : 's'}, ${staMoney(c.s)}` : ''}</span><em>${t}</em></li>`;
+  // Every campaign of the plan, and what happens there.
+  const plan = () => '<ul class="ng-plan">' + P.neg.map(c => li(c, 'Negate here', 'is-neg')).join('') + P.kept.map(c => li(c, 'Kept: sells here', 'is-kept')).join('')
+    + P.prot.map(c => li(c, 'Kept: protected here', 'is-kept')).join('') + P.at.map(c => li(c, 'Already negated at Amazon', '')).join('')
+    + P.queued.map(c => li(c, 'In the review list', '')).join('') + '</ul>';
   if (nx.act === 'neg') {
-    const P = ngPlan(g);
-    const li = (c, t, cls) => `<li class="${cls}"><b>${staEsc(c.cn || 'Campaign ' + c.cid)}</b> <span class="sta-dash">${staMoney(c.sp)}${c.o ? ` · ${staInt(c.o)} order${c.o === 1 ? '' : 's'}, ${staMoney(c.s)}` : ''}</span><em>${t}</em></li>`;
-    right = `<p>A negative phrase "${staEsc(g.term)}" at campaign level, in each campaign where it has no order:</p><ul class="ng-plan">`
-      + P.neg.map(c => li(c, 'Negate here', 'is-neg')).join('') + P.kept.map(c => li(c, 'Kept: sells here', 'is-kept')).join('')
-      + P.at.map(c => li(c, 'Already negated at Amazon', '')).join('') + P.queued.map(c => li(c, 'In the review list', '')).join('') + '</ul>'
+    right = `<p>A negative phrase "${staEsc(g.term)}" at campaign level, in each campaign where it has no order:</p>` + plan()
       + `<p class="sta-s">Sales at risk: none — it has no order in those campaigns. Negatives left today for ${staBrandName(g.brand)}: ${staInt(Math.max(0, STA.DAY_MAX - staDayCount(g.brand)))} of ${STA.DAY_MAX}. The dialog runs the usual checks before anything is added.</p>`;
   } else if (nx.act === 'harvest') {
     const r = ngHarvestRow(nx.r);
     const c = staDestinations(r, false)[0];
     right = `<p>Adds <b>"${staEsc(r.term)}"</b> as its own exact keyword${c ? ` in <b>${staEsc(c.cn)}</b> · ${staEsc(c.agn)}` : ''} at about <b>${staMoney(r.sugBid)}</b> (CPC ${staMoney(r.cpc)} +${Math.round(STA.STEP * 100)}%, under the ceiling ${staMoney(r.ceil)}).</p>`
       + `<p class="sta-s">${staInt(r.o)} orders at ${staPct(r.acos)} ACoS through ${staEsc(staPathLabel(r.kw, r.mt))}, target ${staPct(r.tgtUse)}.${c ? '' : ' No manual keyword ad group advertises its product yet: the dialog says so.'} Once the new keyword takes the term, Competing paths suggests the negative on the old path.</p>`;
+  } else if (nx.act === 'st') {
+    const any = P.neg.length + P.kept.length + P.prot.length + P.at.length + P.queued.length;
+    right = `<p>${staEsc(nx.text)}.</p>${any ? plan() : ''}<p class="sta-s">"Open in Search Term Analysis" shows its search terms there, each judged on its own.</p>`;
   } else if (nx.act === 'low') {
     right = `<p>${staEsc(nx.text)}.</p><p class="sta-s">"Lower bids instead" opens its search terms in Search Term Analysis, where each keyword's bid can be lowered with the usual checks.</p>`;
   } else right = `<p>Nothing to change yet.</p><p class="sta-s">${staEsc(nx.text)}</p>`;
@@ -444,7 +532,8 @@ function ngSubRow(g, f, nx, cols) {
 }
 
 /* ---------- actions ---------- */
-const ngOf = key => (NGX ? NGX.rows.find(g => g.key === key) : null);
+// A row by its key: the size on screen first (a merged row), else any n-gram.
+const ngOf = key => (NGX ? (NGX.views[NGS.size] || []).find(g => g.key === key) || NGX.rows.find(g => g.key === key) : null);
 // One pattern's default change for the selection bar, after the same checks as the dialogs: { items } or { skip }.
 function ngQuick(g, dayUsed) {
   const nx = ngNext(g, NGS.min);
@@ -492,7 +581,7 @@ function ngSetTarget(brand) {
 
 /* ---------- export ---------- */
 const NG_CSV_COLS = ['Brand', 'N-gram', 'Words', 'Classification', 'Protected', 'Tags', 'Search terms', 'Clicks', 'Ad spend', 'Ad sales', 'Orders', 'ACoS %', 'CVR %',
-  'Campaigns', 'Converting terms', 'Spend with no order', 'Target ACoS %', 'Break-even ACoS %', 'Next step', 'Why'];
+  'Campaigns', 'Converting terms', 'Spend with no order', 'Target ACoS %', 'Break-even ACoS %', 'Next step', 'Why', 'Same search terms as'];
 function ngCsvLines(rows, min) {
   const cell = v => { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const r1 = v => (v == null ? '' : Math.round(v * 10) / 10);
@@ -500,7 +589,7 @@ function ngCsvLines(rows, min) {
     const nx = ngNext(g, min);
     return [staBrandName(g.brand), g.term, g.words, NG_CLS.find(x => x[0] === ngCls(g, min))[1], g.protect ? NG_TAGS[g.protect] : '', g.tags.map(t => NG_TAGS[t]).join('; '),
       g.n, g.c, staR2(g.sp), staR2(g.s), g.o, r1(g.acos), r1(g.cvr), g.ncp, g.conv, staR2(g.zsp), r1(g.tgt), r1(g.be),
-      nx.act === 'harvest' ? `Harvest "${nx.r.term}"` : nx.short.replace(/ →$/, ''), ngWhy(g, min)].map(cell).join(',');
+      nx.act === 'harvest' ? `Harvest "${nx.r.term}"` : nx.short.replace(/ →$/, ''), ngWhy(g, min), (g.same || []).join('; ')].map(cell).join(',');
   }));
 }
 function ngCsv() {
@@ -519,7 +608,9 @@ function ngLegend() {
   $('ngLegendBody').innerHTML = '<div class="sta-legcols"><div>'
     + L('How patterns are counted', [
       'Each search term splits into its 1-, 2- and 3-word sequences. A term counts once for every pattern it holds, so one term counts toward several patterns and the rows do not add up to the account.',
-      'One-word patterns skip small words (a, the, for, set, inch…), words under 3 letters and numbers.',
+      'One-word patterns skip small words (a, the, for, set, inch…), words under 3 letters and numbers. Longer ones that start or end with a small word ("dish towels for") are left out: the pattern inside them is already there. Numbers inside are kept ("18 18 pillow").',
+      `A pattern needs <b>${NG.MIN_TERMS} or more different search terms</b>. An n-gram held by one search term is not a pattern — it is left out here, and that term is judged on its own in Search Term Analysis.`,
+      'N-grams held by exactly the same search terms are one row, named by the shortest ("same terms: …" lists the others): their figures are the same, and one negative phrase covers them all.',
       'Left out: ASIN searches (product pages), rows set aside as a data check, and search terms already blocked by a negative — at Amazon, or a review item that has been done.',
       'Terms too small to be listed one by one (under 3 clicks, no order) are added as the backend keeps them, by word.',
       'The window is Search Term Analysis\'s: settled clicks with 7-day sales when the settled report is there.'])
@@ -527,15 +618,18 @@ function ngLegend() {
       `<b>Needs data</b>: fewer clicks than the Minimum clicks choice; or 0 orders that could still be chance — ${Math.round(NG.NEG_CHANCE * 100)}% or more at the brand's order rate over its search terms — or under ${staMoney(NG.NOSALE_MIN_SP)} spent. Shows about how many more clicks would tell.`,
       `<b>Waste</b>: 0 orders with under ${Math.round(NG.NEG_CHANCE * 100)}% chance of that and ${staMoney(NG.NOSALE_MIN_SP)}+ spent; or ${NG.BE_ORDERS}+ orders above the break-even of its terms (weighted by their spend); or ACoS over ${NG.LOSS_ACOS}% with ${staMoney(NG.LOSS_MIN_SP)}+ spent, a loss even without unit costs. Your blocked words and competitor brands (Lists & settings) are Waste at any spend.`,
       `<b>Winner</b>: ${NG.WIN_ORDERS}+ orders at or under the target of its terms (weighted by their spend).`,
-      '<b>Mixed</b>: the rest — between target and break-even, or too few orders.',
-      'Without unit costs or a target ACoS for a brand, "above break-even" and Winner are off for it; set a target in Lists & settings to switch them on.'])
+      `<b>Mixed</b>: the rest — between target and break-even, or too few orders. Without unit costs or a target ACoS for a brand: "${STA_NOTGT}", as on Placement.`,
+      'Without unit costs or a target ACoS for a brand, "above break-even" and Winner are off for it; set a target in Lists & settings to switch them on.',
+      `<b>The luck cut-off</b>: 0 orders count only when that would happen by bad luck under ${Math.round(NG.NEG_CHANCE * 100)}% of the time — the same line as Search Term Analysis's negatives. Placement lowers an adjustment at under ${Math.round(STA.CHANCE * 100)}%. On purpose: a negative is harder to undo than a lower adjustment, so it needs more proof.`])
     + '</div><div>'
     + L('Protected — never negated', [
-      '<b>Brand terms</b>, the brand\'s <b>product words</b> (what its ad groups sell, and your list), <b>main keywords</b> (your own keywords, or ' + STA.MAIN_ORDERS + '+ orders across the brand), <b>seasonal</b> words, and your own and sister-brand ASINs — the same lists and checks as Search Term Analysis.',
-      'A protected Waste pattern gets no negative: "Lower bids instead" opens its terms in Search Term Analysis.'])
+      '<b>Brand terms</b>, the other brand\'s brand terms (<b>Sister brand</b>: "ridhi" in Cotton Print Club, and the other way round — from each brand\'s Lists & settings), the brand\'s <b>product words</b> (what its ad groups sell, and your list), <b>main keywords</b> (your own keywords, or ' + STA.MAIN_ORDERS + '+ orders across the brand), <b>seasonal</b> words, and your own and sister-brand ASINs — the same lists and checks as Search Term Analysis.',
+      'Protected is a flag, not a class: a pattern is Waste, Winner, Mixed or Needs data, and may be protected as well. "Protected only" shows just those.',
+      'A protected Waste pattern gets no negative: "Lower bids instead" opens its terms in Search Term Analysis. A campaign where every one of its terms is protected is kept out of the plan.'])
     + L('What the actions do', [
       `<b>Negate in N campaigns</b> (Waste): one negative phrase at campaign level in each campaign where the pattern spent and has no order there; campaigns where it sells are kept. Search Term Analysis's own dialog: sales at risk, already negated at Amazon, already in the review list, at most ${STA.NEG.negativePhrase.words} words, and the day's limit of ${STA.DAY_MAX} negatives per brand.`,
       `<b>Harvest best term</b> (Winner): the term with the lowest ACoS among those with ${NG.HARVEST_ORDERS}+ orders, within its target and without its own exact keyword yet — Search Term Analysis's "Add as exact" dialog (CPC +${Math.round(STA.STEP * 100)}%, under the ceiling; a manual keyword ad group of the same product).`,
+      'A Waste pattern with no campaign left to negate (it sells everywhere it spends, it is protected there, already negated, in the review list, or the day\'s limit is reached) says which, with "Open in Search Term Analysis →".',
       '<b>Mixed</b> and <b>Needs data</b>: watched, no change.',
       'Every change goes to the shared review list: approve it, then download the bulk file (or Apply, when it is switched on).'])
     + '</div></div>';
@@ -561,6 +655,7 @@ $('ngBoxes').addEventListener('click', e => {
   ngRe();
 });
 $('ngActBar').addEventListener('click', e => {
+  if (e.target.closest('[data-prot]')) { NGS.prot = !NGS.prot; ngRe(); return; }
   const c = e.target.closest('[data-a]');
   if (!c) return;
   NGS.cls = NGS.cls === c.dataset.a ? '' : c.dataset.a;
@@ -598,10 +693,12 @@ $('ngTable').addEventListener('click', e => {
     const nx = ngNext(g, NGS.min);
     if (act.dataset.ngact === 'neg' && nx.act === 'neg') staOpen('word', g.key, ngWordRow(g));
     else if (act.dataset.ngact === 'harvest' && nx.act === 'harvest') staOpen('exact', nx.r.key, ngHarvestRow(nx.r));
-    else if (act.dataset.ngact === 'low') ngToSt(g.brand, g.gram);
+    else if (act.dataset.ngact === 'low' || act.dataset.ngact === 'st') ngToSt(g.brand, g.gram);
     else if (act.dataset.ngact === 'tgt') ngSetTarget(g.brand);
     return;
   }
+  // The n-grams of a single search term the filter found: those terms in Search Term Analysis, by the same filter text.
+  if (e.target.closest('button[data-ngst]')) { ngToSt($('ngBrand').value || 'ALL', $('ngFilter').value.trim()); return; }
   const term = e.target.closest('button[data-ngterm]');
   if (term) {
     const r = NGX && NGX.M.byKey.get(term.dataset.ngterm);

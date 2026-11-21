@@ -54,13 +54,15 @@ function setup(opts) {
     plcColor: () => '#000', PLC: { d: {}, at: '' }, plcMsg() {}, plcAgg: () => ({ names: [], place: {} }), COST: {}, PF_MODEL: { oh: 0, sal: 0 },
   };
   Object.assign(ctx, opts.ctx || {});   // a test's own stubs (ngram-test: a backend that fails, then answers; timers that run at once)
+  // opts.plc: the real ads/placement.js too (placement-test: the chart, the lower tables), in place of its stubs.
+  if (opts.plc) ['plcColor', 'PLC', 'plcMsg', 'plcAgg'].forEach(k => delete ctx[k]);
   const names = ['staItem', 'staNegItem', 'staBidItem', 'staRlMove', 'staRlSave', 'staRedownload', 'staUndoAdd', 'staRlChip', 'staPager', 'staWho', 'plxItem',
     'ppchEvent', 'ppchMoveEvent', 'ppchMoveAct', 'ppchTrailOf', 'ppchOldTrail', 'ppchDevLabel', 'ppchDeviceId', 'ppchDevice', 'ppchPerson', 'ppchNeedPerson',
     'ppchDlgClose', 'ppchModel', 'ppchFilter', 'ppchStepsOf', 'ppchSums', 'ppchCsvLines', 'ppchLoad', 'ppchAll', 'ensurePpch', 'renderPpch', 'ppchGo',
     'PPCH_CSV_ITEM', 'PPCH_CSV_STEP', 'PPCH_SHARED', 'PPCH_VERB'];
   // opts.stText: search-terms.js from another commit (ngram-test: By word before the shared pattern index); opts.ngram: also
   // load ads/ngram.js, where src/app/ORDER puts it (right after search-terms.js).
-  const src = (opts.stText || L('search-terms.js')) + (opts.ngram ? '\n' + L('ngram.js') : '') + '\n' + L('placement-decide.js') + '\n' + L('ppc-history.js')
+  const src = (opts.stText || L('search-terms.js')) + (opts.ngram ? '\n' + L('ngram.js') : '') + (opts.plc ? '\n' + L('placement.js') : '') + '\n' + L('placement-decide.js') + '\n' + L('ppc-history.js')
     + '\n;return { ' + names.concat(opts.names || []).join(', ') + ', ST_RL, PPCH, setJust: v => { STA_JUST = v; } };';
   const C = new Function(...Object.keys(ctx), src)(...Object.values(ctx));
   C.ST_RL.where = opts.where || 'local';

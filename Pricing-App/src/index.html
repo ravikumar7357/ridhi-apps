@@ -1147,7 +1147,7 @@
           <option value="5">5+ clicks</option><option value="10" selected>10+ clicks</option><option value="20">20+ clicks</option><option value="50">50+ clicks</option>
         </select>
         <select id="ngClass" style="flex:0 0 190px" aria-label="Classification">
-          <option value="">Every classification</option><option value="waste">Waste</option><option value="winner">Winner</option><option value="mixed">Mixed</option><option value="need">Needs data</option><option value="prot">Protected</option>
+          <option value="">Every classification</option><option value="waste">Waste</option><option value="winner">Winner</option><option value="mixed">Mixed</option><option value="need">Needs data</option>
         </select>
         <button id="ngLegendBtn" class="ghost" type="button" aria-haspopup="dialog">How Sellora decides</button>
         <button id="ngRlBtn" class="ghost sta-rl" type="button" title="Changes picked here and in Search Term Analysis, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="ngRlN" class="sta-n hide">0</span></button>
@@ -1184,14 +1184,14 @@
           <option value="">Every placement</option><option value="tos">Top of Search</option><option value="ros">Rest of Search</option><option value="pp">Product Page</option><option value="off">Off Amazon</option>
         </select>
         <button id="plxRlBtn" class="ghost sta-rl" type="button" title="Changes picked here and in Search Term Analysis, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="plxRlN" class="sta-n hide">0</span></button>
-        <button id="plcCsv" class="ghost" type="button" title="The decisions table, the placement totals and the wasted spend, as one CSV">Export</button>
+        <button id="plcCsv" class="ghost" type="button" title="The decisions table, the placement totals and the spend with no orders, as one CSV">Export</button>
       </div>
       <div id="plcMsg" class="sta-msg"></div>
     </div>
     <div id="plxKpis" class="plx-kpis"></div>
     <div class="card sta-tcard">
       <div class="sta-thead">
-        <div class="tt"><b>Placement decisions by campaign</b><small id="plxSub"></small></div>
+        <div class="tt"><b>Placement decisions by campaign <span id="plxWin" class="plx-win"></span></b><small id="plxSub"></small></div>
         <button id="plxLegendBtn" class="ghost sta-legend-btn" type="button" aria-haspopup="dialog">How Sellora decides</button>
       </div>
       <div class="sta-actbar" id="plxActBar" role="group" aria-label="Show rows by decision"></div>
@@ -1200,9 +1200,10 @@
     </div>
     <div id="plxSelBar" class="sta-selbar hide"><span id="plxSelTxt"></span><button id="plxSelAdd" type="button">Send to review</button><button id="plxSelClear" class="ghost" type="button">Clear</button></div>
 
+    <p class="plx-split">From a different report than the decisions above, so totals differ slightly.</p>
     <div class="card plx-chcard">
       <div class="sta-thead">
-        <div class="tt"><b>Spend by placement</b><small id="plcChSub">Every Sponsored Products campaign, day by day.</small></div>
+        <div class="tt"><b>Spend by placement <span class="plx-win">Last 30 days · 30-day sales</span></b><small id="plcChSub">Every Sponsored Products campaign, day by day.</small></div>
         <div class="seg" id="plcGranSeg">
           <button class="segbtn on" type="button" data-g="day">Day</button>
           <button class="segbtn" type="button" data-g="week">Week</button>
@@ -1214,12 +1215,12 @@
     </div>
 
     <div class="card sta-tcard">
-      <div class="sta-thead"><div class="tt"><b>Every placement together</b><small>The last 30 days with 30-day sales, from the nightly run. Spend misallocation: spend on clicks that produced no order at all, per campaign and placement.</small></div></div>
+      <div class="sta-thead"><div class="tt"><b>Every placement together <span class="plx-win">Last 30 days · 30-day sales</span></b><small>From the nightly placement report. Spend with no orders: spend on clicks that produced no order at all, per campaign and placement.</small></div></div>
       <div class="sta-wrap"><table id="plcTable" class="xl"></table></div>
     </div>
 
     <div class="card sta-tcard">
-      <div class="sta-thead"><div class="tt"><b>Where the wasted spend is</b><small>Each campaign and placement that took clicks and returned no order at all across the 30 days. Counted over the window, not per day: a click needs weeks to convert.</small></div></div>
+      <div class="sta-thead"><div class="tt"><b>Where the spend with no orders is <span class="plx-win">Last 30 days · 30-day sales</span></b><small>Each campaign and placement that took clicks and returned no order at all across the 30 days. Counted over the window, not per day: a click needs weeks to convert.</small></div></div>
       <div class="sta-wrap" style="max-height:44vh"><table id="plcWorst" class="xl"></table></div>
     </div>
 

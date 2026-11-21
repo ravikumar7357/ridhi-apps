@@ -16,7 +16,8 @@ const strip = html => String(html).replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&
 // search-terms.js before the pattern index was shared (the PPC History commit, 21 Nov 2026).
 const BEFORE = '51f8c075';
 const NAMES = ['ST', 'STS', 'STA', 'STA_SET_DEF', 'staModel', 'staDataLine', 'staStatus', 'renderSt', 'staDlgOk', 'staOpen',
-  'NG', 'NGS', 'ngBuild', 'ngClassOf', 'ngCls', 'ngNext', 'ngPlan', 'ngHarvest', 'ngWordRow', 'ngRows', 'ngCsvLines', 'NG_CSV_COLS', 'renderNg', 'ensureNgram', 'ngQuick', 'getNGX: () => NGX', 'staGramIndex', 'ngDistinct', 'ensureSt', 'staLoadSure'];
+  'NG', 'NGS', 'ngBuild', 'ngClassOf', 'ngCls', 'ngNext', 'ngPlan', 'ngHarvest', 'ngWordRow', 'ngRows', 'ngCsvLines', 'NG_CSV_COLS', 'renderNg', 'ensureNgram', 'ngQuick', 'getNGX: () => NGX', 'staGramIndex', 'ngDistinct', 'ensureSt', 'staLoadSure',
+  'NG_CLS', 'STA_NOTGT', 'staChance', 'PLX_CHIPS', 'ngLegend'];
 
 // An IST stamp "yyyy-MM-dd HH:mm" for now (the caches' own format): fresh data.
 const nowIst = () => new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 16).replace('T', ' ');
@@ -52,8 +53,26 @@ function account(C, o) {
     T('velvet runner', 'c1', 'a1', 50, 30, 0, 0, 'table runner', 'BROAD'),
     T('b0abc12345', 'c2', 'a2', 10, 5, 0, 0),
     T('broken tassel', 'c1', 'a1', 5, 2, 1, 0, 'table runner', 'BROAD'),
-  ];
-  const CPC = o.cpcEmpty ? [] : [T('cotton print club napkins', 'k1', 'b1', 30, 6, 4, 80, 'napkins', 'BROAD'), T('plain napkins', 'k1', 'b1', 40, 12, 1, 20, 'napkins', 'BROAD')];
+    // A second search term for each pattern above that had one (22 Nov: a pattern needs 2 terms), keeping its class.
+    T('ridhi napkins', 'c2', 'a2', 40, 20, 0, 0),
+    T('floral napkins', 'c2', 'a2', 10, 3, 0, 0),
+    T('boho runner', 'c1', 'a1', 3, 1.5, 0, 0, 'table runner', 'BROAD'),
+    T('cotton placemats', 'c2', 'a2', 8, 4, 0, 0),
+    T('paper napkins', 'c2', 'a2', 20, 1, 0, 0),
+    T('cheap placemats', 'c2', 'a2', 2, 1, 0, 0),
+    T('acme placemats', 'c2', 'a2', 2, 1, 0, 0),
+  ].concat(o.extra ? [
+    // Merged: "mudcloth", "tribal" and "mudcloth tribal" are held by exactly the same two terms.
+    T('mudcloth tribal pillow', 'c2', 'a2', 30, 12, 0, 0), T('mudcloth tribal throw', 'c2', 'a2', 30, 12, 0, 0),
+    // Stop words at an edge ("dish towels for"), a number inside ("18 18 pillow").
+    T('dish towels for kitchen', 'c2', 'a2', 6, 2, 0, 0), T('dish towels for bar', 'c2', 'a2', 6, 2, 0, 0),
+    T('18 18 pillow cover', 'c2', 'a2', 6, 2, 0, 0), T('18 18 pillow case', 'c2', 'a2', 6, 2, 0, 0),
+    // Waste above break-even, but it sells in each campaign it spends in: nothing to negate.
+    T('jute rug', 'c1', 'a1', 40, 40, 2, 50, 'table runner', 'BROAD'), T('jute mat', 'c2', 'a2', 30, 30, 1, 25),
+  ] : []);
+  const CPC = o.cpcEmpty ? [] : [T('cotton print club napkins', 'k1', 'b1', 30, 6, 4, 80, 'napkins', 'BROAD'), T('plain napkins', 'k1', 'b1', 40, 12, 1, 20, 'napkins', 'BROAD')]
+    // Ridhi's brand term searched in Cotton Print Club: a sister brand there.
+    .concat(o.sister ? [T('ridhi pillow covers', 'k1', 'b1', 150, 45, 0, 0, 'napkins', 'BROAD'), T('ridhi cushion', 'k1', 'b1', 150, 40, 0, 0, 'napkins', 'BROAD')] : []);
   const names = { c1: 'SP - Runner - Broad', c2: 'SP - Napkins - Auto', c3: 'SP - Exact', a1: 'Runner broad', a2: 'Napkins auto', a3: 'Exact napkins', a4: 'Exact runner',
     k1: 'CPC - Napkins', b1: 'Napkins' };
   const ST = C.ST;
@@ -189,16 +208,18 @@ const byGram = (C, b, gram) => C.getNGX().rows.find(g => g.brand === b && g.gram
   {
     let old = null;
     try { old = cp.execSync(`git show ${BEFORE}:Pricing-App/src/app/ads/search-terms.js`, { cwd: __dirname, maxBuffer: 1e8 }).toString('utf8'); } catch (e) { old = null; }
+    // placement-decide.js (today's) reads the shared "no target" wording made later in search-terms.js.
+    const oldPlus = old && old + "\nconst STA_NOTGT = 'Has orders · not judged (no target)';";
     if (!old) ok('commit ' + BEFORE + ' readable with git', false);
     else {
       for (const tail of [false, true]) {
-        const was = setup({ stText: old, names: ['ST', 'STS', 'STA_SET_DEF', 'staModel'] });
+        const was = setup({ stText: oldPlus, names: ['ST', 'STS', 'STA_SET_DEF', 'staModel'] });
         account(was.C, { tail });
         const now = page({ tail });
         const a = JSON.stringify(was.C.staModel('ALL').words), z = JSON.stringify(now.C.staModel('ALL').words);
         ok(`By word rows identical before and after${tail ? ' (with the backend\'s tail)' : ''}: ${JSON.parse(z).length} rows`, a === z && JSON.parse(z).length > 0, a === z ? '' : a.slice(0, 300) + ' ≠ ' + z.slice(0, 300));
       }
-      const was = setup({ stText: old, names: ['ST', 'STS', 'STA_SET_DEF', 'staModel'] }), now = page({ tail: true });
+      const was = setup({ stText: oldPlus, names: ['ST', 'STS', 'STA_SET_DEF', 'staModel'] }), now = page({ tail: true });
       account(was.C, { tail: true });
       const big = bigRows();
       was.C.ST.set.d.SP.rows = big;
@@ -248,12 +269,13 @@ const byGram = (C, b, gram) => C.getNGX().rows.find(g => g.brand === b && g.gram
     ok('the columns of the brief', /N-gram.*Classification.*Search terms.*Clicks.*Ad spend.*Ad sales.*Orders.*ACoS.*CVR.*Campaigns.*Converting terms.*Next step/.test(strip(t.slice(0, t.indexOf('</thead>')))));
     ok('Negate and Harvest buttons, Lower bids instead on the brand term', /Negate in 2 campaigns/.test(t) && /Harvest best term/.test(t) && /Lower bids instead/.test(t));
     ok('the four boxes', ['Waste patterns', 'Winner patterns', 'Mixed', 'Needs data'].every(x => $('ngBoxes').innerHTML.includes(x)));
-    ok('the chips: All, Waste, Winner, Mixed, Needs data, Protected, with counts', /data-a=""[^>]*>All<span>/.test($('ngActBar').innerHTML) && /Protected<span>\d+<\/span>/.test($('ngActBar').innerHTML));
+    ok('the chips: All, Waste, Winner, Mixed, Needs data, and the Protected only toggle, with counts', /data-a=""[^>]*>All<span>/.test($('ngActBar').innerHTML) && /data-prot="1"[^>]*>Protected only<span>\d+<\/span>/.test($('ngActBar').innerHTML));
     ok('the footer says how patterns are counted', /a term counts once for every pattern it holds/.test($('ngFoot').innerHTML));
     ok('the status line', /Data: settled 14 Oct – 12 Nov/.test(strip($('ngMsg').innerHTML)) && /aria-controls="ngMsgP"/.test($('ngMsg').innerHTML));
-    C.NGS.size = 2; C.NGS.cls = 'waste';
+    C.NGS.size = 2;
     C.renderNg();
-    ok('2-word, Waste only: "ridhi tablecloth" (protected), no 1-word row, no Winner', /"ridhi tablecloth"/.test($('ngTable').innerHTML) && !/"plastic"/.test($('ngTable').innerHTML) && !/"linen /.test($('ngTable').innerHTML), strip($('ngTable').innerHTML).slice(0, 300));
+    ok('2-word: "table runner" (many terms), no 1-word row, none of one search term ("ridhi tablecloth")', /"table runner"/.test($('ngTable').innerHTML) && !/"plastic"/.test($('ngTable').innerHTML)
+      && !/"ridhi tablecloth"/.test($('ngTable').innerHTML) && /n-grams? of a single search term left out/.test($('ngSub').innerHTML), strip($('ngTable').innerHTML).slice(0, 300));
     C.NGS.size = 1; C.NGS.cls = ''; C.NGS.open.add('w:SP|vinyl');
     C.renderNg();
     const so = $('ngTable').innerHTML;
@@ -332,7 +354,7 @@ const byGram = (C, b, gram) => C.getNGX().rows.find(g => g.brand === b && g.gram
     const { C, $ } = S;
     $('paneNgram').classList.remove('hide');
     await C.ensureNgram();
-    const rows = C.getNGX().rows.filter(g => g.words === 1);
+    const rows = C.getNGX().views[1];
     const money0 = v => '$' + Math.round(v).toLocaleString('en-US');
     const waste = rows.filter(g => C.ngCls(g, 10) === 'waste'), win = rows.filter(g => C.ngCls(g, 10) === 'winner');
     const uniq = list => { const m = new Set(); list.forEach(g => g.terms.forEach(r => m.add(r))); return [...m]; };
@@ -364,6 +386,109 @@ const byGram = (C, b, gram) => C.getNGX().rows.find(g => g.brand === b && g.gram
     ok('…and it opens Lists & settings', !N.$('stSet').classList.contains('hide'));
     const csv = C.ngCsvLines(rows, 10);
     ok('CSV: Next step short, Why the classification reason', csv.some(l => l.startsWith('Ridhi,vinyl,') && /,Negate in 2 campaigns,ACoS 156\.7% over break-even/.test(l)), csv.find(l => l.startsWith('Ridhi,vinyl,')));
+  }
+
+  console.log('== one search term is not a pattern; same terms, one row; stop-word edges; Waste never "Watch" (22 Nov review) ==');
+  {
+    const S = page({ extra: true });
+    const { C, $ } = S;
+    $('paneNgram').classList.remove('hide');
+    await C.ensureNgram();
+    const X = C.getNGX();
+    const view = sz => X.views[sz];
+    ok(`a pattern needs ${C.NG.MIN_TERMS} search terms: "ridhi tablecloth" (one term) is left out of every view`, C.NG.MIN_TERMS === 2 && [0, 1, 2, 3].every(sz => !view(sz).some(g => g.gram === 'ridhi tablecloth'))
+      && X.solo[2].some(g => g.gram === 'ridhi tablecloth'));
+    ok('…and no row on screen has fewer than 2 search terms', [0, 1, 2, 3].every(sz => view(sz).every(g => g.n >= 2)));
+    ok('…while its term is still judged in Search Term Analysis (it is a row there)', C.staModel('ALL').rows.some(r => r.term === 'ridhi tablecloth'));
+    // The filter text finds single-term n-grams: pointed to Search Term Analysis.
+    C.NGS.size = 2;
+    $('ngFilter').value = 'tablecloth';
+    C.renderNg();
+    ok('the filter finds n-grams of one search term: listed under the table, with "Open in Search Term Analysis →"', /class="ng-solo"/.test($('ngTable').innerHTML) && /"ridhi tablecloth"/.test(strip($('ngTable').innerHTML))
+      && /data-ngst="1"/.test($('ngTable').innerHTML), strip($('ngTable').innerHTML).slice(-300));
+    $('ngTable').listeners.click.forEach(f => f({ target: { closest: s => (s === 'button[data-ngst]' ? {} : null) } }));
+    ok('…which opens Search Term Analysis on that filter text', S.ctx.tabs.slice(-1)[0] === 'st' && $('stFilter').value === 'tablecloth');
+    $('ngFilter').value = '';
+    // Same set of terms, one row.
+    const m1 = view(1).find(g => g.brand === 'SP' && (g.gram === 'tribal' || g.gram === 'mudcloth'));
+    ok('"mudcloth" and "tribal" (the same two terms) are one 1-word row, named by the shortest', m1 && m1.gram === 'tribal' && m1.same.join() === 'mudcloth'
+      && view(1).filter(g => g.brand === 'SP' && ['tribal', 'mudcloth'].includes(g.gram)).length === 1, m1 && JSON.stringify([m1.gram, m1.same]));
+    const m0 = view(0).find(g => g.brand === 'SP' && g.gram === 'tribal');
+    ok('across sizes (All): "mudcloth tribal" joins them too; counted once', m0 && m0.same.sort().join() === 'mudcloth,mudcloth tribal' && !view(0).some(g => g.gram === 'mudcloth' || g.gram === 'mudcloth tribal')
+      && m0.n === 2 && m0.sp === 24, m0 && JSON.stringify(m0.same));
+    C.NGS.size = 1;
+    C.renderNg();
+    ok('the row says "same terms: …", and its action is one negative phrase', /same terms: "mudcloth"/.test(strip($('ngTable').innerHTML)) && (C.ngWordRow(m1).gram === 'tribal'));
+    ok('the CSV names the others', C.ngCsvLines([m1], 10)[1].endsWith(',mudcloth'));
+    // Stop words at an edge.
+    const grams = view(0).map(g => g.gram).concat(...view(0).map(g => g.same || []));
+    ok('a stop word at an edge is left out ("dish towels for", "for kitchen"), the pattern inside kept ("dish towels")', !grams.includes('dish towels for') && !grams.includes('for kitchen') && !grams.includes('towels for') && grams.includes('dish towels'));
+    ok('a number inside is fine ("18 18 pillow")', grams.includes('18 18 pillow'), grams.filter(g => g.startsWith('18')).join(' | '));
+    // Waste with nothing to negate: never "Watch".
+    const jute = view(1).find(g => g.gram === 'jute');
+    const nj = C.ngNext(jute, 10);
+    ok('Waste that sells in every campaign: the exact reason and "Open in Search Term Analysis →", never "Watch"', C.ngCls(jute, 10) === 'waste' && nj.act === 'st' && nj.short === 'Sells everywhere it spends'
+      && /sells in 2 campaigns/.test(nj.text), JSON.stringify(nj));
+    const t = $('ngTable').innerHTML, i = t.indexOf('"jute"'), jrow = t.slice(i, t.indexOf('</tr>', i));
+    ok('…drawn as the reason, then the button', />Sells everywhere it spends</.test(jrow) && /data-ngact="st"[^>]*>Open in Search Term Analysis →</.test(jrow), strip(jrow));
+    const wasteNext = [0, 1, 2, 3].flatMap(sz => view(sz)).filter(g => C.ngCls(g, 10) === 'waste').map(g => C.ngNext(g, 10).short);
+    ok(`no Waste row anywhere says "Watch" (${wasteNext.length} Waste rows)`, wasteNext.length > 0 && !wasteNext.some(x => /Watch/.test(x)), wasteNext.join(' | '));
+    ok('the day\'s limit: the reason and the button', (() => { const v = view(1).find(g => g.gram === 'vinyl'); const was = C.STA.DAY_MAX; C.STA.DAY_MAX = 0; const n = C.ngNext(Object.assign(Object.create(v), { _plan: undefined }), 10); C.STA.DAY_MAX = was; return n.act === 'st' && /Day's limit/.test(n.short); })());
+    // Chips add up to All; Protected is a toggle, not a class.
+    const bar = $('ngActBar').innerHTML;
+    const nums = [...bar.matchAll(/data-a="(\w*)"[^>]*>[^<]*<span>([\d,]+)<\/span>/g)].map(m => [m[1], Number(m[2].replace(/,/g, ''))]);
+    const all = nums.find(n => n[0] === '')[1], parts = nums.filter(n => n[0]).reduce((s, n) => s + n[1], 0);
+    ok(`the classification chips add up to All (${parts} = ${all}), with no Protected chip among them`, all === parts && nums.length === 5 && !nums.some(n => n[0] === 'prot'), JSON.stringify(nums));
+    const nProt = view(1).filter(g => g.protect).length;
+    ok(`"Protected only" is a toggle at the end, set apart, with its count (${nProt})`, new RegExp(`class="ng-flag"><button[^>]*data-prot="1"[^>]*aria-pressed="false"[^>]*>Protected only<span>${nProt}</span>`).test(bar) && bar.indexOf('data-prot') > bar.lastIndexOf('data-a='));
+    $('ngActBar').listeners.click.forEach(f => f({ target: { closest: s => (s === '[data-prot]' ? {} : null) } }));
+    const bar2 = $('ngActBar').innerHTML;
+    const nums2 = [...bar2.matchAll(/data-a="(\w*)"[^>]*>[^<]*<span>([\d,]+)<\/span>/g)].map(m => Number(m[2].replace(/,/g, '')));
+    ok('…on: only protected rows, and the chips still add up', C.NGS.prot && nums2[0] === nProt && nums2.slice(1).reduce((s, n) => s + n, 0) === nProt && /aria-pressed="true"[^>]*>Protected only/.test(bar2));
+    ok('the Classification list has no Protected option any more', !['prot'].some(k => C.NG_CLS && C.NG_CLS.some(c => c[0] === k)));
+    C.NGS.prot = false;
+  }
+
+  console.log('== smaller fixes: no target wording, empty boxes, "<0.1%", sister brand (22 Nov review) ==');
+  {
+    // Mixed without a target: Placement's words for its "No target" chip.
+    const N = page({ noTarget: true });
+    N.$('paneNgram').classList.remove('hide');
+    await N.C.ensureNgram();
+    const fl = N.C.getNGX().views[1].find(g => g.gram === 'floral');
+    ok(`no target: Mixed rows with orders are "${N.C.STA_NOTGT}"`, N.C.STA_NOTGT === 'Has orders · not judged (no target)' && N.C.ngCls(fl, 10) === 'mixed' && fl.why.startsWith(N.C.STA_NOTGT), fl.why);
+    ok('…the Mixed box says it, not "between target and break-even"', N.$('ngBoxes').innerHTML.includes(N.C.STA_NOTGT) && !/Between target and break-even/.test(N.$('ngBoxes').innerHTML));
+    ok('…the same words as Placement\'s chip', (N.C.PLX_CHIPS.find(c => c[0] === 'notgt') || [])[1] === N.C.STA_NOTGT);
+    const A2 = page();
+    A2.$('paneNgram').classList.remove('hide');
+    await A2.C.ensureNgram();
+    ok('with a target: "Between target and break-even"', /Between target and break-even, or few orders\./.test(A2.$('ngBoxes').innerHTML) && !A2.$('ngBoxes').innerHTML.includes(A2.C.STA_NOTGT));
+    // A box with no rows has no link.
+    const winBox = N.$('ngBoxes').innerHTML.split('data-box="winner"')[1].split('</button>')[0];
+    ok('a box with 0 rows shows no link (Winner at 0 without a target)', /<b>0<\/b>/.test(winBox) && !/Harvest the best term →/.test(winBox) && !/sta-go/.test(winBox), strip(winBox));
+    ok('…a box with rows keeps it', /Negate where they don't sell →/.test(A2.$('ngBoxes').innerHTML));
+    // Chances under 0.1%.
+    const C = A2.C;
+    ok('chances under 0.1% read "<0.1%", never "0.0%"', C.staChance(0.0004) === '<0.1%' && C.staChance(0.00099) === '<0.1%' && C.staChance(0.001) === '0.1%' && C.staChance(0.004) === '0.4%' && C.staChance(null) === '—');
+    const why = C.ngClassOf({ o: 0, c: 400, sp: 30, s: 0, acos: null, p: 0.05, chance: 0.0002, tgt: 30, be: 45, costsOn: true, tag: '' }).why;
+    ok('…in N-Gram\'s reason', /only <0\.1% chance/.test(why) && !/0\.0%/.test(why), why);
+    const plas = C.staModel('ALL').rows.find(r => r.term === 'plastic table runner');
+    ok('…and Search Term Analysis uses the same helper', !/0\.0% of the time/.test(JSON.stringify(plas.badges || [])) && /staChance\(r\.chance\)/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'app', 'ads', 'search-terms.js'), 'utf8')));
+    // Sister brand: Ridhi's brand term in Cotton Print Club.
+    const Sb = page({ sister: true });
+    Sb.$('paneNgram').classList.remove('hide');
+    await Sb.C.ensureNgram();
+    const rc = Sb.C.getNGX().views[1].find(g => g.brand === 'CPC' && g.gram === 'ridhi');
+    ok('Sister brand: "ridhi" in Cotton Print Club is tagged and protected', rc && rc.tags.includes('sister') && rc.protect === 'sister', rc && JSON.stringify([rc.tags, rc.protect]));
+    ok('…never negated in N-Gram', rc && Sb.C.ngNext(rc, 10).act !== 'neg' && !!Sb.C.ngQuick(rc, {}).skip);
+    const M = Sb.C.staModel('ALL');
+    const tr = M.rows.find(r => r.brand === 'CPC' && r.term === 'ridhi pillow covers');
+    ok('…and in Search Term Analysis: the term is "Sister brand", never negated (noNeg)', tr && tr.tagSet.has('sister') && tr.noNeg === 'sister-brand term' && tr.next !== 'neg', tr && JSON.stringify([tr.noNeg, tr.next]));
+    ok('…By word leaves it out (the same shared check)', !M.words.some(w => w.brand === 'CPC' && /ridhi/.test(w.gram)));
+    ok('…while in Ridhi it is the brand term, not a sister brand', (() => { const g = Sb.C.getNGX().views[1].find(x => x.brand === 'SP' && x.gram === 'ridhi'); return g && g.protect === 'brand' && !g.tags.includes('sister'); })());
+    // The luck cut-off, in How Sellora decides.
+    Sb.C.ngLegend();
+    ok('How Sellora decides: the luck cut-off, 1% for a negative and 5% for a placement, and why', /1%/.test(strip(Sb.$('ngLegendBody').innerHTML)) && /5%/.test(strip(Sb.$('ngLegendBody').innerHTML)) && /harder to undo/.test(Sb.$('ngLegendBody').innerHTML));
   }
 
   console.log('== speed: a re-filter on 20,000 terms ==');
