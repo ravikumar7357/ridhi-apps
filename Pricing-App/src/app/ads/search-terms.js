@@ -806,6 +806,8 @@ function staModelBrand(b, M, rlOpen) {
     const ca = cAgg.get(g.cid);
     g.rate = ca && ca.o >= STA.RATE_ORDERS && ca.c > 0 ? { p: ca.o / ca.c, w: 'its campaign' } : bAgg.o > 0 && bAgg.c > 0 ? { p: bAgg.o / bAgg.c, w: 'the brand' } : null;
   });
+  // The same yardsticks for N-Gram Analysis's per-campaign check (staCpRate): clicks and orders per campaign, and the brand's.
+  (M.rate || (M.rate = {}))[b] = { cp: cAgg, b: bAgg };
   if (E) E.kw.forEach((k, key) => {
     const parts = key.split('|');
     if (parts[2] !== 'exact' || /ARCHIVED/i.test(k.st || '')) return;
@@ -2355,6 +2357,28 @@ function staDayCount(b) {
   return ST_RL.items.filter(x => x.brand === b && x.kind === 'neg' && x.status !== 'removed' && x.at >= d0.getTime()).length;
 }
 
+// What happens in a campaign of the word dialog: [badge, its colour].
+const STA_CP_WHAT = { neg: ['Negate here', 'bad'], thin: ['Kept: not enough data here', 'warn'], kept: ['Kept: sells here', 'ok'], prot: ['Protected', 'info'],
+  at: ['Already negated', ''], queued: ['In the review list', ''] };
+// The campaigns of the word dialog, by spend: N-Gram Analysis hands every campaign of its plan with what happens there
+// (r.cpAll: { cid, cn, sp, c, o, s, n, what, can, on, ev, why }); By word's campaigns are each "Negate here", ticked.
+function staWordCpRows(r) {
+  const list = r.cpAll || r.cps.map(c => Object.assign({ what: 'neg', can: true, on: true, ev: c.o ? `${staInt(c.o)} order${c.o === 1 ? '' : 's'} · ${staMoney(c.s)} sales` : '' }, c));
+  return list.slice().sort((a, z) => z.sp - a.sp);
+}
+// A campaign's second line: its ad groups (at Amazon, not archived) and its kind — "3 ad groups · Manual".
+function staCpMeta(b, cid) {
+  const E = ST.ent && ST.ent.d && ST.ent.d[b];
+  const parts = [];
+  let n = E && E.ag ? Object.keys(E.ag).filter(k => E.ag[k][0] === cid && !/ARCHIVED/i.test(E.ag[k][3] || '')).length : 0;
+  if (!n) n = new Set(((ST.tgts[b] || {}).rows || []).filter(x => x.cid === cid).map(x => x.ag)).size;
+  if (n) parts.push(`${staInt(n)} ad group${n === 1 ? '' : 's'}`);
+  const cp = E && E.cp && E.cp[cid];
+  const auto = cp && cp[7] ? /AUTO/i.test(cp[7]) : ((ST.tgts[b] || {}).rows || []).some(x => x.cid === cid && staAutoMt(x.mt)) ? true : null;
+  if (auto != null) parts.push(auto ? 'Auto' : 'Manual');
+  return parts.join(' · ');
+}
+
 // Open the dialog for one row (by key) and one kind of change. row: the row itself, from another screen (N-Gram Analysis
 // hands a pattern shaped like a By word row, or a term from the model it drew with) — the model is then not rebuilt.
 function staOpen(kind, key, row) {
@@ -2437,11 +2461,25 @@ function staOpen(kind, key, row) {
   } else if (kind === 'word') {
     $('stDlgTitle').textContent = `Add negative phrase "${r.term}"`;
     sub.innerHTML = `${staEsc(staBrandName(r.brand))} · in ${staInt(r.n)} search terms. A negative phrase stops every search holding these words in this order, in the campaigns ticked.`;
-    by.innerHTML = `<div class="sta-figs">${['Terms', 'Clicks', 'Spend', 'Orders', 'Sales', 'Campaigns'].map((l, i) => `<div><small>${l}</small><b>${[staInt(r.n), staInt(r.c), staMoney(r.sp), staInt(r.o), staMoney(r.s), staInt(r.cps.length)][i]}</b></div>`).join('')}</div>
-      <div class="sta-figs-7">For example: ${staEsc(r.terms.slice(0, 5).join(' · '))}</div>
-      <div class="sta-f" style="margin-top:12px"><label>Campaigns</label><div class="sta-cplist">${r.cps.map((c, i) => `<label><input type="checkbox" class="sta-cb" data-cp="${i}" checked> ${staEsc(c.cn)} <span class="sta-dash">${staMoney(c.sp)}${c.o ? ` · ${staInt(c.o)} orders, ${staMoney(c.s)}` : ''}</span></label>`).join('')}</div></div>
+    const cpRows = staWordCpRows(r);
+    STD.cpRows = cpRows;
+    STD.cpOn = new Set(cpRows.map((c, i) => (c.on ? i : -1)).filter(i => i >= 0));
+    // Up to 6 of its terms (the top ones by spend) as chips, and how many more.
+    const ex = r.terms.slice(0, 6), more = Math.max(0, (r.n || 0) - ex.length);
+    by.innerHTML = `<div class="sta-figs sta-figs7">${['Terms', 'Clicks', 'Spend', 'Spend with no orders', 'Orders', 'Sales', 'Campaigns'].map((l, i) => `<div><small>${l}</small><b>${[staInt(r.n), staInt(r.c), staMoney(r.sp), staMoney(r.zsp || 0), staInt(r.o), staMoney(r.s), staInt(cpRows.length)][i]}</b></div>`).join('')}</div>
+      <div class="sta-figs-7 sta-exterms"><span>For example</span>${ex.map(t => `<span class="sta-tchip">${staEsc(t)}</span>`).join('')}${more ? `<span class="sta-dash">+${staInt(more)} more</span>` : ''}</div>
+      <div class="sta-dcphead"><b>Campaigns</b><span><button type="button" class="sta-linkbtn" data-cpall="1">Select all eligible</button> · <button type="button" class="sta-linkbtn" data-cpnone="1">Clear</button></span><span id="stDlgCpN" class="sta-dash"></span></div>
+      <div class="sta-dcp"><table class="xl"><thead><tr><th class="sta-dcb"><span class="sta-sr">Tick</span></th><th>Campaign</th><th class="num">Spend</th><th class="num">Clicks</th><th class="num">Orders</th><th class="num">Terms</th><th>Evidence</th><th>What happens</th></tr></thead><tbody>`
+      + cpRows.map((c, i) => `<tr${c.can ? '' : ' class="is-off"'}><td class="sta-dcb"><input type="checkbox" class="sta-cb" data-cp="${i}"${c.on ? ' checked' : ''}${c.can ? '' : ' disabled'} aria-label="${staEsc((c.can ? 'Negate in ' : 'Cannot negate in ') + c.cn)}"></td>
+        <td><div class="sta-dcn" title="${staEsc(c.cn)}">${staEsc(c.cn || 'Campaign ' + c.cid)}</div><small>${staEsc(staCpMeta(r.brand, c.cid))}</small></td>
+        <td class="num">${staMoney(c.sp)}</td><td class="num">${c.c != null ? staInt(c.c) : staDash}</td><td class="num">${staInt(c.o)}</td><td class="num">${c.n != null ? staInt(c.n) : staDash}</td>
+        <td class="sta-dev">${staEsc(c.ev || '')}</td><td>${staBadge(STA_CP_WHAT[c.what][0], STA_CP_WHAT[c.what][1])}${c.why ? `<small>${staEsc(c.why)}</small>` : ''}</td></tr>`).join('')
+      + `</tbody></table></div>
       <div id="stDlgChecks" class="sta-checks"></div>`;
   }
+  // The word dialog is wider (its campaign table), and has "Download Excel" when the row brings its own file (N-Gram).
+  $('stDlg').classList.toggle('sta-dlgword', kind === 'word');
+  $('stDlgXlsx').classList.toggle('hide', !(kind === 'word' && typeof r.xlsx === 'function'));
   staDlgCheck();
   $('stDlg').classList.remove('hide');
   const first = by.querySelector('select:not([disabled]),input:not([disabled])');
@@ -2625,8 +2663,9 @@ function staDlgCheck() {
     STD.negAt = !!at;
     $('stDlgOk').textContent = at ? 'Add 1 change to review list' : 'Add 2 changes to review list';
   } else if (kind === 'word') {
-    const picks = [...$('stDlgBody').querySelectorAll('input[data-cp]:checked')].map(x => r.cps[Number(x.dataset.cp)]);
+    const picks = STD.cpRows.filter((c, i) => c.can && STD.cpOn.has(i));
     STD.picks = picks;
+    $('stDlgCpN').textContent = `${staInt(picks.length)} of ${staInt(STD.cpRows.length)} campaign${STD.cpRows.length === 1 ? '' : 's'} ticked · ${staMoney(picks.filter(c => !(c.o > 0)).reduce((t, c) => t + (c.sp || 0), 0))} spend with no orders`;
     if (r.protect) bad(`A ${staEsc(r.protect)}: never negated.`);
     else out.push(staCheck('ok', 'Not a product word, brand term, main keyword or seasonal word'));
     if (!picks.length) bad('Tick at least one campaign.');
@@ -3190,41 +3229,92 @@ function staBulkRow(x) {
     [kwRow ? 'Keyword ID' : 'Product Targeting ID']: hit.id }, x.kind === 'pause' ? { 'State': 'paused' } : { 'Bid': x.bid.to }) };
 }
 
-// An .xlsx of one sheet (rows[0] the heading) — Listing Content's zip and XML helpers, IDs as text.
+// An .xlsx of one sheet (rows[0] the heading) — Listing Content's zip and XML helpers, IDs as text. The bulk file: its bytes
+// are the same as before the writer took several sheets (staXlsxBook with one plain sheet; ngram-test checks it).
 function staXlsx(sheet, rows) {
-  const cell = (v, ref, rowIx) => {
-    if (typeof v === 'number' && isFinite(v)) return `<c r="${ref}"${rowIx === 0 ? ' s="1"' : ''}><v>${v}</v></c>`;
+  return staXlsxBook([{ name: sheet, rows }]);
+}
+// An .xlsx of several sheets: [{ name, rows, fmt, total }]. A plain sheet (no fmt) is written as the bulk file always was.
+// fmt: one entry per column — 'money' (2 decimals), 'pct' (1 decimal) or '' — and the sheet then gets column widths from
+// its text and a frozen heading; total: the last row is a total, in bold. The heading is bold either way. A cell can be
+// { v, f } for a format of its own (a sheet of label and value pairs).
+function staXlsxBook(sheets) {
+  const fancy = sheets.some(sh => sh.fmt);
+  // Styles: 0 plain, 1 bold; with formats also 2 money, 3 bold money, 4 one decimal, 5 bold one decimal.
+  const styleOf = (sh, v, i, own) => {
+    const bold = i === 0 || (sh.total && i === sh.rows.length - 1);
+    const f = sh.fmt && i > 0 && typeof v === 'number' ? own || sh.fmt[sh._j] : '';
+    return f === 'money' ? (bold ? 3 : 2) : f === 'pct' ? (bold ? 5 : 4) : bold ? 1 : 0;
+  };
+  const cell = (sh, v0, ref, i) => {
+    const own = v0 && typeof v0 === 'object' ? v0.f : '', v = v0 && typeof v0 === 'object' ? v0.v : v0;
+    const s0 = styleOf(sh, v, i, own), st = s0 ? ` s="${s0}"` : '';
+    if (typeof v === 'number' && isFinite(v)) return `<c r="${ref}"${st}><v>${v}</v></c>`;
     const s = String(v == null ? '' : v);
     if (s === '') return '';
-    return `<c r="${ref}" t="inlineStr"${rowIx === 0 ? ' s="1"' : ''}><is><t xml:space="preserve">${lcXml(s)}</t></is></c>`;
+    return `<c r="${ref}" t="inlineStr"${st}><is><t xml:space="preserve">${lcXml(s)}</t></is></c>`;
   };
   const x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
-  const ws = x + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
-    + rows.map((cells, i) => `<row r="${i + 1}">${cells.map((v, j) => cell(v, lcColName(j) + (i + 1), i)).join('')}</row>`).join('')
-    + '</sheetData></worksheet>';
-  const styles = x + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-    + '<fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font></fonts>'
+  const sheetXml = sh => {
+    let head = '';
+    if (sh.fmt) {
+      // Widths from the longest text in each column (money and decimals as shown), between 8 and 60 characters.
+      const n = Math.max(...sh.rows.map(r => r.length));
+      const w = [];
+      for (let j = 0; j < n; j++) {
+        const len = Math.max(...sh.rows.map((r, i) => {
+          const v = r[j] && typeof r[j] === 'object' ? r[j].v : r[j];
+          if (typeof v === 'number') return (sh.fmt[j] === 'money' ? v.toFixed(2) : sh.fmt[j] === 'pct' ? v.toFixed(1) : String(v)).length + 2;
+          return String(v == null ? '' : v).length * (i === 0 ? 1.1 : 1);
+        }));
+        w.push(Math.min(60, Math.max(8, Math.ceil(len + 2))));
+      }
+      head = '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+        + '<cols>' + w.map((v, j) => `<col min="${j + 1}" max="${j + 1}" width="${v}" customWidth="1"/>`).join('') + '</cols>';
+    }
+    return x + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + head + '<sheetData>'
+      + sh.rows.map((cells, i) => `<row r="${i + 1}">${cells.map((v, j) => { sh._j = j; return cell(sh, v, lcColName(j) + (i + 1), i); }).join('')}</row>`).join('')
+      + '</sheetData></worksheet>';
+  };
+  const fonts = '<fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font></fonts>'
     + '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
     + '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
-    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    + '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>';
+    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
+  const xf = (fmt, font) => `<xf numFmtId="${fmt}" fontId="${font}" fillId="0" borderId="0" xfId="0"${font ? ' applyFont="1"' : ''}${fmt ? ' applyNumberFormat="1"' : ''}/>`;
+  const styles = x + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    + (fancy ? '<numFmts count="1"><numFmt numFmtId="164" formatCode="0.0"/></numFmts>' + fonts
+      + '<cellXfs count="6">' + xf(0, 0) + xf(0, 1) + xf(4, 0) + xf(4, 1) + xf(164, 0) + xf(164, 1) + '</cellXfs></styleSheet>'
+      : fonts + '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>');
+  const ids = sheets.map((sh, i) => i + 1);
   return lcZip([
     ['[Content_Types].xml', x + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
       + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
       + '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-      + '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+      + ids.map(n => `<Override PartName="/xl/worksheets/sheet${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')
       + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
     ['_rels/.rels', x + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
       + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
     ['xl/workbook.xml', x + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-      + `<sheets><sheet name="${lcXml(sheet)}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+      + `<sheets>${sheets.map((sh, i) => `<sheet name="${lcXml(sh.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`],
     ['xl/_rels/workbook.xml.rels', x + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-      + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
-      + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
-    ['xl/worksheets/sheet1.xml', ws],
+      + ids.map(n => `<Relationship Id="rId${n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${n}.xml"/>`).join('')
+      + `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+  ].concat(sheets.map((sh, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sh)]), [
     ['xl/styles.xml', styles],
-  ]);
+  ]));
 }
+// Download an .xlsx made by staXlsxBook; the link's URL is let go after 2 s.
+function staXlsxSave(name, sheets) {
+  const blob = new Blob([staXlsxBook(sheets)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  return blob;
+}
+// A file name from any text: without the characters a file name cannot hold.
+const staFileName = s => String(s == null ? '' : s).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 120) || 'export';
 
 // The bulk-file preview: every row that will download, per brand, and what waits and why. Clashes hold the download
 // until one side is removed or un-approved.
@@ -3846,7 +3936,25 @@ $('stDlgBody').addEventListener('input', e => {
   if (e.target.id === 'stBidNew') e.target.dataset.touched = '1';
   staDlgCheck();
 });
-$('stDlgBody').addEventListener('change', staDlgCheck);
+// A campaign ticked or not in the word dialog (kept on STD, so the checks read it without the page).
+$('stDlgBody').addEventListener('change', e => {
+  const cb = e.target && e.target.dataset && e.target.dataset.cp != null && STD && STD.cpOn ? e.target : null;
+  if (cb) { const i = Number(cb.dataset.cp); if (cb.checked) STD.cpOn.add(i); else STD.cpOn.delete(i); }
+  staDlgCheck();
+});
+// "Select all eligible" (the campaigns ticked at first: enough evidence there) and "Clear".
+function staDlgCpSet(all) {
+  if (!STD || !STD.cpRows) return;
+  STD.cpOn = new Set(all ? STD.cpRows.map((c, i) => (c.on && c.can ? i : -1)).filter(i => i >= 0) : []);
+  $('stDlgBody').querySelectorAll('input[data-cp]').forEach(x => { x.checked = STD.cpOn.has(Number(x.dataset.cp)); });
+  staDlgCheck();
+}
+$('stDlgBody').addEventListener('click', e => {
+  if (e.target.closest('[data-cpall]')) staDlgCpSet(true);
+  else if (e.target.closest('[data-cpnone]')) staDlgCpSet(false);
+});
+// "Download Excel": the row's own file (N-Gram Analysis), with the campaigns ticked now.
+$('stDlgXlsx').addEventListener('click', () => { if (STD && typeof STD.row.xlsx === 'function') STD.row.xlsx(new Set((STD.picks || []).map(c => c.cid))); });
 $('stDlgOk').addEventListener('click', staDlgOk);
 $('stDlgApply').addEventListener('click', staDlgApply);
 $('stDlgCancel').addEventListener('click', staClose);

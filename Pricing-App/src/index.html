@@ -1082,7 +1082,7 @@
       <div class="sta-mh"><div><b id="stDlgTitle"></b><small id="stDlgSub"></small></div><button id="stDlgX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
       <div id="stDlgBody" class="sta-mb"></div>
       <div class="sta-mf"><small id="stDlgNote"></small>
-        <div class="btns"><button id="stDlgCancel" class="ghost" type="button">Cancel</button><button id="stDlgApply" class="ghost sta-applybtn" type="button" disabled><svg class="sta-lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Apply at Amazon</button><button id="stDlgOk" type="button">Add to review list</button></div></div>
+        <div class="btns"><button id="stDlgXlsx" class="ghost hide" type="button" title="This pattern's campaigns and search terms as an Excel file">Download Excel</button><button id="stDlgCancel" class="ghost" type="button">Cancel</button><button id="stDlgApply" class="ghost sta-applybtn" type="button" disabled><svg class="sta-lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Apply at Amazon</button><button id="stDlgOk" type="button">Add to review list</button></div></div>
     </div></div>
 
     <!-- The review list: changes waiting, approved, downloaded; the bulk file is previewed before it downloads. -->
@@ -1147,11 +1147,12 @@
           <option value="5">5+ clicks</option><option value="10" selected>10+ clicks</option><option value="20">20+ clicks</option><option value="50">50+ clicks</option>
         </select>
         <select id="ngClass" style="flex:0 0 190px" aria-label="Classification">
-          <option value="">Every classification</option><option value="waste">Waste</option><option value="winner">Winner</option><option value="mixed">Mixed</option><option value="need">Needs data</option>
+          <option value="">Every classification</option><option value="waste">Waste</option><option value="waste-ns">Waste · no sales</option><option value="waste-be">Waste · over break-even</option><option value="winner">Winner</option><option value="mixed">Mixed</option><option value="need">Needs data</option>
         </select>
         <button id="ngLegendBtn" class="ghost" type="button" aria-haspopup="dialog">How Sellora decides</button>
         <button id="ngRlBtn" class="ghost sta-rl" type="button" title="Changes picked here and in Search Term Analysis, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="ngRlN" class="sta-n hide">0</span></button>
         <button id="ngCsv" class="ghost" type="button" title="Every row after the filters, as a CSV">Export</button>
+        <button id="ngXlsx" class="ghost hide" type="button" title="The Waste patterns on screen and the campaigns each would be negated in, as an Excel file">Download Excel</button>
       </div>
       <div id="ngMsg" class="sta-msg"></div>
     </div>

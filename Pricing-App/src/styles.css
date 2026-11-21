@@ -4766,6 +4766,45 @@
   #paneNgram .ng-plan li.is-neg em{color:var(--bad-ink)}
   #paneNgram .ng-plan li.is-kept em{color:var(--accent-ink)}
   @media (max-width:900px){#paneNgram .ng-split{grid-template-columns:minmax(0,1fr)}}
+  /* N-Gram's table fits 1366–1500 px (26 Nov): the reason in 2 lines (all of it on hover), tighter numbers, Next step wraps. */
+  #paneNgram #ngTable .ng-why{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  #paneNgram #ngTable td.num,#paneNgram #ngTable th.num{padding-left:7px;padding-right:7px}
+  #paneNgram #ngTable thead th.num{min-width:50px;max-width:94px}
+  #paneNgram #ngTable td.sta-ev.sta-ev-s{min-width:180px;max-width:230px}
+  #paneNgram #ngTable td.sta-next{white-space:normal;min-width:136px;max-width:190px}
+  #paneNgram #ngTable td.sta-next button.sta-btn.sm{white-space:normal;text-align:left;line-height:1.3}
+  #paneNgram #ngTable td.sta-next small{max-width:190px;margin-bottom:4px}
+  #paneNgram #ngTable td.sta-next .sta-btn+.ng-gost{margin-top:4px;display:block}
+  /* The two kinds of Waste, small chips right after Waste. */
+  #paneNgram .sta-actbar .ng-wks{display:inline-flex;gap:4px;margin-right:4px}
+  #paneNgram button.sta-chip.ng-wk{height:24px;padding:0 9px;font-size:11.5px;gap:5px}
+  #paneNgram button.sta-chip.ng-wk::before{width:5px;height:5px;background:var(--bad)}
+  #paneNgram button.sta-chip.ng-wk.on{background:var(--bad-bg);color:var(--bad-ink);box-shadow:inset 0 0 0 1.5px var(--bad)}
+  #paneNgram button.sta-chip.ng-wk.on span{color:var(--bad-ink)}
+  /* The word dialog ("Add negative phrase"): wider, its campaigns as a table that scrolls inside itself. */
+  .modal.sta-modal.sta-dlgword .modalbox{width:min(1000px,100%)}
+  .sta-figs.sta-figs7{grid-template-columns:repeat(7,minmax(0,1fr))}
+  .sta-exterms{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+  .sta-exterms>span:first-child{margin-right:3px}
+  .sta-tchip{display:inline-block;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 8px;border-radius:var(--r-pill);
+    background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font-size:11.5px;line-height:1.6}
+  .sta-dcphead{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin:14px 0 6px;font-size:12.5px}
+  .sta-dcphead>b{font-weight:600;color:var(--ink)}
+  .sta-dcphead>#stDlgCpN{margin-left:auto}
+  .sta-dcp{max-height:45vh;overflow:auto;border:1px solid var(--line);border-radius:var(--r-row);background:var(--card)}
+  .sta-dcp table.xl{width:100%;font-size:12.5px}
+  .sta-dcp table.xl th,.sta-dcp table.xl td{text-align:left;padding:7px 9px;vertical-align:top}
+  .sta-dcp table.xl td{white-space:normal}
+  .sta-dcp table.xl th.num,.sta-dcp table.xl td.num{text-align:right;white-space:nowrap}
+  .sta-dcp .sta-dcb{width:20px;padding-right:0}
+  .sta-dcp input.sta-cb{width:16px;height:16px;margin:1px 0 0}
+  .sta-dcp .sta-dcn{font-weight:600;color:var(--ink);max-width:300px;overflow-wrap:anywhere}
+  .sta-dcp td small{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.35}
+  .sta-dcp td.sta-dev{color:var(--muted);min-width:130px}
+  .sta-dcp tr.is-off td,.sta-dcp tr.is-off .sta-dcn{color:var(--muted)}
+  .sta-dcp tr.is-off input.sta-cb{opacity:.45}
+  .sta-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  @media (max-width:620px){.sta-figs.sta-figs7{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
   /* ===== MODULE: INVENTORY ===== */  /* ----- INVENTORY AGE (paneAge, inventory/inventory-age.js): the Ad Console look — .adx-meta's line, .ls-toolbar's bar,
      .adx-box number boxes (a box is also a filter, like .sta-box), the stock's age mix as bars, a flush table card like
