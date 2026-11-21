@@ -545,8 +545,12 @@
   :is(#secListing,#secSales) .navcol-h.num::before{content:counter(navcol) " · "}
   @media (min-width:861px){
     .navwrap:has(> :is(#secListing,#secSales)){position:static}        /* the wide panel hangs from the whole bar, so it never runs off the screen */
-    :is(#secListing,#secSales).open{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,220px);top:calc(100% + 6px);left:50%;right:auto;
-      transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);padding:12px;overflow-x:auto;animation:navInX .12s ease-out}
+    :is(#secListing,#secSales).open{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,220px);top:calc(100% + 6px);right:auto;
+      width:max-content;max-width:calc(100vw - 32px);padding:12px;overflow-x:auto}
+    #secListing.open{left:50%;transform:translateX(-50%);animation:navInX .12s ease-out}
+    /* SALES opens just under the bar like Listing, but left-aligned with its own button: nav.js (fitNavPanel) sets --nav-left from
+       the button, moved left just enough when the panel would pass the right edge of the screen (never past the left edge). */
+    #secSales.open{left:var(--nav-left,0px)}
     :is(#secListing,#secSales) .navcol{min-width:0;padding:0 6px}
     /* the line goes between groups ON SHOW: a hidden group never leaves a line before the first one */
     :is(#secListing,#secSales) .navcol:has(> .nav:not(.hide)) ~ .navcol{border-left:1px solid var(--line)}

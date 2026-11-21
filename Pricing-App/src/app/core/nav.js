@@ -56,7 +56,25 @@ function setGroupOpen(g, open) {
   g.head.classList.toggle('open', open);
   g.head.setAttribute('aria-expanded', String(open));
   g.sec.classList.toggle('open', open);
+  fitNavPanel(g.sec);
 }
+/* PANELS LINED UP WITH THEIR BUTTON (21 Nov 2026). The Sales panel opens just under the bar, like Listing's, with its left
+ * edge under the Sales button (styles.css #secSales.open uses --nav-left). When that would run past the right edge of the screen
+ * it moves left just enough, and never past the left edge. Only the panels named here: every other menu places itself as before.
+ * Nothing to do in the phone drawer, where the panel is a plain list. */
+const NAV_FIT = ['secSales'];
+function fitNavPanel(sec) {
+  if (!NAV_FIT.includes(sec.id)) return;
+  sec.style.removeProperty('--nav-left');
+  if (!sec.classList.contains('open') || window.matchMedia('(max-width:860px)').matches) return;
+  const head = document.querySelector('[aria-controls="' + sec.id + '"]'), bar = sec.offsetParent;   // its button; the top bar it hangs from
+  if (!head || !bar) return;
+  const room = document.documentElement.clientWidth - 16, width = sec.getBoundingClientRect().width;
+  const left = Math.max(16, Math.min(head.getBoundingClientRect().left, room - width));                 // screen position wanted
+  sec.style.setProperty('--nav-left', Math.round(left - bar.getBoundingClientRect().left - bar.clientLeft) + 'px');
+}
+// A window made narrower (or wider) while the panel is open: place it again.
+window.addEventListener('resize', () => document.querySelectorAll('.navsec.open').forEach(fitNavPanel));
 // Empty on purpose: the open groups were once remembered across visits and are not any more. Nothing calls it.
 function saveGroups() { /* a menu is not a shape to remember */ }
 /* ONE MENU OPEN AT A TIME, and it closes as soon as something is picked, the page is clicked, or
