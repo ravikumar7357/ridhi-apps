@@ -1942,8 +1942,14 @@ function renderPo() {
  * whole PO -- every line, what has come so far on which challan -- and the supplier's challan is typed bale
  * by bale under the lines still due. A PO that comes in several challans can be closed with its last one. */
 var RD = null;
+/* THE NEXT BALE (OR THAN) NUMBER KEEPS THE FORMAT (Ravi, 21 Nov: after "001" came "2"; it should be "002"): one more
+ * than the last number typed, at least 3 digits with zeros in front, and as wide as the last one ("2360" → "2361"). */
+var BALE_NO_DIGITS = 3;
 function rdNextBale(ps) {
-  for (var i = ps.length - 1; i >= 0; i--) { var t = String(ps[i].than).trim(); if (/^\d+$/.test(t)) return String(+t + 1); }
+  for (var i = ps.length - 1; i >= 0; i--) {
+    var t = String(ps[i].than).trim();
+    if (/^\d+$/.test(t)) return String(+t + 1).padStart(Math.max(t.length, BALE_NO_DIGITS), '0');
+  }
   return '';
 }
 /* The lots this challan will open: the next numbers in the series, one per line still due -- each can be
@@ -4419,7 +4425,7 @@ function wireUsersRfd() {
     var g = function (k) { return t.getAttribute(k); };
     if (g('data-issall') && ISS) { var lot = g('data-issall'), bs = lotBales(lot), all = bs.every(function (b) { return ISS.pick[lot][b.than]; }); ISS.pick[lot] = {}; if (!all) bs.forEach(function (b) { ISS.pick[lot][b.than] = true; }); issDraw(); return; }
     if (g('data-issbale') && ISS) { var p = g('data-issbale').split('|'); ISS.pick[p[0]][p[1]] = t.checked; issDraw(); return; }
-    if (g('data-rradd') && RR) { var l = g('data-rradd'), ps = RR.thans[l], last = ps.length ? String(ps[ps.length - 1].than).trim() : ''; ps.push({ than: /^\d+$/.test(last) ? String(+last + 1) : '', m: '' }); rrDraw(); var f = $('rm-' + l + '-' + (ps.length - 1)); if (f) f.focus(); return; }
+    if (g('data-rradd') && RR) { var l = g('data-rradd'), ps = RR.thans[l]; ps.push({ than: rdNextBale(ps), m: '' }); /* same numbering as Receive greige */ rrDraw(); var f = $('rm-' + l + '-' + (ps.length - 1)); if (f) f.focus(); return; }
     if (g('data-rrrm') && RR) { var q = g('data-rrrm').split('|'), arr = RR.thans[q[0]]; arr.splice(+q[1], 1); if (!arr.length) arr.push({ than: '', m: '' }); rrDraw(); return; }
     if (g('data-rrfin') && RR) { RR.fin[g('data-rrfin')] = t.checked; rrSums(); return; }
     if (t.id === 'rrSave') { rrSave(); return; }
