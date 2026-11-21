@@ -57,6 +57,7 @@ ads/account-trends.js
 ads/search-terms.js
 ads/placement.js
 ads/placement-decide.js
+ads/ppc-history.js
 ads/ads-charts.js
 ads/ads-health.js
 ads/ppc-organic.js

@@ -222,7 +222,7 @@ async function staUndoAdd() {
   let n = 0;
   for (const id of ids) {
     const x = ST_RL.items.find(y => y.id === id);
-    if (x && !(await staRlMove(x, ['review'], { status: 'removed', removedBy: String(ME.email || ''), removedAt: Date.now(), note: 'Taken back right after adding' }))) n++;
+    if (x && !(await staRlMove(x, ['review'], { status: 'removed', removedBy: String(ME.email || ''), removedAt: Date.now(), note: 'Taken back right after adding' }, { act: 'taken-back' }))) n++;
   }
   STM = null;
   renderSt();
@@ -1371,13 +1371,15 @@ function staPage(rows) {
   if (ST_PG >= pages) ST_PG = pages - 1;
   return rows.slice(ST_PG * ST_SIZE, ST_PG * ST_SIZE + ST_SIZE);
 }
-// The footer: rows shown, the pages, and a note.
-function staPager(total, what, note) {
-  const pages = Math.max(1, Math.ceil(total / ST_SIZE));
-  const a = total ? ST_PG * ST_SIZE + 1 : 0, z = Math.min(total, (ST_PG + 1) * ST_SIZE);
-  stFoot(`<span>${staInt(a)}–${staInt(z)} of ${staInt(total)} ${what}${note ? ' · ' + note : ''}</span>`
-    + (pages > 1 ? `<span class="sta-pages"><button type="button" class="ghost" data-pg="prev"${ST_PG ? '' : ' disabled'}>‹ Previous</button>`
-      + `<span>Page ${ST_PG + 1} of ${pages}</span><button type="button" class="ghost" data-pg="next"${ST_PG < pages - 1 ? '' : ' disabled'}>Next ›</button></span>` : ''));
+// The footer: rows shown, the pages, and a note. o: another screen's page, page size and footer ({ pg, size, foot }:
+// PPC History); without it, this screen's.
+function staPager(total, what, note, o) {
+  const pg = o ? o.pg : ST_PG, size = o ? o.size : ST_SIZE;
+  const pages = Math.max(1, Math.ceil(total / size));
+  const a = total ? pg * size + 1 : 0, z = Math.min(total, (pg + 1) * size);
+  (o ? o.foot : stFoot)(`<span>${staInt(a)}–${staInt(z)} of ${staInt(total)} ${what}${note ? ' · ' + note : ''}</span>`
+    + (pages > 1 ? `<span class="sta-pages"><button type="button" class="ghost" data-pg="prev"${pg ? '' : ' disabled'}>‹ Previous</button>`
+      + `<span>Page ${pg + 1} of ${pages}</span><button type="button" class="ghost" data-pg="next"${pg < pages - 1 ? '' : ' disabled'}>Next ›</button></span>` : ''));
 }
 
 /* ---------- drawing ---------- */
@@ -2496,7 +2498,10 @@ async function staDlgApply() {
   const me = String(ME.email || '');
   $('stDlgApply').disabled = $('stDlgOk').disabled = true;
   try {
-    for (const it of items) Object.assign(it, { status: 'approved', approvedBy: me, approvedAt: Date.now(), note: 'Apply now' });
+    for (const it of items) {
+      Object.assign(it, { status: 'approved', approvedBy: me, approvedAt: Date.now(), note: 'Apply now' });
+      it.trail.push(ppchEvent('approved'));
+    }
     for (const it of items) await staRlSave(it);
     const msg = await staApply(items);
     staClose();
@@ -2602,7 +2607,11 @@ function staRlListen() {
 }
 // Save one item. A failed save is an error the person sees — never a quiet switch to "this browser only" for the rest of
 // the session (19 Nov audit). This browser is used only when the shared list could not be read at all.
-async function staRlSave(it) {
+// PPC History (ads/ppc-history.js): on a shared login the person is named first (asked once per device), and the steps
+// this device added before the name was known get it. `named`: already asked by the caller (staRlMove).
+async function staRlSave(it, named) {
+  if (!named) await ppchNeedPerson();
+  ppchStampPerson(it);
   it.up = Date.now();
   const clean = JSON.parse(JSON.stringify(it));
   delete clean.id;
@@ -2616,25 +2625,34 @@ async function staRlSave(it) {
 }
 // Move one item to a new status only if it is still in one of `from` — inside a transaction at the shared list, so a
 // change someone else made meanwhile wins and is reported. Returns '' when done, else why not.
-async function staRlMove(x, from, patch) {
+// Every move adds one step to the item's trail (who, which device, when, what: ppchMoveEvent in ads/ppc-history.js), the
+// act read from the move itself; extra: { act } when the move alone does not say it ('taken-back', 'downloaded-again').
+async function staRlMove(x, from, patch, extra) {
   const fromTxt = s => ({ review: 'waiting', approved: 'approved', exported: 'downloaded', done: 'done', removed: 'removed', applied: 'applied' }[s] || s);
+  // Only "seen at Amazon" is Amazon's own record; every other step names a person (asked once on a shared login).
+  if (patch.status !== 'done') { try { await ppchNeedPerson(); } catch (e) { return String(e.message || e); } }
   if (ST_RL.where !== 'fs') {
     if (!from.includes(x.status)) return `it is ${fromTxt(x.status)} now`;
+    const ev = ppchMoveEvent(x.status, patch, extra);
     Object.assign(x, patch);
-    try { await staRlSave(x); return ''; } catch (e) { return 'could not save: ' + (e.message || e); }
+    x.trail = (x.trail || []).concat(ev);
+    try { await staRlSave(x, true); return ''; } catch (e) { return 'could not save: ' + (e.message || e); }
   }
   try {
     const ref = doc(db, 'adsActions', x.id);
+    let trail = null;
     const res = await runTransaction(db, async tx => {
       const s = await tx.get(ref);
       const cur = s.exists() ? s.data() : null;
       if (!cur) return 'it is no longer in the list';
       if (!from.includes(cur.status)) { Object.assign(x, cur); return `someone made it ${fromTxt(cur.status)} meanwhile`; }
       const next = Object.assign({}, cur, patch, { up: Date.now() });
+      next.trail = (cur.trail || []).concat(ppchMoveEvent(cur.status, patch, extra));
+      trail = next.trail;
       tx.set(ref, next);
       return '';
     });
-    if (!res) Object.assign(x, patch, { up: Date.now() });
+    if (!res) Object.assign(x, patch, { up: Date.now(), trail });
     ST_RL.stamp++;
     return res;
   } catch (e) { return 'could not save: ' + String((e && (e.code || e.message)) || e); }
@@ -2668,6 +2686,7 @@ function staItem(r, kind, extra) {
     target: r.type === 'word' ? '' : staPathLabel(r.kw, r.mt), kw: r.kw || '', mt: r.mt || '', kid: r.kid || '', cid: r.cid || '', ag: r.ag || '',
     cn: r.cn || '', agn: r.agn || '', ev: { c: r.c, sp: staR2(r.sp), o: r.o, s: staR2(r.s), win: STM && STM.settled ? 'settled' : '30d' },
     status: 'review', by: who ? who[0].toUpperCase() + who.slice(1) : '', byEmail: ME.email || '', at: Date.now(),
+    trail: [ppchEvent('added')],   // who, which device, when: one step per move from here on (PPC History)
   }, extra);
 }
 function staNegItem(r, type, level) {
@@ -2823,13 +2842,7 @@ function staRlDraw() {
   const unseen = ST_RL.items.filter(staNotSeen).length;
   $('stRlSub').textContent = `${open.length} change${open.length === 1 ? '' : 's'} waiting${appr ? `, ${appr} approved` : ''}`
     + (unseen ? ` · ${unseen} downloaded but not seen at Amazon` : '') + '. Each keeps the figures it was based on.';
-  const age = x => Math.floor((Date.now() - (x.exportedAt || 0)) / 86400000);
-  const chip = x => x.status === 'review' ? staBadge('Waiting') : x.status === 'approved' ? staBadge('Approved', 'ok')
-    : x.status === 'failed' ? staBadge('Apply failed', 'bad', x.err || '')
-    : x.status === 'exported' ? (staNotSeen(x) ? staBadge(`Not seen at Amazon · ${age(x)} days`, 'warn', 'Downloaded, but Amazon\'s record does not show it yet. Was the file uploaded? Download again, or cancel it.')
-      : staBadge('In bulk file · ' + staDay(x.exportedAt), 'info'))
-    : x.status === 'done' ? staBadge('Done · seen at Amazon', 'ok') : x.status === 'applied' ? staBadge('Applied · ' + staDay(x.appliedAt), 'ok')
-    : x.status === 'undone' ? staBadge('Undone', 'warn') : staBadge('Removed', 'warn');
+  const chip = staRlChip;
   const when = x => `${staEsc(x.by || staWho(x.byEmail))}<br>${new Date(x.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
   const tickable = x => tab === 'open' || tab === 'removed' || (tab === 'done' && x.status === 'exported');
   const row = x => {
@@ -2873,6 +2886,16 @@ function staRlDraw() {
 }
 // Downloaded more than 3 days ago and still not seen in Amazon's record.
 const staNotSeen = x => x.status === 'exported' && Date.now() - (x.exportedAt || 0) > 3 * 86400000;
+// An item's status as a chip — the review list's, and PPC History's (the same words and colours on both).
+function staRlChip(x) {
+  const age = Math.floor((Date.now() - (x.exportedAt || 0)) / 86400000);
+  return x.status === 'review' ? staBadge('Waiting') : x.status === 'approved' ? staBadge('Approved', 'ok')
+    : x.status === 'failed' ? staBadge('Apply failed', 'bad', x.err || '')
+    : x.status === 'exported' ? (staNotSeen(x) ? staBadge(`Not seen at Amazon · ${age} days`, 'warn', 'Downloaded, but Amazon\'s record does not show it yet. Was the file uploaded? Download again, or cancel it.')
+      : staBadge('In bulk file · ' + staDay(x.exportedAt), 'info'))
+    : x.status === 'done' ? staBadge('Done · seen at Amazon', 'ok') : x.status === 'applied' ? staBadge('Applied · ' + staDay(x.appliedAt), 'ok')
+    : x.status === 'undone' ? staBadge('Undone', 'warn') : staBadge('Removed', 'warn');
+}
 // Two approved changes that fight each other (19 Nov audit): a bid change and a pause on the same keyword or target; a
 // negative and a new exact keyword for the same term in the same ad group. '' when none.
 function staClashOf(x) {
@@ -3070,12 +3093,16 @@ async function staDownload() {
   if (fails.length) $('stRlSel').innerHTML = `<span style="color:var(--rev-ink)">${fails.length} left out — ${staEsc(fails.slice(0, 3).join('; '))}</span>`;
   renderSt();
 }
-// The same file again, from the rows kept with each item when it was downloaded.
+// The same file again, from the rows kept with each item when it was downloaded. Each item keeps a step "downloaded again"
+// (who, which device: PPC History) — whatever its status now, so the status itself is left as it is.
 async function staRedownload(batch) {
   const xs = ST_RL.items.filter(x => x.batch === batch);
   const pairs = xs.map(x => ({ x, row: x.bulk || (staBulkRow(x).row || null) })).filter(y => y.row);
   if (!pairs.length) return;
+  try { await ppchNeedPerson(); } catch (e) { $('stRlSel').innerHTML = `<span style="color:var(--rev-ink)">Not downloaded — ${staEsc(e.message || e)}</span>`; return; }
   await staBulkFiles(pairs, 'again');
+  const any = ['review', 'approved', 'exported', 'done', 'applying', 'applied', 'failed', 'undone', 'removed'];
+  for (const y of pairs) await staRlMove(y.x, any, {}, { act: 'downloaded-again', batch });
 }
 // The reverse of one change as a bulk row, or { skip }: bid → the old bid; pause → enabled; placement → the old %; a
 // negative → archived (by the ID Amazon's record shows for it); a new keyword or ASIN target → paused.
