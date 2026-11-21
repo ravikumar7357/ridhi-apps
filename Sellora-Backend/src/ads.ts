@@ -4,7 +4,7 @@
  * 14-day. The same reports Apps Script asks for (Pricing-API/SalesLive.gs liveAdsTick_). */
 
 import { gunzipSync } from 'node:zlib';
-import { call, callJson } from './http.ts';
+import { call, callJson, HttpError } from './http.ts';
 import { lwaToken, type LwaCred } from './amazon.ts';
 
 export const ADS_HOST = 'https://advertising-api.amazon.com';
@@ -38,7 +38,9 @@ export async function findProfile(c: LwaCred, brand: string): Promise<string> {
 /** Ask for one type's daily report from `from` to `to` (YYYY-MM-DD, the profile's own day). Returns the report id. */
 export async function askReport(x: AdsCtx, type: AdType, from: string, to: string, brand: string): Promise<string> {
   const T = AD_TYPES[type];
-  const j = await callJson<{ reportId?: string; status?: string }>('Amazon Ads report', `${ADS_HOST}/reporting/reports`, {
+  let j: { reportId?: string; status?: string };
+  try {
+    j = await callJson<{ reportId?: string; status?: string }>('Amazon Ads report', `${ADS_HOST}/reporting/reports`, {
     method: 'POST',
     headers: { ...await headers(x.cred, x.profileId), 'Content-Type': REPORT_MIME, Accept: REPORT_MIME },
     body: JSON.stringify({
@@ -50,8 +52,22 @@ export async function askReport(x: AdsCtx, type: AdType, from: string, to: strin
       },
     }),
   });
+  } catch (e) {
+    // 425 "duplicate of <id>": the same report is already being built — Apps Script asks for the identical one (21 Nov).
+    // That report is just as good: collect it.
+    const id = duplicateOf(e);
+    if (id) return id;
+    throw e;
+  }
   if (!j || !j.reportId) throw new Error(`Amazon Ads report: no report id (${(j && j.status) || '?'})`);
   return j.reportId;
+}
+
+/** The report id in Amazon's 425 "The Request is a duplicate of : <id>", or '' for any other error. */
+export function duplicateOf(e: unknown): string {
+  if (!(e instanceof HttpError) || e.status !== 425) return '';
+  const m = e.body.match(/duplicate of\s*:?\s*([0-9a-f-]{20,})/i);
+  return m ? m[1] : '';
 }
 
 export interface ReportStatus { status: string; ready: boolean; failed: boolean; url: string; reason: string }

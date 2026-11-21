@@ -119,6 +119,28 @@ test('one source failing does not stop the others', async () => {
   } finally { f.restore(); }
 });
 
+test('a "duplicate" report (Apps Script asked for the same one) is collected instead of failing', async () => {
+  const db = new FakeDb();
+  const f = fakeFetch([
+    u => u.hostname === 'api.amazon.com' ? json({ access_token: 'tok', expires_in: 3600 }) : null,
+    (u, init) => u.hostname === 'advertising-api.amazon.com' && u.pathname === '/reporting/reports' && init.method === 'POST'
+      ? json({ code: '425', detail: 'The Request is a duplicate of : 635aaaaa-4c7b-4fe4-8136-1e16c382adfc' }, 425) : null,
+    u => u.hostname === 'advertising-api.amazon.com' && u.pathname.startsWith('/reporting/reports/')
+      ? json({ status: 'COMPLETED', url: 'https://s3.example/dup.gz' }) : null,
+    u => u.hostname === 's3.example' ? gz([{ date: '2026-11-19', impressions: 5, clicks: 1, cost: 42, purchases7d: 1, sales7d: 30, purchases: 1, sales: 30 }]) : null,
+  ]);
+  const { amazonAds } = await import('../src/tick.ts');
+  const { brandConfig } = await import('../src/config.ts');
+  try {
+    const cfg = brandConfig(env, 'CPC');
+    const first = await amazonAds(db as any, cfg, NOW) as any;
+    assert.deepEqual(first.details.errors, []);
+    assert.equal(db.state['amazon_ads:CPC'].t.sp.pendingId, '635aaaaa-4c7b-4fe4-8136-1e16c382adfc');
+    await amazonAds(db as any, cfg, NOW + 600000);
+    assert.equal(db.rows('ads_daily').find(r => r.brand === 'CPC' && r.ad_type === 'sp').spend, 42);
+  } finally { f.restore(); }
+});
+
 test('a report still being built is left for the next run', async () => {
   const db = new FakeDb(), f = services({ adsStatus: 'PENDING' });
   try {
