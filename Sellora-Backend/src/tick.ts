@@ -17,6 +17,7 @@ import { askReport, reportStatus, downloadReport, foldAds, findProfile, type AdT
 import { ordersBetween, foldShop, type Tot } from './shopify.ts';
 import { insights, insightsHourly, accountInfo } from './meta.ts';
 import { usdRates } from './fx.ts';
+import { ordersUpdatedSince, foldBreakdown, totals } from './shopbreakdown.ts';
 import { ptDay, ptMidnight, shiftDay, daysBetween, hourStart, dayIn, zonedHour, PT } from './time.ts';
 import { BRANDS, brandConfig, type Env, type BrandConfig, type Brand } from './config.ts';
 import { backfillOnce } from './backfill.ts';
@@ -98,6 +99,23 @@ export async function shopify(db: Db, cfg: BrandConfig, now: number): Promise<St
   }
   if (fetched.length) await db.setState(key, { done: trimDone(done, today) });
   return { rows, details: { orders: [...f.days.values()].reduce((t, x) => t + x.orders, 0), compareFetched: fetched } };
+}
+
+/* ---------------- Shopify's total sales breakdown (shopbreakdown.ts) ----------------
+ * The last 7 Pacific days, today included, read again every run (a refund can come days after its order). */
+export const BREAKDOWN_DAYS = 7;
+export async function shopifyBreakdown(db: Db, cfg: BrandConfig, now: number): Promise<StepOut> {
+  const b = cfg.brand, s = cfg.shop!, today = ptDay(now), from = shiftDay(today, -(BREAKDOWN_DAYS - 1));
+  const orders = await ordersUpdatedSince(s.store, s.token, ptMidnight(from));
+  const byDay = foldBreakdown(orders, from), at = nowIso(now);
+  const rows = daysBetween(from, today).map(d => {
+    const x = byDay.get(d) || { orders: 0, gross: 0, discounts: 0, returns: 0, shipping: 0, taxes: 0 }, t = totals(x);
+    return { brand: b, day: d, orders: x.orders, gross: x.gross, discounts: x.discounts, returns: x.returns, net: t.net,
+      shipping: x.shipping, taxes: x.taxes, total: t.total, fetched_at: at };
+  });
+  const n = await db.upsert('shop_breakdown', rows, 'brand,day');
+  const y = rows.find(r => r.day === shiftDay(today, -1));
+  return { rows: n, details: { orders: orders.length, yesterdayTotal: y && y.total } };
 }
 
 /* ---------------- Amazon ads ---------------- */
@@ -208,6 +226,7 @@ export async function runTick(db: Db, env: Env, now = Date.now()): Promise<StepR
     const cfg = brandConfig(env, brand);
     if (cfg.sales) await step('amazon_sales', brand, () => amazonSales(db, cfg, now));
     if (cfg.shop) await step('shopify', brand, () => shopify(db, cfg, now));
+    if (cfg.shop) await step('shopify_breakdown', brand, () => shopifyBreakdown(db, cfg, now));
     if (cfg.ads) await step('amazon_ads', brand, () => amazonAds(db, cfg, now));
     // One Meta ad account shared by both brands would be counted twice: only its first brand gets it.
     if (cfg.meta && !metaSeen.has(cfg.meta.account)) { metaSeen.add(cfg.meta.account); await step('meta_ads', brand, () => metaAds(db, cfg, now)); }

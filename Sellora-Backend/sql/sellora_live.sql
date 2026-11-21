@@ -88,6 +88,30 @@ alter table sellora.sales_daily add constraint sales_daily_source_check
 comment on table sellora.sales_daily is 'Sales per Pacific day per brand and channel. Today is never here: the page takes today from sales_hourly.';
 
 -- ---------------------------------------------------------------------------------------------------------------------
+-- Shopify's own "Total sales breakdown" per store and Pacific day (21 Nov). Gross − discounts − returns = net; + shipping
+-- + taxes = total. Returns and refunded shipping / tax are counted on the day of the refund, as Shopify does. The backend
+-- re-reads the last 7 days every run; the history starts with the first run.
+-- ---------------------------------------------------------------------------------------------------------------------
+create table if not exists sellora.shop_breakdown (
+  brand       text          not null references sellora.brands (code),
+  day         date          not null,
+  orders      int           not null default 0,
+  gross       numeric(12,2) not null default 0,
+  discounts   numeric(12,2) not null default 0,
+  returns     numeric(12,2) not null default 0,
+  net         numeric(12,2) not null default 0,
+  shipping    numeric(12,2) not null default 0,
+  taxes       numeric(12,2) not null default 0,
+  total       numeric(12,2) not null default 0,
+  fetched_at  timestamptz   not null default now(),
+  primary key (brand, day)
+);
+comment on table sellora.shop_breakdown is 'Shopify Total sales breakdown per store (brand) and Pacific day, as Shopify Analytics shows it.';
+alter table sellora.shop_breakdown enable row level security;
+revoke all on sellora.shop_breakdown from public, anon, authenticated;
+grant all on sellora.shop_breakdown to service_role;
+
+-- ---------------------------------------------------------------------------------------------------------------------
 -- Ad figures by day and ad type. Amazon: Ads API daily campaign reports (Sponsored Products 7-day attribution,
 -- Brands and Display 14-day — as the Ads console shows them), re-read for 7 days. Older days from uploaded console
 -- reports. Meta: Marketing API insights, in the ad account's own timezone (noted in `day_tz`).
@@ -203,6 +227,7 @@ grant select on sellora.day_totals to service_role;
 --       ads:    { SP|CPC: { sp|sb|sd|meta|total: { 'YYYY-MM-DD': [impressions, clicks, spend, orders, sales] } } },
 --               (total = Apps Script history, all three Amazon types together, only on days without sp/sb/sd rows)
 --       events: [ { name, starts, ends, about } ],
+--       shop_breakdown: { SP|CPC: { 'YYYY-MM-DD': [gross, discounts, returns, net, shipping, taxes, total, orders] } },
 --       runs:   { "job:BRAND": { at, ok, error, rows } } }                    -- latest run per step and brand, last 2 days
 -- p_day: the Pacific day on view (default today). ly = 364 days back (same weekday), lw = 7, m4 = 28.
 -- daily / ads cover p_days back (default 800 — enough for last financial year's quarters).
@@ -258,6 +283,14 @@ ads as (
     ) x group by brand
   ) y
 ),
+bd as (       -- Shopify's total sales breakdown: { brand: { day: [gross, discounts, returns, net, shipping, taxes, total, orders] } }
+  select coalesce(jsonb_object_agg(brand, dd), '{}'::jsonb) as j from (
+    select s.brand, jsonb_object_agg(s.day::text, jsonb_build_array(s.gross, s.discounts, s.returns, s.net, s.shipping, s.taxes, s.total, s.orders)) as dd
+    from sellora.shop_breakdown s cross join k
+    where s.day >= k.since and s.day <= k.day
+    group by s.brand
+  ) x
+),
 ev as (
   select coalesce(jsonb_agg(jsonb_build_object('name', name, 'starts', starts, 'ends', ends, 'about', about) order by starts), '[]'::jsonb) as j
   from sellora.events
@@ -275,6 +308,7 @@ select jsonb_build_object(
   'daily',  (select j from daily),
   'ads',    (select j from ads),
   'events', (select j from ev),
+  'shop_breakdown', (select j from bd),
   'runs',   (select j from runs)
 )
 from k;
@@ -301,10 +335,10 @@ notify pgrst, 'reload schema';
 -- The last line must say PASS.
 select case
   when (select count(*) from information_schema.tables where table_schema = 'sellora'
-         and table_name in ('brands', 'sales_hourly', 'sales_daily', 'ads_daily', 'events', 'job_state', 'fetch_runs')) = 7
+         and table_name in ('brands', 'sales_hourly', 'sales_daily', 'ads_daily', 'events', 'job_state', 'fetch_runs', 'shop_breakdown')) = 8
    and position('apps_script' in pg_get_constraintdef((select oid from pg_constraint where conname = 'sales_daily_source_check'))) > 0
    and position('total' in pg_get_constraintdef((select oid from pg_constraint where conname = 'ads_daily_ad_type_check'))) > 0
    and exists (select 1 from information_schema.columns where table_schema = 'sellora' and table_name = 'ads_daily' and column_name = 'fx_rate')
    and (sellora.page_data(null, 1) ->> 'ok') = 'true'
-  then 'PASS — schema sellora ready (7 tables, page_data answers). Now add "sellora" to Data API → Exposed schemas.'
+  then 'PASS — schema sellora ready (8 tables incl. shop_breakdown, page_data answers).'
   else 'FAIL — look at the lines above' end as result;

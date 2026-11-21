@@ -66,8 +66,13 @@ test('one full run writes every source, and logs one line per step', async () =>
     const bad = out.filter(r => !r.ok);
     assert.deepEqual(bad, [], JSON.stringify(bad));
     assert.deepEqual(out.map(r => r.job + ':' + (r.brand || '')), [
-      'backfill:', 'amazon_sales:SP', 'shopify:SP', 'amazon_ads:SP', 'meta_ads:SP', 'amazon_sales:CPC', 'amazon_ads:CPC', 'meta_ads:CPC',
+      'backfill:', 'amazon_sales:SP', 'shopify:SP', 'shopify_breakdown:SP', 'amazon_ads:SP', 'meta_ads:SP', 'amazon_sales:CPC', 'amazon_ads:CPC', 'meta_ads:CPC',
     ]);
+    // Shopify's breakdown: the 7 Pacific days to today, every day written (zero where nothing happened)
+    const bd = db.rows('shop_breakdown').filter(r => r.brand === 'SP').sort((a, b) => a.day.localeCompare(b.day));
+    assert.deepEqual(bd.map(r => r.day), ['2026-11-14', '2026-11-15', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20']);
+    const b20 = bd.find(r => r.day === '2026-11-20');
+    assert.deepEqual([b20.orders, b20.gross, b20.net, b20.total], [1, 60, 60, 60]);
     assert.equal(db.runs.length, out.length);
 
     // Amazon by the hour: yesterday's 24 + today's 22 (to 9 PM) for each brand, plus 3 comparison days of 24
