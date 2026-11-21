@@ -1,0 +1,12 @@
+{
+  "//": "Sellora's backend — its OWN codebase, so deploying it never touches the rone-capture functions (migration/firebase-capture).",
+  "functions": [
+    {
+      "source": ".",
+      "codebase": "sellora-live",
+      "runtime": "nodejs24",
+      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"],
+      "ignore": ["node_modules", "test", "sql", "src", "*.md", ".git", "firebase-debug.log"]
+    }
+  ]
+}
