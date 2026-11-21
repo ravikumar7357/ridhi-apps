@@ -1942,8 +1942,14 @@ function renderPo() {
  * whole PO -- every line, what has come so far on which challan -- and the supplier's challan is typed bale
  * by bale under the lines still due. A PO that comes in several challans can be closed with its last one. */
 var RD = null;
+/* THE NEXT BALE (OR THAN) NUMBER KEEPS THE FORMAT (Ravi, 21 Nov: after "001" came "2"; it should be "002"): one more
+ * than the last number typed, at least 3 digits with zeros in front, and as wide as the last one ("2360" → "2361"). */
+var BALE_NO_DIGITS = 3;
 function rdNextBale(ps) {
-  for (var i = ps.length - 1; i >= 0; i--) { var t = String(ps[i].than).trim(); if (/^\d+$/.test(t)) return String(+t + 1); }
+  for (var i = ps.length - 1; i >= 0; i--) {
+    var t = String(ps[i].than).trim();
+    if (/^\d+$/.test(t)) return String(+t + 1).padStart(Math.max(t.length, BALE_NO_DIGITS), '0');
+  }
   return '';
 }
 /* The lots this challan will open: the next numbers in the series, one per line still due -- each can be
@@ -3001,13 +3007,52 @@ function invAll() {
   }).filter(function (x) { return x.owned > 0.05 || x.onOrder > 0.05 || (x.ppc && x.ppc.need > 0.05); })
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
 }
+/* THE INVENTORY, LAID OUT TO ACT ON (Ravi, 21 Nov: "the page seems very dirty in format make it better with the functions I
+ * have"). Every function stays; the page reads in this order:
+ *   - one toolbar: the cloth-type drop-down and search (in the top bar), + RFD opening stock, Demand → RFD
+ *   - a filter by what needs doing: All · Short for PPC · Covered · No PPC demand (counts on each)
+ *   - per fabric: its PPC need with a bar for how much the RFD free covers, an Action (Raise PO · m, or what blocks it),
+ *     then where the cloth is now — greige ordered → in store → at processor → RFD on shelf — and the total. Every
+ *     figure still opens what makes it up; the fabric's name still opens its stock history.
+ *   - short fabrics first, then covered, then those PPC does not need.
+ * PPC demand exists only in the app (gdPpcMap); run on its own the desk shows the stock columns alone. */
+var INV_SHOW_LABEL = { all: 'All', short: 'Short for PPC', ok: 'Covered', none: 'No PPC demand' };
+var INV_SHOW_ORDER = { short: 0, ok: 1, none: 2 };
+UI.invShow = 'all';
+/** What PPC's demand asks of this fabric: 'short' (greige to order), 'ok' (covered, or covered by what is on its way),
+ *  or 'none' (PPC does not need it). */
+function invNeedState(r) {
+  var p = r && r.ppc;
+  if (!p || !(p.need > 0.05)) return 'none';
+  return p.short > 0.05 && p.greigeM > 0 ? 'short' : 'ok';
+}
+/** How much of the PPC need the RFD free covers, in whole percent (0–100). */
+function invCoverPct(p) { return p && p.need > 0.05 ? Math.min(100, Math.round((p.free || 0) / p.need * 100)) : 0; }
+function invNeedCell(r, loading) {
+  if (loading) return '<td class="tl muted">…</td>';
+  var p = r.ppc;
+  if (invNeedState(r) === 'none') return '<td class="tl muted" style="font-size:12px">no PPC demand</td>';
+  var pct = invCoverPct(p), col = pct >= 100 ? 'var(--ok-ink)' : pct >= 50 ? 'var(--warn-ink)' : 'var(--bad)';
+  var tip = 'RFD free ' + nf(p.free) + ' m' + (p.desk > 0.05 ? ' (' + nf(p.desk) + ' m on this desk)' : '') + (p.onWay > 0.05 ? ' · ' + nf(p.onWay) + ' m greige on its way' : '');
+  var words = p.short > 0.05
+    ? pct + '% covered · <span style="color:var(--bad);font-weight:700">' + nf(p.short) + ' short</span>' + (p.greigeM ? '' : ' · covered by what is on its way')
+    : 'fully covered';
+  return '<td class="tl" title="' + esc(tip) + '"><div><b>' + nf(p.need) + ' m</b> <span class="muted" style="font-size:11px">· ' + plural(p.lines, 'line') + '</span></div>'
+    + '<div style="height:6px;border-radius:3px;background:var(--soft);overflow:hidden;margin:5px 0 3px" role="img" aria-label="' + pct + '% covered">'
+    + '<div style="height:100%;width:' + pct + '%;background:' + col + '"></div></div>'
+    + '<div class="muted" style="font-size:11px">' + nf(p.free) + ' m RFD free · ' + words + '</div></td>';
+}
+function invActionCell(r, loading) {
+  if (loading) return '<td></td>';
+  var p = r.ppc, st = invNeedState(r);
+  if (st === 'short' && p.greige) return '<td><button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(p.name) + '|' + p.greigeM + '" style="white-space:nowrap;padding:4px 10px;font-size:12px" title="Raise a greige PO for what PPC is short of (with the processor’s share)">Raise PO · ' + nf(p.greigeM) + ' m</button></td>';
+  if (st === 'short') return '<td><span class="pill pill-low" title="No greige name in Master data, so no greige PO can be raised. Add it in Setup → Master Database.">add greige name</span></td>';
+  if (st === 'ok') return '<td><span class="pill pill-ok">covered</span></td>';
+  return '<td></td>';
+}
 function renderInv() {
   var all = invAll(), types = uniq(all.map(function (x) { return x.type; })).sort();
   if (UI.inv !== 'all' && types.indexOf(UI.inv) < 0) UI.inv = 'all';
-  var rows = all.filter(function (x) {
-    return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type));
-  });
-  var sum = function (k) { return rows.reduce(function (a, x) { return a + (x[k] || 0); }, 0); };
   var count = function (t) { return all.filter(function (x) { return t === 'all' || x.type === t; }).length; };
   /* EVERY CLOTH TYPE IN ONE DROP-DOWN BESIDE THE SEARCH BOX (Ravi, 21 Nov: the row of chips ran off the screen with the
    * real fabrics). "All" first, then each type with how many fabrics it holds. */
@@ -3015,50 +3060,49 @@ function renderInv() {
     + ['all'].concat(types).map(function (t) {
       return '<option value="' + esc(t) + '"' + (UI.inv === t ? ' selected' : '') + '>' + esc(t === 'all' ? 'All' : t) + ' (' + count(t) + ')</option>';
     }).join('') + '</select>';
-  /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, before what is on order — and the greige PO for what is short, from
-   * here. And the RFD already on the floor goes in as opening stock from here too. Only in the app (gdPpcMap). */
-  var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap;
-  UI.invCols = withPpc ? 7 : 6;
-  var ppcCell = function (r) {
-    if (ppcMap && ppcMap.__loading) return '<td class="num muted">…</td>';
-    var p = r.ppc; if (!p) return '<td class="num">' + dash(0) + '</td>';
-    /* What the old Greige for PPC tab showed (Ravi, 15 Oct: "remove this and integrate … under the ppc demand column"):
-     * need, the RFD free against it, short, what is already on its way, and the greige to order. */
-    var sm = 'font-size:10.5px;line-height:1.5';
-    return '<td class="num"><b>' + nf(p.need) + ' m</b><div class="muted" style="' + sm + '">' + plural(p.lines, 'line') + '</div>'
-      + '<div class="muted" style="' + sm + '">RFD free ' + nf(p.free) + ' m' + (p.desk > 0.05 ? ' (' + nf(p.desk) + ' m this desk)' : '') + '</div>'
-      + (p.short > 0.05 ? '<div style="' + sm + ';color:var(--bad);font-weight:700">short ' + nf(p.short) + ' m</div>'
-        + (p.onWay > 0.05 ? '<div class="muted" style="' + sm + '">' + nf(p.onWay) + ' m greige on its way</div>' : '')
-        + (p.greigeM ? '<div style="' + sm + ';font-weight:700">greige to order ' + nf(p.greigeM) + ' m</div>' : '<div style="' + sm + ';color:var(--ok-ink,#166534)">covered by what is on its way</div>')
-        : '<div style="' + sm + ';color:var(--ok-ink,#166534)">covered</div>')
-      + (p.greigeM && p.greige ? '<button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(p.name) + '|' + p.greigeM + '" style="margin-top:4px;padding:3px 10px;font-size:12px">Raise greige PO · ' + nf(p.greigeM) + ' m</button>'
-        : p.greigeM ? '<div class="err-in" style="font-size:10.5px">no greige name in Master data</div>' : '') + '</td>';
-  };
-  var tools = '<div class="row" style="margin:0 0 10px;align-items:center">'
+  /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, and the greige PO for what is short, from here. Only in the app. */
+  var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap, loading = !!(ppcMap && ppcMap.__loading);
+  var inView = all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type)); });
+  if (!withPpc || loading) UI.invShow = 'all';
+  var shown = function (k) { return inView.filter(function (x) { return k === 'all' || invNeedState(x) === k; }); };
+  var rows = shown(UI.invShow).sort(function (a, b) { return INV_SHOW_ORDER[invNeedState(a)] - INV_SHOW_ORDER[invNeedState(b)]; });
+  var sum = function (k) { return rows.reduce(function (a, x) { return a + (x[k] || 0); }, 0); };
+  UI.invCols = withPpc ? 8 : 6;
+  var tools = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'
+    + (withPpc && !loading ? '<div class="seg" role="tablist" aria-label="Show">' + ['all', 'short', 'ok', 'none'].map(function (k) {
+        return '<button type="button" role="tab" class="segbtn' + (UI.invShow === k ? ' on' : '') + '" aria-selected="' + (UI.invShow === k) + '" data-invshow="' + k + '">'
+          + INV_SHOW_LABEL[k] + ' <span class="n">' + shown(k).length + '</span></button>';
+      }).join('') + '</div>' : '')
+    + '<span style="margin-left:auto"></span>'
     + (canLedgerEdit() ? '<button type="button" class="ghost" data-act="OPENING_RFD" title="RFD already on the floor: its own lot, so it is issued like any other and never counted as cloth back from a processor.">+ RFD opening stock</button>' : '')
-    + (withPpc ? '<button type="button" class="ghost" data-gdflow="drfd">Open the flow’s Demand → RFD</button>' : '')
-    + (withPpc ? '<span class="muted" style="font-size:12px;align-self:center">PPC demand is what the production plans need in RFD; short is after the RFD free today; the PO button orders the greige for it (with ' + Math.round((typeof GD_LOSS !== 'undefined' ? GD_LOSS : 0.05) * 100) + '% for what the processor takes).</span>' : '')
+    + (withPpc ? '<button type="button" class="ghost" data-gdflow="drfd" title="Open the flow’s Demand → RFD">Demand → RFD</button>' : '')
     + '</div>';
-  var table = tools + '<div class="card"><div class="ff-grid"><table class="xl">'
-    + th(withPpc ? ['Fabric', 'PPC demand', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'] : ['Fabric', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'],
-      withPpc ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5])
+  var stockHeads = ['Greige ordered', 'Greige in store', 'At RFD processor', 'RFD on shelf'];
+  var group = '<tr><th class="frz"></th>' + (withPpc ? '<th></th><th></th>' : '')
+    + '<th colspan="4" style="text-align:center;color:var(--muted);font-weight:600;border-bottom:0">Where the cloth is now →</th><th></th></tr>';
+  var heads = th(withPpc ? ['Fabric', 'PPC need, covered by RFD', 'Action'].concat(stockHeads, ['Total']) : ['Fabric'].concat(stockHeads, ['Total']),
+    withPpc ? [3, 4, 5, 6, 7] : [1, 2, 3, 4, 5]).replace('<thead>', '<thead>' + group);
+  var table = tools + '<div class="card"><div class="ff-grid"><table class="xl">' + heads
     + '<tbody>' + (rows.map(function (r) {
       return '<tr><td class="frz" style="text-align:left">' + invFabricName(r.fabric)
         + (r.greige ? '<div class="muted" style="font-size:10.5px">bought as ' + esc(r.greige) + '</div>' : '') + '</td>'
-        + (withPpc ? ppcCell(r) : '')
+        + (withPpc ? invNeedCell(r, loading) + invActionCell(r, loading) : '')
         + invCell(r, 'order', r.onOrder, 'color:var(--warn-ink)')
         + invCell(r, 'store', r.inStoreGreige, '')
         + invCell(r, 'proc', r.atProcessor, 'color:var(--proc-ink)')
         + invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700')
         + '<td class="num" style="font-weight:700">' + dash(r.owned) + '</td></tr>'
         + (UI.invOpen.indexOf(r.fabric + '|') === 0 ? invDetail(r, UI.invOpen.split('|')[1]) : '');
-    }).join('') || emptyRow(UI.invCols, 'Nothing on order or in stock' + (UI.inv === 'all' ? '.' : ' for ' + UI.inv + '.')))
+    }).join('') || emptyRow(UI.invCols, UI.invShow !== 'all' ? 'No fabric is ' + INV_SHOW_LABEL[UI.invShow].toLowerCase() + (UI.inv === 'all' ? '.' : ' in ' + UI.inv + '.')
+      : 'Nothing on order or in stock' + (UI.inv === 'all' ? '.' : ' for ' + UI.inv + '.')))
     + '</tbody>'
     + (rows.length > 1 ? '<tfoot><tr><td class="frz" style="text-align:left">Total' + (UI.inv === 'all' ? '' : ' · ' + esc(UI.inv)) + '</td>'
-      + (withPpc ? '<td class="num">' + dash(rows.reduce(function (a, x) { return a + (x.ppc ? x.ppc.need : 0); }, 0)) + '</td>' : '')
+      + (withPpc ? '<td class="tl">' + dash(rows.reduce(function (a, x) { return a + (x.ppc ? x.ppc.need : 0); }, 0)) + '</td><td></td>' : '')
       + '<td class="num">' + dash(sum('onOrder')) + '</td><td class="num">' + dash(sum('inStoreGreige')) + '</td><td class="num">' + dash(sum('atProcessor')) + '</td>'
       + '<td class="num">' + dash(sum('inStoreRfd')) + '</td><td class="num">' + dash(sum('owned')) + '</td></tr></tfoot>' : '')
-    + '</table></div></div>';
+    + '</table></div></div>'
+    + (withPpc ? '<div class="lm-why">Metres. The bar shows how much of the PPC need the RFD free covers; Raise PO orders the greige with '
+      + Math.round((typeof GD_LOSS !== 'undefined' ? GD_LOSS : 0.05) * 100) + '% for what the processor takes.</div>' : '');
   return table;
 }
 
@@ -3156,13 +3200,16 @@ function invOpenPo(poNo, chId) {
 }
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histpo],#histXlsx') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow]') : null;
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
     if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
     if (d && d.getAttribute('data-invh')) { invHistOpen(d.getAttribute('data-invh')); return; }
     if (d && d.getAttribute('data-histshelf')) { INV_HIST.shelf = d.getAttribute('data-histshelf'); invHistDraw(); return; }
+    if (d && d.getAttribute('data-histday')) { var day = d.getAttribute('data-histday'); INV_HIST.open[day] = !INV_HIST.open[day]; invHistDraw(); return; }
+    if (d && d.id === 'histAll') { invHistOpenAll(); return; }
     if (d && d.getAttribute('data-histpo')) { var p = d.getAttribute('data-histpo').split('|'); $('lmHist').classList.add('hide'); invOpenPo(p[0], p[1]); return; }
     if (d && d.id === 'histXlsx') { invHistXlsx(); return; }
+    if (d && d.getAttribute('data-invshow')) { UI.invShow = d.getAttribute('data-invshow'); UI.invOpen = ''; render(); return; }
   });
   document.addEventListener('change', function (ev) {
     if (ev.target.id === 'invType') { UI.inv = ev.target.value || 'all'; UI.invOpen = ''; render(); return; }
@@ -3178,7 +3225,7 @@ function wireInventory() {
  * figure on the page. A row with a PO opens that PO (and its challan) on Greige POs.
  * Errors: it only reads, so nothing here can lose data. The one thing that can fail is the Excel file; that says so in
  * the toast and on the console, and nothing is downloaded. */
-var INV_HIST = { fabric: '', shelf: 'rfd', from: '', to: '' };
+var INV_HIST = { fabric: '', shelf: 'rfd', from: '', to: '', open: {} };   // open: the dates shown opened
 var INV_SHELF_LABEL = { rfd: 'RFD on shelf', greige: 'Greige in store' };
 
 /** The fabric's name on the Inventory page: a button to its history for whoever may see the fabric ledger. */
@@ -3188,7 +3235,7 @@ function invFabricName(fabric) {
     + esc(fabric) + '</button>';
 }
 function invHistOpen(fabric) {
-  INV_HIST.fabric = fabric; INV_HIST.shelf = 'rfd'; INV_HIST.from = ''; INV_HIST.to = '';
+  INV_HIST.fabric = fabric; INV_HIST.shelf = 'rfd'; INV_HIST.from = ''; INV_HIST.to = ''; INV_HIST.open = {};
   invHistMount();
   $('histFrom').value = ''; $('histTo').value = '';
   var m = mstOf(fabric);
@@ -3214,6 +3261,13 @@ function invHistMount() {
     + '<div id="histBody"></div></div>';
   document.body.appendChild(box);
 }
+/** Open every date, or close them all when all are already open. */
+function invHistOpenAll() {
+  var H = INV_HIST, days = histDays(fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to).lines);
+  var all = days.length && days.every(function (d) { return H.open[d.date]; });
+  H.open = {}; if (!all) days.forEach(function (d) { H.open[d.date] = true; });
+  invHistDraw();
+}
 /** The PO an entry belongs to: its own, or its lot's (an issue to RFD or to cutting is written against the lot). */
 function invHistPoOf(r, lotPo) { return String(r.orderNo || lotPo[r.lot] || '').trim(); }
 /** The cause line and the details under it, as the floor says them. */
@@ -3226,19 +3280,17 @@ function invHistDetails(r, po) {
   return [r.lot ? 'Lot ' + r.lot : '', r.bill ? bill + r.bill : '', po ? 'PO ' + po : '', r.note || r.remark || '']
     .filter(Boolean).join(' · ');
 }
-/* THE STOCK HISTORY AS AN ACCOUNTING STATEMENT (Ravi, 21 Nov: "put these in the cause only and make proper accounting
- * type statement"). Date | Cause | Balance, like a bank statement: an Opening balance line, then each movement with its
- * metres at the right of the Cause — "+1,200" in green when it came in, "−1,200" in red when it went out — and the
- * balance after it, then a Closing balance line with what came in and went out in total. The Excel keeps plain numbers. */
+/* THE STOCK HISTORY, FOLDED BY DATE (Ravi, 21 Nov: "put an dropdown in the date … till then it should show only opening
+ * and closing balance and also in and out should be hidden and only pops up when it is clicked on the date").
+ * On top, the period in four figures: Opening · Came in · Went out · Closing. Below, one line per date — the date with
+ * its weekday, what moved that day ("+594 in", "−300 out") and its opening and closing balance — under a month heading.
+ * A click on the date opens its movements: an "in" label (green) for cloth that came in, "out" (red) for cloth that went out, the details,
+ * and the balance after each. "Open all" opens every date. A movement with a PO still opens that PO. The Excel keeps
+ * plain numbers. */
 function histIn(m) { return '<span style="color:var(--ok-ink);font-weight:600;white-space:nowrap">+' + nf(m) + '</span>'; }
 function histOut(m) { return '<span style="color:var(--bad);font-weight:600;white-space:nowrap">−' + nf(m) + '</span>'; }
 /** One movement's metres, signed: what came in, or what went out. */
 function histMove(x) { return x.inQty ? histIn(x.inQty) : x.outQty ? histOut(x.outQty) : ''; }
-/** The Cause cell: the words on the left, the signed metres on the right. */
-function histCauseCell(words, move) {
-  return '<td class="tl"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:18px">'
-    + '<div>' + words + '</div><div style="text-align:right">' + move + '</div></div></td>';
-}
 /** The history split into days (Ravi, 21 Nov: "opening balance and closing balance for each date"): each day opens on
  *  the balance before its first movement and closes on the balance after its last, with what came in and went out that
  *  day. The lines keep their order; a day is every line with the same date. */
@@ -3250,6 +3302,19 @@ function histDays(lines) {
     d.lines.push(x); d.closing = x.closing; d.inQty += x.inQty || 0; d.outQty += x.outQty || 0;
   });
   return days;
+}
+var HIST_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+var HIST_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** A business date (YYYY-MM-DD) read as that calendar day, wherever the PC's clock is. */
+function histDateParts(ymd) { var p = String(ymd || '').split('-').map(Number); return { y: p[0], m: p[1] - 1, d: p[2], w: new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay() }; }
+/** "Fri 20 Nov" — the day line's date. */
+function histDayName(ymd) { var p = histDateParts(ymd); return p.y ? HIST_WEEKDAYS[p.w] + ' ' + p.d + ' ' + HIST_MONTHS[p.m].slice(0, 3) : ''; }
+/** "November 2026" — the heading over a month's dates. */
+function histMonthName(ymd) { var p = histDateParts(ymd); return p.y ? HIST_MONTHS[p.m] + ' ' + p.y : ''; }
+/** A day's labels: "+594 in" in green, "−300 out" in red — only what moved. */
+function histDayBadges(d) {
+  var pill = function (cls, words) { return '<span class="pill ' + cls + '" style="font-weight:600;margin-right:6px">' + words + '</span>'; };
+  return (d.inQty ? pill('pill-ok', '+' + nf(d.inQty) + ' in') : '') + (d.outQty ? pill('pill-out', '−' + nf(d.outQty) + ' out') : '');
 }
 function invHistDraw() {
   var H = INV_HIST, page = fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to), lotPo = {};
@@ -3263,34 +3328,39 @@ function invHistDraw() {
       : 'No ' + INV_SHELF_LABEL[H.shelf] + ' entries for ' + H.fabric + ' yet.') + '</div>';
     return;
   }
-  /* a day's in and out, showing only what moved (no '+0' or '−0') */
-  var inOut = function (i, o) {
-    var said = function (w) { return '<span class="muted" style="font-weight:400">' + w + '</span>'; };
-    return [i ? said('in ') + histIn(i) : '', o ? said('out ') + histOut(o) : ''].filter(Boolean).join(said(' · '));
+  var days = histDays(page.lines), allOpen = days.every(function (d) { return H.open[d.date]; });
+  var figure = function (label, value) {
+    return '<div style="background:var(--soft);border-radius:var(--r-sm);padding:9px 12px"><div class="muted" style="font-size:12px">' + label + '</div>'
+      + '<div style="font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">' + value + '</div></div>';
   };
-  var body = histDays(page.lines).map(function (d) {
-    var day = esc(fmtD(d.date));
-    var open = '<tr class="histday"><td class="tl b" style="white-space:nowrap">' + day + '</td>'
-      + histCauseCell('<b>Opening balance</b>', '') + '<td class="num b">' + nf(d.opening) + '</td></tr>';
-    var moves = d.lines.map(function (x) {
-      var r = x.row, po = invHistPoOf(r, lotPo), bad = r.txnType === 'DAMAGE' ? ' style="color:var(--bad)"' : '';
-      return '<tr' + (po ? ' class="xrow" data-histpo="' + esc(po + '|' + (r.chId || '')) + '" title="Open PO ' + esc(po) + '"' : '') + '>'
-        + '<td></td>'
-        + histCauseCell('<div' + bad + '>' + esc(invHistCause(r)) + '</div><div class="sub">' + esc(invHistDetails(r, po)) + '</div>', histMove(x))
-        + '<td class="num">' + nf(x.closing) + '</td></tr>';
+  var summary = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:0 0 12px">'
+    + figure('Opening' + (H.from ? ' on ' + esc(fmtD(H.from)) : ''), nf(page.opening)) + figure('Came in', page.inQty ? histIn(page.inQty) : '0')
+    + figure('Went out', page.outQty ? histOut(page.outQty) : '0') + figure('Closing' + (H.to ? ' on ' + esc(fmtD(H.to)) : ''), nf(page.closing)) + '</div>';
+  var bar = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 6px">'
+    + '<span class="muted" style="font-size:12px">Click a date to see what moved that day</span>'
+    + '<button type="button" class="ghost" id="histAll" style="height:30px;padding:0 12px">' + (allOpen ? 'Close all' : 'Open all') + '</button></div>';
+  var month = '', rows = days.map(function (d) {
+    var on = !!H.open[d.date], m = histMonthName(d.date), h = '';
+    if (m !== month) { month = m; h += '<tr><td colspan="4" class="tl" style="padding:12px 8px 4px;font-size:12px;font-weight:700;color:var(--muted);border-bottom:0">' + esc(m) + '</td></tr>'; }
+    h += '<tr class="xrow" data-histday="' + esc(d.date) + '" aria-expanded="' + on + '" title="' + (on ? 'Hide' : 'Show') + ' what moved on ' + esc(fmtD(d.date)) + '">'
+      + '<td class="tl" style="white-space:nowrap;font-weight:700"><span style="display:inline-block;width:14px;color:var(--muted)">' + (on ? '▾' : '▸') + '</span>' + esc(histDayName(d.date)) + '</td>'
+      + '<td class="tl">' + histDayBadges(d) + '<span class="muted" style="font-size:12px">' + plural(d.lines.length, 'movement') + '</span></td>'
+      + '<td class="num muted">' + nf(d.opening) + '</td><td class="num b">' + nf(d.closing) + '</td></tr>';
+    if (on) h += d.lines.map(function (x) {
+      var r = x.row, po = invHistPoOf(r, lotPo), came = !!x.inQty, bad = r.txnType === 'DAMAGE' ? ';color:var(--bad)' : '';
+      return '<tr' + (po ? ' class="xrow" data-histpo="' + esc(po + '|' + (r.chId || '')) + '" title="Open PO ' + esc(po) + '"' : '') + ' style="background:var(--soft)">'
+        + '<td class="num">' + (came ? '<span class="pill pill-ok" title="came in">in</span>' : '<span class="pill pill-out" title="went out">out</span>') + '</td>'
+        + '<td class="tl"><div style="' + bad + '">' + esc(invHistCause(r)) + '</div><div class="sub">' + esc(invHistDetails(r, po)) + '</div></td>'
+        + '<td class="num">' + histMove(x) + '</td><td class="num">' + nf(x.closing) + '</td></tr>';
     }).join('');
-    var close = '<tr class="histday-end"><td></td>' + histCauseCell('<b>Closing balance</b> <span class="muted" style="font-weight:400">' + day + '</span>', inOut(d.inQty, d.outQty))
-      + '<td class="num b">' + nf(d.closing) + '</td></tr>';
-    return open + moves + close;
+    return h;
   }).join('');
-  var total = '<tr class="tot"><td></td>' + histCauseCell('Total' + (H.from || H.to ? ' for these dates' : ''), inOut(page.inQty, page.outQty))
-    + '<td class="num">' + nf(page.closing) + '</td></tr>';
-  $('histBody').innerHTML = '<div class="box scroll" style="max-height:60vh;overflow:auto"><table class="ct li"><thead><tr>'
-    + '<th>Date</th><th style="min-width:320px">Cause</th><th class="num">Balance</th></tr></thead>'
-    + '<tbody>' + body + total + '</tbody></table></div><div class="lm-why">Metres. '
-    + (H.to ? 'The closing balance is the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure at the end of ' + esc(fmtD(H.to)) + '.'
-      : 'The closing balance matches the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure on the Inventory page.')
-    + ' Click a row with a PO to open it.</div>';
+  $('histBody').innerHTML = summary + bar + '<div class="box scroll" style="max-height:55vh;overflow:auto"><table class="ct li"><thead><tr>'
+    + '<th style="width:150px">Date</th><th>That day</th><th class="num" style="width:110px">Opening</th><th class="num" style="width:110px">Closing</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table></div><div class="lm-why">Metres. '
+    + (H.to ? 'The closing figure is the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' at the end of ' + esc(fmtD(H.to)) + '.'
+      : 'The closing figure matches the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure on the Inventory page.')
+    + ' A movement with a PO opens that PO.</div>';
 }
 /** The same page as an Excel file, made by the app's own writer (the PPC report's). */
 function invHistXlsx() {
@@ -4419,7 +4489,7 @@ function wireUsersRfd() {
     var g = function (k) { return t.getAttribute(k); };
     if (g('data-issall') && ISS) { var lot = g('data-issall'), bs = lotBales(lot), all = bs.every(function (b) { return ISS.pick[lot][b.than]; }); ISS.pick[lot] = {}; if (!all) bs.forEach(function (b) { ISS.pick[lot][b.than] = true; }); issDraw(); return; }
     if (g('data-issbale') && ISS) { var p = g('data-issbale').split('|'); ISS.pick[p[0]][p[1]] = t.checked; issDraw(); return; }
-    if (g('data-rradd') && RR) { var l = g('data-rradd'), ps = RR.thans[l], last = ps.length ? String(ps[ps.length - 1].than).trim() : ''; ps.push({ than: /^\d+$/.test(last) ? String(+last + 1) : '', m: '' }); rrDraw(); var f = $('rm-' + l + '-' + (ps.length - 1)); if (f) f.focus(); return; }
+    if (g('data-rradd') && RR) { var l = g('data-rradd'), ps = RR.thans[l]; ps.push({ than: rdNextBale(ps), m: '' }); /* same numbering as Receive greige */ rrDraw(); var f = $('rm-' + l + '-' + (ps.length - 1)); if (f) f.focus(); return; }
     if (g('data-rrrm') && RR) { var q = g('data-rrrm').split('|'), arr = RR.thans[q[0]]; arr.splice(+q[1], 1); if (!arr.length) arr.push({ than: '', m: '' }); rrDraw(); return; }
     if (g('data-rrfin') && RR) { RR.fin[g('data-rrfin')] = t.checked; rrSums(); return; }
     if (t.id === 'rrSave') { rrSave(); return; }
