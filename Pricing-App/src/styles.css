@@ -536,6 +536,7 @@
   #tabProfit{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 18V6'/%3E%3C/svg%3E")}
   #tabSa{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='13.5' cy='6.5' r='.5'/%3E%3Ccircle cx='17.5' cy='10.5' r='.5'/%3E%3Ccircle cx='8.5' cy='7.5' r='.5'/%3E%3Ccircle cx='6.5' cy='12.5' r='.5'/%3E%3Cpath d='M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1a1.6 1.6 0 0 1 1.6-1.7h2c3 0 5.6-2.5 5.6-5.6C22 6 17.5 2 12 2z'/%3E%3C/svg%3E")}
   #tabPlaudit{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='6' rx='1'/%3E%3Crect x='2' y='16' width='6' height='6' rx='1'/%3E%3Crect x='16' y='16' width='6' height='6' rx='1'/%3E%3Cpath d='M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8'/%3E%3C/svg%3E")}
+  #tabNcheck{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4M9.5 16l1.8 1.8 3.2-3.3'/%3E%3C/svg%3E")}
   :is(#secListing,#secSales) .navcol:not(:has(> .nav:not(.hide))){display:none}
   :is(#secListing,#secSales) .navcol-h{padding:6px 12px 8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
   /* A heading marked .num is numbered by the browser: a hidden group (no screen this account can open) is not counted, so the
@@ -5201,3 +5202,70 @@
   /* stopped: another screen is open or the tab is hidden */
   #paneDash.dash-paused *,#paneDash.dash-paused *::before,#paneDash.dash-paused *::after{animation-play-state:paused}
   @media (prefers-reduced-motion:reduce){ #paneDash *,#paneDash *::before,#paneDash *::after{animation:none;transition:none} }
+  /* ================= NUMBERS CHECK (21 Nov 2026, app/sales/sales-check.js) =================
+     The chip on the Dashboard (under the greeting) and on the Sales Dashboard (top bar), and the Numbers Check page: summary cards,
+     the checks table, the rule book. Only the app's own tokens, so light and dark follow the theme. */
+  .nc-chip{display:inline-flex;align-items:center;gap:6px;width:auto;height:28px;min-height:0;margin:0;padding:0 12px;
+    border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:var(--r-pill);
+    background:var(--accent-bg);color:var(--accent-ink);box-shadow:none;font-size:12.5px;font-weight:600;line-height:1;
+    white-space:nowrap;cursor:pointer}
+  .nc-chip[hidden]{display:none}
+  .nc-chip:hover{filter:brightness(.97)}
+  .nc-chip.is-warn{border-color:color-mix(in srgb,var(--act) 40%,transparent);background:var(--act-bg);color:var(--act-ink)}
+  .nc-chip.is-wait{border-color:var(--line);background:var(--soft);color:var(--muted)}
+  #paneDash .nc-chip{margin-top:10px}
+  #paneNcheck .nc-wrap{max-width:1280px}
+  .nc-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:16px}
+  .nc-head p{margin:0;color:var(--muted);font-size:13px;flex:1 1 360px}
+  .nc-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px}
+  @media (max-width:900px){ .nc-kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .nc-kpi{padding:14px 16px;border:1px solid var(--card-line);border-radius:var(--r-card);background:var(--card);box-shadow:var(--sh-1)}
+  .nc-kpi .lbl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .nc-kpi .val{margin-top:8px;font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.2}
+  .nc-kpi .sub{margin-top:4px;font-size:12px;color:var(--muted)}
+  .nc-kpi.is-ok .val{color:var(--accent-ink)}
+  .nc-kpi.is-warn .val{color:var(--act-ink)}
+  .nc-sec{margin:0 0 20px;padding:16px;border:1px solid var(--card-line);border-radius:var(--r-card);background:var(--card);box-shadow:var(--sh-1)}
+  .nc-sec h2{margin:0 0 4px;font-size:16px;font-weight:700;color:var(--ink)}
+  .nc-sec > .muted{margin:0 0 12px;font-size:12.5px}
+  .nc-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .nc-tbl{width:100%;min-width:820px;border-collapse:collapse;font-size:13px}
+  .nc-tbl th{padding:8px 10px;border-bottom:1px solid var(--line);background:var(--soft);color:var(--muted);font-size:11.5px;font-weight:600;
+    text-align:left;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+  .nc-tbl td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+  .nc-tbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .nc-tbl td.num{min-width:150px;max-width:220px;white-space:normal}
+  .nc-tbl tr.nc-grp td{padding:12px 10px 6px;border-bottom:0;background:transparent}
+  .nc-tbl tr.nc-grp .nc-name{font-size:13.5px}
+  .nc-tbl .nc-tol{margin-left:10px;font-size:11.5px;color:var(--muted)}
+  .nc-tbl tr.is-skip td{color:var(--muted)}
+  .nc-tbl tr.is-warn td:first-child{box-shadow:inset 3px 0 0 var(--act)}
+  .nc-tbl tr.is-ok td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+  .nc-tbl .nc-name{font-weight:600;color:var(--ink)}
+  .nc-tbl .nc-sub{display:block;margin-top:2px;font-size:11.5px;font-weight:400;color:var(--muted)}
+  .nc-tbl .nc-why{min-width:240px;max-width:420px;font-size:12px;color:var(--muted);white-space:normal}
+  .nc-mark{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:var(--r-pill);font-size:12px;font-weight:700;white-space:nowrap}
+  .nc-mark.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  .nc-mark.is-warn{background:var(--act-bg);color:var(--act-ink)}
+  .nc-mark.is-skip{background:var(--soft);color:var(--muted)}
+  .nc-rules{display:grid;gap:6px}
+  .nc-rules details{border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  .nc-rules summary{display:flex;gap:10px;align-items:baseline;padding:9px 12px;cursor:pointer;list-style:none;font-size:13px;color:var(--ink)}
+  .nc-rules summary::-webkit-details-marker{display:none}
+  .nc-rules summary::before{content:"▸";color:var(--faint);transition:transform .12s ease}
+  .nc-rules details[open] summary::before{transform:rotate(90deg)}
+  .nc-rules summary b{flex:none;min-width:150px}
+  .nc-rules summary span{color:var(--muted)}
+  .nc-rules dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0;padding:4px 14px 12px 34px;font-size:12.5px}
+  .nc-rules dt{color:var(--muted);font-weight:600}
+  .nc-rules dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
+  .nc-rules code{font-size:11.5px}
+  .nc-risk{margin:12px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink)}
+  .nc-risk li{margin:3px 0}
+  @media (max-width:700px){
+    .nc-rules summary{flex-wrap:wrap}
+    .nc-rules summary b{min-width:0}
+    .nc-rules dl{grid-template-columns:1fr;padding-left:14px}
+    .nc-kpi .val{font-size:20px}
+  }
+  @media (prefers-reduced-motion:reduce){ .nc-rules summary::before{transition:none} }

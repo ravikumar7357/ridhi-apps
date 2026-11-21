@@ -503,7 +503,8 @@ function dashRun(key) {
   const timer = setTimeout(() => { if (DASH.st[key].s === 'loading') { DASH.st[key].s = 'timeout'; dashChanged(key); } }, DASH_TIMEOUT);
   Promise.resolve().then(DASH_LOAD[key]).then(() => { DASH.st[key] = { s: 'ok', ms: dashMs() }; DASH.lastFresh = Date.now(); },
     e => { DASH.st[key] = { s: 'fail', why: String((e && e.message) || e || '') }; })
-    .then(() => { clearTimeout(timer); delete DASH.memo[key]; if (DASH.st[key].s === 'ok') dashStore(key); dashChanged(key); dashLiveLine(); });
+    .then(() => { clearTimeout(timer); delete DASH.memo[key]; if (DASH.st[key].s === 'ok') dashStore(key); dashChanged(key); dashLiveLine();
+      if (typeof ncSoon === 'function') ncSoon(key); });   // Numbers Check runs again on what just loaded (sales/sales-check.js)
 }
 // Every source, in order: Sales · PPC · Inventory first, then Listing Health, then the four that read the listing lists.
 function dashPrefetch() {
@@ -804,7 +805,7 @@ function dashRender() {
   const slot = id => `<div class="dash-slot" id="dash-${id}"></div>`;
   root.innerHTML = '<div class="dash-glow dash-aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div><canvas class="dash-dots" aria-hidden="true"></canvas>'
     + `<header class="dash-hero"><div><h3 class="dash-hi"><span class="dash-hi-t">${hi}${who ? ', ' : ''}</span>${who ? `<span class="dash-name">${dashEsc(who)}</span>` : ''}</h3>`
-    + `<div class="dash-date"><span class="dash-clock">${dashClockText()}</span><span>${dashEsc(date)}</span><span class="dash-live"><i></i><b>Live</b> <span class="dash-live-t"></span></span></div></div>`
+    + `<div class="dash-date"><span class="dash-clock">${dashClockText()}</span><span>${dashEsc(date)}</span><span class="dash-live"><i></i><b>Live</b> <span class="dash-live-t"></span></span></div><button type="button" class="nc-chip" id="ncChipDash" hidden></button></div>`
     + `<div class="dash-brands" role="group" aria-label="Brand"><span class="dash-pill" aria-hidden="true"></span>${brand('ALL', 'Both')}${brand('SP', 'Ridhi')}${brand('CPC', 'CPC')}</div></header>`
     + slot('ticker')
     + `<section class="dash-grid dash-kpis">${['kSales', 'kYtd', 'kAds', 'kList'].map(slot).join('')}</section>`
@@ -818,6 +819,7 @@ function dashRender() {
   dashPaint(DASH_SLOTS, 'intro');
   dashDotsStart(root);
   dashLoops();
+  if (typeof ncChipPaint === 'function') ncChipPaint();   // the Numbers Check chip under the greeting (sales/sales-check.js)
 }
 // The brand switch's sliding pill: under the brand on view (moved with GSAP, or by a CSS transition without it).
 function dashPill(move) {
