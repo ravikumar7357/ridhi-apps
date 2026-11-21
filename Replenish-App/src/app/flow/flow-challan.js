@@ -350,7 +350,7 @@ function flowChByFabric(n) {
 /** Whether the RFD on the shelf covers what this challan sends of a fabric: { free, short } (free null when unknown). */
 function flowChStock(fabric, metres) {
   const c = FLOW_CH_COVER.fab[flowFabKey(fabric)]; if (!c) return { free: null, short: 0 };
-  const free = Math.max(0, flowR2(c.free));
+  const free = Math.max(0, Math.round(+c.free || 0));   // whole metres: a shelf is not counted to the centimetre
   return { free, short: flowR2(Math.max(0, metres - free)) };
 }
 /** The red box: lines whose fabric is not a real fabric, each with the way to fix it. */
@@ -374,7 +374,7 @@ function flowChFabricHtml(fabs) {
       ? flowChPill(false, `${nf(st.free)} m · ${nf(st.short)} m short`) + ` <button type="button" class="ghost" data-chpo="1" style="width:auto;font-size:11px;padding:2px 8px">Raise PO →</button>`
       : flowChPill(true, `${nf(st.free)} m · enough`); };
   return `<table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Fabric · size</th><th>Pcs</th><th>Lines</th><th>Metres</th><th style="text-align:left">RFD on the shelf</th></tr></thead><tbody>`
-    + fabs.map(f => `<tr style="background:var(--hover,#f4f6fb)"><td style="text-align:left;font-weight:700">${esc(f.fabric)}</td><td class="num"><b>${f.pcs ? nf(f.pcs) : '—'}</b></td><td class="num">${nf(f.lines)}</td><td class="num"><b>${nf(f.m)} m</b></td><td style="text-align:left">${stockCell(f)}</td></tr>`
+    + fabs.map(f => `<tr style="background:var(--hover,#f4f6fb)"><td style="text-align:left;font-weight:700">${esc(f.fabric)}</td><td class="num"><b>${f.pcs ? nf(f.pcs) : '—'}</b></td><td class="num">${nf(f.lines)}</td><td class="num"><b>${nf(f.m)} m</b></td><td style="text-align:left;white-space:normal">${stockCell(f)}</td></tr>`
       + f.sizes.map(g => `<tr><td style="text-align:left;padding-left:22px" class="muted">${esc(g.size)}</td><td class="num">${g.pcs ? nf(g.pcs) : '—'}</td><td class="num">${nf(g.lines)}</td><td class="num">${nf(g.m)} m</td><td></td></tr>`).join('')).join('')
     + `</tbody></table><div class="muted" style="font-size:11px;margin-top:6px">Green: the RFD on the shelf covers it. Red: short — Raise PO opens the Greige Desk.</div>`;
 }
@@ -434,12 +434,12 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
     html: `<div class="ptgrid" style="grid-template-columns:2fr 1fr">
         <label>Vendor<select id="flcVen"><option value="">— pick the vendor —</option>${vens.map(v => `<option value="${esc(v.code)}"${String(v.code) === String(planned) ? ' selected' : ''}>${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
         <label>Date<input id="flcDate" type="date" value="${esc(dToday())}"></label></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px;margin-top:10px;align-items:start">
-        <div style="min-width:0;border:1px solid var(--line,#e3e7ef);border-radius:10px;max-height:62vh;overflow:auto">
+      <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;align-items:flex-start">
+        <div style="flex:1.4 1 560px;min-width:0;border:1px solid var(--line,#e3e7ef);border-radius:10px;max-height:62vh;overflow:auto">
           <div style="position:sticky;top:0;z-index:1;background:var(--card,#fff);padding:8px 12px;font-weight:700;font-size:13px;border-bottom:1px solid var(--line,#e3e7ef)">Lines on this challan — untick any that should not go</div>
           <table class="xl" style="width:100%;table-layout:fixed"><colgroup><col style="width:34px"><col><col style="width:100px"><col style="width:84px"><col style="width:92px"><col style="width:104px"></colgroup>
             <thead><tr><th></th><th style="text-align:left">Item</th><th style="text-align:left">Fabric</th><th>Pcs</th><th>Metres</th><th>RFD</th></tr></thead><tbody>${lineHtml}</tbody></table></div>
-        <div style="min-width:0;border:1px solid var(--line,#e3e7ef);border-radius:10px;padding:12px 14px;max-height:62vh;overflow:auto">
+        <div style="flex:1 1 380px;min-width:0;border:1px solid var(--line,#e3e7ef);border-radius:10px;padding:12px 14px;max-height:62vh;overflow:auto">
           <div id="flcTot" style="margin-bottom:8px;font-size:12.5px;font-weight:600"></div>
           <div id="flcSize"></div>
           <label style="display:block;margin-top:10px">Note (vehicle, who carried it…)<input id="flcNote"></label></div></div>`,
