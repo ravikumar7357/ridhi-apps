@@ -65,7 +65,7 @@ function vprTargets(o, l) {
   if (!vprReady()) return [];
   const ix = vprDueIndex(), cnt = vpRecvCnt(o, l), code = obUC(VP.code);
   return vprKeys(l).map(k => ix.get(k)).filter(x => x && obUC(x.code) === code).map(x => {
-    const share = cnt[x.l.key] || 1, most = x.unit === 'pcs' ? x.left : x.left * 1.1;   // cloth: the same 10% over every receive screen allows
+    const share = cnt[x.l.key] || 1, most = flowMostOf(x.unit, x.need, x.back);   // cloth: 10% over the order, as on every receive screen
     return { key: x.l.key, x, weight: x.need / share, cap: flowR2(most / share) };
   });
 }
@@ -184,7 +184,9 @@ function vprSheet(rows, f) {
   const dueIso = x => (x.due && x.due.due) || voWant(x.l) || '9999';
   items.sort((a, b) => dueIso(a).localeCompare(dueIso(b)) || String(a.o.orderNo || a.o.id).localeCompare(String(b.o.orderNo || b.o.id)));
   if (!items.length) return `<div class="card" style="padding:34px;text-align:center;color:var(--muted)">No line to show.</div>`;
-  const COLS = ['Order', 'Image', 'Item', 'Fabric', 'Ordered', 'Sent by printer', 'Received', 'Due'].concat(may ? ['Receive'] : []);
+  /* TO RECEIVE (Ravi, 21 Nov: "the amount which is actually pending with the printer and has to be received in the coming time"): what was
+   * ordered (with approved extra) less what came in — rejected goods are still owed. What came in is the small line under it. */
+  const COLS = ['Order', 'Image', 'Item', 'Fabric', 'Ordered', 'Sent by printer', 'To receive', 'Due'].concat(may ? ['Receive'] : []);
   const body = items.map(({ o, l, i, due }) => {
     const run = o.orderType === 'running', unit = run ? 'm' : 'pcs', list = vpVsOf(o, l), sent = vpVsSum(list), wait = vpVsWait(list);
     const what = run ? [l.fabricType, l.printDirection].filter(Boolean).join(' · ') : (l.articleSubtype || l.articleType || '');
@@ -198,13 +200,21 @@ function vprSheet(rows, f) {
       + vprFabricCell(o, l)
       + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span>${extra > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${nf(extra)} approved</div>` : ''}</td>`
       + `<td class="num">${sent > 0 ? `<b>${nf(sent)}</b>` : '<span class="muted">—</span>'}${wait > 0 ? `<div style="font-size:10.5px;color:#b45309">+${nf(wait)} waiting approval</div>` : ''}${vpRejNote(o, l, unit)}</td>`
-      + `<td class="num" title="${esc(rc.how)}">${rc.qty > 0 ? `<b style="color:#166534">${nf(rc.qty)}</b>` : '<span class="muted">—</span>'}</td>`
+      + vprToReceiveCell(ord, rc, unit)
       + `<td style="text-align:left;font-size:12px;white-space:nowrap">${voDueHtml(due, voWant(l))}</td>`
       + (may ? vprRecvCell(o, l, o.id + '|' + i) : '')
       + '</tr>';
   }).join('');
-  return `<div class="card xlwrap" style="padding:0"><table class="xl"><thead><tr>${COLS.map(h => `<th${['Ordered', 'Sent by printer', 'Received'].includes(h) ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="card xlwrap" style="padding:0"><table class="xl"><thead><tr>${COLS.map(h => `<th${['Ordered', 'Sent by printer', 'To receive'].includes(h) ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
+
+/** "6 m" still owed by the printer, and "4 m received" under it; "all in" once nothing is owed. */
+function vprToReceiveCell(ord, rc, unit) {
+  const left = vprToReceive(ord, rc.qty);
+  const got = rc.qty > 0 ? `<div style="font-size:10.5px;color:#166534">${nf(rc.qty)} ${unit} received</div>` : '';
+  return `<td class="num" title="${esc(rc.how)}">${left > 0 ? `<b style="color:var(--bad)">${nf(left)}</b> <span class="muted" style="font-size:10px">${unit}</span>` : '<span class="pill pill-ok">all in</span>'}${got}</td>`;
+}
+const vprToReceive = (ordered, received) => flowR2(Math.max(0, ordered - received));
 
 /* ---- taking it in ---- */
 /** Take in q on one portal line, shared over its flow lines; '' when saved, else what is wrong (nothing is saved then). One save at a time:
@@ -264,9 +274,8 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   flowExtraOpen(VP.code, async () => { VP.rows = null; await ensureVp(); });
 });
 
-/* HISTORY IN PLACE OF COMPLETED (Ravi, 20 Nov: "in place of complete button put history button and remove the complete tab"). On the
- * office's printer's view the Completed tab is gone (vendor-portal.js) and History sits where it was, in the tab row, for those who may
- * receive. A printer's own sign-in keeps its Completed tab: it cannot read our challans, which History is made from. */
+/* HISTORY IN THE TAB ROW (Ravi, 20 Nov), right after Completed — which came back on 21 Nov ("bring the complete button back too"). For
+ * those who may receive; a printer's own sign-in has no History: it cannot read our challans, which History is made from. */
 function vprTabSync() {
   const done = $('vpTabDone'); if (!done || !done.insertAdjacentHTML) return;
   const show = vprMay() && vprReady() && !!VP.code;
@@ -280,7 +289,7 @@ function vprTabSync() {
  * with the totals by fabric and an Excel. Read from the challans already on screen (flowRecvRows); nothing is saved. Those who may receive
  * see it: the figures are theirs already. */
 const VPR_HIST_DAYS = 30;
-const VPR_HIST = { from: '', to: '' };
+const VPR_HIST = { from: '', to: '', edit: '', said: '' };   // edit: the receipt whose "move to rejected" form is open
 const vprIsoMinus = (iso, days) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() - days); return d.toISOString().slice(0, 10); };
 /** The receipts from one printer between two days (YYYY-MM-DD, both counted), newest first. */
 const vprHistRows = (code, from, to) => flowRecvRows('', false).filter(r => obUC(r.printerCode) === obUC(code) && r.day >= from && r.day <= to);
@@ -335,10 +344,82 @@ function vprHistHtml() {
       + `<td style="text-align:left">${esc(r.no)}</td><td style="text-align:left"><b>${esc(r.orderNo)}</b></td>`
       + `<td style="text-align:left">${esc((r.l && r.l.item) || '')}<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.sku)}</div></td>`
       + `<td style="text-align:left"><b>${esc(r.fabric) || '<span class="muted">—</span>'}</b>${r.code ? `<div class="muted" style="font-size:11px;font-family:ui-monospace,monospace">${esc(r.code)}</div>` : ''}</td>`
-      + `<td class="num"><b${r.rejected ? ' style="color:var(--bad)"' : ''}>${esc(flowQtyTxt(r.qty, r.unit))}</b>${r.old ? '<div class="muted" style="font-size:10.5px">old way</div>' : ''}${r.rejected ? '<div style="font-size:10.5px;color:var(--bad);font-weight:700">REJECTED</div>' : ''}</td><td style="text-align:left">${esc(r.by)}${r.note ? `<div class="muted" style="font-size:11px">${esc(r.note)}</div>` : ''}</td></tr>`).join('')
-    + '</tbody></table></div>';
+      + `<td class="num"><b${r.rejected ? ' style="color:var(--bad)"' : ''}>${esc(flowQtyTxt(r.qty, r.unit))}</b>${r.old ? '<div class="muted" style="font-size:10.5px">old way</div>' : ''}${r.rejected ? '<div style="font-size:10.5px;color:var(--bad);font-weight:700">REJECTED</div>' : ''}</td><td style="text-align:left">${esc(r.by)}${r.note ? `<div class="muted" style="font-size:11px">${esc(r.note)}</div>` : ''}${vprHistEditLink(r)}</td></tr>`
+      + (VPR_HIST.edit === vprHistId(r) ? vprHistEditForm(r) : '')).join('')
+    + '</tbody></table></div>' + (VPR_HIST.said ? `<div class="muted" style="margin-top:8px">${esc(VPR_HIST.said)}</div>` : '');
 }
+/* ---- History → Edit: found damaged later, turned into a reject ----
+ * Ravi, 21 Nov: "add an edit button on the history tab for each line so that we can edit that order if we later find out that our order
+ * was damaged and we can send it back to rejection with a specific amount" — admins only. Part of a receipt comes off what was received
+ * (the challan reopens if it had closed as all received) and becomes a reject like one made on receive: on the printer's order (it must
+ * send it again) and on every admin's bell. The receipt keeps a note of it (rejectedLater). One save writes all of it, after the challan's
+ * own two-people check (flowGuard). Errors: said in red inside the History window; nothing is changed then. */
+const vprHistId = r => [r.no, r.rid, r.l && r.l.key].join('|');
+const vprHistEditLink = r => (ME.admin && !r.rejected && !r.old && r.rid
+  ? `<div><a href="#" data-vprhedit="${esc(vprHistId(r))}" style="font-size:11.5px">Edit</a></div>` : '');
+function vprHistEditForm(r) {
+  const id = vprHistId(r);
+  return `<tr><td colspan="7" style="text-align:left;background:var(--bad-bg,#fdecec);padding:8px 12px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">`
+    + `<b>Found damaged later — move to rejected:</b>`
+    + `<label style="margin:0">How much <input data-vprhq type="number" min="${r.unit === 'pcs' ? 1 : 0.01}" max="${esc(String(r.qty))}" step="${r.unit === 'pcs' ? 1 : 0.01}" value="${esc(String(r.qty))}" style="width:90px"> ${esc(r.unit)}</label>`
+    + `<label style="margin:0">Reason <select data-vprhwhy style="width:auto"><option value="">— pick a reason —</option>${VPR_REJ_REASONS.map(x => `<option>${esc(x)}</option>`).join('')}</select></label>`
+    + `<input data-vprhnote type="text" maxlength="200" placeholder="What is wrong (needed for Other)" style="width:220px">`
+    + `<button type="button" data-vprhgo="${esc(id)}" style="width:auto;padding:4px 12px;background:var(--bad);border-color:var(--bad)">Move to rejected</button>`
+    + `<button type="button" class="ghost" data-vprhx="1" style="width:auto;padding:4px 10px">Cancel</button>`
+    + `<span data-vprhmsg class="err" style="flex-basis:100%"></span></div></td></tr>`;
+}
+/** Take q of one received line off its receipt and make it a reject; '' when saved, else what is wrong (nothing is saved then). */
+async function vprRejectReceived(id, q, reason, note) {
+  if (!ME.admin) return 'Only an admin can change a receipt.';
+  const [no, rid, key] = String(id).split('|'), c = (FLOW.ch || {})[no], rc = c && (c.receipts || {})[rid], l = c && (c.lines || []).find(x => x.key === key);
+  const had = rc ? +((rc.items || {})[key]) || 0 : 0;
+  if (!l || !(had > 0)) return 'That receipt is not there any more — close History and press Refresh.';
+  const unit = flowChUnit(l), what = `${l.orderNo || c.orderNo} ${l.sku || ''}`.trim();
+  if (!(q > 0)) return `Type how much of ${what} is damaged.`;
+  if (unit === 'pcs' && q !== Math.round(q)) return `${what}: pieces are whole.`;
+  if (q > had + 1e-9) return `${what}: only ${flowQtyTxt(had, unit)} was received on this receipt.`;
+  if (!VPR_REJ_REASONS.includes(reason)) return 'Pick a reason.';
+  if (reason === 'Other' && !note) return 'Write what is wrong in the note.';
+  const o = (VP.rows || []).find(x => x && voLines(x).some(m => vprKeys(m).includes(key))), m = o && voLines(o).find(x => vprKeys(x).includes(key));
+  if (!m) return `${what}: its printer order is not on this printer's view — reject it on the challan instead.`;
+  const g = await flowGuard('ch_' + no); if (g) return g;
+  const at = new Date().toISOString(), rk = 'rj_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), left = flowR2(had - q);
+  const later = { key, qty: q, reason, note, at, by: ME.email || '' };
+  const rec = { lineId: m.lineId || '', sku: m.sku || '', qty: q, unit, reason, note, at, by: ME.email || '', fromReceipt: no + '/' + rid };
+  const notice = Object.assign({ status: 'pending', code: VP.code, printer: VP.name || VP.code, orderNo: o.orderNo || o.id, voId: o.id, fabric: l.fabric || '',
+    item: l.item || '', later: true }, rec);
+  const patch = { [`pt_flowChallans/${no}/receipts/${rid}/items/${key}`]: left > 0 ? left : null,
+    [`pt_flowChallans/${no}/receipts/${rid}/rejectedLater/${rk}`]: later,
+    [`pt_vendorOrders/${VP.code}/${o.id}/vRej/${rk}`]: rec, [`pt_recvRejects/${rk}`]: notice };
+  const reopen = !!(c.closed && !c.closed.short);
+  if (reopen) patch[`pt_flowChallans/${no}/closed`] = null;
+  try { await ptPatch(patch); } catch (e) { return 'Could not save: ' + ((e && e.message) || e); }
+  const items = Object.assign({}, rc.items); if (left > 0) items[key] = left; else delete items[key];
+  const nrc = Object.assign({}, rc, { items, rejectedLater: Object.assign({}, rc.rejectedLater, { [rk]: later }) });
+  const nc = Object.assign({}, c, { receipts: Object.assign({}, c.receipts, { [rid]: nrc }) }); if (reopen) delete nc.closed;
+  FLOW.ch = Object.assign({}, FLOW.ch, { [no]: nc });
+  VP.rows = VP.rows.map(x => (x === o ? Object.assign({}, o, { vRej: Object.assign({}, o.vRej, { [rk]: rec }) }) : x));
+  if (VPR_REJ.rows) VPR_REJ.rows = VPR_REJ.rows.concat(Object.assign({ id: rk }, notice));
+  if (typeof flowVoProgSync === 'function') flowVoProgSync();   // the printer's copy of what came back
+  VPR_HIST.said = `Moved ${flowQtyTxt(q, unit)} of ${what} to rejected — ${reason}. The printer must send it again; admins are told.`;
+  return '';
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', async e => {
+  const t = e.target; if (!t || !t.closest) return;
+  const body = () => document.getElementById('vprHistBody');
+  const ed = t.closest('a[data-vprhedit]');
+  if (ed) { e.preventDefault(); VPR_HIST.edit = ed.getAttribute('data-vprhedit'); VPR_HIST.said = ''; if (body()) body().innerHTML = vprHistHtml(); return; }
+  if (t.closest('[data-vprhx]')) { e.preventDefault(); VPR_HIST.edit = ''; if (body()) body().innerHTML = vprHistHtml(); return; }
+  const go = t.closest('[data-vprhgo]'); if (!go || go.disabled) return;
+  e.preventDefault(); go.disabled = true;
+  const row = go.closest('tr'), val = sel => (row.querySelector(sel) || {}).value || '';
+  const er = await vprRejectReceived(go.getAttribute('data-vprhgo'), flowR2(+val('[data-vprhq]') || 0), val('[data-vprhwhy]'), String(val('[data-vprhnote]')).trim());
+  if (er) { go.disabled = false; const m = row.querySelector('[data-vprhmsg]'); if (m) m.textContent = er; return; }
+  VPR_HIST.edit = ''; if (body()) body().innerHTML = vprHistHtml();
+  if (typeof renderVp === 'function') renderVp();
+});
 function vprHistOpen() {
+  VPR_HIST.edit = ''; VPR_HIST.said = '';
   VPR_HIST.to = dToday(); VPR_HIST.from = vprIsoMinus(VPR_HIST.to, VPR_HIST_DAYS);
   ptOpenDialog({ title: 'Received from ' + (VP.name || VP.code), subtitle: 'Every receipt from this printer, and every reject (in red), newest first, with the fabric it was printed on.',
     wide: true,   // the whole table at once, no sideways scroll bar (Ravi, 19 Nov: "complete data instead of a slider")

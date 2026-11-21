@@ -14,6 +14,11 @@ const flowChUnit = l => (l && l.print && l.print.kind === 'sku' ? 'pcs' : 'm');
 const flowChSent = l => (flowChUnit(l) === 'pcs' ? (+l.pcs || 0) : (+l.metres || 0));
 const flowQtyTxt = (q, u) => nf(flowR2(q)) + (u === 'pcs' ? ' pcs' : ' m');
 /** Totals in mixed units, each said in its own: "105.75 m · 45 pcs". */
+/* CLOTH MAY COME 10% OVER THE ORDER (Ravi, 21 Nov: "change from 5% to 10%"). The allowance is 10% of what was ORDERED on the line, not of
+ * what is left: ordered 100 m with 50 m in may still take 60 m (it was 55 m — only 5% of the order). Pieces never come over. */
+const FLOW_CLOTH_OVER = 0.1;
+/** The most a line may still take in: pieces what is left; cloth what is left plus 10% of the order. */
+const flowMostOf = (unit, ordered, back) => flowR2(Math.max(0, unit === 'pcs' ? ordered - back : ordered * (1 + FLOW_CLOTH_OVER) - back));
 const flowMixTxt = parts => { const t = { m: 0, pcs: 0 }; parts.forEach(([q, u]) => { t[u] += +q || 0; });
   return [t.m ? flowQtyTxt(t.m, 'm') : '', t.pcs ? flowQtyTxt(t.pcs, 'pcs') : ''].filter(Boolean).join(' · ') || '0'; };
 /** Every challan's lines, by line key: { no, vendor, sent, recv, closed } — cached on FLOW.ch. */
@@ -494,7 +499,8 @@ async function flowDueRecvSave(key, got, o) {
   rows.forEach(x => {
     const q = flowR2(+got[x.l.key] || 0); if (!(q > 0)) return;
     if (x.unit === 'pcs' && q !== Math.round(q)) return bad.push(`${x.sku}: pieces are whole`);
-    if (q > (x.unit === 'pcs' ? x.left : x.left * 1.1) + 1e-9) return bad.push(`${x.orderNo} ${x.sku}: ${flowQtyTxt(q, x.unit)} is more than the ${flowQtyTxt(x.left, x.unit)} still to come`);
+    const most = flowMostOf(x.unit, x.need, x.back);
+    if (q > most + 1e-9) return bad.push(`${x.orderNo} ${x.sku}: ${flowQtyTxt(q, x.unit)} is more than the ${flowQtyTxt(most, x.unit)} still to come`);
     if (!x.test && flowVsRuleOn()) { const vb = flowVsCheck(x.l.key, false, x.unit, x.po, q, `${x.orderNo} ${x.sku}`); if (vb) return bad.push(vb); }
     let rest = q, last = '';
     flowDueOpenChs(x.l.key).forEach(({ c, rem }) => { last = c.no; if (rest <= 0) return; const t = flowR2(Math.min(rest, rem)); rest = flowR2(rest - t);
@@ -794,7 +800,7 @@ function flowReceiveOpen(no) {
          fill kar denge"): only the lines typed in are received; a line left at 0 stays owed on the challan. */ ''}
       ${(c.lines || []).map((l, i) => { const u = flowChUnit(l), left = flowChMoved(c, l) ? 0 : flowR2(Math.max(0, flowChSent(l) - (recv[l.key] || 0)));
         /* only what the printer says it sent (12 Nov) — and never more than this challan still owes on the line */
-        const pv = test || !(left > 0) ? null : (p => Object.assign({}, p, { pending: flowR2(Math.min(p.pending, u === 'pcs' ? left : left * 1.1)) }))(flowVsPending(l.key, !!l.ruffleOnly, u, null));
+        const pv = test || !(left > 0) ? null : (p => Object.assign({}, p, { pending: flowR2(Math.min(p.pending, flowMostOf(u, flowChSent(l), recv[l.key] || 0))) }))(flowVsPending(l.key, !!l.ruffleOnly, u, null));
         return `<tr data-flrrow="${i}"><td>${pic(l.sku)}</td><td style="text-align:left">${flowChLineWhat(l, true)}<div class="muted" style="font-size:10.5px">${esc(l.item || '')}</div></td>
           <td style="text-align:left;font-size:11.5px">${u === 'pcs' ? 'Cut pieces' : l.ruffleOnly ? 'Printed ruffle cloth' : 'Printed cloth'}</td>
           <td class="num"><b>${flowQtyTxt(flowChSent(l), u)}</b>${u === 'pcs' ? `<div class="muted" style="font-size:10.5px">${flowQtyTxt(l.metres, 'm')} cloth</div>` : ''}</td><td class="num">${flowQtyTxt(recv[l.key] || 0, u)}</td>
