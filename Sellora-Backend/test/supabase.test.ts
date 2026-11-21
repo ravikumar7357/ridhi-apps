@@ -21,6 +21,16 @@ test('writes go to schema sellora with only the apikey header, in pieces of 500,
   } finally { f.restore(); }
 });
 
+test('an older service_role key (a JWT) also goes in Authorization, as rone-capture sends it', async () => {
+  let h: Record<string, string> = {};
+  const f = fakeFetch([(_u, init) => { h = init.headers as Record<string, string>; return new Response(null, { status: 201 }); }]);
+  try {
+    await new Db('https://x.supabase.co', ' eyJhbGciOiJIUzI1NiJ9.x.y \n').upsert('sales_daily', [{}], 'day');
+    assert.equal(h.apikey, 'eyJhbGciOiJIUzI1NiJ9.x.y');
+    assert.equal(h.Authorization, 'Bearer eyJhbGciOiJIUzI1NiJ9.x.y');
+  } finally { f.restore(); }
+});
+
 test('job state reads back what was saved, and an unknown job is empty', async () => {
   const f = fakeFetch([u => u.pathname.endsWith('/job_state') ? json(u.searchParams.get('job') === 'eq.known' ? [{ state: { done: { '2026-11-19': 1 } } }] : []) : null]);
   try {

@@ -9,7 +9,7 @@ export type Brand = typeof BRANDS[number];
 
 /** Every secret the scheduled function is given. A Meta value that does not apply can be set to "none". */
 export const SECRET_NAMES = [
-  'SUPABASE_SECRET_KEY',
+  'SUPABASE_SERVICE_KEY',                                   // shared with the rone-capture functions
   'SP_CLIENT_ID', 'SP_CLIENT_SECRET', 'SP_REFRESH_TOKEN',
   'CPC_CLIENT_ID', 'CPC_CLIENT_SECRET', 'CPC_REFRESH_TOKEN',
   'SP_ADS_CLIENT_ID', 'SP_ADS_CLIENT_SECRET', 'SP_ADS_REFRESH_TOKEN', 'SP_ADS_PROFILE_ID',

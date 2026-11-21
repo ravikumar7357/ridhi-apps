@@ -1,5 +1,6 @@
 /* Supabase, schema "sellora", through its REST API with the SECRET key (writes bypass RLS; nothing else may write).
- * Only the apikey header is sent: that works for the new sb_secret_ keys and the older service_role key alike. */
+ * A new sb_secret_ key goes in the apikey header only (Supabase refuses it as a Bearer token); an older service_role key
+ * (a JWT, "eyJ…") also goes in Authorization, as the rone-capture functions send it. */
 
 import { callJson, call } from './http.ts';
 
@@ -20,12 +21,13 @@ export class Db {
   schema: string;
   constructor(url: string, key: string, schema = 'sellora') {
     this.url = url.replace(/\/+$/, '');
-    this.key = key;
+    this.key = key.trim();
     this.schema = schema;
   }
 
   private headers(extra: Record<string, string> = {}): Record<string, string> {
-    return { apikey: this.key, 'Content-Type': 'application/json', 'Accept-Profile': this.schema, 'Content-Profile': this.schema, ...extra };
+    const auth: Record<string, string> = this.key.startsWith('eyJ') ? { Authorization: 'Bearer ' + this.key } : {};
+    return { apikey: this.key, ...auth, 'Content-Type': 'application/json', 'Accept-Profile': this.schema, 'Content-Profile': this.schema, ...extra };
   }
 
   /** Insert or update rows on their key. ignoreExisting: never overwrite a row that is already there (history import). */

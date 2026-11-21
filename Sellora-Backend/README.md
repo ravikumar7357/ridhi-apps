@@ -45,7 +45,7 @@ a whole day.
 
    | Secret | What it is |
    |---|---|
-   | `SUPABASE_SECRET_KEY` | Supabase → Settings → API keys → the `sb_secret_…` key |
+   | `SUPABASE_SERVICE_KEY` | Already there: the Supabase key the `rone-capture` functions use. Shared, not copied. |
    | `SP_CLIENT_ID`, `SP_CLIENT_SECRET`, `SP_REFRESH_TOKEN` | Ridhi's Amazon Sales API (SP-API) |
    | `CPC_CLIENT_ID`, `CPC_CLIENT_SECRET`, `CPC_REFRESH_TOKEN` | CPC's Amazon Sales API |
    | `SP_ADS_CLIENT_ID`, `SP_ADS_CLIENT_SECRET`, `SP_ADS_REFRESH_TOKEN`, `SP_ADS_PROFILE_ID` | Ridhi's Amazon Ads API |

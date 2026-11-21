@@ -62,7 +62,7 @@ export function metricsAnswer(url: URL): Response {
 function offMin(off: string) { const m = off.match(/([+-])(\d\d):(\d\d)/); return m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : 0; }
 
 export const ENV: Record<string, string> = {
-  SUPABASE_SECRET_KEY: 'sb_secret_test',
+  SUPABASE_SERVICE_KEY: 'sb_secret_test',
   SP_CLIENT_ID: 'spid', SP_CLIENT_SECRET: 'spsec', SP_REFRESH_TOKEN: 'sprefresh-aaaaaaaaaaaa',
   CPC_CLIENT_ID: 'cpcid', CPC_CLIENT_SECRET: 'cpcsec', CPC_REFRESH_TOKEN: 'cpcrefresh-bbbbbbbbbbbb',
   SP_ADS_CLIENT_ID: 'adsid', SP_ADS_CLIENT_SECRET: 'adssec', SP_ADS_REFRESH_TOKEN: 'adsrefresh-cccccccccccc', SP_ADS_PROFILE_ID: '111',

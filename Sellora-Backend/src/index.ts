@@ -27,8 +27,9 @@ export const selloraLiveTick = onSchedule(
     secrets,
   },
   async () => {
-    const key = processEnv('SUPABASE_SECRET_KEY');
-    if (!key) throw new Error('SUPABASE_SECRET_KEY is not set');
+    // The same Supabase key the rone-capture functions use (Ravi, 21 Nov: one key, not two copies).
+    const key = processEnv('SUPABASE_SERVICE_KEY');
+    if (!key) throw new Error('SUPABASE_SERVICE_KEY is not set');
     const db = new Db(process.env.SUPABASE_URL || SUPABASE_URL, key);
     const out = await runTick(db, processEnv);
     const bad = out.filter(r => !r.ok);
