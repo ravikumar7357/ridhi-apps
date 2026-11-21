@@ -5,10 +5,10 @@
 #                                                         "sellora-live") — only that codebase: the rone-capture functions
 #                                                         are never touched from here.
 #
-# Deploy key: the GitHub secret SELLORA_BACKEND_DEPLOY_KEY — a Google service account key (JSON) on price-research-48ff3 with:
-# Cloud Functions Admin, Cloud Run Admin, Service Account User, Cloud Scheduler Admin, Secret Manager Admin, Artifact
-# Registry Administrator, Cloud Build Editor, Service Usage Consumer (a missing one is named in the deploy log).
-# Kept apart from the hosting key on purpose. Without it the tests still run and
+# Deploy key: the SAME key Sellora's pages deploy with (FIREBASE_SERVICE_ACCOUNT → github-action-1397622174@…, Ravi 21 Nov:
+# "firebase deploys it with github"), unless SELLORA_BACKEND_DEPLOY_KEY is set. Besides its hosting roles it needs, on
+# price-research-48ff3: Cloud Functions Admin, Cloud Run Admin, Service Account User, Cloud Scheduler Admin, Secret Manager
+# Admin, Artifact Registry Administrator (a missing one is named in the deploy log). Without a key the tests still run and
 # nothing is deployed. The API keys themselves are NOT here: they live in Firebase's Secret Manager (see Sellora-Backend/README.md).
 name: Sellora backend — test, deploy
 
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      HAS_KEY: ${{ secrets.SELLORA_BACKEND_DEPLOY_KEY != '' }}
+      HAS_KEY: ${{ (secrets.SELLORA_BACKEND_DEPLOY_KEY || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3) != '' }}
     defaults:
       run:
         working-directory: Sellora-Backend
@@ -65,11 +65,11 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: No deploy key yet
         if: env.HAS_KEY != 'true'
-        run: echo "::warning::SELLORA_BACKEND_DEPLOY_KEY is not set — tests passed, nothing was deployed."
+        run: echo "::warning::No deploy key (FIREBASE_SERVICE_ACCOUNT) — tests passed, nothing was deployed."
       - name: Deploy to Firebase (codebase sellora-live only)
         if: env.HAS_KEY == 'true'
         env:
-          DEPLOY_KEY: ${{ secrets.SELLORA_BACKEND_DEPLOY_KEY }}
+          DEPLOY_KEY: ${{ secrets.SELLORA_BACKEND_DEPLOY_KEY || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
         run: |
           printf '%s' "$DEPLOY_KEY" > "$RUNNER_TEMP/deploy-key.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/deploy-key.json"

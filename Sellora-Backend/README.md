@@ -58,9 +58,10 @@ a whole day.
    Every name must exist, because the deploy checks them all. For something that doesn't apply, set the value to
    `none`: for example a profile ID you want found automatically, or a brand with no Meta account. That part is then
    skipped.
-4. **GitHub.** Add the secret `SELLORA_BACKEND_DEPLOY_KEY`: a Google service account key (JSON) with the roles listed
-   at the top of `.github/workflows/sellora-backend.yml`. Without it, the tests still run on every push and nothing is
-   deployed.
+4. **GitHub.** The workflow deploys with the same key as Sellora's pages (`FIREBASE_SERVICE_ACCOUNT`, the service
+   account `github-action-1397622174@…`). Give that account the extra roles listed at the top of
+   `.github/workflows/sellora-backend.yml`, in Google Cloud → IAM. A separate `SELLORA_BACKEND_DEPLOY_KEY` is used
+   instead if it is ever set.
 5. **Go live.** Merge to `main`. The workflow builds, tests and deploys. To run it once by hand: Google Cloud console →
    Cloud Scheduler → `firebase-schedule-selloraLiveTick-…` → Force run.
 
