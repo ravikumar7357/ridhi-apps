@@ -40726,13 +40726,16 @@ function cutTotHtml(going, thans) {
     + (need > 0 && gap > 0.05 ? ' · ' + m1(gap) + ' m extra' : '')
     + (gap < -0.05 ? ' · <span style="color:var(--bad);font-weight:700">' + m1(-gap) + ' m short</span>' : '');
 }
-/** Why this cloth cannot go yet, in the window's words; '' when it can. */
-function cutLinesCheck(going) {
+/** Why this cloth cannot go yet, in the window's words; '' when it can. A lot with no thans listed has its metres typed,
+ *  so the refusal speaks of metres, not thans (Ravi's UAT check, 21 Nov). */
+function cutLinesCheck(going, byThans) {
   if (CUT.lines === null) return 'The products are still loading. Try again in a moment.';
   var lines = cutLinesPicked(), need = cutLinesNeed(lines);
   if (!lines.length) return 'Tick the products this cloth is for.';
-  if (going < need - 0.05) return 'The thans come to ' + m1(going) + ' m; the ticked products need ' + m1(need) + ' m. Tick another than or fewer products.';
-  return '';
+  if (going >= need - 0.05) return '';
+  return byThans
+    ? 'The thans come to ' + m1(going) + ' m; the ticked products need ' + m1(need) + ' m. Tick another than or fewer products.'
+    : m1(going) + ' m is going; the ticked products need ' + m1(need) + ' m. Send more metres or tick fewer products.';
 }
 /** The flow's side of the save: each ticked line's fabric marked ready, carrying the lot and this entry. The old mark is
  *  kept on the entry (lineWas) so removing the entry puts each line back exactly as it was. */
@@ -40767,7 +40770,7 @@ function cutSave() {
   var q = picked ? r1(picked.reduce(function (s, t) { return s + t.m; }, 0)) : (parseFloat(CUT.qty) || 0);
   var rfd = cutRfdOf(g), err = '';
   if (!(q > 0)) err = picked ? 'Tick the thans that are going to cutting.' : 'How many metres are going to cutting?';
-  else err = cutLinesCheck(q) || fabEntryCheck({ txnType: 'ISSUE_TO_CUTTING', date: date, lot: CUT.lot, fabric: rfd, qty: q });
+  else err = cutLinesCheck(q, !!picked) || fabEntryCheck({ txnType: 'ISSUE_TO_CUTTING', date: date, lot: CUT.lot, fabric: rfd, qty: q });
   if (err) { $('cutErr').textContent = err; $('cutErr').classList.remove('hide'); return; }
   var row = { id: uid(), date: date, lot: CUT.lot, fabricType: rfd, txnType: 'ISSUE_TO_CUTTING', qty: q, party: $('cutTo').value.trim() || 'Cutting',
     bill: '', orderNo: g.poNo || '', done: false, by: meUser().name };
@@ -42718,7 +42721,7 @@ function wireUsersRfd() {
   document.addEventListener('change', userEdit);
   document.addEventListener('input', function (ev) {
     var el = ev.target;
-    if (CUT && el.getAttribute && el.getAttribute('data-cutqty')) { CUT.qty = el.value; $('cutTot').innerHTML = cutTotHtml(parseFloat(el.value) || 0, ''); return; }
+    if (CUT && el.getAttribute && el.getAttribute('data-cutqty')) { CUT.qty = el.value; $('cutErr').classList.add('hide'); $('cutTot').innerHTML = cutTotHtml(parseFloat(el.value) || 0, ''); return; }   // a new figure: the last refusal may no longer be true
     var lot = el.getAttribute && el.getAttribute('data-rrlot'); if (!lot || !RR) return;
     RR.thans[lot][+el.getAttribute('data-pi')][el.getAttribute('data-f')] = el.value; rrSums();
   });

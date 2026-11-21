@@ -69,7 +69,12 @@ console.log('== the window\'s rules (Ravi: must tick; thans must cover the produ
 windowWith([]);
 ok('no product ticked: refused, and it says what to do', G.cutLinesCheck(150) === 'Tick the products this cloth is for.');
 windowWith(['L1', 'L5']);
-ok('thans less than the products need: refused with both figures', /120.0 m.*143.0 m/.test(G.cutLinesCheck(120)), G.cutLinesCheck(120));
+ok('thans less than the products need: refused with both figures', /^The thans come to 120\.0 m.*143\.0 m/.test(G.cutLinesCheck(120, true)), G.cutLinesCheck(120, true));
+/* Ravi's UAT check, 21 Nov: on a lot with no thans listed the metres are typed, so the refusal must not talk of thans */
+ok('metres typed by hand, too few: refused in metres, with no word of thans',
+  (m => /^60\.0 m is going; the ticked products need 143\.0 m\. Send more metres/.test(m) && !/than/.test(m))(G.cutLinesCheck(60, false)), G.cutLinesCheck(60, false));
+ok('the save says which kind of lot it is', code.includes('err = cutLinesCheck(q, !!picked) || fabEntryCheck('));
+ok('typing a new figure clears the last refusal', /CUT\.qty = el\.value; \$\('cutErr'\)\.classList\.add\('hide'\);/.test(code));
 ok('thans exactly what the products need: allowed', G.cutLinesCheck(143) === '');
 ok('thans more than they need: allowed (the extra goes with them)', G.cutLinesCheck(150) === '');
 ok('the bottom line shows the need, what is going and the extra', (t => /For 2 products: <b>143.0 m/.test(t) && /7.0 m extra/.test(t))(G.cutTotHtml(150, '2 thans · ')), G.cutTotHtml(150, '2 thans · '));
@@ -88,7 +93,7 @@ ok('only the ticked lines are written', Object.keys(patch).length === 2 && !patc
 ok('the entry remembers its lines, their old marks and the orders', row.lines.join() === 'L1,L5' && row.lineWas.L1 === null && row.lineWas.L5.note === 'by hand' && row.forOrders === 'B2B-1, SHP-5');
 ok('the desk saves the entry and the lines in ONE patch', /function lmSaveDb\(alsoWrite\)/.test(code) && /patch = Object\.assign\(\{\}, alsoWrite \|\| \{\}\)/.test(code)
   && /var flowPatch = cutLinesPatch\(row, cutLinesPicked\(\)\);\s*DB\.fab\.push\(row\); lmSaveDb\(flowPatch\);/.test(code));
-ok('the save is refused before anything is written when the rules say no', /err = cutLinesCheck\(q\) \|\| fabEntryCheck\(/.test(code));
+ok('the save is refused before anything is written when the rules say no', /err = cutLinesCheck\(q, !!picked\) \|\| fabEntryCheck\(/.test(code));
 desk.FLOW = { dem: { L1: { other: 1 } } };
 G.cutFlowKeep(patch);
 ok('the flow on this screen sees it at once (no reload)', desk.FLOW.dem.L1.fabricReady.cutEntry === 'e42' && desk.FLOW.dem.L1.other === 1 && desk.FLOW.dem.L5.fabricReady.lot === 'LOT-016');
