@@ -25,6 +25,8 @@
 <!-- The "By product" report on Live vs Last Year, shared with live.html (public/products.js). Bump ?v= when it changes:
      .js files are served with an hour's cache. -->
 <script src="/products.js?v=3" defer></script>
+<!-- Live vs Last Year's figures from Sellora's own backend (Supabase sellora.page_data), shared with live.html. Ravi 21 Nov 2026. -->
+<script src="/live-data.js?v=1" defer></script>
 <style>
   /* Listing optimiser: what a rewrite removed and what it added, marked in place. */
   .lo-gone{text-decoration:line-through;opacity:.45}
@@ -13505,17 +13507,39 @@ function ensureYoy() {
   }, YOY_EVERY);
 }
 
-/* ---------- reading Amazon (both brands at once) ---------- */
+/* ---------- reading the figures (both brands at once) ----------
+ * From Sellora's own backend first (Ravi, 21 Nov 2026: "switch both to the new backend") — Supabase sellora.page_data,
+ * filled every 10 minutes; public/live-data.js turns it into the same answers Apps Script gave, so nothing below changed.
+ * Apps Script (?live=yoy / range / hist) only where the new backend cannot answer: a past day from before it kept hours,
+ * or the "same date" comparison (it keeps last year's same WEEKDAY by the hour). */
+let YOY_PD = null;          // the new backend's answer the screen is drawn from, or null when it is Apps Script's
+async function yoyLoadNew(day, mode, key) {
+  if (!window.LiveData || mode === 'date') return false;
+  try {
+    const pd = await LiveData.load(day);
+    if (!LiveData.ready(pd, day)) return false;
+    const next = {};
+    Object.keys(YOY_BRANDS).forEach(b => { next[b] = LiveData.brandYoy(pd, b); });
+    YOY_PD = pd; YOY = next; YOY_KEY = key; YOY_AT = Date.now();
+    YOY_HIST = LiveData.hist(pd); YOY_HIST_AT = Date.now(); YOY_HIST_ERR = '';
+    await yoyLoadRange(true);
+    yoyRender();
+    return true;
+  } catch (e) { console.warn('Live vs Last Year: new backend not available, asking Apps Script —', e.message || e); return false; }
+}
 async function yoyLoad() {
   if (YOY_BUSY) return;
   YOY_BUSY = true;
   const day = $('yoyDay').value || sdToday(), mode = $('yoyMode').value, ly = yoyLyDay(day, mode);
   const key = day + '|' + mode;
   const btn = $('yoyRefresh');
-  btn.disabled = true; btn.textContent = 'Asking Amazon…';
+  btn.disabled = true; btn.textContent = 'Loading…';
   yoyMsg('');
   const errs = [];
   try {
+    if (await yoyLoadNew(day, mode, key)) return;
+    YOY_PD = null;
+    btn.textContent = 'Asking Amazon…';
     const rangeDone = yoyLoadRange(true);            // the From–To run, asked at the same time
     const got = await Promise.all(Object.keys(YOY_BRANDS).map(b =>
       baCall({ live: 'yoy', brand: b, day, ly })
@@ -13541,6 +13565,13 @@ async function yoyLoadRange(quiet) {
   const day = $('yoyDay').value || sdToday(), mode = $('yoyMode').value;
   const shift = Math.round((Date.parse(day) - Date.parse(yoyLyDay(day, mode))) / 864e5);
   const key = from + '|' + to + '|' + shift, errs = [];
+  if (YOY_PD && window.LiveData) {                  // the new backend: the run from its days, no extra call
+    const next = {};
+    Object.keys(YOY_BRANDS).forEach(b => { next[b] = LiveData.range(YOY_PD, b, from, to, shift); });
+    YOY_R = next; YOY_R_KEY = key;
+    yoyRenderRange();
+    return [];
+  }
   const got = await Promise.all(Object.keys(YOY_BRANDS).map(b =>
     baCall({ live: 'range', brand: b, from, to, shift })
       .then(r => [b, r])
@@ -13881,7 +13912,12 @@ let YOY_HIST = null, YOY_HIST_AT = 0, YOY_HIST_BUSY = false, YOY_HIST_ERR = '';
 async function yoyLoadHist(force) {
   if (YOY_HIST_BUSY || (!force && YOY_HIST_AT && Date.now() - YOY_HIST_AT < 10 * 60 * 1000)) return;
   YOY_HIST_BUSY = true; YOY_HIST_AT = Date.now();
-  try { YOY_HIST = await baCall({ live: 'hist', day: $('yoyDay').value || sdToday() }); YOY_HIST_ERR = ''; }
+  try {
+    // The new backend's history whenever it answers (whole days, Meta included) — even when the day on view came from Apps Script.
+    let h = null;
+    if (window.LiveData) { try { h = LiveData.hist(YOY_PD || await LiveData.load()); } catch (e) { h = null; } }
+    YOY_HIST = h || await baCall({ live: 'hist', day: $('yoyDay').value || sdToday() }); YOY_HIST_ERR = '';
+  }
   catch (e) { YOY_HIST_ERR = String(e.message || e); }
   finally { YOY_HIST_BUSY = false; }
   yoyRender();
@@ -13967,6 +14003,10 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
     if (s != null) { spend += Number(s) || 0; if (!adFrom || d < adFrom) adFrom = d; }
   }));
   let adA = 0, adS = 0; Object.keys(byDay).forEach(d => { if (adFrom && d >= adFrom) { adA += byDay[d].a; adS += byDay[d].s; } });
+  // Meta (21 Nov: the new backend has it, in US dollars) — the days of the period it reaches. The same as live.html.
+  let metaSpend = 0, metaDays = 0;
+  days.concat(live ? [T] : []).forEach(d => { let got = false; amzK.forEach(k => { const v = ((H.meta || {})[k] || {})[d]; if (v != null) { metaSpend += v; got = true; } }); if (got) metaDays++; });
+  const nDays = days.length + (live ? 1 : 0);
   const all = amz.sales + shp.sales, allLy = amzLy.sales + shpLy.sales, aPct = all > 0 ? amz.sales / all * 100 : 0;
   const NAME = PR.name;
   const range = (a, b) => (a === b ? yoyDate(a) : yoyDate(a, false) + ' – ' + yoyDate(b));
@@ -13986,8 +14026,9 @@ function yoyRenderPeriod(V, tot, lySame, lyDay) {
     yoyCard('sd-b-indigo', NAME + ' sales', yoyMoney(all), 'Amazon ' + yoyMoney(amz.sales) + ' · Shopify ' + yoyMoney(shp.sales))
     + yoyCard('sd-b-orange', 'vs last year', cA, 'last year ' + yoyMoney(allLy) + (shpLy.sales ? '' : ' (Shopify $0)'), kA)
     + yoyCard('sd-b-teal', 'Orders', yoyInt(amz.orders + shp.orders), yoyInt(amz.units + shp.units) + ' units')
-    + yoyCard('yoy-b-spend', 'Amazon ad spend', spend ? yoyMoney(spend) : '—', 'Meta not connected' + adNote)
-    + yoyCard('yoy-b-tacos', 'TACoS', spend ? pc(spend, adA + adS) : '—', 'Amazon ads ÷ all sales' + adNote)
+    + yoyCard('yoy-b-spend', metaDays ? 'Ad spend' : 'Amazon ad spend', spend || metaSpend ? yoyMoney(spend + metaSpend) : '—',
+      (metaDays ? 'Amazon ' + yoyMoney(spend) + ' · Meta ' + yoyMoney(metaSpend) + (metaDays < nDays ? ' (Meta ' + metaDays + ' of ' + nDays + ' days)' : '') : 'Meta not connected') + adNote)
+    + yoyCard('yoy-b-tacos', 'TACoS', spend || metaSpend ? pc(spend + metaSpend, adA + adS) : '—', (metaDays ? 'Amazon + Meta ads ÷ all sales' : 'Amazon ads ÷ all sales') + adNote)
     + yoyCard('yoy-b-adsales', 'Channel split', all > 0 ? Math.round(aPct) + ' / ' + Math.round(100 - aPct) : '—',
       `<span class="yoy-split" style="display:flex;margin:4px 0 8px"><i style="width:${aPct}%"></i><i style="width:${all > 0 ? 100 - aPct : 0}%"></i></span>Amazon ${pc(amz.sales, all)} · Shopify ${pc(shp.sales, all)}`);
   $('yoyPAmz').innerHTML =
