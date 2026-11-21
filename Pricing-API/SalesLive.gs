@@ -292,6 +292,7 @@ function liveSnapshot_() {
   });
   var out = { asOf: new Date().toISOString(), day: day, ly: ly, lw: liveShift_(day, -7), from: from, to: to, brands: brands };
   try { liveShopCpcTick_(day); } catch (e) { out.shopCpcErr = String(e.message || e).slice(0, 200); }
+  try { liveRecentTick_(day); } catch (e) { out.recentErr = String(e.message || e).slice(0, 200); }
   try { out.hist = liveHist_(day); } catch (e) { out.histErr = String(e.message || e).slice(0, 200); }
   return out;
 }
@@ -322,6 +323,39 @@ function liveShopCpcTick_(day) {
   cacheWrite_('shopCPC', { at: new Date().toISOString(), back: back, d: d });
 }
 
+/* ---- THE LAST DAYS, WHOLE (Ravi, 2026-11-21: "a permanent fix") ----
+ * The nightly run starts at 5 AM IST, which is mid-afternoon of the day before in Pacific time. So the newest day in the
+ * cache sheet "daily" is only part of a day, and pages that took it as a whole day were wrong: 19 Nov CPC showed $23,114
+ * (−29%) in the morning, while Amazon's whole day was $38,900 (+20%). The same was true of Ridhi's Shopify store (SHOP).
+ * Every 15-minute run reads the last finished Pacific days again: Amazon from the Sales API, by day, for both brands
+ * (pending orders settle over a few days, so 7 days); Ridhi's Shopify store the way the nightly counts it (shopifyDaily_),
+ * last 3 days. Kept in cache sheet "recent": { at, d: { SP, CPC, SHOP: { date: [sales, units, orders] } } }. liveHist_
+ * lays these over the nightly figures and never hands out today, which always comes from the live figures. */
+var LIVE_RECENT_DAYS = 7, LIVE_RECENT_SHOP_DAYS = 3;
+function liveRecentTick_(day) {
+  var st = cacheRead_('recent') || {}, d = st.d || {}, yest = liveShift_(day, -1), errs = [];
+  var from = liveShift_(day, -LIVE_RECENT_DAYS);
+  ['SP', 'CPC'].forEach(function (b) {
+    try {
+      setBrand_(b);
+      var o = {};
+      liveMetrics_(liveIso_(from, 0), liveIso_(day, 0), 'Day').forEach(function (r) {
+        var k = String(r.t).slice(0, 10);
+        if (k >= from && k <= yest) o[k] = [Math.round(r.sales * 100) / 100, r.units, r.orders];
+      });
+      if (Object.keys(o).length) d[b] = o;
+    } catch (e) { errs.push(b + ': ' + String(e.message || e).slice(0, 120)); }   // the nightly figures stand meanwhile
+  });
+  try {
+    setShopBrand_('SP');
+    if (prop_('SHOPIFY_TOKEN')) {
+      var r = shopifyDaily_(liveShift_(day, -LIVE_RECENT_SHOP_DAYS), yest, Date.now() + 60000), o = {};
+      if (!r.more) { Object.keys(r.dates || {}).forEach(function (k) { if (k <= yest) o[k] = r.dates[k]; }); d.SHOP = o; }
+    }
+  } catch (e) { errs.push('SHOP: ' + String(e.message || e).slice(0, 120)); }
+  cacheWrite_('recent', { at: new Date().toISOString(), to: yest, d: d, err: errs.join(' · ') });
+}
+
 /* ---- WEEK / MONTH / QUARTER / YEAR on live.html (Ravi, 2026-11-20: "add day, week, month, quarterly and year") ----
  * The nightly run already keeps every day's totals (Nightly.gs → cache sheet "daily": { SP, CPC, SHOP: { date: [sales,
  * units, orders] } }, about 800 days back) and the last ~93 days of Sponsored Products spend per day ("ads": { brand:
@@ -333,11 +367,15 @@ function liveHist_(day) {
   // Everything the nightly keeps (about 800 days), not only from 1 January last year: a financial quarter or year picked from
   // the past needs the year before it too (Ravi, 2026-11-20: "a quarter we can change; our year runs April to March").
   var fromLy = liveShift_(day, -800);
-  var cut = function (o) { var r = {}; Object.keys(o || {}).forEach(function (d) { if (d >= fromLy && d <= day) r[d] = o[d]; }); return r; };
+  // Finished days only (d < day): today, still running in Pacific time, always comes from the live figures (2026-11-21).
+  var cut = function (o) { var r = {}; Object.keys(o || {}).forEach(function (d) { if (d >= fromLy && d < day) r[d] = o[d]; }); return r; };
   var daily = cacheRead_('daily') || {}, dd = daily.d || {}, ads = cacheRead_('ads') || {}, ad = ads.d || {};
   var cpc = cacheRead_('shopCPC') || {};               // CPC's Shopify store, built by liveShopCpcTick_
+  // The last days read again whole every 15 minutes (liveRecentTick_) replace the nightly's, whose newest day is partial.
+  var rec = cacheRead_('recent') || {}, rd = rec.d || {}, hd = { SP: cut(dd.SP), CPC: cut(dd.CPC), SHOP: cut(dd.SHOP) };
+  ['SP', 'CPC', 'SHOP'].forEach(function (k) { var r = cut(rd[k]); Object.keys(r).forEach(function (d) { hd[k][d] = r[d]; }); });
   var last = '';
-  ['SP', 'CPC', 'SHOP'].forEach(function (k) { Object.keys(dd[k] || {}).forEach(function (d) { if (d > last && d <= day) last = d; }); });
+  ['SP', 'CPC', 'SHOP'].forEach(function (k) { Object.keys(hd[k]).forEach(function (d) { if (d > last) last = d; }); });
   // Ad spend per day: the daily archive's three types added up (liveAdsBackTick_, uploads), else the nightly Products figure.
   var arc = cacheRead_('adsDay') || {}, adOut = {};
   ['SP', 'CPC'].forEach(function (b) {
@@ -351,7 +389,7 @@ function liveHist_(day) {
     adOut[b] = o;
   });
   return { ok: true, at: daily.at || '', through: last, from: fromLy,      // ok: Sellora's baCall reads any answer without it as a failure
-    d: { SP: cut(dd.SP), CPC: cut(dd.CPC), SHOP: cut(dd.SHOP), SHOP_CPC: cut(cpc.d) }, shopCpcFrom: cpc.back || '',
+    d: { SP: hd.SP, CPC: hd.CPC, SHOP: hd.SHOP, SHOP_CPC: cut(cpc.d) }, shopCpcFrom: cpc.back || '', recentAt: rec.at || '',
     ads: adOut, adsAt: ads.at || '' };
 }
 function liveSnapshotSheet_() {

@@ -519,6 +519,16 @@ const AD_C = ['#ef4444', '#f59e0b', '#8b5cf6', '#3b82f6', '#22c55e', '#64748b'];
  * same moment. Shopify's history is Ridhi's store; its first sale was 28 Dec 2025, so last year it is $0. Ad spend: the
  * live report (Products + Brands + Display) for the days it covers, the nightly Sponsored Products figure before that. */
 let PERIOD = 'day';
+/* One finished Amazon day for a brand, as [sales, units, orders] (2026-11-21 fix). The nightly history starts at 5 AM IST,
+ * mid-afternoon of the day before in Pacific time, so its newest day is only part of a day — 19 Nov CPC read $23,114 in the
+ * morning against Amazon's whole day of $38,900. So the 7 days the Sales API hands the page (yoy.week, read every 15 minutes)
+ * come first, and the history only for days before them. Never today: today is always the live figures. */
+function amzDay(k, d) {
+  if (!DATA || d >= DATA.day) return null;
+  const w = ((((DATA.brands[k] || {}).yoy || {}).week) || []).find(x => String(x.t).slice(0, 10) === d);
+  if (w) return [w.sales || 0, w.units || 0, w.orders || 0];
+  return ((DATA.hist && DATA.hist.d && DATA.hist.d[k]) || {})[d] || null;
+}
 
 /* ---------- EVENTS (Ravi, 2026-11-20: "a literal Events tab — what the events are, and how we did") ----------
  * Amazon's US shopping events, this year and last. To add next year's: one more line in d, by year, [first day, last day]
@@ -548,9 +558,8 @@ function renderEvents(tot, lySame, lyDay) {
     let s = 0, o = 0, a = 0, sp = 0;
     if (amzOn) {
       if (d === T) { a = tot.sales; o += tot.orders; }
-      else amzK.forEach(k => {               // the history, or for days it has not reached yet the live week
-        let r = (H.d[k] || {})[d];
-        if (!r) { const w = ((((DATA.brands[k] || {}).yoy || {}).week) || []).find(x => String(x.t).slice(0, 10) === d); if (w) r = [w.sales, w.units, w.orders]; }
+      else amzK.forEach(k => {               // the live week (whole days from the Sales API) first, then the history
+        const r = amzDay(k, d);
         if (r) { a += r[0]; o += r[2]; }
       });
     }
@@ -703,11 +712,10 @@ function renderPeriod(tot, lySame, lyDay) {
   fillPick();
   const Z = () => ({ sales: 0, units: 0, orders: 0 });
   const addRow = (t, r, f) => { if (r) { t.sales += (r[0] || 0) * (f || 1); t.units += (r[1] || 0) * (f || 1); t.orders += (r[2] || 0) * (f || 1); } return t; };
-  const weekRow = (k, d) => { const w = ((DATA.brands[k] || {}).yoy || {}).week || []; const r = w.find(x => String(x.t).slice(0, 10) === d); return r ? [r.sales, r.units, r.orders] : null; };
   const best = { amz: null, shop: null };
   // --- Amazon ---
   const amz = Z(), amzLy = Z(), byDay = {};                                     // byDay: Amazon + Shopify sales per day, for TACoS
-  days.forEach(d => { let t = Z(); amzK.forEach(k => addRow(t, (H.d[k] || {})[d] || weekRow(k, d))); addRow(amz, [t.sales, t.units, t.orders]); byDay[d] = { a: t.sales, s: 0 }; if (!best.amz || t.sales > best.amz[1]) best.amz = [d, t.sales]; });
+  days.forEach(d => { let t = Z(); amzK.forEach(k => addRow(t, amzDay(k, d))); addRow(amz, [t.sales, t.units, t.orders]); byDay[d] = { a: t.sales, s: 0 }; if (!best.amz || t.sales > best.amz[1]) best.amz = [d, t.sales]; });
   if (live) byDay[T] = { a: tot.sales, s: 0 };
   amz.sales += tot.sales; amz.units += tot.units; amz.orders += tot.orders;
   days.forEach(d => amzK.forEach(k => addRow(amzLy, (H.d[k] || {})[lyOf(d)])));
@@ -778,7 +786,6 @@ function renderTrend(tot, lySame, lyDay) {
   const amzOn = vw !== 'shop', shopOn = vw !== 'amz', SHOPK = { SP: 'SHOP', CPC: 'SHOP_CPC' }, T = DATA.day;
   const sh = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
   const lyFrac = lyDay.sales > 0 ? lySame.sales / lyDay.sales : 1;
-  const weekRow = (k, d) => { const r = (((DATA.brands[k] || {}).yoy || {}).week || []).find(x => String(x.t).slice(0, 10) === d); return r ? [r.sales, r.units, r.orders] : null; };
   const shopNow = amzK.flatMap(k => ((((DATA.brands[k] || {}).yoy || {}).shop || {}).now || []));
   const Z = () => ({ a: 0, s: 0, o: 0, haveA: false, haveS: false, spend: 0, adDays: 0 });
   const put = (t, r, ch, f) => { if (!r) return; f = f || 1; if (ch === 'a') { t.a += (r[0] || 0) * f; t.haveA = true; } else { t.s += (r[0] || 0) * f; t.haveS = true; } t.o += (r[2] || 0) * f; };
@@ -787,7 +794,7 @@ function renderTrend(tot, lySame, lyDay) {
     if (d === T) {
       if (amzOn) { t.a += tot.sales; t.o += tot.orders; t.haveA = true; }
       if (shopOn) shopNow.forEach(r => { t.s += r.sales || 0; t.o += r.orders || 0; t.haveS = true; });
-    } else amzK.forEach(k => { if (amzOn) put(t, (H.d[k] || {})[d] || weekRow(k, d), 'a'); if (shopOn) put(t, (H.d[SHOPK[k]] || {})[d], 's'); });
+    } else amzK.forEach(k => { if (amzOn) put(t, amzDay(k, d), 'a'); if (shopOn) put(t, (H.d[SHOPK[k]] || {})[d], 's'); });
     if (amzOn) { let s = null; amzK.forEach(k => { const live = ((((DATA.brands[k] || {}).yoy || {}).ads || {}).days || {})[d], old = ((H.ads || {})[k] || {})[d]; const v = live ? live.spend : old ? old[2] : null; if (v != null) s = (s || 0) + Number(v); }); if (s != null) { t.spend += s; t.adDays++; } }
   };
   const lyDayOf = (t, d) => { const L = sh(d, -364), f = d === T ? lyFrac : 1; amzK.forEach(k => { if (amzOn) put(t, (H.d[k] || {})[L], 'a', f); if (shopOn) put(t, (H.d[SHOPK[k]] || {})[L] || [0, 0, 0], 's', f); }); };
