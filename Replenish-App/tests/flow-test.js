@@ -2680,13 +2680,18 @@ const K = 'AMZ-1__S1';
     W.setChCover({ fab: { DUCK: { free: 1022 }, WUFFLE: { free: 0 } }, line: {} });
     ok('the stock check: 547 m of Duck against 1,022 m free is enough; 97.5 m of Wuffle against 0 is 97.5 m short',
       W.flowChStock('Duck', 547).short === 0 && W.flowChStock('Wuffle', 97.5).short === 97.5 && W.flowChStock('Nothing', 5).free === null);
+    W.setChCover({ fab: { 'SHEETING 82': { free: 1184.12 } }, line: {} });
+    ok('the shelf is said in whole metres (UAT, 21 Nov: "1,184.12 m" ran off the window)', W.flowChStock('Sheeting 82', 244.63).free === 1184);
+    W.setChCover({ fab: { DUCK: { free: 1022 }, WUFFLE: { free: 0 } }, line: {} });
     const fh = W.flowChFabricHtml([{ fabric: 'Duck', pcs: 356, lines: 9, m: 547.2, sizes: [{ size: '52x84', pcs: 226, lines: 5, m: 271.2 }, { size: '52x104', pcs: 130, lines: 4, m: 276 }] },
       { fabric: 'Wuffle', pcs: 390, lines: 2, m: 97.5, sizes: [{ size: '16x28', pcs: 390, lines: 2, m: 97.5 }] }]);
     ok('each fabric shows its total, then its sizes under it', /Duck<\/td><td class="num"><b>356<\/b>/.test(fh) && fh.indexOf('52x84') > fh.indexOf('Duck') && fh.indexOf('52x104') < fh.indexOf('Wuffle'));
     ok('…green "1,022 m · enough" for Duck, red "0 m · 97.5 m short" with Raise PO for Wuffle', /1,?022 m · enough/.test(fh) && /0 m · 97\.5 m short<\/span> <button[^>]*data-chpo/.test(fh), fh.slice(fh.indexOf('Duck'), fh.indexOf('Duck') + 500));
 
     const SRCC = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'flow', 'flow-challan.js'), 'utf8');
-    ok('the window is the wide one, lines on the left and what goes on the right', /wide: true,/.test(SRCC) && /Lines on this challan — untick any that should not go/.test(SRCC) && /grid-template-columns:repeat\(auto-fit,minmax\(380px,1fr\)\)/.test(SRCC));
+    ok('the window is the wide one, lines on the left and what goes on the right', /wide: true,/.test(SRCC) && /Lines on this challan — untick any that should not go/.test(SRCC) && /display:flex;flex-wrap:wrap/.test(SRCC)
+      /* UAT, 21 Nov: with equal halves the Item column wrapped every word; the lines side is the wider one, and both stack on a phone */
+      && /flex:1\.4 1 560px/.test(SRCC) && /flex:1 1 380px/.test(SRCC));
     ok('a line with a wrong fabric comes unticked and cannot be ticked', /on = !held\(i\) && /.test(SRCC) && /\$\{held\(i\) \? ' disabled title="Fix the fabric in PPC first"' : ''\}/.test(SRCC));
     ok('the save refuses a wrong-fabric line even if it got ticked', /if \(badF\.length\) return [^\n]*fix the fabric in PPC first/.test(SRCC));
     ok('the summary is drawn again when the vendor changes (its name is in the heading)', /\[data-chk\],\[data-chp\],\[data-chm\],#flcVen/.test(SRCC));
