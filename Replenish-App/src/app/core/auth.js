@@ -259,7 +259,7 @@ onAuthStateChanged(auth, async user => {
      * the Replenishment snapshot at sign-in — a vendor's among them. */
     'vlog', 'cx', ...FLOW_TABS,
     /* The Greige Desk's four rights (2026-10-13) are factory screens too. */
-    'gdesk', 'gdled', 'gdledit', 'gdappr'];
+    'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdpo', 'gdpoappr'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
   /* DATA METER (Step 0): remember what kind of user this is, ask the Firestore flag config/flags.dataMeter in the
    * background and keep its answer for the NEXT page load. Never waits, never blocks sign-in; a missing document or a

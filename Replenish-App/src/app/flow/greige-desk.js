@@ -21,8 +21,8 @@ const GD = (function () {
     readyState: 'complete'
   };
   var localStorage = { getItem: function () { return null; }, setItem: function () {} };
-  var GD_CSS = "[hidden]{display:none!important} img{max-width:100%} \n/* Layout: the Replenish app's own frame -- a bar of screens across the top, soft cards on a tinted\n   ground -- with the greige work at its centre: each PO opens into its challans, each challan into its\n   bales, and receiving is a drawer from the right, opened from the PO itself. */\n:host{display:block;\n  --bg:#F3F5F8; --card:#ffffff; --soft:#F7F9FB; --chip:#EFF2F6; --hover:#EFF2F6; --zebra:#FBFCFE; --line:#E8EDF3;\n  --ink:#14181F; --muted:#5A6472; --faint:#98A1AE;\n  --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#ffffff;\n  --accent:#4A5A3C; --accent-bg:#EDF0E7; --ok-ink:#2F6B33;\n  --bad:#9B1C1C; --bad-bg:#FBE9E9; --bad-line:#EBB9B9;\n  --warn-ink:#8A5A12; --warn-bg:#FFF3D6; --proc-ink:#7F6000;\n  --pink:#9B3F86; --pink-bg:#F7E8F3;\n  --c-greige:#9A6410; --c-proc:#2F6DB5; --c-rfd:#3F7D3A; --wa:#128C3E;\n  --scrim:rgba(15,23,42,.45); --toast-bg:#14181F; --toast-fg:#ffffff;\n  --sh-1:0 2px 10px rgba(20,24,31,.05); --sh-2:0 4px 16px rgba(20,24,31,.09); --sh-3:0 24px 64px rgba(20,24,31,.22);\n  --ring:0 0 0 3px rgba(110,144,181,.32); --ring-line:#6E90B5;\n  --r-card:18px; --r-ctl:12px; --r-sm:10px; --r-pill:999px; --ctl:40px;\n  --sans:\"Plus Jakarta Sans\",ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;\n  --serif:\"Libre Caslon Text\",\"Iowan Old Style\",Baskerville,\"Times New Roman\",serif;\n  --mono:ui-monospace,\"Cascadia Mono\",Consolas,\"Courier New\",monospace;\n}\n\n\n\n*{box-sizing:border-box}\n.gdroot{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;border-radius:18px}\n.pill,.tnum,.metric .v,.dfig,.gk-v,.num,.prog,.pc-m,.pc input,.pr input{font-variant-numeric:tabular-nums}\nh1,h2{letter-spacing:-.02em;text-wrap:balance}\n.muted{color:var(--muted)} .b{font-weight:700} .sub{font-size:12px;color:var(--muted)} .grow{flex:1}\n.mono{font-family:var(--mono);font-size:12.5px} .hide{display:none!important}\n.sel{user-select:text}\n\n/* ---- the frame ---- */\n.shell{display:flex;flex-direction:column;min-height:100%}\n.side{position:static;border-radius:18px 18px 0 0;display:flex;align-items:center;gap:2px;flex-wrap:wrap;\n  background:var(--card);box-shadow:var(--sh-1);padding:8px 16px}\n.brand{padding:0 14px 0 2px}\n.brandname{font-family:var(--serif);font-size:16px;letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column;line-height:1}\n.brandsub{font-family:var(--sans);font-size:7.5px;font-weight:600;letter-spacing:.22em;color:var(--muted);margin-top:3px}\n.navgrp{background:transparent;color:var(--muted);box-shadow:none;border:0;font:inherit;font-size:13px;font-weight:600;padding:8px 12px;border-radius:var(--r-sm);cursor:pointer}\n.navgrp:hover{color:var(--ink);background:var(--hover)}\n.navgrp.here{color:var(--brand);background:var(--brand-bg);font-weight:800}\n.sidefoot{margin-left:auto;display:flex;align-items:center;gap:8px}\n.lm-tag{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);background:var(--warn-bg);color:var(--warn-ink);font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}\n.main{flex:1;min-width:0;width:100%;max-width:1560px;margin:0 auto;padding-inline:22px;padding-block:18px 48px}\n@media (max-width:640px){.main{padding-inline:16px}.side{padding:8px 12px;position:static}.brandsub{display:none}.frow select{flex:1 1 100%}}\n.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}\n.lm-h{font-family:var(--serif);font-weight:400;font-size:25px;margin:0}\n.topacts{margin-left:auto;display:flex;gap:8px;min-width:0;flex:0 1 280px}\n.topacts input{width:100%}\n\n/* ---- controls ---- */\nlabel{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}\ninput,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-ctl);padding:9px 12px;width:100%;min-width:0}\ninput:focus,select:focus,textarea:focus{outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}\ninput[readonly]{background:var(--soft);color:var(--muted)}\ninput::placeholder,textarea::placeholder{color:var(--faint)}\nbutton{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:10px 18px;background:var(--brand);color:var(--on-brand);\n  box-shadow:0 4px 12px rgba(74,106,146,.25);transition:background .12s,box-shadow .12s,transform .06s;white-space:nowrap}\nbutton:hover{background:var(--brand-ink)}\nbutton:active{transform:translateY(1px);box-shadow:none}\nbutton:focus-visible,a:focus-visible{outline:none;box-shadow:var(--ring)}\nbutton.ghost{background:var(--card);color:var(--muted);font-weight:600;box-shadow:var(--sh-1)}\nbutton.ghost:hover{color:var(--ink);box-shadow:var(--sh-2)}\nbutton.armed,button.ghost.armed{background:var(--bad);color:#fff}\n.btnlink{display:inline-flex;align-items:center;padding:10px 18px;border-radius:var(--r-ctl);background:var(--card);color:var(--brand-ink);font-weight:700;text-decoration:none;box-shadow:var(--sh-1)}\n.btnlink:hover{box-shadow:var(--sh-2)}\n.btnlink{gap:7px}\n.btnlink.wa,.jw-btn.wa{color:var(--wa)}\n.jw-btn.ico{width:32px;padding:0;display:inline-grid;place-items:center}\na.jw-btn{text-decoration:none}\n.frozen{padding:8px 11px;border-radius:var(--r-ctl);background:var(--soft);color:var(--ink);font-size:12.5px;min-width:200px}\n@media print{body *{visibility:hidden}#docPaper,#docPaper *{visibility:visible}#docPaper{position:absolute;left:0;top:0;box-shadow:none;margin:0;padding:0}}\n.jw-btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:var(--r-sm);background:var(--chip);color:var(--muted);font-weight:700;box-shadow:none}\n.jw-btn:hover{background:var(--line);color:var(--ink)}\n.jw-btn.jw-primary{background:var(--brand-bg);color:var(--brand-ink)}\n.jw-btn.jw-wa{background:var(--accent-bg);color:var(--accent)}\n.row{display:flex;gap:10px;flex-wrap:wrap}\n.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n.seg{display:inline-flex;background:var(--chip);border-radius:var(--r-sm);padding:3px;gap:2px}\n.segbtn{background:transparent;color:var(--muted);box-shadow:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:600}\n.segbtn:hover{background:transparent;color:var(--ink)}\n.segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}\n.segbtn .n{color:var(--faint);font-weight:500;margin-left:3px}\n\n/* ---- cards, figures, tables ---- */\n.card{background:var(--card);border-radius:var(--r-card);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sh-1);min-width:0}\n.kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}\n.kpi{flex:1 1 300px;background:var(--card);border-radius:var(--r-card);padding:13px 16px;box-shadow:var(--sh-1)}\n.kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}\n.kpiname{font-size:13px;font-weight:700} .kpiwhen{font-size:11px;color:var(--muted)}\n.metrics{display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between}\n.metric .v{font-size:19px;font-weight:700;line-height:1.2} .metric .l{font-size:11px;color:var(--muted);margin-top:2px}\n.ff-cap{font-size:12.5px;color:var(--muted);margin:0 0 8px;line-height:1.5;max-width:110ch}\n.ff-grid,.scroll{overflow-x:auto}\n.ok{background:var(--accent-bg);color:var(--accent);padding:11px 14px;border-radius:var(--r-sm);font-size:13.5px;border-left:3px solid var(--accent)}\n.err{background:var(--bad-bg);color:var(--bad);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--bad);margin-bottom:10px;line-height:1.5}\n.warn{background:var(--warn-bg);color:var(--warn-ink);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--warn-ink)}\ntable.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}\ntable.xl th,table.xl td{border-bottom:1px solid var(--line);padding:9px 11px;white-space:nowrap;background:var(--card);text-align:center;vertical-align:middle}\ntable.xl thead th{position:sticky;top:0;z-index:2;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--faint);text-transform:uppercase}\ntable.xl .frz{position:sticky;left:0;z-index:1;border-right:1px solid var(--line)}\ntable.xl thead th.frz{z-index:3}\ntable.xl tbody tr:nth-child(even) td{background:var(--zebra)}\ntable.xl tbody tr:hover td{background:var(--soft)}\ntable.xl tfoot td{background:var(--soft);font-weight:800}\ntable.xl.xl-dense th,table.xl.xl-dense td{padding:6px 8px;font-size:12.5px}\n.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;white-space:nowrap}\n.pill-ok{background:var(--accent-bg);color:var(--accent)} .pill-low{background:var(--warn-bg);color:var(--warn-ink)}\n.pill-out{background:var(--bad-bg);color:var(--bad)} .pill-sea{background:var(--brand-bg);color:var(--brand-ink)} .pill-mute{background:var(--chip);color:var(--muted)}\n.lm-note{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}\n.lm-why{font-size:12px;color:var(--muted);line-height:1.55;margin-top:8px}\n.lm-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px}\n.lm-lines td{padding:5px 6px} .lm-lines input,.lm-lines select{padding:6px 8px;font-size:12.5px}\n.lm-x{background:transparent;color:var(--bad);box-shadow:none;padding:4px 8px;font-size:15px}\n.lm-x:hover{background:var(--bad-bg)}\n\n/* ---- the dashboard ---- */\n.dashcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:14px;margin-bottom:14px}\n.dcard{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal}\n.dcard:hover{background:var(--card);box-shadow:var(--sh-2)}\n.dhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}\n.dicon{width:22px;height:22px;border-radius:7px;background:var(--chip);color:var(--brand-ink);display:inline-flex;align-items:center;justify-content:center;flex:none}\n.dtitle{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}\n.dchip{margin-left:auto;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:var(--accent-bg);color:var(--accent);white-space:nowrap}\n.dfig{font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.01em}\n.dsub{font-size:12px;color:var(--muted);margin-top:2px}\n.dsplit{display:flex;gap:30px;flex-wrap:wrap}\n.dnote{font-size:12px;color:var(--muted);margin-left:auto;padding-bottom:3px}\n.dash2col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:14px;align-items:stretch;margin-bottom:14px}\n\n/* ---- Greige POs: the figures, each one a filter ---- */\n.pobar{display:flex;gap:10px;flex-wrap:wrap;margin:-4px 0 14px}\n.gk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}\n.gk{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto;column-gap:8px;text-align:left;background:var(--card);color:var(--ink);\n  border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal;outline:1.5px solid transparent}\n.gk:hover{background:var(--card);box-shadow:var(--sh-2)}\n.gk.on{outline-color:var(--brand)}\n.gk-ic{grid-column:2;grid-row:1/3;width:34px;height:34px;border-radius:10px;display:grid;place-items:center}\n.gk-v{grid-column:1;font-size:21px;font-weight:800;letter-spacing:-.01em}\n.gk-l{grid-column:1;font-size:12.5px;color:var(--muted);font-weight:600}\n.gk-s{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:9px}\n.tone-blue{background:var(--brand-bg);color:var(--brand-ink)} .tone-amber{background:var(--warn-bg);color:var(--warn-ink)}\n.tone-green{background:var(--accent-bg);color:var(--accent)} .tone-red{background:var(--bad-bg);color:var(--bad)}\n.filters{padding:12px 14px;display:flex;flex-direction:column;gap:10px}\n.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}\n.frow select{flex:0 1 200px;width:auto;height:38px;padding-block:0}\n.pair{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0}\n.frow input[type=date]{width:160px;max-width:100%;height:38px;padding-block:0}\nlabel.inl{margin:0;font-size:12px}\n.frow2{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}\n.count{font-size:12.5px}\n.tablecard{padding:0;overflow:hidden}\n.t{width:100%;min-width:1080px;border-collapse:collapse}\n.t > thead th,.ct > thead th{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--card)}\n.t > tbody > tr > td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\nth.num,td.num{text-align:right;white-space:nowrap} th.ra{text-align:right} td.tl,th.tl{text-align:left}\n.xrow{cursor:pointer}\n.xrow:hover > td,.xrow.open > td{background:var(--soft)}\n.plus{color:var(--muted);font-weight:600}\n.w-chev{width:40px;padding-left:12px!important;padding-right:0!important}\n.chev{width:26px;height:26px;padding:0;background:transparent;box-shadow:none;border-radius:7px;display:grid;place-items:center;color:var(--muted)}\n.chev:hover{background:var(--line);color:var(--ink)}\n.chev svg{transition:transform .15s ease}\n.open > td .chev svg{transform:rotate(90deg)}\n.mill{display:flex;gap:10px;align-items:center}\n.av{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800}\n.av-a{background:var(--brand-bg);color:var(--brand-ink)} .av-b{background:var(--pink-bg);color:var(--pink)}\n.av-c{background:var(--accent-bg);color:var(--accent)} .av-d{background:var(--warn-bg);color:var(--warn-ink)}\n.prog{display:flex;align-items:center;gap:8px;font-weight:700}\n.actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;min-width:230px}\n.plate{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;background:var(--card);white-space:nowrap}\n.detail > td{padding:0!important;background:var(--soft);border-bottom:1px solid var(--line)}\n.panel{padding:6px 18px 18px 52px;display:flex;flex-direction:column;gap:12px}\n@media (max-width:640px){.panel{padding-left:14px}}\n.panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.panel-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}\n.lsum{display:flex;gap:10px;flex-wrap:wrap}\n.lchip{background:var(--card);border-radius:12px;padding:10px 13px;min-width:min(270px,100%);box-shadow:var(--sh-1)}\n.lchip .top2{display:flex;justify-content:space-between;gap:12px;font-size:13px}\n.lchip .due{color:var(--warn-ink)}\n.bar{height:5px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}\n.bar i{display:block;height:100%;background:var(--brand);border-radius:3px}\n.bar i.full{background:var(--accent)}\n.ct.li th{background:var(--card)}\n.ct.li td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct.li tr.tot td{border-bottom:0;font-weight:700;background:var(--soft)}\n.bar.sm{height:4px;margin-top:5px;min-width:70px}\n.box{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--sh-1)}\n.ct{width:100%;border-collapse:collapse}\n.ct > tbody > tr > td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct .xrow:hover > td,.ct .xrow.open > td{background:var(--brand-bg)}\n.empty{padding:18px;color:var(--muted);font-size:13.5px}\n.pieces{padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px;background:var(--soft)}\n.pieces-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}\n.pl-h{font-size:13px;margin-bottom:7px}\n.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}\n.pc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:3px}\n.pc.short{border-color:var(--bad-line);background:var(--bad-bg)}\n.pc-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}\n.pc-m{font-weight:700}\n.pc input{padding:4px 7px;font-size:13px;border-radius:7px}\n.pc-lab{font-size:11px;font-weight:500;color:var(--faint);margin:0}\n.d{font-weight:700} .d.short{color:var(--bad)} .d.extra{color:var(--ok-ink)} .d.ok{color:var(--faint);font-weight:500}\n.foot{font-size:12.5px;color:var(--muted);max-width:90ch;margin:4px 2px 0;line-height:1.55}\n\n/* ---- the receive drawer ---- */\n.scrim{position:fixed;inset:0;background:var(--scrim);z-index:1010}\n.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--card);z-index:1011;display:flex;flex-direction:column;box-shadow:var(--sh-3);\n  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}\n.dr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line)}\n.dr-head h2{font-size:19px;margin:2px 0 0}\n.crumb{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}\n.dr-body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}\n.dr-foot{border-top:1px solid var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}\n@media (max-width:520px){.dr-head,.dr-body,.dr-foot{padding-inline:16px}}\n.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n@media (max-width:520px){.grid2{grid-template-columns:1fr}}\n.fld{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted);margin:0}\n.fld small{font-weight:400;font-size:12px}\n.fld.wide{grid-column:1/-1}\n.sect{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}\n.sect span{font-weight:500;letter-spacing:0;text-transform:none}\n.dl{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--soft)}\n.prh,.pr{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 32px;gap:8px;align-items:center}\n.prh{font-size:11.5px;color:var(--faint);font-weight:600}\n.pr input{padding:7px 10px}\n.pr-i{font-size:12px;color:var(--faint);text-align:right}\n.x{width:32px;height:32px;padding:0;background:transparent;box-shadow:none;color:var(--muted);font-size:18px;line-height:1;border-radius:8px}\n.x:hover{background:var(--line);color:var(--ink)}\n.dl-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}\n.dl-sum{margin-left:auto;font-weight:700;font-size:13px}\n.link{background:none;box-shadow:none;color:var(--brand-ink);font-size:13px;font-weight:700;padding:2px 0}\n.link:hover{background:none;text-decoration:underline}\n.paste{display:flex;flex-direction:column;gap:8px}\n.paste textarea{min-height:84px;resize:vertical;font-family:var(--mono);font-size:13px}\n.warnline{font-size:12.5px;color:var(--warn-ink)}\n.note{font-size:12.5px;color:var(--muted)}\n.empty-sm{border:1px dashed var(--line);border-radius:12px;padding:16px;color:var(--muted);font-size:13.5px}\n.pohead{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}\n.pohead-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}\n.ct.mini th{padding:7px 8px;background:transparent}\n.ct.mini td{padding:7px 8px;font-size:12.5px}\n.ct.mini tr.tot td{border-bottom:0;font-weight:700}\n.due{color:var(--warn-ink)}\n.dl-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.lotf{flex:0 0 150px}\n.lotf input{font-family:var(--mono);font-weight:700}\n.supline{background:var(--brand-bg);color:var(--brand-ink);padding:10px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.55}\n.cellbtn{background:transparent;box-shadow:none;color:inherit;font:inherit;font-weight:inherit;padding:4px 8px;border-radius:8px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}\n.cellbtn:hover,.cellbtn.on{background:var(--brand-bg);color:var(--brand-ink);text-decoration:none}\n.cellbtn .caret{font-size:10px;opacity:.7}\ntr.invdet > td{background:var(--soft)!important;padding:4px 12px 14px!important;white-space:normal!important;text-align:left!important}\n.invdrop{display:flex;flex-direction:column;gap:8px}\n.balegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}\n.bale{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer}\n.bale input{width:15px;height:15px;flex:none}.bale b{margin-left:auto;font-variant-numeric:tabular-nums}\n.bale.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-ink)}\n.okline{background:var(--accent-bg);color:var(--accent);padding:8px 12px;border-radius:var(--r-sm);font-size:12.5px}\n.approvals{border-left:4px solid var(--warn-ink)}\n.closeline{display:flex;align-items:center;gap:9px;margin:0;font-size:13px;font-weight:600;color:var(--ink);background:var(--warn-bg);border-radius:var(--r-sm);padding:9px 12px}\n.closeline input{width:16px;height:16px;flex:none}\n.dr-total{display:flex;justify-content:space-between;gap:12px;font-weight:700;flex-wrap:wrap}\n.dr-btns{display:flex;justify-content:flex-end;gap:8px}\n\n/* ---- dialogs ---- */\n.modal{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}\n.modalbox{background:var(--card);border-radius:var(--r-card);padding:20px;width:min(720px,100%);max-height:92vh;overflow:auto;box-shadow:var(--sh-3)}\n.en-groups{display:flex;flex-direction:column;gap:7px;margin:4px 0 16px}\n.en-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}\n.en-gname{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);width:82px;flex:none}\n.en-chip{display:inline-flex;align-items:center;gap:7px;background:var(--chip);color:var(--ink);box-shadow:none;border-radius:var(--r-pill);padding:6px 13px;font-size:12.5px;font-weight:600}\n.en-chip:hover{background:var(--line);color:var(--ink)}\n.en-chip.on{background:var(--card);box-shadow:inset 0 0 0 1.5px var(--ink),var(--sh-1);font-weight:800}\n.en-dot{width:8px;height:8px;border-radius:50%;flex:none}\n.en-after{background:var(--brand-bg);color:var(--brand-ink);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.7;margin-bottom:10px}\n.en-after-h{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.75;margin-bottom:2px}\n.en-after .bad{color:var(--bad)}\n.docbox{width:min(860px,100%)}\n.docpaper{background:#ffffff;color:#000000;border-radius:8px;padding:16px;overflow-x:auto;box-shadow:inset 0 0 0 1px var(--line);margin:12px 0 16px}\n.mailbox{background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px;margin:8px 0 12px}\n.mailbox pre{margin:6px 0 0;white-space:pre-wrap;font:13px/1.5 var(--sans);color:var(--ink)}\n.err-in{color:var(--bad);font-weight:600}\n\n.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--toast-bg);color:var(--toast-fg);\n  padding:11px 16px;border-radius:12px;font-size:13.5px;z-index:80;width:max-content;max-width:calc(100% - 32px);box-shadow:var(--sh-3);border-left:4px solid var(--brand);z-index:1100}\n.toast.ok{border-left-color:var(--c-rfd)} .toast.warn{border-left-color:var(--c-greige)} .toast.err{border-left-color:var(--bad)}\n@media (prefers-reduced-motion: reduce){*{transition:none!important}}\n";
-  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">Greige · RFD · POs</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"number\" step=\"0.01\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"number\" step=\"0.01\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
+  var GD_CSS = "[hidden]{display:none!important} img{max-width:100%} \n/* Layout: the Replenish app's own frame -- a bar of screens across the top, soft cards on a tinted\n   ground -- with the greige work at its centre: each PO opens into its challans, each challan into its\n   bales, and receiving is a drawer from the right, opened from the PO itself. */\n:host{display:block;\n  --bg:#F3F5F8; --card:#ffffff; --soft:#F7F9FB; --chip:#EFF2F6; --hover:#EFF2F6; --zebra:#FBFCFE; --line:#E8EDF3;\n  --ink:#14181F; --muted:#5A6472; --faint:#98A1AE;\n  --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#ffffff;\n  --accent:#4A5A3C; --accent-bg:#EDF0E7; --ok-ink:#2F6B33;\n  --bad:#9B1C1C; --bad-bg:#FBE9E9; --bad-line:#EBB9B9;\n  --warn-ink:#8A5A12; --warn-bg:#FFF3D6; --proc-ink:#7F6000;\n  --pink:#9B3F86; --pink-bg:#F7E8F3;\n  --c-greige:#9A6410; --c-proc:#2F6DB5; --c-rfd:#3F7D3A; --wa:#128C3E;\n  --scrim:rgba(15,23,42,.45); --toast-bg:#14181F; --toast-fg:#ffffff;\n  --sh-1:0 2px 10px rgba(20,24,31,.05); --sh-2:0 4px 16px rgba(20,24,31,.09); --sh-3:0 24px 64px rgba(20,24,31,.22);\n  --ring:0 0 0 3px rgba(110,144,181,.32); --ring-line:#6E90B5;\n  --r-card:18px; --r-ctl:12px; --r-sm:10px; --r-pill:999px; --ctl:40px;\n  --sans:\"Plus Jakarta Sans\",ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;\n  --serif:\"Libre Caslon Text\",\"Iowan Old Style\",Baskerville,\"Times New Roman\",serif;\n  --mono:ui-monospace,\"Cascadia Mono\",Consolas,\"Courier New\",monospace;\n}\n\n\n\n*{box-sizing:border-box}\n.gdroot{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;border-radius:18px}\n.pill,.tnum,.metric .v,.dfig,.gk-v,.num,.prog,.pc-m,.pc input,.pr input{font-variant-numeric:tabular-nums}\nh1,h2{letter-spacing:-.02em;text-wrap:balance}\n.muted{color:var(--muted)} .b{font-weight:700} .sub{font-size:12px;color:var(--muted)} .grow{flex:1}\n.mono{font-family:var(--mono);font-size:12.5px} .hide{display:none!important}\n.sel{user-select:text}\n\n/* ---- the frame ---- */\n.shell{display:flex;flex-direction:column;min-height:100%}\n.side{position:static;border-radius:18px 18px 0 0;display:flex;align-items:center;gap:2px;flex-wrap:wrap;\n  background:var(--card);box-shadow:var(--sh-1);padding:8px 16px}\n.brand{padding:0 14px 0 2px}\n.brandname{font-family:var(--serif);font-size:16px;letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column;line-height:1}\n.brandsub{font-family:var(--sans);font-size:7.5px;font-weight:600;letter-spacing:.22em;color:var(--muted);margin-top:3px}\n.navgrp{background:transparent;color:var(--muted);box-shadow:none;border:0;font:inherit;font-size:13px;font-weight:600;padding:8px 12px;border-radius:var(--r-sm);cursor:pointer}\n.navgrp:hover{color:var(--ink);background:var(--hover)}\n.navgrp.here{color:var(--brand);background:var(--brand-bg);font-weight:800}\n.sidefoot{margin-left:auto;display:flex;align-items:center;gap:8px}\n.lm-tag{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);background:var(--warn-bg);color:var(--warn-ink);font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}\n.main{flex:1;min-width:0;width:100%;max-width:1560px;margin:0 auto;padding-inline:22px;padding-block:18px 48px}\n@media (max-width:640px){.main{padding-inline:16px}.side{padding:8px 12px;position:static}.brandsub{display:none}.frow select{flex:1 1 100%}}\n.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}\n.lm-h{font-family:var(--serif);font-weight:400;font-size:25px;margin:0}\n.topacts{margin-left:auto;display:flex;gap:8px;min-width:0;flex:0 1 480px;align-items:center}.toppick:empty{display:none}.histday-end td{border-bottom:2px solid var(--line)}.toppick{flex:0 0 auto}.toppick select{width:auto;min-width:150px;max-width:240px;height:var(--ctl)}\n.topacts input{width:100%}\n\n/* ---- controls ---- */\nlabel{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}\ninput,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-ctl);padding:9px 12px;width:100%;min-width:0}\ninput:focus,select:focus,textarea:focus{outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}\ninput[readonly]{background:var(--soft);color:var(--muted)}\ninput::placeholder,textarea::placeholder{color:var(--faint)}\nbutton{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:10px 18px;background:var(--brand);color:var(--on-brand);\n  box-shadow:0 4px 12px rgba(74,106,146,.25);transition:background .12s,box-shadow .12s,transform .06s;white-space:nowrap}\nbutton:hover{background:var(--brand-ink)}\nbutton:active{transform:translateY(1px);box-shadow:none}\nbutton:focus-visible,a:focus-visible{outline:none;box-shadow:var(--ring)}\nbutton.ghost{background:var(--card);color:var(--muted);font-weight:600;box-shadow:var(--sh-1)}\nbutton.ghost:hover{color:var(--ink);box-shadow:var(--sh-2)}\nbutton.armed,button.ghost.armed{background:var(--bad);color:#fff}\n.btnlink{display:inline-flex;align-items:center;padding:10px 18px;border-radius:var(--r-ctl);background:var(--card);color:var(--brand-ink);font-weight:700;text-decoration:none;box-shadow:var(--sh-1)}\n.btnlink:hover{box-shadow:var(--sh-2)}\n.btnlink{gap:7px}\n.btnlink.wa,.jw-btn.wa{color:var(--wa)}\n.jw-btn.ico{width:32px;padding:0;display:inline-grid;place-items:center}\na.jw-btn{text-decoration:none}\n.frozen{padding:8px 11px;border-radius:var(--r-ctl);background:var(--soft);color:var(--ink);font-size:12.5px;min-width:200px}\n@media print{body *{visibility:hidden}#docPaper,#docPaper *{visibility:visible}#docPaper{position:absolute;left:0;top:0;box-shadow:none;margin:0;padding:0}}\n.jw-btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:var(--r-sm);background:var(--chip);color:var(--muted);font-weight:700;box-shadow:none}\n.jw-btn:hover{background:var(--line);color:var(--ink)}\n.jw-btn.jw-primary{background:var(--brand-bg);color:var(--brand-ink)}\n.jw-btn.jw-wa{background:var(--accent-bg);color:var(--accent)}\n.row{display:flex;gap:10px;flex-wrap:wrap}\n.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n.seg{display:inline-flex;background:var(--chip);border-radius:var(--r-sm);padding:3px;gap:2px}\n.segbtn{background:transparent;color:var(--muted);box-shadow:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:600}\n.segbtn:hover{background:transparent;color:var(--ink)}\n.segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}\n.segbtn .n{color:var(--faint);font-weight:500;margin-left:3px}\n\n/* ---- cards, figures, tables ---- */\n.card{background:var(--card);border-radius:var(--r-card);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sh-1);min-width:0}\n.kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}\n.kpi{flex:1 1 300px;background:var(--card);border-radius:var(--r-card);padding:13px 16px;box-shadow:var(--sh-1)}\n.kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}\n.kpiname{font-size:13px;font-weight:700} .kpiwhen{font-size:11px;color:var(--muted)}\n.metrics{display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between}\n.metric .v{font-size:19px;font-weight:700;line-height:1.2} .metric .l{font-size:11px;color:var(--muted);margin-top:2px}\n.ff-cap{font-size:12.5px;color:var(--muted);margin:0 0 8px;line-height:1.5;max-width:110ch}\n.ff-grid,.scroll{overflow-x:auto}\n.ok{background:var(--accent-bg);color:var(--accent);padding:11px 14px;border-radius:var(--r-sm);font-size:13.5px;border-left:3px solid var(--accent)}\n.err{background:var(--bad-bg);color:var(--bad);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--bad);margin-bottom:10px;line-height:1.5}\n.warn{background:var(--warn-bg);color:var(--warn-ink);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--warn-ink)}\ntable.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}\ntable.xl th,table.xl td{border-bottom:1px solid var(--line);padding:9px 11px;white-space:nowrap;background:var(--card);text-align:center;vertical-align:middle}\ntable.xl thead th{position:sticky;top:0;z-index:2;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--faint);text-transform:uppercase}\ntable.xl .frz{position:sticky;left:0;z-index:1;border-right:1px solid var(--line)}\ntable.xl thead th.frz{z-index:3}\ntable.xl tbody tr:nth-child(even) td{background:var(--zebra)}\ntable.xl tbody tr:hover td{background:var(--soft)}\ntable.xl tfoot td{background:var(--soft);font-weight:800}\ntable.xl.xl-dense th,table.xl.xl-dense td{padding:6px 8px;font-size:12.5px}\n.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;white-space:nowrap}\n.pill-ok{background:var(--accent-bg);color:var(--accent)} .pill-low{background:var(--warn-bg);color:var(--warn-ink)}\n.pill-out{background:var(--bad-bg);color:var(--bad)} .pill-sea{background:var(--brand-bg);color:var(--brand-ink)} .pill-mute{background:var(--chip);color:var(--muted)}\n.lm-note{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}\n.lm-why{font-size:12px;color:var(--muted);line-height:1.55;margin-top:8px}\n.lm-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px}\n.lm-lines td{padding:5px 6px} .lm-lines input,.lm-lines select{padding:6px 8px;font-size:12.5px}\n.lm-x{background:transparent;color:var(--bad);box-shadow:none;padding:4px 8px;font-size:15px}\n.lm-x:hover{background:var(--bad-bg)}\n\n/* ---- the dashboard ---- */\n.dashcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:14px;margin-bottom:14px}\n.dcard{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal}\n.dcard:hover{background:var(--card);box-shadow:var(--sh-2)}\n.dhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}\n.dicon{width:22px;height:22px;border-radius:7px;background:var(--chip);color:var(--brand-ink);display:inline-flex;align-items:center;justify-content:center;flex:none}\n.dtitle{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}\n.dchip{margin-left:auto;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:var(--accent-bg);color:var(--accent);white-space:nowrap}\n.dfig{font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.01em}\n.dsub{font-size:12px;color:var(--muted);margin-top:2px}\n.dsplit{display:flex;gap:30px;flex-wrap:wrap}\n.dnote{font-size:12px;color:var(--muted);margin-left:auto;padding-bottom:3px}\n.dash2col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:14px;align-items:stretch;margin-bottom:14px}\n\n/* ---- Greige POs: the figures, each one a filter ---- */\n.pobar{display:flex;gap:10px;flex-wrap:wrap;margin:-4px 0 14px}\n.gk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}\n.gk{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto;column-gap:8px;text-align:left;background:var(--card);color:var(--ink);\n  border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal;outline:1.5px solid transparent}\n.gk:hover{background:var(--card);box-shadow:var(--sh-2)}\n.gk.on{outline-color:var(--brand)}\n.gk-ic{grid-column:2;grid-row:1/3;width:34px;height:34px;border-radius:10px;display:grid;place-items:center}\n.gk-v{grid-column:1;font-size:21px;font-weight:800;letter-spacing:-.01em}\n.gk-l{grid-column:1;font-size:12.5px;color:var(--muted);font-weight:600}\n.gk-s{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:9px}\n.tone-blue{background:var(--brand-bg);color:var(--brand-ink)} .tone-amber{background:var(--warn-bg);color:var(--warn-ink)}\n.tone-green{background:var(--accent-bg);color:var(--accent)} .tone-red{background:var(--bad-bg);color:var(--bad)}\n.filters{padding:12px 14px;display:flex;flex-direction:column;gap:10px}\n.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}\n.frow select{flex:0 1 200px;width:auto;height:38px;padding-block:0}\n.pair{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0}\n.frow input[type=date]{width:160px;max-width:100%;height:38px;padding-block:0}\nlabel.inl{margin:0;font-size:12px}\n.frow2{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}\n.count{font-size:12.5px}\n.tablecard{padding:0;overflow:hidden}\n.t{width:100%;min-width:1080px;border-collapse:collapse}\n.t > thead th,.ct > thead th{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--card)}\n.t > tbody > tr > td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\nth.num,td.num{text-align:right;white-space:nowrap} th.ra{text-align:right} td.tl,th.tl{text-align:left}\n.xrow{cursor:pointer}\n.xrow:hover > td,.xrow.open > td{background:var(--soft)}\n.plus{color:var(--muted);font-weight:600}\n.w-chev{width:40px;padding-left:12px!important;padding-right:0!important}\n.chev{width:26px;height:26px;padding:0;background:transparent;box-shadow:none;border-radius:7px;display:grid;place-items:center;color:var(--muted)}\n.chev:hover{background:var(--line);color:var(--ink)}\n.chev svg{transition:transform .15s ease}\n.open > td .chev svg{transform:rotate(90deg)}\n.mill{display:flex;gap:10px;align-items:center}\n.av{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800}\n.av-a{background:var(--brand-bg);color:var(--brand-ink)} .av-b{background:var(--pink-bg);color:var(--pink)}\n.av-c{background:var(--accent-bg);color:var(--accent)} .av-d{background:var(--warn-bg);color:var(--warn-ink)}\n.prog{display:flex;align-items:center;gap:8px;font-weight:700}\n.actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;min-width:230px}\n.plate{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;background:var(--card);white-space:nowrap}\n.detail > td{padding:0!important;background:var(--soft);border-bottom:1px solid var(--line)}\n.panel{padding:6px 18px 18px 52px;display:flex;flex-direction:column;gap:12px}\n@media (max-width:640px){.panel{padding-left:14px}}\n.panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.panel-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}\n.lsum{display:flex;gap:10px;flex-wrap:wrap}\n.lchip{background:var(--card);border-radius:12px;padding:10px 13px;min-width:min(270px,100%);box-shadow:var(--sh-1)}\n.lchip .top2{display:flex;justify-content:space-between;gap:12px;font-size:13px}\n.lchip .due{color:var(--warn-ink)}\n.bar{height:5px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}\n.bar i{display:block;height:100%;background:var(--brand);border-radius:3px}\n.bar i.full{background:var(--accent)}\n.ct.li th{background:var(--card)}\n.ct.li td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct.li tr.tot td{border-bottom:0;font-weight:700;background:var(--soft)}\n.bar.sm{height:4px;margin-top:5px;min-width:70px}\n.box{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--sh-1)}\n.ct{width:100%;border-collapse:collapse}\n.ct > tbody > tr > td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct .xrow:hover > td,.ct .xrow.open > td{background:var(--brand-bg)}\n.empty{padding:18px;color:var(--muted);font-size:13.5px}\n.pieces{padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px;background:var(--soft)}\n.pieces-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}\n.pl-h{font-size:13px;margin-bottom:7px}\n.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}\n.pc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:3px}\n.pc.short{border-color:var(--bad-line);background:var(--bad-bg)}\n.pc-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}\n.pc-m{font-weight:700}\n.pc input{padding:4px 7px;font-size:13px;border-radius:7px}\n.pc-lab{font-size:11px;font-weight:500;color:var(--faint);margin:0}\n.d{font-weight:700} .d.short{color:var(--bad)} .d.extra{color:var(--ok-ink)} .d.ok{color:var(--faint);font-weight:500}\n.foot{font-size:12.5px;color:var(--muted);max-width:90ch;margin:4px 2px 0;line-height:1.55}\n\n/* ---- the receive drawer ---- */\n.scrim{position:fixed;inset:0;background:var(--scrim);z-index:1010}\n.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--card);z-index:1011;display:flex;flex-direction:column;box-shadow:var(--sh-3);\n  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}\n.dr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line)}\n.dr-head h2{font-size:19px;margin:2px 0 0}\n.crumb{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}\n.dr-body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}\n.dr-foot{border-top:1px solid var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}\n@media (max-width:520px){.dr-head,.dr-body,.dr-foot{padding-inline:16px}}\n.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n@media (max-width:520px){.grid2{grid-template-columns:1fr}}\n.fld{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted);margin:0}\n.fld small{font-weight:400;font-size:12px}\n.fld.wide{grid-column:1/-1}\n.sect{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}\n.sect span{font-weight:500;letter-spacing:0;text-transform:none}\n.dl{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--soft)}\n.prh,.pr{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 32px;gap:8px;align-items:center}\n.prh{font-size:11.5px;color:var(--faint);font-weight:600}\n.pr input{padding:7px 10px}\n.pr-i{font-size:12px;color:var(--faint);text-align:right}\n.x{width:32px;height:32px;padding:0;background:transparent;box-shadow:none;color:var(--muted);font-size:18px;line-height:1;border-radius:8px}\n.x:hover{background:var(--line);color:var(--ink)}\n.dl-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}\n.dl-sum{margin-left:auto;font-weight:700;font-size:13px}\n.link{background:none;box-shadow:none;color:var(--brand-ink);font-size:13px;font-weight:700;padding:2px 0}\n.link:hover{background:none;text-decoration:underline}\n.paste{display:flex;flex-direction:column;gap:8px}\n.paste textarea{min-height:84px;resize:vertical;font-family:var(--mono);font-size:13px}\n.warnline{font-size:12.5px;color:var(--warn-ink)}\n.note{font-size:12.5px;color:var(--muted)}\n.empty-sm{border:1px dashed var(--line);border-radius:12px;padding:16px;color:var(--muted);font-size:13.5px}\n.pohead{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}\n.pohead-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}\n.ct.mini th{padding:7px 8px;background:transparent}\n.ct.mini td{padding:7px 8px;font-size:12.5px}\n.ct.mini tr.tot td{border-bottom:0;font-weight:700}\n.due{color:var(--warn-ink)}\n.dl-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.lotf{flex:0 0 150px}\n.lotf input{font-family:var(--mono);font-weight:700}\n.supline{background:var(--brand-bg);color:var(--brand-ink);padding:10px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.55}\n.cellbtn{background:transparent;box-shadow:none;color:inherit;font:inherit;font-weight:inherit;padding:4px 8px;border-radius:8px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}\n.cellbtn:hover,.cellbtn.on{background:var(--brand-bg);color:var(--brand-ink);text-decoration:none}\n.cellbtn .caret{font-size:10px;opacity:.7}\ntr.invdet > td{background:var(--soft)!important;padding:4px 12px 14px!important;white-space:normal!important;text-align:left!important}\n.invdrop{display:flex;flex-direction:column;gap:8px}\n.balegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}\n.bale{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer}\n.bale input{width:15px;height:15px;flex:none}.bale b{margin-left:auto;font-variant-numeric:tabular-nums}\n.bale.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-ink)}\n.okline{background:var(--accent-bg);color:var(--accent);padding:8px 12px;border-radius:var(--r-sm);font-size:12.5px}\n.approvals{border-left:4px solid var(--warn-ink)}\n.closeline{display:flex;align-items:center;gap:9px;margin:0;font-size:13px;font-weight:600;color:var(--ink);background:var(--warn-bg);border-radius:var(--r-sm);padding:9px 12px}\n.closeline input{width:16px;height:16px;flex:none}\n.dr-total{display:flex;justify-content:space-between;gap:12px;font-weight:700;flex-wrap:wrap}\n.dr-btns{display:flex;justify-content:flex-end;gap:8px}\n\n/* ---- dialogs ---- */\n.modal{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}\n.modalbox{background:var(--card);border-radius:var(--r-card);padding:20px;width:min(720px,100%);max-height:92vh;overflow:auto;box-shadow:var(--sh-3)}\n.en-groups{display:flex;flex-direction:column;gap:7px;margin:4px 0 16px}\n.en-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}\n.en-gname{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);width:82px;flex:none}\n.en-chip{display:inline-flex;align-items:center;gap:7px;background:var(--chip);color:var(--ink);box-shadow:none;border-radius:var(--r-pill);padding:6px 13px;font-size:12.5px;font-weight:600}\n.en-chip:hover{background:var(--line);color:var(--ink)}\n.en-chip.on{background:var(--card);box-shadow:inset 0 0 0 1.5px var(--ink),var(--sh-1);font-weight:800}\n.en-dot{width:8px;height:8px;border-radius:50%;flex:none}\n.en-after{background:var(--brand-bg);color:var(--brand-ink);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.7;margin-bottom:10px}\n.en-after-h{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.75;margin-bottom:2px}\n.en-after .bad{color:var(--bad)}\n.docbox{width:min(860px,100%)}\n.docpaper{background:#ffffff;color:#000000;border-radius:8px;padding:16px;overflow-x:auto;box-shadow:inset 0 0 0 1px var(--line);margin:12px 0 16px}\n.mailbox{background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px;margin:8px 0 12px}\n.mailbox pre{margin:6px 0 0;white-space:pre-wrap;font:13px/1.5 var(--sans);color:var(--ink)}\n.err-in{color:var(--bad);font-weight:600}\n\n.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--toast-bg);color:var(--toast-fg);\n  padding:11px 16px;border-radius:12px;font-size:13.5px;z-index:80;width:max-content;max-width:calc(100% - 32px);box-shadow:var(--sh-3);border-left:4px solid var(--brand);z-index:1100}\n.toast.ok{border-left-color:var(--c-rfd)} .toast.warn{border-left-color:var(--c-greige)} .toast.err{border-left-color:var(--bad)}\n@media (prefers-reduced-motion: reduce){*{transition:none!important}}\n";
+  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">Greige · RFD · POs</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><span id=\"lmTopPick\" class=\"toppick\"></span><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div style=\"margin-top:12px\"><label for=\"poTc\">Terms &amp; conditions (optional)</label><textarea id=\"poTc\" rows=\"4\" style=\"width:100%\" placeholder=\"Quality, delivery, payment and any other conditions the supplier must follow\"></textarea><div class=\"muted\" style=\"font-size:11px;margin-top:3px\">Starts with your standard terms from the PO settings; change them for this PO if needed. Printed on the PO and put in the mail.</div></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
 
 /* core/util.js -- Small shared helpers: escaping, number and date formatting, ids, lists in words.
  * An ES module. Its imports are worked out from the code by the split script. */
@@ -41,11 +41,23 @@ function money(n) {
  * which is UTC: from midnight to half past five in the morning, India time, every entry, PO and
  * "days out" count was stamped with yesterday's date. The date is built from the local calendar now,
  * which is also how every other date in this file is read back (Date.parse of 'YYYY-MM-DDT00:00:00'). */
-function lmToday() {
-  var d = new Date(), two = function (n) { return (n < 10 ? '0' : '') + n; };
+/** The business day (YYYY-MM-DD) on this PC's clock — today, or the day a stored moment (UTC) fell on. */
+function lmToday(moment) {
+  var d = moment ? new Date(moment) : new Date(), two = function (n) { return (n < 10 ? '0' : '') + n; };
   return d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate());
 }
 function uid() { return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+/* METRES AND RATES ARE TYPED AS NUMBERS ONLY (Ravi, 21 Nov: "only number can be entered and only upto 7 digits").
+ * Digits and one decimal point, up to 7 digits before it and 2 after (9,999,999.99); a discount % box takes 3 before
+ * it. The boxes are plain text boxes marked data-num="<digits before the point>", because a browser number box lets
+ * "e", "+" and "-" in and hides what was really typed. */
+var NUM_WHOLE_DIGITS = 7, NUM_DECIMALS = 2, PCT_WHOLE_DIGITS = 3;
+function cleanNumber(text, wholeDigits) {
+  var s = String(text == null ? '' : text).replace(/[^0-9.]/g, ''), dot = s.indexOf('.');
+  if (dot >= 0) s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, '');
+  var parts = s.split('.'), whole = parts[0].slice(0, wholeDigits || NUM_WHOLE_DIGITS);
+  return parts.length > 1 ? whole + '.' + parts[1].slice(0, NUM_DECIMALS) : whole;
+}
 function uniq(list) {
   var seen = {}, out = [];
   list.forEach(function (x) { var k = String(x || '').trim(); if (k && !seen[k]) { seen[k] = 1; out.push(k); } });
@@ -314,13 +326,6 @@ function lmSample() {
   };
 }
 
-function lmLoad() {
-  try {
-    var raw = localStorage.getItem(LM_KEY);
-    if (raw) { DB = JSON.parse(raw); if (DB && DB.fab && DB.gpo && DB.mst) { lmMigrate(); return; } }
-  } catch (e) { /* a blocked or cleared store is not a reason to show nothing */ }
-  DB = lmSample();
-}
 /* ANYTHING TYPED BEFORE THE COLUMNS WERE CUT STILL OPENS. The warp and weft used to be four boxes
  * (a count and a fold each); they are one box now, written the way a sales note writes it. */
 function lmMigrate() {
@@ -362,11 +367,6 @@ function lmMigrate() {
     });
   }
 }
-
-function lmSaveDb() { try { localStorage.setItem(LM_KEY, JSON.stringify(DB)); } catch (e) { /* nothing to do */ } }
-
-/** Put the sample registers back -- the Reset button. Done here because this file owns the register. */
-function lmResetSample() { DB = lmSample(); lmSaveDb(); }
 
 /* core/stock.js -- The stock rules: fabric names and specs, lot balances, the fabric roll-up, and what the ledger accepts.
  * An ES module. Its imports are worked out from the code by the split script. */
@@ -785,8 +785,16 @@ function gpoReceived(po) {
  * the two documents end up disagreeing. */
 function gpoLineMoney(l) {
   var gross = Math.round(((parseFloat(l.metres) || 0) * (parseFloat(l.rate) || 0)) * 100) / 100;
-  /* NO DISCOUNT ON A GREIGE PO (Ravi, 13 Oct): metres at the rate, nothing taken off. */
-  return { gross: gross, disc: 0, amount: gross, total: gross };
+  /* A DISCOUNT PER LINE, AS A PERCENT (Ravi, 21 Nov — it replaces "no discount on a greige PO", 13 Oct). Worked out in
+   * paise and rounded once, so the lines and the total always agree to the paisa. */
+  var disc = Math.round(gross * gpoDiscPct(l)) / 100;
+  var amount = Math.round((gross - disc) * 100) / 100;
+  return { gross: gross, disc: disc, amount: amount, total: amount };
+}
+/** A line's discount percent: 0 when none is typed; never below 0 or above 100. */
+function gpoDiscPct(l) {
+  var p = parseFloat(l && l.disc);
+  return isFinite(p) ? Math.min(100, Math.max(0, p)) : 0;
 }
 function gpoTotals(po) {
   return ((po && po.lines) || []).reduce(function (t, l) {
@@ -1011,6 +1019,11 @@ function dashAlerts() {
   (DB.fab || []).forEach(function (r) {
     if (r.approval && r.approval.status === 'pending') out.push({ bad: true, tag: 'Approve', what: nf(fabQty(r)) + ' m of RFD on ' + r.lot + ' shrank ' + r.approval.pct + '%', who: r.party + ', waiting for approval', go: 'po' });
   });
+  /* …and a PO the store asked to close: the accounts head approves it (Ravi, 21 Nov). */
+  (DB.gpo || []).forEach(function (po) {
+    if (po.closeAsk) out.push({ bad: true, tag: 'Approve', what: 'Close ' + po.poNo + ' with ' + nf(gpoProgress(po).pending) + ' m not supplied',
+      who: 'asked by ' + (po.closeAsk.by || 'the store') + ' on challan ' + (po.closeAsk.challan || '—'), go: 'po' });
+  });
 
   /* A cloth the cutting table cannot be given at all. */
   fabFlowRows(DB.fab || []).forEach(function (e) {
@@ -1174,6 +1187,7 @@ function render() {
   if (UI.tab === 'mst' && gdIsLinked()) UI.tab = 'po';   // in the app the masters are Setup's (no Master data tab)
   meFill();
   $('lmTitle').innerHTML = LM_TITLE[UI.tab];
+  $('lmTopPick').innerHTML = '';   // only the Inventory puts its cloth-type drop-down here
   var body = UI.tab === 'inv' ? renderInv()
     : UI.tab === 'ledger' ? renderLedger() : UI.tab === 'mst' ? renderMst() : renderPo();
   $('lmPane').innerHTML = body;
@@ -1206,6 +1220,16 @@ function armed(btn, words) {
 
 /* ---- wiring: the tabs, the search box, closing dialogs, the reset button --------------------------- */
 function wireShell() {
+  /* Every number box is cleaned as it is typed or pasted, before any other screen code reads it (capture phase). */
+  document.addEventListener('input', function (ev) {
+    var el = ev.target;
+    if (!el || !el.hasAttribute || !el.hasAttribute('data-num')) return;
+    var was = el.value, now = cleanNumber(was, parseInt(el.getAttribute('data-num'), 10));
+    if (now === was) return;
+    var at = el.selectionStart == null ? now.length : Math.max(0, el.selectionStart - (was.length - now.length));
+    el.value = now;
+    try { el.setSelectionRange(at, at); } catch (e) { /* the cursor goes to the end: nothing is lost */ }
+  }, true);
   document.addEventListener('click', function (ev) {
     var md = ev.target.closest ? ev.target.closest('[data-gdmd]') : null;
     if (md && typeof gdOpenMasterData === 'function') { gdOpenMasterData(md.getAttribute('data-gdmd')); return; }
@@ -1636,10 +1660,11 @@ function millCell(name) {
 /* ---- status, in words and colour ------------------------------------------------------------ */
 function poPill(po) {
   var st = gpoStatus(po), p = gpoProgress(po), late = gpoLateDays(po);
+  var asked = po.closeAsk ? ' · close asked by ' + esc(po.closeAsk.by || 'the store') : '';
   if (st === 'cancelled') return '<span class="pill pill-mute">Cancelled</span>';
-  if (st === 'received') return '<span class="pill pill-ok">' + I.check + ' Received' + (po.closed ? ' · ' + nf(po.closed.short) + ' m not supplied' : '') + '</span>';
-  if (st === 'part') return '<span class="pill ' + (late ? 'pill-out' : 'pill-low') + '">' + I.dot + ' Part received · ' + nf(p.pending) + ' m due' + (late ? ' · ' + late + ' d late' : '') + '</span>';
-  return '<span class="pill ' + (late ? 'pill-out' : 'pill-sea') + '">' + I.dot + ' Sent' + (late ? ' · ' + late + ' d late' : '') + '</span>';
+  if (st === 'received') return '<span class="pill pill-ok">' + I.check + ' Received' + (po.closed ? ' · ' + nf(gpoNotSupplied(po)) + ' m not supplied' : '') + '</span>';
+  if (st === 'part') return '<span class="pill ' + (late ? 'pill-out' : 'pill-low') + '">' + I.dot + ' Part received · ' + nf(p.pending) + ' m due' + (late ? ' · ' + late + ' d late' : '') + asked + '</span>';
+  return '<span class="pill ' + (late ? 'pill-out' : 'pill-sea') + '">' + I.dot + ' Sent' + (late ? ' · ' + late + ' d late' : '') + asked + '</span>';
 }
 function checkPill(c) {
   var k = chCheck(c);
@@ -1651,15 +1676,21 @@ function checkPill(c) {
 }
 
 /* ---- the filters ---------------------------------------------------------------------------- */
+/* "Closed short" is a Received PO that was closed before all of it came (Ravi, 21 Nov: it was hidden among the
+ * POs that got every metre). */
+var PO_STATUS_FILTERS = ['sent', 'part', 'received', 'closedshort', 'cancelled'];
+function poHasStatus(po, want) {
+  if (want === 'closedshort') return !!po.closed && gpoStatus(po) === 'received' && gpoNotSupplied(po) > 0.05;
+  return gpoStatus(po) === want;
+}
 function poPass(po) {
   if (PV.mill && po.mill !== PV.mill) return false;
   if (PV.from && po.date < PV.from) return false;
   if (PV.to && po.date > PV.to) return false;
-  var st = gpoStatus(po);
   if (PV.st === 'late' && !gpoLateDays(po)) return false;
   if (PV.st === 'tocheck' && !chOfPo(po.poNo).some(chToCheck)) return false;
   if (PV.st === 'short' && !chOfPo(po.poNo).some(function (c) { return chCheck(c).shortN > 0; })) return false;
-  if (['open', 'sent', 'part', 'received', 'closed', 'cancelled'].indexOf(PV.st) >= 0 && st !== PV.st) return false;
+  if (PO_STATUS_FILTERS.indexOf(PV.st) >= 0 && !poHasStatus(po, PV.st)) return false;
   if (UI.q) {
     var hay = [po.poNo, po.mill].concat((po.lines || []).map(function (l) { return l.greige + ' ' + l.rfd + ' ' + (l.desc || ''); }),
       chOfPo(po.poNo).map(function (c) { return c.no + ' ' + c.vehicle + ' ' + c.lr + ' ' + c.rows.map(function (r) { return r.lot; }).join(' '); })).join(' ').toLowerCase();
@@ -1675,7 +1706,7 @@ function chPass(c) {
   if (PV.st === 'tocheck' && !chToCheck(c)) return false;
   if (PV.st === 'short' && !(chCheck(c).shortN > 0)) return false;
   if (PV.st === 'late' && !(po && gpoLateDays(po))) return false;
-  if (['open', 'sent', 'part', 'received', 'closed', 'cancelled'].indexOf(PV.st) >= 0 && !(po && gpoStatus(po) === PV.st)) return false;
+  if (PO_STATUS_FILTERS.indexOf(PV.st) >= 0 && !(po && poHasStatus(po, PV.st))) return false;
   if (UI.q) {
     var hay = [c.no, c.mill, c.po, c.transporter, c.invoice, c.lr].concat(c.rows.map(function (r) { return r.fabricType + ' ' + r.lot + ' ' + fabRfdOfGreige(r.fabricType); })).join(' ').toLowerCase();
     if (hay.indexOf(UI.q) < 0) return false;
@@ -1739,7 +1770,7 @@ function piecesHtml(c) {
           var key = r.id + '|' + pi, id = 'pc-' + r.id + '-' + pi, short = p.chk != null && p.chk - p.m <= -0.05;
           return '<div class="pc' + (short ? ' short' : '') + '" id="' + id + '"><div class="pc-top"><span>Bale ' + esc(p.than) + '</span><span id="pd-' + r.id + '-' + pi + '">' + diffSpan(p) + '</span></div>'
             + '<div class="pc-m">' + m1(p.m) + ' m</div>'
-            + '<label class="pc-lab" for="chk-' + r.id + '-' + pi + '">measured</label><input id="chk-' + r.id + '-' + pi + '" type="number" step="0.1" min="0" inputmode="decimal" data-chk="' + esc(key) + '" value="' + (p.chk == null ? '' : p.chk) + '" placeholder="m"></div>';
+            + '<label class="pc-lab" for="chk-' + r.id + '-' + pi + '">measured</label><input id="chk-' + r.id + '-' + pi + '" type="text" inputmode="decimal" autocomplete="off" data-num="7" data-chk="' + esc(key) + '" value="' + (p.chk == null ? '' : p.chk) + '" placeholder="m"></div>';
         }).join('') + '</div></div>';
     }).join('') + '</div>';
 }
@@ -1750,7 +1781,7 @@ function poRow(po) {
   var chs = chOfPo(po.poNo), open = !!PV.openPo[po.poNo], l0 = (po.lines || [])[0] || {}, more = (po.lines || []).length - 1;
   var acts = '';
   var canRcv = ['open', 'sent', 'part'].indexOf(st) >= 0 && p.pending > 0.05;
-  if (canRcv) acts += '<button type="button" class="jw-btn jw-primary" data-rcv="' + esc(po.poNo) + '">Receive</button>';
+  if (canRcv) acts += '<button type="button" class="jw-btn jw-primary" data-rcv="' + esc(po.poNo) + '">Receive greige</button>';
   if (issLotsOf(po).length) acts += '<button type="button" class="jw-btn jw-wa" data-iss="' + esc(po.poNo) + '">Issue to RFD</button>';
   if (rrLotsOf(po).length) acts += '<button type="button" class="jw-btn jw-wa" data-rr="' + esc(po.poNo) + '">Receive RFD</button>';
   if (['open', 'sent', 'part'].indexOf(st) >= 0) acts += '<button type="button" class="jw-btn" data-pedit="' + esc(po.poNo) + '">Edit</button>';
@@ -1779,7 +1810,7 @@ function poPanel(po) {
   var items = p.lines.map(function (l, i) {
     var pc = l.ordered ? Math.min(100, l.received / l.ordered * 100) : 0, m = gpoLineMoney(l);
     var sent = fabLots().filter(function (g) { return String(g.poNo).toUpperCase() === po.poNo.toUpperCase() && String(g.fabricType).toLowerCase() === String(l.greige).toLowerCase(); }).reduce(function (s, g) { return s + g.toRfd; }, 0);
-    var left = l.pending > 0.05 ? '<b class="due">' + nf(l.pending) + ' m</b>'
+    var left = l.pending > 0.05 ? stillDueCell(po, l.pending)
       : (l.received > l.ordered + 0.05 ? '<span class="d extra">' + nf(l.received - l.ordered) + ' m extra</span>' : '<span class="pill pill-ok">complete</span>');
     return '<tr><td class="num muted">' + (i + 1) + '</td>'
       + '<td class="tl"><b>' + esc(lineGreigeText(l)) + '</b><div class="sub">' + esc(l.greige) + '</div></td>'
@@ -1795,7 +1826,7 @@ function poPanel(po) {
   var lineTable = '<div class="box scroll"><table class="ct li"><thead><tr><th class="num">#</th><th>Greige fabric</th><th>RFD ready fabric</th><th>Due on</th>'
     + '<th class="num">Ordered</th><th class="num">Received</th><th class="num">Still due</th><th class="num">Sent to RFD</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>'
     + '<tbody>' + items + '<tr class="tot"><td></td><td class="tl" colspan="3">Total</td><td class="num">' + nf(p.ordered) + ' m</td><td class="num">' + nf(p.received) + ' m</td>'
-    + '<td class="num">' + (p.pending > 0.05 ? '<b class="due">' + nf(p.pending) + ' m</b>' : '—') + '</td><td></td><td></td><td class="num b">' + RUPEE + money(t.amount) + '</td></tr></tbody></table></div>';
+    + '<td class="num">' + (p.pending > 0.05 ? stillDueCell(po, p.pending) : '—') + '</td><td></td><td></td><td class="num b">' + RUPEE + money(t.amount) + '</td></tr></tbody></table></div>';
   var head = '<div class="panel-head"><div class="sect">Line items</div>'
     + '<div class="row">' + (issLotsOf(po).length ? '<button type="button" class="ghost" data-iss="' + esc(po.poNo) + '">Issue to RFD</button>' : '')
     + (rrLotsOf(po).length ? '<button type="button" class="ghost" data-rr="' + esc(po.poNo) + '">Receive RFD</button>' : '')
@@ -1811,13 +1842,43 @@ function poPanel(po) {
       + chs.map(function (c) { return chRow(c, false); }).join('') + '</tbody></table></div>';
   }
   var sups = (DB.gpo || []).filter(function (x) { return x.supplementOf === po.poNo; });
-  var foot = (sups.length ? '<div class="panel-foot"><span>Supplement POs: ' + sups.map(function (x) { return '<b>' + esc(x.poNo) + '</b> (' + nf(gpoTotals(x).metres) + ' m)'; }).join(', ') + '</span></div>' : '') + '<div class="panel-foot"><span class="muted">' + esc(inrWords(t.amount)) + '</span><span class="grow"></span>'
-    + (po.closed ? '<span class="muted">Closed ' + esc(fmtD(po.closed.at)) + ' · ' + nf(po.closed.short) + ' m not supplied (' + esc(po.closed.by || '') + ')</span>'
-      + '<button type="button" class="ghost" id="pc-' + esc(po.id) + '" data-pclose="' + esc(po.poNo) + '">Reopen the PO</button>'
-      : (st === 'part' ? '<button type="button" class="ghost" id="pc-' + esc(po.id) + '" data-pclose="' + esc(po.poNo) + '">Close the PO</button>' : ''))
-
-    + '<button type="button" class="ghost" data-doc="' + esc(po.poNo) + '">Open the PO</button></div>';
+  /* "Open the PO" is gone from here (Ravi, 21 Nov): Print and the mail button on the PO's row open the same page. */
+  var foot = (sups.length ? '<div class="panel-foot"><span>Supplement POs: ' + sups.map(function (x) { return '<b>' + esc(x.poNo) + '</b> (' + nf(gpoTotals(x).metres) + ' m)'; }).join(', ') + '</span></div>' : '')
+    + '<div class="panel-foot"><span class="muted">' + esc(inrWords(t.amount)) + '</span><span class="grow"></span>' + poCloseNote(po) + poCloseButtons(po) + '</div>'
+    + poHistoryHtml(po);
   return '<div class="panel">' + head + list + foot + '</div>';
+}
+/** A line's "still due": amber while the PO is open; on a closed PO it is what was never supplied, in grey. */
+function stillDueCell(po, m) {
+  return po.closed ? '<span class="muted">' + nf(m) + ' m not supplied</span>' : '<b class="due">' + nf(m) + ' m</b>';
+}
+/** Who closed or cancelled it, a close the store asked for, or one the accounts head turned down. */
+function poCloseNote(po) {
+  if (po.closed) return '<span class="muted">Closed ' + esc(fmtD(po.closed.at)) + ' · ' + nf(gpoNotSupplied(po)) + ' m not supplied (' + esc(gpoClosedBy(po)) + ')</span>';
+  if (po.status === 'cancelled') return '<span class="muted">Cancelled ' + esc(fmtD((po.cancelled || {}).at)) + (po.cancelled && po.cancelled.by ? ' by ' + esc(po.cancelled.by) : '') + '</span>';
+  if (po.closeAsk) return '<span class="pill pill-low">Close asked by ' + esc(po.closeAsk.by || 'the store') + ' on challan ' + esc(po.closeAsk.challan || '') + ' · waiting for accounts</span>';
+  if (po.closeDown) return '<span class="muted">Close turned down by ' + esc(po.closeDown.by || '') + ': ' + esc(po.closeDown.reason || '') + '</span>';
+  return '';
+}
+/** Close / Reopen / Cancel / Undo cancel: for the accounts department only (right gdpo). */
+function poCloseButtons(po) {
+  if (!canPoClose()) return '';
+  var st = gpoStatus(po), id = esc(po.id), no = esc(po.poNo), btn = function (pre, attr, words) {
+    return '<button type="button" class="ghost" id="' + pre + id + '" ' + attr + '="' + no + '">' + words + '</button>';
+  };
+  if (po.closed) return btn('pc-', 'data-pclose', 'Reopen the PO');
+  if (st === 'cancelled') return btn('px-', 'data-pcancel', 'Undo cancel');
+  var nothingCame = gpoProgress(po).received <= 0.05;
+  return (st === 'sent' || st === 'part' ? btn('pc-', 'data-pclose', 'Close the PO') : '') + (nothingCame ? btn('px-', 'data-pcancel', 'Cancel the PO') : '');
+}
+/** The PO's own history: every close, cancel, reopen, request and decision, newest first. */
+function poHistoryHtml(po) {
+  var log = (po.log || []).slice().reverse();
+  if (!log.length) return '';
+  return '<div class="panel-foot" style="display:block"><div class="sect" style="margin:0 0 4px">History</div>'
+    + log.map(function (e) {
+      return '<div class="sub">' + esc(fmtD(lmToday(e.at))) + ' · <b>' + esc(e.what) + '</b>' + (e.by ? ' by ' + esc(e.by) : '') + (e.note ? ' · ' + esc(e.note) : '') + '</div>';
+    }).join('') + '</div>';
 }
 /* One challan row; `wide` adds the mill and the PO for the Challans view. */
 function chRow(c, wide) {
@@ -1846,7 +1907,8 @@ function renderPo() {
   var bar = '<div class="pobar"><button type="button" data-act="po">+ Greige PO</button>'
     + '<span class="muted" style="align-self:center;font-size:12.5px">Greige is received against its PO: press <b>Receive</b> on an open PO.</span></div>';
   var filters = '<div class="card filters"><div class="frow">'
-    + '<select id="pvSt" aria-label="Status">' + opt('', 'Any status', PV.st) + opt('sent', 'Sent', PV.st) + opt('part', 'Part received', PV.st) + opt('received', 'Received', PV.st) + '</select>'
+    + '<select id="pvSt" aria-label="Status">' + opt('', 'Any status', PV.st) + opt('sent', 'Sent', PV.st) + opt('part', 'Part received', PV.st) + opt('received', 'Received', PV.st)
+    + opt('closedshort', 'Closed short', PV.st) + opt('cancelled', 'Cancelled', PV.st) + '</select>'
     + '<select id="pvMill" aria-label="Supplier">' + opt('', 'All suppliers', PV.mill) + mills.map(function (m) { return opt(m, m, PV.mill); }).join('') + '</select>'
     + '<span class="pair"><label class="inl" for="pvFrom">From</label><input id="pvFrom" type="date" value="' + esc(PV.from) + '"></span>'
     + '<span class="pair"><label class="inl" for="pvTo">To</label><input id="pvTo" type="date" value="' + esc(PV.to) + '"></span>'
@@ -1867,9 +1929,9 @@ function renderPo() {
         + '<th class="num">Pieces</th><th class="num">Metres</th><th>Checked</th></tr></thead><tbody>' + chs.map(function (c) { return chRow(c, true); }).join('') + '</tbody></table>'
       : '<div class="empty">No challan matches these filters.</div>';
   }
-  return bar + rrApprovalsHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
+  return bar + rrApprovalsHtml() + closeAsksHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
     + '<p class="foot">A PO rarely comes in one go. The supplier sends greige over several challans, and each challan is a bundle '
-    + 'of bales with the metres written against them. When the last one is in, close the PO and what never came is written on it. Every challan is written into the fabric ledger as a new lot, so stock, the '
+    + 'of bales with the metres written against them. When the last one is in, accounts close the PO and what never came is written on it. Every challan is written into the fabric ledger as a new lot, so stock, the '
     + 'processor and the dashboard count it at once.</p>';
 }
 
@@ -1931,7 +1993,7 @@ function rdDraw() {
       + ps.map(function (p, pi) {
         return '<div class="pr"><span class="pr-i">' + (pi + 1) + '</span>'
           + '<input id="pt-' + li + '-' + pi + '" data-li="' + li + '" data-pi="' + pi + '" data-f="than" value="' + esc(p.than) + '" placeholder="Bale no." aria-label="Bale number ' + (pi + 1) + '">'
-          + '<input id="pm-' + li + '-' + pi + '" data-li="' + li + '" data-pi="' + pi + '" data-f="m" type="number" step="0.1" min="0" inputmode="decimal" value="' + esc(p.m) + '" placeholder="Metres" aria-label="Metres, bale ' + (pi + 1) + '">'
+          + '<input id="pm-' + li + '-' + pi + '" data-li="' + li + '" data-pi="' + pi + '" data-f="m" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(p.m) + '" placeholder="Metres" aria-label="Metres, bale ' + (pi + 1) + '">'
           + '<button type="button" class="x" data-dr="rm" data-li="' + li + '" data-pi="' + pi + '" aria-label="Remove bale ' + (pi + 1) + '">×</button></div>';
       }).join('')
       + '<div class="dl-actions"><button type="button" class="jw-btn" data-dr="add" data-li="' + li + '">+ Bale</button>'
@@ -1973,7 +2035,9 @@ function rdSums() {
   $('dTotal').innerHTML = '<span>Challan total</span><span class="tnum">' + plural(tp, 'bale') + ' · ' + m1(tm) + ' m</span>';
   /* THE LAST CHALLAN CLOSES THE PO -- offered only while something would still be left open. */
   $('dCloseWrap').hidden = !(after > 0.05);
-  $('dCloseTxt').textContent = 'This is the supplier’s last challan: close the PO with ' + nf(after) + ' m not supplied';
+  /* Accounts close it at once; anyone else's tick asks the accounts head (Ravi, 21 Nov). */
+  $('dCloseTxt').textContent = canPoClose() ? 'This is the supplier’s last challan: close the PO with ' + nf(after) + ' m not supplied'
+    : 'This is the supplier’s last challan: ask accounts to close the PO (' + nf(after) + ' m not supplied)';
 }
 function openDrawer(poNo) {
   var po = poFind(poNo), st = gpoStatus(po);
@@ -2040,8 +2104,8 @@ function rdSave() {
   var supLines = lines.filter(function (l) { return l.sup > 0; }), sup = null;
   if (supLines.length) {
     sup = { id: uid(), poNo: supNoFor(po), date: lmToday(), mill: po.mill, sent: { at: lmToday() }, supplementOf: po.poNo,
-      pay: po.pay || '', disp: po.disp || '', dest: po.dest || '', terms: po.terms || '', other: 'Supplement to ' + po.poNo + ', challan ' + no,
-      lines: supLines.map(function (l) { var pl = po.lines[l.li]; return { rfd: pl.rfd, greige: pl.greige, desc: pl.desc || ('RFD ready: ' + pl.rfd), due: lmToday(), metres: l.sup, rate: pl.rate }; }) };
+      pay: po.pay || '', disp: po.disp || '', dest: po.dest || '', terms: po.terms || '', tc: po.tc || '', other: 'Supplement to ' + po.poNo + ', challan ' + no,
+      lines: supLines.map(function (l) { var pl = po.lines[l.li]; return { rfd: pl.rfd, greige: pl.greige, desc: pl.desc || ('RFD ready: ' + pl.rfd), due: lmToday(), metres: l.sup, rate: pl.rate, disc: pl.disc }; }) };
     DB.gpo.push(sup);
   }
   lines.forEach(function (l) {
@@ -2052,25 +2116,145 @@ function rdSave() {
     if (l.sup) DB.fab.push({ id: uid(), chId: chId, date: date, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
       qty: l.sup, party: po.mill, bill: no, orderNo: sup.poNo, supplementOf: po.poNo, lr: lr, invoice: inv, transporter: trn, done: false });
   });
-  var closing = $('dClose').checked && !$('dCloseWrap').hidden, shortM = 0;
-  if (closing) { shortM = gpoProgress(po).pending; po.closed = { at: date, short: shortM, by: 'challan ' + no }; }
+  var lastOne = $('dClose').checked && !$('dCloseWrap').hidden, endWords = '';
+  if (lastOne) endWords = ' ' + poLastChallan(po, no, meUser().name);
+  else if (po.closeAsk && gpoStatus(po) === 'received') gpoClearAsk(po, meUser().name, 'everything has come');
   lmSaveDb();
   PV.openPo[po.poNo] = true; PV.openCh[chId] = true;
   var c = chBy(chId);
   closeDrawer(); if (UI.tab !== 'inv') UI.tab = 'po'; render();
   lmSay('ok', 'Challan ' + no + ' in against ' + po.poNo + ': ' + plural(chPcs(c), 'bale') + ', ' + m1(chM(c)) + ' m, as '
-    + lmList(lines.map(function (l) { return l.lot; })) + '.' + (closing ? ' ' + po.poNo + ' closed with ' + nf(shortM) + ' m not supplied.' : '')
+    + lmList(lines.map(function (l) { return l.lot; })) + '.' + endWords
     + (sup ? ' Supplement PO ' + sup.poNo + ' raised and received for ' + nf(gpoTotals(sup).metres) + ' m.' : ''));
 }
-/* CLOSING A PO BY HAND: the supplier has said the rest is not coming. What did come stays; what did not is
- * written on the PO as not supplied, and the PO leaves every "still due" figure. Reopened, it counts again. */
+/* ==== CLOSING, CANCELLING AND THE STORE'S CLOSE REQUEST (Ravi, 21 Nov) ====
+ * A PO is closed when the supplier has said the rest is not coming: what did come stays, what did not is "not supplied"
+ * and the PO leaves every "still due" figure. A PO nothing ever came on can also be cancelled (the order was called off).
+ * WHO: closing, cancelling and reopening are the accounts department's (right gdpo). The store's "last challan" tick only
+ * ASKS; the accounts head (right gdpoappr) approves it, or turns it down with a reason. Accounts' own tick closes at once.
+ * "NOT SUPPLIED" is ordered − received, worked out every time (gpoNotSupplied), so a challan removed after the close still
+ * shows the right figure. closed.short is still written for older readers, never read.
+ * Every close, cancel, reopen, request and decision adds a line to the PO's own history (po.log): what, when (UTC), who.
+ * ERRORS: these rules change only the PO; saving is lmSaveDb's (a failed save says "Not saved"). A press without the
+ * right, or a turn-down without a reason, is refused with a message saying what to do — never ignored quietly. */
+var canPoClose = function () { return gdHas('gdpo'); };
+var canPoApprove = function () { return gdHas('gdpoappr'); };
+
+/** The metres a closed PO will never get: ordered and not come, worked out now. 0 for a PO that is not closed. */
+function gpoNotSupplied(po) { return po && po.closed ? gpoProgress(po).pending : 0; }
+/** Who closed it, in words: "by hand, Priya" / "asked by Ramesh on challan SBM/1241, approved, Neha". Older closes
+ *  wrote only `by` ("closed by hand", "challan SBM/1241"). */
+function gpoClosedBy(po) {
+  var c = po.closed || {};
+  return c.how ? c.how + (c.by ? ', ' + c.by : '') : (c.by || '');
+}
+/** One line in the PO's own history. */
+function gpoLog(po, what, who, note) {
+  po.log = (po.log || []).concat([{ at: new Date().toISOString(), what: what, by: who || '', note: note || '' }]);
+}
+/** Close the PO; a request still waiting is answered by it. Returns the metres not supplied. */
+function gpoClose(po, who, how, day) {
+  var short = gpoProgress(po).pending;
+  if (po.closeAsk) gpoClearAsk(po, who, 'the PO was closed');
+  po.closed = { at: day || lmToday(), short: short, by: who || '', how: how };
+  delete po.closeDown;
+  gpoLog(po, 'closed', who, how + ' · ' + nf(short) + ' m not supplied');
+  return short;
+}
+function gpoReopen(po, who) { delete po.closed; gpoLog(po, 'reopened', who, nf(gpoProgress(po).pending) + ' m due again'); }
+/** Cancel: only a PO nothing has come on. Returns why not, or ''. */
+function gpoCancel(po, who) {
+  if (gpoProgress(po).received > 0.05) return po.poNo + ' has greige in already, so it cannot be cancelled. Close it instead.';
+  if (po.closeAsk) gpoClearAsk(po, who, 'the PO was cancelled');
+  po.status = 'cancelled'; po.cancelled = { at: lmToday(), by: who || '' };
+  gpoLog(po, 'cancelled', who);
+  return '';
+}
+function gpoUncancel(po, who) { delete po.status; delete po.cancelled; gpoLog(po, 'cancel undone', who); }
+/** The store's request to close, made with the challan it came on. A newer request replaces an older one. */
+function gpoAskClose(po, who, challan) {
+  po.closeAsk = { at: new Date().toISOString(), by: who || '', challan: challan || '' };
+  delete po.closeDown;
+  gpoLog(po, 'close asked', who, 'on challan ' + (challan || '—') + ' · ' + nf(gpoProgress(po).pending) + ' m not come');
+}
+function gpoClearAsk(po, who, why) { delete po.closeAsk; gpoLog(po, 'close request cleared', who, why); }
+/** The accounts head's answer to a request. Returns why it could not be done, or ''. */
+function gpoDecideAsk(po, who, approve, reason) {
+  var ask = po.closeAsk;
+  if (!ask) return 'No close request is waiting on ' + po.poNo + '.';
+  if (!approve && !String(reason || '').trim()) return 'Type why the close is turned down, so the store knows.';
+  delete po.closeAsk;
+  if (approve) { gpoClose(po, who, 'asked by ' + (ask.by || 'the store') + ' on challan ' + (ask.challan || '—') + ', approved'); return ''; }
+  po.closeDown = { at: new Date().toISOString(), by: who || '', reason: String(reason).trim(), askedBy: ask.by || '' };
+  gpoLog(po, 'close turned down', who, String(reason).trim());
+  return '';
+}
+/** The "last challan" tick on a saved challan: accounts close the PO, anyone else asks. Returns the words for the message. */
+function poLastChallan(po, no, who) {
+  if (canPoClose()) return po.poNo + ' closed with ' + nf(gpoClose(po, who, 'on challan ' + no)) + ' m not supplied.';
+  gpoAskClose(po, who, no);
+  return 'Accounts are asked to close ' + po.poNo + '; until then it stays open.';
+}
+
+/* ---- the buttons ---- */
+var NOT_ACCOUNTS = 'Closing, cancelling and reopening a greige PO is for the accounts department. Ask them to do it.';
+/** Close the PO / Reopen the PO (each asks for a second press). */
 function poCloseToggle(no, btn) {
   var po = poFind(no); if (!po) return;
-  if (po.closed) { delete po.closed; lmSaveDb(); render(); lmSay('ok', po.poNo + ' is open again: ' + nf(gpoProgress(po).pending) + ' m due.'); return; }
+  if (!canPoClose()) { lmSay('warn', NOT_ACCOUNTS); return; }
+  var who = meUser().name;
+  if (po.closed) {
+    if (!armed(btn, 'Press again to reopen ' + po.poNo)) return;
+    gpoReopen(po, who); lmSaveDb(); render();
+    lmSay('ok', po.poNo + ' is open again: ' + nf(gpoProgress(po).pending) + ' m due.');
+    return;
+  }
   var due = gpoProgress(po).pending;
   if (!armed(btn, 'Press again to close with ' + nf(due) + ' m not supplied')) return;
-  po.closed = { at: lmToday(), short: due, by: 'closed by hand' };
-  lmSaveDb(); render(); lmSay('ok', po.poNo + ' closed. ' + nf(due) + ' m was not supplied.');
+  gpoClose(po, who, 'by hand'); lmSaveDb(); render();
+  lmSay('ok', po.poNo + ' closed. ' + nf(due) + ' m was not supplied.');
+}
+/** Cancel the PO / Undo cancel (each asks for a second press). */
+function poCancelToggle(no, btn) {
+  var po = poFind(no); if (!po) return;
+  if (!canPoClose()) { lmSay('warn', NOT_ACCOUNTS); return; }
+  var who = meUser().name, undo = gpoStatus(po) === 'cancelled';
+  if (!armed(btn, undo ? 'Press again to bring ' + po.poNo + ' back' : 'Press again to cancel ' + po.poNo)) return;
+  if (undo) { gpoUncancel(po, who); lmSaveDb(); render(); lmSay('ok', po.poNo + ' is back: ' + nf(gpoProgress(po).pending) + ' m due.'); return; }
+  var why = gpoCancel(po, who);
+  if (why) { lmSay('warn', why); return; }
+  lmSaveDb(); render(); lmSay('ok', po.poNo + ' cancelled. It no longer counts as due.');
+}
+/** The accounts head approves a close request, or turns it down with the reason typed beside it. */
+function poAskDecide(no, approve, btn) {
+  var po = poFind(no); if (!po) return;
+  if (!canPoApprove()) { lmSay('warn', 'Only the accounts head approves closing a PO.'); return; }
+  var reason = approve ? '' : (($('pkr-' + po.id) || {}).value || '');
+  if (!approve && !String(reason).trim()) { lmSay('warn', 'Type why the close is turned down, so the store knows.'); return; }
+  if (!approve && !armed(btn, 'Press again to turn it down')) return;
+  var why = gpoDecideAsk(po, meUser().name, approve, reason);
+  if (why) { lmSay('warn', why); return; }
+  lmSaveDb(); render();
+  lmSay(approve ? 'ok' : 'warn', approve ? po.poNo + ' closed. ' + nf(gpoNotSupplied(po)) + ' m was not supplied.'
+    : 'Turned down: ' + po.poNo + ' stays open. The reason is on the PO.');
+}
+/** The requests waiting for the accounts head, the same card as RFD receipts waiting for approval. */
+function closeAsksHtml() {
+  var list = (DB.gpo || []).filter(function (po) { return po.closeAsk; });
+  if (!list.length) return '';
+  return '<div class="card approvals"><div class="kpihead"><span class="kpiname">POs the store asked to close</span><span class="kpiwhen">the last challan is in</span></div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>PO</th><th>Supplier</th><th>Last challan</th><th class="num">Not supplied</th><th>Asked by</th><th></th></tr></thead><tbody>'
+    + list.map(function (po) {
+      var a = po.closeAsk, id = esc(po.id), no = esc(po.poNo);
+      return '<tr><td class="tl b">' + no + '</td><td class="tl">' + esc(po.mill) + '</td><td class="tl mono">' + esc(a.challan || '—') + '</td>'
+        + '<td class="num"><b class="due">' + nf(gpoProgress(po).pending) + ' m</b></td>'
+        + '<td class="tl">' + esc(a.by || '') + '<div class="sub">' + esc(fmtD(lmToday(a.at))) + '</div></td>'
+        + '<td>' + (canPoApprove()
+          ? '<div class="actions"><button type="button" class="jw-btn jw-wa" data-pask="' + no + '|ok">Approve</button>'
+            + '<input id="pkr-' + id + '" aria-label="Why the close of ' + no + ' is turned down" placeholder="Why not (needed to turn down)" style="min-width:180px">'
+            + '<button type="button" class="jw-btn" id="pkd-' + id + '" data-pask="' + no + '|no">Turn down</button></div>'
+          : '<span class="muted">for the accounts head</span>') + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
 }
 
 
@@ -2092,9 +2276,11 @@ function poOpen(editNo) {
     PO_DRAFT.lines.forEach(function (l, i) { l._rec = pg.lines[i] ? pg.lines[i].received : 0; l.descAuto = true; l.due = l.due || src.date; });
     PO_DRAFT.editId = src.id;
   } else {
-    PO_DRAFT = { poNo: gpoNewNo(), date: lmToday(), mill: '', pay: '', disp: '', dest: '', terms: '', other: '', lines: [], editId: null };
+    /* the standard terms & conditions from the PO settings fill in; they can be changed for this PO (Ravi, 21 Nov) */
+    PO_DRAFT = { poNo: gpoNewNo(), date: lmToday(), mill: '', pay: '', disp: '', dest: '', terms: '', other: '', tc: (DB.co || {}).terms || '', lines: [], editId: null };
     poAddLine();
   }
+  $('poTc').value = PO_DRAFT.tc || '';
   $('poTitle').textContent = src ? 'Edit ' + src.poNo : 'New greige PO';
   $('poNo').value = PO_DRAFT.poNo;
   $('poDate').value = PO_DRAFT.date;
@@ -2127,12 +2313,12 @@ function poMillHint() {
 function poAddLine() {
   var first = gpoFabrics()[0], rfd = first ? first.rfd : '';
   PO_DRAFT.lines.push({ rfd: rfd, greige: first ? first.greige : '', desc: 'RFD ready: ' + rfd, descAuto: true,
-    due: PO_DRAFT.date || lmToday(), metres: '', rate: '', _rec: 0 });
+    due: PO_DRAFT.date || lmToday(), metres: '', rate: '', disc: '', _rec: 0 });
   poDraw();
 }
 function poDraw() {
   var opts = gpoFabrics();
-  $('poLines').innerHTML = th(['Greige fabric *', 'Description · RFD ready fabric', 'Due on *', 'Metres *', 'Rate *', 'Amount', ''], [3, 4, 5])
+  $('poLines').innerHTML = th(['Greige fabric *', 'Description · RFD ready fabric', 'Due on *', 'Metres *', 'Rate *', 'Disc %', 'Amount', ''], [3, 4, 5, 6])
     + '<tbody>' + PO_DRAFT.lines.map(function (l, i) {
       var m = gpoLineMoney(l), spec = mstSpecLine(mstOf(l.rfd)), rec = +l._rec || 0;
       return '<tr data-row="' + i + '"><td class="frz" style="text-align:left">'
@@ -2145,9 +2331,10 @@ function poDraw() {
         + '<td style="text-align:left"><div class="frozen" title="Set by Master data">' + esc(lineRfdText(l)) + '</div>'
         + (spec ? '<div class="muted" style="font-size:10.5px;margin-top:3px">' + esc(spec) + '</div>' : '') + '</td>'
         + '<td><input data-li="' + i + '" data-f="due" type="date" value="' + esc(l.due) + '" min="' + esc(PO_DRAFT.date) + '" style="width:138px" aria-label="Due on"></td>'
-        + '<td><input data-li="' + i + '" data-f="metres" type="number" step="0.01" min="' + rec + '" value="' + esc(l.metres) + '" style="width:104px" aria-label="Metres">'
+        + '<td><input data-li="' + i + '" data-f="metres" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(l.metres) + '" style="width:104px" aria-label="Metres">'
         + (rec > 0 ? '<div class="muted" style="font-size:10.5px;margin-top:3px">' + nf(rec) + ' m already in</div>' : '') + '</td>'
-        + '<td><input data-li="' + i + '" data-f="rate" type="number" step="0.01" value="' + esc(l.rate) + '" style="width:84px" aria-label="Rate"></td>'
+        + '<td><input data-li="' + i + '" data-f="rate" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(l.rate) + '" style="width:84px" aria-label="Rate"></td>'
+        + '<td><input data-li="' + i + '" data-f="disc" type="text" inputmode="decimal" autocomplete="off" data-num="' + PCT_WHOLE_DIGITS + '" value="' + esc(l.disc == null ? '' : l.disc) + '" placeholder="0" style="width:64px" aria-label="Discount percent"></td>'
         + '<td class="num po-total">' + money(m.amount) + '</td>'
         + '<td>' + (rec > 0 ? '' : '<button type="button" class="lm-x" data-porm="' + i + '" aria-label="Remove this line">&times;</button>') + '</td></tr>';
     }).join('') + '</tbody>';
@@ -2172,17 +2359,19 @@ function poSave(after) {
   ['pay', 'disp', 'dest', 'terms', 'other'].forEach(function (k) {
     PO_DRAFT[k] = $('po' + k.charAt(0).toUpperCase() + k.slice(1)).value.trim();
   });
+  PO_DRAFT.tc = $('poTc').value.trim();   // optional; its line breaks are kept
   var err = gpoCheck(PO_DRAFT);
   if (!err) {
     PO_DRAFT.lines.some(function (l) {
       if (!l.due) { err = 'Put a due date on ' + l.greige + '.'; return true; }
+      if (String(l.disc || '').trim() !== '' && !(parseFloat(l.disc) >= 0 && parseFloat(l.disc) <= 100)) { err = 'The discount on ' + l.greige + ' has to be between 0 and 100%.'; return true; }
       if (+l._rec > 0 && (parseFloat(l.metres) || 0) < +l._rec - 0.05) { err = nf(l._rec) + ' m of ' + l.greige + ' has already come in, so the line cannot be less than that.'; return true; }
       return false;
     });
   }
   if (err) { $('lmPoErr').textContent = err; $('lmPoErr').classList.remove('hide'); return; }
   var po = JSON.parse(JSON.stringify(PO_DRAFT));
-  po.lines.forEach(function (l) { delete l.descAuto; delete l._rec; delete l.disc; });
+  po.lines.forEach(function (l) { delete l.descAuto; delete l._rec; if (!(parseFloat(l.disc) > 0)) delete l.disc; });
   delete po.editId;
   if (PO_DRAFT.editId) {
     var at = DB.gpo.map(function (p) { return p.id; }).indexOf(PO_DRAFT.editId), was = DB.gpo[at];
@@ -2210,7 +2399,7 @@ var WA_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true
 function poWaText(po) {
   var co = DB.co || {}, t = gpoTotals(po), NL = String.fromCharCode(10);
   return 'Purchase Order ' + po.poNo + ' dated ' + fmtD(po.date) + NL
-    + (po.lines || []).map(function (l, i) { return (i + 1) + '. ' + lineGreigeText(l) + ' - ' + nf(l.metres) + ' m @ ' + RUPEE + money(l.rate) + ', due ' + fmtD(l.due || po.date); }).join(NL) + NL
+    + (po.lines || []).map(function (l, i) { return (i + 1) + '. ' + lineGreigeText(l) + ' - ' + nf(l.metres) + ' m @ ' + RUPEE + money(l.rate) + (gpoDiscPct(l) ? ' less ' + money(gpoDiscPct(l)) + '%' : '') + ', due ' + fmtD(l.due || po.date); }).join(NL) + NL
     + 'Total ' + nf(t.metres) + ' m, ' + RUPEE + ' ' + money(t.amount) + NL + NL
     + 'Kindly confirm receipt and the delivery date.' + NL + (co.name || '');
 }
@@ -2220,49 +2409,12 @@ function poWaUrl(po) {
   return 'https://wa.me/' + (d.length >= 11 ? d : '') + '?text=' + encodeURIComponent(poWaText(po));
 }
 
-/* ---- WHO IS WORKING, AND WHAT THEY MAY DO (Ravi, 13 Oct: "make fabric ledger access specific on the basis of user") ---- *
- * Each person in Users & access has a ledger right -- no access, view only, or view and edit -- and may or may
- * not approve a shrinkage. "Working as" in the top bar says who is at the keyboard. This page has no sign-in,
- * so it models the rights; the Replenish app enforces them with each person's own login. */
-function meUser() {
-  var list = DB.users || [];
-  return list.filter(function (x) { return x.id === DB.me; })[0] || list[0] || { id: '', name: 'Admin', role: 'Admin', ledger: 'edit', approve: true };
-}
+/* ---- WHAT THE PERSON AT THE KEYBOARD MAY DO: read from meUser() (their own login's rights, further down) ---- */
 var canLedger = function () { return meUser().ledger !== 'none'; };
 var canLedgerEdit = function () { return meUser().ledger === 'edit'; };
 var canApprove = function () { return !!meUser().approve; };
 var isAdmin = function () { return meUser().role === 'Admin'; };
-function meFill() {
-  var sel = $('meSel'); if (!sel) return;
-  sel.innerHTML = (DB.users || []).filter(function (x) { return x.active !== false; }).map(function (x) {
-    return '<option value="' + esc(x.id) + '"' + (x.id === meUser().id ? ' selected' : '') + '>' + esc(x.name) + ' · ' + esc(x.role) + '</option>';
-  }).join('');
-  [].forEach.call(document.querySelectorAll('.navgrp[data-tab="ledger"]'), function (b) { b.hidden = !canLedger(); });
-}
 var LEDGER_LABEL = { none: 'No access', view: 'View only', edit: 'View & edit' };
-function renderMstUsers() {
-  var admin = isAdmin();
-  var rows = (DB.users || []).map(function (x, i) {
-    if (!admin) {
-      return '<tr><td class="frz" style="text-align:left"><b>' + esc(x.name) + '</b></td><td>' + esc(x.role) + '</td><td>' + esc(LEDGER_LABEL[x.ledger] || x.ledger) + '</td>'
-        + '<td>' + (x.approve ? 'Yes' : '—') + '</td><td></td></tr>';
-    }
-    return '<tr><td class="frz" style="text-align:left"><input data-ui="' + i + '" data-uf="name" value="' + esc(x.name) + '" style="width:170px;font-weight:700" aria-label="Name"></td>'
-      + '<td><select data-ui="' + i + '" data-uf="role" style="width:130px" aria-label="Role">' + ['Admin', 'Store', 'Accounts', 'Production', 'Other'].map(function (r) { return '<option' + (r === x.role ? ' selected' : '') + '>' + r + '</option>'; }).join('') + '</select></td>'
-      + '<td><select data-ui="' + i + '" data-uf="ledger" style="width:150px" aria-label="Fabric ledger access">' + ['none', 'view', 'edit'].map(function (k) { return '<option value="' + k + '"' + (k === x.ledger ? ' selected' : '') + '>' + LEDGER_LABEL[k] + '</option>'; }).join('') + '</select></td>'
-      + '<td><input type="checkbox" data-ui="' + i + '" data-uf="approve"' + (x.approve ? ' checked' : '') + ' style="width:16px;height:16px" aria-label="Can approve shrinkage"></td>'
-      + '<td>' + (x.id === meUser().id ? '<span class="muted">you</span>' : '<button type="button" class="lm-x" data-urm="' + i + '" aria-label="Remove ' + esc(x.name) + '">&times;</button>') + '</td></tr>';
-  }).join('');
-  return '<div class="card"><div class="ff-cap">Who may open the <b>fabric ledger</b> (no access, view only, or view and edit) and who may <b>approve</b> an RFD receipt that shrank more than '
-    + RR_SHRINK_LIMIT + '%. Pick who is working in the top bar. ' + (admin ? 'Changes save as you make them.' : 'Only an Admin changes these.') + '</div>'
-    + '<div class="ff-grid"><table class="xl xl-dense lm-lines"><thead><tr><th class="frz">Name *</th><th>Role</th><th>Fabric ledger</th><th>Approves shrinkage</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-    + (admin ? '<div class="row" style="margin-top:12px"><button type="button" id="userAdd">+ Add a user</button></div>' : '') + '</div>';
-}
-/* At least one Admin who can edit the ledger and approve must always remain, or nobody could change this again. */
-function usersSafe() {
-  return (DB.users || []).some(function (x) { return x.role === 'Admin' && x.ledger === 'edit' && x.approve && x.active !== false && String(x.name || '').trim(); });
-}
-
 /* ---- ISSUE TO RFD, FROM THE PO, BALE BY BALE (Ravi, 13 Oct: "make issue to RFD on the basis of bales") ---- *
  * The bales of a lot are the ones its challan brought in. Ticking bales is what goes out; the metres are the
  * bales' own (as the supplier's challan wrote them). A bale that has gone is not offered again. Older issues
@@ -2315,7 +2467,7 @@ function issDraw() {
       + '<div class="sub">' + nf(g.greigeIn) + ' m received' + (g.toRfd ? ', ' + nf(g.toRfd) + ' m sent already' : '') + ' · <b>' + nf(g.greigeLeft) + ' m in store</b></div></div>';
     if (!bales.length) {
       return '<div class="dl">' + head + '</div><label class="fld" style="max-width:220px"><span>Metres to send * (this lot came without bales)</span>'
-        + '<input type="number" step="0.1" min="0" max="' + r1(g.greigeLeft) + '" data-issqty="' + esc(g.lot) + '" value="' + esc(ISS.qty[g.lot]) + '"></label></div>';
+        + '<input type="text" inputmode="decimal" autocomplete="off" data-num="7" data-issqty="' + esc(g.lot) + '" value="' + esc(ISS.qty[g.lot]) + '"></label></div>';
     }
     return '<div class="dl">' + head + '<div class="row"><button type="button" class="jw-btn" data-issall="' + esc(g.lot) + '">' + (picked.length === bales.length ? 'Clear all' : 'All ' + bales.length + ' bales') + '</button></div></div>'
       + '<div class="balegrid">' + bales.map(function (b) {
@@ -2395,7 +2547,7 @@ function cutDraw() {
     + '<div class="sub">' + (g.poNo ? esc(g.poNo) + ' · ' : '') + (g.processor ? 'from ' + esc(g.processor) + ' · ' : '') + '<b>' + nf(g.rfdLeft) + ' m on the shelf</b></div></div>';
   if (!thans.length) {
     $('cutBody').innerHTML = '<div class="dl">' + head + '</div><label class="fld" style="max-width:240px"><span>Metres to cutting * (this lot has no thans listed)</span>'
-      + '<input type="number" step="0.1" min="0" max="' + r1(g.rfdLeft) + '" data-cutqty="1" value="' + esc(CUT.qty) + '"></label></div>';
+      + '<input type="text" inputmode="decimal" autocomplete="off" data-num="7" data-cutqty="1" value="' + esc(CUT.qty) + '"></label></div>';
     $('cutTot').innerHTML = 'Going to cutting: <b>' + m1(parseFloat(CUT.qty) || 0) + ' m</b>';
     return;
   }
@@ -2468,7 +2620,7 @@ function rrDraw() {
       + ps.map(function (p, pi) {
         return '<div class="pr"><span class="pr-i">' + (pi + 1) + '</span>'
           + '<input id="rt-' + lot + '-' + pi + '" data-rrlot="' + esc(lot) + '" data-pi="' + pi + '" data-f="than" value="' + esc(p.than) + '" placeholder="Than no." aria-label="Than number ' + (pi + 1) + '">'
-          + '<input id="rm-' + lot + '-' + pi + '" data-rrlot="' + esc(lot) + '" data-pi="' + pi + '" data-f="m" type="number" step="0.1" min="0" inputmode="decimal" value="' + esc(p.m) + '" placeholder="Metres" aria-label="Metres, than ' + (pi + 1) + '">'
+          + '<input id="rm-' + lot + '-' + pi + '" data-rrlot="' + esc(lot) + '" data-pi="' + pi + '" data-f="m" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(p.m) + '" placeholder="Metres" aria-label="Metres, than ' + (pi + 1) + '">'
           + '<button type="button" class="x" data-rrrm="' + esc(lot) + '|' + pi + '" aria-label="Remove than ' + (pi + 1) + '">×</button></div>';
       }).join('')
       + '<div class="dl-actions"><button type="button" class="jw-btn" data-rradd="' + esc(lot) + '">+ Than</button>'
@@ -2576,6 +2728,7 @@ function poDocBody(po) {
       + '<td class="c it">' + esc(fmtD(l.due || po.date)) + '</td>'
       + '<td class="n b">' + money(l.metres) + ' Mtr</td>'
       + '<td class="n">' + money(l.rate) + '</td>'
+      + '<td class="n">' + (gpoDiscPct(l) ? money(gpoDiscPct(l)) + ' %' : '') + '</td>'
       + '<td class="c">Mtr</td>'
       + '<td class="n b">' + money(m.amount) + '</td></tr>';
   }).join('');
@@ -2620,19 +2773,20 @@ function poDocBody(po) {
     + '<tr><td>' + shipTo + '</td><td colspan="2" rowspan="2">' + cell('Terms of Delivery', po.terms, false) + '</td></tr>'
     + '<tr><td>' + supplier + '</td></tr>'
     + '</table>'
-    + '<table class="items"><colgroup><col style="width:5%"><col style="width:40%"><col style="width:11%">'
-    + '<col style="width:14%"><col style="width:10%"><col style="width:5%"><col style="width:15%"></colgroup>'
+    + '<table class="items"><colgroup><col style="width:5%"><col style="width:35%"><col style="width:10%">'
+    + '<col style="width:13%"><col style="width:9%"><col style="width:8%"><col style="width:5%"><col style="width:15%"></colgroup>'
     + '<thead><tr><th>Sl<br>No.</th><th>Description of Goods</th><th>Due on</th><th>Quantity</th><th>Rate</th>'
-    + '<th>per</th><th>Amount</th></tr></thead>'
+    + '<th>Disc %</th><th>per</th><th>Amount</th></tr></thead>'
     + '<tbody>' + rows
-    + '<tr><td style="height:' + fill + 'px"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
+    + '<tr><td style="height:' + fill + 'px"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
     + '<tr class="tot"><td></td><td style="text-align:right">Total</td><td></td>'
-    + '<td class="n b">' + money(t.metres) + ' Mtr</td><td></td><td></td>'
+    + '<td class="n b">' + money(t.metres) + ' Mtr</td><td></td><td></td><td></td>'
     + '<td class="n b">' + RUPEE + ' ' + money(t.amount) + '</td></tr>'
     + '</tbody></table>'
     + '<div class="box"><div style="display:flex;justify-content:space-between">'
     + '<span>Amount Chargeable (in words)</span><i>E. &amp; O.E</i></div>'
     + '<div class="words">' + esc(inrWords(t.amount)) + '</div></div>'
+    + (String(po.tc || '').trim() ? '<div class="box"><div><b>Terms &amp; Conditions</b></div><div style="white-space:pre-line">' + esc(po.tc) + '</div></div>' : '')
     + '<div class="foot"><div class="l">'
     + (co.pan ? '<div>Company\u2019s PAN <span style="display:inline-block;width:40px"></span>: <b>' + esc(co.pan) + '</b></div>' : '')
     + '</div><div class="r"><b>for ' + esc(co.name || '') + '</b><span>Authorised Signatory</span></div></div>'
@@ -2655,6 +2809,7 @@ function poMailText(po) {
     body: 'Dear Sir/Madam,' + NL + NL
       + 'Please find attached our Purchase Order ' + po.poNo + ' dated ' + fmtD(po.date) + ' for '
       + nf(t.metres) + ' m (' + RUPEE + ' ' + money(t.amount) + ').' + NL + NL
+      + (String(po.tc || '').trim() ? 'Terms & conditions:' + NL + String(po.tc).trim() + NL + NL : '')
       + 'Kindly confirm receipt and the delivery date.' + NL + NL + 'Regards,' + NL + who
   };
 }
@@ -2687,7 +2842,7 @@ function poShow(no) {
 /* ---- wiring: the PO list, the challans, the drawer and the new-PO dialog -------------------------- */
 function wirePurchaseOrders() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-act],[data-sent],[data-porm],[data-doc],[data-rcv],[data-tpo],[data-tch],[data-fill],[data-kpi],[data-pv],[data-pvclear],[data-dr],[data-pclose],[data-pedit],[data-iss],[data-isspick],#docCopy,#issSave') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-act],[data-sent],[data-porm],[data-doc],[data-rcv],[data-tpo],[data-tch],[data-fill],[data-kpi],[data-pv],[data-pvclear],[data-dr],[data-pclose],[data-pcancel],[data-pask],[data-pedit],[data-iss],[data-isspick],#docCopy,#issSave') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
     if (t.id === 'docCopy') {
@@ -2713,6 +2868,8 @@ function wirePurchaseOrders() {
     }
     if (g('data-doc')) { poShow(g('data-doc')); return; }
     if (g('data-pclose')) { poCloseToggle(g('data-pclose'), t); return; }
+    if (g('data-pcancel')) { poCancelToggle(g('data-pcancel'), t); return; }
+    if (g('data-pask')) { var pa = g('data-pask').split('|'); poAskDecide(pa[0], pa[1] === 'ok', t); return; }
     if (g('data-pedit')) { poOpen(g('data-pedit')); return; }
     if (g('data-iss')) { var ip = g('data-iss').split('|'); issOpen(ip[0], ip[1] || ''); return; }
     if (t.id === 'issSave') { issSave(); return; }
@@ -2852,12 +3009,12 @@ function renderInv() {
   });
   var sum = function (k) { return rows.reduce(function (a, x) { return a + (x[k] || 0); }, 0); };
   var count = function (t) { return all.filter(function (x) { return t === 'all' || x.type === t; }).length; };
-  var seg = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px">'
-    + '<div class="seg" role="tablist" aria-label="Type of cloth">'
+  /* EVERY CLOTH TYPE IN ONE DROP-DOWN BESIDE THE SEARCH BOX (Ravi, 21 Nov: the row of chips ran off the screen with the
+   * real fabrics). "All" first, then each type with how many fabrics it holds. */
+  $('lmTopPick').innerHTML = '<select id="invType" aria-label="Type of cloth">'
     + ['all'].concat(types).map(function (t) {
-      return '<button type="button" role="tab" aria-selected="' + (UI.inv === t) + '" class="segbtn' + (UI.inv === t ? ' on' : '') + '" data-inv="' + esc(t) + '">'
-        + esc(t === 'all' ? 'All' : t) + ' <span class="n">' + count(t) + '</span></button>';
-    }).join('') + '</div></div>';
+      return '<option value="' + esc(t) + '"' + (UI.inv === t ? ' selected' : '') + '>' + esc(t === 'all' ? 'All' : t) + ' (' + count(t) + ')</option>';
+    }).join('') + '</select>';
   /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, before what is on order — and the greige PO for what is short, from
    * here. And the RFD already on the floor goes in as opening stock from here too. Only in the app (gdPpcMap). */
   var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap;
@@ -2902,7 +3059,7 @@ function renderInv() {
       + '<td class="num">' + dash(sum('onOrder')) + '</td><td class="num">' + dash(sum('inStoreGreige')) + '</td><td class="num">' + dash(sum('atProcessor')) + '</td>'
       + '<td class="num">' + dash(sum('inStoreRfd')) + '</td><td class="num">' + dash(sum('owned')) + '</td></tr></tfoot>' : '')
     + '</table></div></div>';
-  return seg + table;
+  return table;
 }
 
 /* ---- wiring: the type tabs ------------------------------------------------------------------------- */
@@ -3006,11 +3163,9 @@ function wireInventory() {
     if (d && d.getAttribute('data-histshelf')) { INV_HIST.shelf = d.getAttribute('data-histshelf'); invHistDraw(); return; }
     if (d && d.getAttribute('data-histpo')) { var p = d.getAttribute('data-histpo').split('|'); $('lmHist').classList.add('hide'); invOpenPo(p[0], p[1]); return; }
     if (d && d.id === 'histXlsx') { invHistXlsx(); return; }
-    var t = ev.target.closest ? ev.target.closest('[data-inv]') : null;
-    if (!t) return;
-    UI.inv = t.getAttribute('data-inv') || 'all'; UI.invOpen = ''; render();
   });
   document.addEventListener('change', function (ev) {
+    if (ev.target.id === 'invType') { UI.inv = ev.target.value || 'all'; UI.invOpen = ''; render(); return; }
     if (ev.target.id !== 'histFrom' && ev.target.id !== 'histTo') return;
     INV_HIST.from = $('histFrom').value; INV_HIST.to = $('histTo').value; invHistDraw();
   });
@@ -3071,6 +3226,31 @@ function invHistDetails(r, po) {
   return [r.lot ? 'Lot ' + r.lot : '', r.bill ? bill + r.bill : '', po ? 'PO ' + po : '', r.note || r.remark || '']
     .filter(Boolean).join(' · ');
 }
+/* THE STOCK HISTORY AS AN ACCOUNTING STATEMENT (Ravi, 21 Nov: "put these in the cause only and make proper accounting
+ * type statement"). Date | Cause | Balance, like a bank statement: an Opening balance line, then each movement with its
+ * metres at the right of the Cause — "+1,200" in green when it came in, "−1,200" in red when it went out — and the
+ * balance after it, then a Closing balance line with what came in and went out in total. The Excel keeps plain numbers. */
+function histIn(m) { return '<span style="color:var(--ok-ink);font-weight:600;white-space:nowrap">+' + nf(m) + '</span>'; }
+function histOut(m) { return '<span style="color:var(--bad);font-weight:600;white-space:nowrap">−' + nf(m) + '</span>'; }
+/** One movement's metres, signed: what came in, or what went out. */
+function histMove(x) { return x.inQty ? histIn(x.inQty) : x.outQty ? histOut(x.outQty) : ''; }
+/** The Cause cell: the words on the left, the signed metres on the right. */
+function histCauseCell(words, move) {
+  return '<td class="tl"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:18px">'
+    + '<div>' + words + '</div><div style="text-align:right">' + move + '</div></div></td>';
+}
+/** The history split into days (Ravi, 21 Nov: "opening balance and closing balance for each date"): each day opens on
+ *  the balance before its first movement and closes on the balance after its last, with what came in and went out that
+ *  day. The lines keep their order; a day is every line with the same date. */
+function histDays(lines) {
+  var days = [];
+  lines.forEach(function (x) {
+    var d = days[days.length - 1];
+    if (!d || d.date !== x.row.date) { d = { date: x.row.date, opening: x.opening, closing: x.closing, inQty: 0, outQty: 0, lines: [] }; days.push(d); }
+    d.lines.push(x); d.closing = x.closing; d.inQty += x.inQty || 0; d.outQty += x.outQty || 0;
+  });
+  return days;
+}
 function invHistDraw() {
   var H = INV_HIST, page = fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to), lotPo = {};
   fabLots(DB.fab || []).forEach(function (L) { lotPo[L.lot] = L.poNo; });
@@ -3083,21 +3263,33 @@ function invHistDraw() {
       : 'No ' + INV_SHELF_LABEL[H.shelf] + ' entries for ' + H.fabric + ' yet.') + '</div>';
     return;
   }
-  var num = function (v) { return '<td class="num">' + (v ? nf(v) : '') + '</td>'; };
-  var body = page.lines.map(function (x) {
-    var r = x.row, po = invHistPoOf(r, lotPo), bad = r.txnType === 'DAMAGE' ? ' style="color:var(--bad)"' : '';
-    return '<tr' + (po ? ' class="xrow" data-histpo="' + esc(po + '|' + (r.chId || '')) + '" title="Open PO ' + esc(po) + '"' : '') + '>'
-      + '<td class="tl" style="white-space:nowrap">' + esc(fmtD(r.date)) + '</td>'
-      + '<td class="tl"><div' + bad + '>' + esc(invHistCause(r)) + '</div><div class="sub">' + esc(invHistDetails(r, po)) + '</div></td>'
-      + '<td class="num">' + nf(x.opening) + '</td>' + num(x.inQty) + num(x.outQty) + '<td class="num b">' + nf(x.closing) + '</td></tr>';
+  /* a day's in and out, showing only what moved (no '+0' or '−0') */
+  var inOut = function (i, o) {
+    var said = function (w) { return '<span class="muted" style="font-weight:400">' + w + '</span>'; };
+    return [i ? said('in ') + histIn(i) : '', o ? said('out ') + histOut(o) : ''].filter(Boolean).join(said(' · '));
+  };
+  var body = histDays(page.lines).map(function (d) {
+    var day = esc(fmtD(d.date));
+    var open = '<tr class="histday"><td class="tl b" style="white-space:nowrap">' + day + '</td>'
+      + histCauseCell('<b>Opening balance</b>', '') + '<td class="num b">' + nf(d.opening) + '</td></tr>';
+    var moves = d.lines.map(function (x) {
+      var r = x.row, po = invHistPoOf(r, lotPo), bad = r.txnType === 'DAMAGE' ? ' style="color:var(--bad)"' : '';
+      return '<tr' + (po ? ' class="xrow" data-histpo="' + esc(po + '|' + (r.chId || '')) + '" title="Open PO ' + esc(po) + '"' : '') + '>'
+        + '<td></td>'
+        + histCauseCell('<div' + bad + '>' + esc(invHistCause(r)) + '</div><div class="sub">' + esc(invHistDetails(r, po)) + '</div>', histMove(x))
+        + '<td class="num">' + nf(x.closing) + '</td></tr>';
+    }).join('');
+    var close = '<tr class="histday-end"><td></td>' + histCauseCell('<b>Closing balance</b> <span class="muted" style="font-weight:400">' + day + '</span>', inOut(d.inQty, d.outQty))
+      + '<td class="num b">' + nf(d.closing) + '</td></tr>';
+    return open + moves + close;
   }).join('');
+  var total = '<tr class="tot"><td></td>' + histCauseCell('Total' + (H.from || H.to ? ' for these dates' : ''), inOut(page.inQty, page.outQty))
+    + '<td class="num">' + nf(page.closing) + '</td></tr>';
   $('histBody').innerHTML = '<div class="box scroll" style="max-height:60vh;overflow:auto"><table class="ct li"><thead><tr>'
-    + '<th>Date</th><th style="min-width:220px">Cause</th><th class="num">Opening</th><th class="num">In</th><th class="num">Out</th><th class="num">Closing</th></tr></thead>'
-    + '<tbody>' + body + '<tr class="tot"><td></td><td class="tl">Total' + (H.from || H.to ? ' for these dates' : '') + '</td>'
-    + '<td class="num">' + nf(page.opening) + '</td><td class="num">' + nf(page.inQty) + '</td><td class="num">' + nf(page.outQty) + '</td><td class="num">' + nf(page.closing) + '</td></tr>'
-    + '</tbody></table></div><div class="lm-why">Metres. '
-    + (H.to ? 'Closing is the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure at the end of ' + esc(fmtD(H.to)) + '.'
-      : 'Closing matches the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure on the Inventory page.')
+    + '<th>Date</th><th style="min-width:320px">Cause</th><th class="num">Balance</th></tr></thead>'
+    + '<tbody>' + body + total + '</tbody></table></div><div class="lm-why">Metres. '
+    + (H.to ? 'The closing balance is the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure at the end of ' + esc(fmtD(H.to)) + '.'
+      : 'The closing balance matches the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure on the Inventory page.')
     + ' Click a row with a PO to open it.</div>';
 }
 /** The same page as an Excel file, made by the app's own writer (the PPC report's). */
@@ -3198,7 +3390,7 @@ function renderLedger() {
     + lfSelect('fabric', 'Fabric', fabrics)
     + lfSelect('party', 'Party', parties)
     + lfSelect('po', 'PO', pos)
-    + lfSelect('done', 'Status', ['open', 'done'], ['Still open', 'Fulfilled'])
+    + lfSelect('done', 'Status', ['open', 'done'], ['Not yet fulfilled', 'Fulfilled'])   /* "open" is a PO's word (Ravi, 21 Nov) */
     + (lfOn() ? '<button type="button" class="jw-btn" id="lfClear">Clear the filter</button>' : '')
     + '</div></div>';
 
@@ -3206,7 +3398,7 @@ function renderLedger() {
     ? all.length + ' movement' + (all.length === 1 ? '' : 's')
     : '<b>' + rows.length + '</b> of ' + all.length + ' movements';
   var openN = rows.filter(function (r) { return !r.done; }).length;
-  if (openN !== rows.length) count += ' · <b>' + openN + '</b> still open';
+  if (openN !== rows.length) count += ' · <b>' + openN + '</b> not yet fulfilled';
 
   return '<div class="row" style="margin-bottom:10px;align-items:center">'
     + '<span class="muted" style="font-size:12px;align-self:center">Add a movement:</span>'
@@ -3253,16 +3445,27 @@ function renderLedger() {
         + (r.remark && r.txnType !== 'DAMAGE'
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + esc(r.remark) + '</div>' : '')
         + '</td>'
-        + '<td style="white-space:nowrap">' + (!canLedgerEdit() ? '<span class="muted">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
+        + '<td style="white-space:nowrap">' + (!canLedgerEdit() ? '<span class="muted" title="' + esc(fulfilledBy(r)) + '">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
         + (!canLedgerEdit() ? '' : '<button type="button" class="jw-btn jw-primary" data-edit="' + esc(r.id) + '">Edit</button> ')
         + (!canLedgerEdit() ? '' : r.done
           ? '<button type="button" class="jw-btn jw-wa" data-done="' + esc(r.id) + '" '
-            + 'title="Dealt with. Click to put it back on the list.">✓ Fulfilled</button>'
+            + 'title="' + esc(fulfilledBy(r)) + '. Click to put it back on the list.">✓ Fulfilled</button>'
           : '<button type="button" class="jw-btn" data-done="' + esc(r.id) + '" '
             + 'title="Mark this movement as dealt with">Mark fulfilled</button>')
         + '</td></tr>';
     }).join('') || emptyRow(10, lfOn() || UI.q ? 'No movement matches the filter.' : 'The register is empty.'))
     + '</tbody></table></div></div>';
+}
+
+/** Tick or untick "fulfilled", keeping who did it and when (Ravi, 21 Nov: a tick nobody can trace is no use). */
+function markFulfilled(r, done, who) {
+  r.done = done;
+  if (done) { r.doneBy = who || ''; r.doneAt = new Date().toISOString(); } else { delete r.doneBy; delete r.doneAt; }
+}
+/** "Fulfilled by Priya on 21-Nov-26" — or just "Dealt with" for a tick from before names were kept. */
+function fulfilledBy(r) {
+  if (!r.done) return '';
+  return r.doneBy ? 'Fulfilled by ' + r.doneBy + (r.doneAt ? ' on ' + fmtD(lmToday(r.doneAt)) : '') : 'Dealt with';
 }
 
 /* ---- wiring: the ledger rows and the filter bar ---------------------------------------------------- */
@@ -3280,8 +3483,9 @@ function wireLedger() {
       /* A WORKING MARK, NOT A FIGURE. Fulfilled says somebody has dealt with this row -- chased it,
        * filed it, tallied it against the paper. It changes no balance anywhere: what the cloth did
        * is a fact, and a tick cannot alter it. */
+      if (!canLedgerEdit()) { lmSay('warn', 'Marking a movement fulfilled needs the right to correct the fabric ledger.'); return; }
       var dr = (DB.fab || []).filter(function (x) { return x.id === g('data-done'); })[0];
-      if (dr) { dr.done = !dr.done; lmSaveDb(); render(); }
+      if (dr) { markFulfilled(dr, !dr.done, meUser().name); lmSaveDb(); render(); }
       return;
     }
     if (g('data-del')) {
@@ -3464,6 +3668,7 @@ var CO_FIELDS = [
   ['iec', 'IEC', 'text', 'Import-export code'],
   ['pan', 'PAN', 'text', ''],
   ['jurisdiction', 'Jurisdiction', 'text', '"Subject to ___ jurisdiction"'],
+  ['terms', 'Standard terms & conditions', 'area', 'Fills in on every new PO; it can be changed on each PO'],
   ['poPrefix', 'PO number prefix', 'text', 'RIDHI/PO/GREIG/'],
   ['rfdPrefix', 'RFD challan prefix', 'text', 'RIDHI/RFD/ -- our challan to the RFD processor, numbered 001 on'],
   ['poNext', 'Next PO number', 'text', 'The series carries on from this, or from the last PO raised, whichever is higher']
@@ -4364,7 +4569,9 @@ function gdClearAll() { DB.gpo = []; DB.fab = []; gdSaveAll(); }
 /* ---- WHO IS WORKING: the person signed in to the app, and the rights they hold ---- *
  * gdesk opens the desk; gdled shows the fabric ledger; gdledit lets them add and correct it; gdappr approves an RFD
  * receipt that shrank more than 5%. An admin holds all four. */
-var GD_RIGHTS = [['gdesk', 'Open the Greige Desk'], ['gdled', 'See the fabric ledger'], ['gdledit', 'Add to and correct the fabric ledger'], ['gdappr', 'Approve an RFD receipt that shrank more than 5%']];
+var GD_RIGHTS = [['gdesk', 'Open the Greige Desk'], ['gdled', 'See the fabric ledger'], ['gdledit', 'Add to and correct the fabric ledger'], ['gdappr', 'Approve an RFD receipt that shrank more than 5%'],
+  /* Ravi, 21 Nov: closing a greige PO is the accounts department's; the store's "last challan" asks the accounts head. */
+  ['gdpo', 'Close, cancel and reopen greige POs'], ['gdpoappr', 'Approve the store’s request to close a greige PO']];
 /* AN EMPTY TABS LIST IS NO ACCESS, as it is everywhere else in the app (auth.js: a failed or empty perms read
  * gives nothing). It used to hand all four rights to such an account. Only the desk run on its own, with no
  * app login at all, still opens with every right. */
@@ -4502,7 +4709,8 @@ function gdLinkMasters() {
   /* The company on the PO: the app's own Greige PO settings (no Company page on the desk in the app). The numbering stays the desk's. */
   var s = (typeof GPO !== 'undefined' && GPO && GPO.settings) || null;
   if (s) DB.co = Object.assign({}, DB.co || {}, { name: s.company || (DB.co || {}).name || gdCoName(), addr: s.address || (DB.co || {}).addr || '',
-    gstin: s.gstin || (DB.co || {}).gstin || '', email: s.email || (DB.co || {}).email || '', pan: s.pan || (DB.co || {}).pan || '' });
+    gstin: s.gstin || (DB.co || {}).gstin || '', email: s.email || (DB.co || {}).email || '', pan: s.pan || (DB.co || {}).pan || '',
+    terms: s.terms || (DB.co || {}).terms || '' });   // the PO settings' "Default terms" start every new PO's terms & conditions
 }
 /** Over to Setup -> Master Database, at its Greige & RFD fabric or its Vendors. */
 function gdOpenMasterData(view) {
