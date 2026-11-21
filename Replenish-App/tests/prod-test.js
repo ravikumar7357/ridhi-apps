@@ -22580,6 +22580,26 @@ console.log('\n== the vendor portal: a Completed tab (Ravi, 28 Sep: "jo vendor c
   els.vpView.value = 'orders'; A.renderVp();
   ok('Completed with View = orders: one card per finished bulk order',
     /data-vporder="vpo_bulk_1"/.test(els.vpBody.innerHTML) && /BKDONE-6060/.test(els.vpBody.innerHTML) && !/BKOPEN-6060/.test(els.vpBody.innerHTML));
+  /* ALL IN (21 Nov): a bulk line whose goods all reached us on the Receive button is Completed, even if the printer entered nothing;
+   * one with goods still to come is not; a custom line received in full stays with Custom → History. */
+  const recvd = (back, more) => Object.assign({ id: 'vpo_in_' + back, orderNo: 'VPO-IN-' + back, orderType: 'cut', status: 'In Production', vendorName: 'RBP-Bagru',
+    orderDate: '15/11/2026', flowProg: { items: { 'K-IN': { back } } }, lines: [{ lineId: 'i1', sku: 'ALLIN-6060', qty: 4, flowKey: 'K-IN', kind: 'cut' }] }, more || {});
+  ok('all 4 received, nothing entered by the printer: Completed', A.vpLineIsDone(recvd(4), recvd(4).lines[0]) === true);
+  ok('…3 of 4 received: still open', A.vpLineIsDone(recvd(3), recvd(3).lines[0]) === false);
+  ok('…5 of 4 received (cloth may come over): Completed', A.vpLineIsDone(recvd(5), recvd(5).lines[0]) === true);
+  ok('…a custom order received in full is not Completed (it goes to History)', A.vpLineIsDone(recvd(4, { demandSource: 'shopify' }), recvd(4).lines[0]) === false);
+  /* THE ORDER SHEET on the Completed tab: the eight columns of the sketch, and no Send box — nothing is left to send. */
+  A.setVP(Object.assign({}, A.VP(), { rows: [recvd(4), recvd(3)], tab: 'done' }));
+  els.vpView.value = 'sheet'; A.renderVp();
+  const sh = els.vpBody.innerHTML, sheetHeads = (sh.match(/<th[^>]*>([^<]*)<\/th>/g) || []).map(x => x.replace(/<[^>]+>/g, '')).join('|');
+  ok('Completed as the order sheet: Date, Image, Order Number, Item, Ordered, Sent by printer, To receive, Due Date — no Send now',
+    sheetHeads === 'Date|Image|Order Number|Item|Ordered|Sent by printer|To receive|Due Date', sheetHeads);
+  ok('…and its To receive says "all in"', /all in/.test(sh));
+  ok('…the fully received order is there, the part-received one is not', /VPO-IN-4/.test(sh) && !/VPO-IN-3/.test(sh) && /15\/11\/2026/.test(sh));
+  A.setVP(Object.assign({}, A.VP(), { tab: 'bulk' })); A.renderVp();
+  const open = els.vpBody.innerHTML;
+  ok('Bulk orders as the order sheet: the part-received order, with Send now and Your date for the printer',
+    /VPO-IN-3/.test(open) && !/VPO-IN-4/.test(open) && />Send now</.test(open) && />Your date</.test(open), open.slice(0, 400));
   els.vpView.value = wasView;
   A.setVP(wasVP); ME.admin = wasAdmin;
 }
