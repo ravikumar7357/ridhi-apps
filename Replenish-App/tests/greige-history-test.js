@@ -102,5 +102,16 @@ console.log('== who sees the link ==');
   ok('a name with odd characters is written as text, never as HTML', !/<img/.test(admin.invFabricName('<img src=x>')));
 }
 
+console.log('== the Inventory\'s cloth types: one drop-down beside the search box (Ravi, 21 Nov) ==');
+{
+  const code = fs.readFileSync(SRC, 'utf8');
+  ok('a place for it sits before the search box', /<div class=\\"topacts\\"><span id=\\"lmTopPick\\" class=\\"toppick\\"><\/span><input id=\\"lmQ\\"/.test(code));
+  ok('the Inventory fills it with "All (n)" first, then every type with its count',
+    /\$\('lmTopPick'\)\.innerHTML = '<select id="invType" aria-label="Type of cloth">'\s*\+ \['all'\]\.concat\(types\)/.test(code) && /esc\(t === 'all' \? 'All' : t\) \+ ' \(' \+ count\(t\) \+ '\)<\/option>'/.test(code));
+  ok('every other screen leaves it empty', /\$\('lmTopPick'\)\.innerHTML = '';/.test(code));
+  ok('choosing a type filters the Inventory', /if \(ev\.target\.id === 'invType'\) \{ UI\.inv = ev\.target\.value \|\| 'all';/.test(code));
+  ok('the old row of chips is gone', !/role="tablist" aria-label="Type of cloth"/.test(code) && !/data-inv="' \+ esc\(t\)/.test(code));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
