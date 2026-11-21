@@ -444,7 +444,6 @@ function plxTable(P) {
 // Ads API call itself (api: PUT /sp/campaigns with every placement, so the other two are not reset).
 function plxItem(r) {
   const c = r.camp, m = PLX_META[r.pk];
-  const who = String(ME.email || '').split('@')[0].split(/[._]/)[0];
   const pb = ['tos', 'ros', 'pp'].map(k => ({ placement: PLX_META[k].amz, percentage: k === r.pk ? r.to : Number((c.ent || [])[PLX_META[k].ix]) || 0 }));
   return {
     id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), v: 2, brand: r.brand, kind: 'plc', key: r.key, pathKey: '',
@@ -453,7 +452,7 @@ function plxItem(r) {
     plc: { pk: r.pk, name: m.name, amz: m.amz, bulk: m.bulk, ix: m.ix, from: r.cur, to: r.to, strategy: c.strategy || '' },
     api: { call: 'PUT /sp/campaigns', body: { campaigns: [{ campaignId: r.cid, dynamicBidding: Object.assign(c.strategy ? { strategy: c.strategy } : {}, { placementBidding: pb }) }] } },
     what: `${m.name} ${plxPct(r.cur)} → ${plxPct(r.to)}`, why: r.why,
-    status: 'review', by: who ? who[0].toUpperCase() + who.slice(1) : '', byEmail: ME.email || '', at: Date.now(),
+    status: 'review', by: staWho(ME.email), byEmail: ME.email || '', at: Date.now(),
     trail: [ppchEvent('added')],   // who, which device, when: one step per move from here on (ads/ppc-history.js)
   };
 }

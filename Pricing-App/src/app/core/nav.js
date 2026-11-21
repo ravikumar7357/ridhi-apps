@@ -11,7 +11,7 @@
 // for which tab opens first: the first one the account is allowed.
 // 'dash' (20 Nov 2026) is the Dashboard (core/dashboard.js): first, so it is the screen that opens after sign-in.
 const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
-  'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'ppch', 'deals', 'tiktok', 'carousel', 'opt', 'img',
+  'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'ngram', 'plc', 'ppch', 'deals', 'tiktok', 'carousel', 'opt', 'img',
   'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg', 'create'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
@@ -19,7 +19,7 @@ const capId = t => t[0].toUpperCase() + t.slice(1);
 const TAB_TITLE = { dash: 'Dashboard', link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
   age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
-  trends: 'Overview', st: 'Search Term Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard',
+  trends: 'Overview', st: 'Search Term Analysis', ngram: 'N-Gram Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History',
@@ -37,7 +37,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History: with Search Term Analysis (ads/ppc-history.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ngram: 'st' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -177,6 +177,7 @@ function showTab(which) {
   if (which === 'ppcn') ensurePpcn();
   if (which === 'trends') ensureTrends();
   if (which === 'st') ensureSt();
+  if (which === 'ngram') ensureNgram();
   if (which === 'plc') ensurePlc();
   if (which === 'ppch') ensurePpch();
   if (which === 'deals') ensureDeals();

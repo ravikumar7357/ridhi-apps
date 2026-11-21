@@ -195,7 +195,7 @@ const ACCESS_GROUPS = [
   { key: 'reports', repl: ['rep', 'pa', 'ka'] },
   { key: 'sales', sellora: ['sales', 'profit', 'sa', 'plaudit'] },
   { key: 'listing', sellora: ['opt', 'img', 'lerr', 'basket', 'health', 'lrules', 'audit', 'bsr'] },
-  { key: 'ads', sellora: ['trends', 'weekly', 'st', 'plc', 'ppch', 'deals'] },
+  { key: 'ads', sellora: ['trends', 'weekly', 'st', 'ngram', 'plc', 'ppch', 'deals'] },
   { key: 'research', sellora: ['new', 'pr', 'link', 'kw'] },
   { key: 'stock', sellora: ['age', 'tiktok', 'carousel', 'ba'] },
   { key: 'other' },
@@ -290,7 +290,7 @@ function accessSummary(r) {
 }
 /* The advertising tabs, as one thing. Named here rather than typed into the click handler so the
  * set has somewhere to live when a fifth ad tab arrives. */
-const AD_TABS = ['weekly', 'trends', 'st', 'plc', 'ppch'];
+const AD_TABS = ['weekly', 'trends', 'st', 'ngram', 'plc', 'ppch'];
 // The "Advertising only" shortcut: tick the four ad tabs and clear everything else, in both apps.
 $('accessAdOnly').onclick = () => {
   $('accessGroups').querySelectorAll('[data-tab]').forEach(c => { c.checked = AD_TABS.includes(c.dataset.tab); });

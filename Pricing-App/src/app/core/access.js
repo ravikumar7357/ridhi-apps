@@ -108,7 +108,7 @@ function applyPerms() {
   // here rather than in each tab's render, so an ad tab added later cannot quietly forget it.
   // The other pickers — Deal Calendar, Listing Audit, Listing Health, BSR, Age — are deliberately
   // NOT in this list: the restriction is about ad figures, not about the catalogue.
-  ['tBrand', 'wBrand', 'stBrand', 'plcBrand', 'ppchBrand']
+  ['tBrand', 'wBrand', 'stBrand', 'plcBrand', 'ppchBrand', 'ngBrand']
     .forEach(id => { try { applyBrandPicker(id); } catch (e) { /* that tab may not exist */ } });
   // --- menu groups, and the tab to open ---
   syncNavGroups(allowed);

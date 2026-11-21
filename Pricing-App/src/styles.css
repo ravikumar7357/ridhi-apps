@@ -4701,6 +4701,49 @@
   #panePpch .ppch-tl .ppch-dev{color:var(--faint)}
   @media (max-width:1100px){#panePpch .sta-sum{grid-template-columns:repeat(5,minmax(0,1fr))!important}}
   @media (max-width:760px){#panePpch .sta-sum{grid-template-columns:repeat(2,minmax(0,1fr))!important}#panePpch .sta-sum>div:last-child{grid-column:1/-1}}
+  /* ----- The status dropdown (21 Nov 2026, staStatus in ads/search-terms.js): Search Term Analysis's and N-Gram Analysis's
+     data lines folded into one summary line (a ghost button, like "How Sellora decides") and a panel in the Filters row's look.
+     Red when something stops suggestions. ----- */
+  .sta-msg button.sta-stat{display:inline-flex;align-items:center;gap:10px;max-width:100%;padding:6px 12px;font-size:12.5px;font-weight:500;
+    color:var(--muted);text-align:left;white-space:normal;line-height:1.4}
+  .sta-msg button.sta-stat b{color:var(--ink);font-weight:600}
+  .sta-msg button.sta-stat.is-bad{color:var(--bad-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--bad) 45%,var(--card))}
+  .sta-msg button.sta-stat .sta-stat-c{flex:none;font-size:11px;color:var(--faint)}
+  .sta-msg .sta-stat-p{flex:1 1 100%;margin-top:4px}
+  .sta-msg .sta-stat-p.hide{display:none}
+  /* ----- N-Gram Analysis (21 Nov 2026, paneNgram, ads/ngram.js): Search Term Analysis's bar, status line, boxes, chips, table
+     and pager; added here only the pattern-size switch in the bar, the Rows choice at the end of the chips, and the row that
+     opens under a pattern (its terms, and what the action does). ----- */
+  #paneNgram .toolbar .seg.ng-size{flex:none}
+  #paneNgram .toolbar .seg.ng-size .segbtn{padding:6px 12px;font-size:13px}
+  #paneNgram .sta-actbar .ng-rows{margin-left:auto}
+  #paneNgram .sta-tcard{margin-top:0}
+  #paneNgram table.xl tr.ng-sub>td{background:var(--soft);padding:12px 16px 14px}
+  /* The figures' headings may take two lines ("Converting terms"), so Next step stays on screen at laptop widths. */
+  #paneNgram #ngTable thead th.num{white-space:normal;min-width:64px;max-width:96px;vertical-align:bottom;line-height:1.25}
+  #paneNgram #ngTable td.sta-ev.sta-ev-s{min-width:200px;max-width:250px}
+  #paneNgram #ngTable td.sta-next{min-width:180px}
+  #paneNgram .ng-split{position:sticky;left:16px;width:min(1400px,calc(100vw - 96px));display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:12px 24px;white-space:normal}
+  #paneNgram .ng-col{min-width:0}
+  #paneNgram table.xl.ng-mini td{white-space:normal}
+  #paneNgram table.xl.ng-mini td:first-child{min-width:140px}
+  #paneNgram .ng-col h5{display:block;margin:0 0 8px}
+  #paneNgram .ng-col p{margin:0 0 8px;font-size:12.5px;line-height:1.5;color:var(--ink)}
+  #paneNgram .ng-col p.sta-s{white-space:normal;color:var(--muted)}
+  #paneNgram table.xl.ng-mini{width:100%;font-size:12.5px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-row);overflow:hidden}
+  #paneNgram table.xl.ng-mini td,#paneNgram table.xl.ng-mini th{padding-top:6px;padding-bottom:6px}
+  #paneNgram table.xl.ng-mini .sta-term{font-weight:500}
+  #paneNgram table.xl.ng-mini td.ng-cp{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+  #paneNgram table.xl.ng-mini button.sta-btn.sm{margin-top:0;white-space:nowrap}
+  #paneNgram .ng-more{margin-top:6px;white-space:normal}
+  #paneNgram ul.ng-plan{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:4px}
+  #paneNgram .ng-plan li{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:6px 10px;border-radius:var(--r-sm);background:var(--card);
+    box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px}
+  #paneNgram .ng-plan li b{font-weight:600;color:var(--ink)}
+  #paneNgram .ng-plan li em{margin-left:auto;font-style:normal;font-weight:600;color:var(--muted)}
+  #paneNgram .ng-plan li.is-neg em{color:var(--bad-ink)}
+  #paneNgram .ng-plan li.is-kept em{color:var(--accent-ink)}
+  @media (max-width:900px){#paneNgram .ng-split{grid-template-columns:minmax(0,1fr)}}
 
   /* ===== MODULE: INVENTORY ===== */  /* ----- INVENTORY AGE (paneAge, inventory/inventory-age.js): the Ad Console look — .adx-meta's line, .ls-toolbar's bar,
      .adx-box number boxes (a box is also a filter, like .sta-box), the stock's age mix as bars, a flush table card like
