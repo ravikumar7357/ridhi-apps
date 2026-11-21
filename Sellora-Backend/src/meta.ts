@@ -11,12 +11,12 @@ export function accountId(a: string): string {
   return 'act_' + String(a || '').trim().replace(/^act_/, '');
 }
 
-/** The account's own timezone, e.g. "America/Los_Angeles". */
-export async function accountTz(token: string, account: string): Promise<string> {
-  const j = await callJson<{ timezone_name?: string }>('Meta account', `${GRAPH}/${accountId(account)}?fields=timezone_name`, {
+/** The account's own timezone (e.g. "Asia/Kolkata") and the currency it reports in (e.g. "INR"). */
+export async function accountInfo(token: string, account: string): Promise<{ tz: string; currency: string }> {
+  const j = await callJson<{ timezone_name?: string; currency?: string }>('Meta account', `${GRAPH}/${accountId(account)}?fields=timezone_name,currency`, {
     headers: { Authorization: 'Bearer ' + token.trim() },
   });
-  return (j && j.timezone_name) || 'America/Los_Angeles';
+  return { tz: (j && j.timezone_name) || 'America/Los_Angeles', currency: String((j && j.currency) || 'USD').toUpperCase() };
 }
 
 /** Spend, clicks, impressions and the purchases Meta counts, per day from `from` to `to` (the account's days). */

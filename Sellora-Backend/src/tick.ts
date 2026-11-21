@@ -15,7 +15,8 @@ import type { Db } from './supabase.ts';
 import { orderMetrics } from './amazon.ts';
 import { askReport, reportStatus, downloadReport, foldAds, findProfile, type AdType, type AdDay } from './ads.ts';
 import { ordersBetween, foldShop, type Tot } from './shopify.ts';
-import { insights, accountTz } from './meta.ts';
+import { insights, accountInfo } from './meta.ts';
+import { usdRates } from './fx.ts';
 import { ptDay, ptMidnight, shiftDay, daysBetween, hourStart, PT } from './time.ts';
 import { BRANDS, brandConfig, type Env, type BrandConfig, type Brand } from './config.ts';
 import { backfillOnce } from './backfill.ts';
@@ -135,15 +136,28 @@ export async function amazonAds(db: Db, cfg: BrandConfig, now: number): Promise<
 }
 
 /* ---------------- Meta ads ---------------- */
+/* An ad account may report in its own currency (Ridhi's: rupees). Spend and sales are stored in US dollars at that day's
+ * rate, like everything else in sellora; the account's own figures, its currency and the rate are kept beside them. */
 export async function metaAds(db: Db, cfg: BrandConfig, now: number): Promise<StepOut> {
   const b = cfg.brand, m = cfg.meta!, key = 'meta:' + b;
-  const st = await db.getState<{ tz?: string; account?: string }>(key);
-  let tz = st.account === m.account ? st.tz : '';
-  if (!tz) { tz = await accountTz(m.token, m.account); await db.setState(key, { tz, account: m.account }); }
+  const st = await db.getState<{ tz?: string; currency?: string; account?: string }>(key);
+  let tz = st.account === m.account ? st.tz : '', currency = st.account === m.account ? st.currency : '';
+  if (!tz || !currency) {
+    const info = await accountInfo(m.token, m.account);
+    tz = info.tz; currency = info.currency;
+    await db.setState(key, { tz, currency, account: m.account });
+  }
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
-  const days = await insights(m.token, m.account, shiftDay(today, -7), today);
-  const rows = await db.upsert('ads_daily', [...days].map(([d, v]) => adRow(b, 'meta', d, v, 'meta_api', tz!, now)), 'brand,ad_type,day');
-  return { rows, details: { days: days.size, tz } };
+  const from = shiftDay(today, -7);
+  const days = await insights(m.token, m.account, from, today);
+  const fx = await usdRates(currency!, from, today);
+  const rows = await db.upsert('ads_daily', [...days].map(([d, v]) => {
+    const rate = fx.get(d);
+    if (!rate) throw new Error(`no ${currency} → USD rate for ${d}`);
+    const usd = { ...v, spend: Math.round(v.spend * rate * 100) / 100, sales: Math.round(v.sales * rate * 100) / 100 };
+    return { ...adRow(b, 'meta', d, usd, 'meta_api', tz!, now), currency, fx_rate: rate, spend_native: v.spend, sales_native: v.sales };
+  }), 'brand,ad_type,day');
+  return { rows, details: { days: days.size, tz, currency, rate: fx.get(today) } };
 }
 
 /* ---------------- the run ---------------- */

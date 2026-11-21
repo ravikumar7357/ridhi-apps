@@ -21,7 +21,7 @@ export interface AdsCtx { cred: LwaCred; profileId: string }
 export interface AdDay { impressions: number; clicks: number; spend: number; orders: number; sales: number }
 
 async function headers(c: LwaCred, profileId?: string): Promise<Record<string, string>> {
-  const h: Record<string, string> = { Authorization: 'Bearer ' + await lwaToken(c), 'Amazon-Advertising-API-ClientId': c.clientId };
+  const h: Record<string, string> = { Authorization: 'Bearer ' + await lwaToken(c, 'Amazon Ads login'), 'Amazon-Advertising-API-ClientId': c.clientId };
   if (profileId) h['Amazon-Advertising-API-Scope'] = String(profileId);
   return h;
 }

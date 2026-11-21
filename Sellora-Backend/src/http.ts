@@ -3,9 +3,11 @@
 
 export class HttpError extends Error {
   status: number;
+  body: string;
   constructor(what: string, status: number, body: string) {
     super(`${what} ${status}: ${body.slice(0, 300)}`);
     this.status = status;
+    this.body = body;
   }
 }
 

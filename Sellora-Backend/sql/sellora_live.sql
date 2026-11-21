@@ -110,6 +110,12 @@ create index if not exists ads_daily_day on sellora.ads_daily (day);
 -- the same for the ad types ('total' added on 21 Nov for the history import)
 alter table sellora.ads_daily drop constraint if exists ads_daily_ad_type_check;
 alter table sellora.ads_daily add constraint ads_daily_ad_type_check check (ad_type in ('sp', 'sb', 'sd', 'meta', 'total'));
+-- 21 Nov: spend and sales are always US dollars. An ad account that reports in another currency (Ridhi's Meta account:
+-- rupees) is converted at that day's ECB rate; its own figures, currency and the rate are kept here.
+alter table sellora.ads_daily add column if not exists currency     text not null default 'USD';
+alter table sellora.ads_daily add column if not exists fx_rate      numeric(16,8);
+alter table sellora.ads_daily add column if not exists spend_native numeric(14,2);
+alter table sellora.ads_daily add column if not exists sales_native numeric(14,2);
 comment on table sellora.ads_daily is 'Ad spend and attributed sales per day. sp/sb/sd = Amazon Sponsored Products/Brands/Display; meta = Facebook + Instagram.';
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -197,7 +203,7 @@ grant select on sellora.day_totals to service_role;
 --       ads:    { SP|CPC: { sp|sb|sd|meta|total: { 'YYYY-MM-DD': [impressions, clicks, spend, orders, sales] } } },
 --               (total = Apps Script history, all three Amazon types together, only on days without sp/sb/sd rows)
 --       events: [ { name, starts, ends, about } ],
---       runs:   { job: { at, ok, error } } }                                                 -- latest run per job
+--       runs:   { "job:BRAND": { at, ok, error, rows } } }                    -- latest run per step and brand, last 2 days
 -- p_day: the Pacific day on view (default today). ly = 364 days back (same weekday), lw = 7, m4 = 28.
 -- daily / ads cover p_days back (default 800 — enough for last financial year's quarters).
 -- The daily arrays keep the [sales, units, orders] order the page already uses for DATA.hist.d.
@@ -256,9 +262,10 @@ ev as (
   select coalesce(jsonb_agg(jsonb_build_object('name', name, 'starts', starts, 'ends', ends, 'about', about) order by starts), '[]'::jsonb) as j
   from sellora.events
 ),
-runs as (
-  select coalesce(jsonb_object_agg(job, jsonb_build_object('at', finished_at, 'ok', ok, 'error', error)), '{}'::jsonb) as j
-  from (select distinct on (job) job, finished_at, ok, error from sellora.fetch_runs order by job, started_at desc) r
+runs as (    -- the latest run of each step, per brand ("amazon_ads:CPC"), so one brand cannot hide the other's failure
+  select coalesce(jsonb_object_agg(job || coalesce(':' || brand, ''), jsonb_build_object('at', finished_at, 'ok', ok, 'error', error, 'rows', rows_written)), '{}'::jsonb) as j
+  from (select distinct on (job, brand) job, brand, finished_at, ok, error, rows_written from sellora.fetch_runs
+         where started_at > now() - interval '2 days' order by job, brand, started_at desc) r
 )
 select jsonb_build_object(
   'ok',     true,
@@ -297,6 +304,7 @@ select case
          and table_name in ('brands', 'sales_hourly', 'sales_daily', 'ads_daily', 'events', 'job_state', 'fetch_runs')) = 7
    and position('apps_script' in pg_get_constraintdef((select oid from pg_constraint where conname = 'sales_daily_source_check'))) > 0
    and position('total' in pg_get_constraintdef((select oid from pg_constraint where conname = 'ads_daily_ad_type_check'))) > 0
+   and exists (select 1 from information_schema.columns where table_schema = 'sellora' and table_name = 'ads_daily' and column_name = 'fx_rate')
    and (sellora.page_data(null, 1) ->> 'ok') = 'true'
   then 'PASS — schema sellora ready (7 tables, page_data answers). Now add "sellora" to Data API → Exposed schemas.'
   else 'FAIL — look at the lines above' end as result;

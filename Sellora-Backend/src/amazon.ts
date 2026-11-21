@@ -1,7 +1,7 @@
 /* Amazon: the Login-with-Amazon token, and the Sales API's getOrderMetrics — every order placed on Amazon.com (pending
  * ones included), by Pacific hour or day. The same call Apps Script makes (Pricing-API/SalesLive.gs liveMetrics_). */
 
-import { callJson } from './http.ts';
+import { callJson, HttpError } from './http.ts';
 import { isoPT } from './time.ts';
 
 export const LWA_URL = 'https://api.amazon.com/auth/o2/token';
@@ -12,15 +12,27 @@ export interface LwaCred { clientId: string; clientSecret: string; refreshToken:
 
 const tokens = new Map<string, { token: string; until: number }>();
 
-/** An access token for one set of credentials, kept until 5 minutes before it runs out (they last an hour). */
-export async function lwaToken(c: LwaCred): Promise<string> {
+/** An access token for one set of credentials, kept until 5 minutes before it runs out (they last an hour).
+ * `what` names the credentials in an error ("Amazon Ads login"), and Amazon's own reason is put first — its answer
+ * opens with a long error_index that used to push the reason out of the message. */
+export async function lwaToken(c: LwaCred, what = 'Amazon login'): Promise<string> {
   const k = c.clientId + '|' + c.refreshToken.slice(-12);
   const hit = tokens.get(k);
   if (hit && hit.until > Date.now()) return hit.token;
   const body = new URLSearchParams({ grant_type: 'refresh_token', refresh_token: c.refreshToken, client_id: c.clientId, client_secret: c.clientSecret });
-  const j = await callJson<{ access_token: string; expires_in?: number }>('Amazon login', LWA_URL, {
-    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString(),
-  });
+  let j: { access_token: string; expires_in?: number };
+  try {
+    j = await callJson<{ access_token: string; expires_in?: number }>(what, LWA_URL, {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString(),
+    });
+  } catch (e) {
+    if (e instanceof HttpError) {
+      let why = '';
+      try { const x = JSON.parse(e.body); why = [x.error, x.error_description].filter(Boolean).join(' — '); } catch { /* not JSON */ }
+      throw new Error(`${what} ${e.status}: ${why || e.body.slice(0, 200)} (client id …${c.clientId.slice(-6)})`);
+    }
+    throw e;
+  }
   if (!j || !j.access_token) throw new Error('Amazon login: no access token in the answer');
   tokens.set(k, { token: j.access_token, until: Date.now() + Math.max(60, (j.expires_in || 3600) - 300) * 1000 });
   return j.access_token;

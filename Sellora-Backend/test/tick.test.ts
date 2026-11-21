@@ -29,8 +29,10 @@ function services(opts: { adsStatus?: string; failSales?: string } = {}) {
       { id: 1, created_at: '2026-11-20T08:15:00-08:00', financial_status: 'paid', line_items: [{ price: '30.00', quantity: 2 }] },
       { id: 2, created_at: '2026-11-19T22:00:00-08:00', financial_status: 'paid', line_items: [{ price: '15.00', quantity: 1 }] },
     ] }) : null,
-    u => u.hostname === 'graph.facebook.com' && u.pathname === '/v23.0/act_999' ? json({ timezone_name: 'Asia/Kolkata' }) : null,
-    u => u.hostname === 'graph.facebook.com' && u.pathname === '/v23.0/act_888' ? json({ timezone_name: 'America/Los_Angeles' }) : null,
+    u => u.hostname === 'graph.facebook.com' && u.pathname === '/v23.0/act_999' ? json({ timezone_name: 'Asia/Kolkata', currency: 'INR' }) : null,
+    u => u.hostname === 'graph.facebook.com' && u.pathname === '/v23.0/act_888' ? json({ timezone_name: 'America/Los_Angeles', currency: 'USD' }) : null,
+    // ECB rates: working days only (no 14–15 Nov weekend, none yet for 21 Nov)
+    u => u.hostname === 'api.frankfurter.dev' ? json({ base: 'INR', rates: { '2026-11-12': { USD: 0.0106 }, '2026-11-13': { USD: 0.0107 }, '2026-11-16': { USD: 0.0108 }, '2026-11-17': { USD: 0.0108 }, '2026-11-18': { USD: 0.0108 }, '2026-11-19': { USD: 0.0109 }, '2026-11-20': { USD: 0.01 } } }) : null,
     (u, init) => {
       if (u.hostname !== 'graph.facebook.com' || !u.pathname.endsWith('/insights')) return null;
       // each account answers only to its own brand's token
@@ -77,11 +79,13 @@ test('one full run writes every source, and logs one line per step', async () =>
     // Ads: first run only asks (nothing to collect yet); Meta in the account's own timezone (India: already 21 Nov)
     assert.equal(db.rows('ads_daily').filter(r => r.source === 'ads_api').length, 0);
     assert.equal(db.state['amazon_ads:SP'].t.sp.pendingId, 'rep-spCampaigns');
+    // Ridhi's account reports in rupees: stored in dollars at that day's rate, the rupees kept beside them
     const meta = db.rows('ads_daily').find(r => r.ad_type === 'meta' && r.brand === 'SP');
-    assert.deepEqual([meta.day, meta.spend, meta.orders, meta.sales, meta.day_tz], ['2026-11-20', 120.5, 4, 210, 'Asia/Kolkata']);
-    // CPC with its own token and account
+    assert.deepEqual([meta.day, meta.spend, meta.orders, meta.sales, meta.day_tz], ['2026-11-20', 1.21, 4, 2.1, 'Asia/Kolkata']);
+    assert.deepEqual([meta.currency, meta.fx_rate, meta.spend_native, meta.sales_native], ['INR', 0.01, 120.5, 210]);
+    // CPC with its own token and account, already in dollars
     const cpcMeta = db.rows('ads_daily').find(r => r.ad_type === 'meta' && r.brand === 'CPC');
-    assert.deepEqual([cpcMeta.spend, cpcMeta.day_tz], [80, 'America/Los_Angeles']);
+    assert.deepEqual([cpcMeta.spend, cpcMeta.day_tz, cpcMeta.currency, cpcMeta.fx_rate], [80, 'America/Los_Angeles', 'USD', 1]);
     assert.ok(db.rows('ads_daily').some(r => r.ad_type === 'total' && r.source === 'apps_script'));
   } finally { f.restore(); }
 });
