@@ -80,6 +80,11 @@ create table if not exists sellora.sales_daily (
   primary key (brand, channel, day)
 );
 create index if not exists sales_daily_day on sellora.sales_daily (day);
+-- Run again over an earlier copy of this file: "create table if not exists" leaves an old table as it was, so the list of
+-- sources is set here every time ('apps_script' was added on 21 Nov for the history import).
+alter table sellora.sales_daily drop constraint if exists sales_daily_source_check;
+alter table sellora.sales_daily add constraint sales_daily_source_check
+  check (source in ('sales_api', 'shopify_api', 'orders_workbook', 'apps_script', 'manual'));
 comment on table sellora.sales_daily is 'Sales per Pacific day per brand and channel. Today is never here: the page takes today from sales_hourly.';
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -102,6 +107,9 @@ create table if not exists sellora.ads_daily (
   primary key (brand, ad_type, day)
 );
 create index if not exists ads_daily_day on sellora.ads_daily (day);
+-- the same for the ad types ('total' added on 21 Nov for the history import)
+alter table sellora.ads_daily drop constraint if exists ads_daily_ad_type_check;
+alter table sellora.ads_daily add constraint ads_daily_ad_type_check check (ad_type in ('sp', 'sb', 'sd', 'meta', 'total'));
 comment on table sellora.ads_daily is 'Ad spend and attributed sales per day. sp/sb/sd = Amazon Sponsored Products/Brands/Display; meta = Facebook + Instagram.';
 
 -- ---------------------------------------------------------------------------------------------------------------------
@@ -280,3 +288,15 @@ as $$
 $$;
 revoke all on function sellora.prune_runs(int) from public, anon, authenticated;
 grant execute on function sellora.prune_runs(int) to service_role;
+
+notify pgrst, 'reload schema';
+
+-- The last line must say PASS.
+select case
+  when (select count(*) from information_schema.tables where table_schema = 'sellora'
+         and table_name in ('brands', 'sales_hourly', 'sales_daily', 'ads_daily', 'events', 'job_state', 'fetch_runs')) = 7
+   and position('apps_script' in pg_get_constraintdef((select oid from pg_constraint where conname = 'sales_daily_source_check'))) > 0
+   and position('total' in pg_get_constraintdef((select oid from pg_constraint where conname = 'ads_daily_ad_type_check'))) > 0
+   and (sellora.page_data(null, 1) ->> 'ok') = 'true'
+  then 'PASS — schema sellora ready (7 tables, page_data answers). Now add "sellora" to Data API → Exposed schemas.'
+  else 'FAIL — look at the lines above' end as result;
