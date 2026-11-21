@@ -382,12 +382,24 @@ function yoyRenderBreakdown(from, to, keys) {
   const m = v => (v < 0 ? '−' : '') + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const neg = v => (v ? m(-v) : m(0));
   const span = from === to ? yoyDate(from) : yoyDate(from, false) + ' – ' + yoyDate(to);
-  if (!n) { host.innerHTML = `<div class="yoy-bd"><div class="yoy-bd-h"><b>Total sales breakdown</b><span>${span}</span></div><p class="yoy-bd-note">Shopify's breakdown is kept from 15 Nov 2026 — not for these days.</p></div>`; return; }
+  // Beside it, the days themselves (21 Nov): the period's days, or the last 7 on the day view. The same as live.html.
+  const listFrom = from === to ? sdShift(to, -6) : from, list = [];
+  for (let d = to; d >= listFrom && list.length < 14; d = sdShift(d, -1)) {
+    const r = [0, 0, 0, 0, 0, 0, 0, 0]; let got = false;
+    keys.forEach(k => { const x = (B[k] || {})[d]; if (x) { x.forEach((v, i) => { r[i] += Number(v) || 0; }); got = true; } });
+    if (got) list.push([d, r]);
+  }
+  const m0 = v => (v < 0 ? '−' : '') + '$' + Math.round(Math.abs(v)).toLocaleString('en-US');
+  const byDay = list.length ? `<div class="yoy-bd"><div class="yoy-bd-h"><b>By day</b><span>store's own days</span></div>
+    <table class="yoy-bdl"><thead><tr><th>Day</th><th>Orders</th><th>Gross</th><th>Reversals</th><th>Total sales</th></tr></thead><tbody>${
+      list.map(([d, r]) => `<tr${d === to ? ' class="on"' : ''}><td>${yoyDate(d, false)}</td><td>${yoyInt(r[7])}</td><td>${m0(r[0])}</td><td>${r[2] ? m0(-r[2]) : '—'}</td><td><b>${m0(r[6])}</b></td></tr>`).join('')
+    }</tbody></table></div>` : '';
+  if (!n) { host.innerHTML = `<div class="yoy-bd"><div class="yoy-bd-h"><b>Total sales breakdown</b><span>${span}</span></div><p class="yoy-bd-note">Shopify's breakdown is kept from 15 Nov 2026 — not for these days.</p></div>` + byDay; return; }
   const rows = [['Gross sales', m(t[0])], ['Discounts', neg(t[1])], ['Sales reversals', neg(t[2])], ['Net sales', m(t[3]), 'yoy-bd-sum'],
     ['Shipping charges', m(t[4])], ['Return fees', m(0)], ['Taxes', m(t[5])], ['Total sales', m(t[6]), 'yoy-bd-total']];
   host.innerHTML = `<div class="yoy-bd"><div class="yoy-bd-h"><b>Total sales breakdown</b><span>${span} · ${yoyInt(t[7])} orders${n < days ? ` · ${n} of ${days} days (kept from ${yoyDate(first, false)})` : ''}</span></div>
     <table>${rows.map(r => `<tr class="${r[2] || ''}"><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table>
-    <p class="yoy-bd-note">As Shopify Analytics counts it · sales reversals are refunds and cancellations on the day they happened · Pacific days</p></div>`;
+    <p class="yoy-bd-note">As Shopify Analytics counts it, on the store's own days · sales reversals are refunds and cancellations on the day they happened</p></div>` + byDay;
 }
 function yoyRenderShop(V, live, frac, amzToday, amzLySame, amzLwSame, amzAds) {
   if (YOY_PERIOD === 'day') yoyRenderBreakdown(V.day, V.day, V.keys);
