@@ -226,8 +226,7 @@ function projOvrOf(sku, monthKey) {
  * lyw30 / lyw90 = units in the 30 / 90 days that ended a year ago. Guards: factor kept to ×0.5–×2.5; ×1 when the SKU has no
  * year history (under 12 units), when last year's month sold nothing, or beyond 12 months out. A manual Proj still wins. */
 const FC_SEASON_MIN = 0.5, FC_SEASON_MAX = 2.5;
-let FC_SEASON = true;
-try { FC_SEASON = localStorage.getItem('repl_season') !== '0'; } catch (e) { /* default on */ }
+/* FC_SEASON (on / off) is declared in replenishment/replenishment.js, which runs before this file */
 function fcSeasonBase(r) {
   const lym = Array.isArray(r.lym) ? r.lym : null; if (!lym) return null;
   const yr = lym.reduce((t, v) => t + (Number(v) || 0), 0); if (yr < 12) return null;

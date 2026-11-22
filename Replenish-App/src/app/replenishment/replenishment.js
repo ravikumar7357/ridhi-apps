@@ -397,7 +397,9 @@ loadLead();
 });
 // Forecast horizon — remembered per browser so it survives a reload.
 try { const h = localStorage.getItem('repl_horizon'); if (h) $('rHorizon').value = h; } catch (e) {}
-// Season on the Proj columns (22 Nov) — remembered per browser.
+// Season on the Proj columns (22 Nov) — remembered per browser. Declared HERE: this file runs before core/multi-select-filter.js.
+var FC_SEASON = true;
+try { FC_SEASON = localStorage.getItem('repl_season') !== '0'; } catch (e) { /* default on */ }
 $('rSeason').value = FC_SEASON ? '1' : '0';
 $('rSeason').addEventListener('change', () => {
   FC_SEASON = $('rSeason').value !== '0';
