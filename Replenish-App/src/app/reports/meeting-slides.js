@@ -97,6 +97,12 @@ function mtsRate(at, sub, size) {
     || L.find(x => N(x[1]) === N(sub) && N(x[2]) === N(size) && N(x[3]) === ap) || L.find(x => N(x[1]) === N(sub) && N(x[3]) === ap);
   return r ? (parseFloat(r[4]) || 0) : 0;
 }
+/* KARIGARS WHO WORK TOGETHER (Ravi, 22 Nov: "koi koi karegar group me kam karte h like hareram and shriram mujhe inke liye option do").
+ * Kept beside the meeting's notes: pt_meeting/_groups/<id> = { name, members: [names], at, by } (a list ERP data already knows).
+ * A group is ranked as ONE line: its members' QC-passed work added up, divided by ALL its members' active days — two people
+ * whose work is entered under one name are no longer a "top performer" doing two people's work. */
+const mtsGroups = () => Object.entries(((MTG.meet || {})._groups) || {}).filter(([, g]) => g && Array.isArray(g.members) && g.members.length)
+  .map(([id, g]) => ({ id, name: String(g.name || '').trim(), members: g.members.map(m => String(m).trim()).filter(Boolean) }));
 function mtsPeople(wk) {
   const from = mtgMs(wk), to = from + 7 * 864e5, b4 = from - 28 * 864e5;
   const type = new Map(), days = new Map();
@@ -118,9 +124,22 @@ function mtsPeople(wk) {
     e.chk += ptNum(r.checked) || (ok + ptNum(r.rejected) + ptNum(r.forAlteration)); e.arts.add(r.subtype || r.articleType || '');
     now.set(r.karigar, e);
   });
-  const rows = [...now.values()].filter(e => /company contractor/i.test(type.get(e.k) || '')).map(e => {
-    const d = (days.get(e.k) || new Set()).size;
-    return Object.assign(e, { days: d, perDay: d ? e.val / d : 0, badPct: e.chk ? Math.round(e.bad / e.chk * 1000) / 10 : 0, avg: Math.round((before.get(e.k) || 0) / 4), arts: e.arts.size });
+  /* one line per group: work and quality added up, days = every member's active days (person-days) */
+  const N = x => String(x || '').trim().toLowerCase(), groupOf = new Map();
+  mtsGroups().forEach(g => g.members.forEach(m => groupOf.set(N(m), g)));
+  const merged = new Map();
+  [...now.values()].forEach(e => {
+    const g = groupOf.get(N(e.k)); if (!g) { merged.set('k:' + e.k, e); return; }
+    const key = 'g:' + g.id, m = merged.get(key) || { k: g.name || g.members.join(' + '), group: g, pcs: 0, val: 0, bad: 0, chk: 0, arts: new Set() };
+    m.pcs += e.pcs; m.val += e.val; m.bad += e.bad; m.chk += e.chk; e.arts.forEach(a => m.arts.add(a)); merged.set(key, m);
+  });
+  const isCC = e => e.group ? true : /company contractor/i.test(type.get(e.k) || '');
+  const daysOf = e => e.group ? e.group.members.reduce((t, n) => t + (days.get(n) || new Set()).size, 0) : (days.get(e.k) || new Set()).size;
+  const beforeOf = e => e.group ? e.group.members.reduce((t, n) => t + (before.get(n) || 0), 0) : (before.get(e.k) || 0);
+  const rows = [...merged.values()].filter(isCC).map(e => {
+    const d = daysOf(e);
+    return Object.assign(e, { days: d, perDay: d ? e.val / d : 0, badPct: e.chk ? Math.round(e.bad / e.chk * 1000) / 10 : 0, avg: Math.round(beforeOf(e) / 4), arts: e.arts.size,
+      dayTxt: e.group ? e.group.members.map(n => (days.get(n) || new Set()).size).join(' + ') : '' });
   });
   const active = rows.filter(r => r.days >= MTS_MIN_DAYS);
   /* both ends by work A DAY (18 Nov, first look: ranked by the week's total, a 4-day karigar below the team a day sat in the top 3) */
@@ -176,15 +195,20 @@ function mtsSlides(wk) {
     return `<span style="color:${good ? '#166534' : 'var(--bad)'};font-weight:700">${p >= 0 ? '+' : '−'}${Math.abs(p)}%</span>`; };
   const qVs = b => { const d = Math.round((b - T.badPct) * 10) / 10, good = b <= T.badPct;
     return `<span style="color:${good ? '#166534' : 'var(--bad)'};font-weight:700">${good ? 'better' : 'worse'} by ${Math.abs(d)}</span>`; };
-  const ptable = list => list.length ? `<table class="mts-cmp"><thead><tr><th>Karigar</th><th>Pcs a day</th><th>vs team</th><th>Work ₹ a day</th><th>vs team</th><th>Quality (rej + alt)</th><th>vs team</th><th>Days</th><th>Articles</th><th>vs own 4-week avg</th></tr></thead><tbody>`
-      + list.map(r => { const pd = r.pcs / r.days, own = r.avg ? pct(r.val, r.avg) : null;
-        return `<tr><td><b>${esc(r.k)}</b></td><td>${nf(Math.round(pd))}</td><td>${vs(pd, T.pcsDay, true)}</td><td>${rs(r.perDay)}</td><td>${vs(r.perDay, T.valDay, true)}</td>`
-          + `<td>${r.badPct}%</td><td>${qVs(r.badPct)}</td><td>${nf(r.days)}</td><td>${nf(r.arts)}</td><td>${own == null ? '<span class="muted">new</span>' : `<span style="color:${own >= 0 ? '#166534' : 'var(--bad)'}">${own >= 0 ? '▲' : '▼'} ${Math.abs(own)}%</span>`}</td></tr>`; }).join('')
-      + `<tr class="mts-team"><td>Team average (${nf(T.n)} karigars)</td><td>${nf(Math.round(T.pcsDay))}</td><td></td><td>${rs(T.valDay)}</td><td></td><td>${T.badPct}%</td><td></td><td colspan="3"></td></tr></tbody></table>`
+  /* 22 Nov (Ravi): "Work ₹ a day", its "vs team" and "vs own 4-week avg" taken off the slide. The ranking itself is unchanged (work = pcs ×
+   * job work rate, so a quilt and a napkin are not the same piece); a group shows its members and their days. */
+  const ptable = list => list.length ? `<table class="mts-cmp"><thead><tr><th>Karigar</th><th>Pcs a day</th><th>vs team</th><th>Quality (rej + alt)</th><th>vs team</th><th>Days</th><th>Articles</th></tr></thead><tbody>`
+      + list.map(r => { const pd = r.days ? r.pcs / r.days : 0;
+        return `<tr><td><b>${esc(r.k)}</b>${r.group ? `<div class="muted" style="font-size:11px">group · ${esc(r.group.members.join(', '))}</div>` : ''}</td><td>${nf(Math.round(pd))}</td><td>${vs(pd, T.pcsDay, true)}</td>`
+          + `<td>${r.badPct}%</td><td>${qVs(r.badPct)}</td><td>${r.group ? esc(r.dayTxt) : nf(r.days)}</td><td>${nf(r.arts)}</td></tr>`; }).join('')
+      + `<tr class="mts-team"><td>Team average (${nf(T.n)} karigars)</td><td>${nf(Math.round(T.pcsDay))}</td><td></td><td>${T.badPct}%</td><td></td><td colspan="2"></td></tr></tbody></table>`
     : '<span class="muted">Nobody meets the rule this week.</span>';
+  /* A FROZEN WEEK SHOWS WHAT THE MEETING SAW (22 Nov: "last week ka data save kha hoga"): Freeze keeps the two lists (mtgFreeze). */
+  const fzP = (((MTG.meet || {})[wk] || {}).frozen || {}).people;
+  const tableOf = which => fzP && fzP[which] ? fzP[which] : ptable(P[which]);
   out.push({ t: 'People Discussion', html: `<table class="mts-sheet"><tbody>
-      <tr><th style="background:#E5F4E4">Top 3 performer for last week that I want to recognize</th><td>${ptable(P.top)}</td></tr>
-      <tr><th>Bottom 3 performers that I want to highlight</th><td>${ptable(P.bottom)}<div class="muted" style="font-size:11.5px;margin-top:4px">How chosen: piece-rate karigars only (not the contractor's team, embroidery vendors or salaried staff) · work = QC-passed pcs × job work rate · top = ${MTS_MIN_DAYS}+ days active, quality ${MTS_BAD_MAX}% or better, most work a day · bottom = ${MTS_MIN_DAYS}+ days active, least work a day · active = a Job Work issue or receipt that day (attendance is not kept) · two people sharing one entry cannot be seen${P.left ? ' · ' + nf(P.left) + ' karigar(s) under ' + MTS_MIN_DAYS + ' days left out' : ''}${P.noRate ? ' · <b style="color:var(--bad)">job work rates could not be read</b>' : ''}</div></td></tr>
+      <tr><th style="background:#E5F4E4">Top 3 performer for last week that I want to recognize</th><td>${fzP ? `<div class="muted" style="font-size:11.5px;margin-bottom:4px">as frozen ${esc(fzP.at || '')}</div>` : ''}${tableOf('top')}</td></tr>
+      <tr><th>Bottom 3 performers that I want to highlight</th><td>${tableOf('bottom')}<div class="muted" style="font-size:11.5px;margin-top:4px">How chosen: piece-rate karigars only (not the contractor's team, embroidery vendors or salaried staff) · work = QC-passed pcs × job work rate · top = ${MTS_MIN_DAYS}+ days active, quality ${MTS_BAD_MAX}% or better, most work a day · bottom = ${MTS_MIN_DAYS}+ days active, least work a day · active = a Job Work issue or receipt that day (attendance is not kept) · karigars who work together: Production meeting → Karigar groups — a group is one line, its days added up${mtsGroups().length ? ' (' + mtsGroups().map(g => esc(g.name || g.members.join(' + '))).join('; ') + ')' : ''}${P.left ? ' · ' + nf(P.left) + ' karigar(s) under ' + MTS_MIN_DAYS + ' days left out' : ''}${P.noRate ? ' · <b style="color:var(--bad)">job work rates could not be read</b>' : ''}</div></td></tr>
       <tr><th>Critical vacant position with HR</th><td>${mtsNote(wk, 'hr_vacant', 'Status', 3)}</td></tr>
       <tr><th>People Requirement not yet with HR</th><td>${mtsNote(wk, 'hr_need', 'Status (discuss with Srikant ji, Mukul sir first)', 3)}</td></tr>
     </tbody></table>` });
