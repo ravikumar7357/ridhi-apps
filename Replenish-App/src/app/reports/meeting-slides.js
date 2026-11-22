@@ -38,20 +38,24 @@ function mtsChannel(ch, wk) {
     const due = l.mto ? l.mtoDue : (dueIx.get(l.orderNo + '|' + l.sku) || '');
     if (due && due < today && (l.pendingMake || 0) > 0) { lateOrders.add(l.orderNo); latePcs += l.pendingMake; }
   });
-  let st = null; try { st = mtsStages(open); } catch (e) { st = null; }
+  let st = null; try { st = mtsStages(open, l => { const due = l.mto ? l.mtoDue : (dueIx.get(l.orderNo + '|' + l.sku) || ''); return !!(due && due < today); }); } catch (e) { st = null; }
   let spot = 0, touch = 0;
   try { qcDeptRows().forEach(x => { if (!x.left || !ofCh(x.c.orderNo || x.c.order || '')) return; if (/spot/i.test(x.dept)) spot += x.left; else if (/touch/i.test(x.dept)) touch += x.left; }); } catch (e) { /* QC not read */ }
   const stages = st ? [['To plan', st.plan], ['At printer', st.printer], ['Printed, to cut', st.toCut], ['Cut, to issue', st.toIssue], ['Stitching (with karigars)', st.karigar],
     ['Waiting for QC', st.qc], ['Spotting', spot], ['Touching', touch], ['Press (QC passed, not pressed)', st.press]].concat(st.other ? [['On no step yet', st.other]] : []) : [];
-  return { qc, qcPrev, orders: orders.size, openPcs, pendOrders: pendOrders.size, pend, late: lateOrders.size, latePcs, stages };
+  return { qc, qcPrev, orders: orders.size, openPcs, pendOrders: pendOrders.size, pend, late: lateOrders.size, latePcs, stages, byPrinter: st ? st.byPrinter : {} };
 }
 
 /* WHERE EACH PIECE IS — ONE PLACE ONLY (18 Nov, first look at the slides: the board's own counts overlap — a piece counted at the
  * printer was counted again at QC — so FBA's stages added up to 2.2 lakh against 1.18 lakh pending). Each line's pieces not yet made
  * are put at the furthest step they have NOT passed: to plan · at the printer · printed but not cut · cut but not issued · with
  * karigars · back but not QC-checked. Press counts only on a line where pressing is recorded at all (Amazon lines are not pressed). */
-function mtsStages(lines) {
-  const s = { plan: 0, printer: 0, toCut: 0, toIssue: 0, karigar: 0, qc: 0, press: 0, other: 0 };
+/* PRINTING, PRINTER BY PRINTER (Ravi, 22 Nov: "kis printer ke pas kitna mal pending% h wo kese pata chalega"): the "Printing" pieces of a
+ * line go to its printer (the PPC plan's printer); a line with no plan yet goes to "PPC — not planned". Late = the line is past its due date. */
+const MTS_NOPLAN = 'PPC — not planned yet';
+function mtsStages(lines, lateOf) {
+  const s = { plan: 0, printer: 0, toCut: 0, toIssue: 0, karigar: 0, qc: 0, press: 0, other: 0, byPrinter: {} };
+  const P = (name, k, n, late) => { if (!(n > 0)) return; const e = s.byPrinter[name] || (s.byPrinter[name] = { plan: 0, printer: 0, late: 0, lines: 0 }); e[k] += n; e.lines++; if (late) e.late += n; };
   lines.forEach(r => {
     const q = Math.max(0, (+r.qty || 0) - (typeof shpbStockOf === 'function' ? shpbStockOf(r) : 0)), cap = n => Math.max(0, Math.min(q, +n || 0));
     const iss = cap((+r.issued || 0) - (+r.rejected || 0)), rec = cap(r.received), qc = cap(r.pressed), cut = r.cutReq ? cap(r.cut) : null;
@@ -62,13 +66,14 @@ function mtsStages(lines) {
      * waiting for QC first, then with karigars, cut to issue, printed to cut, at the printer, to plan — each taking no more than is left. */
     let left = Math.max(0, +r.pendingMake || 0);
     const take = (k, v) => { const t = Math.min(left, Math.max(0, v)); s[k] += t; left -= t; };
-    if (typeof shpbGated === 'function' && shpbGated(r)) { take('plan', q - qc); return; }
+    const isLate = typeof lateOf === 'function' && lateOf(r);
+    if (typeof shpbGated === 'function' && shpbGated(r)) { const a = left; take('plan', q - qc); P(MTS_NOPLAN, 'plan', a - left, isLate); return; }
     const cutDone = cut == null ? back : Math.max(cut, iss);
     take('qc', rec - qc);
     take('karigar', iss - Math.max(rec, qc));
     take('toIssue', cutDone - Math.max(iss, rec, qc));
     take('toCut', back - cutDone);
-    take('printer', q - back);
+    { const a = left; take('printer', q - back); P((typeof shpbPrinterOf === 'function' && shpbPrinterOf(r)) || '(printer not named on the plan)', 'printer', a - left, isLate); }
     s.other += left;                                  // still to make, but on no step the registers show
     const prsBy = ((typeof SHPB !== 'undefined' && SHPB.pressBy) || {})[typeof shpbKey === 'function' ? shpbKey(r.orderNo, r.sku) : ''] || {};
     if (+prsBy.pcs > 0) s.press += Math.max(0, qc - Math.min(qc, +prsBy.pcs));
@@ -188,6 +193,19 @@ function mtsSlides(wk) {
   });
   out.push({ t: 'Production Report Card', html: `<table class="mts-sheet"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table>
     <div class="muted" style="font-size:12px;margin-top:6px">open orders = a line not yet handed over · pending = pieces still to make · status = those pieces, each at the one step it waits at</div>` });
+  /* 1b · Printing, printer by printer — the report card's "Printing" figure split */
+  const pr = new Map();
+  MTS_CH.forEach(ch => { let c = null; try { c = mtsChannel(ch, wk); } catch (e) { c = null; } if (!c) return;
+    Object.entries(c.byPrinter || {}).forEach(([n, e]) => { const x = pr.get(n) || { n, tot: 0, late: 0, lines: 0, ch: {} }; const t = e.plan + e.printer;
+      x.tot += t; x.late += e.late; x.lines += e.lines; x.ch[ch.k] = (x.ch[ch.k] || 0) + t; pr.set(n, x); }); });
+  const prRows = [...pr.values()].sort((a, b) => (a.n === MTS_NOPLAN) - (b.n === MTS_NOPLAN) || b.tot - a.tot);
+  const prTot = prRows.reduce((t, x) => t + x.tot, 0) || 1;
+  out.push({ t: 'Printing — pending by printer', html: `<table class="mts-cmp" style="font-size:15px"><thead><tr><th>Printer</th><th>FBA</th><th>B2B</th><th>Shopify</th><th>Pieces pending</th><th>% of printing</th><th>Of which late</th><th>Late %</th></tr></thead><tbody>`
+    + prRows.map(x => `<tr${x.n === MTS_NOPLAN ? ' style="background:#FFF7EB"' : ''}><td><b>${esc(x.n)}</b></td><td>${nf(Math.round(x.ch.FBA || 0))}</td><td>${nf(Math.round(x.ch.B2B || 0))}</td><td>${nf(Math.round(x.ch.SHOP || 0))}</td>`
+      + `<td><b>${nf(Math.round(x.tot))}</b></td><td>${Math.round(x.tot / prTot * 100)}%</td><td style="color:${x.late ? 'var(--bad)' : 'inherit'}">${nf(Math.round(x.late))}</td><td>${x.tot ? Math.round(x.late / x.tot * 100) : 0}%</td></tr>`).join('')
+    + `<tr class="mts-team"><td>Total</td><td colspan="3"></td><td>${nf(Math.round(prTot))}</td><td>100%</td><td>${nf(Math.round(prRows.reduce((t, x) => t + x.late, 0)))}</td><td></td></tr></tbody></table>
+    <div class="muted" style="font-size:12px;margin-top:6px">pieces still to make whose printed cloth is not back from the printer, by the printer on the PPC plan · "${esc(MTS_NOPLAN)}" = no plan yet, so no printer · late = the order line is past its due date · the same figures as "Printing" on the report card</div>`
+    + mtsNote(wk, 'printers', 'Printer follow-up', 3) });
   /* 2 · People Discussion */
   const P = mtsPeople(wk), rs = v => '₹' + nf(Math.round(v));
   const T = P.team, pct = (v, avg) => avg ? Math.round((v - avg) / avg * 100) : 0;
