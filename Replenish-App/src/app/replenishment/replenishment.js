@@ -397,6 +397,13 @@ loadLead();
 });
 // Forecast horizon — remembered per browser so it survives a reload.
 try { const h = localStorage.getItem('repl_horizon'); if (h) $('rHorizon').value = h; } catch (e) {}
+// Season on the Proj columns (22 Nov) — remembered per browser.
+$('rSeason').value = FC_SEASON ? '1' : '0';
+$('rSeason').addEventListener('change', () => {
+  FC_SEASON = $('rSeason').value !== '0';
+  try { localStorage.setItem('repl_season', FC_SEASON ? '1' : '0'); } catch (e) {}
+  renderRepl();
+});
 $('rHorizon').addEventListener('change', () => {
   try { localStorage.setItem('repl_horizon', $('rHorizon').value); } catch (e) {}
   renderRepl();

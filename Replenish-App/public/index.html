@@ -659,6 +659,7 @@
   /* Editable monthly projection */
   .projcell{cursor:pointer;display:inline-block;min-width:34px;border-bottom:1px dashed #cbd5e1}
   .projcell:hover{background:#eef2ff;border-bottom-color:#6366f1}
+  .seatag{font-size:10.5px;line-height:1.2;color:#1d4ed8;white-space:nowrap}
   /* No projection-edit right → the cells read as plain numbers, with no invitation to click. */
   body.noproj .projcell{cursor:default;border-bottom:none}
   body.noproj .projcell:hover{background:transparent}
@@ -2570,6 +2571,10 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
             <option value="10">Forecast 10 months</option>
             <option value="11">Forecast 11 months</option>
             <option value="12">Forecast 12 months</option>
+          </select>
+          <select id="rSeason" style="flex:0 0 165px" title="With season: each month's Proj follows last year's pattern for that SKU (last year's same month against last year over the days today's Avg/day comes from). Flat: Avg/day × days, every month the same.">
+            <option value="1">Proj: with season</option>
+            <option value="0">Proj: flat</option>
           </select>
           <select id="rSupply" style="flex:0 0 190px" title="Show, inside every forecast month, where that month's shortfall comes from: India stock, a batch already in production, or fresh production. Adds three columns per month.">
             <option value="1" selected>Supply columns: on</option>
@@ -7200,6 +7205,13 @@ loadLead();
 });
 // Forecast horizon — remembered per browser so it survives a reload.
 try { const h = localStorage.getItem('repl_horizon'); if (h) $('rHorizon').value = h; } catch (e) {}
+// Season on the Proj columns (22 Nov) — remembered per browser.
+$('rSeason').value = FC_SEASON ? '1' : '0';
+$('rSeason').addEventListener('change', () => {
+  FC_SEASON = $('rSeason').value !== '0';
+  try { localStorage.setItem('repl_season', FC_SEASON ? '1' : '0'); } catch (e) {}
+  renderRepl();
+});
 $('rHorizon').addEventListener('change', () => {
   try { localStorage.setItem('repl_horizon', $('rHorizon').value); } catch (e) {}
   renderRepl();
@@ -7706,6 +7718,40 @@ function projOvrOf(sku, monthKey) {
   const v = PROJ_OVR[String(sku).trim().toUpperCase() + '|' + monthKey];
   return (v == null || v === '') ? null : Number(v);
 }
+/* SEASON (Ravi, 22 Nov: "last year iska sale achcha hua tha" — RPC72-1818's Proj was 291 a month all winter, Jan '26 sold 564).
+ * Proj = Avg/day × days × season factor, where
+ *   season factor = last year's same month, a day  ÷  last year, a day, over the SAME window today's Avg/day comes from
+ * (the last 30 or 90 days a year ago; the whole year for a SKU rated on its year). Dividing by the matching window, not the year
+ * average, matters: today's Avg/day is itself taken in a season, and dividing by the year would count that season twice.
+ * The snapshot (Pricing-API ReplSnap.gs) carries lym[12] = units in each calendar month of the last 12 complete months, and
+ * lyw30 / lyw90 = units in the 30 / 90 days that ended a year ago. Guards: factor kept to ×0.5–×2.5; ×1 when the SKU has no
+ * year history (under 12 units), when last year's month sold nothing, or beyond 12 months out. A manual Proj still wins. */
+const FC_SEASON_MIN = 0.5, FC_SEASON_MAX = 2.5;
+let FC_SEASON = true;
+try { FC_SEASON = localStorage.getItem('repl_season') !== '0'; } catch (e) { /* default on */ }
+function fcSeasonBase(r) {
+  const lym = Array.isArray(r.lym) ? r.lym : null; if (!lym) return null;
+  const yr = lym.reduce((t, v) => t + (Number(v) || 0), 0); if (yr < 12) return null;
+  const a30 = (r.last30 || 0) / 30, a90 = (r.last90 || 0) / 90, avg = r.avgSale || 0;
+  if (r.avgHist || r.oosYear) return { perDay: yr / 365, win: 'the last 12 months' };
+  if (a30 > a90 && Math.abs(avg - a30) < 0.01 && r.lyw30 > 0) return { perDay: r.lyw30 / 30, win: 'the 30 days to this date last year', units: r.lyw30 };
+  if (r.lyw90 > 0) return { perDay: r.lyw90 / 90, win: 'the 90 days to this date last year', units: r.lyw90 };
+  return { perDay: yr / 365, win: 'the last 12 months' };
+}
+function fcSeasonOf(r, p, i, base) {
+  if (!FC_SEASON || !base || !(base.perDay > 0) || i >= 12) return null;
+  const ly = Number(r.lym[p.m]) || 0; if (!ly) return null;
+  const dimLy = new Date(p.y - 1, p.m + 1, 0).getDate(), raw = (ly / dimLy) / base.perDay;
+  return { f: Math.round(Math.min(FC_SEASON_MAX, Math.max(FC_SEASON_MIN, raw)) * 100) / 100, raw, ly, dimLy, base };
+}
+/* the hover line of a calculated Proj cell */
+function fcSeasonTip(r, f, p) {
+  const s = f.sea, ads = Math.round((isStopped(r) ? 0 : (r.avgSale || 0)) * 100) / 100;
+  if (!s) return FC_SEASON ? `${nf(f.auto)} = ${ads} a day × ${p.days} days (no season: not enough sales history for ${p.label.slice(0, 3)} last year). ` : '';
+  const pd = n => Math.round(n * 100) / 100;
+  return `${nf(f.auto)} = ${ads} a day × ${p.days} days × season ${s.f.toFixed(2)}. Last year ${p.label.slice(0, 3)} sold ${nf(s.ly)} (${pd(s.ly / s.dimLy)} a day); `
+    + `${s.base.win} sold ${pd(s.base.perDay)} a day → ${pd(s.raw)}${s.f !== Math.round(s.raw * 100) / 100 ? ' (kept to ' + FC_SEASON_MIN + '–' + FC_SEASON_MAX + ')' : ''}. Flat would be ${nf(f.flat)}. `;
+}
 function replForecast(r, plan) {
   // A Discontinued / Use-In-Mix SKU is not being sold on any more, so it gets NO forward projection —
   // the same rule replReq() and the "Stopped" Send pill already follow. Its stock simply sits, so On
@@ -7715,6 +7761,7 @@ function replForecast(r, plan) {
   const ads = isStopped(r) ? 0 : (r.avgSale || 0);
   const rec = m => (m && r.rec ? (Number(r.rec[m]) || 0) : 0);
   const awdIdx = awdArrivalIdx(r, plan), awdQty = r.awdTransit || 0;
+  const sBase = fcSeasonBase(r);
   let carry = 0;
   return plan.map((p, i) => {
     // Current month starts from what is actually in hand + what lands this month; later months start
@@ -7727,11 +7774,12 @@ function replForecast(r, plan) {
     // A manual Proj wins over the calculated one — and because Excess and every later month are
     // carried from it, one override re-flows the whole rest of the forecast for that SKU.
     const ovr = projOvrOf(r.sku, p.key);
-    const auto = Math.round(ads * p.days);
+    const sea = ads ? fcSeasonOf(r, p, i, sBase) : null, flat = Math.round(ads * p.days);
+    const auto = sea ? Math.round(ads * p.days * sea.f) : flat;
     const proj = ovr != null && isFinite(ovr) ? ovr : auto;
     const exc = oh - proj;
     carry = exc;
-    return { oh, proj, exc, inc, auto, manual: ovr != null && isFinite(ovr), awd: i === awdIdx ? awdQty : 0 };
+    return { oh, proj, exc, inc, auto, flat, sea, manual: ovr != null && isFinite(ovr), awd: i === awdIdx ? awdQty : 0 };
   });
 }
 
@@ -8853,7 +8901,7 @@ function renderRepl() {
   FC_PLAN = buildFcPlan([...new Set(brands.flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
   // Drop the forecast cache only when something it actually depends on changed: the horizon, a manual
   // projection, or the snapshot itself (row count + its timestamp identify a refresh).
-  const fcSig = fcMonths() + '|' + PROJ_VER + '|' + brands.map(b =>
+  const fcSig = fcMonths() + '|' + PROJ_VER + '|' + (FC_SEASON ? 's' : 'f') + '|' + brands.map(b =>
     b + ':' + ((REPL[b].rows || []).length) + ':' + (REPL[b].at ? REPL[b].at.getTime() : 0) + ':' + (REPL[b].mode || 'full')).join(',');
   if (fcSig !== FC_CACHE_SIG) { FC_CACHE = new Map(); FC_CACHE_SIG = fcSig; }
   // Must come AFTER FC_PLAN — its month need-by timestamps are derived from it.
@@ -9119,11 +9167,12 @@ function renderRepl() {
     defs.push(
       { k: `fc${i}oh`, t: `${p.label} · On Hand`, num: 1, map: r => r._fc[i].oh, tip: ohTip },
       { k: `fc${i}proj`, t: `${p.label} · Proj${p.partial ? ` (${p.days}d left)` : ''}`, num: 1, map: r => r._fc[i].proj,
-        tip: `Projected sales = Avg/day × ${dayNote}. CLICK a cell to type your own number — a manual projection is kept until you change it (a refresh never overwrites it).`,
+        tip: `Projected sales = Avg/day × ${dayNote}${FC_SEASON ? ' × season factor (last year\'s same month against last year over the same days today\'s Avg/day comes from)' : ''}. CLICK a cell to type your own number — a manual projection is kept until you change it (a refresh never overwrites it).`,
         cell: r => { const f = r._fc[i];
           return `<span class="projcell${f.manual ? ' projman' : ''}" data-sku="${esc(r.sku)}" data-mk="${p.key}" data-auto="${f.auto}"`
-            + ` title="${f.manual ? `Manually set to ${nf(f.proj)} — calculated was ${nf(f.auto)}. Click to change, clear the box to go back to auto.` : 'Click to type your own projection'}">`
-            + `${nf(f.proj)}${f.manual ? ' <span class="pmark">✎</span>' : ''}</span>`; } },
+            + ` title="${f.manual ? `Manually set to ${nf(f.proj)} — calculated was ${nf(f.auto)}. Click to change, clear the box to go back to auto.` : esc(fcSeasonTip(r, f, p)) + 'Click to type your own projection'}">`
+            + `${nf(f.proj)}${f.manual ? ' <span class="pmark">✎</span>' : ''}</span>`
+            + (!f.manual && f.sea ? `<div class="seatag">season ×${f.sea.f.toFixed(2)}</div>` : ''); } },
       { k: `fc${i}exc`, t: `${p.label} · Excess`, num: 1, map: r => r._fc[i].exc,
         tip: `On Hand − Proj for ${p.label}. Negative means you run out part-way through the month.`
           + ' A short month is tagged with the lane that can still cover it: SEA if a sea shipment lands in time, AIR if only air can, LATE if neither will.',

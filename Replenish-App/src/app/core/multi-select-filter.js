@@ -217,6 +217,40 @@ function projOvrOf(sku, monthKey) {
   const v = PROJ_OVR[String(sku).trim().toUpperCase() + '|' + monthKey];
   return (v == null || v === '') ? null : Number(v);
 }
+/* SEASON (Ravi, 22 Nov: "last year iska sale achcha hua tha" — RPC72-1818's Proj was 291 a month all winter, Jan '26 sold 564).
+ * Proj = Avg/day × days × season factor, where
+ *   season factor = last year's same month, a day  ÷  last year, a day, over the SAME window today's Avg/day comes from
+ * (the last 30 or 90 days a year ago; the whole year for a SKU rated on its year). Dividing by the matching window, not the year
+ * average, matters: today's Avg/day is itself taken in a season, and dividing by the year would count that season twice.
+ * The snapshot (Pricing-API ReplSnap.gs) carries lym[12] = units in each calendar month of the last 12 complete months, and
+ * lyw30 / lyw90 = units in the 30 / 90 days that ended a year ago. Guards: factor kept to ×0.5–×2.5; ×1 when the SKU has no
+ * year history (under 12 units), when last year's month sold nothing, or beyond 12 months out. A manual Proj still wins. */
+const FC_SEASON_MIN = 0.5, FC_SEASON_MAX = 2.5;
+let FC_SEASON = true;
+try { FC_SEASON = localStorage.getItem('repl_season') !== '0'; } catch (e) { /* default on */ }
+function fcSeasonBase(r) {
+  const lym = Array.isArray(r.lym) ? r.lym : null; if (!lym) return null;
+  const yr = lym.reduce((t, v) => t + (Number(v) || 0), 0); if (yr < 12) return null;
+  const a30 = (r.last30 || 0) / 30, a90 = (r.last90 || 0) / 90, avg = r.avgSale || 0;
+  if (r.avgHist || r.oosYear) return { perDay: yr / 365, win: 'the last 12 months' };
+  if (a30 > a90 && Math.abs(avg - a30) < 0.01 && r.lyw30 > 0) return { perDay: r.lyw30 / 30, win: 'the 30 days to this date last year', units: r.lyw30 };
+  if (r.lyw90 > 0) return { perDay: r.lyw90 / 90, win: 'the 90 days to this date last year', units: r.lyw90 };
+  return { perDay: yr / 365, win: 'the last 12 months' };
+}
+function fcSeasonOf(r, p, i, base) {
+  if (!FC_SEASON || !base || !(base.perDay > 0) || i >= 12) return null;
+  const ly = Number(r.lym[p.m]) || 0; if (!ly) return null;
+  const dimLy = new Date(p.y - 1, p.m + 1, 0).getDate(), raw = (ly / dimLy) / base.perDay;
+  return { f: Math.round(Math.min(FC_SEASON_MAX, Math.max(FC_SEASON_MIN, raw)) * 100) / 100, raw, ly, dimLy, base };
+}
+/* the hover line of a calculated Proj cell */
+function fcSeasonTip(r, f, p) {
+  const s = f.sea, ads = Math.round((isStopped(r) ? 0 : (r.avgSale || 0)) * 100) / 100;
+  if (!s) return FC_SEASON ? `${nf(f.auto)} = ${ads} a day × ${p.days} days (no season: not enough sales history for ${p.label.slice(0, 3)} last year). ` : '';
+  const pd = n => Math.round(n * 100) / 100;
+  return `${nf(f.auto)} = ${ads} a day × ${p.days} days × season ${s.f.toFixed(2)}. Last year ${p.label.slice(0, 3)} sold ${nf(s.ly)} (${pd(s.ly / s.dimLy)} a day); `
+    + `${s.base.win} sold ${pd(s.base.perDay)} a day → ${pd(s.raw)}${s.f !== Math.round(s.raw * 100) / 100 ? ' (kept to ' + FC_SEASON_MIN + '–' + FC_SEASON_MAX + ')' : ''}. Flat would be ${nf(f.flat)}. `;
+}
 function replForecast(r, plan) {
   // A Discontinued / Use-In-Mix SKU is not being sold on any more, so it gets NO forward projection —
   // the same rule replReq() and the "Stopped" Send pill already follow. Its stock simply sits, so On
@@ -226,6 +260,7 @@ function replForecast(r, plan) {
   const ads = isStopped(r) ? 0 : (r.avgSale || 0);
   const rec = m => (m && r.rec ? (Number(r.rec[m]) || 0) : 0);
   const awdIdx = awdArrivalIdx(r, plan), awdQty = r.awdTransit || 0;
+  const sBase = fcSeasonBase(r);
   let carry = 0;
   return plan.map((p, i) => {
     // Current month starts from what is actually in hand + what lands this month; later months start
@@ -238,11 +273,12 @@ function replForecast(r, plan) {
     // A manual Proj wins over the calculated one — and because Excess and every later month are
     // carried from it, one override re-flows the whole rest of the forecast for that SKU.
     const ovr = projOvrOf(r.sku, p.key);
-    const auto = Math.round(ads * p.days);
+    const sea = ads ? fcSeasonOf(r, p, i, sBase) : null, flat = Math.round(ads * p.days);
+    const auto = sea ? Math.round(ads * p.days * sea.f) : flat;
     const proj = ovr != null && isFinite(ovr) ? ovr : auto;
     const exc = oh - proj;
     carry = exc;
-    return { oh, proj, exc, inc, auto, manual: ovr != null && isFinite(ovr), awd: i === awdIdx ? awdQty : 0 };
+    return { oh, proj, exc, inc, auto, flat, sea, manual: ovr != null && isFinite(ovr), awd: i === awdIdx ? awdQty : 0 };
   });
 }
 
