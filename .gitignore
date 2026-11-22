@@ -14,6 +14,8 @@
 !/.github/
 !/meera-router/
 !/meera/
+# Sellora's own backend (Firebase Functions → Supabase schema sellora), Ravi 21 Nov 2026
+!/Sellora-Backend/
 
 # Firebase's local deploy cache, and anything installed.
 .firebase/
@@ -35,6 +37,8 @@ firebase-debug.log
 # Built copy of Replenish-App/public (node tests/build-dist.js); never edited by hand
 Replenish-App/dist/
 !/Backup-Script/
+# Monday/Thursday company report mail and Tuesday/Friday printer delay mail (Apps Script), Ravi 17-19 Nov 2026
+!/Report-Mail/
 # Lighter local builds (node Replenish-App/tests/build-dist-opt.js [app folder]); for trying out, never deployed
 Replenish-App/dist-opt/
 Pricing-App/dist-opt/

@@ -722,6 +722,20 @@ $('fgDelPicked').onclick = () => ($('fgView').value === 'stock' ? fgiSkuDeleteAs
  * left defined on purpose — they are the only written description of how the seeding worked, and a
  * button can be put back in one line if it is ever wanted. */
 ['fgBrand', 'fgStat', 'fgTag', 'fgAmz', 'fgD1', 'fgD2'].forEach(id => $(id).addEventListener('change', renderFgi));
+/** Finished Goods Refresh (18 Nov 2026): the screen had none, so the store reloaded the page to see another PC's
+ *  receipts. The ledger and the press-pending list are read again from their live copies (nothing downloaded) and
+ *  the screen redrawn without going blank. Ticks are cleared, as on any fresh read, since a ticked row may have
+ *  changed. A failed read shows on the screen. */
+async function fgiRefresh() {
+  try {
+    const [led] = await Promise.all([ptGet('pt_fgiLedger'), ptReadReg('press')]);
+    FGI.rows = ptList(led); FGI.err = ''; FGI.at = ptStamp();
+  } catch (e) { FGI.err = e.message || String(e); }
+  FGI_PICK = { stock: new Set(), ledger: new Set() };
+  renderFgi();
+}
+$('fgRefresh').onclick = () => ptRefreshButton($('fgRefresh'), fgiRefresh);
+
 $('fgLstRefresh').onclick = async () => {
   $('fgLstRefresh').disabled = true;
   const why = await lstRefresh(t => { $('fgMsg').className = 'muted'; $('fgMsg').textContent = t; });

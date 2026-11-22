@@ -3247,6 +3247,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
           <!-- Receive / Issue from Excel taken off (Ravi, 2026-09-29: "excel se remove kro bas excel me export kar pay"). -->
           <button id="fgOpening" class="ghost">Opening stock</button>
           <button id="fgExport" class="ghost">Export</button>
+          <button id="fgRefresh" class="ghost" title="Read the stock again: shows what other computers have saved">Refresh</button>
           <button id="fgLstRefresh" class="ghost hide" title="Ask Amazon for every listing of both brands — takes several minutes">Refresh Amazon listings</button>
         </div>
         <!-- WHAT NEEDS SOMEBODY, on the screen itself (Ravi, 2026-09-25: "ye listing ke andar aana chahiye").
@@ -14747,6 +14748,19 @@ async function ptLoad(which, node, after) {
   after();
 }
 
+/** A REFRESH BUTTON THAT SHOWS IT IS WORKING (18 Nov 2026). Staff pressed F5 15-20 times a day on the busy screens:
+ *  a Refresh looked as if nothing happened, or missed what another PC had saved, and every F5 downloads the whole
+ *  page again (30-40 MB). Now the button says "Refreshing…" and stays off until the screen has its fresh data (read
+ *  from the live copies, so nothing is downloaded again). Errors: the screen's own work shows what it could not read;
+ *  anything else goes to the console, and the button always comes back, so the screen is never left stuck. */
+async function ptRefreshButton(btn, work) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Refreshing…';
+  try { await work(); }
+  catch (e) { console.warn('[refresh] ' + (btn.id || 'button') + ':', e); }
+  finally { btn.disabled = false; btn.textContent = label; }
+}
+
 function ptEmpty(tableId, msg) {
   $(tableId).innerHTML = `<tbody><tr><td class="muted" style="padding:14px;text-align:left">${msg}</td></tr></tbody>`;
 }
@@ -16288,7 +16302,14 @@ async function pmdbRefresh() {
   if (!PT.err.mdb && PT.mdb) { PT.mdb = PT.mdb.map(mdbYnFix); PTG.mdb = PT.mdb; renderPmdb(); }
 }
 $('ptmGo').onclick = () => pmdbRefresh();
-$('pbGo').onclick = () => ptLoad('base', 'pt_baseData', renderPbase);
+/** Job Work Refresh without blanking the table (18 Nov 2026): the register is read again from its live copy and the
+ *  table redrawn once it has landed, instead of going to "Loading…" first. A failed read shows on the screen. */
+async function pbRefresh() {
+  try { await ptReadReg('base'); PT.err.base = ''; }
+  catch (e) { PT.err.base = e.message || String(e); }
+  renderPbase();
+}
+$('pbGo').onclick = () => ptRefreshButton($('pbGo'), pbRefresh);
 $('pcGo').onclick = () => ptLoad('cut', 'pt_cuttingData', renderPcut);
 
 /* The KPI cards are written with innerHTML, and this file is a module — an inline onclick would be
@@ -18821,6 +18842,13 @@ async function ptLoadEmp(force) {
   PTE.accLedger = ptList(ledger);
   PTE.acc = ptList((PTG.masters || {}).accessories);
 }
+/** The staff list for a screen that only shows names from it (Order Console, QC). A failed read used to stop the
+ *  screen on "Loading…" for good, and staff pressed F5 (18 Nov 2026); now the names are blank and the next open
+ *  tries again. */
+async function ptLoadEmpOrSkip(screen) {
+  try { await ptLoadEmp(); }
+  catch (e) { console.warn('[' + screen + '] staff list not read, names may be blank:', e); }
+}
 
 const ptEmpTypes = () => [...new Set((PTE.emp || []).map(e => String(e[0] || '').trim()).filter(Boolean))].sort();
 const ptEmpsOfType = t => (PTE.emp || []).filter(e => !t || String(e[0] || '').trim() === t);
@@ -20331,22 +20359,27 @@ function jwCorrDiff(r, change) {
   return out;
 }
 
-async function jwCorrAsk(rowId, change, why) {
+async function jwCorrAsk(rowId, change, why, kind) {
   if (!(ME.tabs || []).includes('pbase')) return 'This screen is not open to your account.';
   const r = (PT.base || []).find(x => x && x.id === rowId);
   if (!r) return 'That entry is gone — press Refresh.';
   if (!String(why || '').trim()) return 'Say what is wrong — the person approving it has to know.';
   if (jwCorrOfRow(rowId)) return 'A change to this entry is already waiting for approval.';
-  const diff = jwCorrDiff(r, change);
-  if (!diff.length) return 'Nothing is different from what the entry already says.';
-  const clean = {}; diff.forEach(([k, , to]) => { clean[k] = to; });
-  const plan = jwCorrPlan(r, clean);
-  if (plan.err) return plan.err;
+  /* DELETE AS A CORRECTION (Ravi, 19 Nov: "correction me entry delete correction bhi jodo"): the whole entry goes, approved by an admin. */
+  const del = kind === 'delete';
+  const clean = {};
+  if (!del) {
+    const diff = jwCorrDiff(r, change);
+    if (!diff.length) return 'Nothing is different from what the entry already says.';
+    diff.forEach(([k, , to]) => { clean[k] = to; });
+    const plan = jwCorrPlan(r, clean);
+    if (plan.err) return plan.err;
+  }
   const now = new Date().toISOString();
   const id = 'jwc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const rec = { id, rowId, sku: r.sku || '', empName: r.empName || '', orderNo: r.orderNo || '',
     snapshot: Object.assign({}, r, { _key: undefined }), change: clean, why: String(why).trim(),
-    by: ME.email, at: now, status: 'pending' };
+    by: ME.email, at: now, status: 'pending', ...(del ? { kind: 'delete' } : {}) };
   delete rec.snapshot._key;
   try { await ptPut('pt_jwCorrReqs/' + id, rec); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
@@ -20366,6 +20399,20 @@ async function jwCorrApprove(id) {
     return 'It changes the SKU or a date, which only an admin may change — an admin has to approve it.';
   const r = (PT.base || []).find(x => x && x.id === q.rowId);
   if (!r) return 'The entry it is about has been deleted — reject the request.';
+  if (q.kind === 'delete') {
+    if (!ME.admin) return 'Deleting an entry is an admin\'s to approve.';
+    if (qcTookOf(r.id) > 0) return `QC has already taken ${nf(qcTookOf(r.id))} piece(s) of this entry — it cannot be deleted. Use Close (debit) instead.`;
+    const at = new Date().toISOString();
+    try {
+      await ptDelete('pt_baseData/' + r.id);          // the same delete as the entry's own Delete button (finds a completed entry where it lives)
+      await ptUnconsumeZippers(r.id); await ptUnconsumeRuffle(r.id);
+      await ptPut('pt_jwCorrReqs/' + id, Object.assign({}, q, { status: 'approved', answeredBy: ME.email, answeredAt: at }));
+    } catch (e) { return 'Not deleted: ' + (e.message || e); }
+    PT.base = (PT.base || []).filter(x => x && x.id !== r.id);
+    JWC.rows = Object.assign({}, JWC.rows, { [id]: Object.assign({}, q, { status: 'approved', answeredBy: ME.email, answeredAt: at }) });
+    jwCorrBadge();
+    return '';
+  }
   const plan = jwCorrPlan(r, q.change);
   if (plan.err) return 'Cannot be applied as it stands now: ' + plan.err;
   if (ptNum(plan.next.receivedPieces) < qcTookOf(r.id))
@@ -20394,6 +20441,53 @@ async function jwCorrReject(id, note) {
   return '';
 }
 
+/* CLOSE, AND SETTLE THE MONEY (Ravi, 19 Nov: "inka aage process ho chuka h is bajah se entry edit nahi ho rhi h and kisi ka payment bhi
+ * ho chuka h … pending correction entry close ho jay … jiska payment ho chuka h usko next bill me se debit ho jay but bill me likha aay ki
+ * iska payment jyada ho chuka tha"). A request that can no longer be applied — QC has already checked the pieces, the order moved on — is
+ * CLOSED: the entry stays as it is, and the pay it got wrong is put right on the karigar's next bill. The difference is
+ * (received asked − received on the entry) × that work's job work rate, dated the day it is closed, so it lands in the open fortnight:
+ * paid already → it comes off the next bill; not paid yet → it cancels out in the same month. Only the request is written; a later
+ * correction of the same entry is asked and answered as usual. */
+let JWC_RATES = null;
+async function jwCorrRates() {
+  if (typeof HR !== 'undefined' && Array.isArray(HR.rate) && HR.rate.length) return HR.rate;
+  if (!JWC_RATES) JWC_RATES = ptList(await ptGet('pt_rateList')).map(r => (Array.isArray(r) ? r : (r && Array.isArray(r.value) ? r.value : []))).filter(x => x.length && x[1]);
+  return JWC_RATES;
+}
+function jwCorrRateOf(L, r) {
+  const N = x => String(x == null ? '' : x).trim().toLowerCase(), ap = N(r.empType);
+  const x = L.find(x => N(x[0]) === N(r.articleType) && N(x[1]) === N(r.articleSubtype) && N(x[2]) === N(r.size) && N(x[3]) === ap)
+    || L.find(x => N(x[1]) === N(r.articleSubtype) && N(x[2]) === N(r.size) && N(x[3]) === ap) || L.find(x => N(x[1]) === N(r.articleSubtype) && N(x[3]) === ap);
+  return x ? (parseFloat(x[4]) || 0) : 0;
+}
+/** What closing would put on the bill: { pcs, rate, amount, oldRecv, newRecv } (amount below 0 is a debit). */
+function jwCorrMoney(q, r, L) {
+  const oldRecv = ptNum(r.receivedPieces);
+  const newRecv = q.kind === 'delete' ? 0 : (q.change && q.change.receivedPieces !== undefined && String(q.change.receivedPieces).trim() !== '' ? ptNum(q.change.receivedPieces) : oldRecv);
+  const rate = jwCorrRateOf(L, r), pcs = newRecv - oldRecv;
+  return { pcs, rate, amount: pcs * rate, oldRecv, newRecv };
+}
+async function jwCorrClose(id) {
+  if (!ptCanEdit()) return PT_NO_EDIT;
+  const q = (JWC.rows || {})[id];
+  if (!q || q.status !== 'pending') return 'That request has already been answered.';
+  if (q.by === ME.email && !ME.admin) return 'You asked for this change — somebody else has to close it.';
+  const r = (PT.base || []).find(x => x && x.id === q.rowId);
+  let L; try { L = await jwCorrRates(); } catch (e) { return 'The job work rates could not be read, so the debit cannot be worked out: ' + (e.message || e); }
+  const now = new Date().toISOString();
+  const m = r ? jwCorrMoney(q, r, L) : null;
+  const debit = m && m.pcs ? { empName: r.empName || q.empName, empType: r.empType || '', sku: r.sku || q.sku, articleType: r.articleType || '',
+    subtype: r.articleSubtype || '', size: r.size || '', pcs: m.pcs, rate: m.rate, amount: m.amount, oldRecv: m.oldRecv, newRecv: m.newRecv,
+    rowRecvDate: r.receivingDate || '' } : null;
+  const done = Object.assign({}, q, { status: 'closed', answeredBy: ME.email, answeredAt: now, closedAt: now,
+    answerNote: 'Closed — the entry had moved on (QC / later steps), so it was left as it is' + (debit ? '; the pay difference goes on the next bill' : ''), ...(debit ? { debit } : {}) });
+  try { await ptPut('pt_jwCorrReqs/' + id, done); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  JWC.rows = Object.assign({}, JWC.rows, { [id]: done });
+  jwCorrBadge();
+  return '';
+}
+
 function jwCorrBadge() {
   /* The screen's own list wins once it is loaded; until then, the count the sign-in asked for (core/pending-badges.js). */
   const n = ptCanEdit() ? (JWC.rows === null ? pbCount('jwc') : jwCorrPending().length) : 0;
@@ -20411,6 +20505,7 @@ function jwCorrAskOpen(rowId) {
     note: 'Change only what is wrong and say why. Wrong size or colour? Type the SKU of the right item — the article, colour '
       + 'and size come from it. Somebody who may edit production entries approves it; a change of SKU or date needs an admin.',
     fields: [
+      { key: 'act', label: 'What to ask', type: 'select', span: true, value: 'change', options: [['change', 'Change the figures below'], ['delete', 'Delete this whole entry']] },
       { key: 'empName', label: 'Karigar', value: r.empName || '' },
       { key: 'issuePieces', label: 'Issued', type: 'number', value: ptNum(r.issuePieces) },
       { key: 'receivedPieces', label: 'Received', type: 'number', value: ptNum(r.receivedPieces) },
@@ -20424,39 +20519,58 @@ function jwCorrAskOpen(rowId) {
     saveLabel: 'Send for approval',
     onSave: async v => {
       const change = {}; JWC_FIELDS.forEach(([k]) => { if (v[k] !== undefined) change[k] = v[k]; });
-      const err = await jwCorrAsk(rowId, change, v.why);
+      const err = await jwCorrAsk(rowId, change, v.why, v.act === 'delete' ? 'delete' : '');
       if (!err) { renderPbase(); $('pbMsg').className = 'muted'; $('pbMsg').textContent = 'Sent for approval. The entry changes once it is approved.'; }
       return err;
     },
   });
 }
 
-function jwCorrListOpen() {
+async function jwCorrListOpen() {
   const list = jwCorrPending().sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  let L = null; try { L = await jwCorrRates(); } catch (e) { L = null; }
   const label = k => (JWC_FIELDS.find(f => f[0] === k) || [k, k])[1];
   const body = list.map(q => {
     const live = (PT.base || []).find(x => x && x.id === q.rowId);
     const diff = live ? jwCorrDiff(live, q.change) : Object.entries(q.change || {}).map(([k, v]) => [k, '', v]);
-    const adminOnly = Object.keys(q.change || {}).some(k => JWC_ADMIN_ONLY.indexOf(k) >= 0);
+    const adminOnly = q.kind === 'delete' || Object.keys(q.change || {}).some(k => JWC_ADMIN_ONLY.indexOf(k) >= 0);
+    const m = live && L ? jwCorrMoney(q, live, L) : null;
+    const money = m && m.amount ? `<div style="font-size:11px;color:${m.amount < 0 ? 'var(--bad)' : '#166534'}">close = ${m.amount < 0 ? 'debit' : 'credit'} ${rs(Math.abs(m.amount))} on the next bill</div>` : '';
     return `<tr><td style="text-align:left">${esc(ptIsoDate(q.at) || '')}<div class="muted" style="font-size:11px">${esc(String(q.by || '').split('@')[0])}</div></td>`
       + `<td style="text-align:left;font-size:12px">${esc(q.empName)}<div class="muted" style="font-family:ui-monospace,monospace;font-size:11px">${esc(q.sku)}</div></td>`
-      + `<td style="text-align:left;font-size:12px;white-space:normal">${diff.length ? diff.map(([k, a, b]) => `${esc(label(k))}: ${esc(a || '—')} → <b>${esc(b || '—')}</b>`).join('<br>') : '<span class="muted">already as asked</span>'}`
+      + `<td style="text-align:left;font-size:12px;white-space:normal">${q.kind === 'delete' ? '<b style="color:var(--bad)">Delete the whole entry</b>' : diff.length ? diff.map(([k, a, b]) => `${esc(label(k))}: ${esc(a || '—')} → <b>${esc(b || '—')}</b>`).join('<br>') : '<span class="muted">already as asked</span>'}${money}`
       + (adminOnly ? '<div class="muted" style="font-size:11px">needs an admin</div>' : '') + (live ? '' : '<div class="err" style="font-size:11px">entry deleted</div>') + '</td>'
       + `<td style="text-align:left;font-size:12px;white-space:normal;max-width:220px">${esc(q.why || '')}</td>`
       + `<td style="white-space:nowrap"><button data-jwy="${esc(q.id)}" style="padding:2px 9px;font-size:12px"${(adminOnly || q.by === ME.email) && !ME.admin ? ' disabled' : ''}>Approve</button> `
-      + `<button class="ghost" data-jwn="${esc(q.id)}" style="padding:2px 9px;font-size:12px">Reject</button></td></tr>`;
+      + `<button class="ghost" data-jwn="${esc(q.id)}" style="padding:2px 9px;font-size:12px">Reject</button> `
+      + `<button class="ghost" data-jwc="${esc(q.id)}" style="padding:2px 9px;font-size:12px"${q.by === ME.email && !ME.admin ? ' disabled' : ''} title="Leave the entry as it is, close the request, and put the pay difference on the next bill">Close (debit)</button></td></tr>`;
   }).join('');
   ptOpenDialog({
     title: 'Correction requests',
     subtitle: list.length ? `${nf(list.length)} waiting` : 'Nothing waiting',
     note: 'Approving changes the entry exactly as shown — and with it the order balance, the weekly report and the karigar\'s pay.',
-    html: list.length ? `<div class="xlwrap" style="max-height:56vh;border:1px solid var(--line);border-radius:10px"><table class="xl"><thead><tr>`
+    html: list.length ? (ptCanEdit() ? `<div style="display:flex;gap:10px;align-items:center;margin-bottom:8px"><button class="ghost" id="jwcAll" style="font-size:12px">Close all ${nf(list.length)} (debit)</button>`
+      + `<span class="muted" style="font-size:12px">Each entry stays as it is; the pay difference goes on the karigar's next bill, marked as paid more earlier.</span></div>` : '')
+      + `<div class="xlwrap" style="max-height:56vh;border:1px solid var(--line);border-radius:10px"><table class="xl"><thead><tr>`
       + ['Asked', 'Karigar / SKU', 'Change', 'Why', ''].map(h => `<th>${h}</th>`).join('') + `</tr></thead><tbody>${body}</tbody></table></div>`
       : '<div class="muted" style="padding:22px;text-align:center">Nothing is waiting to be answered.</div>',
     saveLabel: '',
   });
   const again = async (fn) => { const err = await fn(); if (err) return ptDlgMsg(err, true); ptDlgClose(); renderPbase(); jwCorrListOpen(); };
   $('ptDlgBody').querySelectorAll('[data-jwy]').forEach(b => { b.onclick = () => again(() => jwCorrApprove(b.getAttribute('data-jwy'))); });
+  $('ptDlgBody').querySelectorAll('[data-jwc]').forEach(b => { b.onclick = () => {
+    if (!confirm('Close this request?\n\nThe entry stays as it is. The pay difference goes on the karigar\'s next bill.')) return;
+    again(() => jwCorrClose(b.getAttribute('data-jwc')));
+  }; });
+  if ($('jwcAll')) $('jwcAll').onclick = async () => {
+    const mine = list.filter(q => !(q.by === ME.email && !ME.admin));
+    const tot = mine.reduce((s, q) => { const live = (PT.base || []).find(x => x && x.id === q.rowId); const m = live && L ? jwCorrMoney(q, live, L) : null; return s + (m ? m.amount : 0); }, 0);
+    if (!confirm(`Close ${nf(mine.length)} request(s)?\n\nNo entry is changed. Pay difference on the next bills: ${tot < 0 ? 'debit' : 'credit'} ${rs(Math.abs(tot))}.`)) return;
+    let bad = [];
+    for (const q of mine) { const err = await jwCorrClose(q.id); if (err) bad.push(q.empName + ' ' + q.sku + ': ' + err); }
+    if (bad.length) return ptDlgMsg(bad.join(' · '), true);
+    ptDlgClose(); renderPbase(); jwCorrListOpen();
+  };
   $('ptDlgBody').querySelectorAll('[data-jwn]').forEach(b => { b.onclick = () => {
     const note = prompt('Why is it refused? The person who asked will see this.');
     if (note === null) return;
@@ -21318,10 +21432,12 @@ function cutEdit(id) {
 let QC = { checks: null, issue: null, ret: null, err: '', busy: false, at: '' };
 
 async function ensureQc() {
-  if (QC.checks === null || ptLack(PTG_ALL, 'mdb')) {
+  /* All three lists, not only the checks (18 Nov 2026): Order Console and the flow view fill the checks for their own
+   * use, and "Received back" / "Issued for alteration" then stayed empty here until F5. */
+  if (QC.checks === null || QC.issue === null || QC.ret === null || ptLack(PTG_ALL, 'mdb')) {
     QC.busy = true; renderQc();
     await ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' });
-    if (!PTE.emp) await ptLoadEmp();
+    if (!PTE.emp) await ptLoadEmpOrSkip('quality-control');
     try {
       const [c, i, t] = await Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]);
       QC.checks = ptList(c); QC.issue = ptList(i); QC.ret = ptList(t); QC.err = '';
@@ -22280,7 +22396,15 @@ $('qcView').addEventListener('change', renderQc);
 ['qcD1', 'qcD2'].forEach(id => $(id).addEventListener('change', renderQc));
 $('qcClear').onclick = () => { ['qcQ', 'qcD1', 'qcD2'].forEach(id => $(id).value = ''); renderQc(); };
 ptDebounce('qcQ', renderQc);
-$('qcGo').onclick = async () => { QC.checks = null; await ensureQc(); renderQcCheckForm(); renderQcIssueForm(); };
+/** Refresh: the QC lists, and Job Work again, because "Waiting for QC" is built from it. Before 18 Nov 2026 pieces
+ *  received on another PC reached that list only after F5. Job Work comes from its live copy (nothing downloaded);
+ *  if it cannot be read, the QC lists still refresh. */
+async function qcRefresh() {
+  QC.checks = null;
+  try { await ptReadReg('base'); } catch (e) { console.warn('[quality-control] Job Work not read again:', e); }
+  await ensureQc(); renderQcCheckForm(); renderQcIssueForm();
+}
+$('qcGo').onclick = () => ptRefreshButton($('qcGo'), qcRefresh);
 $('qcwToggle').onclick = () => {
   const open = $('qcwBox').classList.contains('hide');
   $('qcwBox').classList.toggle('hide', !open);
@@ -24047,7 +24171,7 @@ function ordMoreBtn(n) {
 
 async function ensureOrd() {
   if (ptLack(PTG_ALL, 'mdb')) { ORD.busy = true; renderOrd(); await ptNeed(PTG_ALL, { why: 'ord', has: 'mdb' }); }
-  if (!PTE.emp) await ptLoadEmp();
+  if (!PTE.emp) await ptLoadEmpOrSkip('ord');
   if (QC.checks === null) { try { QC.checks = ptList(await ptGet('pt_qcChecks')); QC.issue = ptList(await ptGet('pt_qcIssuance')); } catch (e) { QC.checks = QC.checks || []; QC.issue = QC.issue || []; } }
   // The per-SKU override that can flip "does this need cutting" for one code. It has never been
   // written in this data, but the old tool reads it, so this one does too.
@@ -27667,7 +27791,10 @@ const ordView = () => (($('odView') || {}).value || 'shopsku');
 
 function renderOrd() {
   /* SHIPPING TO ACCEPT ONLY (core/auth.js, ME.shpAccOnly): the Order Console is the SHP board, and nothing else. */
-  if ((ME.shpAccOnly || ME.shpBoardOnly) && $('odView') && $('odView').value !== 'shpboard') $('odView').value = 'shpboard';
+  if (ME.shpAccOnly && $('odView') && $('odView').value !== 'shpboard') $('odView').value = 'shpboard';
+  /* THE BOARDS ALONE (Ravi, 19 Nov: "LAXMI ONLY SHP BOARD KE ORDER HI DEKH PA RHI H AMZ KE NAHI"): the four boards — SHP, AMZ, B2B, SPY —
+   * and nothing else of the Order Console. */
+  if (ME.shpBoardOnly && $('odView') && !(typeof shpbIsBoard === 'function' && shpbIsBoard($('odView').value))) $('odView').value = 'shpboard';
   /* The brands that appear on the book, so the filter never offers one with nothing behind it. */
   if ($('odBrand')) ptFillSelect('odBrand', [...new Set((PTG.ob || []).map(r => ordBrandOf(r && r.sku)).filter(Boolean))]
     .sort().map(b => [b, b]), 'All brands');
@@ -28010,7 +28137,16 @@ $('odTable').addEventListener('click', ordQtyOpenClick);
 $('odKpis').addEventListener('click', ordKpiClick);
 $('odKpis').addEventListener('keydown', ordKpiClick);
 ['odSrc', 'odBrand', 'odType', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
-$('odGo').onclick = async () => { await ptLoadGates(true); ORD.req = null; QC.checks = null; FGI.rows = null; await ensureOrd(); };
+/** Order Console Refresh: everything the screen shows, read again from the live copies. Vendor orders, the
+ *  quantity changes on sales orders and the delete requests were left out before 18 Nov 2026, so only F5 showed
+ *  another PC's changes to them. */
+async function odRefresh() {
+  await ptLoadGates(true);
+  ORD.req = null; QC.checks = null; FGI.rows = null;
+  VO.rows = null; SOX.rows = null; ODR.rows = null;
+  await ensureOrd();
+}
+$('odGo').onclick = () => ptRefreshButton($('odGo'), odRefresh);
 $('odView').addEventListener('change', () => { ORD.pick = new Set(); renderOrd(); });
 /** A SKU's priority tag (P1–P4), '' when it has none. */
 const ordPri = sku => { const v = (PTE.priority || {})[obUC(sku)];
@@ -28848,16 +28984,17 @@ function shpbFlowSpans(r, s) {
 const shpbFlow = (r, s) => '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap">' + shpbFlowSpans(r, s) + '</td>';
 
 /** One order line: date, order, ready date, item, flow, pieces, printer, then the stages. */
+/** The red "Stuck N days" pill under a line's date (Ravi, 19 Nov — as it was on 13 Nov). */
+const shpbStuckPill = x => `<div title="Nothing done on this line since ${esc(shpbDmy(x.since))} — Sundays not counted"><span class="pill" style="background:#dc2626;color:#fff;font-size:10px">Stuck ${nf(x.days)} day${x.days === 1 ? '' : 's'}</span></div>`;
 function shpbRow(r) {
   const k = shpbKey(r.orderNo, r.sku), s = shpbStages([r]), rd = shpbReadyOf(r), edit = shpbCanEdit(), late = rd.date && rd.date < dToday();
   const prn = shpbPrinterOf(r);
   const tips = { prcv: 'Owed by the printer − printed cloth received back on the challan', cut: 'Still to cut − cut so far', issue: 'Cut and not yet issued − issued to karigars', receive: 'Out with karigars − received back', qc: 'Received, not checked − passed QC', press: 'Passed QC, not pressed − pressed' };
-  const dl = shpbLate(r);
+  const dl = shpbLate(r), stuck = shpbStuck(r), waits = stuck || (dl && dl.tone === 'late' ? dl : null);
   return (dl ? '<tr class="vo-' + dl.tone + '" title="' + esc(dl.why) + '">' : '<tr>') + '<td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(shpbDateOf(r)))
-    + (dl && dl.tone === 'late' ? `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(dl.at)}${dl.since ? ' · since ' + esc(shpbDmy(dl.since)) : ''}</div>` : '') + '</td>'
-    + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
-    + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
-    + '</td>'
+    + (stuck ? shpbStuckPill(stuck) : '')
+    + (waits ? `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(waits.at)}${waits.since ? ' · since ' + esc(shpbDmy(waits.since)) : ''}</div>` : '') + '</td>'
+    + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25">' + shpbOrderLink(r) + '</td>'
     + shpbItem(r)
     + `<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
     + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : (shpbPlanOf(r) ? '<span class="muted">no printer</span>' : '<b style="color:#b91c1c">not planned</b>')}`
@@ -28870,6 +29007,14 @@ function shpbRow(r) {
     + (SHPB_FILLCOL ? shpbFillCell(r, k) : '')
     + (shpbIsQuilt(r) ? `<td class="num" style="${SHPB_STAGE_BG};${SHPB_PAD}"><span class="muted" style="font-size:11px">not needed</span></td>` : shpbCell(s.prsA, s.prsW, s.prsD, 'press', 'Press', k, tips.press))
     + shpbStatusCell(r, k, rd, late, edit) + '</tr>';
+}
+/* The order number, and under it the buyer of a B2B order (Ravi, 21 Nov: so the board shows whose order it is at a glance —
+ * the same buyer Order Console and PPC show, from ordBuyerOf). Nothing under it for Shopify, Amazon or SPY. */
+function shpbOrderLink(r) {
+  const buyer = ordBuyerOf(r.orderNo);
+  return '<a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
+    + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
+    + (buyer ? '<div style="font-size:11.5px;font-weight:600;white-space:normal;max-width:180px">' + esc(buyer) + '</div>' : '');
 }
 /** THE LAST COLUMN: the line's status (In production / OOS / Delayed / On hold), the date it will be ready, and the way to complete it from ready stock. */
 function shpbStatusCell(r, k, rd, late, edit) {
@@ -28925,16 +29070,38 @@ function shpbStageDue(r, stage) {
   const p = shpbPlanOf(r);
   return String((p && p.dates && p.dates[k]) || '').slice(0, 10);
 }
+/* THE STUCK PILL, BACK (Ravi, 19 Nov: "add the stuck pill on each order back"). Beside the row colour, which says late against the
+ * plan, a red "Stuck N days" under the date says how long a pending line has sat: nothing done on it for a whole working day,
+ * Monday to Saturday, Sundays not counted (the 13 Nov rule), with "last step: … since …" under it. Display only. */
+const SHPB_STUCK_DAYS = 1;
+/** Working days (Monday–Saturday) wholly between two ISO days. */
+function shpbWorkDaysBetween(a, b) {
+  const t0 = Date.parse(a + 'T00:00:00Z'), t1 = Date.parse(b + 'T00:00:00Z');
+  if (!(t0 < t1)) return 0;
+  let n = 0;
+  for (let t = t0 + 864e5; t < t1; t += 864e5) if (new Date(t).getUTCDay() !== 0) n++;
+  return n;
+}
+/** { days, since, at } for a pending line nothing has happened to for a whole working day, else null. */
+function shpbStuckNow(r, today) {
+  if (!r.open) return null;
+  const last = shpbLastMove(r), days = last ? shpbWorkDaysBetween(last, today) : 0;
+  return days >= SHPB_STUCK_DAYS ? { days, since: last, at: shpbStatusInfo(r).label } : null;
+}
 let SHPB_LATEC = { sig: null, map: new Map() };
-/** { tone: 'late' | 'near', at, since, why } for a pending line late or nearly due at its stage, else null. */
-function shpbLate(r) {
+/** A line's two marks on the board, worked out once until its records change: late against its stage date, and stuck. */
+function shpbMarks(r) {
   const today = shpbToday(), sig = [today, PT.base, PT.cut, (typeof QC !== 'undefined' && QC.checks) || null, SHPB.ready, SHPB.press,
     (typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || null, (typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || null];
   if (!SHPB_LATEC.sig || SHPB_LATEC.sig.some((x, i) => x !== sig[i])) SHPB_LATEC = { sig, map: new Map() };
   const k = shpbKey(r.orderNo, r.sku);
-  if (!SHPB_LATEC.map.has(k)) SHPB_LATEC.map.set(k, shpbLateNow(r, today));
+  if (!SHPB_LATEC.map.has(k)) SHPB_LATEC.map.set(k, { late: shpbLateNow(r, today), stuck: shpbStuckNow(r, today) });
   return SHPB_LATEC.map.get(k);
 }
+/** { tone: 'late' | 'near', at, since, why } for a pending line late or nearly due at its stage, else null. */
+const shpbLate = r => shpbMarks(r).late;
+/** { days, since, at } for a pending line stuck a working day or more, else null. */
+const shpbStuck = r => shpbMarks(r).stuck;
 function shpbLateNow(r, today) {
   if (!r.open) return null;
   const stage = shpbStageNow(r);
@@ -28968,7 +29135,12 @@ function renderShpBoard() {
   /* SHIPPING TO ACCEPT ONLY: the one list this account works — pieces pressed and waiting for shipping — without the buckets, the tabs, the view
    * picker or Close lines. */
   /* the SHP board alone (ME.shpBoardOnly, core/auth.js): no picker to the Order Console's other views, no Close lines or Export */
-  if (ME.shpBoardOnly) ['odView', 'odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
+  if (ME.shpBoardOnly) {
+    ['odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
+    /* the picker stays, offering the four boards only (19 Nov: Laxmi could not reach the AMZ board) */
+    const vw = $('odView');
+    if (vw && vw.options) [...vw.options].forEach(o => { const ok = shpbIsBoard(o.value); o.hidden = !ok; o.disabled = !ok; });
+  }
   if (ME.shpAccOnly) { SHPB.tab = 'done'; SHPB.stage = 'hand'; ['odView', 'odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); }); }
   if (!SHPB.readyAt && !SHPB.busy) shpbLoad(true);
   SHPB_STK = Array.isArray(FGI.rows) ? fgiStock() : null;
@@ -29012,8 +29184,11 @@ function renderShpBoard() {
   const head = '<thead><tr><th class="frz" style="' + SHPB_PAD + 'text-align:left">Date</th><th style="' + SHPB_PAD + 'text-align:left">Order ID</th><th style="' + SHPB_PAD + 'text-align:left">Item</th>'
     + '<th class="num" style="' + SHPB_PAD + '">Pcs</th><th style="' + SHPB_PAD + 'text-align:left">Printer</th>'
     + ['Printer receive', 'Cut', 'Issued', 'Received', 'QC passed'].concat(SHPB_FILLCOL ? ['Filler', 'Qty', 'Rec'] : [], ['Press']).map(h => th(h, 'num')).join('') + '<th style="' + SHPB_PAD + 'text-align:left">Status · ready by</th></tr></thead>';
-  $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, 300).map(shpbRow).join('') + '</tbody>'
-    + (rows.length > 300 ? '<tfoot><tr><td colspan="' + (SHPB_FILLCOL ? 14 : 11) + '" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
+  /* 100 AT A TIME (20 Nov, "order console bahut hang"): 300 rows were ~1.1 MB of table on every redraw. Show more adds 100. */
+  const cap = Math.max(SHPB_SHOW_STEP, SHPB.show || 0);
+  $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, cap).map(shpbRow).join('') + '</tbody>'
+    + (rows.length > cap ? '<tfoot><tr><td colspan="' + (SHPB_FILLCOL ? 14 : 11) + '" class="muted" style="padding:10px;text-align:left">Showing the first ' + nf(cap) + ' of ' + nf(rows.length) + ' lines '
+      + '<button type="button" class="ghost" data-shpb-more="1" style="margin:0 8px;padding:3px 12px">Show ' + nf(Math.min(SHPB_SHOW_STEP, rows.length - cap)) + ' more</button> or search / filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
 }
 
 /** COMPLETE: pressed lines waiting for shipping (Accept / Not received), then handed-over lines, newest day first. */
@@ -29027,9 +29202,8 @@ function renderShpBoardDone(list) {
   const common = r => { const s = shpbStages([r]), px = (SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {};
     const stk = shpbStockOf(r), pr = px.pcs ? `<b>${nf(Math.min(px.pcs, +r.qty || 0))}</b> <span class="muted" style="font-size:11px">${esc((px.men || []).join(', '))}${px.last ? ' · ' + esc(shpbDmy(px.last)) : ''}</span>` : '';
     return { s, press: pr + (stk ? `<div style="font-size:11px"><b>${nf(stk)}</b> from stock</div>` : '') || '<span class="muted">—</span>' }; };
-  const link = r => `<a href="#" data-ordj="${esc(r.orderNo)}" style="color:inherit;text-decoration:underline dotted;font-weight:700">${esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, ''))}</a>`;
   const wRow = r => { const { s, press } = common(r), k = shpbKey(r.orderNo, r.sku), ns = (SHPB.ship || {})[k], pd = ((SHPB.pressBy || {})[k] || {}).last || '';
-    return `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(pd || shpbDateOf(r)))}</td><td style="${SHPB_PAD}text-align:left">${link(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
+    return `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(pd || shpbDateOf(r)))}</td><td style="${SHPB_PAD}text-align:left">${shpbOrderLink(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${press}</td><td class="num" style="${SHPB_PAD}">${nf(s.handD)}</td>`
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${nf(s.handW)} to accept `
       + (ns && ns.state === 'notrecv' ? `<span class="pill pill-out" title="${esc((ns.by || '').split('@')[0] + ' · ' + (ns.note || ''))}">not received${ns.note ? ' · ' + esc(String(ns.note).slice(0, 30)) : ''}</span> ` : '')
@@ -29037,7 +29211,7 @@ function renderShpBoardDone(list) {
   let prev = '';
   const hRow = ({ r, at }) => { const day = ptIsoDate(at) || '', first = day !== prev, c = common(r); prev = day;
     return (first ? `<tr><td colspan="7" style="${SHPB_PAD}text-align:left;background:#eef2f7;font-weight:700;font-size:12px">${esc(shpbDmy(day) || 'no date')} — ${shpbIsShp() ? 'handed to shipping' : 'complete'}</td></tr>` : '')
-      + `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(day))}</td><td style="${SHPB_PAD}text-align:left">${link(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}">${nf(r.qty)}</td>`
+      + `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(day))}</td><td style="${SHPB_PAD}text-align:left">${shpbOrderLink(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}">${nf(r.qty)}</td>`
       + `<td style="${SHPB_PAD}text-align:left">${c.press}</td><td class="num" style="${SHPB_PAD}">${nf(Math.min(+r.qty || 0, r.handedAt ? +r.qty || 0 : c.s.handD))}</td>`
       + `<td style="${SHPB_PAD}text-align:left;font-size:12px">${!shpbIsShp() ? (r.open ? 'Pressed' : 'Complete') : r.handedAt ? 'Handed over' + (r.handedBy ? ' · ' + esc(String(r.handedBy).split('@')[0]) : '') : esc(typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(r.shopDoneWhy) : 'Closed')}</td></tr>`; };
   $('odTable').innerHTML = head + '<tbody>'
@@ -29320,6 +29494,22 @@ function shpbNotRecvOpen(key) {
  * it every step with what was done, by whom, and when — printer, printed cloth back, cut, issued to which karigar, received, QC, press,
  * shipping — and where the line is waiting now. Read from the same registers the cells read. */
 const shpbDay = v => { const m = String(v || '').match(/^(\d{4}-\d{2}-\d{2})/) || String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})/); return !m ? '' : (m.length === 2 ? shpbDmy(m[1]) : m[1] + '-' + m[2] + '-' + m[3]); };
+/* ONE PASS OVER EACH REGISTER, NOT ONE PER LINE (Ravi, 20 Nov: "order console bahut hang ho rha h"). shpbSteps runs for every line
+ * of the board (the late colour reads its last move), and each run filtered the whole cutting, Job Work and QC registers and every
+ * challan: switching to the AMZ board took 4.7 s, 3.4 s of it here. The records are now grouped once by order + SKU. The groups live
+ * for ONE draw (cleared at the next microtask, like rfdMemo): saves change these registers in place, so nothing older is trusted.
+ * Same records, same order as the filters gave. */
+let SHPB_IX = {}, SHPB_IX_ON = false;
+function shpbIxOf(name, src, keyOf) {
+  if (!SHPB_IX_ON) { SHPB_IX_ON = true; Promise.resolve().then(() => { SHPB_IX = {}; SHPB_IX_ON = false; }); }
+  const c = SHPB_IX[name];
+  if (c && c.src === src) return c.map;
+  const map = new Map();
+  (src || []).forEach(x => { if (!x) return; const ks = keyOf(x); (Array.isArray(ks) ? ks : [ks]).forEach(k => { if (k == null) return; const a = map.get(k); if (a) a.push(x); else map.set(k, [x]); }); });
+  SHPB_IX[name] = { src, map };
+  return map;
+}
+const SHPB_NOTHING = Object.freeze([]);
 function shpbSteps(r) {
   const s = shpbStages([r]), qf = +r.qty || 0, q = qf - s.stk, key = shpbKey(r.orderNo, r.sku), plan = shpbPlanOf(r), fl = shpbFlowOf(r), out = [], rdy = shpbReadyOf(r), stt = shpbStatusOf(r);
   const st = (a, w, d, qq) => (!a && !d) ? 'future' : (w === 0 && d >= (qq == null ? q : qq) ? 'done' : (d > 0 ? 'part' : 'active'));
@@ -29328,21 +29518,27 @@ function shpbSteps(r) {
   if (s.stk) add('From stock', 'done', nf(s.stk) + ' of ' + nf(qf) + ' completed from ready stock in the India store, handed to shipping', shpbDay((SHPB.ready[key] || {}).at));
   add('PPC plan', plan ? 'done' : 'na', plan ? 'route ' + (plan.route || '') + (shpbPrinterOf(r) ? ' · printer ' + shpbPrinterOf(r) : '') + (plan.dates && plan.dates.ready ? ' · ready ' + shpbDmy(plan.dates.ready) : '') : 'no plan (an older order)', plan ? shpbDay(plan.at) + (plan.by ? ' · ' + String(plan.by).split('@')[0] : '') : '');
   if (fl) {
-    const chs = Object.values((typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || {}).filter(c => c && !c.cancelled && (c.lines || []).some(l => l.key === key));
+    const chSrc = (typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || null;
+    const chIx = chSrc ? (SHPB_IX.ch && SHPB_IX.ch.raw === chSrc ? SHPB_IX.ch.map
+      : (shpbIxOf('ch', Object.values(chSrc), c => (c.cancelled ? null : [...new Set((c.lines || []).map(l => l && l.key).filter(Boolean))])), SHPB_IX.ch.raw = chSrc, SHPB_IX.ch.map)) : null;
+    const chs = (chIx && chIx.get(key)) || SHPB_NOTHING;
     add('Printer receive', st(s.prcA, s.prcW, s.prcD), nf(s.prcD) + ' of ' + nf(q) + ' back from the printer' + (chs.length ? ' · ' + chs.map(c => c.no).join(', ') : ' · no challan yet'),
       chs.map(c => { const rc = Object.values(c.receipts || {}).filter(x => x && x.items && x.items[key]); return rc.length ? shpbDay(rc[rc.length - 1].date) : ''; }).filter(Boolean).join(', '));
   }
   if (r.cutReq) {
-    const cs = (PT.cut || []).filter(c => c && obUC(c.orderNo) === r.orderNo && obUC(c.sku) === r.sku);
+    const cs = shpbIxOf('cut', PT.cut, c => obUC(c.orderNo) + '|' + obUC(c.sku)).get(r.orderNo + '|' + r.sku) || SHPB_NOTHING;
     add('Cut', st(s.cutA, s.cutW, s.cutD), nf(s.cutD) + ' of ' + nf(q) + ' cut' + (cs.length ? ' · ' + cs.map(c => nf(ptNum(c.pieces))).join(' + ') : ''), cs.length ? shpbDay(cs[cs.length - 1].cutDate) : '');
   }
-  const bs = (PT.base || []).filter(b => b && obUC(b.orderNo) === r.orderNo && obUC(b.sku) === r.sku);
+  const bs = shpbIxOf('base', PT.base, b => obUC(b.orderNo) + '|' + obUC(b.sku)).get(r.orderNo + '|' + r.sku) || SHPB_NOTHING;
   add('Issued', st(s.issA, s.issW, s.issD), nf(s.issD) + ' of ' + nf(q) + ' issued' + (bs.length ? ' · ' + bs.map(b => b.empName + ' ' + nf(ptNum(b.issuePieces))).join(', ') : ''), bs.length ? shpbDay(bs[bs.length - 1].issueDate) : '');
   add('Received', st(s.recA, s.recW, s.recD), nf(s.recD) + ' of ' + nf(q) + ' back from karigars' + (bs.some(b => ptNum(b.receivedPieces)) ? ' · ' + bs.filter(b => ptNum(b.receivedPieces)).map(b => b.empName + ' ' + nf(ptNum(b.receivedPieces))).join(', ') : ''),
     bs.filter(b => b.receivingDate).length ? shpbDay(bs.filter(b => b.receivingDate).pop().receivingDate) : '');
-  const qcs = ((typeof QC !== 'undefined' && QC.checks) || []).filter(c => c && obUC(c.orderNo) === r.orderNo && qcNorm(c.sku) === r.sku && ptNum(c.ok) > 0);
+  const qcs = (typeof QC !== 'undefined' && QC.checks ? shpbIxOf('qc', QC.checks, c => (ptNum(c.ok) > 0 ? obUC(c.orderNo) + '|' + qcNorm(c.sku) : null)).get(r.orderNo + '|' + r.sku) : null) || SHPB_NOTHING;
   add('QC passed', s.qcW ? (s.qcD ? 'part' : (s.qcA ? 'active' : 'future')) : (s.qcA ? 'done' : 'future'), nf(s.qcD) + ' of ' + nf(q) + ' passed' + (qcs.length ? ' · by ' + [...new Set(qcs.map(c => c.checkedBy || String(c.addedBy || '').split('@')[0]))].join(', ') : ''), qcs.length ? shpbDay(qcs[qcs.length - 1].date) : '');
-  const px = (SHPB.pressBy || {})[key] || {}, pe = Object.values(SHPB.press || {}).filter(e => e && shpbKey(e.orderNo, e.sku) === key);
+  const pxSrc = SHPB.press || null;
+  const pxIx = pxSrc ? (SHPB_IX.press && SHPB_IX.press.raw === pxSrc ? SHPB_IX.press.map
+    : (shpbIxOf('press', Object.values(pxSrc), e => shpbKey(e.orderNo, e.sku)), SHPB_IX.press.raw = pxSrc, SHPB_IX.press.map)) : null;
+  const px = (SHPB.pressBy || {})[key] || {}, pe = (pxIx && pxIx.get(key)) || SHPB_NOTHING;
   if (shpbIsQuilt(r)) { const fz = shpbFillOf(r) || {}, fi = Object.values(fz.iss || {}), fr = Object.values(fz.rec || {}), lastF = fr.concat(fi).map(x => x.date).sort().pop();
     add('Filling', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' back filled' + (fz.name ? ' · ' + fz.name : '') + ' · ' + nf(shpbFillSum(fz, 'iss')) + ' issued', lastF ? shpbDmy(lastF) : ''); }
   else add('Press', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' pressed' + (pe.length ? ' · ' + pe.map(e => e.pressman + ' ' + nf(e.pieces)).join(', ') : ''), px.last ? shpbDmy(px.last) : '');
@@ -29370,7 +29566,12 @@ function shpbJourneyOpen(orderNo) {
 }
 
 if (SHPB_ON && $('odView') && $('odView').insertAdjacentHTML) $('odView').insertAdjacentHTML('beforeend', Object.entries(SHPB_KINDS).map(([v, k]) => `<option value="${v}">${k[1]}</option>`).join(''));
+const SHPB_SHOW_STEP = 100;
 if ($('odTable') && $('odTable').addEventListener) {
+  $('odTable').addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-shpb-more]'); if (!b) return;
+    SHPB.show = Math.max(SHPB_SHOW_STEP, SHPB.show || 0) + SHPB_SHOW_STEP; renderShpBoard();
+  });
   $('odTable').addEventListener('click', e => {
     if (typeof ordView !== 'function' || !shpbIsBoard(ordView())) return;
     const oj = e.target.closest && e.target.closest('[data-ordj]'); if (oj) { e.preventDefault(); e.stopPropagation(); shpbJourneyOpen(oj.getAttribute('data-ordj')); }
@@ -30497,7 +30698,7 @@ const OAL_RETRY_CAP = 300;                // lines kept for another try
 const OAL_CHUNK = 400;                    // lines per update when a check has many to fix
 const OAL_LOG_CAP = 120;                  // log lines one page writes in a day
 const OAL = { dirty: new Set(), timer: 0, retry: {}, retryTimer: 0, retryWait: 30000, last: new Map(), busy: false, skipped: 0, noRead: false,   // noRead: this login may not read the list (before Stage 2's rule), so it never checks
-  me: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), logDay: '', logN: 0, okAt: 0 };
+  me: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), logDay: '', logN: 0, okAt: 0, clockSaid: false };
 /* The registers whose saves can move an order line, and the sales orders (their delivery date). */
 const OAL_WATCH = new Set(['pt_orderBook', 'pt_pressInventory', 'pt_qcChecks', 'pt_shopProd', 'pt_baseData', 'pt_baseDone', 'pt_salesOrders']);
 
@@ -30522,6 +30723,19 @@ function oalWanted() {
 const OAL_SAID = {};
 function oalSkip(why) {
   try { if (OAL_SAID[why] || !oalWanted()) return; OAL_SAID[why] = 1; if (typeof console !== 'undefined' && console.info) console.info('[order alert list] check skipped: ' + why); } catch (e) { /* only a note */ }
+}
+/* INDIA TIME ONLY (19 Nov 2026). A due date counts from the day a line opened, and a computer whose clock is set to
+ * another country's time works that day out one day early: a factory PC on US time did so from 13 to 18 Nov and spoilt
+ * the shadow check. Such a page neither writes lines nor checks the list; it says so once in the log, naming its time
+ * zone, so the computer can be found and set right. The strip itself is not affected. */
+const OAL_INDIA_OFFSET_MIN = -330;
+const oalOnIndiaTime = () => new Date().getTimezoneOffset() === OAL_INDIA_OFFSET_MIN;
+function oalClockZone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; } }
+function oalSkipClock() {
+  oalSkip('this computer is not on India time');
+  if (OAL.clockSaid) return;
+  OAL.clockSaid = true;
+  oalLog({ kind: 'skip', why: 'clock not on India time', tz: oalClockZone(), offset: new Date().getTimezoneOffset() });
 }
 /** Keep the flag's last answer for the next page load. */
 function oalSaveFlag(on) {
@@ -30623,6 +30837,12 @@ async function oalWrite(updates) {
  *  The check uses w to tell a late line (a save on a page without the hook) from a wrong one (the hook disagreed with the registers). */
 const oalPutEntry = (e, who) => (e ? Object.assign({}, e, { at: Date.now(), w: who || 'h' }) : null);
 const OAL_FIELDS = ['no', 'sku', 'ch', 'what', 'qty', 'pr', 'fs', 'due', 'dh', 'st', 'tab', 'id'];
+/* LAG, NOT WRONG (19 Nov 2026). Pieces made, pieces from stock and the stage move with QC, cutting and pressing saves that
+ * the hook cannot always place on an order line; the 15-minute check catches them, which is the delay Ravi agreed for
+ * everything but the saving page and sales-order dates (6 Nov). A hook-written line that differs only there is LAG.
+ * Any other difference (due date, order, SKU, quantity, name, screen) is WRONG: that is the count that must stay 0. */
+const OAL_LAG_FIELDS = new Set(['pr', 'fs', 'st']);
+const oalOnlyLag = (s, e) => OAL_FIELDS.every(f => s[f] === e[f] || OAL_LAG_FIELDS.has(f));
 /** A compact before/after of the fields that differ, for the log. */
 function oalDiffText(s, e) {
   const d = OAL_FIELDS.filter(f => !s || !e || s[f] !== e[f]).map(f => f + ':' + (s ? s[f] : '-') + '>' + (e ? e[f] : '-'));
@@ -30654,6 +30874,7 @@ async function oalFlush() {
   OAL.timer = 0;
   const keys = [...OAL.dirty]; OAL.dirty.clear();
   if (!oalOn()) return;
+  if (!oalOnIndiaTime()) { OAL.skipped += keys.length; oalSkipClock(); return; }   // the check on an India-time page sets these lines
   const up = {};
   try {
     if (keys.length) {
@@ -30714,6 +30935,7 @@ async function oalRebuild(mine) {
 async function oalCheck() {
   if (!oalOn()) { oalSkip('the switch is off for this login or device (vendor, test harness, or the device setting)'); return; }
   if (OAL.busy) return;
+  if (!oalOnIndiaTime()) { oalSkipClock(); return; }
   if (OAL.noRead) { oalSkip('this login may not read the list yet'); return; }
   const why = oalNotReady();
   if (why) { oalSkip(why); return; }
@@ -30729,14 +30951,21 @@ async function oalCheck() {
       return;
     }
     const stored = (await ptGetFresh(OAL_NODE + '/l')) || {};
-    let missing = 0, extra = 0, changed = 0, late = 0, wrong = 0;
-    const up = {}, sample = [], wrongBits = [];
-    /* Late: a save on a page without the hook since the last check. Wrong: the hook wrote an entry the registers disagree with. */
+    let missing = 0, extra = 0, changed = 0, late = 0, wrong = 0, lag = 0;
+    const up = {}, sample = [], wrongBits = [], lagBits = [];
+    /* Late: a save on a page without the hook since the last check. Lag: a hook-written line behind only in pieces or stage
+     * (see OAL_LAG_FIELDS). Wrong: the hook wrote an entry the registers disagree with in anything else. */
     const bad = (k, s, e) => { wrong++; if (wrongBits.length < 5) wrongBits.push(k + ' ' + oalDiffText(s, e)); };
+    const behind = (k, s, e) => { lag++; if (lagBits.length < 5) lagBits.push(k + ' ' + oalDiffText(s, e)); };
     mine.forEach((e, k) => {
       const s = stored[k];
       if (!s) { missing++; late++; if (sample.length < 5) sample.push('+' + k); up[OAL_NODE + '/l/' + k] = oalPutEntry(e, 'c'); }
-      else if (oalFp(s) !== oalFp(e)) { changed++; if (s.w === 'h') bad(k, s, e); else late++; if (sample.length < 5) sample.push('~' + k); up[OAL_NODE + '/l/' + k] = oalPutEntry(e, 'c'); }
+      else if (oalFp(s) !== oalFp(e)) {
+        changed++;
+        if (s.w !== 'h') late++; else if (oalOnlyLag(s, e)) behind(k, s, e); else bad(k, s, e);
+        if (sample.length < 5) sample.push('~' + k);
+        up[OAL_NODE + '/l/' + k] = oalPutEntry(e, 'c');
+      }
     });
     Object.keys(stored).forEach(k => { if (!mine.has(k)) { extra++; if (stored[k] && stored[k].w === 'h') bad(k, stored[k], null); else late++; if (sample.length < 5) sample.push('-' + k); up[OAL_NODE + '/l/' + k] = null; } });
     /* The shadow comparison: the strip worked out from the list as it stood, against today's strip from the registers. */
@@ -30751,8 +30980,9 @@ async function oalCheck() {
     /* Quiet when all is well: a line at most once an hour. A difference is always logged. */
     if (diff || !same || Date.now() - OAL.okAt > 60 * 60 * 1000) {
       OAL.okAt = Date.now();
-      const rec = { kind: 'check', lines: mine.size, missing, extra, changed, late, wrong, same, sample, skipped: OAL.skipped, ms: Date.now() - t0 };
+      const rec = { kind: 'check', lines: mine.size, missing, extra, changed, late, lag, wrong, same, sample, skipped: OAL.skipped, ms: Date.now() - t0 };
       if (wrong) rec.wrongSample = wrongBits.join(' | ').slice(0, 400);
+      if (lag) rec.lagSample = lagBits.join(' | ').slice(0, 400);
       oalLog(rec);
     }
   } catch (e) {
@@ -41677,9 +41907,11 @@ async function ensureHr() {
       /* An employee-list-only account needs the list, and extra hours to count where a name is used.
        * Rates, freezes and advances are not read for it at all. */
       const only = hrEmpOnly(), skip = node => (only ? Promise.resolve(null) : ptGet(node));
-      const [e, r, pr, h, f, pf, ad] = await Promise.all([
+      const [e, r, pr, h, f, pf, ad, jc] = await Promise.all([
         ptGet('pt_empList'), skip('pt_rateList'), skip('pt_printerRates'), ptGet('pt_extraHours'), skip('pt_ehFreezes'),
-        skip('pt_payoutFreezes'), skip('pt_advances')]);
+        skip('pt_payoutFreezes'), skip('pt_advances'), only ? Promise.resolve(null) : ptGet('pt_jwCorrReqs').catch(() => null)]);
+      /* the pay put right by closed correction requests (production/job-work-corrections.js, jwCorrClose) */
+      HR.jwAdj = Object.values(jc || {}).filter(q => q && q.status === 'closed' && q.debit && q.debit.amount);
       /* What the DATABASE held, before any filtering — a save is compared against this, and it has
        * to be what was actually stored rather than what we chose to keep of it. */
       HR_SEEN = { pt_empList: hrCanon(e), pt_rateList: hrCanon(r), pt_printerRates: hrCanon(pr),
@@ -43302,10 +43534,10 @@ function payRows(empType, period, yr, mo) {
   if (period === 3) {
     const merged = {};
     [1, 2].forEach(p => payRows(empType, p, yr, mo).forEach(x => {
-      const key = empType === PAY_TYPES.cc
+      const key = (x.adj ? 'adj|' + x.adj + '|' : '') + (empType === PAY_TYPES.cc
         ? `${x.empName}|${x.articleType}|${x.subtype}|${x.size}`
-        : `${x.articleType}|${x.subtype}|${x.size}`;
-      if (!merged[key]) merged[key] = { empName: x.empName, articleType: x.articleType, subtype: x.subtype, size: x.size, recvPcs: 0, amount: 0, rate: x.rate, _mixed: false };
+        : `${x.articleType}|${x.subtype}|${x.size}`);
+      if (!merged[key]) merged[key] = { empName: x.empName, articleType: x.articleType, subtype: x.subtype, size: x.size, recvPcs: 0, amount: 0, rate: x.rate, _mixed: false, ...(x.adj ? { adj: x.adj, note: x.note } : {}) };
       merged[key].recvPcs += x.recvPcs;
       /* The AMOUNTS are added, not re-multiplied. Re-pricing the merged pieces at one rate threw the
        * frozen half's figure away and paid it at today's rate — which defeats the whole point of
@@ -43338,7 +43570,22 @@ function payRows(empType, period, yr, mo) {
     if (!g[key]) g[key] = { empName: r.empName, articleType: r.articleType, subtype: r.articleSubtype, size: r.size, recvPcs: 0, rate };
     g[key].recvPcs += ptNum(r.receivedPieces);
   });
-  return Object.values(g).map(x => Object.assign({}, x, { amount: x.recvPcs * x.rate }));
+  return Object.values(g).map(x => Object.assign({}, x, { amount: x.recvPcs * x.rate })).concat(payAdjRows(empType, yr, mo, ds, de));
+}
+
+/* PAY PUT RIGHT BY A CLOSED CORRECTION (19 Nov): a line of its own in the fortnight it was closed — minus pieces, minus money — saying
+ * why, so the bill shows "paid more earlier" rather than a smaller number nobody can explain. A frozen fortnight keeps it like any line. */
+function payAdjRows(empType, yr, mo, ds, de) {
+  return (HR.jwAdj || []).filter(q => q.debit.empType === empType).filter(q => {
+    const d = new Date(q.closedAt || q.answeredAt || 0);
+    return d.getFullYear() === yr && d.getMonth() + 1 === mo && d.getDate() >= ds && d.getDate() <= de;
+  }).map(q => {
+    const x = q.debit, minus = x.amount < 0;
+    return { adj: q.id, empName: x.empName, articleType: minus ? 'Debit — paid more earlier' : 'Credit — paid less earlier',
+      subtype: `${x.sku} · received ${x.oldRecv} → ${x.newRecv}`, size: x.size, recvPcs: x.pcs, rate: x.rate, amount: x.amount,
+      note: `${x.sku} (${x.subtype || x.articleType} ${x.size || ''}) was entered as ${x.oldRecv} received but ${x.newRecv} was right — `
+        + (minus ? `paid ${Math.abs(x.pcs)} piece(s) more earlier, so ${rs(Math.abs(x.amount))} is taken off.` : `paid ${x.pcs} piece(s) less earlier, so ${rs(x.amount)} is added.`) };
+  });
 }
 
 /** Advances recorded for one person in one month (YYYY-MM). */
@@ -43410,9 +43657,9 @@ function renderPayout(kind) {
     : ['Article', 'Subtype', 'Size', 'Pieces', 'Rate', 'Amount'];
   const numFrom = kind === 'cc' ? 4 : 3;
   const head = '<thead><tr>' + cols.map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= numFrom ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
-  const body = rows.map(r => `<tr data-pay-group="${encodeURIComponent(JSON.stringify({
+  const body = rows.map(r => (r.adj ? `<tr title="${esc(r.note || '')}" style="background:#FFF4E5">` : `<tr data-pay-group="${encodeURIComponent(JSON.stringify({
       empName: r.empName || '', articleType: r.articleType || '', subtype: r.subtype || '', size: r.size || '' }))}"`
-    + ' style="cursor:pointer" title="Click to see which entries make up this line, and which were left out.">'
+    + ' style="cursor:pointer" title="Click to see which entries make up this line, and which were left out.">')
     + (kind === 'cc' ? `<td class="frz" style="text-align:left">${esc(r.empName)}</td><td>${esc(r.articleType)}</td>`
                      : `<td class="frz" style="text-align:left">${esc(r.articleType)}</td>`)
     + `<td>${esc(r.subtype)}</td><td>${esc(r.size)}</td>`
@@ -43777,8 +44024,9 @@ function renderSlip() {
 
   /* Collapsed by ARTICLE TYPE only, and with no rate column — the rate varies by subtype and size,
    * and a blended rate across a mixed article would be a number nobody could check. */
-  const merged = {};
+  const merged = {}, adjNotes = [];
   [1, 2].forEach(p => payRows(PAY_TYPES.cc, p, yr, mo).filter(r => r.empName === name).forEach(r => {
+    if (r.adj && r.note) adjNotes.push(r.note);
     const k = r.articleType || '(unknown)';
     if (!merged[k]) merged[k] = { articleType: k, recvPcs: 0, amount: 0 };
     merged[k].recvPcs += r.recvPcs; merged[k].amount += r.amount;
@@ -43819,6 +44067,7 @@ function renderSlip() {
         <div><span>Advance deducted</span><b style="color:#C55A11">${adv ? '− ' + rs(adv) : rs(0)}</b></div>
         <div class="net"><span>Net payable</span><b>${rs(net)}</b></div>
       </div>
+      ${adjNotes.length ? `<div class="slipnote" style="color:#9A3412">${adjNotes.map(esc).join('<br>')}</div>` : ''}
       <!-- Extra hours are shown but NOT added: they are authorised separately and are not part of
            the piece-rate payout. Leaving them off the slip entirely would hide work that was done. -->
       <div class="slipnote">Extra hours this month: ${nf(hAuth)} authorised${hPend ? `, ${nf(hPend)} still awaiting authorisation` : ''}.
@@ -55784,6 +56033,20 @@ $('fgDelPicked').onclick = () => ($('fgView').value === 'stock' ? fgiSkuDeleteAs
  * left defined on purpose — they are the only written description of how the seeding worked, and a
  * button can be put back in one line if it is ever wanted. */
 ['fgBrand', 'fgStat', 'fgTag', 'fgAmz', 'fgD1', 'fgD2'].forEach(id => $(id).addEventListener('change', renderFgi));
+/** Finished Goods Refresh (18 Nov 2026): the screen had none, so the store reloaded the page to see another PC's
+ *  receipts. The ledger and the press-pending list are read again from their live copies (nothing downloaded) and
+ *  the screen redrawn without going blank. Ticks are cleared, as on any fresh read, since a ticked row may have
+ *  changed. A failed read shows on the screen. */
+async function fgiRefresh() {
+  try {
+    const [led] = await Promise.all([ptGet('pt_fgiLedger'), ptReadReg('press')]);
+    FGI.rows = ptList(led); FGI.err = ''; FGI.at = ptStamp();
+  } catch (e) { FGI.err = e.message || String(e); }
+  FGI_PICK = { stock: new Set(), ledger: new Set() };
+  renderFgi();
+}
+$('fgRefresh').onclick = () => ptRefreshButton($('fgRefresh'), fgiRefresh);
+
 $('fgLstRefresh').onclick = async () => {
   $('fgLstRefresh').disabled = true;
   const why = await lstRefresh(t => { $('fgMsg').className = 'muted'; $('fgMsg').textContent = t; });
@@ -68273,12 +68536,16 @@ function skcPlanNew(colour, code, brand) {
   /* THE MASTER'S OWN FORMAT (17 Nov: "jo formatting hamare masterdata me bahi rakhni h"): a new colour is written Title Case, as every
    * colour in the master database is (Sage Leaf Green), whatever case it was typed in. A colour already on the list keeps its spelling. */
   const colT = newColour ? col.toLowerCase().replace(/\s+/g, ' ').replace(/(^|[\s\-\/(])([a-z])/g, (m, a, b) => a + b.toUpperCase()) : (skcColours().find(c => c.toLowerCase() === col.toLowerCase()) || col);
-  const owner = skcCodeOwner(code, col);
-  if (owner) return { out, skip, err: `Code ${String(code).trim()} is already ${owner}'s — its SKUs carry it. Use another code.` };
+  /* ONLY THE SKUs STILL FREE (Ravi, 20 Nov: "sare sku bane hue nahi h but main code available h to is case me sirf bache hue sku hi data
+   * me add ho"). A code another colour already uses on SOME SKUs no longer stops the whole colour: every full code that already
+   * exists — in the master or on the Custom SKUs list — is left as it is and listed as not made, with whose it is; the rest are made. */
+  const custom = new Map(((typeof MDBX !== 'undefined' && MDBX.custom) || []).filter(m => m && m.sku).map(m => [obUC(m.sku), m]));
   const seen = new Set();
-  skcTable(col, code).forEach(({ r, full, state }) => {
-    if (state !== 'new') return;
+  skcTable(col, code).forEach(({ r, full, m, state }) => {
     const label = [r.article, r.subtype, r.size].filter(Boolean).join(' · ');
+    if (state === 'taken') { skip.push({ full, label, why: 'already ' + (String((m && m.color) || '').trim() || 'another colour') + ' — its SKU, left as it is' }); return; }
+    if (state !== 'new') return;
+    if (custom.has(full)) { skip.push({ full, label, why: 'already on the Custom SKUs list (' + (String(custom.get(full).color || '').trim() || 'no colour') + ')' }); return; }
     if (seen.has(full)) { skip.push({ full, label, why: 'two base rows give this same code' }); return; }
     seen.add(full);
     if (!String(r.article || '').trim() || !String(r.subtype || '').trim()) { skip.push({ full, label, why: 'the base row has no article or subtype' }); return; }
@@ -68501,10 +68768,11 @@ function skcDraw() {
   const owner = SKC.code ? skcCodeOwner(SKC.code, SKC.col) : '';
   const says = $('skcSays');
   if (says) {
-    says.className = owner ? 'err' : 'muted';
+    says.className = 'muted';
     says.textContent = !skcRows().length ? 'No base codes yet — add them with "+ Base code" or "Upload base codes".'
       : !SKC.code ? 'Pick a colour — an existing one brings its code — or type a new code.'
-        : owner ? `Code ${SKC.code} is already ${owner}'s. Two colours under one code would be two products under one SKU.`
+        : owner ? `Code ${SKC.code} is also used by ${owner} on ${nf(n('taken'))} SKU(s) — those stay as they are · ${nf(n('have'))} already in the master · ${nf(n('new'))} still free`
+          + (n('new') ? ' — "Create the new SKUs" makes only the free ones' : '')
           : `${nf(n('have'))} already in the master · ${nf(n('new'))} new` + (n('new') ? (SKC.brand ? ' — "Create the new SKUs" adds them under ' + SKC.brand : ' — type the brand, then "Create the new SKUs"') : '');
   }
   /* the code, checked as it is typed */
@@ -68512,8 +68780,8 @@ function skcDraw() {
   if (cs) {
     if (!ck) { cs.textContent = ''; }
     else if (ck.others.length) {
-      cs.style.color = 'var(--bad)';
-      cs.textContent = `✗ ${SKC.code} is taken — ${ck.others.slice(0, 2).map(o => o.colour + ' (' + nf(o.n) + ' SKU' + (o.n === 1 ? '' : 's') + ', e.g. ' + o.eg + ')').join(', ')}${ck.others.length > 2 ? ' +' + (ck.others.length - 2) + ' more' : ''}`;
+      cs.style.color = '#b45309';
+      cs.textContent = `⚠ ${SKC.code} is partly used — only the free SKUs are made · ${ck.others.slice(0, 2).map(o => o.colour + ' (' + nf(o.n) + ' SKU' + (o.n === 1 ? '' : 's') + ', e.g. ' + o.eg + ')').join(', ')}${ck.others.length > 2 ? ' +' + (ck.others.length - 2) + ' more' : ''}`;
     } else if (ck.mine) {
       cs.style.color = '#b45309';
       cs.textContent = `${SKC.col || 'This colour'}'s own code — ${nf(ck.have)} SKU(s) already made, only the missing ones are created`;
@@ -76752,6 +77020,11 @@ function croOpen(ref) {
       </div>
       ${(o.log || []).length ? `<details style="margin-top:10px;font-size:12px"><summary class="muted">History (${nf(o.log.length)})</summary>${o.log.slice().reverse().map(x => `<div class="muted">${esc(croDay(x.at))} · ${esc(x.by || '')} — ${esc(x.what || '')}</div>`).join('')}</details>` : ''}`,
     saveLabel: 'Save',
+    /* DELETE (Ravi, 19 Nov: "a delete button for every order") — the dialog's own Delete button and its confirm box,
+     * for every order that has not gone to Amazon. One that has is a real parcel: it is not deleted, it is set Cancelled. */
+    ...(a.orderId ? {} : { onDelete: () => croDelete(o.reference), deleteAllowed: true,
+      deleteWhat: `Order ${o.reference} · ${(o.creator || {}).name || s.name || ''} · ${(o.lines || []).map(l => (l.sku || '') + ' × ' + l.quantity).join(', ')}`
+        + (croIsSetuGift(o) ? '\n\nCreator Setu is NOT told. To tell them, set the status to Cancelled instead.' : '') }),
     onCancel: () => { try { history.replaceState(null, '', '#creators'); } catch (e) { /* only the address */ } croRender(); },
     onSave: async () => {
       const err = await croSaveDrawer(o.reference, false);
@@ -76793,6 +77066,24 @@ function croOpen(ref) {
     if (err) { ptDlgMsg(err, true); $('croMcfStatus').disabled = false; $('croMcfStatus').textContent = 'Check status with Amazon'; return; }
     croOpen(o.reference); croRender();
   };
+}
+/** Delete one order for good (the dialog has already asked). Never one Amazon has: that is a real parcel. '' or why not. */
+async function croDelete(ref) {
+  const o = croOf(ref); if (!o) return 'That order is gone — press Refresh.';
+  if (o.amazon && o.amazon.orderId) return ref + ' is with Amazon as ' + o.amazon.orderId + ' — it cannot be deleted. Set it to Cancelled instead.';
+  const f = typeof fsDeleteDoc === 'function' ? fsDeleteDoc : deleteDoc;    // the live mirror's where this ERP has one
+  try { await f(doc(db, CRO_COL, String(ref))); }
+  catch (e) {
+    return /permission|insufficient/i.test(String(e && (e.code || e.message)))
+      ? 'Not deleted: the database does not allow it yet — the Firestore rule for creator orders needs its delete line.'
+      : 'Not deleted: ' + (e.message || e);
+  }
+  CRO.list = CRO.list.filter(x => x !== o);
+  CRO.picked.delete(ref);
+  try { history.replaceState(null, '', '#creators'); } catch (e) { /* only the address */ }
+  croMsg(ref + ' deleted.');
+  setTimeout(croRender, 0);
+  return '';
 }
 /** The drawer's lines, status and notes, saved. checked = the Checked ✓ button (New → Checked). Returns '' or why not. */
 async function croSaveDrawer(ref, checked) {

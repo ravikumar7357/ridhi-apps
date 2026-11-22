@@ -12,7 +12,7 @@ const cut = name => { const i = SRC.indexOf('function ' + name + '('); if (i < 0
 const line = head => { const i = SRC.indexOf(head); if (i < 0) throw new Error(head + ' not found'); return SRC.slice(i, SRC.indexOf('\n', i)) + '\n'; };
 const block = head => { const i = SRC.indexOf(head); if (i < 0) throw new Error(head + ' not found'); return SRC.slice(i, SRC.indexOf('];', i) + 2) + '\n'; };
 const PARTS = [block('const SHPB_STAGES ='), line('const SHPB_LATE_DAYS ='), line('const SHPB_DUE_OF ='), line('const SHPB_DUE_NAME ='), line('const shpbDaysBetween ='),
-  cut('shpbStageNow'), cut('shpbStageDue'), cut('shpbLateNow')].join('\n');
+  cut('shpbStageNow'), cut('shpbStageDue'), cut('shpbLateNow'), line('const SHPB_STUCK_DAYS ='), cut('shpbWorkDaysBetween'), cut('shpbStuckNow')].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
 
@@ -22,7 +22,7 @@ const ctx = {
   shpbLastMove: r => r.last || '', shpbStatusInfo: r => ({ label: r.at || 'At printer' }), nf: n => String(n),
   shpbDmy: iso => String(iso).split('-').reverse().join('-'),
 };
-const F = new Function(...Object.keys(ctx), PARTS + '\nreturn { shpbLateNow, shpbStageNow, shpbStageDue, shpbDaysBetween };')(...Object.values(ctx));
+const F = new Function(...Object.keys(ctx), PARTS + '\nreturn { shpbLateNow, shpbStageNow, shpbStageDue, shpbDaysBetween, shpbStuckNow, shpbWorkDaysBetween };')(...Object.values(ctx));
 const T = '2026-11-16';
 const L = o => Object.assign({ open: true, w: {}, plan: { dates: { cut: '2026-11-20', qc: '2026-11-25', ready: '2026-11-30' } }, ready: '2026-11-30', last: '2026-11-15' }, o);
 const tone = r => (F.shpbLateNow(r, T) || {}).tone || '';
@@ -59,10 +59,26 @@ const LM = new Function('shpbSteps', cut('shpbLastMove') + '\nreturn shpbLastMov
 ok('the last move is the newest day in the line\'s flow (20-10-2026, 05-11-2026 → 2026-11-05); none → ""',
   LM({ steps: [{ when: 'ordered 20-10-2026' }, { when: 'QC 05-11-2026 · 4 pcs' }, { when: '' }] }) === '2026-11-05' && LM({ steps: [{ when: 'not yet' }] }) === '', LM({ steps: [{ when: 'ordered 20-10-2026' }, { when: 'QC 05-11-2026 · 4 pcs' }] }));
 
+/* THE STUCK PILL, BACK (Ravi, 19 Nov): a whole working day with nothing done, Sundays not counted — beside the colour, not instead */
+ok('working days leave Sunday out: Saturday 14 Nov → Tuesday 17 Nov has only Monday wholly between', F.shpbWorkDaysBetween('2026-11-14', '2026-11-17') === 1
+  && F.shpbWorkDaysBetween('2026-11-16', '2026-11-17') === 0 && F.shpbWorkDaysBetween('2026-11-16', '2026-11-18') === 1);
+const stuck = (last, o) => F.shpbStuckNow(L(Object.assign({ w: { prcW: 5 }, last }, o)), T);
+ok('last move Saturday 14 Nov, today Monday 16 Nov: Sunday not counted → not stuck', stuck('2026-11-14') === null);
+ok('last move Thursday 12 Nov, today Monday 16 Nov: Friday and Saturday → "Stuck 2 days", where it waits and since when',
+  JSON.stringify(stuck('2026-11-12', { at: 'At printer' })) === JSON.stringify({ days: 2, since: '2026-11-12', at: 'At printer' }), JSON.stringify(stuck('2026-11-12')));
+ok('exactly one whole working day: last move Friday 13 Nov, today Monday 16 Nov (Saturday between, Sunday not) → "Stuck 1 day"',
+  (stuck('2026-11-13') || {}).days === 1, JSON.stringify(stuck('2026-11-13')));
+ok('a line moved today or yesterday is not stuck; a closed line never is', stuck(T) === null && stuck('2026-11-15') === null && stuck('2026-11-01', { open: false }) === null);
+ok('stuck and on time at once: white row (Cut date ahead) still gets the pill', tone(L({ w: { prcW: 5 }, last: '2026-11-10', plan: { dates: { cut: '2026-11-25' } } })) === ''
+  && stuck('2026-11-10', { plan: { dates: { cut: '2026-11-25' } } }).days === 4);   // 11, 12, 13, 14 Nov — Sunday 15th not counted
+ok('the pill is drawn under the date on a stuck line, as on 13 Nov: red, "Stuck N day(s)", Sundays not counted in its hover',
+  /\+ \(stuck \? shpbStuckPill\(stuck\) : ''\)/.test(SRC) && /const shpbStuckPill = x => `<div title="Nothing done on this line since \$\{esc\(shpbDmy\(x\.since\)\)\} — Sundays not counted"><span class="pill" style="background:#dc2626;color:#fff;font-size:10px">Stuck \$\{nf\(x\.days\)\} day\$\{x\.days === 1 \? '' : 's'\}<\/span><\/div>`;/.test(SRC));
+ok('"last step" shows on a stuck line, and on a red one', /waits = stuck \|\| \(dl && dl\.tone === 'late' \? dl : null\)/.test(SRC) && /\(waits \? `<div[^`]*last step: \$\{esc\(waits\.at\)\}/.test(SRC));
+
 /* on the board */
-ok('the row takes the colour and a red one keeps "last step"', /tr class="vo-' \+ dl\.tone \+ '"/.test(SRC) && /dl && dl\.tone === 'late' \? `<div[^`]*last step:/.test(SRC));
-ok('the Stuck pill and the "Stuck > 24h" button are gone; the button is "Late" and filters the red lines',
-  !/Stuck \$\{nf|Stuck &gt; 24h|shpbStuck/.test(SRC) && /">Late · \$\{nf\(n\)\}<\/button>/.test(SRC) && /SHPB\.late && SHPB\.tab !== 'done'\) list = list\.filter/.test(SRC));
+ok('the row takes the colour', /tr class="vo-' \+ dl\.tone \+ '"/.test(SRC));
+ok('one filter only (Ravi, 19 Nov: Late only): "Stuck > 24h" stays gone; the button is "Late" and filters the red lines',
+  !/Stuck &gt; 24h|data-shpb-stuck|SHPB\.stuck/.test(SRC) && /">Late · \$\{nf\(n\)\}<\/button>/.test(SRC) && /SHPB\.late && SHPB\.tab !== 'done'\) list = list\.filter/.test(SRC));
 ok('the colours cover the whole row, the peach stage cells too', /#odTable tbody tr\.vo-late td\{background:var\(--bad-bg\) !important\}/.test(CSS)
   && /#odTable tbody tr\.vo-near td\{background:var\(--warn-bg\) !important\}/.test(CSS));
 

@@ -972,7 +972,10 @@ const ordView = () => (($('odView') || {}).value || 'shopsku');
 
 function renderOrd() {
   /* SHIPPING TO ACCEPT ONLY (core/auth.js, ME.shpAccOnly): the Order Console is the SHP board, and nothing else. */
-  if ((ME.shpAccOnly || ME.shpBoardOnly) && $('odView') && $('odView').value !== 'shpboard') $('odView').value = 'shpboard';
+  if (ME.shpAccOnly && $('odView') && $('odView').value !== 'shpboard') $('odView').value = 'shpboard';
+  /* THE BOARDS ALONE (Ravi, 19 Nov: "LAXMI ONLY SHP BOARD KE ORDER HI DEKH PA RHI H AMZ KE NAHI"): the four boards — SHP, AMZ, B2B, SPY —
+   * and nothing else of the Order Console. */
+  if (ME.shpBoardOnly && $('odView') && !(typeof shpbIsBoard === 'function' && shpbIsBoard($('odView').value))) $('odView').value = 'shpboard';
   /* The brands that appear on the book, so the filter never offers one with nothing behind it. */
   if ($('odBrand')) ptFillSelect('odBrand', [...new Set((PTG.ob || []).map(r => ordBrandOf(r && r.sku)).filter(Boolean))]
     .sort().map(b => [b, b]), 'All brands');
@@ -1315,7 +1318,16 @@ $('odTable').addEventListener('click', ordQtyOpenClick);
 $('odKpis').addEventListener('click', ordKpiClick);
 $('odKpis').addEventListener('keydown', ordKpiClick);
 ['odSrc', 'odBrand', 'odType', 'odD1', 'odD2'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', renderOrd); });
-$('odGo').onclick = async () => { await ptLoadGates(true); ORD.req = null; QC.checks = null; FGI.rows = null; await ensureOrd(); };
+/** Order Console Refresh: everything the screen shows, read again from the live copies. Vendor orders, the
+ *  quantity changes on sales orders and the delete requests were left out before 18 Nov 2026, so only F5 showed
+ *  another PC's changes to them. */
+async function odRefresh() {
+  await ptLoadGates(true);
+  ORD.req = null; QC.checks = null; FGI.rows = null;
+  VO.rows = null; SOX.rows = null; ODR.rows = null;
+  await ensureOrd();
+}
+$('odGo').onclick = () => ptRefreshButton($('odGo'), odRefresh);
 $('odView').addEventListener('change', () => { ORD.pick = new Set(); renderOrd(); });
 /** A SKU's priority tag (P1–P4), '' when it has none. */
 const ordPri = sku => { const v = (PTE.priority || {})[obUC(sku)];

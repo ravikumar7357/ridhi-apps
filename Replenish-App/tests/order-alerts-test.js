@@ -109,6 +109,10 @@ function page(o) {
     setTimeout: (fn, ms) => { stats.timers++; timers.push({ fn, ms }); return timers.length; }, setInterval: () => 0, clearTimeout: () => {},
   };
   vm.createContext(ctx);
+  /* The page's clock: India time unless a test says otherwise, so the suite gives the same answer on any computer
+   * (GitHub's runs on world time). The context has its own Date and Intl, so this changes nothing outside it. */
+  vm.runInContext('Date.prototype.getTimezoneOffset = function () { return ' + (o.tzOffset == null ? -330 : o.tzOffset) + '; };'
+    + ' Intl.DateTimeFormat = function () { return { resolvedOptions: () => ({ timeZone: ' + JSON.stringify(o.tzName || 'Asia/Calcutta') + ' }) }; };', ctx);
   vm.runInContext(TICKER + '\n' + ALERTS + '\n' + OLD_ITEMS + '\n;this.__t = { otkItems, otkItemsFrom, otkItemsOld, oalEntry, oalKey, oalAfterSave, oalOn, oalCheck, oalFlush, oalSaveFlag, oalAllEntries, oalFp, OAL };', ctx);
   return { t: ctx.__t, ctx, db, stats, LS, net, timers, infos,
     /* runs the timers set so far; anything they set in turn waits for the next call */
@@ -300,12 +304,21 @@ async function lateWrongTests() {
     const q = page({ ls: ON, lines, db }); q.t.OAL.last = new Map(p.t.OAL.last);
     save(q, 'pt_orderBook/ob1', { orderNo: 'AMZ-1', sku: 'S1' }); await q.runTimers();
     ok('the after-save hook marks its entry w=h', db.get(K).w === 'h' && db.get(K).pr === 3);
-    /* a hook-written entry that disagrees with the registers -> wrong */
+    /* a hook-written entry behind only in pieces -> lag (19 Nov: QC and cutting saves the hook cannot place) */
     await again(db, p);
     let lg = logsOf(db).pop();
-    ok('a hook-written entry that disagrees is WRONG (1), not late', lg.wrong === 1 && lg.late === 0 && lg.changed === 1, JSON.stringify(lg));
-    ok('...with a sample showing before and after', /AMZ-1__S1 w=h pr:3>2/.test(lg.wrongSample) && lg.wrongSample.length <= 400, lg.wrongSample);
+    ok('a hook-written entry behind only in pieces is LAG, not wrong and not late', lg.lag === 1 && lg.wrong === 0 && lg.late === 0 && lg.changed === 1, JSON.stringify(lg));
+    ok('...with a sample showing before and after', /AMZ-1__S1 w=h pr:3>2/.test(lg.lagSample) && lg.lagSample.length <= 400 && !('wrongSample' in lg), lg.lagSample);
     ok('...and the repair is marked w=c', db.get(K).w === 'c' && db.get(K).pr === 2);
+    db.set(K, Object.assign({}, db.get(K), { w: 'h', st: 'cut', fs: 9 })); await again(db, p); lg = logsOf(db).pop();
+    ok('stage and pieces-from-stock behind are LAG too', lg.lag === 1 && lg.wrong === 0, JSON.stringify(lg));
+    /* a hook-written entry with another due date -> wrong (the US-time PC, 13-18 Nov) */
+    db.set(K, Object.assign({}, db.get(K), { w: 'h', due: '2026-10-30' })); await again(db, p); lg = logsOf(db).pop();
+    ok('a hook-written entry with another due date is WRONG', lg.wrong === 1 && lg.lag === 0 && /AMZ-1__S1 w=h due:2026-10-30>/.test(lg.wrongSample), JSON.stringify(lg));
+    db.set(K, Object.assign({}, db.get(K), { w: 'h', due: '2026-10-30', pr: 1 })); await again(db, p); lg = logsOf(db).pop();
+    ok('...also when pieces are behind as well (one wrong field makes it wrong)', lg.wrong === 1 && lg.lag === 0, JSON.stringify(lg));
+    db.set(K, Object.assign({}, db.get(K), { w: 'h', qty: 99 })); await again(db, p); lg = logsOf(db).pop();
+    ok('a hook-written entry with another quantity is WRONG', lg.wrong === 1 && lg.lag === 0, JSON.stringify(lg));
     /* a check-written (or rebuilt) stale entry -> late */
     db.set(K + '/pr', 77); await again(db, p); lg = logsOf(db).pop();
     ok('a stale entry last written by a check is LATE', lg.late === 1 && lg.wrong === 0 && lg.changed === 1 && !('wrongSample' in lg), JSON.stringify(lg));
@@ -319,7 +332,32 @@ async function lateWrongTests() {
     ok('an extra entry written by the hook is WRONG', lg.extra === 1 && lg.wrong === 1 && lg.late === 0 && /GONE-1__X/.test(lg.wrongSample), JSON.stringify(lg));
     db.set('pt_orderAlerts/l/GONE-2__X', { no: 'GONE-2', w: 'c' }); await again(db, p); lg = logsOf(db).pop();
     ok('an extra entry from a check is LATE', lg.extra === 1 && lg.late === 1 && lg.wrong === 0, JSON.stringify(lg));
-    ok('the check line keeps its old fields', ['missing', 'extra', 'changed', 'same', 'sample'].every(f => f in lg)); }
+    ok('the check line keeps its old fields', ['missing', 'extra', 'changed', 'same', 'sample'].every(f => f in lg));
+    ok('...and always says how many lines lagged', lg.lag === 0); }
+}
+
+console.log('A computer not on India time');
+async function clockTests() {
+  const logsOf = db => { const day = Object.keys(db.get('pt_orderAlertsLog') || {})[0]; return day ? Object.values(db.get('pt_orderAlertsLog/' + day) || {}) : []; };
+  { const db = makeDb(), p = page({ ls: ON, db, tzOffset: 360, tzName: 'America/Chicago' });
+    await p.t.oalCheck();
+    ok('a page on US time does not check: no lease taken, the list not read', p.stats.cas === 0 && !p.stats.reads.some(r => r.indexOf('pt_orderAlerts/') === 0), JSON.stringify(p.stats.reads));
+    ok('...and writes nothing to the list', listWrites(p).length === 0);
+    let lg = logsOf(db);
+    ok('...it says so once in the log, naming its time zone', lg.length === 1 && lg[0].kind === 'skip' && lg[0].tz === 'America/Chicago' && lg[0].offset === 360, JSON.stringify(lg));
+    await p.t.oalCheck(); await p.t.oalCheck();
+    ok('...only once, not every 15 minutes', logsOf(db).length === 1);
+    save(p, 'pt_orderBook/ob1', { orderNo: 'AMZ-1', sku: 'S1' }); await p.runTimers();
+    ok('...and its saves write no lines (an India-time page sets them)', listWrites(p).length === 0 && p.t.OAL.skipped >= 1); }
+  { const db = makeDb(), p = page({ ls: ON, db, tzOffset: -480, tzName: 'Asia/Singapore' });
+    await p.t.oalCheck();
+    ok('a page ahead of India is stopped too', listWrites(p).length === 0 && logsOf(db)[0].tz === 'Asia/Singapore'); }
+  { const db = makeDb(), p = page({ ls: ON, db });
+    await p.t.oalCheck();
+    ok('a page on India time checks as before (rebuilds the empty list)', listWrites(p).length > 0 && logsOf(db).some(x => x.kind === 'rebuild') && !logsOf(db).some(x => x.kind === 'skip')); }
+  { const p = page({ ls: { alertListBuild: '0' }, tzOffset: 360 });
+    await p.t.oalCheck();
+    ok('switch off on a US-time page: nothing at all, not even the log line', p.stats.writes.length === 0); }
 }
 
 console.log('The four save helpers tell the list');
@@ -405,7 +443,7 @@ function scanWrites(files) {
 (async () => {
   await offTests();
   await startTests();
-  await hookTests(); await retryTests(); await checkTests(); await lateWrongTests(); await helperTests();
+  await hookTests(); await retryTests(); await checkTests(); await lateWrongTests(); await clockTests(); await helperTests();
   /* Teeth: broken copies must make this suite fail. */
   if (!process.env.OA_TICKER && !process.env.OA_ALERTS && !process.env.OA_HIST) {
     console.log('Teeth');
@@ -421,7 +459,12 @@ function scanWrites(files) {
       ['the check ignores the switch', 'OA_ALERTS', A.replace('if (!oalOn()) { oalSkip(', 'if (false) { oalSkip(')],
       ['a failed write is forgotten (no retry)', 'OA_ALERTS', A.replace('catch (e) { oalKeep(up); }\n}', 'catch (e) { /* lost */ }\n}')],
       ['no lease: every page checks', 'OA_ALERTS', A.replace("if (cur && cur.until > now && cur.by !== OAL.me) return false;", '').replace("return (await ptCas(OAL_NODE + '/lease', cur == null ? null : cur, { by: OAL.me, until: now + OAL_CHECK_MS })) === '';", 'return true;')],
-      ['everything is classified late (hook entries never wrong)', 'OA_ALERTS', A.replace("if (s.w === 'h') bad(k, s, e); else late++;", 'late++;')],
+      ['everything is classified late (hook entries never wrong)', 'OA_ALERTS', A.replace("if (s.w !== 'h') late++; else if (oalOnlyLag(s, e)) behind(k, s, e); else bad(k, s, e);", 'late++;')],
+      ['pieces behind counted as wrong again (no lag)', 'OA_ALERTS', A.replace("else if (oalOnlyLag(s, e)) behind(k, s, e); else bad(k, s, e);", 'else bad(k, s, e);')],
+      ['a wrong due date passed off as lag', 'OA_ALERTS', A.replace("new Set(['pr', 'fs', 'st'])", "new Set(['pr', 'fs', 'st', 'due'])")],
+      ['a US-time page still checks', 'OA_ALERTS', A.replace("  if (!oalOnIndiaTime()) { oalSkipClock(); return; }\n", '')],
+      ['a US-time page still writes after a save', 'OA_ALERTS', A.replace("  if (!oalOnIndiaTime()) { OAL.skipped += keys.length; oalSkipClock(); return; }", '')],
+      ['the clock note written every 15 minutes', 'OA_ALERTS', A.replace('  if (OAL.clockSaid) return;\n', '')],
       ['w is part of the fingerprint', 'OA_ALERTS', A.replace('e.tab, e.id].join', 'e.tab, e.id, e.w].join')],
       ['every line written every time', 'OA_ALERTS', A.replace("if (OAL.last.has(k) && OAL.last.get(k) === fp) return;", '')],
     ];

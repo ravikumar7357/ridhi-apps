@@ -537,7 +537,14 @@ async function pmdbRefresh() {
   if (!PT.err.mdb && PT.mdb) { PT.mdb = PT.mdb.map(mdbYnFix); PTG.mdb = PT.mdb; renderPmdb(); }
 }
 $('ptmGo').onclick = () => pmdbRefresh();
-$('pbGo').onclick = () => ptLoad('base', 'pt_baseData', renderPbase);
+/** Job Work Refresh without blanking the table (18 Nov 2026): the register is read again from its live copy and the
+ *  table redrawn once it has landed, instead of going to "Loading…" first. A failed read shows on the screen. */
+async function pbRefresh() {
+  try { await ptReadReg('base'); PT.err.base = ''; }
+  catch (e) { PT.err.base = e.message || String(e); }
+  renderPbase();
+}
+$('pbGo').onclick = () => ptRefreshButton($('pbGo'), pbRefresh);
 $('pcGo').onclick = () => ptLoad('cut', 'pt_cuttingData', renderPcut);
 
 /* The KPI cards are written with innerHTML, and this file is a module — an inline onclick would be

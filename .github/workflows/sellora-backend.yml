@@ -1,0 +1,78 @@
+# SELLORA'S BACKEND GOES LIVE FROM GITHUB (Ravi, 21 Nov: "host the backend in github main and then it would be live").
+#
+#   every push / pull request touching Sellora-Backend/   build + tests (no keys needed: every outside service is faked)
+#   main                                                  then deployed to Firebase (price-research-48ff3, codebase
+#                                                         "sellora-live") — only that codebase: the rone-capture functions
+#                                                         are never touched from here.
+#
+# Deploy key: the SAME key Sellora's pages deploy with (FIREBASE_SERVICE_ACCOUNT → github-action-1397622174@…, Ravi 21 Nov:
+# "firebase deploys it with github"), unless SELLORA_BACKEND_DEPLOY_KEY is set. Besides its hosting roles it needs, on
+# price-research-48ff3: Cloud Functions Admin, Cloud Run Admin, Service Account User, Cloud Scheduler Admin, Secret Manager
+# Admin, Artifact Registry Administrator, Firebase Extensions Viewer (Firebase reads the extensions list before any functions
+# deploy — 21 Nov: a 403 there stopped the first deploy). A missing one is named in the deploy log. Without a key the tests still run and
+# nothing is deployed. The API keys themselves are NOT here: they live in Firebase's Secret Manager (see Sellora-Backend/README.md).
+name: Sellora backend — test, deploy
+
+on:
+  push:
+    branches: [main, 'sellora-backend']
+    paths: ['Sellora-Backend/**', '.github/workflows/sellora-backend.yml']
+  pull_request:
+    paths: ['Sellora-Backend/**', '.github/workflows/sellora-backend.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: sellora-backend-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Sellora-Backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Build (TypeScript → lib/)
+        run: npm run build
+      - name: Tests
+        run: npm test
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAS_KEY: ${{ (secrets.SELLORA_BACKEND_DEPLOY_KEY || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3) != '' }}
+    defaults:
+      run:
+        working-directory: Sellora-Backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: No deploy key yet
+        if: env.HAS_KEY != 'true'
+        run: echo "::warning::No deploy key (FIREBASE_SERVICE_ACCOUNT) — tests passed, nothing was deployed."
+      - name: Deploy to Firebase (codebase sellora-live only)
+        if: env.HAS_KEY == 'true'
+        env:
+          DEPLOY_KEY: ${{ secrets.SELLORA_BACKEND_DEPLOY_KEY || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
+        run: |
+          printf '%s' "$DEPLOY_KEY" > "$RUNNER_TEMP/deploy-key.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/deploy-key.json"
+          npx --yes firebase-tools@14 deploy --only functions:sellora-live --project price-research-48ff3 --non-interactive --force
+          rm -f "$RUNNER_TEMP/deploy-key.json"
