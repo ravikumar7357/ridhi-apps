@@ -56,6 +56,7 @@ function rsCommit_(writes) {
     if (!batch.length) return;
     var r = invFetch_(rsBase_() + ':commit', { method: 'post', contentType: 'application/json', payload: JSON.stringify({ writes: batch }) });
     if (r.getResponseCode() >= 300) throw new Error('Replenish Firestore ' + r.getResponseCode() + ' writing: ' + r.getContentText().slice(0, 300));
+    if (typeof sbMirror_ === 'function') sbMirror_(batch);
     batch = []; bytes = 0;
   }
   writes.forEach(function (w) {
@@ -172,7 +173,8 @@ function replSnapRows_(b, debugSku) {
       inbReceiving: rsNum_(get(row, ['inbound_receiving', 'inbound receiving'])),
       awdAvail: rsNum_(get(row, ['awd available'])), awdTransit: rsNum_(get(row, ['awd transit'])),
       rec: rec,
-      last7: rsNum_(get(row, ['last 7 days'])), last14: rsNum_(get(row, ['last 14 days'])),
+      last7: rsNum_(get(row, ['last 7 days'])), 
+      last14: rsNum_(get(row, ['last 14 days'])),
       last30: rsNum_(get(row, ['last 30 days'])), last90: rsNum_(get(row, ['last 90 days'])), l90amt: rsNum_(get(row, ['last 90 days $'])),
       airDos: rsNum_(get(row, ['air dos'])), airQty: rsNum_(get(row, ['air qty'])), airIndia: 0,
       seaDos: rsNum_(get(row, ['sea dos'])), seaQty: rsNum_(get(row, ['sea qty'])), seaIndia: 0,
@@ -322,3 +324,5 @@ function replSnapDryRun() {
     Logger.log(JSON.stringify(d.rows.slice(0, 3)));
   });
 }
+/** Editor button: rebuild the Replenish snapshot now (SP + CPC), from the inventory already stored. */
+function replNow() { invRequest_(invStepsFor_('repl', 'all'), 'manual'); invTick(); }
