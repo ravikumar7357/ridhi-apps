@@ -165,6 +165,10 @@ function doGet(e) {
     // Live vs Last Year: one brand's day by hour against the matching day last year, live from Amazon (SalesLive.gs).
     if (p.live === 'yoy')      return json_(liveYoy_(p.brand, p.day, p.ly));
     if (p.live === 'range')    return json_(liveRange_(p.brand, p.from, p.to, p.shift));
+    // Week / Month / Quarter / Year on that screen: the nightly history slice (SalesLive.gs liveHist_).
+    if (p.live === 'hist')     return json_(liveHist_(String(p.day || '')));
+    // By product: month by month per ASIN/SKU, and the uploaded ad reports (SalesLive.gs liveMonths_).
+    if (p.live === 'months')   return json_(liveMonths_());
     // Product photos for the deal planner, 20 ASINs a call.
     if (p.imgs)                { setBrand_(p.brand); return json_(lhImages_(p.imgs)); }
     // Parent ASIN per child ASIN, 20 a call — the Master Database fills its Parent ASIN column from this.
@@ -350,6 +354,9 @@ function doPost(e) {
     if (String(p.key || '').trim() !== key) return json_({ ok: false, error: 'Unauthorized.' });
 
     if (p.mail === 'po') return json_(mailPo_(p));
+    /* Old Ads console reports for the month-by-product report (SalesLive.gs liveAdsPut_ / liveAdsDrop_). */
+    if (p.lads === 'put') return json_(liveAdsPut_(p));
+    if (p.lads === 'drop') return json_(liveAdsDrop_(p));
     if (p.limg === 'patch') return json_(limgPatch_(p));
     if (p.lfix === 'patch') return json_(lfixPatch_(p));
     if (p.limg === 'upload') return json_(limgUpload_(p));

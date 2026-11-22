@@ -991,17 +991,138 @@
   .yoy-chart .yoy-evband{fill:color-mix(in srgb,var(--yoy-ly) 10%,transparent)}
   .yoy-chart .yoy-evtxt{fill:var(--yoy-ly);font-weight:600;font-size:10.5px}
   /* Live vs Last Year cards (2026-11-20): two rows of six, full width, bigger figures, room between them. */
+  /* Framed sections (2026-11-20): a coloured top edge, a faint wash of the same colour and a solid name tag — Amazon's
+     orange and navy, Shopify's green, the app's own blue for the Overview. Cards inside keep their look. */
+  #paneYoy .yoy-sec{--sec:var(--brand);--sec-ink:#fff;border:1px solid var(--card-line);border-top:4px solid var(--sec);
+    border-radius:16px;padding:16px 18px 2px;margin:0 0 22px;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--sec) 7%,var(--card)) 0,var(--card) 120px)}
+  #paneYoy .yoy-sec[data-chan="amz"]{--sec:#FF9900;--sec-tag:#232F3E}
+  #paneYoy .yoy-sec[data-chan="shop"]{--sec:#95BF47;--sec-tag:#5E8E3E}
+  #paneYoy .yoy-sec[data-chan="shop"] .sd-card{--glow:#95BF47}
+  /* Trend (2026-11-20): indigo, and its parts stay on view in every period (the period rule hides other sections' day parts). */
+  #paneYoy .yoy-sec.yoy-trend{--sec:#6366f1;--sec-tag:#4F46E5}
+  /* By product: the report takes the screen, as Events does. */
+  #paneYoy .yoy-prod{display:none}
+  #paneYoy[data-period="products"] .yoy-prod{display:block;margin-bottom:16px}
+  #paneYoy[data-period="products"] .yoy-sec{display:none}
+  #paneYoy[data-period="products"] #yoyChan,#paneYoy[data-period="products"] #yoyBrand{display:none}
+  #paneYoy .yoy-sec.yoy-trend > .yoy-always{display:grid !important}
+  #paneYoy .yoy-sec.yoy-trend > .yoy-always-b{display:block !important;margin-bottom:16px}
+  .yoy-sec-h{display:flex;align-items:center;flex-wrap:wrap;gap:10px 14px;margin:0 0 14px}
+  .yoy-sec-tag{display:inline-flex;align-items:center;padding:5px 14px;border-radius:8px;font-size:15px;font-weight:800;letter-spacing:.01em;
+    color:var(--sec-ink);background:var(--sec-tag,var(--sec))}
+  .yoy-sec-sub{font-size:13px;color:var(--muted)}
+  #paneYoy .yoy-kpis-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  @media (max-width:760px){ #paneYoy .yoy-kpis-3{grid-template-columns:1fr} }
+  /* Channel split: a two-colour bar, Amazon orange and Shopify green. */
+  .yoy-split{display:flex;height:8px;border-radius:999px;overflow:hidden;margin-top:12px;background:var(--line)}
+  .yoy-split i{display:block;height:100%}
+  .yoy-split i:first-child{background:#FF9900} .yoy-split i:last-child{background:#95BF47}
+  /* The channel toggle (yoyChan): Amazon only, Shopify only, or both with the all-channels totals. */
+  #paneYoy[data-view="amz"] [data-chan="shop"],#paneYoy[data-view="amz"] [data-chan="all"],
+  #paneYoy[data-view="shop"] [data-chan="amz"],#paneYoy[data-view="shop"] [data-chan="all"]{display:none}
+  .yoy-sec-dot{width:12px;height:12px;border-radius:4px;background:var(--c)}
   .yoy-row-h{display:flex;align-items:baseline;gap:10px;margin:4px 2px 10px;font-size:13px;font-weight:700;
     text-transform:uppercase;letter-spacing:.08em;color:var(--ink)}
   .yoy-row-h .muted{font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0}
   #paneYoy .yoy-kpis{grid-template-columns:repeat(6,minmax(0,1fr));gap:18px;margin-bottom:26px}
   @media (max-width:1400px){ #paneYoy .yoy-kpis{grid-template-columns:repeat(3,minmax(0,1fr))} }
   @media (max-width:760px){ #paneYoy .yoy-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px} }
-  #paneYoy .sd-card{padding:20px 22px 18px;min-height:168px;display:flex;flex-direction:column}
-  #paneYoy .sd-card .lbl{font-size:12.5px}
-  #paneYoy .sd-card .val{font-size:clamp(28px,2.4vw,38px);margin-top:14px;line-height:1.1}
-  #paneYoy .sd-card .sub{font-size:13px;line-height:1.45;margin-top:8px}
-  @media (max-width:760px){ #paneYoy .sd-card{padding:16px;min-height:0} #paneYoy .sd-card .val{font-size:26px} }
+  /* Compact cards (2026-11-20: "small containers, easy to read"): less padding, one clear figure, a short line under it. */
+  #paneYoy .sd-card{padding:13px 15px 12px;min-height:0;display:flex;flex-direction:column}
+  #paneYoy .sd-card .lbl{font-size:11.5px;min-height:28px;gap:8px}
+  #paneYoy .sd-card .lbl::before{width:26px;height:26px;border-radius:8px;background-size:14px}
+  #paneYoy .sd-card .val{font-size:clamp(21px,1.7vw,27px);margin-top:8px;line-height:1.1}
+  #paneYoy .sd-card .sub{font-size:12.5px;line-height:1.4;margin-top:5px}
+  #paneYoy .yoy-kpis{gap:12px;margin-bottom:16px}
+  @media (max-width:760px){ #paneYoy .sd-card{padding:12px} #paneYoy .sd-card .val{font-size:22px} }
+  /* The period picker (yoyPeriod): Day shows today by the hour; any other period hides a section's day rows, cards and
+     charts and shows its own row of period cards instead. */
+  #paneYoy .yoy-ponly,#paneYoy .yoy-pnote{display:none}
+  #paneYoy:not([data-period="day"]) .yoy-ponly{display:grid}
+  #paneYoy:not([data-period="day"]) .yoy-pnote{display:block;margin:0 2px 12px;font-size:13px;color:var(--muted)}
+  #paneYoy .yoy-pnote b{color:var(--ink)}
+  #paneYoy:not([data-period="day"]) .yoy-sec > :not(.yoy-sec-h):not(.yoy-ponly){display:none}
+  /* Layout A (2026-11-20): four numbers a row, the hourly chart beside its table, the channel split bar, "Show more". */
+  #paneYoy .yoy-k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  @media (max-width:760px){ #paneYoy .yoy-k4{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  #paneYoy .yoy-two{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:12px;align-items:start}
+  @media (max-width:1100px){ #paneYoy .yoy-two{grid-template-columns:1fr} }
+  #paneYoy .yoy-tcard table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  #paneYoy .yoy-tcard th,#paneYoy .yoy-tcard td{padding:6px 6px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  #paneYoy .yoy-tcard th{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  #paneYoy .yoy-tcard td:first-child,#paneYoy .yoy-tcard th:first-child{text-align:left;color:var(--muted)}
+  #paneYoy .yoy-tcard td b{color:var(--ink);font-weight:700}
+  #paneYoy .yoy-splitrow{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted);margin:0 2px 14px}
+  #paneYoy .yoy-splitrow .yoy-split{flex:1;height:10px;margin:0;display:flex;border-radius:999px;overflow:hidden;background:var(--line)}
+  #paneYoy .yoy-cmp{margin:0 2px 12px;font-size:13px;color:var(--muted)}
+  #paneYoy .yoy-rownote{margin:-4px 2px 10px;font-size:12.5px;color:var(--muted)}
+  #paneYoy details.yoy-more{margin:0 0 12px}
+  #paneYoy details.yoy-more > summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--brand);padding:4px 2px 10px;list-style:none}
+  #paneYoy details.yoy-more > summary::before{content:'▸ '} #paneYoy details.yoy-more[open] > summary::before{content:'▾ '}
+  #paneYoy:not([data-period="day"]) .yoy-dayonly{display:none}
+  /* Events (2026-11-20): the channel sections step aside and the event cards take the screen. */
+  #paneYoy .yoy-events{display:none}
+  #paneYoy[data-period="events"] .yoy-events{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:16px}
+  #paneYoy[data-period="events"] .yoy-sec{display:none}
+  @media (max-width:1100px){ #paneYoy[data-period="events"] .yoy-events{grid-template-columns:1fr} }
+  /* yoy-evcard, not yoy-ev: that name is the Black Friday swatch in the day-by-day legend. */
+  .yoy-evcard{background:var(--card);border:1px solid var(--card-line);border-top:4px solid var(--evc,var(--line));border-radius:14px;
+    padding:14px 16px;display:flex;flex-direction:column;gap:10px;box-shadow:var(--sh-1);animation:yoyUp .35s ease both}
+  .yoy-evcard.live{--evc:#E11D48;box-shadow:0 0 0 1px color-mix(in srgb,#E11D48 30%,transparent),0 8px 24px -14px #E11D48}
+  .yoy-evcard.done{--evc:var(--brand)} .yoy-evcard.soon{--evc:var(--muted)}
+  .yoy-ev-h{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+  .yoy-ev-h h3{font-size:16px;font-weight:800;margin:0;flex:1 1 auto;color:var(--ink)}
+  .yoy-ev-pill{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;border-radius:999px;
+    background:var(--chip);color:var(--muted);white-space:nowrap}
+  .yoy-evcard.live .yoy-ev-pill{background:#E11D48;color:#fff}
+  .yoy-evcard.live .yoy-ev-pill::before{content:'● ';animation:yoyBlink 1.4s infinite}
+  @keyframes yoyBlink{50%{opacity:.3}}
+  .yoy-ev-what{font-size:13px;color:var(--muted);margin:-4px 0 0}
+  .yoy-ev-nums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+  .yoy-ev-n{background:color-mix(in srgb,var(--ink) 3%,var(--card));border-radius:10px;padding:8px 10px;min-width:0}
+  .yoy-ev-n .k{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .yoy-ev-n .v{font-size:20px;font-weight:800;line-height:1.15;margin-top:2px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .yoy-ev-n .s{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .yoy-ev-mini svg{display:block;width:100%;height:auto}
+  .yoy-ev-mini text{fill:var(--muted);font-size:10px}
+  .yoy-ev-mini .yoy-bar{transform-box:fill-box;transform-origin:50% 100%;animation:yoyGrow .5s cubic-bezier(.2,.7,.2,1) both}
+  .yoy-ev-foot{font-size:12px;color:var(--muted)}
+  @media (max-width:760px){ .yoy-ev-nums{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  @media (prefers-reduced-motion:reduce){ .yoy-evcard,.yoy-ev-mini .yoy-bar,.yoy-evcard.live .yoy-ev-pill::before{animation:none} }
+  /* The pickers stay in reach while the screen scrolls. */
+  #paneYoy > .toolbar{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);
+    padding-top:8px;padding-bottom:8px}
+  /* Tighter (2026-11-20, "more compact"): sections, row headings and chart panels closer together. */
+  #paneYoy .yoy-sec{padding:12px 14px 0;margin-bottom:16px;border-radius:14px}
+  #paneYoy .yoy-sec-h{margin-bottom:10px}
+  #paneYoy .yoy-row-h{margin:2px 2px 8px;font-size:12px}
+  #paneYoy .yoy-kpis{margin-bottom:12px}
+  #paneYoy .sd-panel{padding:12px 14px;margin-bottom:12px}
+  #paneYoy .sd-h2{margin-bottom:8px}
+  #paneYoy .yoy-sh-charts{gap:12px;margin-bottom:0}
+  #paneYoy .yoy-sh-charts .sd-panel{margin-bottom:12px}
+  /* Easier charts: bigger axis text, quiet grid, a "now" marker, a hover band per hour. */
+  #paneYoy .yoy-chart text{font-size:12.5px}
+  #paneYoy .yoy-chart .yoy-grid{stroke:color-mix(in srgb,var(--line) 70%,transparent);stroke-dasharray:2 4}
+  #paneYoy .yoy-chart .yoy-now{fill:var(--brand);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+  #paneYoy .yoy-chart .yoy-hit:hover{fill:color-mix(in srgb,var(--ink) 5%,transparent)}
+  .yoy-tip{position:fixed;z-index:60;pointer-events:none;white-space:pre-line;max-width:280px;padding:8px 10px;border-radius:8px;
+    font-size:12.5px;line-height:1.45;color:var(--card);background:var(--ink);box-shadow:var(--sh-2)}
+  .yoy-tip::first-line{font-weight:700}
+  /* Motion, small and quick: cards rise in, bars grow, lines draw, a changed figure glows once. Off for reduced motion. */
+  @keyframes yoyUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @keyframes yoyGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  @keyframes yoyDraw{from{stroke-dashoffset:1000}to{stroke-dashoffset:0}}
+  @keyframes yoyGlow{0%{background:color-mix(in srgb,var(--brand) 22%,transparent)}100%{background:transparent}}
+  #paneYoy .sd-card{animation:yoyUp .35s ease both}
+  #paneYoy .sd-kpis .sd-card:nth-child(2){animation-delay:.04s} #paneYoy .sd-kpis .sd-card:nth-child(3){animation-delay:.08s}
+  #paneYoy .sd-kpis .sd-card:nth-child(4){animation-delay:.12s} #paneYoy .sd-kpis .sd-card:nth-child(5){animation-delay:.16s}
+  #paneYoy .sd-kpis .sd-card:nth-child(6){animation-delay:.2s}
+  #paneYoy .yoy-chart .yoy-bar{transform-box:fill-box;transform-origin:50% 100%;animation:yoyGrow .5s cubic-bezier(.2,.7,.2,1) both}
+  #paneYoy .yoy-chart .yoy-draw{stroke-dasharray:1000;animation:yoyDraw .9s ease-out both}
+  #paneYoy .val.yoy-flash{animation:yoyGlow 1.2s ease-out;border-radius:6px}
+  @media (prefers-reduced-motion:reduce){ #paneYoy .sd-card,#paneYoy .yoy-chart .yoy-bar,#paneYoy .yoy-chart .yoy-draw,#paneYoy .val.yoy-flash{animation:none} }
   .yoy-b-spend{--glow:#ef4444}
   .yoy-b-spend .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ef4444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/%3E%3C/svg%3E")}
   .yoy-b-tacos{--glow:#f59e0b}
@@ -1014,6 +1135,41 @@
   .yoy-b-organic .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322c55e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10Z'/%3E%3Cpath d='M2 21c0-3 1.9-5.4 5.2-6'/%3E%3C/svg%3E")}
   .yoy-b-clicks{--glow:#64748b}
   .yoy-b-clicks .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 9 5 12 1.8-5.2L21 14Z'/%3E%3Cpath d='M7.2 2.2 8 5.1M5.1 8l-2.9-.8M14 4.1 12 6M6 12l-1.9 2'/%3E%3C/svg%3E")}
+  /* ===== Live vs Last Year, quieter (Ravi, 21 Nov 2026: "enhance the UI … not that much colours") — this screen only:
+     white sections without a coloured edge or wash, the channel named by a small dot, plain cards without coloured glows
+     or icons. Colour stays for meaning: up / down, and this year in the charts. The same look as public/live.html. */
+  #paneYoy .yoy-sec{border-top:1px solid var(--card-line);background:var(--card);box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  #paneYoy .yoy-sec-tag{color:var(--ink);background:none;padding:0;font-size:16px;gap:8px}
+  #paneYoy .yoy-sec-tag::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--sec)}
+  #paneYoy .sd-card{--glow-a:0%;background:color-mix(in srgb,var(--ink) 2.5%,var(--card));border-color:transparent;box-shadow:none}
+  #paneYoy .sd-card .lbl{min-height:0;text-transform:uppercase;letter-spacing:.05em;font-size:11.5px}
+  #paneYoy .sd-card .lbl::before{display:none}
+  #paneYoy .yoy-split i:first-child{background:#8A94A3} #paneYoy .yoy-split i:last-child{background:#C7CDD6}
+  /* Shopify's Total sales breakdown (21 Nov): a plain statement like Shopify's own; on view in every period. */
+  #paneYoy .yoy-sec > .yoy-bdrow{display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;margin-bottom:14px}
+  @media (max-width:1000px){ #paneYoy .yoy-sec > .yoy-bdrow{grid-template-columns:1fr} }
+  .yoy-bd table.yoy-bdl th{text-align:right;padding:6px 10px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .yoy-bd table.yoy-bdl th:first-child{text-align:left}
+  .yoy-bd table.yoy-bdl td{padding:8px 10px;text-align:right;background:none;border-radius:0;border-bottom:1px solid var(--line);color:var(--muted)}
+  .yoy-bd table.yoy-bdl td:first-child{text-align:left}
+  .yoy-bd table.yoy-bdl td b{color:var(--ink)}
+  .yoy-bd table.yoy-bdl tr.on td{background:color-mix(in srgb,var(--ink) 3%,var(--card));color:var(--ink)}
+  .yoy-bd table.yoy-bdl tr:last-child td{border-bottom:0}
+  /* ▲ / ▼ beside a change, so it reads without colour (21 Nov: "more professional"). */
+  #paneYoy .val.yoy-up::before,#paneYoy .val.yoy-down::before{font-size:.5em;vertical-align:.32em;margin-right:6px}
+  #paneYoy .val.yoy-up::before{content:"▲"} #paneYoy .val.yoy-down::before{content:"▼"}
+  #paneYoy .yoy-sec > .yoy-bdrow:empty{display:none !important}
+  .yoy-bd{background:var(--card);border:1px solid var(--card-line);border-radius:12px;padding:14px 16px 10px}
+  .yoy-bd-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .yoy-bd-h b{font-size:15px}
+  .yoy-bd-h span{font-size:12.5px;color:var(--muted)}
+  .yoy-bd table td{padding:9px 10px;border-bottom:0}
+  .yoy-bd table tr:nth-child(odd) td{background:color-mix(in srgb,var(--ink) 3%,var(--card))}
+  .yoy-bd table td:first-child{color:var(--muted);border-radius:6px 0 0 6px}
+  .yoy-bd table td:last-child{color:var(--ink);border-radius:0 6px 6px 0}
+  .yoy-bd table tr.yoy-bd-sum td{font-weight:700;color:var(--ink);border-top:0;padding-top:9px}
+  .yoy-bd table tr.yoy-bd-total td{font-weight:700;color:var(--ink);border-top:1px solid var(--card-line);font-size:15px}
+  .yoy-bd-note{font-size:12px;color:var(--muted);margin:8px 2px 2px}
   table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
   td{padding:10px 0;border-bottom:1px solid var(--line)}
   /* The calculator's figure column. Kept out of the grids, where it made every last column semi-bold. */

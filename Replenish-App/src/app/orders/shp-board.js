@@ -287,9 +287,7 @@ function shpbRow(r) {
   return (dl ? '<tr class="vo-' + dl.tone + '" title="' + esc(dl.why) + '">' : '<tr>') + '<td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(shpbDateOf(r)))
     + (stuck ? shpbStuckPill(stuck) : '')
     + (waits ? `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(waits.at)}${waits.since ? ' · since ' + esc(shpbDmy(waits.since)) : ''}</div>` : '') + '</td>'
-    + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
-    + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
-    + '</td>'
+    + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25">' + shpbOrderLink(r) + '</td>'
     + shpbItem(r)
     + `<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
     + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : (shpbPlanOf(r) ? '<span class="muted">no printer</span>' : '<b style="color:#b91c1c">not planned</b>')}`
@@ -302,6 +300,14 @@ function shpbRow(r) {
     + (SHPB_FILLCOL ? shpbFillCell(r, k) : '')
     + (shpbIsQuilt(r) ? `<td class="num" style="${SHPB_STAGE_BG};${SHPB_PAD}"><span class="muted" style="font-size:11px">not needed</span></td>` : shpbCell(s.prsA, s.prsW, s.prsD, 'press', 'Press', k, tips.press))
     + shpbStatusCell(r, k, rd, late, edit) + '</tr>';
+}
+/* The order number, and under it the buyer of a B2B order (Ravi, 21 Nov: so the board shows whose order it is at a glance —
+ * the same buyer Order Console and PPC show, from ordBuyerOf). Nothing under it for Shopify, Amazon or SPY. */
+function shpbOrderLink(r) {
+  const buyer = ordBuyerOf(r.orderNo);
+  return '<a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
+    + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
+    + (buyer ? '<div style="font-size:11.5px;font-weight:600;white-space:normal;max-width:180px">' + esc(buyer) + '</div>' : '');
 }
 /** THE LAST COLUMN: the line's status (In production / OOS / Delayed / On hold), the date it will be ready, and the way to complete it from ready stock. */
 function shpbStatusCell(r, k, rd, late, edit) {
@@ -489,9 +495,8 @@ function renderShpBoardDone(list) {
   const common = r => { const s = shpbStages([r]), px = (SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {};
     const stk = shpbStockOf(r), pr = px.pcs ? `<b>${nf(Math.min(px.pcs, +r.qty || 0))}</b> <span class="muted" style="font-size:11px">${esc((px.men || []).join(', '))}${px.last ? ' · ' + esc(shpbDmy(px.last)) : ''}</span>` : '';
     return { s, press: pr + (stk ? `<div style="font-size:11px"><b>${nf(stk)}</b> from stock</div>` : '') || '<span class="muted">—</span>' }; };
-  const link = r => `<a href="#" data-ordj="${esc(r.orderNo)}" style="color:inherit;text-decoration:underline dotted;font-weight:700">${esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, ''))}</a>`;
   const wRow = r => { const { s, press } = common(r), k = shpbKey(r.orderNo, r.sku), ns = (SHPB.ship || {})[k], pd = ((SHPB.pressBy || {})[k] || {}).last || '';
-    return `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(pd || shpbDateOf(r)))}</td><td style="${SHPB_PAD}text-align:left">${link(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
+    return `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(pd || shpbDateOf(r)))}</td><td style="${SHPB_PAD}text-align:left">${shpbOrderLink(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${press}</td><td class="num" style="${SHPB_PAD}">${nf(s.handD)}</td>`
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${nf(s.handW)} to accept `
       + (ns && ns.state === 'notrecv' ? `<span class="pill pill-out" title="${esc((ns.by || '').split('@')[0] + ' · ' + (ns.note || ''))}">not received${ns.note ? ' · ' + esc(String(ns.note).slice(0, 30)) : ''}</span> ` : '')
@@ -499,7 +504,7 @@ function renderShpBoardDone(list) {
   let prev = '';
   const hRow = ({ r, at }) => { const day = ptIsoDate(at) || '', first = day !== prev, c = common(r); prev = day;
     return (first ? `<tr><td colspan="7" style="${SHPB_PAD}text-align:left;background:#eef2f7;font-weight:700;font-size:12px">${esc(shpbDmy(day) || 'no date')} — ${shpbIsShp() ? 'handed to shipping' : 'complete'}</td></tr>` : '')
-      + `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(day))}</td><td style="${SHPB_PAD}text-align:left">${link(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}">${nf(r.qty)}</td>`
+      + `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(day))}</td><td style="${SHPB_PAD}text-align:left">${shpbOrderLink(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}">${nf(r.qty)}</td>`
       + `<td style="${SHPB_PAD}text-align:left">${c.press}</td><td class="num" style="${SHPB_PAD}">${nf(Math.min(+r.qty || 0, r.handedAt ? +r.qty || 0 : c.s.handD))}</td>`
       + `<td style="${SHPB_PAD}text-align:left;font-size:12px">${!shpbIsShp() ? (r.open ? 'Pressed' : 'Complete') : r.handedAt ? 'Handed over' + (r.handedBy ? ' · ' + esc(String(r.handedBy).split('@')[0]) : '') : esc(typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(r.shopDoneWhy) : 'Closed')}</td></tr>`; };
   $('odTable').innerHTML = head + '<tbody>'

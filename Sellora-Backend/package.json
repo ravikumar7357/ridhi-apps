@@ -1,0 +1,20 @@
+{
+  "name": "sellora-backend",
+  "private": true,
+  "description": "Sellora's own backend: reads Amazon (Sales API, Ads API), Shopify and Meta every 10 minutes and keeps the figures in Supabase (schema sellora).",
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": { "node": "24" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test \"test/*.test.ts\""
+  },
+  "dependencies": {
+    "firebase-admin": "12.7.0",
+    "firebase-functions": "6.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
+  }
+}
