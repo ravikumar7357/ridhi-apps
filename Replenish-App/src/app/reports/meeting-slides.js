@@ -155,7 +155,18 @@ function mtsPeople(wk) {
   const n = active.length || 1, sum = k => active.reduce((t, r) => t + k(r), 0);
   const team = { n: active.length, pcsDay: sum(r => r.pcs / r.days) / n, valDay: sum(r => r.perDay) / n,
     badPct: (() => { const c = sum(r => r.chk); return c ? Math.round(sum(r => r.bad) / c * 1000) / 10 : 0; })() };
-  return { top, bottom, team, n: rows.length, left: rows.filter(r => r.days < MTS_MIN_DAYS).length, noRate: !(MTS_RATES || []).length };
+  /* EVERY KARIGAR, for the slide where groups are made (Ravi chose design C, 22 Nov): a group row carries each member's own figures */
+  const nowN = new Map([...now.values()].map(e => [N(e.k), e])), artsN = a => typeof a === 'number' ? a : (a ? a.size : 0);
+  rows.forEach(r => { if (r.group) r.parts = r.group.members.map(n => { const e = nowN.get(N(n)); return { k: n, pcs: e ? e.pcs : 0, days: (days.get(n) || new Set()).size, arts: e ? artsN(e.arts) : 0 }; }); });
+  const all = rows.slice().sort((a, b) => b.pcs - a.pcs);
+  return { top, bottom, team, all, n: rows.length, left: rows.filter(r => r.days < MTS_MIN_DAYS).length, noRate: !(MTS_RATES || []).length };
+}
+/* who can be put in a group: piece-rate (Company Contractor) karigars with a Job Work issue in the last 8 weeks — this includes a partner
+ * like Shriram whose pieces are entered under someone else's name, so he has no QC line of his own */
+function mtsGroupNames() {
+  const since = Date.now() - 56 * 864e5, names = new Map();
+  (PT.base || []).forEach(r => { if (r && r.empName && /company contractor/i.test(r.empType || '') && ptDtMs(r.issueDate) >= since) { const n = String(r.empName).trim(); names.set(n.toLowerCase(), n); } });
+  return [...names.values()].sort((a, b) => a.localeCompare(b));
 }
 
 /* ---------- drawing ---------- */
@@ -253,6 +264,19 @@ function mtsSlides(wk) {
       <tr><th>Critical vacant position with HR</th><td>${mtsNote(wk, 'hr_vacant', 'Status', 3)}</td></tr>
       <tr><th>People Requirement not yet with HR</th><td>${mtsNote(wk, 'hr_need', 'Status (discuss with Srikant ji, Mukul sir first)', 3)}</td></tr>
     </tbody></table>` });
+  /* 2b · EVERY KARIGAR — groups are made here (design C, 22 Nov): a Group button on each row, a group row shows its members under it */
+  const canG = mtgCanWrite(), pdOf = (p, d) => d ? nf(Math.round(p / d)) : '—';
+  const grpBtn = r => !canG ? '' : r.group
+    ? `<button type="button" class="ghost" data-mtsgedit="${esc(r.group.id)}" style="padding:3px 12px;font-size:12.5px;border-color:#1D4ED8;color:#1D4ED8">Edit group</button>`
+    : `<button type="button" class="ghost" data-mtsgnew="${esc(r.k)}" style="padding:3px 12px;font-size:12.5px">Group…</button>`;
+  const everyRows = (P.all || []).map(r => r.group
+    ? `<tr style="background:#EEF3FE"><td><b>${esc(r.k)}</b> <span style="font-size:11.5px;color:#1D4ED8;background:#DBE5FB;padding:1px 8px;border-radius:99px">group · ${r.group.members.length}</span></td><td><b>${nf(r.pcs)}</b></td><td><b>${esc(r.dayTxt)}</b></td><td><b>${pdOf(r.pcs, r.days)}</b></td><td><b>${nf(r.arts)}</b></td><td>${grpBtn(r)}</td></tr>`
+      + (r.parts || []).map(p => `<tr style="background:#F6F8FE;color:#5B6475;font-size:12.5px"><td style="padding-left:26px">${esc(p.k)}</td><td>${p.pcs ? nf(p.pcs) : '0 in own name'}</td><td>${nf(p.days)}</td><td>—</td><td>${p.arts ? nf(p.arts) : '—'}</td><td></td></tr>`).join('')
+    : `<tr><td>${esc(r.k)}</td><td>${nf(r.pcs)}</td><td>${nf(r.days)}</td><td>${pdOf(r.pcs, r.days)}</td><td>${nf(r.arts)}</td><td>${grpBtn(r)}</td></tr>`).join('');
+  out.push({ t: 'People — every karigar', html: (P.all || []).length
+    ? `<table class="mts-cmp"><thead><tr><th>Karigar</th><th>Pcs</th><th>Days</th><th>Pcs a day</th><th>Articles</th><th></th></tr></thead><tbody>${everyRows}</tbody></table>
+      <div class="muted" style="font-size:12px;margin-top:6px">piece-rate karigars, QC-passed pcs this week, most first · days = days with a Job Work issue or receipt · karigars who work together: press Group… on one of them and tick the others — the group becomes one line on the People slide, its days added up · a karigar can be in one group only${fzP ? ' · this week is frozen: the People slide keeps what was frozen, a change here shows from the next week or after Freeze again' : ''}</div>`
+    : '<span class="muted">No QC-passed work by piece-rate karigars this week.</span>' });
   /* 3 · Machine and Tools discussion */
   out.push({ t: 'Machine and Tools discussion', html: `<table class="mts-sheet"><tbody>${[['m_stitch', 'Stitching machine'], ['m_pillow', 'Pillow machine'], ['m_emb', 'Embroidery machine'], ['m_cut', 'Cutting']]
     .map(([k, l]) => `<tr><th>${l}</th><td>${mtsNote(wk, k, '', 2)}</td></tr>`).join('')}</tbody></table>` });
@@ -312,6 +336,7 @@ async function mtsOpen() {
       <button type="button" class="ghost" data-mtsnav="1">Next →</button><button type="button" class="ghost" data-mtsnav="fs">Full screen</button><button type="button" class="ghost" data-mtsnav="x">Close (Esc)</button><span id="mtsMsg" class="muted" style="font-size:12px"></span></div>`;
     document.body.appendChild(box);
     box.addEventListener('click', e => {
+      if (mtsGroupClick(e)) return;
       const n = e.target.closest('[data-mtsnav]'), g = e.target.closest('[data-mtsgo]');
       if (g) { MTS.i = +g.getAttribute('data-mtsgo'); return mtsDraw(); }
       if (!n) return;
@@ -319,6 +344,11 @@ async function mtsOpen() {
       if (v === 'x') return mtsClose();
       if (v === 'fs') { try { if (document.fullscreenElement) document.exitFullscreen(); else box.requestFullscreen(); } catch (er) { /* not allowed */ } return; }
       MTS.i = Math.max(0, Math.min(MTS.slides.length - 1, MTS.i + (+v))); mtsDraw();
+    });
+    box.addEventListener('input', e => {
+      const t = e.target; if (!t || t.id !== 'mtsGpFind') return;
+      const q = t.value.trim().toLowerCase();
+      box.querySelectorAll('[data-mtsgpn]').forEach(l => { l.style.display = !q || l.getAttribute('data-mtsgpn').indexOf(q) >= 0 ? '' : 'none'; });
     });
     box.addEventListener('change', async e => {
       const t = e.target; if (!t || t.getAttribute('data-mtsnote') == null) return;
@@ -329,7 +359,77 @@ async function mtsOpen() {
   box.style.display = 'flex';
   mtsDraw();
 }
+/* THE "WORKS WITH…" PANEL (design C): opened from a row's Group… or Edit group button, drawn inside the slides box (a normal dialog sits
+ * under the full-screen slides). Saves to pt_meeting/_groups/<id> = { name, members, at, by }. */
+function mtsGroupPanel(html) {
+  const box = document.getElementById('mtsBox'); if (!box) return;
+  let p = document.getElementById('mtsGp');
+  if (!p) { p = document.createElement('div'); p.id = 'mtsGp'; box.appendChild(p);
+    p.style.cssText = 'position:fixed;right:28px;top:90px;width:380px;max-width:calc(100vw - 32px);max-height:calc(100vh - 120px);overflow:auto;background:#fff;border:1px solid #C4CAD6;border-radius:14px;box-shadow:0 12px 32px rgba(20,30,60,.22);padding:16px;z-index:2;display:flex;flex-direction:column;gap:10px;font-size:14px;color:#17202B'; }
+  if (html == null) { p.remove(); return; }
+  p.innerHTML = html;
+  const f = document.getElementById('mtsGpFind'); if (f) f.focus();
+}
+function mtsGroupOpen(who, gid) {
+  const groups = mtsGroups(), g = gid ? groups.find(x => x.id === gid) : null;
+  const L = s => String(s || '').trim().toLowerCase();
+  const inOther = new Map(); groups.forEach(x => { if (!g || x.id !== g.id) x.members.forEach(m => inOther.set(L(m), x.name || x.members.join(' + '))); });
+  const mine = new Set((g ? g.members : [who]).map(L));
+  const names = mtsGroupNames(); (g ? g.members : [who]).forEach(n => { if (!names.some(x => L(x) === L(n))) names.push(n); });
+  const rows = names.filter(n => g || L(n) !== L(who)).map(n => { const o = inOther.get(L(n));
+    return `<label data-mtsgpn="${esc(L(n))}" style="display:flex;align-items:center;gap:10px;min-height:34px;${o ? 'color:#6B7487' : ''}"><input type="checkbox" data-mtsgpm="${esc(n)}" ${mine.has(L(n)) ? 'checked' : ''} ${o ? 'disabled' : ''} style="width:18px;height:18px;margin:0">`
+      + `<span style="flex:1">${esc(n)}</span>${o ? `<span style="font-size:11.5px">in ${esc(o)}</span>` : ''}</label>`; }).join('');
+  mtsGroupPanel(`<div style="font-weight:800;font-size:16px">${g ? 'Edit group' : esc(who) + ' works with…'}</div>
+    ${g ? '' : `<input type="hidden" id="mtsGpWho" value="${esc(who)}">`}<input type="hidden" id="mtsGpId" value="${esc(g ? g.id : '')}">
+    <input id="mtsGpFind" placeholder="Search name" autocomplete="off" style="height:40px;border:1px solid #C4CAD6;border-radius:8px;padding:0 10px;font:inherit">
+    <div style="display:flex;flex-direction:column;max-height:300px;overflow:auto;border:1px solid #E4E7EC;border-radius:10px;padding:4px 10px">${rows || '<span class="muted">No other karigars found.</span>'}</div>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:700">Group name (empty = the names joined)
+      <input id="mtsGpName" value="${esc(g ? g.name : '')}" style="height:38px;border:1px solid #C4CAD6;border-radius:8px;padding:0 10px;font:inherit;font-weight:400"></label>
+    <div id="mtsGpMsg" class="muted" style="font-size:12.5px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      ${g ? '<button type="button" class="ghost" data-mtsgp="del" style="color:var(--bad);margin-right:auto">Remove group</button>' : ''}
+      <button type="button" class="ghost" data-mtsgp="x">Cancel</button><button type="button" data-mtsgp="save">${g ? 'Save group' : 'Make group'}</button></div>`);
+}
+async function mtsGroupSave(del) {
+  const p = document.getElementById('mtsGp'); if (!p || !mtgCanWrite()) return;
+  const say = m => { const x = document.getElementById('mtsGpMsg'); if (x) { x.className = 'err'; x.textContent = m; } };
+  const gid = (document.getElementById('mtsGpId') || {}).value || '', whoEl = document.getElementById('mtsGpWho');
+  try {
+    if (del) {
+      await ptDelete('pt_meeting/_groups/' + gid);
+      if (MTG.meet && MTG.meet._groups) delete MTG.meet._groups[gid];
+    } else {
+      const mem = [...new Set([...(whoEl ? [whoEl.value] : []), ...[...p.querySelectorAll('[data-mtsgpm]:checked')].map(c => c.getAttribute('data-mtsgpm'))]
+        .map(s => String(s).trim()).filter(Boolean))];
+      if (mem.length < 2) return say('Tick at least one more karigar.');
+      const taken = new Set(mtsGroups().filter(x => x.id !== gid).flatMap(x => x.members.map(m => m.toLowerCase())));
+      const twice = mem.filter(m => taken.has(m.toLowerCase())); if (twice.length) return say(twice.join(', ') + ' is already in a group.');
+      const id = gid || 'g_' + Date.now().toString(36), nm = ((document.getElementById('mtsGpName') || {}).value || '').trim();
+      const rec = { name: nm || mem.join(' + '), members: mem, at: new Date().toISOString(), by: ME.email };
+      await ptPut('pt_meeting/_groups/' + id, rec);
+      MTG.meet = MTG.meet || {}; (MTG.meet._groups = MTG.meet._groups || {})[id] = rec;
+    }
+  } catch (e) { return say('Not saved: ' + (e.message || e)); }
+  mtsGroupPanel(null);
+  const t = MTS.slides[MTS.i] && MTS.slides[MTS.i].t; MTS.slides = mtsSlides(MTS.wk);
+  const back = MTS.slides.findIndex(s => s.t === t); if (back >= 0) MTS.i = back;
+  mtsDraw();
+  const m = document.getElementById('mtsMsg'); if (m) { m.className = 'muted'; m.textContent = del ? 'Group removed.' : 'Group saved.'; }
+}
+function mtsGroupClick(e) {
+  const a = e.target.closest('[data-mtsgnew],[data-mtsgedit],[data-mtsgp]'); if (!a) return false;
+  if (a.hasAttribute('data-mtsgnew')) mtsGroupOpen(a.getAttribute('data-mtsgnew'), '');
+  else if (a.hasAttribute('data-mtsgedit')) mtsGroupOpen('', a.getAttribute('data-mtsgedit'));
+  else { const v = a.getAttribute('data-mtsgp'); if (v === 'x') mtsGroupPanel(null); else mtsGroupSave(v === 'del'); }
+  return true;
+}
+/* the meeting screen's "Karigar groups" button opens the slides on that page */
+async function mtsOpenGroups() {
+  await mtsOpen();
+  const i = MTS.slides.findIndex(s => s.t === 'People — every karigar'); if (i >= 0) { MTS.i = i; mtsDraw(); }
+}
 function mtsClose() {
+  mtsGroupPanel(null);
   const box = document.getElementById('mtsBox'); if (box) box.style.display = 'none';
   try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* */ }
   if ($('repView') && $('repView').value === 'mtg') renderMtg();
@@ -337,6 +437,7 @@ function mtsClose() {
 document.addEventListener('keydown', e => {
   const box = document.getElementById('mtsBox'); if (!box || box.style.display === 'none') return;
   if (e.target && /TEXTAREA|INPUT/.test(e.target.tagName)) { if (e.key === 'Escape') e.target.blur(); return; }
+  if (document.getElementById('mtsGp')) { if (e.key === 'Escape') mtsGroupPanel(null); return; }
   if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); MTS.i = Math.min(MTS.slides.length - 1, MTS.i + 1); mtsDraw(); }
   else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); MTS.i = Math.max(0, MTS.i - 1); mtsDraw(); }
   else if (e.key === 'Escape') mtsClose();

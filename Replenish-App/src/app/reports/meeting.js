@@ -400,7 +400,7 @@ function renderMtg() {
       <button type="button" class="ghost" data-mtg="copy">Copy summary</button>
       ${can ? `<button type="button" class="ghost" data-mtg="ftpl">Freight template</button><button type="button" class="ghost" data-mtg="fup">Upload freight sheet</button>
       <input type="file" id="mtgFreightFile" accept=".csv,.xlsx" style="display:none">
-      <button type="button" class="ghost" data-mtg="groups" title="Karigars who work together are ranked as one line on the People slide">Karigar groups</button>
+      <button type="button" class="ghost" data-mtg="groups" title="Opens the slides at People — every karigar: press Group… on a row to say who works with whom">Karigar groups</button>
       <button type="button" data-mtg="freeze">${fz ? 'Freeze again' : 'Freeze this week'}</button>` : ''}
       <span id="mtgMsg" class="muted" style="flex-basis:100%;font-size:12.5px"></span></div>`
     + (fz ? `<div class="kpi" style="flex-basis:100%;background:#F0F9FF"><div class="kpihead"><span class="kpiname">As it stood in the meeting</span><span class="kpiwhen">frozen ${esc(fz.at || '')} · ${esc(fz.by || '')}</span></div>
@@ -526,7 +526,7 @@ $('repKpis').addEventListener('click', async e => {
   if (k === 'copy') { try { await navigator.clipboard.writeText(text); say('Summary copied — paste it anywhere.'); } catch (er) { say('Could not copy — use Share on WhatsApp instead.', true); } return; }
   if (k === 'ftpl') return ptDownload('freight-sheet', [MTG_FREIGHT_COLS.map(csvCell).join(','), ['06-10-2026', 'FBA15XXXXXXX', 'Air', 'DHL', 4, 62, 180, 31500, 'INR', 'example — delete this row'].map(csvCell).join(',')]);
   if (k === 'fup') { const f = $('mtgFreightFile'); if (f) f.click(); return; }
-  if (k === 'groups') return mtgGroupsOpen();
+  if (k === 'groups') { if (typeof mtsOpenGroups === 'function') mtsOpenGroups(); return; }
   if (k === 'freeze') { const err = await mtgFreeze(wk).catch(er => 'Not saved: ' + (er.message || er)); renderMtg(); return say(err || 'Frozen — this is what the meeting saw.', !!err); }
   if (k === 'act') { const err = await mtgAddAction(wk, ($('mtgActWhat') || {}).value, ($('mtgActWho') || {}).value, ($('mtgActBy') || {}).value).catch(er => 'Not saved: ' + (er.message || er)); if (!err) renderMtg(); return say(err || 'Action point added.', !!err); }
 });
