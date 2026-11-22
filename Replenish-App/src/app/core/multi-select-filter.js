@@ -274,10 +274,13 @@ function replForecast(r, plan) {
     const ovr = projOvrOf(r.sku, p.key);
     const sea = ads ? fcSeasonOf(r, p, i, sBase) : null, flat = Math.round(ads * p.days);
     const auto = sea ? Math.round(ads * p.days * sea.f) : flat;
-    const proj = ovr != null && isFinite(ovr) ? ovr : auto;
+    /* A typed Proj is a WHOLE-MONTH number. In the running month only the days still left are sold from here on, so it counts
+     * pro rata (Ravi, 22 Nov: RPC72-2020's 316 for November stood against 9 days left, where the pace gives 94). */
+    const man = ovr != null && isFinite(ovr), part = man && p.partial && p.dim && p.days < p.dim;
+    const proj = man ? (part ? Math.round(ovr * p.days / p.dim) : ovr) : auto;
     const exc = oh - proj;
     carry = exc;
-    return { oh, proj, exc, inc, auto, flat, sea, manual: ovr != null && isFinite(ovr), awd: i === awdIdx ? awdQty : 0 };
+    return { oh, proj, exc, inc, auto, flat, sea, manual: man, typed: man ? ovr : null, awd: i === awdIdx ? awdQty : 0 };
   });
 }
 

@@ -677,9 +677,10 @@ function renderRepl() {
         tip: `Projected sales = Avg/day × ${dayNote}${FC_SEASON ? ' × season factor (last year\'s same month against last year over the same days today\'s Avg/day comes from)' : ''}. CLICK a cell to type your own number — a manual projection is kept until you change it (a refresh never overwrites it).`,
         cell: r => { const f = r._fc[i];
           return `<span class="projcell${f.manual ? ' projman' : ''}" data-sku="${esc(r.sku)}" data-mk="${p.key}" data-auto="${f.auto}"`
-            + ` title="${f.manual ? `Manually set to ${nf(f.proj)} — calculated was ${nf(f.auto)}. Click to change, clear the box to go back to auto.` : esc(fcSeasonTip(r, f, p)) + 'Click to type your own projection'}">`
+            + ` title="${f.manual ? `Manually set to ${nf(f.typed)} for the whole month${f.typed !== f.proj ? ` — ${nf(f.proj)} for the ${p.days} days left` : ''}; calculated was ${nf(f.auto)}. Click to change, clear the box to go back to auto.` : esc(fcSeasonTip(r, f, p)) + 'Click to type your own projection'}">`
             + `${nf(f.proj)}${f.manual ? ' <span class="pmark">✎</span>' : ''}</span>`
-            + (!f.manual && f.sea ? `<div class="seatag">season ×${f.sea.f.toFixed(2)}</div>` : ''); } },
+            + (!f.manual && f.sea ? `<div class="seatag">season ×${f.sea.f.toFixed(2)}</div>` : '')
+            + (f.manual && f.typed !== f.proj ? `<div class="seatag">${nf(f.typed)} a month · ${p.days}d left</div>` : ''); } },
       { k: `fc${i}exc`, t: `${p.label} · Excess`, num: 1, map: r => r._fc[i].exc,
         tip: `On Hand − Proj for ${p.label}. Negative means you run out part-way through the month.`
           + ' A short month is tagged with the lane that can still cover it: SEA if a sea shipment lands in time, AIR if only air can, LATE if neither will.',
