@@ -63,7 +63,7 @@ function flowPrintWhat(r, plan) {
 /* rem (4 Nov): the share of the line still to make — pieces already cut / issued / passed need no ruffle cloth again (Ravi: "224 pcs
  * pahle hi cut ho chuke … only pending fabric hi print par jana chahiye"). 1 when not given. */
 function flowPrintExtras(r, plan, rem) {
-  if (!plan || !flowPrinted(flowRouteOf(plan))) return [];
+  if (!plan || !flowPrinted(flowRouteOf(plan)) || plan.ruffleNoPrint) return [];   // a ruffle left unprinted goes to no printer
   const rf = rem == null ? 1 : Math.max(0, Math.min(1, +rem || 0));
   const m = cutSkuOf(r.sku) || {}, colour = String(m.color || r.color || '').trim(), cc = ordColCodeOf(r.sku);
   return (plan.extra || []).filter(x => x.unit === 'm' && /^Ruffle — /.test(String(x.what || '')) && +x.qty > 0).map(x => {
