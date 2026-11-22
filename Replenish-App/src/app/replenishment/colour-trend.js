@@ -45,7 +45,11 @@ async function renderCtrend() {
   const skuRows = rows.filter(r => r && Array.isArray(r.lym) && (!CT.art || String(r.subcat || '').trim() === CT.art)
       && (!CT.fam || nlFamilyOf(r.color) === CT.fam) && (!q || (String(r.sku) + ' ' + (r.color || '')).toUpperCase().includes(q)))
     .map(r => ({ r, tot: r.lym.reduce((a, b) => a + (Number(b) || 0), 0) })).sort((a, b) => b.tot - a.tot).slice(0, 300);
-  const shade = (v, mx) => { if (!v) return ''; const t = v / (mx || 1); return t >= 0.85 ? 'background:#b91c1c;color:#fff' : t >= 0.6 ? 'background:#fde3d3' : ''; };
+  /* EACH MONTH AGAINST THE SKU'S OWN AVERAGE MONTH (Ravi, 22 Nov: "achcha sale green, average sale yellow, average se kam amber,
+   * kharab sale red"). The average is over the months since its first sale; a month before it was selling has no colour.
+   *   green ≥ 1.25 × average · yellow 0.85–1.25 · amber 0.5–0.85 · red under 0.5 (a 0 after launch is red) */
+  const shade = (v, avg, live) => { if (!live || !(avg > 0)) return ''; const t = v / avg;
+    return t >= 1.25 ? 'background:#15803d;color:#fff' : t >= 0.85 ? 'background:#fde68a' : t >= 0.5 ? 'background:#fdba74' : 'background:#b91c1c;color:#fff'; };
   box.innerHTML = `
     <div class="toolbar">
       <select id="ctBrand" style="flex:0 0 130px">${brands.map(b => `<option value="${esc(b)}"${b === CT.brand ? ' selected' : ''}>${b === 'SP' ? 'Ridhi' : esc(b)}</option>`).join('')}</select>
@@ -64,10 +68,12 @@ async function renderCtrend() {
       <input id="ctQ" value="${esc(CT.q)}" placeholder="Filter SKU / colour" style="flex:1 1 180px">
     </div>
     <div style="overflow-x:auto;max-height:560px"><table class="ct-tbl"><thead><tr><th>SKU</th><th>Colour</th><th>Size</th><th>L30</th>${desc.map(m => `<th>${m.label}</th>`).join('')}<th>12 months</th></tr></thead><tbody>
-      ${skuRows.map(({ r, tot }) => { const v = desc.map(m => Number(r.lym[m.c]) || 0), mx = Math.max(...v);
-        return `<tr><td>${esc(r.sku)}</td><td>${esc(r.color || '')}</td><td>${esc(r.size || '')}</td><td>${nf(r.last30 || 0)}</td>${v.map(x => `<td style="${shade(x, mx)}">${x ? nf(x) : '<span class="muted">0</span>'}</td>`).join('')}<td><b>${nf(tot)}</b></td></tr>`; }).join('')
+      ${skuRows.map(({ r, tot }) => { const v = desc.map(m => Number(r.lym[m.c]) || 0);
+        let L = -1; v.forEach((x, i) => { if (x > 0) L = i; });                 // the oldest month it sold in (desc order)
+        const avg = L >= 0 ? v.slice(0, L + 1).reduce((a, b) => a + b, 0) / (L + 1) : 0;
+        return `<tr><td>${esc(r.sku)}</td><td>${esc(r.color || '')}</td><td>${esc(r.size || '')}</td><td>${nf(r.last30 || 0)}</td>${v.map((x, i) => `<td style="${shade(x, avg, i <= L)}">${x ? nf(x) : (i <= L ? '0' : '<span class="muted">0</span>')}</td>`).join('')}<td><b>${nf(tot)}</b></td></tr>`; }).join('')
         || `<tr><td colspan="${5 + desc.length}" class="muted">No SKU with sales history matches.</td></tr>`}</tbody></table></div>
-    <div class="muted" style="font-size:12px;margin-top:6px">${skuRows.length === 300 ? 'First 300 by units. ' : ''}L30 = the last 30 days; the months are whole calendar months (Amazon orders).</div>`;
+    <div class="muted" style="font-size:12px;margin-top:6px">Each month against the SKU's own average month since it first sold: <span style="background:#15803d;color:#fff;padding:0 6px;border-radius:3px">good</span> 1.25× or more · <span style="background:#fde68a;padding:0 6px;border-radius:3px">average</span> 0.85–1.25× · <span style="background:#fdba74;padding:0 6px;border-radius:3px">below average</span> 0.5–0.85× · <span style="background:#b91c1c;color:#fff;padding:0 6px;border-radius:3px">bad</span> under 0.5× · no colour = before it first sold.<br>${skuRows.length === 300 ? 'First 300 by units. ' : ''}L30 = the last 30 days; the months are whole calendar months (Amazon orders).</div>`;
 }
 
 document.addEventListener('change', e => {
