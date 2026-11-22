@@ -44,6 +44,19 @@ let SHP_BUCKET_IX = { sig: null, list: null };
 const shpReadyProduct = sku => { try { const m = typeof mdbOf === 'function' ? mdbOf(sku) : null; return !!(m && typeof mdbIsReady === 'function' && mdbIsReady(m)); } catch (e) { return false; } };
 /** shpInsertProduct (core/lookups.js) — a pillow insert never opens in production. */
 const shpIsInsert = sku => typeof shpInsertProduct === 'function' && shpInsertProduct(sku);
+/* WHAT IS ALREADY ON THE BOOK, UNDER EVERY SKU IT HAS CARRIED (Ravi, 19 Nov: RBP8268 was opened and handed over, yet showed
+ * in the bucket again). An order-book line is matched on Shopify order id + SKU. When its SKU is renamed later (Master → Change
+ * SKU: RTCB007 → RTCS007 on 23 lines) the Shopify order still says the old code, so the bucket never found it. A line now counts
+ * under its SKU now, its skuWas, and the SKU it was opened with (the one in its id, ob_shp_<order>_<SKU>). */
+function shpOpenedKeys() {
+  const out = new Set();
+  (PTG.ob || []).forEach(x => {
+    if (!x || !x.shopOrderId) return;
+    const id = String(x.shopOrderId), pre = 'ob_shp_' + (x.orderNo || '') + '_', key = String(x.id || x._key || '');
+    [x.sku, x.skuWas, key.indexOf(pre) === 0 ? key.slice(pre.length) : ''].forEach(s => { const u = obUC(s); if (u) out.add(id + '|' + u); });
+  });
+  return out;
+}
 function shpBucket() {
   const sig = [SO_ALL_ROWS, (SO_ALL_ROWS || []).length, PTG.ob, (PTG.ob || []).length, SHOP_STOCK_LOADED, SHOP_INDIA_LOADED, SHOP_INDIA_ERR, SO_INDIA_TAKEN, SHOP_META];
   if (SHP_BUCKET_IX.list && SHP_BUCKET_IX.sig.every((x, i) => x === sig[i])) return SHP_BUCKET_IX.list;
@@ -58,7 +71,7 @@ const SHOP_STOCK_DENIED_TXT = 'This account is not allowed to read the Amazon st
 /** The "needs production" half only, from the orders already routed to production — cheap enough for every draw. */
 function shpBucketMake() {
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return [];
-  const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
+  const opened = shpOpenedKeys();
   const out = [];
   (SO_ALL_ROWS || []).forEach(o => {
     if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o)) || !shpSheetAllows(o)) return;
@@ -71,7 +84,7 @@ function shpBucketMake() {
  * bucket looks at. Nothing is stored: a SKU typed here is the order dialog's typed code (SHOP_META[id].mk), so once it is
  * saved the line has a SKU and leaves this list for Needs production. The stock is not needed to list them. */
 function shpNoSkuLines() {
-  const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
+  const opened = shpOpenedKeys();
   const out = [];
   (SO_ALL_ROWS || []).forEach(o => {
     if (!o || !o.id || o.cancelled || o.shipped || !(o.handled || soIsPending(o)) || !shpSheetAllows(o)) return;
@@ -90,7 +103,7 @@ function shpNoSkuLines() {
 function shpBucketBuild(opts) {
   const out = [], all = !!(opts && opts.all);
   if (!SHOP_STOCK_LOADED || !SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return out;
-  const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
+  const opened = shpOpenedKeys();
   (SO_ALL_ROWS || []).forEach(o => {
     if (!o || !o.id || o.cancelled || o.shipped) return;
     const sheetOk = shpSheetAllows(o);
