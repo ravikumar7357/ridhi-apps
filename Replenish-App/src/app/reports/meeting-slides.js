@@ -89,7 +89,8 @@ function mtsStages(lines, lateOf) {
  *   · quality = (rejected + for alteration) ÷ checked
  *   · active days = days with a Job Work issue or receipt in the week (attendance is not kept, so this stands in for "was he in")
  *   Top 3: 3+ active days, quality 5% or better, most work a day. Bottom 3: 3+ active days, least work a day. Average = the four weeks before. */
-const MTS_BAD_MAX = 5, MTS_MIN_DAYS = 3;
+/* quality limit for the top 3 — OFF (Ravi, 22 Nov: "quality ki seema 5% live mat karna abhi"); put 5 back to turn it on */
+const MTS_BAD_MAX = null, MTS_MIN_DAYS = 3;
 let MTS_RATES = null;
 async function mtsRatesLoad() {
   if (MTS_RATES) return;
@@ -148,7 +149,7 @@ function mtsPeople(wk) {
   });
   const active = rows.filter(r => r.days >= MTS_MIN_DAYS);
   /* both ends by work A DAY (18 Nov, first look: ranked by the week's total, a 4-day karigar below the team a day sat in the top 3) */
-  const top = active.filter(r => r.badPct <= MTS_BAD_MAX).sort((a, b) => b.perDay - a.perDay).slice(0, 3);
+  const top = active.filter(r => MTS_BAD_MAX == null || r.badPct <= MTS_BAD_MAX).sort((a, b) => b.perDay - a.perDay).slice(0, 3);
   const bottom = active.filter(r => !top.includes(r)).sort((a, b) => a.perDay - b.perDay).slice(0, 3);
   /* THE TEAM AVERAGE BESIDE EACH NAME (Ravi, 18 Nov: "top 3 top me h to kyo h — unka data dikhana chahiye ki ave logo se inhone itne jyada
    * pcs banay h and inka quality score bhi sahi h ya galat h, same for bottom 3"): per active day, over every karigar who was active 3+ days. */
@@ -260,7 +261,7 @@ function mtsSlides(wk) {
   const tableOf = which => fzP && fzP[which] ? fzP[which] : ptable(P[which]);
   out.push({ t: 'People Discussion', html: `<table class="mts-sheet"><tbody>
       <tr><th style="background:#E5F4E4">Top 3 performer for last week that I want to recognize</th><td>${fzP ? `<div class="muted" style="font-size:11.5px;margin-bottom:4px">as frozen ${esc(fzP.at || '')}</div>` : ''}${tableOf('top')}</td></tr>
-      <tr><th>Bottom 3 performers that I want to highlight</th><td>${tableOf('bottom')}<div class="muted" style="font-size:11.5px;margin-top:4px">How chosen: piece-rate karigars only (not the contractor's team, embroidery vendors or salaried staff) · work = QC-passed pcs × job work rate · top = ${MTS_MIN_DAYS}+ days active, quality ${MTS_BAD_MAX}% or better, most work a day · bottom = ${MTS_MIN_DAYS}+ days active, least work a day · active = a Job Work issue or receipt that day (attendance is not kept) · karigars who work together: Production meeting → Karigar groups — a group is one line, its days added up${mtsGroups().length ? ' (' + mtsGroups().map(g => esc(g.name || g.members.join(' + '))).join('; ') + ')' : ''}${P.left ? ' · ' + nf(P.left) + ' karigar(s) under ' + MTS_MIN_DAYS + ' days left out' : ''}${P.noRate ? ' · <b style="color:var(--bad)">job work rates could not be read</b>' : ''}</div></td></tr>
+      <tr><th>Bottom 3 performers that I want to highlight</th><td>${tableOf('bottom')}<div class="muted" style="font-size:11.5px;margin-top:4px">How chosen: piece-rate karigars only (not the contractor's team, embroidery vendors or salaried staff) · work = QC-passed pcs × job work rate · top = ${MTS_MIN_DAYS}+ days active, ${MTS_BAD_MAX == null ? '' : 'quality ' + MTS_BAD_MAX + '% or better, '}most work a day · bottom = ${MTS_MIN_DAYS}+ days active, least work a day · active = a Job Work issue or receipt that day (attendance is not kept) · karigars who work together: Production meeting → Karigar groups — a group is one line, its days added up${mtsGroups().length ? ' (' + mtsGroups().map(g => esc(g.name || g.members.join(' + '))).join('; ') + ')' : ''}${P.left ? ' · ' + nf(P.left) + ' karigar(s) under ' + MTS_MIN_DAYS + ' days left out' : ''}${P.noRate ? ' · <b style="color:var(--bad)">job work rates could not be read</b>' : ''}</div></td></tr>
       <tr><th>Critical vacant position with HR</th><td>${mtsNote(wk, 'hr_vacant', 'Status', 3)}</td></tr>
       <tr><th>People Requirement not yet with HR</th><td>${mtsNote(wk, 'hr_need', 'Status (discuss with Srikant ji, Mukul sir first)', 3)}</td></tr>
     </tbody></table>` });
