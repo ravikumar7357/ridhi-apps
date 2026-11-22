@@ -125,6 +125,8 @@ onAuthStateChanged(auth, async user => {
   if (ME.admin) (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).forEach(k => { ME[k] = true; });
   if (ME.admin) { ME.tabs = REPL_TABS.slice(); ME.projEdit = true; ME.prodEdit = true; ME.rateApprove = true; ME.shopAssign = true; ME.b2bAssign = true;
     ME.accEntry = true; ME.accEdit = true; ME.vlogAccept = true; ME.soApprove = true; ME.mdbEdit = true; ME.attendMark = true; ME.vreqApprove = true; ME.rfdApprove = true; ME.rfdSend = true; ME.fgiEdit = true; ME.fgiEntry = true; ME.empEdit = true; ME.hrEmpOnly = false; }
+  /* COLOUR TREND (22 Nov): part of Replenishment — whoever has Replenishment has it; it reads nothing more. */
+  if (ME.tabs.includes('repl') && !ME.tabs.includes('ctrend')) ME.tabs = ME.tabs.concat('ctrend');
   /* THE ACCESS PAGE (4 Nov): admins, and Access viewers, see it; it is not a box anybody is given */
   if ((ME.admin || ME.accessView) && !ME.tabs.includes('access')) ME.tabs = ME.tabs.concat('access');
   /* FROM QC — TO ACCEPT (Ravi, 27 Oct: "From QC — to accept - access me jodo"): its own box in Access, for whoever accepts what

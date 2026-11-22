@@ -13,6 +13,7 @@ replenishment/priority.js
 replenishment/article-review.js
 replenishment/revenue-target.js
 replenishment/new-launch.js
+replenishment/colour-trend.js
 replenishment/purchase-orders.js
 replenishment/follow-ups.js
 replenishment/top-asin.js

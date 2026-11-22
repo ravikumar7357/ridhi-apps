@@ -244,6 +244,7 @@ function fcSeasonOf(r, p, i, base) {
 }
 /* the hover line of a calculated Proj cell */
 function fcSeasonTip(r, f, p) {
+  if (f.nl) return `${nf(f.auto)} = new launch: ${f.nl.how}, ${p.label.slice(0, 3)} last year${p.partial ? ' (for the ' + p.days + ' days left)' : ''}. Its own Avg/day gives ${nf(f.flat)}. `;
   const s = f.sea, ads = Math.round((isStopped(r) ? 0 : (r.avgSale || 0)) * 100) / 100;
   if (!s) return FC_SEASON ? `${nf(f.auto)} = ${ads} a day × ${p.days} days (no season: not enough sales history for ${p.label.slice(0, 3)} last year). ` : '';
   const pd = n => Math.round(n * 100) / 100;
@@ -273,14 +274,18 @@ function replForecast(r, plan) {
     // carried from it, one override re-flows the whole rest of the forecast for that SKU.
     const ovr = projOvrOf(r.sku, p.key);
     const sea = ads ? fcSeasonOf(r, p, i, sBase) : null, flat = Math.round(ads * p.days);
-    const auto = sea ? Math.round(ads * p.days * sea.f) : flat;
+    const own = sea ? Math.round(ads * p.days * sea.f) : flat;
+    /* A NEW SKU (replenishment/colour-trend.js nlAutoOf): what the same article + size + colour family sold in this month last
+     * year, unless its own Avg/day already says more. */
+    const nl = FC_SEASON && typeof nlAutoOf === 'function' && !isStopped(r) ? nlAutoOf(r, p) : null;
+    const auto = nl && nl.q > own ? nl.q : own;
     /* A typed Proj is a WHOLE-MONTH number. In the running month only the days still left are sold from here on, so it counts
      * pro rata (Ravi, 22 Nov: RPC72-2020's 316 for November stood against 9 days left, where the pace gives 94). */
     const man = ovr != null && isFinite(ovr), part = man && p.partial && p.dim && p.days < p.dim;
     const proj = man ? (part ? Math.round(ovr * p.days / p.dim) : ovr) : auto;
     const exc = oh - proj;
     carry = exc;
-    return { oh, proj, exc, inc, auto, flat, sea, manual: man, typed: man ? ovr : null, awd: i === awdIdx ? awdQty : 0 };
+    return { oh, proj, exc, inc, auto, flat, sea, nl: nl && nl.q > own ? nl : null, manual: man, typed: man ? ovr : null, awd: i === awdIdx ? awdQty : 0 };
   });
 }
 

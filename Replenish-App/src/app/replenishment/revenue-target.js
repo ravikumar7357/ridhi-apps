@@ -408,7 +408,7 @@ function renderRepl() {
   FC_PLAN = buildFcPlan([...new Set(brands.flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
   // Drop the forecast cache only when something it actually depends on changed: the horizon, a manual
   // projection, or the snapshot itself (row count + its timestamp identify a refresh).
-  const fcSig = fcMonths() + '|' + PROJ_VER + '|' + (FC_SEASON ? 's' : 'f') + '|' + brands.map(b =>
+  const fcSig = fcMonths() + '|' + PROJ_VER + '|' + (FC_SEASON ? 's' : 'f') + (typeof NL_TPL !== 'undefined' && NL_TPL ? 't' : '') + '|' + brands.map(b =>
     b + ':' + ((REPL[b].rows || []).length) + ':' + (REPL[b].at ? REPL[b].at.getTime() : 0) + ':' + (REPL[b].mode || 'full')).join(',');
   if (fcSig !== FC_CACHE_SIG) { FC_CACHE = new Map(); FC_CACHE_SIG = fcSig; }
   // Must come AFTER FC_PLAN — its month need-by timestamps are derived from it.
@@ -679,7 +679,7 @@ function renderRepl() {
           return `<span class="projcell${f.manual ? ' projman' : ''}" data-sku="${esc(r.sku)}" data-mk="${p.key}" data-auto="${f.auto}"`
             + ` title="${f.manual ? `Manually set to ${nf(f.typed)} for the whole month${f.typed !== f.proj ? ` — ${nf(f.proj)} for the ${p.days} days left` : ''}; calculated was ${nf(f.auto)}. Click to change, clear the box to go back to auto.` : esc(fcSeasonTip(r, f, p)) + 'Click to type your own projection'}">`
             + `${nf(f.proj)}${f.manual ? ' <span class="pmark">✎</span>' : ''}</span>`
-            + (!f.manual && f.sea ? `<div class="seatag">season ×${f.sea.f.toFixed(2)}</div>` : '')
+            + (!f.manual && f.nl ? `<div class="seatag" style="color:#0f5132">new · ${esc(f.nl.fam)}</div>` : !f.manual && f.sea ? `<div class="seatag">season ×${f.sea.f.toFixed(2)}</div>` : '')
             + (f.manual && f.typed !== f.proj ? `<div class="seatag">${nf(f.typed)} a month · ${p.days}d left</div>` : ''); } },
       { k: `fc${i}exc`, t: `${p.label} · Excess`, num: 1, map: r => r._fc[i].exc,
         tip: `On Hand − Proj for ${p.label}. Negative means you run out part-way through the month.`
