@@ -198,13 +198,36 @@ function mtsSlides(wk) {
   MTS_CH.forEach(ch => { let c = null; try { c = mtsChannel(ch, wk); } catch (e) { c = null; } if (!c) return;
     Object.entries(c.byPrinter || {}).forEach(([n, e]) => { const x = pr.get(n) || { n, tot: 0, late: 0, lines: 0, ch: {} }; const t = e.plan + e.printer;
       x.tot += t; x.late += e.late; x.lines += e.lines; x.ch[ch.k] = (x.ch[ch.k] || 0) + t; pr.set(n, x); }); });
+  /* WHAT THE PRINTER SAYS IT SENT, NOT YET RECEIVED (22 Nov, Ravi compared his Bagru download: 28,272 m after "Vendor sent"): per printer
+   * order line, the printer's own sent batches (vpVsSum) less what has come in here (accepted deliveries), turned into pieces with the
+   * line's own pieces-per-metre (forOrders); a cut-piece line is in pieces already. */
+  const sentNR = new Map(), lo = x => String(x || '').trim().toLowerCase();
+  try {
+    (VO.rows || []).forEach(o => {
+      if (!o || /cancel|received/i.test(o.status || '')) return;
+      const run = o.orderType === 'running' || voLines(o).some(l => +l.meters > 0), name = lo(voName(o.vendorCode));
+      /* per order: sent (the portal's own sum, line by line) less what came back — the flow's printed-cloth receipts (flowProg.back),
+       * else the accepted deliveries; in pieces at the order's own pieces per metre */
+      let vs = 0, dels = 0, base = 0, pcsFor = 0;
+      voLines(o).forEach(l => { if (!l || l.cancelled) return; vs += vpVsSum(vpVsOf(o, l)); dels += voDels(l).reduce((t, x) => t + (+vlQtyOf(x) || 0), 0);
+        const b = run ? +l.meters || 0 : +l.qty || 0; base += b; pcsFor += (l.forOrders || []).reduce((t, x) => t + (+x.qty || 0), 0) || b; });
+      const recv = o.flowProg && o.flowProg.back != null ? Math.max(+o.flowProg.back || 0, dels) : dels, gap = Math.max(0, Math.min(base, vs) - recv);
+      if (!(gap > 0)) return;
+      const pcs = run ? (base ? pcsFor * gap / base : 0) : gap;
+      sentNR.set(name, (sentNR.get(name) || 0) + pcs);
+    });
+  } catch (e) { /* vendor orders not read: the column says — */ }
+  const sentOf = n => sentNR.has(lo(n)) ? sentNR.get(lo(n)) : null;
   const prRows = [...pr.values()].sort((a, b) => (a.n === MTS_NOPLAN) - (b.n === MTS_NOPLAN) || b.tot - a.tot);
   const prTot = prRows.reduce((t, x) => t + x.tot, 0) || 1;
-  out.push({ t: 'Printing — pending by printer', html: `<table class="mts-cmp" style="font-size:15px"><thead><tr><th>Printer</th><th>FBA</th><th>B2B</th><th>Shopify</th><th>Pieces pending</th><th>% of printing</th><th>Of which late</th><th>Late %</th></tr></thead><tbody>`
+  out.push({ t: 'Printing — pending by printer', html: `<table class="mts-cmp" style="font-size:15px"><thead><tr><th>Printer</th><th>FBA</th><th>B2B</th><th>Shopify</th><th>Pieces pending</th><th>% of printing</th><th>Printer says sent, not received</th><th>Still at printer</th><th>Of which late</th><th>Late %</th></tr></thead><tbody>`
     + prRows.map(x => `<tr${x.n === MTS_NOPLAN ? ' style="background:#FFF7EB"' : ''}><td><b>${esc(x.n)}</b></td><td>${nf(Math.round(x.ch.FBA || 0))}</td><td>${nf(Math.round(x.ch.B2B || 0))}</td><td>${nf(Math.round(x.ch.SHOP || 0))}</td>`
-      + `<td><b>${nf(Math.round(x.tot))}</b></td><td>${Math.round(x.tot / prTot * 100)}%</td><td style="color:${x.late ? 'var(--bad)' : 'inherit'}">${nf(Math.round(x.late))}</td><td>${x.tot ? Math.round(x.late / x.tot * 100) : 0}%</td></tr>`).join('')
-    + `<tr class="mts-team"><td>Total</td><td colspan="3"></td><td>${nf(Math.round(prTot))}</td><td>100%</td><td>${nf(Math.round(prRows.reduce((t, x) => t + x.late, 0)))}</td><td></td></tr></tbody></table>
-    <div class="muted" style="font-size:12px;margin-top:6px">pieces still to make whose printed cloth is not back from the printer, by the printer on the PPC plan · "${esc(MTS_NOPLAN)}" = no plan yet, so no printer · late = the order line is past its due date · the same figures as "Printing" on the report card</div>`
+      + `<td><b>${nf(Math.round(x.tot))}</b></td><td>${Math.round(x.tot / prTot * 100)}%</td>`
+      + (() => { const sn = x.n === MTS_NOPLAN ? null : sentOf(x.n), snr = sn == null ? null : Math.min(x.tot, sn);
+          return `<td style="color:#1D4ED8">${snr == null ? '<span class="muted">—</span>' : nf(Math.round(snr))}</td><td>${snr == null ? '<span class="muted">—</span>' : nf(Math.round(x.tot - snr))}</td>`; })()
+      + `<td style="color:${x.late ? 'var(--bad)' : 'inherit'}">${nf(Math.round(x.late))}</td><td>${x.tot ? Math.round(x.late / x.tot * 100) : 0}%</td></tr>`).join('')
+    + `<tr class="mts-team"><td>Total</td><td colspan="3"></td><td>${nf(Math.round(prTot))}</td><td>100%</td><td></td><td></td><td>${nf(Math.round(prRows.reduce((t, x) => t + x.late, 0)))}</td><td></td></tr></tbody></table>
+    <div class="muted" style="font-size:12px;margin-top:6px">pieces still to make whose printed cloth is not back from the printer, by the printer on the PPC plan · "${esc(MTS_NOPLAN)}" = no plan yet, so no printer · "printer says sent, not received" = the printer's own Vendor sent entries not yet received here, in pieces (metres × that line's pieces per metre) — the printer's download minus Vendor sent counts these as done · late = the order line is past its due date · the same figures as "Printing" on the report card</div>`
     + mtsNote(wk, 'printers', 'Printer follow-up', 3) });
   /* 2 · People Discussion */
   const P = mtsPeople(wk), rs = v => '₹' + nf(Math.round(v));
