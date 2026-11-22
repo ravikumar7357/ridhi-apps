@@ -124,7 +124,7 @@ function nlAutoOf(r, p) {
   const art = String(r.subcat).trim(), key = b + '|' + art;
   let M = NL_AUTO.models.get(key); if (!M) { M = nlArticleModel(b, art); NL_AUTO.models.set(key, M); }
   if (!M.rows.length) return null;
-  const fam = nlFamilyOf(r.color), x = nlQty(M, nlSize(r.size), fam, p.m, ((NL_TPL || {})[art] || {})[nlSize(r.size)]);
+  const fam = nlFamilyOf(r.color), x = nlQty(M, nlSize(r.size), fam, p.m, ((NL_TPL || {})[art] || {})[nlSize(r.size)], r.sku);
   if (!x.q) return null;
   const q = p.partial && p.dim ? Math.round(x.q * p.days / p.dim) : x.q;
   return { q, how: x.how, fam };

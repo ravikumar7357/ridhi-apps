@@ -13,16 +13,18 @@
  *   2. The same article + size, every colour, × the family's colour factor for that month.
  *   3. The template (a normal month) × the article's season × the colour factor.
  * The colour factor = the family's units per selling SKU that month against the whole article's, over the same ratio for the
- * year; kept to ×0.5–×2; ×1 for a family under 300 units a year. A typed Proj, a Sales Order draft and the Excel are only
+ * year; kept to ×0.5–×2, pulled towards ×1 for a family under 3,000 units a year; ×1 under 300. A typed Proj, a Sales Order draft and the Excel are only
  * made when the button is pressed. */
+/* Families (22 Nov, second pass): Burgundy / Maroon / Wine are red, not brown; Black, Grey and White are a family of their own. */
 const NL_FAMILIES = [
   ['Blue', /blue|aquamarine|navy|indigo/i],
   ['Green', /green|sage|artichoke|olive|mint/i],
-  ['Pink & Peach', /pink|salmon|peach|coral|red|flamingo|rose|blush/i],
+  ['Pink & Red', /pink|salmon|peach|coral|red|flamingo|rose|blush|burgundy|maroon|wine/i],
   ['Yellow', /yellow|goldenrod|mustard/i],
+  ['Black, Grey & White', /black|grey|gray|charcoal|white|silver/i],
   ['Brown & Neutral', /./],
 ];
-const nlFamilyOf = c => (NL_FAMILIES.find(([, re]) => re.test(String(c || ''))) || NL_FAMILIES[4])[0];
+const nlFamilyOf = c => (NL_FAMILIES.find(([, re]) => re.test(String(c || ''))) || NL_FAMILIES[NL_FAMILIES.length - 1])[0];
 const nlSize = s => String(s || '').toLowerCase().replace(/\s+/g, '').replace(/[×*]/g, 'x');
 const nlSizeCode = s => nlSize(s).replace(/x/g, '');
 const NL_DEFAULT_TPL = { 'Piping Flap Pillow Cover': { '18x18': 50, '20x20': 50, '24x24': 30, '16x16': 30 } };
@@ -53,20 +55,35 @@ function nlArticleModel(brand, art) {
       if (!F || F.tot < 300 || !F.n[c] || !nAll[c]) return 1;
       const yrF = per(F.tot, F.n.reduce((a, b) => a + b, 0) / 12); if (!yrF || !yrPer) return 1;
       const raw = (per(F.u[c], F.n[c]) / per(T[c], nAll[c])) / (yrF / yrPer);
-      return Math.round(Math.min(2, Math.max(0.5, raw)) * 100) / 100;
+      /* a small family's month swings on a handful of orders: its factor is pulled towards ×1, fully trusted from 3,000 units a year */
+      const w = Math.min(1, F.tot / 3000), shr = 1 + (Math.min(2, Math.max(0.5, raw)) - 1) * w;
+      return Math.round(shr * 100) / 100;
     });
   });
   return { rows, season, colour, yr };
 }
 
 /** one size's quantity for calendar month c, and how it was found */
-function nlQty(model, size, fam, c, tpl) {
-  const live = model.rows.filter(r => nlSize(r.size) === size && nlFirst(r.lym) <= nlPos(c));
-  const mine = live.filter(r => nlFamilyOf(r.color) === fam).map(r => Number(r.lym[c]) || 0);
-  if (mine.length >= 2) return { q: Math.round(nlMed(mine)), how: `median of ${mine.length} ${fam} SKUs of this size` };
-  const all = live.map(r => Number(r.lym[c]) || 0), cf = model.colour[fam][c];
-  if (all.length >= 2) return { q: Math.round(nlMed(all) * cf), how: `median of ${all.length} SKUs of this size, any colour, × ${fam} ${cf.toFixed(2)}` };
-  if (tpl) return { q: Math.round(tpl * model.season[c] * cf), how: `template ${tpl} × season ${model.season[c].toFixed(2)} × ${fam} ${cf.toFixed(2)}` };
+/* A SKU'S NORMAL MONTH (22 Nov, second pass — RPC232-2020 showed 4 for January: only three weak SKUs were selling in Jan '26, while
+ * Oak Brown, Quiet Earth … came later). Every SKU of the group counts, whenever it launched: its units from the month AFTER its first
+ * sale (the launch month is part of a month), divided by the article's season over those same months — so a SKU launched in a
+ * busy March is not read as stronger than one launched in a slow December. Needs 2+ such months. */
+function nlBase(r, season) {
+  const f = nlFirst(r.lym); let u = 0, s = 0, n = 0;
+  for (let c = 0; c < 12; c++) if (nlPos(c) > f) { u += Number(r.lym[c]) || 0; s += season[c] || 0; n++; }
+  return n >= 2 && s > 0 ? u / s : null;
+}
+/** One size's quantity for calendar month c = the median normal month of the group × the article's season × the family's factor.
+ * Group: same article + size + colour family, 3 SKUs or more; else the same size in any colour; else the template. */
+function nlQty(model, size, fam, c, tpl, except) {
+  const ex = except ? String(except).trim().toUpperCase() : '';
+  const pool = model.rows.filter(r => nlSize(r.size) === size && String(r.sku).trim().toUpperCase() !== ex).map(r => ({ r, b: nlBase(r, model.season) })).filter(x => x.b != null);
+  const sc = model.season[c], cf = model.colour[fam][c], k = `season ${sc.toFixed(2)} × ${fam} ${cf.toFixed(2)}`;
+  const mine = pool.filter(x => nlFamilyOf(x.r.color) === fam).map(x => x.b);
+  if (mine.length >= 3) { const m = nlMed(mine); return { q: Math.round(m * sc * cf), how: `${m.toFixed(1)} a normal month (median of ${mine.length} ${fam} SKUs of this size) × ${k}` }; }
+  const all = pool.map(x => x.b);
+  if (all.length >= 3) { const m = nlMed(all); return { q: Math.round(m * sc * cf), how: `${m.toFixed(1)} a normal month (median of ${all.length} SKUs of this size, any colour — under 3 ${fam}) × ${k}` }; }
+  if (tpl) return { q: Math.round(tpl * sc * cf), how: `template ${tpl} × ${k}` };
   return { q: 0, how: 'no sales of this size and no template' };
 }
 
@@ -118,11 +135,11 @@ function nlDraw() {
     ${P.lines.map(l => `<tr><td><b>${esc(l.size)}</b></td>
       <td><input data-nlsku="${esc(l.size)}" value="${esc(l.sku)}" style="width:130px${l.sku && !l.inMaster ? ';border-color:#b91c1c;color:#b91c1c' : ''}" title="${l.sku && !l.inMaster ? 'Not in the master database yet — left out of the order' : ''}"></td>
       <td><input data-nltpl="${esc(l.size)}" type="number" min="0" value="${l.tpl || ''}" style="width:70px"></td>
-      ${l.per.map(x => `<td title="${esc(x.how)}">${nf(x.q)}<div class="seatag">${x.how.startsWith('median of') && !x.how.includes('any colour') ? 'velocity' : x.how.startsWith('median') ? 'size × colour' : x.how.startsWith('template') ? 'template' : '—'}</div></td>`).join('')}
+      ${l.per.map(x => `<td title="${esc(x.how)}">${nf(x.q)}<div class="seatag">${x.how.startsWith('template') ? 'template' : x.how.includes('any colour') ? 'size × colour' : x.how.includes('normal month') ? 'velocity' : '—'}</div></td>`).join('')}
       <td><b>${nf(l.order)}</b></td></tr>`).join('')}
     <tr class="nl-tot"><td colspan="${3 + P.months.length}">Order — SKUs in the master</td><td><b>${nf(P.lines.reduce((a, l) => a + (l.inMaster ? l.order : 0), 0))}</b></td></tr>
     </tbody></table>
-    <div class="muted" style="font-size:12px;margin-top:6px">Each month = the median a ${esc(NL.fam)} ${esc(NL.art)} SKU of that size sold in the same month last year (hover a number for how it was found) · ${esc(NL.fam)} factor by month: ${mo.slice(NL.start, NL.start + NL.cover).map(m => m.label + ' ×' + P.model.colour[NL.fam][m.m].toFixed(2)).join(', ')} · ${nf(P.model.rows.length)} ${esc(NL.art)} SKUs with history</div>
+    <div class="muted" style="font-size:12px;margin-top:6px">Each month = a ${esc(NL.fam)} ${esc(NL.art)} SKU of that size in a normal month (median, launch month left out) × the article's season × the ${esc(NL.fam)} factor (hover a number for how it was found) · ${esc(NL.fam)} factor by month: ${mo.slice(NL.start, NL.start + NL.cover).map(m => m.label + ' ×' + P.model.colour[NL.fam][m.m].toFixed(2)).join(', ')} · ${nf(P.model.rows.length)} ${esc(NL.art)} SKUs with history</div>
     <div id="nlMsg" class="muted" style="font-size:12.5px;margin-top:6px">${tot ? '' : 'Type a SKU base (or each SKU) to make the order.'}</div>`;
 }
 
