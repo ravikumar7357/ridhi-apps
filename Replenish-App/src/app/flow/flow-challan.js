@@ -496,13 +496,56 @@ async function flowChallanWrite(ch, v, how) {
       flowVoRelease(ch.lines.map(l => (l.ruffleOnly ? l.key + FLOW_RUF : l.key)), patch);
     } catch (e) { console.warn(`Challan ${no}: could not lift the printer's hold (${e.message || e}); the lines stay held from the printer.`); }
   }
+  /* the printer's own copy of the challan, in the same save (CLOTH ON ITS WAY TO THE PRINTER, below) */
+  const cloth = flowClothFor(ch, how);
+  if (cloth) patch[`pt_vendorChallans/${v.code}/${no}`] = cloth;
   try { if (Object.keys(patch).length) await ptPatch(patch); } catch (e) { return `Challan ${no} is saved, but the lines could not be marked (${e.message || e}) — press Refresh.`; }
   FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
+  if (cloth) FLOW.cloth = Object.assign({}, FLOW.cloth, { [v.code]: Object.assign({}, (FLOW.cloth || {})[v.code], { [no]: cloth }) });
   if (setP.length) { FLOW.ppc = Object.assign({}, FLOW.ppc); setP.forEach(k => { FLOW.ppc[k] = Object.assign({}, FLOW.ppc[k], { printer: patch[`pt_ppc/${k}/printer`] }); }); }
   const dem = Object.assign({}, FLOW.dem);
   ch.lines.filter(l => !l.ruffleOnly).forEach(l => { dem[l.key] = Object.assign({}, dem[l.key] || {}, { fabricReady: patch[`pt_flowDemand/${l.key}/fabricReady`] }); });
   FLOW.dem = dem;
   return '';
+}
+
+/* ---- CLOTH ON ITS WAY TO THE PRINTER (Vishesh, 23 Nov: "in fabric inventory it should be minus from the inventory and show as
+ * transit to vendor, and when vendor receives the fabric it must minus"; "when I open the printer portal and search for that order
+ * I should be able to see that order under that printer") ----
+ * Every RFD challan to a printer leaves a copy in that printer's own branch, pt_vendorChallans/<code>/<no> -- the one place a
+ * printer's sign-in may both read and write:
+ *   { kind: 'cloth', no, date, vendor: { code, name }, lines: [{ orderNo, sku, fabric, pcs, metres }], metres, at, by }
+ * The printer presses "Cloth received" in the portal (printer-cloth.js), which adds received = { at, by }. Until then the
+ * challan's metres show "in transit" under RFD on shelf on the Greige Desk's Inventory; after it they are gone from our count.
+ * A test order, a challan of cloth already standing with the printer and a record of cloth given earlier get no copy -- no cloth
+ * travels on them. Challans made before this have no copy and are not shown as in transit: nobody could ever mark them received.
+ * Errors: the copy goes in the same save as the challan's marks. A failed read of the copies shows nothing in transit and says so
+ * on the console (it is a count to look at, not stock that is moved). */
+const FLOW_CLOTH = 'cloth';
+/** The printer's copy of a challan, or null when no cloth travels on it. */
+function flowClothFor(ch, how) {
+  if ((how && how.isTest) || ch.standing || ch.recordOnly) return null;
+  const orders = ch.orders || [];
+  const orderOf = l => orders.find(o => flowKey(o, l.sku) === l.key) || orders[0] || ch.orderNo || '';
+  const lines = (ch.lines || []).filter(l => +l.metres > 0 || +l.pcs > 0)
+    .map(l => ({ orderNo: orderOf(l), sku: l.sku || '', fabric: l.fabric || '', pcs: +l.pcs || 0, metres: flowR2(+l.metres || 0) }));
+  if (!lines.length) return null;
+  return { kind: FLOW_CLOTH, no: ch.no, date: ch.date, vendor: ch.vendor, lines, metres: flowR2(lines.reduce((a, l) => a + l.metres, 0)), at: ch.at, by: ch.by || '' };
+}
+/** Reads every printer's copies once (FLOW.cloth = { <code>: { <no>: copy } }). Never throws. */
+async function flowClothLoad() {
+  try { FLOW.cloth = (await ptGet('pt_vendorChallans')) || {}; }
+  catch (e) { FLOW.cloth = {}; console.warn(`Cloth on its way to printers: the printers' copies could not be read (${e.message || e}) — nothing shows as in transit.`); }
+}
+/** The challan lines of one fabric not yet received by the printer, from fromDay on: [{ no, date, vendor, orderNo, sku, metres }]. */
+function flowClothInTransit(fabric, fromDay) {
+  const k = flowFabKey(fabric), out = [];
+  Object.values(FLOW.cloth || {}).forEach(byNo => Object.values(byNo || {}).forEach(c => {
+    if (!c || c.kind !== FLOW_CLOTH || c.received) return;
+    if ((FLOW.ch && FLOW.ch[c.no] && FLOW.ch[c.no].cancelled) || (fromDay && String(c.date || '') < fromDay)) return;
+    (c.lines || []).forEach(l => { if (l && +l.metres > 0 && flowFabKey(l.fabric) === k) out.push({ no: c.no, date: c.date, vendor: (c.vendor || {}).name || '', orderNo: l.orderNo, sku: l.sku, metres: +l.metres }); });
+  }));
+  return out.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.no).localeCompare(String(b.no)));
 }
 
 /* ---- SEND TO PRINTER FROM THE GREIGE DESK'S INVENTORY (Vishesh, 23 Nov) ---------------------------------------------- *
@@ -773,7 +816,7 @@ async function flowShMake(v, go, note, fabric) {
   const err = await flowChallanWrite(ch, v, { isTest: go.every(l => !!l.x.r.__t), unplanned: go.filter(l => !l.printer).map(l => l.key) });
   return err ? { err } : { no: ch.no };
 }
-/** Make the challan: checks what is ticked as before, then shows the Review. Nothing is written until Confirm. */
+/** Make the challan: checks what is ticked, then always asks first (the Review). Nothing is written until "Yes, make the challan". */
 async function flowShSave() {
   const S = FLOW_SH; if (!S) return 'The card was closed — open it again.';
   const code = $('flshVen').value, v = flowPrinters().find(p => String(p.code) === String(code));
@@ -782,9 +825,8 @@ async function flowShSave() {
   if (!go.length) return 'Tick at least one line.';
   if (go.some(l => !!l.x.r.__t) && go.some(l => !l.x.r.__t)) return 'A test order and a real one cannot share a challan.';
   S.review = { code, note: $('flshNote').value.trim() };
-  /* MAKE THE CHALLAN MAKES IT (Vishesh, 23 Nov: "I want it to send to printer when I click make challan"): the Review is shown
-   * only when a line changes printer — that is the change to see "at last"; otherwise the challan is made at once. */
-  if (!go.some(l => flowShMoving(l, code))) return flowShCommit();
+  /* ASK BEFORE IT GOES (Vishesh, 23 Nov, later the same day: "when I click on make challan it should give a notification that this
+   * order will be sent to this vendor"): the Review always opens -- what goes, to whom, and what waits for a change of printer. */
   setTimeout(flowShReviewOpen, 0);   // the card closes when this returns; the Review opens on the next tick
   return '';
 }
@@ -799,11 +841,13 @@ function flowShReviewOpen() {
   const goes = now.length ? `<table class="xl" style="width:100%"><thead><tr>${th('SKU')}${th('Order')}<th>Pcs</th><th>Metres</th></tr></thead><tbody>${rows(now, () => '')}${total(now)}</tbody></table>` : '<div class="muted">Nothing goes now.</div>';
   const waits = moving.length ? `<table class="xl" style="width:100%"><thead><tr>${th('SKU')}${th('Order')}${th('Printer')}<th>Pcs</th><th>Metres</th></tr></thead><tbody>${rows(moving, l => `<td style="${cell}">${esc(l.printerName || l.printer)} → ${esc(vname)}</td>`)}</tbody></table>
       <div class="muted" style="font-size:12px;margin-top:6px">Approved by Ravi or anyone with 'Approve a change of printer'. Once approved, the plan and its print order move and a challan is made for it.</div>` : '<div class="muted">Nothing waits.</div>';
+  const metres = flowR2(now.reduce((a, l) => a + l.metres, 0));
+  const transit = now.length ? `<div class="muted" style="font-size:12px;margin-top:6px">${nf(metres)} m leaves RFD on shelf and shows as in transit until ${esc(vname)} presses "Cloth received" in their portal.</div>` : '';
   ptOpenDialog({
-    title: `Review — RFD challan to ${vname}`, subtitle: `${S.fabric}. Nothing is saved until you press Confirm.`, wide: true,
-    html: `<div style="font-weight:700;margin:4px 0">Goes now</div>${goes}<div style="font-weight:700;margin:14px 0 4px">Waits for approval — change of printer</div>${waits}`,
-    saveLabel: 'Confirm', onSave: flowShCommit,
-    alt: { label: 'Back', run: async () => { setTimeout(() => flowShelfChallanShow(S.fabric, S.after, S), 0); return ''; } },
+    title: `Send this cloth to ${vname}?`, subtitle: `${S.fabric} · challan dated ${dToday()}. Nothing is saved until you press "Yes, make the challan".`, wide: true,
+    html: `<div style="font-weight:700;margin:4px 0">Goes now</div>${goes}${transit}${moving.length ? `<div style="font-weight:700;margin:14px 0 4px">Waits for approval — change of printer</div>${waits}` : ''}`,
+    saveLabel: now.length ? 'Yes, make the challan' : 'Yes, ask for approval', onSave: flowShCommit,
+    alt: { label: 'Go back', run: async () => { setTimeout(() => flowShelfChallanShow(S.fabric, S.after, S), 0); return ''; } },
   });
 }
 /** Confirm: the challan for the lines that go now, a waiting request for each line that moves. What it did is in flowShCommit.said. */

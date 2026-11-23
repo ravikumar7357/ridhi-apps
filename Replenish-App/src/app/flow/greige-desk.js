@@ -3726,11 +3726,11 @@ function invAll() {
     /* RFD ON SHELF LESS WHAT WENT TO PRINTERS (Vishesh, 23 Nov): the RFD challans to printers take their metres off the shelf
      * here too, by the flow's own rule (flowRfdStock: the desk's count less the challans since it began counting that fabric),
      * so this column and PPC's "RFD free" agree. Challans are not by lot: the lots below still show what each lot had. */
-    var chOut = invChallanOut(n);
+    var chOut = invChallanOut(n), transit = invTransit(n);
     var g = e.greigeLeft || 0, p = e.withProcessor || 0, r = Math.max(0, (e.rfdLeft || 0) - chOut), cut = ctsOf(n);
     /* The cloth cut to size and not yet sent to a printer is still ours: it is in the total though it left the RFD shelf. */
     return { fabric: n, type: invType(n), greige: fabGreigeOf(n), onOrder: o ? o.m : 0,
-      inStoreGreige: g, atProcessor: p, inStoreRfd: r, rfdToPrinters: chOut, cut: cut, owned: g + p + r + cut.leftM,
+      inStoreGreige: g, atProcessor: p, inStoreRfd: r, rfdToPrinters: chOut, transit: transit, cut: cut, owned: g + p + r + cut.leftM,
       ppc: ppc && !ppc.__loading ? (ppc[n.toUpperCase()] || null) : null };
   }).filter(invWorthShowing)
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
@@ -3760,7 +3760,7 @@ function invNeedState(r) {
  *  comes back here with its Raise PO button. */
 function invWorthShowing(r) {
   if (invNeedState(r) === 'short' && !r.ppc.greige) return false;
-  return r.owned > 0.05 || r.onOrder > 0.05 || invNeedState(r) !== 'none';
+  return r.owned > 0.05 || r.onOrder > 0.05 || invTransitM(r) > 0.05 || invNeedState(r) !== 'none';
 }
 /** How much of the PPC need the RFD free covers, in whole percent (0–100). */
 function invCoverPct(p) { return p && p.need > 0.05 ? Math.min(100, Math.round((p.free || 0) / p.need * 100)) : 0; }
@@ -3826,7 +3826,7 @@ function renderInv() {
         + invCell(r, 'order', r.onOrder, 'color:var(--warn-ink)')
         + invCell(r, 'store', r.inStoreGreige, '')
         + invCell(r, 'proc', r.atProcessor, 'color:var(--proc-ink)')
-        + invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700')
+        + invRfdCell(r)
         + invCutCell(r)
         + '<td class="num" style="font-weight:700">' + dash(r.owned) + '</td></tr>'
         + (UI.invOpen.indexOf(r.fabric + '|') === 0 ? invDetail(r, UI.invOpen.split('|')[1]) : '');
@@ -3930,14 +3930,47 @@ function invDetail(r, col) {
         return '<th' + (/^(Ordered|Received|Still due|Sent|Back so far|Still out|In store|Came back|To cutting|Damaged|On shelf|Days out|Sent to RFD|Cut|Sent to printer|Left)$/.test(x) ? ' class="num"' : '') + '>' + esc(x) + '</th>';
       }).join('') + '</tr></thead><tbody>' + body.join('') + '</tbody></table></div>'
       : '<div class="empty">' + esc(empty) + '</div>')
+    + (col === 'rfd' ? invTransitHtml(r) : '')
     + '</div></td></tr>';
 }
 /** A figure that opens its drop-down; a dash when there is nothing behind it. */
+/* IN TRANSIT TO PRINTERS (Vishesh, 23 Nov: "dont add a new column but just add a small line under it, and when I click on the value
+ * show against which order it is in transit"). Under RFD on shelf: the metres on RFD challans the printer has not yet marked
+ * received. They are already off the shelf figure and not in the total; once received they are gone from our count. */
+function invRfdCell(r) {
+  var tr = invTransitM(r);
+  if (!(tr > 0.05)) return invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700');
+  return '<td class="num">' + invCellBtn(r, 'rfd', r.inStoreRfd, 'font-weight:700')
+    + '<div style="font-size:10.5px;color:var(--warn-ink);font-weight:600;white-space:nowrap">+ ' + nf(tr) + ' m in transit to printers</div></td>';
+}
+/** The metres of a row still on their way to printers. */
+function invTransitM(r) { return (r.transit || []).reduce(function (a, x) { return a + (+x.metres || 0); }, 0); }
+/** The challan lines of this fabric not yet received by the printer, since the desk began counting it; [] when the flow is not read. */
+function invTransit(name) {
+  if (typeof flowClothInTransit !== 'function' || typeof FLOW === 'undefined' || !FLOW || !FLOW.cloth) return [];
+  var opened = gdRfdOpened(name); if (!opened) return [];
+  try { return flowClothInTransit(name, opened) || []; } catch (e) { console.warn('In transit for ' + name + ': not counted (' + ((e && e.message) || e) + ').'); return []; }
+}
+/** The "In transit to printers" list under the RFD lots: challan, printer, order, SKU, metres, sent. */
+function invTransitHtml(r) {
+  var list = r.transit || []; if (!list.length) return '';
+  return '<div class="sect" style="margin-top:10px">In transit to printers · ' + nf(invTransitM(r)) + ' m</div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>Challan</th><th>Printer</th><th>Order</th><th>SKU</th><th class="num">Metres</th><th>Sent</th></tr></thead><tbody>'
+    + list.map(function (x) {
+      return '<tr><td class="mono">' + esc(x.no) + '</td><td class="tl">' + esc(x.vendor) + '</td><td class="mono">' + esc(x.orderNo) + '</td><td class="mono">' + esc(x.sku)
+        + '</td><td class="num">' + nf(x.metres) + ' m</td><td>' + esc(fmtD(x.date)) + '</td></tr>';
+    }).join('') + '</tbody></table></div>'
+    + '<div class="muted" style="font-size:11.5px;margin-top:4px">A line leaves this list when the printer presses "Cloth received" in their portal; its metres then leave our inventory.</div>';
+}
 function invCell(r, col, v, style) {
   if (!(v > 0.05)) return '<td class="num"' + (style ? ' style="' + style + '"' : '') + '><span class="muted">&mdash;</span></td>';
+  return '<td class="num">' + invCellBtn(r, col, v, style) + '</td>';
+}
+/** The figure as the button that opens its drop-down. */
+function invCellBtn(r, col, v, style) {
   var key = r.fabric + '|' + col, on = UI.invOpen === key;
-  return '<td class="num"><button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '"'
-    + (style ? ' style="' + style + '"' : '') + ' title="Show what makes this up">' + nf(v) + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button></td>';
+  return '<button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '"'
+    + (style ? ' style="' + style + '"' : '') + ' title="Show what makes this up">' + nf(v) + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button>';
 }
 /** A PO opens on Greige POs, expanded -- and the challan inside it too, when there is one. */
 function invOpenPo(poNo, chId) {

@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 186 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 187 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -33970,13 +33970,56 @@ async function flowChallanWrite(ch, v, how) {
       flowVoRelease(ch.lines.map(l => (l.ruffleOnly ? l.key + FLOW_RUF : l.key)), patch);
     } catch (e) { console.warn(`Challan ${no}: could not lift the printer's hold (${e.message || e}); the lines stay held from the printer.`); }
   }
+  /* the printer's own copy of the challan, in the same save (CLOTH ON ITS WAY TO THE PRINTER, below) */
+  const cloth = flowClothFor(ch, how);
+  if (cloth) patch[`pt_vendorChallans/${v.code}/${no}`] = cloth;
   try { if (Object.keys(patch).length) await ptPatch(patch); } catch (e) { return `Challan ${no} is saved, but the lines could not be marked (${e.message || e}) — press Refresh.`; }
   FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
+  if (cloth) FLOW.cloth = Object.assign({}, FLOW.cloth, { [v.code]: Object.assign({}, (FLOW.cloth || {})[v.code], { [no]: cloth }) });
   if (setP.length) { FLOW.ppc = Object.assign({}, FLOW.ppc); setP.forEach(k => { FLOW.ppc[k] = Object.assign({}, FLOW.ppc[k], { printer: patch[`pt_ppc/${k}/printer`] }); }); }
   const dem = Object.assign({}, FLOW.dem);
   ch.lines.filter(l => !l.ruffleOnly).forEach(l => { dem[l.key] = Object.assign({}, dem[l.key] || {}, { fabricReady: patch[`pt_flowDemand/${l.key}/fabricReady`] }); });
   FLOW.dem = dem;
   return '';
+}
+
+/* ---- CLOTH ON ITS WAY TO THE PRINTER (Vishesh, 23 Nov: "in fabric inventory it should be minus from the inventory and show as
+ * transit to vendor, and when vendor receives the fabric it must minus"; "when I open the printer portal and search for that order
+ * I should be able to see that order under that printer") ----
+ * Every RFD challan to a printer leaves a copy in that printer's own branch, pt_vendorChallans/<code>/<no> -- the one place a
+ * printer's sign-in may both read and write:
+ *   { kind: 'cloth', no, date, vendor: { code, name }, lines: [{ orderNo, sku, fabric, pcs, metres }], metres, at, by }
+ * The printer presses "Cloth received" in the portal (printer-cloth.js), which adds received = { at, by }. Until then the
+ * challan's metres show "in transit" under RFD on shelf on the Greige Desk's Inventory; after it they are gone from our count.
+ * A test order, a challan of cloth already standing with the printer and a record of cloth given earlier get no copy -- no cloth
+ * travels on them. Challans made before this have no copy and are not shown as in transit: nobody could ever mark them received.
+ * Errors: the copy goes in the same save as the challan's marks. A failed read of the copies shows nothing in transit and says so
+ * on the console (it is a count to look at, not stock that is moved). */
+const FLOW_CLOTH = 'cloth';
+/** The printer's copy of a challan, or null when no cloth travels on it. */
+function flowClothFor(ch, how) {
+  if ((how && how.isTest) || ch.standing || ch.recordOnly) return null;
+  const orders = ch.orders || [];
+  const orderOf = l => orders.find(o => flowKey(o, l.sku) === l.key) || orders[0] || ch.orderNo || '';
+  const lines = (ch.lines || []).filter(l => +l.metres > 0 || +l.pcs > 0)
+    .map(l => ({ orderNo: orderOf(l), sku: l.sku || '', fabric: l.fabric || '', pcs: +l.pcs || 0, metres: flowR2(+l.metres || 0) }));
+  if (!lines.length) return null;
+  return { kind: FLOW_CLOTH, no: ch.no, date: ch.date, vendor: ch.vendor, lines, metres: flowR2(lines.reduce((a, l) => a + l.metres, 0)), at: ch.at, by: ch.by || '' };
+}
+/** Reads every printer's copies once (FLOW.cloth = { <code>: { <no>: copy } }). Never throws. */
+async function flowClothLoad() {
+  try { FLOW.cloth = (await ptGet('pt_vendorChallans')) || {}; }
+  catch (e) { FLOW.cloth = {}; console.warn(`Cloth on its way to printers: the printers' copies could not be read (${e.message || e}) — nothing shows as in transit.`); }
+}
+/** The challan lines of one fabric not yet received by the printer, from fromDay on: [{ no, date, vendor, orderNo, sku, metres }]. */
+function flowClothInTransit(fabric, fromDay) {
+  const k = flowFabKey(fabric), out = [];
+  Object.values(FLOW.cloth || {}).forEach(byNo => Object.values(byNo || {}).forEach(c => {
+    if (!c || c.kind !== FLOW_CLOTH || c.received) return;
+    if ((FLOW.ch && FLOW.ch[c.no] && FLOW.ch[c.no].cancelled) || (fromDay && String(c.date || '') < fromDay)) return;
+    (c.lines || []).forEach(l => { if (l && +l.metres > 0 && flowFabKey(l.fabric) === k) out.push({ no: c.no, date: c.date, vendor: (c.vendor || {}).name || '', orderNo: l.orderNo, sku: l.sku, metres: +l.metres }); });
+  }));
+  return out.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.no).localeCompare(String(b.no)));
 }
 
 /* ---- SEND TO PRINTER FROM THE GREIGE DESK'S INVENTORY (Vishesh, 23 Nov) ---------------------------------------------- *
@@ -34247,7 +34290,7 @@ async function flowShMake(v, go, note, fabric) {
   const err = await flowChallanWrite(ch, v, { isTest: go.every(l => !!l.x.r.__t), unplanned: go.filter(l => !l.printer).map(l => l.key) });
   return err ? { err } : { no: ch.no };
 }
-/** Make the challan: checks what is ticked as before, then shows the Review. Nothing is written until Confirm. */
+/** Make the challan: checks what is ticked, then always asks first (the Review). Nothing is written until "Yes, make the challan". */
 async function flowShSave() {
   const S = FLOW_SH; if (!S) return 'The card was closed — open it again.';
   const code = $('flshVen').value, v = flowPrinters().find(p => String(p.code) === String(code));
@@ -34256,9 +34299,8 @@ async function flowShSave() {
   if (!go.length) return 'Tick at least one line.';
   if (go.some(l => !!l.x.r.__t) && go.some(l => !l.x.r.__t)) return 'A test order and a real one cannot share a challan.';
   S.review = { code, note: $('flshNote').value.trim() };
-  /* MAKE THE CHALLAN MAKES IT (Vishesh, 23 Nov: "I want it to send to printer when I click make challan"): the Review is shown
-   * only when a line changes printer — that is the change to see "at last"; otherwise the challan is made at once. */
-  if (!go.some(l => flowShMoving(l, code))) return flowShCommit();
+  /* ASK BEFORE IT GOES (Vishesh, 23 Nov, later the same day: "when I click on make challan it should give a notification that this
+   * order will be sent to this vendor"): the Review always opens -- what goes, to whom, and what waits for a change of printer. */
   setTimeout(flowShReviewOpen, 0);   // the card closes when this returns; the Review opens on the next tick
   return '';
 }
@@ -34273,11 +34315,13 @@ function flowShReviewOpen() {
   const goes = now.length ? `<table class="xl" style="width:100%"><thead><tr>${th('SKU')}${th('Order')}<th>Pcs</th><th>Metres</th></tr></thead><tbody>${rows(now, () => '')}${total(now)}</tbody></table>` : '<div class="muted">Nothing goes now.</div>';
   const waits = moving.length ? `<table class="xl" style="width:100%"><thead><tr>${th('SKU')}${th('Order')}${th('Printer')}<th>Pcs</th><th>Metres</th></tr></thead><tbody>${rows(moving, l => `<td style="${cell}">${esc(l.printerName || l.printer)} → ${esc(vname)}</td>`)}</tbody></table>
       <div class="muted" style="font-size:12px;margin-top:6px">Approved by Ravi or anyone with 'Approve a change of printer'. Once approved, the plan and its print order move and a challan is made for it.</div>` : '<div class="muted">Nothing waits.</div>';
+  const metres = flowR2(now.reduce((a, l) => a + l.metres, 0));
+  const transit = now.length ? `<div class="muted" style="font-size:12px;margin-top:6px">${nf(metres)} m leaves RFD on shelf and shows as in transit until ${esc(vname)} presses "Cloth received" in their portal.</div>` : '';
   ptOpenDialog({
-    title: `Review — RFD challan to ${vname}`, subtitle: `${S.fabric}. Nothing is saved until you press Confirm.`, wide: true,
-    html: `<div style="font-weight:700;margin:4px 0">Goes now</div>${goes}<div style="font-weight:700;margin:14px 0 4px">Waits for approval — change of printer</div>${waits}`,
-    saveLabel: 'Confirm', onSave: flowShCommit,
-    alt: { label: 'Back', run: async () => { setTimeout(() => flowShelfChallanShow(S.fabric, S.after, S), 0); return ''; } },
+    title: `Send this cloth to ${vname}?`, subtitle: `${S.fabric} · challan dated ${dToday()}. Nothing is saved until you press "Yes, make the challan".`, wide: true,
+    html: `<div style="font-weight:700;margin:4px 0">Goes now</div>${goes}${transit}${moving.length ? `<div style="font-weight:700;margin:14px 0 4px">Waits for approval — change of printer</div>${waits}` : ''}`,
+    saveLabel: now.length ? 'Yes, make the challan' : 'Yes, ask for approval', onSave: flowShCommit,
+    alt: { label: 'Go back', run: async () => { setTimeout(() => flowShelfChallanShow(S.fabric, S.after, S), 0); return ''; } },
   });
 }
 /** Confirm: the challan for the lines that go now, a waiting request for each line that moves. What it did is in flowShCommit.said. */
@@ -37299,6 +37343,8 @@ async function flowEnsureData() {
     ['QC checks', typeof QC !== 'undefined' && QC.checks == null ? ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }) : null],
     ['Finished Goods', typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function' ? fgiLoad() : null],
     ['plans and challans', flowLoad()], ['the fabric register', flowFabLoad()],
+    /* the printers' copies of the RFD challans: what is still on its way to them (flow-challan.js, CLOTH ON ITS WAY) */
+    ['cloth at printers', FLOW.cloth == null ? flowClothLoad() : null],
     ['store stock', typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore() : null],
     ['printer allocation', PAL.printers === null ? palLoad() : null],
     ['vendor orders', typeof ensureVo === 'function' ? ensureVo() : null],
@@ -42448,11 +42494,11 @@ function invAll() {
     /* RFD ON SHELF LESS WHAT WENT TO PRINTERS (Vishesh, 23 Nov): the RFD challans to printers take their metres off the shelf
      * here too, by the flow's own rule (flowRfdStock: the desk's count less the challans since it began counting that fabric),
      * so this column and PPC's "RFD free" agree. Challans are not by lot: the lots below still show what each lot had. */
-    var chOut = invChallanOut(n);
+    var chOut = invChallanOut(n), transit = invTransit(n);
     var g = e.greigeLeft || 0, p = e.withProcessor || 0, r = Math.max(0, (e.rfdLeft || 0) - chOut), cut = ctsOf(n);
     /* The cloth cut to size and not yet sent to a printer is still ours: it is in the total though it left the RFD shelf. */
     return { fabric: n, type: invType(n), greige: fabGreigeOf(n), onOrder: o ? o.m : 0,
-      inStoreGreige: g, atProcessor: p, inStoreRfd: r, rfdToPrinters: chOut, cut: cut, owned: g + p + r + cut.leftM,
+      inStoreGreige: g, atProcessor: p, inStoreRfd: r, rfdToPrinters: chOut, transit: transit, cut: cut, owned: g + p + r + cut.leftM,
       ppc: ppc && !ppc.__loading ? (ppc[n.toUpperCase()] || null) : null };
   }).filter(invWorthShowing)
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
@@ -42482,7 +42528,7 @@ function invNeedState(r) {
  *  comes back here with its Raise PO button. */
 function invWorthShowing(r) {
   if (invNeedState(r) === 'short' && !r.ppc.greige) return false;
-  return r.owned > 0.05 || r.onOrder > 0.05 || invNeedState(r) !== 'none';
+  return r.owned > 0.05 || r.onOrder > 0.05 || invTransitM(r) > 0.05 || invNeedState(r) !== 'none';
 }
 /** How much of the PPC need the RFD free covers, in whole percent (0–100). */
 function invCoverPct(p) { return p && p.need > 0.05 ? Math.min(100, Math.round((p.free || 0) / p.need * 100)) : 0; }
@@ -42548,7 +42594,7 @@ function renderInv() {
         + invCell(r, 'order', r.onOrder, 'color:var(--warn-ink)')
         + invCell(r, 'store', r.inStoreGreige, '')
         + invCell(r, 'proc', r.atProcessor, 'color:var(--proc-ink)')
-        + invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700')
+        + invRfdCell(r)
         + invCutCell(r)
         + '<td class="num" style="font-weight:700">' + dash(r.owned) + '</td></tr>'
         + (UI.invOpen.indexOf(r.fabric + '|') === 0 ? invDetail(r, UI.invOpen.split('|')[1]) : '');
@@ -42652,14 +42698,47 @@ function invDetail(r, col) {
         return '<th' + (/^(Ordered|Received|Still due|Sent|Back so far|Still out|In store|Came back|To cutting|Damaged|On shelf|Days out|Sent to RFD|Cut|Sent to printer|Left)$/.test(x) ? ' class="num"' : '') + '>' + esc(x) + '</th>';
       }).join('') + '</tr></thead><tbody>' + body.join('') + '</tbody></table></div>'
       : '<div class="empty">' + esc(empty) + '</div>')
+    + (col === 'rfd' ? invTransitHtml(r) : '')
     + '</div></td></tr>';
 }
 /** A figure that opens its drop-down; a dash when there is nothing behind it. */
+/* IN TRANSIT TO PRINTERS (Vishesh, 23 Nov: "dont add a new column but just add a small line under it, and when I click on the value
+ * show against which order it is in transit"). Under RFD on shelf: the metres on RFD challans the printer has not yet marked
+ * received. They are already off the shelf figure and not in the total; once received they are gone from our count. */
+function invRfdCell(r) {
+  var tr = invTransitM(r);
+  if (!(tr > 0.05)) return invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700');
+  return '<td class="num">' + invCellBtn(r, 'rfd', r.inStoreRfd, 'font-weight:700')
+    + '<div style="font-size:10.5px;color:var(--warn-ink);font-weight:600;white-space:nowrap">+ ' + nf(tr) + ' m in transit to printers</div></td>';
+}
+/** The metres of a row still on their way to printers. */
+function invTransitM(r) { return (r.transit || []).reduce(function (a, x) { return a + (+x.metres || 0); }, 0); }
+/** The challan lines of this fabric not yet received by the printer, since the desk began counting it; [] when the flow is not read. */
+function invTransit(name) {
+  if (typeof flowClothInTransit !== 'function' || typeof FLOW === 'undefined' || !FLOW || !FLOW.cloth) return [];
+  var opened = gdRfdOpened(name); if (!opened) return [];
+  try { return flowClothInTransit(name, opened) || []; } catch (e) { console.warn('In transit for ' + name + ': not counted (' + ((e && e.message) || e) + ').'); return []; }
+}
+/** The "In transit to printers" list under the RFD lots: challan, printer, order, SKU, metres, sent. */
+function invTransitHtml(r) {
+  var list = r.transit || []; if (!list.length) return '';
+  return '<div class="sect" style="margin-top:10px">In transit to printers · ' + nf(invTransitM(r)) + ' m</div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>Challan</th><th>Printer</th><th>Order</th><th>SKU</th><th class="num">Metres</th><th>Sent</th></tr></thead><tbody>'
+    + list.map(function (x) {
+      return '<tr><td class="mono">' + esc(x.no) + '</td><td class="tl">' + esc(x.vendor) + '</td><td class="mono">' + esc(x.orderNo) + '</td><td class="mono">' + esc(x.sku)
+        + '</td><td class="num">' + nf(x.metres) + ' m</td><td>' + esc(fmtD(x.date)) + '</td></tr>';
+    }).join('') + '</tbody></table></div>'
+    + '<div class="muted" style="font-size:11.5px;margin-top:4px">A line leaves this list when the printer presses "Cloth received" in their portal; its metres then leave our inventory.</div>';
+}
 function invCell(r, col, v, style) {
   if (!(v > 0.05)) return '<td class="num"' + (style ? ' style="' + style + '"' : '') + '><span class="muted">&mdash;</span></td>';
+  return '<td class="num">' + invCellBtn(r, col, v, style) + '</td>';
+}
+/** The figure as the button that opens its drop-down. */
+function invCellBtn(r, col, v, style) {
   var key = r.fabric + '|' + col, on = UI.invOpen === key;
-  return '<td class="num"><button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '"'
-    + (style ? ' style="' + style + '"' : '') + ' title="Show what makes this up">' + nf(v) + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button></td>';
+  return '<button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '"'
+    + (style ? ' style="' + style + '"' : '') + ' title="Show what makes this up">' + nf(v) + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button>';
 }
 /** A PO opens on Greige POs, expanded -- and the challan inside it too, when there is one. */
 function invOpenPo(poNo, chId) {
@@ -55235,7 +55314,10 @@ const vpLineOn = f => !!(f.at || f.sub || f.col || f.sz || f.pri);
 /* A SEARCH NARROWS THE LINES TOO (Ravi, 22 Oct: "mene particular sku search kiya but result me bahut kuch dikha rha h" —
  * CPC007-5454 found 2 orders and showed all 65 of their products). When the words are found in some lines of an order, only
  * those lines are shown and counted; an order found by its own number or note shows all of its lines. */
-const vpLineHay = l => [l.sku, l.fabricType, l.color, l.printDirection, l.articleType, l.articleSubtype, l.size].filter(Boolean).join(' ').toLowerCase();
+const vpLineHay = l => [l.sku, l.fabricType, l.color, l.printDirection, l.articleType, l.articleSubtype, l.size, ...vpForOrders(l)].filter(Boolean).join(' ').toLowerCase();
+/* SEARCH BY OUR ORDER NUMBER (Vishesh, 23 Nov: "when I open the printer portal and search for that order I should be able to see that
+ * order under that printer"): a line placed from PPC names the sales orders it is for (forOrders), so AMZ-17102026-02-SEA finds it. */
+const vpForOrders = l => ((l && l.forOrders) || []).map(x => x && x.orderNo).filter(Boolean);
 let VP_QX = { q: null, map: new WeakMap() };
 function vpQOk(o, l, f, everyDue) {
   /* "Show late only" (3 Nov) narrows every view to lines past their due date with the cloth already given; the strip counts all. */
@@ -55272,7 +55354,7 @@ function vpOrderMatches(o, f) {
   if (f.type && (o.orderType || 'cut') !== f.type) return false;
   if (f.q) {
     const hay = [o.orderNo, o.id, o.status, o.notes,
-      ...voLines(o).flatMap(l => [l.sku, l.fabricType, l.color, l.printDirection, l.articleType, l.articleSubtype, l.size])]
+      ...voLines(o).flatMap(l => [l.sku, l.fabricType, l.color, l.printDirection, l.articleType, l.articleSubtype, l.size, ...vpForOrders(l)])]
       .filter(Boolean).join(' ').toLowerCase();
     if (hay.indexOf(f.q) < 0) return false;
   }
@@ -55469,7 +55551,9 @@ function renderVp() {
   if (office) vprEnsure();
   /* COMPLETED AS CARDS (Ravi, 21 Nov): finished bulk orders follow the View box like the Bulk tab (colour board, orders,
    * product or table), for the office and the printer alike; finished custom lines keep their own table below. */
-  body.innerHTML = nag + (rows.length
+  /* the cloth we sent, above the Bulk orders (printer-cloth.js) */
+  const cloth = VP.tab === 'bulk' && typeof pclSection === 'function' ? pclSection(f.q) : '';
+  body.innerHTML = nag + cloth + (rows.length
     ? office ? vprSheet(rows, f)
     : doneTab ? (rows.some(o => !vpIsShop(o)) ? vpViewOf(rows.filter(o => !vpIsShop(o)), f) : '') + (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '')
     : (VP.tab === 'shop' ? vpCustomSheet(rows, f)
@@ -56578,7 +56662,7 @@ if ($('vpTabVs')) $('vpTabVs').onclick = () => { VP.tab = 'vsent'; renderVp(); }
 ['vpFrom', 'vpTo'].forEach(id => { if ($(id)) $(id).onchange = renderVp; });
 $('vpTabHist').onclick = () => { VP.tab = 'hist'; renderVp(); };
 $('vpTabRfd').onclick = () => { VP.tab = 'rfd'; renderVp(); };
-$('vpGo').onclick = async () => { VP.rows = null; vprRefresh(); await ensureVp(); };
+$('vpGo').onclick = async () => { VP.rows = null; if (typeof PCL !== 'undefined') PCL.code = null; vprRefresh(); await ensureVp(); };
 // Only an account that signs in with a PIN has one to change.
 $('vpPinBtn').onclick = pinOpenChange;
 /**
@@ -57748,7 +57832,8 @@ function dchNextNo() {
 }
 async function dchLoad(force) {
   if (DCH.saved && !force) return;
-  try { const v = await ptGet('pt_vendorChallans/' + VP.code); DCH.saved = ptList(v || {}).sort((a, b) => String(b.at || '').localeCompare(String(a.at || ''))); DCH.savedErr = ''; }
+  /* the RFD challans we sent this printer share the branch (kind 'cloth', printer-cloth.js); they are not the printer's own */
+  try { const v = await ptGet('pt_vendorChallans/' + VP.code); DCH.saved = ptList(v || {}).filter(c => !(c && c.kind === 'cloth')).sort((a, b) => String(b.at || '').localeCompare(String(a.at || ''))); DCH.savedErr = ''; }
   catch (e) { DCH.saved = []; DCH.savedErr = /permission|denied/i.test(String(e.message || e)) ? 'Saved challans are not readable yet — the database rule for daily challans is not deployed (preview).' : 'Could not read the saved challans: ' + (e.message || e); }
 }
 
@@ -57931,6 +58016,89 @@ if ($('vpBody') && $('vpBody').addEventListener) {
   });
 }
 if ($('vpTabDch')) $('vpTabDch').onclick = () => { VP.tab = 'dch'; DCH.saved = null; renderVp(); };
+/* ============================== FILE: src/app/vendors/portal/printer-cloth.js ============================== */
+/* ================= PRINTER'S PORTAL · CLOTH SENT TO YOU — the RFD challans we sent this printer =================
+ * Vishesh, 23 Nov: "when I open the printer portal and search for that order I should be able to see that order under that
+ * printer"; "under printer portal it should be visible"; the printer presses received.
+ * Each RFD challan to a printer leaves a copy in the printer's own branch, pt_vendorChallans/<code>/<no> with kind 'cloth'
+ * (flow-challan.js, CLOTH ON ITS WAY TO THE PRINTER). Above the Bulk orders the portal lists them: challan, date, our orders
+ * and SKUs, metres, and In transit / Received. With nothing searched only the ones in transit show; a search (order no., SKU,
+ * challan no., fabric) shows every match, received ones too.
+ * "Cloth received" is pressed by the printer's own sign-in, or by an admin looking at the portal as that printer; it writes
+ * received = { at, by } on the copy, and the Greige Desk then stops counting those metres as in transit.
+ * Errors: reading is a view -- a failed read says so in the list's place and the orders below still show. Pressing "Cloth
+ * received" is stock: a refusal is said on screen and nothing is marked; the button is off while it saves, and a copy already
+ * received is never written again (safe to press twice). */
+const PCL = { code: null, rows: null, err: '', busy: '' };   // rows: this printer's copies, newest first; busy: the challan being saved
+
+/** The list above the Bulk orders, for the search q (lower case). '' when there is nothing to show. */
+function pclSection(q) {
+  if (!VP.code) return '';
+  if (PCL.code !== VP.code) { pclLoad(VP.code); return ''; }
+  if (PCL.err) return `<div class="card muted" style="padding:10px 14px;margin-bottom:10px;font-size:12.5px">Cloth sent to you: ${esc(PCL.err)}</div>`;
+  const list = pclShown(PCL.rows || [], q);
+  if (!list.length) return '';
+  const may = pclMayReceive();
+  return `<div class="card" style="padding:12px 14px;margin-bottom:12px"><div style="font-weight:700;margin-bottom:6px">Cloth sent to you`
+    + ` <span class="muted" style="font-weight:400;font-size:12px">· ${q ? 'matching your search' : 'still on its way'}</span></div>`
+    + `<div class="ff-grid"><table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Challan</th><th style="text-align:left">Our order</th>`
+    + `<th style="text-align:left">SKUs</th><th>Metres</th><th style="text-align:left">Status</th><th></th></tr></thead><tbody>`
+    + list.map(c => pclRow(c, may)).join('') + '</tbody></table></div></div>';
+}
+/** In transit ones when nothing is searched; every match when something is. */
+function pclShown(rows, q) {
+  return rows.filter(c => (q ? pclHay(c).includes(q) : !c.received));
+}
+const pclHay = c => [c.no, c.date, ...(c.lines || []).flatMap(l => [l.orderNo, l.sku, l.fabric])].filter(Boolean).join(' ').toLowerCase();
+function pclRow(c, may) {
+  const orders = [...new Set((c.lines || []).map(l => l.orderNo).filter(Boolean))], skus = (c.lines || []).map(l => l.sku).filter(Boolean);
+  const fabrics = [...new Set((c.lines || []).map(l => l.fabric).filter(Boolean))].join(', ');
+  const status = c.received
+    ? `<span style="background:#dcfce7;color:#166534;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600">Received ${esc(String(c.received.at || '').slice(0, 10))}</span>`
+    : '<span style="background:#fef3c7;color:#92400e;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600">In transit</span>';
+  const btn = !c.received && may
+    ? `<button type="button" data-pclrecv="${esc(c.no)}"${PCL.busy === c.no ? ' disabled' : ''}>${PCL.busy === c.no ? 'Saving…' : 'Cloth received'}</button>` : '';
+  return `<tr><td style="text-align:left"><b class="mono">${esc(c.no)}</b><div class="muted" style="font-size:11.5px">${esc(c.date || '')}${fabrics ? ' · ' + esc(fabrics) : ''}</div></td>`
+    + `<td style="text-align:left" class="mono">${esc(orders.join(', '))}</td><td style="text-align:left;font-size:12px">${esc(skus.join(', '))}</td>`
+    + `<td class="num">${nf(+c.metres || 0)} m</td><td style="text-align:left">${status}</td><td>${btn}</td></tr>`;
+}
+/** The printer's own sign-in, or an admin looking as the printer. Someone who may only look does not mark cloth received. */
+const pclMayReceive = () => !!((typeof NAV_IS_VENDOR !== 'undefined' && NAV_IS_VENDOR) || (ME && ME.admin));
+
+/** Reads this printer's copies once, then draws the portal again. Never throws. */
+async function pclLoad(code) {
+  PCL.code = code; PCL.rows = []; PCL.err = '';
+  try { PCL.rows = pclCopies(await ptGet('pt_vendorChallans/' + code)); }
+  catch (e) { PCL.err = /permission|denied/i.test(String(e.message || e)) ? 'not readable from this sign-in yet.' : 'could not be read (' + (e.message || e) + ').'; console.warn(`Cloth sent to ${code}: ${PCL.err}`); }
+  if (VP.code === code) renderVp();
+}
+/** The 'cloth' copies of a branch, newest first. */
+function pclCopies(branch) {
+  return ptList(branch || {}).filter(c => c && c.kind === 'cloth').sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.no).localeCompare(String(a.no)));
+}
+
+/** "Cloth received": marks the copy received. Returns '' when saved, else what went wrong in words. */
+async function pclReceive(no) {
+  const code = VP.code, c = (PCL.rows || []).find(x => x.no === no);
+  if (!c) return `Challan ${no} is not in your list — press Refresh.`;
+  if (c.received) return '';
+  if (!pclMayReceive()) return 'Only the printer marks cloth received.';
+  const rec = { at: new Date().toISOString(), by: ME.email || '' };
+  try { await ptPut(`pt_vendorChallans/${code}/${no}/received`, rec); }
+  catch (e) { return `Challan ${no} was not marked received: ${e.message || e}. Try again.`; }
+  PCL.rows = PCL.rows.map(x => (x.no === no ? Object.assign({}, x, { received: rec }) : x));
+  if (typeof FLOW !== 'undefined' && FLOW && FLOW.cloth && FLOW.cloth[code] && FLOW.cloth[code][no]) FLOW.cloth[code][no] = Object.assign({}, FLOW.cloth[code][no], { received: rec });
+  return '';
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', async e => {
+  const t = e.target && e.target.closest && e.target.closest('[data-pclrecv]'); if (!t || PCL.busy) return;
+  const no = t.dataset.pclrecv;
+  PCL.busy = no; renderVp();
+  const er = await pclReceive(no);
+  PCL.busy = '';
+  if (er) toast(er);
+  renderVp();
+});
 /* ============================== FILE: src/app/vendors/portal/vendor-sent-excel.js ============================== */
 /* ================= VENDOR PORTAL · VENDOR SENT FROM EXCEL =================
  * Ravi, 12 Nov 2026: "vendor bhi bulk me order sent ki entry excel se kar sake — kis order ke against me bhej raha h usko

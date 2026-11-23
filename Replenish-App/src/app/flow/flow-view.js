@@ -36,6 +36,8 @@ async function flowEnsureData() {
     ['QC checks', typeof QC !== 'undefined' && QC.checks == null ? ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }) : null],
     ['Finished Goods', typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function' ? fgiLoad() : null],
     ['plans and challans', flowLoad()], ['the fabric register', flowFabLoad()],
+    /* the printers' copies of the RFD challans: what is still on its way to them (flow-challan.js, CLOTH ON ITS WAY) */
+    ['cloth at printers', FLOW.cloth == null ? flowClothLoad() : null],
     ['store stock', typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore() : null],
     ['printer allocation', PAL.printers === null ? palLoad() : null],
     ['vendor orders', typeof ensureVo === 'function' ? ensureVo() : null],
