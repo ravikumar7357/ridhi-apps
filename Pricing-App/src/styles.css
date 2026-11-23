@@ -4824,6 +4824,88 @@
   .sta-dcp tr.is-off input.sta-cb{opacity:.45}
   .sta-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
   @media (max-width:620px){.sta-figs.sta-figs7{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  /* ----- The bar, 23 Nov 2026 (Search Term Analysis and N-Gram Analysis; staBarWire in ads/search-terms.js): brand, date
+     window, filters and actions on the first row, each control under a small heading; the search and the other choices on
+     the second; then the chips of every active filter, the 7-day note, and "At a glance" / "Where to act" over the strip and
+     the boxes. A heading, box or summary figure with a dotted line or a help cursor says what it means on hover. ----- */
+  .sta-scope .card.sta-barcard{padding:12px 14px 10px}
+  .sta-scope .toolbar.sta-top,.sta-scope .toolbar.sta-row2{align-items:flex-end;gap:10px 14px}
+  .sta-scope .toolbar.sta-row2{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .sta-scope .sta-fld{display:flex;flex-direction:column;gap:4px;min-width:0;margin:0}
+  .sta-scope .sta-fld.sta-grow{flex:1 1 240px}
+  .sta-scope .sta-lab{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;line-height:1.2}
+  .sta-scope .sta-lab[title],.sta-scope h3.sta-h[title]{cursor:help}
+  .sta-scope .sta-fld>input,.sta-scope .sta-fld>select{height:var(--ctl);padding-top:0;padding-bottom:0;line-height:calc(var(--ctl) - 2px);box-sizing:border-box}
+  .sta-scope .sta-fld>input{width:100%}
+  .sta-scope .sta-fld>button,.sta-scope .sta-acts>button{height:var(--ctl);padding-top:0;padding-bottom:0;flex:0 0 auto;white-space:nowrap;
+    display:inline-flex;align-items:center;justify-content:center;line-height:1}
+  .sta-scope select.sta-brandsel{width:168px}
+  .sta-scope input.sta-minsp{width:120px}
+  .sta-scope select.sta-ngmin{width:130px}
+  .sta-scope select.sta-ngcls{width:190px}
+  .sta-scope .sta-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-left:auto}
+  /* The date window: 7 / 14 / 30 / 60 days; a small second line says "sales still coming in" or "coming soon". */
+  .sta-scope .seg.sta-win{height:var(--ctl);box-sizing:border-box}
+  .sta-scope .seg.sta-win .segbtn{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:64px;padding:0 12px;line-height:1.1}
+  .sta-scope .seg.sta-win .segbtn small{font-size:9.5px;font-weight:600;color:var(--muted);letter-spacing:.01em}
+  .sta-scope .seg.sta-win .segbtn:disabled,.sta-scope .seg.sta-pfstock .segbtn:disabled{color:var(--faint);cursor:not-allowed;opacity:.75}
+  .sta-scope .seg.sta-win .segbtn:disabled small{color:var(--faint)}
+  /* The three lists and the stock chip; a list opens under its button. */
+  .sta-scope .sta-pf{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .sta-scope .sta-pfw{position:relative;display:inline-flex}
+  .sta-scope button.sta-pfb{height:var(--ctl);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .sta-scope button.sta-pfb .sta-n{margin-left:2px}
+  .sta-scope button.sta-pfb .sta-pfc{font-size:10px;color:var(--faint)}
+  .sta-scope button.sta-pfb.on{background:var(--brand-bg);color:var(--brand-ink);font-weight:600;box-shadow:inset 0 0 0 1.5px var(--brand)}
+  .sta-scope .seg.sta-pfstock{height:var(--ctl);box-sizing:border-box}
+  .sta-scope .seg.sta-pfstock .segbtn{padding:0 12px;font-size:13px}
+  .sta-scope .sta-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:40;width:min(380px,calc(100vw - 32px));display:flex;flex-direction:column;
+    text-align:left;background:var(--card);border-radius:var(--r-row);box-shadow:var(--sh-3),inset 0 0 0 1px var(--line)}
+  .sta-scope .sta-pop input.sta-popq{margin:10px 10px 0;height:36px;width:auto;box-sizing:border-box}
+  .sta-scope .sta-popbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+  .sta-scope .sta-popbar b{font-weight:600;color:var(--ink)}
+  .sta-scope .sta-popl{max-height:320px;overflow:auto}
+  .sta-scope label.sta-popi{display:flex;align-items:flex-start;gap:10px;margin:0;padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer;
+    font-size:13px;font-weight:400;line-height:1.35;color:var(--ink);text-transform:none;letter-spacing:0}
+  .sta-scope label.sta-popi:hover{background:var(--hover)}
+  .sta-scope label.sta-popi.on{background:color-mix(in srgb,var(--brand) 6%,var(--card))}
+  .sta-scope label.sta-popi input.sta-cb{flex:none;margin-top:2px}
+  .sta-scope .sta-popt{flex:1 1 auto;min-width:0}
+  .sta-scope .sta-popt b{display:block;font-weight:600;overflow-wrap:anywhere}
+  .sta-scope .sta-popt small{display:block;margin-top:1px;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sta-scope .sta-popt small b{display:inline}
+  .sta-scope .sta-popoos{color:var(--bad-ink)}
+  .sta-scope .sta-poplow{color:var(--act-ink)}
+  .sta-scope .sta-popn{flex:none;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .sta-scope .sta-popnone{margin:0;padding:10px 12px;font-size:12.5px;color:var(--muted)}
+  .sta-scope .sta-popf{padding:9px 12px;font-size:12px;line-height:1.45;color:var(--muted);background:var(--soft);border-radius:0 0 var(--r-row) var(--r-row)}
+  /* Every active filter as a chip that removes itself, with "Showing X of Y terms". */
+  .sta-scope .sta-fchips{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:10px;padding:7px 10px;border-radius:var(--r-row);
+    background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px}
+  .sta-scope .sta-fchips.hide,.sta-scope .sta-winnote.hide{display:none}
+  .sta-scope .sta-fshow{margin-right:4px;font-weight:600;color:var(--ink)}
+  .sta-scope .sta-fchip{display:inline-flex;align-items:center;gap:4px;max-width:100%;height:28px;padding:0 4px 0 10px;border-radius:var(--r-pill);
+    background:var(--chip);color:var(--chip-ink);font-weight:500}
+  .sta-scope .sta-fchip b{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:var(--ink)}
+  .sta-scope button.sta-fx{width:22px;height:22px;padding:0;border:0;border-radius:var(--r-pill);background:transparent;color:var(--muted);font-size:12px;line-height:1;cursor:pointer;box-shadow:none}
+  .sta-scope button.sta-fx:hover{background:var(--hover);color:var(--ink)}
+  /* 7 days: sales still coming in — what that means, and the way back to 30 days. */
+  .sta-scope .sta-winnote{display:flex;align-items:flex-start;gap:10px;margin-top:10px;padding:9px 12px;border-radius:var(--r-row);background:var(--rev-bg);
+    color:var(--rev-ink);font-size:12.5px;line-height:1.5;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rev) 45%,var(--card))}
+  .sta-scope .sta-winnote svg{flex:none;width:18px;height:18px;margin-top:1px;fill:none;stroke:currentColor;stroke-width:2}
+  .sta-scope .sta-winnote b,.sta-scope .sta-winnote .sta-linkbtn{color:inherit}
+  /* The headings over the strip and the boxes. */
+  .sta-scope h3.sta-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:18px 2px 0;font-size:14px;font-weight:700;color:var(--ink);letter-spacing:0}
+  .sta-scope h3.sta-h small{font-size:12.5px;font-weight:400;color:var(--muted)}
+  .sta-scope h3.sta-h+.sta-sum,.sta-scope h3.sta-h+.sta-boxes{margin-top:8px}
+  .sta-scope .sta-sum>div[title]>small{cursor:help;text-decoration:underline dotted;text-decoration-color:color-mix(in srgb,var(--faint) 70%,transparent);text-underline-offset:3px}
+  .sta-scope table.xl th[title]:not([data-sort]){cursor:help}
+  @media (max-width:620px){
+    .sta-scope .sta-pf{position:relative}
+    .sta-scope .sta-pfw{position:static}
+    .sta-scope .sta-pop{left:0;right:0;width:auto}
+    .sta-scope .sta-acts{margin-left:0}
+  }
 
   /* ===== MODULE: INVENTORY ===== */  /* ----- INVENTORY AGE (paneAge, inventory/inventory-age.js): the Ad Console look — .adx-meta's line, .ls-toolbar's bar,
      .adx-box number boxes (a box is also a filter, like .sta-box), the stock's age mix as bars, a flush table card like

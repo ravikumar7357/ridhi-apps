@@ -1,7 +1,9 @@
 /* ================= ADS · N-GRAM ANALYSIS: word patterns across the search terms (21 Nov 2026) =================
  * Screen: N-Gram Analysis (tab 'ngram', pane paneNgram; core/nav.js calls ensureNgram when it opens). Whoever has Search
  * Term Analysis sees it (TAB_INHERIT ngram: 'st'): it reads the same loaded data (staLoad, staModel — the settled window),
- * with no backend call of its own.
+ * with no backend call of its own. 23 Nov: the same date window and the same product, campaign and stock filters as Search
+ * Term Analysis, in the same bar (search-terms.js: THE DATE WINDOW, staView, staBarWire); under the filters the patterns are
+ * summed over the terms that pass (ngBuild).
  *
  * WHAT IT IS. The 1-, 2- and 3-word sequences of the search terms (Search Term Analysis's pattern index, staGramIndex — the
  * same one its "By word" view reads), summed over the terms that hold them: the patterns that spend without converting across
@@ -76,13 +78,16 @@ let NG_LAST = [], NG_NOTE = { t: 0, text: '' };
 // Every pattern of every brand in the model, with its figures over the terms not yet negated (plus the tail), what protects
 // it, its yardsticks and its class before the Minimum clicks choice; then the rows each size shows (ngViews). Cached on the
 // model. { M, rows (every n-gram), views (size → rows on screen), solo (size → n-grams of one search term) }.
+// Under the product, campaign and stock filters (staView, 23 Nov) the patterns are summed again over the terms that pass —
+// the yardsticks (the brand's order rate, the per-campaign rates) stay the whole brand's.
 function ngBuild(M) {
-  if (NGX && NGX.M === M) return NGX;
+  const V = staView(M);
+  if (NGX && NGX.M === M && NGX.V === V) return NGX;
   const rows = [];
   const ix = new Map();
   M.rows.forEach((r, i) => ix.set(r, i));
   M.brands.forEach(b => {
-    const idx = (M.grams || {})[b];
+    const idx = (V.gx || {})[b];
     const P = M.protect[b];
     if (!idx || !P) return;
     const info = M.info[b] || {};
@@ -145,7 +150,7 @@ function ngBuild(M) {
       rows.push(g);
     });
   });
-  return (NGX = Object.assign({ M, rows }, ngViews(rows)));
+  return (NGX = Object.assign({ M, V, rows }, ngViews(rows)));
 }
 // The rows each size shows: n-grams of one search term apart (solo), and those with exactly the same search terms merged into
 // one row named by the shortest — a blocked word or competitor brand first, then fewer words, fewer numbers, fewer letters.
@@ -316,7 +321,8 @@ function ngNext(g, min) {
   if (cls === 'waste') {
     // pop: a Waste row with no Negate button still opens its campaigns in the popup ("Campaigns & Excel").
     if (g.protect) return out('low', 'Lower bids instead →', `${NG_TAGS[g.protect]}: never negated — a lower bid on its terms instead`, { pop: true });
-    if (!g.info.settled) return out('', 'Wait for the settled report', 'Negatives wait for the settled report (this is the 30-day one: its last 7 days\' sales are not all in)');
+    if (!g.info.settled) return g.info.noNeg ? out('', g.info.softShort, g.info.softWhy + ': switch to 30 days to negate')
+      : out('', 'Wait for the settled report', 'Negatives wait for the settled report (this is the 30-day one: its last 7 days\' sales are not all in)');
     if (g.words > STA.NEG.negativePhrase.words) return out('st', 'Too long for a negative phrase', `A negative phrase takes ${STA.NEG.negativePhrase.words} words at most`, { pop: true });
     const P = ngPlan(g, 0);
     const cps = n => `${staInt(n)} campaign${n === 1 ? '' : 's'}`;
@@ -412,6 +418,7 @@ function ngAdded(text) {
 function renderNg() {
   if (!$('paneNgram') || $('paneNgram').classList.contains('hide')) return;
   ngRlBadge();
+  staWinBar('ngWin');
   $('ngSize').querySelectorAll('[data-n]').forEach(x => { const on = Number(x.dataset.n) === NGS.size; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
   $('ngClass').value = NGS.cls;
   // Nothing read yet: loading (with its try), or the error and "Try again" (Search Term Analysis's own words).
@@ -433,9 +440,10 @@ function renderNg() {
     ngSelBar();
     return;
   }
-  const M = staModel('ALL');
+  const M = staModel('ALL', staWin());
   const X = ngBuild(M);
   const f = ngFilters();
+  ngBar(M, X, f);
   ngDataLine(M, f.brand === 'ALL' ? M.brands : [f.brand]);
   // Protected only narrows first (a flag, not a class); the four classes then add up to All.
   const all = ngRows(X, f);
@@ -451,11 +459,28 @@ function renderNg() {
   $('ngXlsx').classList.toggle('hide', !ngIsWaste(f.cls));
   ngDraw(rows, f, M, ngRows(X, f, true));
 }
+// The bar's parts that need the model (Search Term Analysis's, shared): the filter lists for the brands in view, the 7-day
+// note, and the chips with "Showing X of Y terms" (the search terms of the brand picked, before and after the filters).
+function ngBar(M, X, f) {
+  const brands = f.brand === 'ALL' ? M.brands : [f.brand];
+  staPfBar('ngPf', 'ng', M, brands);
+  staWinNote('ngWinNote', M, 'ng');
+  const V = X.V || staView(M);
+  const inB = r => f.brand === 'ALL' || r.brand === f.brand;
+  const ex = [];
+  if (f.q) ex.push({ k: 'q', t: 'Search', v: $('ngFilter').value.trim() });
+  if (f.cls) ex.push({ k: 'cls', t: 'Classification', v: ngClsName(f.cls) });
+  if (f.prot) ex.push({ k: 'prot', t: 'Protected', v: 'only' });
+  staFChips('ngChips', V.rows.filter(r => inB(r) && (!f.q || r.hay.includes(f.q))).length, M.rows.filter(inB).length, ex);
+}
 // The status dropdown: the window, the brands, unit costs and targets, Amazon's data.
 function ngDataLine(M, brands) {
   const lines = [];
   const add = (h, lv) => lines.push([h, lv || '']);
-  add(M.settled ? 'Patterns over <b>settled clicks</b>, with 7-day sales as in the Ads console — the same window as Search Term Analysis.'
+  const noNeg = brands.some(b => (M.info[b] || {}).noNeg);
+  if (M.win && M.win !== '30') add(`Patterns over <b>${staEsc(staWindowTxt(M))}</b>, with 7-day sales — the same window as Search Term Analysis.`
+    + (noNeg ? ' Sales are still coming in, so no pattern is negated from this window: switch to 30 days to act on Waste.' : ''), '');
+  else add(M.settled ? 'Patterns over <b>settled clicks</b>, with 7-day sales as in the Ads console — the same window as Search Term Analysis.'
     : 'Patterns over <b>the last 30 days</b> (the settled report is missing): negatives wait for it, as in Search Term Analysis.', M.settled ? '' : 'warn');
   const stale = brands.filter(b => (M.info[b] || {}).stale);
   stale.forEach(b => add(`<span class="sta-bad">✗ ${staBrandName(b)}: ${staEsc(M.info[b].stale)} — no suggestions for it</span>`, 'bad'));
@@ -497,8 +522,15 @@ function ngBoxes(cnt, f, M) {
   };
   // A box with no rows has no link: there is nothing to go to.
   const onK = k => NGS.cls === k || (k === 'waste' && ngIsWaste(NGS.cls));
+  // What each box means, on hover.
+  const TIP = {
+    waste: 'Patterns that spend without selling across many search terms (no sales, unlikely to be chance), or sell above break-even. Negated as a phrase where they never sold.',
+    winner: `Patterns with ${NG.WIN_ORDERS}+ orders at or under target ACoS: their best search term can get its own exact keyword.`,
+    mixed: 'Patterns between target and break-even, or with too few orders to judge.',
+    need: 'Patterns with fewer clicks than the Minimum clicks choice, or whose 0 orders could still be chance.',
+  };
   const box = (k, c, label, n, unit, q, go) => `
-    <button type="button" class="adx-box sta-box${onK(k) ? ' on' : ''}" data-box="${k}" style="--c:${c};--adx-glow:.10" aria-pressed="${onK(k)}" aria-label="${staEsc(label + ': ' + staInt(n) + ' ' + unit + (n ? '. ' + go : ''))}">
+    <button type="button" class="adx-box sta-box${onK(k) ? ' on' : ''}" data-box="${k}" style="--c:${c};--adx-glow:.10" title="${staEsc(TIP[k])}" aria-pressed="${onK(k)}" aria-label="${staEsc(label + ': ' + staInt(n) + ' ' + unit + (n ? '. ' + go : ''))}">
       <div class="adx-l"><span class="adx-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg></span>${label}</div>
       <div class="sta-big"><b>${staInt(n)}</b><span>${unit}</span></div>
       <div class="sta-q">${q}</div>
@@ -513,7 +545,8 @@ function ngBoxes(cnt, f, M) {
     : mixNo ? STA_NOTGT + '.' : 'Between target and break-even, or few orders.';
   $('ngBoxes').innerHTML =
     box('waste', 'var(--bad)', 'Waste patterns', w.length, 'patterns', `${staMoney0(dw.sp)} spend in ${staInt(dw.n)} search term${dw.n === 1 ? '' : 's'}, each counted once · `
-      + `${staInt(w.filter(g => g.wk === 'nosale').length)} no sales, ${staInt(w.filter(g => g.wk === 'be').length)} over break-even.`, 'Negate where they don\'t sell')
+      + `${staInt(w.filter(g => g.wk === 'nosale').length)} no sales, ${staInt(w.filter(g => g.wk === 'be').length)} over break-even.`,
+    brands.some(b => (M.info[b] || {}).noNeg) ? 'Sales still coming in: negated from 30 days' : 'Negate where they don\'t sell')
     + box('winner', 'var(--accent)', 'Winner patterns', wi.length, 'patterns', `${staMoney0(dwi.s)} sales in ${staInt(dwi.n)} search term${dwi.n === 1 ? '' : 's'}, each counted once.`, 'Harvest the best term')
     + box('mixed', 'var(--rev)', 'Mixed', cnt.mixed.length, 'patterns', mixQ, mixNo && !mixTgt ? 'Set a target ACoS' : 'Watch')
     + box('need', 'var(--brand)', 'Needs data', cnt.need.length, 'patterns', `Fewer than ${staInt(f.min)} clicks, or not conclusive yet.`, 'Wait for more clicks');
@@ -597,6 +630,7 @@ function ngDraw(rows, f, M, solo) {
       + `</span> <button type="button" class="sta-btn dim sm" data-ngst="1">Open in Search Term Analysis →</button></td></tr>` : '')
     + '</tbody>';
   staPager(rows.length, 'patterns', 'a term counts once for every pattern it holds, so the rows do not add up to the account', { pg: NGS.pg, size: NGS.pgSize, foot: ngFoot });
+  staHeadTips('ngTable');
   ngSelBar();
 }
 // The footer, with the last "Added …" note for 30 seconds.
@@ -710,7 +744,7 @@ function ngCsv() {
   const blob = new Blob(['﻿' + ngCsvLines(NG_LAST, NGS.min).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `n-gram-analysis-${NGS.size ? NGS.size + '-word' : 'all'}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `n-gram-analysis-${NGS.size ? NGS.size + '-word' : 'all'}-${staWin()}d${staFOn() ? '-filtered' : ''}-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
@@ -851,6 +885,16 @@ const ngRe = () => { NGS.pg = 0; renderNg(); };
 let NG_FT = 0;
 $('ngFilter').addEventListener('input', () => { clearTimeout(NG_FT); NG_FT = setTimeout(ngRe, 200); });
 $('ngBrand').addEventListener('change', () => { NGS.sel.clear(); ngRe(); });
+// The date window, the filter lists, the stock chip and the chips: Search Term Analysis's, one set for both screens
+// (staBarWire). A chip of this screen's own (its search, classification, Protected only) clears that choice.
+staBarWire({ pg: 'ng', win: 'ngWin', pf: 'ngPf', chips: 'ngChips', note: 'ngWinNote', redraw: renderNg, fx: k => {
+  if (k === 'all') { $('ngFilter').value = ''; ngSetCls(''); NGS.prot = false; }
+  else if (k === 'q') $('ngFilter').value = '';
+  else if (k === 'cls') ngSetCls('');
+  else if (k === 'prot') NGS.prot = false;
+  else return false;
+  return true;
+} });
 $('ngMin').addEventListener('change', () => { NGS.min = Number($('ngMin').value) || NG.MIN_CLICKS; ngRe(); });
 $('ngClass').addEventListener('change', () => { ngSetCls($('ngClass').value); ngRe(); });
 $('ngSize').addEventListener('click', e => {

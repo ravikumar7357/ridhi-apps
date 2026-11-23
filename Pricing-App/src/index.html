@@ -1030,18 +1030,31 @@
 
   <!-- ============ Search Term Analysis: what shoppers typed, what it cost, and what to do about it ============ -->
   <div id="paneSt" class="hide sta-scope">
-    <div class="card" style="padding:12px 14px">
-      <div class="toolbar">
-        <select id="stBrand" style="flex:0 0 180px" aria-label="Brand">
-          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
-        </select>
-        <input id="stFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter term / campaign / ASIN" aria-label="Filter">
-        <input id="stMinSpend" type="number" min="0" step="1" style="flex:0 0 130px" placeholder="Min spend $" aria-label="Minimum spend">
-        <button id="stMoreBtn" class="ghost" type="button" aria-expanded="false" title="Match type, campaign type, verdict and tag">Filters<span id="stMoreN" class="sta-n hide">0</span></button>
-        <button id="stPlanBtn" class="ghost sta-planbtn" type="button" title="The 5–7 moves worth making first, from Sellora's top suggestions; one click ticks each move's rows"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>Plan my moves</button>
-        <button id="stSetBtn" class="ghost" type="button" title="Brand terms, product words, blocked words, competitor brands, break-even">Lists &amp; settings</button>
-        <button id="stRlBtn" class="ghost sta-rl" type="button" title="Changes picked here, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="stRlN" class="sta-n hide">0</span></button>
-        <button id="stCsv" class="ghost" type="button" title="Every row of the view on screen, as a CSV">Export</button>
+    <div class="card sta-barcard">
+      <!-- The bar, 23 Nov 2026: brand, date window, filters, then the actions; the search and the rest of the filters below. -->
+      <div class="toolbar sta-top">
+        <div class="sta-fld"><span class="sta-lab">Brand</span>
+          <select id="stBrand" class="sta-brandsel" aria-label="Brand">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
+          </select></div>
+        <div class="sta-fld"><span class="sta-lab" title="The days every figure, verdict and table is drawn from. The same on N-Gram Analysis, and remembered on this device.">Date window</span>
+          <div class="seg sta-win" id="stWin" role="group" aria-label="Date window"></div></div>
+        <div class="sta-fld sta-pff"><span class="sta-lab" title="A search term belongs to an ad group, so it shows under every product in that ad group.">Filter by product and campaign</span>
+          <div class="sta-pf" id="stPf" role="group" aria-label="Filter by product and campaign"></div></div>
+        <div class="sta-acts">
+          <button id="stPlanBtn" class="ghost sta-planbtn" type="button" title="The 5–7 moves worth making first, from Sellora's top suggestions; one click ticks each move's rows"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>Plan my moves</button>
+          <button id="stRlBtn" class="ghost sta-rl" type="button" title="Changes picked here, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="stRlN" class="sta-n hide">0</span></button>
+          <button id="stCsv" class="ghost" type="button" title="Every row of the view on screen, under the filters and the date window, as a CSV">Export</button>
+          <button id="stSetBtn" class="ghost" type="button" title="Brand terms, product words, blocked words, competitor brands, break-even">Lists &amp; settings</button>
+        </div>
+      </div>
+      <div class="toolbar sta-row2">
+        <label class="sta-fld sta-grow"><span class="sta-lab">Search</span>
+          <input id="stFilter" placeholder="Search term, campaign or ASIN" aria-label="Filter"></label>
+        <label class="sta-fld"><span class="sta-lab">Min spend</span>
+          <input id="stMinSpend" class="sta-minsp" type="number" min="0" step="1" placeholder="$ 0" aria-label="Minimum spend"></label>
+        <div class="sta-fld"><span class="sta-lab">More filters</span>
+          <button id="stMoreBtn" class="ghost" type="button" aria-expanded="false" title="Match type, campaign type, verdict and tag">Match type, campaign type, verdict, tag<span id="stMoreN" class="sta-n hide">0</span></button></div>
       </div>
       <div id="stMore" class="toolbar sta-more-f hide">
         <select id="stFMt" aria-label="Match type"><option value="">Every match type</option><option value="exact">Exact</option><option value="phrase">Phrase</option><option value="broad">Broad</option><option value="auto">Auto targets</option><option value="pt">Product / category targets</option></select>
@@ -1050,9 +1063,13 @@
         <select id="stFTag" aria-label="Tag"><option value="">Every tag</option><option value="brand">Brand term</option><option value="leak">Brand leak (outside brand campaigns)</option><option value="product">Product word</option><option value="main">Main keyword</option><option value="season">Seasonal</option><option value="own">Own product ASIN</option><option value="sister">Sister-brand ASIN</option><option value="comp">Competitor ASIN</option><option value="new">New or launch</option><option value="halo">Mostly other products' sales</option></select>
         <button id="stFClear" class="ghost" type="button">Clear filters</button>
       </div>
+      <div id="stChips" class="sta-fchips hide" role="group" aria-label="Active filters"></div>
+      <div id="stWinNote" class="sta-winnote hide" role="note"></div>
       <div id="stMsg" class="sta-msg"></div>
     </div>
+    <h3 class="sta-h" title="Spend, sales, ACoS, orders and clicks of the ads in view, and the money Sellora suggests stopping or moving">At a glance <small id="stSumSub"></small></h3>
     <div id="stSum" class="sta-sum"></div>
+    <h3 class="sta-h" title="Each box opens its view in the table below">Where to act <small>click a box to open its view</small></h3>
     <div id="stBoxes" class="sta-boxes"></div>
     <div class="card sta-tcard">
       <div class="sta-thead">
@@ -1148,28 +1165,45 @@
 
   <!-- ============ N-Gram Analysis: word patterns across the search terms, and the action each supports (ads/ngram.js) ============ -->
   <div id="paneNgram" class="hide sta-scope">
-    <div class="card" style="padding:12px 14px">
-      <div class="toolbar">
-        <select id="ngBrand" style="flex:0 0 180px" aria-label="Brand">
-          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
-        </select>
-        <input id="ngFilter" style="flex:1 1 140px;min-width:0" placeholder="Filter pattern / term / campaign" aria-label="Filter">
-        <div class="seg ng-size" id="ngSize" role="group" aria-label="Pattern size">
-          <button class="segbtn on" type="button" data-n="1" aria-pressed="true">1-word</button><button class="segbtn" type="button" data-n="2" aria-pressed="false">2-word</button><button class="segbtn" type="button" data-n="3" aria-pressed="false">3-word</button><button class="segbtn" type="button" data-n="0" aria-pressed="false">All</button>
+    <div class="card sta-barcard">
+      <!-- Search Term Analysis's bar, 23 Nov 2026: brand, date window, filters, then the actions; the pattern choices below. -->
+      <div class="toolbar sta-top">
+        <div class="sta-fld"><span class="sta-lab">Brand</span>
+          <select id="ngBrand" class="sta-brandsel" aria-label="Brand">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
+          </select></div>
+        <div class="sta-fld"><span class="sta-lab" title="The days every pattern is summed over. The same on Search Term Analysis, and remembered on this device.">Date window</span>
+          <div class="seg sta-win" id="ngWin" role="group" aria-label="Date window"></div></div>
+        <div class="sta-fld sta-pff"><span class="sta-lab" title="A search term belongs to an ad group, so it shows under every product in that ad group.">Filter by product and campaign</span>
+          <div class="sta-pf" id="ngPf" role="group" aria-label="Filter by product and campaign"></div></div>
+        <div class="sta-acts">
+          <button id="ngRlBtn" class="ghost sta-rl" type="button" title="Changes picked here and in Search Term Analysis, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="ngRlN" class="sta-n hide">0</span></button>
+          <button id="ngCsv" class="ghost" type="button" title="Every row after the filters and the date window, as a CSV">Export</button>
+          <button id="ngXlsx" class="ghost hide" type="button" title="The Waste patterns on screen and the campaigns each would be negated in, as an Excel file">Download Excel</button>
         </div>
-        <select id="ngMin" style="flex:0 0 130px" aria-label="Minimum clicks" title="Patterns with fewer clicks are Needs data">
-          <option value="5">5+ clicks</option><option value="10" selected>10+ clicks</option><option value="20">20+ clicks</option><option value="50">50+ clicks</option>
-        </select>
-        <select id="ngClass" style="flex:0 0 190px" aria-label="Classification">
-          <option value="">Every classification</option><option value="waste">Waste</option><option value="waste-ns">Waste · no sales</option><option value="waste-be">Waste · over break-even</option><option value="winner">Winner</option><option value="mixed">Mixed</option><option value="need">Needs data</option>
-        </select>
-        <button id="ngLegendBtn" class="ghost" type="button" aria-haspopup="dialog">How Sellora decides</button>
-        <button id="ngRlBtn" class="ghost sta-rl" type="button" title="Changes picked here and in Search Term Analysis, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="ngRlN" class="sta-n hide">0</span></button>
-        <button id="ngCsv" class="ghost" type="button" title="Every row after the filters, as a CSV">Export</button>
-        <button id="ngXlsx" class="ghost hide" type="button" title="The Waste patterns on screen and the campaigns each would be negated in, as an Excel file">Download Excel</button>
       </div>
+      <div class="toolbar sta-row2">
+        <label class="sta-fld sta-grow"><span class="sta-lab">Search</span>
+          <input id="ngFilter" placeholder="Search pattern, term or campaign" aria-label="Filter"></label>
+        <div class="sta-fld"><span class="sta-lab" title="1-, 2- or 3-word patterns, or every size together">Pattern size</span>
+          <div class="seg ng-size" id="ngSize" role="group" aria-label="Pattern size">
+            <button class="segbtn on" type="button" data-n="1" aria-pressed="true">1-word</button><button class="segbtn" type="button" data-n="2" aria-pressed="false">2-word</button><button class="segbtn" type="button" data-n="3" aria-pressed="false">3-word</button><button class="segbtn" type="button" data-n="0" aria-pressed="false">All</button>
+          </div></div>
+        <label class="sta-fld"><span class="sta-lab" title="Patterns with fewer clicks are Needs data">Min clicks</span>
+          <select id="ngMin" class="sta-ngmin" aria-label="Minimum clicks" title="Patterns with fewer clicks are Needs data">
+            <option value="5">5+ clicks</option><option value="10" selected>10+ clicks</option><option value="20">20+ clicks</option><option value="50">50+ clicks</option>
+          </select></label>
+        <label class="sta-fld"><span class="sta-lab">Classification</span>
+          <select id="ngClass" class="sta-ngcls" aria-label="Classification">
+            <option value="">Every classification</option><option value="waste">Waste</option><option value="waste-ns">Waste · no sales</option><option value="waste-be">Waste · over break-even</option><option value="winner">Winner</option><option value="mixed">Mixed</option><option value="need">Needs data</option>
+          </select></label>
+        <button id="ngLegendBtn" class="ghost sta-row2btn" type="button" aria-haspopup="dialog">How Sellora decides</button>
+      </div>
+      <div id="ngChips" class="sta-fchips hide" role="group" aria-label="Active filters"></div>
+      <div id="ngWinNote" class="sta-winnote hide" role="note"></div>
       <div id="ngMsg" class="sta-msg"></div>
     </div>
+    <h3 class="sta-h" title="Each box sets the classification of the table below">Where to act <small>each search term counted once per box · click a box to show its patterns</small></h3>
     <div id="ngBoxes" class="sta-boxes"></div>
     <div class="card sta-tcard">
       <div class="sta-thead">
