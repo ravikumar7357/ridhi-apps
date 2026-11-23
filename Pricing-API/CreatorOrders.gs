@@ -117,6 +117,7 @@ function coUrl_(path) { return 'https://firestore.googleapis.com/v1/projects/' +
 function coAuth_() { return { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }; }
 /** One document as plain JavaScript, or null when it is not there. */
 function coRead_(path) {
+  var sd = typeof sbjTryGet_ === 'function' ? sbjTryGet_(path) : undefined; if (sd !== undefined) return sd;              // ERP data first (SupaJob.gs)
   var r = UrlFetchApp.fetch(coUrl_(path), { muteHttpExceptions: true, headers: coAuth_() });
   if (r.getResponseCode() === 404) return null;
   if (r.getResponseCode() >= 300) throw new Error('Firestore ' + r.getResponseCode() + ' reading');
@@ -124,6 +125,7 @@ function coRead_(path) {
 }
 /** Create a document only if it is not there: 'created' | 'exists'. */
 function coCreate_(id, data) {
+  var sr = typeof sbjTryCreate_ === 'function' ? sbjTryCreate_(CO.col + '/' + id, data) : undefined; if (sr) return sr;      // ERP data first (SupaJob.gs)
   var r = UrlFetchApp.fetch(coUrl_(CO.col) + '?documentId=' + encodeURIComponent(id), { method: 'post', muteHttpExceptions: true,
     contentType: 'application/json', headers: coAuth_(), payload: JSON.stringify({ fields: coValue_(data).mapValue.fields }) });
   if (r.getResponseCode() === 409) return 'exists';
@@ -132,6 +134,7 @@ function coCreate_(id, data) {
 }
 /** Write ONE field of a document that exists, leaving every other field as it is. */
 function coWriteField_(path, field, value) {
+  var so = {}; so[field] = value; if (typeof sbjTryPatch_ === 'function' && sbjTryPatch_(path, so)) return;      // ERP data first (SupaJob.gs)
   var r = UrlFetchApp.fetch(coUrl_(path) + '?updateMask.fieldPaths=' + encodeURIComponent(field) + '&currentDocument.exists=true', {
     method: 'patch', muteHttpExceptions: true, contentType: 'application/json', headers: coAuth_(),
     payload: JSON.stringify({ fields: (function () { var f = {}; f[field] = coValue_(value); return f; })() }) });
@@ -180,6 +183,7 @@ function coSetuReport_(o) {
 }
 /** Write several fields of a document that exists, leaving every other field as it is. */
 function coWriteFields_(path, obj) {
+  if (typeof sbjTryPatch_ === 'function' && sbjTryPatch_(path, obj)) return;                                    // ERP data first (SupaJob.gs)
   var keys = Object.keys(obj), f = {};
   keys.forEach(function (k) { f[k] = coValue_(obj[k]); });
   var mask = keys.map(function (k) { return 'updateMask.fieldPaths=' + encodeURIComponent(k); }).join('&');

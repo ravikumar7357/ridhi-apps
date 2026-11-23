@@ -43,6 +43,7 @@ function scName_(path) { return 'projects/' + SC.proj + '/databases/(default)/do
 
 /** One document's `json` field, parsed — or null when there is no such document. */
 function scRead_(path) {
+  var sd = typeof sbjTryGet_ === 'function' ? sbjTryGet_(path) : undefined; if (sd !== undefined) return sd && sd.json ? JSON.parse(sd.json) : null;   // ERP data first (SupaJob.gs)
   var r = UrlFetchApp.fetch(scBase_() + '/' + path, { muteHttpExceptions: true,
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } });
   var code = r.getResponseCode();
@@ -63,6 +64,7 @@ function scDel_(path) { return { 'delete': scName_(path) }; }
 /** Several writes, all or none. Returns how many. */
 function scCommit_(writes) {
   if (!writes.length) return 0;
+  if (typeof sbjCommitFs_ === 'function' && sbjCommitFs_(writes)) return writes.length;          // ERP data first (SupaJob.gs); Firebase gets the copy
   for (var i = 0; i < writes.length; i += 400) {
     var r = UrlFetchApp.fetch(scBase_() + ':commit', { method: 'post', muteHttpExceptions: true, contentType: 'application/json',
       headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, payload: JSON.stringify({ writes: writes.slice(i, i + 400) }) });

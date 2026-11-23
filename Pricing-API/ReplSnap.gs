@@ -51,6 +51,7 @@ function rsPutW_(path, obj) {
   return { update: { name: rsName_(path), fields: f } };
 }
 function rsCommit_(writes) {
+  if (typeof sbjCommitFs_ === 'function' && sbjCommitFs_(writes)) return;                      // ERP data first when SB_JOB_ON = yes (SupaJob.gs); Firebase gets the copy
   var batch = [], bytes = 0;
   function flush() {
     if (!batch.length) return;
@@ -68,6 +69,7 @@ function rsCommit_(writes) {
 }
 /** The chunk count a header document holds now (to delete the chunks a smaller snapshot no longer uses). */
 function rsChunksNow_(path) {
+  var sd = typeof sbjTryGet_ === 'function' ? sbjTryGet_(path) : undefined; if (sd !== undefined) return sd ? Number(sd.chunks || 0) : 0;   // ERP data first (SupaJob.gs)
   var r = invFetch_(rsBase_() + '/' + path);
   if (r.getResponseCode() !== 200) return 0;
   var f = (JSON.parse(r.getContentText() || '{}').fields || {}).chunks;

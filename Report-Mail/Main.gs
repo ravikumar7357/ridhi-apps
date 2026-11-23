@@ -167,6 +167,7 @@ function rmReadDatabase_() {
 }
 /** One update of several fields under a database path, in one write (all or nothing). Throws, naming the path, when refused. */
 function rmPatchNode_(path, updates) {
+  if (typeof sbjPatchList_ === 'function' && sbjPatchList_(path, updates)) return;                        // ERP data first (SupaJob.gs); Firebase gets the copy
   const req = { url: RM_DB_URL + '/' + path + '.json', method: 'patch', contentType: 'application/json', payload: JSON.stringify(updates),
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true };
   const res = rmFetchAllWithRetry_([req])[0];
@@ -174,6 +175,7 @@ function rmPatchNode_(path, updates) {
 }
 /** Database paths read in one go, in the order asked ({} for an empty one). Throws, naming the path, when one fails. */
 function rmReadNodes_(paths) {
+  const sb = typeof sbjReadLists_ === 'function' ? sbjReadLists_(paths) : undefined; if (sb) return sb;              // ERP data first (SupaJob.gs)
   const token = ScriptApp.getOAuthToken();
   const res = rmFetchAllWithRetry_(paths.map(p => ({ url: RM_DB_URL + '/' + p + '.json', headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true })));
   return paths.map((p, i) => {
