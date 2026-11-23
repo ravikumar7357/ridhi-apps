@@ -39604,6 +39604,28 @@ function venOfKind(kind) {
  * should be just RFD processor"). Names saved before keep working: Mill reads as Supplier, Processor as RFD Processor. */
 function venKind(v) { var k = String((v && v.kind) || ''); return k === 'Mill' ? 'Supplier' : k === 'Processor' ? 'RFD Processor' : k; }
 function gpoMills() { return venOfKind('Supplier'); }
+/* A NEW PO'S SUPPLIER IS PICKED, NOT TYPED (Vishesh, 23 Nov: "no new name can be added from here … you can type name but cannot
+ * enter it and it will not save it, it can just be used to search from the suppliers feeded in the master data"). Only the
+ * greige suppliers of Master data, switched on; a name kept only because an old PO carries it is not offered. */
+function gpoPickMills() {
+  return uniq((DB.ven || []).filter(function (v) {
+    return v.active !== false && !v.deskOnly && (venKind(v) === 'Supplier' || v.kind === 'Both');
+  }).map(function (v) { return v.name; }));
+}
+/** The Master data spelling of a supplier typed in any case; '' when it is not one of them. */
+function gpoPickedMill(name) {
+  var k = String(name || '').trim().toLowerCase();
+  return gpoPickMills().filter(function (n) { return n.toLowerCase() === k; })[0] || '';
+}
+/** The supplier of the latest PO that is still a Master data supplier: the grey sample in the supplier box. '' when none. */
+function gpoLastMill() {
+  var best = null;
+  (DB.gpo || []).forEach(function (po, i) {
+    if (!gpoPickedMill(po.mill)) return;
+    if (!best || String(po.date || '') >= String(best.date || '')) best = { date: po.date, mill: gpoPickedMill(po.mill), i: i };
+  });
+  return best ? best.mill : '';
+}
 function lmProcessors() { return venOfKind('RFD Processor'); }
 /** How many rows of the register answer to this name -- a vendor on one is not deleted. */
 function venUsed(name) {
@@ -41024,7 +41046,11 @@ function poOpen(editNo) {
   $('poMill').readOnly = locked;
   $('poMillLock').textContent = locked ? 'Greige has come from this supplier on this PO, so the supplier stays.' : '';
   $('poMore').open = false;
-  $('poMills').innerHTML = gpoMills().map(function (m) { return '<option value="' + esc(m) + '">'; }).join('');
+  $('poMills').innerHTML = '';
+  $('poMill').removeAttribute('list');   // the desk's own search list instead of the browser's
+  PO_MILL_HI = 0; poMillListClose();
+  /* the last PO's supplier as grey sample text, a reminder only — the supplier is still picked (Vishesh, 23 Nov) */
+  $('poMill').placeholder = gpoLastMill() || 'Pick a supplier from the list';
   $('lmPoErr').classList.add('hide');
   var co = DB.co || {}, miss = !String(co.addr || '').trim() && !String(co.gstin || '').trim();
   $('poCoNote').classList.toggle('hide', !miss);
@@ -41039,10 +41065,84 @@ function poOpen(editNo) {
 function poMillHint() {
   var name = $('poMill').value.trim(), v = venByName(name), box = $('poMillNote');
   if (!name) { box.textContent = ''; return; }
-  if (!v) { box.textContent = 'Not in Master data → Suppliers & RFD processors yet — the PO will carry the name only.'; return; }
+  if (!gpoPickedMill(name) && !poMillKept(name)) {
+    box.innerHTML = '<span class="err-in">Not a supplier in Master data — pick one from the list. A new supplier is added in Master data first.</span>'; return;
+  }
+  if (!v) { box.textContent = 'Not in Master data → Suppliers & RFD processors — this PO keeps the name it was saved with.'; return; }
   var bits = [v.email ? 'Mails to ' + v.email : 'no e-mail on record', v.phone ? 'WhatsApp ' + v.phone : 'no phone on record'];
   if (!v.gstin) bits.push('no GSTIN on record');
   box.textContent = bits.join(' · ');
+}
+/* ---- THE SUPPLIER SEARCH (Vishesh, 23 Nov: "when I type the name of the supplier in the box it should show the matching
+ * suppliers as a search box so that I can choose from those") ---- *
+ * A list under the box of the Master data suppliers whose name holds what is typed; a click, or ↑ ↓ and Enter, picks one.
+ * The browser's own suggestion list did not show inside the desk, so the desk draws its own. */
+var PO_MILL_HI = 0;   // which suggestion ↑ ↓ are on
+/** The Master data suppliers whose name holds the typed text, in the list's order; all of them when nothing is typed. */
+function poMillMatches(typed) {
+  var k = String(typed || '').trim().toLowerCase();
+  return gpoPickMills().filter(function (n) { return !k || n.toLowerCase().indexOf(k) >= 0; });
+}
+/** The list under the supplier box, made the first time it is needed. */
+function poMillListBox() {
+  var have = $('poMillList'); if (have && have.id) return have;
+  var box = document.createElement('div'), inp = $('poMill');
+  box.id = 'poMillList'; box.hidden = true; box.setAttribute('role', 'listbox');
+  box.style.cssText = 'position:absolute;left:0;right:0;z-index:5;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--sh-2);max-height:240px;overflow:auto';
+  inp.parentNode.style.position = 'relative';
+  inp.parentNode.insertBefore(box, inp.nextSibling);
+  /* mousedown, not click: a click comes after the box has lost focus and closed the list */
+  box.addEventListener('mousedown', function (ev) {
+    var o = ev.target.closest ? ev.target.closest('[data-pomill]') : null; if (!o) return;
+    ev.preventDefault(); poMillPick(o.getAttribute('data-pomill'));
+  });
+  return box;
+}
+function poMillListDraw() {
+  var box = poMillListBox(), inp = $('poMill');
+  if (inp.readOnly) { box.hidden = true; return; }
+  box.style.top = ((inp.offsetTop || 0) + (inp.offsetHeight || 0) + 4) + 'px';   // right under the box, above the note under it
+  var list = poMillMatches(inp.value), k = inp.value.trim();
+  PO_MILL_HI = Math.max(0, Math.min(PO_MILL_HI, list.length - 1));
+  var mark = function (n) {
+    var at = k ? n.toLowerCase().indexOf(k.toLowerCase()) : -1;
+    return at < 0 ? esc(n) : esc(n.slice(0, at)) + '<b>' + esc(n.slice(at, at + k.length)) + '</b>' + esc(n.slice(at + k.length));
+  };
+  box.innerHTML = list.length
+    ? list.map(function (n, i) {
+      return '<div data-pomill="' + esc(n) + '" role="option" aria-selected="' + (i === PO_MILL_HI) + '" style="padding:8px 12px;cursor:pointer;font-size:13px'
+        + (i === PO_MILL_HI ? ';background:var(--brand-bg);color:var(--brand-ink)' : '') + '">' + mark(n) + '</div>';
+    }).join('')
+    : '<div style="padding:8px 12px;font-size:12.5px;color:var(--muted)">No supplier in Master data matches "' + esc(k) + '". A new supplier is added in Master data first.</div>';
+  box.hidden = false;
+}
+function poMillListClose() { var b = $('poMillList'); if (b && b.id) b.hidden = true; }
+function poMillPick(name) { $('poMill').value = name; poMillListClose(); poMillHint(); }
+/** ↑ ↓ move through the list, Enter picks, Esc closes the list (not the PO). Returns whether the key was used. */
+function poMillKey(key) {
+  var box = $('poMillList'), open = !!(box && box.id && !box.hidden), list = poMillMatches($('poMill').value);
+  if (key === 'ArrowDown' || key === 'ArrowUp') {
+    if (open) PO_MILL_HI = (PO_MILL_HI + (key === 'ArrowDown' ? 1 : -1) + list.length) % Math.max(1, list.length);
+    poMillListDraw(); return true;
+  }
+  if (key === 'Enter' && open && list.length) { poMillPick(list[PO_MILL_HI] || list[0]); return true; }
+  if (key === 'Escape' && open) { poMillListClose(); return true; }
+  return false;
+}
+/** An open PO being changed keeps the supplier it was saved with, even one Master data no longer has. */
+function poMillKept(name) {
+  var was = PO_DRAFT && PO_DRAFT.editId ? (DB.gpo || []).filter(function (p) { return p.id === PO_DRAFT.editId; })[0] : null;
+  return !!was && String(was.mill || '').trim().toLowerCase() === String(name || '').trim().toLowerCase();
+}
+/* THE LAST RATE AS A SAMPLE (Vishesh, 23 Nov): an empty rate box shows, in grey, the rate that greige was last bought at on a PO
+ * here (invRate), or 0 when it never was. It is a reference only — a rate must still be put in — but Tab in the empty box takes it. */
+function poRateSample(greige) { var r = invRate(greige); return r ? r.rate : 0; }
+/** Tab in an empty rate box: the sample rate goes in. Returns whether it did (nothing when there is no earlier rate). */
+function poRateTab(i) {
+  var l = PO_DRAFT && PO_DRAFT.lines[i]; if (!l || String(l.rate || '').trim() !== '') return false;
+  var r = poRateSample(l.greige); if (!(r > 0)) return false;
+  l.rate = String(r);
+  return true;
 }
 function poAddLine() {
   var first = gpoFabrics()[0], rfd = first ? first.rfd : '';
@@ -41067,7 +41167,8 @@ function poDraw() {
         + '<td><input data-li="' + i + '" data-f="due" type="date" value="' + esc(l.due) + '" min="' + esc(PO_DRAFT.date) + '" style="width:138px" aria-label="Due on"></td>'
         + '<td><input data-li="' + i + '" data-f="metres" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(l.metres) + '" style="width:104px" aria-label="Metres">'
         + (rec > 0 ? '<div class="muted" style="font-size:10.5px;margin-top:3px">' + nf(rec) + ' m already in</div>' : '') + '</td>'
-        + '<td><input data-li="' + i + '" data-f="rate" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(l.rate) + '" style="width:84px" aria-label="Rate"></td>'
+        + '<td><input data-li="' + i + '" data-f="rate" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(l.rate) + '" placeholder="' + esc(String(poRateSample(l.greige))) + '"'
+        + ' title="' + esc(invRate(l.greige) ? 'Last bought at ' + RUPEE + ' ' + invRate(l.greige).rate + ' on ' + invRate(l.greige).poNo + ' — Tab takes it' : 'Not bought on a PO here before') + '" style="width:84px" aria-label="Rate"></td>'
         + '<td><input data-li="' + i + '" data-f="disc" type="text" inputmode="decimal" autocomplete="off" data-num="' + PCT_WHOLE_DIGITS + '" value="' + esc(l.disc == null ? '' : l.disc) + '" placeholder="0" style="width:64px" aria-label="Discount percent"></td>'
         + '<td class="num po-total">' + money(m.amount) + '</td>'
         + '<td>' + (rec > 0 ? '' : '<button type="button" class="lm-x" data-porm="' + i + '" aria-label="Remove this line">&times;</button>') + '</td></tr>';
@@ -41089,7 +41190,12 @@ function poSyncRow(i) {
 }
 /** Save -- a new PO on the next number, or the open one changed in place -- and if asked, open it to send. */
 function poSave(after) {
-  PO_DRAFT.mill = $('poMill').value.trim();
+  var typed = $('poMill').value.trim();
+  if (typed && !gpoPickedMill(typed) && !poMillKept(typed)) {
+    $('lmPoErr').textContent = '"' + typed + '" is not a supplier in Master data. Pick one from the list (a new supplier is added in Master data first).';
+    $('lmPoErr').classList.remove('hide'); return;
+  }
+  PO_DRAFT.mill = gpoPickedMill(typed) || typed;
   ['pay', 'disp', 'dest', 'terms', 'other'].forEach(function (k) {
     PO_DRAFT[k] = $('po' + k.charAt(0).toUpperCase() + k.slice(1)).value.trim();
   });
@@ -42272,6 +42378,13 @@ function wirePurchaseOrders() {
   /* The PO lines keep their own state as they are typed, so a redraw never loses a figure. */
   $('poLines').addEventListener('input', poEdit);
   $('poLines').addEventListener('change', poEdit);
+  /* Tab in an empty rate box takes the sample rate, then moves on as Tab does (Vishesh, 23 Nov) */
+  $('poLines').addEventListener('keydown', function (ev) {
+    var el = ev.target;
+    if (ev.key !== 'Tab' || ev.shiftKey || !el.getAttribute || el.getAttribute('data-f') !== 'rate') return;
+    var i = parseInt(el.getAttribute('data-li'), 10);
+    if (poRateTab(i)) { el.value = PO_DRAFT.lines[i].rate; poSyncRow(i); }
+  });
   function poEdit(ev) {
     var el = ev.target, i = el.getAttribute('data-li'), f = el.getAttribute('data-f');
     if (i === null || !f) return;
@@ -42290,8 +42403,12 @@ function wirePurchaseOrders() {
      * figures that are worked out move. */
     poSyncRow(idx);
   }
-  $('poMill').addEventListener('input', poMillHint);
-  $('poMill').addEventListener('change', poMillHint);
+  /* while a name is being typed it is a search: the red "not a supplier" waits until the box is left */
+  $('poMill').addEventListener('input', function () { PO_MILL_HI = 0; poMillListDraw(); $('poMillNote').textContent = ''; if (gpoPickedMill(this.value)) poMillHint(); });
+  $('poMill').addEventListener('focus', poMillListDraw);
+  $('poMill').addEventListener('blur', function () { setTimeout(function () { poMillListClose(); poMillHint(); }, 150); });
+  /* stopPropagation: Esc that closes the list must not also close the PO window */
+  $('poMill').addEventListener('keydown', function (ev) { if (poMillKey(ev.key)) { ev.preventDefault(); ev.stopPropagation(); } });
   $('poAdd').addEventListener('click', poAddLine);
   $('poSave').addEventListener('click', function () { poSave(''); });
   $('poSaveDoc').addEventListener('click', function () { poSave('doc'); });
