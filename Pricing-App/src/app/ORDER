@@ -79,5 +79,6 @@ ads/ppc-new.js
 ads/product-why.js
 sales/sales-check.js
 sales/sales-insight.js
+sales/sales-charts.js
 core/dashboard.js
 core/version-check.js

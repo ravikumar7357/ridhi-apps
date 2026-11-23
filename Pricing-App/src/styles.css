@@ -854,13 +854,78 @@
   #paneDash .dash-vi .dash-vi-b.is-up{background:var(--accent-bg);color:var(--accent-ink)}
   #paneDash .dash-vi .dash-vi-b.is-dn{background:var(--bad-bg);color:var(--bad-ink)}
   #paneDash .dash-vi .dash-vi-why{color:var(--muted);font-size:13px}
+  /* Sales Dashboard charts (sales/sales-charts.js, 23 Nov 2026): KPI sparklines, the daily chart and the monthly chart at full width,
+     the tables folded. Blue = this year (--brand), dashed grey = last year (--faint); colours from the tokens (light + dark). */
+  .sd-card .sd-spark{height:28px;margin-top:8px}
+  .sd-card .sd-spark:empty{display:none}
+  .sd-card .sd-spark svg{display:block;width:100%;height:28px;overflow:visible}
+  .sdc-sp-all{fill:none;stroke:color-mix(in srgb,var(--glow) 30%,transparent);stroke-width:1.5;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+  .sdc-sp-own{fill:none;stroke:var(--glow);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round}
+  .sdc-sp-dot{fill:var(--glow)}
+  .sdc-panel{padding:16px 18px 12px}
+  .sdc-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px 16px;margin-bottom:10px}
+  .sdc-title{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;min-width:0}
+  .sdc-legend{display:inline-flex;flex-wrap:wrap;gap:6px}
+  .sdc-chip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border:1px solid var(--card-line);border-radius:var(--r-pill);
+    font-size:12px;line-height:18px;color:var(--muted);white-space:nowrap}
+  .sdc-chip::before{content:"";width:14px;border-top:2px solid var(--brand)}
+  .sdc-chip.is-ly::before{border-top:2px dashed var(--faint)}
+  .sdc-ctl{display:flex;flex-wrap:wrap;gap:8px}
+  .sdc-ctl .sd-toggle button{padding:5px 11px;font-size:12px}
+  .sdc-ctl .sd-toggle button:disabled{opacity:.45;cursor:not-allowed}
+  .sdc-chart{position:relative;width:100%;min-width:0}
+  .sdc-svg{display:block;width:100%;height:auto;max-width:100%;touch-action:pan-y}
+  .sdc-grid{stroke:var(--line);stroke-width:1}
+  .sdc-ax{font-size:11px;fill:var(--muted);font-variant-numeric:tabular-nums}
+  .sdc-ty{fill:none;stroke:var(--brand);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+  .sdc-area{fill:color-mix(in srgb,var(--brand) 12%,transparent);stroke:none}
+  .sdc-ly{fill:none;stroke:var(--faint);stroke-width:2;stroke-dasharray:5 4;stroke-linecap:round;opacity:.85}
+  .sdc-today{fill:none;stroke:var(--brand);stroke-width:2;stroke-dasharray:2 4;stroke-linecap:round}
+  .sdc-chip.is-bar::before{width:10px;height:10px;border:0;border-radius:3px;background:var(--brand)}
+  .sdc-chip.is-bar.is-ly::before{background:color-mix(in srgb,var(--faint) 55%,transparent)}
+  .sdc-hit,.sdc-mhit{fill:transparent;cursor:crosshair}
+  .sdc-mhit.is-on{fill:color-mix(in srgb,var(--ink) 5%,transparent)}
+  .sdc-x[hidden]{display:none}
+  .sdc-x-l{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
+  .sdc-x-ty{fill:var(--brand);stroke:var(--card);stroke-width:2}
+  .sdc-x-ly{fill:var(--faint);stroke:var(--card);stroke-width:2}
+  .sdc-tip{position:absolute;z-index:3;top:0;left:0;min-width:200px;max-width:280px;display:flex;flex-direction:column;gap:3px;padding:9px 11px;
+    border:1px solid var(--card-line);border-radius:10px;background:var(--card);box-shadow:0 8px 28px rgba(15,23,42,.16);
+    font-size:12px;line-height:1.4;color:var(--ink);pointer-events:none}
+  .sdc-tip[hidden]{display:none}
+  .sdc-tip b{font-size:12.5px;margin-bottom:2px}
+  .sdc-tk{display:flex;justify-content:space-between;gap:14px;color:var(--muted)}
+  .sdc-tk em{font-style:normal;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .sdc-tk.is-ty::before,.sdc-tk.is-ly::before{content:"";flex:none;width:10px;margin:7px -8px 0 0;border-top:2px solid var(--brand);order:-1}
+  .sdc-tk.is-ly::before{border-top-style:dashed;border-top-color:var(--faint)}
+  .sdc-tk em.is-up{color:var(--accent-ink)}
+  .sdc-tk em.is-dn{color:var(--bad-ink)}
+  .sdc-note-l{stroke:var(--faint);stroke-width:1}
+  .sdc-note-dot{fill:var(--card);stroke:var(--brand);stroke-width:2}
+  .sdc-note-g.is-mover .sdc-note-dot{stroke:var(--warn-ink,var(--bad))}
+  .sdc-note-bg{fill:var(--card);stroke:var(--card-line)}
+  .sdc-note-t{font-size:11px;font-weight:600;fill:var(--ink)}
+  .sdc-mbar.is-ty{fill:var(--brand)}
+  .sdc-mbar.is-ly{fill:color-mix(in srgb,var(--faint) 55%,transparent)}
+  .sdc-note{margin:6px 0 0;font-size:12px;line-height:1.45;color:var(--muted)}
+  .sdc-tables{margin:0 0 24px}
+  .sdc-fold{border:1px solid var(--card-line);background:var(--card);color:var(--ink);border-radius:var(--r-pill);font:inherit;font-size:13px;
+    font-weight:600;line-height:18px;padding:6px 14px;cursor:pointer;box-shadow:var(--sh-1)}
+  .sdc-fold:hover{background:var(--hover,var(--soft))}
+  .sdc-fold:focus-visible,.sdc-ctl .sd-toggle button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  .sdc-in .sdc-ty{stroke-dasharray:1;animation:sdcDraw .9s ease-out both}
+  .sdc-in .sdc-area,.sdc-in .sdc-ly,.sdc-in .sdc-today,.sdc-in .sdc-note-g{animation:sdcFade .5s .25s ease both}
+  .sdc-in .sdc-mbar{transform-box:fill-box;transform-origin:50% 100%;animation:sdcGrow .5s ease-out both}
+  @keyframes sdcDraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+  @keyframes sdcFade{from{opacity:0}}
+  @keyframes sdcGrow{from{transform:scaleY(0)}}
+  @media (prefers-reduced-motion:reduce){.sdc-in .sdc-ty,.sdc-in .sdc-area,.sdc-in .sdc-ly,.sdc-in .sdc-note-g,.sdc-in .sdc-mbar{animation:none;stroke-dasharray:none}}
+  @media (max-width:860px){.sdc-head{flex-direction:column;align-items:flex-start} .sdc-ctl{width:100%}}
   .sd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
   @media (max-width:900px){ .sd-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
   .sd-stat{background:color-mix(in srgb,var(--ink) 3%,var(--card));border-radius:var(--r-ctl);padding:12px 14px}
   .sd-stat .lbl{font-size:12px;color:var(--muted);font-weight:500}
   .sd-stat .val{font-size:18px;font-weight:700;letter-spacing:-.01em;color:var(--ink)}
-  .sd-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
-  @media (max-width:1100px){ .sd-charts{grid-template-columns:1fr} }
   .sd-tbl{width:100%;border-collapse:collapse;font-size:14px;white-space:nowrap}
   .sd-tbl thead th{background:var(--soft);color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.06em;
     font-weight:600;padding:9px 12px;text-align:right}

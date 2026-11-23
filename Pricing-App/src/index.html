@@ -1376,15 +1376,15 @@
     </div>
 
     <div class="sd-kpis">
-      <div class="sd-card sd-b-cyan"><div class="lbl">Today</div><div class="val" id="sdToday">—</div><div class="sub">—</div></div>
-      <div class="sd-card sd-b-teal"><div class="lbl">Yesterday</div><div class="val" id="sdYest">—</div><div class="sub">US portal day</div></div>
-      <div class="sd-card sd-b-orange"><div class="lbl">Last 7 days</div><div class="val" id="sd7">—</div><div class="sub" id="sd7p">—</div></div>
-      <div class="sd-card sd-b-purple"><div class="lbl">MTD</div><div class="val" id="sdMtd">—</div><div class="sub" id="sdMtdp">—</div></div>
+      <div class="sd-card sd-b-cyan"><div class="lbl">Today</div><div class="val" id="sdToday">—</div><div class="sd-spark" data-spark="today"></div><div class="sub">—</div></div>
+      <div class="sd-card sd-b-teal"><div class="lbl">Yesterday</div><div class="val" id="sdYest">—</div><div class="sd-spark" data-spark="yest"></div><div class="sub">US portal day</div></div>
+      <div class="sd-card sd-b-orange"><div class="lbl">Last 7 days</div><div class="val" id="sd7">—</div><div class="sd-spark" data-spark="seven"></div><div class="sub" id="sd7p">—</div></div>
+      <div class="sd-card sd-b-purple"><div class="lbl">MTD</div><div class="val" id="sdMtd">—</div><div class="sd-spark" data-spark="mtd"></div><div class="sub" id="sdMtdp">—</div></div>
       <div class="sd-card sd-b-indigo" id="sdProjCard"
            title="Where this month lands if the last seven complete days keep up. Today is left out of the run rate — Amazon's figure for it is hours behind all day.">
-        <div class="lbl">Expected — month</div><div class="val" id="sdProj">—</div>
+        <div class="lbl">Expected — month</div><div class="val" id="sdProj">—</div><div class="sd-spark" data-spark="proj"></div>
         <div class="sub" id="sdProjp">—</div></div>
-      <div class="sd-card sd-b-pink"><div class="lbl">YTD</div><div class="val" id="sdYtd">—</div><div class="sub" id="sdYtdp">—</div></div>
+      <div class="sd-card sd-b-pink"><div class="lbl">YTD</div><div class="val" id="sdYtd">—</div><div class="sd-spark" data-spark="ytd"></div><div class="sub" id="sdYtdp">—</div></div>
     </div>
 
     <!-- "This week in plain English" (sales/sales-insight.js viDraw): why revenue fell / rose last week — under the KPI cards, closed by default -->
@@ -1406,11 +1406,33 @@
       </div>
     </div>
 
-    <div class="sd-charts">
-      <div class="sd-panel sa-flush"><h2 class="sd-h2">Daily Sales — Last 90 Days</h2><div id="sdChartDaily"></div></div>
-      <div class="sd-panel sa-flush"><h2 class="sd-h2">Monthly — TY vs LY</h2><div id="sdChartMonthly"></div></div>
-    </div>
+    <!-- the charts (sales/sales-charts.js sdcRender): daily at full width, then monthly — the same sums as the cards and tables -->
+    <section class="sd-panel sdc-panel" aria-labelledby="sdcDailyH">
+      <div class="sdc-head">
+        <div class="sdc-title"><h2 class="sd-h2 sa-flush" id="sdcDailyH">Daily sales</h2>
+          <span class="sdc-legend"><span class="sdc-chip is-ty">This year</span><span class="sdc-chip is-ly">Same weekday last year</span></span></div>
+        <div class="sdc-ctl">
+          <div class="sd-toggle" id="sdcMetric" role="group" aria-label="Measure"><button type="button" data-m="sales" class="on">Sales</button><button type="button" data-m="units">Units</button><button type="button" data-m="ads">Ad spend</button></div>
+          <div class="sd-toggle" id="sdcRange" role="group" aria-label="Days"><button type="button" data-r="30">30 days</button><button type="button" data-r="90" class="on">90 days</button><button type="button" data-r="ytd">This year</button></div>
+        </div>
+      </div>
+      <div id="sdChartDaily" class="sdc-chart"></div>
+      <p class="sdc-note" id="sdcNote"></p>
+    </section>
 
+    <section class="sd-panel sdc-panel" aria-labelledby="sdcMonthH">
+      <div class="sdc-head">
+        <div class="sdc-title"><h2 class="sd-h2 sa-flush" id="sdcMonthH">Monthly — this year vs last year</h2>
+          <span class="sdc-legend"><span class="sdc-chip is-bar is-ty">This year</span><span class="sdc-chip is-bar is-ly">Last year</span></span></div>
+      </div>
+      <div id="sdChartMonthly" class="sdc-chart"></div>
+    </section>
+
+    <!-- the two tables, folded by default (sales/sales-charts.js: remembered in this browser) -->
+    <div class="sdc-tables">
+      <button type="button" id="sdTablesBtn" class="sdc-fold" aria-expanded="false" aria-controls="sdTables">Show tables ▾</button>
+    </div>
+    <div id="sdTables" hidden>
     <div class="sd-panel re-scroll-x">
       <h2 class="sd-h2">Period Comparison — <span id="sdBrandLabel">Ridhi</span></h2>
       <table class="xl">
@@ -1429,6 +1451,7 @@
         <tbody id="sdMonthlyBody"></tbody>
       </table>
     </div>
+    </div><!-- /sdTables -->
 
     <div class="ui-note right">Last synced: <span id="sdSynced">—</span></div>
   </div><!-- /paneSales -->
