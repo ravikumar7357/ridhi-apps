@@ -28213,6 +28213,7 @@ $('odTable').addEventListener('click', async e => {
 const ordView = () => (($('odView') || {}).value || 'shopsku');
 
 function renderOrd() {
+  if ($('odTable') && $('odTable').style) $('odTable').style.width = '';   // the board report sets its own width (orders/board-report.js)
   /* SHIPPING TO ACCEPT ONLY (core/auth.js, ME.shpAccOnly): the Order Console is the SHP board, and nothing else. */
   if (ME.shpAccOnly && $('odView') && $('odView').value !== 'shpboard') $('odView').value = 'shpboard';
   /* THE BOARDS ALONE (Ravi, 19 Nov: "LAXMI ONLY SHP BOARD KE ORDER HI DEKH PA RHI H AMZ KE NAHI"): the four boards — SHP, AMZ, B2B, SPY —
@@ -30193,13 +30194,13 @@ function renderShpBoardReport(pend, done) {
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${t.pcs ? `<button type="button" class="ghost" data-br-pdf="${i}" style="${btn}">PDF</button> `
         + `<button type="button" data-br-wa="${i}" title="Send on WhatsApp" aria-label="Send on WhatsApp" style="${ic}background:#25D366;border:1px solid #1faa53">${BR_WA_SVG}</button> `
         + `<button type="button" data-br-mail="${i}" title="Send by email" aria-label="Send by email" style="${ic}background:#1D4ED8;border:1px solid #1D4ED8">${BR_MAIL_SVG}</button>` : '<span class="muted">nothing pending</span>'}</td></tr>`; };
-  /* tight columns (Ravi, 23 Nov: "remove space extra"): every column as wide as its text, the spare width after Send */
-  const nw = 'width:1%;white-space:nowrap;padding-right:28px;';
+  /* A WINDOW OF ITS OWN SIZE (Ravi, 23 Nov: "remove space extra … isko proper window me set karo"): the table only as wide as its columns, no
+   * spare width on either side; the how-it-works note goes on the message line, not across the table. renderOrd puts the width back. */
+  const nw = 'white-space:nowrap;padding-right:28px;';
+  $('odTable').style.width = 'auto';
+  const m = $('odMsg'); if (m && !SHPB.err) { m.className = 'muted'; m.textContent = 'PDF = what is pending at that step (colour, SKU, subtype, size, pieces; the filters above apply). WhatsApp: on a phone the share sheet opens with the PDF; on a computer the PDF downloads and WhatsApp opens — attach it there. Mail: from the company mailbox, PDF attached.'; }
   $('odTable').innerHTML = `<thead><tr><th style="${SHPB_PAD}${nw}text-align:left">Step · who has it</th><th class="num" style="${SHPB_PAD}${nw}">Orders</th><th class="num" style="${SHPB_PAD}${nw}">${mode === 'order' ? 'Rows' : 'SKUs'}</th><th class="num" style="${SHPB_PAD}${nw}">Pieces pending</th><th style="${SHPB_PAD}text-align:left">Send</th></tr></thead><tbody>`
-    + secs.map(row).join('')
-    + `<tr><td colspan="5" class="muted" style="${SHPB_PAD}text-align:left;font-size:12px">The PDF lists what is pending at that step — colour, SKU, subtype, size, pieces — for the lines on this board (the filters above apply). `
-    + `WhatsApp: on a phone the share sheet opens with the PDF (pick WhatsApp); on a computer the PDF downloads and WhatsApp opens with the summary — attach the PDF there. `
-    + `Mail: goes from the company mailbox with the PDF attached (a printer's address comes from the vendor master).</td></tr></tbody>`;
+    + secs.map(row).join('') + '</tbody>';
 }
 async function brAct(i, share) {
   const s = BR_LAST[i]; if (!s) return;

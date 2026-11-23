@@ -971,6 +971,7 @@ $('odTable').addEventListener('click', async e => {
 const ordView = () => (($('odView') || {}).value || 'shopsku');
 
 function renderOrd() {
+  if ($('odTable') && $('odTable').style) $('odTable').style.width = '';   // the board report sets its own width (orders/board-report.js)
   /* SHIPPING TO ACCEPT ONLY (core/auth.js, ME.shpAccOnly): the Order Console is the SHP board, and nothing else. */
   if (ME.shpAccOnly && $('odView') && $('odView').value !== 'shpboard') $('odView').value = 'shpboard';
   /* THE BOARDS ALONE (Ravi, 19 Nov: "LAXMI ONLY SHP BOARD KE ORDER HI DEKH PA RHI H AMZ KE NAHI"): the four boards — SHP, AMZ, B2B, SPY —
