@@ -30193,7 +30193,9 @@ function renderShpBoardReport(pend, done) {
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${t.pcs ? `<button type="button" class="ghost" data-br-pdf="${i}" style="${btn}">PDF</button> `
         + `<button type="button" data-br-wa="${i}" title="Send on WhatsApp" aria-label="Send on WhatsApp" style="${ic}background:#25D366;border:1px solid #1faa53">${BR_WA_SVG}</button> `
         + `<button type="button" data-br-mail="${i}" title="Send by email" aria-label="Send by email" style="${ic}background:#1D4ED8;border:1px solid #1D4ED8">${BR_MAIL_SVG}</button>` : '<span class="muted">nothing pending</span>'}</td></tr>`; };
-  $('odTable').innerHTML = `<thead><tr><th style="${SHPB_PAD}text-align:left">Step · who has it</th><th class="num" style="${SHPB_PAD}">Orders</th><th class="num" style="${SHPB_PAD}">${mode === 'order' ? 'Rows' : 'SKUs'}</th><th class="num" style="${SHPB_PAD}">Pieces pending</th><th style="${SHPB_PAD}text-align:left">Send</th></tr></thead><tbody>`
+  /* tight columns (Ravi, 23 Nov: "remove space extra"): every column as wide as its text, the spare width after Send */
+  const nw = 'width:1%;white-space:nowrap;padding-right:28px;';
+  $('odTable').innerHTML = `<thead><tr><th style="${SHPB_PAD}${nw}text-align:left">Step · who has it</th><th class="num" style="${SHPB_PAD}${nw}">Orders</th><th class="num" style="${SHPB_PAD}${nw}">${mode === 'order' ? 'Rows' : 'SKUs'}</th><th class="num" style="${SHPB_PAD}${nw}">Pieces pending</th><th style="${SHPB_PAD}text-align:left">Send</th></tr></thead><tbody>`
     + secs.map(row).join('')
     + `<tr><td colspan="5" class="muted" style="${SHPB_PAD}text-align:left;font-size:12px">The PDF lists what is pending at that step — colour, SKU, subtype, size, pieces — for the lines on this board (the filters above apply). `
     + `WhatsApp: on a phone the share sheet opens with the PDF (pick WhatsApp); on a computer the PDF downloads and WhatsApp opens with the summary — attach the PDF there. `
