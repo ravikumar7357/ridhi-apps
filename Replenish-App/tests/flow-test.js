@@ -2726,6 +2726,10 @@ const K = 'AMZ-1__S1';
     ok('each line has a Printer drop-down set to PPC\'s printer, marked (PPC)', /data-shprn="AMZ-1__S1"/.test(body()) && /value="P1" selected>Sanganer Prints \(PPC\)/.test(body()) && /value="P2" selected>Choudhary Hand Block \(PPC\)/.test(body()));
     ok('…S2 (no printer from PPC) asks for one, and cannot be ticked until it has one', /PPC set no printer/.test(body()) && /data-shk="AMZ-1__S2" disabled title="Pick its printer"/.test(body()));
     ok('S5 (no cloth per piece on its master row) cannot be ticked and says why; it has no pieces box', /data-shk="AMZ-1__S5" disabled/.test(body()) && /No cloth per piece on its master row/.test(body()) && !/data-shq="AMZ-1__S5"/.test(body()));
+    /* "also show product images" (Vishesh, 23 Nov): every line has its photo, which opens big when clicked; tags say what is special */
+    ok('each line has its product photo, opened big on a click', ['S1', 'S2', 'S3', 'S5'].every(s => new RegExp('class="shc-ph" data-shzoom="' + s + '"').test(body())));
+    ok('…and tags: S2 "No printer yet", S5 "No cloth / pc"', /S2<\/span><span class="shc-tags"><span class="shc-tag i">No printer yet/.test(body()) && /S5<\/span><span class="shc-tags"><span class="shc-tag b">No cloth \/ pc/.test(body()));
+    ok('…each order has a header with its own tick box', /data-shgrp="AMZ-1"/.test(body()) && /data-shgrp="SHP-9"/.test(body()));
     ok('…S1 has a pieces box, nothing to type metres in', /data-shq="AMZ-1__S1"/.test(body()) && !/data-chp=|data-chm=/.test(body()));
 
     /* SEARCH and SHOW (Vishesh, 23 Nov) */
