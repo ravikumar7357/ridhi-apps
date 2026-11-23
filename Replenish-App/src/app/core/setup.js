@@ -74,7 +74,7 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   /* Approve a change of printer on an RFD challan (Vishesh, 23 Nov): a right, not a screen. */
   'flprn',
   /* Greige Desk (2026-10-13; real since 15 Oct): open it, see the fabric ledger, add to / correct it, approve shrinkage over 5%. */
-  'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdpo', 'gdpoappr'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
+  'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdcut', 'gdpo', 'gdpoappr'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
 let PO = [];                  // purchase orders
 
