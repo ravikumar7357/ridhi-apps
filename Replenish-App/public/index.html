@@ -30101,13 +30101,15 @@ function brRows(sec, mode) {
   const m = new Map(), byOrder = (mode || brMode()) === 'order';
   sec.lines.forEach(({ r, pcs }) => {
     const k = obUC(r.sku) + (byOrder ? '|' + r.orderNo : '');
-    const e = m.get(k) || { color: String(r.color || '').trim(), sku: String(r.sku || '').trim(), sub: String(r.articleSubtype || '').trim(), size: String(r.size || '').trim(), pcs: 0, orders: new Set(),
+    const e = m.get(k) || { color: String(r.color || '').trim(), sku: String(r.sku || '').trim(), sub: String(r.articleSubtype || '').trim(), size: String(r.size || '').trim(), pcs: 0, late: 0, orders: new Set(),
       order: byOrder ? String(r.shopOrderNo || r.orderNo || '').replace(/^#\s*/, '').replace(/^SHP-/, '') : '' };
     e.pcs += pcs; e.orders.add(r.orderNo); m.set(k, e);
+    /* LATE IN RED (Ravi, 23 Nov: "jo order sabse late ho rha h wo red color se highlight hokar jay"): the board's own Late rule (shpbLate) */
+    try { if (typeof shpbLate === 'function' && (shpbLate(r) || {}).tone === 'late') e.late += pcs; } catch (x) { /* not late */ }
   });
   return [...m.values()].sort((a, b) => (a.color || '~').localeCompare(b.color || '~') || a.sku.localeCompare(b.sku) || a.order.localeCompare(b.order));
 }
-const brTot = rows => ({ pcs: rows.reduce((a, x) => a + x.pcs, 0), orders: new Set(rows.flatMap(x => [...x.orders])).size, skus: rows.length });
+const brTot = rows => ({ pcs: rows.reduce((a, x) => a + x.pcs, 0), late: rows.reduce((a, x) => a + (x.late || 0), 0), orders: new Set(rows.flatMap(x => [...x.orders])).size, skus: rows.length });
 
 /* ---------- a small PDF writer: A4 pages of text, rules and filled bars ---------- */
 const brPdfTxt = s => String(s == null ? '' : s).replace(/[×✕]/g, 'x').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/·/g, '-')
@@ -30117,7 +30119,8 @@ function brPdf(title, sub, rows, tot) {
   const W = 595, H = 842, L = 40, R = 555, RH = 14, pages = [], ord = rows.some(x => x.order);
   const col = ord ? { colour: L + 4, sku: 178, order: 280, sub: 352, size: 472, pcs: R - 4, cw: 25, sw: 23 } : { colour: L + 4, sku: 200, sub: 318, size: 462, pcs: R - 4, cw: 30, sw: 27 };
   let ops = null, y = 0;
-  const T = (x, yy, s, bold, size) => ops.push(`BT /${bold ? 'F2' : 'F1'} ${size || 9} Tf ${x.toFixed(1)} ${yy.toFixed(1)} Td (${brPdfTxt(s)}) Tj ET`);
+  let red = false;
+  const T = (x, yy, s, bold, size) => ops.push(`${red ? '0.80 0.07 0.07 rg ' : ''}BT /${bold ? 'F2' : 'F1'} ${size || 9} Tf ${x.toFixed(1)} ${yy.toFixed(1)} Td (${brPdfTxt(s)}) Tj ET${red ? ' 0 g' : ''}`);
   const TR = (x, yy, s, bold, size) => T(x - String(s).length * (size || 9) * 0.556, yy, s, bold, size);   // digits: Helvetica 0.556 em
   const bar = (yy, h, rgb) => ops.push(`${rgb} rg ${L} ${yy.toFixed(1)} ${R - L} ${h} re f 0 g`);
   const rule = (x1, x2, yy, rgb) => ops.push(`${rgb} RG 0.8 w ${x1} ${yy.toFixed(1)} m ${x2} ${yy.toFixed(1)} l S 0 G`);
@@ -30136,8 +30139,12 @@ function brPdf(title, sub, rows, tot) {
   rows.forEach((x, i) => {
     if (y < 60) { page(false); prev = null; }
     const firstOfColour = x.color !== prev;
+    if (x.late) { bar(y - 3, RH - 2, '1 0.92 0.92'); }   // the pink band stays clear of the colour rule above it
     if (firstOfColour) T(col.colour, y, brFit(x.color || '(blank)', col.cw), true);
+    red = !!x.late;
     T(col.sku, y, brFit(x.sku, 20), true); if (ord) T(col.order, y, brFit(x.order, 13)); T(col.sub, y, brFit(x.sub, col.sw)); T(col.size, y, brFit(x.size, 13)); TR(col.pcs, y, String(x.pcs));
+    if (x.late) T(col.pcs - 34, y, x.late < x.pcs ? x.late + ' late' : 'LATE', true, 7);
+    red = false;
     prev = x.color;
     const next = rows[i + 1];
     if (!next || next.color !== x.color) rule(L, col.sku - 14, y - 4, '0.30 0.62 0.86');
@@ -30145,6 +30152,7 @@ function brPdf(title, sub, rows, tot) {
   });
   if (y < 60) page(false);
   bar(y - 4, RH + 2, '0.78 0.90 0.97'); T(L + 2, y, 'Grand Total', true); TR(col.pcs, y, String(tot.pcs), true);
+  if (tot.late) { y -= RH + 4; red = true; T(L + 2, y, 'Late (red rows): ' + tot.late + ' pcs - past the date planned for this step, or nothing done for 7 days', true, 8.5); red = false; }
   /* the file */
   const objs = [], add = s => { objs.push(s); return objs.length; };
   const catalog = add(null), pagesId = add(null);
@@ -30172,6 +30180,7 @@ function brSummary(sec, rows, tot) {
   const byCol = new Map(); rows.forEach(x => byCol.set(x.color || '(blank)', (byCol.get(x.color || '(blank)') || 0) + x.pcs));
   const top = [...byCol.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([c, n]) => c + ' ' + nf(n)).join(', ');
   return `*${brBoardName()} - ${sec.title}*\nPending on ${shpbDmy(dToday())}: ${nf(tot.pcs)} pcs - ${nf(tot.skus)} SKUs - ${nf(tot.orders)} orders`
+    + (tot.late ? `\n*LATE: ${nf(tot.late)} pcs* (red in the PDF)` : '')
     + (top ? `\nMost: ${top}` : '') + '\n(PDF attached)';
 }
 const brFileName = sec => (brBoardName() + ' ' + sec.title + ' ' + shpbDmy(dToday())).replace(/[^A-Za-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') + '.pdf';
@@ -30190,7 +30199,7 @@ function renderShpBoardReport(pend, done) {
   const mode = brMode(), seg = (v, t) => `<button type="button" data-br-mode="${v}" style="${btn}${mode === v ? 'background:#1D4ED8;color:#fff;border:1px solid #1D4ED8' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5'}">${t}</button>`;
   const row = (s, i) => { const rows = brRows(s), t = brTot(rows);
     return `<tr><td style="${SHPB_PAD}text-align:left"><b>${esc(s.step)}</b>${s.who ? ` · ${esc(s.who)}` : ''}</td>`
-      + `<td style="${SHPB_PAD}text-align:center">${nf(t.orders)}</td><td style="${SHPB_PAD}text-align:center">${nf(t.skus)}</td><td style="${SHPB_PAD}text-align:center"><b>${nf(t.pcs)}</b></td>`
+      + `<td style="${SHPB_PAD}text-align:center">${nf(t.orders)}</td><td style="${SHPB_PAD}text-align:center">${nf(t.skus)}</td><td style="${SHPB_PAD}text-align:center"><b>${nf(t.pcs)}</b>${t.late ? ` <span style="color:#b91c1c;font-weight:700;font-size:12px">· ${nf(t.late)} late</span>` : ''}</td>`
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${t.pcs ? `<button type="button" class="ghost" data-br-pdf="${i}" style="${btn}">PDF</button> `
         + `<button type="button" data-br-wa="${i}" title="Send on WhatsApp" aria-label="Send on WhatsApp" style="${ic}background:#25D366;border:1px solid #1faa53">${BR_WA_SVG}</button> `
         + `<button type="button" data-br-mail="${i}" title="Send by email" aria-label="Send by email" style="${ic}background:#1D4ED8;border:1px solid #1D4ED8">${BR_MAIL_SVG}</button>` : '<span class="muted">nothing pending</span>'}</td></tr>`; };
@@ -30231,7 +30240,7 @@ async function brLink(blob, name) {
 async function brAct(i, share) {
   const s = BR_LAST[i]; if (!s) return;
   const rows = brRows(s), t = brTot(rows), title = brBoardName() + ' - ' + s.title + ' - pending';
-  const blob = brPdf(title, `${shpbDmy(dToday())} - ${nf(t.pcs)} pcs - ${nf(t.skus)} SKUs - ${nf(t.orders)} orders`, rows, t), name = brFileName(s);
+  const blob = brPdf(title, `${shpbDmy(dToday())} - ${nf(t.pcs)} pcs - ${nf(t.skus)} SKUs - ${nf(t.orders)} orders${t.late ? ' - ' + nf(t.late) + ' pcs LATE (red)' : ''}`, rows, t), name = brFileName(s);
   if (!share) return brDownload(blob, name);
   const text = brSummary(s, rows, t);
   /* a phone that shares files: the PDF itself goes, from the share sheet (at once — the tap's permission does not wait for an upload) */
@@ -30281,7 +30290,7 @@ function brMail(i) {
       const bad = to.concat(cc).find(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)); if (bad) return `"${bad}" is not an email address.`;
       if (to.length + cc.length > 5) return 'Five addresses at most.';
       const title = brBoardName() + ' - ' + s.title + ' - pending';
-      const blob = brPdf(title, `${shpbDmy(dToday())} - ${nf(t.pcs)} pcs - ${nf(t.skus)} SKUs - ${nf(t.orders)} orders`, rows, t);
+      const blob = brPdf(title, `${shpbDmy(dToday())} - ${nf(t.pcs)} pcs - ${nf(t.skus)} SKUs - ${nf(t.orders)} orders${t.late ? ' - ' + nf(t.late) + ' pcs LATE (red)' : ''}`, rows, t);
       try {
         const idToken = auth && auth.currentUser ? await auth.currentUser.getIdToken() : '';
         await apiPost({ mail: 'report', to: to.join(','), cc: cc.join(','), title: title.slice(0, 120), fileName: brFileName(s), pdf: await brBase64(blob), greetName: s.who || '',
