@@ -456,6 +456,9 @@ function renderShpBoard() {
     + (() => { const n = pend.filter(r => (shpbLate(r) || {}).tone === 'late').length, on = !!SHPB.late;
         return `<button type="button" data-shpb-late="1" title="Pending lines past the date planned for the stage they are at — or, with no date, nothing done for 7 days" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
           + (on ? 'background:#b91c1c;color:#fff;border:1px solid #b91c1c' : 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca') + `">Late · ${nf(n)}</button>`; })()
+    /* THE REPORT BUCKET (23 Nov, orders/board-report.js): what is pending at each step and printer, as a PDF to send on WhatsApp */
+    + (typeof renderShpBoardReport === 'function' ? `<button type="button" data-shpb-report="1" title="What is pending at each step — each printer on its own — as a PDF to send on WhatsApp" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+      + (SHPB.report ? 'background:#1D4ED8;color:#fff;border:1px solid #1D4ED8' : 'background:#eef3fe;color:#1D4ED8;border:1px solid #c7d6fb') + `">Report</button>` : '')
     + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`
     + (tab === 'pending' && shpbMay('plan') ? (() => {
       const can = shpbToPlan(pend).length, left = typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length ? flowXlLeft().length : 0;
@@ -469,6 +472,7 @@ function renderShpBoard() {
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || '';
 
+  if (SHPB.report && typeof renderShpBoardReport === 'function') return renderShpBoardReport(pend, done);
   if (tab === 'done') return renderShpBoardDone(list);
   if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No ' + ({ shp: 'Shopify', amz: 'Amazon', b2b: 'B2B', spy: 'SPY' }[shpbKind()]) + ' order is pending.'); return; }
   SHPB_FILLCOL = list.some(shpbIsQuilt);   // the Filler vendor column only when a quilt is on the list
@@ -892,6 +896,8 @@ if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('c
 });
 if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('click', e => {
   if (!shpbIsBoard(ordView())) return;
+  if (e.target.closest && e.target.closest('[data-shpb-report]')) { SHPB.report = !SHPB.report; renderShpBoard(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-tab],[data-shpb-stage],[data-shpb-late]')) SHPB.report = false;   // any other bucket leaves the report
   const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t) { SHPB.tab = t.dataset.shpbTab; SHPB.stage = ''; renderShpBoard(); return; }
   if (e.target.closest && e.target.closest('[data-shpb-xlout]')) {
     const keys = new Set(shpbToPlan(shpbView().pend).map(shpbPickKey));

@@ -63,6 +63,7 @@ shopify/bulk-entry.js
 orders/demand.js
 orders/tracking.js
 orders/shp-board.js
+orders/board-report.js
 orders/shopify-pipeline-team.js
 orders/orders-one-line.js
 orders/order-ticker.js
