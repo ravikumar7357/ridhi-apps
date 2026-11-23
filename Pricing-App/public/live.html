@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Live vs Last Year</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
 <style>
 /* Live vs Last Year — the standalone page (Ravi, 2026-11-19: "make it a working html like prime.html").
    Same look as prime.html. Data: the backend's liveSnapshotJob (Pricing-API/SalesLive.gs) writes JSON into a Google Sheet every
@@ -173,26 +173,10 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
 @media (prefers-reduced-motion: reduce) { .big .tile, .chart .bar, .chart .draw, .tile .v.glow { animation: none; } }
 @media (max-width: 760px) { .strip, .big { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .big .tile { min-height: 0; padding: 14px; } .big .tile .v { font-size: 24px; } .brand { margin-left: 0; } }
 
-/* ===== QUIETER LOOK (Ravi, 21 Nov 2026: "enhance the UI … not that much colours") =====
-   White panels and cards on a light grey page, thin rules, one ink colour for text. Colour is kept for meaning only:
-   green / amber for up / down, blue for "this year" in the charts, and a small dot naming each channel. */
-:root { --bg: #F4F5F7; --soft: #F8F9FA; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --soft: #20252C; } }
-:root[data-theme="dark"] { --soft: #20252C; }
-.box { background: var(--panel); border: 1px solid var(--rule); border-top: 1px solid var(--rule); border-radius: 14px; padding: 16px 18px 18px;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, .04); }
-.boxh .tag { color: var(--ink); background: none; padding: 0; font: 800 16px/1 var(--f-display); display: inline-flex; align-items: center; gap: 8px; }
-.boxh .tag::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--sec); }
-.big .tile, .tile { background: var(--soft); border: 1px solid transparent; box-shadow: none; border-radius: 10px; }
-.big .tile .k { color: var(--muted); font-weight: 600; letter-spacing: .05em; }
-.big .tile .v { font-weight: 700; }
-.tile.hl { border-color: var(--rule); box-shadow: none; }
-.tcard, section.card { background: var(--panel); border-color: var(--rule); }
-.refresh { background: var(--ink); color: var(--panel); }
-.seg { background: var(--soft); border-color: var(--rule); }
-.split i.a { background: #8A94A3; } .split i.s { background: #C7CDD6; }
-.evcard { border-top: 1px solid var(--rule); } .evcard.live { border-top: 3px solid #E11D48; box-shadow: none; }
-.evcard.done, .evcard.soon { --evc: var(--rule); }
+/* (23 Nov 2026, Ravi: back to the earlier look — coloured section edges and tags, the one-row header, Archivo / Source Sans —
+   with everything added since kept. The 21 Nov "quieter look" and "professional pass" styling is taken out; what stays from
+   them is the Shopify Total sales breakdown card and its by-day table below.) */
+:root { --soft: color-mix(in srgb, var(--ink) 3%, var(--panel)); }
 /* Shopify's Total sales breakdown: a plain statement, like Shopify's own. */
 .bdrow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
 @media (max-width: 1000px) { .bdrow { grid-template-columns: 1fr; } }
@@ -203,41 +187,6 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
 .bdl td b { color: var(--ink); font-weight: 600; }
 .bdl tr.on td { background: var(--soft); color: var(--ink); }
 .bdl tr:last-child td { border-bottom: 0; }
-
-/* ===== PROFESSIONAL PASS (Ravi, 21 Nov 2026: "enhance the dashboard more professionally") =====
-   Inter throughout with even-width figures; a two-row header — title with the live status and Refresh, then one
-   toolbar; ▲ / ▼ beside a change so it reads without colour; steady 12px rhythm. */
-:root { --f-display: 'Inter', 'Segoe UI', system-ui, sans-serif; --f-body: 'Inter', 'Segoe UI', system-ui, sans-serif; }
-body { font-size: 14px; font-feature-settings: 'tnum' 1, 'cv11' 1; -webkit-font-smoothing: antialiased; }
-.wrap { max-width: 1360px; gap: 16px; }
-header { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px 16px 12px; }
-.hrow { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; }
-h1 { font: 700 26px/1.15 var(--f-display); letter-spacing: -0.02em; }
-.eyebrow { font: 600 11.5px/1 var(--f-body); letter-spacing: .04em; text-transform: none; color: var(--muted); margin-bottom: 6px; }
-.hstat { display: flex; align-items: center; gap: 10px; }
-.asof { font: 500 13px var(--f-body); color: var(--ink2); background: none; border: 0; padding: 0; display: inline-flex; align-items: center; gap: 8px; }
-.asof::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #22A06B; box-shadow: 0 0 0 3px color-mix(in srgb, #22A06B 20%, transparent); }
-.refresh { font: 600 13px var(--f-body); letter-spacing: 0; border-radius: 8px; padding: 8px 14px; min-height: 34px; }
-.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.toolbar .tsp { flex: 1 1 0; }
-.toolbar .seg { margin-left: 0; border-radius: 10px; padding: 3px; }
-.seg button { font: 500 13px var(--f-body); border-radius: 7px; padding: 6px 12px; min-height: 30px; color: var(--ink2); }
-.seg button[aria-pressed="true"] { background: var(--panel); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(16, 24, 40, .12), 0 0 0 1px var(--rule); }
-.brand { gap: 8px; color: var(--muted); font-size: 13px; margin-left: 0; }
-.brand select, .pick { font: 500 13px var(--f-body); border-radius: 8px; padding: 6px 10px; min-height: 34px; background: var(--panel); }
-.pnote { font-size: 13px; margin: 0 2px; }
-.boxh .tag { font: 600 15px/1 var(--f-display); }
-.boxh { font-size: 12.5px; }
-.big .tile .k { font: 600 11px/1.3 var(--f-body); letter-spacing: .04em; }
-.big .tile .v { font: 600 26px/1.15 var(--f-display); letter-spacing: -0.02em; margin-top: 4px; }
-.big .tile .s { font-size: 12.5px; color: var(--muted); }
-.tile .v.up::before, .tile .v.dn::before, .ev-n .v.up::before, .ev-n .v.dn::before { font-size: .5em; vertical-align: .32em; margin-right: 6px; }
-.tile .v.up::before, .ev-n .v.up::before { content: '▲'; } .tile .v.dn::before, .ev-n .v.dn::before { content: '▼'; }
-h2 { font: 600 15px/1.3 var(--f-display); }
-th { font: 600 11px var(--f-body); letter-spacing: .04em; }
-.chart text { font-family: var(--f-body); }
-details.more > summary { font: 600 13px var(--f-body); }
-@media (max-width: 760px) { .toolbar .tsp { display: none; } .hrow { align-items: flex-start; } }
 .bd { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px 10px; }
 .bdh { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .bdh h2 { font: 700 16px/1.2 var(--f-display); margin: 0; }
@@ -254,30 +203,22 @@ details.more > summary { font: 600 13px var(--f-body); }
 
 <div class="wrap">
   <header>
-    <!-- Two rows (21 Nov: "more professional"): the title with the live status and Refresh, then one toolbar. -->
-    <div class="hrow">
-      <div class="titleb">
-        <div class="eyebrow">Ridhi &amp; CPC · Amazon.com and Shopify · Pacific time</div>
-        <h1>Live vs Last Year</h1>
-      </div>
-      <div class="hstat">
-        <span class="asof" id="asof">Loading…</span>
-        <button type="button" class="refresh" id="refresh" title="Load the latest numbers">Refresh</button>
-      </div>
+    <div>
+      <div class="eyebrow">Amazon.com · Pacific time · updates every 10 minutes</div>
+      <h1>Live vs Last Year</h1>
     </div>
-    <div class="toolbar">
     <!-- The period (Ravi, 2026-11-20: "day, week, month, quarterly and year"). Day = today by the hour, as before; the
          others = that period to date against the same period last year, from the nightly history plus today. -->
     <div class="seg period" id="period" role="group" aria-label="Which period to show">
       <button type="button" data-p="day" aria-pressed="true">Today</button><button type="button" data-p="yesterday" aria-pressed="false">Yesterday</button><button type="button" data-p="week" aria-pressed="false">Week</button><button type="button" data-p="month" aria-pressed="false">Month</button><button type="button" data-p="quarter" aria-pressed="false">Quarter</button><button type="button" data-p="year" aria-pressed="false">Year</button><button type="button" data-p="events" aria-pressed="false">Events</button><button type="button" data-p="products" aria-pressed="false">By product</button>
     </div>
     <select id="pick" class="pick" hidden aria-label="Which month or quarter"></select>
-    <span class="tsp"></span>
     <div class="seg" id="chan" role="group" aria-label="Which channel to show">
       <button type="button" data-v="both" aria-pressed="true">Amazon + Shopify</button><button type="button" data-v="amz" aria-pressed="false">Amazon</button><button type="button" data-v="shop" aria-pressed="false">Shopify</button>
     </div>
-    <label class="brand" for="brand"><span>Brand</span><select id="brand"><option value="ALL">Ridhi + CPC</option><option value="SP">Ridhi</option><option value="CPC">CPC</option></select></label>
-    </div>
+    <label class="brand" for="brand">Brand <select id="brand"><option value="ALL">Ridhi + CPC</option><option value="SP">Ridhi</option><option value="CPC">CPC</option></select></label>
+    <div class="asof" id="asof">Loading…</div>
+    <button type="button" class="refresh" id="refresh" title="Load the latest numbers">Refresh</button>
   </header>
 
   <div class="pending" id="pending" hidden></div>
@@ -971,7 +912,7 @@ function render() {
   if (!DATA) return;
   const key = $('brand').value, V = view(key);
   const today = ptDate(Date.now()), live = DATA.day === today;
-  $('asof').textContent = 'Updated ' + ptHM(DATA.asOf) + ' PT';
+  $('asof').textContent = 'Data to ' + ptHM(DATA.asOf) + ' PT · ' + new Date(DATA.asOf).toISOString().slice(11, 16) + ' UTC';
   $('asof').title = 'Figures up to ' + ptHM(DATA.asOf) + ' Pacific (' + new Date(DATA.asOf).toISOString().slice(11, 16) + ' UTC) · Sellora\'s backend reads every 10 minutes';
   const errs = Object.keys(BRANDS).filter(k => key === 'ALL' || k === key).map(k => { const b = DATA.brands[k] || {}; return b.yoyErr || b.rangeErr || (b.yoy && !b.yoy.ok && b.yoy.error) ? BRANDS[k] + ': ' + (b.yoyErr || b.rangeErr || b.yoy.error) : ''; }).filter(Boolean);
   $('pending').hidden = !errs.length; $('pending').textContent = errs.length ? 'Could not read ' + errs.join(' · ') : '';
