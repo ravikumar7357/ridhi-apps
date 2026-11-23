@@ -3256,8 +3256,8 @@ function invDetail(r, col) {
         + '<td class="tl">' + esc(g.processor || '—') + '</td><td class="tl">' + esc(fmtD(invLastDate(back) || g.date)) + '</td>'
         + '<td class="num">' + nf(came) + ' m</td><td class="num">' + (g.rfdOut ? nf(g.rfdOut) + ' m' : '—') + '</td>'
         + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(g.rfdLeft) + ' m</td>'
-        /* Send to printer opens the products that need this fabric, not the whole list (Ravi, 21 Nov) */
-        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdlines="' + esc(r.fabric) + '" title="The products waiting for ' + esc(r.fabric) + ' on Demand → RFD">Send to printer</button>'
+        /* Send to printer opens the RFD challan for this fabric right here (Vishesh, 23 Nov; before: its lines on Demand → RFD) */
+        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>'
         + '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button></div></td></tr>';
     });
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
@@ -4883,10 +4883,25 @@ function gdOpenMasterData(view) {
 
 function wireGd() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-ppcpo],[data-gdflow],[data-gdlines]') : null; if (!t) return;
+    var t = ev.target.closest ? ev.target.closest('[data-ppcpo],[data-gdflow],[data-gdlines],[data-gdsend]') : null; if (!t) return;
     if (t.getAttribute('data-ppcpo')) { var p = t.getAttribute('data-ppcpo').split('|'); gdPoFor(p[0], +p[1]); return; }
     if (t.getAttribute('data-gdflow')) { gdToFlow(t.getAttribute('data-gdflow'), ''); return; }   // the whole list: no fabric left in the search
     if (t.getAttribute('data-gdlines')) { gdToFlow('drfd', t.getAttribute('data-gdlines')); return; }
+    if (t.getAttribute('data-gdsend')) { gdSendToPrinter(t.getAttribute('data-gdsend')); return; }
+  });
+}
+/* SEND TO PRINTER MAKES THE CHALLAN HERE (Vishesh, 23 Nov). The card is the flow's (flowShelfChallanOpen); the desk asks for it,
+ * says why when it cannot open, and draws itself again once the challan is made. Without the flow in the page it falls back
+ * to that fabric's lines on Demand → RFD, as before. */
+function gdSendToPrinter(fabric) {
+  if (typeof flowShelfChallanOpen !== 'function') { gdToFlow('drfd', fabric); return; }
+  lmSay('ok', 'Reading the lines waiting for ' + fabric + '…');
+  flowShelfChallanOpen(fabric, function (no, err) {
+    lmSay(err ? 'warn' : 'ok', 'Challan ' + no + ' made for ' + fabric + '.' + (err ? ' ' + err : ''));
+    render();
+  }).then(function (why) { if (why) lmSay('warn', why); }, function (e) {
+    console.error('Send to printer for ' + fabric + ' could not open:', e);
+    lmSay('err', 'The challan for ' + fabric + ' could not open (' + ((e && e.message) || e) + '). Nothing was saved.');
   });
 }
 

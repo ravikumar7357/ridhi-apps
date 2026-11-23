@@ -33616,11 +33616,15 @@ function flowChallanNo(date, test, taken) {
   const used = Object.keys(FLOW.ch || {}).concat(taken || []).filter(k => k.startsWith(pre)).map(k => +k.slice(-3) || 0);
   return pre + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
 }
+const flowIsPrinter = v => String((v && v.category) || '').trim().toLowerCase() === 'printer';
+/** The vendor master's vendors, printers first (the Demand window lets any vendor take the cloth). */
 const flowChVendors = () => {
   let all = []; try { all = voAllVendors(); } catch (e) { all = []; }
-  const pr = all.filter(v => String(v.category || '').trim().toLowerCase() === 'printer');
+  const pr = all.filter(flowIsPrinter);
   return pr.concat(all.filter(v => !pr.includes(v)));
 };
+/** The vendor master's printers only. */
+const flowPrinters = () => { let all = []; try { all = voAllVendors(); } catch (e) { all = []; } return all.filter(flowIsPrinter); };
 
 /** The challan for one PO: its lines still waiting for fabric. */
 /* ONE CHALLAN, ONE PRINTER, THE PRINTER PPC PLANNED (Ravi, 10 Oct: "the challan and the PO's made-as do not match").
@@ -33902,32 +33906,17 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
       /* A line whose body is all from printed stock may go for its ruffle cloth alone. */
       const noM = picked.filter(y => !(y.m > 0) && (y.ruf || flowRufflePrinter(y.x.s.plan) || !(!y.x.s.fabSent && flowPrintExtras(y.x.r, y.x.s.plan).length))).map(y => obUC(y.x.r.sku) + (y.ruf ? ' (ruffle)' : ''));
       if (noM.length) return `How many metres? Type them for ${noM.join(', ')}.`;
-      let no = flowChallanNo(date, isTest); const now = new Date().toISOString(), vname = v.desc || v.name || v.code;
-      const ch = { no, date, orderNo, orders, vendor: { code: v.code, name: vname }, note: $('flcNote').value.trim(), at: now, by: ME.email || '',
+      const now = new Date().toISOString(), vname = v.desc || v.name || v.code;
+      const ch = { no: '', date, orderNo, orders, vendor: { code: v.code, name: vname }, note: $('flcNote').value.trim(), at: now, by: ME.email || '',
         lines: picked.map(({ x, m, ruf, pc }) => ruf
           /* the ruffle cloth alone, to its own printer: its key is the line's, marked ruffleOnly (indexed as <key>~ruffle) */
           ? { key: x.s.key, ruffleOnly: true, sku: obUC(x.r.sku), item: flowChItem(x.r), print: null, extras: flowPrintExtras(x.r, x.s.plan, flowPoRemOf(x.r, x.s)), fabric: (flowRuffleOwed(x) || {}).fabric || '', pcs: 0, metres: flowR2(m) }
           : { key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, x.s.plan), extras: flowPrintExtras(x.r, x.s.plan, flowPoRemOf(x.r, x.s)), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', pcs: x.s.fabUnit === 'pcs' ? (pc != null ? pc : flowFabOwed(x.r, x.s).left) : (preOf(x) ? preOf(x).pcs : flowToPrint(x.r, x.s.plan).pcs), metres: flowR2(m),
           /* the ruffle cloth goes once, on the first challan for the line — never when it has a printer of its own */ ...(x.s.fabSent > 0 || flowRufflePrinter(x.s.plan) ? { extras: [] } : {}) }) };
-      /* THE NUMBER IS CLAIMED: the challan is written only where no challan of that number is yet — two people making one at
-       * the same moment get two numbers, never one challan written over the other. */
-      for (let k = 0, taken = []; ; k++) {
-        let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
-        if (!er) break;
-        if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
-        taken.push(no); no = flowChallanNo(date, isTest, taken); ch.no = no;
-      }
-      const patch = typeof ptCas === 'function' ? {} : { ['pt_flowChallans/' + no]: ch };
-      /* A line PPC left without a printer: the one it went to is now its printer. */
-      const setP = picked.filter(y => !y.ruf && !flowPlanPrinter(y.x.s)).map(y => y.x.s.key);
-      setP.forEach(k => { patch[`pt_ppc/${k}/printer`] = { code: v.code, name: vname, why: 'set by challan ' + no }; });
-      ch.lines.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
-      try { if (Object.keys(patch).length) await ptPatch(patch); } catch (e) { return `Challan ${no} is saved, but the lines could not be marked (${e.message || e}) — press Refresh.`; }
-      FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
-      if (setP.length) { FLOW.ppc = Object.assign({}, FLOW.ppc); setP.forEach(k => { FLOW.ppc[k] = Object.assign({}, FLOW.ppc[k], { printer: patch[`pt_ppc/${k}/printer`] }); }); }
-      const dem = Object.assign({}, FLOW.dem);
-      ch.lines.filter(l => !l.ruffleOnly).forEach(l => { dem[l.key] = Object.assign({}, dem[l.key] || {}, { fabricReady: patch[`pt_flowDemand/${l.key}/fabricReady`] }); });
-      FLOW.dem = dem;
+      const unplanned = picked.filter(y => !y.ruf && !flowPlanPrinter(y.x.s)).map(y => y.x.s.key);
+      const wrote = await flowChallanWrite(ch, v, { isTest, unplanned });
+      if (wrote) return wrote;
+      const no = ch.no;
       renderFlow();
       const err = flowChallanPrint(no);
       if (err) { $('flMsg').className = 'err'; $('flMsg').textContent = `Challan ${no} saved. ${err}`; }
@@ -33947,6 +33936,183 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
   const szb = document.getElementById && document.getElementById('flcSize'); if (szb) szb.innerHTML = flowChSizeLive(rows.length);
   if (typeof ptImgFill === 'function') ptImgFill(rows.map(x => obUC(x.r.sku)), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
+
+/* ONE WAY TO SAVE A CHALLAN (23 Nov): the Demand window and the Inventory's Send to printer card both come here.
+ * THE NUMBER IS CLAIMED: the challan is written only where no challan of that number is yet — two people making one at the
+ * same moment get two numbers, never one challan written over the other. A line PPC left without a printer gets the one its
+ * cloth went to. Each line's fabric is marked as given, so it leaves Demand by itself.
+ * Returns '' when saved (ch.no is then its number), else what went wrong in words, for the window to show. */
+async function flowChallanWrite(ch, v, how) {
+  const vname = ch.vendor.name, now = ch.at;
+  let no = flowChallanNo(ch.date, how.isTest); ch.no = no;
+  for (let k = 0, taken = []; ; k++) {
+    let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
+    if (!er) break;
+    if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
+    taken.push(no); no = flowChallanNo(ch.date, how.isTest, taken); ch.no = no;
+  }
+  const patch = typeof ptCas === 'function' ? {} : { ['pt_flowChallans/' + no]: ch };
+  const setP = how.unplanned || [];
+  setP.forEach(k => { patch[`pt_ppc/${k}/printer`] = { code: v.code, name: vname, why: 'set by challan ' + no }; });
+  ch.lines.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
+  try { if (Object.keys(patch).length) await ptPatch(patch); } catch (e) { return `Challan ${no} is saved, but the lines could not be marked (${e.message || e}) — press Refresh.`; }
+  FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
+  if (setP.length) { FLOW.ppc = Object.assign({}, FLOW.ppc); setP.forEach(k => { FLOW.ppc[k] = Object.assign({}, FLOW.ppc[k], { printer: patch[`pt_ppc/${k}/printer`] }); }); }
+  const dem = Object.assign({}, FLOW.dem);
+  ch.lines.filter(l => !l.ruffleOnly).forEach(l => { dem[l.key] = Object.assign({}, dem[l.key] || {}, { fabricReady: patch[`pt_flowDemand/${l.key}/fabricReady`] }); });
+  FLOW.dem = dem;
+  return '';
+}
+
+/* ---- SEND TO PRINTER FROM THE GREIGE DESK'S INVENTORY (Vishesh, 23 Nov) ---------------------------------------------- *
+ *
+ * "Send to printer" on a fabric's RFD on the shelf opens this card over the Inventory page: every line still waiting for
+ * that fabric on Demand → RFD, a printer from the vendor master (printers only), and Choose by order or by print to narrow
+ * the list. Unlike the Demand window nothing is typed: each line carries all the pieces it still needs, the date is today,
+ * and the metres are those pieces × the cloth per piece on the SKU's master row. Picking a printer shows only the lines PPC
+ * planned for it and the lines with no printer yet. What is shown and ticked is what goes.
+ * Errors: the card only reads until Make the challan; a refused save says why in the card, and flowChallanWrite never
+ * leaves a challan half made without saying so. A line whose master row has no cloth per piece is shown but cannot go. */
+let FLOW_SH = null;   // the open card: { fabric, lines, tick: Set of line keys, by: 'order' | 'print', pick, after }
+
+/** One line on the card: the pieces still owed, the master's cloth per piece, the metres they make, its printer and print. */
+function flowShLine(x) {
+  const o = flowFabOwed(x.r, x.s), qty = +x.r.qty || 0;
+  const pcs = o.unit === 'pcs' ? Math.round(o.left) : (o.need > 0 ? Math.round(qty * o.left / o.need) : 0);
+  let m = null; try { m = cutSkuOf(x.r.sku); } catch (e) { m = null; }
+  const perPc = flowR2(+((m || {}).consumption) || 0);
+  let print = null; try { print = flowPrintWhat(x.r, x.s.plan); } catch (e) { print = null; }
+  const pl = (x.s.plan && x.s.plan.printer) || {};
+  return { x, key: x.s.key, pcs, perPc, metres: flowR2(pcs * perPc), printer: flowPlanPrinter(x.s), printerName: pl.name || '',
+    print, printKey: print ? String(print.code || print.label || '') : '' };
+}
+/** The lines of one fabric still waiting on Demand → RFD for cloth, oldest order first. */
+function flowShLines(fabric) {
+  const F = flowFabKey(fabric);
+  return flowRows().filter(x => flowInView('drfd', x.s) && x.s.route !== 'stitch' && flowFabKey(((x.s.plan || {}).fabric || {}).name) === F)
+    .map(flowShLine).filter(l => l.pcs > 0)
+    .sort((a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)));
+}
+/** What the card shows: the picked printer's lines and the unplanned ones, narrowed to the order or print chosen. */
+function flowShShown(S, code) {
+  const forPrinter = l => !code || !l.printer || String(l.printer) === String(code);
+  const chosen = l => !S.pick || (S.by === 'print' ? l.printKey === S.pick : String(l.x.r.orderNo) === S.pick);
+  return S.lines.filter(l => forPrinter(l) && chosen(l));
+}
+/** The second drop-down: each order (or print) among the printer's lines, with how many lines it has. */
+function flowShChoices(S, code) {
+  const seen = new Map();
+  flowShShown(Object.assign({}, S, { pick: '' }), code).forEach(l => {
+    const k = S.by === 'print' ? l.printKey : String(l.x.r.orderNo); if (!k) return;
+    const label = S.by === 'print' ? [l.print.code, l.print.label].filter(Boolean).join(' · ') : k;
+    seen.set(k, { k, label, n: ((seen.get(k) || {}).n || 0) + 1 });
+  });
+  return [...seen.values()];
+}
+const flowShGoing = (S, code) => flowShShown(S, code).filter(l => S.tick.has(l.key) && l.perPc > 0);
+
+/** Reads what the card needs, then opens it. Returns why it could not open, or '' (after(no, printError) runs once a challan is made). */
+async function flowShelfChallanOpen(fabric, after) {
+  if (!flowScreenAllowed().some(b => b[0] === 'drfd')) return 'Making an RFD challan needs Demand → RFD access.';
+  await flowEnsureData();
+  return flowShelfChallanShow(fabric, after);
+}
+function flowShelfChallanShow(fabric, after) {
+  const lines = flowShLines(fabric);
+  if (!lines.length) return `No line is waiting for ${fabric} on Demand → RFD.`;
+  FLOW_CH_COVER = flowRfdCover();
+  FLOW_SH = { fabric, lines, tick: new Set(lines.filter(l => l.perPc > 0).map(l => l.key)), by: 'order', pick: '', after };
+  const plannedOne = [...new Set(lines.map(l => l.printer).filter(Boolean))];
+  const pr = flowPrinters();
+  ptOpenDialog({
+    title: `RFD challan — ${fabric} → printer`,
+    subtitle: 'From the RFD on the shelf. Each line goes with all the pieces it still needs; metres are pieces × the cloth per piece on its master row. Untick a line to leave it out.',
+    wide: true,
+    html: `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+        <label>Printer<select id="flshVen"><option value="">— pick the printer —</option>${pr.map(v => `<option value="${esc(v.code)}"${plannedOne.length === 1 && String(v.code) === String(plannedOne[0]) ? ' selected' : ''}>${esc(v.desc || v.name || v.code)}</option>`).join('')}</select></label>
+        <label>Date<input id="flshDate" value="${esc(dToday())}" readonly title="A challan from here is made today"></label>
+        <label>Choose by<select id="flshBy"><option value="order">By order</option><option value="print">By print</option></select></label>
+        <label><span id="flshPickT">Order</span><select id="flshPick"></select></label></div>
+      <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;align-items:flex-start">
+        <div id="flshBody" style="flex:1.5 1 560px;min-width:0;border:1px solid var(--line,#e3e7ef);border-radius:10px;max-height:60vh;overflow:auto"></div>
+        <div style="flex:1 1 320px;min-width:0;border:1px solid var(--line,#e3e7ef);border-radius:10px;padding:12px 14px">
+          <div id="flshSum"></div>
+          <label style="display:block;margin-top:10px">Note (vehicle, who carried it…)<input id="flshNote"></label></div></div>`,
+    saveLabel: 'Make the challan',
+    onSave: flowShSave,
+  });
+  flowShDraw();
+  return '';
+}
+/** Draws the card's lines, the second drop-down and the summary from FLOW_SH and the printer picked. */
+function flowShDraw() {
+  const S = FLOW_SH; if (!S) return;
+  const code = ($('flshVen') || {}).value || '';
+  const ch = flowShChoices(S, code);
+  if (S.pick && !ch.some(c => c.k === S.pick)) S.pick = '';
+  $('flshPickT').textContent = S.by === 'print' ? 'Print' : 'Order';
+  $('flshPick').innerHTML = `<option value="">All ${S.by === 'print' ? 'prints' : 'orders'} (${ch.length})</option>`
+    + ch.map(c => `<option value="${esc(c.k)}"${c.k === S.pick ? ' selected' : ''}>${esc(c.label)} · ${nf(c.n)} line${c.n === 1 ? '' : 's'}</option>`).join('');
+  $('flshBody').innerHTML = flowShTableHtml(S, code);
+  $('flshSum').innerHTML = flowShSumHtml(S, code);
+  if (typeof ptImgFill === 'function') ptImgFill(flowShShown(S, code).map(l => obUC(l.x.r.sku)), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
+}
+function flowShTableHtml(S, code) {
+  const shown = flowShShown(S, code);
+  if (!shown.length) return '<div class="muted" style="padding:14px">No line for this printer. Lines PPC planned for another printer show when that printer is picked.</div>';
+  const head = l => S.by === 'print' ? ([l.print && l.print.code, l.print && l.print.label].filter(Boolean).join(' · ') || 'No print named') : String(l.x.r.orderNo);
+  let last = null;
+  /* min-width: on a phone the table scrolls sideways rather than wrapping the item names a word to a line */
+  return `<table class="xl" style="width:100%;min-width:500px;table-layout:fixed"><colgroup><col style="width:34px"><col><col style="width:64px"><col style="width:64px"><col style="width:78px"></colgroup>
+    <thead><tr><th></th><th style="text-align:left">Item</th><th>Pcs</th><th>m / pc</th><th>Metres</th></tr></thead><tbody>`
+    + shown.map(l => {
+      const h = head(l), grp = h !== last ? `<tr><td colspan="5" style="text-align:left;font-weight:700;background:var(--hover,#f4f6fb)">${esc(h)}</td></tr>` : '';
+      last = h;
+      const noCloth = !(l.perPc > 0);
+      return grp + `<tr${noCloth ? ' style="background:#fdf2f2"' : ''}><td><input type="checkbox" data-shk="${esc(l.key)}"${S.tick.has(l.key) && !noCloth ? ' checked' : ''}${noCloth ? ' disabled title="No cloth per piece on its master row"' : ''} style="width:auto"></td>
+        <td style="text-align:left;white-space:normal"><div style="display:flex;gap:10px;align-items:center;min-width:0">${typeof ptImgSpan === 'function' ? ptImgSpan(obUC(l.x.r.sku), 36) : ''}<div style="min-width:0"><b style="font-family:ui-monospace,monospace">${esc(obUC(l.x.r.sku))}</b>${S.by === 'print' ? ` <span class="muted" style="font-size:10.5px">· ${esc(l.x.r.orderNo)}</span>` : ''}<div class="muted" style="font-size:10.5px">${esc(flowChItem(l.x.r))}</div>
+          ${l.print ? `<div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(l.print)}</div>` : ''}${!code && l.printerName ? `<div class="muted" style="font-size:10.5px">planned: ${esc(l.printerName)}</div>` : ''}${noCloth ? '<div style="font-size:11px;color:#b42318;font-weight:600">No cloth per piece on its master row — add it there first</div>' : ''}</div></div></td>
+        <td class="num">${nf(l.pcs)}</td><td class="num">${noCloth ? '—' : nf(l.perPc)}</td><td class="num"><b>${noCloth ? '—' : nf(l.metres)}</b></td></tr>`;
+    }).join('') + '</tbody></table>';
+}
+function flowShSumHtml(S, code) {
+  const go = flowShGoing(S, code), pcs = go.reduce((a, l) => a + l.pcs, 0), m = flowR2(go.reduce((a, l) => a + l.metres, 0));
+  const v = flowPrinters().find(p => String(p.code) === String(code));
+  const st = flowChStock(S.fabric, m);
+  const stock = st.free == null ? '<span class="muted" style="font-size:11.5px">RFD on the shelf not known</span>'
+    : st.short > 0.05 ? flowChPill(false, `${nf(st.free)} m on the shelf · ${nf(st.short)} m short`) : flowChPill(true, `${nf(st.free)} m on the shelf · enough`);
+  return `<div style="font-size:12.5px;font-weight:600;margin-bottom:6px">Ticked: ${nf(go.length)} line${go.length === 1 ? '' : 's'} · ${nf(pcs)} pcs · ${nf(m)} m</div>
+    <div class="muted" style="font-size:12px;margin-bottom:8px">${v ? 'Goes to <b>' + esc(v.desc || v.name || v.code) + '</b>' : 'Pick the printer'} · ${esc(dToday())}</div>
+    <div>${stock}</div>`;
+}
+async function flowShSave() {
+  const S = FLOW_SH; if (!S) return 'The card was closed — open it again.';
+  const code = $('flshVen').value, v = flowPrinters().find(p => String(p.code) === String(code));
+  if (!v) return 'Which printer is the fabric going to? Pick one.';
+  const go = flowShGoing(S, code);
+  if (!go.length) return 'Tick at least one line.';
+  if (go.some(l => !!l.x.r.__t) && go.some(l => !l.x.r.__t)) return 'A test order and a real one cannot share a challan.';
+  const orders = [...new Set(go.map(l => l.x.r.orderNo))];
+  const ch = { no: '', date: dToday(), orderNo: orders.join(', '), orders, vendor: { code: v.code, name: v.desc || v.name || v.code },
+    note: $('flshNote').value.trim(), at: new Date().toISOString(), by: ME.email || '', from: 'Greige Desk inventory',
+    lines: go.map(l => ({ key: l.key, sku: obUC(l.x.r.sku), item: flowChItem(l.x.r), print: l.print,
+      /* the ruffle cloth goes once, on the first challan for the line — never when it has a printer of its own */
+      extras: l.x.s.fabSent > 0 || flowRufflePrinter(l.x.s.plan) ? [] : flowPrintExtras(l.x.r, l.x.s.plan, flowPoRemOf(l.x.r, l.x.s)),
+      fabric: ((l.x.s.plan || {}).fabric || {}).name || S.fabric, pcs: l.pcs, metres: l.metres })) };
+  const wrote = await flowChallanWrite(ch, v, { isTest: go.every(l => !!l.x.r.__t), unplanned: go.filter(l => !l.printer).map(l => l.key) });
+  if (wrote) return wrote;
+  const err = flowChallanPrint(ch.no);
+  FLOW_SH = null;
+  if (typeof S.after === 'function') setTimeout(() => S.after(ch.no, err || ''), 0);
+  return '';
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('change', e => {
+  const t = e.target; if (!FLOW_SH || !t || !t.closest || !t.closest('#flshVen,#flshBy,#flshPick,[data-shk]')) return;
+  if (t.id === 'flshBy') { FLOW_SH.by = t.value === 'print' ? 'print' : 'order'; FLOW_SH.pick = ''; }
+  if (t.id === 'flshPick') FLOW_SH.pick = t.value;
+  if (t.dataset && t.dataset.shk) { if (t.checked) FLOW_SH.tick.add(t.dataset.shk); else FLOW_SH.tick.delete(t.dataset.shk); }
+  flowShDraw();
+});
 
 function flowChallanHtml(ch) {
   let s = {}; try { s = (GPO && GPO.settings) || {}; } catch (e) { s = {}; }
@@ -41462,8 +41628,8 @@ function invDetail(r, col) {
         + '<td class="tl">' + esc(g.processor || '—') + '</td><td class="tl">' + esc(fmtD(invLastDate(back) || g.date)) + '</td>'
         + '<td class="num">' + nf(came) + ' m</td><td class="num">' + (g.rfdOut ? nf(g.rfdOut) + ' m' : '—') + '</td>'
         + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(g.rfdLeft) + ' m</td>'
-        /* Send to printer opens the products that need this fabric, not the whole list (Ravi, 21 Nov) */
-        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdlines="' + esc(r.fabric) + '" title="The products waiting for ' + esc(r.fabric) + ' on Demand → RFD">Send to printer</button>'
+        /* Send to printer opens the RFD challan for this fabric right here (Vishesh, 23 Nov; before: its lines on Demand → RFD) */
+        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>'
         + '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button></div></td></tr>';
     });
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
@@ -43089,10 +43255,25 @@ function gdOpenMasterData(view) {
 
 function wireGd() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-ppcpo],[data-gdflow],[data-gdlines]') : null; if (!t) return;
+    var t = ev.target.closest ? ev.target.closest('[data-ppcpo],[data-gdflow],[data-gdlines],[data-gdsend]') : null; if (!t) return;
     if (t.getAttribute('data-ppcpo')) { var p = t.getAttribute('data-ppcpo').split('|'); gdPoFor(p[0], +p[1]); return; }
     if (t.getAttribute('data-gdflow')) { gdToFlow(t.getAttribute('data-gdflow'), ''); return; }   // the whole list: no fabric left in the search
     if (t.getAttribute('data-gdlines')) { gdToFlow('drfd', t.getAttribute('data-gdlines')); return; }
+    if (t.getAttribute('data-gdsend')) { gdSendToPrinter(t.getAttribute('data-gdsend')); return; }
+  });
+}
+/* SEND TO PRINTER MAKES THE CHALLAN HERE (Vishesh, 23 Nov). The card is the flow's (flowShelfChallanOpen); the desk asks for it,
+ * says why when it cannot open, and draws itself again once the challan is made. Without the flow in the page it falls back
+ * to that fabric's lines on Demand → RFD, as before. */
+function gdSendToPrinter(fabric) {
+  if (typeof flowShelfChallanOpen !== 'function') { gdToFlow('drfd', fabric); return; }
+  lmSay('ok', 'Reading the lines waiting for ' + fabric + '…');
+  flowShelfChallanOpen(fabric, function (no, err) {
+    lmSay(err ? 'warn' : 'ok', 'Challan ' + no + ' made for ' + fabric + '.' + (err ? ' ' + err : ''));
+    render();
+  }).then(function (why) { if (why) lmSay('warn', why); }, function (e) {
+    console.error('Send to printer for ' + fabric + ' could not open:', e);
+    lmSay('err', 'The challan for ' + fabric + ' could not open (' + ((e && e.message) || e) + '). Nothing was saved.');
   });
 }
 
