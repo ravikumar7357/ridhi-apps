@@ -66,7 +66,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, mdbOf: opts.mdbOf, MDBX: opts.mdbx, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowShTickFor, flowClothFor, flowClothInTransit, flowClothLoad, flowDateAsk, flowDateAsksWaiting, flowDateDecide, flowDateMay, flowPrinters, flowChVendors, flowShelfChallanOpen, flowShelfChallanShow, flowShShown, flowShDraw, flowShMoving, flowShGoing, flowShSetPcs, flowShAs, flowShTickAll, flowShChangePrinter, flowShStuck, flowShReviewOpen, flowShCommit, flowPrnWaiting, flowPrnApprove, flowPrnRefuse, flowPrnMay, FLOW_SH:()=>FLOW_SH, flowChFabricWrong, flowChHeldHtml, flowChFabricHtml, flowChStock, setChCover: v => { FLOW_CH_COVER = v; }, flowToPrintRem, flowDirOpts, flowDirAsked, flowBoardOwns, FLOW_BOARD_FROM, flowRepShpFill, flowRepOpen, flowRepSkus, flowRepSerial, flowRepLines, flowRepSheets, flowRepDelay, flowRepDue, flowRepAllowed, flowRepXlsx, flowRepChannel, flowRepDay, flowRepBtn, flowPoParts, flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowRemPrinters, flowRemText, flowRemPhone, flowRemTable, flowRemOpen, FLOW_REM:()=>FLOW_REM, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowShPrn, flowShChanged, flowShSetPrn, flowShWhyNot, flowClothFor, flowClothInTransit, flowClothLoad, flowDateAsk, flowDateAsksWaiting, flowDateDecide, flowDateMay, flowPrinters, flowChVendors, flowShelfChallanOpen, flowShelfChallanShow, flowShShown, flowShDraw, flowShGoing, flowShSetPcs, flowShAs, flowShTickAll, flowShStuck, flowShReviewOpen, flowShCommit, flowPrnWaiting, flowPrnApprove, flowPrnRefuse, flowPrnMay, FLOW_SH:()=>FLOW_SH, flowChFabricWrong, flowChHeldHtml, flowChFabricHtml, flowChStock, setChCover: v => { FLOW_CH_COVER = v; }, flowToPrintRem, flowDirOpts, flowDirAsked, flowBoardOwns, FLOW_BOARD_FROM, flowRepShpFill, flowRepOpen, flowRepSkus, flowRepSerial, flowRepLines, flowRepSheets, flowRepDelay, flowRepDue, flowRepAllowed, flowRepXlsx, flowRepChannel, flowRepDay, flowRepBtn, flowPoParts, flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowRemPrinters, flowRemText, flowRemPhone, flowRemTable, flowRemOpen, FLOW_REM:()=>FLOW_REM, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -2709,173 +2709,135 @@ const K = 'AMZ-1__S1';
       lines: [L({ sku: 'S1', qty: 100 }), L({ sku: 'S2', qty: 40 }), L({ orderNo: 'SHP-9', sku: 'S3', qty: 60, src: 'SHP', orderDate: '2026-10-12' }), L({ sku: 'S4', qty: 10 }), L({ sku: 'S5', qty: 30 })],
       ppc: { 'AMZ-1__S1': cam('S1', 100, P1), 'AMZ-1__S2': cam('S2', 40), 'SHP-9__S3': Object.assign(cam('S3', 60, P2), { orderNo: 'SHP-9' }),
         'AMZ-1__S4': plan({ sku: 'S4', qty: 10, route: 'inhouse', fabric: { name: 'Sheeting 62', perPc: 1, metres: 10 }, printer: P1 }), 'AMZ-1__S5': cam('S5', 30, P1) } }, o || {}));
+    const tick = () => new Promise(r => setTimeout(r, 5)), K1 = 'AMZ-1__S1', K2 = 'AMZ-1__S2', KS3 = 'SHP-9__S3', K5 = 'AMZ-1__S5', REQ = 'pt_flowDemand/SHP-9__S3/printerMove';
     const C = makeCard();
     ok('the printer list is the vendor master\'s printers only — no mill', C.flowPrinters().map(v => v.code).join() === 'P1,P2');
     ok('…while the Demand window keeps every vendor, printers first', C.flowChVendors().map(v => v.code).join() === 'P1,P2,V9');
     const why = C.flowShelfChallanShow('Cambric', (no, err) => { C.ctx.__made = [no, err]; });
-    const S = C.FLOW_SH(), byKey = k => S.lines.find(l => l.key === k) || {};
-    ok('the card opens over the page, titled for the fabric', why === '' && /RFD challan — Cambric/.test(C.ctx.__dlg.title), why);
-    ok('…its printer drop-down has only the printers', /Sanganer Prints/.test(C.ctx.__dlg.html) && /Choudhary Hand Block/.test(C.ctx.__dlg.html) && !/Kalu Mill/.test(C.ctx.__dlg.html));
-    ok('…the date is today and cannot be typed over', /id="flshDate" value="2026-10-13" readonly/.test(C.ctx.__dlg.html));
-    ok('…no box to type metres in; a box for pieces on each line that can go', !/data-chp=|data-chm=/.test(C.ctx.__dlg.html) && /data-shq="AMZ-1__S1"/.test(C.els.flshBody.innerHTML) && !/data-shq="AMZ-1__S5"/.test(C.els.flshBody.innerHTML));
-    ok('…a search box, Select all, Deselect all and Change printer — no Choose by', /id="flshQ"/.test(C.ctx.__dlg.html) && /data-shall="1"/.test(C.ctx.__dlg.html) && /data-shall="0"/.test(C.ctx.__dlg.html)
-      && /data-shprn="1"/.test(C.ctx.__dlg.html) && !/flshBy|Choose by/.test(C.ctx.__dlg.html));
+    const S = C.FLOW_SH(), byKey = k => S.lines.find(l => l.key === k) || {}, body = () => C.els.flshBody.innerHTML;
+    ok('the card opens over the page, titled for the fabric, dated today', why === '' && /Send Cambric to printers/.test(C.ctx.__dlg.title) && /2026-10-13/.test(C.ctx.__dlg.subtitle), why);
+    ok('…it says nothing is saved until confirmed, and Cancel throws the changes away', /nothing is saved until you confirm/i.test(C.ctx.__dlg.subtitle) && /Cancel throws the changes away/.test(C.ctx.__dlg.subtitle));
+    ok('…a search box, a Show filter, Select all, Deselect all and Set printer for ticked — no Choose by', /id="flshQ"/.test(C.ctx.__dlg.html) && /id="flshShow"/.test(C.ctx.__dlg.html)
+      && /data-shall="1"/.test(C.ctx.__dlg.html) && /data-shall="0"/.test(C.ctx.__dlg.html) && /id="flshSetPrn"/.test(C.ctx.__dlg.html) && /data-shsetprn/.test(C.ctx.__dlg.html) && !/flshBy|Choose by/.test(C.ctx.__dlg.html));
     ok('only this fabric\'s lines: S1, S2, S3, S5 — not S4 (Sheeting 62)', S.lines.map(l => l.x.r.sku).sort().join() === 'S1,S2,S3,S5', S.lines.map(l => l.x.r.sku).join());
     ok('pieces are all still owed; metres = pieces × the master\'s cloth per piece (100 × 0.35 = 35, 40 × 0.5 = 20)',
-      byKey('AMZ-1__S1').pcs === 100 && byKey('AMZ-1__S1').metres === 35 && byKey('AMZ-1__S2').pcs === 40 && byKey('AMZ-1__S2').metres === 20);
-    ok('…not the PPC plan\'s 0.4 m a piece', byKey('AMZ-1__S1').perPc === 0.35);
-    ok('a line whose master row has no cloth per piece shows, cannot be ticked, and says why', byKey('AMZ-1__S5').perPc === 0 && !S.tick.has('AMZ-1__S5')
-      && /data-shk="AMZ-1__S5" disabled/.test(C.els.flshBody.innerHTML) && /No cloth per piece on its master row/.test(C.els.flshBody.innerHTML));
-    ok('with no printer picked every line shows, with its planned printer named', C.flowShShown(S, '').length === 4 && /planned: Choudhary Hand Block/.test(C.els.flshBody.innerHTML));
-    /* Vishesh, 23 Nov: "when I choose the printer … show me only those articles … then I can select more" */
-    C.flowShTickFor(S, 'P1');
-    ok('picking Sanganer Prints shows only the lines PPC set for it (S1, S5), S1 ticked (S5 has no cloth per piece)', C.flowShShown(S, 'P1').map(l => l.x.r.sku).sort().join() === 'S1,S5'
-      && [...S.tick].join() === 'AMZ-1__S1' && S.more === false);
-    C.els.flshVen = { value: 'P1' }; C.ctx.__dlg && C.flowShelfChallanShow && 0;
-    ok('…"Show more" brings in every other line of the fabric, unticked: S2 (no printer) and Choudhary\'s S3, flagged as moving',
-      (S.more = true, C.flowShShown(S, 'P1').map(l => l.x.r.sku).sort().join() === 'S1,S2,S3,S5') && !S.tick.has('AMZ-1__S2') && !S.tick.has('SHP-9__S3')
-      && C.flowShMoving(byKey('SHP-9__S3'), 'P1') && !C.flowShMoving(byKey('AMZ-1__S1'), 'P1') && !C.flowShMoving(byKey('AMZ-1__S2'), 'P1') && !C.flowShMoving(byKey('SHP-9__S3'), ''));
-    C.flowShTickFor(S, 'P2');
-    ok('picking Choudhary Hand Block instead: only its S3, ticked; the earlier ticks are gone', C.flowShShown(S, 'P2').map(l => l.x.r.sku).join() === 'S3' && [...S.tick].join() === 'SHP-9__S3');
-    S.more = true;
-    /* A SEARCH IN PLACE OF CHOOSE BY (Vishesh, 23 Nov): order no., SKU, item, print or printer; every word must match */
-    S.q = 'SHP-9';
-    ok('search by order no. narrows the list to it', C.flowShShown(S, '').map(l => l.x.r.sku).join() === 'S3');
-    S.q = 's1';
-    ok('…by SKU, in any case', C.flowShShown(S, '').map(l => l.x.r.sku).join() === 'S1');
-    S.q = 'choudhary';
-    ok('…by printer name', C.flowShShown(S, '').map(l => l.x.r.sku).join() === 'S3');
-    S.q = 'amz-1 nothing-like-this';
-    ok('…every word must match', C.flowShShown(S, '').length === 0);
+      byKey(K1).pcs === 100 && byKey(K1).metres === 35 && byKey(K2).pcs === 40 && byKey(K2).metres === 20 && byKey(K1).perPc === 0.35);
+    ok('nothing is ticked when the card opens', S.tick.size === 0);
+    ok('each line has a Printer drop-down set to PPC\'s printer, marked (PPC)', /data-shprn="AMZ-1__S1"/.test(body()) && /value="P1" selected>Sanganer Prints \(PPC\)/.test(body()) && /value="P2" selected>Choudhary Hand Block \(PPC\)/.test(body()));
+    ok('…S2 (no printer from PPC) asks for one, and cannot be ticked until it has one', /PPC set no printer/.test(body()) && /data-shk="AMZ-1__S2" disabled title="Pick its printer"/.test(body()));
+    ok('S5 (no cloth per piece on its master row) cannot be ticked and says why; it has no pieces box', /data-shk="AMZ-1__S5" disabled/.test(body()) && /No cloth per piece on its master row/.test(body()) && !/data-shq="AMZ-1__S5"/.test(body()));
+    ok('…S1 has a pieces box, nothing to type metres in', /data-shq="AMZ-1__S1"/.test(body()) && !/data-chp=|data-chm=/.test(body()));
+
+    /* SEARCH and SHOW (Vishesh, 23 Nov) */
+    S.q = 'SHP-9'; ok('search by order no.', C.flowShShown(S).map(l => l.x.r.sku).join() === 'S3');
+    S.q = 's1'; ok('…by SKU, in any case', C.flowShShown(S).map(l => l.x.r.sku).join() === 'S1');
+    S.q = 'choudhary'; ok('…by printer name', C.flowShShown(S).map(l => l.x.r.sku).join() === 'S3');
+    S.q = 'amz-1 nothing-like-this'; ok('…every word must match', C.flowShShown(S).length === 0);
     S.q = '';
-    /* SELECT ALL / DESELECT ALL: what is shown and can go; S5 (no cloth per piece) never ticks */
-    C.flowShTickAll(S, 'P1', true);
-    ok('Select all ticks every line shown that can go — not S5, not Choudhary\'s S3 (moving is allowed, it asks)', S.tick.has('AMZ-1__S1') && S.tick.has('AMZ-1__S2') && !S.tick.has('AMZ-1__S5'));
-    C.flowShTickAll(S, 'P1', false);
-    ok('Deselect all unticks every line shown', S.tick.size === 0);
+    S.show = 'P1'; ok('Show one printer: its lines (S1, S5)', C.flowShShown(S).map(l => l.x.r.sku).join() === 'S1,S5');
+    S.show = '-'; ok('Show "No printer yet": S2', C.flowShShown(S).map(l => l.x.r.sku).join() === 'S2');
+    S.show = '';
+    C.flowShDraw();
+    ok('…the Show list counts each printer\'s lines and those with none', /Sanganer Prints \(2\)/.test(C.els.flshShow.innerHTML) && /Choudhary Hand Block \(1\)/.test(C.els.flshShow.innerHTML) && /No printer yet \(1\)/.test(C.els.flshShow.innerHTML));
+
+    /* SELECT ALL / DESELECT ALL */
+    C.flowShTickAll(S, true);
+    ok('Select all ticks every line shown that can go: S1, S3 (not S2 with no printer, not S5)', [...S.tick].sort().join() === [K1, KS3].sort().join());
+    C.flowShTickAll(S, false);
+    ok('Deselect all unticks them', S.tick.size === 0);
+
     /* FEWER PIECES THAN PLANNED (Vishesh, 23 Nov: "if ppc has planned for 45 and I write 30 … rest 15 will still be seen in the ppc page") */
-    ok('typing more than PPC planned is refused, in words, and nothing changes', /planned 100 pcs — you can send fewer, not more/.test(C.flowShSetPcs(S, 'AMZ-1__S1', 120)) && !S.qty['AMZ-1__S1']);
-    ok('…less than 1 is refused too', /at least 1 piece/.test(C.flowShSetPcs(S, 'AMZ-1__S1', 0)));
-    ok('…30 of 100 is kept: 30 pcs × 0.35 = 10.5 m, the 100 remembered as planned', C.flowShSetPcs(S, 'AMZ-1__S1', 30) === '' && C.flowShAs(S, byKey('AMZ-1__S1')).pcs === 30
-      && C.flowShAs(S, byKey('AMZ-1__S1')).metres === 10.5 && C.flowShAs(S, byKey('AMZ-1__S1')).planned === 100);
-    ok('…typing the full 100 again forgets it', C.flowShSetPcs(S, 'AMZ-1__S1', 100) === '' && !('AMZ-1__S1' in S.qty) && C.flowShAs(S, byKey('AMZ-1__S1')) === byKey('AMZ-1__S1'));
-    C.els.flshVen = { value: '' }; C.els.flshNote = { value: 'Tempo RJ14' };
-    ok('saving without a printer is refused, in words', /Pick one/.test(await C.ctx.__dlg.onSave()));
-    C.els.flshVen.value = 'P1';
-    /* Sanganer's own S1, plus S2 (no printer) and Choudhary's S3 added from "Show more" */
-    C.flowShTickFor(S, 'P1'); S.more = true; S.tick.add('AMZ-1__S2'); S.tick.add('SHP-9__S3');
-    const er0 = await C.ctx.__dlg.onSave(); await new Promise(r => setTimeout(r, 5));
-    ok('a line changes printer (S3): Make the challan writes nothing yet, it opens the Review', er0 === '' && !C.writes.length && !Object.keys(C.FLOW().ch || {}).length && /^Send this cloth to Sanganer Prints?/.test(C.ctx.__dlg.title) && C.ctx.__dlg.saveLabel === 'Yes, make the challan');
-    const er = await C.ctx.__dlg.onSave(); await new Promise(r => setTimeout(r, 5));
-    const ch = Object.values(C.FLOW().ch)[0] || {}, w = Object.assign({}, ...C.writes);
-    ok('Confirm: ONE challan to Sanganer Prints, dated today, with S1 and S2 (not S5, not Choudhary\'s S3)', er === '' && Object.keys(C.FLOW().ch).length === 1 && ch.vendor.code === 'P1' && ch.date === '2026-10-13'
-      && ch.lines.map(l => l.sku + ' ' + l.pcs + ' ' + l.metres).join() === 'S1 100 35,S2 40 20' && ch.note === 'Tempo RJ14', er || JSON.stringify(ch));
-    ok('…the lines are marked as given (they leave Demand); the unplanned S2 now has Sanganer Prints as its printer',
-      w['pt_flowDemand/AMZ-1__S1/fabricReady'].challan === ch.no && w['pt_flowDemand/AMZ-1__S2/fabricReady'].metres === 20
-      && w['pt_ppc/AMZ-1__S2/printer'].code === 'P1' && !w['pt_ppc/AMZ-1__S1/printer'], JSON.stringify(Object.keys(w)));
-    ok('…and the Greige Desk is told the number, to draw itself again', C.ctx.__made && C.ctx.__made[0] === ch.no && C.FLOW_SH() === null);
-    ok('…S3 (Choudhary\'s) got a waiting request, not a challan line', (w['pt_flowDemand/SHP-9__S3/printerMove'] || {}).status === 'waiting' && !w['pt_flowDemand/SHP-9__S3/fabricReady']);
-    /* CLOTH ON ITS WAY TO THE PRINTER (Vishesh, 23 Nov): the printer's own copy of the challan, in the same save */
-    const cp = w['pt_vendorChallans/P1/' + ch.no] || {};
-    ok('…and the printer gets its own copy of the challan (in transit): our order and SKU per line, the metres, not yet received',
-      cp.kind === 'cloth' && cp.no === ch.no && cp.vendor.code === 'P1' && cp.lines.map(l => l.orderNo + ' ' + l.sku + ' ' + l.metres).join() === 'AMZ-1 S1 35,AMZ-1 S2 20'
-      && cp.metres === 55 && !cp.received && cp.date === '2026-10-13', JSON.stringify(cp));
-    ok('…the Greige Desk counts it in transit at once: 55 m of Cambric to Sanganer Prints',
-      C.flowClothInTransit('Cambric', '2026-10-01').reduce((a, x) => a + x.metres, 0) === 55 && C.flowClothInTransit('Cambric', '2026-10-01')[0].vendor === 'Sanganer Prints'
-      && C.flowClothInTransit('Cambric', '2026-10-14').length === 0 && C.flowClothInTransit('Voil 92', '').length === 0);
-    /* ASK BEFORE IT GOES (Vishesh, 23 Nov: "when I click on make challan it should give a notification that this order will be sent to this vendor") */
-    const NR = makeCard(); NR.flowShelfChallanShow('Cambric'); NR.els.flshVen = { value: 'P1' }; NR.els.flshNote = { value: '' }; NR.flowShTickFor(NR.FLOW_SH(), 'P1');
-    const erN = await NR.ctx.__dlg.onSave(); await new Promise(r => setTimeout(r, 5));
-    const ask = NR.ctx.__dlg;
-    ok('only the printer\'s own lines ticked: Make the challan still asks first — nothing written, "Send this cloth to Sanganer Prints?" with the order, SKU and metres',
-      erN === '' && !NR.writes.length && !Object.keys(NR.FLOW().ch || {}).length && /^Send this cloth to Sanganer Prints?/.test(ask.title)
-      && /AMZ-1/.test(ask.html) && /S1/.test(ask.html) && /35 m leaves RFD on shelf and shows as in transit/.test(ask.html) && !/Waits for approval/.test(ask.html)
-      && ask.saveLabel === 'Yes, make the challan' && ask.alt.label === 'Go back', (erN || '') + ask.title);
-    await ask.onSave(); await new Promise(r => setTimeout(r, 5));
-    const chN = Object.values(NR.FLOW().ch || {})[0] || {};
-    ok('…"Yes, make the challan" makes it: one challan to Sanganer Prints with S1', chN.vendor && chN.vendor.code === 'P1' && chN.lines.map(l => l.sku).join() === 'S1');
-    ok('…the card shows "Show N more lines" for the rest', (NR.flowShelfChallanShow('Cambric'), NR.els.flshVen = { value: 'P1' }, NR.flowShTickFor(NR.FLOW_SH(), 'P1'), NR.flowShDraw(), /data-shmore="1"[^>]*>Show \d+ more line/.test(NR.els.flshBody.innerHTML)));
-    /* FEWER PIECES THAN PLANNED, SAVED: 30 of S1's 100 go; the other 70 stay waiting on Demand → RFD (the PPC page) */
-    const PQ = makeCard(); PQ.flowShelfChallanShow('Cambric'); PQ.els.flshVen = { value: 'P1' }; PQ.els.flshNote = { value: '' }; PQ.flowShTickFor(PQ.FLOW_SH(), 'P1');
-    PQ.flowShSetPcs(PQ.FLOW_SH(), 'AMZ-1__S1', 30);
-    await PQ.ctx.__dlg.onSave(); await new Promise(r => setTimeout(r, 5));
-    ok('the Review says 30 of 100, and that 70 stay on PPC', /of 100 — 70 stay on PPC/.test(PQ.ctx.__dlg.html), PQ.ctx.__dlg.html.slice(0, 400));
-    await PQ.ctx.__dlg.onSave(); await new Promise(r => setTimeout(r, 5));
-    const chQ = Object.values(PQ.FLOW().ch || {})[0] || {};
-    ok('…the challan carries 30 pcs and 10.5 m of S1, not 100', (chQ.lines || []).map(l => l.sku + ' ' + l.pcs + ' ' + l.metres).join() === 'S1 30 10.5', JSON.stringify(chQ.lines));
-    const again = (PQ.flowShelfChallanShow('Cambric'), PQ.FLOW_SH().lines.find(l => l.key === 'AMZ-1__S1'));
-    ok('…and S1 is still waiting for the other 70 pcs', !!again && again.pcs === 70, again && again.pcs);
-    /* CHANGE PRINTER OF TICKED: refused in words when nothing is picked or ticked, or the line is already there */
-    const CP = makeCard(); CP.flowShelfChallanShow('Cambric'); const SC = CP.FLOW_SH(); SC.tick.clear();
-    ok('Change printer with no new printer picked says so', /Pick the new printer/.test((await CP.flowShChangePrinter(SC, '', '')).text));
-    ok('…with nothing ticked says so', /Tick the lines/.test((await CP.flowShChangePrinter(SC, '', 'P1')).text));
-    SC.tick.add('AMZ-1__S1');
-    const same = await CP.flowShChangePrinter(SC, '', 'P1');
-    ok('…a line already with that printer is left, and said', same.bad && /S1 is already with Sanganer Prints/.test(same.text), same.text);
+    ok('typing more than PPC planned is refused, in words, and nothing changes', /planned 100 pcs — you can send fewer, not more/.test(C.flowShSetPcs(S, K1, 120)) && !S.qty[K1]);
+    ok('…less than 1 is refused too', /at least 1 piece/.test(C.flowShSetPcs(S, K1, 0)));
+    ok('…30 of 100 is kept: 30 pcs × 0.35 = 10.5 m, the 100 remembered as planned', C.flowShSetPcs(S, K1, 30) === '' && C.flowShAs(S, byKey(K1)).pcs === 30 && C.flowShAs(S, byKey(K1)).metres === 10.5 && C.flowShAs(S, byKey(K1)).planned === 100);
+    ok('…typing the full 100 again forgets it', C.flowShSetPcs(S, K1, 100) === '' && !(K1 in S.qty) && !C.flowShAs(S, byKey(K1)).planned);
+
+    /* THE PRINTER COLUMN IS A DRAFT (Vishesh, 23 Nov, later: "as I am changing the printer it is not changing properly … cancel is not reverting") */
+    C.flowShSetPrn(S, [K2], 'P1');
+    ok('S2 given Sanganer on the card: it now goes there and is ticked; not a change of printer (PPC set none)', C.flowShPrn(S, byKey(K2)) === 'P1' && S.tick.has(K2) && !C.flowShChanged(S, byKey(K2)));
+    C.flowShSetPrn(S, [KS3], 'P1');
+    ok('S3 (Choudhary\'s) moved to Sanganer on the card: a change of printer, ticked, shown with "was Choudhary" and Undo', C.flowShChanged(S, byKey(KS3)) && S.tick.has(KS3)
+      && (C.flowShDraw(), /was Choudhary Hand Block · changes on confirm · <a href="#" data-shundo="SHP-9__S3">Undo/.test(body())));
+    ok('…Show Sanganer now lists S1, S2, S3, S5 — the card as it now stands', (S.show = 'P1', C.flowShShown(S).map(l => l.x.r.sku).sort().join() === 'S1,S2,S3,S5') && ((S.show = ''), true));
+    ok('…nothing at all is saved while the card is changed', !C.writes.length && !Object.keys(C.FLOW().ch || {}).length && (C.FLOW().ppc[KS3].printer || {}).code === 'P2');
+    C.flowShSetPrn(S, [KS3], 'P2');
+    ok('choosing PPC\'s own printer again forgets the change', !(KS3 in S.prn) && !C.flowShChanged(S, byKey(KS3)));
+    ok('Cancel: opening the card again starts from PPC — no printer changes, no ticks, no pieces typed', (C.flowShelfChallanShow('Cambric'), C.FLOW_SH().tick.size === 0 && !Object.keys(C.FLOW_SH().prn).length && !Object.keys(C.FLOW_SH().qty).length));
+
+    /* opens the card, lets `setup` change the draft, presses Make the challans; returns the Review dialog (Yes is its onSave) */
+    const toReview = async (X, setup, after) => { X.flowShelfChallanShow('Cambric', after); X.els.flshNote = { value: 'Tempo RJ14' };
+      setup(X.FLOW_SH()); const er = await X.ctx.__dlg.onSave(); await tick(); return er ? { er } : X.ctx.__dlg; };
     const D = makeCard();
-    D.flowShelfChallanShow('Cambric'); D.els.flshVen = { value: 'P2' }; D.els.flshNote = { value: '' };
-    D.FLOW_SH().tick.clear();
-    ok('nothing ticked: refused', /Tick at least one line/.test(await D.ctx.__dlg.onSave()));
+    ok('nothing ticked: refused', /Tick at least one line/.test((await toReview(D, () => {})).er));
     ok('a fabric with no line waiting says so, and opens nothing', /No line is waiting for Voil 92/.test(D.flowShelfChallanShow('Voil 92')));
     const N = makeCard({ me: { admin: false, tabs: ['flcut'] } });
     ok('without Demand → RFD access the card does not open, and says why', /needs Demand → RFD access/.test(await N.flowShelfChallanOpen('Cambric')));
 
-    /* ---- a change of printer is asked for here and decided by an approver (Vishesh, 23 Nov) ---- */
-    const tick = () => new Promise(r => setTimeout(r, 5)), KS3 = 'SHP-9__S3', REQ = 'pt_flowDemand/SHP-9__S3/printerMove';
-    /* opens the card for Cambric, picks a printer, runs Make the challan, returns the Review dialog (Confirm is its onSave) */
-    /* …with every line of the fabric shown and ticked ("Show more", then each ticked), so a change of printer is in it */
-    const toReview = async (X, code, after) => { X.flowShelfChallanShow('Cambric', after); X.els.flshVen = { value: code }; X.els.flshNote = { value: '' };
-      const S0 = X.FLOW_SH(); S0.more = true; S0.tick = new Set(S0.lines.filter(l => l.perPc > 0).map(l => l.key));
-      const er = await X.ctx.__dlg.onSave(); await tick(); return er ? { er } : X.ctx.__dlg; };
-    const waitReq = { status: 'waiting', to: { code: 'P1', name: 'Sanganer Prints' }, from: { code: 'P2', name: 'Choudhary Hand Block' }, fabric: 'Cambric', pcs: 60, metres: 21, orderNo: 'SHP-9', sku: 'S3', by: 'ppc@x', at: '2026-10-13T09:00:00Z' };
+    /* ONE CHALLAN PER PRINTER: S1 (Sanganer), S2 given Sanganer, S3 stays with Choudhary → two challans */
+    const M = makeCard(); let mf = null;
+    const rvM = await toReview(M, X => { M.flowShSetPrn(X, [K2], 'P1'); X.tick.add(K1); X.tick.add(KS3); }, (no, said) => { mf = [no, said]; });
+    ok('Make the challans writes nothing yet: the Review "Make 2 challans?", printer by printer', !M.writes.length && /^Make 2 challans\?/.test(rvM.title) && rvM.saveLabel === 'Yes, make 2 challans'
+      && rvM.html.indexOf('→ Choudhary Hand Block') >= 0 && rvM.html.indexOf('→ Sanganer Prints') > rvM.html.indexOf('→ Choudhary Hand Block') && rvM.alt.label === 'Go back', rvM.title);
+    await rvM.alt.run(); await tick();
+    ok('Go back: the card again with the same draft (ticks, S2\'s printer, note)', /Send Cambric to printers/.test(M.ctx.__dlg.title) && M.FLOW_SH().tick.has(K1) && M.FLOW_SH().prn[K2] === 'P1' && /Tempo RJ14/.test(M.ctx.__dlg.html));
+    await M.ctx.__dlg.onSave(); await tick(); await M.ctx.__dlg.onSave(); await tick();
+    const chs = Object.values(M.FLOW().ch), w = Object.assign({}, ...M.writes), chP1 = chs.find(c => c.vendor.code === 'P1') || {}, chP2 = chs.find(c => c.vendor.code === 'P2') || {};
+    ok('Yes: two challans — Sanganer with S1 and S2, Choudhary with S3 — dated today, with the note', chs.length === 2 && chP1.lines.map(l => l.sku + ' ' + l.pcs + ' ' + l.metres).join() === 'S1 100 35,S2 40 20'
+      && chP2.lines.map(l => l.sku).join() === 'S3' && chP1.date === '2026-10-13' && chP1.note === 'Tempo RJ14', JSON.stringify(chs.map(c => [c.vendor.code, c.lines.map(l => l.sku)])));
+    ok('…S2 (no printer from PPC) now has Sanganer as its printer; S1 and S3 keep theirs', w['pt_ppc/AMZ-1__S2/printer'].code === 'P1' && !w['pt_ppc/AMZ-1__S1/printer'] && !w['pt_ppc/SHP-9__S3/printer']);
+    ok('…each printer gets its own copy (in transit): 55 m to Sanganer, 21 m to Choudhary', (w['pt_vendorChallans/P1/' + chP1.no] || {}).metres === 55 && (w['pt_vendorChallans/P2/' + chP2.no] || {}).metres === 21
+      && M.flowClothInTransit('Cambric', '2026-10-01').reduce((a, x) => a + x.metres, 0) === 76);
+    ok('…and the Greige Desk is told both numbers', mf && mf[0].split(', ').sort().join() === [chP1.no, chP2.no].sort().join() && M.FLOW_SH() === null, JSON.stringify(mf));
 
-    const R1 = makeCard({ cas: true }), rev = await toReview(R1, 'P1');
-    const html = rev.html || '', iWait = html.indexOf('Waits for approval');
-    ok('the Review splits "Goes now" (S1, S2) from "Waits for approval" (S3, Choudhary → Sanganer)', /Send this cloth to Sanganer Prints?/.test(rev.title) && html.indexOf('Goes now') >= 0 && iWait > html.indexOf('Goes now')
-      && html.indexOf('S1') > 0 && html.indexOf('S1') < iWait && html.indexOf('S2') < iWait && html.indexOf('S3') > iWait && !/S5/.test(html) && /Choudhary Hand Block → Sanganer Prints/.test(html), html.slice(0, 300));
-    ok('…it says who approves, and the buttons are "Yes, make the challan" and "Go back"', /Approved by Ravi or anyone with 'Approve a change of printer'/.test(html) && rev.saveLabel === 'Yes, make the challan' && rev.alt.label === 'Go back');
-    R1.FLOW_SH().tick.delete('AMZ-1__S2');
-    const rev2 = await toReview(R1, 'P1');
-    ok('nothing is saved while the Review is open', !R1.writes.length && !(R1.ctx.__cas || []).length);
-    await rev.alt.run(); await tick();
-    ok('Back: the card opens again with the same printer and ticks', /RFD challan — Cambric/.test(R1.ctx.__dlg.title) && /value="P1" selected/.test(R1.ctx.__dlg.html) && !R1.FLOW_SH().tick.has('AMZ-1__S2') && R1.FLOW_SH().tick.has('AMZ-1__S1'));
+    /* FEWER PIECES, SAVED: 30 of S1's 100 go; the other 70 stay waiting on Demand → RFD (the PPC page) */
+    const PQ = makeCard();
+    const rvQ = await toReview(PQ, X => { X.tick.add(K1); PQ.flowShSetPcs(X, K1, 30); });
+    ok('the Review says 30 of 100, and that 70 stay on PPC', /of 100 — 70 stay on PPC/.test(rvQ.html) && rvQ.saveLabel === 'Yes, make the challan');
+    await rvQ.onSave(); await tick();
+    const chQ = Object.values(PQ.FLOW().ch || {})[0] || {};
+    ok('…the challan carries 30 pcs and 10.5 m of S1, not 100', (chQ.lines || []).map(l => l.sku + ' ' + l.pcs + ' ' + l.metres).join() === 'S1 30 10.5', JSON.stringify(chQ.lines));
+    const again = (PQ.flowShelfChallanShow('Cambric'), PQ.FLOW_SH().lines.find(l => l.key === K1));
+    ok('…and S1 is still waiting for the other 70 pcs', !!again && again.pcs === 70, again && again.pcs);
 
-    const A = makeCard({ cas: true }); let af = null;
-    const revA = await toReview(A, 'P1', (no, msg) => { af = [no, msg]; });
-    ok('Confirm: a challan only for the lines that do not move; S3 is on no challan', await revA.onSave() === '' && (await tick(), true) && Object.values(A.FLOW().ch).length === 1
-      && Object.values(A.FLOW().ch)[0].lines.map(l => l.sku).join() === 'S1,S2' && !Object.values(A.FLOW().ch)[0].lines.some(l => l.sku === 'S3'));
-    const wr = (A.ctx.__casDb || {})[REQ];
+    /* AN APPROVER CHANGES THE PRINTER: the plan moves on Yes, then the line goes on the new printer's challan */
+    const AC = makeCard({ cas: true });
+    const rvA = await toReview(AC, X => { AC.flowShSetPrn(X, [KS3], 'P1'); });
+    ok('the Review says S3 comes from Choudhary and the plan moves first', /from Choudhary Hand Block — the plan moves first/.test(rvA.html) && /^Make this challan\?/.test(rvA.title));
+    ok('…still nothing saved', (AC.FLOW().ppc[KS3].printer || {}).code === 'P2' && !AC.writes.length);
+    await rvA.onSave(); await tick();
+    const chA = Object.values(AC.FLOW().ch)[0] || {};
+    ok('Yes: S3\'s plan now says Sanganer, and S3 is on the challan to Sanganer (60 pcs, 21 m)', AC.FLOW().ppc[KS3].printer.code === 'P1' && chA.vendor && chA.vendor.code === 'P1'
+      && chA.lines.map(l => l.sku + ' ' + l.pcs + ' ' + l.metres).join() === 'S3 60 21', JSON.stringify(chA));
+
+    /* ANYONE ELSE CHANGES THE PRINTER: on Yes a request waits for approval; the line is on no challan */
+    const R1 = makeCard({ cas: true, me: { admin: false, tabs: [] } }); let af = null;
+    const rv1 = await toReview(R1, X => { X.tick.add(K1); R1.flowShSetPrn(X, [KS3], 'P1'); }, (no, msg) => { af = [no, msg]; });
+    ok('without the right: the Review says S3 waits for approval, not on this challan, and who approves', /waits for approval, not on this challan/.test(rv1.html) && /approved by Ravi or anyone with 'Approve a change of printer'/.test(rv1.html));
+    await rv1.onSave(); await tick();
+    const c1 = Object.values(R1.FLOW().ch), wr = (R1.ctx.__casDb || {})[REQ];
+    ok('Yes: a challan only for S1; S3 is on no challan', c1.length === 1 && c1[0].lines.map(l => l.sku).join() === 'S1');
     ok('…and ONE waiting request for S3: to Sanganer, from Choudhary, 60 pcs, 21 m, who asked and when', !!wr && wr.status === 'waiting' && wr.to.code === 'P1' && wr.from.name === 'Choudhary Hand Block' && wr.pcs === 60 && wr.metres === 21
-      && wr.orderNo === 'SHP-9' && wr.sku === 'S3' && wr.by === 'ppc@x' && !!wr.at && A.FLOW().dem[KS3].printerMove.status === 'waiting' && (A.ctx.__cas || []).filter(c => c[0] === REQ).length === 1);
-    ok('…the plan still says Choudhary until it is approved', (A.FLOW().ppc[KS3].printer || {}).code === 'P2' && !A.writes.some(w => w['pt_ppc/' + KS3 + '/printer']));
+      && wr.orderNo === 'SHP-9' && wr.sku === 'S3' && !!wr.at && R1.FLOW().dem[KS3].printerMove.status === 'waiting');
+    ok('…the plan still says Choudhary until it is approved', (R1.FLOW().ppc[KS3].printer || {}).code === 'P2' && !R1.writes.some(x => x['pt_ppc/' + KS3 + '/printer']));
     ok('…the Greige Desk is told the challan number and what waits', af && /^RFD-/.test(af[0]) && /S3 waits for approval to Sanganer Prints/.test(af[1]), JSON.stringify(af));
-
-    /* the card now shows the waiting request, and that line cannot be ticked again */
-    A.flowShelfChallanShow('Cambric'); A.els.flshVen = { value: 'P1' }; A.FLOW_SH().more = true; A.FLOW_SH().tick.add(KS3); A.flowShDraw();
-    const SA = A.FLOW_SH();
-    ok('a line with a waiting request is not offered again', A.flowShGoing(SA, 'P1').every(l => l.key !== KS3));
-    const cardH = A.els.flshBody.innerHTML;
-    ok('…its row says it waits, and the box is disabled', /waits for approval to Sanganer Prints/.test(cardH) && /data-shk="SHP-9__S3" disabled/.test(cardH));
-    ok('The "Waiting for approval" block lists it with Approve / Refuse for an approver', A.flowPrnWaiting('Cambric').length === 1 && A.flowPrnWaiting('Voil 92').length === 0 && A.flowPrnWaiting().length === 1
-      && /Waiting for approval/.test(A.els.flshWait.innerHTML) && /data-prnok="SHP-9__S3"/.test(A.els.flshWait.innerHTML) && /data-prnno="SHP-9__S3"/.test(A.els.flshWait.innerHTML));
-
-    /* a request somebody else wrote a moment ago (not yet on this screen) is never overwritten */
-    const RC = makeCard({ cas: true, casDb: { [REQ]: Object.assign({}, waitReq, { by: 'other@x' }) } }); let afC = null;
-    const revC = await toReview(RC, 'P1', (no, msg) => { afC = [no, msg]; });
-    await revC.onSave(); await tick();
+    R1.flowShelfChallanShow('Cambric'); R1.FLOW_SH().tick.add(KS3); R1.flowShDraw();
+    ok('a line with a waiting request is not offered again; its row says it waits and its box is disabled', R1.flowShGoing(R1.FLOW_SH()).every(l => l.key !== KS3)
+      && /waits for approval to Sanganer Prints/.test(R1.els.flshBody.innerHTML) && /data-shk="SHP-9__S3" disabled/.test(R1.els.flshBody.innerHTML));
+    ok('The "Waiting for approval" block lists it, without buttons for someone who may not decide', R1.flowPrnWaiting('Cambric').length === 1 && R1.flowPrnWaiting('Voil 92').length === 0
+      && /Waiting for approval/.test(R1.els.flshWait.innerHTML) && !/data-prnok/.test(R1.els.flshWait.innerHTML));
+    const waitReq = { status: 'waiting', to: { code: 'P1', name: 'Sanganer Prints' }, from: { code: 'P2', name: 'Choudhary Hand Block' }, fabric: 'Cambric', pcs: 60, metres: 21, orderNo: 'SHP-9', sku: 'S3', by: 'ppc@x', at: '2026-10-13T09:00:00Z' };
+    const RC = makeCard({ cas: true, me: { admin: false, tabs: [] }, casDb: { [REQ]: Object.assign({}, waitReq, { by: 'other@x' }) } }); let afC = null;
+    const rvC = await toReview(RC, X => { RC.flowShSetPrn(X, [KS3], 'P1'); }, (no, msg) => { afC = [no, msg]; });
+    await rvC.onSave(); await tick();
     ok('a second request for the same line is refused: "S3 already waits for approval", the first stays', /S3 already waits for approval/.test((afC || [])[1] || '') && RC.ctx.__casDb[REQ].by === 'other@x');
 
-    /* a person without the right cannot decide */
+    /* deciding a request (from the card's "Waiting for approval" block) */
     const seeded = (me, stored) => makeCard({ cas: true, me, casDb: { [REQ]: stored || waitReq }, dem: { [KS3]: { printerMove: waitReq } } });
     const casOf = X => (X.ctx.__casDb || { [REQ]: waitReq })[REQ];   // the request as the database holds it (untouched = as seeded)
     const NA = seeded({ admin: false, tabs: [] });
     ok('a person without "Approve a change of printer" (and not an admin) cannot approve', NA.flowPrnMay() === false && /Only Ravi/.test(await NA.flowPrnApprove(KS3)) && !NA.writes.length && casOf(NA).status === 'waiting');
     ok('…nor refuse', /Only Ravi/.test(await NA.flowPrnRefuse(KS3, 'no')) && casOf(NA).status === 'waiting');
-    NA.flowShelfChallanShow('Cambric');
-    ok('…they see the request on the card without the buttons', /Waiting for approval/.test(NA.els.flshWait.innerHTML) && !/data-prnok|data-prnno/.test(NA.els.flshWait.innerHTML));
     ok('the right is the flprn key: a non-admin who holds it may', seeded({ admin: false, tabs: ['flprn'] }).flowPrnMay() === true && seeded({ admin: true }).flowPrnMay() === true);
-
-    /* approve: the plan and print order move, the challan to the new printer is made, the request is done */
     const AP = seeded({ admin: true }), erA = await AP.flowPrnApprove(KS3), pw = Object.assign({}, ...AP.writes), c3 = Object.values(AP.FLOW().ch).find(c => (c.lines || []).some(l => l.key === KS3)) || {};
     ok('approve: the plan\'s printer moves to Sanganer Prints', erA === '' && (pw['pt_ppc/' + KS3 + '/printer'] || {}).code === 'P1' && AP.FLOW().ppc[KS3].printer.code === 'P1', erA + JSON.stringify(Object.keys(pw)));
     ok('…a challan to Sanganer Prints is made for S3: 60 pcs, 21 m', c3.vendor && c3.vendor.code === 'P1' && c3.lines.length === 1 && c3.lines[0].pcs === 60 && c3.lines[0].metres === 21, JSON.stringify(c3));
@@ -2887,13 +2849,9 @@ const K = 'AMZ-1__S1';
     const BAD = makeCard({ cas: true, writeFails: true, casDb: { [REQ]: waitReq }, dem: { [KS3]: { printerMove: waitReq } } });
     const erB = await BAD.flowPrnApprove(KS3);
     ok('the printer change fails (nothing could be saved) → the error is returned, the request is waiting again, no challan', /denied/.test(erB) && casOf(BAD).status === 'waiting' && BAD.FLOW().ppc[KS3].printer.code === 'P2' && !Object.keys(BAD.FLOW().ch || {}).length, erB);
-
-    /* refuse: the line stays with PPC's printer */
     const RF = seeded({ admin: true }), erR = await RF.flowPrnRefuse(KS3, 'Choudhary has the blocks ready');
-    ok('refuse: the request is refused with the reason, and the line stays with Choudhary', erR === '' && RF.ctx.__casDb[REQ].status === 'refused' && RF.ctx.__casDb[REQ].why === 'Choudhary has the blocks ready' && RF.ctx.__casDb[REQ].decidedBy === 'ppc@x'
+    ok('refuse: the request is refused with the reason, and the line stays with Choudhary', erR === '' && RF.ctx.__casDb[REQ].status === 'refused' && RF.ctx.__casDb[REQ].why === 'Choudhary has the blocks ready'
       && RF.FLOW().ppc[KS3].printer.code === 'P2' && !RF.writes.length && !Object.keys(RF.FLOW().ch || {}).length && RF.flowPrnWaiting().length === 0);
-
-    /* a request left half-approved (the approver's browser closed) comes back after 10 minutes, so it is never lost */
     const stale = Object.assign({}, waitReq, { status: 'approving', claimBy: 'gone@x', claimAt: '2020-01-01T00:00:00Z' });
     const ST = seeded({ admin: true }, stale); ST.setFLOW(Object.assign(ST.FLOW(), { dem: { [KS3]: { printerMove: stale } } }));
     ok('a request left half-approved over 10 minutes ago is waiting again, and can be approved', ST.flowPrnWaiting('Cambric').length === 1 && await ST.flowPrnApprove(KS3) === '' && ST.ctx.__casDb[REQ].status === 'done');
@@ -2903,25 +2861,24 @@ const K = 'AMZ-1__S1';
 
     /* the printer's hold: the challan shows the line to the printer, in the same write */
     const VC = makeCard({ vo: [{ id: 'VO-1', vendorCode: 'P1', lines: [{ flowPart: 'AMZ-1__S1|print', awaitRfd: true, sku: 'S1' }, { flowPart: 'SHP-9__S3|print', awaitRfd: true, sku: 'S3' }] }] });
-    const rvV = await toReview(VC, 'P1'); await rvV.onSave(); await tick();
+    const rvV = await toReview(VC, X => { X.tick.add(K1); }); await rvV.onSave(); await tick();
     const wV = Object.assign({}, ...VC.writes);
-    ok('the challan lifts the printer\'s hold on S1 in the same write (S3, waiting for approval, not on it, stays held)', 'pt_vendorOrders/P1/VO-1/lines/0/awaitRfd' in wV && wV['pt_vendorOrders/P1/VO-1/lines/0/awaitRfd'] === null
+    ok('the challan lifts the printer\'s hold on S1 in the same write (S3, not on it, stays held)', 'pt_vendorOrders/P1/VO-1/lines/0/awaitRfd' in wV && wV['pt_vendorOrders/P1/VO-1/lines/0/awaitRfd'] === null
       && !('pt_vendorOrders/P1/VO-1/lines/1/awaitRfd' in wV) && !!wV['pt_flowDemand/AMZ-1__S1/fabricReady'], JSON.stringify(Object.keys(wV)));
 
     /* cloth already partly given: cannot be moved from here */
     const PS = makeCard({ cas: true });
     PS.setFLOW(Object.assign(PS.FLOW(), { ch: { 'RFD-T-1': { no: 'RFD-T-1', date: '2026-10-12', orderNo: 'SHP-9', vendor: P2, lines: [{ key: KS3, sku: 'S3', fabric: 'Cambric', pcs: 20, metres: 7, print: { kind: 'sku' } }], receipts: {} } } }));
     PS.flowShelfChallanShow('Cambric'); const SP = PS.FLOW_SH(), l3 = SP.lines.find(l => l.key === KS3);
-    ok('part of its cloth already given → the line is "stuck": it cannot be moved to Sanganer, but is free with its own printer', !!l3 && l3.x.s.fabSent > 0 && /already given/.test(PS.flowShStuck(l3, 'P1')) && PS.flowShStuck(l3, 'P2') === '' && PS.flowShStuck(l3, '') === '');
-    PS.els.flshVen = { value: 'P1' }; SP.more = true; PS.flowShDraw();
-    ok('…it is not offered for Sanganer', PS.flowShGoing(SP, 'P1').every(l => l.key !== KS3));
-    ok('…and says so, with the box disabled: Already started with Choudhary Hand Block — change the printer from PPC', /Already started with Choudhary Hand Block — change the printer from PPC/.test(PS.els.flshBody.innerHTML) && /data-shk="SHP-9__S3" disabled/.test(PS.els.flshBody.innerHTML));
+    ok('part of its cloth already given → free with its own printer', !!l3 && l3.x.s.fabSent > 0 && PS.flowShStuck(SP, l3) === '' && PS.flowShWhyNot(SP, l3) === '');
+    PS.flowShSetPrn(SP, [KS3], 'P1'); PS.flowShDraw();
+    ok('…moved to Sanganer on the card it cannot go, is unticked, and says to change it from PPC', /already went to Choudhary Hand Block — change the printer from PPC/.test(PS.flowShStuck(SP, l3)) && !SP.tick.has(KS3)
+      && PS.flowShGoing(SP).every(l => l.key !== KS3) && /data-shk="SHP-9__S3" disabled/.test(PS.els.flshBody.innerHTML));
 
     /* a test line and a real one never share */
-    const MX = makeCard({ cas: true }); MX.flowShelfChallanShow('Cambric'); MX.els.flshVen = { value: 'P1' }; MX.els.flshNote = { value: '' };
-    MX.FLOW_SH().lines.find(l => l.key === 'AMZ-1__S1').x.r.__t = { given: 0 };
-    MX.FLOW_SH().more = true; MX.FLOW_SH().tick = new Set(MX.FLOW_SH().lines.filter(l => l.perPc > 0).map(l => l.key));
-    ok('a test order and a real one cannot share a challan, even with the Review', /cannot share/.test(await MX.ctx.__dlg.onSave()));
+    const MX = makeCard({ cas: true });
+    const rvX = await toReview(MX, X => { X.lines.find(l => l.key === K1).x.r.__t = { given: 0 }; X.tick.add(K1); MX.flowShSetPrn(X, [K2], 'P1'); });
+    ok('a test order and a real one cannot share a challan', /cannot share/.test(rvX.er || ''));
   }
   console.log('== issued today, received on the day it came (Vishesh, 23 Nov) ==');
   {
