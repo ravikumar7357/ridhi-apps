@@ -29154,6 +29154,7 @@ const SHPB_NODE = 'pt_shpBoardTest', SHPB_PRESS = 'pt_shpBoardPress', SHPB_SHIP 
 const SHPB_PRESSMEN = ['Keshav', 'Jagdish', 'Anokhi', 'Mangal', 'Om Prakash', 'Deepak', 'Chetram', 'Kuldeep', 'Shankar'];
 let SHPB_FILLCOL = false;
 let SHPB = { tab: 'pending', stage: '', ready: {}, press: {}, ship: {}, pressBy: {}, readyAt: 0, busy: false, err: '' };
+try { SHPB.group = localStorage.getItem('shpbGroup') === '1'; } catch (e) { /* off */ }
 /* PLAN FROM EXCEL (Ravi, 2 Nov: "excel se printer ko plan de saku … sirf plan window ka data aay sara nahi and tick wala option remove"):
  * the lines in the TO PLAN bucket as PPC's sheet — fill Printer (and anything else), Raise = yes, upload; the plan form opens with those lines
  * ticked, 40 at a time (flowXlOpenNext), and its Save raises the print orders. */
@@ -29589,6 +29590,9 @@ function renderShpBoard() {
     /* THE REPORT BUCKET (23 Nov, orders/board-report.js): what is pending at each step and printer, as a PDF to send on WhatsApp */
     + (typeof renderShpBoardReport === 'function' ? `<button type="button" data-shpb-report="1" title="What is pending at each step — each printer on its own — as a PDF to send on WhatsApp" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
       + (SHPB.report ? 'background:#1D4ED8;color:#fff;border:1px solid #1D4ED8' : 'background:#eef3fe;color:#1D4ED8;border:1px solid #c7d6fb') + `">Report</button>` : '')
+    /* GROUP BY SKU (Ravi, 23 Nov: "same sku me multiple orders h to unko combine krke dekhne ka option … sku grouping yaha karni h report me nahi") */
+    + `<button type="button" data-shpb-group="1" title="Lines of the same SKU together, with the SKU's total pieces and orders above them" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+      + (SHPB.group ? 'background:#7c3aed;color:#fff;border:1px solid #7c3aed' : 'background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe') + `">Group by SKU</button>`
     + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`
     + (tab === 'pending' && shpbMay('plan') ? (() => {
       const can = shpbToPlan(pend).length, left = typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length ? flowXlLeft().length : 0;
@@ -29613,7 +29617,27 @@ function renderShpBoard() {
     + ['Printer receive', 'Cut', 'Issued', 'Received', 'QC passed'].concat(SHPB_FILLCOL ? ['Filler', 'Qty', 'Rec'] : [], ['Press']).map(h => th(h, 'num')).join('') + '<th style="' + SHPB_PAD + 'text-align:left">Status · ready by</th></tr></thead>';
   /* 100 AT A TIME (20 Nov, "order console bahut hang"): 300 rows were ~1.1 MB of table on every redraw. Show more adds 100. */
   const cap = Math.max(SHPB_SHOW_STEP, SHPB.show || 0);
-  $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, cap).map(shpbRow).join('') + '</tbody>'
+  /* GROUP BY SKU: the SKU's lines one under another (the oldest SKU first), each SKU with a line of its own — total pieces, orders, the
+   * pieces waiting at the bucket picked. Every line keeps its own buttons: work is still entered against an order. */
+  let body;
+  if (SHPB.group) {
+    const g = new Map(); rows.forEach(r => { const k = obUC(r.sku); (g.get(k) || g.set(k, []).get(k)).push(r); });
+    const stg = SHPB_STAGES.find(x => x[0] === SHPB.stage), cols = SHPB_FILLCOL ? 14 : 11;
+    const groups = [...g.values()].sort((a, b) => b.length - a.length || shpbDateOf(a[0]).localeCompare(shpbDateOf(b[0])));
+    const flat = []; groups.forEach(ls => { flat.push({ head: ls }); ls.forEach(r => flat.push({ r })); });
+    let n = 0; const out = [];
+    for (const x of flat) {
+      if (x.r) { if (n >= cap) break; n++; out.push(shpbRow(x.r)); continue; }
+      if (n >= cap) break;
+      const ls = x.head, r0 = ls[0], pcs = ls.reduce((a, r) => a + (+r.qty || 0), 0), at = stg ? ls.reduce((a, r) => a + (+shpbStages([r])[stg[3]] || 0), 0) : 0;
+      out.push(`<tr><td colspan="${cols}" style="${SHPB_PAD}text-align:left;background:#f5f3ff;border-top:2px solid #ddd6fe">`
+        + `<b>${esc(r0.sku)}</b> · ${esc([r0.articleSubtype, r0.color, r0.size].filter(Boolean).join(' · '))}`
+        + ` — <b>${nf(pcs)} pcs</b> in ${nf(new Set(ls.map(r => r.orderNo)).size)} order${ls.length === 1 ? '' : 's'}`
+        + (stg ? ` · <b>${nf(at)}</b> waiting at ${esc(stg[1])}` : '') + `</td></tr>`);
+    }
+    body = out.join('');
+  } else body = rows.slice(0, cap).map(shpbRow).join('');
+  $('odTable').innerHTML = head + '<tbody>' + body + '</tbody>'
     + (rows.length > cap ? '<tfoot><tr><td colspan="' + (SHPB_FILLCOL ? 14 : 11) + '" class="muted" style="padding:10px;text-align:left">Showing the first ' + nf(cap) + ' of ' + nf(rows.length) + ' lines '
       + '<button type="button" class="ghost" data-shpb-more="1" style="margin:0 8px;padding:3px 12px">Show ' + nf(Math.min(SHPB_SHOW_STEP, rows.length - cap)) + ' more</button> or search / filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
 }
@@ -30027,6 +30051,7 @@ if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('c
 if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('click', e => {
   if (!shpbIsBoard(ordView())) return;
   if (e.target.closest && e.target.closest('[data-shpb-report]')) { SHPB.report = !SHPB.report; renderShpBoard(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-group]')) { SHPB.group = !SHPB.group; SHPB.report = false; try { localStorage.setItem('shpbGroup', SHPB.group ? '1' : '0'); } catch (x) {} renderShpBoard(); return; }
   if (e.target.closest && e.target.closest('[data-shpb-tab],[data-shpb-stage],[data-shpb-late]')) SHPB.report = false;   // any other bucket leaves the report
   const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t) { SHPB.tab = t.dataset.shpbTab; SHPB.stage = ''; renderShpBoard(); return; }
   if (e.target.closest && e.target.closest('[data-shpb-xlout]')) {
@@ -30070,7 +30095,7 @@ function brSections(pend, done) {
 
 /** The section's rows, grouped by colour (A–Z). mode 'sku': one row per SKU, every order's pieces added up (Ravi, 23 Nov: "same sku me multiple
  * orders h to unko combine krke dekhne ka option"); mode 'order': one row per SKU per order, with the order number. */
-const brMode = () => (SHPB.brMode === 'order' ? 'order' : 'sku');
+const brMode = () => 'sku';   // 23 Nov: "sku grouping yaha karni h report me nahi" — the grouping lives on the board (Group by SKU); the report stays per SKU
 function brRows(sec, mode) {
   const m = new Map(), byOrder = (mode || brMode()) === 'order';
   sec.lines.forEach(({ r, pcs }) => {
@@ -30168,10 +30193,7 @@ function renderShpBoardReport(pend, done) {
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${t.pcs ? `<button type="button" class="ghost" data-br-pdf="${i}" style="${btn}">PDF</button> `
         + `<button type="button" data-br-wa="${i}" title="Send on WhatsApp" aria-label="Send on WhatsApp" style="${ic}background:#25D366;border:1px solid #1faa53">${BR_WA_SVG}</button> `
         + `<button type="button" data-br-mail="${i}" title="Send by email" aria-label="Send by email" style="${ic}background:#1D4ED8;border:1px solid #1D4ED8">${BR_MAIL_SVG}</button>` : '<span class="muted">nothing pending</span>'}</td></tr>`; };
-  $('odTable').innerHTML = `<thead><tr><th colspan="5" style="${SHPB_PAD}text-align:left;background:#fff"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">`
-    + `<span style="font-weight:700">PDF shows:</span>${seg('sku', 'Same SKU combined')}${seg('order', 'Order-wise')}`
-    + `<span class="muted" style="font-size:12px;font-weight:400">combined = one row per SKU, every order's pieces added up · order-wise = a row per order</span></div></th></tr>`
-    + `<tr><th style="${SHPB_PAD}text-align:left">Step · who has it</th><th class="num" style="${SHPB_PAD}">Orders</th><th class="num" style="${SHPB_PAD}">${mode === 'order' ? 'Rows' : 'SKUs'}</th><th class="num" style="${SHPB_PAD}">Pieces pending</th><th style="${SHPB_PAD}text-align:left">Send</th></tr></thead><tbody>`
+  $('odTable').innerHTML = `<thead><tr><th style="${SHPB_PAD}text-align:left">Step · who has it</th><th class="num" style="${SHPB_PAD}">Orders</th><th class="num" style="${SHPB_PAD}">${mode === 'order' ? 'Rows' : 'SKUs'}</th><th class="num" style="${SHPB_PAD}">Pieces pending</th><th style="${SHPB_PAD}text-align:left">Send</th></tr></thead><tbody>`
     + secs.map(row).join('')
     + `<tr><td colspan="5" class="muted" style="${SHPB_PAD}text-align:left;font-size:12px">The PDF lists what is pending at that step — colour, SKU, subtype, size, pieces — for the lines on this board (the filters above apply). `
     + `WhatsApp: on a phone the share sheet opens with the PDF (pick WhatsApp); on a computer the PDF downloads and WhatsApp opens with the summary — attach the PDF there. `

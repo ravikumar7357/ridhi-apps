@@ -27,7 +27,7 @@ function brSections(pend, done) {
 
 /** The section's rows, grouped by colour (A–Z). mode 'sku': one row per SKU, every order's pieces added up (Ravi, 23 Nov: "same sku me multiple
  * orders h to unko combine krke dekhne ka option"); mode 'order': one row per SKU per order, with the order number. */
-const brMode = () => (SHPB.brMode === 'order' ? 'order' : 'sku');
+const brMode = () => 'sku';   // 23 Nov: "sku grouping yaha karni h report me nahi" — the grouping lives on the board (Group by SKU); the report stays per SKU
 function brRows(sec, mode) {
   const m = new Map(), byOrder = (mode || brMode()) === 'order';
   sec.lines.forEach(({ r, pcs }) => {
@@ -125,10 +125,7 @@ function renderShpBoardReport(pend, done) {
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${t.pcs ? `<button type="button" class="ghost" data-br-pdf="${i}" style="${btn}">PDF</button> `
         + `<button type="button" data-br-wa="${i}" title="Send on WhatsApp" aria-label="Send on WhatsApp" style="${ic}background:#25D366;border:1px solid #1faa53">${BR_WA_SVG}</button> `
         + `<button type="button" data-br-mail="${i}" title="Send by email" aria-label="Send by email" style="${ic}background:#1D4ED8;border:1px solid #1D4ED8">${BR_MAIL_SVG}</button>` : '<span class="muted">nothing pending</span>'}</td></tr>`; };
-  $('odTable').innerHTML = `<thead><tr><th colspan="5" style="${SHPB_PAD}text-align:left;background:#fff"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">`
-    + `<span style="font-weight:700">PDF shows:</span>${seg('sku', 'Same SKU combined')}${seg('order', 'Order-wise')}`
-    + `<span class="muted" style="font-size:12px;font-weight:400">combined = one row per SKU, every order's pieces added up · order-wise = a row per order</span></div></th></tr>`
-    + `<tr><th style="${SHPB_PAD}text-align:left">Step · who has it</th><th class="num" style="${SHPB_PAD}">Orders</th><th class="num" style="${SHPB_PAD}">${mode === 'order' ? 'Rows' : 'SKUs'}</th><th class="num" style="${SHPB_PAD}">Pieces pending</th><th style="${SHPB_PAD}text-align:left">Send</th></tr></thead><tbody>`
+  $('odTable').innerHTML = `<thead><tr><th style="${SHPB_PAD}text-align:left">Step · who has it</th><th class="num" style="${SHPB_PAD}">Orders</th><th class="num" style="${SHPB_PAD}">${mode === 'order' ? 'Rows' : 'SKUs'}</th><th class="num" style="${SHPB_PAD}">Pieces pending</th><th style="${SHPB_PAD}text-align:left">Send</th></tr></thead><tbody>`
     + secs.map(row).join('')
     + `<tr><td colspan="5" class="muted" style="${SHPB_PAD}text-align:left;font-size:12px">The PDF lists what is pending at that step — colour, SKU, subtype, size, pieces — for the lines on this board (the filters above apply). `
     + `WhatsApp: on a phone the share sheet opens with the PDF (pick WhatsApp); on a computer the PDF downloads and WhatsApp opens with the summary — attach the PDF there. `
