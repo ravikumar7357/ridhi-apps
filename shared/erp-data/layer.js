@@ -60,6 +60,11 @@
     for (var j = segs.length - 2; j >= 0; j--) { if (Object.keys(path[j + 1]).length === 0) delete path[j][segs[j]]; else break; }
   }
   var SBMEM = {}, SBBUSY = {}, SBSTALE = {};
+  /* A LIST THIS SIGN-IN MAY NOT READ (23 Nov: ~4,500 refusals an hour on a Monday morning — the list stayed in LIVE.used after its first
+   * refusal, so every 5 s it was asked for again, by 6–8 accounts at once). After a refusal the list leaves the live updates and is
+   * answered "not allowed" here for 10 minutes, without asking ERP data; then it is tried once more (rights may have been given). */
+  var SBDENY = {}, SBDENY_MS = 600000;
+  var sbDenied = function (e) { return /not an ERP sign-in|permission denied/.test(String(e && e.message)); };
   function sbStore(key, m) { SBMEM[key] = m; sbCopy(key, { text: m.text, upto: m.upto, at: m.at }); }
   var SBMAN = null;
   function sbStorageGet(path, tok, of) {
@@ -166,7 +171,8 @@
       if (first) return;
       R1.memo = {};
       return Object.keys(LIVE.used).reduce(function (chain, key) {
-        return chain.then(function () { var m = SBMEM[key]; if (!m || m.upto == null || m.upto >= u) return; return sbRefresh(key, LIVE.used[key], tok, of); });
+        return chain.then(function () { var m = SBMEM[key]; if (!m || m.upto == null || m.upto >= u) return; return sbRefresh(key, LIVE.used[key], tok, of); })
+          .catch(function (e) { if (sbDenied(e)) { SBDENY[key] = Date.now(); delete LIVE.used[key]; } });   // one list failing does not stop the others
       }, Promise.resolve());
       });
     }).catch(function (e) { if (/404|not find the function/.test(String(e && e.message))) LIVE.ok = false; })
@@ -174,6 +180,11 @@
   }, 5000);
   function sbWhole(p, tok, of) {
     var key = SB.url + '|' + p;
+    if (SBDENY[key] && Date.now() - SBDENY[key] < SBDENY_MS) return Promise.reject(new Error('rt_list_upto: not an ERP sign-in (asked a moment ago)'));
+    return sbWholeAsk(key, p, tok, of).catch(function (e) { if (sbDenied(e)) { SBDENY[key] = Date.now(); delete LIVE.used[key]; } throw e; });
+  }
+  function sbWholeAsk(key, p, tok, of) {
+    delete SBDENY[key];
     LIVE.used[key] = p; if (tok) LIVE.tok = tok;
     var fromMem = SBMEM[key] ? Promise.resolve(SBMEM[key]) : sbCopy(key).then(function (c) { if (c && typeof c.text === 'string' && c.upto != null) SBMEM[key] = c; return SBMEM[key] || null; });
     return fromMem.then(function (m) {
