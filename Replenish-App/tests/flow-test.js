@@ -66,7 +66,7 @@ function load(opts) {
     FAB: { rows: opts.fabRows || [] },
     STORE: { rows: opts.store ? [] : null }, stMoves: () => opts.store || [], stBalances: mv => mv, fabKey: v => String(v || '').trim().toUpperCase(), fabAll: () => opts.fabRows || [], ptList: x => x || [], fabAutoLoad: async () => {}, GD: opts.gd, mdbOf: opts.mdbOf, MDBX: opts.mdbx, fabState: r => String((r && r.state) || (/RFD/.test(String(r && r.txnType)) ? 'RFD' : 'PRINTED')).toUpperCase(), fabKnown: t => ['OPENING_RFD', 'RFD_TO_PRINTER', 'ISSUE_TO_CUTTING', 'RECEIVE_RFD', 'PURCHASE_RFD', 'ADJUST'].includes(t), fabMove: r => (+r.qty || 0) * (['RFD_TO_PRINTER', 'ISSUE_TO_CUTTING'].includes(r.txnType) ? -1 : 1), fabStockOf: (name, st) => (st === 'RFD' ? (opts.rfd || {})[String(name).toUpperCase()] || 0 : 0),
   };
-  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowShTickFor, flowClothFor, flowClothInTransit, flowClothLoad, flowDateAsk, flowDateAsksWaiting, flowDateDecide, flowDateMay, flowPrinters, flowChVendors, flowShelfChallanOpen, flowShelfChallanShow, flowShShown, flowShDraw, flowShChoices, flowShMoving, flowShGoing, flowShStuck, flowShReviewOpen, flowShCommit, flowPrnWaiting, flowPrnApprove, flowPrnRefuse, flowPrnMay, FLOW_SH:()=>FLOW_SH, flowChFabricWrong, flowChHeldHtml, flowChFabricHtml, flowChStock, setChCover: v => { FLOW_CH_COVER = v; }, flowToPrintRem, flowDirOpts, flowDirAsked, flowBoardOwns, FLOW_BOARD_FROM, flowRepShpFill, flowRepOpen, flowRepSkus, flowRepSerial, flowRepLines, flowRepSheets, flowRepDelay, flowRepDue, flowRepAllowed, flowRepXlsx, flowRepChannel, flowRepDay, flowRepBtn, flowPoParts, flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowRemPrinters, flowRemText, flowRemPhone, flowRemTable, flowRemOpen, FLOW_REM:()=>FLOW_REM, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), SRC + '\n;return { flowShTickFor, flowClothFor, flowClothInTransit, flowClothLoad, flowDateAsk, flowDateAsksWaiting, flowDateDecide, flowDateMay, flowPrinters, flowChVendors, flowShelfChallanOpen, flowShelfChallanShow, flowShShown, flowShDraw, flowShMoving, flowShGoing, flowShSetPcs, flowShAs, flowShTickAll, flowShChangePrinter, flowShStuck, flowShReviewOpen, flowShCommit, flowPrnWaiting, flowPrnApprove, flowPrnRefuse, flowPrnMay, FLOW_SH:()=>FLOW_SH, flowChFabricWrong, flowChHeldHtml, flowChFabricHtml, flowChStock, setChCover: v => { FLOW_CH_COVER = v; }, flowToPrintRem, flowDirOpts, flowDirAsked, flowBoardOwns, FLOW_BOARD_FROM, flowRepShpFill, flowRepOpen, flowRepSkus, flowRepSerial, flowRepLines, flowRepSheets, flowRepDelay, flowRepDue, flowRepAllowed, flowRepXlsx, flowRepChannel, flowRepDay, flowRepBtn, flowPoParts, flowDrfdLineRows, flowFabOwed, flowRfdStock, flowFabKnown, flowMatRow, flowGdNote, flowPpcDraftSave, flowPpcDraftApply, flowPpcDraftDrop, flowPpcHasDraft, flowBackOpen, flowAgainOpen, flowIsBack, flowBackLines, flowBackPill, FLOW_ON, FLOW_BUCKETS, FLOW_TABS, flowBucketsAllowed, flowKey, FLOW_ROUTES, flowPlanRouteOf, FLOW:()=>FLOW, setFLOW:v=>{FLOW=v}, flowLoad, flowState, flowRows, flowSuggest, flowHeld, flowAccFree, flowReserve, flowUnreserve, flowTable, renderFlow, flowPpcOpen, flowFabricOpen, flowInView, flowRfdCover, flowAccCover, flowChallanOpen, flowChTotals, flowChallanNo, flowChallanHtml, flowChallanPrint, flowTestOpen, flowTestDelete, flowSimulate, flowTestLines, flowTestCutOpen, flowTestIssueOpen, flowTestRecvOpen, flowTestVos, flowVoProgOf, flowVoProgSync, flowVlogRows, flowDocsOf, flowVoExtra, flowVpViewOnly, flowFgAcceptOpen, flowFgAccept, flowFgRejectOpen, flowFgReject, flowFgLines, flowFgRender, flowQcLine, flowTestOnly, flowTestOnlySet, flowReceiveOpen, flowRecvCross, flowCloseShortOpen, flowPrinterFor, flowChIndex, flowCommitted, flowCutEntry, flowIssueEntry, flowRecvEntry, flowQcEntry, flowIssuable, flowPrintWhat, flowChPrintGroups, flowMasterDiff, flowPrintExtras, flowToPrint, flowChallanForKeys, flowByPrintTable, flowPoSync, flowPoIndex, flowPoHtml, flowPoPrint, flowPoTable, flowFabOwed, flowVoLines, flowSwatchOf, flowSizeFifo, flowSizeChallanOpen, flowBySizeData, flowPpcXlRows, flowPpcXlRead, flowXlDate, FLOW_XL_COLS, VOrows:()=>VO.rows, setVOrows:v=>{VO.rows=v}, flowUnplan, flowPoResync, flowPlanQcDirect, flowChSizeLive, flowEmbedRows, FLOW_EMB_SHOWN:()=>FLOW_EMB_SHOWN, flowChLineWhat, flowRecvRows, flowRecvDayTable, FLOW_HD, flowDueRows, flowRemPrinters, flowRemText, flowRemPhone, flowRemTable, flowRemOpen, FLOW_REM:()=>FLOW_REM, flowReads, flowDueRecvOpen, flowDueRecvSave, flowRfdChallanOut, flowEarlierOf, flowRecordEarlier, flowChangePrinterSave, flowStanding, flowStandBack, flowStandUse, flowStandTargets, flowRfdChallanOut, flowHistTable, flowChGroups, flowChXlRead, flowChQueue, flowEmbIndex, flowEmbCells, flowEmbSendOpen, flowEmbRecvOpen, flowEmbWho, flowEmbCancel, flowChallanEditOpen, flowChallanCancelOpen, flowUndoReceipt, flowReopen, setAngle:(v,a)=>{FLOW_ANGLE[v]=a}, setView:v=>{FLOW_VIEW=v}, flowEmbedRender, FLOW_EMB:()=>FLOW_EMB, flowScreenAllowed, flowOwnsOrder, flowOwnedIn, flowVoIsFlow, flowFgOwns, flowDupViewsOff, renderView:()=>{ if (["cut","raw","wip","new","pord","vendor","fabric"].includes(FLOW_VIEW)) { const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly(); const rows = flowRows().filter(x => (!only || x.r.__t) && (FLOW_VIEW === "new" ? x.recent : flowInView(FLOW_VIEW, x.s))); $("flTable").innerHTML = flowTable(FLOW_VIEW, rows); } else renderFlow(); } };')(...Object.values(ctx));
   api.setFLOW(Object.assign(api.FLOW(), { ppc: opts.ppc || {}, dem: opts.dem || {}, res: opts.res || {} }));
   return Object.assign(api, { els, writes, W, ctx });
 }
@@ -2717,7 +2717,9 @@ const K = 'AMZ-1__S1';
     ok('the card opens over the page, titled for the fabric', why === '' && /RFD challan — Cambric/.test(C.ctx.__dlg.title), why);
     ok('…its printer drop-down has only the printers', /Sanganer Prints/.test(C.ctx.__dlg.html) && /Choudhary Hand Block/.test(C.ctx.__dlg.html) && !/Kalu Mill/.test(C.ctx.__dlg.html));
     ok('…the date is today and cannot be typed over', /id="flshDate" value="2026-10-13" readonly/.test(C.ctx.__dlg.html));
-    ok('…no box to type pieces or metres in', !/data-chp=|data-chm=/.test(C.ctx.__dlg.html) && !/<input[^>]*type="number"/.test(C.els.flshBody.innerHTML));
+    ok('…no box to type metres in; a box for pieces on each line that can go', !/data-chp=|data-chm=/.test(C.ctx.__dlg.html) && /data-shq="AMZ-1__S1"/.test(C.els.flshBody.innerHTML) && !/data-shq="AMZ-1__S5"/.test(C.els.flshBody.innerHTML));
+    ok('…a search box, Select all, Deselect all and Change printer — no Choose by', /id="flshQ"/.test(C.ctx.__dlg.html) && /data-shall="1"/.test(C.ctx.__dlg.html) && /data-shall="0"/.test(C.ctx.__dlg.html)
+      && /data-shprn="1"/.test(C.ctx.__dlg.html) && !/flshBy|Choose by/.test(C.ctx.__dlg.html));
     ok('only this fabric\'s lines: S1, S2, S3, S5 — not S4 (Sheeting 62)', S.lines.map(l => l.x.r.sku).sort().join() === 'S1,S2,S3,S5', S.lines.map(l => l.x.r.sku).join());
     ok('pieces are all still owed; metres = pieces × the master\'s cloth per piece (100 × 0.35 = 35, 40 × 0.5 = 20)',
       byKey('AMZ-1__S1').pcs === 100 && byKey('AMZ-1__S1').metres === 35 && byKey('AMZ-1__S2').pcs === 40 && byKey('AMZ-1__S2').metres === 20);
@@ -2736,13 +2738,27 @@ const K = 'AMZ-1__S1';
     C.flowShTickFor(S, 'P2');
     ok('picking Choudhary Hand Block instead: only its S3, ticked; the earlier ticks are gone', C.flowShShown(S, 'P2').map(l => l.x.r.sku).join() === 'S3' && [...S.tick].join() === 'SHP-9__S3');
     S.more = true;
-    ok('Choose by order: the orders among all the lines', C.flowShChoices(S, 'P1').map(c => c.k + ':' + c.n).join() === 'AMZ-1:3,SHP-9:1' && C.flowShChoices(S, '').map(c => c.k).join() === 'AMZ-1,SHP-9');
-    S.pick = 'SHP-9';
-    ok('…picking one order narrows the list to it', C.flowShShown(S, '').map(l => l.x.r.sku).join() === 'S3');
-    S.by = 'print'; S.pick = '';
-    const prints = C.flowShChoices(S, 'P1');
-    ok('Choose by print: one entry a print, the list narrows to it', prints.length === 3 && (S.pick = prints[0].k, C.flowShShown(S, 'P1').length === 1), JSON.stringify(prints));
-    S.by = 'order'; S.pick = '';
+    /* A SEARCH IN PLACE OF CHOOSE BY (Vishesh, 23 Nov): order no., SKU, item, print or printer; every word must match */
+    S.q = 'SHP-9';
+    ok('search by order no. narrows the list to it', C.flowShShown(S, '').map(l => l.x.r.sku).join() === 'S3');
+    S.q = 's1';
+    ok('…by SKU, in any case', C.flowShShown(S, '').map(l => l.x.r.sku).join() === 'S1');
+    S.q = 'choudhary';
+    ok('…by printer name', C.flowShShown(S, '').map(l => l.x.r.sku).join() === 'S3');
+    S.q = 'amz-1 nothing-like-this';
+    ok('…every word must match', C.flowShShown(S, '').length === 0);
+    S.q = '';
+    /* SELECT ALL / DESELECT ALL: what is shown and can go; S5 (no cloth per piece) never ticks */
+    C.flowShTickAll(S, 'P1', true);
+    ok('Select all ticks every line shown that can go — not S5, not Choudhary\'s S3 (moving is allowed, it asks)', S.tick.has('AMZ-1__S1') && S.tick.has('AMZ-1__S2') && !S.tick.has('AMZ-1__S5'));
+    C.flowShTickAll(S, 'P1', false);
+    ok('Deselect all unticks every line shown', S.tick.size === 0);
+    /* FEWER PIECES THAN PLANNED (Vishesh, 23 Nov: "if ppc has planned for 45 and I write 30 … rest 15 will still be seen in the ppc page") */
+    ok('typing more than PPC planned is refused, in words, and nothing changes', /planned 100 pcs — you can send fewer, not more/.test(C.flowShSetPcs(S, 'AMZ-1__S1', 120)) && !S.qty['AMZ-1__S1']);
+    ok('…less than 1 is refused too', /at least 1 piece/.test(C.flowShSetPcs(S, 'AMZ-1__S1', 0)));
+    ok('…30 of 100 is kept: 30 pcs × 0.35 = 10.5 m, the 100 remembered as planned', C.flowShSetPcs(S, 'AMZ-1__S1', 30) === '' && C.flowShAs(S, byKey('AMZ-1__S1')).pcs === 30
+      && C.flowShAs(S, byKey('AMZ-1__S1')).metres === 10.5 && C.flowShAs(S, byKey('AMZ-1__S1')).planned === 100);
+    ok('…typing the full 100 again forgets it', C.flowShSetPcs(S, 'AMZ-1__S1', 100) === '' && !('AMZ-1__S1' in S.qty) && C.flowShAs(S, byKey('AMZ-1__S1')) === byKey('AMZ-1__S1'));
     C.els.flshVen = { value: '' }; C.els.flshNote = { value: 'Tempo RJ14' };
     ok('saving without a printer is refused, in words', /Pick one/.test(await C.ctx.__dlg.onSave()));
     C.els.flshVen.value = 'P1';
@@ -2779,6 +2795,23 @@ const K = 'AMZ-1__S1';
     const chN = Object.values(NR.FLOW().ch || {})[0] || {};
     ok('…"Yes, make the challan" makes it: one challan to Sanganer Prints with S1', chN.vendor && chN.vendor.code === 'P1' && chN.lines.map(l => l.sku).join() === 'S1');
     ok('…the card shows "Show N more lines" for the rest', (NR.flowShelfChallanShow('Cambric'), NR.els.flshVen = { value: 'P1' }, NR.flowShTickFor(NR.FLOW_SH(), 'P1'), NR.flowShDraw(), /data-shmore="1"[^>]*>Show \d+ more line/.test(NR.els.flshBody.innerHTML)));
+    /* FEWER PIECES THAN PLANNED, SAVED: 30 of S1's 100 go; the other 70 stay waiting on Demand → RFD (the PPC page) */
+    const PQ = makeCard(); PQ.flowShelfChallanShow('Cambric'); PQ.els.flshVen = { value: 'P1' }; PQ.els.flshNote = { value: '' }; PQ.flowShTickFor(PQ.FLOW_SH(), 'P1');
+    PQ.flowShSetPcs(PQ.FLOW_SH(), 'AMZ-1__S1', 30);
+    await PQ.ctx.__dlg.onSave(); await new Promise(r => setTimeout(r, 5));
+    ok('the Review says 30 of 100, and that 70 stay on PPC', /of 100 — 70 stay on PPC/.test(PQ.ctx.__dlg.html), PQ.ctx.__dlg.html.slice(0, 400));
+    await PQ.ctx.__dlg.onSave(); await new Promise(r => setTimeout(r, 5));
+    const chQ = Object.values(PQ.FLOW().ch || {})[0] || {};
+    ok('…the challan carries 30 pcs and 10.5 m of S1, not 100', (chQ.lines || []).map(l => l.sku + ' ' + l.pcs + ' ' + l.metres).join() === 'S1 30 10.5', JSON.stringify(chQ.lines));
+    const again = (PQ.flowShelfChallanShow('Cambric'), PQ.FLOW_SH().lines.find(l => l.key === 'AMZ-1__S1'));
+    ok('…and S1 is still waiting for the other 70 pcs', !!again && again.pcs === 70, again && again.pcs);
+    /* CHANGE PRINTER OF TICKED: refused in words when nothing is picked or ticked, or the line is already there */
+    const CP = makeCard(); CP.flowShelfChallanShow('Cambric'); const SC = CP.FLOW_SH(); SC.tick.clear();
+    ok('Change printer with no new printer picked says so', /Pick the new printer/.test((await CP.flowShChangePrinter(SC, '', '')).text));
+    ok('…with nothing ticked says so', /Tick the lines/.test((await CP.flowShChangePrinter(SC, '', 'P1')).text));
+    SC.tick.add('AMZ-1__S1');
+    const same = await CP.flowShChangePrinter(SC, '', 'P1');
+    ok('…a line already with that printer is left, and said', same.bad && /S1 is already with Sanganer Prints/.test(same.text), same.text);
     const D = makeCard();
     D.flowShelfChallanShow('Cambric'); D.els.flshVen = { value: 'P2' }; D.els.flshNote = { value: '' };
     D.FLOW_SH().tick.clear();
