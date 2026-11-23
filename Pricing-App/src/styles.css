@@ -1135,16 +1135,8 @@
   .yoy-b-organic .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322c55e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10Z'/%3E%3Cpath d='M2 21c0-3 1.9-5.4 5.2-6'/%3E%3C/svg%3E")}
   .yoy-b-clicks{--glow:#64748b}
   .yoy-b-clicks .lbl::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 9 5 12 1.8-5.2L21 14Z'/%3E%3Cpath d='M7.2 2.2 8 5.1M5.1 8l-2.9-.8M14 4.1 12 6M6 12l-1.9 2'/%3E%3C/svg%3E")}
-  /* ===== Live vs Last Year, quieter (Ravi, 21 Nov 2026: "enhance the UI … not that much colours") — this screen only:
-     white sections without a coloured edge or wash, the channel named by a small dot, plain cards without coloured glows
-     or icons. Colour stays for meaning: up / down, and this year in the charts. The same look as public/live.html. */
-  #paneYoy .yoy-sec{border-top:1px solid var(--card-line);background:var(--card);box-shadow:0 1px 2px rgba(16,24,40,.04)}
-  #paneYoy .yoy-sec-tag{color:var(--ink);background:none;padding:0;font-size:16px;gap:8px}
-  #paneYoy .yoy-sec-tag::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--sec)}
-  #paneYoy .sd-card{--glow-a:0%;background:color-mix(in srgb,var(--ink) 2.5%,var(--card));border-color:transparent;box-shadow:none}
-  #paneYoy .sd-card .lbl{min-height:0;text-transform:uppercase;letter-spacing:.05em;font-size:11.5px}
-  #paneYoy .sd-card .lbl::before{display:none}
-  #paneYoy .yoy-split i:first-child{background:#8A94A3} #paneYoy .yoy-split i:last-child{background:#C7CDD6}
+  /* (23 Nov 2026, Ravi: Live vs Last Year back to the earlier look — coloured section edges and tags, the cards' own colours
+     and icons, no ▲/▼ — as public/live.html. Only the Shopify Total sales breakdown styling below is kept from 21 Nov.) */
   /* Shopify's Total sales breakdown (21 Nov): a plain statement like Shopify's own; on view in every period. */
   #paneYoy .yoy-sec > .yoy-bdrow{display:grid !important;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;margin-bottom:14px}
   @media (max-width:1000px){ #paneYoy .yoy-sec > .yoy-bdrow{grid-template-columns:1fr} }
@@ -1155,9 +1147,6 @@
   .yoy-bd table.yoy-bdl td b{color:var(--ink)}
   .yoy-bd table.yoy-bdl tr.on td{background:color-mix(in srgb,var(--ink) 3%,var(--card));color:var(--ink)}
   .yoy-bd table.yoy-bdl tr:last-child td{border-bottom:0}
-  /* ▲ / ▼ beside a change, so it reads without colour (21 Nov: "more professional"). */
-  #paneYoy .val.yoy-up::before,#paneYoy .val.yoy-down::before{font-size:.5em;vertical-align:.32em;margin-right:6px}
-  #paneYoy .val.yoy-up::before{content:"▲"} #paneYoy .val.yoy-down::before{content:"▼"}
   #paneYoy .yoy-sec > .yoy-bdrow:empty{display:none !important}
   .yoy-bd{background:var(--card);border:1px solid var(--card-line);border-radius:12px;padding:14px 16px 10px}
   .yoy-bd-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
