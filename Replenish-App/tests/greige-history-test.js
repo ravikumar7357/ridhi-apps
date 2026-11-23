@@ -13,7 +13,7 @@ function desk(me) {
   const anchor = '  return { open: open,';
   const code = fs.readFileSync(SRC, 'utf8');
   if (code.split(anchor).length !== 2) throw new Error('greige-desk.js: the closing "return { open" line moved; update this test');
-  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histDays, histDayName, histMonthName, histDayBadges, invNeedState, invCoverPct, invNeedCell, invActionCell, invWorthShowing, setDB: function (v) { DB = v; } };\n' + anchor);
+  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histDays, histDayName, histMonthName, histDayBadges, invNeedState, invCoverPct, invNeedCell, invActionCell, invWorthShowing, invNextCell, invShows, invNeeds, invTodoHtml, lfPeriod, lfKeep, renderLedger, setLF: function (v) { LF = v; }, setDB: function (v) { DB = v; } };\n' + anchor);
   const ctx = { console, window: { document: {} }, ME: me || { admin: true } };
   vm.createContext(ctx);
   vm.runInContext(opened, ctx);
@@ -174,6 +174,38 @@ console.log('== the Inventory, laid out to act on (Ravi, 21 Nov) ==');
   ok('the long note is gone from the toolbar', !/PPC demand is what the production plans need in RFD; short is after the RFD free today/.test(code));
   ok('no Total row under the Inventory (metres of different cloths added together)', !/<tfoot><tr><td class="frz" style="text-align:left">Total/.test(code));
   ok('"18 lines" is a link to Demand → RFD for that fabric', /data-gdlines="Canvas"[^>]*>39 lines</.test(need) && /if \(t\.getAttribute\('data-gdlines'\)\) \{ gdToFlow\('drfd', t\.getAttribute\('data-gdlines'\)\)/.test(code));
+}
+
+console.log('== the Inventory and the ledger, laid out to act on (Vishesh, 23 Nov) ==');
+{
+  const G2 = desk({ admin: true });
+  G2.setDB({ gpo: [], fab: [], mst: [], ven: [], co: {}, users: [] });
+  const base = { fabric: 'Canvas', type: 'Canvas', onOrder: 0, inStoreGreige: 0, atProcessor: 0, inStoreRfd: 0, cut: { leftPcs: 0, leftM: 0, waiting: 0, sizes: [] }, transit: [], owned: 0 };
+  const shortR = Object.assign({}, base, { ppc: { name: 'Canvas', need: 6772, lines: 39, free: 594, desk: 594, short: 6178, onWay: 0, greigeM: 7040, greige: 'Canvas Greige' }, inStoreGreige: 1200, inStoreRfd: 594 });
+  const next = G2.invNextCell(shortR, false);
+  ok('Next step: the most pressing first — Raise PO · 7,040 m — as the button', /^<td class="gdx-next"><button type="button" class="jw-btn jw-primary" data-ppcpo="Canvas\|7040"[^>]*>Raise PO · 7,040 m</.test(next), next.slice(0, 200));
+  ok('…then the other steps as links: Send to printer (RFD on the shelf, PPC lines waiting) and Issue 1,200 m to RFD', /class="link" data-gdsend="Canvas"/.test(next) && /data-invd="Canvas\|store"[^>]*>Issue 1,200 m to RFD</.test(next));
+  ok('the to-dos: greige in store, RFD for PPC lines; not cut pieces, not late', G2.invNeeds(shortR, 'store') && G2.invNeeds(shortR, 'send') && !G2.invNeeds(shortR, 'cut') && !G2.invNeeds(shortR, 'late'));
+  ok('…a filter by a to-do shows only those fabrics; All shows everything', G2.invShows(shortR, 'store') && !G2.invShows(base, 'store') && G2.invShows(base, 'all') && G2.invShows(shortR, 'short'));
+  const cutR = Object.assign({}, base, { ppc: null, cut: { leftPcs: 40, leftM: 30, waiting: 0, sizes: [] } });
+  ok('a fabric with only cut pieces left: Send 40 cut pcs', /data-ctssend="Canvas"[^>]*>Send 40 cut pcs</.test(G2.invNextCell(cutR, false)));
+  ok('a fabric with nothing to do says so', /nothing to do/.test(G2.invNextCell(Object.assign({}, base, { ppc: null }), false)));
+  const todo = G2.invTodoHtml([shortR, cutR], true, false);
+  ok('the to-do strip: Short for PPC (7,040 m greige to order), Greige in store, RFD for PPC lines, Cut pieces left — each a filter',
+    /data-invshow="short"[\s\S]*7,040 m greige to order/.test(todo) && /data-invshow="store"/.test(todo) && /data-invshow="send"/.test(todo) && /data-invshow="cut"/.test(todo) && !/data-invshow="late"/.test(todo));
+  ok('…with nothing to do, one line says all is clear', /Nothing waiting/.test(G2.invTodoHtml([Object.assign({}, base, { ppc: null })], true, false)));
+  const t = new Date().toISOString().slice(0, 10);
+  ok('quick periods: Today is today to today; This month starts on the 1st; All is no dates', G2.lfPeriod('today').from === t && G2.lfPeriod('today').to === t && G2.lfPeriod('month').from === t.slice(0, 8) + '01' && G2.lfPeriod('').from === '');
+  ok('…7 days is today and the 6 before', (Date.parse(G2.lfPeriod('7').to) - Date.parse(G2.lfPeriod('7').from)) / 86400000 === 6);
+  const waitRow = { id: 'w1', date: t, txnType: 'RECEIVE_RFD', qty: 100, lot: 'L1', fabricType: 'Canvas', approval: { status: 'pending', pct: 9 } };
+  G2.setLF({ from: '', to: '', kind: '', fabric: '', party: '', po: '', done: 'wait' });
+  ok('the ledger\'s Waiting for approval filter keeps only rows waiting', G2.lfKeep(waitRow) && !G2.lfKeep({ id: 'x', date: t, txnType: 'OPENING_RFD', qty: 5 }));
+  G2.setLF({ from: '', to: '', kind: '', fabric: '', party: '', po: '', done: '' });
+  G2.setDB({ gpo: [], fab: [waitRow, { id: 'd1', date: t, txnType: 'DAMAGE', qty: 4, lot: 'L1', fabricType: 'Canvas' }], mst: [], ven: [], co: {}, users: [] });
+  const led = G2.renderLedger();
+  ok('the ledger shows tiles (Not yet fulfilled, Waiting for approval, Damaged), quick periods and a header per day', /data-lfgo="open"/.test(led) && /data-lfgo="wait"/.test(led) && /data-lfgo="dmg"/.test(led) && /data-lfper="7"/.test(led) && /class="gdx-day"/.test(led));
+  ok('…a row waiting for approval is marked and carries Approve / Reject for an approver', /<tr class="gdx-wait">/.test(led) && /data-appr="w1\|ok"/.test(led) && /data-appr="w1\|no"/.test(led));
+  ok('…movements in colour: damage red, metres signed', /gdx-mv dmg/.test(led) && /−4/.test(led));
 }
 
 console.log('== the lines open Demand → RFD with only that fabric (Ravi, 21 Nov) ==');

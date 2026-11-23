@@ -3792,6 +3792,101 @@ function invActionCell(r, loading) {
   if (st === 'ok') return '<td><span class="pill pill-ok">covered</span></td>';
   return '<td></td>';
 }
+/* ---- WHAT NEEDS DOING, FIRST (Vishesh, 23 Nov: "refine the inventory design … to the best for making it more actionable") ---- *
+ * Above the table, a strip of to-do tiles, each a count and the metres behind it, in the order the cloth moves:
+ *   Short for PPC (greige to order) · Greige in store (to issue to RFD) · Late at the processor (over CHASE_PROCESSOR_DAYS)
+ *   · RFD for PPC lines (to send to printers) · Cut pieces left (to send) · Approvals waiting (on Greige POs).
+ * A tile shows only when there is something behind it; pressing it shows only those fabrics (pressing it again shows all).
+ * Each fabric row has a Next step: the most pressing thing to do with it as a button, and the other things it needs as
+ * small links under it. Every button is one the page already had (Raise PO, Issue to RFD, Send to printer, …): a step
+ * that needs a lot or a PO opens the figure's drop-down, where the lot's own button is. Short and late rows carry a coloured
+ * edge so they stand out down the list. Nothing is worked out twice: the tiles and the rows read the same tests. */
+var INV_ACT = {
+  store: { label: 'Greige in store', sub: 'to issue to RFD', tone: 'greige' },
+  late: { label: 'Late at the processor', sub: 'over ' + CHASE_PROCESSOR_DAYS + ' days — chase', tone: 'bad' },
+  send: { label: 'RFD for PPC lines', sub: 'on the shelf — send to printers', tone: 'rfd' },
+  cut: { label: 'Cut pieces left', sub: 'to send to printers', tone: 'brand' }
+};
+INV_SHOW_LABEL.store = INV_ACT.store.label; INV_SHOW_LABEL.late = INV_ACT.late.label; INV_SHOW_LABEL.send = INV_ACT.send.label; INV_SHOW_LABEL.cut = INV_ACT.cut.label;
+/** The lots of a fabric at an RFD processor for longer than CHASE_PROCESSOR_DAYS: [{ lot, m, days, who }]. */
+function invLateOf(r) {
+  return invLotsOf(r.fabric).filter(function (g) { return g.withProcessor > 0.05; }).map(function (g) {
+    var out = invRowsOfLot(g.lot, 'ISSUE_TO_RFD'), d = lmDays(invLastDate(out));
+    return { lot: g.lot, m: g.withProcessor, days: d, who: invJoin(out.map(function (x) { return x.party; })) };
+  }).filter(function (x) { return x.days !== null && x.days > CHASE_PROCESSOR_DAYS; });
+}
+/** Does a fabric need this to-do (store / late / send / cut)? */
+function invNeeds(r, k) {
+  if (k === 'store') return r.inStoreGreige > 0.05;
+  if (k === 'late') return invLateOf(r).length > 0;
+  if (k === 'send') return r.inStoreRfd > 0.05 && !!(r.ppc && r.ppc.lines > 0);
+  if (k === 'cut') return !!(r.cut && r.cut.leftPcs > 0);
+  return false;
+}
+/** A row is shown under a filter: one of PPC's (all / short / ok / none) or one of the to-dos. */
+function invShows(r, k) { return k === 'all' ? true : INV_ACT[k] ? invNeeds(r, k) : invNeedState(r) === k; }
+/** The approvals waiting on Greige POs: RFD receipts that shrank, cuts to size, POs asked to close, printer changes. */
+function invApprovalsN() {
+  var n = rrPending().length + ctsWaiting().length + (DB.gpo || []).filter(function (po) { return !!po.closeAsk; }).length;
+  return n + (typeof flowPrnWaiting === 'function' ? flowPrnWaiting().length : 0);
+}
+/** The to-do strip. */
+function invTodoHtml(rows, withPpc, loading) {
+  var tiles = [], m = function (list, f) { return list.reduce(function (a, r) { return a + f(r); }, 0); };
+  var tile = function (k, n, big, sub, tone, attr) {
+    return '<button type="button" class="gdx-tile ' + tone + (UI.invShow === k ? ' on' : '') + '" ' + attr + ' aria-pressed="' + (UI.invShow === k) + '">'
+      + '<span class="gdx-n">' + nf(n) + '</span><span class="gdx-l">' + esc(big) + '</span><span class="gdx-s">' + sub + '</span></button>';
+  };
+  if (withPpc && !loading) {
+    var sh = rows.filter(function (r) { return invNeedState(r) === 'short'; });
+    if (sh.length) tiles.push(tile('short', sh.length, 'Short for PPC', nf(m(sh, function (r) { return r.ppc.greigeM; })) + ' m greige to order', 'bad', 'data-invshow="' + (UI.invShow === 'short' ? 'all' : 'short') + '"'));
+  }
+  ['store', 'late', 'send', 'cut'].forEach(function (k) {
+    var list = rows.filter(function (r) { return invNeeds(r, k); }); if (!list.length) return;
+    var sub = k === 'store' ? nf(m(list, function (r) { return r.inStoreGreige; })) + ' m · ' + INV_ACT.store.sub
+      : k === 'late' ? plural(m(list, function (r) { return invLateOf(r).length; }), 'lot') + ' · ' + INV_ACT.late.sub
+      : k === 'send' ? nf(m(list, function (r) { return r.inStoreRfd; })) + ' m ' + INV_ACT.send.sub
+      : nf(m(list, function (r) { return r.cut.leftPcs; })) + ' pcs ' + INV_ACT.cut.sub;
+    tiles.push(tile(k, list.length, INV_ACT[k].label, sub, INV_ACT[k].tone, 'data-invshow="' + (UI.invShow === k ? 'all' : k) + '"'));
+  });
+  var ap = invApprovalsN();
+  if (ap) tiles.push('<button type="button" class="gdx-tile warn" data-invgo="po"><span class="gdx-n">' + nf(ap) + '</span><span class="gdx-l">Approvals waiting</span><span class="gdx-s">on Greige POs — open them →</span></button>');
+  if (!tiles.length) return '<div class="gdx-clear">✓ Nothing waiting — every fabric is covered and moving.</div>';
+  return '<div class="gdx-todo" role="group" aria-label="What needs doing">' + tiles.join('') + '</div>';
+}
+/** The Next step cell: the most pressing step as a button, the others as small links under it. */
+function invNextCell(r, loading) {
+  if (loading) return '<td></td>';
+  var steps = [], st = invNeedState(r), F = esc(r.fabric), late = invLateOf(r);
+  var btn = function (cls, attr, words, tip) { return { cls: cls, attr: attr, words: words, tip: tip }; };
+  if (st === 'short' && r.ppc.greige) steps.push(btn('jw-primary', 'data-ppcpo="' + esc(r.ppc.name) + '|' + r.ppc.greigeM + '"', 'Raise PO · ' + nf(r.ppc.greigeM) + ' m', 'Raise a greige PO for what PPC is short of (with the processor’s share)'));
+  if (late.length) steps.push(btn('gdx-bad', 'data-invd="' + F + '|proc"', 'Chase ' + plural(late.length, 'lot') + ' at processor', late.map(function (x) { return x.lot + ' · ' + x.who + ' · ' + x.days + ' days'; }).join('\n')));
+  if (invNeeds(r, 'send')) steps.push(btn('jw-primary', 'data-gdsend="' + F + '"', 'Send to printer', 'Make an RFD challan to a printer for the ' + plural(r.ppc.lines, 'line') + ' waiting'));
+  if (invNeeds(r, 'store')) steps.push(btn('jw-wa', 'data-invd="' + F + '|store"', 'Issue ' + nf(r.inStoreGreige) + ' m to RFD', 'Open the greige lots in the store, each with its Issue to RFD'));
+  if (invNeeds(r, 'cut')) steps.push(btn('', 'data-ctssend="' + F + '"', 'Send ' + nf(r.cut.leftPcs) + ' cut pcs', 'Make an RFD challan from the pieces already cut to size'));
+  if (r.onOrder > 0.05) steps.push(btn('', 'data-invd="' + F + '|order"', 'Receive greige', nf(r.onOrder) + ' m still due on open POs'));
+  if (!steps.length) return '<td>' + (st === 'ok' ? '<span class="pill pill-ok">covered</span>' : '<span class="muted" style="font-size:12px">nothing to do</span>') + '</td>';
+  var a = steps[0];
+  return '<td class="gdx-next"><button type="button" class="jw-btn ' + a.cls + '" ' + a.attr + ' title="' + esc(a.tip) + '">' + esc(a.words) + '</button>'
+    + (steps.length > 1 ? '<div class="gdx-more">' + steps.slice(1).map(function (s) { return '<button type="button" class="link" ' + s.attr + ' title="' + esc(s.tip) + '">' + esc(s.words) + '</button>'; }).join('') + '</div>' : '')
+    + (st === 'ok' ? '<div><span class="pill pill-ok" style="margin-top:4px">covered</span></div>' : '') + '</td>';
+}
+/** The coloured edge of a row: red when short for PPC, amber when cloth is late at a processor. */
+function invEdge(r) { return invNeedState(r) === 'short' ? 'var(--bad)' : invLateOf(r).length ? 'var(--warn-ink)' : ''; }
+var INV_CSS = '<style>'
+  + '.gdx-todo{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin:0 0 12px}'
+  + '.gdx-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);cursor:pointer;box-shadow:none;color:var(--ink);height:auto;min-height:0;white-space:normal;position:relative;overflow:hidden}'
+  + '.gdx-tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tone)}'
+  + '.gdx-tile:hover{border-color:var(--tone);background:var(--soft)}'
+  + '.gdx-tile.on{border-color:var(--tone);box-shadow:0 0 0 2px var(--tone) inset;background:var(--soft)}'
+  + '.gdx-tile.bad{--tone:var(--bad)}.gdx-tile.greige{--tone:var(--c-greige)}.gdx-tile.rfd{--tone:var(--c-rfd)}.gdx-tile.brand{--tone:var(--brand)}.gdx-tile.warn{--tone:var(--warn-ink)}'
+  + '.gdx-n{font-size:24px;font-weight:800;line-height:1.1;color:var(--tone)}'
+  + '.gdx-l{font-size:13px;font-weight:700}.gdx-s{font-size:11.5px;color:var(--muted)}'
+  + '.gdx-clear{margin:0 0 12px;padding:12px 16px;border-radius:14px;background:var(--accent-bg);color:var(--ok-ink);font-weight:700;font-size:13px}'
+  + '.gdx-next{text-align:left;min-width:170px}.gdx-next .jw-btn{white-space:nowrap;padding:5px 11px;font-size:12px}'
+  + '.gdx-bad{background:var(--bad-bg)!important;color:var(--bad)!important;border-color:var(--bad-line)!important}'
+  + '.gdx-more{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:5px}.gdx-more .link{font-size:11.5px;padding:0}'
+  + '</style>';
 function renderInv() {
   var all = invAll(), types = uniq(all.map(function (x) { return x.type; })).sort();
   if (UI.inv !== 'all' && types.indexOf(UI.inv) < 0) UI.inv = 'all';
@@ -3805,29 +3900,34 @@ function renderInv() {
   /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, and the greige PO for what is short, from here. Only in the app. */
   var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap, loading = !!(ppcMap && ppcMap.__loading);
   var inView = all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type)); });
-  if (!withPpc || loading) UI.invShow = 'all';
-  var shown = function (k) { return inView.filter(function (x) { return k === 'all' || invNeedState(x) === k; }); };
-  var rows = shown(UI.invShow).sort(function (a, b) { return INV_SHOW_ORDER[invNeedState(a)] - INV_SHOW_ORDER[invNeedState(b)]; });
-  UI.invCols = withPpc ? 9 : 7;
+  if ((!withPpc || loading) && !INV_ACT[UI.invShow]) UI.invShow = 'all';
+  var shown = function (k) { return inView.filter(function (x) { return invShows(x, k); }); };
+  /* short first, then late, then covered, then those PPC does not need */
+  var rows = shown(UI.invShow).sort(function (a, b) {
+    return INV_SHOW_ORDER[invNeedState(a)] - INV_SHOW_ORDER[invNeedState(b)] || (invLateOf(b).length ? 1 : 0) - (invLateOf(a).length ? 1 : 0);
+  });
+  UI.invCols = withPpc ? 9 : 8;
   var tools = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'
     + (withPpc && !loading ? '<div class="seg" role="tablist" aria-label="Show">' + ['all', 'short', 'ok', 'none'].map(function (k) {
         return '<button type="button" role="tab" class="segbtn' + (UI.invShow === k ? ' on' : '') + '" aria-selected="' + (UI.invShow === k) + '" data-invshow="' + k + '">'
           + INV_SHOW_LABEL[k] + ' <span class="n">' + shown(k).length + '</span></button>';
       }).join('') + '</div>' : '')
+    + (INV_ACT[UI.invShow] ? '<span class="pill pill-sea">Showing: ' + esc(INV_SHOW_LABEL[UI.invShow]) + ' <button type="button" class="link" data-invshow="all" style="padding:0 0 0 4px" aria-label="Show all">✕</button></span>' : '')
     + '<span style="margin-left:auto"></span>'
     + (canLedgerEdit() ? '<button type="button" class="ghost" data-act="OPENING_RFD" title="RFD already on the floor: its own lot, so it is issued like any other and never counted as cloth back from a processor.">+ RFD opening stock</button>' : '')
     + (withPpc ? '<button type="button" class="ghost" data-gdflow="drfd" title="Open the flow’s Demand → RFD">Demand → RFD</button>' : '')
     + '</div>';
   var stockHeads = ['Greige ordered', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Cut to size'];
-  var group = '<tr><th class="frz"></th>' + (withPpc ? '<th></th><th></th>' : '')
+  var group = '<tr><th class="frz"></th>' + (withPpc ? '<th></th>' : '') + '<th></th>'
     + '<th colspan="5" style="text-align:center;color:var(--muted);font-weight:600;border-bottom:0">Where the cloth is now →</th><th></th></tr>';
-  var heads = th(withPpc ? ['Fabric', 'PPC need, covered by RFD', 'Action'].concat(stockHeads, ['Total']) : ['Fabric'].concat(stockHeads, ['Total']),
-    withPpc ? [3, 4, 5, 6, 7, 8] : [1, 2, 3, 4, 5, 6]).replace('<thead>', '<thead>' + group);
-  var table = tools + '<div class="card"><div class="ff-grid"><table class="xl">' + heads
+  var heads = th(withPpc ? ['Fabric', 'PPC need, covered by RFD', 'Next step'].concat(stockHeads, ['Total']) : ['Fabric', 'Next step'].concat(stockHeads, ['Total']),
+    withPpc ? [3, 4, 5, 6, 7, 8] : [2, 3, 4, 5, 6, 7]).replace('<thead>', '<thead>' + group);
+  var table = INV_CSS + invTodoHtml(inView, withPpc, loading) + tools + '<div class="card"><div class="ff-grid"><table class="xl">' + heads
     + '<tbody>' + (rows.map(function (r) {
-      return '<tr><td class="frz" style="text-align:left">' + invFabricName(r.fabric)
+      var edge = invEdge(r);
+      return '<tr><td class="frz" style="text-align:left' + (edge ? ';box-shadow:inset 4px 0 0 ' + edge : '') + '">' + invFabricName(r.fabric)
         + (r.greige ? '<div class="muted" style="font-size:10.5px">bought as ' + esc(r.greige) + '</div>' : '') + '</td>'
-        + (withPpc ? invNeedCell(r, loading) + invActionCell(r, loading) : '')
+        + (withPpc ? invNeedCell(r, loading) : '') + invNextCell(r, loading)
         + invCell(r, 'order', r.onOrder, 'color:var(--warn-ink)')
         + invCell(r, 'store', r.inStoreGreige, '')
         + invCell(r, 'proc', r.atProcessor, 'color:var(--proc-ink)')
@@ -3984,7 +4084,8 @@ function invOpenPo(poNo, chId) {
 }
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow]') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow],[data-invgo]') : null;
+    if (d && d.getAttribute('data-invgo')) { UI.tab = d.getAttribute('data-invgo'); UI.invOpen = ''; render(); return; }
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
     if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
     if (d && d.getAttribute('data-invh')) { invHistOpen(d.getAttribute('data-invh')); return; }
@@ -4186,16 +4287,18 @@ function invHistXlsx() {
 var LF = { from: '', to: '', kind: '', fabric: '', party: '', po: '', done: '' };
 
 /* ---- the register itself, which is the only thing that is actually stored ------------------- */
-/** Does a row survive the filter bar? Every box left blank matches everything. */
-function lfKeep(r) {
+/** Does a row survive the filter bar? Every box left blank matches everything. `but` names boxes to leave out (the tiles' counts). */
+function lfKeep(r, but) {
+  but = but || {};
   if (LF.from && String(r.date || '') < LF.from) return false;
   if (LF.to && String(r.date || '') > LF.to) return false;
-  if (LF.kind && r.txnType !== LF.kind) return false;
+  if (LF.kind && !but.kind && r.txnType !== LF.kind) return false;
   if (LF.fabric && String(r.fabricType || '').trim() !== LF.fabric) return false;
   if (LF.party && String(r.party || '').trim() !== LF.party) return false;
   if (LF.po && String(r.orderNo || '').trim().toUpperCase() !== LF.po.toUpperCase()) return false;
-  if (LF.done === 'open' && r.done) return false;
-  if (LF.done === 'done' && !r.done) return false;
+  if (!but.done && LF.done === 'open' && r.done) return false;
+  if (!but.done && LF.done === 'done' && !r.done) return false;
+  if (!but.done && LF.done === 'wait' && !lfWaits(r)) return false;
   return true;
 }
 var lfOn = function () {
@@ -4212,6 +4315,57 @@ function lfSelect(key, label, values, labels) {
     }).join('') + '</select></label>';
 }
 
+/* ---- THE LEDGER, LAID OUT TO ACT ON (Vishesh, 23 Nov: "refine … fabric ledger design to the best for making it more actionable") ---- *
+ *   - tiles on top: Not yet fulfilled · Waiting for approval · Damaged · In / Out — each a filter (pressing it again clears it)
+ *   - quick periods beside the dates: Today · 7 days · 30 days · This month · All
+ *   - the movements grouped by day (newest first), each day with its count and its metres in and out
+ *   - a movement reads in colour: green when cloth came in, red when it went out, the metres signed the same way
+ *   - a movement waiting for approval carries Approve / Refuse on its own row for whoever may decide (the same decisions as
+ *     the Greige POs page: rrDecide for an RFD receipt that shrank, ctsDecide for a cut to size)
+ * Every filter, button and figure the ledger had is kept. */
+var LF_PERIODS = [['today', 'Today'], ['7', '7 days'], ['30', '30 days'], ['month', 'This month'], ['', 'All']];
+/** The from / to of a quick period, from today. */
+function lfPeriod(k) {
+  var t = lmToday(), d = new Date(t + 'T00:00:00Z');
+  var back = function (n) { var x = new Date(d.getTime() - n * 86400000); return x.toISOString().slice(0, 10); };
+  if (k === 'today') return { from: t, to: t };
+  if (k === '7') return { from: back(6), to: t };
+  if (k === '30') return { from: back(29), to: t };
+  if (k === 'month') return { from: t.slice(0, 8) + '01', to: t };
+  return { from: '', to: '' };
+}
+/** The quick period the filter's dates are on now ('' = all; null = some other dates). */
+function lfPeriodNow() {
+  for (var i = 0; i < LF_PERIODS.length; i++) { var p = lfPeriod(LF_PERIODS[i][0]); if (p.from === LF.from && p.to === LF.to) return LF_PERIODS[i][0]; }
+  return null;
+}
+/** A movement waiting for someone to approve it. */
+var lfWaits = function (r) { return !!(r.approval && r.approval.status === 'pending'); };
+/** Approve / Refuse on the row, for whoever may decide it; else who it waits for. */
+function lfDecideHtml(r) {
+  if (!lfWaits(r)) return '';
+  if (r.cutToSize) return ctsDecideButtons(r);
+  if (r.txnType === 'RECEIVE_RFD') return canApprove() ? '<div class="actions"><button type="button" class="jw-btn jw-wa" data-appr="' + esc(r.id) + '|ok">Approve</button><button type="button" class="jw-btn" id="rej-' + esc(r.id) + '" data-appr="' + esc(r.id) + '|no">Reject</button></div>'
+    : '<span class="muted" style="font-size:11.5px">waits for an approver</span>';
+  return '';
+}
+var LED_CSS = '<style>'
+  + '.gdx-todo{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:0 0 12px}'
+  + '.gdx-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);cursor:pointer;box-shadow:none;color:var(--ink);height:auto;min-height:0;white-space:normal;position:relative;overflow:hidden}'
+  + '.gdx-tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tone)}'
+  + '.gdx-tile:hover{border-color:var(--tone);background:var(--soft)}.gdx-tile.on{border-color:var(--tone);box-shadow:0 0 0 2px var(--tone) inset;background:var(--soft)}'
+  + '.gdx-tile.bad{--tone:var(--bad)}.gdx-tile.warn{--tone:var(--warn-ink)}.gdx-tile.brand{--tone:var(--brand)}.gdx-tile.ok{--tone:var(--ok-ink)}'
+  + '.gdx-tile[disabled]{cursor:default}.gdx-tile[disabled]:hover{border-color:var(--line);background:var(--card)}'
+  + '.gdx-n{font-size:24px;font-weight:800;line-height:1.1;color:var(--tone)}.gdx-l{font-size:13px;font-weight:700}.gdx-s{font-size:11.5px;color:var(--muted)}'
+  + '.gdx-per{display:inline-flex;gap:4px;flex-wrap:wrap}.gdx-per button{height:32px;padding:0 12px;font-size:12.5px;border-radius:999px;width:auto}'
+  + '.gdx-per button.on{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}'
+  + '.gdx-day td{background:var(--soft)!important;text-align:left!important;font-size:12.5px;padding:8px 12px!important;border-top:1px solid var(--line)}'
+  + '.gdx-day b{font-size:13px;margin-right:8px}'
+  + '.gdx-mv{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}'
+  + '.gdx-mv.in{background:var(--accent-bg);color:var(--ok-ink)}.gdx-mv.out{background:var(--bad-bg);color:var(--bad)}.gdx-mv.nil{background:var(--chip);color:var(--muted)}'
+  + '.gdx-mv.dmg{background:var(--bad);color:#fff}'
+  + 'tr.gdx-wait>td{background:var(--warn-bg)!important}tr.gdx-wait>td:first-child{box-shadow:inset 4px 0 0 var(--warn-ink)}'
+  + '</style>';
 function renderLedger() {
   var all = (DB.fab || []).slice().sort(function (a, b) {
     return String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id));
@@ -4234,34 +4388,58 @@ function renderLedger() {
   var inM = rows.reduce(function (a, r) { return a + (FAB_SIGN[r.txnType] > 0 ? fabQty(r) : 0); }, 0);
   var outM = rows.reduce(function (a, r) { return a + (FAB_SIGN[r.txnType] < 0 ? fabQty(r) : 0); }, 0);
 
+  /* the tiles count what the dates, fabric, party and PO let through -- not the tile's own filter, so they never read 0 once pressed */
+  var base = all.filter(function (r) { return lfKeep(r, { done: true, kind: LF.kind === 'DAMAGE' }); });
+  var openN = base.filter(function (r) { return !r.done; }).length, waitN = base.filter(lfWaits).length;
+  var dmg = base.filter(function (r) { return r.txnType === 'DAMAGE'; }), dmgM = dmg.reduce(function (a, r) { return a + fabQty(r); }, 0);
+  var tile = function (on, tone, n, big, sub, attr) {
+    return '<button type="button" class="gdx-tile ' + tone + (on ? ' on' : '') + '" ' + attr + '><span class="gdx-n">' + n + '</span><span class="gdx-l">' + big + '</span><span class="gdx-s">' + sub + '</span></button>';
+  };
+  var tiles = '<div class="gdx-todo">'
+    + tile(LF.done === 'open', 'brand', nf(openN), 'Not yet fulfilled', 'movements nobody has ticked', 'data-lfgo="open"')
+    + tile(LF.done === 'wait', waitN ? 'warn' : 'ok', nf(waitN), 'Waiting for approval', waitN ? 'decide them on their rows' : 'nothing waiting', 'data-lfgo="wait"' + (waitN || LF.done === 'wait' ? '' : ' disabled'))
+    + tile(LF.kind === 'DAMAGE', dmg.length ? 'bad' : 'ok', nf(dmgM) + ' m', 'Damaged', plural(dmg.length, 'entry', 'entries') + (lfPeriodNow() === '' ? ', all time' : ' in these dates'), 'data-lfgo="dmg"' + (dmg.length || LF.kind === 'DAMAGE' ? '' : ' disabled'))
+    + '<div class="gdx-tile ok" style="cursor:default"><span class="gdx-n" style="font-size:18px"><span style="color:var(--ok-ink)">+' + nf(inM) + '</span> <span style="color:var(--bad)">−' + nf(outM) + '</span></span><span class="gdx-l">Metres in / out</span><span class="gdx-s">of the movements below</span></div>'
+    + '</div>';
+
+  var per = lfPeriodNow();
   var filters = '<div class="card" style="padding:12px 14px;margin-bottom:12px">'
-    + '<div class="toolbar" style="gap:10px">'
+    + '<div class="toolbar" style="gap:10px;align-items:center">'
+    + '<div class="gdx-per" role="group" aria-label="Period">' + LF_PERIODS.map(function (p) {
+      return '<button type="button" class="ghost' + (per === p[0] ? ' on' : '') + '" data-lfper="' + p[0] + '">' + p[1] + '</button>';
+    }).join('') + '</div>'
     + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">From'
     + '<input type="date" data-lf="from" value="' + esc(LF.from) + '" style="height:32px;width:auto;font-size:12.5px"></label>'
     + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">To'
-    + '<input type="date" data-lf="to" value="' + esc(LF.to) + '" style="height:32px;width:auto;font-size:12.5px"></label>'
+    + '<input type="date" data-lf="to" value="' + esc(LF.to) + '" style="height:32px;width:auto;font-size:12.5px"></label></div>'
+    + '<div class="toolbar" style="gap:10px;margin-top:8px">'
     + lfSelect('kind', 'Movement', kinds, kinds.map(function (k) { return FAB_LABEL[k]; }))
     + lfSelect('fabric', 'Fabric', fabrics)
     + lfSelect('party', 'Party', parties)
     + lfSelect('po', 'PO', pos)
-    + lfSelect('done', 'Status', ['open', 'done'], ['Not yet fulfilled', 'Fulfilled'])   /* "open" is a PO's word (Ravi, 21 Nov) */
+    + lfSelect('done', 'Status', ['open', 'done', 'wait'], ['Not yet fulfilled', 'Fulfilled', 'Waiting for approval'])   /* "open" is a PO's word (Ravi, 21 Nov) */
     + (lfOn() ? '<button type="button" class="jw-btn" id="lfClear">Clear the filter</button>' : '')
     + '</div></div>';
 
   var count = rows.length === all.length
     ? all.length + ' movement' + (all.length === 1 ? '' : 's')
     : '<b>' + rows.length + '</b> of ' + all.length + ' movements';
-  var openN = rows.filter(function (r) { return !r.done; }).length;
-  if (openN !== rows.length) count += ' · <b>' + openN + '</b> not yet fulfilled';
+  var openR = rows.filter(function (r) { return !r.done; }).length;
+  if (openR !== rows.length) count += ' · <b>' + openR + '</b> not yet fulfilled';
 
-  return '<div class="row" style="margin-bottom:10px;align-items:center">'
+  /* one header a day: the day, how many movements, the metres in and out */
+  var days = {}; rows.forEach(function (r) { var d = String(r.date || ''); var e = days[d] || (days[d] = { n: 0, i: 0, o: 0 }); e.n++;
+    if (FAB_SIGN[r.txnType] > 0) e.i += fabQty(r); else if (FAB_SIGN[r.txnType] < 0) e.o += fabQty(r); });
+  var lastDay = null;
+
+  return LED_CSS + '<div class="row" style="margin-bottom:10px;align-items:center">'
     + '<span class="muted" style="font-size:12px;align-self:center">Add a movement:</span>'
     + (canLedgerEdit() ? '' : '<span class="pill pill-mute">View only · ' + esc(meUser().name) + '</span>')
     + kinds.filter(function (k) { return canLedgerEdit() && k !== 'RECEIVE_GREIGE' && k !== 'ISSUE_TO_RFD' && k !== 'RECEIVE_RFD'; }).map(function (k) {
       return '<button type="button" class="ghost" data-act="' + k + '" style="padding:6px 12px;font-size:12.5px">'
         + esc(FAB_LABEL[k]) + '</button>';
     }).join('') + '<span class="muted" style="font-size:12px;align-self:center">Greige received, sent to RFD and RFD received back are done from each PO on Greige POs.</span></div>'
-    + filters
+    + tiles + filters
     + '<div class="card"><div class="ff-cap">' + count + ', newest first · '
     + '<b style="color:var(--ok-ink)">' + nf(inM) + ' m</b> in · <b style="color:var(--bad)">' + nf(outM) + ' m</b> out. '
     + 'Nothing on this page is a stored total — every figure in the app is worked out from these rows.</div>'
@@ -4271,8 +4449,12 @@ function renderLedger() {
      * the first one. */
     + th(['Date', 'PO', 'Fabric', 'Challan', 'Party', 'Lot', 'Movement', 'State', 'Metres', ''], [8])
     + '<tbody>' + (rows.map(function (r) {
-      var sign = FAB_SIGN[r.txnType] || 0;
-      return '<tr><td class="frz">' + esc(r.date) + '</td>'
+      var sign = FAB_SIGN[r.txnType] || 0, d = String(r.date || ''), dd = days[d], head = '';
+      if (d !== lastDay) { lastDay = d;
+        head = '<tr class="gdx-day"><td colspan="10"><b>' + esc(d ? fmtD(d) : 'No date') + '</b><span class="muted">' + plural(dd.n, 'movement') + '</span>'
+          + (dd.i ? ' · <span style="color:var(--ok-ink);font-weight:700">+' + nf(dd.i) + ' m</span>' : '') + (dd.o ? ' · <span style="color:var(--bad);font-weight:700">−' + nf(dd.o) + ' m</span>' : '') + '</td></tr>'; }
+      var mv = r.txnType === 'DAMAGE' ? 'dmg' : sign > 0 ? 'in' : sign < 0 ? 'out' : 'nil', waits = lfWaits(r);
+      return head + '<tr' + (waits ? ' class="gdx-wait"' : '') + '><td class="frz">' + esc(r.date) + '</td>'
         + '<td>' + (r.orderNo ? '<b>' + esc(r.orderNo) + '</b>' : '<span class="muted">—</span>') + '</td>'
         + '<td style="text-align:left">' + esc(r.fabricType) + '</td>'
         /* The bill or challan sits with the cloth it came on: the two are read together off the
@@ -4280,8 +4462,7 @@ function renderLedger() {
         + '<td>' + (r.bill ? '<span class="mono">' + esc(r.bill) + '</span><div class="sub">' + ({ ISSUE_TO_RFD: 'our RFD challan', RECEIVE_RFD: 'processor’s', RECEIVE_GREIGE: 'supplier’s', PURCHASE_RFD: 'supplier’s' }[r.txnType] || '') + '</div>' : '<span class="muted">—</span>') + '</td>'
         + '<td style="text-align:left">' + (r.party ? esc(r.party) : '<span class="muted">—</span>') + '</td>'
         + '<td style="text-align:left"><b>' + esc(r.lot) + '</b></td>'
-        + '<td style="text-align:left"' + (r.txnType === 'DAMAGE' ? ' style="text-align:left;color:var(--bad);font-weight:700"' : '') + '>'
-        + esc(FAB_LABEL[r.txnType] || r.txnType)
+        + '<td style="text-align:left"><span class="gdx-mv ' + mv + '">' + esc(FAB_LABEL[r.txnType] || r.txnType) + '</span>'
         + (r.approval && r.approval.status !== 'approved' ? '<div><span class="pill ' + (r.approval.status === 'pending' ? 'pill-low' : 'pill-out') + '">' + (r.approval.status === 'pending' ? 'Waiting for approval' : r.cutToSize ? 'Refused' : 'Rejected') + ' · ' + ctsApprovalWhy(r) + '</span></div>' : '')
         + (r.approval && r.approval.status === 'approved' ? '<div class="sub">approved by ' + esc(r.approval.by || '') + (r.cutToSize ? '' : ' · ' + r.approval.pct + '%') + '</div>' : '')
         + (r.bales && r.bales.length ? '<div class="sub">' + r.bales.length + ' bales</div>' : '')
@@ -4292,7 +4473,7 @@ function renderLedger() {
         + '</td>'
         + '<td><span class="pill ' + (fabState(r) === 'GREIGE' ? 'pill-low' : 'pill-sea') + '">'
         + esc(FAB_STATE_LABEL[fabState(r)] || fabState(r)) + '</span></td>'
-        + '<td class="num" style="font-weight:700">' + (sign < 0 ? '−' : sign > 0 ? '+' : '') + nf(fabQty(r))
+        + '<td class="num" style="font-weight:800;color:' + (sign > 0 ? 'var(--ok-ink)' : sign < 0 ? 'var(--bad)' : 'var(--ink)') + '">' + (sign < 0 ? '−' : sign > 0 ? '+' : '') + nf(fabQty(r))
         + (r.pieces && r.pieces.length ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + r.pieces.length + ' pcs on the challan</div>' : '')
         + (r.returned
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + nf(r.gross)
@@ -4301,9 +4482,10 @@ function renderLedger() {
         + (r.remark && r.txnType !== 'DAMAGE'
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + esc(r.remark) + '</div>' : '')
         + '</td>'
-        + '<td style="white-space:nowrap">' + (!canLedgerEdit() ? '<span class="muted" title="' + esc(fulfilledBy(r)) + '">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
+        + '<td style="white-space:nowrap">' + (waits ? lfDecideHtml(r) : '')
+        + (!canLedgerEdit() ? '<span class="muted" title="' + esc(fulfilledBy(r)) + '">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
         + (!canLedgerEdit() || ctsLedgerLocked(r) ? '' : '<button type="button" class="jw-btn jw-primary" data-edit="' + esc(r.id) + '">Edit</button> ')
-        + (!canLedgerEdit() ? '' : r.done
+        + (!canLedgerEdit() || waits ? '' : r.done
           ? '<button type="button" class="jw-btn jw-wa" data-done="' + esc(r.id) + '" '
             + 'title="' + esc(fulfilledBy(r)) + '. Click to put it back on the list.">✓ Fulfilled</button>'
           : '<button type="button" class="jw-btn" data-done="' + esc(r.id) + '" '
@@ -4327,9 +4509,15 @@ function fulfilledBy(r) {
 /* ---- wiring: the ledger rows and the filter bar ---------------------------------------------------- */
 function wireLedger() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('#lfClear,[data-edit],[data-done],[data-del]') : null;
+    var t = ev.target.closest ? ev.target.closest('#lfClear,[data-edit],[data-done],[data-del],[data-lfgo],[data-lfper]') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
+    /* the ledger's tiles and quick periods (Vishesh, 23 Nov) */
+    if (g('data-lfgo') !== null) { var go = g('data-lfgo');
+      /* pressing a tile turns its filter on; pressing it again turns it off */
+      if (go === 'dmg') LF.kind = LF.kind === 'DAMAGE' ? '' : 'DAMAGE'; else LF.done = LF.done === go ? '' : go;
+      render(); return; }
+    if (g('data-lfper') !== null) { var pr = lfPeriod(g('data-lfper')); LF.from = pr.from; LF.to = pr.to; render(); return; }
     if (g('data-edit')) {
       var er = (DB.fab || []).filter(function (x) { return x.id === g('data-edit'); })[0];
       if (er) entryOpen(er.txnType, er);
