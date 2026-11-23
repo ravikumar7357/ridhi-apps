@@ -86,8 +86,9 @@ function fsShim(names) {
   return { docs, size: docs.length, empty: !docs.length, forEach: f => docs.forEach(f) }; };`);
   if (has('getDocs')) L.push('const getDocs = __r1GetDocs;');
   if (has('getDocsFromServer')) L.push('const getDocsFromServer = __r1GetDocs;');
-  if (has('onSnapshot')) L.push(`const onSnapshot = (ref, next, err) => { let off = false; const run = () => getDoc(ref).then(s => { if (!off) next(s); }).catch(e => { if (!off && typeof err === 'function') err(e); });
-  run(); const t = setInterval(run, 15000); return () => { off = true; clearInterval(t); }; };   /* asked again every 15 s */`);
+  /* 23 Nov: refused (no rights) → stop asking, as Firestore's own listener stops after a refusal (it asked every 15 s for ever) */
+  if (has('onSnapshot')) L.push(`const onSnapshot = (ref, next, err) => { let off = false, t = null; const run = () => getDoc(ref).then(s => { if (!off) next(s); }).catch(e => { if (off) return; if (e && e.code === 'permission-denied') { off = true; if (t) clearInterval(t); } if (typeof err === 'function') err(e); });
+  run(); t = setInterval(run, 15000); if (off) clearInterval(t); return () => { off = true; clearInterval(t); }; };   /* asked again every 15 s */`);
   /* saves: to ERP data; config/* (API keys) to Firebase as before */
   if (has('setDoc')) L.push(`const setDoc = async (ref, data, opts) => { if (__r1IsKeyDoc(ref)) return __real_setDoc(ref, data, opts); const t = ${now}, b = 'fs/' + ref.path;
   await __r1FsSave(opts && opts.merge ? __r1Leaves(data || {}, b, [], t) : [{ k: 'put', p: b, v: __r1Plain(data), t }]); };`);

@@ -129,18 +129,46 @@
   /* LIVE: every 5 s (page in front) the newest save ERP data has applied; when it moved, the lists held here catch up */
   var LIVE = { upto: null, busy: false, used: {}, tok: '', ok: true };
   R1.sbLive = LIVE;
+  /* A SIGN-IN THAT IS STILL VALID (23 Nov): a sign-in token lasts an hour. The live check used the one it was last handed,
+   * so on a page left open without reading anything it kept asking with an expired one (401 every 5 s, no live updates).
+   * Now: the one held while it has more than a minute left, else the newest one Firebase keeps in this browser, else
+   * the check waits (no request) until the page signs in again. */
+  function tokExp(t) { try { return JSON.parse(atob(String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp * 1000; } catch (e) { return 0; } }
+  function freshTok() {
+    if (LIVE.tok && tokExp(LIVE.tok) - Date.now() > 60000) return Promise.resolve(LIVE.tok);
+    return new Promise(function (res) {
+      try {
+        var q = indexedDB.open('firebaseLocalStorageDb');
+        q.onsuccess = function () {
+          try {
+            var g = q.result.transaction('firebaseLocalStorage').objectStore('firebaseLocalStorage').getAll();
+            g.onsuccess = function () {
+              var u = (g.result || []).find(function (x) { return x && x.value && x.value.stsTokenManager; });
+              var t = u && u.value.stsTokenManager.accessToken;
+              if (t && tokExp(t) - Date.now() > 60000) { LIVE.tok = t; res(t); } else res('');
+            };
+            g.onerror = function () { res(''); };
+          } catch (e) { res(''); }
+        };
+        q.onerror = function () { res(''); };
+      } catch (e) { res(''); }
+    });
+  }
   setInterval(function () {
     if (LIVE.busy || !LIVE.ok || !LIVE.tok || document.visibilityState === 'hidden' || !Object.keys(LIVE.used).length) return;
     LIVE.busy = true;
     var of = R1.origFetch;
-    sbRpc('rt_live_upto', {}, LIVE.tok, of).then(function (u) {
+    freshTok().then(function (tok) {
+      if (!tok) return;                                          // no valid sign-in right now: ask nothing
+      return sbRpc('rt_live_upto', {}, tok, of).then(function (u) {
       if (LIVE.upto !== null && u === LIVE.upto) return;
       var first = LIVE.upto === null; LIVE.upto = u;
       if (first) return;
       R1.memo = {};
       return Object.keys(LIVE.used).reduce(function (chain, key) {
-        return chain.then(function () { var m = SBMEM[key]; if (!m || m.upto == null || m.upto >= u) return; return sbRefresh(key, LIVE.used[key], LIVE.tok, of); });
+        return chain.then(function () { var m = SBMEM[key]; if (!m || m.upto == null || m.upto >= u) return; return sbRefresh(key, LIVE.used[key], tok, of); });
       }, Promise.resolve());
+      });
     }).catch(function (e) { if (/404|not find the function/.test(String(e && e.message))) LIVE.ok = false; })
       .then(function () { LIVE.busy = false; });
   }, 5000);
