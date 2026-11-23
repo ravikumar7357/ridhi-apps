@@ -30204,18 +30204,54 @@ function renderShpBoardReport(pend, done) {
   $('odTable').innerHTML = `<thead><tr>${th(0, 'Step · who has it', 'left')}${th(1, 'Orders')}${th(2, mode === 'order' ? 'Rows' : 'SKUs')}${th(3, 'Pieces pending')}${th(4, 'Send', 'left')}</tr></thead><tbody>`
     + secs.map(row).join('') + '</tbody>';
 }
+/* THE PRINTER'S OWN CHAT AND A LINK TO THE PDF (Ravi, 23 Nov: "web whatsapp par bhi on hona chahiye" → both). WhatsApp Web lets no page attach a
+ * file, so on a computer: the PDF is put in ERP data's private 'board-reports' store (staff only) and a 30-day link to it goes in the message,
+ * WhatsApp opens on the printer's chat (the phone in the vendor master, else the one typed last time for that row), and the PDF downloads too. */
+const BR_LINK_DAYS = 30;
+function brPhoneOf(s) {
+  try { const v = localStorage.getItem('brPhone:' + s.id); if (v) return v; } catch (e) { /* none kept */ }
+  if (!s.who) return '';
+  let vs = []; try { vs = typeof voAllVendors === 'function' ? voAllVendors() : []; } catch (e) { vs = []; }
+  const L = x => String(x || '').trim().toLowerCase(), v = vs.find(x => L(x.desc || x.name) === L(s.who) || L(x.code) === L(s.who));
+  return v ? String(v.whatsapp || v.mobile || v.phone || '').trim() : '';
+}
+const brWaNum = ph => { let d = String(ph || '').replace(/\D/g, ''); if (d.length === 11 && d[0] === '0') d = d.slice(1); if (d.length === 10) d = '91' + d; return d.length >= 11 && d.length <= 15 ? d : ''; };
+async function brLink(blob, name) {
+  const C = window.__R1_DATA || {}; if (!C.url || !C.key) throw new Error('no ERP data address on this page');
+  const tok = auth && auth.currentUser ? await auth.currentUser.getIdToken() : ''; if (!tok) throw new Error('not signed in');
+  const path = (shpbKind() || 'board') + '/' + new Date().toISOString().slice(0, 10) + '/' + Date.now().toString(36) + '-' + name;
+  const h = { apikey: C.key, Authorization: 'Bearer ' + tok };
+  const up = await fetch(C.url + '/storage/v1/object/board-reports/' + path, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/pdf', 'x-upsert': 'true' }, h), body: blob });
+  if (!up.ok) throw new Error('upload ' + up.status);
+  const sg = await fetch(C.url + '/storage/v1/object/sign/board-reports/' + path, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, h), body: JSON.stringify({ expiresIn: BR_LINK_DAYS * 86400 }) });
+  const j = await sg.json().catch(() => ({})); const u = j.signedURL || j.signedUrl;
+  if (!sg.ok || !u) throw new Error('link ' + sg.status);
+  return C.url + '/storage/v1' + (u.charAt(0) === '/' ? u : '/' + u);
+}
 async function brAct(i, share) {
   const s = BR_LAST[i]; if (!s) return;
   const rows = brRows(s), t = brTot(rows), title = brBoardName() + ' - ' + s.title + ' - pending';
   const blob = brPdf(title, `${shpbDmy(dToday())} - ${nf(t.pcs)} pcs - ${nf(t.skus)} SKUs - ${nf(t.orders)} orders`, rows, t), name = brFileName(s);
   if (!share) return brDownload(blob, name);
   const text = brSummary(s, rows, t);
+  /* a phone that shares files: the PDF itself goes, from the share sheet (at once — the tap's permission does not wait for an upload) */
   try {
     const file = new File([blob], name, { type: 'application/pdf' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text }); return; }
+    const phone = /Android|iPhone|iPad|Mobi/i.test(navigator.userAgent || '');
+    if (phone && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text }); return; }
   } catch (e) { if (e && e.name === 'AbortError') return; }   // the share sheet was closed
+  /* a computer: WhatsApp's tab is opened now (a tab opened after the upload would be blocked), then pointed at the printer's chat */
+  const w = window.open('', '_blank');
+  const msg = $('odMsg'), say = (m, bad) => { if (msg) { msg.className = bad ? 'err' : 'muted'; msg.textContent = m; } };
+  say('Making the link to the PDF…');
+  let link = '';
+  try { link = await brLink(blob, name); } catch (e) { say('The PDF link could not be made (' + (e.message || e) + ') — the PDF is downloaded; attach it in WhatsApp.', true); }
   brDownload(blob, name);
-  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+  const num = brWaNum(brPhoneOf(s));
+  const body = text.replace('(PDF attached)', link ? 'PDF: ' + link : '(PDF attached)');
+  const url = 'https://wa.me/' + num + '?text=' + encodeURIComponent(body);
+  if (w && !w.closed) w.location.href = url; else window.open(url, '_blank');
+  if (link) say('WhatsApp is open' + (num ? ' on ' + s.who + "'s chat" : ' — pick the chat') + ' with the PDF link (good for ' + BR_LINK_DAYS + ' days); the PDF downloaded too.');
 }
 /* MAIL (23 Nov): the backend (Pricing-API mailReport_) sends it from the company mailbox with this PDF attached — only for a signed-in
  * person with rights, five addresses at most, a daily limit. The addresses typed are remembered per printer / step on this computer. */
@@ -30248,7 +30284,7 @@ function brMail(i) {
       const blob = brPdf(title, `${shpbDmy(dToday())} - ${nf(t.pcs)} pcs - ${nf(t.skus)} SKUs - ${nf(t.orders)} orders`, rows, t);
       try {
         const idToken = auth && auth.currentUser ? await auth.currentUser.getIdToken() : '';
-        await apiPost({ mail: 'report', to: to.join(','), cc: cc.join(','), title: title.slice(0, 120), fileName: brFileName(s), pdf: await brBase64(blob),
+        await apiPost({ mail: 'report', to: to.join(','), cc: cc.join(','), title: title.slice(0, 120), fileName: brFileName(s), pdf: await brBase64(blob), greetName: s.who || '',
           message: String(v.msg || '').slice(0, 1500), fromName: 'Ridhi Home & Living', summary: brSummary(s, rows, t).replace(/\*/g, ''), idToken });
       } catch (e) { return 'Not sent: ' + (e.message || e); }
       try { localStorage.setItem('brMail:' + s.id, to.join(', ')); } catch (e) { /* not kept */ }
