@@ -13,7 +13,7 @@ const ACX_SIDE = 'erp';
  * admin-access.js FACTORY_SECTIONS — change one, change both. */
 const FACTORY_SECTIONS = ['pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'att',
   'hr', 'vend', 'vlog', 'cx', 'palloc', 'fgi', 'fgacc', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'shpacc', 'vpview',
-  'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip', 'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdpo', 'gdpoappr'];
+  'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip', 'flprn', 'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdpo', 'gdpoappr'];
 
 /* ---- the production database's own copy of the rights: pt_perms/<email, dots as commas> = { admin, r: {right: true}, t: {tab: true} }.
  * The same shape Sellora's rights-mirror.js writes and Pricing-App/rules/rules-tool.js compares against. */

@@ -3203,6 +3203,12 @@ function invLotsOf(fabric) {
 function invRowsOfLot(lot, kind) { return (DB.fab || []).filter(function (r) { return r.lot === lot && r.txnType === kind; }); }
 var invJoin = function (list) { return uniq(list).join(', ') || '—'; };
 var invLastDate = function (rows) { return rows.map(function (r) { return r.date; }).sort().pop() || ''; };
+/* A small "N waiting approval" note beside Send to printer when someone asked to change the printer on an RFD challan for this
+ * fabric and the approver has not answered yet (Vishesh, 23 Nov). Nothing shows while the flow's request list is not there. */
+function gdPrnWaitingPill(fabric) {
+  var n = typeof flowPrnWaiting === 'function' ? flowPrnWaiting(fabric).length : 0;
+  return n > 0 ? ' <span class="pill" title="A change of printer was asked and waits for the approver">' + n + ' waiting approval</span>' : '';
+}
 function invDetail(r, col) {
   var head, body, empty;
   if (col === 'order') {
@@ -3257,7 +3263,7 @@ function invDetail(r, col) {
         + '<td class="num">' + nf(came) + ' m</td><td class="num">' + (g.rfdOut ? nf(g.rfdOut) + ' m' : '—') + '</td>'
         + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(g.rfdLeft) + ' m</td>'
         /* Send to printer opens the RFD challan for this fabric right here (Vishesh, 23 Nov; before: its lines on Demand → RFD) */
-        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>'
+        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>' + gdPrnWaitingPill(r.fabric)
         + '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button></div></td></tr>';
     });
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
@@ -4896,8 +4902,9 @@ function wireGd() {
 function gdSendToPrinter(fabric) {
   if (typeof flowShelfChallanOpen !== 'function') { gdToFlow('drfd', fabric); return; }
   lmSay('ok', 'Reading the lines waiting for ' + fabric + '…');
-  flowShelfChallanOpen(fabric, function (no, err) {
-    lmSay(err ? 'warn' : 'ok', 'Challan ' + no + ' made for ' + fabric + '.' + (err ? ' ' + err : ''));
+  /* `no` is '' when only printer changes were asked for (they wait for approval); `said` then says what waits */
+  flowShelfChallanOpen(fabric, function (no, said) {
+    lmSay('ok', ((no ? 'Challan ' + no + ' made for ' + fabric + '. ' : '') + (said || '')).trim() || 'Nothing was sent.');
     render();
   }).then(function (why) { if (why) lmSay('warn', why); }, function (e) {
     console.error('Send to printer for ' + fabric + ' could not open:', e);
