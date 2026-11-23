@@ -11,7 +11,7 @@
 // for which tab opens first: the first one the account is allowed.
 // 'dash' (20 Nov 2026) is the Dashboard (core/dashboard.js): first, so it is the screen that opens after sign-in.
 const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
-  'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'plc', 'ppch', 'deals', 'tiktok', 'carousel', 'opt', 'img',
+  'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'ngram', 'plc', 'ppch', 'deals', 'tiktok', 'carousel', 'opt', 'img',
   'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg', 'create'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
@@ -19,7 +19,7 @@ const capId = t => t[0].toUpperCase() + t.slice(1);
 const TAB_TITLE = { dash: 'Dashboard', link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
   age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
-  trends: 'Overview', st: 'Search Term Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard',
+  trends: 'Overview', st: 'Search Term Analysis', ngram: 'N-Gram Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', ncheck: 'Numbers Check', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History',
@@ -37,7 +37,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ncheck: 'sales' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History: with Search Term Analysis (ads/ppc-history.js); Numbers Check: with the Sales Dashboard (sales/sales-check.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ngram: 'st', ncheck: 'sales' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js); Numbers Check: with the Sales Dashboard (sales/sales-check.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -157,8 +157,19 @@ window.addEventListener('hashchange', () => {
 });
 // Open one tab: mark its button, show its pane and hide every other pane and panel, set the page title,
 // mark the menu group it sits in, and call its ensure… loader (each screen's own file) so it fills itself.
+// The address points at a place inside the page (#someId that is not a screen, and is on the page): leave the scroll to it.
+// A function, not a const: showTab runs once while the page is still being set up (above).
+function navAnchorHash() {
+  let h = '';
+  try { h = decodeURIComponent(String(location.hash || '').slice(1)); } catch (e) { h = ''; }
+  return !!h && !TABS.includes(h) && !!document.getElementById(h);
+}
 function showTab(which) {
+  // A new screen opens at the top (22 Nov review: it opened at the old screen's scroll); the same screen drawn again keeps
+  // its place, and so does an address pointing inside the page.
+  const changed = TAB_NOW !== which;
   TAB_NOW = which;
+  if (changed && !navAnchorHash() && typeof window.scrollTo === 'function') window.scrollTo(0, 0);
   // (TAB_HASH is still undefined during the load-time showTab above: only 'replace' / 'push' write the address)
   if ((TAB_HASH === 'replace' || TAB_HASH === 'push') && location.hash !== '#' + which) history[TAB_HASH === 'push' ? 'pushState' : 'replaceState'](null, '', '#' + which);
   // --- buttons and panes ---
@@ -195,6 +206,7 @@ function showTab(which) {
   if (which === 'ppcn') ensurePpcn();
   if (which === 'trends') ensureTrends();
   if (which === 'st') ensureSt();
+  if (which === 'ngram') ensureNgram();
   if (which === 'plc') ensurePlc();
   if (which === 'ppch') ensurePpch();
   if (which === 'deals') ensureDeals();

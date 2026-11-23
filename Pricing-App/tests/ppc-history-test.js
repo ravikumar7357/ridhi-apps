@@ -32,7 +32,7 @@ function setup(opts) {
   const store = {};                                   // localStorage
   const docs = opts.docs || {};                       // Firestore adsActions/{id}
   const sets = [];
-  const ME = Object.assign({ email: 'vishesh.gyanchandani@example.com', admin: false, tabs: ['st', 'plc'] }, opts.me || {});
+  const ME = Object.assign({ email: 'asha.verma@example.com', admin: false, tabs: ['st', 'plc'] }, opts.me || {});
   const ctx = {
     $, ME, auth: { currentUser: { uid: 'uid-123' } }, db: {},
     document: { addEventListener() {}, querySelectorAll: () => [], createElement: () => ({ click() {}, set href(v) {}, get href() { return 'blob:x'; } }) },
@@ -53,11 +53,17 @@ function setup(opts) {
     baCall: async () => ({}), showTab: t => { ctx.tabs.push(t); }, tabs: [],
     plcColor: () => '#000', PLC: { d: {}, at: '' }, plcMsg() {}, plcAgg: () => ({ names: [], place: {} }), COST: {}, PF_MODEL: { oh: 0, sal: 0 },
   };
+  Object.assign(ctx, opts.ctx || {});   // a test's own stubs (ngram-test: a backend that fails, then answers; timers that run at once)
+  // opts.plc: the real ads/placement.js too (placement-test: the chart, the lower tables), in place of its stubs.
+  if (opts.plc) ['plcColor', 'PLC', 'plcMsg', 'plcAgg'].forEach(k => delete ctx[k]);
   const names = ['staItem', 'staNegItem', 'staBidItem', 'staRlMove', 'staRlSave', 'staRedownload', 'staUndoAdd', 'staRlChip', 'staPager', 'staWho', 'plxItem',
     'ppchEvent', 'ppchMoveEvent', 'ppchMoveAct', 'ppchTrailOf', 'ppchOldTrail', 'ppchDevLabel', 'ppchDeviceId', 'ppchDevice', 'ppchPerson', 'ppchNeedPerson',
     'ppchDlgClose', 'ppchModel', 'ppchFilter', 'ppchStepsOf', 'ppchSums', 'ppchCsvLines', 'ppchLoad', 'ppchAll', 'ensurePpch', 'renderPpch', 'ppchGo',
     'PPCH_CSV_ITEM', 'PPCH_CSV_STEP', 'PPCH_SHARED', 'PPCH_VERB'];
-  const src = L('search-terms.js') + '\n' + L('placement-decide.js') + '\n' + L('ppc-history.js')
+  // opts.stText: search-terms.js from another commit (ngram-test: By word before the shared pattern index); opts.ngram: also
+  // load ads/ngram.js, where src/app/ORDER puts it (right after search-terms.js).
+  // opts.ngText: ngram.js from another commit (ngram-test: the negate plan before the per-campaign evidence check).
+  const src = (opts.stText || L('search-terms.js')) + (opts.ngram ? '\n' + (opts.ngText || L('ngram.js')) : '') + (opts.plc ? '\n' + L('placement.js') : '') + '\n' + L('placement-decide.js') + '\n' + L('ppc-history.js')
     + '\n;return { ' + names.concat(opts.names || []).join(', ') + ', ST_RL, PPCH, setJust: v => { STA_JUST = v; } };';
   const C = new Function(...Object.keys(ctx), src)(...Object.values(ctx));
   C.ST_RL.where = opts.where || 'local';
@@ -98,7 +104,7 @@ if (require.main === module) (async () => {
     const e0 = it.trail[0];
     ok('staItem starts the trail with one "added" step', it.trail.length === 1 && e0.act === 'added', JSON.stringify(it.trail));
     ok('the step names the login, the uid, the person (from the email) and this device',
-      e0.email === 'vishesh.gyanchandani@example.com' && e0.uid === 'uid-123' && e0.person === 'Vishesh.gyanchandani' && e0.dev.label === 'Windows · Chrome 131' && !!e0.dev.id && e0.dev.name === '' && e0.t > 0, JSON.stringify(e0));
+      e0.email === 'asha.verma@example.com' && e0.uid === 'uid-123' && e0.person === 'Asha' && e0.dev.label === 'Windows · Chrome 131' && !!e0.dev.id && e0.dev.name === '' && e0.t > 0, JSON.stringify(e0));
     ok('no undefined anywhere in a step (Firestore refuses it)', JSON.stringify(e0) === JSON.stringify(JSON.parse(JSON.stringify(e0))) && Object.values(e0).every(v => v !== undefined));
     await C.staRlSave(it);
     const x = C.ST_RL.items[0];
@@ -185,12 +191,12 @@ if (require.main === module) (async () => {
 
   console.log('== a shared login names the person, once per device ==');
   {
-    const S = setup({ me: { email: 'it@ridhihome.com' } });
+    const S = setup({ me: { email: 'it@example.com' } });
     const { C, $, store } = S;
     ok('it@ is a shared login', C.PPCH_SHARED.includes('it@'));
     const r = { type: 'term', key: 'k3', brand: 'SP', term: 'linen napkins', kw: 'linen', mt: 'BROAD', cid: 'c3', ag: 'a3', cn: 'SP - Linen', agn: 'Linen', c: 30, sp: 12, o: 0, s: 0, kind: 'none' };
     const it = C.staNegItem(r, 'negativeExact', 'ag');
-    ok('before a name, the step has no person', it.trail[0].person === '' && it.trail[0].email === 'it@ridhihome.com');
+    ok('before a name, the step has no person', it.trail[0].person === '' && it.trail[0].email === 'it@example.com');
     const p = C.staRlSave(it);
     await tick();
     ok('the first change asks "Who is making this change?"', !$('ppchDlg').classList.contains('hide') && $('ppchDlgTitle').textContent === 'Who is making this change?');
@@ -216,19 +222,40 @@ if (require.main === module) (async () => {
     ok('Amazon\'s own record never asks', (await C.staRlMove(Object.assign(it, { status: 'exported' }), ['exported'], { status: 'done' })) === '');
   }
 
+  console.log('== names: the first part of the email, and who added it in the review list (21 Nov) ==');
+  {
+    const { C, $, store } = setup({ me: { email: 'it@example.com' }, names: ['staRlDraw'] });
+    ok('staWho: the first part, capitalised, cut at . _ + or @', C.staWho('asha.verma@example.com') === 'Asha' && C.staWho('ravi_kumar@x.com') === 'Ravi'
+      && C.staWho('meera+ads@x.com') === 'Meera' && C.staWho('it@example.com') === 'It' && C.staWho('') === '' && C.staWho('solo') === 'Solo');
+    store.selloraPerson = 'Meera';
+    const r = { type: 'term', key: 'k9', brand: 'SP', term: 'blue napkins', kw: 'napkins', mt: 'BROAD', cid: 'c9', ag: 'a9', cn: 'SP - Napkins', agn: 'Napkins', c: 30, sp: 12, o: 0, s: 0, kind: 'none' };
+    const it = C.staNegItem(r, 'negativeExact', 'ag');
+    ok('a new item still keeps the login\'s own name in "by"', it.by === 'It' && it.trail[0].person === 'Meera');
+    const old = Object.assign(C.staNegItem(r, 'negativeExact', 'cp'), { id: 'old9', trail: undefined, by: 'It', byEmail: 'it@example.com' });
+    const pers = Object.assign(C.staNegItem(r, 'negativePhrase', 'cp'), { id: 'per9', trail: [{ t: 1, act: 'added', email: 'asha.verma@x.com', person: '' }], by: 'Asha.verma' });
+    C.ST_RL.items = [it, old, pers];
+    C.ST_RL.tab = 'open';
+    C.staRlDraw();
+    const html = $('stRlTable').innerHTML;
+    const added = id => { const i = html.indexOf('data-rl="' + id + '"'); const row = html.slice(i, html.indexOf('</tr>', i)); return strip(row); };
+    ok('review list "Added": the person of the first "added" step on the shared login (Meera, not It)', / Meera /.test(added(it.id)) && !/ It /.test(added(it.id)), added(it.id));
+    ok('review list "Added": an item without a trail keeps by / byEmail', / It /.test(added('old9')));
+    ok('review list "Added": a step with no person reads the email\'s first name', / Asha /.test(added('per9')) && !/verma/.test(added('per9')), added('per9'));
+  }
+
   console.log('== items from before the trail ==');
   const T0 = Date.UTC(2026, 9, 10, 9, 0);
   const H = 3600000;
   const OLD = { id: 'old1', v: 2, brand: 'SP', kind: 'bid', term: '', target: 'table runner (broad)', kw: 'table runner', mt: 'BROAD', cid: 'c1', ag: 'a1', cn: 'SP - Runner', agn: 'Runners',
-    bid: { from: 0.95, to: 0.6, dir: 'down', base: 'bid' }, what: '$0.95 → $0.60', status: 'done', by: 'Vishesh', byEmail: 'vishesh@example.com', at: T0,
+    bid: { from: 0.95, to: 0.6, dir: 'down', base: 'bid' }, what: '$0.95 → $0.60', status: 'done', by: 'Asha', byEmail: 'asha@example.com', at: T0,
     approvedBy: 'ravi@example.com', approvedAt: T0 + H, exportedBy: 'ravi@example.com', exportedAt: T0 + 2 * H, batch: 'fOLD', doneAt: T0 + 30 * H, ev: { c: 10, sp: 5, o: 0, s: 0 } };
   {
     const { C } = setup();
     const tr = C.ppchTrailOf(OLD);
     ok('old fields → added, approved, downloaded, seen at Amazon', tr.map(e => e.act).join(',') === 'added,approved,downloaded,seen-at-amazon', tr.map(e => e.act).join(','));
-    ok('who from the old fields, device "not recorded"', tr[0].person === 'Vishesh' && tr[0].email === 'vishesh@example.com' && tr[1].person === 'Ravi' && tr[1].dev.label === 'not recorded' && tr[2].batch === 'fOLD');
+    ok('who from the old fields, device "not recorded"', tr[0].person === 'Asha' && tr[0].email === 'asha@example.com' && tr[1].person === 'Ravi' && tr[1].dev.label === 'not recorded' && tr[2].batch === 'fOLD');
     ok('Amazon\'s step from doneAt', tr[3].sys && tr[3].person === 'Amazon record' && tr[3].t === T0 + 30 * H);
-    const rem = C.ppchTrailOf({ id: 'o2', at: T0, by: 'It', byEmail: 'it@ridhihome.com', status: 'removed', removedAt: T0 + H, removedBy: 'it@ridhihome.com', note: 'Downloaded, never seen at Amazon: cancelled', exportedAt: T0 + 0.5 * H, exportedBy: 'it@ridhihome.com' });
+    const rem = C.ppchTrailOf({ id: 'o2', at: T0, by: 'It', byEmail: 'it@example.com', status: 'removed', removedAt: T0 + H, removedBy: 'it@example.com', note: 'Downloaded, never seen at Amazon: cancelled', exportedAt: T0 + 0.5 * H, exportedBy: 'it@example.com' });
     ok('an old cancelled download reads as "cancelled-download"', rem.map(e => e.act).join(',') === 'added,downloaded,cancelled-download');
     const tb = C.ppchTrailOf({ id: 'o3', at: T0, byEmail: 'a@b.c', status: 'removed', removedAt: T0 + 1000, removedBy: 'a@b.c', note: 'Taken back right after adding' });
     ok('an old Undo reads as "taken-back"', tb.at(-1).act === 'taken-back' && tb[0].person === 'A');
@@ -248,13 +275,13 @@ if (require.main === module) (async () => {
     const ev = (t, act, person, email, more) => Object.assign({ t, act, person, email, uid: 'u', dev: { id: 'd-' + person, label: 'Windows · Chrome 131', name: '' } }, more || {});
     const items = [
       { id: 'i1', brand: 'SP', kind: 'bid', target: 'runner (exact)', cn: 'SP - Runner', agn: 'Exact', bid: { from: 0.95, to: 0.6 }, what: '$0.95 → $0.60', status: 'done', at: T0,
-        trail: [ev(T0, 'added', 'Vishesh', 'v@x.com'), ev(T0 + H, 'approved', 'Ravi', 'r@x.com'), ev(T0 + 2 * H, 'downloaded', 'Ravi', 'r@x.com', { batch: 'f1' }), { t: T0 + 20 * H, act: 'seen-at-amazon', email: '', person: 'Amazon record', sys: true, dev: { id: '', label: '', name: '' } }] },
+        trail: [ev(T0, 'added', 'Asha', 'v@x.com'), ev(T0 + H, 'approved', 'Ravi', 'r@x.com'), ev(T0 + 2 * H, 'downloaded', 'Ravi', 'r@x.com', { batch: 'f1' }), { t: T0 + 20 * H, act: 'seen-at-amazon', email: '', person: 'Amazon record', sys: true, dev: { id: '', label: '', name: '' } }] },
       { id: 'i2', brand: 'CPC', kind: 'neg', term: 'cheap, "red" napkins', target: 'napkins (broad)', neg: { type: 'negativeExact', level: 'cp' }, cn: 'CPC - Napkins', agn: '', what: 'Negative exact · campaign level', status: 'review', at: T0 + 3 * H,
-        trail: [ev(T0 + 3 * H, 'added', 'Vishesh', 'v@x.com')] },
+        trail: [ev(T0 + 3 * H, 'added', 'Asha', 'v@x.com')] },
       { id: 'i3', brand: 'SP', kind: 'exact', term: 'linen runner', target: 'runner (broad)', dest: { ag: 'a', cid: 'c', cn: 'SP - Exact', agn: 'E' }, newBid: 0.8, cn: 'SP - Runner', agn: 'Broad', what: 'New exact keyword at $0.80 in E', status: 'removed', at: T0 + 4 * H,
         trail: [ev(T0 + 4 * H, 'added', 'Ravi', 'r@x.com'), ev(T0 + 5 * H, 'removed', 'Ravi', 'r@x.com')] },
       { id: 'i4', brand: 'SP', kind: 'plc', target: 'Top of Search', cn: 'SP - Auto', agn: '', plc: { name: 'Top of Search', from: 10, to: 20 }, what: 'Top of Search +10% → +20%', status: 'applied', appliedAt: T0 + 7 * H, at: T0 + 6 * H,
-        trail: [ev(T0 + 6 * H, 'added', 'Vishesh', 'v@x.com'), ev(T0 + 7 * H, 'applied', 'Vishesh', 'v@x.com')] },
+        trail: [ev(T0 + 6 * H, 'added', 'Asha', 'v@x.com'), ev(T0 + 7 * H, 'applied', 'Asha', 'v@x.com')] },
     ];
     const M = items.map(C.ppchModel);
     const F = o => Object.assign({ brand: 'ALL', q: '', person: '', act: '', kind: '', amz: false }, o);
@@ -266,22 +293,22 @@ if (require.main === module) (async () => {
     ok('change type: "New keyword" is exact and ASIN targets', ids(C.ppchFilter(M, F({ kind: 'kw' }))) === 'i3' && C.ppchModel({ id: 'z', kind: 'asinT', term: 'b0abcdefgh', trail: [] }).kind === 'kw');
     ok('only what reached Amazon (seen, applied, undone)', ids(C.ppchFilter(M, F({ amz: true }))) === 'i1,i4');
     ok('person: changes with a step by that person', ids(C.ppchFilter(M, F({ person: 'Ravi' }))) === 'i1,i3');
-    ok('person and action on the same step', ids(C.ppchFilter(M, F({ person: 'Ravi', act: 'approved' }))) === 'i1' && ids(C.ppchFilter(M, F({ person: 'Vishesh', act: 'approved' }))) === '');
+    ok('person and action on the same step', ids(C.ppchFilter(M, F({ person: 'Ravi', act: 'approved' }))) === 'i1' && ids(C.ppchFilter(M, F({ person: 'Asha', act: 'approved' }))) === '');
     const steps = C.ppchStepsOf(M, F());
     ok('every step, newest first', steps.length === 9 && steps[0].e.act === 'seen-at-amazon' && steps.at(-1).e.act === 'added' && steps.at(-1).m.id === 'i1');
     ok('every step: a person filter keeps only that person\'s steps', C.ppchStepsOf(M, F({ person: 'Ravi' })).map(s => s.e.act).join(',') === 'removed,added,downloaded,approved');
     const S = C.ppchSums(M);
     ok('summary: changes, steps, reached Amazon, waiting, undone / removed, most active (a tie: the first name)',
-      S.n === 4 && S.steps === 9 && S.reached === 2 && S.waiting === 1 && S.removed === 1 && S.undone === 0 && S.top.name === 'Ravi' && S.top.n === 4, JSON.stringify(S));
+      S.n === 4 && S.steps === 9 && S.reached === 2 && S.waiting === 1 && S.removed === 1 && S.undone === 0 && S.top.name === 'Asha' && S.top.n === 4, JSON.stringify(S));
     const S2 = C.ppchSums(M.filter(m => m.id !== 'i3'));
-    ok('most active: the person with the most steps, the Amazon record not counted', S2.top.name === 'Vishesh' && S2.top.n === 4 && S2.steps === 7, JSON.stringify(S2));
+    ok('most active: the person with the most steps, the Amazon record not counted', S2.top.name === 'Asha' && S2.top.n === 4 && S2.steps === 7, JSON.stringify(S2));
     const csv = C.ppchCsvLines('item', C.ppchFilter(M, F()));
     ok('CSV by change: the heading', csv[0] === C.PPCH_CSV_ITEM.join(',') && C.PPCH_CSV_ITEM.length === 21);
     ok('CSV by change: the columns of the agreed list', ['Added', 'Brand', 'Change type', 'Change', 'Search term / target', 'Campaign', 'Ad group', 'From', 'To', 'What changes', 'Status',
       'Added by', 'Added by email', 'Last step', 'Last step at', 'Last step by', 'Last step by email', 'Last step device', 'Steps', 'Reached Amazon', 'Item ID'].join(',') === csv[0]);
     const bid = csv.find(l => l.endsWith(',i1')).split(',');
     const col = name => bid[C.PPCH_CSV_ITEM.indexOf(name)];
-    ok('CSV: a bid change from → to, status, who, steps', col('From') === '$0.95' && col('To') === '$0.60' && col('Status') === 'Seen at Amazon' && col('Added by') === 'Vishesh'
+    ok('CSV: a bid change from → to, status, who, steps', col('From') === '$0.95' && col('To') === '$0.60' && col('Status') === 'Seen at Amazon' && col('Added by') === 'Asha'
       && col('Last step') === 'Seen at Amazon' && col('Last step by') === 'Amazon record' && col('Steps') === '4' && col('Reached Amazon') === 'yes' && col('Brand') === 'Ridhi' && col('Change type') === 'Bid', bid.join(' | '));
     ok('CSV: quotes and commas kept in one cell', csv.some(l => l.includes('"cheap, ""red"" napkins"')));
     const plc = csv.find(l => l.endsWith(',i4'));
@@ -300,7 +327,7 @@ if (require.main === module) (async () => {
     const now = Date.now();
     store.staReview = JSON.stringify([
       { id: 'p1', brand: 'SP', kind: 'bid', target: 'runner (exact)', cn: 'SP - Runner', agn: 'Exact', cid: 'c1', bid: { from: 0.95, to: 0.6 }, what: '$0.95 → $0.60', status: 'approved', at: now - 3600000,
-        trail: [{ t: now - 3600000, act: 'added', email: 'v@x.com', person: 'Vishesh', uid: 'u', dev: { id: 'd1', label: 'Windows · Chrome 131', name: '' } },
+        trail: [{ t: now - 3600000, act: 'added', email: 'v@x.com', person: 'Asha', uid: 'u', dev: { id: 'd1', label: 'Windows · Chrome 131', name: '' } },
           { t: now - 1800000, act: 'approved', email: 'r@x.com', person: 'Ravi', uid: 'u2', dev: { id: 'd2', label: 'macOS · Safari 18', name: 'Ravi laptop' } }] },
       Object.assign({}, OLD, { id: 'p2', at: now - 2 * 86400000, approvedAt: now - 2 * 86400000 + 1000, exportedAt: now - 86400000, doneAt: now - 3600000 }),
       Object.assign({}, OLD, { id: 'p3', at: now - 200 * 86400000 }),

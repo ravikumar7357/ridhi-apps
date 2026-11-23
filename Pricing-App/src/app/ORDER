@@ -55,6 +55,7 @@ ads/completed-deals.js
 ads/hda.js
 ads/account-trends.js
 ads/search-terms.js
+ads/ngram.js
 ads/placement.js
 ads/placement-decide.js
 ads/ppc-history.js

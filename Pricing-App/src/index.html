@@ -125,13 +125,14 @@
       <button id="tabLhist" class="nav">Listing History</button></div>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,ppch,deals">
+    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,ngram,plc,ppch,deals">
       <span class="caret">&#9656;</span> Advertising</button>
     <div class="navsec" id="secAds">
       <button id="tabTrends" class="nav">Overview</button>
       <button id="tabWeekly" class="nav">PPC &amp; Organic</button>
       <button id="tabPpcn" class="nav">Product Performance</button>
       <button id="tabSt" class="nav">Search Term Analysis</button>
+      <button id="tabNgram" class="nav">N-Gram Analysis</button>
       <button id="tabPlc" class="nav">Placement</button>
       <button id="tabPpch" class="nav">PPC History</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
@@ -1095,7 +1096,7 @@
       <div class="sta-mh"><div><b id="stDlgTitle"></b><small id="stDlgSub"></small></div><button id="stDlgX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
       <div id="stDlgBody" class="sta-mb"></div>
       <div class="sta-mf"><small id="stDlgNote"></small>
-        <div class="btns"><button id="stDlgCancel" class="ghost" type="button">Cancel</button><button id="stDlgApply" class="ghost sta-applybtn" type="button" disabled><svg class="sta-lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Apply at Amazon</button><button id="stDlgOk" type="button">Add to review list</button></div></div>
+        <div class="btns"><button id="stDlgXlsx" class="ghost hide" type="button" title="This pattern's campaigns and search terms as an Excel file">Download Excel</button><button id="stDlgCancel" class="ghost" type="button">Cancel</button><button id="stDlgApply" class="ghost sta-applybtn" type="button" disabled><svg class="sta-lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Apply at Amazon</button><button id="stDlgOk" type="button">Add to review list</button></div></div>
     </div></div>
 
     <!-- The review list: changes waiting, approved, downloaded; the bulk file is previewed before it downloads. -->
@@ -1145,6 +1146,47 @@
     </div></div>
   </div><!-- /staModals -->
 
+  <!-- ============ N-Gram Analysis: word patterns across the search terms, and the action each supports (ads/ngram.js) ============ -->
+  <div id="paneNgram" class="hide sta-scope">
+    <div class="card" style="padding:12px 14px">
+      <div class="toolbar">
+        <select id="ngBrand" style="flex:0 0 180px" aria-label="Brand">
+          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
+        </select>
+        <input id="ngFilter" style="flex:1 1 140px;min-width:0" placeholder="Filter pattern / term / campaign" aria-label="Filter">
+        <div class="seg ng-size" id="ngSize" role="group" aria-label="Pattern size">
+          <button class="segbtn on" type="button" data-n="1" aria-pressed="true">1-word</button><button class="segbtn" type="button" data-n="2" aria-pressed="false">2-word</button><button class="segbtn" type="button" data-n="3" aria-pressed="false">3-word</button><button class="segbtn" type="button" data-n="0" aria-pressed="false">All</button>
+        </div>
+        <select id="ngMin" style="flex:0 0 130px" aria-label="Minimum clicks" title="Patterns with fewer clicks are Needs data">
+          <option value="5">5+ clicks</option><option value="10" selected>10+ clicks</option><option value="20">20+ clicks</option><option value="50">50+ clicks</option>
+        </select>
+        <select id="ngClass" style="flex:0 0 190px" aria-label="Classification">
+          <option value="">Every classification</option><option value="waste">Waste</option><option value="waste-ns">Waste · no sales</option><option value="waste-be">Waste · over break-even</option><option value="winner">Winner</option><option value="mixed">Mixed</option><option value="need">Needs data</option>
+        </select>
+        <button id="ngLegendBtn" class="ghost" type="button" aria-haspopup="dialog">How Sellora decides</button>
+        <button id="ngRlBtn" class="ghost sta-rl" type="button" title="Changes picked here and in Search Term Analysis, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="ngRlN" class="sta-n hide">0</span></button>
+        <button id="ngCsv" class="ghost" type="button" title="Every row after the filters, as a CSV">Export</button>
+        <button id="ngXlsx" class="ghost hide" type="button" title="The Waste patterns on screen and the campaigns each would be negated in, as an Excel file">Download Excel</button>
+      </div>
+      <div id="ngMsg" class="sta-msg"></div>
+    </div>
+    <div id="ngBoxes" class="sta-boxes"></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead">
+        <div class="tt"><b id="ngTitle">Word patterns</b><small id="ngSub"></small></div>
+      </div>
+      <div class="sta-actbar" id="ngActBar" role="group" aria-label="Show rows by classification"></div>
+      <div class="sta-wrap"><table id="ngTable" class="xl"></table></div>
+      <div id="ngFoot" class="sta-more"></div>
+    </div>
+    <div id="ngSelBar" class="sta-selbar hide"><span id="ngSelTxt"></span><button id="ngSelAdd" type="button">Add to the review list</button><button id="ngSelClear" class="ghost" type="button">Clear</button></div>
+
+    <div id="ngLegend" class="modal sta-modal sta-wide hide" role="dialog" aria-modal="true" aria-label="How Sellora decides word patterns"><div class="modalbox">
+      <div class="sta-mh"><div><b>How Sellora decides word patterns</b><small>Every rule on this page, with its numbers. Nothing here changes anything at Amazon by itself.</small></div><button id="ngLegendX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="ngLegendBody" class="sta-mb sta-legend"></div>
+    </div></div>
+  </div><!-- /paneNgram -->
+
   <!-- ============ Placement: where the ad was shown, and what each spot bought ============ -->
   <div id="panePlc" class="hide sta-scope plx">
     <div class="card" style="padding:12px 14px">
@@ -1157,14 +1199,14 @@
           <option value="">Every placement</option><option value="tos">Top of Search</option><option value="ros">Rest of Search</option><option value="pp">Product Page</option><option value="off">Off Amazon</option>
         </select>
         <button id="plxRlBtn" class="ghost sta-rl" type="button" title="Changes picked here and in Search Term Analysis, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="plxRlN" class="sta-n hide">0</span></button>
-        <button id="plcCsv" class="ghost" type="button" title="The decisions table, the placement totals and the wasted spend, as one CSV">Export</button>
+        <button id="plcCsv" class="ghost" type="button" title="The decisions table, the placement totals and the spend with no orders, as one CSV">Export</button>
       </div>
       <div id="plcMsg" class="sta-msg"></div>
     </div>
     <div id="plxKpis" class="plx-kpis"></div>
     <div class="card sta-tcard">
       <div class="sta-thead">
-        <div class="tt"><b>Placement decisions by campaign</b><small id="plxSub"></small></div>
+        <div class="tt"><b>Placement decisions by campaign <span id="plxWin" class="plx-win"></span></b><small id="plxSub"></small></div>
         <button id="plxLegendBtn" class="ghost sta-legend-btn" type="button" aria-haspopup="dialog">How Sellora decides</button>
       </div>
       <div class="sta-actbar" id="plxActBar" role="group" aria-label="Show rows by decision"></div>
@@ -1173,9 +1215,10 @@
     </div>
     <div id="plxSelBar" class="sta-selbar hide"><span id="plxSelTxt"></span><button id="plxSelAdd" type="button">Send to review</button><button id="plxSelClear" class="ghost" type="button">Clear</button></div>
 
+    <p class="plx-split">From a different report than the decisions above, so totals differ slightly.</p>
     <div class="card plx-chcard">
       <div class="sta-thead">
-        <div class="tt"><b>Spend by placement</b><small id="plcChSub">Every Sponsored Products campaign, day by day.</small></div>
+        <div class="tt"><b>Spend by placement <span class="plx-win">Last 30 days · 30-day sales</span></b><small id="plcChSub">Every Sponsored Products campaign, day by day.</small></div>
         <div class="seg" id="plcGranSeg">
           <button class="segbtn on" type="button" data-g="day">Day</button>
           <button class="segbtn" type="button" data-g="week">Week</button>
@@ -1187,12 +1230,12 @@
     </div>
 
     <div class="card sta-tcard">
-      <div class="sta-thead"><div class="tt"><b>Every placement together</b><small>The last 30 days with 30-day sales, from the nightly run. Spend misallocation: spend on clicks that produced no order at all, per campaign and placement.</small></div></div>
+      <div class="sta-thead"><div class="tt"><b>Every placement together <span class="plx-win">Last 30 days · 30-day sales</span></b><small>From the nightly placement report. Spend with no orders: spend on clicks that produced no order at all, per campaign and placement.</small></div></div>
       <div class="sta-wrap"><table id="plcTable" class="xl"></table></div>
     </div>
 
     <div class="card sta-tcard">
-      <div class="sta-thead"><div class="tt"><b>Where the wasted spend is</b><small>Each campaign and placement that took clicks and returned no order at all across the 30 days. Counted over the window, not per day: a click needs weeks to convert.</small></div></div>
+      <div class="sta-thead"><div class="tt"><b>Where the spend with no orders is <span class="plx-win">Last 30 days · 30-day sales</span></b><small>Each campaign and placement that took clicks and returned no order at all across the 30 days. Counted over the window, not per day: a click needs weeks to convert.</small></div></div>
       <div class="sta-wrap" style="max-height:44vh"><table id="plcWorst" class="xl"></table></div>
     </div>
 

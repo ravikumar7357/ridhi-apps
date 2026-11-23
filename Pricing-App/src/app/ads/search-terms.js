@@ -123,9 +123,17 @@ const staEsc = s => String(s == null ? '' : s)
 // 20,000 terms formats ~200,000 numbers and dates — that alone was 3 of the 5 seconds spent drawing. Same output.
 const STA_NF0 = new Intl.NumberFormat('en-US'), STA_NF2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const STA_DF = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }), STA_DFU = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+// A moment in this browser's time zone: "20 Nov, 15:31" (the review list).
+const STA_DTL = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+// A cache's time as the backend writes it (India time): "20 Nov, 06:10".
+const STA_DTI = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
 const staMoney = v => '$' + STA_NF2.format(Number(v) || 0);
 const staMoney0 = v => '$' + STA_NF0.format(Math.round(Number(v) || 0));
 const staPct = v => v == null || !isFinite(v) ? '—' : v.toFixed(1) + '%';
+// A chance (0–1) as a %: under 0.1% reads "<0.1%", never "0.0%" (N-Gram Analysis, Search Term Analysis, the dialogs).
+const staChance = v => v == null || !isFinite(v) ? '—' : v < 0.001 ? '<0.1%' : (v * 100).toFixed(1) + '%';
+// Orders, but no unit cost or target to judge them against: one wording on every page (Placement's chip, N-Gram's Mixed).
+const STA_NOTGT = 'Has orders · not judged (no target)';
 // ROAS from an ACoS in % (ROAS = 100 ÷ ACoS).
 const staRoas = acos => acos > 0 && isFinite(acos) ? (100 / acos).toFixed(2) : '—';
 const staInt = v => STA_NF0.format(Number(v) || 0);
@@ -215,6 +223,7 @@ function staAddedFoot(items, text) {
   STA_JUST = { ids: items.map(x => x.id), t: Date.now() };
   stFoot(`<span class="sta-added">${text} <button type="button" class="sta-linkbtn" data-undoadd="1">Undo</button> · <button type="button" class="sta-linkbtn" data-openrl="1">Open the list</button></span>`);
   setTimeout(() => { const b = $('stFoot').querySelector('[data-undoadd]'); if (b && Date.now() - STA_JUST.t >= 29000) b.remove(); }, 30000);
+  if (typeof ngAdded === 'function') ngAdded(text);   // the same note on N-Gram Analysis, when the change was made there
 }
 async function staUndoAdd() {
   const ids = STA_JUST.ids;
@@ -335,14 +344,15 @@ async function staSetSave(b, data) {
 /* ---------- loading ---------- */
 
 // Called when the tab opens: the caches, the optional caches, stock / sales / costs, the review list and the lists, all at
-// the same time; then draw; then the product titles in the background (they name ASINs and find product words).
+// the same time; then draw; then the product titles in the background (they name ASINs and find product words). A read that
+// fails is tried again by itself (staLoadSure); the screen says which try it is on, then the error with "Try again".
 async function ensureSt() {
-  if (!ST.loaded || !ST.extra) {
+  if (!staHave()) {
     stMsg('Loading the search terms, targets, ad groups, the review list and the lists…');
     $('stTable').innerHTML = '';
     stFoot('');
   }
-  await staLoad();
+  await staLoadSure();
   renderSt();
 }
 // Everything Search Term Analysis and Placement read, once (both pages share it): the nightly caches, the Ads backend's,
@@ -353,6 +363,8 @@ function staLoad() {
   if (!STA_LOADING) STA_LOADING = staLoad_().finally(() => { STA_LOADING = null; });
   return STA_LOADING;
 }
+// The three nightly caches every view needs, and how this screen names them in an error.
+const STA_CORE = [['srchTerm', 'search terms'], ['targeting', 'targets'], ['adGroup', 'ad groups']];
 async function staLoad_() {
   {
     // A cache the backend has not written yet answers "nothing cached" — that is null here, not an error.
@@ -371,12 +383,18 @@ async function staLoad_() {
     };
     const jobs = [];
     if (!ST.loaded) {
-      jobs.push(Promise.all([grab('srchTerm'), grab('targeting'), grab('adGroup')]).then(([t, g, a]) => {
+      jobs.push(Promise.all(STA_CORE.map(([n]) => grab(n))).then(([t, g, a]) => {
+        // One of the three could not be read (not "not written yet"): nothing is kept as loaded, so the next try reads
+        // them again (21 Nov: right after sign-in, before the backend settings are read, a failed read stuck until a reload).
+        const bad = STA_CORE.find(([n]) => ST.src[n] && !ST.src[n].ok && !ST.src[n].off);
+        if (bad) { ST.loadErr = `The ${bad[1]} could not be read: ${ST.src[bad[0]].err}`; return; }
         ST.terms = (t && t.d) || {};
         ST.tgts = (g && g.d) || {};
         ST.ag = (a && a.d) || {};
         ST.at = (t && t.at) || '';
         ST.loaded = true;
+        ST.had = true;
+        ST.loadErr = '';
       }));
     }
     if (!ST.extra) {
@@ -405,8 +423,59 @@ async function staLoad_() {
     staTitlesLater();
   }
 }
+// Is there search-term data to draw — loaded now, read before (kept on screen while newer data loads), or handed over by
+// the Overview (ads-health.js)?
+const staHave = () => !!(ST.loaded || ST.had);
+// The load, tried again by itself while the nightly caches cannot be read: after 2, 4, 6 and 8 seconds (about 20 s in all).
+// Each try redraws the screens on view (they say which try it is); true once the data is here, false when every try failed
+// (ST.loadErr says why). Nothing is kept from a failure: the next call starts again. Callers share one run.
+const STA_RETRY_WAITS = [2000, 4000, 6000, 8000];
+let STA_SURE = null, STA_TRY = 0;
+function staLoadSure() {
+  if (ST.loaded && ST.extra) return Promise.resolve(true);
+  if (!STA_SURE) {
+    STA_SURE = (async () => {
+      for (let i = 0; ; i++) {
+        STA_TRY = i + 1;
+        try { await staLoad(); } catch (e) { ST.loadErr = String((e && (e.message || e.code)) || e); }
+        if (ST.loaded) return true;
+        if (i >= STA_RETRY_WAITS.length) return false;
+        staRedrawAds();
+        await new Promise(res => setTimeout(res, STA_RETRY_WAITS[i]));
+      }
+    })().finally(() => { STA_SURE = null; STA_TRY = 0; });
+  }
+  return STA_SURE;
+}
+// Redraw the screens that read this data and are on view (after a try, or newer data).
+function staRedrawAds() {
+  const open = id => $(id) && !$(id).classList.contains('hide');
+  if (open('paneSt') && !open('stDlg') && !open('stRl')) renderSt();
+  if (open('panePlc') && typeof renderPlx === 'function') renderPlx();
+  if (open('paneNgram') && typeof renderNg === 'function') renderNg();
+}
+// No search-term data to draw: loading (with the try it is on), or the error and "Try again" — in the screen's status line
+// and its table. ids: { msg, table, foot, clear: ids emptied }.
+function staNotLoaded(ids) {
+  const busy = !!(STA_SURE || STA_LOADING);
+  const err = ST.loadErr || 'No answer from the backend';
+  ids.clear.forEach(id => { if ($(id)) $(id).innerHTML = ''; });
+  $(ids.foot).innerHTML = '';
+  const retry = '<button type="button" class="sta-btn sm" data-staretry="1">Try again</button>';
+  if (busy) {
+    const n = STA_RETRY_WAITS.length + 1;
+    staStatus(ids.msg, { summary: STA_TRY > 1 ? `Loading the search terms — trying again (${STA_TRY} of ${n})…` : 'Loading the search terms, targets and lists…', notes: 0, block: false,
+      html: STA_TRY > 1 ? `<span class="sta-dash">The last try: ${staEsc(err)}</span>` : '<span>Reading the nightly search terms, targets and ad groups.</span>' });
+    $(ids.table).innerHTML = `<tbody><tr><td class="muted" style="padding:14px">${STA_TRY > 1 ? `Could not read the search terms yet — trying again (${STA_TRY} of ${n})…` : 'Loading the search terms…'}</td></tr></tbody>`;
+  } else {
+    staStatus(ids.msg, { summary: '<span class="sta-bad">✗ The search terms could not be read</span>', notes: 1, block: true,
+      html: `<span class="sta-bad">${staEsc(err)}</span><span>${retry}</span>` + (staSrcLine() ? `<span>${staSrcLine()}</span>` : '') });
+    $(ids.table).innerHTML = `<tbody><tr><td class="muted" style="padding:14px">The search terms could not be read: ${staEsc(err)}. ${retry}</td></tr></tbody>`;
+  }
+}
 // Newer data behind a screen opened from this browser's copy (baCache): read again and redraw — not while a dialog is open
-// (the redraw waits for the next one). The caches this screen reads; Placement's decisions come from the same ones.
+// (the redraw waits for the next one). The caches this screen reads; Placement's and N-Gram Analysis's come from the same ones.
+// While it loads, the screens keep drawing the data they had (staHave).
 const STA_CACHES = ['srchTerm', 'targeting', 'adGroup', 'adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent', 'plcSettled', 'plcRecent'];
 let STA_NEWER_T = 0;
 window.addEventListener('sellora-cache', e => {
@@ -416,11 +485,9 @@ window.addEventListener('sellora-cache', e => {
   STA_NEWER_T = setTimeout(async () => {
     ST.loaded = false;
     ST.extra = false;
-    try { await staLoad(); } catch (x) { return; }
+    try { await staLoadSure(); } catch (x) { return; }
     STM = null;
-    const open = id => $(id) && !$(id).classList.contains('hide');
-    if (open('paneSt') && !open('stDlg') && !open('stRl')) renderSt();
-    if (open('panePlc') && typeof renderPlx === 'function') renderPlx();
+    staRedrawAds();
   }, 900);
 });
 // Listing Health's titles, once, after the first draw: product words come from them, and own ASINs are named.
@@ -679,6 +746,14 @@ function staModelBrand(b, M, rlOpen) {
     const s = ' ' + staNorm(t) + ' ';
     return brandTerms.find(w => w && s.includes(' ' + w + ' ')) || '';
   };
+  // The other brand's brand terms (its Lists & settings) are a sister brand here: never negated (22 Nov review — "ridhi
+  // pillow covers" spending in Cotton Print Club). One check for Search Term Analysis's terms, By word and N-Gram Analysis.
+  const sisterTerms = (staSet(other).brandTerms || []).map(staNorm).filter(w => w && !brandTerms.includes(w));
+  const isSister = t => {
+    if (isBrand(t)) return '';
+    const s = ' ' + staNorm(t) + ' ';
+    return sisterTerms.find(w => s.includes(' ' + w + ' ')) || '';
+  };
   // Main keywords: our own keywords (any match type), by the products of the ad groups that hold them.
   const ownKw = new Map();
   tgts.forEach(x => {
@@ -690,7 +765,7 @@ function staModelBrand(b, M, rlOpen) {
   terms.forEach(x => { const k = staKey(x.t); brandOrders.set(k, (brandOrders.get(k) || 0) + (x.o > x.c ? 0 : x.o || 0)); });
   const rawOf = new Map();
   (S.blocked || []).concat(S.competitors || []).forEach(w => { if (staNorm(w)) rawOf.set(staNorm(w), String(w).trim().toLowerCase()); });
-  M.protect[b] = { own, sister, isBrand, ownKw, brandOrders, rawOf, blocked: (S.blocked || []).map(staNorm).filter(Boolean),
+  M.protect[b] = { own, sister, isBrand, isSister, ownKw, brandOrders, rawOf, blocked: (S.blocked || []).map(staNorm).filter(Boolean),
     competitors: (S.competitors || []).map(staNorm).filter(Boolean) };
   const P = M.protect[b];
 
@@ -731,6 +806,8 @@ function staModelBrand(b, M, rlOpen) {
     const ca = cAgg.get(g.cid);
     g.rate = ca && ca.o >= STA.RATE_ORDERS && ca.c > 0 ? { p: ca.o / ca.c, w: 'its campaign' } : bAgg.o > 0 && bAgg.c > 0 ? { p: bAgg.o / bAgg.c, w: 'the brand' } : null;
   });
+  // The same yardsticks for N-Gram Analysis's per-campaign check (staCpRate): clicks and orders per campaign, and the brand's.
+  (M.rate || (M.rate = {}))[b] = { cp: cAgg, b: bAgg };
   if (E) E.kw.forEach((k, key) => {
     const parts = key.split('|');
     if (parts[2] !== 'exact' || /ARCHIVED/i.test(k.st || '')) return;
@@ -795,6 +872,9 @@ function staModelBrand(b, M, rlOpen) {
       if (P.own.has(tl)) tags.push(['own', 'Own product', 'One of this brand\'s own ASINs: a defence placement, never negated or scaled here.' + (staTitle(tl) ? ' ' + staTitle(tl) : '')]);
       else if (P.sister.has(tl)) tags.push(['sister', 'Sister brand', `An ASIN of ${staBrandName(other)}: never negated or scaled here — agree which brand owns this shopper.`]);
       else tags.push(['comp', 'Competitor ASIN', 'A product page that is not yours.']);
+    } else {
+      const sisHit = P.isSister(term);
+      if (sisHit) tags.push(['sister', 'Sister brand', `Holds "${sisHit}", a brand term of ${staBrandName(other)}: never negated here — agree which brand owns this shopper.`]);
     }
     if (ai.types.has(row.tk)) tags.push(['product', 'Product word', `"${term}" is what this ad group sells: never negated in this product's campaigns. A lower bid, or a look at the listing, instead.`]);
     const okw = P.ownKw.get(row.tk);
@@ -830,7 +910,7 @@ function staModelBrand(b, M, rlOpen) {
     }
     row.tags = tags;
     row.tagSet = new Set(tags.map(t => t[0]));
-    row.noNeg = row.tagSet.has('brand') ? 'brand term' : row.tagSet.has('own') ? 'own product' : row.tagSet.has('sister') ? 'sister-brand product'
+    row.noNeg = row.tagSet.has('brand') ? 'brand term' : row.tagSet.has('own') ? 'own product' : row.tagSet.has('sister') ? (row.asin ? 'sister-brand product' : 'sister-brand term')
       : row.tagSet.has('product') ? 'product word' : row.tagSet.has('season') ? 'seasonal term' : '';
     row.main = row.tagSet.has('main');
     row.containsProduct = [...ai.types].some(k => k && row.tk.includes(k));
@@ -1044,7 +1124,7 @@ function staVerdict(r, info) {
   if (info.stale) { r.hold = info.stale + ': no suggestions'; b.push(['Data incomplete', 'warn']); return finish(); }
   if (r.ai.launch) { r.hold = staLaunchHold(r.ai); b.push(['Launch', 'info']); return finish(); }
   if (r.ai.isNew || r.kwNew) { r.hold = `Fewer than ${STA.AGE_DAYS} days of ads: judged from ${staDay(r.kwNew || r.ai.newFrom)}`; b.push(['New', 'info']); return finish(); }
-  const chancePct = r.chance != null ? (r.chance * 100).toFixed(1) + '%' : '';
+  const chancePct = r.chance != null ? staChance(r.chance) : '';
   // The short evidence line: orders in clicks, ROAS against break-even. The statistics stay on the badge's hover.
   const roasBe = be != null && be > 0 ? ` · break-even ${staRoas(be)}` : '';
   const short = `${staInt(r.o)} order${r.o === 1 ? '' : 's'} in <b>${staInt(r.c)} clicks</b> · ROAS <b>${r.sp > 0 ? (r.s / r.sp).toFixed(2) : '—'}</b>${roasBe}`;
@@ -1130,7 +1210,7 @@ function staVerdict(r, info) {
     b.push(['Over target', 'warn']);
   } else {
     b.push([r.o >= STA.SCALE_ORDERS ? 'Winner' : 'Selling', 'ok']);
-    if (r.tagSet.has('own') || r.tagSet.has('sister')) r.hold = 'Own or sister-brand ASIN: not scaled here';
+    if (r.asin && (r.tagSet.has('own') || r.tagSet.has('sister'))) r.hold = 'Own or sister-brand ASIN: not scaled here';
     else if (r.own && r.o >= STA.SCALE_ORDERS && r.acos <= tgt * STA.SCALE_SHARE) {
       r.cat = 'scale';
       r.scaleKind = 'raise';
@@ -1212,20 +1292,20 @@ function staFinish(r) {
   r.stake = r.cat === 'paths' ? (r.excess || 0) : (r.burned || 0);
 }
 
-/* 12. WORDS: every one-, two- and three-word piece of the brand's search terms, summed over the terms that hold it. A word
- * that recurs across many terms with no order — or one of your blocked words or competitor brands — gets one negative
- * phrase per campaign. Never a product word, a brand term, a main keyword or a seasonal word. */
-function staWords(b, M, mine, P, info, rlOpen, bAgg) {
+/* 12. WORD PATTERNS, ONE ENGINE (By word here, and N-Gram Analysis in ads/ngram.js): every one-, two- and three-word
+ * sequence of a brand's search terms, summed over the terms that hold it — a term counts once per pattern it holds, so the
+ * patterns do not add up to the account. One-word patterns skip stop words, words under 3 letters and numbers; ASIN terms
+ * (product pages) and data-check rows are left out; the tail the backend kept as words (terms too small to be listed one by
+ * one) is added in. Built once per model and brand (M.grams[b]): a new model (a new load, the lists, the review list)
+ * builds it again. Each pattern: { gram, words, n (terms), c, sp, o, s, zsp (spend in terms with no order), conv (terms
+ * with an order), terms (the rows themselves), cps (campaign id → { cid, cn, c, sp, s, o, n }), and the tail apart: tail (its
+ * spend), tn (terms), tc (clicks), to (orders), ts (sales), tcp (campaign id → its spend) }. */
+function staGramIndex(b, M, mine) {
+  if (!M.grams) M.grams = {};
+  if (M.grams[b]) return M.grams[b];
   const map = new Map();
-  // The brand's own product words (found for its ad groups, plus its list) — not every product type there is: "euro sham"
-  // is fair game for a brand that sells no shams.
-  const typeWords = new Set();
-  const allTypes = new Set();
-  const agI = M.agInfo[b];
-  if (agI) agI.forEach(a => a.types.forEach(k => allTypes.add(k)));
-  STA_TYPES.filter(t => allTypes.has(staKey(t))).concat(staSet(b).productWords || [])
-    .forEach(t => staNorm(t).split(' ').forEach(w => typeWords.add(staSing(w))));
-  mine.forEach(r => {
+  const mk = gram => ({ gram, words: gram.split(' ').length, n: 0, c: 0, sp: 0, o: 0, s: 0, zsp: 0, conv: 0, cps: new Map(), terms: [], tail: 0, tn: 0, tc: 0, to: 0, ts: 0, tcp: new Map() });
+  (mine || M.rows.filter(r => r.brand === b)).forEach(r => {
     if (r.bad || r.asin) return;
     const w = staNorm(r.term).split(' ').filter(Boolean);
     const seen = new Set();
@@ -1237,26 +1317,48 @@ function staWords(b, M, mine, P, info, rlOpen, bAgg) {
         const gram = parts.join(' ');
         if (seen.has(gram)) continue;
         seen.add(gram);
-        const x = map.get(gram) || map.set(gram, { n: 0, c: 0, sp: 0, o: 0, s: 0, zsp: 0, cps: new Map(), terms: [] }).get(gram);
+        const x = map.get(gram) || map.set(gram, mk(gram)).get(gram);
         x.n++; x.c += r.c; x.sp += r.sp; x.o += r.o; x.s += r.s;
-        if (!(r.o > 0)) x.zsp += r.sp;
-        if (x.terms.length < 8) x.terms.push(r.term);
-        const cp = x.cps.get(r.cid) || x.cps.set(r.cid, { cid: r.cid, cn: r.cn, sp: 0, s: 0, o: 0, n: 0 }).get(r.cid);
-        cp.sp += r.sp; cp.s += r.s; cp.o += r.o; cp.n++;
+        if (!(r.o > 0)) x.zsp += r.sp; else x.conv++;
+        x.terms.push(r);
+        const cp = x.cps.get(r.cid) || x.cps.set(r.cid, { cid: r.cid, cn: r.cn, c: 0, sp: 0, s: 0, o: 0, n: 0 }).get(r.cid);
+        cp.c += r.c; cp.sp += r.sp; cp.s += r.s; cp.o += r.o; cp.n++;
       }
     }
   });
   // The tail the backend kept as words (AdsDecide.gs: terms too small to be listed one by one).
   const tail = (ST.set && ST.set.d && ST.set.d[b] && ST.set.d[b].grams) || [];
   tail.forEach(t => {
-    const x = map.get(t[0]) || map.set(t[0], { n: 0, c: 0, sp: 0, o: 0, s: 0, zsp: 0, cps: new Map(), terms: [] }).get(t[0]);
-    x.n += t[1]; x.c += t[2]; x.sp += t[3]; x.o += t[4]; x.s += t[5]; x.tail = (x.tail || 0) + t[3];
+    const x = map.get(t[0]) || map.set(t[0], mk(t[0])).get(t[0]);
+    x.n += t[1]; x.c += t[2]; x.sp += t[3]; x.o += t[4]; x.s += t[5]; x.tail += t[3]; x.tn += t[1]; x.tc += t[2]; x.to += t[4]; x.ts += t[5];
     if (!(t[4] > 0)) x.zsp += t[3];
     (t[6] || []).forEach(([cid, sp]) => {
-      const cp = x.cps.get(cid) || x.cps.set(cid, { cid, cn: staName(b, cid), sp: 0, s: 0, o: 0, n: 0 }).get(cid);
+      const cp = x.cps.get(cid) || x.cps.set(cid, { cid, cn: staName(b, cid), c: 0, sp: 0, s: 0, o: 0, n: 0 }).get(cid);
       cp.sp += sp;
+      x.tcp.set(cid, (x.tcp.get(cid) || 0) + sp);
     });
   });
+  return (M.grams[b] = map);
+}
+
+/* By word: a word or short phrase that recurs across many terms without selling — or one of your blocked words or
+ * competitor brands — gets one negative phrase per campaign. Never a product word, a brand term, a main keyword or a
+ * seasonal word. Read from the pattern index above. */
+// The brand's own product words (found for its ad groups, plus its list) — not every product type there is: "euro sham" is
+// fair game for a brand that sells no shams. allTypes: product types by key; typeWords: their single words. By word and
+// N-Gram Analysis protect the same words.
+function staBrandTypes(b, M) {
+  const typeWords = new Set();
+  const allTypes = new Set();
+  const agI = M.agInfo[b];
+  if (agI) agI.forEach(a => a.types.forEach(k => allTypes.add(k)));
+  STA_TYPES.filter(t => allTypes.has(staKey(t))).concat(staSet(b).productWords || [])
+    .forEach(t => staNorm(t).split(' ').forEach(w => typeWords.add(staSing(w))));
+  return { typeWords, allTypes };
+}
+function staWords(b, M, mine, P, info, rlOpen, bAgg) {
+  const map = staGramIndex(b, M, mine);
+  const { typeWords, allTypes } = staBrandTypes(b, M);
   const p = bAgg.c > 0 && bAgg.o > 0 ? bAgg.o / bAgg.c : null;
   const rows = [];
   map.forEach((x, gram) => {
@@ -1269,14 +1371,16 @@ function staWords(b, M, mine, P, info, rlOpen, bAgg) {
       if (p && Math.pow(1 - p, x.c) >= STA.CHANCE) return;
     } else if (!(x.sp > 0)) return;
     const k = staKey(gram);
-    const protect = allTypes.has(k) ? 'product word' : P.isBrand(gram) ? 'brand term' : staSeasonOf(gram) ? 'seasonal word'
+    const protect = allTypes.has(k) ? 'product word' : P.isBrand(gram) ? 'brand term' : P.isSister(gram) ? 'sister-brand term' : staSeasonOf(gram) ? 'seasonal word'
       : P.ownKw.has(k) ? 'your own keyword' : !tagged && words.every(w => typeWords.has(staSing(w))) ? 'part of a product word' : '';
     if (protect && !tagged) return;
     const key = 'w:' + b + '|' + gram;
-    const cps = [...x.cps.values()].filter(c => c.sp >= 0.5).sort((a, z) => z.sp - a.sp);
+    const names = x.terms.slice(0, 8).map(r => r.term);
+    const cps = [...x.cps.values()].filter(c => c.sp >= 0.5).sort((a, z) => z.sp - a.sp)
+      .map(c => ({ cid: c.cid, cn: c.cn, sp: c.sp, s: c.s, o: c.o, n: c.n }));
     const row = { key, type: 'word', brand: b, term: tagged ? (P.rawOf.get(gram) || gram) : gram, gram, words: words.length, n: x.n, c: x.c, sp: x.sp, o: x.o, s: x.s,
-      zsp: x.zsp, tail: x.tail || 0, cps, terms: x.terms, tag: blocked ? 'blocked' : comp ? 'competitor' : '', protect,
-      hay: (gram + ' ' + x.terms.join(' ') + ' ' + cps.map(c => c.cn).join(' ')).toLowerCase() };
+      zsp: x.zsp, tail: x.tail || 0, cps, terms: names, tag: blocked ? 'blocked' : comp ? 'competitor' : '', protect,
+      hay: (gram + ' ' + names.join(' ') + ' ' + cps.map(c => c.cn).join(' ')).toLowerCase() };
     row.cat = 'burn';
     row.kind = 'word';
     row.burned = x.o > 0 ? Math.max(0, x.zsp) : x.sp;
@@ -1360,10 +1464,11 @@ function staSorted(rows, def) {
     return (x < y ? -1 : x > y ? 1 : 0) * d || (z.sp - a.sp);
   });
 }
-// A sortable heading.
-function staTh(t, k, num, tip) {
-  const on = (ST_SORT.k || '') === k;
-  return `<th class="${num ? 'num ' : ''}sta-sort${on ? ' on' : ''}" data-sort="${k}" title="${staEsc(tip || 'Sort by ' + t)}" aria-sort="${on ? (ST_SORT.d > 0 ? 'ascending' : 'descending') : 'none'}">${t}${on ? (ST_SORT.d > 0 ? ' ▲' : ' ▼') : ''}</th>`;
+// A sortable heading. S: another screen's sort ({ k, d }: N-Gram Analysis); without it, this screen's.
+function staTh(t, k, num, tip, S) {
+  const so = S || ST_SORT;
+  const on = (so.k || '') === k;
+  return `<th class="${num ? 'num ' : ''}sta-sort${on ? ' on' : ''}" data-sort="${k}" title="${staEsc(tip || 'Sort by ' + t)}" aria-sort="${on ? (so.d > 0 ? 'ascending' : 'descending') : 'none'}">${t}${on ? (so.d > 0 ? ' ▲' : ' ▼') : ''}</th>`;
 }
 // This page of rows.
 function staPage(rows) {
@@ -1388,6 +1493,7 @@ function staPager(total, what, note, o) {
 function renderSt() {
   if ($('paneSt').classList.contains('hide')) {
     if (typeof plxAfterChange === 'function') plxAfterChange();
+    if (typeof ngAfterChange === 'function') ngAfterChange();   // N-Gram Analysis (ads/ngram.js) after a change made from it
     return;
   }
   const isCp = ST_VIEW === 'cp';
@@ -1404,14 +1510,24 @@ function renderSt() {
   const nF = ['stFMt', 'stFCt', 'stFV', 'stFTag'].filter(id => $(id).value).length;
   $('stMoreN').textContent = nF;
   $('stMoreN').classList.toggle('hide', !nF);
+  // Nothing read yet: loading (with its try), or the error and "Try again" — never "No search terms yet" for a failed read.
+  if (!staHave() && !isCp) {
+    staNotLoaded({ msg: 'stMsg', table: 'stTable', foot: 'stFoot', clear: ['stBoxes', 'stSum'] });
+    $('stTitle').textContent = 'Search terms';
+    $('stSub').textContent = '';
+    staActBar(null);
+    staSelBar();
+    return;
+  }
   const haveAny = ['SP', 'CPC'].some(b => ((ST.terms[b] || {}).rows || []).length || ((ST.tgts[b] || {}).rows || []).length
     || (ST.set && ST.set.d && ST.set.d[b]));
   if (!haveAny && !isCp) {
     ['stBoxes', 'stSum', 'stTable'].forEach(id => { $(id).innerHTML = ''; });
     $('stTitle').textContent = 'No search terms yet';
     $('stSub').textContent = '';
-    stMsg('The nightly run has not collected any search-term data yet, or the last one came back empty. Nothing is suggested '
-      + 'until it does: an empty night is never read as "no sales".', true);
+    staStatus('stMsg', { summary: '<span class="sta-bad">✗ No search terms yet</span>', notes: 1, block: true,
+      html: '<span>The nightly run has not collected any search-term data yet, or the last one came back empty. Nothing is suggested '
+        + 'until it does: an empty night is never read as "no sales".</span><span>' + staSrcLine() + '</span>' });
     stFoot('');
     staSelBar();
     return;
@@ -1569,14 +1685,32 @@ function staDrawNew(L) {
   staPager(rows.length, 'new items', ST.ent ? 'start dates from Amazon\'s record' : 'ages from the first week with ad spend; Amazon\'s start dates once the Ads backend is on');
 }
 
-// The data line: window, completeness per brand, data checks, unit costs, Amazon's record, where the lists are kept.
+// "14 Oct – 12 Nov", or "13 – 19 Nov" inside one month, from two "yyyy-MM-dd" days.
+function staRange(a, z) {
+  const A = staShortDay(a), Z = staShortDay(z);
+  const ap = A.split(' '), zp = Z.split(' ');
+  return ap.length === 2 && zp.length === 2 && ap[1] === zp[1] ? ap[0] + ' – ' + Z : A + ' – ' + Z;
+}
+// The data window as one short phrase for the status line: "settled 14 Oct – 12 Nov · last 7 days 13 – 19 Nov", or the
+// 30-day fallback. M: a model (its brands and what each one has).
+function staWindowTxt(M) {
+  if (!M.settled) return 'last 30 days';
+  const x = M.brands.map(b => M.have[b]).find(y => y && y.from) || {};
+  const rw = ST.rec ? M.brands.map(b => ST.rec.d && ST.rec.d[b]).find(y => y && y.from) || ST.rec : null;
+  return 'settled' + (x.from ? ' ' + staRange(x.from, x.to) : '') + (rw && rw.from ? ' · last 7 days ' + staRange(rw.from, rw.to) : '');
+}
+
+// The data line: window, completeness per brand, data checks, unit costs, Amazon's record, where the lists are kept — every
+// line in the status panel, and one summary line over it (staStatus). Each line has a level: '' (information), 'warn' (a
+// note) or 'bad' (a note that stops suggestions: a brand with no or old search terms, a cache that could not be read).
 function staDataLine(M) {
-  const parts = [];
+  const lines = [];
+  const add = (h, lv) => lines.push([h, lv || '']);
   const h = M.have;
   if (M.settled) {
     const x = M.brands.map(b => h[b]).find(y => y && y.from) || {};
     const rw = ST.rec ? M.brands.map(b => ST.rec.d && ST.rec.d[b]).find(y => y && y.from) || ST.rec : null;
-    parts.push(`Judged on <b>settled clicks${x.from ? ', ' + staEsc(staShortDay(x.from)) + ' – ' + staEsc(staShortDay(x.to)) : ''}</b>, with 7-day sales as in the Ads console.`
+    add(`Judged on <b>settled clicks${x.from ? ', ' + staEsc(staShortDay(x.from)) + ' – ' + staEsc(staShortDay(x.to)) : ''}</b>, with 7-day sales as in the Ads console.`
       + (rw ? ` The last 7 days${rw.from ? ' (' + staEsc(staShortDay(rw.from)) + ' – ' + staEsc(staShortDay(rw.to)) + ')' : ''} show under the figures in Burning money and are not counted.` : ''));
     // The two windows should meet (settled ends the day before the last 7 days begin). When one report is from an older
     // run they don't, and the days between are in neither (18 Nov audit): say which, and why.
@@ -1586,63 +1720,125 @@ function staDataLine(M) {
       if (gap > 0) {
         const days = [];
         for (let i = 1; i <= Math.min(gap, 3); i++) days.push(staShortDay(new Date(d0 + i * 86400000).toISOString()));
-        parts.push(`<span class="sta-bad">${staEsc(days.join(', '))}${gap > 3 ? ` and ${gap - 3} more` : ''} ${gap === 1 ? 'is' : 'are'} in neither window: the settled report is from an earlier day's run than the last 7 days, so it ends before they begin. They meet again once the next settled report lands.</span>`);
+        add(`<span class="sta-bad">${staEsc(days.join(', '))}${gap > 3 ? ` and ${gap - 3} more` : ''} ${gap === 1 ? 'is' : 'are'} in neither window: the settled report is from an earlier day's run than the last 7 days, so it ends before they begin. They meet again once the next settled report lands.</span>`, 'warn');
       } else if (gap < 0) {
-        parts.push(`<span class="sta-dash">The last 7 days overlap the settled window by ${-gap} day${gap === -1 ? '' : 's'} (reports from different runs); only the settled days are judged.</span>`);
+        add(`<span class="sta-dash">The last 7 days overlap the settled window by ${-gap} day${gap === -1 ? '' : 's'} (reports from different runs); only the settled days are judged.</span>`);
       }
     }
   } else {
-    parts.push(`Judged on <b>the last 30 days</b>${ST.at ? ' (nightly run ' + staEsc(ST.at) + ')' : ''}, with Amazon's 30-day sales — the Ads console shows 7-day, so figures run a little higher here. The newest days can still gain orders.`);
+    add(`Judged on <b>the last 30 days</b>${ST.at ? ' (nightly run ' + staEsc(ST.at) + ')' : ''}, with Amazon's 30-day sales — the Ads console shows 7-day, so figures run a little higher here. The newest days can still gain orders.`);
   }
   M.brands.forEach(b => {
     const i = M.info[b] || {};
-    if (i.stale) parts.push(`<span class="sta-bad">✗ ${staBrandName(b)}: ${staEsc(i.stale)} — no suggestions for it</span>`);
+    if (i.stale) add(`<span class="sta-bad">✗ ${staBrandName(b)}: ${staEsc(i.stale)} — no suggestions for it</span>`, 'bad');
   });
   const okB = M.brands.filter(b => !(M.info[b] || {}).stale);
-  if (okB.length) parts.push(`<span class="sta-ok">✓ ${okB.map(staBrandName).join(' and ')}${okB.length > 1 ? ' both' : ''} complete</span>`);
+  if (okB.length) add(`<span class="sta-ok">✓ ${okB.map(staBrandName).join(' and ')}${okB.length > 1 ? ' both' : ''} complete</span>`);
   const bad = M.brands.reduce((t, b) => t + ((M.info[b] || {}).bad || 0), 0);
-  if (bad) parts.push(`<span class="sta-bad">${staInt(bad)} row${bad === 1 ? '' : 's'} set aside as a data check (orders without sales, or sales without a click): left out of every verdict, still counted in the totals above</span>`);
+  if (bad) add(`<span class="sta-bad">${staInt(bad)} row${bad === 1 ? '' : 's'} set aside as a data check (orders without sales, or sales without a click): left out of every verdict, still counted in the totals above</span>`, 'warn');
   const multi = M.rows.filter(r => r.tagSet && r.tagSet.has('multi')).length;
-  if (multi) parts.push(`<span class="sta-dash">${staInt(multi)} row${multi === 1 ? ' has' : 's have'} more orders than clicks — normal with 7-day attribution (a shopper orders again, or several products, after one click): kept and judged</span>`);
+  if (multi) add(`<span class="sta-dash">${staInt(multi)} row${multi === 1 ? ' has' : 's have'} more orders than clicks — normal with 7-day attribution (a shopper orders again, or several products, after one click): kept and judged</span>`);
   // #1 (18 Nov): without unit costs nothing can be "above break-even". Say per brand exactly what is still judged — the
   // brand-term limit works without costs, so the cards may show brand terms (18 Nov audit: "10 above break-even").
-  const noTgt = M.brands.filter(b => !staFb(b)), withTgt = M.brands.filter(b => !!staFb(b));
-  if (!ST.costs) {
-    const why = ST.costErr ? 'Unit costs could not be read for your account (Profit &amp; Margin access needed)' : 'No unit costs in Profit &amp; Margin';
-    parts.push(noTgt.length
-      ? `<div class="sta-warnline sta-costwarn"><b>${why}, and no target ACoS for ${noTgt.map(staBrandName).join(' or ')}.</b> For ${noTgt.length > 1 ? 'them' : 'it'} Sellora judges only search terms with no sales, and brand terms against the ${STA.BRAND_TGT}% brand-term limit — nothing else is called above break-even or worth scaling, placements get no Raise or Lower, and competing paths stay provisional. `
-        + (withTgt.length ? `${withTgt.map(b => staBrandName(b) + ' is judged against your ' + staFbTxt(b)).join('; ')}. ` : '')
-        + `Set a target ACoS to switch the rest on now; unit costs replace it product by product when they arrive. `
-        + `<button type="button" class="sta-btn sm" data-settgt="1">Set a target ACoS</button></div>`
-      : `<span class="sta-dash">${why}: judged against your settings (${M.brands.map(b => staBrandName(b) + ' ' + staFbTxt(b)).join(', ')}) from Lists &amp; settings</span>`);
-  }
-  parts.push(staSrcLine());
-  if (!ST.ent) parts.push('Until Amazon IDs and bids are read, bids are worked from the CPC and bid changes wait in the review list');
-  if (ST_RL.where === 'local' || STS.where === 'local') parts.push('<span class="sta-bad">The review list and the lists are kept in this browser only until they are switched on for everyone</span>');
-  stMsg(parts.map(p => `<span>${p}</span>`).join(''));
+  const cost = staCostLine(M.brands);
+  if (cost) add(cost[0], cost[1]);
+  const src = staSrcState();
+  if (src.html) add(src.html, src.block ? 'bad' : src.notes ? 'warn' : '');
+  if (!ST.ent) add('Until Amazon IDs and bids are read, bids are worked from the CPC and bid changes wait in the review list');
+  if (ST_RL.where === 'local' || STS.where === 'local') add('<span class="sta-bad">The review list and the lists are kept in this browser only until they are switched on for everyone</span>', 'warn');
+  // The summary: the window, the brands, and how many notes the panel holds.
+  const stale = M.brands.filter(b => (M.info[b] || {}).stale);
+  const sum = ['Data: ' + staEsc(staWindowTxt(M))];
+  if (stale.length) sum.push(`<span class="sta-bad">✗ ${stale.map(staBrandName).join(' and ')}: no suggestions</span>`);
+  else sum.push(`<span class="sta-ok">✓ ${M.brands.length > 1 ? 'both brands' : staBrandName(M.brands[0])} complete</span>`);
+  if (src.block) sum.push('<span class="sta-bad">✗ Amazon data could not be read</span>');
+  const notes = lines.filter(l => l[1] === 'warn' || l[1] === 'bad').length + Math.max(0, src.notes - 1);
+  staStatus('stMsg', { summary: sum.join(' · '), notes, block: stale.length > 0 || src.block, html: lines.map(l => `<span>${l[0]}</span>`).join('') });
+}
+// The unit-cost line for the brands in view, or null when every brand has costs: [html, level]. The yellow banner (with its
+// "Set a target ACoS" button) when a brand has neither costs nor a target; else a quiet line naming the settings used.
+function staCostLine(brands) {
+  if (ST.costs) return null;
+  const noTgt = brands.filter(b => !staFb(b)), withTgt = brands.filter(b => !!staFb(b));
+  const why = ST.costErr ? 'Unit costs could not be read for your account (Profit &amp; Margin access needed)' : 'No unit costs in Profit &amp; Margin';
+  return noTgt.length
+    ? [`<div class="sta-warnline sta-costwarn"><b>${why}, and no target ACoS for ${noTgt.map(staBrandName).join(' or ')}.</b> For ${noTgt.length > 1 ? 'them' : 'it'} Sellora judges only search terms with no sales, and brand terms against the ${STA.BRAND_TGT}% brand-term limit — nothing else is called above break-even or worth scaling, placements get no Raise or Lower, and competing paths stay provisional. `
+      + (withTgt.length ? `${withTgt.map(b => staBrandName(b) + ' is judged against your ' + staFbTxt(b)).join('; ')}. ` : '')
+      + `Set a target ACoS to switch the rest on now; unit costs replace it product by product when they arrive. `
+      + `<button type="button" class="sta-btn sm" data-settgt="1">Set a target ACoS</button></div>`, 'warn']
+    : [`<span class="sta-dash">${why}: judged against your settings (${brands.map(b => staBrandName(b) + ' ' + staFbTxt(b)).join(', ')}) from Lists &amp; settings</span>`, ''];
 }
 
 // Where every figure comes from, and how fresh it is: the three nightly caches and the five of the Ads backend.
-function staSrcLine() {
+// { html, notes (sources with a problem), block (one could not be read) }.
+function staSrcState() {
   const src = ST.src || {};
   const old = at => at && Date.now() - staStamp(at) > STA.STALE_H * 3600000;
+  let notes = 0, block = false;
   const one = (names, label) => {
     const xs = names.map(n => src[n]).filter(Boolean);
     if (!xs.length) return '';
     const bad = xs.find(x => !x.ok && !x.off);
-    if (bad) return `<span class="sta-bad" title="${staEsc(bad.err)}">✗ ${label}: could not be read</span>`;
+    if (bad) { notes++; block = true; return `<span class="sta-bad" title="${staEsc(bad.err)}">✗ ${label}: could not be read</span>`; }
     if (xs.every(x => x.off)) return `<span class="sta-dash" title="The Ads backend has not written it yet (Ravi switches it on)">${label}: not switched on yet</span>`;
     const ok = xs.filter(x => x.ok);
     const at0 = ok.map(x => x.at).filter(Boolean).sort()[0] || '';
     const t0 = staStamp(at0);
-    const at = t0 ? new Date(t0).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) : at0;
+    const at = t0 ? STA_DTI.format(t0) : at0;
     const errs = ok.flatMap(x => Object.entries(x.err || {}).filter(([, v]) => v).map(([b, v]) => staBrandName(b) + ': ' + v));
-    if (errs.length) return `<span class="sta-bad" title="${staEsc(errs.join(' · '))}">! ${label} ${staEsc(at)} — ${errs.length} brand${errs.length === 1 ? '' : 's'} kept the last good copy</span>`;
-    if (old(at0)) return `<span class="sta-bad">! ${label} ${staEsc(at)} — over ${STA.STALE_H} h old</span>`;
+    if (errs.length) { notes++; return `<span class="sta-bad" title="${staEsc(errs.join(' · '))}">! ${label} ${staEsc(at)} — ${errs.length} brand${errs.length === 1 ? '' : 's'} kept the last good copy</span>`; }
+    if (old(at0)) { notes++; return `<span class="sta-bad">! ${label} ${staEsc(at)} — over ${STA.STALE_H} h old</span>`; }
     return `<span class="sta-ok">✓ ${label} ${staEsc(at)}</span>`;
   };
-  return 'Amazon data: ' + [one(['srchTerm', 'targeting', 'adGroup'], 'nightly search terms'), one(['adEntities'], 'IDs, bids, negatives'),
-    one(['stSettled', 'tgtSettled'], '7-day settled reports'), one(['stRecent', 'tgtRecent'], 'last 7 days')].filter(Boolean).join(' · ');
+  const parts = [one(['srchTerm', 'targeting', 'adGroup'], 'nightly search terms'), one(['adEntities'], 'IDs, bids, negatives'),
+    one(['stSettled', 'tgtSettled'], '7-day settled reports'), one(['stRecent', 'tgtRecent'], 'last 7 days')].filter(Boolean);
+  const html = parts.length ? 'Amazon data: ' + parts.join(' · ') : '';
+  return { html, notes, block };
+}
+const staSrcLine = () => staSrcState().html;
+
+/* ---------- the status dropdown (Search Term Analysis, N-Gram Analysis) ----------
+ * One line under the bar, a button: the data window, whether the brands are complete, and how many notes there are. It
+ * opens a panel with every line (the Filters row's look). When something stops suggestions the line turns red and the
+ * panel opens by itself (until it is closed by hand); otherwise open / closed is remembered on this device, per screen
+ * (localStorage staStatOpen; closed at first).
+ * o: { summary (HTML), notes (count of warning and error lines), block (true: something stops suggestions), html (the panel) }. */
+const STA_STAT = {};
+const STA_STAT_KEY = 'staStatOpen';
+function staStatMem(id, on) {
+  let v = {};
+  try { v = JSON.parse(localStorage.getItem(STA_STAT_KEY) || '{}') || {}; } catch (e) { v = {}; }
+  if (typeof v !== 'object') v = {};
+  if (on === undefined) return !!v[id];
+  v[id] = !!on;
+  try { localStorage.setItem(STA_STAT_KEY, JSON.stringify(v)); } catch (e) { /* not remembered */ }
+  return !!on;
+}
+function staStatus(id, o) {
+  const el = $(id);
+  const S = STA_STAT[id] || (STA_STAT[id] = { open: staStatMem(id), shut: false, wired: false, block: false });
+  if (!o.block) S.shut = false;
+  if (o.block && !S.shut) S.open = true;
+  else if (!o.block && S.block) S.open = staStatMem(id);   // the problem is gone: back to what this device keeps
+  S.block = !!o.block;
+  const n = o.notes || 0;
+  el.classList.remove('err');
+  el.innerHTML = `<button type="button" class="ghost sta-stat${S.block ? ' is-bad' : ''}" aria-expanded="${S.open}" aria-controls="${id}P">`
+    + `<span class="sta-stat-t">${o.summary}${n ? ` · <b>${staInt(n)} note${n === 1 ? '' : 's'}</b>` : ''}</span><span class="sta-stat-c" aria-hidden="true">${S.open ? '▴' : '▾'}</span></button>`
+    + `<div id="${id}P" class="sta-more-f sta-msg sta-stat-p${S.open ? '' : ' hide'}">${o.html || ''}</div>`;
+  if (!S.wired) {
+    S.wired = true;
+    el.addEventListener('click', e => {
+      const b = e.target.closest('button.sta-stat');
+      if (!b) return;
+      S.open = !S.open;
+      if (S.block) S.shut = !S.open; else staStatMem(id, S.open);
+      b.setAttribute('aria-expanded', String(S.open));
+      b.querySelector('.sta-stat-c').textContent = S.open ? '▴' : '▾';
+      $(id + 'P').classList.toggle('hide', !S.open);
+    });
+  }
+  return S;
 }
 
 // The summary strip: the whole account's Sponsored Products figures for the brands in view, and what is not listed.
@@ -1936,7 +2132,7 @@ function staDrawBurnTgt(L) {
     const p = g.rate && g.rate.p;
     const ev = `${staInt(g.o)} order${g.o === 1 ? '' : 's'} in <b>${staInt(g.c)} clicks</b> · ROAS <b>${g.sp > 0 ? (g.s / g.sp).toFixed(2) : '—'}</b>`
       + (g.beUse ? ` · break-even ${staRoas(g.beUse)}` : '') + (g.kind === 'poor' ? ' · converts at under half the usual rate' : '');
-    const tip = g.kind === 'none' && g.chance != null && p ? `0 orders in ${g.c} clicks happens only ${(g.chance * 100).toFixed(1)}% of the time at ${(p * 100).toFixed(1)}% (${g.rate.w}).`
+    const tip = g.kind === 'none' && g.chance != null && p ? `0 orders in ${g.c} clicks happens only ${staChance(g.chance)} of the time at ${(p * 100).toFixed(1)}% (${g.rate.w}).`
       : g.kind === 'loss' ? `${staMoney(g.sp)} of ads for ${staMoney(g.s)} of sales: every sale costs more in ads than it brings, whatever the unit cost.`
       : g.kind === 'be' ? `ACoS ${staPct(g.acos)} vs break-even ${staPct(g.beUse)}: ${staMoney(g.burned)} over.`
         : g.kind === 'poor' ? `Under half ${g.rate.w}'s rate; ACoS ${staPct(g.acos)} over target ${staPct(g.tgtUse)}.` : (g.hold || '');
@@ -1965,7 +2161,8 @@ function staDrawWords(L) {
   const page = staPage(rows);
   const blocked = rows.filter(r => r.tag).length;
   staHead('Which words keep costing without selling?', `${staInt(rows.length)} words and short phrases: ${staInt(blocked)} from your blocked words and competitor brands, the rest recurring across ${STA.WORD_TERMS}+ terms with no order.`
-    + ' One negative phrase per campaign stops every term holding it. Product words, brand terms, main keywords and seasonal words are never listed.');
+    + ' One negative phrase per campaign stops every term holding it. Product words, brand terms, main keywords and seasonal words are never listed.'
+    + ($('tabNgram') && !$('tabNgram').classList.contains('hide') ? ' <button type="button" class="sta-linkbtn" data-gong="1">See every pattern in N-Gram Analysis →</button>' : ''));
   const body = page.map(r => {
     const v = Object.assign({}, r, { badges: [[r.tag === 'blocked' ? 'Blocked word' : r.tag === 'competitor' ? 'Competitor brand' : 'No sales', r.tag ? 'warn' : 'bad']],
       ev: `In <b>${staInt(r.n)} terms</b>, ${staInt(r.c)} clicks, ${staInt(r.o)} orders${r.o ? ` (${staMoney(r.s)} of sales would be blocked)` : ''}${r.tail ? ` · ${staMoney(r.tail)} of it in terms too small to list` : ''}`
@@ -2160,10 +2357,52 @@ function staDayCount(b) {
   return ST_RL.items.filter(x => x.brand === b && x.kind === 'neg' && x.status !== 'removed' && x.at >= d0.getTime()).length;
 }
 
-// Open the dialog for one row (by key) and one kind of change.
-function staOpen(kind, key) {
-  const M = staModel();
-  const r = M.byKey.get(key);
+// What happens in a campaign of the word dialog: [badge, its colour].
+const STA_CP_WHAT = { neg: ['Negate here', 'bad'], thin: ['Kept: not enough data here', 'warn'], kept: ['Kept: sells here', 'ok'], prot: ['Protected', 'info'],
+  at: ['Already negated', ''], queued: ['In the review list', ''] };
+// The campaigns of the word dialog, by spend: N-Gram Analysis hands every campaign of its plan with what happens there
+// (r.cpAll: { cid, cn, sp, c, o, s, n, what, can, on, ev, why }; r.cpAt(floor): the same at a "Minimum spend per campaign");
+// By word's campaigns are each "Negate here", ticked.
+function staWordCpRows(r, floor) {
+  const list = typeof r.cpAt === 'function' ? r.cpAt(floor || 0) : r.cpAll || r.cps.map(c => Object.assign({ what: 'neg', can: true, on: true, ev: c.o ? `${staInt(c.o)} order${c.o === 1 ? '' : 's'} · ${staMoney(c.s)} sales` : '' }, c));
+  return list.slice().sort((a, z) => z.sp - a.sp || (a.cid < z.cid ? -1 : 1));
+}
+// The word dialog's campaign table (drawn again when the minimum spend per campaign changes).
+function staWordCpTable(r, rows) {
+  return '<table class="xl"><thead><tr><th class="sta-dcb"><span class="sta-sr">Tick</span></th><th>Campaign</th><th class="num">Spend</th><th class="num">Clicks</th><th class="num">Orders</th><th class="num">Terms</th><th>Evidence</th><th>What happens</th></tr></thead><tbody>'
+    + rows.map((c, i) => `<tr${c.can ? '' : ' class="is-off"'}><td class="sta-dcb"><input type="checkbox" class="sta-cb" data-cp="${i}"${c.on ? ' checked' : ''}${c.can ? '' : ' disabled'} aria-label="${staEsc((c.can ? 'Negate in ' : 'Cannot negate in ') + c.cn)}"></td>
+      <td><div class="sta-dcn" title="${staEsc(c.cn)}">${staEsc(c.cn || 'Campaign ' + c.cid)}</div><small>${staEsc(staCpMeta(r.brand, c.cid))}</small></td>
+      <td class="num">${staMoney(c.sp)}</td><td class="num">${c.c != null ? staInt(c.c) : staDash}</td><td class="num">${staInt(c.o)}</td><td class="num">${c.n != null ? staInt(c.n) : staDash}</td>
+      <td class="sta-dev">${staEsc(c.ev || '')}</td><td>${staBadge(STA_CP_WHAT[c.what][0], STA_CP_WHAT[c.what][1])}${c.why ? `<small>${staEsc(c.why)}</small>` : ''}</td></tr>`).join('')
+    + '</tbody></table>';
+}
+// A new "Minimum spend per campaign" in the word dialog: remembered (the row's floorSave), the default ticks worked out again.
+function staDlgCpFloor(v) {
+  if (!STD || typeof STD.row.cpAt !== 'function') return;
+  STD.cpMin = Number(v) || 0;
+  if (typeof STD.row.floorSave === 'function') STD.row.floorSave(STD.cpMin);
+  STD.cpRows = staWordCpRows(STD.row, STD.cpMin);
+  STD.cpOn = new Set(STD.cpRows.map((c, i) => (c.on && c.can ? i : -1)).filter(i => i >= 0));
+  $('stDlgCp').innerHTML = staWordCpTable(STD.row, STD.cpRows);
+  staDlgCheck();
+}
+// A campaign's second line: its ad groups (at Amazon, not archived) and its kind — "3 ad groups · Manual".
+function staCpMeta(b, cid) {
+  const E = ST.ent && ST.ent.d && ST.ent.d[b];
+  const parts = [];
+  let n = E && E.ag ? Object.keys(E.ag).filter(k => E.ag[k][0] === cid && !/ARCHIVED/i.test(E.ag[k][3] || '')).length : 0;
+  if (!n) n = new Set(((ST.tgts[b] || {}).rows || []).filter(x => x.cid === cid).map(x => x.ag)).size;
+  if (n) parts.push(`${staInt(n)} ad group${n === 1 ? '' : 's'}`);
+  const cp = E && E.cp && E.cp[cid];
+  const auto = cp && cp[7] ? /AUTO/i.test(cp[7]) : ((ST.tgts[b] || {}).rows || []).some(x => x.cid === cid && staAutoMt(x.mt)) ? true : null;
+  if (auto != null) parts.push(auto ? 'Auto' : 'Manual');
+  return parts.join(' · ');
+}
+
+// Open the dialog for one row (by key) and one kind of change. row: the row itself, from another screen (N-Gram Analysis
+// hands a pattern shaped like a By word row, or a term from the model it drew with) — the model is then not rebuilt.
+function staOpen(kind, key, row) {
+  const r = row || staModel().byKey.get(key);
   if (!r) return;
   if (kind === 'raise' || kind === 'reduce') kind = 'bid:' + kind;
   STD = { kind, row: r };
@@ -2242,11 +2481,25 @@ function staOpen(kind, key) {
   } else if (kind === 'word') {
     $('stDlgTitle').textContent = `Add negative phrase "${r.term}"`;
     sub.innerHTML = `${staEsc(staBrandName(r.brand))} · in ${staInt(r.n)} search terms. A negative phrase stops every search holding these words in this order, in the campaigns ticked.`;
-    by.innerHTML = `<div class="sta-figs">${['Terms', 'Clicks', 'Spend', 'Orders', 'Sales', 'Campaigns'].map((l, i) => `<div><small>${l}</small><b>${[staInt(r.n), staInt(r.c), staMoney(r.sp), staInt(r.o), staMoney(r.s), staInt(r.cps.length)][i]}</b></div>`).join('')}</div>
-      <div class="sta-figs-7">For example: ${staEsc(r.terms.slice(0, 5).join(' · '))}</div>
-      <div class="sta-f" style="margin-top:12px"><label>Campaigns</label><div class="sta-cplist">${r.cps.map((c, i) => `<label><input type="checkbox" class="sta-cb" data-cp="${i}" checked> ${staEsc(c.cn)} <span class="sta-dash">${staMoney(c.sp)}${c.o ? ` · ${staInt(c.o)} orders, ${staMoney(c.s)}` : ''}</span></label>`).join('')}</div></div>
+    // N-Gram's rows bring a "Minimum spend per campaign" ($0 · $5 · $10 · $20, the one remembered on this device).
+    const floors = typeof r.cpAt === 'function' ? r.floors || [0] : null;
+    STD.cpMin = floors && floors.includes(r.floor) ? r.floor : 0;
+    const cpRows = staWordCpRows(r, STD.cpMin);
+    STD.cpRows = cpRows;
+    STD.cpOn = new Set(cpRows.map((c, i) => (c.on ? i : -1)).filter(i => i >= 0));
+    // Up to 6 of its terms (the top ones by spend) as chips, and how many more.
+    const ex = r.terms.slice(0, 6), more = Math.max(0, (r.n || 0) - ex.length);
+    by.innerHTML = `<div class="sta-figs sta-figs7">${['Terms', 'Clicks', 'Spend', 'Spend with no orders', 'Orders', 'Sales', 'Campaigns'].map((l, i) => `<div><small>${l}</small><b>${[staInt(r.n), staInt(r.c), staMoney(r.sp), staMoney(r.zsp || 0), staInt(r.o), staMoney(r.s), staInt(cpRows.length)][i]}</b></div>`).join('')}</div>
+      <div class="sta-figs-7 sta-exterms"><span>For example</span>${ex.map(t => `<span class="sta-tchip">${staEsc(t)}</span>`).join('')}${more ? `<span class="sta-dash">+${staInt(more)} more</span>` : ''}</div>
+      <div class="sta-dcphead"><b>Campaigns</b><span><button type="button" class="sta-linkbtn" data-cpall="1">Select all eligible</button> · <button type="button" class="sta-linkbtn" data-cpnone="1">Clear</button></span>`
+      + (floors ? `<label class="sta-dcpmin" title="$0: every campaign where it has no order is ticked. $5, $10, $20: only where it spent that much and 0 orders is under ${Math.round(STA.NEG_CHANCE * 100)}% chance by luck. Any campaign with no order can still be ticked by hand.">Minimum spend per campaign <select id="stDlgCpMin">${floors.map(v => `<option value="${v}"${v === STD.cpMin ? ' selected' : ''}>${staMoney0(v)}</option>`).join('')}</select></label>` : '')
+      + `<span id="stDlgCpN" class="sta-dash"></span></div>
+      <div class="sta-dcp" id="stDlgCp">${staWordCpTable(r, cpRows)}</div>
       <div id="stDlgChecks" class="sta-checks"></div>`;
   }
+  // The word dialog is wider (its campaign table), and has "Download Excel" when the row brings its own file (N-Gram).
+  $('stDlg').classList.toggle('sta-dlgword', kind === 'word');
+  $('stDlgXlsx').classList.toggle('hide', !(kind === 'word' && typeof r.xlsx === 'function'));
   staDlgCheck();
   $('stDlg').classList.remove('hide');
   const first = by.querySelector('select:not([disabled]),input:not([disabled])');
@@ -2376,7 +2629,7 @@ function staDlgCheck() {
     if (!r.ent && !r.kid) idNote();
   } else if (kind === 'pause') {
     if (r.type === 'target' && r.noPause) bad(`A ${staEsc(r.noPause)}: lowered, never paused.`);
-    else out.push(staCheck('ok', r.type === 'target' ? `0 orders in ${staInt(r.c)} clicks: ${r.chance != null ? (r.chance * 100).toFixed(1) + '% chance of that' : 'no sales'}`
+    else out.push(staCheck('ok', r.type === 'target' ? `0 orders in ${staInt(r.c)} clicks: ${r.chance != null ? staChance(r.chance) + ' chance of that' : 'no sales'}`
       : `The lead path for the same product sells it at ${staPct(r.leadAcos)} ACoS`));
     if (!r.ent && !r.kid) idNote();
   } else if (kind === 'exact' || kind === 'asinT') {
@@ -2430,11 +2683,13 @@ function staDlgCheck() {
     STD.negAt = !!at;
     $('stDlgOk').textContent = at ? 'Add 1 change to review list' : 'Add 2 changes to review list';
   } else if (kind === 'word') {
-    const picks = [...$('stDlgBody').querySelectorAll('input[data-cp]:checked')].map(x => r.cps[Number(x.dataset.cp)]);
+    const picks = STD.cpRows.filter((c, i) => c.can && STD.cpOn.has(i));
     STD.picks = picks;
+    $('stDlgCpN').textContent = `${staInt(picks.length)} of ${staInt(STD.cpRows.length)} campaign${STD.cpRows.length === 1 ? '' : 's'} ticked · ${staMoney(picks.filter(c => !(c.o > 0)).reduce((t, c) => t + (c.sp || 0), 0))} spend with no orders`;
     if (r.protect) bad(`A ${staEsc(r.protect)}: never negated.`);
     else out.push(staCheck('ok', 'Not a product word, brand term, main keyword or seasonal word'));
-    if (!picks.length) bad('Tick at least one campaign.');
+    // Nothing ticked (a pattern opened to see its campaigns, or all cleared): nothing to add — said quietly, not as an error.
+    if (!picks.length) { out.push(staCheck('warn', 'No campaign ticked: tick the campaigns to negate it in.')); block = true; }
     const risk = picks.reduce((t, c) => t + (c.s || 0), 0);
     out.push(staCheck(risk > 0 ? 'warn' : 'ok', risk > 0 ? `Sales at risk: ${staMoney(risk)} in those campaigns came through terms holding it.` : 'Sales at risk: none'));
     if (r.term.split(/\s+/).length > STA.NEG.negativePhrase.words) bad('A negative phrase can hold 4 words at most.');
@@ -2444,7 +2699,7 @@ function staDlgCheck() {
     if (at.length) out.push(staCheck('warn', `${at.length} of these campaigns already have it at Amazon: left out.`));
     const day = staDayCount(r.brand);
     if (day + picks.length > STA.DAY_MAX) bad(`That would pass the day's limit of ${STA.DAY_MAX} negatives for ${staBrandName(r.brand)} (${day} today).`);
-    $('stDlgOk').textContent = `Add ${picks.length} negative${picks.length === 1 ? '' : 's'} to review list`;
+    $('stDlgOk').textContent = picks.length ? `Add ${picks.length} negative${picks.length === 1 ? '' : 's'} to review list` : 'Tick campaigns to negate';
   }
   $('stDlgChecks').innerHTML = out.join('');
   $('stDlgOk').disabled = block;
@@ -2658,7 +2913,9 @@ async function staRlMove(x, from, patch, extra) {
   } catch (e) { return 'could not save: ' + String((e && (e.code || e.message)) || e); }
 }
 // The name of the person behind an email: the part before @ (it@ is the shared office login).
-const staWho = e => { const s = String(e || '').split('@')[0]; return s ? s[0].toUpperCase() + s.slice(1) : ''; };
+// Only the first part, capitalised: "vishesh.gyanchandani@…" → "Vishesh" (cut at ".", "_", "+" or "@"). The one place an email
+// becomes a name (staItem, plxItem, the review list, PPC History).
+const staWho = e => { const s = String(e || '').split('@')[0].split(/[._+]/)[0]; return s ? s[0].toUpperCase() + s.slice(1) : ''; };
 // Open items by row key, path key and word key; done negatives by 'done:' + key.
 function staRlIndex() {
   const m = new Map();
@@ -2679,13 +2936,12 @@ function staRlBadge() {
 }
 // A new review item, with the figures it was based on.
 function staItem(r, kind, extra) {
-  const who = String(ME.email || '').split('@')[0].split(/[._]/)[0];
   return Object.assign({
     id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), v: 2, brand: r.brand, kind,
     key: r.type === 'term' ? r.key : '', pathKey: r.pathKey || '', term: r.type === 'term' || r.type === 'word' ? r.term : '',
     target: r.type === 'word' ? '' : staPathLabel(r.kw, r.mt), kw: r.kw || '', mt: r.mt || '', kid: r.kid || '', cid: r.cid || '', ag: r.ag || '',
     cn: r.cn || '', agn: r.agn || '', ev: { c: r.c, sp: staR2(r.sp), o: r.o, s: staR2(r.s), win: STM && STM.settled ? 'settled' : '30d' },
-    status: 'review', by: who ? who[0].toUpperCase() + who.slice(1) : '', byEmail: ME.email || '', at: Date.now(),
+    status: 'review', by: staWho(ME.email), byEmail: ME.email || '', at: Date.now(),
     trail: [ppchEvent('added')],   // who, which device, when: one step per move from here on (PPC History)
   }, extra);
 }
@@ -2843,7 +3099,9 @@ function staRlDraw() {
   $('stRlSub').textContent = `${open.length} change${open.length === 1 ? '' : 's'} waiting${appr ? `, ${appr} approved` : ''}`
     + (unseen ? ` · ${unseen} downloaded but not seen at Amazon` : '') + '. Each keeps the figures it was based on.';
   const chip = staRlChip;
-  const when = x => `${staEsc(x.by || staWho(x.byEmail))}<br>${new Date(x.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+  // Who added it: the person of its first "added" step (on the shared login, the name given — PPC History), else the old fields.
+  const addedBy = x => { const e = (x.trail || []).find(y => y && y.act === 'added'); return (e && (e.person || staWho(e.email))) || x.by || staWho(x.byEmail); };
+  const when = x => `${staEsc(addedBy(x))}<br>${STA_DTL.format(x.at)}`;
   const tickable = x => tab === 'open' || tab === 'removed' || (tab === 'done' && x.status === 'exported');
   const row = x => {
     const blocked = staBulkRow(x).skip;
@@ -2866,7 +3124,7 @@ function staRlDraw() {
     body = [...groups.entries()].sort((p, q) => (q[1][0].batchAt || q[1][0].exportedAt || 0) - (p[1][0].batchAt || p[1][0].exportedAt || 0)).map(([k, xs]) => {
       const f = xs[0], seen = xs.filter(x => x.status === 'done').length, und = xs.filter(x => x.status === 'undone').length;
       const head = k === 'old' ? 'Downloaded earlier (before files were kept)' : k === 'applied' ? 'Applied at Amazon from Sellora'
-        : `Bulk file · ${new Date(f.batchAt || f.exportedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · by ${staEsc(staWho(f.batchBy || f.exportedBy))}`;
+        : `Bulk file · ${STA_DTL.format(f.batchAt || f.exportedAt)} · by ${staEsc(staWho(f.batchBy || f.exportedBy))}`;
       return `<tr class="sta-batch"><td></td><td colspan="5"><b>${head}</b> <span class="sta-dash">${xs.length} change${xs.length === 1 ? '' : 's'} · ${seen} seen at Amazon${und ? ` · ${und} undone` : ''}</span></td>
         <td colspan="2" class="sta-batchbtns">${k !== 'old' && k !== 'applied' ? `<button type="button" class="sta-btn sm" data-rlredl="${staEsc(k)}">Download again</button>` : ''}
         <button type="button" class="sta-btn sm" data-rlundo="${staEsc(k)}" title="A bulk file that puts these changes back as they were">Undo this file</button></td></tr>` + xs.map(row).join('');
@@ -2992,41 +3250,92 @@ function staBulkRow(x) {
     [kwRow ? 'Keyword ID' : 'Product Targeting ID']: hit.id }, x.kind === 'pause' ? { 'State': 'paused' } : { 'Bid': x.bid.to }) };
 }
 
-// An .xlsx of one sheet (rows[0] the heading) — Listing Content's zip and XML helpers, IDs as text.
+// An .xlsx of one sheet (rows[0] the heading) — Listing Content's zip and XML helpers, IDs as text. The bulk file: its bytes
+// are the same as before the writer took several sheets (staXlsxBook with one plain sheet; ngram-test checks it).
 function staXlsx(sheet, rows) {
-  const cell = (v, ref, rowIx) => {
-    if (typeof v === 'number' && isFinite(v)) return `<c r="${ref}"${rowIx === 0 ? ' s="1"' : ''}><v>${v}</v></c>`;
+  return staXlsxBook([{ name: sheet, rows }]);
+}
+// An .xlsx of several sheets: [{ name, rows, fmt, total }]. A plain sheet (no fmt) is written as the bulk file always was.
+// fmt: one entry per column — 'money' (2 decimals), 'pct' (1 decimal) or '' — and the sheet then gets column widths from
+// its text and a frozen heading; total: the last row is a total, in bold. The heading is bold either way. A cell can be
+// { v, f } for a format of its own (a sheet of label and value pairs).
+function staXlsxBook(sheets) {
+  const fancy = sheets.some(sh => sh.fmt);
+  // Styles: 0 plain, 1 bold; with formats also 2 money, 3 bold money, 4 one decimal, 5 bold one decimal.
+  const styleOf = (sh, v, i, own) => {
+    const bold = i === 0 || (sh.total && i === sh.rows.length - 1);
+    const f = sh.fmt && i > 0 && typeof v === 'number' ? own || sh.fmt[sh._j] : '';
+    return f === 'money' ? (bold ? 3 : 2) : f === 'pct' ? (bold ? 5 : 4) : bold ? 1 : 0;
+  };
+  const cell = (sh, v0, ref, i) => {
+    const own = v0 && typeof v0 === 'object' ? v0.f : '', v = v0 && typeof v0 === 'object' ? v0.v : v0;
+    const s0 = styleOf(sh, v, i, own), st = s0 ? ` s="${s0}"` : '';
+    if (typeof v === 'number' && isFinite(v)) return `<c r="${ref}"${st}><v>${v}</v></c>`;
     const s = String(v == null ? '' : v);
     if (s === '') return '';
-    return `<c r="${ref}" t="inlineStr"${rowIx === 0 ? ' s="1"' : ''}><is><t xml:space="preserve">${lcXml(s)}</t></is></c>`;
+    return `<c r="${ref}" t="inlineStr"${st}><is><t xml:space="preserve">${lcXml(s)}</t></is></c>`;
   };
   const x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
-  const ws = x + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
-    + rows.map((cells, i) => `<row r="${i + 1}">${cells.map((v, j) => cell(v, lcColName(j) + (i + 1), i)).join('')}</row>`).join('')
-    + '</sheetData></worksheet>';
-  const styles = x + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-    + '<fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font></fonts>'
+  const sheetXml = sh => {
+    let head = '';
+    if (sh.fmt) {
+      // Widths from the longest text in each column (money and decimals as shown), between 8 and 60 characters.
+      const n = Math.max(...sh.rows.map(r => r.length));
+      const w = [];
+      for (let j = 0; j < n; j++) {
+        const len = Math.max(...sh.rows.map((r, i) => {
+          const v = r[j] && typeof r[j] === 'object' ? r[j].v : r[j];
+          if (typeof v === 'number') return (sh.fmt[j] === 'money' ? v.toFixed(2) : sh.fmt[j] === 'pct' ? v.toFixed(1) : String(v)).length + 2;
+          return String(v == null ? '' : v).length * (i === 0 ? 1.1 : 1);
+        }));
+        w.push(Math.min(60, Math.max(8, Math.ceil(len + 2))));
+      }
+      head = '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+        + '<cols>' + w.map((v, j) => `<col min="${j + 1}" max="${j + 1}" width="${v}" customWidth="1"/>`).join('') + '</cols>';
+    }
+    return x + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + head + '<sheetData>'
+      + sh.rows.map((cells, i) => `<row r="${i + 1}">${cells.map((v, j) => { sh._j = j; return cell(sh, v, lcColName(j) + (i + 1), i); }).join('')}</row>`).join('')
+      + '</sheetData></worksheet>';
+  };
+  const fonts = '<fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="10"/><name val="Arial"/></font></fonts>'
     + '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
     + '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
-    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-    + '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>';
+    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>';
+  const xf = (fmt, font) => `<xf numFmtId="${fmt}" fontId="${font}" fillId="0" borderId="0" xfId="0"${font ? ' applyFont="1"' : ''}${fmt ? ' applyNumberFormat="1"' : ''}/>`;
+  const styles = x + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    + (fancy ? '<numFmts count="1"><numFmt numFmtId="164" formatCode="0.0"/></numFmts>' + fonts
+      + '<cellXfs count="6">' + xf(0, 0) + xf(0, 1) + xf(4, 0) + xf(4, 1) + xf(164, 0) + xf(164, 1) + '</cellXfs></styleSheet>'
+      : fonts + '<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>');
+  const ids = sheets.map((sh, i) => i + 1);
   return lcZip([
     ['[Content_Types].xml', x + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
       + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
       + '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
-      + '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+      + ids.map(n => `<Override PartName="/xl/worksheets/sheet${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')
       + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
     ['_rels/.rels', x + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
       + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
     ['xl/workbook.xml', x + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-      + `<sheets><sheet name="${lcXml(sheet)}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+      + `<sheets>${sheets.map((sh, i) => `<sheet name="${lcXml(sh.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`],
     ['xl/_rels/workbook.xml.rels', x + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-      + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
-      + '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
-    ['xl/worksheets/sheet1.xml', ws],
+      + ids.map(n => `<Relationship Id="rId${n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${n}.xml"/>`).join('')
+      + `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+  ].concat(sheets.map((sh, i) => [`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sh)]), [
     ['xl/styles.xml', styles],
-  ]);
+  ]));
 }
+// Download an .xlsx made by staXlsxBook; the link's URL is let go after 2 s.
+function staXlsxSave(name, sheets) {
+  const blob = new Blob([staXlsxBook(sheets)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  return blob;
+}
+// A file name from any text: without the characters a file name cannot hold.
+const staFileName = s => String(s == null ? '' : s).replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 120) || 'export';
 
 // The bulk-file preview: every row that will download, per brand, and what waits and why. Clashes hold the download
 // until one side is removed or un-approved.
@@ -3546,7 +3855,9 @@ $('stMoreBtn').addEventListener('click', () => {
   $('stMoreBtn').setAttribute('aria-expanded', on ? 'false' : 'true');
 });
 // "Set a target ACoS" in the data line (no unit costs) opens Lists & settings.
-$('stMsg').addEventListener('click', e => { if (e.target.closest('[data-settgt]')) staSetOpen(); });
+$('stMsg').addEventListener('click', e => { if (e.target.closest('[data-settgt]')) staSetOpen(); else if (e.target.closest('[data-staretry]')) ensureSt(); });
+// "Try again" after a load that failed every try.
+$('stTable').addEventListener('click', e => { if (e.target.closest('[data-staretry]')) ensureSt(); });
 // "Show them" under the strip: every brand leak, in All terms, through the Tag filter (so it can be cleared like any filter).
 $('stSum').addEventListener('click', e => {
   if (!e.target.closest('[data-leaks]')) return;
@@ -3646,7 +3957,26 @@ $('stDlgBody').addEventListener('input', e => {
   if (e.target.id === 'stBidNew') e.target.dataset.touched = '1';
   staDlgCheck();
 });
-$('stDlgBody').addEventListener('change', staDlgCheck);
+// A campaign ticked or not in the word dialog (kept on STD, so the checks read it without the page).
+$('stDlgBody').addEventListener('change', e => {
+  if (e.target && e.target.id === 'stDlgCpMin') { staDlgCpFloor(e.target.value); return; }
+  const cb = e.target && e.target.dataset && e.target.dataset.cp != null && STD && STD.cpOn ? e.target : null;
+  if (cb) { const i = Number(cb.dataset.cp); if (cb.checked) STD.cpOn.add(i); else STD.cpOn.delete(i); }
+  staDlgCheck();
+});
+// "Select all eligible" (the campaigns ticked at first: enough evidence there) and "Clear".
+function staDlgCpSet(all) {
+  if (!STD || !STD.cpRows) return;
+  STD.cpOn = new Set(all ? STD.cpRows.map((c, i) => (c.on && c.can ? i : -1)).filter(i => i >= 0) : []);
+  $('stDlgBody').querySelectorAll('input[data-cp]').forEach(x => { x.checked = STD.cpOn.has(Number(x.dataset.cp)); });
+  staDlgCheck();
+}
+$('stDlgBody').addEventListener('click', e => {
+  if (e.target.closest('[data-cpall]')) staDlgCpSet(true);
+  else if (e.target.closest('[data-cpnone]')) staDlgCpSet(false);
+});
+// "Download Excel": the row's own file (N-Gram Analysis), with the campaigns ticked now.
+$('stDlgXlsx').addEventListener('click', () => { if (STD && typeof STD.row.xlsx === 'function') STD.row.xlsx(new Set((STD.picks || []).map(c => c.cid)), STD.cpMin || 0); });
 $('stDlgOk').addEventListener('click', staDlgOk);
 $('stDlgApply').addEventListener('click', staDlgApply);
 $('stDlgCancel').addEventListener('click', staClose);

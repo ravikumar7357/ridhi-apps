@@ -248,9 +248,44 @@ function flowSwatchOf(productSku, fabSku) {
   if (k) for (const r of (PTG.mdb || [])) { const kk = r && fsCodeOf(r.sku); if (kk && kk.family === k.family && kk.code === k.code && (u = pic(r.sku))) return u; }
   return '';
 }
+/* THE PRINTER'S HOLD (Vishesh, 23 Nov: "from now on, a new plan's Vendor Order is not shown to the printer until that line's RFD
+ * challan is made"). With the switch on (config/flags.printerHold, read once in core/auth.js and kept for the NEXT page load;
+ * localStorage printerHold '1'/'0' overrides on one device; off when missing), a part newly put on a Vendor Order, whose line has
+ * no RFD challan yet, is marked awaitRfd. The printer's portal leaves such lines out (flow-vendor.js flowVpAfterLoad); the
+ * office sees them as before. The mark is lifted, field by field, when the challan is made (flowVoRelease). Orders already
+ * placed carry no mark and stay visible. Hiding is on screen only: nothing is deleted or changed in the order. */
+function flowHoldOn() {
+  try {
+    const s = localStorage.getItem('printerHold');
+    if (s === '0') return false;
+    if (s === '1') return true;
+    return localStorage.getItem('printerHoldLast') === '1';
+  } catch (e) { return false; }
+}
+function flowHoldSaveFlag(on) {
+  try { if (on) localStorage.setItem('printerHoldLast', '1'); else localStorage.removeItem('printerHoldLast'); } catch (e) { /* no storage: stays off */ }
+}
+/** The challan-index key of a Vendor Order part ("<line key>|<what>"); a ruffle part is kept under the line key + ruffle. */
+function flowVoPartKey(part) {
+  const [key, what] = String(part).split('|');
+  return what === 'ruffle' && !key.endsWith(FLOW_RUF) ? key + FLOW_RUF : key;
+}
+/** Whether one part of a Vendor Order is held back from the printer. prevParts = the parts the order already stood for
+ *  (Map part → was held); null when not known (a test order), then nothing is held. */
+function flowVoHeld(part, prevParts) {
+  if (!prevParts || !flowHoldOn() || flowChIndex()[flowVoPartKey(part)]) return false;
+  return prevParts.has(part) ? !!prevParts.get(part) : true;
+}
+/** The parts an existing Vendor Order stands for, each with whether it is still held (a merged line stands for several). */
+function flowVoPartsOf(order) {
+  const m = new Map();
+  if (order) voLines(order).forEach(l => String(l.flowPart || '').split('+').filter(Boolean).forEach(p => m.set(p, !!l.awaitRfd)));
+  return m;
+}
 /** The vendor-order lines a flow print order stands for: { running: [...], cut: [...], channel }. */
-function flowVoLines(o, planOf) {
+function flowVoLines(o, planOf, prevParts) {
   const out = { running: [], cut: [], channel: '' };
+  const hold = part => (flowVoHeld(part, prevParts) ? { awaitRfd: true } : {});
   Object.entries(o.items || {}).forEach(([key, it]) => {
     if (!it) return;
     const lk0 = key.endsWith(FLOW_RUF) ? key.slice(0, -FLOW_RUF.length) : key;
@@ -264,15 +299,15 @@ function flowVoLines(o, planOf) {
       picSku: obUC(it.sku) };   // the product made from the cloth: its photo is the swatch the printer sees (17 Oct)
     if (it.ruffle) { /* the ruffle cloth alone — its lines below */ } else if (w.kind === 'sku') {
       if (it.pcs > 0) out.cut.push(Object.assign({}, base, { kind: 'cut', sku: it.sku, qty: it.pcs, articleType: m.articleType || '',
-        articleSubtype: m.subtype || m.articleSubtype || '', size: m.size || '', flowPart: key + '|sku' }));
+        articleSubtype: m.subtype || m.articleSubtype || '', size: m.size || '', flowPart: key + '|sku', ...hold(key + '|sku') }));
     } else {
       const fab = String((p.fabric && p.fabric.name) || m.fabric || '').trim(), dir = (p.print && p.print.dir) || String(w.label || '').split(' · ')[2] || '';
       const parts = w.sides && w.sides.length ? w.sides.map(sd => ({ sku: sd.code, meters: flowR2(it.metres / w.sides.length), part: sd.side }))
         : [{ sku: w.code, meters: it.metres, part: 'body' }];
-      parts.forEach(pt => { if (pt.meters > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: pt.sku, fabricType: fab, printDirection: dir, meters: pt.meters, flowPart: key + '|' + pt.part, img: flowSwatchOf(it.sku, pt.sku) })); });
+      parts.forEach(pt => { if (pt.meters > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: pt.sku, fabricType: fab, printDirection: dir, meters: pt.meters, flowPart: key + '|' + pt.part, img: flowSwatchOf(it.sku, pt.sku), ...hold(key + '|' + pt.part) })); });
     }
     (it.extras || []).forEach(x => { if (+x.metres > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: x.code, fabricType: String(x.label || '').split(' · ')[1] || '',
-      printDirection: String(x.label || '').split(' · ')[2] || '', meters: flowR2(+x.metres), notes: base.notes + ' · ruffle', flowPart: lk + '|ruffle', img: flowSwatchOf(it.sku, x.code) })); });
+      printDirection: String(x.label || '').split(' · ')[2] || '', meters: flowR2(+x.metres), notes: base.notes + ' · ruffle', flowPart: lk + '|ruffle', img: flowSwatchOf(it.sku, x.code), ...hold(lk + '|ruffle') })); });
   });
   /* COMBINED (Ravi, 11 Oct): one vendor-order line per printed fabric (fabric, colour, direction) and per printed SKU, across
    * the order's lines — the printer prints RBPSF9-H-82 once, for both pillow sizes. flowPart names every part it stands for. */
@@ -285,8 +320,8 @@ function flowVoLines(o, planOf) {
       if (l.deliveryDate && (!e.deliveryDate || l.deliveryDate < e.deliveryDate)) e.deliveryDate = l.deliveryDate; });
     return [...m.values()].map(e => { const { parts, skus, ...l } = e; const u = [...new Set(skus.map(x => x.replace(/ \(PPC.*$/, '')).filter(Boolean))];
       return Object.assign(l, { flowPart: parts.slice().sort().join('+'), ...(parts.length > 1 ? { notes: `${o.orderNo} · ${u.join(', ')} (PPC ${o.no})${/· ruffle$/.test(l.notes || '') ? ' · ruffle' : ''}`, forOrders: l.forOrders } : {}) }); }); };
-  out.running = merge(out.running, l => [obUC(l.sku), fabKey(l.fabricType), String(l.printDirection || '').toLowerCase(), fabKey(l.color)].join('|'), 'meters');
-  out.cut = merge(out.cut, l => obUC(l.sku), 'qty');
+  out.running = merge(out.running, l => [obUC(l.sku), fabKey(l.fabricType), String(l.printDirection || '').toLowerCase(), fabKey(l.color), l.awaitRfd ? 'held' : ''].join('|'), 'meters');
+  out.cut = merge(out.cut, l => obUC(l.sku) + (l.awaitRfd ? '|held' : ''), 'qty');   // held and visible parts never share a line
   return out;
 }
 /* AN ORDER ALREADY PLACED IS CHANGED FIELD BY FIELD (26 Oct): the printer writes onto it too — what they say they sent
@@ -300,8 +335,10 @@ function flowVoSync(local, nos, patch, planOf) {
   const said = [], placed = [], now = new Date().toISOString();
   [...new Set(nos)].forEach(no => {
     const o = local[no]; if (!o || o.test) return;
-    const want = o.cancelled ? { running: [], cut: [], channel: '' } : flowVoLines(o, planOf);
     const vo = Object.assign({}, o.vo || {});
+    const placedBefore = ['running', 'cut'].map(kind => vo[kind] && (VO.rows || []).find(x => x && x.vendorCode === vo[kind].code && x.id === vo[kind].id));
+    const prevParts = new Map(placedBefore.flatMap(x => [...flowVoPartsOf(x)]));
+    const want = o.cancelled ? { running: [], cut: [], channel: '' } : flowVoLines(o, planOf, prevParts);
     ['running', 'cut'].forEach(kind => {
       const ref = vo[kind], existing = ref ? (VO.rows || []).find(x => x && x.vendorCode === ref.code && x.id === ref.id) : null;
       if (existing && voLines(existing).some(l => (l.deliveries || []).length || +l.dispatchedQty > 0)) {
@@ -332,6 +369,31 @@ function flowVoSync(local, nos, patch, planOf) {
     else patch[`pt_flowPrintOrders/${no}/vo`] = vo;
   });
   return { said, placed };
+}
+/**
+ * Lifts the printer's hold (see THE PRINTER'S HOLD above) from every Vendor Order line whose parts all have an RFD challan now.
+ * `keys` = the line keys just put on a challan (the challan may not be in FLOW.ch yet). Adds one field-level write per line to
+ * `patch` (…/lines/<i>/awaitRfd = null; the order itself is never rewritten) and updates VO.rows with new rows. Needs VO.rows read
+ * (ensureVo): lines it cannot see stay held. Returns how many lines were released.
+ */
+function flowVoRelease(keys, patch) {
+  if (!Array.isArray(VO.rows)) return 0;
+  const just = new Set(keys || []), index = flowChIndex();
+  const hasChallan = part => just.has(flowVoPartKey(part)) || !!index[flowVoPartKey(part)];
+  let released = 0;
+  VO.rows = VO.rows.map(o => {
+    if (!o || !o.lines) return o;
+    const lines = Array.isArray(o.lines) ? o.lines.slice() : Object.assign({}, o.lines), at = Array.isArray(lines) ? lines.map((_, i) => i) : Object.keys(lines);
+    let changed = false;
+    at.forEach(i => {
+      const l = lines[i];
+      if (!l || !l.awaitRfd || !String(l.flowPart || '').split('+').filter(Boolean).every(hasChallan)) return;
+      patch[`pt_vendorOrders/${o.vendorCode}/${o.id}/lines/${i}/awaitRfd`] = null;
+      const { awaitRfd, ...open } = l; lines[i] = open; changed = true; released++;
+    });
+    return changed ? Object.assign({}, o, { lines }) : o;
+  });
+  return released;
 }
 /**
  * Everything the Vendor Order side of a save needs: the writes, the question to ask before a printer is told, and

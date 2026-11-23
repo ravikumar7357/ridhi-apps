@@ -49,12 +49,18 @@ const PLX_ORDER = ['tos', 'ros', 'pp', 'off'];
 const PLX_STRAT = { LEGACY_FOR_SALES: 'Dynamic bids · down only', AUTO_FOR_SALES: 'Dynamic bids · up and down', MANUAL: 'Fixed bids' };
 // The decision chips, in order: key, label.
 const PLX_CHIPS = [['raise', 'Raise'], ['lower', 'Lower'], ['keep', 'Keep'], ['thin', 'Not enough data'], ['review', 'In review'],
-  ['cool', 'Recently changed'], ['budget', 'Out of budget'], ['launch', 'Launch / new'], ['notgt', 'No target'], ['hold', 'Hold'],
+  ['cool', 'Recently changed'], ['budget', 'Out of budget'], ['launch', 'Launch / new'], ['notgt', STA_NOTGT], ['hold', 'Hold'],
   ['paused', 'Paused'], ['off', 'Off Amazon']];
 let PLX_ACT = '', PLX_PG = 0, PLX_SORT = { k: 'sp', d: -1 }, PLX_LAST = null;
 const PLX_SEL = new Map();
 
 const plxPct = v => v == null ? '—' : (v > 0 ? '+' : '') + Math.round(v) + '%';
+// The top half's window, in its cards, heading and column tips: "Settled 14 Oct – 12 Nov · 7-day sales" (22 Nov review: the
+// two halves read different reports; each says which).
+const plxWinTxt = P => (P && P.settled ? `Settled ${P.from ? staShortDay(P.from) + ' – ' + staShortDay(P.to) : 'days'} · 7-day sales` : 'Last 30 days · 30-day sales');
+// The small line under a spend: what the last 7 days (not counted) added. Cents under $1, so a few clicks never read "+$0";
+// shown on every row whose last 7 days had clicks or spend, on none otherwise.
+const plxRecLine = (sp, c) => (sp > 0 || c > 0 ? `<small class="sta-s">+${sp < 1 ? staMoney(sp) : staMoney0(sp)} last 7 days</small>` : '');
 const plxColor = pk => plcColor((PLX_META[pk] || {}).name || pk);
 
 /* ---------- the model ---------- */
@@ -229,7 +235,7 @@ function plxDecide(r, c, open, last, now) {
     }
     return set('thin', `${staInt(r.o)} of ${PLX.MIN_ORDERS} orders needed before it is judged`);
   }
-  if (tgt == null) return set('hold', 'No unit cost for its products, so no target: set a break-even ACoS in Search Term Analysis → Lists & settings', null, 'notgt');
+  if (tgt == null) return set('hold', `${STA_NOTGT}: no unit cost for its products — set a break-even ACoS in Search Term Analysis → Lists & settings`, null, 'notgt');
   const src = c.fallback ? ' (your setting)' : '';
   if (r.acos <= PLX.RAISE_SHARE * tgt) {
     if (c.cover != null && c.cover < STA.RAISE_COVER) return set('hold', `Sells well, but only ${Math.round(c.cover)} days of FBA stock: no raise`);
@@ -304,14 +310,14 @@ function plxKpis(P) {
   const tot = { tos: [0, 0, 0], ros: [0, 0, 0], pp: [0, 0, 0], off: [0, 0, 0] };   // spend, sales, orders
   let all = 0, src = '';
   if (P.settled && P.all.length) {
-    src = '7-day · settled';
+    src = plxWinTxt(P);
     P.all.forEach(c => c.rows.forEach(r => {
       all += r.sp;
       const t = tot[r.pk];
       if (t) { t[0] += r.sp; t[1] += r.s; t[2] += r.o; }
     }));
   } else if (Object.keys(PLC.d).length) {
-    src = '30 days · nightly';
+    src = PLC_WIN;
     const A = plcAgg();
     const back = { 'Top of Search': 'tos', 'Rest of Search': 'ros', 'Product Page': 'pp', 'Off Amazon': 'off' };
     A.names.forEach(n => {
@@ -401,38 +407,44 @@ function plxTable(P) {
   if (PLX_PG >= pages) PLX_PG = pages - 1;
   const page = camps.slice(PLX_PG * PLX.PAGE, (PLX_PG + 1) * PLX.PAGE);
   P.page = page;
-  const win = P.from ? `Settled days ${staShortDay(P.from)} – ${staShortDay(P.to)}` : 'Settled days';
+  const win = plxWinTxt(P);
+  $('plxWin').textContent = P.settled ? win : '';
   const th = (t, k, tip) => `<th class="num plx-sort${S.k === k ? ' on' : ''}" data-sort="${k}"${tip ? ` title="${staEsc(tip)}"` : ''}>${t}${S.k === k ? (S.d < 0 ? ' ↓' : ' ↑') : ''}</th>`;
-  const head = `<thead><tr><th class="sta-stick">Campaign · placement</th><th class="num" title="The bid adjustment set at Amazon now">Now</th>
-    <th class="num" title="This placement's clicks ÷ the campaign's clicks">Click share</th>${th('Impr.', 'i', win)}${th('Clicks', 'c', win)}${th('Spend', 'sp', win + '; the small line is the last 7 days, not counted')}
-    ${th('Sales', 's', win + ' · 7-day sales')}${th('Orders', 'o', win)}${th('ACoS', 'acos', win)}<th class="num">CPC</th><th class="num">CVR</th><th>Decision</th><th>Action</th></tr></thead>`;
+  // Decision and Action right after the campaign · placement column (22 Nov review: at 1366–1500 px they sat off screen to
+  // the right); impressions moved into the Clicks tip.
+  const head = `<thead><tr><th class="sta-stick">Campaign · placement</th><th class="plx-dech">Decision</th><th class="plx-acth">Action</th>
+    <th class="num" title="The bid adjustment set at Amazon now">Now</th><th class="num" title="This placement's clicks ÷ the campaign's clicks · ${staEsc(win)}">Click<br>share</th>
+    ${th('Clicks', 'c', win + ' · impressions on hover')}${th('Spend', 'sp', win + '; the small line is the last 7 days, not counted')}
+    ${th('Sales', 's', win)}${th('Orders', 'o', win)}${th('ACoS', 'acos', win)}<th class="num" title="${staEsc(win)}">CPC</th><th class="num" title="${staEsc(win)}">CVR</th></tr></thead>`;
   const num = (v, f) => v == null ? staDash : f(v);
-  const recLine = r => r.rec && (r.rec.sp > 0 || r.rec.c > 0) ? `<small class="sta-s">+${staMoney0(r.rec.sp)} last 7 days</small>` : '';
+  const recLine = r => (r.rec ? plxRecLine(r.rec.sp || 0, r.rec.c || 0) : '');
+  const clicks = x => `<td class="num" title="${staEsc(staInt(x.i) + ' impressions')}">${staInt(x.c)}</td>`;
   const body = page.map(c => {
+    const rec = c.rows.reduce((a, r) => (r.rec ? [a[0] + (r.rec.sp || 0), a[1] + (r.rec.c || 0)] : a), [0, 0]);
     const strat = PLX_STRAT[c.strategy] || '';
     const tgtTxt = c.tgt != null ? `target ${staPct(c.tgt)} · break-even ${staPct(c.be)}${c.fallback ? ' (fallback)' : ''}` : 'no unit cost: no target';
     const nAct = c.rows.filter(r => r.dec === 'raise' || r.dec === 'lower').length;
     const head = `<tr class="sta-grprow plx-camp">
       <td class="sta-stick"><div class="sta-pl"><b>${staEsc(c.cn)}</b>${staCopy(c.cn, 'campaign')}</div>
         <div class="sta-under">${staBadge(staBrandName(c.brand), 'brand-' + c.brand)}${strat ? staBadge(strat, c.strategy === 'AUTO_FOR_SALES' ? 'warn' : '', c.strategy === 'AUTO_FOR_SALES' ? 'Amazon may raise bids up to 100% on Top of Search, on top of the adjustment' : '') : ''}${c.budget ? `<span class="sta-dash${c.daySp >= PLX.BUDGET_USE * c.budget ? ' sta-bad' : ''}" title="About ${staEsc(staMoney0(c.daySp))} a day spent">$${staInt(c.budget)}/day${c.daySp >= PLX.BUDGET_USE * c.budget ? ' · used up' : ''}</span>` : ''}${c.state && !/enabled/i.test(c.state) ? staBadge(String(c.state).toLowerCase(), 'warn') : ''}</div></td>
+      <td colspan="2" class="plx-ctgt"><span class="sta-dash">${staEsc(tgtTxt)}</span>${nAct ? ` · <b>${nAct} change${nAct === 1 ? '' : 's'}</b>` : ''}</td>
       <td class="num"></td><td class="num"></td>
-      <td class="num">${staInt(c.i)}</td><td class="num">${staInt(c.c)}</td><td class="num"><b>${staMoney(c.sp)}</b></td><td class="num">${staMoney(c.s)}</td><td class="num">${staInt(c.o)}</td>
-      <td class="num"><b>${num(c.acos, staPct)}</b></td><td class="num">${c.c > 0 ? staMoney(c.sp / c.c) : staDash}</td><td class="num">${c.c > 0 ? staPct(c.o / c.c * 100) : staDash}</td>
-      <td colspan="2" class="plx-ctgt"><span class="sta-dash">${staEsc(tgtTxt)}</span>${nAct ? ` · <b>${nAct} change${nAct === 1 ? '' : 's'}</b>` : ''}</td></tr>`;
+      ${clicks(c)}<td class="num"><b>${staMoney(c.sp)}</b>${plxRecLine(rec[0], rec[1])}</td><td class="num">${staMoney(c.s)}</td><td class="num">${staInt(c.o)}</td>
+      <td class="num"><b>${num(c.acos, staPct)}</b></td><td class="num">${c.c > 0 ? staMoney(c.sp / c.c) : staDash}</td><td class="num">${c.c > 0 ? staPct(c.o / c.c * 100) : staDash}</td></tr>`;
     return head + c.rowsShown.map(r => `<tr class="sta-subrow${PLX_SEL.has(r.key) ? ' sel' : ''}">
       <td class="sta-stick">${r.can ? `<input type="checkbox" class="sta-cb" data-tick="${staEsc(r.key)}"${PLX_SEL.has(r.key) ? ' checked' : ''} aria-label="Select ${staEsc(c.cn + ' · ' + r.name)}">` : '<span class="sta-cbgap"></span>'}
         <span class="plx-dot" style="background:${plxColor(r.pk)}"></span>${staEsc(r.name)}</td>
+      ${plxDecCell(r)}${plxActCell(r)}
       <td class="num"><b>${r.pk === 'off' ? staDash : r.cur == null ? '<span class="sta-dash" title="Not read from Amazon yet">?</span>' : plxPct(r.cur)}</b></td>
       <td class="num">${r.share == null ? staDash : staPct(r.share * 100)}</td>
-      <td class="num">${staInt(r.i)}</td><td class="num">${staInt(r.c)}</td><td class="num">${staMoney(r.sp)}${recLine(r)}</td>
+      ${clicks(r)}<td class="num">${staMoney(r.sp)}${recLine(r)}</td>
       <td class="num">${staMoney(r.s)}</td><td class="num">${staInt(r.o)}</td><td class="num">${num(r.acos, staPct)}</td>
-      <td class="num">${num(r.cpc, staMoney)}</td><td class="num">${num(r.cvr, staPct)}</td>
-      ${plxDecCell(r)}${plxActCell(r)}</tr>`).join('');
+      <td class="num">${num(r.cpc, staMoney)}</td><td class="num">${num(r.cvr, staPct)}</td></tr>`).join('');
   }).join('');
   const empty = !P.settled
     ? 'Placement decisions appear here once the Ads backend sends its 7-day placement reports. Until then, the chart and the two tables below show the nightly 30-day figures.'
     : PLX_ACT || $('plxFilter').value || $('plxPlace').value ? 'Nothing matches these filters.' : 'No Sponsored Products placements in this window.';
-  $('plxTable').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="14" class="muted" style="padding:16px 22px">${empty}</td></tr>`) + '</tbody>';
+  $('plxTable').innerHTML = head + '<tbody>' + (body || `<tr><td colspan="12" class="muted" style="padding:16px 22px">${empty}</td></tr>`) + '</tbody>';
   $('plxFoot').innerHTML = camps.length > PLX.PAGE
     ? `<span>${PLX_PG * PLX.PAGE + 1}–${Math.min(camps.length, (PLX_PG + 1) * PLX.PAGE)} of ${staInt(camps.length)} campaigns</span>
        <span class="sta-pages"><button type="button" class="ghost" data-pg="-1"${PLX_PG ? '' : ' disabled'}>← Previous</button><button type="button" class="ghost" data-pg="1"${PLX_PG < pages - 1 ? '' : ' disabled'}>Next →</button></span>`
@@ -444,7 +456,6 @@ function plxTable(P) {
 // Ads API call itself (api: PUT /sp/campaigns with every placement, so the other two are not reset).
 function plxItem(r) {
   const c = r.camp, m = PLX_META[r.pk];
-  const who = String(ME.email || '').split('@')[0].split(/[._]/)[0];
   const pb = ['tos', 'ros', 'pp'].map(k => ({ placement: PLX_META[k].amz, percentage: k === r.pk ? r.to : Number((c.ent || [])[PLX_META[k].ix]) || 0 }));
   return {
     id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), v: 2, brand: r.brand, kind: 'plc', key: r.key, pathKey: '',
@@ -453,7 +464,7 @@ function plxItem(r) {
     plc: { pk: r.pk, name: m.name, amz: m.amz, bulk: m.bulk, ix: m.ix, from: r.cur, to: r.to, strategy: c.strategy || '' },
     api: { call: 'PUT /sp/campaigns', body: { campaigns: [{ campaignId: r.cid, dynamicBidding: Object.assign(c.strategy ? { strategy: c.strategy } : {}, { placementBidding: pb }) }] } },
     what: `${m.name} ${plxPct(r.cur)} → ${plxPct(r.to)}`, why: r.why,
-    status: 'review', by: who ? who[0].toUpperCase() + who.slice(1) : '', byEmail: ME.email || '', at: Date.now(),
+    status: 'review', by: staWho(ME.email), byEmail: ME.email || '', at: Date.now(),
     trail: [ppchEvent('added')],   // who, which device, when: one step per move from here on (ads/ppc-history.js)
   };
 }
@@ -499,6 +510,7 @@ function plxLegend() {
   const L = (t, items) => `<section><h4>${t}</h4><ul>${items.map(x => `<li>${x}</li>`).join('')}</ul></section>`;
   $('plxLegendBody').innerHTML = L('What it is judged on', [
     'Each campaign × placement over the <b>settled days</b> (8–37 days ago), with <b>7-day sales</b> as in the Ads console. The last 7 days show under the spend and are not counted.',
+    'The chart and the two tables under the decisions come from a different report — the nightly one, the <b>last 30 days with 30-day sales</b> — so their totals differ slightly from the cards and decisions. Each part says its window.',
     'The target and break-even ACoS of the campaign\'s products, from Profit & Margin costs, weighted by what each of its keywords and targets spent and sold — the same numbers as Search Term Analysis.',
     'The adjustment set now, from Amazon\'s record of the campaign (read twice a day).'])
     + L('The decision', [
@@ -507,6 +519,8 @@ function plxLegend() {
       `<b>Raise +${PLX.STEP} points</b> when ACoS is at or below ${Math.round(PLX.RAISE_SHARE * 100)}% of the target; never over ${PLX.MAX_PCT}%, not with under ${STA.RAISE_COVER} days of FBA stock, and not when the campaign already spends ${Math.round(PLX.BUDGET_USE * 100)}% of its daily budget (raise the budget first).`,
       `<b>Lower −${PLX.STEP} points</b> when ACoS is above break-even (never below 0%). Already at 0%: the bids themselves are the lever — "Lower keyword bids" opens Search Term Analysis on that campaign.`,
       '<b>Keep</b> in between.',
+      `<b>The luck cut-off</b>: a placement is lowered for 0 orders when that would happen by bad luck under ${Math.round(STA.CHANCE * 100)}% of the time. A negative (N-Gram Analysis, Search Term Analysis) needs under ${Math.round(STA.NEG_CHANCE * 100)}%. On purpose: a lower adjustment is easy to take back, a negative is harder to undo, so it needs more proof.`,
+      `<b>${staEsc(STA_NOTGT)}</b>: ${PLX.MIN_ORDERS}+ orders, but no unit cost for its products, so no target to judge them against — the same words as N-Gram Analysis. Set a break-even ACoS in Search Term Analysis → Lists & settings.`,
       `Off Amazon has no adjustment at Amazon. Paused campaigns, campaigns in their first ${STA.AGE_DAYS} days and launch campaigns (by name) in their first ${STA.LAUNCH_DAYS} are not judged.`,
       `After a change is seen at Amazon, ${PLX.COOLDOWN} days before the next one ("Recently changed"); a downloaded change not seen at Amazon yet holds it too. After that the reason says how many of the 30 settled days are after the change.`])
     + L('What happens to a change', [

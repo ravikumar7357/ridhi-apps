@@ -21,11 +21,21 @@
 /* ================= PLACEMENT =================
  * Where the ad was shown — top of search, rest of search, product page, off Amazon — day by day.
  *
- * SPEND MISALLOCATION is ours, not Amazon's: money spent on clicks that produced no order at all.
+ * SPEND WITH NO ORDERS (one name on every part of the page, 22 Nov review — it was "spend misallocation", "bought nothing",
+ * "spend, nothing back" and "wasted spend") is ours, not Amazon's: money spent on clicks that produced no order at all.
  * It is counted per CAMPAIGN × PLACEMENT over the whole window, never per day, because ad sales are
  * attributed to the CLICK date and keep collecting orders for about a month. Counted daily, most
- * recent spend would look wasted and the figure would improve on its own as the data matured.
+ * recent spend would look like it had no orders and the figure would improve on its own as the data matured.
+ *
+ * TWO WINDOWS, ON PURPOSE (22 Nov review). The top cards and the decisions (placement-decide.js) read the Ads backend's
+ * settled 7-day report (days 8–37, 7-day sales); the chart and the two tables under it read the nightly placement report
+ * (the last 30 days, 30-day sales). Each part says its window (PLC_WIN, plxWinTxt) and the line between the halves says the
+ * totals differ; the two are never merged.
  */
+// The lower half's window, in its headings and column tips.
+const PLC_WIN = 'Last 30 days · 30-day sales';
+// The one name for spend on clicks that produced no order at all.
+const PLC_NOORD = 'Spend with no orders';
 // The nightly placement cache: at = when built, d = per brand { byPlace, mis, byDate, worst }.
 let PLC = { at: '', d: {}, loaded: false };
 // The chart's bucket: day / week / month.
@@ -61,7 +71,7 @@ function plcMsg(t, bad) {
   m.className = bad ? 'err' : 'muted';
 }
 
-// Called when the tab opens: the nightly placement cache (chart, totals, wasted spend) and everything the decisions read
+// Called when the tab opens: the nightly placement cache (chart, totals, spend with no orders) and everything the decisions read
 // (Search Term Analysis's load: the Ads backend's 7-day placement reports, Amazon's record, unit costs, the review list),
 // together, once; then draw both halves.
 async function ensurePlc() {
@@ -93,12 +103,13 @@ const plcBucket = iso => {
 };
 
 /** Totals per placement across the chosen brands, plus the buckets for the chart. */
-// { place, mis, names, buckets, worst }: per-placement totals [impr, clicks, spend, orders, sales], the
-// misallocated spend per placement, the placement names in display order, the chart buckets, and the worst
+// { place, mis, names, buckets, worst, first, last }: per-placement totals [impr, clicks, spend, orders, sales], the
+// spend with no orders per placement, the placement names in display order, the chart buckets, and the worst
 // campaign × placement rows by spend.
 function plcAgg() {
   const brands = plcBrands();
   const place = {}, mis = {}, buckets = new Map(), worst = [];
+  let first = '', last = '';
   const blank = () => [0, 0, 0, 0, 0];
   const addTo = (t, v) => { for (let i = 0; i < 5; i++) t[i] += v[i] || 0; };
   brands.forEach(b => {
@@ -113,6 +124,8 @@ function plcAgg() {
       mis[n] = (mis[n] || 0) + (v || 0);
     });
     Object.entries(pack.byDate || {}).forEach(([day, byP]) => {
+      if (!first || day < first) first = day;
+      if (!last || day > last) last = day;
       const k = plcBucket(day);
       const box = buckets.get(k) || (buckets.set(k, {}), buckets.get(k));
       Object.entries(byP).forEach(([p, v]) => {
@@ -124,7 +137,7 @@ function plcAgg() {
   });
   worst.sort((a, b) => b.sp - a.sp);
   const names = [...new Set([...PLC_ORDER.filter(p => place[p]), ...Object.keys(place)])];
-  return { place, mis, names, buckets, worst };
+  return { place, mis, names, buckets, worst, first, last };
 }
 
 // Draw the Placement screen: the spend strip, the chart, the table with its TOTAL row, the worst offenders, the message.
@@ -169,11 +182,11 @@ function renderPlc() {
       + `<td class="num">${c > 0 ? (o * 100 / c).toFixed(1) + '%' : '<span class="muted">—</span>'}</td>`
       + '</tr>';
   };
+  const tip = t => ' title="' + esc(PLC_WIN + (t ? ' · ' + t : '')) + '"';
   const head = '<thead><tr><th>Placement</th>'
-    + '<th class="num" title="Spend on clicks that produced no order at all, counted per campaign per placement across the whole window. '
-      + 'Ours, not Amazon\'s.">Spend Misallocation</th>'
-    + '<th class="num">Ad Spend</th><th class="num">Ad Sales</th><th class="num">ACOS</th>'
-    + '<th class="num">Clicks</th><th class="num">Orders</th><th class="num">CPC</th><th class="num">CVR</th>'
+    + `<th class="num"${tip('spend on clicks that produced no order at all, counted per campaign per placement across the whole window. Ours, not Amazon\'s')}>${PLC_NOORD}</th>`
+    + `<th class="num"${tip()}>Ad Spend</th><th class="num"${tip()}>Ad Sales</th><th class="num"${tip()}>ACOS</th>`
+    + `<th class="num"${tip()}>Clicks</th><th class="num"${tip()}>Orders</th><th class="num"${tip()}>CPC</th><th class="num"${tip()}>CVR</th>`
     + '</tr></thead>';
   const T = A.names.reduce((t, p) => {
     const v = A.place[p];
@@ -187,7 +200,7 @@ function renderPlc() {
   // --- worst offenders ---
   $('plcWorst').innerHTML = A.worst.length
     ? '<thead><tr><th>Campaign</th><th>Placement</th><th>Brand</th>'
-      + '<th class="num">Clicks</th><th class="num">Spend, nothing back</th></tr></thead><tbody>'
+      + `<th class="num"${tip()}>Clicks</th><th class="num"${tip('campaign × placement, the whole window')}>${PLC_NOORD}</th></tr></thead><tbody>`
       + A.worst.slice(0, 200).map(w => `<tr><td><div class="sta-pl"><b>${esc(w.cn)}</b>${staCopy(w.cn, 'campaign')}</div></td>`
         + `<td><span class="plx-dot" style="background:${plcColor(w.p)}"></span>${esc(w.p)}</td>`
         + `<td>${staBadge(staBrandName(w.brand), 'brand-' + w.brand)}</td>`
@@ -198,60 +211,106 @@ function renderPlc() {
       + 'took a click also produced at least one order.</td></tr></tbody>';
 
   // --- the chart's line ---
-  $('plcChSub').innerHTML = `${money(totSpend)} spent, ${money(T[4])} back · <span style="color:var(--bad-ink);font-weight:700">${money(totMis)}</span> of it bought nothing`
-    + (PLC.at ? ` · built ${esc(PLC.at)}` : '') + ' · the last 30 days, 30-day sales';
+  $('plcChSub').innerHTML = `${money(totSpend)} spent, ${money(T[4])} back · <span style="color:var(--bad-ink);font-weight:700">${money(totMis)}</span> ${PLC_NOORD.toLowerCase()}`
+    + (PLC.at ? ` · built ${esc(PLC.at)}` : '');
 }
 
 /* Hand-drawn stacked bars. This app deliberately loads no charting library — one <script> from a CDN
  * is a third party that can break every tab in it. */
-// Draw the stacked bars into plcChart: one bar per bucket, one colour per placement, spend on the y axis.
+// A clean axis step for a tallest bar of max: 1, 2 or 5 × 10^n, with at most lines gridlines above 0 (22 Nov review: it drew
+// a line every $500 up to $9,500). 9,400 → 2,000 (0, 2k … 10k: six lines).
+function plcNiceStep(max, lines) {
+  const raw = Math.max(max, 1) / (lines || 5);
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const m = raw / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
+}
+// An axis figure: "$2k", "$500", "$1.5k".
+const plcAxis = v => (v >= 1000 ? '$' + (Math.round(v / 100) / 10).toLocaleString('en-US') + 'k' : '$' + Math.round(v));
+// Is a bucket not a whole day / week / month in the data? keys sorted; last = the report's last day. A day from today on
+// (Amazon's own Pacific date) is still filling up; a week or month cut by the window's first or last day is part of one.
+// Returns '' or the words for its label ("partial day", "partial week", "partial month").
+function plcPartial(k, i, keys, first, last) {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());
+  if (PLC_GRAN === 'day') return k >= today ? 'partial day' : '';
+  if (i !== 0 && i !== keys.length - 1) return '';
+  const DAY = 86400000, t = iso => Date.parse(iso + 'T00:00:00Z');
+  const from = PLC_GRAN === 'week' ? k : k + '-01';
+  const to = PLC_GRAN === 'week' ? new Date(t(k) + 6 * DAY).toISOString().slice(0, 10)
+    : new Date(Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  return first > from || last < to || to >= today ? (PLC_GRAN === 'week' ? 'partial week' : 'partial month') : '';
+}
+// The chart's last draw (A, esc, money), so a new card width redraws it without the tables.
+let PLC_CH = null;
+// Draw the stacked bars into plcChart: one bar per bucket, one colour per placement, spend on the y axis. The SVG takes
+// the card's full width (22 Nov review: it stopped at 640 px), and is drawn again when that width changes.
 function plcChartSvg(A, esc, money) {
+  PLC_CH = { A, esc, money };
   const keys = [...A.buckets.keys()].sort();
   if (!keys.length) {
     $('plcChart').innerHTML = '';
     return;
   }
   // --- the scale ---
-  const H = 240, PAD_L = 54, PAD_B = 26, PAD_T = 10;
-  const bw = PLC_GRAN === 'day' ? 26 : PLC_GRAN === 'week' ? 54 : 76;
-  const W = Math.max(640, PAD_L + keys.length * bw + 16);
+  const H = 240, PAD_L = 46, PAD_B = 26, PAD_T = 18, PAD_R = 8;
+  const W = Math.max(320, Math.floor(($('plcChart').clientWidth || 0)) || 640);
+  const bw = (W - PAD_L - PAD_R) / keys.length;
   const tot = k => A.names.reduce((s, p) => s + ((A.buckets.get(k)[p] || [])[2] || 0), 0);
   const max = Math.max(...keys.map(tot), 1);
-  // A round number above the tallest bar, so the axis reads in figures somebody would say out loud.
-  const step = Math.pow(10, Math.floor(Math.log10(max))) / 2;
+  // A clean step and a top that is a whole number of steps above the tallest bar.
+  const step = plcNiceStep(max, 5);
   const top = Math.ceil(max / step) * step;
   const y = v => PAD_T + (H - PAD_T - PAD_B) * (1 - v / top);
   // --- grid lines and the y axis ---
   let g = '';
-  for (let t = 0; t <= top; t += step) {
-    g += `<line class="ad-ch-grid" x1="${PAD_L}" x2="${W - 8}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-width="1"/>`
-      + `<text x="${PAD_L - 8}" y="${y(t) + 4}" text-anchor="end" font-size="10" fill="var(--muted)">$${Math.round(t).toLocaleString('en-US')}</text>`;
+  for (let t = 0; t <= top + step / 2; t += step) {
+    g += `<line class="ad-ch-grid" x1="${PAD_L}" x2="${W - PAD_R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)" stroke-width="1"/>`
+      + `<text x="${PAD_L - 8}" y="${y(t) + 4}" text-anchor="end" font-size="10" fill="var(--muted)">${plcAxis(t)}</text>`;
   }
   // --- the bars and their labels ---
   const label = k => PLC_GRAN === 'month'
     ? k : (Number(k.slice(5, 7)) + '/' + Number(k.slice(8, 10)));
+  // Labels at least ~34 px apart, or they collide into a grey smear.
+  const every = Math.max(1, Math.ceil(34 / bw));
   let bars = '';
   keys.forEach((k, i) => {
-    const x = PAD_L + i * bw + 3, w = bw - 6;
+    const gap = Math.min(6, bw * 0.25), x = PAD_L + i * bw + gap / 2, w = Math.max(1, bw - gap);
     let acc = 0;
     const box = A.buckets.get(k);
+    const part = plcPartial(k, i, keys, A.first, A.last);
     const tip = A.names.filter(p => (box[p] || [])[2] > 0)
-      .map(p => `${p} ${money(box[p][2])}`).join('\n');
+      .map(p => `${p} ${money(box[p][2])}`).join('\n') + `\nTotal ${money(tot(k))}` + (part ? `\n(${part}: not all of it is in yet)` : '');
     A.names.forEach(p => {
       const v = (box[p] || [])[2] || 0;
       if (!v) return;
       const h = (H - PAD_T - PAD_B) * v / top;
       acc += h;
-      bars += `<rect x="${x}" y="${y(0) - acc}" width="${w}" height="${h}" fill="${plcColor(p)}">`
+      bars += `<rect x="${x}" y="${y(0) - acc}" width="${w}" height="${h}" fill="${plcColor(p)}"${part ? ' fill-opacity=".45"' : ''}>`
         + `<title>${esc(label(k) + '\n' + tip)}</title></rect>`;
     });
-    // Every other label when the bars are narrow, or they collide into a grey smear.
-    if (PLC_GRAN !== 'day' || i % 3 === 0) {
+    if (part) bars += `<text class="plc-part" x="${x + w / 2}" y="${Math.max(10, y(0) - acc - 4)}" text-anchor="middle" font-size="9.5" fill="var(--muted)">${part}</text>`;
+    if (i % every === 0) {
       bars += `<text x="${x + w / 2}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--muted)">${esc(label(k))}</text>`;
     }
   });
-  $('plcChart').innerHTML = `<svg width="${W}" height="${H}" role="img">${g}${bars}</svg>`;
+  $('plcChart').innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Spend by placement, ${esc(PLC_WIN)}">${g}${bars}</svg>`;
 }
+// A new card width (window resized, the menu opened or closed): the chart drawn again at that width, once per frame.
+(function plcWatchWidth() {
+  let was = 0, raf = 0;
+  const again = () => {
+    raf = 0;
+    const el = $('plcChart');
+    if (!PLC_CH || !el || $('panePlc').classList.contains('hide')) return;
+    const w = Math.floor(el.clientWidth || 0);
+    if (!w || w === was) return;
+    was = w;
+    plcChartSvg(PLC_CH.A, PLC_CH.esc, PLC_CH.money);
+  };
+  const soon = () => { if (!raf) raf = (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : f => setTimeout(f, 16))(again); };
+  if (typeof ResizeObserver === 'function' && $('plcChart')) new ResizeObserver(soon).observe($('plcChart'));
+  else if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', soon);
+})();
 
 // The day / week / month control redraws with the new bucket; the brand picker redraws at once.
 $('plcGranSeg').addEventListener('click', e => {
@@ -276,7 +335,7 @@ $('plcCsv').onclick = () => {
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   // --- the placement table ---
-  const lines = dec.concat(dec.length ? [''] : []).concat([['Placement', 'Spend Misallocation', 'Ad Spend', 'Ad Sales', 'ACOS %', 'Impressions',
+  const lines = dec.concat(dec.length ? [''] : []).concat([['Placement', PLC_NOORD, 'Ad Spend', 'Ad Sales', 'ACOS %', 'Impressions',
     'Clicks', 'Orders', 'CPC', 'CVR %'].map(cell).join(',')]);
   A.names.forEach(p => {
     const [i, c, sp, o, s] = A.place[p];
@@ -285,7 +344,7 @@ $('plcCsv').onclick = () => {
   });
   // --- the worst offenders ---
   lines.push('');
-  lines.push(['Campaign', 'Placement', 'Brand', 'Clicks', 'Spend that bought nothing'].map(cell).join(','));
+  lines.push(['Campaign', 'Placement', 'Brand', 'Clicks', PLC_NOORD].map(cell).join(','));
   A.worst.forEach(w => lines.push([w.cn, w.p, w.brand, w.c, w.sp].map(cell).join(',')));
   // --- download ---
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });

@@ -259,7 +259,9 @@ onAuthStateChanged(auth, async user => {
      * the Replenishment snapshot at sign-in — a vendor's among them. */
     'vlog', 'cx', ...FLOW_TABS,
     /* The Greige Desk's four rights (2026-10-13) are factory screens too. */
-    'gdesk', 'gdled', 'gdledit', 'gdappr'];
+    'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdcut', 'gdpo', 'gdpoappr',
+    /* Approving a change of printer on an RFD challan is a factory right too (Vishesh, 23 Nov). */
+    'flprn'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
   /* DATA METER (Step 0): remember what kind of user this is, ask the Firestore flag config/flags.dataMeter in the
    * background and keep its answer for the NEXT page load. Never waits, never blocks sign-in; a missing document or a
@@ -286,8 +288,10 @@ onAuthStateChanged(auth, async user => {
         if (typeof deltaSaveFlag === 'function') deltaSaveFlag(!!d && (d.deltaUse === true || d.deltaUse === 1 || d.deltaUse === '1' || d.deltaUse === 'on'));
         /* ...and the Finished Goods light-open switch (inventory/finished-goods.js), also from the next page load. */
         if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(!!d && (d.fgLite === true || d.fgLite === 1 || d.fgLite === '1' || d.fgLite === 'on'));
+        /* ...and the printer's hold switch (flow/flow-printorder.js: a new plan's Vendor Order waits for its RFD challan), also from the next page load. */
+        if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(!!d && (d.printerHold === true || d.printerHold === 1 || d.printerHold === '1' || d.printerHold === 'on'));
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(false); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }
