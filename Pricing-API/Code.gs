@@ -1,4 +1,4 @@
-﻿/* ================================ PRICING-API — FILE MAP ================================
+/* ================================ PRICING-API — FILE MAP ================================
  * Until 2026-10-09 this backend was this one file of 7,584 lines. It is now split by topic, with
  * no line of code changed. All .gs files share ONE global scope, so a function in any file can
  * call a function in any other; nothing runs when a file loads except plain `var X = value`.
@@ -17,7 +17,6 @@
  *   SearchTerms.gs       search terms and targeting
  *   Shopify.gs           Shopify: store tokens, REST calls, orders, daily totals
  *   Mcf.gs               MCF: shipping a Shopify order out of FBA, "in progress" mark
- *   CreatorOrders.gs     Content Creators: Creator Setu's gift orders in (?creator=order), status back out (creator: report)
  *   OrderAudits.gs       audits of the Orders workbooks + editor checks
  *   Nightly.gs           the nightly pipeline
  *   WeeklyPpc.gs         Weekly PPC & Organic dashboard
@@ -208,9 +207,14 @@ function doGet(e) {
     }
     /* One store's per-SKU sales + stock built now, rather than waiting for the night. */
     if (p.shopSkuBuild) return json_(shopSkuBuild_(String(p.shop || ''), Date.now() + 300000));
+    // The Ads caches (AdsEntities.gs / AdsDecide.gs, listed in ADS_TABS) live in their own spreadsheet, "Sellora Ads Cache".
+    if (p.cache && typeof ADS_TABS !== 'undefined' && ADS_TABS.indexOf(String(p.cache)) >= 0) {
+      var ac = adsCacheRead_(String(p.cache));
+      return json_(ac ? { ok: true, name: p.cache, data: ac } : { ok: false, error: 'nothing cached for "' + p.cache + '" yet' });
+    }
     // Whatever the nightly run has already worked out. One fast read instead of the whole grind.
     if (p.cache) {
-      var c = cacheRead_(String(p.cache));
+      var c = /^lm(Meta$|Listings_|Catalog_|Aplus_)/.test(String(p.cache)) ? lmCacheRead_(String(p.cache)) : cacheRead_(String(p.cache));
       return json_(c ? { ok: true, name: p.cache, data: c } : { ok: false, error: 'nothing cached for "' + p.cache + '" yet' });
     }
     if (p.cacheState) return json_({ ok: true, state: nState_() });
@@ -228,6 +232,7 @@ function doGet(e) {
     if (p.lfix === 'schema') return json_(lfixSchema_(p));
     if (p.lfix === 'history') return json_(lfixHistory_(p.sku));
     if (p.lfix === 'content') return json_(lfixContent_(p));
+    if (p.lfix === 'cat') { setBrand_(p.brand); var r = limgSp_('/catalog/2022-04-01/items?marketplaceIds=' + marketplaceId_() + '&identifiers=' + String(p.asins || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return /^[A-Z0-9]{10}$/.test(s); }).slice(0, 20).join(',') + '&identifiersType=ASIN&pageSize=20&includedData=relationships,attributes', 'get'); return json_(r.code >= 300 ? limgErr_(r, 'Reading catalog') : { ok: true, items: r.body.items || [] }); }
     if (p.limg === 'history') return json_(limgHistory_(p.sku));
     if (p.limg === 'page') return json_(limgPage_(p));
     if (p.listing === 'audit') { setBrand_(p.brand); return json_(listingAudit_(p.asin)); }
@@ -236,6 +241,7 @@ function doGet(e) {
     if (p.listing === 'keywords') { setBrand_(p.brand); return json_(listingKeywords_(p.asin)); }
     // Everything the optimiser screen needs about one listing, in one round trip.
     if (p.listing === 'review') { setBrand_(p.brand); return json_(listingReview_(p.asin, p.target)); }
+    if (p.ai === 'ask') return json_(aiAsk_(p));   // AI writing (ListingAI.gs): one suggestion for one listing, read-only
     // Search Query Performance for one ASIN: ask, then poll. Amazon builds it asynchronously.
     if (p.listing === 'sqpAsk') { setBrand_(p.brand); return json_(baCreate_('sqp', p.period || 'MONTH', p.asin, p.back)); }
     // Which windows can actually be asked for, built by the same function that builds the request.
@@ -295,6 +301,7 @@ function doGet(e) {
     // A+ content. `aplusasin` is the authoritative one (publish records per ASIN); `aplus` is the
     // older document-first sweep, kept for diagnosis.
     if (p.lh === 'aplusasin') { setBrand_(p.brand); return json_(lhAplusAsins_(p.asins)); }
+    if (p.lh === 'aplusdoc') { setBrand_(p.brand); return json_(lmAplusDoc_(p.doc, p.asins)); }
     // Weekly BSR snapshot: sales rank + its category for a batch of child ASINs.
     if (p.lh === 'bsr') { setBrand_(p.brand); return json_(lhBsr_(p.asins)); }
 
@@ -344,9 +351,6 @@ function doPost(e) {
     var raw = (e && e.postData && e.postData.contents) || '{}';
     var p = {};
     try { p = JSON.parse(raw); } catch (x) { return json_({ ok: false, error: 'Body was not JSON.' }); }
-
-    /* CREATOR SETU'S DOOR (16 Nov 2026, CreatorOrders.gs): ?creator=order, with ITS OWN key (CREATOR_SETU_SECRET) in the
-     * body — not the apps' key, which Creator Setu never holds. Answered before anything else. */
     if (((e && e.parameter) || {}).creator === 'order') return json_(coOrderIn_(p));
 
     var key = prop_('API_KEY');
@@ -354,16 +358,29 @@ function doPost(e) {
     if (String(p.key || '').trim() !== key) return json_({ ok: false, error: 'Unauthorized.' });
 
     if (p.mail === 'po') return json_(mailPo_(p));
+    /* The boards' Report bucket by mail (MailPo.gs mailReport_, 23 Nov 2026): a signed-in person with rights only. */
+    if (p.mail === 'report') { var repWho = writerOf_(p.idToken); delete p.idToken;
+      return json_(repWho.email ? mailReport_(p, repWho) : { ok: false, error: 'Sign in again — the backend could not confirm who you are (' + repWho.why + ').' }); }
     /* Old Ads console reports for the month-by-product report (SalesLive.gs liveAdsPut_ / liveAdsDrop_). */
     if (p.lads === 'put') return json_(liveAdsPut_(p));
     if (p.lads === 'drop') return json_(liveAdsDrop_(p));
     if (p.limg === 'patch') return json_(limgPatch_(p));
     if (p.lfix === 'patch') return json_(lfixPatch_(p));
+    /* The Listing Optimiser's review of one ASIN, judged on the facts Sellora sends from its ListingMatch cache (a read: nothing is
+     * written). POST only because a listing's whole text does not fit in an address. (17 Nov 2026) */
+    if (p.listing === 'review') { setBrand_(p.brand); return json_(listingReview_(p.asin, p.target, p.facts)); }
+    /* Plan my moves (ListingAI.gs aiPlan_, 20 Nov 2026): it spends the Claude budget, so ONLY for a signed-in person with rights on record
+     * (writerOf_ checks the Firebase sign-in with Google) — never through the key alone, which is in every page's source. */
+    if (p.ai === 'plan') {
+      var planWho = writerOf_(p.idToken);
+      delete p.idToken;
+      return json_(planWho.email ? aiPlan_(p, planWho) : { ok: false, error: 'Sign in again — the backend could not confirm who you are (' + planWho.why + ').' });
+    }
     if (p.limg === 'upload') return json_(limgUpload_(p));
     if (p.mcf === 'preview') return json_(mcfPreview_(p.order || {}));
     if (p.mcf === 'create')  return json_(mcfCreate_(p.order || {}));
     if (p.mcf === 'status')  return json_(mcfStatus_(p.mcfId, p.brand));
-    /* Tell Creator Setu what happened to a gift (CreatorOrders.gs). "who" exists only where this backend checks sign-ins. */
+    /* This doPost has no signed-in "who" (17 Nov 2026): without the guard every status report failed with "who is not defined". */
     if (p.creator === 'report') return json_(coReport_(p, typeof who === 'undefined' ? null : who));
     if (p.shopify === 'fulfil') {
       /* The tracking has to go to the store the order is actually in. */
@@ -376,3 +393,35 @@ function doPost(e) {
   }
 }
 
+/**
+ * Who is writing: { email } for a valid Firebase ID token whose owner has rights on record, else { why }.
+ * FIREBASE_WEB_KEY (Script Property) is the apps' public web key — it only lets Google say whose token this is.
+ * Cached for ten minutes per token, so a burst of saves costs one check.
+ * (20 Nov 2026: the same function as GitHub dev's Code.gs, brought in for Plan my moves. Only ai:'plan' uses it here.)
+ */
+function writerOf_(idToken) {
+  idToken = String(idToken || '');
+  if (!idToken) return { why: 'no token sent' };
+  var webKey = prop_('FIREBASE_WEB_KEY');
+  if (!webKey) return { why: 'FIREBASE_WEB_KEY not set' };
+  var cache = CacheService.getScriptCache(), ck = 'who_' + Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, idToken)).slice(0, 40);
+  var hit = cache.get(ck);
+  if (hit) return JSON.parse(hit);
+  var out;
+  try {
+    var r = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + encodeURIComponent(webKey), {
+      method: 'post', contentType: 'application/json', payload: JSON.stringify({ idToken: idToken }), muteHttpExceptions: true });
+    var u = r.getResponseCode() === 200 ? (JSON.parse(r.getContentText()).users || [])[0] : null;
+    var email = u && String(u.email || '').toLowerCase();
+    if (!email) out = { why: 'token not accepted (' + r.getResponseCode() + ')' };
+    else {
+      var f = UrlFetchApp.fetch('https://firestore.googleapis.com/v1/projects/price-research-48ff3/databases/(default)/documents/perms/'
+        + encodeURIComponent(email), { headers: { Authorization: 'Bearer ' + idToken }, muteHttpExceptions: true });
+      out = (f.getResponseCode() === 200 || email === 'ravi@thefabricrush.com') ? { email: email }
+        : { why: email + ' has no rights on record (' + f.getResponseCode() + ')' };
+    }
+  } catch (e) { out = { why: 'check failed: ' + String(e && e.message || e).slice(0, 80) }; }
+  cache.put(ck, JSON.stringify(out), 600);
+  return out;
+}
