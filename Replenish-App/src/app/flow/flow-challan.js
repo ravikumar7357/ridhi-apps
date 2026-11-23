@@ -408,7 +408,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
     wide: true,
     html: `<div class="ptgrid" style="grid-template-columns:2fr 1fr">
         <label>Vendor<select id="flcVen"><option value="">— pick the vendor —</option>${vens.map(v => `<option value="${esc(v.code)}"${String(v.code) === String(planned) ? ' selected' : ''}>${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
-        <label>Date<input id="flcDate" type="date" value="${esc(dToday())}"></label></div>
+        <label>Date<input id="flcDate" value="${esc(dToday())}" readonly title="Cloth is given to a printer today — the date cannot be changed"></label></div>
       <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;align-items:flex-start">
         <div style="flex:1.4 1 560px;min-width:0;border:1px solid var(--line,#e3e7ef);border-radius:10px;max-height:62vh;overflow:auto">
           <div style="position:sticky;top:0;z-index:1;background:var(--card,#fff);padding:8px 12px;font-weight:700;font-size:13px;border-bottom:1px solid var(--line,#e3e7ef)">Lines on this challan — untick any that should not go</div>
@@ -422,7 +422,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
     onSave: async () => {
       const code = $('flcVen').value, v = vens.find(x => String(x.code) === String(code));
       if (!v) return 'Which vendor is the fabric going to? Pick one.';
-      const date = $('flcDate').value || dToday();
+      const date = dToday();   // issued today, whatever the box says (Vishesh, 23 Nov: "any date of issue is to be fixed")
       const picked = rows.map((x, i) => ({ x, ruf: isRuf(i), on: (document.querySelector(`[data-chk="${i}"]`) || {}).checked, m: +((document.querySelector(`[data-chm="${i}"]`) || {}).value || 0),
         pc: !isRuf(i) && x.s.fabUnit === 'pcs' ? +((document.querySelector(`[data-chp="${i}"]`) || {}).value || flowFabOwed(x.r, x.s).left) : null }))
         .filter(y => y.on);
@@ -546,9 +546,19 @@ function flowShLines(fabric) {
     .sort((a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)));
 }
 /** What the card shows: every line of the fabric, narrowed to the order or print chosen (whatever printer is picked). */
+/* THE PRINTER'S OWN LINES FIRST (Vishesh, 23 Nov: "when I choose the printer … show me only those 10 articles which are of SS
+ * Hand Block … then I can select more"). With a printer picked the card shows the lines PPC set for it, ticked; "Show N more
+ * lines" (S.more) brings in the rest — no printer yet, or another printer's — unticked, to add by hand. */
 function flowShShown(S, code) {
   const chosen = l => !S.pick || (S.by === 'print' ? l.printKey === S.pick : String(l.x.r.orderNo) === S.pick);
-  return S.lines.filter(chosen);
+  return S.lines.filter(l => chosen(l) && (!code || S.more || flowShPlannedFor(l, code)));
+}
+/** The line is one PPC set for this printer. */
+const flowShPlannedFor = (l, code) => !!(code && l.printer && String(l.printer) === String(code));
+/** Picking a printer ticks exactly its own lines (those PPC set for it, with cloth per piece) and shows only them. */
+function flowShTickFor(S, code) {
+  S.tick = new Set(S.lines.filter(l => flowShPlannedFor(l, code) && l.perPc > 0).map(l => l.key));
+  S.more = false;
 }
 /** True when PPC gave the line to a printer other than the one picked — sending it there is a change of printer. */
 const flowShMoving = (l, code) => !!(code && l.printer && String(l.printer) !== String(code));
@@ -584,8 +594,10 @@ function flowShelfChallanShow(fabric, after, keep) {
   const lines = flowShLines(fabric);
   if (!lines.length) return `No line is waiting for ${fabric} on Demand → RFD.`;
   FLOW_CH_COVER = flowRfdCover();
-  FLOW_SH = keep ? Object.assign({}, keep, { lines, review: null }) : { fabric, lines, tick: new Set(lines.filter(l => l.perPc > 0).map(l => l.key)), by: 'order', pick: '', after };
   const plannedOne = keep ? [keep.review.code] : [...new Set(lines.map(l => l.printer).filter(Boolean))];
+  FLOW_SH = keep ? Object.assign({}, keep, { lines, review: null }) : { fabric, lines, tick: new Set(), more: false, by: 'order', pick: '', after };
+  /* a card that opens with its printer already picked (every line PPC set is for one printer) ticks that printer's lines */
+  if (!keep && plannedOne.length === 1 && flowPrinters().some(v => String(v.code) === String(plannedOne[0]))) flowShTickFor(FLOW_SH, plannedOne[0]);
   const pr = flowPrinters();
   ptOpenDialog({
     title: `RFD challan — ${fabric} → printer`,
@@ -624,7 +636,21 @@ function flowShDraw() {
 }
 function flowShTableHtml(S, code) {
   const shown = flowShShown(S, code);
-  if (!shown.length) return '<div class="muted" style="padding:14px">No line for this choice.</div>';
+  return flowShMoreHtml(S, code) + (shown.length ? flowShRowsHtml(S, code, shown)
+    : `<div class="muted" style="padding:14px">${code && !S.more ? 'PPC has set no line of this fabric for this printer. Show the other lines to choose some.' : 'No line for this choice.'}</div>`);
+}
+/** The link above the lines: show the other lines (no printer yet, or another printer's), or only this printer's again. */
+function flowShMoreHtml(S, code) {
+  if (!code) return '';
+  const others = flowShShown(Object.assign({}, S, { more: true }), code).filter(l => !flowShPlannedFor(l, code)).length;
+  if (!others) return '';
+  const v = flowPrinters().find(p => String(p.code) === String(code)) || {};
+  return `<div style="padding:8px 12px;border-bottom:1px solid var(--line,#e3e7ef);font-size:12.5px">`
+    + (S.more ? `<button type="button" class="ghost" data-shmore="0" style="width:auto;font-size:12px;padding:3px 10px">Show only ${esc(v.desc || v.name || code)}'s lines</button>`
+      : `<button type="button" class="ghost" data-shmore="1" style="width:auto;font-size:12px;padding:3px 10px">Show ${nf(others)} more line${others === 1 ? '' : 's'}</button> <span class="muted">— no printer yet, or another printer's (ticking one of another printer's asks for approval)</span>`)
+    + '</div>';
+}
+function flowShRowsHtml(S, code, shown) {
   const head = l => S.by === 'print' ? ([l.print && l.print.code, l.print && l.print.label].filter(Boolean).join(' · ') || 'No print named') : String(l.x.r.orderNo);
   let last = null;
   /* min-width: on a phone the table scrolls sideways rather than wrapping the item names a word to a line */
@@ -756,6 +782,9 @@ async function flowShSave() {
   if (!go.length) return 'Tick at least one line.';
   if (go.some(l => !!l.x.r.__t) && go.some(l => !l.x.r.__t)) return 'A test order and a real one cannot share a challan.';
   S.review = { code, note: $('flshNote').value.trim() };
+  /* MAKE THE CHALLAN MAKES IT (Vishesh, 23 Nov: "I want it to send to printer when I click make challan"): the Review is shown
+   * only when a line changes printer — that is the change to see "at last"; otherwise the challan is made at once. */
+  if (!go.some(l => flowShMoving(l, code))) return flowShCommit();
   setTimeout(flowShReviewOpen, 0);   // the card closes when this returns; the Review opens on the next tick
   return '';
 }
@@ -817,10 +846,15 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 });
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('change', e => {
   const t = e.target; if (!FLOW_SH || !t || !t.closest || !t.closest('#flshVen,#flshBy,#flshPick,[data-shk]')) return;
+  if (t.id === 'flshVen') flowShTickFor(FLOW_SH, t.value);   // a new printer: its own lines, ticked
   if (t.id === 'flshBy') { FLOW_SH.by = t.value === 'print' ? 'print' : 'order'; FLOW_SH.pick = ''; }
   if (t.id === 'flshPick') FLOW_SH.pick = t.value;
   if (t.dataset && t.dataset.shk) { if (t.checked) FLOW_SH.tick.add(t.dataset.shk); else FLOW_SH.tick.delete(t.dataset.shk); }
   flowShDraw();
+});
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const t = e.target && e.target.closest && e.target.closest('[data-shmore]'); if (!FLOW_SH || !t) return;
+  FLOW_SH.more = t.dataset.shmore === '1'; flowShDraw();
 });
 
 function flowChallanHtml(ch) {

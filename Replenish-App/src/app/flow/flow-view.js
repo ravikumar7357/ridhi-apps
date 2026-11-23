@@ -43,7 +43,11 @@ async function flowEnsureData() {
     /* the Custom SKUs list: a Shopify / B2B SKU that is only there has its BOM written there from PPC (flowMasterBox) */
     ['custom SKUs', typeof ptEnsureCustom === 'function' ? ptEnsureCustom() : null],
     /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
-    ['the Greige Desk', FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure() : null]]));
+    ['the Greige Desk', FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure() : null],
+    /* THE COMPANY ON THE RFD CHALLAN (Vishesh, 23 Nov: "add GST number of the company"): the challan prints the company's name,
+     * address and GSTIN from the PO settings, which only the Greige POs screen read — so a challan made from Demand or the
+     * Inventory card printed without them. The small settings record alone is read here, once. */
+    ['company details', typeof GPO !== 'undefined' && !GPO.settings ? ptGet('pt_poSettings').then(v => { if (!GPO.settings) GPO.settings = v || {}; }) : null]]));
   FLOW.readErr = errs;
 }
 

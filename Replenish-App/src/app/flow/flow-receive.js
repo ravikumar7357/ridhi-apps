@@ -1,7 +1,7 @@
 /* ================= PRODUCTION FLOW · DEMAND HISTORY — challans, and the printed fabric received against them =================
  * Ravi, 10 Oct: the challans do not belong in Demand; they go to a Demand history tab, and "jab mal aay to yahin se
  * challan guy entry kare ki ye mal aaya h ya nahi, then move ho store me, or yahan se open challan close ho jay".
- *   pt_flowChallans/<no>/receipts/<id> = { date, items: { LINEKEY: metres }, note, at, by }
+ *   pt_flowChallans/<no>/receipts/<id> = { date, items: { LINEKEY: metres }, note, at, by, dateAsk? }   (dateAsk: a changed day waiting for accounts)
  *   pt_flowChallans/<no>/closed = { at, by, why }   — set by itself when every line is back, or by hand ("close short")
  * A line on a challan IS given to that printer (Vendor allocation is done by the challan). Its printed fabric is back
  * in the share received of what was sent; a closed challan sends its lines on to the store (cutting) whatever came. */
@@ -263,7 +263,7 @@ function flowRecvRows(q, testOnly) {
       let time = ''; try { time = rc.at ? new Date(rc.at).toTimeString().slice(0, 5) : ''; } catch (e) { time = ''; }
       const orderNo = l.orderNo || String(key).split('__')[0] || c.orderNo || '';
       out.push({ day, time, at: String(rc.at || ''), rid, no: c.no, printer: (c.vendor && c.vendor.name) || '', printerCode: String((c.vendor && c.vendor.code) || ''), orderNo, sku: obUC(l.sku), code, fabric: l.fabric || '',
-        l, unit: flowChUnit(l), qty: flowR2(qty), by: String(rc.by || '').split('@')[0], note: rc.note || '', test: flowIsTest(c.orderNo) });
+        l, unit: flowChUnit(l), qty: flowR2(qty), by: String(rc.by || '').split('@')[0], note: [rc.note, flowDateAskNote(rc)].filter(Boolean).join(' · '), test: flowIsTest(c.orderNo) });
     }));
   });
   const hay = r => [r.no, r.printer, r.orderNo, r.sku, r.code, r.fabric, r.note].join(' ').toLowerCase();
@@ -491,9 +491,60 @@ function flowDueOpenChs(lineKey) {
     return { c, l, rem: flowR2(Math.max(0, flowChSent(l) - (flowChRecv(c)[lineKey] || 0))) };
   }).filter(y => y && y.rem > 0).sort((a, b) => String(a.c.date || '').localeCompare(String(b.c.date || '')) || String(a.c.no).localeCompare(String(b.c.no)));
 }
+/* RECEIVED ON THE DAY IT CAME (Vishesh, 23 Nov: "any date of issue is to be fixed but receiving date can be changed"): a
+ * receipt can be dated back to the day the goods came — never after today, never before they were given (the challan's date).
+ * '' when the date is fine. */
+function flowRecvDateErr(date, given) {
+  if (date > dToday()) return `The goods cannot have come after today (${dToday()}). Put the day they came.`;
+  if (given && date < given) return `The goods cannot have come before ${given}, the day they were given. Put the day they came.`;
+  return '';
+}
+/* A CHANGED RECEIVE DATE WAITS FOR ACCOUNTS (Vishesh, 23 Nov). A receipt typed for any day but today is saved on TODAY and carries
+ * the typed day as a request: dateAsk = { date, status: 'waiting' | 'approved' | 'refused', by, at, decidedBy, decidedAt, why }.
+ * Until it is approved every screen counts the receipt on today. Deciding is Ravi's or the accounts head's (right gdpoappr);
+ * the decision is a compare-and-set on the request (put back if the date cannot be written), so two people deciding at once cannot both win: the second is told
+ * "already decided". Saving the receipt fails loudly (the dialog says so); the bell only reads. */
+const flowDateMay = () => flowMay('gdpoappr');
+/** The request for a typed day, or null when the day is today (nothing to ask). */
+function flowDateAsk(typed) {
+  if (!typed || typed === dToday()) return null;
+  return { at: new Date().toISOString(), by: ME.email || '', date: typed, status: 'waiting' };   // keys in the database's own order, so the compare-and-set below matches
+}
+/** The small note on a receipt whose changed day is still waiting: '' for every other receipt. */
+function flowDateAskNote(rc) {
+  return rc && rc.dateAsk && rc.dateAsk.status === 'waiting' ? `asked: ${rc.dateAsk.date} — waiting for accounts` : '';
+}
+/** Every receipt whose changed day waits for accounts: [{ no, id, rc, ask, ch }], oldest ask first. */
+function flowDateAsksWaiting(chs) {
+  const out = [];
+  Object.entries(chs || FLOW.ch || {}).forEach(([no, ch]) => Object.entries((ch && ch.receipts) || {}).forEach(([id, rc]) => {
+    if (rc && rc.dateAsk && rc.dateAsk.status === 'waiting') out.push({ no, id, rc, ask: rc.dateAsk, ch });
+  }));
+  return out.sort((a, b) => String(a.ask.at || '').localeCompare(String(b.ask.at || '')));
+}
+/** Approve (the receipt moves to the asked day) or refuse (it stays today; the reason is kept). '' when done, else what stopped it. */
+async function flowDateDecide(no, id, ok, why) {
+  if (!flowDateMay()) return 'Only Ravi, or the accounts head, can decide a changed receive date.';
+  const rc = (((FLOW.ch || {})[no] || {}).receipts || {})[id], ask = rc && rc.dateAsk;
+  if (!ask || ask.status !== 'waiting') return 'Already decided — press Refresh.';
+  if (!ok && !String(why || '').trim()) return 'Type why the date is refused, so the store knows.';
+  const decided = Object.assign({}, ask, { status: ok ? 'approved' : 'refused', decidedBy: ME.email || '', decidedAt: new Date().toISOString() }, ok ? {} : { why: String(why).trim() });
+  const path = `pt_flowChallans/${no}/receipts/${id}`, moves = ok ? { [path + '/date']: ask.date } : {};
+  try {
+    if (typeof ptCas === 'function') {
+      if (await ptCas(path + '/dateAsk', ask, decided)) { await flowLoad(true); return 'Already decided by someone else — the screen has been read again.'; }
+      try { if (ok) await ptPatch(moves); } catch (e) { try { await ptCas(path + '/dateAsk', decided, ask); } catch (e2) { /* it stays decided; the message below says the date did not move */ } throw e; }   // the date did not move: the ask waits again
+    } else await ptPatch(Object.assign({ [path + '/dateAsk']: decided }, moves));
+  } catch (e) { return 'Could not save: ' + (e.message || e); }
+  const nr = Object.assign({}, rc, { dateAsk: decided }, ok ? { date: ask.date } : {});
+  FLOW.ch = Object.assign({}, FLOW.ch, { [no]: Object.assign({}, FLOW.ch[no], { receipts: Object.assign({}, FLOW.ch[no].receipts, { [id]: nr }) }) });
+  return '';
+}
 async function flowDueRecvSave(key, got, o) {
   const rows = flowDueOf(key); if (!rows.length) return 'Nothing is owed by that printer any more — press Refresh.';
-  const date = (o && o.date) || dToday(), note = (o && o.note) || '', deduct = !(o && o.deduct === false), now = new Date().toISOString();
+  const typed = (o && o.date) || dToday(), note = (o && o.note) || '', deduct = !(o && o.deduct === false), now = new Date().toISOString();
+  const badDay = flowRecvDateErr(typed, ''); if (badDay) return badDay;
+  const date = dToday(), dateAsk = flowDateAsk(typed);   // a changed day is saved as today, with the ask beside it
   const per = new Map(), extra = [], bad = [];
   rows.forEach(x => {
     const q = flowR2(+got[x.l.key] || 0); if (!(q > 0)) return;
@@ -519,6 +570,7 @@ async function flowDueRecvSave(key, got, o) {
   per.forEach((items, no) => {
     const c = FLOW.ch[no], recv = flowChRecv(c), id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const rc = { date, items, note, at: now, by: ME.email || '', via: 'printed fabric in' };
+    if (dateAsk) rc.dateAsk = dateAsk;
     patch[`pt_flowChallans/${no}/receipts/${id}`] = rc;
     const allBack = (c.lines || []).every(l => flowChMoved(c, l) || (recv[l.key] || 0) + (items[l.key] || 0) >= flowChSent(l) - 0.01);
     const nc = Object.assign({}, c, { receipts: Object.assign({}, c.receipts, { [id]: rc }) });
@@ -531,7 +583,7 @@ async function flowDueRecvSave(key, got, o) {
     let no = flowChallanNo(date, test);
     const ch = { no, date, orderNo: orders.join(', '), orders, vendor: { code: x0.code, name: x0.printer }, at: now, by: ME.email || '',
       recordOnly: true, noChallan: true, deduct, note: 'Printed goods received with no RFD challan — the cloth went without one' + (note ? ' · ' + note : ''),
-      lines, receipts: { r0: { date, at: now, by: ME.email || '', items: Object.fromEntries(extra.map(({ x, q }) => [x.l.key, q])), note, via: 'printed fabric in' } },
+      lines, receipts: { r0: Object.assign({ date, at: now, by: ME.email || '', items: Object.fromEntries(extra.map(({ x, q }) => [x.l.key, q])), note, via: 'printed fabric in' }, dateAsk ? { dateAsk } : {}) },
       closed: { at: now, by: ME.email || '', why: 'received with no RFD challan — record' } };
     for (let k = 0, taken = []; ; k++) {
       let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
@@ -565,7 +617,7 @@ function flowDueRecvOpen(key, only) {
     /* SEARCH (Ravi, 23 Oct: "add search bar in this bucket jisase sku ya color name dal kar receiving qty add kar sake abhi scroll
      * karke dekhna padega"): typing hides the lines that do not match — what was typed in a hidden line stays and is saved. The
      * figures sit in one column so the box to type in is on screen without scrolling sideways. */
-    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Date<input id="fldrDate" type="date" value="${esc(dToday())}"></label>
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Date<input id="fldrDate" type="date" value="${esc(dToday())}" max="${esc(dToday())}" title="The day the goods came — today or earlier"></label>
       <label>Search<input id="fldrQ" type="search" placeholder="SKU, colour, order, printed fabric…" autocomplete="off"></label></div>
       <div id="fldrN" class="muted" style="font-size:12px;margin-top:6px">${nf(rows.length)} line(s)</div>
       <div class="xlwrap" style="max-height:52vh;margin-top:4px"><table class="xl" style="width:100%;table-layout:fixed"><colgroup><col style="width:52px"><col><col style="width:130px"><col style="width:120px"></colgroup>
@@ -792,7 +844,7 @@ function flowReceiveOpen(no) {
   ptOpenDialog({
     title: `Receive against ${no}`,
     subtitle: `${c.orderNo} · ${c.vendor && c.vendor.name}. Each line offers only what the printer says it sent on its portal — tick it, or type less if fewer came. Never more. When every line is back the challan closes and the lines move to the store by themselves.`,
-    html: `<label>Date<input id="flrDate" type="date" value="${esc(dToday())}"></label>
+    html: `<label>Date<input id="flrDate" type="date" value="${esc(dToday())}" max="${esc(dToday())}" min="${esc(c.date || '')}" title="The day the goods came back — today or earlier, not before the challan"></label>
       <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="width:52px">Photo</th><th style="text-align:left">SKU</th><th>Given as</th><th>Sent</th><th>Back so far</th><th>Received now</th></tr></thead><tbody>
       ${/* STARTS AT 0 (Ravi, 22 Oct: "received now me auto 0 aana chahiye jisase cross krne ki need hi n pade jisme aayega usme qty
          fill kar denge"): only the lines typed in are received; a line left at 0 stays owed on the challan. */ ''}
@@ -817,6 +869,7 @@ function flowReceiveOpen(no) {
         if (m > 0) { items[l.key] = flowR2(m); if (flowChUnit(l) === 'pcs' && m !== Math.round(m)) frac.push(l.sku); } });
       if (!Object.keys(items).length) return 'Type what came back for at least one line.';
       if (frac.length) return `Pieces are whole: ${frac.join(', ')}.`;
+      const typed = $('flrDate').value || dToday(), badDay = flowRecvDateErr(typed, c.date); if (badDay) return badDay;
       if (!test) { const vb = (c.lines || []).filter(l => items[l.key] > 0).map(l => flowVsCheck(l.key, !!l.ruffleOnly, flowChUnit(l), null, items[l.key], l.sku)).filter(Boolean);
         if (vb.length) return vb.join(' · '); }
       /* Pieces back are pieces given — never more. Cloth may come back a little over (shrinkage, roll ends): up to 10%. */
@@ -824,7 +877,8 @@ function flowReceiveOpen(no) {
       if (over.length) return `More came back than was given for ${over.join(', ')} — check the figure.`;
       const g = await flowGuard('ch_' + no); if (g) return g;   // two people receiving on one challan at once
       const now = new Date().toISOString(), id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      const rc = { date: $('flrDate').value || dToday(), items, note: $('flrNote').value.trim(), at: now, by: ME.email || '' };
+      const rc = { date: dToday(), items, note: $('flrNote').value.trim(), at: now, by: ME.email || '' };
+      const dateAsk = flowDateAsk(typed); if (dateAsk) rc.dateAsk = dateAsk;   // a changed day waits for accounts; the receipt counts today meanwhile
       const notCame = (c.lines || []).filter((l, i) => FLOW_RX.has(i)).map(l => l.key);
       if (notCame.length) rc.notCame = notCame;
       const allBack = (c.lines || []).every(l => flowChMoved(c, l) || (recv[l.key] || 0) + (items[l.key] || 0) >= flowChSent(l) - 0.01);

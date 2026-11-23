@@ -33882,7 +33882,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
     wide: true,
     html: `<div class="ptgrid" style="grid-template-columns:2fr 1fr">
         <label>Vendor<select id="flcVen"><option value="">— pick the vendor —</option>${vens.map(v => `<option value="${esc(v.code)}"${String(v.code) === String(planned) ? ' selected' : ''}>${esc((v.desc || v.name || v.code) + (v.category ? ' · ' + v.category : ''))}</option>`).join('')}</select></label>
-        <label>Date<input id="flcDate" type="date" value="${esc(dToday())}"></label></div>
+        <label>Date<input id="flcDate" value="${esc(dToday())}" readonly title="Cloth is given to a printer today — the date cannot be changed"></label></div>
       <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;align-items:flex-start">
         <div style="flex:1.4 1 560px;min-width:0;border:1px solid var(--line,#e3e7ef);border-radius:10px;max-height:62vh;overflow:auto">
           <div style="position:sticky;top:0;z-index:1;background:var(--card,#fff);padding:8px 12px;font-weight:700;font-size:13px;border-bottom:1px solid var(--line,#e3e7ef)">Lines on this challan — untick any that should not go</div>
@@ -33896,7 +33896,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
     onSave: async () => {
       const code = $('flcVen').value, v = vens.find(x => String(x.code) === String(code));
       if (!v) return 'Which vendor is the fabric going to? Pick one.';
-      const date = $('flcDate').value || dToday();
+      const date = dToday();   // issued today, whatever the box says (Vishesh, 23 Nov: "any date of issue is to be fixed")
       const picked = rows.map((x, i) => ({ x, ruf: isRuf(i), on: (document.querySelector(`[data-chk="${i}"]`) || {}).checked, m: +((document.querySelector(`[data-chm="${i}"]`) || {}).value || 0),
         pc: !isRuf(i) && x.s.fabUnit === 'pcs' ? +((document.querySelector(`[data-chp="${i}"]`) || {}).value || flowFabOwed(x.r, x.s).left) : null }))
         .filter(y => y.on);
@@ -34020,9 +34020,19 @@ function flowShLines(fabric) {
     .sort((a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)));
 }
 /** What the card shows: every line of the fabric, narrowed to the order or print chosen (whatever printer is picked). */
+/* THE PRINTER'S OWN LINES FIRST (Vishesh, 23 Nov: "when I choose the printer … show me only those 10 articles which are of SS
+ * Hand Block … then I can select more"). With a printer picked the card shows the lines PPC set for it, ticked; "Show N more
+ * lines" (S.more) brings in the rest — no printer yet, or another printer's — unticked, to add by hand. */
 function flowShShown(S, code) {
   const chosen = l => !S.pick || (S.by === 'print' ? l.printKey === S.pick : String(l.x.r.orderNo) === S.pick);
-  return S.lines.filter(chosen);
+  return S.lines.filter(l => chosen(l) && (!code || S.more || flowShPlannedFor(l, code)));
+}
+/** The line is one PPC set for this printer. */
+const flowShPlannedFor = (l, code) => !!(code && l.printer && String(l.printer) === String(code));
+/** Picking a printer ticks exactly its own lines (those PPC set for it, with cloth per piece) and shows only them. */
+function flowShTickFor(S, code) {
+  S.tick = new Set(S.lines.filter(l => flowShPlannedFor(l, code) && l.perPc > 0).map(l => l.key));
+  S.more = false;
 }
 /** True when PPC gave the line to a printer other than the one picked — sending it there is a change of printer. */
 const flowShMoving = (l, code) => !!(code && l.printer && String(l.printer) !== String(code));
@@ -34058,8 +34068,10 @@ function flowShelfChallanShow(fabric, after, keep) {
   const lines = flowShLines(fabric);
   if (!lines.length) return `No line is waiting for ${fabric} on Demand → RFD.`;
   FLOW_CH_COVER = flowRfdCover();
-  FLOW_SH = keep ? Object.assign({}, keep, { lines, review: null }) : { fabric, lines, tick: new Set(lines.filter(l => l.perPc > 0).map(l => l.key)), by: 'order', pick: '', after };
   const plannedOne = keep ? [keep.review.code] : [...new Set(lines.map(l => l.printer).filter(Boolean))];
+  FLOW_SH = keep ? Object.assign({}, keep, { lines, review: null }) : { fabric, lines, tick: new Set(), more: false, by: 'order', pick: '', after };
+  /* a card that opens with its printer already picked (every line PPC set is for one printer) ticks that printer's lines */
+  if (!keep && plannedOne.length === 1 && flowPrinters().some(v => String(v.code) === String(plannedOne[0]))) flowShTickFor(FLOW_SH, plannedOne[0]);
   const pr = flowPrinters();
   ptOpenDialog({
     title: `RFD challan — ${fabric} → printer`,
@@ -34098,7 +34110,21 @@ function flowShDraw() {
 }
 function flowShTableHtml(S, code) {
   const shown = flowShShown(S, code);
-  if (!shown.length) return '<div class="muted" style="padding:14px">No line for this choice.</div>';
+  return flowShMoreHtml(S, code) + (shown.length ? flowShRowsHtml(S, code, shown)
+    : `<div class="muted" style="padding:14px">${code && !S.more ? 'PPC has set no line of this fabric for this printer. Show the other lines to choose some.' : 'No line for this choice.'}</div>`);
+}
+/** The link above the lines: show the other lines (no printer yet, or another printer's), or only this printer's again. */
+function flowShMoreHtml(S, code) {
+  if (!code) return '';
+  const others = flowShShown(Object.assign({}, S, { more: true }), code).filter(l => !flowShPlannedFor(l, code)).length;
+  if (!others) return '';
+  const v = flowPrinters().find(p => String(p.code) === String(code)) || {};
+  return `<div style="padding:8px 12px;border-bottom:1px solid var(--line,#e3e7ef);font-size:12.5px">`
+    + (S.more ? `<button type="button" class="ghost" data-shmore="0" style="width:auto;font-size:12px;padding:3px 10px">Show only ${esc(v.desc || v.name || code)}'s lines</button>`
+      : `<button type="button" class="ghost" data-shmore="1" style="width:auto;font-size:12px;padding:3px 10px">Show ${nf(others)} more line${others === 1 ? '' : 's'}</button> <span class="muted">— no printer yet, or another printer's (ticking one of another printer's asks for approval)</span>`)
+    + '</div>';
+}
+function flowShRowsHtml(S, code, shown) {
   const head = l => S.by === 'print' ? ([l.print && l.print.code, l.print && l.print.label].filter(Boolean).join(' · ') || 'No print named') : String(l.x.r.orderNo);
   let last = null;
   /* min-width: on a phone the table scrolls sideways rather than wrapping the item names a word to a line */
@@ -34230,6 +34256,9 @@ async function flowShSave() {
   if (!go.length) return 'Tick at least one line.';
   if (go.some(l => !!l.x.r.__t) && go.some(l => !l.x.r.__t)) return 'A test order and a real one cannot share a challan.';
   S.review = { code, note: $('flshNote').value.trim() };
+  /* MAKE THE CHALLAN MAKES IT (Vishesh, 23 Nov: "I want it to send to printer when I click make challan"): the Review is shown
+   * only when a line changes printer — that is the change to see "at last"; otherwise the challan is made at once. */
+  if (!go.some(l => flowShMoving(l, code))) return flowShCommit();
   setTimeout(flowShReviewOpen, 0);   // the card closes when this returns; the Review opens on the next tick
   return '';
 }
@@ -34291,10 +34320,15 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 });
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('change', e => {
   const t = e.target; if (!FLOW_SH || !t || !t.closest || !t.closest('#flshVen,#flshBy,#flshPick,[data-shk]')) return;
+  if (t.id === 'flshVen') flowShTickFor(FLOW_SH, t.value);   // a new printer: its own lines, ticked
   if (t.id === 'flshBy') { FLOW_SH.by = t.value === 'print' ? 'print' : 'order'; FLOW_SH.pick = ''; }
   if (t.id === 'flshPick') FLOW_SH.pick = t.value;
   if (t.dataset && t.dataset.shk) { if (t.checked) FLOW_SH.tick.add(t.dataset.shk); else FLOW_SH.tick.delete(t.dataset.shk); }
   flowShDraw();
+});
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
+  const t = e.target && e.target.closest && e.target.closest('[data-shmore]'); if (!FLOW_SH || !t) return;
+  FLOW_SH.more = t.dataset.shmore === '1'; flowShDraw();
 });
 
 function flowChallanHtml(ch) {
@@ -34725,7 +34759,7 @@ function flowTestNote(x, view) {
 /* ================= PRODUCTION FLOW · DEMAND HISTORY — challans, and the printed fabric received against them =================
  * Ravi, 10 Oct: the challans do not belong in Demand; they go to a Demand history tab, and "jab mal aay to yahin se
  * challan guy entry kare ki ye mal aaya h ya nahi, then move ho store me, or yahan se open challan close ho jay".
- *   pt_flowChallans/<no>/receipts/<id> = { date, items: { LINEKEY: metres }, note, at, by }
+ *   pt_flowChallans/<no>/receipts/<id> = { date, items: { LINEKEY: metres }, note, at, by, dateAsk? }   (dateAsk: a changed day waiting for accounts)
  *   pt_flowChallans/<no>/closed = { at, by, why }   — set by itself when every line is back, or by hand ("close short")
  * A line on a challan IS given to that printer (Vendor allocation is done by the challan). Its printed fabric is back
  * in the share received of what was sent; a closed challan sends its lines on to the store (cutting) whatever came. */
@@ -34987,7 +35021,7 @@ function flowRecvRows(q, testOnly) {
       let time = ''; try { time = rc.at ? new Date(rc.at).toTimeString().slice(0, 5) : ''; } catch (e) { time = ''; }
       const orderNo = l.orderNo || String(key).split('__')[0] || c.orderNo || '';
       out.push({ day, time, at: String(rc.at || ''), rid, no: c.no, printer: (c.vendor && c.vendor.name) || '', printerCode: String((c.vendor && c.vendor.code) || ''), orderNo, sku: obUC(l.sku), code, fabric: l.fabric || '',
-        l, unit: flowChUnit(l), qty: flowR2(qty), by: String(rc.by || '').split('@')[0], note: rc.note || '', test: flowIsTest(c.orderNo) });
+        l, unit: flowChUnit(l), qty: flowR2(qty), by: String(rc.by || '').split('@')[0], note: [rc.note, flowDateAskNote(rc)].filter(Boolean).join(' · '), test: flowIsTest(c.orderNo) });
     }));
   });
   const hay = r => [r.no, r.printer, r.orderNo, r.sku, r.code, r.fabric, r.note].join(' ').toLowerCase();
@@ -35215,9 +35249,60 @@ function flowDueOpenChs(lineKey) {
     return { c, l, rem: flowR2(Math.max(0, flowChSent(l) - (flowChRecv(c)[lineKey] || 0))) };
   }).filter(y => y && y.rem > 0).sort((a, b) => String(a.c.date || '').localeCompare(String(b.c.date || '')) || String(a.c.no).localeCompare(String(b.c.no)));
 }
+/* RECEIVED ON THE DAY IT CAME (Vishesh, 23 Nov: "any date of issue is to be fixed but receiving date can be changed"): a
+ * receipt can be dated back to the day the goods came — never after today, never before they were given (the challan's date).
+ * '' when the date is fine. */
+function flowRecvDateErr(date, given) {
+  if (date > dToday()) return `The goods cannot have come after today (${dToday()}). Put the day they came.`;
+  if (given && date < given) return `The goods cannot have come before ${given}, the day they were given. Put the day they came.`;
+  return '';
+}
+/* A CHANGED RECEIVE DATE WAITS FOR ACCOUNTS (Vishesh, 23 Nov). A receipt typed for any day but today is saved on TODAY and carries
+ * the typed day as a request: dateAsk = { date, status: 'waiting' | 'approved' | 'refused', by, at, decidedBy, decidedAt, why }.
+ * Until it is approved every screen counts the receipt on today. Deciding is Ravi's or the accounts head's (right gdpoappr);
+ * the decision is a compare-and-set on the request (put back if the date cannot be written), so two people deciding at once cannot both win: the second is told
+ * "already decided". Saving the receipt fails loudly (the dialog says so); the bell only reads. */
+const flowDateMay = () => flowMay('gdpoappr');
+/** The request for a typed day, or null when the day is today (nothing to ask). */
+function flowDateAsk(typed) {
+  if (!typed || typed === dToday()) return null;
+  return { at: new Date().toISOString(), by: ME.email || '', date: typed, status: 'waiting' };   // keys in the database's own order, so the compare-and-set below matches
+}
+/** The small note on a receipt whose changed day is still waiting: '' for every other receipt. */
+function flowDateAskNote(rc) {
+  return rc && rc.dateAsk && rc.dateAsk.status === 'waiting' ? `asked: ${rc.dateAsk.date} — waiting for accounts` : '';
+}
+/** Every receipt whose changed day waits for accounts: [{ no, id, rc, ask, ch }], oldest ask first. */
+function flowDateAsksWaiting(chs) {
+  const out = [];
+  Object.entries(chs || FLOW.ch || {}).forEach(([no, ch]) => Object.entries((ch && ch.receipts) || {}).forEach(([id, rc]) => {
+    if (rc && rc.dateAsk && rc.dateAsk.status === 'waiting') out.push({ no, id, rc, ask: rc.dateAsk, ch });
+  }));
+  return out.sort((a, b) => String(a.ask.at || '').localeCompare(String(b.ask.at || '')));
+}
+/** Approve (the receipt moves to the asked day) or refuse (it stays today; the reason is kept). '' when done, else what stopped it. */
+async function flowDateDecide(no, id, ok, why) {
+  if (!flowDateMay()) return 'Only Ravi, or the accounts head, can decide a changed receive date.';
+  const rc = (((FLOW.ch || {})[no] || {}).receipts || {})[id], ask = rc && rc.dateAsk;
+  if (!ask || ask.status !== 'waiting') return 'Already decided — press Refresh.';
+  if (!ok && !String(why || '').trim()) return 'Type why the date is refused, so the store knows.';
+  const decided = Object.assign({}, ask, { status: ok ? 'approved' : 'refused', decidedBy: ME.email || '', decidedAt: new Date().toISOString() }, ok ? {} : { why: String(why).trim() });
+  const path = `pt_flowChallans/${no}/receipts/${id}`, moves = ok ? { [path + '/date']: ask.date } : {};
+  try {
+    if (typeof ptCas === 'function') {
+      if (await ptCas(path + '/dateAsk', ask, decided)) { await flowLoad(true); return 'Already decided by someone else — the screen has been read again.'; }
+      try { if (ok) await ptPatch(moves); } catch (e) { try { await ptCas(path + '/dateAsk', decided, ask); } catch (e2) { /* it stays decided; the message below says the date did not move */ } throw e; }   // the date did not move: the ask waits again
+    } else await ptPatch(Object.assign({ [path + '/dateAsk']: decided }, moves));
+  } catch (e) { return 'Could not save: ' + (e.message || e); }
+  const nr = Object.assign({}, rc, { dateAsk: decided }, ok ? { date: ask.date } : {});
+  FLOW.ch = Object.assign({}, FLOW.ch, { [no]: Object.assign({}, FLOW.ch[no], { receipts: Object.assign({}, FLOW.ch[no].receipts, { [id]: nr }) }) });
+  return '';
+}
 async function flowDueRecvSave(key, got, o) {
   const rows = flowDueOf(key); if (!rows.length) return 'Nothing is owed by that printer any more — press Refresh.';
-  const date = (o && o.date) || dToday(), note = (o && o.note) || '', deduct = !(o && o.deduct === false), now = new Date().toISOString();
+  const typed = (o && o.date) || dToday(), note = (o && o.note) || '', deduct = !(o && o.deduct === false), now = new Date().toISOString();
+  const badDay = flowRecvDateErr(typed, ''); if (badDay) return badDay;
+  const date = dToday(), dateAsk = flowDateAsk(typed);   // a changed day is saved as today, with the ask beside it
   const per = new Map(), extra = [], bad = [];
   rows.forEach(x => {
     const q = flowR2(+got[x.l.key] || 0); if (!(q > 0)) return;
@@ -35243,6 +35328,7 @@ async function flowDueRecvSave(key, got, o) {
   per.forEach((items, no) => {
     const c = FLOW.ch[no], recv = flowChRecv(c), id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const rc = { date, items, note, at: now, by: ME.email || '', via: 'printed fabric in' };
+    if (dateAsk) rc.dateAsk = dateAsk;
     patch[`pt_flowChallans/${no}/receipts/${id}`] = rc;
     const allBack = (c.lines || []).every(l => flowChMoved(c, l) || (recv[l.key] || 0) + (items[l.key] || 0) >= flowChSent(l) - 0.01);
     const nc = Object.assign({}, c, { receipts: Object.assign({}, c.receipts, { [id]: rc }) });
@@ -35255,7 +35341,7 @@ async function flowDueRecvSave(key, got, o) {
     let no = flowChallanNo(date, test);
     const ch = { no, date, orderNo: orders.join(', '), orders, vendor: { code: x0.code, name: x0.printer }, at: now, by: ME.email || '',
       recordOnly: true, noChallan: true, deduct, note: 'Printed goods received with no RFD challan — the cloth went without one' + (note ? ' · ' + note : ''),
-      lines, receipts: { r0: { date, at: now, by: ME.email || '', items: Object.fromEntries(extra.map(({ x, q }) => [x.l.key, q])), note, via: 'printed fabric in' } },
+      lines, receipts: { r0: Object.assign({ date, at: now, by: ME.email || '', items: Object.fromEntries(extra.map(({ x, q }) => [x.l.key, q])), note, via: 'printed fabric in' }, dateAsk ? { dateAsk } : {}) },
       closed: { at: now, by: ME.email || '', why: 'received with no RFD challan — record' } };
     for (let k = 0, taken = []; ; k++) {
       let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
@@ -35289,7 +35375,7 @@ function flowDueRecvOpen(key, only) {
     /* SEARCH (Ravi, 23 Oct: "add search bar in this bucket jisase sku ya color name dal kar receiving qty add kar sake abhi scroll
      * karke dekhna padega"): typing hides the lines that do not match — what was typed in a hidden line stays and is saved. The
      * figures sit in one column so the box to type in is on screen without scrolling sideways. */
-    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Date<input id="fldrDate" type="date" value="${esc(dToday())}"></label>
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Date<input id="fldrDate" type="date" value="${esc(dToday())}" max="${esc(dToday())}" title="The day the goods came — today or earlier"></label>
       <label>Search<input id="fldrQ" type="search" placeholder="SKU, colour, order, printed fabric…" autocomplete="off"></label></div>
       <div id="fldrN" class="muted" style="font-size:12px;margin-top:6px">${nf(rows.length)} line(s)</div>
       <div class="xlwrap" style="max-height:52vh;margin-top:4px"><table class="xl" style="width:100%;table-layout:fixed"><colgroup><col style="width:52px"><col><col style="width:130px"><col style="width:120px"></colgroup>
@@ -35516,7 +35602,7 @@ function flowReceiveOpen(no) {
   ptOpenDialog({
     title: `Receive against ${no}`,
     subtitle: `${c.orderNo} · ${c.vendor && c.vendor.name}. Each line offers only what the printer says it sent on its portal — tick it, or type less if fewer came. Never more. When every line is back the challan closes and the lines move to the store by themselves.`,
-    html: `<label>Date<input id="flrDate" type="date" value="${esc(dToday())}"></label>
+    html: `<label>Date<input id="flrDate" type="date" value="${esc(dToday())}" max="${esc(dToday())}" min="${esc(c.date || '')}" title="The day the goods came back — today or earlier, not before the challan"></label>
       <table class="xl" style="margin-top:8px;width:100%"><thead><tr><th style="width:52px">Photo</th><th style="text-align:left">SKU</th><th>Given as</th><th>Sent</th><th>Back so far</th><th>Received now</th></tr></thead><tbody>
       ${/* STARTS AT 0 (Ravi, 22 Oct: "received now me auto 0 aana chahiye jisase cross krne ki need hi n pade jisme aayega usme qty
          fill kar denge"): only the lines typed in are received; a line left at 0 stays owed on the challan. */ ''}
@@ -35541,6 +35627,7 @@ function flowReceiveOpen(no) {
         if (m > 0) { items[l.key] = flowR2(m); if (flowChUnit(l) === 'pcs' && m !== Math.round(m)) frac.push(l.sku); } });
       if (!Object.keys(items).length) return 'Type what came back for at least one line.';
       if (frac.length) return `Pieces are whole: ${frac.join(', ')}.`;
+      const typed = $('flrDate').value || dToday(), badDay = flowRecvDateErr(typed, c.date); if (badDay) return badDay;
       if (!test) { const vb = (c.lines || []).filter(l => items[l.key] > 0).map(l => flowVsCheck(l.key, !!l.ruffleOnly, flowChUnit(l), null, items[l.key], l.sku)).filter(Boolean);
         if (vb.length) return vb.join(' · '); }
       /* Pieces back are pieces given — never more. Cloth may come back a little over (shrinkage, roll ends): up to 10%. */
@@ -35548,7 +35635,8 @@ function flowReceiveOpen(no) {
       if (over.length) return `More came back than was given for ${over.join(', ')} — check the figure.`;
       const g = await flowGuard('ch_' + no); if (g) return g;   // two people receiving on one challan at once
       const now = new Date().toISOString(), id = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      const rc = { date: $('flrDate').value || dToday(), items, note: $('flrNote').value.trim(), at: now, by: ME.email || '' };
+      const rc = { date: dToday(), items, note: $('flrNote').value.trim(), at: now, by: ME.email || '' };
+      const dateAsk = flowDateAsk(typed); if (dateAsk) rc.dateAsk = dateAsk;   // a changed day waits for accounts; the receipt counts today meanwhile
       const notCame = (c.lines || []).filter((l, i) => FLOW_RX.has(i)).map(l => l.key);
       if (notCame.length) rc.notCame = notCame;
       const allBack = (c.lines || []).every(l => flowChMoved(c, l) || (recv[l.key] || 0) + (items[l.key] || 0) >= flowChSent(l) - 0.01);
@@ -37218,7 +37306,11 @@ async function flowEnsureData() {
     /* the Custom SKUs list: a Shopify / B2B SKU that is only there has its BOM written there from PPC (flowMasterBox) */
     ['custom SKUs', typeof ptEnsureCustom === 'function' ? ptEnsureCustom() : null],
     /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
-    ['the Greige Desk', FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure() : null]]));
+    ['the Greige Desk', FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure() : null],
+    /* THE COMPANY ON THE RFD CHALLAN (Vishesh, 23 Nov: "add GST number of the company"): the challan prints the company's name,
+     * address and GSTIN from the PO settings, which only the Greige POs screen read — so a challan made from Demand or the
+     * Inventory card printed without them. The small settings record alone is read here, once. */
+    ['company details', typeof GPO !== 'undefined' && !GPO.settings ? ptGet('pt_poSettings').then(v => { if (!GPO.settings) GPO.settings = v || {}; }) : null]]));
   FLOW.readErr = errs;
 }
 
@@ -38652,7 +38744,7 @@ const GD = (function () {
   };
   var localStorage = { getItem: function () { return null; }, setItem: function () {} };
   var GD_CSS = "[hidden]{display:none!important} img{max-width:100%} \n/* Layout: the Replenish app's own frame -- a bar of screens across the top, soft cards on a tinted\n   ground -- with the greige work at its centre: each PO opens into its challans, each challan into its\n   bales, and receiving is a drawer from the right, opened from the PO itself. */\n:host{display:block;\n  --bg:#F3F5F8; --card:#ffffff; --soft:#F7F9FB; --chip:#EFF2F6; --hover:#EFF2F6; --zebra:#FBFCFE; --line:#E8EDF3;\n  --ink:#14181F; --muted:#5A6472; --faint:#98A1AE;\n  --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#ffffff;\n  --accent:#4A5A3C; --accent-bg:#EDF0E7; --ok-ink:#2F6B33;\n  --bad:#9B1C1C; --bad-bg:#FBE9E9; --bad-line:#EBB9B9;\n  --warn-ink:#8A5A12; --warn-bg:#FFF3D6; --proc-ink:#7F6000;\n  --pink:#9B3F86; --pink-bg:#F7E8F3;\n  --c-greige:#9A6410; --c-proc:#2F6DB5; --c-rfd:#3F7D3A; --wa:#128C3E;\n  --scrim:rgba(15,23,42,.45); --toast-bg:#14181F; --toast-fg:#ffffff;\n  --sh-1:0 2px 10px rgba(20,24,31,.05); --sh-2:0 4px 16px rgba(20,24,31,.09); --sh-3:0 24px 64px rgba(20,24,31,.22);\n  --ring:0 0 0 3px rgba(110,144,181,.32); --ring-line:#6E90B5;\n  --r-card:18px; --r-ctl:12px; --r-sm:10px; --r-pill:999px; --ctl:40px;\n  --sans:\"Plus Jakarta Sans\",ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;\n  --serif:\"Libre Caslon Text\",\"Iowan Old Style\",Baskerville,\"Times New Roman\",serif;\n  --mono:ui-monospace,\"Cascadia Mono\",Consolas,\"Courier New\",monospace;\n}\n\n\n\n*{box-sizing:border-box}\n.gdroot{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;border-radius:18px}\n.pill,.tnum,.metric .v,.dfig,.gk-v,.num,.prog,.pc-m,.pc input,.pr input{font-variant-numeric:tabular-nums}\nh1,h2{letter-spacing:-.02em;text-wrap:balance}\n.muted{color:var(--muted)} .b{font-weight:700} .sub{font-size:12px;color:var(--muted)} .grow{flex:1}\n.mono{font-family:var(--mono);font-size:12.5px} .hide{display:none!important}\n.sel{user-select:text}\n\n/* ---- the frame ---- */\n.shell{display:flex;flex-direction:column;min-height:100%}\n.side{position:static;border-radius:18px 18px 0 0;display:flex;align-items:center;gap:2px;flex-wrap:wrap;\n  background:var(--card);box-shadow:var(--sh-1);padding:8px 16px}\n.brand{padding:0 14px 0 2px}\n.brandname{font-family:var(--serif);font-size:16px;letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column;line-height:1}\n.brandsub{font-family:var(--sans);font-size:7.5px;font-weight:600;letter-spacing:.22em;color:var(--muted);margin-top:3px}\n.navgrp{background:transparent;color:var(--muted);box-shadow:none;border:0;font:inherit;font-size:13px;font-weight:600;padding:8px 12px;border-radius:var(--r-sm);cursor:pointer}\n.navgrp:hover{color:var(--ink);background:var(--hover)}\n.navgrp.here{color:var(--brand);background:var(--brand-bg);font-weight:800}\n.sidefoot{margin-left:auto;display:flex;align-items:center;gap:8px}\n.lm-tag{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);background:var(--warn-bg);color:var(--warn-ink);font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}\n.main{flex:1;min-width:0;width:100%;max-width:1560px;margin:0 auto;padding-inline:22px;padding-block:18px 48px}\n@media (max-width:640px){.main{padding-inline:16px}.side{padding:8px 12px;position:static}.brandsub{display:none}.frow select{flex:1 1 100%}}\n.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}\n.lm-h{font-family:var(--serif);font-weight:400;font-size:25px;margin:0}\n.topacts{margin-left:auto;display:flex;gap:8px;min-width:0;flex:0 1 480px;align-items:center}.toppick:empty{display:none}.histday-end td{border-bottom:2px solid var(--line)}.toppick{flex:0 0 auto}.toppick select{width:auto;min-width:150px;max-width:240px;height:var(--ctl)}\n.topacts input{width:100%}\n\n/* ---- controls ---- */\nlabel{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}\ninput,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-ctl);padding:9px 12px;width:100%;min-width:0}\ninput:focus,select:focus,textarea:focus{outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}\ninput[readonly]{background:var(--soft);color:var(--muted)}\ninput::placeholder,textarea::placeholder{color:var(--faint)}\nbutton{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:10px 18px;background:var(--brand);color:var(--on-brand);\n  box-shadow:0 4px 12px rgba(74,106,146,.25);transition:background .12s,box-shadow .12s,transform .06s;white-space:nowrap}\nbutton:hover{background:var(--brand-ink)}\nbutton:active{transform:translateY(1px);box-shadow:none}\nbutton:focus-visible,a:focus-visible{outline:none;box-shadow:var(--ring)}\nbutton.ghost{background:var(--card);color:var(--muted);font-weight:600;box-shadow:var(--sh-1)}\nbutton.ghost:hover{color:var(--ink);box-shadow:var(--sh-2)}\nbutton.armed,button.ghost.armed{background:var(--bad);color:#fff}\n.btnlink{display:inline-flex;align-items:center;padding:10px 18px;border-radius:var(--r-ctl);background:var(--card);color:var(--brand-ink);font-weight:700;text-decoration:none;box-shadow:var(--sh-1)}\n.btnlink:hover{box-shadow:var(--sh-2)}\n.btnlink{gap:7px}\n.btnlink.wa,.jw-btn.wa{color:var(--wa)}\n.jw-btn.ico{width:32px;padding:0;display:inline-grid;place-items:center}\na.jw-btn{text-decoration:none}\n.frozen{padding:8px 11px;border-radius:var(--r-ctl);background:var(--soft);color:var(--ink);font-size:12.5px;min-width:200px}\n@media print{body *{visibility:hidden}#docPaper,#docPaper *{visibility:visible}#docPaper{position:absolute;left:0;top:0;box-shadow:none;margin:0;padding:0}}\n.jw-btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:var(--r-sm);background:var(--chip);color:var(--muted);font-weight:700;box-shadow:none}\n.jw-btn:hover{background:var(--line);color:var(--ink)}\n.jw-btn.jw-primary{background:var(--brand-bg);color:var(--brand-ink)}\n.jw-btn.jw-wa{background:var(--accent-bg);color:var(--accent)}\n.row{display:flex;gap:10px;flex-wrap:wrap}\n.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n.seg{display:inline-flex;background:var(--chip);border-radius:var(--r-sm);padding:3px;gap:2px}\n.segbtn{background:transparent;color:var(--muted);box-shadow:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:600}\n.segbtn:hover{background:transparent;color:var(--ink)}\n.segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}\n.segbtn .n{color:var(--faint);font-weight:500;margin-left:3px}\n\n/* ---- cards, figures, tables ---- */\n.card{background:var(--card);border-radius:var(--r-card);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sh-1);min-width:0}\n.kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}\n.kpi{flex:1 1 300px;background:var(--card);border-radius:var(--r-card);padding:13px 16px;box-shadow:var(--sh-1)}\n.kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}\n.kpiname{font-size:13px;font-weight:700} .kpiwhen{font-size:11px;color:var(--muted)}\n.metrics{display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between}\n.metric .v{font-size:19px;font-weight:700;line-height:1.2} .metric .l{font-size:11px;color:var(--muted);margin-top:2px}\n.ff-cap{font-size:12.5px;color:var(--muted);margin:0 0 8px;line-height:1.5;max-width:110ch}\n.ff-grid,.scroll{overflow-x:auto}\n.ok{background:var(--accent-bg);color:var(--accent);padding:11px 14px;border-radius:var(--r-sm);font-size:13.5px;border-left:3px solid var(--accent)}\n.err{background:var(--bad-bg);color:var(--bad);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--bad);margin-bottom:10px;line-height:1.5}\n.warn{background:var(--warn-bg);color:var(--warn-ink);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--warn-ink)}\ntable.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}\ntable.xl th,table.xl td{border-bottom:1px solid var(--line);padding:9px 11px;white-space:nowrap;background:var(--card);text-align:center;vertical-align:middle}\ntable.xl thead th{position:sticky;top:0;z-index:2;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--faint);text-transform:uppercase}\ntable.xl .frz{position:sticky;left:0;z-index:1;border-right:1px solid var(--line)}\ntable.xl thead th.frz{z-index:3}\ntable.xl tbody tr:nth-child(even) td{background:var(--zebra)}\ntable.xl tbody tr:hover td{background:var(--soft)}\ntable.xl tfoot td{background:var(--soft);font-weight:800}\ntable.xl.xl-dense th,table.xl.xl-dense td{padding:6px 8px;font-size:12.5px}\n.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;white-space:nowrap}\n.pill-ok{background:var(--accent-bg);color:var(--accent)} .pill-low{background:var(--warn-bg);color:var(--warn-ink)}\n.pill-out{background:var(--bad-bg);color:var(--bad)} .pill-sea{background:var(--brand-bg);color:var(--brand-ink)} .pill-mute{background:var(--chip);color:var(--muted)}\n.lm-note{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}\n.lm-why{font-size:12px;color:var(--muted);line-height:1.55;margin-top:8px}\n.lm-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px}\n.lm-lines td{padding:5px 6px} .lm-lines input,.lm-lines select{padding:6px 8px;font-size:12.5px}\n.lm-x{background:transparent;color:var(--bad);box-shadow:none;padding:4px 8px;font-size:15px}\n.lm-x:hover{background:var(--bad-bg)}\n\n/* ---- the dashboard ---- */\n.dashcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:14px;margin-bottom:14px}\n.dcard{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal}\n.dcard:hover{background:var(--card);box-shadow:var(--sh-2)}\n.dhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}\n.dicon{width:22px;height:22px;border-radius:7px;background:var(--chip);color:var(--brand-ink);display:inline-flex;align-items:center;justify-content:center;flex:none}\n.dtitle{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}\n.dchip{margin-left:auto;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:var(--accent-bg);color:var(--accent);white-space:nowrap}\n.dfig{font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.01em}\n.dsub{font-size:12px;color:var(--muted);margin-top:2px}\n.dsplit{display:flex;gap:30px;flex-wrap:wrap}\n.dnote{font-size:12px;color:var(--muted);margin-left:auto;padding-bottom:3px}\n.dash2col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:14px;align-items:stretch;margin-bottom:14px}\n\n/* ---- Greige POs: the figures, each one a filter ---- */\n.pobar{display:flex;gap:10px;flex-wrap:wrap;margin:-4px 0 14px}\n.gk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}\n.gk{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto;column-gap:8px;text-align:left;background:var(--card);color:var(--ink);\n  border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal;outline:1.5px solid transparent}\n.gk:hover{background:var(--card);box-shadow:var(--sh-2)}\n.gk.on{outline-color:var(--brand)}\n.gk-ic{grid-column:2;grid-row:1/3;width:34px;height:34px;border-radius:10px;display:grid;place-items:center}\n.gk-v{grid-column:1;font-size:21px;font-weight:800;letter-spacing:-.01em}\n.gk-l{grid-column:1;font-size:12.5px;color:var(--muted);font-weight:600}\n.gk-s{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:9px}\n.tone-blue{background:var(--brand-bg);color:var(--brand-ink)} .tone-amber{background:var(--warn-bg);color:var(--warn-ink)}\n.tone-green{background:var(--accent-bg);color:var(--accent)} .tone-red{background:var(--bad-bg);color:var(--bad)}\n.filters{padding:12px 14px;display:flex;flex-direction:column;gap:10px}\n.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}\n.frow select{flex:0 1 200px;width:auto;height:38px;padding-block:0}\n.pair{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0}\n.frow input[type=date]{width:160px;max-width:100%;height:38px;padding-block:0}\nlabel.inl{margin:0;font-size:12px}\n.frow2{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}\n.count{font-size:12.5px}\n.tablecard{padding:0;overflow:hidden}\n.t{width:100%;min-width:1080px;border-collapse:collapse}\n.t > thead th,.ct > thead th{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--card)}\n.t > tbody > tr > td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\nth.num,td.num{text-align:right;white-space:nowrap} th.ra{text-align:right} td.tl,th.tl{text-align:left}\n.xrow{cursor:pointer}\n.xrow:hover > td,.xrow.open > td{background:var(--soft)}\n.plus{color:var(--muted);font-weight:600}\n.w-chev{width:40px;padding-left:12px!important;padding-right:0!important}\n.chev{width:26px;height:26px;padding:0;background:transparent;box-shadow:none;border-radius:7px;display:grid;place-items:center;color:var(--muted)}\n.chev:hover{background:var(--line);color:var(--ink)}\n.chev svg{transition:transform .15s ease}\n.open > td .chev svg{transform:rotate(90deg)}\n.mill{display:flex;gap:10px;align-items:center}\n.av{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800}\n.av-a{background:var(--brand-bg);color:var(--brand-ink)} .av-b{background:var(--pink-bg);color:var(--pink)}\n.av-c{background:var(--accent-bg);color:var(--accent)} .av-d{background:var(--warn-bg);color:var(--warn-ink)}\n.prog{display:flex;align-items:center;gap:8px;font-weight:700}\n.actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;min-width:230px}\n.plate{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;background:var(--card);white-space:nowrap}\n.detail > td{padding:0!important;background:var(--soft);border-bottom:1px solid var(--line)}\n.panel{padding:6px 18px 18px 52px;display:flex;flex-direction:column;gap:12px}\n@media (max-width:640px){.panel{padding-left:14px}}\n.panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.panel-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}\n.lsum{display:flex;gap:10px;flex-wrap:wrap}\n.lchip{background:var(--card);border-radius:12px;padding:10px 13px;min-width:min(270px,100%);box-shadow:var(--sh-1)}\n.lchip .top2{display:flex;justify-content:space-between;gap:12px;font-size:13px}\n.lchip .due{color:var(--warn-ink)}\n.bar{height:5px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}\n.bar i{display:block;height:100%;background:var(--brand);border-radius:3px}\n.bar i.full{background:var(--accent)}\n.ct.li th{background:var(--card)}\n.ct.li td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct.li tr.tot td{border-bottom:0;font-weight:700;background:var(--soft)}\n.bar.sm{height:4px;margin-top:5px;min-width:70px}\n.box{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--sh-1)}\n.ct{width:100%;border-collapse:collapse}\n.ct > tbody > tr > td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct .xrow:hover > td,.ct .xrow.open > td{background:var(--brand-bg)}\n.empty{padding:18px;color:var(--muted);font-size:13.5px}\n.pieces{padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px;background:var(--soft)}\n.pieces-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}\n.pl-h{font-size:13px;margin-bottom:7px}\n.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}\n.pc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:3px}\n.pc.short{border-color:var(--bad-line);background:var(--bad-bg)}\n.pc-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}\n.pc-m{font-weight:700}\n.pc input{padding:4px 7px;font-size:13px;border-radius:7px}\n.pc-lab{font-size:11px;font-weight:500;color:var(--faint);margin:0}\n.d{font-weight:700} .d.short{color:var(--bad)} .d.extra{color:var(--ok-ink)} .d.ok{color:var(--faint);font-weight:500}\n.foot{font-size:12.5px;color:var(--muted);max-width:90ch;margin:4px 2px 0;line-height:1.55}\n\n/* ---- the receive drawer ---- */\n.scrim{position:fixed;inset:0;background:var(--scrim);z-index:1010}\n.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--card);z-index:1011;display:flex;flex-direction:column;box-shadow:var(--sh-3);\n  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}\n.dr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line)}\n.dr-head h2{font-size:19px;margin:2px 0 0}\n.crumb{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}\n.dr-body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}\n.dr-foot{border-top:1px solid var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}\n@media (max-width:520px){.dr-head,.dr-body,.dr-foot{padding-inline:16px}}\n.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n@media (max-width:520px){.grid2{grid-template-columns:1fr}}\n.fld{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted);margin:0}\n.fld small{font-weight:400;font-size:12px}\n.fld.wide{grid-column:1/-1}\n.sect{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}\n.sect span{font-weight:500;letter-spacing:0;text-transform:none}\n.dl{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--soft)}\n.prh,.pr{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 32px;gap:8px;align-items:center}\n.prh{font-size:11.5px;color:var(--faint);font-weight:600}\n.pr input{padding:7px 10px}\n.pr-i{font-size:12px;color:var(--faint);text-align:right}\n.x{width:32px;height:32px;padding:0;background:transparent;box-shadow:none;color:var(--muted);font-size:18px;line-height:1;border-radius:8px}\n.x:hover{background:var(--line);color:var(--ink)}\n.dl-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}\n.dl-sum{margin-left:auto;font-weight:700;font-size:13px}\n.link{background:none;box-shadow:none;color:var(--brand-ink);font-size:13px;font-weight:700;padding:2px 0}\n.link:hover{background:none;text-decoration:underline}\n.paste{display:flex;flex-direction:column;gap:8px}\n.paste textarea{min-height:84px;resize:vertical;font-family:var(--mono);font-size:13px}\n.warnline{font-size:12.5px;color:var(--warn-ink)}\n.note{font-size:12.5px;color:var(--muted)}\n.empty-sm{border:1px dashed var(--line);border-radius:12px;padding:16px;color:var(--muted);font-size:13.5px}\n.pohead{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}\n.pohead-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}\n.ct.mini th{padding:7px 8px;background:transparent}\n.ct.mini td{padding:7px 8px;font-size:12.5px}\n.ct.mini tr.tot td{border-bottom:0;font-weight:700}\n.due{color:var(--warn-ink)}\n.dl-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.lotf{flex:0 0 150px}\n.lotf input{font-family:var(--mono);font-weight:700}\n.supline{background:var(--brand-bg);color:var(--brand-ink);padding:10px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.55}\n.cellbtn{background:transparent;box-shadow:none;color:inherit;font:inherit;font-weight:inherit;padding:4px 8px;border-radius:8px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}\n.cellbtn:hover,.cellbtn.on{background:var(--brand-bg);color:var(--brand-ink);text-decoration:none}\n.cellbtn .caret{font-size:10px;opacity:.7}\ntr.invdet > td{background:var(--soft)!important;padding:4px 12px 14px!important;white-space:normal!important;text-align:left!important}\n.invdrop{display:flex;flex-direction:column;gap:8px}\n.balegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}\n.bale{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer}\n.bale input{width:15px;height:15px;flex:none}.bale b{margin-left:auto;font-variant-numeric:tabular-nums}\n.bale.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-ink)}\n.okline{background:var(--accent-bg);color:var(--accent);padding:8px 12px;border-radius:var(--r-sm);font-size:12.5px}\n.approvals{border-left:4px solid var(--warn-ink)}\n.closeline{display:flex;align-items:center;gap:9px;margin:0;font-size:13px;font-weight:600;color:var(--ink);background:var(--warn-bg);border-radius:var(--r-sm);padding:9px 12px}\n.closeline input{width:16px;height:16px;flex:none}\n.dr-total{display:flex;justify-content:space-between;gap:12px;font-weight:700;flex-wrap:wrap}\n.dr-btns{display:flex;justify-content:flex-end;gap:8px}\n\n/* ---- dialogs ---- */\n.modal{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}\n.modalbox{background:var(--card);border-radius:var(--r-card);padding:20px;width:min(720px,100%);max-height:92vh;overflow:auto;box-shadow:var(--sh-3)}\n.en-groups{display:flex;flex-direction:column;gap:7px;margin:4px 0 16px}\n.en-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}\n.en-gname{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);width:82px;flex:none}\n.en-chip{display:inline-flex;align-items:center;gap:7px;background:var(--chip);color:var(--ink);box-shadow:none;border-radius:var(--r-pill);padding:6px 13px;font-size:12.5px;font-weight:600}\n.en-chip:hover{background:var(--line);color:var(--ink)}\n.en-chip.on{background:var(--card);box-shadow:inset 0 0 0 1.5px var(--ink),var(--sh-1);font-weight:800}\n.en-dot{width:8px;height:8px;border-radius:50%;flex:none}\n.en-after{background:var(--brand-bg);color:var(--brand-ink);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.7;margin-bottom:10px}\n.en-after-h{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.75;margin-bottom:2px}\n.en-after .bad{color:var(--bad)}\n.docbox{width:min(860px,100%)}\n.docpaper{background:#ffffff;color:#000000;border-radius:8px;padding:16px;overflow-x:auto;box-shadow:inset 0 0 0 1px var(--line);margin:12px 0 16px}\n.mailbox{background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px;margin:8px 0 12px}\n.mailbox pre{margin:6px 0 0;white-space:pre-wrap;font:13px/1.5 var(--sans);color:var(--ink)}\n.err-in{color:var(--bad);font-weight:600}\n\n.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--toast-bg);color:var(--toast-fg);\n  padding:11px 16px;border-radius:12px;font-size:13.5px;z-index:80;width:max-content;max-width:calc(100% - 32px);box-shadow:var(--sh-3);border-left:4px solid var(--brand);z-index:1100}\n.toast.ok{border-left-color:var(--c-rfd)} .toast.warn{border-left-color:var(--c-greige)} .toast.err{border-left-color:var(--bad)}\n@media (prefers-reduced-motion: reduce){*{transition:none!important}}\n";
-  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">Greige · RFD · POs</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><span id=\"lmTopPick\" class=\"toppick\"></span><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div style=\"margin-top:12px\"><label for=\"poTc\">Terms &amp; conditions (optional)</label><textarea id=\"poTc\" rows=\"4\" style=\"width:100%\" placeholder=\"Quality, delivery, payment and any other conditions the supplier must follow\"></textarea><div class=\"muted\" style=\"font-size:11px;margin-top:3px\">Starts with your standard terms from the PO settings; change them for this PO if needed. Printed on the PO and put in the mail.</div></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutMode\" class=\"seg\" role=\"tablist\" aria-label=\"Kind of cutting\" style=\"margin-top:12px\"></div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\" id=\"cutSect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
+  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">Greige · RFD · POs</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><span id=\"lmTopPick\" class=\"toppick\"></span><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div style=\"margin-top:12px\"><label for=\"poTc\">Terms &amp; conditions (optional)</label><textarea id=\"poTc\" rows=\"4\" style=\"width:100%\" placeholder=\"Quality, delivery, payment and any other conditions the supplier must follow\"></textarea><div class=\"muted\" style=\"font-size:11px;margin-top:3px\">Starts with your standard terms from the PO settings; change them for this PO if needed. Printed on the PO and put in the mail.</div></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutMode\" class=\"seg\" role=\"tablist\" aria-label=\"Kind of cutting\" style=\"margin-top:12px\"></div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\" id=\"cutSect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. The lot closes by itself when all its thans are back. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
 
 /* core/util.js -- Small shared helpers: escaping, number and date formatting, ids, lists in words.
  * An ES module. Its imports are worked out from the code by the split script. */
@@ -40522,7 +40614,7 @@ function chRow(c, wide) {
   var h = '<tr class="xrow' + (open ? ' open' : '') + '" data-tch="' + esc(c.id) + '">'
     + '<td class="w-chev"><button type="button" class="chev" data-tch="' + esc(c.id) + '" aria-expanded="' + open + '" aria-label="Pieces on challan ' + esc(c.no || c.id) + '">' + I.chev + '</button></td>'
     + '<td class="tl"><span class="b mono">' + (c.no ? esc(c.no) : '<span class="muted">no number</span>') + '</span></td>'
-    + '<td class="tl">' + esc(fmtD(c.date)) + '<div class="sub">' + (d === null ? '' : d === 0 ? 'today' : daysWord(d) + ' ago') + '</div></td>'
+    + '<td class="tl">' + esc(fmtD(c.date)) + '<div class="sub">' + (d === null ? '' : d === 0 ? 'today' : daysWord(d) + ' ago') + '</div>' + gdDateAskNote(c.rows) + '</td>'
     + (wide ? '<td class="tl">' + millCell(c.mill) + '</td><td class="tl">' + (c.po ? '<span class="b">' + esc(c.po) + '</span>' : '<span class="muted">no PO</span>') + '</td>' : '')
     + '<td class="tl">' + (c.transporter ? esc(c.transporter) : '') + (c.lr ? '<div><span class="plate">' + esc(c.lr) + '</span></div>' : (c.transporter ? '' : '<span class="sub">—</span>'))
     + (c.invoice ? '<div class="sub">Invoice ' + esc(c.invoice) + '</div>' : '') + '</td>'
@@ -40565,7 +40657,7 @@ function renderPo() {
         + '<th class="num">Pieces</th><th class="num">Metres</th><th>Checked</th></tr></thead><tbody>' + chs.map(function (c) { return chRow(c, true); }).join('') + '</tbody></table>'
       : '<div class="empty">No challan matches these filters.</div>';
   }
-  return bar + rrApprovalsHtml() + ctsApprovalsHtml() + closeAsksHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
+  return bar + rrApprovalsHtml() + ctsApprovalsHtml() + gdDateAsksHtml() + closeAsksHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
     + '<p class="foot">A PO rarely comes in one go. The supplier sends greige over several challans, and each challan is a bundle '
     + 'of bales with the metres written against them. When the last one is in, accounts close the PO and what never came is written on it. Every challan is written into the fabric ledger as a new lot, so stock, the '
     + 'processor and the dashboard count it at once.</p>';
@@ -40687,7 +40779,7 @@ function openDrawer(poNo) {
   if (st === 'received' || st === 'cancelled') { lmSay('warn', po.poNo + ' is ' + (GPO_STATUS[st] || [st])[0].toLowerCase() + '. Nothing more is expected on it.'); return; }
   RD = { po: po.poNo, lines: {}, paste: {}, lot: {}, sup: {} };
   rdInitLines(); rdDraw();
-  $('dNo').value = ''; $('dLr').value = ''; $('dInv').value = ''; $('dTrn').value = ''; $('dDate').value = lmToday(); $('dClose').checked = false;
+  $('dNo').value = ''; $('dLr').value = ''; $('dInv').value = ''; $('dTrn').value = ''; $('dDate').value = lmToday(); $('dDate').max = lmToday(); $('dClose').checked = false;
   $('dErr').hidden = true;
   $('drTitle').textContent = 'Challan against ' + po.poNo;
   $('scrim').hidden = false; $('drawer').hidden = false;
@@ -40721,7 +40813,7 @@ function rdSave() {
   if (no && chList().some(function (c) { return String(c.mill).toLowerCase() === String(po.mill).toLowerCase() && String(c.no).toLowerCase() === no.toLowerCase(); })) {
     errs.push('Challan ' + no + ' from ' + po.mill + ' is already in. Check the number.');
   }
-  if (!$('dDate').value) errs.push('Fill in the challan date.');
+  var dErr = gdRecvDateErr($('dDate').value, po.date, 'the PO was raised'); if (dErr) errs.push(dErr);
   var pg = gpoProgress(po), seen = {};
   var lines = Object.keys(RD.lines).map(Number).sort(function (a, b) { return a - b; }).map(function (li) {
     return { li: li, lot: String(RD.lot[li] || '').trim().toUpperCase(),
@@ -40739,7 +40831,7 @@ function rdSave() {
     var dup = {}; l.pieces.forEach(function (p) { if (p.than !== '—') { if (dup[p.than]) errs.push(name + ': bale ' + p.than + ' is typed twice.'); dup[p.than] = 1; } });
   });
   if (errs.length) { $('dErr').innerHTML = uniq(errs).map(esc).join('<br>'); $('dErr').hidden = false; return; }
-  var chId = uid(), date = $('dDate').value, lr = $('dLr').value.trim(), inv = $('dInv').value.trim(), trn = $('dTrn').value.trim();
+  var chId = uid(), typed = $('dDate').value, lr = $('dLr').value.trim(), inv = $('dInv').value.trim(), trn = $('dTrn').value.trim();
   /* THE SUPPLEMENT PO (Ravi, 13 Oct): the supplier sent more than the PO and its 10% allowance. The PO takes what
    * was still due; a supplement PO on the same supplier, fabric and rate is raised for the rest and received on this
    * same challan, as the same lot. One supplement PO carries every line that needed one. */
@@ -40752,11 +40844,11 @@ function rdSave() {
   }
   lines.forEach(function (l) {
     var pl = pg.lines[l.li], got = r1(l.pieces.reduce(function (s, p) { return s + p.m; }, 0));
-    DB.fab.push({ id: uid(), chId: chId, date: date, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
+    DB.fab.push(gdDated({ id: uid(), chId: chId, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
       qty: r1(got - l.sup), party: po.mill, bill: no, orderNo: po.poNo,
-      lr: lr, invoice: inv, transporter: trn, pieces: l.pieces, done: false });
-    if (l.sup) DB.fab.push({ id: uid(), chId: chId, date: date, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
-      qty: l.sup, party: po.mill, bill: no, orderNo: sup.poNo, supplementOf: po.poNo, lr: lr, invoice: inv, transporter: trn, done: false });
+      lr: lr, invoice: inv, transporter: trn, pieces: l.pieces, done: false }, typed));
+    if (l.sup) DB.fab.push(gdDated({ id: uid(), chId: chId, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
+      qty: l.sup, party: po.mill, bill: no, orderNo: sup.poNo, supplementOf: po.poNo, lr: lr, invoice: inv, transporter: trn, done: false }, typed));
   });
   var lastOne = $('dClose').checked && !$('dCloseWrap').hidden, endWords = '';
   if (lastOne) endWords = ' ' + poLastChallan(po, no, meUser().name);
@@ -41123,7 +41215,7 @@ function issDraw() {
   $('issTot').innerHTML = 'Going out: <b>' + plural(t.n, 'bale') + ' · ' + m1(t.m) + ' m</b>';
 }
 function issSave() {
-  var po = poFind(ISS.po), proc = $('issProc').value.trim(), date = $('issDate').value, errs = [], rows = [];
+  var po = poFind(ISS.po), proc = $('issProc').value.trim(), date = lmToday(), errs = [], rows = [];   // issued today, whatever the box says
   if (!proc) { $('issErr').textContent = 'Choose the RFD processor the greige is going to.'; $('issErr').classList.remove('hide'); return; }
   /* THE RFD CHALLAN IS REQUIRED (Ravi, 13 Oct): no greige leaves for an RFD processor without our challan, and one
    * challan number is used once. */
@@ -41176,7 +41268,9 @@ function lotThans(lot) {
 function cutOpen(lot) {
   var g = fabLot(lot);
   if (!g || g.rfdLeft <= 0.05) { lmSay('warn', 'Lot ' + lot + ' has no RFD on the shelf.'); return; }
-  CUT = { lot: lot, pick: {}, qty: '', lines: cutLinesFor(cutRfdOf(g)), lpick: {}, mode: 'products', w: '', l: '', p: '' };
+  /* the width starts as the cloth's RFD width from Master data; it can be typed smaller (Vishesh, 23 Nov) */
+  var rfdW = parseFloat((mstOf(cutRfdOf(g)) || {}).rfdWidth) || 0;
+  CUT = { lot: lot, pick: {}, qty: '', lines: cutLinesFor(cutRfdOf(g)), lpick: {}, mode: 'products', w: rfdW ? String(rfdW) : '', l: '', p: '' };
   $('cutTitle').textContent = 'Send to cutting · ' + lot;
   $('cutDate').value = lmToday(); $('cutTo').value = ''; $('cutRem').value = '';
   $('cutErr').classList.add('hide');
@@ -41281,7 +41375,7 @@ function cutFlowKeep(patch) {
 }
 function cutSave() {
   if (CUT.mode === 'size') { ctsSave(); return; }
-  var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), date = $('cutDate').value;
+  var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), date = lmToday();   // issued to cutting today, whatever the box says
   var picked = thans.length ? thans.filter(function (t) { return CUT.pick[t.than]; }) : null;
   var q = picked ? r1(picked.reduce(function (s, t) { return s + t.m; }, 0)) : (parseFloat(CUT.qty) || 0);
   var rfd = cutRfdOf(g), err = '';
@@ -41335,7 +41429,7 @@ function ctsCheck(spec) {
 }
 /** The three boxes of the open card as numbers. */
 function ctsSpec() {
-  return { rfd: cutRfdOf(fabLot(CUT.lot)), lot: CUT.lot, w: parseFloat(CUT.w) || 0, l: parseFloat(CUT.l) || 0, pcs: parseFloat(CUT.p) || 0, date: $('cutDate').value };
+  return { rfd: cutRfdOf(fabLot(CUT.lot)), lot: CUT.lot, w: parseFloat(CUT.w) || 0, l: parseFloat(CUT.l) || 0, pcs: parseFloat(CUT.p) || 0, date: lmToday() };
 }
 /** The card's choice of way, and the labels that follow it. */
 function ctsModeDraw() {
@@ -41689,10 +41783,12 @@ function rrOpen(no, onlyLot) {
   var po = poFind(no); if (!po) return;
   var lots = rrLotsOf(po).filter(function (g) { return !onlyLot || g.lot === onlyLot; });
   if (!lots.length) { lmSay('warn', 'Nothing from ' + po.poNo + ' is out at an RFD processor.'); return; }
-  RR = { po: po.poNo, lots: lots.map(function (g) { return g.lot; }), thans: {}, fin: {} };
-  lots.forEach(function (g) { RR.thans[g.lot] = [{ than: '', m: '' }]; RR.fin[g.lot] = true; });
+  RR = { po: po.poNo, lots: lots.map(function (g) { return g.lot; }), thans: {} };
+  lots.forEach(function (g) { RR.thans[g.lot] = [{ than: '', m: '' }]; });
   $('rrTitle').textContent = 'Receive RFD · ' + po.poNo;
-  $('rrDate').value = lmToday(); $('rrNo').value = '';
+  /* the day the RFD came back can be put in (Vishesh, 23 Nov): today or earlier, not before the greige was sent */
+  $('rrDate').value = lmToday(); $('rrDate').readOnly = false; $('rrDate').max = lmToday(); $('rrDate').min = rrSentOn(RR.lots) || '';
+  $('rrDate').title = 'The day the RFD came back — today or earlier'; $('rrNo').value = '';
   $('rrErr').classList.add('hide');
   rrDraw();
   $('lmRr').classList.remove('hide');
@@ -41701,6 +41797,22 @@ function rrOpen(no, onlyLot) {
 function rrShrink(g, add, fin) {
   var back = g.rfdIn + add, pct = g.toRfd > 0 ? Math.round(((g.toRfd - back) / g.toRfd) * 1000) / 10 : 0;
   return { back: back, pct: fin ? pct : null, need: fin && pct > RR_SHRINK_LIMIT };
+}
+/** The thans typed for one lot: only those with metres, as they are saved. */
+function rrThansOf(lot) {
+  return (RR.thans[lot] || []).filter(function (p) { return +p.m > 0; }).map(function (p) { return { than: String(p.than).trim() || '—', m: r1(+p.m) }; });
+}
+/* THE LOT CLOSES BY ITSELF (Vishesh, 23 Nov: no more "this closes the lot" tick). Greige sent with its thans listed (the
+ * `bales` on the Issue to RFD rows): the lot closes when as many thans are back, counting this receipt, as were sent. Greige sent
+ * without thans listed: it closes when 95% of the metres sent are back. Anything less leaves the cloth at the processor. */
+var RR_CLOSE_METRES_SHARE = 0.95;
+function rrLotCloses(g, ps, q) {
+  var sent = invRowsOfLot(g.lot, 'ISSUE_TO_RFD').reduce(function (n, r) { return n + (r.bales || []).length; }, 0);
+  if (sent > 0) {
+    var back = invRowsOfLot(g.lot, 'RECEIVE_RFD').filter(fabCounts).reduce(function (n, r) { return n + (r.pieces || []).length; }, 0);
+    return back + ps.length >= sent;
+  }
+  return g.toRfd > 0 && g.rfdIn + q >= g.toRfd * RR_CLOSE_METRES_SHARE - 1e-9;
 }
 function rrSum(lot) { return r1((RR.thans[lot] || []).reduce(function (s, p) { return s + (parseFloat(p.m) || 0); }, 0)); }
 function rrDraw() {
@@ -41721,7 +41833,6 @@ function rrDraw() {
           + '<button type="button" class="x" data-rrrm="' + esc(lot) + '|' + pi + '" aria-label="Remove than ' + (pi + 1) + '">×</button></div>';
       }).join('')
       + '<div class="dl-actions"><button type="button" class="jw-btn" data-rradd="' + esc(lot) + '">+ Than</button>'
-      + '<label class="inl" style="display:flex;align-items:center;gap:7px;margin:0;font-weight:600;color:var(--ink)"><input type="checkbox" data-rrfin="' + esc(lot) + '"' + (RR.fin[lot] ? ' checked' : '') + ' style="width:16px;height:16px">This is the whole lot back (close it)</label>'
       + '<span class="dl-sum" id="rrsum-' + lot + '"></span></div><div id="rrsh-' + lot + '"></div></div>';
   }).join('');
   rrSums();
@@ -41729,7 +41840,7 @@ function rrDraw() {
 function rrSums() {
   RR.lots.forEach(function (lot) {
     var g = fabLot(lot); if (!g || rrPendingOf(lot)) return;
-    var s = rrSum(lot), n = (RR.thans[lot] || []).filter(function (p) { return +p.m > 0; }).length, sh = rrShrink(g, s, RR.fin[lot]);
+    var s = rrSum(lot), n = rrThansOf(lot).length, sh = rrShrink(g, s, rrLotCloses(g, rrThansOf(lot), s));
     var el = $('rrsum-' + lot); if (el) el.textContent = plural(n, 'than') + ' · ' + m1(s) + ' m';
     var box = $('rrsh-' + lot); if (!box) return;
     if (s > g.withProcessor + 0.05) { box.className = 'err'; box.textContent = 'Only ' + nf(g.withProcessor) + ' m of this lot is out. More has come back than went.'; return; }
@@ -41739,20 +41850,35 @@ function rrSums() {
       + (sh.need ? '. More than ' + RR_SHRINK_LIMIT + '%, so this receipt will wait for approval before it counts.' : ', within ' + RR_SHRINK_LIMIT + '%.');
   });
 }
+/* ISSUE TODAY, RECEIVE ON THE DAY IT CAME (Vishesh, 23 Nov: "any date of issue is to be fixed but receiving date can be
+ * changed"). Cloth going out is dated today, whatever a box says. Cloth coming in can be dated back to the day it came —
+ * never after today, and never before the day it went out (or was ordered). '' when the date is fine. */
+function gdRecvDateErr(date, notBefore, sinceWhat) {
+  if (!date) return 'Put the date it came.';
+  if (date > lmToday()) return 'It cannot have come after today (' + fmtD(lmToday()) + ').';
+  if (notBefore && date < notBefore) return 'It cannot have come before ' + fmtD(notBefore) + ', when ' + sinceWhat + '.';
+  return '';
+}
+/** The first day greige of these lots went to the RFD processor: no RFD can have come back before it. */
+function rrSentOn(lots) {
+  return (lots || []).map(function (lot) { return invRowsOfLot(lot, 'ISSUE_TO_RFD').map(function (r) { return r.date; }).sort()[0] || ''; })
+    .filter(Boolean).sort()[0] || '';
+}
 function rrSave() {
-  var po = poFind(RR.po), no = $('rrNo').value.trim(), date = $('rrDate').value, errs = [], rows = [], held = [];
+  var po = poFind(RR.po), no = $('rrNo').value.trim(), typed = $('rrDate').value, date = lmToday(), errs = [], rows = [], held = [];
   if (!no) errs.push('Type the processor’s challan number.');
+  var dErr = gdRecvDateErr(typed, rrSentOn(RR.lots), 'the greige was sent for RFD'); if (dErr) errs.push(dErr);
   RR.lots.forEach(function (lot) {
     var g = fabLot(lot); if (!g || rrPendingOf(lot)) return;
-    var ps = (RR.thans[lot] || []).filter(function (p) { return +p.m > 0; }).map(function (p) { return { than: String(p.than).trim() || '—', m: r1(+p.m) }; });
+    var ps = rrThansOf(lot);
     if (!ps.length) return;
     var q = r1(ps.reduce(function (s, p) { return s + p.m; }, 0)), rfd = fabRfdOfGreige(g.fabricType) || g.fabricType;
     var err = fabEntryCheck({ txnType: 'RECEIVE_RFD', date: date, lot: lot, fabric: rfd, qty: q, party: g.processor });
     if (err) { errs.push(err); return; }
     var dup = {}; ps.forEach(function (p) { if (p.than !== '—') { if (dup[p.than]) errs.push(lot + ': than ' + p.than + ' is typed twice.'); dup[p.than] = 1; } });
-    var sh = rrShrink(g, q, RR.fin[lot]);
-    var row = { id: uid(), date: date, lot: lot, fabricType: rfd, txnType: 'RECEIVE_RFD', qty: q, party: g.processor, bill: no,
-      orderNo: g.poNo, final: !!RR.fin[lot], pieces: ps, done: false, by: meUser().name };
+    var closes = rrLotCloses(g, ps, q), sh = rrShrink(g, q, closes);
+    var row = gdDated({ id: uid(), lot: lot, fabricType: rfd, txnType: 'RECEIVE_RFD', qty: q, party: g.processor, bill: no,
+      orderNo: g.poNo, final: closes, pieces: ps, done: false, by: meUser().name }, typed);
     if (sh.need) { row.approval = { status: 'pending', pct: sh.pct, askedBy: meUser().name, at: lmToday() }; held.push(lot + ' (' + sh.pct + '%)'); }
     rows.push(row);
   });
@@ -41766,6 +41892,117 @@ function rrSave() {
     + (held.length ? ' Waiting for approval: ' + held.join(', ') + ' shrank more than ' + RR_SHRINK_LIMIT + '%.' : ''));
   RR = null; render();
 }
+/* A CHANGED RECEIVE DATE WAITS FOR ACCOUNTS (Vishesh, 23 Nov). Greige and RFD receipts typed for any day but today are saved on
+ * TODAY, with the typed day beside them as a request: dateAsk = { at, by, date, status: 'waiting' | 'approved' | 'refused',
+ * decidedBy, decidedAt, why }. Until it is approved every figure counts the receipt on today. Deciding is Ravi's or the accounts
+ * head's (right gdpoappr, as for a PO close request). Approving moves only that receipt's date; its challan, lot and PO stay.
+ * One greige challan can carry several receipts (one per lot): they are decided together.
+ * ERRORS: a press without the right, a refusal without a reason, or a request somebody else decided first is refused with a
+ * message saying what to do. Saving is lmSaveDb's (a failed save says "Not saved"). */
+var canDateApprove = function () { return gdHas('gdpoappr'); };
+/** The receipt dated today; when another day was typed, it also carries the ask for that day. A new row, the one given is not changed. */
+function gdDated(row, typed) {
+  var ask = typed && typed !== lmToday() ? { dateAsk: { at: new Date().toISOString(), by: meUser().id, date: typed, status: 'waiting' } } : {};
+  return Object.assign({}, row, { date: lmToday() }, ask);
+}
+function gdDateAsksWaiting(fab) {
+  return (fab || DB.fab || []).filter(function (r) { return (r.txnType === 'RECEIVE_GREIGE' || r.txnType === 'RECEIVE_RFD') && r.dateAsk && r.dateAsk.status === 'waiting'; });
+}
+/** The receipts decided together with this one: its whole greige challan, or just the RFD receipt. */
+function gdDateAskRows(row, fab) {
+  if (row.txnType !== 'RECEIVE_GREIGE' || !row.chId) return [row];
+  return gdDateAsksWaiting(fab).filter(function (x) { return x.chId === row.chId; });
+}
+/** What waits, one entry per decision: { id, kind, no, po, lots, m, ask }. */
+function gdDateAskItems(fab) {
+  var out = [], seen = {};
+  gdDateAsksWaiting(fab).forEach(function (r) {
+    var key = r.txnType === 'RECEIVE_GREIGE' && r.chId ? r.chId : r.id; if (seen[key]) return; seen[key] = 1;
+    var rows = gdDateAskRows(r, fab);
+    out.push({ id: r.id, kind: r.txnType === 'RECEIVE_GREIGE' ? 'Greige' : 'RFD', no: r.bill || '', po: r.orderNo || '', ask: r.dateAsk,
+      lots: uniq(rows.map(function (x) { return x.lot; })), m: r1(rows.reduce(function (n, x) { return n + fabQty(x); }, 0)) });
+  });
+  return out;
+}
+/** Approve (the receipt moves to the day asked) or refuse (it stays today). '' when done, else what stopped it. */
+async function gdDateDecide(id, ok, why) {
+  var r = (DB.fab || []).filter(function (x) { return x.id === id; })[0];
+  if (!r || !r.dateAsk || r.dateAsk.status !== 'waiting') return 'Already decided — this date is not waiting any more.';
+  if (!canDateApprove()) return 'Only Ravi, or the accounts head, can decide a changed receive date.';
+  if (!ok && !String(why || '').trim()) return 'Type why the date is refused, so the store knows.';
+  var patch = {}, now = new Date().toISOString(), rows = gdDateAskRows(r);
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i], ask = row.dateAsk, path = GD_NODE + '/fab/' + row.id;
+    var decided = Object.assign({}, ask, { status: ok ? 'approved' : 'refused', decidedBy: meUser().id, decidedAt: now }, ok ? {} : { why: String(why).trim() });
+    var lost = '';
+    try { if (typeof ptCas === 'function' && await ptCas(path + '/dateAsk', ask, decided)) lost = 'changed'; } catch (e) { return 'Could not save: ' + (e && e.message || e); }
+    if (lost) return 'Already decided by someone else — open the Greige Desk again to see it.';
+    row.dateAsk = decided; if (ok) row.date = ask.date;
+    patch[path + '/dateAsk'] = JSON.parse(JSON.stringify(decided)); if (ok) patch[path + '/date'] = ask.date;
+    if (GD_SNAP && GD_SNAP.fab) GD_SNAP.fab[row.id] = JSON.stringify(row);   // written by field, below; not the whole row
+  }
+  lmSaveDb(patch);
+  return '';
+}
+/** Approve / Refuse pressed on the card: a refusal asks for its reason first. */
+function gdDateDecideOnScreen(id, ok) {
+  var why = '';
+  if (!ok) { why = typeof window.prompt === 'function' ? window.prompt('Why is this date refused? (the person who asked will see it)', '') : ''; if (why === null) return; }
+  gdDateDecide(id, ok, why).then(function (err) {
+    if (err) { lmSay('err', err); return; }
+    lmSay(ok ? 'ok' : 'warn', ok ? 'Approved: the receipt now carries the date asked.' : 'Refused: the receipt stays on today.');
+    render();
+  });
+}
+/** The same for printed goods back from a printer: the production flow decides and keeps it. */
+function gdFlowDateDecideOnScreen(no, id, ok) {
+  var why = '';
+  if (!ok) { why = typeof window.prompt === 'function' ? window.prompt('Why is this date refused? (the person who asked will see it)', '') : ''; if (why === null) return; }
+  flowDateDecide(no, id, ok, why).then(function (err) {
+    if (err) { lmSay('err', err); return; }
+    lmSay(ok ? 'ok' : 'warn', ok ? 'Approved: the printed goods carry the date asked.' : 'Refused: the printed goods stay on today.');
+    render();
+  });
+}
+/** The small note under a receipt or challan date while its changed day waits; '' otherwise. */
+function gdDateAskNote(rows) {
+  var w = (rows || []).filter(function (r) { return r.dateAsk && r.dateAsk.status === 'waiting'; })[0];
+  return w ? '<div class="sub">asked: ' + esc(fmtD(w.dateAsk.date)) + ' — waiting for accounts</div>' : '';
+}
+/** Approve / Refuse; `attr` says whose decision it is: data-gdask (a greige or RFD receipt) or data-gdflowask (printed goods back from a printer). */
+function gdDateAskButtons(attr, id) {
+  if (!canDateApprove()) return '<span class="muted">for the accounts head</span>';
+  return '<div class="actions"><button type="button" class="jw-btn jw-wa" ' + attr + '="' + esc(id) + '|ok">Approve</button>'
+    + '<button type="button" class="jw-btn" ' + attr + '="' + esc(id) + '|no">Refuse</button></div>';
+}
+/** Printed goods received with a changed day, from the production flow when it is loaded: [{ no, id, rc, ask, ch }]. */
+function gdFlowDateAsks() {
+  return typeof flowDateAsksWaiting === 'function' && typeof FLOW !== 'undefined' && FLOW.ch ? flowDateAsksWaiting() : [];
+}
+/** Receive dates waiting for accounts, as a card on the Greige POs page beside the other approvals. */
+function gdDateAsksHtml() {
+  var list = gdDateAskItems(), printed = gdFlowDateAsks(); if (!list.length && !printed.length) return '';
+  return '<div class="card approvals"><div class="kpihead"><span class="kpiname">Receive dates waiting for accounts</span><span class="kpiwhen">counted on today until approved</span></div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>Receipt</th><th>Their challan</th><th>PO</th><th>Lot</th><th class="num">Metres</th><th>Day asked</th><th>Asked by</th><th></th></tr></thead><tbody>'
+    + list.map(function (x) {
+      return '<tr><td class="tl b">' + (x.kind === 'Greige' ? 'Greige' : 'RFD') + '</td><td class="tl mono">' + esc(x.no || '—') + '</td><td class="tl">' + esc(x.po || '—') + '</td>'
+        + '<td class="tl mono">' + esc(x.lots.join(', ')) + '</td><td class="num">' + m1(x.m) + ' m</td><td class="tl b">' + esc(fmtD(x.ask.date)) + '</td>'
+        + '<td class="tl">' + esc(x.ask.by || '') + '<div class="sub">' + esc(fmtD(lmToday(x.ask.at))) + '</div></td><td>' + gdDateAskButtons('data-gdask', x.id) + '</td></tr>';
+    }).join('') + printed.map(function (w) {
+      var m = Object.keys(w.rc.items || {}).reduce(function (n, k) { return n + (+w.rc.items[k] || 0); }, 0);
+      return '<tr><td class="tl b">Printed goods</td><td class="tl mono">' + esc(w.no) + '</td><td class="tl">' + esc(w.ch.orderNo || '—') + '</td><td class="tl">—</td><td class="num">' + nf(m) + '</td>'
+        + '<td class="tl b">' + esc(fmtD(w.ask.date)) + '</td><td class="tl">' + esc(w.ask.by || '') + '<div class="sub">' + esc(fmtD(lmToday(w.ask.at))) + '</div></td>'
+        + '<td>' + gdDateAskButtons('data-gdflowask', w.no + '|' + w.id) + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+}
+function wireDateAsks() {
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest ? ev.target.closest('[data-gdask],[data-gdflowask]') : null; if (!t) return;
+    if (t.getAttribute('data-gdask')) { var d = t.getAttribute('data-gdask').split('|'); gdDateDecideOnScreen(d[0], d[1] === 'ok'); return; }
+    var f = t.getAttribute('data-gdflowask').split('|'); gdFlowDateDecideOnScreen(f[0], f[1], f[2] === 'ok');
+  });
+}
+
 /** The receipts waiting for someone to approve their shrinkage. */
 function rrPending() { return (DB.fab || []).filter(function (r) { return r.txnType === 'RECEIVE_RFD' && r.approval && r.approval.status === 'pending'; }); }
 function rrApprovalsHtml() {
@@ -42091,10 +42328,14 @@ function invAll() {
   if (ppc && !ppc.__loading) Object.keys(ppc).forEach(function (k) { if (!flow[k] && !order[k]) names.push(ppc[k].name); });
   return uniq(names).map(function (n) {
     var e = flow[n.toUpperCase()] || {}, o = order[n.toUpperCase()];
-    var g = e.greigeLeft || 0, p = e.withProcessor || 0, r = e.rfdLeft || 0, cut = ctsOf(n);
+    /* RFD ON SHELF LESS WHAT WENT TO PRINTERS (Vishesh, 23 Nov): the RFD challans to printers take their metres off the shelf
+     * here too, by the flow's own rule (flowRfdStock: the desk's count less the challans since it began counting that fabric),
+     * so this column and PPC's "RFD free" agree. Challans are not by lot: the lots below still show what each lot had. */
+    var chOut = invChallanOut(n);
+    var g = e.greigeLeft || 0, p = e.withProcessor || 0, r = Math.max(0, (e.rfdLeft || 0) - chOut), cut = ctsOf(n);
     /* The cloth cut to size and not yet sent to a printer is still ours: it is in the total though it left the RFD shelf. */
     return { fabric: n, type: invType(n), greige: fabGreigeOf(n), onOrder: o ? o.m : 0,
-      inStoreGreige: g, atProcessor: p, inStoreRfd: r, cut: cut, owned: g + p + r + cut.leftM,
+      inStoreGreige: g, atProcessor: p, inStoreRfd: r, rfdToPrinters: chOut, cut: cut, owned: g + p + r + cut.leftM,
       ppc: ppc && !ppc.__loading ? (ppc[n.toUpperCase()] || null) : null };
   }).filter(invWorthShowing)
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
@@ -42288,6 +42529,7 @@ function invDetail(r, col) {
   }
   var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf', cut: 'Cut to size' }[col];
   return '<tr class="invdet"><td colspan="' + (UI.invCols || 6) + '"><div class="invdrop"><div class="sect">' + esc(title) + ' · ' + esc(r.fabric) + '</div>'
+    + (col === 'rfd' && r.rfdToPrinters > 0.05 ? '<div class="muted" style="font-size:12px">' + nf(r.rfdToPrinters) + ' m of it went to printers on RFD challans — taken off the shelf figure above; the lots below show what each lot had before.</div>' : '')
     + (col === 'cut' && r.cut.leftPcs > 0 ? '<div class="actions" style="justify-content:flex-start;margin:6px 0"><button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer from the pieces already cut">Send to printer</button></div>' : '')
     + (body.length ? '<div class="box scroll"><table class="ct li"><thead><tr>' + head.map(function (x, i) {
         return '<th' + (/^(Ordered|Received|Still due|Sent|Back so far|Still out|In store|Came back|To cutting|Damaged|On shelf|Days out|Sent to RFD|Cut|Sent to printer|Left)$/.test(x) ? ' class="num"' : '') + '>' + esc(x) + '</th>';
@@ -43596,14 +43838,13 @@ function wireEntry() {
 
 function wireUsersRfd() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-issall],[data-issbale],[data-rradd],[data-rrrm],[data-rrfin],[data-rr],[data-appr],[data-urm],#userAdd,#rrSave,[data-cut],[data-cutall],[data-cutthan],[data-cutline],#cutSave') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-issall],[data-issbale],[data-rradd],[data-rrrm],[data-rr],[data-appr],[data-urm],#userAdd,#rrSave,[data-cut],[data-cutall],[data-cutthan],[data-cutline],#cutSave') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
     if (g('data-issall') && ISS) { var lot = g('data-issall'), bs = lotBales(lot), all = bs.every(function (b) { return ISS.pick[lot][b.than]; }); ISS.pick[lot] = {}; if (!all) bs.forEach(function (b) { ISS.pick[lot][b.than] = true; }); issDraw(); return; }
     if (g('data-issbale') && ISS) { var p = g('data-issbale').split('|'); ISS.pick[p[0]][p[1]] = t.checked; issDraw(); return; }
     if (g('data-rradd') && RR) { var l = g('data-rradd'), ps = RR.thans[l]; ps.push({ than: rdNextBale(ps), m: '' }); /* same numbering as Receive greige */ rrDraw(); var f = $('rm-' + l + '-' + (ps.length - 1)); if (f) f.focus(); return; }
     if (g('data-rrrm') && RR) { var q = g('data-rrrm').split('|'), arr = RR.thans[q[0]]; arr.splice(+q[1], 1); if (!arr.length) arr.push({ than: '', m: '' }); rrDraw(); return; }
-    if (g('data-rrfin') && RR) { RR.fin[g('data-rrfin')] = t.checked; rrSums(); return; }
     if (t.id === 'rrSave') { rrSave(); return; }
     if (g('data-cut')) { cutOpen(g('data-cut')); return; }
     if (g('data-cutall') && CUT) { var ts = lotThans(CUT.lot), every = ts.every(function (x) { return CUT.pick[x.than]; }); CUT.pick = {}; if (!every) ts.forEach(function (x) { CUT.pick[x.than] = true; }); cutDraw(); return; }
@@ -43794,6 +44035,13 @@ function usersSafe() { return true; }
 var GD_LOSS = 0.05;
 /* Page registers on: PPC's figures are not ready until the order book and the factory registers are all in (a plain look, it reads nothing). */
 function gdFlowReady() { return typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowRfdCover === 'function' && (typeof prOn !== 'function' || !prOn() || ptHas(PTG_ALL)); }
+/** RFD metres of a fabric that left on the flow's RFD challans to printers since the desk began counting it; 0 when the flow
+ *  is not in this page or not read yet, or the desk has no opening count for the fabric (the flow then counts it elsewhere). */
+function invChallanOut(name) {
+  if (typeof flowRfdChallanOut !== 'function' || typeof FLOW === 'undefined' || !FLOW || !FLOW.ch) return 0;
+  var opened = gdRfdOpened(name); if (!opened) return 0;
+  try { return Math.max(0, +flowRfdChallanOut(name, opened) || 0); } catch (e) { console.warn('RFD on shelf for ' + name + ': challans to printers not counted (' + ((e && e.message) || e) + ').'); return 0; }
+}
 function gdRfdShelf(name) {
   if (!DB) return 0;
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0];
@@ -43951,10 +44199,12 @@ function gdSendToPrinter(fabric) {
     if (GD_STATE !== 'ok') { $('lmPane').innerHTML = '<div class="card" style="color:#b91c1c">The Greige Desk could not be read just now (' + esc(GD_STATE.replace(/^err: /, '')) + '). Nothing was changed. Open it again in a moment.</div>'; return; }
     lmLoad();
     if (typeof gdLinkMasters === 'function') gdLinkMasters();   // the Master Data's fabrics and vendors, read fresh each time
-    if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireCutToSize(); wireGd(); }
+    if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireCutToSize(); wireDateAsks(); wireGd(); }
     render();
   }
-  return { open: open, ensure: function () { return gdLoad(); }, rfdKnown: function (n) { return !!mstOf(n); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); }, state: function () { return GD_STATE; },
+  return { open: open, ensure: function () { return gdLoad(); }, dateAsks: function () { return GD_STATE === 'ok' && DB ? gdDateAskItems() : []; },
+    /* the same, from the ledger rows alone as the bell reads them (pt_gdTest/fab) when the desk itself was never opened */
+    dateAsksIn: function (fabNode) { return gdDateAskItems(Object.keys(fabNode || {}).map(function (k) { return Object.assign({ id: k }, fabNode[k]); })); }, fabNode: function () { return GD_NODE + '/fab'; }, dateDecide: function (id, ok, why) { return gdDateDecide(id, ok, why); }, rfdKnown: function (n) { return !!mstOf(n); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); }, state: function () { return GD_STATE; },
     /* Read the desk again (the flow's Refresh): what is on screen stays until the new read answers. */
     reload: function () { if (GD_READY) { var was = GD_READY; GD_READY = null; return was.then(function () { GD_READY = null; return gdLoad(); }); } return gdLoad(); } };
 })();
@@ -73507,14 +73757,15 @@ function fmAddFabric() {
 function fmAddVendor() {
   ptOpenDialog({ title: 'Add vendor', note: 'Saved to the vendor details of Master Data. The app’s own vendor list (Masters → Vendor) is not changed.',
     fields: [{ key: 'name', label: 'Vendor name *', value: '', span: 1 }, { key: 'type', label: 'Vendor type *', type: 'select', value: '', options: [['', 'Choose type']].concat(Object.entries(FM_VTYPES)) },
-      { key: 'work', label: 'Work done', value: '' }, { key: 'contact', label: 'Contact person', value: '' }, { key: 'phone', label: 'Phone', value: '' },
+      { key: 'contact', label: 'Contact person', value: '' }, { key: 'phone', label: 'Phone', value: '' },
       { key: 'city', label: 'City', value: 'Jaipur' }, { key: 'state', label: 'State', value: 'Rajasthan' }, { key: 'address', label: 'Address', value: '', span: 1 },
       { key: 'pincode', label: 'Pincode', value: '' }, { key: 'gstin', label: 'GSTIN', value: '' }, { key: 'pan', label: 'PAN', value: '' },
       { key: 'reg', label: 'Registration type', type: 'select', value: 'Regular', options: ['Regular', 'Composition', 'Unregistered/Consumer'] },
       { key: 'tds', label: 'TDS deductible', type: 'select', value: 'No', options: ['No', 'Yes · Individual/HUF - Resident', 'Yes · Individual - Resident', 'Yes · Partnership firm', 'Yes · Company - Resident'] }],
     saveLabel: 'Add vendor',
     async onSave(v) {
-      const rec = {}; ['name', 'type', 'work', 'contact', 'phone', 'city', 'state', 'address', 'pincode', 'gstin', 'pan', 'reg', 'tds'].forEach(k => { rec[k] = String(v[k] == null ? '' : v[k]).trim(); });
+      /* no "Work done" box on a new vendor any more (Vishesh, 23 Nov); vendors saved with one keep it */
+      const rec = {}; ['name', 'type', 'contact', 'phone', 'city', 'state', 'address', 'pincode', 'gstin', 'pan', 'reg', 'tds'].forEach(k => { rec[k] = String(v[k] == null ? '' : v[k]).trim(); });
       if (!rec.name) return 'Enter the vendor name.';
       if (!FM_VTYPES[rec.type]) return 'Choose a vendor type.';
       rec.gstin = rec.gstin.toUpperCase(); rec.pan = rec.pan.toUpperCase() || (rec.gstin ? rec.gstin.slice(2, 12) : '');
@@ -92426,6 +92677,20 @@ async function frPrnReady() {
   if (!FLOW.dem && typeof flowEnsureData === 'function') await flowEnsureData();
   if (FLOW.dem) FR.dem = null;
 }
+/** Receive dates waiting for accounts (Vishesh, 23 Nov) — greige and RFD receipts from the Greige Desk, printed goods from the production
+ *  flow; for those who may approve them (right gdpoappr; nobody else reads anything for them). Each comes from the desk or the
+ *  flow when it is loaded, else from the bell's own one-time read (FR.gdFab, FR.chs). */
+function frDateAsks() {
+  if (!frMay('gdpoappr')) return [];
+  const deskOn = typeof GD !== 'undefined' && GD.state && GD.state() === 'ok';
+  const desk = typeof GD !== 'undefined' && GD.dateAsks ? (deskOn ? GD.dateAsks() : GD.dateAsksIn(FR.gdFab)) : [];
+  const chs = typeof FLOW !== 'undefined' && FLOW.ch ? FLOW.ch : FR.chs;
+  const printed = typeof flowDateAsksWaiting === 'function' ? flowDateAsksWaiting(chs || {}) : [];
+  return [...desk.map(x => ({ kind: x.kind, id: x.id, no: x.no, po: x.po, ask: x.ask, m: x.m, unit: 'm' })),
+    ...printed.map(w => ({ kind: 'Printed goods', chNo: w.no, id: w.id, no: w.no, po: w.ch.orderNo || '', ask: w.ask, m: Object.values(w.rc.items || {}).reduce((n, v) => n + (+v || 0), 0) }))];
+}
+/** Before approving a printed-goods date: the production flow's challans must be in memory, as the approve works on them. */
+async function frDateReady() { if (!FLOW.ch && typeof flowLoad === 'function') await flowLoad(); }
 /** Every card: approvals one per item; waiting and problems one per kind. A card is
  *  { grp, tab, title, detail, lines, n, open, act } and act = { label, what(), prep(), run() → '' | error,
  *  bulk (may go in Approve all), danger, own (opens the screen's own window instead of asking here) }. */
@@ -92463,6 +92728,15 @@ function frCards() {
     { label: 'Approve', prep: frPrnReady,
       what: () => `Moves ${frNum(req.pcs)} pcs of ${req.sku} (order ${req.orderNo}) from ${(req.from || {}).name || '—'} to ${(req.to || {}).name || '—'} on the RFD challan.`,
       run: async () => (await flowPrnApprove(key)) || '' }));
+  /* Receive dates asked on a receipt (Vishesh, 23 Nov): greige, RFD and printed goods. Approve moves only that receipt's date; the
+   * Greige Desk's own card also has Refuse. Not in Approve all: it changes the books' date. */
+  frDateAsks().forEach(x => item('gdesk',
+    `Receive date · ${x.kind} · ${x.no || '—'}${x.po ? ' · ' + x.po : ''}: asked ${x.ask.date}`,
+    [x.kind === 'Printed goods' ? `${frNum(x.m)} received` : `${frNum(x.m)} m`, x.ask.by && 'asked by ' + x.ask.by, 'counted on today until approved'].filter(Boolean).join(' · '),
+    () => { showTab('gdesk'); GD.open('po'); },
+    { label: 'Approve', prep: x.kind === 'Printed goods' ? frDateReady : async () => { await GD.ensure(); },
+      what: () => `The ${x.kind.toLowerCase()} receipt ${x.no || ''} moves from today to ${x.ask.date}. Its challan, lot and PO stay as they are.`,
+      run: async () => (x.kind === 'Printed goods' ? await flowDateDecide(x.chNo, x.id, true) : await GD.dateDecide(x.id, true)) || '' }));
   /* Sales-order lines asked to be deleted — odrDeleteRun([id]) really deletes them: red warning, never in Approve all. */
   if (frMay('so') && frTry(odrCanAnswer, false) && ODR.rows) odrPending().forEach(r => item('so', `Delete ${r.sku || ''} from sales order ${r.orderNo || ''}`,
     [`${frNum(r.qty)} pcs`, frQ(r.why), r.by && 'asked by ' + r.by].filter(Boolean).join(' · '),
@@ -92568,6 +92842,9 @@ async function frLoad(force) {
   if (ME.admin && typeof vprRejLoad === 'function' && (force || VPR_REJ.rows === null)) jobs.push(() => vprRejLoad());
   /* Printer-change requests: approvers only, and only when the production flow is not loaded (it holds them already). */
   if (typeof flowPrnMay === 'function' && flowPrnMay() && !FLOW.dem && (force || !FR.dem)) jobs.push(() => ptGet('pt_flowDemand').then(v => { FR.dem = v || {}; }));
+  /* Receive dates waiting for accounts: approvers only, and only what the desk and the flow have not already loaded. */
+  if (frMay('gdpoappr') && typeof GD !== 'undefined' && GD.fabNode && GD.state() !== 'ok' && (force || !FR.gdFab)) jobs.push(() => ptGet(GD.fabNode()).then(v => { FR.gdFab = v || {}; }));
+  if (frMay('gdpoappr') && typeof FLOW !== 'undefined' && !FLOW.ch && (force || !FR.chs)) jobs.push(() => ptGet('pt_flowChallans').then(v => { FR.chs = v || {}; }));
   for (const job of jobs) {
     try { await job(); } catch (e) { console.warn('[my work]', e); }
     frDraw(); frCount();
@@ -92621,7 +92898,8 @@ const FR_GROUPS = [['approve', 'Needs your approval', 'fr-warn', '✓'], ['wait'
  * the screen's own window have no tick box — they are never approved in a batch. */
 const FR_SUBS = [[/^Job work correction/, 'Job work corrections'], [/^Quantity change/, 'Order quantity changes'],
   [/^Extra hours/, 'Extra hours to authorise'], [/^Printer rate/, 'Printer rates'], [/^Sales order/, 'Sales orders to review'],
-  [/^Finished goods correction/, 'Finished goods corrections'], [/^Printer change/, 'Printer changes on RFD challans'], [/^Delete /, 'Lines asked to be deleted']];
+  [/^Finished goods correction/, 'Finished goods corrections'], [/^Printer change/, 'Printer changes on RFD challans'], [/^Delete /, 'Lines asked to be deleted'],
+  [/^Receive date/, 'Receive dates waiting for accounts']];
 const FR_SUB_SHOW = 4;
 const frSub = c => { const i = FR_SUBS.findIndex(s => s[0].test(c.title)); return i < 0 ? FR_SUBS.length : i; };
 const frSubName = i => (FR_SUBS[i] || [0, 'Other approvals'])[1];
