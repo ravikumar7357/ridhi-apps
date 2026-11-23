@@ -30,7 +30,7 @@
  * and this page's own read-only copy of the finished-goods ledger (fgiLoad is not used: it can rewrite the Amazon
  * listings index). */
 
-const FR = { built: false, shown: false, sel: 0, items: [], fg: null, at: '', loading: false, cards: [], tick: new Set(), subOpen: new Set() };
+const FR = { built: false, shown: false, sel: 0, items: [], fg: null, dem: null, at: '', loading: false, cards: [], tick: new Set(), subOpen: new Set() };
 const frMay = tab => !!(ME && (ME.admin || (ME.tabs || []).includes(tab)));
 const frTry = (f, d) => { try { return f(); } catch (e) { return d; } };
 const frNum = v => Number(v) || 0;
@@ -43,6 +43,18 @@ const frGates = async () => { if (typeof ptLoadGates === 'function') await ptLoa
 
 /* ---------- the work ---------- */
 
+/** Printer-change requests waiting for this person (approvers only; nobody else reads anything for them). They come from the
+ *  production flow when it is loaded, else from the bell's own one-time read of the demand lines (FR.dem). */
+function frPrnWaiting() {
+  if (typeof flowPrnMay !== 'function' || !flowPrnMay()) return [];
+  if (typeof FLOW !== 'undefined' && FLOW.dem && typeof flowPrnWaiting === 'function') return flowPrnWaiting();
+  return Object.entries(FR.dem || {}).filter(([, x]) => x && x.printerMove && x.printerMove.status === 'waiting').map(([key, x]) => ({ key, x, req: x.printerMove }));
+}
+/** Before approving: the production flow's data must be in memory, as the approve works on it. */
+async function frPrnReady() {
+  if (!FLOW.dem && typeof flowEnsureData === 'function') await flowEnsureData();
+  if (FLOW.dem) FR.dem = null;
+}
 /** Every card: approvals one per item; waiting and problems one per kind. A card is
  *  { grp, tab, title, detail, lines, n, open, act } and act = { label, what(), prep(), run() → '' | error,
  *  bulk (may go in Approve all), danger, own (opens the screen's own window instead of asking here) }. */
@@ -71,6 +83,15 @@ function frCards() {
     () => vprOpenPrinter(r.code),
     { label: 'Seen', bulk: true, what: () => `Marks the reject of ${frNum(r.qty)} ${r.unit} on ${r.orderNo} (${r.printer}) as seen. It leaves every admin's bell; the printer still owes it.`,
       run: () => vprRejSeen(r.id) }));
+  /* Printer changes asked on an RFD challan (Vishesh, 23 Nov) — for those allowed to approve them (right flprn). Approve is the
+   * Greige Desk's own flowPrnApprove; not in Approve all, because it moves work from one printer to another. */
+  frPrnWaiting().forEach(({ key, req }) => item('gdesk',
+    `Printer change · ${req.orderNo || ''} · ${req.sku || ''}: ${(req.from || {}).name || '—'} → ${(req.to || {}).name || '—'} · ${frNum(req.pcs)} pcs`,
+    [req.fabric, req.by && 'asked by ' + req.by].filter(Boolean).join(' · '),
+    () => { showTab('gdesk'); GD.open('inv'); },
+    { label: 'Approve', prep: frPrnReady,
+      what: () => `Moves ${frNum(req.pcs)} pcs of ${req.sku} (order ${req.orderNo}) from ${(req.from || {}).name || '—'} to ${(req.to || {}).name || '—'} on the RFD challan.`,
+      run: async () => (await flowPrnApprove(key)) || '' }));
   /* Sales-order lines asked to be deleted — odrDeleteRun([id]) really deletes them: red warning, never in Approve all. */
   if (frMay('so') && frTry(odrCanAnswer, false) && ODR.rows) odrPending().forEach(r => item('so', `Delete ${r.sku || ''} from sales order ${r.orderNo || ''}`,
     [`${frNum(r.qty)} pcs`, frQ(r.why), r.by && 'asked by ' + r.by].filter(Boolean).join(' · '),
@@ -174,6 +195,8 @@ async function frLoad(force) {
   }
   if (frMay('hr') && (ME.admin || frTry(prCanApprove, false)) && (force || HR.emp === null)) jobs.push(() => { if (force) HR.emp = null; return ensureHr(); });
   if (ME.admin && typeof vprRejLoad === 'function' && (force || VPR_REJ.rows === null)) jobs.push(() => vprRejLoad());
+  /* Printer-change requests: approvers only, and only when the production flow is not loaded (it holds them already). */
+  if (typeof flowPrnMay === 'function' && flowPrnMay() && !FLOW.dem && (force || !FR.dem)) jobs.push(() => ptGet('pt_flowDemand').then(v => { FR.dem = v || {}; }));
   for (const job of jobs) {
     try { await job(); } catch (e) { console.warn('[my work]', e); }
     frDraw(); frCount();
@@ -227,7 +250,7 @@ const FR_GROUPS = [['approve', 'Needs your approval', 'fr-warn', '✓'], ['wait'
  * the screen's own window have no tick box — they are never approved in a batch. */
 const FR_SUBS = [[/^Job work correction/, 'Job work corrections'], [/^Quantity change/, 'Order quantity changes'],
   [/^Extra hours/, 'Extra hours to authorise'], [/^Printer rate/, 'Printer rates'], [/^Sales order/, 'Sales orders to review'],
-  [/^Finished goods correction/, 'Finished goods corrections'], [/^Delete /, 'Lines asked to be deleted']];
+  [/^Finished goods correction/, 'Finished goods corrections'], [/^Printer change/, 'Printer changes on RFD challans'], [/^Delete /, 'Lines asked to be deleted']];
 const FR_SUB_SHOW = 4;
 const frSub = c => { const i = FR_SUBS.findIndex(s => s[0].test(c.title)); return i < 0 ? FR_SUBS.length : i; };
 const frSubName = i => (FR_SUBS[i] || [0, 'Other approvals'])[1];
@@ -364,7 +387,7 @@ function frWire(cards, bulk, ticked) {
 /* ROLES (admins) — the ready-made roles (roles.js, made from R-one's own access): each one's screens and permissions,
  * in the menu's words. "View as" shows this page as that role. */
 const FR_TAB_NAMES = { flppc: 'PPC', fldem: 'Demand', flacc: 'Accessories (flow)', flchl: 'Challans', flcut: 'To cut', flraw: 'Raw cutting',
-  flwip: 'WIP', gdesk: 'Greige Desk', gdled: 'Greige ledger', gdledit: 'Greige corrections', gdappr: 'Greige approvals', gdpo: 'Greige PO close', gdpoappr: 'Greige close approvals',
+  flwip: 'WIP', flprn: 'Approve printer change', gdesk: 'Greige Desk', gdled: 'Greige ledger', gdledit: 'Greige corrections', gdappr: 'Greige approvals', gdpo: 'Greige PO close', gdpoappr: 'Greige close approvals',
   qcalt: 'QC — alteration out', qcret: 'QC — alteration back', vend: 'Vendor portal', mst: 'Masters', shopret: 'Shopify returns', shopbkt: 'Shopify production bucket' };
 function frRoles() {
   const menu = Object.fromEntries(frScreens().map(s => [s.tab, s.name]));

@@ -6125,6 +6125,8 @@ const REPL_TABS = ['repl', 'article', 'target', 'top', 'shopify', 'pack',
   'shop', 'adj', 'shopprod', 'shopret', 'shopbkt', 'dash',
   /* Production flow (test, 2026-10-10): one right per bucket — the same keys as FLOW_BUCKETS in flow/flow-core.js. */
   'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip',
+  /* Approve a change of printer on an RFD challan (Vishesh, 23 Nov): a right, not a screen. */
+  'flprn',
   /* Greige Desk (2026-10-13; real since 15 Oct): open it, see the fabric ledger, add to / correct it, approve shrinkage over 5%. */
   'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdpo', 'gdpoappr'];   // section keys, gated per-user via perms.replTabs — 'dash' is the admins' dashboard
 let REPL = { SP: null, CPC: null };   // brand → { rows, at }
@@ -6392,7 +6394,9 @@ onAuthStateChanged(auth, async user => {
      * the Replenishment snapshot at sign-in — a vendor's among them. */
     'vlog', 'cx', ...FLOW_TABS,
     /* The Greige Desk's four rights (2026-10-13) are factory screens too. */
-    'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdpo', 'gdpoappr'];
+    'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdpo', 'gdpoappr',
+    /* Approving a change of printer on an RFD challan is a factory right too (Vishesh, 23 Nov). */
+    'flprn'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
   /* DATA METER (Step 0): remember what kind of user this is, ask the Firestore flag config/flags.dataMeter in the
    * background and keep its answer for the NEXT page load. Never waits, never blocks sign-in; a missing document or a
@@ -6419,8 +6423,10 @@ onAuthStateChanged(auth, async user => {
         if (typeof deltaSaveFlag === 'function') deltaSaveFlag(!!d && (d.deltaUse === true || d.deltaUse === 1 || d.deltaUse === '1' || d.deltaUse === 'on'));
         /* ...and the Finished Goods light-open switch (inventory/finished-goods.js), also from the next page load. */
         if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(!!d && (d.fgLite === true || d.fgLite === 1 || d.fgLite === '1' || d.fgLite === 'on'));
+        /* ...and the printer's hold switch (flow/flow-printorder.js: a new plan's Vendor Order waits for its RFD challan), also from the next page load. */
+        if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(!!d && (d.printerHold === true || d.printerHold === 1 || d.printerHold === '1' || d.printerHold === 'on'));
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(false); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }
@@ -33955,6 +33961,15 @@ async function flowChallanWrite(ch, v, how) {
   const setP = how.unplanned || [];
   setP.forEach(k => { patch[`pt_ppc/${k}/printer`] = { code: v.code, name: vname, why: 'set by challan ' + no }; });
   ch.lines.filter(l => !l.ruffleOnly).forEach(l => { patch[`pt_flowDemand/${l.key}/fabricReady`] = { at: now, by: ME.email || '', what: l.fabric, metres: l.metres, note: `Challan ${no} to ${vname}`, challan: no, vendor: vname }; });
+  /* THE PRINTER SEES IT NOW (Vishesh, 23 Nov): a line held from the printer's own login until its RFD challan is shown to them
+   * from this challan on — in the same write. If the printer's orders cannot be read, the challan still saves and the console says
+   * so; those lines stay held until the next challan or a release by hand. */
+  if (typeof flowVoRelease === 'function') {
+    try {
+      if (typeof ensureVo === 'function' && typeof VO !== 'undefined' && !Array.isArray(VO.rows)) await ensureVo();
+      flowVoRelease(ch.lines.map(l => (l.ruffleOnly ? l.key + FLOW_RUF : l.key)), patch);
+    } catch (e) { console.warn(`Challan ${no}: could not lift the printer's hold (${e.message || e}); the lines stay held from the printer.`); }
+  }
   try { if (Object.keys(patch).length) await ptPatch(patch); } catch (e) { return `Challan ${no} is saved, but the lines could not be marked (${e.message || e}) — press Refresh.`; }
   FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
   if (setP.length) { FLOW.ppc = Object.assign({}, FLOW.ppc); setP.forEach(k => { FLOW.ppc[k] = Object.assign({}, FLOW.ppc[k], { printer: patch[`pt_ppc/${k}/printer`] }); }); }
@@ -33969,11 +33984,22 @@ async function flowChallanWrite(ch, v, how) {
  * "Send to printer" on a fabric's RFD on the shelf opens this card over the Inventory page: every line still waiting for
  * that fabric on Demand → RFD, a printer from the vendor master (printers only), and Choose by order or by print to narrow
  * the list. Unlike the Demand window nothing is typed: each line carries all the pieces it still needs, the date is today,
- * and the metres are those pieces × the cloth per piece on the SKU's master row. Picking a printer shows only the lines PPC
- * planned for it and the lines with no printer yet. What is shown and ticked is what goes.
- * Errors: the card only reads until Make the challan; a refused save says why in the card, and flowChallanWrite never
- * leaves a challan half made without saying so. A line whose master row has no cloth per piece is shown but cannot go. */
-let FLOW_SH = null;   // the open card: { fabric, lines, tick: Set of line keys, by: 'order' | 'print', pick, after }
+ * and the metres are those pieces × the cloth per piece on the SKU's master row.
+ *
+ * A CHANGE OF PRINTER NEEDS APPROVAL (Vishesh, 23 Nov: "PPC ne jis printer ko diya, usse doosre ko dena ho to approval"). Picking a
+ * printer shows EVERY line of the fabric. A line PPC gave to another printer is flagged "moving"; it does not go on the challan
+ * at once. Make the challan opens a Review first: "Goes now" (the lines PPC gave to this printer, or to none) and "Waits for
+ * approval" (the moving ones). Confirm makes the challan for the first and leaves a waiting request on each of the second
+ * (pt_flowDemand/<line>/printerMove). Ravi, or anyone with the right "Approve a change of printer" (flprn), approves it from
+ * this card: the plan and its print order move to the new printer (flowChangePrinterSave, the same code as Demand's Change
+ * printer) and the challan to it is made. A line whose cloth is already partly given, or whose printer cannot be changed
+ * (flowChangePrinterPlan refuses), cannot be moved from here — PPC changes it.
+ * Errors: the card only reads until Confirm. A refused save says why in the card. Money-like steps fail loudly: nothing is
+ * written when the challan is refused; once the challan is made, a request that could not be saved is said in the result, never
+ * hidden. Approving is claimed first (ptCas waiting → approving), so two approvers cannot both do it; if the printer change
+ * fails the request goes back to waiting, and if only the challan fails it is marked moved and says so.
+ * A line whose master row has no cloth per piece is shown but cannot go. */
+let FLOW_SH = null;   // the open card: { fabric, lines, tick: Set of line keys, by: 'order' | 'print', pick, after, review: { code, note } }
 
 /** One line on the card: the pieces still owed, the master's cloth per piece, the metres they make, its printer and print. */
 function flowShLine(x) {
@@ -33993,12 +34019,23 @@ function flowShLines(fabric) {
     .map(flowShLine).filter(l => l.pcs > 0)
     .sort((a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)));
 }
-/** What the card shows: the picked printer's lines and the unplanned ones, narrowed to the order or print chosen. */
+/** What the card shows: every line of the fabric, narrowed to the order or print chosen (whatever printer is picked). */
 function flowShShown(S, code) {
-  const forPrinter = l => !code || !l.printer || String(l.printer) === String(code);
   const chosen = l => !S.pick || (S.by === 'print' ? l.printKey === S.pick : String(l.x.r.orderNo) === S.pick);
-  return S.lines.filter(l => forPrinter(l) && chosen(l));
+  return S.lines.filter(chosen);
 }
+/** True when PPC gave the line to a printer other than the one picked — sending it there is a change of printer. */
+const flowShMoving = (l, code) => !!(code && l.printer && String(l.printer) !== String(code));
+/** The request waiting for approval on a line, or null. */
+const flowShWaits = l => flowPrnReq(l.key, 'waiting');
+/** Why a moving line cannot be moved from this card ('' when it can): cloth already given, or the printer change refuses it. */
+function flowShStuck(l, code) {
+  if (!flowShMoving(l, code)) return '';
+  if (l.x.s.fabSent > 0) return 'part of its cloth is already given';
+  return flowChangePrinterPlan(l.key, code).err || '';
+}
+/** The lines ticked and able to go for this printer: cloth per piece known, nothing waiting, not stuck with its planned printer. */
+const flowShGoing = (S, code) => flowShShown(S, code).filter(l => S.tick.has(l.key) && l.perPc > 0 && !flowShWaits(l) && !flowShStuck(l, code));
 /** The second drop-down: each order (or print) among the printer's lines, with how many lines it has. */
 function flowShChoices(S, code) {
   const seen = new Map();
@@ -34009,7 +34046,6 @@ function flowShChoices(S, code) {
   });
   return [...seen.values()];
 }
-const flowShGoing = (S, code) => flowShShown(S, code).filter(l => S.tick.has(l.key) && l.perPc > 0);
 
 /** Reads what the card needs, then opens it. Returns why it could not open, or '' (after(no, printError) runs once a challan is made). */
 async function flowShelfChallanOpen(fabric, after) {
@@ -34017,12 +34053,13 @@ async function flowShelfChallanOpen(fabric, after) {
   await flowEnsureData();
   return flowShelfChallanShow(fabric, after);
 }
-function flowShelfChallanShow(fabric, after) {
+/** Opens the card. `keep` is the card as it was (the Back button of the Review): the same ticks, choice, printer and note come back. */
+function flowShelfChallanShow(fabric, after, keep) {
   const lines = flowShLines(fabric);
   if (!lines.length) return `No line is waiting for ${fabric} on Demand → RFD.`;
   FLOW_CH_COVER = flowRfdCover();
-  FLOW_SH = { fabric, lines, tick: new Set(lines.filter(l => l.perPc > 0).map(l => l.key)), by: 'order', pick: '', after };
-  const plannedOne = [...new Set(lines.map(l => l.printer).filter(Boolean))];
+  FLOW_SH = keep ? Object.assign({}, keep, { lines, review: null }) : { fabric, lines, tick: new Set(lines.filter(l => l.perPc > 0).map(l => l.key)), by: 'order', pick: '', after };
+  const plannedOne = keep ? [keep.review.code] : [...new Set(lines.map(l => l.printer).filter(Boolean))];
   const pr = flowPrinters();
   ptOpenDialog({
     title: `RFD challan — ${fabric} → printer`,
@@ -34031,13 +34068,14 @@ function flowShelfChallanShow(fabric, after) {
     html: `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
         <label>Printer<select id="flshVen"><option value="">— pick the printer —</option>${pr.map(v => `<option value="${esc(v.code)}"${plannedOne.length === 1 && String(v.code) === String(plannedOne[0]) ? ' selected' : ''}>${esc(v.desc || v.name || v.code)}</option>`).join('')}</select></label>
         <label>Date<input id="flshDate" value="${esc(dToday())}" readonly title="A challan from here is made today"></label>
-        <label>Choose by<select id="flshBy"><option value="order">By order</option><option value="print">By print</option></select></label>
+        <label>Choose by<select id="flshBy"><option value="order"${FLOW_SH.by === 'order' ? ' selected' : ''}>By order</option><option value="print"${FLOW_SH.by === 'print' ? ' selected' : ''}>By print</option></select></label>
         <label><span id="flshPickT">Order</span><select id="flshPick"></select></label></div>
       <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;align-items:flex-start">
         <div id="flshBody" style="flex:1.5 1 560px;min-width:0;border:1px solid var(--line,#e3e7ef);border-radius:10px;max-height:60vh;overflow:auto"></div>
         <div style="flex:1 1 320px;min-width:0;border:1px solid var(--line,#e3e7ef);border-radius:10px;padding:12px 14px">
           <div id="flshSum"></div>
-          <label style="display:block;margin-top:10px">Note (vehicle, who carried it…)<input id="flshNote"></label></div></div>`,
+          <label style="display:block;margin-top:10px">Note (vehicle, who carried it…)<input id="flshNote" value="${esc(keep ? keep.review.note : '')}"></label></div></div>
+      <div id="flshWait"></div>`,
     saveLabel: 'Make the challan',
     onSave: flowShSave,
   });
@@ -34055,11 +34093,12 @@ function flowShDraw() {
     + ch.map(c => `<option value="${esc(c.k)}"${c.k === S.pick ? ' selected' : ''}>${esc(c.label)} · ${nf(c.n)} line${c.n === 1 ? '' : 's'}</option>`).join('');
   $('flshBody').innerHTML = flowShTableHtml(S, code);
   $('flshSum').innerHTML = flowShSumHtml(S, code);
+  $('flshWait').innerHTML = flowShWaitHtml(S);
   if (typeof ptImgFill === 'function') ptImgFill(flowShShown(S, code).map(l => obUC(l.x.r.sku)), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
 function flowShTableHtml(S, code) {
   const shown = flowShShown(S, code);
-  if (!shown.length) return '<div class="muted" style="padding:14px">No line for this printer. Lines PPC planned for another printer show when that printer is picked.</div>';
+  if (!shown.length) return '<div class="muted" style="padding:14px">No line for this choice.</div>';
   const head = l => S.by === 'print' ? ([l.print && l.print.code, l.print && l.print.label].filter(Boolean).join(' · ') || 'No print named') : String(l.x.r.orderNo);
   let last = null;
   /* min-width: on a phone the table scrolls sideways rather than wrapping the item names a word to a line */
@@ -34068,10 +34107,11 @@ function flowShTableHtml(S, code) {
     + shown.map(l => {
       const h = head(l), grp = h !== last ? `<tr><td colspan="5" style="text-align:left;font-weight:700;background:var(--hover,#f4f6fb)">${esc(h)}</td></tr>` : '';
       last = h;
-      const noCloth = !(l.perPc > 0);
-      return grp + `<tr${noCloth ? ' style="background:#fdf2f2"' : ''}><td><input type="checkbox" data-shk="${esc(l.key)}"${S.tick.has(l.key) && !noCloth ? ' checked' : ''}${noCloth ? ' disabled title="No cloth per piece on its master row"' : ''} style="width:auto"></td>
+      const noCloth = !(l.perPc > 0), wait = flowShWaits(l), stuck = flowShStuck(l, code), blocked = noCloth || !!wait || !!stuck;
+      const why = noCloth ? 'No cloth per piece on its master row' : wait ? 'Waiting for approval' : stuck;
+      return grp + `<tr${noCloth ? ' style="background:#fdf2f2"' : ''}><td><input type="checkbox" data-shk="${esc(l.key)}"${S.tick.has(l.key) && !blocked ? ' checked' : ''}${blocked ? ` disabled title="${esc(why)}"` : ''} style="width:auto"></td>
         <td style="text-align:left;white-space:normal"><div style="display:flex;gap:10px;align-items:center;min-width:0">${typeof ptImgSpan === 'function' ? ptImgSpan(obUC(l.x.r.sku), 36) : ''}<div style="min-width:0"><b style="font-family:ui-monospace,monospace">${esc(obUC(l.x.r.sku))}</b>${S.by === 'print' ? ` <span class="muted" style="font-size:10.5px">· ${esc(l.x.r.orderNo)}</span>` : ''}<div class="muted" style="font-size:10.5px">${esc(flowChItem(l.x.r))}</div>
-          ${l.print ? `<div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(l.print)}</div>` : ''}${!code && l.printerName ? `<div class="muted" style="font-size:10.5px">planned: ${esc(l.printerName)}</div>` : ''}${noCloth ? '<div style="font-size:11px;color:#b42318;font-weight:600">No cloth per piece on its master row — add it there first</div>' : ''}</div></div></td>
+          ${l.print ? `<div style="font-size:11px;color:#4338ca">Print: ${flowPrintTxt(l.print)}</div>` : ''}${flowShPlanTxt(l, code, wait, stuck)}${noCloth ? '<div style="font-size:11px;color:#b42318;font-weight:600">No cloth per piece on its master row — add it there first</div>' : ''}</div></div></td>
         <td class="num">${nf(l.pcs)}</td><td class="num">${noCloth ? '—' : nf(l.perPc)}</td><td class="num"><b>${noCloth ? '—' : nf(l.metres)}</b></td></tr>`;
     }).join('') + '</tbody></table>';
 }
@@ -34085,6 +34125,103 @@ function flowShSumHtml(S, code) {
     <div class="muted" style="font-size:12px;margin-bottom:8px">${v ? 'Goes to <b>' + esc(v.desc || v.name || v.code) + '</b>' : 'Pick the printer'} · ${esc(dToday())}</div>
     <div>${stock}</div>`;
 }
+/** What a row says about its printer: the plan, a change waiting for approval, or why it cannot be moved from here. */
+function flowShPlanTxt(l, code, wait, stuck) {
+  const line = (txt, colour) => `<div style="font-size:11px;${colour ? 'color:' + colour + ';font-weight:600' : ''}"${colour ? '' : ' class="muted"'}>${esc(txt)}</div>`;
+  if (wait) return line(`waits for approval to ${wait.to.name}`, '#b54708');
+  if (stuck) return line(`Already started with ${l.printerName || l.printer} — change the printer from PPC`, '#b42318');
+  if (flowShMoving(l, code)) {
+    const to = flowPrinters().find(p => String(p.code) === String(code)) || {};
+    return line(`PPC gave this to ${l.printerName || l.printer} — moving it to ${to.desc || to.name || code} needs approval`, '#b54708');
+  }
+  return !code && l.printerName ? line(`planned: ${l.printerName}`) : '';
+}
+/* ---- ASKING FOR, AND DECIDING, A CHANGE OF PRINTER (Vishesh, 23 Nov) ---- */
+const flowPrnMay = () => flowMay('flprn');
+/** The request on a line (pt_flowDemand/<line>/printerMove); with a status given, only if it is in that status. */
+function flowPrnReq(key, status) {
+  const r = ((FLOW.dem || {})[key] || {}).printerMove;
+  return r && (!status || r.status === status) ? r : null;
+}
+/** The requests waiting for approval, each with its line; only those of one fabric when a fabric is given. */
+/* A request left "approving" (the approver's browser closed half-way) comes back as waiting after 10 minutes, so it is never lost. */
+const FLOW_PRN_STALE_MS = 10 * 60 * 1000;
+function flowPrnOpen(key) {
+  const r = flowPrnReq(key); if (!r) return null;
+  if (r.status === 'waiting') return r;
+  return r.status === 'approving' && Date.now() - Date.parse(r.claimAt || 0) > FLOW_PRN_STALE_MS ? r : null;
+}
+function flowPrnWaiting(fabric) {
+  const F = fabric == null ? null : flowFabKey(fabric);
+  return flowRows().map(x => ({ key: x.s.key, x, req: flowPrnOpen(x.s.key) }))
+    .filter(w => w.req && (F === null || flowFabKey(((w.x.s.plan || {}).fabric || {}).name) === F));
+}
+/** Writes the request on a line only where it is still `expect` (null = none), so two people cannot decide one request twice.
+ * Returns '' written, 'changed' somebody else got there first, or what went wrong in words. */
+async function flowPrnSet(key, expect, next) {
+  const path = `pt_flowDemand/${key}/printerMove`;
+  try { if (typeof ptCas === 'function') { if (await ptCas(path, expect, next)) return 'changed'; } else await ptPatch({ [path]: next }); } catch (e) { return 'Could not save: ' + (e.message || e); }
+  FLOW.dem = Object.assign({}, FLOW.dem, { [key]: Object.assign({}, (FLOW.dem || {})[key], { printerMove: next }) });
+  return '';
+}
+/** Approve: the plan and its print order move to the asked printer, then the challan to it is made. '' = done (words in .said). */
+async function flowPrnApprove(key) {
+  if (!flowPrnMay()) return 'Only Ravi, or someone with the right "Approve a change of printer", can approve this.';
+  const req = flowPrnOpen(key); if (!req) return 'That request is not waiting any more — press Refresh.';
+  const claim = Object.assign({}, req, { status: 'approving', claimBy: ME.email || '', claimAt: new Date().toISOString() });
+  const lost = await flowPrnSet(key, req, claim);
+  if (lost) return lost === 'changed' ? 'Somebody else has just decided this — press Refresh.' : lost;
+  const er = await flowPrnMove(key, req);
+  if (er) { await flowPrnSet(key, claim, req); return er; }   // nothing moved: it waits again
+  const made = await flowPrnChallan(key, req), decided = { decidedBy: ME.email || '', decidedAt: new Date().toISOString() };
+  if (made.err) { await flowPrnSet(key, claim, Object.assign({}, claim, decided, { status: 'moved' })); return `Printer changed; make the challan from Send to printer. (${made.err})`; }
+  const left = await flowPrnSet(key, claim, Object.assign({}, claim, decided, { status: 'done', challan: made.no }));
+  flowPrnApprove.no = made.no;
+  flowPrnApprove.said = `${req.sku} moved to ${req.to.name}; challan ${made.no} made.${left ? ' The request could not be marked done — press Refresh.' : ''}`;
+  return '';
+}
+/** The printer change itself, through Demand's Change printer; its own questions (the Vendor Order) are still asked. */
+async function flowPrnMove(key, req) {
+  const x = flowRows().find(y => y.s.key === key); if (!x) return 'That line is not here any more — press Refresh.';
+  if (x.s.fabSent > 0) return `${req.sku}: part of its cloth is already given — change the printer from PPC.`;
+  const stuck = flowChangePrinterPlan(key, req.to.code).err; if (stuck) return stuck;
+  return flowChangePrinterSave(key, req.to.code, `approved on the Send to printer card — asked by ${req.by || 'someone'}`);
+}
+/** The challan for one approved line, to its new printer: the pieces and metres asked for, made as the card makes them. */
+async function flowPrnChallan(key, req) {
+  const x = flowRows().find(y => y.s.key === key), v = flowPrinters().find(p => String(p.code) === String(req.to.code));
+  if (!x || !v) return { err: 'the line or the printer is not here' };
+  return flowShMake(v, [Object.assign({}, flowShLine(x), { pcs: req.pcs, metres: req.metres })], '', req.fabric);
+}
+/** Refuse: the line stays with PPC's printer. */
+async function flowPrnRefuse(key, why) {
+  if (!flowPrnMay()) return 'Only Ravi, or someone with the right "Approve a change of printer", can refuse this.';
+  const req = flowPrnOpen(key); if (!req) return 'That request is not waiting any more — press Refresh.';
+  const er = await flowPrnSet(key, req, Object.assign({}, req, { status: 'refused', decidedBy: ME.email || '', decidedAt: new Date().toISOString(), why: why || '' }));
+  return er === 'changed' ? 'Somebody else has just decided this — press Refresh.' : er;
+}
+/** The "Waiting for approval" block under the card: who asked what, with Approve / Refuse for those who may decide. */
+function flowShWaitHtml(S) {
+  const list = flowPrnWaiting(S.fabric), may = flowPrnMay();
+  if (!list.length) return '';
+  return `<div style="margin-top:12px;border:1px solid #f5c26b;background:#fffaeb;border-radius:10px;padding:10px 14px"><div style="font-weight:700;font-size:12.5px;margin-bottom:6px">Waiting for approval — change of printer</div>`
+    + list.map(w => `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;padding:4px 0"><span style="flex:1 1 320px"><b>${esc(w.req.sku)}</b> · ${esc(w.req.orderNo)} · ${esc(w.req.from.name)} → <b>${esc(w.req.to.name)}</b> · ${nf(w.req.pcs)} pcs · ${nf(w.req.metres)} m <span class="muted">· asked by ${esc(String(w.req.by || '').split('@')[0] || '—')} ${esc(String(w.req.at || '').slice(0, 10))}</span></span>`
+      + (may ? `<button type="button" class="btn" data-prnok="${esc(w.key)}">Approve</button><button type="button" class="btn ghost" data-prnno="${esc(w.key)}">Refuse</button>` : '') + '</div>').join('') + '</div>';
+}
+
+/** One challan for the lines given, to one printer. Returns { err } when refused, else { no }. */
+async function flowShMake(v, go, note, fabric) {
+  const orders = [...new Set(go.map(l => l.x.r.orderNo))];
+  const ch = { no: '', date: dToday(), orderNo: orders.join(', '), orders, vendor: { code: v.code, name: v.desc || v.name || v.code },
+    note, at: new Date().toISOString(), by: ME.email || '', from: 'Greige Desk inventory',
+    lines: go.map(l => ({ key: l.key, sku: obUC(l.x.r.sku), item: flowChItem(l.x.r), print: l.print,
+      /* the ruffle cloth goes once, on the first challan for the line — never when it has a printer of its own */
+      extras: l.x.s.fabSent > 0 || flowRufflePrinter(l.x.s.plan) ? [] : flowPrintExtras(l.x.r, l.x.s.plan, flowPoRemOf(l.x.r, l.x.s)),
+      fabric: ((l.x.s.plan || {}).fabric || {}).name || fabric, pcs: l.pcs, metres: l.metres })) };
+  const err = await flowChallanWrite(ch, v, { isTest: go.every(l => !!l.x.r.__t), unplanned: go.filter(l => !l.printer).map(l => l.key) });
+  return err ? { err } : { no: ch.no };
+}
+/** Make the challan: checks what is ticked as before, then shows the Review. Nothing is written until Confirm. */
 async function flowShSave() {
   const S = FLOW_SH; if (!S) return 'The card was closed — open it again.';
   const code = $('flshVen').value, v = flowPrinters().find(p => String(p.code) === String(code));
@@ -34092,20 +34229,66 @@ async function flowShSave() {
   const go = flowShGoing(S, code);
   if (!go.length) return 'Tick at least one line.';
   if (go.some(l => !!l.x.r.__t) && go.some(l => !l.x.r.__t)) return 'A test order and a real one cannot share a challan.';
-  const orders = [...new Set(go.map(l => l.x.r.orderNo))];
-  const ch = { no: '', date: dToday(), orderNo: orders.join(', '), orders, vendor: { code: v.code, name: v.desc || v.name || v.code },
-    note: $('flshNote').value.trim(), at: new Date().toISOString(), by: ME.email || '', from: 'Greige Desk inventory',
-    lines: go.map(l => ({ key: l.key, sku: obUC(l.x.r.sku), item: flowChItem(l.x.r), print: l.print,
-      /* the ruffle cloth goes once, on the first challan for the line — never when it has a printer of its own */
-      extras: l.x.s.fabSent > 0 || flowRufflePrinter(l.x.s.plan) ? [] : flowPrintExtras(l.x.r, l.x.s.plan, flowPoRemOf(l.x.r, l.x.s)),
-      fabric: ((l.x.s.plan || {}).fabric || {}).name || S.fabric, pcs: l.pcs, metres: l.metres })) };
-  const wrote = await flowChallanWrite(ch, v, { isTest: go.every(l => !!l.x.r.__t), unplanned: go.filter(l => !l.printer).map(l => l.key) });
-  if (wrote) return wrote;
-  const err = flowChallanPrint(ch.no);
-  FLOW_SH = null;
-  if (typeof S.after === 'function') setTimeout(() => S.after(ch.no, err || ''), 0);
+  S.review = { code, note: $('flshNote').value.trim() };
+  setTimeout(flowShReviewOpen, 0);   // the card closes when this returns; the Review opens on the next tick
   return '';
 }
+/** "Show this change at last": what goes now, and what waits for approval, before anything is saved. */
+function flowShReviewOpen() {
+  const S = FLOW_SH; if (!S || !S.review) return;
+  const { code } = S.review, v = flowPrinters().find(p => String(p.code) === String(code)) || {}, vname = v.desc || v.name || code;
+  const go = flowShGoing(S, code), now = go.filter(l => !flowShMoving(l, code)), moving = go.filter(l => flowShMoving(l, code));
+  const cell = 'padding:4px 8px;text-align:left', th = h => `<th style="${cell}">${h}</th>`;
+  const rows = (ls, mid) => ls.map(l => `<tr><td style="${cell}"><b>${esc(obUC(l.x.r.sku))}</b></td><td style="${cell}">${esc(l.x.r.orderNo)}</td>${mid(l)}<td class="num">${nf(l.pcs)}</td><td class="num">${nf(l.metres)}</td></tr>`).join('');
+  const total = ls => `<tr><td colspan="2" style="${cell}"><b>Total</b></td><td class="num"><b>${nf(ls.reduce((a, l) => a + l.pcs, 0))}</b></td><td class="num"><b>${nf(flowR2(ls.reduce((a, l) => a + l.metres, 0)))}</b></td></tr>`;
+  const goes = now.length ? `<table class="xl" style="width:100%"><thead><tr>${th('SKU')}${th('Order')}<th>Pcs</th><th>Metres</th></tr></thead><tbody>${rows(now, () => '')}${total(now)}</tbody></table>` : '<div class="muted">Nothing goes now.</div>';
+  const waits = moving.length ? `<table class="xl" style="width:100%"><thead><tr>${th('SKU')}${th('Order')}${th('Printer')}<th>Pcs</th><th>Metres</th></tr></thead><tbody>${rows(moving, l => `<td style="${cell}">${esc(l.printerName || l.printer)} → ${esc(vname)}</td>`)}</tbody></table>
+      <div class="muted" style="font-size:12px;margin-top:6px">Approved by Ravi or anyone with 'Approve a change of printer'. Once approved, the plan and its print order move and a challan is made for it.</div>` : '<div class="muted">Nothing waits.</div>';
+  ptOpenDialog({
+    title: `Review — RFD challan to ${vname}`, subtitle: `${S.fabric}. Nothing is saved until you press Confirm.`, wide: true,
+    html: `<div style="font-weight:700;margin:4px 0">Goes now</div>${goes}<div style="font-weight:700;margin:14px 0 4px">Waits for approval — change of printer</div>${waits}`,
+    saveLabel: 'Confirm', onSave: flowShCommit,
+    alt: { label: 'Back', run: async () => { setTimeout(() => flowShelfChallanShow(S.fabric, S.after, S), 0); return ''; } },
+  });
+}
+/** Confirm: the challan for the lines that go now, a waiting request for each line that moves. What it did is in flowShCommit.said. */
+async function flowShCommit() {
+  const S = FLOW_SH; if (!S || !S.review) return 'The card was closed — open it again.';
+  const { code, note } = S.review, v = flowPrinters().find(p => String(p.code) === String(code)); if (!v) return 'Which printer is the fabric going to? Pick one.';
+  const go = flowShGoing(S, code), now = go.filter(l => !flowShMoving(l, code)), moving = go.filter(l => flowShMoving(l, code));
+  let no = '', err = '';
+  if (now.length) {
+    const made = await flowShMake(v, now, note, S.fabric); if (made.err) return made.err;
+    no = made.no; err = flowChallanPrint(no);
+  }
+  const asked = []; for (const l of moving) asked.push(await flowShAsk(l, v));
+  FLOW_SH = null;
+  flowShCommit.said = (no ? [`Challan ${no} made.`] : []).concat(asked).join(' ');
+  if (typeof S.after === 'function') setTimeout(() => S.after(no, [err, asked.join(' ')].filter(Boolean).join(' ')), 0);
+  return '';
+}
+/** One waiting request for a line that moves; a line that already waits is left as it is. Returns what to say. */
+async function flowShAsk(l, v) {
+  const sku = obUC(l.x.r.sku), open = flowPrnReq(l.key);
+  if (open && open.status === 'waiting') return `${sku} already waits for approval.`;
+  const pl = (l.x.s.plan && l.x.s.plan.printer) || {};
+  const req = { status: 'waiting', to: { code: String(v.code), name: v.desc || v.name || v.code }, from: { code: String(pl.code || ''), name: pl.name || '' }, fabric: ((l.x.s.plan || {}).fabric || {}).name || '',
+    pcs: l.pcs, metres: l.metres, orderNo: l.x.r.orderNo, sku, by: ME.email || '', at: new Date().toISOString() };
+  const er = await flowPrnSet(l.key, open, req);
+  return er === 'changed' ? `${sku} already waits for approval.` : er ? `${sku}: ${er}` : `${sku} waits for approval to ${req.to.name}.`;
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', async e => {
+  const t = e.target && e.target.closest && e.target.closest('[data-prnok],[data-prnno]'); if (!FLOW_SH || !t) return;
+  const approve = !!t.dataset.prnok, key = t.dataset.prnok || t.dataset.prnno;
+  let why = '';
+  if (!approve) { why = typeof prompt === 'function' ? prompt('Why is this change of printer refused? (the person who asked will see it)', '') : ''; if (why === null) return; }
+  const er = approve ? await flowPrnApprove(key) : await flowPrnRefuse(key, String(why).trim());
+  const S = FLOW_SH; if (!S) return;
+  S.lines = flowShLines(S.fabric);
+  flowShDraw();
+  ptDlgMsg(er || (approve ? flowPrnApprove.said : 'Refused — the line stays with the printer PPC gave it.'), !!er);
+  if (approve && !er && typeof S.after === 'function') setTimeout(() => S.after(flowPrnApprove.no, ''), 0);
+});
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('change', e => {
   const t = e.target; if (!FLOW_SH || !t || !t.closest || !t.closest('#flshVen,#flshBy,#flshPick,[data-shk]')) return;
   if (t.id === 'flshBy') { FLOW_SH.by = t.value === 'print' ? 'print' : 'order'; FLOW_SH.pick = ''; }
@@ -35679,9 +35862,44 @@ function flowSwatchOf(productSku, fabSku) {
   if (k) for (const r of (PTG.mdb || [])) { const kk = r && fsCodeOf(r.sku); if (kk && kk.family === k.family && kk.code === k.code && (u = pic(r.sku))) return u; }
   return '';
 }
+/* THE PRINTER'S HOLD (Vishesh, 23 Nov: "from now on, a new plan's Vendor Order is not shown to the printer until that line's RFD
+ * challan is made"). With the switch on (config/flags.printerHold, read once in core/auth.js and kept for the NEXT page load;
+ * localStorage printerHold '1'/'0' overrides on one device; off when missing), a part newly put on a Vendor Order, whose line has
+ * no RFD challan yet, is marked awaitRfd. The printer's portal leaves such lines out (flow-vendor.js flowVpAfterLoad); the
+ * office sees them as before. The mark is lifted, field by field, when the challan is made (flowVoRelease). Orders already
+ * placed carry no mark and stay visible. Hiding is on screen only: nothing is deleted or changed in the order. */
+function flowHoldOn() {
+  try {
+    const s = localStorage.getItem('printerHold');
+    if (s === '0') return false;
+    if (s === '1') return true;
+    return localStorage.getItem('printerHoldLast') === '1';
+  } catch (e) { return false; }
+}
+function flowHoldSaveFlag(on) {
+  try { if (on) localStorage.setItem('printerHoldLast', '1'); else localStorage.removeItem('printerHoldLast'); } catch (e) { /* no storage: stays off */ }
+}
+/** The challan-index key of a Vendor Order part ("<line key>|<what>"); a ruffle part is kept under the line key + ruffle. */
+function flowVoPartKey(part) {
+  const [key, what] = String(part).split('|');
+  return what === 'ruffle' && !key.endsWith(FLOW_RUF) ? key + FLOW_RUF : key;
+}
+/** Whether one part of a Vendor Order is held back from the printer. prevParts = the parts the order already stood for
+ *  (Map part → was held); null when not known (a test order), then nothing is held. */
+function flowVoHeld(part, prevParts) {
+  if (!prevParts || !flowHoldOn() || flowChIndex()[flowVoPartKey(part)]) return false;
+  return prevParts.has(part) ? !!prevParts.get(part) : true;
+}
+/** The parts an existing Vendor Order stands for, each with whether it is still held (a merged line stands for several). */
+function flowVoPartsOf(order) {
+  const m = new Map();
+  if (order) voLines(order).forEach(l => String(l.flowPart || '').split('+').filter(Boolean).forEach(p => m.set(p, !!l.awaitRfd)));
+  return m;
+}
 /** The vendor-order lines a flow print order stands for: { running: [...], cut: [...], channel }. */
-function flowVoLines(o, planOf) {
+function flowVoLines(o, planOf, prevParts) {
   const out = { running: [], cut: [], channel: '' };
+  const hold = part => (flowVoHeld(part, prevParts) ? { awaitRfd: true } : {});
   Object.entries(o.items || {}).forEach(([key, it]) => {
     if (!it) return;
     const lk0 = key.endsWith(FLOW_RUF) ? key.slice(0, -FLOW_RUF.length) : key;
@@ -35695,15 +35913,15 @@ function flowVoLines(o, planOf) {
       picSku: obUC(it.sku) };   // the product made from the cloth: its photo is the swatch the printer sees (17 Oct)
     if (it.ruffle) { /* the ruffle cloth alone — its lines below */ } else if (w.kind === 'sku') {
       if (it.pcs > 0) out.cut.push(Object.assign({}, base, { kind: 'cut', sku: it.sku, qty: it.pcs, articleType: m.articleType || '',
-        articleSubtype: m.subtype || m.articleSubtype || '', size: m.size || '', flowPart: key + '|sku' }));
+        articleSubtype: m.subtype || m.articleSubtype || '', size: m.size || '', flowPart: key + '|sku', ...hold(key + '|sku') }));
     } else {
       const fab = String((p.fabric && p.fabric.name) || m.fabric || '').trim(), dir = (p.print && p.print.dir) || String(w.label || '').split(' · ')[2] || '';
       const parts = w.sides && w.sides.length ? w.sides.map(sd => ({ sku: sd.code, meters: flowR2(it.metres / w.sides.length), part: sd.side }))
         : [{ sku: w.code, meters: it.metres, part: 'body' }];
-      parts.forEach(pt => { if (pt.meters > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: pt.sku, fabricType: fab, printDirection: dir, meters: pt.meters, flowPart: key + '|' + pt.part, img: flowSwatchOf(it.sku, pt.sku) })); });
+      parts.forEach(pt => { if (pt.meters > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: pt.sku, fabricType: fab, printDirection: dir, meters: pt.meters, flowPart: key + '|' + pt.part, img: flowSwatchOf(it.sku, pt.sku), ...hold(key + '|' + pt.part) })); });
     }
     (it.extras || []).forEach(x => { if (+x.metres > 0) out.running.push(Object.assign({}, base, { kind: 'running', sku: x.code, fabricType: String(x.label || '').split(' · ')[1] || '',
-      printDirection: String(x.label || '').split(' · ')[2] || '', meters: flowR2(+x.metres), notes: base.notes + ' · ruffle', flowPart: lk + '|ruffle', img: flowSwatchOf(it.sku, x.code) })); });
+      printDirection: String(x.label || '').split(' · ')[2] || '', meters: flowR2(+x.metres), notes: base.notes + ' · ruffle', flowPart: lk + '|ruffle', img: flowSwatchOf(it.sku, x.code), ...hold(lk + '|ruffle') })); });
   });
   /* COMBINED (Ravi, 11 Oct): one vendor-order line per printed fabric (fabric, colour, direction) and per printed SKU, across
    * the order's lines — the printer prints RBPSF9-H-82 once, for both pillow sizes. flowPart names every part it stands for. */
@@ -35716,8 +35934,8 @@ function flowVoLines(o, planOf) {
       if (l.deliveryDate && (!e.deliveryDate || l.deliveryDate < e.deliveryDate)) e.deliveryDate = l.deliveryDate; });
     return [...m.values()].map(e => { const { parts, skus, ...l } = e; const u = [...new Set(skus.map(x => x.replace(/ \(PPC.*$/, '')).filter(Boolean))];
       return Object.assign(l, { flowPart: parts.slice().sort().join('+'), ...(parts.length > 1 ? { notes: `${o.orderNo} · ${u.join(', ')} (PPC ${o.no})${/· ruffle$/.test(l.notes || '') ? ' · ruffle' : ''}`, forOrders: l.forOrders } : {}) }); }); };
-  out.running = merge(out.running, l => [obUC(l.sku), fabKey(l.fabricType), String(l.printDirection || '').toLowerCase(), fabKey(l.color)].join('|'), 'meters');
-  out.cut = merge(out.cut, l => obUC(l.sku), 'qty');
+  out.running = merge(out.running, l => [obUC(l.sku), fabKey(l.fabricType), String(l.printDirection || '').toLowerCase(), fabKey(l.color), l.awaitRfd ? 'held' : ''].join('|'), 'meters');
+  out.cut = merge(out.cut, l => obUC(l.sku) + (l.awaitRfd ? '|held' : ''), 'qty');   // held and visible parts never share a line
   return out;
 }
 /* AN ORDER ALREADY PLACED IS CHANGED FIELD BY FIELD (26 Oct): the printer writes onto it too — what they say they sent
@@ -35731,8 +35949,10 @@ function flowVoSync(local, nos, patch, planOf) {
   const said = [], placed = [], now = new Date().toISOString();
   [...new Set(nos)].forEach(no => {
     const o = local[no]; if (!o || o.test) return;
-    const want = o.cancelled ? { running: [], cut: [], channel: '' } : flowVoLines(o, planOf);
     const vo = Object.assign({}, o.vo || {});
+    const placedBefore = ['running', 'cut'].map(kind => vo[kind] && (VO.rows || []).find(x => x && x.vendorCode === vo[kind].code && x.id === vo[kind].id));
+    const prevParts = new Map(placedBefore.flatMap(x => [...flowVoPartsOf(x)]));
+    const want = o.cancelled ? { running: [], cut: [], channel: '' } : flowVoLines(o, planOf, prevParts);
     ['running', 'cut'].forEach(kind => {
       const ref = vo[kind], existing = ref ? (VO.rows || []).find(x => x && x.vendorCode === ref.code && x.id === ref.id) : null;
       if (existing && voLines(existing).some(l => (l.deliveries || []).length || +l.dispatchedQty > 0)) {
@@ -35763,6 +35983,31 @@ function flowVoSync(local, nos, patch, planOf) {
     else patch[`pt_flowPrintOrders/${no}/vo`] = vo;
   });
   return { said, placed };
+}
+/**
+ * Lifts the printer's hold (see THE PRINTER'S HOLD above) from every Vendor Order line whose parts all have an RFD challan now.
+ * `keys` = the line keys just put on a challan (the challan may not be in FLOW.ch yet). Adds one field-level write per line to
+ * `patch` (…/lines/<i>/awaitRfd = null; the order itself is never rewritten) and updates VO.rows with new rows. Needs VO.rows read
+ * (ensureVo): lines it cannot see stay held. Returns how many lines were released.
+ */
+function flowVoRelease(keys, patch) {
+  if (!Array.isArray(VO.rows)) return 0;
+  const just = new Set(keys || []), index = flowChIndex();
+  const hasChallan = part => just.has(flowVoPartKey(part)) || !!index[flowVoPartKey(part)];
+  let released = 0;
+  VO.rows = VO.rows.map(o => {
+    if (!o || !o.lines) return o;
+    const lines = Array.isArray(o.lines) ? o.lines.slice() : Object.assign({}, o.lines), at = Array.isArray(lines) ? lines.map((_, i) => i) : Object.keys(lines);
+    let changed = false;
+    at.forEach(i => {
+      const l = lines[i];
+      if (!l || !l.awaitRfd || !String(l.flowPart || '').split('+').filter(Boolean).every(hasChallan)) return;
+      patch[`pt_vendorOrders/${o.vendorCode}/${o.id}/lines/${i}/awaitRfd`] = null;
+      const { awaitRfd, ...open } = l; lines[i] = open; changed = true; released++;
+    });
+    return changed ? Object.assign({}, o, { lines }) : o;
+  });
+  return released;
 }
 /**
  * Everything the Vendor Order side of a save needs: the writes, the question to ask before a printer is told, and
@@ -35899,6 +36144,18 @@ async function flowVoExtra() {
 let FLOW_VP_AS = null;   // { code, name } while an admin looks as a printer
 /** Who may look at a printer's portal: admins, the view-only box, and (19 Nov) whoever takes printed goods in — they receive there. */
 const flowVpMayLook = () => !!(ME.admin || ME.vpView || ME.vpRecv);
+/** THE PRINTER'S HOLD in the portal (flow-printorder.js flowHoldOn): a real printer sign-in does not see lines marked awaitRfd, nor
+ *  an order left with none; an admin "View as printer" sees them, marked in the line's note. Old orders carry no mark: untouched. */
+function flowVpHoldApply(rows, asAdmin) {
+  const isHeld = l => !!(l && l.awaitRfd);
+  return (rows || []).map(o => {
+    const lines = o && o.lines ? voLines(o) : [];
+    if (!lines.some(isHeld)) return o;
+    if (asAdmin) return Object.assign({}, o, { lines: lines.map(l => (isHeld(l) ? Object.assign({}, l, { notes: 'Waiting for RFD challan — the printer does not see this line yet. ' + (l.notes || '') }) : l)) });
+    const open = lines.filter(l => !isHeld(l));
+    return open.length ? Object.assign({}, o, { lines: open }) : null;   // every line held: the order is not shown yet
+  }).filter(Boolean);
+}
 /** After the portal read its printer's branch: the view-as printer instead, and the test orders for that printer. */
 async function flowVpAfterLoad() {
   if (!FLOW_ON || typeof VP === 'undefined') return;
@@ -35908,6 +36165,7 @@ async function flowVpAfterLoad() {
     try { VP.rows = ptList(await ptGet('pt_vendorOrders/' + VP.code)); } catch (e) { VP.rows = []; }
   }
   if (!VP.code) return;
+  VP.rows = flowVpHoldApply(VP.rows, VP.viewAs);
   /* A PRINTER'S OWN SIGN-IN NEVER SEES A TEST ORDER (14 Oct: the flow is on the live app now, where real printers sign in).
    * Test orders reach the portal only when an admin looks at it "as printer". */
   if (!VP.viewAs) { VP.rows = (VP.rows || []).filter(o => !(o && o.virtual)); return; }
@@ -41575,6 +41833,12 @@ function invLotsOf(fabric) {
 function invRowsOfLot(lot, kind) { return (DB.fab || []).filter(function (r) { return r.lot === lot && r.txnType === kind; }); }
 var invJoin = function (list) { return uniq(list).join(', ') || '—'; };
 var invLastDate = function (rows) { return rows.map(function (r) { return r.date; }).sort().pop() || ''; };
+/* A small "N waiting approval" note beside Send to printer when someone asked to change the printer on an RFD challan for this
+ * fabric and the approver has not answered yet (Vishesh, 23 Nov). Nothing shows while the flow's request list is not there. */
+function gdPrnWaitingPill(fabric) {
+  var n = typeof flowPrnWaiting === 'function' ? flowPrnWaiting(fabric).length : 0;
+  return n > 0 ? ' <span class="pill" title="A change of printer was asked and waits for the approver">' + n + ' waiting approval</span>' : '';
+}
 function invDetail(r, col) {
   var head, body, empty;
   if (col === 'order') {
@@ -41629,7 +41893,7 @@ function invDetail(r, col) {
         + '<td class="num">' + nf(came) + ' m</td><td class="num">' + (g.rfdOut ? nf(g.rfdOut) + ' m' : '—') + '</td>'
         + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(g.rfdLeft) + ' m</td>'
         /* Send to printer opens the RFD challan for this fabric right here (Vishesh, 23 Nov; before: its lines on Demand → RFD) */
-        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>'
+        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>' + gdPrnWaitingPill(r.fabric)
         + '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button></div></td></tr>';
     });
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
@@ -43268,8 +43532,9 @@ function wireGd() {
 function gdSendToPrinter(fabric) {
   if (typeof flowShelfChallanOpen !== 'function') { gdToFlow('drfd', fabric); return; }
   lmSay('ok', 'Reading the lines waiting for ' + fabric + '…');
-  flowShelfChallanOpen(fabric, function (no, err) {
-    lmSay(err ? 'warn' : 'ok', 'Challan ' + no + ' made for ' + fabric + '.' + (err ? ' ' + err : ''));
+  /* `no` is '' when only printer changes were asked for (they wait for approval); `said` then says what waits */
+  flowShelfChallanOpen(fabric, function (no, said) {
+    lmSay('ok', ((no ? 'Challan ' + no + ' made for ' + fabric + '. ' : '') + (said || '')).trim() || 'Nothing was sent.');
     render();
   }).then(function (why) { if (why) lmSay('warn', why); }, function (e) {
     console.error('Send to printer for ' + fabric + ' could not open:', e);
@@ -85318,7 +85583,7 @@ const ACX_SIDE = 'erp';
  * admin-access.js FACTORY_SECTIONS — change one, change both. */
 const FACTORY_SECTIONS = ['pmdb', 'mst', 'pbase', 'pcut', 'ppress', 'qc', 'qcalt', 'qcret', 'ord', 'so', 'vord', 'vreq', 'rfd', 'att',
   'hr', 'vend', 'vlog', 'cx', 'palloc', 'fgi', 'fgacc', 'fba', 'fab', 'acc', 'rep', 'pa', 'ka', 'shpacc', 'vpview',
-  'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip', 'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdpo', 'gdpoappr'];
+  'flppc', 'fldem', 'flacc', 'flchl', 'flcut', 'flraw', 'flwip', 'flprn', 'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdpo', 'gdpoappr'];
 
 /* ---- the production database's own copy of the rights: pt_perms/<email, dots as commas> = { admin, r: {right: true}, t: {tab: true} }.
  * The same shape Sellora's rights-mirror.js writes and Pricing-App/rules/rules-tool.js compares against. */
@@ -86214,7 +86479,7 @@ const ERP_GROUPS = [
   { name: 'Shopify', items: [['shop', 'Shopify Orders'], ['adj', 'Adjustments'], ['shopify', 'Shopify Stock'], ['shopprod', 'Order Console — Shopify only'], ['shopret', 'Shopify returns team']] },
   { name: 'Replenishment & planning', items: [['repl', 'Replenishment'], ['article', 'Article Review'], ['target', 'Revenue Target'], ['top', 'Top ASIN Status'], ['pack', 'Packing List']] },
   { name: 'Orders', items: [['so', 'Sales Orders'], ['ord', 'Order Console — every order'], ['shpacc', 'Order Console — Shipping to accept'], ['cx', 'Customer orders']] },
-  { name: 'Production flow', items: [['flppc', 'PPC and PPC completed'], ['fldem', 'Demand: RFD fabric out'], ['flacc', 'Demand: accessories'], ['flchl', 'Printed fabric in · history'], ['flcut', 'To cut'], ['flraw', 'Raw cutting in store'], ['flwip', 'WIP with karigars']] },
+  { name: 'Production flow', items: [['flppc', 'PPC and PPC completed'], ['fldem', 'Demand: RFD fabric out'], ['flacc', 'Demand: accessories'], ['flchl', 'Printed fabric in · history'], ['flcut', 'To cut'], ['flraw', 'Raw cutting in store'], ['flwip', 'WIP with karigars'], ['flprn', 'Approve a change of printer on an RFD challan']] },
   { name: 'Making', items: [['pcut', 'Cutting Data'], ['pbase', 'Job Work Register'], ['ppress', 'Press Inventory'], ['qc', 'Quality Control — checks'], ['qcalt', 'QC — issue for alteration'], ['qcret', 'QC — receive back']] },
   { name: 'Finished & dispatch', items: [['fgi', 'Finished Goods'], ['fgacc', 'Finished Goods — From QC, to accept'], ['fba', 'FBA Dispatch']] },
   { name: 'Materials', items: [['fab', 'Fabric Inventory'], ['acc', 'Accessories'], ['gdesk', 'Greige Desk — open'], ['gdled', 'Greige Desk — fabric ledger'], ['gdledit', 'Greige Desk — correct ledger'], ['gdappr', 'Greige Desk — approve shrinkage >5%'], ['gdpo', 'Greige Desk — close, cancel, reopen POs (accounts)'], ['gdpoappr', 'Greige Desk — approve the store’s close request (accounts head)']] },
@@ -91745,7 +92010,7 @@ const R1_PERM_BOX = {
  * and this page's own read-only copy of the finished-goods ledger (fgiLoad is not used: it can rewrite the Amazon
  * listings index). */
 
-const FR = { built: false, shown: false, sel: 0, items: [], fg: null, at: '', loading: false, cards: [], tick: new Set(), subOpen: new Set() };
+const FR = { built: false, shown: false, sel: 0, items: [], fg: null, dem: null, at: '', loading: false, cards: [], tick: new Set(), subOpen: new Set() };
 const frMay = tab => !!(ME && (ME.admin || (ME.tabs || []).includes(tab)));
 const frTry = (f, d) => { try { return f(); } catch (e) { return d; } };
 const frNum = v => Number(v) || 0;
@@ -91758,6 +92023,18 @@ const frGates = async () => { if (typeof ptLoadGates === 'function') await ptLoa
 
 /* ---------- the work ---------- */
 
+/** Printer-change requests waiting for this person (approvers only; nobody else reads anything for them). They come from the
+ *  production flow when it is loaded, else from the bell's own one-time read of the demand lines (FR.dem). */
+function frPrnWaiting() {
+  if (typeof flowPrnMay !== 'function' || !flowPrnMay()) return [];
+  if (typeof FLOW !== 'undefined' && FLOW.dem && typeof flowPrnWaiting === 'function') return flowPrnWaiting();
+  return Object.entries(FR.dem || {}).filter(([, x]) => x && x.printerMove && x.printerMove.status === 'waiting').map(([key, x]) => ({ key, x, req: x.printerMove }));
+}
+/** Before approving: the production flow's data must be in memory, as the approve works on it. */
+async function frPrnReady() {
+  if (!FLOW.dem && typeof flowEnsureData === 'function') await flowEnsureData();
+  if (FLOW.dem) FR.dem = null;
+}
 /** Every card: approvals one per item; waiting and problems one per kind. A card is
  *  { grp, tab, title, detail, lines, n, open, act } and act = { label, what(), prep(), run() → '' | error,
  *  bulk (may go in Approve all), danger, own (opens the screen's own window instead of asking here) }. */
@@ -91786,6 +92063,15 @@ function frCards() {
     () => vprOpenPrinter(r.code),
     { label: 'Seen', bulk: true, what: () => `Marks the reject of ${frNum(r.qty)} ${r.unit} on ${r.orderNo} (${r.printer}) as seen. It leaves every admin's bell; the printer still owes it.`,
       run: () => vprRejSeen(r.id) }));
+  /* Printer changes asked on an RFD challan (Vishesh, 23 Nov) — for those allowed to approve them (right flprn). Approve is the
+   * Greige Desk's own flowPrnApprove; not in Approve all, because it moves work from one printer to another. */
+  frPrnWaiting().forEach(({ key, req }) => item('gdesk',
+    `Printer change · ${req.orderNo || ''} · ${req.sku || ''}: ${(req.from || {}).name || '—'} → ${(req.to || {}).name || '—'} · ${frNum(req.pcs)} pcs`,
+    [req.fabric, req.by && 'asked by ' + req.by].filter(Boolean).join(' · '),
+    () => { showTab('gdesk'); GD.open('inv'); },
+    { label: 'Approve', prep: frPrnReady,
+      what: () => `Moves ${frNum(req.pcs)} pcs of ${req.sku} (order ${req.orderNo}) from ${(req.from || {}).name || '—'} to ${(req.to || {}).name || '—'} on the RFD challan.`,
+      run: async () => (await flowPrnApprove(key)) || '' }));
   /* Sales-order lines asked to be deleted — odrDeleteRun([id]) really deletes them: red warning, never in Approve all. */
   if (frMay('so') && frTry(odrCanAnswer, false) && ODR.rows) odrPending().forEach(r => item('so', `Delete ${r.sku || ''} from sales order ${r.orderNo || ''}`,
     [`${frNum(r.qty)} pcs`, frQ(r.why), r.by && 'asked by ' + r.by].filter(Boolean).join(' · '),
@@ -91889,6 +92175,8 @@ async function frLoad(force) {
   }
   if (frMay('hr') && (ME.admin || frTry(prCanApprove, false)) && (force || HR.emp === null)) jobs.push(() => { if (force) HR.emp = null; return ensureHr(); });
   if (ME.admin && typeof vprRejLoad === 'function' && (force || VPR_REJ.rows === null)) jobs.push(() => vprRejLoad());
+  /* Printer-change requests: approvers only, and only when the production flow is not loaded (it holds them already). */
+  if (typeof flowPrnMay === 'function' && flowPrnMay() && !FLOW.dem && (force || !FR.dem)) jobs.push(() => ptGet('pt_flowDemand').then(v => { FR.dem = v || {}; }));
   for (const job of jobs) {
     try { await job(); } catch (e) { console.warn('[my work]', e); }
     frDraw(); frCount();
@@ -91942,7 +92230,7 @@ const FR_GROUPS = [['approve', 'Needs your approval', 'fr-warn', '✓'], ['wait'
  * the screen's own window have no tick box — they are never approved in a batch. */
 const FR_SUBS = [[/^Job work correction/, 'Job work corrections'], [/^Quantity change/, 'Order quantity changes'],
   [/^Extra hours/, 'Extra hours to authorise'], [/^Printer rate/, 'Printer rates'], [/^Sales order/, 'Sales orders to review'],
-  [/^Finished goods correction/, 'Finished goods corrections'], [/^Delete /, 'Lines asked to be deleted']];
+  [/^Finished goods correction/, 'Finished goods corrections'], [/^Printer change/, 'Printer changes on RFD challans'], [/^Delete /, 'Lines asked to be deleted']];
 const FR_SUB_SHOW = 4;
 const frSub = c => { const i = FR_SUBS.findIndex(s => s[0].test(c.title)); return i < 0 ? FR_SUBS.length : i; };
 const frSubName = i => (FR_SUBS[i] || [0, 'Other approvals'])[1];
@@ -92079,7 +92367,7 @@ function frWire(cards, bulk, ticked) {
 /* ROLES (admins) — the ready-made roles (roles.js, made from R-one's own access): each one's screens and permissions,
  * in the menu's words. "View as" shows this page as that role. */
 const FR_TAB_NAMES = { flppc: 'PPC', fldem: 'Demand', flacc: 'Accessories (flow)', flchl: 'Challans', flcut: 'To cut', flraw: 'Raw cutting',
-  flwip: 'WIP', gdesk: 'Greige Desk', gdled: 'Greige ledger', gdledit: 'Greige corrections', gdappr: 'Greige approvals', gdpo: 'Greige PO close', gdpoappr: 'Greige close approvals',
+  flwip: 'WIP', flprn: 'Approve printer change', gdesk: 'Greige Desk', gdled: 'Greige ledger', gdledit: 'Greige corrections', gdappr: 'Greige approvals', gdpo: 'Greige PO close', gdpoappr: 'Greige close approvals',
   qcalt: 'QC — alteration out', qcret: 'QC — alteration back', vend: 'Vendor portal', mst: 'Masters', shopret: 'Shopify returns', shopbkt: 'Shopify production bucket' };
 function frRoles() {
   const menu = Object.fromEntries(frScreens().map(s => [s.tab, s.name]));
