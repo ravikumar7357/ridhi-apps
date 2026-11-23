@@ -170,31 +170,48 @@ const cents = rows => Object.values(rows).reduce((s, r) => s + Math.round(((r.we
     ok('the same movers → the same key (Refresh never asks Claude again)', Y.viAiKey(Y.viCompute(opts())) === key);
   }
 
-  console.log('== 6. the box and the Dashboard line ==');
-  let html = '';
+  console.log('== 6. the box (compact, under the KPI cards) and the Dashboard card ==');
+  let html = '', htmlOpen = '';
   {
     const Z = load();
     Z.VI.data = { weekly: WEEKLY, days: DAYS, stock: STOCK };
     Z.ctx.wParentOf = a => PARENT[a] || a;
     Z.ctx.PNAME = { SP: { PA: { v: NAMES.PA } } };
     Z.ctx.wTitle = a => NAMES[a] || '';
-    const res = Z.viFor('SP');
-    html = Z.viBoxHtml(res, Z.viSummary(res), 'SP');
-    const text = strip(html);
-    ok(`the header with real numbers: "Why revenue fell ${X.viMoney(Math.abs(R.total.d))} last week"`, text.includes(`Why revenue fell ${X.viMoney(Math.abs(R.total.d))} last week`), text.slice(0, 120));
-    ok('…with the real weeks', /Nov 15-21 against Nov 8-14/.test(text), text.slice(0, 240));
-    Z.ctx.SD = { d: DAILY }; Z.ctx.sdDays = ch => DAILY[ch]; Z.VI.v++;
-    const res2 = Z.viFor('SP');
-    ok('…and the same week last year from the Sales Dashboard\'s days: "(Nov 16-22, Sales Dashboard figures): $560 → $700 (+25.0%)"',
-      strip(Z.viBoxHtml(res2, Z.viSummary(res2), 'SP')).includes('the same week last year (Nov 16-22, Sales Dashboard figures): $560 → $700 (+25.0%)'));
-    html = Z.viBoxHtml(res2, Z.viSummary(res2), 'SP');
-    ok('one bar per mover (red = drop, green = gain) + "Everything else"', (html.match(/class="vi-row is-(dn|up)"/g) || []).length === res.movers.length && /Everything else/.test(text));
-    ok('the driver line under each name', res.movers.every(m => text.includes(m.driver.t)));
-    ok('three tiles: "$ explained", "drivers named", "as of 23 Nov 05:42"', /explained/.test(text) && /drivers? named/.test(text) && /23 Nov 05:42 as of/.test(text), text.slice(-400));
-    ok('every number has its "as of": sales as at, days, FBA stock date', /sales as at 2026-11-23 05:42/.test(text) && /days 2026-11-23 05:42/.test(text) && /FBA stock Ridhi 23 Nov/.test(text));
+    Z.ctx.SD = { d: DAILY }; Z.ctx.sdDays = ch => DAILY[ch];
+    const res = Z.viFor('SP'), sum = Z.viSummary(res);
+    html = Z.viBoxHtml(res, sum, 'SP', false);
+    htmlOpen = Z.viBoxHtml(res, sum, 'SP', true);
+    const text = strip(html), open = strip(htmlOpen);
+    const fell = X.viMoney(Math.abs(R.total.d));
+    ok(`the headline with real numbers: "Revenue fell ${fell} last week" and a red ▼ badge "▼ 29.3%"`,
+      text.startsWith(`✦ Revenue fell ${fell} last week ▼ 29.3%`) && /class="vi-badge is-dn"/.test(html), text.slice(0, 100));
+    ok('…the weeks beside it, small: "Ridhi · Nov 15–21 vs Nov 8–14"', text.includes('Ridhi · Nov 15–21 vs Nov 8–14'));
+    ok('…the summary under it (the same text: the rule-written one here)', text.includes(sum.text) && /class="vi-sum"/.test(html));
+    ok('three chips: "−$1.8k explained · 100%", "7 drivers", "as of 23 Nov 05:42"',
+      text.includes('−$1.8k explained · 100%') && text.includes('7 drivers') && text.includes('as of 23 Nov 05:42'), text.slice(0, 400));
+    ok('the sources are behind the ⓘ only (its tooltip), never as text on the box',
+      /class="vi-i"[^>]*title="From PPC weekly sales: the Orders workbooks per ASIN/.test(html) && !/Orders workbooks/.test(text) && /FBA stock as of Ridhi 23 Nov/.test(html));
+    ok('CLOSED by default: "Show details ▾", the details hidden', text.includes('Show details ▾') && /class="vi-det" id="viDet" hidden/.test(html) && /aria-expanded="false"/.test(html));
+    ok('…and a ↻ Refresh button', /data-vi-refresh aria-label="Refresh"/.test(html));
+    ok('OPEN: "Hide details ▴", "▲ Biggest gains" and "▼ Biggest drops"', open.includes('Hide details ▴') && open.includes('▲ Biggest gains') && open.includes('▼ Biggest drops') && /class="vi-det is-open"/.test(htmlOpen));
+    const gains = res.movers.filter(m => m.d > 0), drops = res.movers.filter(m => m.d < 0);
+    ok('one row per mover in its column (gains green, drops red)', (htmlOpen.match(/<li class="vi-r is-up"/g) || []).length === gains.length && (htmlOpen.match(/<li class="vi-r is-dn"/g) || []).length === drops.length);
+    ok('each row: the name, the $ and its share of the change — "Ridhi Napkins Set of 4 … −$1,200 67%"', /Ridhi Napkins Set of 4 out of stock conversion ↓58% −\$1,200 67%/.test(open), open.slice(0, 600));
+    ok('…a short bar scaled to the biggest mover (100% for it, the others less)', /<span class="vi-bar" aria-hidden="true"><i style="width:100%"><\/i>/.test(htmlOpen) && /<i style="width:50%">/.test(htmlOpen));
+    ok('driver pills, at most 2 a row: "ad spend ↓60%", "traffic ↓50%", "price ↑15%", "seasonal", "no clear driver"',
+      ['ad spend ↓60%', 'traffic ↓50%', 'price ↑15%', '>seasonal<', 'no clear driver'].every(p => htmlOpen.includes(p))
+      && htmlOpen.split('<li ').slice(1).every(li => (li.match(/class="vi-pill /g) || []).length <= 2));
+    ok('…green up, red down, grey neutral', /vi-pill is-dn" title="traffic −50% \(sessions\)"/.test(htmlOpen) && /vi-pill is-up" title="price \+15%"/.test(htmlOpen) && /vi-pill is-flat" title="no clear driver"/.test(htmlOpen));
+    ok('"3 days no sale" pill when that is the driver', /3 days no sale/.test(Z.viBoxHtml(Z.viCompute(opts({ stock: {} })), sum, 'SP', true)));
+    ok('the full name and every figure on hover', /title="Ridhi Napkins Set of 4: \$2,000 → \$800 \(−60%\) · out of stock: 0 FBA units as of 23 Nov, 3 days without a sale/.test(htmlOpen));
+    ok('"Everything else" and the same week last year as one muted line: "Everything else: +$2 from 2 other products · Same week last year: +25.0%"',
+      open.includes('Everything else: +$2 from 2 other products · Same week last year: +25.0%'));
+    ok('the numbers are the same as before the redesign (the movers, the change, the summary)', res.total.d === R.total.d && res.movers.length === R.movers.length && sum.text === X.viRuleText(R) || sum.text === Z.viRuleText(res));
     const d = Z.viDashOf('SP');
-    ok('the Dashboard card: the first sentence only, with its week and "sales as at"', d.text === Z.viRuleText(res).split('. ')[0] + '.' && /Nov 15-21 · sales as at/.test(d.when), JSON.stringify(d));
-    ok('Shopify has no per-product weeks: the box says so (no numbers)', (() => { Z.ctx.SD_CH = 'SHOP'; return true; })());
+    ok('the Dashboard card: the headline, its % and the first sentence', d.head === `Revenue fell ${fell} last week` && d.pct === -29.3 && !d.up && d.text === Z.viRuleText(res).split('. ')[0] + '.', JSON.stringify(d));
+    const shop = strip(Z.viBoxHtml({ ok: false, why: 'Per-product weekly figures exist for the Amazon accounts only — pick Ridhi, CPC or All.' }, null, 'SP', false));
+    ok('Shopify / not ready: the title and why, no numbers', /^✦ This week in plain English Per-product weekly figures/.test(shop) && !/\$/.test(shop), shop);
   }
 
   console.log('== 7. the backend (Pricing-API/SalesAI.gs) with a fake Claude ==');
@@ -231,8 +248,8 @@ const cents = rows => Object.values(rows).reduce((s, r) => s + Math.round(((r.we
   }
 
   console.log('\n== SAMPLE: the box on the test data (Ridhi) ==');
-  console.log(strip(html.replace(/<\/(div|h2|p|section)>/g, '\n')).replace(/ ?\n ?/g, '\n'));
-  if (process.argv.includes('--html')) fs.writeFileSync(process.argv[process.argv.indexOf('--html') + 1], html);
+  console.log(strip(htmlOpen.replace(/<\/(div|h2|h3|p|li|section)>/g, '\n')).replace(/ ?\n ?/g, '\n'));
+  if (process.argv.includes('--html')) { const out = process.argv[process.argv.indexOf('--html') + 1]; fs.writeFileSync(out, html); fs.writeFileSync(out.replace(/[.]html$/, '-open.html'), htmlOpen); }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

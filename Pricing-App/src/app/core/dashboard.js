@@ -602,11 +602,13 @@ const DASH_BUCKETS = [['critical', 'is-c', 'Critical'], ['action', 'is-a', 'Need
 
 // Each card's HTML; i = its place in the stagger.
 const DASH_PAINT = {
-  // This week in plain English: one sentence (Claude's when it checked, else the rule-written one) and Open → the Sales Dashboard
+  // This week in plain English: the headline, one sentence (Claude's when it checked, else the rule-written one) and Open → the Sales Dashboard
   tVi: i => {
     const d = dashData('vi');
     const ok = dashOk(d);
-    const body = ok ? dashEsc(d.v.text) : d.state === 'fresh' && d.v && d.v.why ? `<span class="dash-vi-why">${dashEsc(d.v.why)}</span>` : d.state === 'loading' ? dashSk('80%') : '—';
+    // the headline with its ▲ / ▼ badge, then the first sentence (an older browser copy without a headline shows the sentence alone)
+    const head = ok && d.v.head ? `<b class="dash-vi-h">${dashEsc(d.v.head)}${d.v.pct != null ? ` <span class="dash-vi-b ${d.v.up ? 'is-up' : 'is-dn'}">${d.v.up ? '▲' : '▼'} ${Math.abs(d.v.pct).toFixed(1)}%</span>` : ''}</b>` : '';
+    const body = ok ? head + dashEsc(d.v.text) : d.state === 'fresh' && d.v && d.v.why ? `<span class="dash-vi-why">${dashEsc(d.v.why)}</span>` : d.state === 'loading' ? dashSk('80%') : '—';
     return `<article class="dash-card dash-vi dash-glass" style="--i:${i}"><div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">💬</span>This week in plain English</span>${dashOpenBtn('sales')}</div>`
       + `<p class="dash-vi-t">${body}</p>${dashFoot(d, 'sales')}</article>`;
   },
