@@ -1,9 +1,9 @@
 /* ================= SALES · THIS WEEK IN PLAIN ENGLISH: why revenue fell / rose last week (Sales card #2, 23 Nov 2026) =================
- * Screens: a box on the Sales Dashboard UNDER the KPI cards (#viBox), CLOSED by default (remembered: localStorage viOpen) — one row:
- *          ✦ "Revenue rose $56,659 last week" ▲ badge, the weeks, the summary (2 lines), chips ($ explained · %, drivers, as of + ⓘ for
- *          the sources), Show details ▾ and ↻; OPEN: ▲ Biggest gains | ▼ Biggest drops (short bars, $, share of the change, up to 2 driver
- *          pills), "Everything else" and "Same week last year" as muted lines. And ONE card on the Dashboard (the headline, the first
- *          sentence, Open →; core/dashboard.js slot tVi).
+ * Screens: the chapter "This week, explained." on the Sales Dashboard (#viBox, 23 Nov 2026 — the approved chapters design): the
+ *          headline "Revenue rose $56,659" with its ▲ / ▼ badge, the weeks, the summary and Show details (remembered: localStorage viOpen) on the
+ *          left; ▲ Biggest gains | ▼ Biggest drops (a bar per mover, up to 2 driver pills) on the right. And ONE card on the Dashboard (the
+ *          headline, the first sentence, Open →; core/dashboard.js slot tVi). The per-product days it reads also feed the Sales Dashboard's
+ *          top products (sales/sales-charts.js).
  * Does — THE MOVERS (code, no AI: this decides everything): the last FINISHED week (Sunday → Saturday, US Pacific days, the
  *   PPC & Organic weeks) against the week before, per brand (Ridhi, CPC, Both = Ridhi + CPC), from PPC weekly sales per ASIN
  *   (docs/sales-metrics.md "PPC weekly sales": the Orders workbooks per ASIN, no Shopify). Products are grouped by parent (Listing
@@ -324,10 +324,10 @@ function viLoad(force) {
     } catch (e) { data.err = 'PPC & Organic\'s store could not be read: ' + ((e && e.message) || e); }
     try {
       const r = await baCall({ cache: 'dailyAsin' });                      // the nightly per-day cache (45 days): days without a sale
-      const d = {};
-      Object.values((r && r.data && r.data.d) || {}).forEach(byAsin => Object.entries(byAsin || {}).forEach(([a, byDay]) => { d[a] = byDay; }));
+      const d = {}, brand = {};                                             // brand: which account each ASIN is in (the top products)
+      Object.entries((r && r.data && r.data.d) || {}).forEach(([b, byAsin]) => Object.entries(byAsin || {}).forEach(([a, byDay]) => { d[a] = byDay; brand[a] = b; }));
       const all = Object.values(d).flatMap(byDay => Object.keys(byDay || {}));
-      data.days = { d, from: (r && r.data && r.data.from) || '', upTo: all.length ? all.sort().pop() : '', at: (r && r.data && r.data.at) || '' };
+      data.days = { d, brand, from: (r && r.data && r.data.from) || '', upTo: all.length ? all.sort().pop() : '', at: (r && r.data && r.data.at) || '' };
     } catch (e) { data.days = null; }
     try {
       // the parents (Parent Listing Review does the same); the Dashboard may be reading the same snapshot just now — wait for it then
@@ -350,9 +350,15 @@ function viLoad(force) {
     VI.data = data;
     VI.res = {};
     VI.v++;
+    if (typeof sdcAfterVi === 'function') setTimeout(sdcAfterVi, 0);        // the Sales Dashboard's top products and event labels take them
     return data;
   })().finally(() => { VI.busy = null; });
   return VI.busy;
+}
+/** A parent's name: its own (Listing Rules / Listing Health), else a child's title, else ''. */
+function viNameOf(parent, asin, b) {
+  return (typeof PNAME !== 'undefined' && PNAME[b] && PNAME[b][parent] && PNAME[b][parent].v)
+    || (typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].parentNames && HEALTH[b].parentNames[parent]) || (typeof wTitle === 'function' ? wTitle(asin) : '') || '';
 }
 // The movers for one view (SP, CPC or ALL), worked out once per data version.
 function viFor(brand) {
@@ -360,8 +366,7 @@ function viFor(brand) {
   const k = brand + '@' + VI.v + '@' + (typeof sdToday === 'function' ? sdToday() : '') + '@' + (typeof H_LOADED !== 'undefined' && H_LOADED ? 'h' : '');
   if (VI.res[brand] && VI.res[brand].k === k) return VI.res[brand].r;
   const parentOf = typeof wParentOf === 'function' ? a => wParentOf(a) : null;
-  const nameOf = (parent, asin, b) => (typeof PNAME !== 'undefined' && PNAME[b] && PNAME[b][parent] && PNAME[b][parent].v)
-    || (HEALTH[b] && HEALTH[b].parentNames && HEALTH[b].parentNames[parent]) || (typeof wTitle === 'function' ? wTitle(asin) : '') || '';
+  const nameOf = viNameOf;
   let r;
   if (VI.data.err && !VI.data.weekly) r = { ok: false, why: VI.data.err };
   else r = viCompute({ weekly: VI.data.weekly, brand, today: sdToday(), parentOf, nameOf, days: VI.data.days, stock: VI.data.stock,
@@ -371,7 +376,7 @@ function viFor(brand) {
   return r;
 }
 
-/* ----- the box (redesigned 23 Nov 2026): one compact row under the KPI cards; "Show details" opens gains | drops ----- */
+/* ----- the chapter "This week, explained." on the Sales Dashboard (23 Nov 2026: the approved chapters design) ----- */
 const VI_OPEN_LS = 'viOpen';                       // this browser: the box open (1) or closed (0) — closed by default
 const viEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const viBrandOfCh = ch => (ch === 'SP' || ch === 'CPC' ? ch : ch === 'ALL' ? 'ALL' : null);
@@ -388,14 +393,6 @@ function viShort(cents) {
 }
 function viOpenGet() { try { return localStorage.getItem(VI_OPEN_LS) === '1'; } catch (e) { return false; } }
 function viOpenSet(on) { try { localStorage.setItem(VI_OPEN_LS, on ? '1' : '0'); } catch (e) { /* private window: closed next visit */ } }
-// No motion with reduced motion or ✨ off (core/dashboard.js dashFxOn); GSAP when the page already has it; else CSS.
-function viMotion() {
-  try {
-    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return 'none';
-    if (typeof dashFxOn === 'function' && !dashFxOn()) return 'none';
-    return typeof window !== 'undefined' && window.gsap ? 'gsap' : 'css';
-  } catch (e) { return 'none'; }
-}
 /** A driver as a short pill: "ad spend ↑30%", "traffic ↓52%", "price ↓8%", "3 days no sale", "out of stock", "seasonal" (+ its whole text on hover). */
 function viPill(dr) {
   if (!dr) return '';
@@ -414,54 +411,44 @@ function viPill(dr) {
   else { t = 'no clear driver'; cls = 'is-flat'; }
   return `<span class="vi-pill ${cls}" title="${viEsc(dr.t)}">${viEsc(t)}</span>`;
 }
-/** The box's HTML for one result (and its summary): the compact row, then the details (open or closed). */
+/** "This week, explained." (the chapter, 23 Nov 2026 — the approved preview's card): left the headline, the weeks, the summary and
+ *  Show details; right ▲ Biggest gains | ▼ Biggest drops (a bar per mover, scaled to the biggest, and up to 2 driver pills). */
 function viBoxHtml(res, sum, brand, open) {
-  const icon = '<span class="vi-ic" aria-hidden="true">✦</span>';
-  const refresh = '<button type="button" class="vi-btn vi-ref" data-vi-refresh aria-label="Refresh" title="Read the weekly figures again. Claude is not asked again for the same movers.">↻</button>';
-  const plain = (text, btn) => `<div class="vi-top">${icon}<div class="vi-main"><div class="vi-hl"><h2 class="vi-h" id="viH">This week in plain English</h2></div>`
-    + `<p class="vi-note">${viEsc(text)}</p></div>${btn ? `<div class="vi-side">${btn}</div>` : ''}</div>`;
+  const plain = text => `<div><p class="sdx-hl" id="viH">This week in plain English</p><p class="sdx-summary muted">${viEsc(text)}</p></div><div></div>`;
   if (!res) return plain('Reading the weekly figures…');
-  if (!res.ok) return plain(res.why, refresh);
+  if (!res.ok) return plain(res.why);
   const t = res.total;
-  const head = t.d ? `Revenue ${viFell(t.d)} ${viMoney(Math.abs(t.d))} last week` : 'Revenue held level last week';
-  const badge = t.pct == null ? '' : `<span class="vi-badge ${t.d < 0 ? 'is-dn' : 'is-up'}">${t.d < 0 ? '▼' : '▲'} ${Math.abs(t.pct).toFixed(1)}%</span>`;
-  const dates = `${viEsc(VI_BRAND_NAME[brand] || brand)} · ${viEsc(viDash(res.labels.L))} vs ${viEsc(viDash(res.labels.P))}`;
-  const expl = t.d ? `${viShort(res.explained)} explained · ${Math.round(res.explained / t.d * 100)}%` : `${viShort(res.explained)} explained`;
+  const head = t.d ? `Revenue ${viFell(t.d)} ${viMoney(Math.abs(t.d))}` : 'Revenue held level';
+  const badge = t.pct == null ? '' : `<span class="sdx-delta ${t.d < 0 ? 'down' : 'up'}">${t.d < 0 ? '▼' : '▲'} ${Math.abs(t.pct).toFixed(1)}%</span>`;
   const stockAt = Object.entries(res.asOf.stock || {}).filter(([, a]) => a).map(([b, a]) => `${VI_BRAND_NAME[b] || b} ${viDay(a)}`).join(', ');
   const src = `From PPC weekly sales: the Orders workbooks per ASIN, Sunday–Saturday weeks, US Pacific days, no Shopify. Sales as at ${res.asOf.sales || '—'}`
     + `${res.asOf.days ? '; days without a sale from the nightly run of ' + res.asOf.days : ''}${stockAt ? '; FBA stock as of ' + stockAt : ''}.`
     + (res.ly ? ` Same week last year from the Sales Dashboard's figures: ${viMoney(res.ly.was)} → ${viMoney(res.ly.now)}.` : '');
-  const by = sum.by === 'claude' ? '<span class="vi-by">Claude</span>' : '';
-  // the rows: name (one line) with up to 2 driver pills, a short bar scaled to the biggest mover, the $ and its share of the change
+  const others = res.groups - res.movers.length;
+  const more = [res.rest || others ? `Everything else: ${viMoney(res.rest, true)} from ${VI_NF.format(others)} other product${others === 1 ? '' : 's'}` : '',
+    res.ly ? `Same week last year: ${viPct(res.ly.pct)}` : '',
+    `${viShort(res.explained)} explained${t.d ? ' (' + Math.round(res.explained / t.d * 100) + '%)' : ''} by ${res.movers.length} mover${res.movers.length === 1 ? '' : 's'}`,
+    `${VI_NF.format(res.named)} driver${res.named === 1 ? '' : 's'} named`,
+    res.check ? '' : '⚠ the movers did not add up — please report this'].filter(Boolean).map(viEsc).join(' · ')
+    + ` · as of ${viEsc(viWhen(res.asOf.sales) || '—')}<button type="button" class="sdx-i" aria-label="Where these figures come from" title="${viEsc(src)}">ⓘ</button>`;
   const max = Math.max(1, ...res.movers.map(m => Math.abs(m.d)));
   const row = m => {
-    const share = t.d ? Math.round(m.d / t.d * 100) : null;
-    const tip = `${m.name}: ${viMoney(m.was)} → ${viMoney(m.now)} (${viPct(m.pct, 0)})${res.brand === 'ALL' ? ' · ' + (VI_BRAND_NAME[m.brand] || m.brand) : ''}`
-      + ` · ${m.driver.t}${m.driver.also ? ' · ' + m.driver.also : ''}`;
-    return `<li class="vi-r ${m.d < 0 ? 'is-dn' : 'is-up'}" title="${viEsc(tip)}"><div class="vi-n"><span class="vi-nm">${viEsc(m.name)}</span>`
-      + `<span class="vi-pills">${viPill(m.driver)}${m.driver.k !== 'none' ? viPill(m.driver.more) : ''}</span></div>`
-      + `<span class="vi-bar" aria-hidden="true"><i style="width:${Math.max(4, Math.round(Math.abs(m.d) / max * 100))}%"></i></span>`
-      + `<span class="vi-amt">${viMoney(m.d, true)}</span><span class="vi-share">${share == null ? '' : (share < 0 ? '−' : '') + Math.abs(share) + '%'}</span></li>`;
+    const tip = `${m.name}: ${viMoney(m.was)} → ${viMoney(m.now)} (${viPct(m.pct, 0)})${res.brand === 'ALL' ? ' · ' + (VI_BRAND_NAME[m.brand] || m.brand) : ''} · ${m.driver.t}${m.driver.also ? ' · ' + m.driver.also : ''}`;
+    return `<div class="sdx-mv ${m.d < 0 ? 'down' : 'up'}" title="${viEsc(tip)}"><span class="sdx-mv-n">${viEsc(m.name)}</span><span class="sdx-mv-amt">${viMoney(m.d, true)}</span>`
+      + `<span class="sdx-mv-bar" aria-hidden="true"><i style="width:${Math.max(3, Math.round(Math.abs(m.d) / max * 100))}%"></i></span>`
+      + `<span class="sdx-pills">${viPill(m.driver)}${m.driver.k !== 'none' ? viPill(m.driver.more) : ''}</span></div>`;
   };
-  const col = (cls, title, list, none) => `<section class="vi-col ${cls}"><h3 class="vi-ch">${title}</h3>`
-    + (list.length ? `<ul class="vi-list">${list.map(row).join('')}</ul>` : `<p class="vi-note">${none}</p>`) + '</section>';
   const gains = res.movers.filter(m => m.d > 0).sort((a, b) => b.d - a.d), drops = res.movers.filter(m => m.d < 0).sort((a, b) => a.d - b.d);
-  const others = res.groups - res.movers.length;
-  const meta = [res.rest || others ? `Everything else: ${viMoney(res.rest, true)} from ${VI_NF.format(others)} other product${others === 1 ? '' : 's'}` : '',
-    res.ly ? `Same week last year: ${viPct(res.ly.pct)}` : ''].filter(Boolean);
-  return `<div class="vi-top">${icon}<div class="vi-main"><div class="vi-hl"><h2 class="vi-h" id="viH">${viEsc(head)}</h2>${badge}<span class="vi-dates">${dates}</span></div>`
-      + `<p class="vi-sum" title="${viEsc(sum.text)}">${by}${viEsc(sum.text)}</p>${sum.why ? `<p class="vi-note">${viEsc(sum.why)}</p>` : ''}</div>`
-    + `<div class="vi-side"><span class="vi-chip" title="The movers together: ${viMoney(res.explained, true)} of the ${viMoney(t.d, true)} change">${viEsc(expl)}</span>`
-      + `<span class="vi-chip">${VI_NF.format(res.named)} driver${res.named === 1 ? '' : 's'}</span>`
-      + `<span class="vi-chip">as of ${viEsc(viWhen(res.asOf.sales) || '—')}<button type="button" class="vi-i" aria-label="Where these figures come from" title="${viEsc(src)}">ⓘ</button></span>`
-      + (res.check ? '' : '<span class="vi-chip is-bad" title="The movers and everything else did not add up to the brand&#39;s change — please report this">⚠ check</span>')
-      + `<button type="button" class="vi-btn vi-more" data-vi-toggle aria-expanded="${open}" aria-controls="viDet">${open ? 'Hide details ▴' : 'Show details ▾'}</button>${refresh}</div></div>`
-    + `<div class="vi-det${open ? ' is-open' : ''}" id="viDet"${open ? '' : ' hidden'}><div class="vi-det-in">`
-      + `<div class="vi-cols">${col('is-up', '▲ Biggest gains', gains, 'No product rose.')}${col('is-dn', '▼ Biggest drops', drops, 'No product fell.')}</div>`
-      + (meta.length ? `<p class="vi-meta">${meta.map(viEsc).join('<span aria-hidden="true"> · </span>')}</p>` : '')
-    + '</div></div>';
+  const col = (cls, title, list, none) => `<div><h3 class="sdx-mv-h ${cls}">${title}</h3>${list.length ? list.map(row).join('') : `<p class="sdx-none">${none}</p>`}</div>`;
+  return `<div><p class="sdx-hl" id="viH">${viEsc(head)}${badge}</p>`
+      + `<div class="sdx-weeks">${viEsc(viDash(res.labels.L))} vs ${viEsc(viDash(res.labels.P))} · ${viEsc(VI_BRAND_NAME[brand] || brand)}</div>`
+      + `<span class="sdx-by">${sum.by === 'claude' ? 'Claude summary' : 'Summary'}</span><p class="sdx-summary">${viEsc(sum.text)}</p>`
+      + (sum.why ? `<p class="sdx-summary muted" style="font-size:14px">${viEsc(sum.why)}</p>` : '')
+      + `<button type="button" class="sdx-link" data-vi-toggle aria-expanded="${open}" aria-controls="viDet">${open ? 'Hide details ▴' : 'Show details ▾'}</button>`
+      + `<div class="sdx-more" id="viDet"${open ? '' : ' hidden'}>${more}</div></div>`
+    + `<div class="sdx-cols2">${col('up', '▲ Biggest gains', gains, 'No product rose.')}${col('down', '▼ Biggest drops', drops, 'No product fell.')}</div>`;
 }
-/** Draw the box for the channel on view (the Sales Dashboard's SD_CH); loads first, asks Claude after (never blocking the box). */
+/** Draw the chapter for the channel on view (the Sales Dashboard's SD_CH); loads first, asks Claude after (never blocking it). */
 function viDraw() {
   const el = typeof document !== 'undefined' && document.getElementById ? document.getElementById('viBox') : null;
   if (!el) return;
@@ -481,56 +468,27 @@ function viDraw() {
   const sum = viSummary(res);
   const html = viBoxHtml(res, sum, brand, viOpenGet());
   if (el.dataset.viHtml === html) return;
-  const first = !el.dataset.viHtml || el.dataset.viKey !== brand + (res && res.ok ? res.wk.L : '');
   el.dataset.viHtml = html;
-  el.dataset.viKey = brand + (res && res.ok ? res.wk.L : '');
   el.innerHTML = html;
-  if (first) viFade(el);
   if (res && res.ok && sum.by === 'rules' && !sum.why) viAskAi(res);
 }
-// The box comes in once per brand / week: a short fade (GSAP or CSS), none with ✨ off or reduced motion.
-function viFade(el) {
-  try {
-    const how = viMotion();
-    if (how === 'gsap') window.gsap.from(el, { opacity: 0, y: 6, duration: 0.3, ease: 'power2.out', clearProps: 'opacity,transform' });
-    else if (how === 'css') { el.classList.remove('vi-in'); void el.offsetWidth; el.classList.add('vi-in'); }
-  } catch (e) { /* shown as it is */ }
-}
-/** Show / hide the details: the height opens smoothly (GSAP when loaded, else a CSS transition), at once with ✨ off. Remembered here. */
+/** Show / hide the details (remembered in this browser). */
 function viToggle(btn) {
-  const box = btn.closest('.vi-box'), det = box && box.querySelector('.vi-det');
+  const det = document.getElementById('viDet');
   if (!det) return;
-  const open = !det.classList.contains('is-open');
+  const open = det.hidden;
+  det.hidden = !open;
   viOpenSet(open);
   btn.setAttribute('aria-expanded', String(open));
   btn.textContent = open ? 'Hide details ▴' : 'Show details ▾';
-  box.dataset.viHtml = '';                           // the next draw takes the new state as its own
-  const done = () => { det.style.height = ''; det.style.overflow = ''; det.style.opacity = ''; if (!open) det.hidden = true; };
-  if (open) { det.hidden = false; det.classList.add('is-open'); } else det.classList.remove('is-open');
-  const how = viMotion();
-  if (how === 'none') return done();
-  const full = det.scrollHeight;
-  det.style.overflow = 'hidden';
-  if (how === 'gsap') {
-    window.gsap.fromTo(det, { height: open ? 0 : full, opacity: open ? 0 : 1 }, { height: open ? full : 0, opacity: open ? 1 : 0, duration: 0.3, ease: 'power2.out', onComplete: done });
-    return;
-  }
-  det.style.height = (open ? 0 : full) + 'px';
-  void det.offsetHeight;
-  det.classList.add('is-moving');
-  det.style.height = (open ? full : 0) + 'px';
-  let ended = false;
-  const end = () => { if (ended) return; ended = true; det.classList.remove('is-moving'); done(); };
-  det.addEventListener('transitionend', end, { once: true });
-  setTimeout(end, 450);                              // a transition that never fires (a hidden tab) still ends
+  const box = document.getElementById('viBox');
+  if (box) box.dataset.viHtml = '';                  // the next draw takes the new state as its own
+  if (typeof window !== 'undefined' && window.ScrollTrigger) window.ScrollTrigger.refresh();
 }
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('click', e => {
-    const t = e.target && e.target.closest ? e.target.closest('[data-vi-refresh],[data-vi-toggle]') : null;
-    if (!t) return;
-    if (t.hasAttribute('data-vi-toggle')) return viToggle(t);
-    t.disabled = true;
-    viLoad(true).then(() => viDraw(), () => viDraw());
+    const t = e.target && e.target.closest ? e.target.closest('[data-vi-toggle]') : null;
+    if (t) viToggle(t);
   });
 }
 

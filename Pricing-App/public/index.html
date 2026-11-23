@@ -804,148 +804,183 @@
   .sd-panel{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);
     padding:16px 18px;margin-bottom:24px}
   .sd-h2{font-size:14px;font-weight:600;color:var(--ink);margin:0 0 12px}
-  /* This week in plain English (sales/sales-insight.js; redesigned 23 Nov 2026): under the KPI cards, the KPI cards' card style; one
-     compact row (✦, headline + badge, weeks, 2-line summary, chips, Show details, ↻); open: gains | drops, short bars, driver pills. */
-  .vi-box{position:relative;background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);
-    padding:16px 18px;margin:0 0 24px;min-width:0;font-size:14px;color:var(--ink)}
-  .vi-box[hidden]{display:none}
-  .vi-top{display:flex;align-items:flex-start;gap:12px;min-width:0}
-  .vi-ic{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;line-height:1;
-    color:var(--accent-ink);background:var(--accent-bg)}
-  .vi-main{flex:1 1 0;min-width:0}
-  .vi-hl{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;min-width:0;min-height:30px}
-  .vi-h{margin:0;font-size:18px;font-weight:700;line-height:1.3;letter-spacing:-.01em;color:var(--ink)}
-  .vi-badge{display:inline-block;padding:0 8px;border-radius:var(--r-pill);font-size:12px;font-weight:600;line-height:20px;
-    font-variant-numeric:tabular-nums;white-space:nowrap}
-  .vi-badge.is-up{background:var(--accent-bg);color:var(--accent-ink)}
-  .vi-badge.is-dn{background:var(--bad-bg);color:var(--bad-ink)}
-  .vi-dates{font-size:12px;color:var(--muted);white-space:nowrap}
-  .vi-sum{margin:6px 0 0;font-size:14px;line-height:1.5;color:var(--ink);display:-webkit-box;-webkit-box-orient:vertical;
-    -webkit-line-clamp:2;line-clamp:2;overflow:hidden}
-  .vi-box:has(.vi-det.is-open) .vi-sum{display:block;-webkit-line-clamp:unset;line-clamp:none}
-  .vi-by{display:inline-block;margin-right:6px;padding:0 6px;border-radius:var(--r-pill);font-size:11px;font-weight:700;line-height:18px;
-    vertical-align:1px;color:var(--accent-ink);background:var(--accent-bg)}
-  .vi-note{margin:4px 0 0;font-size:13px;line-height:1.45;color:var(--muted)}
-  .vi-side{flex:none;display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px;max-width:46%;min-height:30px}
-  .vi-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border:1px solid var(--card-line);border-radius:var(--r-pill);
-    font-size:12px;line-height:18px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
-  .vi-chip.is-bad{color:var(--bad-ink);border-color:var(--bad)}
-  .vi-i{border:0;background:none;padding:0 0 0 2px;margin:0;font:inherit;font-size:13px;line-height:1;color:var(--muted);cursor:help}
-  .vi-btn{border:1px solid var(--card-line);background:var(--card);color:var(--ink);border-radius:var(--r-pill);font:inherit;
-    font-size:12px;font-weight:600;line-height:18px;padding:4px 11px;cursor:pointer;white-space:nowrap}
-  .vi-btn:hover{background:var(--hover,var(--soft))}
-  .vi-btn:disabled{opacity:.55;cursor:default}
-  .vi-btn:focus-visible,.vi-i:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-  .vi-ref{width:28px;height:28px;padding:0;display:inline-grid;place-items:center;font-size:15px}
-  .vi-det[hidden]{display:none}
-  .vi-det.is-moving{transition:height .3s ease}
-  .vi-det-in{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
-  .vi-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 32px}
-  .vi-col{min-width:0}
-  .vi-ch{margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
-  .vi-col.is-up .vi-ch{color:var(--accent-ink)}
-  .vi-col.is-dn .vi-ch{color:var(--bad-ink)}
-  .vi-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
-  .vi-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(40px,160px) auto 38px;align-items:center;gap:10px;min-width:0}
-  .vi-n{min-width:0;display:flex;flex-direction:column;gap:4px}
-  .vi-nm{font-size:14px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .vi-pills{display:flex;flex-wrap:wrap;gap:4px;min-width:0}
-  .vi-pill{font-size:12px;line-height:18px;padding:0 7px;border-radius:var(--r-pill);white-space:nowrap}
-  .vi-pill.is-up{background:var(--accent-bg);color:var(--accent-ink)}
-  .vi-pill.is-dn{background:var(--bad-bg);color:var(--bad-ink)}
-  .vi-pill.is-flat{background:var(--soft,var(--bg));color:var(--muted);box-shadow:inset 0 0 0 1px var(--card-line)}
-  .vi-bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
-  .vi-bar i{display:block;height:100%;border-radius:4px}
-  .vi-r.is-up .vi-bar i{background:var(--accent)}
-  .vi-r.is-dn .vi-bar i{background:var(--bad)}
-  .vi-amt{font-size:14px;font-weight:700;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-  .vi-r.is-up .vi-amt{color:var(--accent-ink)}
-  .vi-r.is-dn .vi-amt{color:var(--bad-ink)}
-  .vi-share{font-size:12px;color:var(--muted);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-  .vi-meta{margin:16px 0 0;font-size:13px;line-height:1.45;color:var(--muted)}
-  .vi-box.vi-in{animation:viIn .3s ease both}
-  @keyframes viIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-  @media (prefers-reduced-motion:reduce){.vi-box.vi-in{animation:none} .vi-det.is-moving{transition:none}}
-  @media (max-width:860px){
-    .vi-top{flex-wrap:wrap} .vi-main{flex:1 1 calc(100% - 42px)}
-    .vi-side{max-width:none;width:100%;justify-content:flex-start;padding-left:42px}
-    .vi-cols{grid-template-columns:minmax(0,1fr)}
-    .vi-r{grid-template-columns:minmax(0,1fr) auto 38px;row-gap:6px}
-    .vi-bar{grid-column:1 / -1;grid-row:2;max-width:160px}
-  }
+  /* the Dashboard card "This week in plain English" (core/dashboard.js tVi) */
   #paneDash .dash-vi .dash-vi-t{margin:2px 0 0;font-size:14px;line-height:1.5;color:var(--ink)}
   #paneDash .dash-vi .dash-vi-h{display:block;margin-bottom:4px;font-size:16px;font-weight:700;line-height:1.35}
   #paneDash .dash-vi .dash-vi-b{display:inline-block;padding:0 7px;border-radius:var(--r-pill);font-size:12px;font-weight:600;line-height:18px;vertical-align:2px}
   #paneDash .dash-vi .dash-vi-b.is-up{background:var(--accent-bg);color:var(--accent-ink)}
   #paneDash .dash-vi .dash-vi-b.is-dn{background:var(--bad-bg);color:var(--bad-ink)}
   #paneDash .dash-vi .dash-vi-why{color:var(--muted);font-size:13px}
-  /* Sales Dashboard charts (sales/sales-charts.js, 23 Nov 2026): KPI sparklines, the daily chart and the monthly chart at full width,
-     the tables folded. Blue = this year (--brand), dashed grey = last year (--faint); colours from the tokens (light + dark). */
-  .sd-card .sd-spark{height:28px;margin-top:8px}
-  .sd-card .sd-spark:empty{display:none}
-  .sd-card .sd-spark svg{display:block;width:100%;height:28px;overflow:visible}
-  .sdc-sp-all{fill:none;stroke:color-mix(in srgb,var(--glow) 30%,transparent);stroke-width:1.5;vector-effect:non-scaling-stroke;stroke-linejoin:round}
-  .sdc-sp-own{fill:none;stroke:var(--glow);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round}
-  .sdc-sp-dot{fill:var(--glow)}
-  .sdc-panel{padding:16px 18px 12px}
-  .sdc-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px 16px;margin-bottom:10px}
-  .sdc-title{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;min-width:0}
-  .sdc-legend{display:inline-flex;flex-wrap:wrap;gap:6px}
-  .sdc-chip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border:1px solid var(--card-line);border-radius:var(--r-pill);
-    font-size:12px;line-height:18px;color:var(--muted);white-space:nowrap}
-  .sdc-chip::before{content:"";width:14px;border-top:2px solid var(--brand)}
-  .sdc-chip.is-ly::before{border-top:2px dashed var(--faint)}
-  .sdc-ctl{display:flex;flex-wrap:wrap;gap:8px}
-  .sdc-ctl .sd-toggle button{padding:5px 11px;font-size:12px}
-  .sdc-ctl .sd-toggle button:disabled{opacity:.45;cursor:not-allowed}
-  .sdc-chart{position:relative;width:100%;min-width:0}
-  .sdc-svg{display:block;width:100%;height:auto;max-width:100%;touch-action:pan-y}
-  .sdc-grid{stroke:var(--line);stroke-width:1}
-  .sdc-ax{font-size:11px;fill:var(--muted);font-variant-numeric:tabular-nums}
-  .sdc-ty{fill:none;stroke:var(--brand);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
-  .sdc-area{fill:color-mix(in srgb,var(--brand) 12%,transparent);stroke:none}
-  .sdc-ly{fill:none;stroke:var(--faint);stroke-width:2;stroke-dasharray:5 4;stroke-linecap:round;opacity:.85}
-  .sdc-today{fill:none;stroke:var(--brand);stroke-width:2;stroke-dasharray:2 4;stroke-linecap:round}
-  .sdc-chip.is-bar::before{width:10px;height:10px;border:0;border-radius:3px;background:var(--brand)}
-  .sdc-chip.is-bar.is-ly::before{background:color-mix(in srgb,var(--faint) 55%,transparent)}
-  .sdc-hit,.sdc-mhit{fill:transparent;cursor:crosshair}
-  .sdc-mhit.is-on{fill:color-mix(in srgb,var(--ink) 5%,transparent)}
-  .sdc-x[hidden]{display:none}
-  .sdc-x-l{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}
-  .sdc-x-ty{fill:var(--brand);stroke:var(--card);stroke-width:2}
-  .sdc-x-ly{fill:var(--faint);stroke:var(--card);stroke-width:2}
-  .sdc-tip{position:absolute;z-index:3;top:0;left:0;min-width:200px;max-width:280px;display:flex;flex-direction:column;gap:3px;padding:9px 11px;
-    border:1px solid var(--card-line);border-radius:10px;background:var(--card);box-shadow:0 8px 28px rgba(15,23,42,.16);
-    font-size:12px;line-height:1.4;color:var(--ink);pointer-events:none}
-  .sdc-tip[hidden]{display:none}
-  .sdc-tip b{font-size:12.5px;margin-bottom:2px}
-  .sdc-tk{display:flex;justify-content:space-between;gap:14px;color:var(--muted)}
-  .sdc-tk em{font-style:normal;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
-  .sdc-tk.is-ty::before,.sdc-tk.is-ly::before{content:"";flex:none;width:10px;margin:7px -8px 0 0;border-top:2px solid var(--brand);order:-1}
-  .sdc-tk.is-ly::before{border-top-style:dashed;border-top-color:var(--faint)}
-  .sdc-tk em.is-up{color:var(--accent-ink)}
-  .sdc-tk em.is-dn{color:var(--bad-ink)}
-  .sdc-note-l{stroke:var(--faint);stroke-width:1}
-  .sdc-note-dot{fill:var(--card);stroke:var(--brand);stroke-width:2}
-  .sdc-note-g.is-mover .sdc-note-dot{stroke:var(--warn-ink,var(--bad))}
-  .sdc-note-bg{fill:var(--card);stroke:var(--card-line)}
-  .sdc-note-t{font-size:11px;font-weight:600;fill:var(--ink)}
-  .sdc-mbar.is-ty{fill:var(--brand)}
-  .sdc-mbar.is-ly{fill:color-mix(in srgb,var(--faint) 55%,transparent)}
-  .sdc-note{margin:6px 0 0;font-size:12px;line-height:1.45;color:var(--muted)}
-  .sdc-tables{margin:0 0 24px}
-  .sdc-fold{border:1px solid var(--card-line);background:var(--card);color:var(--ink);border-radius:var(--r-pill);font:inherit;font-size:13px;
-    font-weight:600;line-height:18px;padding:6px 14px;cursor:pointer;box-shadow:var(--sh-1)}
-  .sdc-fold:hover{background:var(--hover,var(--soft))}
-  .sdc-fold:focus-visible,.sdc-ctl .sd-toggle button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
-  .sdc-in .sdc-ty{stroke-dasharray:1;animation:sdcDraw .9s ease-out both}
-  .sdc-in .sdc-area,.sdc-in .sdc-ly,.sdc-in .sdc-today,.sdc-in .sdc-note-g{animation:sdcFade .5s .25s ease both}
-  .sdc-in .sdc-mbar{transform-box:fill-box;transform-origin:50% 100%;animation:sdcGrow .5s ease-out both}
-  @keyframes sdcDraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
-  @keyframes sdcFade{from{opacity:0}}
-  @keyframes sdcGrow{from{transform:scaleY(0)}}
-  @media (prefers-reduced-motion:reduce){.sdc-in .sdc-ty,.sdc-in .sdc-area,.sdc-in .sdc-ly,.sdc-in .sdc-note-g,.sdc-in .sdc-mbar{animation:none;stroke-dasharray:none}}
-  @media (max-width:860px){.sdc-head{flex-direction:column;align-items:flex-start} .sdc-ctl{width:100%}}
+  /* ================= THE SALES DASHBOARD AS CHAPTERS (23 Nov 2026) — the approved preview Pricing-App/design/sales-dashboard/style.css,
+     scoped to #paneSales (and the page background while it is open). sales/sales-charts.js draws into it. ================= */
+  #paneSales {
+    --sx-page: #f5f5f7; --sx-card: #ffffff; --sx-line: #e6e6eb; --sx-ink: #1d1d1f; --sx-muted: #6e6e73; --sx-faint: #a1a1a6;
+    --sx-blue: #0071e3; --sx-blue-soft: rgba(0, 113, 227, .14); --sx-ly: #a1a1a6;
+    --sx-up: #1d8a4e; --sx-up-bg: #e4f5eb; --sx-down: #d70015; --sx-down-bg: #fde8ea; --sx-chip: #ececf0;
+    --sx-line-art: rgba(0, 113, 227, .09); --sx-dot: rgba(0, 113, 227, .10);
+    --sx-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 12px 40px rgba(0, 0, 0, .06);
+    --sx-r: 28px; --sx-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, "Segoe UI", system-ui, sans-serif;
+    position: relative; font-family: var(--sx-font); color: var(--sx-ink); font-size: 17px; line-height: 1.47; -webkit-font-smoothing: antialiased;
+  }
+  :root[data-theme="dark"] #paneSales {
+    --sx-page: #0a0f1e; --sx-card: #111a2e; --sx-line: #1e2a44; --sx-ink: #f2f4f8; --sx-muted: #9aa4b8; --sx-faint: #6b7590;
+    --sx-blue: #4c9dff; --sx-blue-soft: rgba(76, 157, 255, .18); --sx-ly: #6b7590;
+    --sx-up: #3ddc84; --sx-up-bg: rgba(61, 220, 132, .14); --sx-down: #ff6b6b; --sx-down-bg: rgba(255, 107, 107, .14); --sx-chip: #1a2440;
+    --sx-line-art: rgba(110, 170, 255, .10); --sx-dot: rgba(120, 180, 255, .12); --sx-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 48px rgba(0, 0, 0, .35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) #paneSales {
+      --sx-page: #0a0f1e; --sx-card: #111a2e; --sx-line: #1e2a44; --sx-ink: #f2f4f8; --sx-muted: #9aa4b8; --sx-faint: #6b7590;
+      --sx-blue: #4c9dff; --sx-blue-soft: rgba(76, 157, 255, .18); --sx-ly: #6b7590;
+      --sx-up: #3ddc84; --sx-up-bg: rgba(61, 220, 132, .14); --sx-down: #ff6b6b; --sx-down-bg: rgba(255, 107, 107, .14); --sx-chip: #1a2440;
+      --sx-line-art: rgba(110, 170, 255, .10); --sx-dot: rgba(120, 180, 255, .12); --sx-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 48px rgba(0, 0, 0, .35);
+    }
+  }
+  /* the page behind it while the Sales Dashboard is open: the soft page colour and the faint dotted graph paper */
+  body:has(#paneSales:not(.hide)) { background-color: #f5f5f7; background-image: radial-gradient(rgba(29, 29, 31, .045) 1px, transparent 1.2px); background-size: 22px 22px; background-attachment: fixed; }
+  :root[data-theme="dark"] body:has(#paneSales:not(.hide)) { background-color: #0a0f1e; background-image: radial-gradient(rgba(255, 255, 255, .05) 1px, transparent 1.2px); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body:has(#paneSales:not(.hide)) { background-color: #0a0f1e; background-image: radial-gradient(rgba(255, 255, 255, .05) 1px, transparent 1.2px); } }
+  #paneSales .num, #paneSales .sdx-kpi-v, #paneSales .sdx-stat-v, #paneSales .sdx-mv-amt, #paneSales .sdx-tbl td { font-variant-numeric: tabular-nums; }
+  #paneSales button { font-family: inherit; }
+
+  /* the background layers (fixed, behind the chapters) */
+  #paneSales .sdx-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+  #paneSales .sdx-glow { position: absolute; width: 760px; height: 760px; left: -160px; top: -220px; border-radius: 50%; background: #4d8dff; opacity: .16;
+    filter: blur(110px); transform: translate3d(0, 0, 0); transition: background-color 1.2s ease, opacity .6s ease; }
+  :root[data-theme="dark"] #paneSales .sdx-glow { opacity: .22; }
+  #paneSales #sdxDots { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  /* the slim sticky bar, under the app's own top bar */
+  #paneSales .sdx-bar { position: sticky; top: var(--sdx-top, 60px); z-index: 20; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 52px;
+    margin: 0 -20px; padding: 10px max(20px, calc((100% - 1160px) / 2));
+    background: color-mix(in srgb, var(--sx-page) 78%, transparent); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid color-mix(in srgb, var(--sx-line) 70%, transparent); }
+  #paneSales .sdx-bar-t { font-weight: 600; font-size: 15px; letter-spacing: -.01em; margin-right: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
+  #paneSales .sdx-bar-t #sdMsg { font-weight: 400; font-size: 13px; }
+  #paneSales .sdx-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--sx-chip); gap: 2px; }
+  #paneSales .sdx-seg button { border: 0; background: transparent; padding: 5px 13px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--sx-muted); cursor: pointer; line-height: 1.4; }
+  #paneSales .sdx-seg button[aria-pressed="true"] { background: var(--sx-card); color: var(--sx-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+  #paneSales .sdx-seg button:disabled { opacity: .4; cursor: not-allowed; }
+  #paneSales .sdx-seg button:focus-visible, #paneSales .sdx-link:focus-visible, #paneSales .sdx-ibtn:focus-visible, #paneSales .sdx-btn:focus-visible { outline: 2px solid var(--sx-blue); outline-offset: 2px; }
+  #paneSales #ncChipSd { display: inline-flex; align-items: center; gap: 6px; border: 0; font-size: 13px; font-weight: 600; padding: 5px 11px; border-radius: 999px; }
+  #paneSales #ncChipSd[hidden] { display: none; }
+  #paneSales .sdx-btn { border: 0; background: var(--sx-chip); color: var(--sx-ink); font-size: 13px; font-weight: 500; padding: 6px 13px; border-radius: 999px; cursor: pointer; }
+  #paneSales .sdx-btn:disabled { opacity: .6; cursor: default; }
+  #paneSales .sdx-ibtn { border: 0; background: var(--sx-chip); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: inline-grid; place-items: center; font-size: 15px; color: var(--sx-ink); }
+  #paneSales .sdx-ibtn[aria-pressed="false"] { opacity: .55; }
+
+  /* the chapters */
+  #paneSales .sdx-main { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 0 120px; }
+  #paneSales .sdx-ch { position: relative; padding-top: 120px; }
+  #paneSales .sdx-lines { position: absolute; left: -10vw; top: 40px; height: 420px; width: 120vw; pointer-events: none; z-index: 0; overflow: visible; }
+  #paneSales .sdx-lines path { fill: none; stroke: var(--sx-line-art); stroke-width: 2; stroke-linecap: round; }
+  #paneSales .sdx-h { position: relative; z-index: 1; margin: 0 0 14px; font-size: clamp(32px, 4.6vw, 56px); line-height: 1.07; font-weight: 700; letter-spacing: -.028em; color: var(--sx-ink); }
+  #paneSales .sdx-h .sdx-w { display: inline-block; }
+  #paneSales .sdx-sub { position: relative; z-index: 1; margin: 0 0 32px; max-width: 640px; color: var(--sx-muted); font-size: 19px; line-height: 1.42; letter-spacing: -.01em; }
+  #paneSales .sdx-card { position: relative; z-index: 1; background: var(--sx-card); border-radius: var(--sx-r); box-shadow: var(--sx-shadow); padding: clamp(22px, 3.4vw, 44px); overflow: hidden; }
+  #paneSales .sdx-split { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(24px, 4vw, 56px); align-items: start; }
+  #paneSales .sdx-split[hidden] { display: none; }
+  #paneSales .sdx-split.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+  #paneSales .sdx-card-h { font-size: 21px; font-weight: 700; letter-spacing: -.015em; margin: 0 0 4px; color: var(--sx-ink); }
+  #paneSales .sdx-card-p { color: var(--sx-muted); font-size: 15px; margin: 0 0 18px; }
+
+  /* 1 — the six numbers */
+  #paneSales .sdx-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 36px; }
+  #paneSales .sdx-kpi { min-width: 0; }
+  #paneSales .sdx-kpi-l { font-size: 14px; color: var(--sx-muted); font-weight: 600; letter-spacing: -.005em; }
+  #paneSales .sdx-kpi-v { font-size: clamp(30px, 3.4vw, 44px); font-weight: 700; letter-spacing: -.03em; line-height: 1.12; margin: 4px 0 6px; white-space: nowrap; color: var(--sx-ink); }
+  #paneSales .sdx-kpi-s { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; font-size: 13px; color: var(--sx-muted); min-height: 22px; }
+  #paneSales .sdx-kpi-s .muted { color: var(--sx-muted); }
+  #paneSales .ui-pos, #paneSales .ui-neg, #paneSales .sdx-delta { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; font-size: 13px; padding: 1px 8px; border-radius: 999px; }
+  #paneSales .ui-pos, #paneSales .sdx-delta.up { color: var(--sx-up); background: var(--sx-up-bg); }
+  #paneSales .ui-neg, #paneSales .sdx-delta.down { color: var(--sx-down); background: var(--sx-down-bg); }
+  #paneSales .sdx-spark svg { display: block; width: 100%; height: 34px; margin-top: 10px; overflow: visible; }
+  #paneSales .sdx-spark path { fill: none; stroke: var(--sx-blue); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+  #paneSales .sdx-spark .area { fill: var(--sx-blue-soft); stroke: none; }
+
+  /* 2 — this week, explained */
+  #paneSales .sdx-hl { font-size: clamp(28px, 3vw, 40px); font-weight: 700; letter-spacing: -.025em; line-height: 1.1; margin: 0 0 6px; color: var(--sx-ink); }
+  #paneSales .sdx-hl .sdx-delta { font-size: 15px; vertical-align: 6px; margin-left: 6px; }
+  #paneSales .sdx-weeks { color: var(--sx-muted); font-size: 14px; margin-bottom: 18px; }
+  #paneSales .sdx-summary { font-size: 17px; line-height: 1.5; margin: 0 0 18px; color: var(--sx-ink); }
+  #paneSales .sdx-summary.muted { color: var(--sx-muted); }
+  #paneSales .sdx-by { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--sx-blue); margin-bottom: 6px; }
+  #paneSales .sdx-link { border: 0; background: none; padding: 0; color: var(--sx-blue); font-size: 15px; font-weight: 500; cursor: pointer; }
+  #paneSales .sdx-link:hover { text-decoration: underline; }
+  #paneSales .sdx-more { margin-top: 16px; font-size: 14px; color: var(--sx-muted); line-height: 1.6; }
+  #paneSales .sdx-more[hidden] { display: none; }
+  #paneSales .sdx-i { border: 0; background: none; padding: 0 0 0 3px; font-size: 13px; color: var(--sx-muted); cursor: help; }
+  #paneSales .sdx-cols2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; }
+  #paneSales .sdx-mv-h { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin: 0 0 12px; }
+  #paneSales .sdx-mv-h.up { color: var(--sx-up); } #paneSales .sdx-mv-h.down { color: var(--sx-down); }
+  #paneSales .sdx-mv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--sx-line); }
+  #paneSales .sdx-mv:first-of-type { border-top: 0; }
+  #paneSales .sdx-mv-n { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--sx-ink); }
+  #paneSales .sdx-mv-amt { font-size: 15px; font-weight: 700; text-align: right; }
+  #paneSales .sdx-mv.up .sdx-mv-amt { color: var(--sx-up); } #paneSales .sdx-mv.down .sdx-mv-amt { color: var(--sx-down); }
+  #paneSales .sdx-mv-bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--sx-chip); overflow: hidden; }
+  #paneSales .sdx-mv-bar i { display: block; height: 100%; border-radius: 3px; transform-origin: 0 50%; }
+  #paneSales .sdx-mv.up .sdx-mv-bar i { background: var(--sx-up); } #paneSales .sdx-mv.down .sdx-mv-bar i { background: var(--sx-down); }
+  #paneSales .sdx-pills { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; }
+  #paneSales .vi-pill { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--sx-chip); color: var(--sx-muted); white-space: nowrap; }
+  #paneSales .vi-pill.is-up { background: var(--sx-up-bg); color: var(--sx-up); } #paneSales .vi-pill.is-dn { background: var(--sx-down-bg); color: var(--sx-down); }
+  #paneSales .sdx-none { color: var(--sx-muted); font-size: 14px; }
+
+  /* charts */
+  #paneSales .sdx-chart { width: 100%; height: 360px; }
+  #paneSales .sdx-chart.tall { height: 400px; }
+  #paneSales .sdx-chart.mid { height: 320px; }
+  #paneSales .sdx-chart-fail { display: grid; place-items: center; height: 100%; color: var(--sx-muted); font-size: 14px; border: 1px dashed var(--sx-line); border-radius: 18px; text-align: center; padding: 0 16px; }
+  #paneSales .sdx-ctl { display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  #paneSales .sdx-ctl-r { display: flex; gap: 8px; flex-wrap: wrap; }
+  #paneSales .sdx-legend { display: flex; gap: 14px; font-size: 13px; color: var(--sx-muted); }
+  #paneSales .sdx-legend i { display: inline-block; width: 16px; height: 0; border-top: 2px solid var(--sx-blue); vertical-align: middle; margin-right: 6px; }
+  #paneSales .sdx-legend i.ly { border-top: 2px dashed var(--sx-ly); }
+  #paneSales .sdx-legend i.sq { width: 10px; height: 10px; border: 0; border-radius: 3px; background: var(--sx-blue); }
+  #paneSales .sdx-legend i.sq.ly { background: var(--sx-ly); }
+  #paneSales .sdx-note { margin: 8px 0 0; font-size: 12px; color: var(--sx-muted); }
+
+  /* 7 — the details */
+  #paneSales .sdx-tables[hidden] { display: none; }
+  #paneSales .sdx-tables { margin-top: 18px; display: flex; flex-direction: column; gap: 28px; }
+  #paneSales .sdx-tbl-wrap { overflow-x: auto; }
+  #paneSales .sdx-tbl { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--sx-ink); }
+  #paneSales .sdx-tbl th { text-align: left; font-size: 12px; font-weight: 600; color: var(--sx-muted); padding: 8px 10px; border-bottom: 1px solid var(--sx-line); white-space: nowrap; }
+  #paneSales .sdx-tbl td { padding: 10px; border-bottom: 1px solid var(--sx-line); white-space: nowrap; }
+  #paneSales .sdx-tbl .num { text-align: right; }
+  #paneSales .sdx-tbl .sd-ly { color: var(--sx-muted); }
+  #paneSales .sdx-range-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  #paneSales .sdx-range-h .sdx-card-h { margin: 0 6px 0 0; }
+  #paneSales .sdx-range input[type="date"] { border: 1px solid var(--sx-line); background: var(--sx-card); color: var(--sx-ink); border-radius: 10px; padding: 6px 10px; font: inherit; font-size: 14px; }
+  #paneSales .sdx-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+  #paneSales .sdx-stat-v { font-size: 24px; font-weight: 700; letter-spacing: -.02em; color: var(--sx-ink); }
+  #paneSales .sdx-foot { margin-top: 56px; font-size: 13px; color: var(--sx-faint); }
+
+  /* COMPACT (daily work): the same content, small headings, tight spacing, no moving background */
+  #paneSales[data-mode="compact"] .sdx-ch { padding-top: 28px; }
+  #paneSales[data-mode="compact"] .sdx-h { font-size: 20px; letter-spacing: -.01em; margin-bottom: 10px; }
+  #paneSales[data-mode="compact"] .sdx-sub, #paneSales[data-mode="compact"] .sdx-lines { display: none; }
+  #paneSales[data-mode="compact"] .sdx-card { padding: 22px; border-radius: 20px; }
+  #paneSales[data-mode="compact"] .sdx-glow { opacity: .08; }
+  #paneSales[data-mode="compact"] #sdxDots { display: none; }
+  #paneSales.sdx-still .sdx-lines, #paneSales.sdx-still #sdxDots { display: none; }
+
+  /* phone */
+  @media (max-width: 760px) {
+    #paneSales { font-size: 16px; }
+    #paneSales .sdx-ch { padding-top: 72px; }
+    #paneSales .sdx-h { font-size: 32px; }
+    #paneSales .sdx-sub { font-size: 16px; margin-bottom: 22px; }
+    #paneSales .sdx-split, #paneSales .sdx-split.even, #paneSales .sdx-cols2 { grid-template-columns: minmax(0, 1fr); }
+    #paneSales .sdx-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 18px; }
+    #paneSales .sdx-kpi-v { font-size: 28px; }
+    #paneSales .sdx-chart { height: 300px; } #paneSales .sdx-chart.tall { height: 320px; }
+    #paneSales .sdx-lines, #paneSales #sdxDots { display: none; }
+    #paneSales .sdx-bar { padding: 8px 14px; gap: 8px; margin: 0 -14px; }
+    #paneSales .sdx-bar-t { width: 100%; }
+    #paneSales .sdx-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) { #paneSales .sdx-lines, #paneSales #sdxDots { display: none; } #paneSales .sdx-glow { transition: none; } }
   .sd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
   @media (max-width:900px){ .sd-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
   .sd-stat{background:color-mix(in srgb,var(--ink) 3%,var(--card));border-radius:var(--r-ctl);padding:12px 14px}
@@ -6894,100 +6929,150 @@
        compared across screens. Drawn by the script; reads only what is loaded or cached. -->
   <div id="paneNcheck" class="hide"><div id="ncPane"></div></div>
 
-  <div id="paneSales" class="hide">
-    <div class="toolbar sa-gap-12 sa-sd-head">
+  <div id="paneSales" class="hide" data-mode="story">
+    <!-- THE SALES DASHBOARD AS CHAPTERS (23 Nov 2026 — the approved preview Pricing-App/design/sales-dashboard/, with Sellora's own numbers).
+         Every number is still written by renderSales (sales/sales-dashboard.js) into the same ids; sales/sales-charts.js draws the charts,
+         the motion and the background; sales/sales-insight.js fills "This week, explained". Styles: #paneSales only (styles.css "sdx"). -->
+    <div class="sdx-bg" aria-hidden="true"><div class="sdx-glow" id="sdxGlow"></div><canvas id="sdxDots"></canvas></div>
+
+    <header class="sdx-bar">
+      <div class="sdx-bar-t">Sales <span id="sdMsg" class="muted"></span></div>
+      <div class="sdx-seg" id="sdBrand" role="group" aria-label="Brand">
+        <button type="button" data-ch="SP" class="on" aria-pressed="true">Ridhi</button><button type="button" data-ch="CPC" aria-pressed="false">CPC</button><button type="button" data-ch="SHOP" aria-pressed="false">Shopify</button><button type="button" data-ch="ALL" aria-pressed="false">All</button>
+      </div>
       <!-- the Numbers Check chip (sales/sales-check.js ncChipPaint): hidden until a check has run -->
       <button id="ncChipSd" class="nc-chip" type="button" hidden></button>
-      <span id="sdMsg" class="muted"></span>
-      <button id="sdRefresh" class="ghost sa-btn-sm"
+      <button id="sdRefresh" type="button" class="sdx-btn"
         title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>
-      <div class="sd-toggle" id="sdBrand">
-        <button data-ch="SP" class="on">Ridhi</button>
-        <button data-ch="CPC">CPC</button>
-        <button data-ch="SHOP">Shopify</button>
-        <button data-ch="ALL">All</button>
+      <div class="sdx-seg" id="sdxMode" role="group" aria-label="Layout">
+        <button type="button" data-m="story" aria-pressed="true">Story</button><button type="button" data-m="compact" aria-pressed="false">Compact</button>
       </div>
-    </div>
+      <button type="button" class="sdx-ibtn" id="sdxFx" aria-pressed="true" title="Motion on / off">✨</button>
+      <button type="button" class="sdx-ibtn" id="sdxTheme" title="Light / dark" aria-label="Light or dark">◐</button>
+    </header>
 
-    <div class="sd-kpis">
-      <div class="sd-card sd-b-cyan"><div class="lbl">Today</div><div class="val" id="sdToday">—</div><div class="sd-spark" data-spark="today"></div><div class="sub">—</div></div>
-      <div class="sd-card sd-b-teal"><div class="lbl">Yesterday</div><div class="val" id="sdYest">—</div><div class="sd-spark" data-spark="yest"></div><div class="sub">US portal day</div></div>
-      <div class="sd-card sd-b-orange"><div class="lbl">Last 7 days</div><div class="val" id="sd7">—</div><div class="sd-spark" data-spark="seven"></div><div class="sub" id="sd7p">—</div></div>
-      <div class="sd-card sd-b-purple"><div class="lbl">MTD</div><div class="val" id="sdMtd">—</div><div class="sd-spark" data-spark="mtd"></div><div class="sub" id="sdMtdp">—</div></div>
-      <div class="sd-card sd-b-indigo" id="sdProjCard"
-           title="Where this month lands if the last seven complete days keep up. Today is left out of the run rate — Amazon's figure for it is hours behind all day.">
-        <div class="lbl">Expected — month</div><div class="val" id="sdProj">—</div><div class="sd-spark" data-spark="proj"></div>
-        <div class="sub" id="sdProjp">—</div></div>
-      <div class="sd-card sd-b-pink"><div class="lbl">YTD</div><div class="val" id="sdYtd">—</div><div class="sd-spark" data-spark="ytd"></div><div class="sub" id="sdYtdp">—</div></div>
-    </div>
+    <div class="sdx-main">
+      <!-- 1 -->
+      <section class="sdx-ch" data-glow="#4d8dff">
+        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <h2 class="sdx-h">Sales today.</h2>
+        <p class="sdx-sub">Where the day, the week, the month and the year stand — each against the same days last year.</p>
+        <div class="sdx-card"><div class="sdx-kpis">
+          <div class="sdx-kpi"><div class="sdx-kpi-l">Today</div><div class="sdx-kpi-v" id="sdToday">—</div><div class="sdx-kpi-s" id="sdTodayp">so far · US Pacific day</div><div class="sdx-spark" data-spark="today"></div></div>
+          <div class="sdx-kpi"><div class="sdx-kpi-l">Yesterday</div><div class="sdx-kpi-v" id="sdYest">—</div><div class="sdx-kpi-s" id="sdYestp">US portal day</div><div class="sdx-spark" data-spark="yest"></div></div>
+          <div class="sdx-kpi"><div class="sdx-kpi-l">Last 7 days</div><div class="sdx-kpi-v" id="sd7">—</div><div class="sdx-kpi-s" id="sd7p">—</div><div class="sdx-spark" data-spark="seven"></div></div>
+          <div class="sdx-kpi"><div class="sdx-kpi-l">Month to date</div><div class="sdx-kpi-v" id="sdMtd">—</div><div class="sdx-kpi-s" id="sdMtdp">—</div><div class="sdx-spark" data-spark="mtd"></div></div>
+          <div class="sdx-kpi" id="sdProjCard"
+               title="Where this month lands if the last seven complete days keep up. Today is left out of the run rate — Amazon's figure for it is hours behind all day.">
+            <div class="sdx-kpi-l">Expected — month</div><div class="sdx-kpi-v" id="sdProj">—</div><div class="sdx-kpi-s" id="sdProjp">—</div><div class="sdx-spark" data-spark="proj"></div></div>
+          <div class="sdx-kpi"><div class="sdx-kpi-l">Year to date</div><div class="sdx-kpi-v" id="sdYtd">—</div><div class="sdx-kpi-s" id="sdYtdp">—</div><div class="sdx-spark" data-spark="ytd"></div></div>
+        </div></div>
+      </section>
 
-    <!-- "This week in plain English" (sales/sales-insight.js viDraw): why revenue fell / rose last week — under the KPI cards, closed by default -->
-    <section id="viBox" class="vi-box" aria-labelledby="viH" hidden></section>
+      <!-- 2 -->
+      <section class="sdx-ch" data-glow="#8b5cf6">
+        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <h2 class="sdx-h">This week, explained.</h2>
+        <p class="sdx-sub">Last finished week against the week before — the products that moved it, and why.</p>
+        <!-- "This week in plain English" (sales/sales-insight.js viDraw) -->
+        <div class="sdx-card"><div class="sdx-split" id="viBox" aria-labelledby="viH" hidden></div></div>
+      </section>
 
-    <div class="sd-panel">
-      <div class="toolbar sa-gap-12 mb-12">
-        <h2 class="sd-h2 sa-flush">Custom Range</h2>
-        <input id="sdFrom" type="date" class="sa-date-sm">
-        <span class="muted sa-fs-14">to</span>
-        <input id="sdTo" type="date" class="sa-date-sm">
-        <button id="sdApply" class="sa-btn-dark">Apply</button>
-      </div>
-      <div class="sd-stats">
-        <div class="sd-stat"><div class="lbl">Sales</div><div class="val" id="sdrSales">—</div></div>
-        <div class="sd-stat"><div class="lbl">Quantity</div><div class="val" id="sdrQty">—</div></div>
-        <div class="sd-stat"><div class="lbl">Order items</div><div class="val" id="sdrItems">—</div></div>
-        <div class="sd-stat"><div class="lbl">Avg $ / item</div><div class="val" id="sdrAvg">—</div></div>
-      </div>
-    </div>
-
-    <!-- the charts (sales/sales-charts.js sdcRender): daily at full width, then monthly — the same sums as the cards and tables -->
-    <section class="sd-panel sdc-panel" aria-labelledby="sdcDailyH">
-      <div class="sdc-head">
-        <div class="sdc-title"><h2 class="sd-h2 sa-flush" id="sdcDailyH">Daily sales</h2>
-          <span class="sdc-legend"><span class="sdc-chip is-ty">This year</span><span class="sdc-chip is-ly">Same weekday last year</span></span></div>
-        <div class="sdc-ctl">
-          <div class="sd-toggle" id="sdcMetric" role="group" aria-label="Measure"><button type="button" data-m="sales" class="on">Sales</button><button type="button" data-m="units">Units</button><button type="button" data-m="ads">Ad spend</button></div>
-          <div class="sd-toggle" id="sdcRange" role="group" aria-label="Days"><button type="button" data-r="30">30 days</button><button type="button" data-r="90" class="on">90 days</button><button type="button" data-r="ytd">This year</button></div>
+      <!-- 3 -->
+      <section class="sdx-ch" data-glow="#14b8a6">
+        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <h2 class="sdx-h">Every day vs last year.</h2>
+        <p class="sdx-sub">This year in blue, the same weekday last year in grey. Hover any day for the gap.</p>
+        <div class="sdx-card">
+          <div class="sdx-ctl">
+            <div class="sdx-legend"><span><i></i>This year</span><span><i class="ly"></i>Same weekday last year</span></div>
+            <div class="sdx-ctl-r">
+              <div class="sdx-seg" id="sdcMetric" role="group" aria-label="Measure"><button type="button" data-m="sales" aria-pressed="true">Sales</button><button type="button" data-m="units" aria-pressed="false">Units</button><button type="button" data-m="ads" aria-pressed="false">Ad spend</button></div>
+              <div class="sdx-seg" id="sdcRange" role="group" aria-label="Days"><button type="button" data-r="30" aria-pressed="false">30 days</button><button type="button" data-r="90" aria-pressed="true">90 days</button><button type="button" data-r="ytd" aria-pressed="false">This year</button></div>
+            </div>
+          </div>
+          <div class="sdx-chart tall" id="sdChartDaily" data-chart="daily"></div>
+          <p class="sdx-note" id="sdcNote"></p>
         </div>
-      </div>
-      <div id="sdChartDaily" class="sdc-chart"></div>
-      <p class="sdc-note" id="sdcNote"></p>
-    </section>
+      </section>
 
-    <section class="sd-panel sdc-panel" aria-labelledby="sdcMonthH">
-      <div class="sdc-head">
-        <div class="sdc-title"><h2 class="sd-h2 sa-flush" id="sdcMonthH">Monthly — this year vs last year</h2>
-          <span class="sdc-legend"><span class="sdc-chip is-bar is-ty">This year</span><span class="sdc-chip is-bar is-ly">Last year</span></span></div>
-      </div>
-      <div id="sdChartMonthly" class="sdc-chart"></div>
-    </section>
+      <!-- 4 -->
+      <section class="sdx-ch" data-glow="#f59e0b">
+        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <h2 class="sdx-h">Your busiest days.</h2>
+        <p class="sdx-sub">The last thirteen weeks, day by day — and the products carrying this month.</p>
+        <div class="sdx-split even">
+          <div class="sdx-card"><h3 class="sdx-card-h">Sales calendar</h3><p class="sdx-card-p">Darker = more sales.</p><div class="sdx-chart tall" id="sdxHeat" data-chart="heat"></div></div>
+          <div class="sdx-card"><h3 class="sdx-card-h">Top products this month</h3><p class="sdx-card-p" id="sdxTopSub">Against the same days last month.</p><div class="sdx-chart tall" id="sdxTop" data-chart="top"></div></div>
+        </div>
+      </section>
 
-    <!-- the two tables, folded by default (sales/sales-charts.js: remembered in this browser) -->
-    <div class="sdc-tables">
-      <button type="button" id="sdTablesBtn" class="sdc-fold" aria-expanded="false" aria-controls="sdTables">Show tables ▾</button>
+      <!-- 5 -->
+      <section class="sdx-ch" data-glow="#22c3ee">
+        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <h2 class="sdx-h">Your weekly rhythm.</h2>
+        <p class="sdx-sub">Which weekdays sell — and where this month's sales come from.</p>
+        <div class="sdx-split even">
+          <div class="sdx-card"><h3 class="sdx-card-h">By weekday</h3><p class="sdx-card-p" id="sdxBest">Average of the last 8 weeks.</p><div class="sdx-chart mid" id="sdxPolar" data-chart="polar"></div></div>
+          <div class="sdx-card"><h3 class="sdx-card-h">Where sales come from</h3><p class="sdx-card-p">This month so far, all three channels.</p><div class="sdx-chart mid" id="sdxDonut" data-chart="donut"></div></div>
+        </div>
+      </section>
+
+      <!-- 6 -->
+      <section class="sdx-ch" data-glow="#22c55e">
+        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <h2 class="sdx-h">Month by month.</h2>
+        <p class="sdx-sub">Every month this year beside the same month last year.</p>
+        <div class="sdx-card">
+          <div class="sdx-ctl"><div class="sdx-legend"><span><i class="sq"></i>This year</span><span><i class="sq ly"></i>Last year</span></div></div>
+          <div class="sdx-chart" id="sdChartMonthly" data-chart="month"></div>
+        </div>
+      </section>
+
+      <!-- 7 -->
+      <section class="sdx-ch" data-glow="#64748b">
+        <h2 class="sdx-h">The details.</h2>
+        <p class="sdx-sub">Every window against last year, and every month — as tables.</p>
+        <div class="sdx-card">
+          <button type="button" class="sdx-link" id="sdTablesBtn" aria-expanded="false" aria-controls="sdTables">Show tables ▾</button>
+          <div class="sdx-tables" id="sdTables" hidden>
+            <div class="sdx-tbl-wrap">
+              <h3 class="sdx-card-h">Period Comparison — <span id="sdBrandLabel">Ridhi</span></h3>
+              <table class="sdx-tbl">
+                <thead><tr>
+                  <th>Metric</th><th class="num">Today</th><th class="num">Yesterday</th><th class="num">WTD</th><th class="num">LYWTD</th><th class="num">%Δ</th>
+                  <th class="num">MTD</th><th class="num">LYMTD</th><th class="num">%Δ</th><th class="num">YTD</th><th class="num">LYYTD</th><th class="num">%Δ</th>
+                </tr></thead>
+                <tbody id="sdPeriodBody"></tbody>
+              </table>
+            </div>
+            <div class="sdx-tbl-wrap">
+              <h3 class="sdx-card-h">Monthly Comparison — This Year vs Last Year</h3>
+              <table class="sdx-tbl">
+                <thead><tr><th>Month</th><th class="num">This Year</th><th class="num">Last Year</th><th class="num">Change %</th></tr></thead>
+                <tbody id="sdMonthlyBody"></tbody>
+              </table>
+            </div>
+            <div class="sdx-range">
+              <div class="sdx-range-h">
+                <h3 class="sdx-card-h">Custom Range</h3>
+                <input id="sdFrom" type="date" class="sa-date-sm">
+                <span class="muted">to</span>
+                <input id="sdTo" type="date" class="sa-date-sm">
+                <button id="sdApply" type="button" class="sdx-btn">Apply</button>
+              </div>
+              <div class="sdx-stats">
+                <div><div class="sdx-kpi-l">Sales</div><div class="sdx-stat-v" id="sdrSales">—</div></div>
+                <div><div class="sdx-kpi-l">Quantity</div><div class="sdx-stat-v" id="sdrQty">—</div></div>
+                <div><div class="sdx-kpi-l">Order items</div><div class="sdx-stat-v" id="sdrItems">—</div></div>
+                <div><div class="sdx-kpi-l">Avg $ / item</div><div class="sdx-stat-v" id="sdrAvg">—</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="sdx-foot">Last synced: <span id="sdSynced">—</span> · US Pacific days, as Seller Central.</p>
+      </section>
     </div>
-    <div id="sdTables" hidden>
-    <div class="sd-panel re-scroll-x">
-      <h2 class="sd-h2">Period Comparison — <span id="sdBrandLabel">Ridhi</span></h2>
-      <table class="xl">
-        <thead><tr>
-          <th>Metric</th><th class="num">Today</th><th class="num">Yesterday</th><th class="num">WTD</th><th class="num">LYWTD</th><th class="num">%Δ</th>
-          <th class="num">MTD</th><th class="num">LYMTD</th><th class="num">%Δ</th><th class="num">YTD</th><th class="num">LYYTD</th><th class="num">%Δ</th>
-        </tr></thead>
-        <tbody id="sdPeriodBody"></tbody>
-      </table>
-    </div>
-
-    <div class="sd-panel re-scroll-x">
-      <h2 class="sd-h2">Monthly Comparison — This Year vs Last Year</h2>
-      <table class="xl">
-        <thead><tr><th>Month</th><th class="num">This Year</th><th class="num">Last Year</th><th class="num">Change %</th></tr></thead>
-        <tbody id="sdMonthlyBody"></tbody>
-      </table>
-    </div>
-    </div><!-- /sdTables -->
-
-    <div class="ui-note right">Last synced: <span id="sdSynced">—</span></div>
   </div><!-- /paneSales -->
 
   <!-- ============ Parent Listing Review: one row per parent, last week against its own recent
@@ -60947,11 +61032,11 @@ document.addEventListener('click', e => {
 });
 /* ============================== FILE: src/app/sales/sales-insight.js ============================== */
 /* ================= SALES · THIS WEEK IN PLAIN ENGLISH: why revenue fell / rose last week (Sales card #2, 23 Nov 2026) =================
- * Screens: a box on the Sales Dashboard UNDER the KPI cards (#viBox), CLOSED by default (remembered: localStorage viOpen) — one row:
- *          ✦ "Revenue rose $56,659 last week" ▲ badge, the weeks, the summary (2 lines), chips ($ explained · %, drivers, as of + ⓘ for
- *          the sources), Show details ▾ and ↻; OPEN: ▲ Biggest gains | ▼ Biggest drops (short bars, $, share of the change, up to 2 driver
- *          pills), "Everything else" and "Same week last year" as muted lines. And ONE card on the Dashboard (the headline, the first
- *          sentence, Open →; core/dashboard.js slot tVi).
+ * Screens: the chapter "This week, explained." on the Sales Dashboard (#viBox, 23 Nov 2026 — the approved chapters design): the
+ *          headline "Revenue rose $56,659" with its ▲ / ▼ badge, the weeks, the summary and Show details (remembered: localStorage viOpen) on the
+ *          left; ▲ Biggest gains | ▼ Biggest drops (a bar per mover, up to 2 driver pills) on the right. And ONE card on the Dashboard (the
+ *          headline, the first sentence, Open →; core/dashboard.js slot tVi). The per-product days it reads also feed the Sales Dashboard's
+ *          top products (sales/sales-charts.js).
  * Does — THE MOVERS (code, no AI: this decides everything): the last FINISHED week (Sunday → Saturday, US Pacific days, the
  *   PPC & Organic weeks) against the week before, per brand (Ridhi, CPC, Both = Ridhi + CPC), from PPC weekly sales per ASIN
  *   (docs/sales-metrics.md "PPC weekly sales": the Orders workbooks per ASIN, no Shopify). Products are grouped by parent (Listing
@@ -61272,10 +61357,10 @@ function viLoad(force) {
     } catch (e) { data.err = 'PPC & Organic\'s store could not be read: ' + ((e && e.message) || e); }
     try {
       const r = await baCall({ cache: 'dailyAsin' });                      // the nightly per-day cache (45 days): days without a sale
-      const d = {};
-      Object.values((r && r.data && r.data.d) || {}).forEach(byAsin => Object.entries(byAsin || {}).forEach(([a, byDay]) => { d[a] = byDay; }));
+      const d = {}, brand = {};                                             // brand: which account each ASIN is in (the top products)
+      Object.entries((r && r.data && r.data.d) || {}).forEach(([b, byAsin]) => Object.entries(byAsin || {}).forEach(([a, byDay]) => { d[a] = byDay; brand[a] = b; }));
       const all = Object.values(d).flatMap(byDay => Object.keys(byDay || {}));
-      data.days = { d, from: (r && r.data && r.data.from) || '', upTo: all.length ? all.sort().pop() : '', at: (r && r.data && r.data.at) || '' };
+      data.days = { d, brand, from: (r && r.data && r.data.from) || '', upTo: all.length ? all.sort().pop() : '', at: (r && r.data && r.data.at) || '' };
     } catch (e) { data.days = null; }
     try {
       // the parents (Parent Listing Review does the same); the Dashboard may be reading the same snapshot just now — wait for it then
@@ -61298,9 +61383,15 @@ function viLoad(force) {
     VI.data = data;
     VI.res = {};
     VI.v++;
+    if (typeof sdcAfterVi === 'function') setTimeout(sdcAfterVi, 0);        // the Sales Dashboard's top products and event labels take them
     return data;
   })().finally(() => { VI.busy = null; });
   return VI.busy;
+}
+/** A parent's name: its own (Listing Rules / Listing Health), else a child's title, else ''. */
+function viNameOf(parent, asin, b) {
+  return (typeof PNAME !== 'undefined' && PNAME[b] && PNAME[b][parent] && PNAME[b][parent].v)
+    || (typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].parentNames && HEALTH[b].parentNames[parent]) || (typeof wTitle === 'function' ? wTitle(asin) : '') || '';
 }
 // The movers for one view (SP, CPC or ALL), worked out once per data version.
 function viFor(brand) {
@@ -61308,8 +61399,7 @@ function viFor(brand) {
   const k = brand + '@' + VI.v + '@' + (typeof sdToday === 'function' ? sdToday() : '') + '@' + (typeof H_LOADED !== 'undefined' && H_LOADED ? 'h' : '');
   if (VI.res[brand] && VI.res[brand].k === k) return VI.res[brand].r;
   const parentOf = typeof wParentOf === 'function' ? a => wParentOf(a) : null;
-  const nameOf = (parent, asin, b) => (typeof PNAME !== 'undefined' && PNAME[b] && PNAME[b][parent] && PNAME[b][parent].v)
-    || (HEALTH[b] && HEALTH[b].parentNames && HEALTH[b].parentNames[parent]) || (typeof wTitle === 'function' ? wTitle(asin) : '') || '';
+  const nameOf = viNameOf;
   let r;
   if (VI.data.err && !VI.data.weekly) r = { ok: false, why: VI.data.err };
   else r = viCompute({ weekly: VI.data.weekly, brand, today: sdToday(), parentOf, nameOf, days: VI.data.days, stock: VI.data.stock,
@@ -61319,7 +61409,7 @@ function viFor(brand) {
   return r;
 }
 
-/* ----- the box (redesigned 23 Nov 2026): one compact row under the KPI cards; "Show details" opens gains | drops ----- */
+/* ----- the chapter "This week, explained." on the Sales Dashboard (23 Nov 2026: the approved chapters design) ----- */
 const VI_OPEN_LS = 'viOpen';                       // this browser: the box open (1) or closed (0) — closed by default
 const viEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const viBrandOfCh = ch => (ch === 'SP' || ch === 'CPC' ? ch : ch === 'ALL' ? 'ALL' : null);
@@ -61336,14 +61426,6 @@ function viShort(cents) {
 }
 function viOpenGet() { try { return localStorage.getItem(VI_OPEN_LS) === '1'; } catch (e) { return false; } }
 function viOpenSet(on) { try { localStorage.setItem(VI_OPEN_LS, on ? '1' : '0'); } catch (e) { /* private window: closed next visit */ } }
-// No motion with reduced motion or ✨ off (core/dashboard.js dashFxOn); GSAP when the page already has it; else CSS.
-function viMotion() {
-  try {
-    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return 'none';
-    if (typeof dashFxOn === 'function' && !dashFxOn()) return 'none';
-    return typeof window !== 'undefined' && window.gsap ? 'gsap' : 'css';
-  } catch (e) { return 'none'; }
-}
 /** A driver as a short pill: "ad spend ↑30%", "traffic ↓52%", "price ↓8%", "3 days no sale", "out of stock", "seasonal" (+ its whole text on hover). */
 function viPill(dr) {
   if (!dr) return '';
@@ -61362,54 +61444,44 @@ function viPill(dr) {
   else { t = 'no clear driver'; cls = 'is-flat'; }
   return `<span class="vi-pill ${cls}" title="${viEsc(dr.t)}">${viEsc(t)}</span>`;
 }
-/** The box's HTML for one result (and its summary): the compact row, then the details (open or closed). */
+/** "This week, explained." (the chapter, 23 Nov 2026 — the approved preview's card): left the headline, the weeks, the summary and
+ *  Show details; right ▲ Biggest gains | ▼ Biggest drops (a bar per mover, scaled to the biggest, and up to 2 driver pills). */
 function viBoxHtml(res, sum, brand, open) {
-  const icon = '<span class="vi-ic" aria-hidden="true">✦</span>';
-  const refresh = '<button type="button" class="vi-btn vi-ref" data-vi-refresh aria-label="Refresh" title="Read the weekly figures again. Claude is not asked again for the same movers.">↻</button>';
-  const plain = (text, btn) => `<div class="vi-top">${icon}<div class="vi-main"><div class="vi-hl"><h2 class="vi-h" id="viH">This week in plain English</h2></div>`
-    + `<p class="vi-note">${viEsc(text)}</p></div>${btn ? `<div class="vi-side">${btn}</div>` : ''}</div>`;
+  const plain = text => `<div><p class="sdx-hl" id="viH">This week in plain English</p><p class="sdx-summary muted">${viEsc(text)}</p></div><div></div>`;
   if (!res) return plain('Reading the weekly figures…');
-  if (!res.ok) return plain(res.why, refresh);
+  if (!res.ok) return plain(res.why);
   const t = res.total;
-  const head = t.d ? `Revenue ${viFell(t.d)} ${viMoney(Math.abs(t.d))} last week` : 'Revenue held level last week';
-  const badge = t.pct == null ? '' : `<span class="vi-badge ${t.d < 0 ? 'is-dn' : 'is-up'}">${t.d < 0 ? '▼' : '▲'} ${Math.abs(t.pct).toFixed(1)}%</span>`;
-  const dates = `${viEsc(VI_BRAND_NAME[brand] || brand)} · ${viEsc(viDash(res.labels.L))} vs ${viEsc(viDash(res.labels.P))}`;
-  const expl = t.d ? `${viShort(res.explained)} explained · ${Math.round(res.explained / t.d * 100)}%` : `${viShort(res.explained)} explained`;
+  const head = t.d ? `Revenue ${viFell(t.d)} ${viMoney(Math.abs(t.d))}` : 'Revenue held level';
+  const badge = t.pct == null ? '' : `<span class="sdx-delta ${t.d < 0 ? 'down' : 'up'}">${t.d < 0 ? '▼' : '▲'} ${Math.abs(t.pct).toFixed(1)}%</span>`;
   const stockAt = Object.entries(res.asOf.stock || {}).filter(([, a]) => a).map(([b, a]) => `${VI_BRAND_NAME[b] || b} ${viDay(a)}`).join(', ');
   const src = `From PPC weekly sales: the Orders workbooks per ASIN, Sunday–Saturday weeks, US Pacific days, no Shopify. Sales as at ${res.asOf.sales || '—'}`
     + `${res.asOf.days ? '; days without a sale from the nightly run of ' + res.asOf.days : ''}${stockAt ? '; FBA stock as of ' + stockAt : ''}.`
     + (res.ly ? ` Same week last year from the Sales Dashboard's figures: ${viMoney(res.ly.was)} → ${viMoney(res.ly.now)}.` : '');
-  const by = sum.by === 'claude' ? '<span class="vi-by">Claude</span>' : '';
-  // the rows: name (one line) with up to 2 driver pills, a short bar scaled to the biggest mover, the $ and its share of the change
+  const others = res.groups - res.movers.length;
+  const more = [res.rest || others ? `Everything else: ${viMoney(res.rest, true)} from ${VI_NF.format(others)} other product${others === 1 ? '' : 's'}` : '',
+    res.ly ? `Same week last year: ${viPct(res.ly.pct)}` : '',
+    `${viShort(res.explained)} explained${t.d ? ' (' + Math.round(res.explained / t.d * 100) + '%)' : ''} by ${res.movers.length} mover${res.movers.length === 1 ? '' : 's'}`,
+    `${VI_NF.format(res.named)} driver${res.named === 1 ? '' : 's'} named`,
+    res.check ? '' : '⚠ the movers did not add up — please report this'].filter(Boolean).map(viEsc).join(' · ')
+    + ` · as of ${viEsc(viWhen(res.asOf.sales) || '—')}<button type="button" class="sdx-i" aria-label="Where these figures come from" title="${viEsc(src)}">ⓘ</button>`;
   const max = Math.max(1, ...res.movers.map(m => Math.abs(m.d)));
   const row = m => {
-    const share = t.d ? Math.round(m.d / t.d * 100) : null;
-    const tip = `${m.name}: ${viMoney(m.was)} → ${viMoney(m.now)} (${viPct(m.pct, 0)})${res.brand === 'ALL' ? ' · ' + (VI_BRAND_NAME[m.brand] || m.brand) : ''}`
-      + ` · ${m.driver.t}${m.driver.also ? ' · ' + m.driver.also : ''}`;
-    return `<li class="vi-r ${m.d < 0 ? 'is-dn' : 'is-up'}" title="${viEsc(tip)}"><div class="vi-n"><span class="vi-nm">${viEsc(m.name)}</span>`
-      + `<span class="vi-pills">${viPill(m.driver)}${m.driver.k !== 'none' ? viPill(m.driver.more) : ''}</span></div>`
-      + `<span class="vi-bar" aria-hidden="true"><i style="width:${Math.max(4, Math.round(Math.abs(m.d) / max * 100))}%"></i></span>`
-      + `<span class="vi-amt">${viMoney(m.d, true)}</span><span class="vi-share">${share == null ? '' : (share < 0 ? '−' : '') + Math.abs(share) + '%'}</span></li>`;
+    const tip = `${m.name}: ${viMoney(m.was)} → ${viMoney(m.now)} (${viPct(m.pct, 0)})${res.brand === 'ALL' ? ' · ' + (VI_BRAND_NAME[m.brand] || m.brand) : ''} · ${m.driver.t}${m.driver.also ? ' · ' + m.driver.also : ''}`;
+    return `<div class="sdx-mv ${m.d < 0 ? 'down' : 'up'}" title="${viEsc(tip)}"><span class="sdx-mv-n">${viEsc(m.name)}</span><span class="sdx-mv-amt">${viMoney(m.d, true)}</span>`
+      + `<span class="sdx-mv-bar" aria-hidden="true"><i style="width:${Math.max(3, Math.round(Math.abs(m.d) / max * 100))}%"></i></span>`
+      + `<span class="sdx-pills">${viPill(m.driver)}${m.driver.k !== 'none' ? viPill(m.driver.more) : ''}</span></div>`;
   };
-  const col = (cls, title, list, none) => `<section class="vi-col ${cls}"><h3 class="vi-ch">${title}</h3>`
-    + (list.length ? `<ul class="vi-list">${list.map(row).join('')}</ul>` : `<p class="vi-note">${none}</p>`) + '</section>';
   const gains = res.movers.filter(m => m.d > 0).sort((a, b) => b.d - a.d), drops = res.movers.filter(m => m.d < 0).sort((a, b) => a.d - b.d);
-  const others = res.groups - res.movers.length;
-  const meta = [res.rest || others ? `Everything else: ${viMoney(res.rest, true)} from ${VI_NF.format(others)} other product${others === 1 ? '' : 's'}` : '',
-    res.ly ? `Same week last year: ${viPct(res.ly.pct)}` : ''].filter(Boolean);
-  return `<div class="vi-top">${icon}<div class="vi-main"><div class="vi-hl"><h2 class="vi-h" id="viH">${viEsc(head)}</h2>${badge}<span class="vi-dates">${dates}</span></div>`
-      + `<p class="vi-sum" title="${viEsc(sum.text)}">${by}${viEsc(sum.text)}</p>${sum.why ? `<p class="vi-note">${viEsc(sum.why)}</p>` : ''}</div>`
-    + `<div class="vi-side"><span class="vi-chip" title="The movers together: ${viMoney(res.explained, true)} of the ${viMoney(t.d, true)} change">${viEsc(expl)}</span>`
-      + `<span class="vi-chip">${VI_NF.format(res.named)} driver${res.named === 1 ? '' : 's'}</span>`
-      + `<span class="vi-chip">as of ${viEsc(viWhen(res.asOf.sales) || '—')}<button type="button" class="vi-i" aria-label="Where these figures come from" title="${viEsc(src)}">ⓘ</button></span>`
-      + (res.check ? '' : '<span class="vi-chip is-bad" title="The movers and everything else did not add up to the brand&#39;s change — please report this">⚠ check</span>')
-      + `<button type="button" class="vi-btn vi-more" data-vi-toggle aria-expanded="${open}" aria-controls="viDet">${open ? 'Hide details ▴' : 'Show details ▾'}</button>${refresh}</div></div>`
-    + `<div class="vi-det${open ? ' is-open' : ''}" id="viDet"${open ? '' : ' hidden'}><div class="vi-det-in">`
-      + `<div class="vi-cols">${col('is-up', '▲ Biggest gains', gains, 'No product rose.')}${col('is-dn', '▼ Biggest drops', drops, 'No product fell.')}</div>`
-      + (meta.length ? `<p class="vi-meta">${meta.map(viEsc).join('<span aria-hidden="true"> · </span>')}</p>` : '')
-    + '</div></div>';
+  const col = (cls, title, list, none) => `<div><h3 class="sdx-mv-h ${cls}">${title}</h3>${list.length ? list.map(row).join('') : `<p class="sdx-none">${none}</p>`}</div>`;
+  return `<div><p class="sdx-hl" id="viH">${viEsc(head)}${badge}</p>`
+      + `<div class="sdx-weeks">${viEsc(viDash(res.labels.L))} vs ${viEsc(viDash(res.labels.P))} · ${viEsc(VI_BRAND_NAME[brand] || brand)}</div>`
+      + `<span class="sdx-by">${sum.by === 'claude' ? 'Claude summary' : 'Summary'}</span><p class="sdx-summary">${viEsc(sum.text)}</p>`
+      + (sum.why ? `<p class="sdx-summary muted" style="font-size:14px">${viEsc(sum.why)}</p>` : '')
+      + `<button type="button" class="sdx-link" data-vi-toggle aria-expanded="${open}" aria-controls="viDet">${open ? 'Hide details ▴' : 'Show details ▾'}</button>`
+      + `<div class="sdx-more" id="viDet"${open ? '' : ' hidden'}>${more}</div></div>`
+    + `<div class="sdx-cols2">${col('up', '▲ Biggest gains', gains, 'No product rose.')}${col('down', '▼ Biggest drops', drops, 'No product fell.')}</div>`;
 }
-/** Draw the box for the channel on view (the Sales Dashboard's SD_CH); loads first, asks Claude after (never blocking the box). */
+/** Draw the chapter for the channel on view (the Sales Dashboard's SD_CH); loads first, asks Claude after (never blocking it). */
 function viDraw() {
   const el = typeof document !== 'undefined' && document.getElementById ? document.getElementById('viBox') : null;
   if (!el) return;
@@ -61429,56 +61501,27 @@ function viDraw() {
   const sum = viSummary(res);
   const html = viBoxHtml(res, sum, brand, viOpenGet());
   if (el.dataset.viHtml === html) return;
-  const first = !el.dataset.viHtml || el.dataset.viKey !== brand + (res && res.ok ? res.wk.L : '');
   el.dataset.viHtml = html;
-  el.dataset.viKey = brand + (res && res.ok ? res.wk.L : '');
   el.innerHTML = html;
-  if (first) viFade(el);
   if (res && res.ok && sum.by === 'rules' && !sum.why) viAskAi(res);
 }
-// The box comes in once per brand / week: a short fade (GSAP or CSS), none with ✨ off or reduced motion.
-function viFade(el) {
-  try {
-    const how = viMotion();
-    if (how === 'gsap') window.gsap.from(el, { opacity: 0, y: 6, duration: 0.3, ease: 'power2.out', clearProps: 'opacity,transform' });
-    else if (how === 'css') { el.classList.remove('vi-in'); void el.offsetWidth; el.classList.add('vi-in'); }
-  } catch (e) { /* shown as it is */ }
-}
-/** Show / hide the details: the height opens smoothly (GSAP when loaded, else a CSS transition), at once with ✨ off. Remembered here. */
+/** Show / hide the details (remembered in this browser). */
 function viToggle(btn) {
-  const box = btn.closest('.vi-box'), det = box && box.querySelector('.vi-det');
+  const det = document.getElementById('viDet');
   if (!det) return;
-  const open = !det.classList.contains('is-open');
+  const open = det.hidden;
+  det.hidden = !open;
   viOpenSet(open);
   btn.setAttribute('aria-expanded', String(open));
   btn.textContent = open ? 'Hide details ▴' : 'Show details ▾';
-  box.dataset.viHtml = '';                           // the next draw takes the new state as its own
-  const done = () => { det.style.height = ''; det.style.overflow = ''; det.style.opacity = ''; if (!open) det.hidden = true; };
-  if (open) { det.hidden = false; det.classList.add('is-open'); } else det.classList.remove('is-open');
-  const how = viMotion();
-  if (how === 'none') return done();
-  const full = det.scrollHeight;
-  det.style.overflow = 'hidden';
-  if (how === 'gsap') {
-    window.gsap.fromTo(det, { height: open ? 0 : full, opacity: open ? 0 : 1 }, { height: open ? full : 0, opacity: open ? 1 : 0, duration: 0.3, ease: 'power2.out', onComplete: done });
-    return;
-  }
-  det.style.height = (open ? 0 : full) + 'px';
-  void det.offsetHeight;
-  det.classList.add('is-moving');
-  det.style.height = (open ? full : 0) + 'px';
-  let ended = false;
-  const end = () => { if (ended) return; ended = true; det.classList.remove('is-moving'); done(); };
-  det.addEventListener('transitionend', end, { once: true });
-  setTimeout(end, 450);                              // a transition that never fires (a hidden tab) still ends
+  const box = document.getElementById('viBox');
+  if (box) box.dataset.viHtml = '';                  // the next draw takes the new state as its own
+  if (typeof window !== 'undefined' && window.ScrollTrigger) window.ScrollTrigger.refresh();
 }
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('click', e => {
-    const t = e.target && e.target.closest ? e.target.closest('[data-vi-refresh],[data-vi-toggle]') : null;
-    if (!t) return;
-    if (t.hasAttribute('data-vi-toggle')) return viToggle(t);
-    t.disabled = true;
-    viLoad(true).then(() => viDraw(), () => viDraw());
+    const t = e.target && e.target.closest ? e.target.closest('[data-vi-toggle]') : null;
+    if (t) viToggle(t);
   });
 }
 
@@ -61495,47 +61538,61 @@ function viDashOf(view) {
     pct: t.pct == null ? null : Math.round(t.pct * 10) / 10, up: t.d >= 0, text: first, when: `${res.labels.L} · sales as at ${res.asOf.sales || '—'}` };
 }
 /* ============================== FILE: src/app/sales/sales-charts.js ============================== */
-/* ================= SALES · SALES DASHBOARD CHARTS: the KPI sparklines, the daily chart, the monthly chart, "Show tables" (23 Nov 2026) =================
- * Screens: the Sales Dashboard (pane paneSales) — a 30-day sparkline in each KPI card (under the number), DAILY SALES at full width
- *          (#sdChartDaily: Sales / Units / Ad spend · 30 days / 90 days / This year), MONTHLY — this year vs last year at full width
- *          (#sdChartMonthly) and the Period / Monthly Comparison tables folded under "Show tables ▾" (remembered: localStorage).
- * Does: DRAWS ONLY — no number is worked out here that the Sales Dashboard does not already show or sum the same way:
- *   sales / units per day   sdDays(channel) — the Sales Dashboard's own days (the nightly history, Seller Central's totals laid
- *                           over where published) for the channel on view (All = Ridhi + CPC + Shopify, as sdSum adds them)
- *   ad spend per day        Seller Central's ad totals (matchAds: Sponsored Products + Brands + Display) on the days Amazon has
- *                           published them — the Overview's own definition (docs/sales-metrics.md "Ad spend"); Ridhi + CPC only
- *   last year               the same WEEKDAY a year back (364 days), so a Saturday is set beside a Saturday — US Pacific days
- *   monthly                 sdSum per month, exactly as the Monthly Comparison table and the old chart
- *   ANNOTATIONS (at most 3, never overlapping, never made up): deals people typed in the Deal Calendar (D_PLAN: its type and
- *   parent) whose days fall in view, labelled at their highest day; and the biggest mover of the last finished week from
- *   "This week in plain English" (sales/sales-insight.js), at that week's highest day (Sales only).
- * Look: the Sales Dashboard's own cards; one y-axis ($k or a count), muted gridlines, no vertical gridlines, 2 px lines, a smooth
- *   (monotone) blue line + light area for this year, a dashed grey line for last year, a crosshair and ONE tooltip. Lines draw in
- *   with GSAP when the page has it (else CSS); nothing moves with ✨ off or reduced motion. Light + dark + phone.
- * Main functions: sdcRender (called from renderSales), sdcSparks, sdcDaily, sdcMonthly, sdcTablesInit. Every name starts with sdc / SDC. */
+/* ================= SALES · THE SALES DASHBOARD AS CHAPTERS: charts, motion and background (23 Nov 2026) =================
+ * Screens: the Sales Dashboard (pane paneSales), built EXACTLY like the approved preview Pricing-App/design/sales-dashboard/ — seven
+ *          chapters: Sales today (the six numbers + sparklines) · This week, explained (sales/sales-insight.js) · Every day vs last year ·
+ *          Your busiest days (calendar heatmap + top products this month) · Your weekly rhythm (weekday polar + channel donut) ·
+ *          Month by month · The details (the tables and the Custom Range, folded). A slim sticky bar: brand, Numbers checked, Refresh
+ *          today, Story / Compact, ✨ and light / dark.
+ * Does: DRAWS ONLY. Every number on the page is still written by renderSales (sales/sales-dashboard.js) into the same ids; the charts
+ *   read the Sales Dashboard's own sums — nothing is worked out a second way:
+ *     sales / units per day   sdDays(channel) — the nightly history with Seller Central's totals laid over (All = Ridhi + CPC + Shopify)
+ *     ad spend per day        Seller Central's ad totals (matchAds SP + SB + SD) on the days Amazon has published — the Overview's rule
+ *     last year (daily)       the same WEEKDAY a year back (364 days); the cards and tables keep the same calendar date
+ *     monthly                 sdSum, the same windows as the Monthly Comparison table
+ *     calendar · weekdays     the same days (the last 13 weeks; the average of the last 8 weeks' complete days)
+ *     where sales come from   sdDays of Ridhi, CPC and Shopify, this month so far (= each channel's MTD)
+ *     top products            the nightly per-product days (dailyAsin, read by sales-insight.js viLoad), grouped by parent; ▲/▼ only
+ *                             while those days still hold the same days last month
+ *     event labels            deals typed in the Deal Calendar (D_PLAN) for the brand on view, and last week's biggest mover — never more
+ *                             than 3, never overlapping, never made up
+ *   LIBRARIES (jsDelivr, loaded only when the Sales Dashboard opens, each optional): ECharts 5.5.1 (every chart), and — only with motion
+ *   on — GSAP 3.12.5 + ScrollTrigger (the same build the Dashboard uses, so one GSAP on the page) and Lenis 1.1.13 (smooth scroll).
+ *   MOTION: chapter headings word by word, cards rise and scale in, each chart made when its card comes into view (its own animation),
+ *   the numbers count up, faint trend lines draw in, the glow takes each chapter's colour, ~30 data dots rise (canvas, paused when
+ *   hidden). ✨ off, reduced motion → all shown at once; phone or Compact → a still background. Story / Compact and ✨ switch at once
+ *   (no reload) and are remembered (localStorage sdxMode, sdxFx). Leaving the page stops Lenis, the triggers and the dots.
+ * Main functions: sdcRender (from renderSales), sdcSetup / sdcTeardown, sdcMake (the charts), sdcValueOf, sdcNotes, sdcSparks. Every name
+ *   starts with sdc / SDC. Tests: tests/sales-charts-test.js. */
 
-const SDC = { metric: 'sales', range: '90', w: 0, drawn: {}, ro: null, roT: 0, last: null };
+const SDC_CDN = {
+  echarts: 'https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js',
+  gsap: 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js',
+  st: 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js',
+  lenis: 'https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js',
+};
+const sdcLs = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* this visit only */ } } };
+const SDC = { metric: 'sales', range: '90', mode: sdcLs.get('sdxMode') === 'compact' ? 'compact' : 'story', fx: sdcLs.get('sdxFx') !== '0',
+  charts: {}, made: {}, last: null, started: false, up: false, st: [], tw: [], lenis: null, tick: null, dotsRaf: 0, dots: null, lines: false, ech: null, mot: null, gen: 0 };
 const SDC_TABLES_LS = 'sdTablesOpen';
-const SDC_H = 320;                                   // the daily chart's height
-const SDC_MH = 260;                                  // the monthly chart's height
 const SDC_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const SDC_DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const SDC_NF = new Intl.NumberFormat('en-US');
 const sdcEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const sdcDay = iso => `${SDC_MON[+iso.slice(5, 7) - 1]} ${+iso.slice(8, 10)}`;
-const sdcDow = iso => SDC_DOW[new Date(iso + 'T00:00:00Z').getUTCDay()];
-// No motion with reduced motion or ✨ off; GSAP when the page already has it; else CSS.
-function sdcMotion() {
-  try {
-    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return 'none';
-    if (typeof dashFxOn === 'function' && !dashFxOn()) return 'none';
-    return typeof window !== 'undefined' && window.gsap ? 'gsap' : 'css';
-  } catch (e) { return 'none'; }
-}
+const sdcDowOf = iso => new Date(iso + 'T00:00:00Z').getUTCDay();
+const sdcMoney = v => (v < 0 ? '−$' : '$') + SDC_NF.format(Math.round(Math.abs(v)));
+const sdcK = v => (Math.abs(v) >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : Math.abs(v) >= 1e3 ? '$' + Math.round(v / 1e3) + 'k' : '$' + Math.round(v));
+const sdcPane = () => (typeof document !== 'undefined' && document.getElementById ? document.getElementById('paneSales') : null);
+const sdcShown = () => { const p = sdcPane(); return !!p && !p.classList.contains('hide'); };
+const sdcReduce = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sdcPhone = () => typeof innerWidth === 'number' && innerWidth < 760;
+const sdcMotion = () => SDC.fx && !sdcReduce();
+const sdcBgMotion = () => sdcMotion() && !sdcPhone() && SDC.mode === 'story';
 
 /* ----- the numbers per day (read, never worked out anew) ----- */
 const sdcChans = () => (SD_CH === 'ALL' ? ['SP', 'CPC', 'SHOP'] : [SD_CH]);
-/** day → value for the channel on view: sales (0) or units (1) from sdDays; null for a day nobody holds. */
+/** day → value for the channel on view: sales (0) or units (1) from sdDays, ad spend from matchAds; null for a day nobody holds. */
 function sdcValueOf(metric) {
   if (metric === 'ads') {
     const brands = SD_CH === 'ALL' ? ['SP', 'CPC'] : SD_CH === 'SHOP' ? [] : [SD_CH];
@@ -61565,62 +61622,8 @@ const sdcFmt = (metric, v, short) => {
   if (short && Math.abs(v) >= 1000) return '$' + (Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : (v / 1000).toFixed(Math.abs(v) >= 1e4 ? 0 : 1) + 'k');
   return '$' + SDC_NF.format(Math.round(v));
 };
-// A round top for the y-axis and its 4 steps.
-function sdcNice(max) {
-  if (!(max > 0)) return 1;
-  const p = Math.pow(10, Math.floor(Math.log10(max))), f = max / p;
-  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
-}
-/** A smooth line that never overshoots (monotone cubic, Fritsch–Carlson) through [x, y] points; gaps (null) break it. */
-function sdcPath(pts) {
-  let d = '';
-  const runs = [];
-  let run = [];
-  pts.forEach(p => { if (p) run.push(p); else if (run.length) { runs.push(run); run = []; } });
-  if (run.length) runs.push(run);
-  runs.forEach(r => {
-    if (r.length === 1) { d += `M${r[0][0]},${r[0][1]}h0.01`; return; }
-    const n = r.length, dx = [], dy = [], m = [], t = [];
-    for (let i = 0; i < n - 1; i++) { dx[i] = r[i + 1][0] - r[i][0]; dy[i] = r[i + 1][1] - r[i][1]; m[i] = dx[i] ? dy[i] / dx[i] : 0; }
-    t[0] = m[0]; t[n - 1] = m[n - 2];
-    for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
-    for (let i = 0; i < n - 1; i++) {
-      if (!m[i]) { t[i] = 0; t[i + 1] = 0; continue; }
-      const a = t[i] / m[i], b = t[i + 1] / m[i], s = a * a + b * b;
-      if (s > 9) { const k = 3 / Math.sqrt(s); t[i] = k * a * m[i]; t[i + 1] = k * b * m[i]; }
-    }
-    d += `M${r[0][0].toFixed(1)},${r[0][1].toFixed(1)}`;
-    for (let i = 0; i < n - 1; i++) {
-      const h = dx[i] / 3;
-      d += `C${(r[i][0] + h).toFixed(1)},${(r[i][1] + t[i] * h).toFixed(1)} ${(r[i + 1][0] - h).toFixed(1)},${(r[i + 1][1] - t[i + 1] * h).toFixed(1)} ${r[i + 1][0].toFixed(1)},${r[i + 1][1].toFixed(1)}`;
-    }
-  });
-  return d;
-}
 
-/* ----- the KPI sparklines: the last 30 days of sales, each card's own days drawn strong ----- */
-function sdcSparks(today) {
-  if (typeof document === 'undefined') return;
-  const from = sdShift(today, -29), yest = sdShift(today, -1), month = today.slice(0, 8) + '01';
-  const val = sdcValueOf('sales');
-  const days = Array.from({ length: 30 }, (_, i) => sdShift(from, i));
-  const vals = days.map(d => val(d) || 0);
-  const max = Math.max(1, ...vals);
-  const W = 120, H = 28;
-  const xy = i => [i / 29 * W, H - 2 - vals[i] / max * (H - 4)];
-  const all = sdcPath(days.map((d, i) => xy(i)));
-  const own = { today: [today, today], yest: [yest, yest], seven: [sdShift(yest, -6), yest], mtd: [month, today], proj: [month, yest], ytd: [from, today] };
-  document.querySelectorAll('#paneSales [data-spark]').forEach(el => {
-    const [a, b] = own[el.dataset.spark] || [from, today];
-    const pts = days.map((d, i) => (d >= a && d <= b ? xy(i) : null));
-    const dot = a === b ? pts.find(Boolean) : null;
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path class="sdc-sp-all" d="${all}"/>`
-      + `<path class="sdc-sp-own" d="${sdcPath(pts)}"/>${dot ? `<circle class="sdc-sp-dot" cx="${dot[0]}" cy="${dot[1]}" r="2.4"/>` : ''}</svg>`;
-    el.title = 'Daily sales, the last 30 days';
-  });
-}
-
-/* ----- the annotations: real deals and the week's biggest mover — at most 3, never overlapping ----- */
+/* ----- the event labels: real deals and the week's biggest mover — at most 3, never overlapping (two rows) ----- */
 function sdcNotes(days, vals, xOf, yOf, metric) {
   const out = [];
   const inView = d => d >= days[0] && d <= days[days.length - 1];
@@ -61629,7 +61632,6 @@ function sdcNotes(days, vals, xOf, yOf, metric) {
     days.forEach((d, i) => { if (d >= a && d <= b && vals[i] != null && (best < 0 || vals[i] > vals[best])) best = i; });
     return best;
   };
-  // the biggest mover of the last finished week (This week in plain English), Sales only
   try {
     const brand = SD_CH === 'SP' || SD_CH === 'CPC' ? SD_CH : SD_CH === 'ALL' ? 'ALL' : null;
     const res = metric === 'sales' && brand && typeof viFor === 'function' && typeof VI !== 'undefined' && VI.data ? viFor(brand) : null;
@@ -61638,8 +61640,7 @@ function sdcNotes(days, vals, xOf, yOf, metric) {
       const i = peakIn(res.wk.L, sdShift(res.wk.L, 6));
       if (i >= 0) out.push({ i, text: `${m.name.slice(0, 28)}${m.name.length > 28 ? '…' : ''} ${viMoney(m.d, true)}`, tip: `Last week's biggest mover: ${m.name} ${viMoney(m.d, true)} — ${m.driver.t}`, k: 'mover' });
     }
-  } catch (e) { /* no mover note */ }
-  // deals typed in the Deal Calendar for the brand on view (a recommendation Amazon only suggested is never drawn)
+  } catch (e) { /* no mover label */ }
   try {
     if (typeof D_PLAN !== 'undefined' && D_PLAN && typeof dPlanSpan === 'function') {
       const bmap = typeof dBrandOf === 'function' ? dBrandOf() : new Map();
@@ -61659,14 +61660,12 @@ function sdcNotes(days, vals, xOf, yOf, metric) {
           tip: `${p.t}${p.v ? ' ' + p.v + '%' : ''} — ${name} (${parent}), ${span.start} → ${span.end} (Deal Calendar)`, k: 'deal', v: vals[i] });
       });
     }
-  } catch (e) { /* no deal notes */ }
-  // the mover first, then the deals on the highest days; a label that would touch one already placed is left out
+  } catch (e) { /* no deal labels */ }
   const deals = out.filter(n => n.k === 'deal').sort((a, b) => (b.v || 0) - (a.v || 0));
   const picked = [];
   out.filter(n => n.k === 'mover').concat(deals).forEach(n => {
     if (picked.length >= 3) return;
-    const w = n.text.length * 6.4 + 14, x = xOf(n.i);
-    // a label that would touch one already placed goes one row higher; when both rows are taken there, it is left out
+    const w = n.text.length * 6.4 + 18, x = xOf(n.i);
     const row = [0, 1].find(r => !picked.some(p => p.row === r && Math.abs(p.x - x) < (p.w + w) / 2 + 6));
     if (row == null) return;
     picked.push(Object.assign(n, { x, y: yOf(vals[n.i]), w, row }));
@@ -61674,181 +61673,412 @@ function sdcNotes(days, vals, xOf, yOf, metric) {
   return picked;
 }
 
-/* ----- DAILY SALES: full width ----- */
-function sdcDaily(today) {
-  const el = typeof document !== 'undefined' && document.getElementById('sdChartDaily');
-  if (!el) return;
-  const metric = SD_CH === 'SHOP' && SDC.metric === 'ads' ? 'sales' : SDC.metric;
-  const from = SDC.range === 'ytd' ? today.slice(0, 4) + '-01-01' : sdShift(today, -(Number(SDC.range) - 1));
-  const n = Math.round((Date.parse(today) - Date.parse(from)) / 864e5) + 1;
-  const days = Array.from({ length: n }, (_, i) => sdShift(from, i));
-  const val = sdcValueOf(metric);
-  const ty = days.map(val), ly = days.map(d => val(sdShift(d, -364)));
-  const note = document.getElementById('sdcNote');
-  if (!ty.some(v => v != null)) {
-    el.innerHTML = `<div class="ui-empty">${metric === 'ads' ? 'No ad spend from Seller Central for these days yet.' : 'No data yet.'}</div>`;
-    if (note) note.textContent = '';
+/* ----- 1. the KPI sparklines: the last 30 days of sales, each card's own days drawn strong (the preview's sparkSvg) ----- */
+function sdcSparks(today) {
+  if (typeof document === 'undefined' || !document.querySelectorAll) return;
+  const from = sdShift(today, -29), yest = sdShift(today, -1), month = today.slice(0, 8) + '01';
+  const val = sdcValueOf('sales');
+  const days = Array.from({ length: 30 }, (_, i) => sdShift(from, i));
+  const vals = days.map(d => val(d) || 0);
+  const W = 200, H = 34, max = Math.max(1, ...vals);
+  const xy = i => [(i / 29 * W).toFixed(1), (H - 2 - vals[i] / max * (H - 6)).toFixed(1)];
+  const all = vals.map((v, i) => (i ? 'L' : 'M') + xy(i).join(',')).join('');
+  const own = { today: [today, today], yest: [yest, yest], seven: [sdShift(yest, -6), yest], mtd: [month, today], proj: [month, yest], ytd: [from, today] };
+  document.querySelectorAll('#paneSales [data-spark]').forEach(el => {
+    const [a, b] = own[el.dataset.spark] || [from, today];
+    let path = '', on = false;
+    days.forEach((d, i) => { if (d >= a && d <= b) { path += (on ? 'L' : 'M') + xy(i).join(','); on = true; } else on = false; });
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path class="area" d="${all}L${W},${H}L0,${H}Z"/>`
+      + `<path d="${all}" style="opacity:.35"/><path d="${path || all}"/></svg>`;
+    el.title = 'Daily sales, the last 30 days';
+  });
+  const y = document.getElementById('sdYestp');
+  if (y) y.textContent = sdcDay(yest);
+}
+
+/* ----- the charts (ECharts), each made when its card comes into view ----- */
+const sdcCss = n => getComputedStyle(sdcPane()).getPropertyValue(n).trim();
+const sdcColours = () => ({ ink: sdcCss('--sx-ink'), muted: sdcCss('--sx-muted'), line: sdcCss('--sx-line'), blue: sdcCss('--sx-blue'), ly: sdcCss('--sx-ly'),
+  card: sdcCss('--sx-card'), up: sdcCss('--sx-up'), down: sdcCss('--sx-down'), chip: sdcCss('--sx-chip'), font: sdcCss('--sx-font') });
+const sdcBase = c => ({ animation: sdcMotion(), textStyle: { fontFamily: c.font, color: c.muted },
+  tooltip: { backgroundColor: c.card, borderColor: c.line, textStyle: { color: c.ink, fontSize: 12 }, extraCssText: 'border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.14);' } });
+const sdcAxisY = (c, fmt) => ({ type: 'value', splitNumber: 4, axisLabel: { color: c.muted, formatter: fmt }, splitLine: { lineStyle: { color: c.line } }, axisLine: { show: false }, axisTick: { show: false } });
+const sdcPct = (a, b) => (a != null && b ? (a - b) / b * 100 : null);
+const sdcPctHtml = (c, p) => `<b style="color:${p == null ? c.muted : p < 0 ? c.down : c.up}">${p == null ? '—' : (p > 0 ? '+' : p < 0 ? '−' : '') + Math.abs(p).toFixed(1) + '%'}</b>`;
+
+const SDC_MAKERS = {
+  daily(c, today, el) {
+    const metric = SD_CH === 'SHOP' && SDC.metric === 'ads' ? 'sales' : SDC.metric;
+    const from = SDC.range === 'ytd' ? today.slice(0, 4) + '-01-01' : sdShift(today, -(Number(SDC.range) - 1));
+    const days = []; for (let d = from; d <= today; d = sdShift(d, 1)) days.push(d);
+    const val = sdcValueOf(metric);
+    const ty = days.map(val), ly = days.map(d => val(sdShift(d, -364)));
+    if (!ty.some(v => v != null)) return { empty: metric === 'ads' ? 'No ad spend from Seller Central for these days yet.' : 'No data yet.' };
+    const n = days.length;
+    // today is still running: its piece is dashed and apart, so a part day never reads as a fall
+    const partial = n > 1 && ty[n - 1] != null && ty[n - 2] != null;
+    const tyMain = ty.map((v, i) => (partial && i === n - 1 ? null : v));
+    const tyToday = ty.map((v, i) => (partial && i >= n - 2 ? v : null));
+    const fmt = v => sdcFmt(metric, v);
+    const W = Math.max(300, (el && el.clientWidth) || 900) - 80;
+    const notes = sdcNotes(days, tyMain, i => i / Math.max(1, n - 1) * W, v => v, metric);
+    const note = document.getElementById('sdcNote');
+    if (note) note.textContent = metric === 'ads'
+      ? 'Ad spend: Seller Central\'s ad totals (Sponsored Products + Brands + Display), on the days Amazon has published them. Last year: the same weekday a year back.'
+      : 'US Pacific days; today is still running (dashed). Last year: the same weekday a year back (364 days), so a Saturday sits beside a Saturday.';
+    return Object.assign(sdcBase(c), {
+      grid: { left: 56, right: 18, top: 50, bottom: 34 },
+      tooltip: Object.assign(sdcBase(c).tooltip, { trigger: 'axis', axisPointer: { type: 'line', lineStyle: { color: c.muted, type: 'dashed' } },
+        formatter: ps => { const i = ps[0].dataIndex, d = days[i], a = ty[i], b = ly[i], lyD = sdShift(d, -364);
+          return `<b>${SDC_DOW[sdcDowOf(d)]}, ${sdcDay(d)}</b>${d === today ? ' · so far' : ''}<br>This year <b>${a == null ? '—' : fmt(a)}</b><br>`
+            + `Last year · ${SDC_DOW[sdcDowOf(lyD)]}, ${sdcDay(lyD)} ${lyD.slice(0, 4)} <b>${b == null ? '—' : fmt(b)}</b><br>vs last year ${sdcPctHtml(c, sdcPct(a, b))}`; } }),
+      xAxis: { type: 'category', data: days, boundaryGap: false, axisLabel: { color: c.muted, formatter: sdcDay, hideOverlap: true }, axisLine: { lineStyle: { color: c.line } }, axisTick: { show: false } },
+      yAxis: sdcAxisY(c, v => (metric === 'units' ? SDC_NF.format(v) : sdcK(v))),
+      series: [
+        { name: 'Last year', type: 'line', data: ly, smooth: 0.35, symbol: 'none', connectNulls: false, lineStyle: { color: c.ly, width: 2, type: [6, 5] }, z: 1 },
+        { name: 'This year', type: 'line', data: tyMain, smooth: 0.35, symbol: 'none', connectNulls: false, lineStyle: { color: c.blue, width: 2.5 }, z: 2,
+          areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: c.blue + '40' }, { offset: 1, color: c.blue + '00' }] } },
+          markPoint: { symbol: 'circle', symbolSize: 9, itemStyle: { color: c.card, borderColor: c.blue, borderWidth: 2 },
+            label: { show: true, position: 'top', distance: 10, color: c.ink, fontSize: 11, fontWeight: 600, backgroundColor: c.card, borderColor: c.line, borderWidth: 1, borderRadius: 10, padding: [3, 8], formatter: p => p.data.text },
+            tooltip: { formatter: p => sdcEsc(p.data.tip) },
+            data: notes.map(a => ({ coord: [days[a.i], tyMain[a.i]], text: a.text, tip: a.tip, label: { offset: [0, -a.row * 24] }, itemStyle: a.k === 'mover' ? { color: c.card, borderColor: c.down, borderWidth: 2 } : undefined })) } },
+        { name: 'Today so far', type: 'line', data: tyToday, symbol: 'none', lineStyle: { color: c.blue, width: 2, type: [2, 4] }, z: 2, tooltip: { show: false } },
+      ],
+      animationDuration: 1600, animationEasing: 'cubicOut',
+    });
+  },
+  heat(c, today) {
+    const val = sdcValueOf('sales'), units = sdcValueOf('units');
+    const start = sdShift(today, -sdcDowOf(today) - 7 * 12);
+    const data = [], rows = [];
+    let max = 1;
+    for (let w = 0; w < 13; w++) {
+      rows.push(sdcDay(sdShift(start, w * 7)));
+      for (let k = 0; k < 7; k++) {
+        const d = sdShift(start, w * 7 + k), v = d > today ? null : val(d);
+        if (v == null) continue;
+        max = Math.max(max, v);
+        data.push({ value: [k, w, Math.round(v * 100) / 100], units: units(d), date: d });
+      }
+    }
+    if (!data.length) return { empty: 'No data yet.' };
+    return Object.assign(sdcBase(c), {
+      grid: { left: 52, right: 8, top: 26, bottom: 8 },
+      tooltip: Object.assign(sdcBase(c).tooltip, { formatter: p => `<b>${SDC_DOW[p.value[0]]}, ${sdcDay(p.data.date)}</b><br>${sdcMoney(p.value[2])} · ${p.data.units == null ? '—' : SDC_NF.format(p.data.units)} units${p.data.date === today ? ' (so far)' : ''}` }),
+      xAxis: { type: 'category', data: SDC_DOW, position: 'top', axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: c.muted }, splitArea: { show: false } },
+      yAxis: { type: 'category', data: rows, inverse: true, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: c.muted, fontSize: 11 } },
+      visualMap: { show: false, min: 0, max, inRange: { color: [c.chip, c.blue] } },
+      series: [{ type: 'heatmap', data, itemStyle: { borderRadius: 7, borderColor: c.card, borderWidth: 4 }, emphasis: { itemStyle: { borderColor: c.ink, borderWidth: 2 } },
+        animationDelay: i => i * 9, animationDuration: 500 }],
+    });
+  },
+  top(c, today) {
+    const sub = document.getElementById('sdxTopSub');
+    const say = t => { if (sub) sub.textContent = t; };
+    if (SD_CH === 'SHOP') { say('Products from the Amazon accounts.'); return { empty: 'Shopify has no per-product days in Sellora — pick Ridhi, CPC or All.' }; }
+    const D = typeof VI !== 'undefined' && VI.data && VI.data.days;
+    if (!D || !D.d) { say('This month so far.'); return { empty: typeof VI !== 'undefined' && VI.busy ? 'Reading the per-product days…' : 'The per-product days are not read yet.' }; }
+    const brands = SD_CH === 'ALL' ? ['SP', 'CPC'] : [SD_CH];
+    const upTo = D.upTo && D.upTo < today ? D.upTo : sdShift(today, -1);
+    const mStart = today.slice(0, 8) + '01';
+    if (upTo < mStart) { say('This month so far.'); return { empty: 'No per-product day of this month yet — the nightly run brings yesterday.' }; }
+    const dom = +upTo.slice(8, 10);
+    const pm = new Date(Date.UTC(+today.slice(0, 4), +today.slice(5, 7) - 2, 1));
+    const pmDays = new Date(Date.UTC(pm.getUTCFullYear(), pm.getUTCMonth() + 1, 0)).getUTCDate();
+    const pStart = pm.toISOString().slice(0, 10), pEnd = sdShift(pStart, Math.min(dom, pmDays) - 1);
+    const held = !!D.from && D.from <= pStart;
+    const g = {};
+    Object.entries(D.d).forEach(([asin, byDay]) => {
+      const b = (D.brand && D.brand[asin]) || '';
+      if (!brands.includes(b)) return;
+      const parent = typeof wParentOf === 'function' ? wParentOf(asin) : asin;
+      const k = b + '|' + parent;
+      const o = g[k] || (g[k] = { name: (typeof viNameOf === 'function' && viNameOf(parent, asin, b)) || parent, now: 0, was: 0, u: 0 });
+      Object.entries(byDay || {}).forEach(([day, v]) => {
+        if (day >= mStart && day <= upTo) { o.now += Number(v[1]) || 0; o.u += Number(v[0]) || 0; }
+        else if (held && day >= pStart && day <= pEnd) o.was += Number(v[1]) || 0;
+      });
+    });
+    const P = Object.values(g).filter(o => o.now > 0).sort((a, b) => b.now - a.now).slice(0, 8)
+      .map(o => ({ name: String(o.name).replace(/^~\s*/, ''), now: Math.round(o.now * 100) / 100, u: o.u, p: held && o.was ? Math.round((o.now - o.was) / o.was * 100) : null }));
+    say(held ? `This month to ${sdcDay(upTo)} (the nightly per-product days), against the same days last month.`
+      : `This month to ${sdcDay(upTo)} (the nightly per-product days). Last month's same days are past those 45 days, so no change % today.`);
+    if (!P.length) return { empty: 'No product has sold this month yet.' };
+    return Object.assign(sdcBase(c), {
+      grid: { left: 172, right: 118, top: 4, bottom: 4 },
+      tooltip: Object.assign(sdcBase(c).tooltip, { formatter: p => `<b>${sdcEsc(P[p.dataIndex].name)}</b><br>${sdcMoney(p.value)} · ${SDC_NF.format(P[p.dataIndex].u)} units`
+        + (P[p.dataIndex].p == null ? '' : ` · ${P[p.dataIndex].p < 0 ? '▼' : '▲'} ${Math.abs(P[p.dataIndex].p)}% vs the same days last month`) }),
+      xAxis: { type: 'value', show: false },
+      yAxis: { type: 'category', inverse: true, data: P.map(p => p.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: c.ink, fontSize: 13, width: 160, overflow: 'truncate', align: 'right', margin: 12 } },
+      series: [{ type: 'bar', data: P.map(p => p.now), barWidth: 16, showBackground: true, backgroundStyle: { color: c.chip, borderRadius: 8 },
+        itemStyle: { color: c.blue, borderRadius: 8 },
+        label: { show: true, position: 'right', distance: 10, formatter: p => { const x = P[p.dataIndex].p; return `{v|${sdcMoney(p.value)}}` + (x == null ? '' : `  {${x < 0 ? 'd' : 'u'}|${x < 0 ? '▼' : '▲'}${Math.abs(x)}%}`); },
+          rich: { v: { color: c.ink, fontWeight: 600, fontSize: 13 }, u: { color: c.up, fontWeight: 700, fontSize: 12 }, d: { color: c.down, fontWeight: 700, fontSize: 12 } } },
+        animationDelay: i => i * 90, animationDuration: 900, animationEasing: 'cubicOut' }],
+    });
+  },
+  polar(c, today) {
+    const val = sdcValueOf('sales');
+    const sum = [0, 0, 0, 0, 0, 0, 0], n = [0, 0, 0, 0, 0, 0, 0];
+    for (let i = 1; i <= 56; i++) { const d = sdShift(today, -i), v = val(d); if (v == null) continue; sum[sdcDowOf(d)] += v; n[sdcDowOf(d)]++; }
+    const v = sum.map((s, i) => (n[i] ? Math.round(s / n[i]) : 0));
+    if (!v.some(Boolean)) return { empty: 'No data yet.' };
+    const best = v.indexOf(Math.max(...v));
+    const lab = document.getElementById('sdxBest');
+    if (lab) lab.innerHTML = `Average of the last 8 weeks — <b>${['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'][best]}</b> sell most (${sdcMoney(v[best])}).`;
+    return Object.assign(sdcBase(c), {
+      polar: { radius: ['14%', '82%'] },
+      angleAxis: { type: 'category', data: SDC_DOW, startAngle: 90, axisLine: { lineStyle: { color: c.line } }, axisTick: { show: false }, axisLabel: { color: c.muted, fontWeight: 600 } },
+      radiusAxis: { axisLabel: { show: false }, axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: c.line } } },
+      tooltip: Object.assign(sdcBase(c).tooltip, { formatter: p => `<b>${SDC_DOW[p.dataIndex]}</b><br>${sdcMoney(p.value)} on an average day` }),
+      series: [{ type: 'bar', coordinateSystem: 'polar', roundCap: true, barWidth: '62%', data: v.map((x, i) => ({ value: x, itemStyle: { color: i === best ? c.blue : c.blue + '55' } })),
+        animationDuration: 1500, animationEasing: 'elasticOut', animationDelay: i => i * 70 }],
+    });
+  },
+  donut(c, today) {
+    const mS = today.slice(0, 8) + '01';
+    const part = ch => { const m = sdDays(ch); let s = 0; Object.keys(m).forEach(d => { if (d >= mS && d <= today) s += Number(m[d][0]) || 0; }); return Math.round(s * 100) / 100; };
+    const parts = [['Amazon · Ridhi', part('SP'), c.blue], ['Amazon · CPC', part('CPC'), '#8b5cf6'], ['Shopify', part('SHOP'), '#f59e0b']];
+    const total = parts.reduce((s, p) => s + p[1], 0);
+    if (!total) return { empty: 'No sales this month yet.' };
+    return Object.assign(sdcBase(c), {
+      tooltip: Object.assign(sdcBase(c).tooltip, { trigger: 'item', formatter: p => `<b>${p.name}</b><br>${sdcMoney(p.value)} · ${p.percent}%` }),
+      legend: { bottom: 0, icon: 'circle', itemWidth: 9, itemHeight: 9, textStyle: { color: c.muted } },
+      title: { text: sdcK(total), subtext: 'this month', left: 'center', top: '36%', textStyle: { color: c.ink, fontSize: 26, fontWeight: 700 }, subtextStyle: { color: c.muted, fontSize: 12 } },
+      series: [{ type: 'pie', radius: ['56%', '78%'], center: ['50%', '45%'], avoidLabelOverlap: true, label: { show: false },
+        itemStyle: { borderRadius: 10, borderColor: c.card, borderWidth: 4 }, data: parts.map(p => ({ name: p[0], value: p[1], itemStyle: { color: p[2] } })),
+        animationType: 'scale', animationEasing: 'elasticOut', animationDuration: 1300 }],
+    });
+  },
+  month(c, today) {
+    const yr = today.slice(0, 4), lyr = String(Number(yr) - 1), ty = [], ly = [];
+    for (let m = 0; m < 12; m++) {
+      const mm = String(m + 1).padStart(2, '0');
+      const last = new Date(Date.UTC(Number(yr), m + 1, 0)).toISOString().slice(0, 10);
+      ty.push(`${yr}-${mm}-01` > today ? null : sdSum(`${yr}-${mm}-01`, last)[0]);   // the Monthly Comparison table's own sums
+      ly.push(sdSum(`${lyr}-${mm}-01`, `${lyr}-${mm}-31`)[0]);
+    }
+    return Object.assign(sdcBase(c), {
+      grid: { left: 56, right: 14, top: 20, bottom: 30 },
+      tooltip: Object.assign(sdcBase(c).tooltip, { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: c.chip + '88' } },
+        formatter: ps => { const i = ps[0].dataIndex, a = ty[i], b = ly[i];
+          return `<b>${SDC_MON[i]}</b><br>${yr} <b>${a == null ? '—' : sdcMoney(a)}</b><br>${lyr} <b>${sdcMoney(b)}</b><br>change ${sdcPctHtml(c, sdcPct(a, b))}`; } }),
+      xAxis: { type: 'category', data: SDC_MON, axisLine: { lineStyle: { color: c.line } }, axisTick: { show: false }, axisLabel: { color: c.muted } },
+      yAxis: sdcAxisY(c, sdcK),
+      series: [
+        { name: 'This year', type: 'bar', data: ty, barGap: '12%', barWidth: '28%', itemStyle: { color: c.blue, borderRadius: [7, 7, 0, 0] }, animationDelay: i => i * 70 },
+        { name: 'Last year', type: 'bar', data: ly, barWidth: '28%', itemStyle: { color: c.ly + '99', borderRadius: [7, 7, 0, 0] }, animationDelay: i => i * 70 + 35 },
+      ],
+      animationDuration: 900, animationEasing: 'cubicOut',
+    });
+  },
+};
+/** Make (or remake) one chart from the data on view. */
+function sdcMake(key) {
+  const el = document.querySelector(`#paneSales [data-chart="${key}"]`);
+  if (!el || !SDC.last) return;
+  if (!window.echarts) { el.innerHTML = `<div class="sdx-chart-fail">${SDC.ech ? 'The chart library did not load — the numbers above are still right.' : 'Loading the chart…'}</div>`; return; }
+  let opt;
+  try { opt = SDC_MAKERS[key](sdcColours(), SDC.last.today, el); } catch (e) { opt = { empty: 'This chart could not be drawn: ' + ((e && e.message) || e) }; }
+  if (opt.empty) {
+    if (SDC.charts[key]) { SDC.charts[key].dispose(); delete SDC.charts[key]; }
+    el.innerHTML = `<div class="sdx-chart-fail">${sdcEsc(opt.empty)}</div>`;
+    SDC.made[key] = true;
     return;
   }
-  // --- geometry (the real width, so text stays crisp) ---
-  const W = Math.max(320, Math.round(el.clientWidth || SDC.w || 960));
-  SDC.w = W;
-  const phone = W < 560;
-  const padL = phone ? 40 : 52, padR = 14, padT = 34, padB = 28;
-  const iw = W - padL - padR, ih = SDC_H - padT - padB;
-  const top = sdcNice(Math.max(...ty.concat(ly).filter(v => v != null), 0) * 1.05);
-  const xOf = i => padL + (n === 1 ? iw / 2 : i / (n - 1) * iw);
-  const yOf = v => padT + ih - (v || 0) / top * ih;
-  // --- the grid (horizontal only), the axis, the date labels ---
-  let svg = '';
-  for (let k = 0; k <= 4; k++) {
-    const v = top * k / 4, y = yOf(v);
-    svg += `<line class="sdc-grid" x1="${padL}" x2="${W - padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}"/>`
-      + `<text class="sdc-ax" x="${padL - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end">${sdcFmt(metric, v, true)}</text>`;
-  }
-  const labels = phone ? 4 : SDC.range === 'ytd' ? 12 : 8;
-  const step = Math.max(1, Math.ceil(n / labels));
-  for (let i = 0; i < n; i += step) svg += `<text class="sdc-ax" x="${xOf(i).toFixed(1)}" y="${SDC_H - 8}" text-anchor="middle">${sdcDay(days[i])}</text>`;
-  // --- last year (dashed), this year (area + line) ---
-  const lyPath = sdcPath(ly.map((v, i) => (v == null ? null : [xOf(i), yOf(v)])));
-  // today is still running: its piece of the line is dashed and kept out of the area, so a part day never reads as a fall
-  const partial = days[n - 1] === today && n > 1 && ty[n - 1] != null && ty[n - 2] != null;
-  const tyPts = ty.map((v, i) => (v == null || (partial && i === n - 1) ? null : [xOf(i), yOf(v)]));
-  const tyPath = sdcPath(tyPts);
-  const todayPath = partial ? `M${xOf(n - 2).toFixed(1)},${yOf(ty[n - 2]).toFixed(1)}L${xOf(n - 1).toFixed(1)},${yOf(ty[n - 1]).toFixed(1)}` : '';
-  const firstI = ty.findIndex(v => v != null), lastI = (partial ? n - 2 : ty.length - 1 - [...ty].reverse().findIndex(v => v != null));
-  const area = tyPath && !ty.slice(firstI, lastI + 1).includes(null)
-    ? `${tyPath}L${xOf(lastI).toFixed(1)},${padT + ih}L${xOf(firstI).toFixed(1)},${padT + ih}Z` : '';
-  svg += `<path class="sdc-ly" d="${lyPath}"/>` + (area ? `<path class="sdc-area" d="${area}"/>` : '') + `<path class="sdc-ty" d="${tyPath}" pathLength="1"/>`
-    + (todayPath ? `<path class="sdc-today" d="${todayPath}"><title>Today so far — the day is still running</title></path>` : '');
-  // --- the annotations ---
-  const notes = sdcNotes(days, ty, xOf, yOf, metric);
-  notes.forEach(a => {
-    const lx = Math.min(Math.max(a.x, padL + a.w / 2), W - padR - a.w / 2), ly2 = Math.max(14 + (a.row ? 0 : 22), a.y - 18 - a.row * 22);
-    svg += `<g class="sdc-note-g is-${a.k}"><title>${sdcEsc(a.tip)}</title><line class="sdc-note-l" x1="${a.x.toFixed(1)}" x2="${a.x.toFixed(1)}" y1="${(ly2 + 5).toFixed(1)}" y2="${(a.y - 4).toFixed(1)}"/>`
-      + `<circle class="sdc-note-dot" cx="${a.x.toFixed(1)}" cy="${a.y.toFixed(1)}" r="3.5"/>`
-      + `<rect class="sdc-note-bg" x="${(lx - a.w / 2).toFixed(1)}" y="${(ly2 - 12).toFixed(1)}" width="${a.w.toFixed(1)}" height="17" rx="8.5"/>`
-      + `<text class="sdc-note-t" x="${lx.toFixed(1)}" y="${(ly2).toFixed(1)}" text-anchor="middle">${sdcEsc(a.text)}</text></g>`;
-  });
-  // --- the crosshair (moved by the pointer) ---
-  svg += `<g class="sdc-x" hidden><line class="sdc-x-l" y1="${padT}" y2="${padT + ih}"/><circle class="sdc-x-ly" r="3.5"/><circle class="sdc-x-ty" r="4"/></g>`
-    + `<rect class="sdc-hit" x="${padL}" y="${padT}" width="${iw}" height="${ih}"/>`;
-  const label = metric === 'units' ? 'Units' : metric === 'ads' ? 'Ad spend' : 'Sales';
-  el.innerHTML = `<svg class="sdc-svg" viewBox="0 0 ${W} ${SDC_H}" width="${W}" height="${SDC_H}" role="img" aria-label="${sdcEsc(label)} per day, this year and the same weekday last year">${svg}</svg>`
-    + '<div class="sdc-tip" hidden></div>';
-  if (note) note.textContent = metric === 'ads'
-    ? 'Ad spend: Seller Central\'s ad totals (Sponsored Products + Brands + Display), on the days Amazon has published them. Last year: the same weekday a year back.'
-    : 'US Pacific days; today is still running. Last year: the same weekday a year back (364 days), so a Saturday sits beside a Saturday.';
-  // --- the tooltip ---
-  const svgEl = el.querySelector('svg'), cross = svgEl.querySelector('.sdc-x'), tip = el.querySelector('.sdc-tip');
-  const move = ev => {
-    const r = svgEl.getBoundingClientRect();
-    const x = (ev.clientX - r.left) * (W / r.width);
-    const i = Math.max(0, Math.min(n - 1, Math.round((x - padL) / iw * (n - 1))));
-    const a = ty[i], b = ly[i];
-    cross.hidden = false;
-    cross.querySelector('.sdc-x-l').setAttribute('x1', xOf(i));
-    cross.querySelector('.sdc-x-l').setAttribute('x2', xOf(i));
-    const cT = cross.querySelector('.sdc-x-ty'), cL = cross.querySelector('.sdc-x-ly');
-    cT.setAttribute('cx', xOf(i)); cT.setAttribute('cy', yOf(a)); cT.style.display = a == null ? 'none' : '';
-    cL.setAttribute('cx', xOf(i)); cL.setAttribute('cy', yOf(b)); cL.style.display = b == null ? 'none' : '';
-    const pct = a != null && b ? (a - b) / b * 100 : null;
-    const lyDay = sdShift(days[i], -364);
-    tip.innerHTML = `<b>${sdcDow(days[i])}, ${sdcDay(days[i])}${days[i] === today ? ' · today so far' : ''}</b>`
-      + `<span class="sdc-tk is-ty">This year <em>${sdcFmt(metric, a)}</em></span>`
-      + `<span class="sdc-tk is-ly">Last year · ${sdcDow(lyDay)}, ${sdcDay(lyDay)} ${lyDay.slice(0, 4)} <em>${sdcFmt(metric, b)}</em></span>`
-      + `<span class="sdc-tk">vs last year <em class="${pct == null ? '' : pct < 0 ? 'is-dn' : 'is-up'}">${pct == null ? '—' : (pct > 0 ? '+' : pct < 0 ? '−' : '') + Math.abs(pct).toFixed(1) + '%'}</em></span>`;
-    tip.hidden = false;
-    const px = xOf(i) / W * r.width, tw = tip.offsetWidth || 200;
-    let left = px + 14;                              // beside the crosshair; on its left near the right edge
-    if (left + tw > r.width - 4) left = px - tw - 14;
-    tip.style.left = Math.max(4, left) + 'px';
-    tip.style.top = Math.max(4, yOf(Math.max(a || 0, b || 0)) / SDC_H * r.height - 10) + 'px';
-  };
-  const hit = svgEl.querySelector('.sdc-hit');
-  hit.addEventListener('pointermove', move);
-  hit.addEventListener('pointerdown', move);
-  hit.addEventListener('pointerleave', () => { cross.hidden = true; tip.hidden = true; });
-  // --- draw in: once per channel / measure / range ---
-  const key = [SD_CH, metric, SDC.range].join('|');
-  if (!SDC.drawn[key]) { SDC.drawn[key] = true; sdcDrawIn(el); }
+  if (SDC.charts[key] && SDC.charts[key].getDom() !== el) { SDC.charts[key].dispose(); delete SDC.charts[key]; }
+  if (!SDC.charts[key]) { el.innerHTML = ''; SDC.charts[key] = window.echarts.init(el, null, { renderer: 'svg' }); }
+  SDC.charts[key].setOption(opt, true);
+  SDC.made[key] = true;
 }
-function sdcDrawIn(el) {
-  const how = sdcMotion();
-  if (how === 'none') return;
-  const line = el.querySelector('.sdc-ty'), rest = el.querySelectorAll('.sdc-area, .sdc-ly, .sdc-note-g, .sdc-mbar');
-  if (how === 'gsap') {
-    if (line) window.gsap.fromTo(line, { strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.9, ease: 'power2.out', clearProps: 'strokeDasharray,strokeDashoffset' });
-    if (rest.length) window.gsap.from(rest, { opacity: 0, duration: 0.5, delay: 0.25, stagger: 0.02, clearProps: 'opacity' });
-  } else { el.classList.remove('sdc-in'); void el.offsetWidth; el.classList.add('sdc-in'); }
+const sdcRemakeMade = () => Object.keys(SDC.made).forEach(sdcMake);
+const sdcMakeAll = () => document.querySelectorAll('#paneSales [data-chart]').forEach(el => sdcMake(el.dataset.chart));
+
+/* ----- the background: trend lines per chapter, the glow, the rising data dots ----- */
+function sdcTrendLines() {
+  if (SDC.lines) return;
+  SDC.lines = true;
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  document.querySelectorAll('#paneSales .sdx-lines').forEach(svg => {
+    let html = '';
+    for (let k = 0; k < 3; k++) {
+      let y = 330 - k * 60 - rnd() * 30, d = `M0,${y.toFixed(0)}`;
+      for (let x = 80; x <= 1200; x += 80) { y = Math.max(30, y - 8 - rnd() * 26 + rnd() * 14); d += ` S${x - 40},${(y + 18).toFixed(0)} ${x},${y.toFixed(0)}`; }
+      html += `<path d="${d}" pathLength="1" stroke-opacity="${(0.9 - k * 0.25).toFixed(2)}"/>`;
+    }
+    svg.innerHTML = html;
+  });
+}
+function sdcDotsStart() {
+  const cv = document.getElementById('sdxDots'), ctx = cv && cv.getContext && cv.getContext('2d');
+  if (!ctx || SDC.dotsRaf) return;
+  if (!SDC.dots) SDC.dots = Array.from({ length: 30 }, () => ({ x: Math.random(), y: Math.random(), r: 1.5 + Math.random() * 2.5, s: 0.00012 + Math.random() * 0.00028 }));
+  const step = () => {
+    SDC.dotsRaf = 0;
+    if (!SDC.up || !sdcBgMotion() || document.hidden || !sdcShown()) { ctx.clearRect(0, 0, cv.width, cv.height); return; }
+    if (cv.width !== innerWidth * devicePixelRatio) { cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio; }
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = sdcCss('--sx-dot');
+    SDC.dots.forEach(p => { p.y -= p.s; if (p.y < -0.02) { p.y = 1.02; p.x = Math.random(); } ctx.beginPath(); ctx.arc(p.x * cv.width, p.y * cv.height, p.r * devicePixelRatio, 0, 6.283); ctx.fill(); });
+    SDC.dotsRaf = requestAnimationFrame(step);
+  };
+  SDC.dotsRaf = requestAnimationFrame(step);
 }
 
-/* ----- MONTHLY — this year vs last year: the same sums as the Monthly Comparison table ----- */
-function sdcMonthly(yr, lyr) {
-  const el = typeof document !== 'undefined' && document.getElementById('sdChartMonthly');
-  if (!el) return;
-  const ty = [], ly = [];
-  for (let m = 0; m < 12; m++) {
-    const mm = String(m + 1).padStart(2, '0');
-    const last = new Date(Date.UTC(Number(yr), m + 1, 0)).toISOString().slice(0, 10);
-    ty.push(sdSum(`${yr}-${mm}-01`, last)[0]);
-    ly.push(sdSum(`${lyr}-${mm}-01`, `${lyr}-${mm}-31`)[0]);
-  }
-  const W = Math.max(320, Math.round(el.clientWidth || SDC.w || 960));
-  const phone = W < 560;
-  const padL = phone ? 40 : 52, padR = 14, padT = 14, padB = 26;
-  const iw = W - padL - padR, ih = SDC_MH - padT - padB;
-  const top = sdcNice(Math.max(1, ...ty, ...ly) * 1.05);
-  const yOf = v => padT + ih - v / top * ih;
-  const slot = iw / 12, bw = Math.max(4, Math.min(22, slot * 0.32));
-  // a bar with only its top corners rounded
-  const bar = (x, v, cls) => {
-    const y = yOf(v), h = padT + ih - y;
-    if (h <= 0) return '';
-    const r = Math.min(4, bw / 2, h);
-    return `<path class="sdc-mbar ${cls}" d="M${x.toFixed(1)},${(padT + ih).toFixed(1)}V${(y + r).toFixed(1)}Q${x.toFixed(1)},${y.toFixed(1)} ${(x + r).toFixed(1)},${y.toFixed(1)}`
-      + `H${(x + bw - r).toFixed(1)}Q${(x + bw).toFixed(1)},${y.toFixed(1)} ${(x + bw).toFixed(1)},${(y + r).toFixed(1)}V${(padT + ih).toFixed(1)}Z"/>`;
-  };
-  let svg = '';
-  for (let k = 0; k <= 4; k++) {
-    const v = top * k / 4, y = yOf(v);
-    svg += `<line class="sdc-grid" x1="${padL}" x2="${W - padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}"/>`
-      + `<text class="sdc-ax" x="${padL - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end">${sdcFmt('sales', v, true)}</text>`;
-  }
-  for (let m = 0; m < 12; m++) {
-    const cx = padL + slot * m + slot / 2;
-    svg += bar(cx - bw - 1.5, ty[m], 'is-ty') + bar(cx + 1.5, ly[m], 'is-ly')
-      + `<text class="sdc-ax" x="${cx.toFixed(1)}" y="${SDC_MH - 8}" text-anchor="middle">${phone ? SDC_MON[m].charAt(0) : SDC_MON[m]}</text>`
-      + `<rect class="sdc-mhit" data-m="${m}" x="${(padL + slot * m).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${ih}"/>`;
-  }
-  el.innerHTML = `<svg class="sdc-svg" viewBox="0 0 ${W} ${SDC_MH}" width="${W}" height="${SDC_MH}" role="img" aria-label="Sales per month, ${yr} against ${lyr}">${svg}</svg><div class="sdc-tip" hidden></div>`;
-  const svgEl = el.querySelector('svg'), tip = el.querySelector('.sdc-tip');
-  svgEl.querySelectorAll('.sdc-mhit').forEach(h => {
-    const show = () => {
-      const m = Number(h.dataset.m), a = ty[m], b = ly[m];
-      const pct = b ? (a - b) / b * 100 : null;
-      svgEl.querySelectorAll('.sdc-mhit').forEach(x => x.classList.toggle('is-on', x === h));
-      tip.innerHTML = `<b>${SDC_MON[m]}</b><span class="sdc-tk is-ty">${yr} <em>${sdMoney(a)}</em></span><span class="sdc-tk is-ly">${lyr} <em>${sdMoney(b)}</em></span>`
-        + `<span class="sdc-tk">change <em class="${pct == null ? '' : pct < 0 ? 'is-dn' : 'is-up'}">${pct == null ? '—' : (pct > 0 ? '+' : pct < 0 ? '−' : '') + Math.abs(pct).toFixed(1) + '%'}</em></span>`;
-      tip.hidden = false;
-      const r = svgEl.getBoundingClientRect(), px = (padL + slot * (m + 0.5)) / W * r.width, tw = tip.offsetWidth || 160;
-      tip.style.left = Math.min(Math.max(px - tw / 2, 4), r.width - tw - 4) + 'px';
-      tip.style.top = Math.max(4, yOf(Math.max(a, b)) / SDC_MH * r.height - 70) + 'px';
-    };
-    h.addEventListener('pointerenter', show);
-    h.addEventListener('pointerdown', show);
-    h.addEventListener('pointerleave', () => { tip.hidden = true; h.classList.remove('is-on'); });
+/* ----- the libraries: only when the Sales Dashboard opens ----- */
+function sdcScript(url) {
+  return new Promise(res => {
+    const s = document.createElement('script');
+    let done = false;
+    const end = ok => { if (!done) { done = true; res(ok); } };
+    s.src = url; s.async = true; s.onload = () => end(true); s.onerror = () => end(false);
+    document.head.appendChild(s);
+    setTimeout(() => end(false), 20000);
   });
-  const key = ['m', SD_CH, yr].join('|');
-  if (!SDC.drawn[key]) {
-    SDC.drawn[key] = true;
-    const how = sdcMotion();
-    if (how === 'gsap') window.gsap.from(svgEl.querySelectorAll('.sdc-mbar'), { scaleY: 0, transformOrigin: '50% 100%', duration: 0.5, stagger: 0.015, ease: 'power2.out', clearProps: 'transform' });
-    else if (how === 'css') { el.classList.remove('sdc-in'); void el.offsetWidth; el.classList.add('sdc-in'); }
-  }
+}
+function sdcLoadCharts() {
+  if (window.echarts) return Promise.resolve(true);
+  if (!SDC.ech) SDC.ech = sdcScript(SDC_CDN.echarts).then(() => !!window.echarts);
+  return SDC.ech;
+}
+function sdcLoadMotion() {
+  if (!SDC.mot) SDC.mot = (async () => {
+    if (!window.gsap) await sdcScript(SDC_CDN.gsap);                       // the Dashboard's build: one GSAP on the page
+    if (window.gsap && !window.ScrollTrigger) await sdcScript(SDC_CDN.st);
+    if (!window.Lenis) await sdcScript(SDC_CDN.lenis);
+    try { if (window.gsap && window.ScrollTrigger) window.gsap.registerPlugin(window.ScrollTrigger); } catch (e) { /* plain */ }
+    return !!(window.gsap && window.ScrollTrigger);
+  })();
+  return SDC.mot;
 }
 
-/* ----- the controls, the tables' fold, a redraw on resize ----- */
+/* ----- the scroll story: set up when the page shows, torn down when it goes (or when Story / Compact or ✨ change) ----- */
+const sdcTrig = t => { if (t) SDC.st.push(t); return t; };
+const sdcTween = t => { if (t) { SDC.tw.push(t); if (t.scrollTrigger) SDC.st.push(t.scrollTrigger); } return t; };
+// A heading's words as spans (the per-word fallback of SplitText). The heading keeps its own text, and is split again if its words were
+// ever moved out of order.
+function sdcWords(h) {
+  if (!h.dataset.text) h.dataset.text = h.textContent.trim();
+  if (!h.querySelector('.sdx-w') || h.textContent !== h.dataset.text) h.innerHTML = h.dataset.text.split(' ').map(w => `<span class="sdx-w">${sdcEsc(w)}</span>`).join(' ');
+  return h.querySelectorAll('.sdx-w');
+}
+// The six numbers count up from 0 to the text renderSales wrote and END ON THAT EXACT TEXT. The true text is kept on the element
+// (_sdxFinal) with what this wrote last (_sdxWrote): a newer number renderSales writes meanwhile stops the count and stays.
+function sdcCountEnd(el, restore) {
+  if (!el._sdxCount) return;
+  try { el._sdxCount.kill(); } catch (e) { /* gone */ }
+  if (restore && el.textContent === el._sdxWrote) el.textContent = el._sdxFinal;
+  el._sdxCount = null;
+}
+function sdcCountUp() {
+  document.querySelectorAll('#paneSales .sdx-kpi-v').forEach((el, i) => {
+    if (el._sdxCount || !window.gsap) return;
+    const final = el.textContent;
+    if (!/^\$[\d,]+$/.test(final)) return;
+    const to = Number(final.replace(/[^0-9]/g, ''));
+    const o = { v: 0 };
+    el._sdxFinal = final;
+    el._sdxWrote = '$0';
+    el.textContent = el._sdxWrote;
+    el._sdxCount = window.gsap.to(o, { v: to, duration: 1.4, delay: i * 0.08, ease: 'power3.out',
+      onUpdate() { if (el.textContent !== el._sdxWrote) { sdcCountEnd(el, false); return; } el._sdxWrote = '$' + Math.round(o.v).toLocaleString('en-US'); el.textContent = el._sdxWrote; },
+      onComplete() { sdcCountEnd(el, true); } });
+    // a safety net: GSAP's clock runs on screen frames, which a hidden tab (or a busy page) pauses — the number never stays at $0
+    const tw = el._sdxCount;
+    setTimeout(() => { if (el._sdxCount === tw) sdcCountEnd(el, true); }, (1.4 + i * 0.08) * 1000 + 1500);
+  });
+}
+function sdcAnimate() {
+  const gsap = window.gsap, ST = window.ScrollTrigger;
+  const story = SDC.mode === 'story';
+  if (window.Lenis && !sdcPhone() && !SDC.lenis) {
+    try {
+      SDC.lenis = new window.Lenis({ lerp: 0.11, smoothWheel: true });
+      SDC.lenis.on('scroll', ST.update);
+      SDC.tick = t => { if (SDC.lenis) SDC.lenis.raf(t * 1000); };
+      gsap.ticker.add(SDC.tick);
+      gsap.ticker.lagSmoothing(0);
+    } catch (e) { SDC.lenis = null; }
+  }
+  document.querySelectorAll('#paneSales .sdx-ch').forEach(ch => {
+    const h = ch.querySelector('.sdx-h'), sub = ch.querySelector('.sdx-sub'), cards = ch.querySelectorAll('.sdx-card');
+    if (story) {
+      sdcTween(gsap.from(sdcWords(h), { yPercent: 110, opacity: 0, duration: 0.9, stagger: 0.07, ease: 'power4.out', scrollTrigger: { trigger: h, start: 'top 88%' } }));
+      if (sub) sdcTween(gsap.from(sub, { y: 24, opacity: 0, duration: 0.9, delay: 0.15, ease: 'power3.out', scrollTrigger: { trigger: h, start: 'top 88%' } }));
+    }
+    cards.forEach((card, i) => {
+      sdcTween(gsap.from(card, { y: story ? 60 : 16, scale: story ? 0.96 : 1, opacity: 0, duration: story ? 1.1 : 0.5, delay: 0.12 + i * 0.1, ease: 'power3.out',
+        scrollTrigger: { trigger: card, start: 'top 90%' } }));
+      if (story && !sdcPhone() && card.firstElementChild) sdcTween(gsap.fromTo(card.firstElementChild, { y: 14 }, { y: -14, ease: 'none', scrollTrigger: { trigger: card, start: 'top bottom', end: 'bottom top', scrub: true } }));
+    });
+    const lines = ch.querySelectorAll('.sdx-lines path');
+    if (lines.length && sdcBgMotion()) {
+      gsap.set(lines, { strokeDasharray: 1, strokeDashoffset: 1 });
+      sdcTween(gsap.to(lines, { strokeDashoffset: 0, ease: 'none', stagger: 0.1, scrollTrigger: { trigger: ch, start: 'top 90%', end: 'center 40%', scrub: 1 } }));
+      sdcTween(gsap.to(ch.querySelector('.sdx-lines'), { y: -60, ease: 'none', scrollTrigger: { trigger: ch, start: 'top bottom', end: 'bottom top', scrub: true } }));
+    }
+    sdcTrig(ST.create({ trigger: ch, start: 'top 55%', end: 'bottom 55%', onToggle: self => { if (self.isActive) { const g = document.getElementById('sdxGlow'); if (g) g.style.backgroundColor = ch.dataset.glow; } } }));
+  });
+  sdcTrig(ST.create({ trigger: '#paneSales .sdx-kpis', start: 'top 85%', once: true, onEnter: sdcCountUp }));
+  sdcTrig(ST.create({ trigger: '#viBox', start: 'top 80%', once: true, onEnter: () => {
+    const bars = document.querySelectorAll('#viBox .sdx-mv-bar i');
+    if (bars.length) sdcTween(gsap.from(bars, { scaleX: 0, duration: 0.9, stagger: 0.06, ease: 'power3.out' }));
+  } }));
+  // each chart is made as its card comes into view, so its own animation plays there
+  document.querySelectorAll('#paneSales [data-chart]').forEach(el => {
+    if (SDC.made[el.dataset.chart]) return;
+    sdcTrig(ST.create({ trigger: el, start: 'top 85%', once: true, onEnter: () => sdcLoadCharts().then(() => { if (SDC.up) sdcMake(el.dataset.chart); }) }));
+  });
+  ST.refresh();
+}
+function sdcApplyState() {
+  const p = sdcPane();
+  if (!p) return;
+  p.dataset.mode = SDC.mode;
+  p.classList.toggle('sdx-still', !sdcBgMotion());
+  document.querySelectorAll('#sdxMode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === SDC.mode)));
+  const fx = document.getElementById('sdxFx');
+  if (fx) fx.setAttribute('aria-pressed', String(SDC.fx));
+  const side = document.querySelector('.side');
+  const top = side && getComputedStyle(side).position === 'sticky' ? side.offsetHeight : 0;
+  p.style.setProperty('--sdx-top', top + 'px');
+}
+/** The page is on screen: the background, the charts and (with motion) the scroll story. */
+async function sdcSetup() {
+  if (SDC.up || !sdcShown()) return;
+  SDC.up = true;
+  const gen = ++SDC.gen;                             // a set-up overtaken by a newer one (two quick switches) stops
+  sdcApplyState();
+  sdcTrendLines();
+  const animate = sdcMotion() && await sdcLoadMotion();
+  if (!SDC.up || gen !== SDC.gen) return;           // left again, or switched again, while loading
+  if (animate) { sdcAnimate(); if (sdcBgMotion()) sdcDotsStart(); }
+  else { await sdcLoadCharts(); if (SDC.up && gen === SDC.gen) sdcMakeAll(); }
+}
+/** The page went away, or Story / Compact / ✨ changed: everything that moves stops, and every element is left as drawn. */
+function sdcTeardown() {
+  SDC.up = false;
+  SDC.gen++;
+  // a number caught mid count-up shows its own text again
+  document.querySelectorAll('#paneSales .sdx-kpi-v').forEach(el => sdcCountEnd(el, true));
+  SDC.st.forEach(t => { try { t.kill(); } catch (e) { /* gone */ } });
+  SDC.tw.forEach(t => { try { t.kill(); } catch (e) { /* gone */ } });
+  SDC.st = []; SDC.tw = [];
+  if (SDC.lenis) {
+    try { window.gsap.ticker.remove(SDC.tick); window.gsap.ticker.lagSmoothing(500, 33); SDC.lenis.destroy(); } catch (e) { /* gone */ }
+    SDC.lenis = null; SDC.tick = null;
+  }
+  if (SDC.dotsRaf) { cancelAnimationFrame(SDC.dotsRaf); SDC.dotsRaf = 0; }
+  // what the motion left on the elements goes — by hand, not through GSAP: on a page already hidden (display: none) GSAP lifts an
+  // element out of the page to measure it, and puts a heading's word back on the wrong side of its space
+  const MOVED = ['transform', 'translate', 'rotate', 'scale', 'opacity', 'visibility', 'stroke-dasharray', 'stroke-dashoffset'];
+  document.querySelectorAll('#paneSales .sdx-card, #paneSales .sdx-card > *, #paneSales .sdx-h .sdx-w, #paneSales .sdx-sub, #paneSales .sdx-lines, #paneSales .sdx-lines path, #viBox .sdx-mv-bar i')
+    .forEach(el => { MOVED.forEach(p => el.style.removeProperty(p)); if (el._gsap) el._gsap.uncache = 1; });
+}
+const sdcRestart = () => { sdcTeardown(); sdcApplyState(); sdcSetup(); };
+
+/* ----- the tables' fold ----- */
 function sdcTablesSet(open) {
   const box = document.getElementById('sdTables'), btn = document.getElementById('sdTablesBtn');
   if (!box || !btn) return;
@@ -61856,53 +62086,69 @@ function sdcTablesSet(open) {
   btn.setAttribute('aria-expanded', String(open));
   btn.textContent = open ? 'Hide tables ▴' : 'Show tables ▾';
 }
-function sdcTablesInit() {
-  let open = false;
-  try { open = localStorage.getItem(SDC_TABLES_LS) === '1'; } catch (e) { open = false; }
-  sdcTablesSet(open);
-}
 function sdcSeg(id, attr, val) {
-  const g = document.getElementById(id);
-  if (g) g.querySelectorAll('button').forEach(b => { const on = b.dataset[attr] === val; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  const g = typeof document !== 'undefined' && document.getElementById ? document.getElementById(id) : null;
+  if (g && g.querySelectorAll) g.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset[attr] === val)));
 }
-/** Everything this file draws, for the channel on view (renderSales calls it after its own numbers). */
+
+/* ----- once: the controls, leaving / coming back, light / dark ----- */
+function sdcStart() {
+  if (SDC.started || typeof document === 'undefined' || !document.addEventListener || !sdcPane()) return;
+  SDC.started = true;
+  sdcTablesSet(sdcLs.get(SDC_TABLES_LS) === '1');
+  document.addEventListener('click', e => {
+    const t = e.target && e.target.closest ? e.target.closest('#sdcMetric [data-m], #sdcRange [data-r], #sdTablesBtn, #sdxMode [data-m], #sdxFx, #sdxTheme') : null;
+    if (!t || t.disabled) return;
+    if (t.id === 'sdTablesBtn') {
+      const open = document.getElementById('sdTables').hidden;
+      sdcLs.set(SDC_TABLES_LS, open ? '1' : '0');
+      sdcTablesSet(open);
+      if (window.ScrollTrigger && SDC.up) window.ScrollTrigger.refresh();
+      return;
+    }
+    if (t.closest('#sdxMode')) {
+      if (SDC.mode !== t.dataset.m) { SDC.mode = t.dataset.m; sdcLs.set('sdxMode', SDC.mode); sdcRestart(); setTimeout(() => Object.values(SDC.charts).forEach(c => c.resize()), 60); }
+      return;
+    }
+    if (t.id === 'sdxFx') { SDC.fx = !SDC.fx; sdcLs.set('sdxFx', SDC.fx ? '1' : '0'); sdcRestart(); return; }
+    if (t.id === 'sdxTheme') {
+      const b = document.getElementById('themeBtn');
+      if (b) b.click();
+      else { const r = document.documentElement; r.dataset.theme = (r.dataset.theme || 'light') === 'dark' ? 'light' : 'dark'; }
+      return;
+    }
+    if (t.dataset.m) { SDC.metric = t.dataset.m; sdcSeg('sdcMetric', 'm', SDC.metric); }
+    if (t.dataset.r) { SDC.range = t.dataset.r; sdcSeg('sdcRange', 'r', SDC.range); }
+    if (SDC.made.daily) sdcMake('daily');
+  });
+  // the page shown / hidden (core/nav.js showTab toggles .hide): set up or tear down
+  if (typeof MutationObserver === 'function') new MutationObserver(() => { if (sdcShown()) sdcSetup(); else sdcTeardown(); }).observe(sdcPane(), { attributes: true, attributeFilter: ['class'] });
+  // light / dark: the charts take the new colours
+  const recolour = () => { if (Object.keys(SDC.charts).length) setTimeout(sdcRemakeMade, 30); };
+  if (typeof MutationObserver === 'function') new MutationObserver(recolour).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolour); } catch (e) { /* an old browser */ }
+  let rT = 0;
+  addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(() => { Object.values(SDC.charts).forEach(c => c.resize()); sdcApplyState(); }, 150); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && SDC.up && sdcBgMotion()) sdcDotsStart(); });
+}
+
+/** renderSales calls this after its own numbers: the sparklines, the controls, and the charts already made redrawn from the new data. */
 function sdcRender(today, yr, lyr) {
   SDC.last = { today, yr, lyr };
-  if (!SDC.tables) { SDC.tables = true; sdcTablesInit(); }
-  const ads = document.querySelector('#sdcMetric [data-m="ads"]');
+  sdcStart();
+  sdcSeg('sdBrand', 'ch', SD_CH);
+  const ads = typeof document !== 'undefined' && document.querySelector ? document.querySelector('#sdcMetric [data-m="ads"]') : null;
   if (ads) { ads.disabled = SD_CH === 'SHOP'; ads.title = SD_CH === 'SHOP' ? 'Shopify has no ad spend in Sellora' : 'Seller Central\'s ad totals per day'; }
   sdcSeg('sdcMetric', 'm', SD_CH === 'SHOP' && SDC.metric === 'ads' ? 'sales' : SDC.metric);
   sdcSeg('sdcRange', 'r', SDC.range);
   sdcSparks(today);
-  sdcDaily(today);
-  sdcMonthly(yr, lyr);
-  if (!SDC.ro && typeof ResizeObserver === 'function') {
-    const box = document.getElementById('sdChartDaily');
-    if (box) {
-      SDC.ro = new ResizeObserver(() => {
-        clearTimeout(SDC.roT);
-        SDC.roT = setTimeout(() => {
-          const w = Math.round(box.clientWidth);
-          if (w && Math.abs(w - SDC.w) > 8 && SDC.last) { sdcDaily(SDC.last.today); sdcMonthly(SDC.last.yr, SDC.last.lyr); }
-        }, 150);
-      });
-      SDC.ro.observe(box);
-    }
-  }
+  if (typeof window !== 'undefined' && window.echarts) sdcRemakeMade();
+  if (sdcShown()) sdcSetup();
 }
-if (typeof document !== 'undefined' && document.addEventListener) {
-  document.addEventListener('click', e => {
-    const t = e.target && e.target.closest ? e.target.closest('#sdcMetric [data-m], #sdcRange [data-r], #sdTablesBtn') : null;
-    if (!t || t.disabled) return;
-    if (t.id === 'sdTablesBtn') {
-      const open = document.getElementById('sdTables').hidden;
-      try { localStorage.setItem(SDC_TABLES_LS, open ? '1' : '0'); } catch (x) { /* this visit only */ }
-      return sdcTablesSet(open);
-    }
-    if (t.dataset.m) SDC.metric = t.dataset.m;
-    if (t.dataset.r) SDC.range = t.dataset.r;
-    if (SDC.last) sdcRender(SDC.last.today, SDC.last.yr, SDC.last.lyr);
-  });
+/** The per-product days arrived (sales/sales-insight.js viLoad): the top products and the event labels take them. */
+function sdcAfterVi() {
+  if (SDC.made.top) sdcMake('top');
+  if (SDC.made.daily) sdcMake('daily');
 }
 
 /* ####################################################################################################

@@ -13,7 +13,7 @@ function load(extra) {
   const ctx = vm.createContext(Object.assign({ console, Math, JSON, Number, String, Object, Array, Map, Set, Date, Intl, isFinite,
     SD_CH: 'SP', sdShift: shift, sdMoney: v => '$' + Math.round(v).toLocaleString('en-US'), T_MATCH: { biz: null, ads: null },
     localStorage: { getItem: () => null, setItem() {} } }, extra || {}));
-  vm.runInContext(SRC + '\n;this.__x = { SDC, sdcValueOf, sdcPath, sdcNice, sdcNotes, sdcFmt };', ctx);
+  vm.runInContext(SRC + '\n;this.__x = { SDC, SDC_CDN, sdcValueOf, sdcNotes, sdcFmt };', ctx);
   return Object.assign(ctx.__x, { ctx });
 }
 // the Sales Dashboard's own days: Ridhi $100 + 2 units a day, CPC $50 + 1, Shopify $20 + 1 — this year and last
@@ -49,16 +49,16 @@ const sdDays = ch => DAYS[ch] || {};
     const Y = load({ sdDays });
     ok('no matchAds loaded: no ad spend (never a made-up 0)', Y.sdcValueOf('ads')('2026-11-20') === null);
   }
-  console.log('== the drawing helpers ==');
+  console.log('== the number formats and the settings ==');
   {
     const X = load({ sdDays });
-    ok('the y-axis top is a round number above the highest value (4,321 → 5,000; 0.7 → 1)', X.sdcNice(4321) === 5000 && X.sdcNice(0.7) === 1 && X.sdcNice(150) === 200);
-    const pts = [[0, 100], [10, 50], [20, 50], [30, 10], [40, 90]];
-    const d = X.sdcPath(pts);
-    const ys = (d.match(/-?\d+(\.\d+)?/g) || []).map(Number).filter((v, i) => i % 2 === 1);
-    ok('the smooth line never overshoots its points (monotone): every y stays within 10–100', ys.every(y => y >= 10 - 1e-9 && y <= 100 + 1e-9), ys.join(','));
-    ok('a gap (a day nobody holds) breaks the line into two pieces', (X.sdcPath([[0, 1], [1, 2], null, [3, 4], [4, 5]]).match(/M/g) || []).length === 2);
     ok('money on the axis: $12k / $1.5k / $900; units as counts', X.sdcFmt('sales', 12000, true) === '$12k' && X.sdcFmt('sales', 1500, true) === '$1.5k' && X.sdcFmt('sales', 900, true) === '$900' && X.sdcFmt('units', 1234) === '1,234');
+    ok('Story and ✨ on by default (a first visit)', X.SDC.mode === 'story' && X.SDC.fx === true);
+    const Y = load({ sdDays, localStorage: { getItem: k => ({ sdxMode: 'compact', sdxFx: '0' }[k] || null), setItem() {} } });
+    ok('the choices are remembered: Compact and ✨ off come back', Y.SDC.mode === 'compact' && Y.SDC.fx === false);
+    ok('the libraries: ECharts 5.5.1, and the Dashboard\'s own GSAP 3.12.5 + ScrollTrigger (one GSAP on the page), Lenis 1.1.13 — all jsDelivr, exact versions',
+      /echarts@5\.5\.1/.test(X.SDC_CDN.echarts) && /gsap@3\.12\.5\/dist\/gsap\.min\.js/.test(X.SDC_CDN.gsap) && /gsap@3\.12\.5\/dist\/ScrollTrigger/.test(X.SDC_CDN.st)
+      && /lenis@1\.1\.13/.test(X.SDC_CDN.lenis) && Object.values(X.SDC_CDN).every(u => u.startsWith('https://cdn.jsdelivr.net/npm/')));
   }
   console.log('== the annotations: real, at most 3, never overlapping ==');
   {
@@ -91,19 +91,30 @@ const sdDays = ch => DAYS[ch] || {};
     ok('last week\'s biggest mover is noted (Sales only), inside that week: "Ridhi Napkins Set of 4 −$1200"', m.length === 1 && m[0].k === 'mover' && days2[m[0].i] >= '2026-11-15' && days2[m[0].i] <= '2026-11-21' && /Ridhi Napkins Set of 4/.test(m[0].text), JSON.stringify(m));
     ok('…not on Units or Ad spend', Y.sdcNotes(days2, days2.map(() => 50), xOf, yOf, 'units').length === 0);
   }
-  console.log('== the old charts are gone from sales-dashboard.js; renderSales draws through sdcRender, its numbers unchanged ==');
+  console.log('== the page: the approved chapters, every number still from renderSales ==');
   {
     const sd = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'sales', 'sales-dashboard.js'), 'utf8');
-    ok('renderSales calls sdcRender(today, yr, lyr); sdChartDaily / sdChartMonthly are no longer there', /if \(typeof sdcRender === 'function'\) sdcRender\(today, yr, lyr\)/.test(sd) &&!/function sdChartDaily|function sdChartMonthly/.test(sd));
+    ok('renderSales calls sdcRender(today, yr, lyr); the old chart functions are gone', /if \(typeof sdcRender === 'function'\) sdcRender\(today, yr, lyr\)/.test(sd) && !/function sdChartDaily|function sdChartMonthly/.test(sd));
     ok('the monthly chart adds up months exactly as the Monthly Comparison table (sdSum, the same two date windows)',
       /sdSum\(`\$\{yr\}-\$\{mm\}-01`, last\)\[0\]/.test(SRC) && /sdSum\(`\$\{lyr\}-\$\{mm\}-01`, `\$\{lyr\}-\$\{mm\}-31`\)\[0\]/.test(SRC));
     const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
-    ok('the page: 6 sparklines, the daily chart then the monthly chart (full width), the tables folded under "Show tables ▾"',
-      (html.match(/class="sd-spark" data-spark=/g) || []).length === 6 && html.indexOf('id="sdChartDaily"') < html.indexOf('id="sdChartMonthly"')
-      && html.indexOf('id="sdChartMonthly"') < html.indexOf('id="sdTables" hidden') && /Show tables ▾/.test(html)
-      && html.indexOf('id="sdTables" hidden') < html.indexOf('id="sdPeriodBody"') && html.indexOf('id="sdPeriodBody"') < html.indexOf('<!-- /sdTables -->'));
-    ok('the order: KPI cards → This week in plain English → Custom Range → daily → monthly → tables',
-      ['class="sd-kpis"', 'id="viBox"', 'Custom Range', 'id="sdChartDaily"', 'id="sdChartMonthly"', 'id="sdTablesBtn"'].map(k => html.indexOf(k)).every((v, i, a) => v > 0 && (!i || v > a[i - 1])));
+    const pane = html.slice(html.indexOf('<div id="paneSales"'), html.indexOf('</div><!-- /paneSales -->'));
+    const heads = [...pane.matchAll(/<h2 class="sdx-h">([^<]+)<\/h2>/g)].map(m => m[1]);
+    ok('seven chapters, the preview\'s headings in order', JSON.stringify(heads) === JSON.stringify(['Sales today.', 'This week, explained.', 'Every day vs last year.', 'Your busiest days.', 'Your weekly rhythm.', 'Month by month.', 'The details.']), heads.join(' | '));
+    ok('the order inside: the six numbers → this week → daily → calendar, top products → weekdays, channels → monthly → the tables → the Custom Range',
+      ['class="sdx-kpis"', 'id="viBox"', 'id="sdChartDaily"', 'id="sdxHeat"', 'id="sdxTop"', 'id="sdxPolar"', 'id="sdxDonut"', 'id="sdChartMonthly"', 'id="sdTablesBtn"', 'id="sdPeriodBody"', 'id="sdrSales"']
+        .map(k => pane.indexOf(k)).every((v, i, a) => v > 0 && (!i || v > a[i - 1])));
+    ok('every number renderSales writes keeps its id (and each is there once)', ['sdToday', 'sdYest', 'sd7', 'sd7p', 'sdMtd', 'sdMtdp', 'sdProj', 'sdProjp', 'sdYtd', 'sdYtdp', 'sdBrandLabel',
+      'sdPeriodBody', 'sdMonthlyBody', 'sdrSales', 'sdrQty', 'sdrItems', 'sdrAvg', 'sdSynced', 'sdFrom', 'sdTo', 'sdApply', 'sdRefresh', 'sdBrand', 'sdMsg', 'ncChipSd']
+      .every(id => pane.split(`id="${id}"`).length === 2));
+    ok('6 sparklines; the tables folded under "Show tables ▾"', (pane.match(/data-spark=/g) || []).length === 6 && /id="sdTables" hidden/.test(pane) && /Show tables ▾/.test(pane));
+    ok('no "sample" anywhere on the page', !/sample/i.test(pane));
+    ok('the libraries are not on the page: loaded only when the Sales Dashboard opens', !/<script[^>]+(echarts|lenis|ScrollTrigger)/i.test(html));
+    const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
+    const block = css.slice(css.lastIndexOf('/*', css.indexOf('THE SALES DASHBOARD AS CHAPTERS')), css.indexOf('@media (prefers-reduced-motion: reduce) { #paneSales'));
+    const sels = [...block.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(^|[{}])\s*([^{}@]+?)\s*\{/g)].map(m => m[2].trim()).filter(s => s && !/^(from|to|\d)/.test(s));
+    ok('the styles are the Sales page\'s only: every rule is under #paneSales (or the page behind it while it is open)',
+      sels.length > 50 && sels.every(sel => sel.split(',').every(p => /#paneSales|body:has\(#paneSales:not\(\.hide\)\)/.test(p))), sels.filter(sel => !sel.split(',').every(p => /#paneSales|body:has\(#paneSales/.test(p))).slice(0, 3).join(' | '));
   }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
