@@ -19,6 +19,12 @@
  *   error now shown (now showing to shoppers), shop page newly not buyable (suppressed). Kept for the day in lsync_state.changes.
  * DATA: only through lsGet / lsSave (listing-bf.js) — the one data door, so this can move to a server timer on another database later
  *   without touching the screens. /history is canAny: no rule change. No `day` field: Listing History never lists these documents.
+ * A RELOAD NEVER STARTS AGAIN FROM 0 (23 Nov 2026): the cycle's list (lsync_state.todo: the listings still to read) and its count
+ *   (last.got) are saved at the start and after every batch (each beat), so the next leader — this page reloaded, or another browser
+ *   taking over — CONTINUES that cycle ("Syncing… 86 of 200") instead of picking 200 again. A cycle older than LY_RESUME_MS is not
+ *   continued. Every page also takes in every saved read once, on its first beat (a reloaded leader too).
+ *   The test site keeps these documents in ERP data (listing-bf.js lsGet / lsSave) like every other test page save, so all test pages
+ *   share one sync; a test build that cannot save keeps the state in this browser (the same continuing, for this browser only).
  * Main functions: lyStart, lyBeat, lyCycle, lyPick, lyPull, lyFlush, lyLineHtml, lyLineDraw.
  * Pricing-App/tests/sync-test.js runs two (and three) browsers over one stub database. */
 // EVERY 2 HOURS, 9 AM – 7 PM (17 Nov 2026). Every 15 minutes, all day and night, cost ~600 Amazon calls a cycle out of the backend's
@@ -35,11 +41,14 @@ const LY_BATCH = 20;                      // SKUs per ?lfix=content call
 const LY_SHARDS = 20;                     // shop-side copy documents per brand
 const LY_STATE = 'lsync_state';
 const LY_KEEP_CHANGES = 300;              // "What changed" entries kept for the day
+const LY_RESUME_MS = 2 * 60 * 60 * 1000;  // a cycle cut short (a reload, a closed browser) is continued for this long after it began
+const LY_WHY = { 'false error': 'f', error: 'e', 'oldest read': 'o' };   // why a listing is in the cycle, as kept in lsync_state.todo
 const LY = {
   tab: Math.random().toString(36).slice(2, 10) + Date.now().toString(36),
   on: false,
   leader: false,
-  local: false,            // test site / local: syncs for itself, writes nothing
+  local: false,            // a test page that cannot save to a database: its state is kept in this browser, no shop-side copy written
+  pulled: false,           // every saved read taken in once (the first beat)
   state: {},               // the last lsync_state read or written: { lock, v, shards, last, changes, day, dayAt, want }
   seen: {},                // document id → the version merged here
   run: null,               // the cycle in progress: { at, n, done, left: Map, before: Map }
@@ -94,7 +103,11 @@ async function lyStart() {
     });
     document.addEventListener('click', lyClick);
   }
-  if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('pagehide', () => { if (LY.leader && !LY.local) lsSave(BF_COLL, LY_STATE, { lock: { tab: LY.tab, beat: 0 } }).catch(() => {}); });
+  if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('pagehide', () => {
+    // leaving (a reload, a closed tab): the lock is let go at once, so the next page takes over and continues the cycle from its
+    // last saved progress (each beat; the reads since are read again — progress is never saved ahead of the reads it counts)
+    if (LY.leader) lsSave(BF_COLL, LY_STATE, { lock: { tab: LY.tab, beat: 0 } }).catch(() => {});
+  });
   if (typeof LI_WS !== 'undefined' && !LI_WS.stored && typeof liWsStoreLoad === 'function') liWsStoreLoad();
   if (typeof svLoad === 'function') await svLoad();
   await lyBeat();
@@ -104,14 +117,19 @@ async function lyStart() {
 /** One beat: hold or claim the lock (or stay a follower), take in what the leader wrote, start a cycle when one is due. */
 async function lyBeat() {
   const now = LY.now();
-  LY.local = LY.local || lsOff();                 // the test site / local: this browser syncs for itself
+  LY.local = LY.local || lsOff();                 // a test page that cannot save: the state below lives in this browser (lsGet / lsSave)
   try {
-    if (LY.local) LY.leader = true;
-    else if (lyHidden(now)) {
+    if (!LY.local && lyHidden(now)) {
       if (LY.leader) { LY.leader = false; LY.q = []; await lsSave(BF_COLL, LY_STATE, { lock: { tab: LY.tab, beat: 0 } }); }
       return;
+    }
+    // no shared place (LY.local): the state this browser kept is read once — a cycle a reload cut short is continued from it
+    const st = LY.local && LY.pulled ? LY.state : ((await lsGet(BF_COLL, LY_STATE)) || {});
+    if (LY.local) {
+      // …and this browser syncs for itself: no lock
+      if (!LY.pulled) { LY.pulled = true; LY.state = Object.assign({}, st, LY.state.last ? LY.state : {}, { lock: null }); }
+      LY.leader = true;
     } else {
-      const st = (await lsGet(BF_COLL, LY_STATE)) || {};
       LY.state = st;
       const lock = st.lock || null;
       const mine = !!(lock && lock.tab === LY.tab);
@@ -129,14 +147,17 @@ async function lyBeat() {
         if (LY.leader) LY.q = [];                     // the lock went to another browser: its reads stop here
         LY.leader = false;
       }
-      if (!LY.leader) await lyPull(LY.state);
+      // a follower: what the leader wrote since; every page once, on its first beat: every saved read (a reloaded leader too)
+      if (!LY.leader || !LY.pulled) { LY.pulled = true; await lyPull(LY.state); }
     }
     if (LY.leader) {
-      if (LY.run) await lyFlush();                   // mid-cycle: what is read so far reaches the others within a minute
+      if (LY.run) await lyFlush();                   // mid-cycle: what is read so far reaches the others (and is kept) within a minute
       if (typeof lmSettled === 'function') await lmSettled();   // the cache's copy first: is the auto refresh fresh?
       const last = (LY.state.last && LY.state.last.at) || 0;
+      // a cycle cut short (this page reloaded, the syncing browser closed): continued where it stopped, never started again from 0
+      const resume = lyResumable(now);
       // automatic: every 2 hours inside 9 AM – 7 PM; asked for (Sync now, here or in another browser): any time
-      if (!LY.run && lyNeeded() && ((lyInHours(now) && now - last >= LY_CYCLE_MS) || (LY.state.want || 0) > last || LY.asked > last)) lyCycle();
+      if (!LY.run && lyNeeded() && (resume || (lyInHours(now) && now - last >= LY_CYCLE_MS) || (LY.state.want || 0) > last || LY.asked > last)) lyCycle(resume);
     }
   } catch (e) {
     LY.err = String((e && e.message) || e);
@@ -191,19 +212,43 @@ function lyChanged(was, now) {
   else if ((was.shop === 'r' && now.shop === 'g') || (was.late && !now.late)) out.push('now showing to shoppers');
   return out;
 }
-/** Start a cycle now (the leader): pick, then queue each listing's reads. */
-async function lyCycle() {
+/** The cycle a leader should continue, or null: begun at most LY_RESUME_MS ago, not finished, listings still to read. */
+function lyResumable(now) {
+  const st = LY.state || {};
+  const last = st.last || {}, todo = st.todo || null;
+  if (!last.at || last.done || !todo || todo.at !== last.at || !Array.isArray(todo.items) || !todo.items.length) return null;
+  return now - last.at < LY_RESUME_MS ? todo : null;
+}
+// "SP|sku|o" ↔ { brand, sku, why } (the saved list of a cycle's listings still to read)
+const lyTodoCode = item => `${item.brand}|${item.sku}|${LY_WHY[item.why] || 'o'}`;
+function lyTodoItem(code) {
+  const [brand, sku, w] = String(code).split('|');
+  const why = Object.keys(LY_WHY).find(k => LY_WHY[k] === w) || 'oldest read';
+  return brand && sku ? { brand, sku, why } : null;
+}
+// The listings of the cycle not read in full yet, as saved.
+const lyLeft = run => run.items.filter(item => (run.left.get(item.brand + '|' + item.sku) || 0) > 0).map(lyTodoCode);
+/** Start a cycle now (the leader): pick, then queue each listing's reads. `resume` (lsync_state.todo): continue that cycle instead —
+ *  its listings still to read, its count going on where it stopped. */
+async function lyCycle(resume) {
   if (LY.run || !LY.leader || lySendOpen() || !lyNeeded()) return false;
   const now = LY.now();
-  LY.run = { at: now, n: 0, done: 0, left: new Map(), before: new Map() };
-  try { await lyPrep(); } catch (e) { LY.err = String((e && e.message) || e); }
-  const items = lyPick(now);
-  const run = LY.run;
-  run.n = items.length;
   const st = LY.state;
+  const at = resume ? resume.at : now;
+  LY.run = { at, n: 0, done: 0, saved: -1, left: new Map(), before: new Map(), items: [] };
+  try { await lyPrep(); } catch (e) { LY.err = String((e && e.message) || e); }
+  const auto = { SP: lyAuto('SP'), CPC: lyAuto('CPC') };   // a brand the auto refresh has made fresh again is not read
+  const items = resume ? resume.items.map(lyTodoItem).filter(item => item && !auto[item.brand]) : lyPick(now);
+  const run = LY.run;
+  run.items = items;
+  run.n = resume ? Math.max((st.last && st.last.n) || 0, items.length) : items.length;
+  run.done = run.n - items.length;                   // a continued cycle: what was read before the reload counts
   if (st.day !== lyDay(now)) Object.assign(st, { day: lyDay(now), dayAt: now, changes: [] });   // a new day: "changed since" starts again
-  st.last = { at: now, n: items.length, done: false, end: (st.last && st.last.end) || 0 };
-  if (!LY.local) await lsSave(BF_COLL, LY_STATE, { last: st.last, day: st.day, dayAt: st.dayAt, changes: st.changes || [] });
+  st.last = { at, n: run.n, got: run.done, done: false, end: (st.last && st.last.end) || 0 };
+  st.todo = { at, items: items.map(lyTodoCode) };
+  run.saved = run.done;
+  try { await lsSave(BF_COLL, LY_STATE, { last: st.last, todo: st.todo, day: st.day, dayAt: st.dayAt, changes: st.changes || [] }); }
+  catch (e) { LY.err = String((e && e.message) || e); }   // not kept this time: the next beat saves the progress again
   if (!items.length) return lyEnd();
   items.forEach(item => {
     run.before.set(item.brand + '|' + item.sku, lyLook(item.brand, item.sku, now));
@@ -241,6 +286,8 @@ function lyPump() {
   }
   while (LY.inflight < LY_INFLIGHT && LY.q.length) {
     const job = LY.q.shift();
+    // the Amazon auto refresh landed fresh for this brand while the cycle ran: its data is newer than these reads would be
+    if (lyAuto(job.brand)) { (job.skus || [job.sku]).forEach(sku => lyOneDone(job.brand, sku)); continue; }
     LY.inflight++;
     const skus = job.skus || [job.sku];
     liWsQueue(Object.assign({ pk: '', units: skus.length }, job, { done: () => {
@@ -250,6 +297,7 @@ function lyPump() {
       if (LY.run && !LY.q.length && !LY.inflight) lyEnd();
     } }));
   }
+  if (LY.run && !LY.q.length && !LY.inflight) lyEnd();   // every job left was skipped
 }
 // One of a listing's reads landed; with its last one: what changed, and its shop-side record into the copy.
 function lyOneDone(brand, sku) {
@@ -275,9 +323,12 @@ async function lyEnd() {
   if (!run) return;
   LY.run = null;
   const now = LY.now();
-  LY.state.last = { at: run.at, n: run.n, done: true, end: now };
-  await lyFlush();
-  if (!LY.local) await lsSave(BF_COLL, LY_STATE, { last: LY.state.last, changes: LY.state.changes || [] });
+  LY.state.last = { at: run.at, n: run.n, got: run.n, done: true, end: now };
+  LY.state.todo = null;
+  try {
+    await lyFlush();
+    await lsSave(BF_COLL, LY_STATE, { last: LY.state.last, todo: null, changes: LY.state.changes || [] });
+  } catch (e) { LY.err = String((e && e.message) || e); }
   lyLineDraw();
 }
 
@@ -322,25 +373,38 @@ function lyNote(brand, sku) {
   if (typeof svDocId === 'function') LY.touched.add(svDocId(brand, sku));   // its content went to the saved copy (svNote)
 }
 /** Write what the cycle read so far, then tell every browser: a new version and the documents it touched. */
+// The cycle's progress since it was last saved (how many read, the listings still to read) — {} when nothing new. A reload continues from it.
+function lyProgress() {
+  const run = LY.run;
+  if (!run || run.done === run.saved) return {};
+  run.saved = run.done;
+  LY.state.last = { at: run.at, n: run.n, got: run.done, done: false, end: (LY.state.last && LY.state.last.end) || 0 };
+  LY.state.todo = { at: run.at, items: lyLeft(run) };
+  return { last: LY.state.last, todo: LY.state.todo, changes: LY.state.changes || [] };
+}
 async function lyFlush() {
-  if (LY.local) { LY.touched.clear(); return; }
-  const work = Object.entries(LY.dirty);
-  LY.dirty = {};
-  for (const [id, part] of work) {
-    try {
-      await lsSave(BF_COLL, id, { kind: 'lsync', brand: part.brand, items: part.items });
-      LY.touched.add(id);
-    } catch (e) { LY.err = String((e && e.message) || e); }
+  const save = lyProgress();
+  if (LY.local) LY.touched.clear();                  // no shared place: this browser's own copy (the Workspace's) holds the reads
+  else {
+    const work = Object.entries(LY.dirty);
+    LY.dirty = {};
+    for (const [id, part] of work) {
+      try {
+        if (await lsSave(BF_COLL, id, { kind: 'lsync', brand: part.brand, items: part.items })) LY.touched.add(id);
+      } catch (e) { LY.err = String((e && e.message) || e); }
+    }
+    if (typeof svFlush === 'function') await svFlush();   // the content reads in the saved copy, before the others are told
   }
-  if (typeof svFlush === 'function') await svFlush();   // the content reads in the saved copy, before the others are told
-  if (!LY.touched.size) return;
-  const v = (LY.state.v || 0) + 1;
-  const shards = {};
-  LY.touched.forEach(id => { shards[id] = v; LY.seen[id] = v; });
-  LY.touched.clear();
-  LY.state.v = v;
-  LY.state.shards = Object.assign({}, LY.state.shards || {}, shards);
-  await lsSave(BF_COLL, LY_STATE, { v, shards });
+  if (LY.touched.size) {
+    const v = (LY.state.v || 0) + 1;
+    const shards = {};
+    LY.touched.forEach(id => { shards[id] = v; LY.seen[id] = v; });
+    LY.touched.clear();
+    LY.state.v = v;
+    LY.state.shards = Object.assign({}, LY.state.shards || {}, shards);
+    Object.assign(save, { v, shards });
+  }
+  if (Object.keys(save).length) await lsSave(BF_COLL, LY_STATE, save);
 }
 /** A follower: merge the documents the leader wrote since this browser last looked, then redraw where the person is. */
 async function lyPull(st) {
@@ -392,7 +456,7 @@ function lyLineHtml(now) {
     return line + btn + lyListHtml(today);
   }
   if (LY.run) parts.push(`Syncing… ${faNfLy(LY.run.done)} of ${faNfLy(LY.run.n)}`);
-  else if (last.at && !last.done && !LY.leader) parts.push('Syncing now…');
+  else if (last.at && !last.done && !LY.leader) parts.push(last.n ? `Syncing… ${faNfLy(last.got || 0)} of ${faNfLy(last.n)}` : 'Syncing now…');   // another browser's cycle, as far as it has saved
   else parts.push(last.end ? `Synced ${lyAgo(now, last.end)}` : 'Not synced yet');
   if (changed) parts.push(changed);
   if (!LY.run) {
@@ -447,6 +511,6 @@ async function lySyncNow() {
   }
   if (typeof lmRefresh === 'function') lmRefresh();
   if (LY.leader) await lyCycle();
-  else if (!LY.local) await lsSave(BF_COLL, LY_STATE, { want: LY.asked }).catch(() => {});
+  else await lsSave(BF_COLL, LY_STATE, { want: LY.asked }).catch(() => {});
   lyLineDraw();
 }

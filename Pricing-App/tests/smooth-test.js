@@ -164,7 +164,8 @@ console.log('== number formats ==');
 /* ---- nothing new talks to Amazon or the backend ---- */
 console.log('== no new calls ==');
 {
-  const calls = s => (s.match(/\b(baCall|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g) || []).length;
+  // lmNet (listing-match.js, 23 Nov): its reads of the listing cache go straight to the backend — each is a backend call, as baCall was
+  const calls = s => (s.match(/\b(baCall|lmNet|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g) || []).length;
   // listing-ai.js (the ✨ AI file) is set aside: its calls run only on a click, or once per page load for the status — its own test
   // (listing-ai-test.js) proves no call on page open; its only new database calls are the house style approvals (lsGet / lsSave, Listing Rules' store)
   const mine = changed.filter(f => f !== 'listing-ai.js');

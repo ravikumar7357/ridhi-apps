@@ -264,7 +264,84 @@ const seeded = () => { const db = makeDb(); db.store['history/lsync_state'] = { 
     ok('…and still read and judged (the line says it synced)', /^Synced just now/.test(strip(L.C.lyLineHtml(T))), strip(L.C.lyLineHtml(T)));
   }
 
+  console.log('== a reload never starts again from 0: the next page continues the cycle (23 Nov 2026) ==');
+  {
+    const keepT = T;
+    T = new Date(2026, 10, 17, 11, 0).getTime();
+    // the page "reloads" mid-cycle: its last beat saved the progress (lyFlush), pagehide lets the lock go, then this page is gone
+    const reload = async (P, db) => {
+      await P.C.lyFlush();
+      await P.C.lsSave('history', 'lsync_state', { lock: { tab: P.C.LY.tab, beat: 0 } });
+      P.C.LY.q = []; P.C.LY.run = null; P.C.LY.leader = false;
+      await new Promise(r => setTimeout(r, 20));          // its reads still out land on nothing
+      return JSON.parse(JSON.stringify(db.store['history/lsync_state']));
+    };
+    const runTill = async (P, n) => { for (let i = 0; i < 2000 && !(P.C.LY.run && P.C.LY.run.done >= n); i++) await new Promise(r => setTimeout(r, 1)); };
+    const skusRead = P => new Set(P.calls.list.filter(x => /^get:/.test(x)).map(x => x.slice(4)));
+    for (const site of [{ name: 'live', window: undefined }, { name: 'the test site (its saves go to ERP data)', window: { __TEST_ERP: { sbOn: true } } }]) {
+      const db = makeDb();
+      const A = browser(db, {}, { window: site.window });
+      await A.C.lyBeat();
+      for (let i = 0; i < 200 && !((db.store['history/lsync_state'] || {}).todo || {}).items; i++) await new Promise(r => setTimeout(r, 0));   // the cycle saves its list as it starts
+      ok(`${site.name}: a cycle starts and saves its list of listings to read`, !!A.C.LY.run && (((db.store['history/lsync_state'] || {}).todo || {}).items || []).length === A.C.LY.run.n,
+        JSON.stringify(((db.store['history/lsync_state'] || {}).todo || {}).items || []).slice(0, 80));
+      await runTill(A, 6);
+      const st = await reload(A, db);
+      const got = st.last.got, n = st.last.n, left = st.todo.items.map(c => c.split('|')[1]);
+      ok(`${site.name}: at the reload the progress is kept — ${got} of ${n} read, ${left.length} still to read`, got >= 6 && got + left.length === n && !st.last.done, JSON.stringify(st.last));
+      const B = browser(db, {}, { window: site.window });
+      await B.C.lyBeat();
+      await new Promise(r => setTimeout(r, 0));
+      ok(`${site.name}: the next page CONTINUES that cycle (same start, its count goes on) — not 0 of 200`, B.C.LY.run && B.C.LY.run.at === st.last.at && B.C.LY.run.n === n && B.C.LY.run.done >= got,
+        B.C.LY.run && JSON.stringify({ at: B.C.LY.run.at === st.last.at, n: B.C.LY.run.n, done: B.C.LY.run.done }));
+      ok(`${site.name}: …its line says so ("Syncing… ${got} of ${n}")`, new RegExp(`^Syncing… \\d+ of ${n}`).test(strip(B.C.lyLineHtml(T))) && B.C.LY.run.done >= got, strip(B.C.lyLineHtml(T)));
+      await idle(B.C);
+      const readB = skusRead(B);
+      ok(`${site.name}: it reads only the listings still to read — none read again`, [...readB].every(s => left.includes(s)) && left.every(s => readB.has(s)), [...readB].filter(s => !left.includes(s)).join() + ' | ' + left.filter(s => !readB.has(s)).join());
+      const end = db.store['history/lsync_state'];
+      ok(`${site.name}: then the cycle ends once (done, nothing left to read)`, end.last.done && end.last.n === n && end.last.at === st.last.at && end.todo === null, JSON.stringify(end.last));
+      T += 31000;
+      B.calls.list.length = 0;
+      await B.C.lyBeat(); await idle(B.C);
+      ok(`${site.name}: the next beat starts nothing (synced; next sync in 2 hours)`, !B.C.LY.run && !B.calls.list.length, B.calls.list.slice(0, 3).join());
+    }
+    // a cycle cut short more than 2 hours ago is not continued: the due sync picks again
+    {
+      const db = makeDb();
+      db.store['history/lsync_state'] = { kind: 'lsync', last: { at: T - 3 * 60 * MIN, n: 200, got: 50, done: false, end: 0 }, todo: { at: T - 3 * 60 * MIN, items: ['SP|L1|o', 'SP|L2|o'] }, day: '2026-11-17', dayAt: T - 3 * 60 * MIN, changes: [] };
+      const P = browser(db, {});
+      ok('a cycle begun more than 2 hours ago is not continued', P.C.lyResumable(T) === null || !P.C.lyResumable(T));
+      P.C.LY.state = db.store['history/lsync_state'];
+      ok('…one begun 1 hour ago is', !!(Object.assign(P.C.LY.state.last, { at: T - 60 * MIN }), P.C.LY.state.todo.at = T - 60 * MIN, P.C.lyResumable(T)));
+    }
+    // the test site, ERP data refusing the save (no right): this browser syncs for itself, and keeps its progress here
+    {
+      const db = makeDb();
+      const refuse = { getDoc: db.getDoc, setDoc: async () => { throw Object.assign(new Error('ERP data: permission denied'), { code: 'permission-denied' }); }, store: db.store, writes: db.writes };
+      const R = browser(refuse, {}, { window: { __TEST_ERP: { sbOn: true } } });
+      await R.C.lyBeat(); await R.C.lyBeat();
+      await runTill(R, 3);
+      ok('test site, save refused: this browser syncs for itself (no lock, nothing in the database)', R.C.LY.local && R.C.LY.leader && R.C.LS.refused && !db.writes.length, JSON.stringify({ local: R.C.LY.local, leader: R.C.LY.leader, refused: R.C.LS.refused }));
+      T += 31000; await R.C.lyBeat();
+      const kept = R.C.lsLocalGet('history', 'lsync_state') || {};
+      ok('…and its progress is kept in this browser (a reload continues it)', kept.last && kept.last.n > 0 && kept.todo && kept.todo.items.length === kept.last.n - kept.last.got, JSON.stringify(kept.last));
+      await idle(R.C);
+    }
+    T = keepT;
+  }
+
   console.log('== the one data door ==');
+  {
+    const db = makeDb();
+    db.store['listingrules/famok_SP'] = { kind: 'famok', items: { x: 1 } };
+    db.store['history/lsync_SP_3'] = { kind: 'lsync', items: {} };
+    const P = browser(db, {}, { window: { __TEST_ERP: { sbOn: true } } });
+    const other = await P.C.lsGet('listingrules', 'famok_SP'), mine = await P.C.lsGet('history', 'lsync_SP_3');
+    const saved = await P.C.lsSave('listingrules', 'famok_SP', { items: { y: 2 } });
+    ok('test site: only the sync\'s documents (lsync_…, lcache_…) are read and saved in ERP data — any other stays as before (nothing)', !other && !!mine && saved === false && !db.writes.includes('listingrules/famok_SP'), JSON.stringify({ other, mine: !!mine, saved }));
+    const Q = browser(makeDb(), {}, { window: { __TEST_ERP: true } });
+    ok('a test build that cannot save: the sync is this browser\'s own (lsOff)', Q.C.lsOff() && !P.C.lsOff());
+  }
   {
     const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'app', 'listing', 'listing-sync.js'), 'utf8').replace(/\/\*[^]*?\*\//g, '');
     const saved = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'app', 'listing', 'listing-saved.js'), 'utf8').replace(/\/\*[^]*?\*\//g, '');

@@ -589,6 +589,33 @@ const rowOf = (C, sku) => ['SP', 'CPC'].map(b => C.HEALTH[b].rows.find(r => r.sk
       && Object.keys(it('R1').live).length === before && before > 0, JSON.stringify([bad.item.liveErr, Object.keys(it('R1').live).length]));
   }
 
+  console.log('== THE NEWEST PASS, straight from the backend; a failed read is said and tried again (23 Nov 2026) ==');
+  {
+    const strip = h => String(h).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    // the real page has baCallNet (the backend) next to baCall (the Ads screens' copy kept in the browser up to 36 hours)
+    const H2 = { tabs: null, net: [], down: false };
+    const P = page({ load: { ctx: { baCallNet: async q => { H2.net.push(q.cache); if (H2.down) throw new Error('The backend did not answer (timed out)'); const d = H2.tabs && H2.tabs[q.cache]; if (!d) throw new Error(`nothing cached for "${q.cache}" yet`); return { ok: true, name: q.cache, data: JSON.parse(JSON.stringify(d)) }; } } } });
+    H2.tabs = cacheOf(P.C, { at: Date.now() - 20 * H }).tabs;
+    await P.C.lmEnsure(); await P.C.lmRefresh();
+    ok('the listing cache (lmMeta and its tabs) is read from the backend itself — never from the browser-kept copy', H2.net.includes('lmMeta') && H2.net.some(t => /^lmListings_/.test(t)) && !P.calls.some(q => q.cache), H2.net.join() + ' | kept: ' + P.calls.filter(q => q.cache).map(q => q.cache).join());
+    // a newer pass is written; the backend does not answer this time
+    const newer = cacheOf(P.C, { at: Date.now() - 5 * 60000 }).tabs;
+    const real = P.C.lmFmt(H2.tabs.lmMeta.finishedAt), fresh = P.C.lmFmt(newer.lmMeta.finishedAt);
+    H2.down = true;
+    const t0 = Date.now();
+    await P.C.lmRefresh();
+    const line = strip(P.C.lmAgeHtml());
+    ok(`a failed read is SAID on the age line, with when it is tried again ("Amazon data: ${real} · … could not read the newer data — trying again ~hh:mm")`,
+      line.startsWith('Amazon data: ' + real) && /could not read the newer data — trying again ~\d\d:\d\d$/.test(line), line);
+    ok('…and it is tried again within about a minute (not only at the 15-minute check)', P.C.LM.retryT && P.C.LM.nextTry - t0 <= 61000 && P.C.LM.nextTry - t0 >= 59000, String(P.C.LM.nextTry - t0));
+    // the backend answers again: the retry brings the newer pass, and the line its date
+    H2.tabs = newer; H2.down = false;
+    clearTimeout(P.C.LM.retryT);
+    await P.C.lmRefresh();
+    const line2 = strip(P.C.lmAgeHtml());
+    ok(`the retry lands the newer pass: "Amazon data: ${fresh} · next refresh …" (no failure left on the line, no retry waiting)`, line2.startsWith('Amazon data: ' + fresh) && !/could not/.test(line2) && !P.C.LM.retryT && !P.C.LM.fails, line2);
+  }
+
   console.log('== SPEED: ~4,400 listings from the saved copy ==');
   {
     const first = page();
