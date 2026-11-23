@@ -2952,12 +2952,15 @@ function invCutCell(r) {
     + (c.waiting ? '<div class="sub">' + nf(c.waiting) + ' waiting approval</div>' : '') + '</td>';
 }
 /** The drop-down's rows: each size with what was cut, sent and is left, then the entries still waiting or refused under it. */
-function ctsDetailRows(c) {
+/* SEND TO PRINTER ON EACH SIZE (Vishesh, 23 Nov: "the page is showing pieces but where is the option to send to printer"): a size
+ * with pieces left has its own Send to printer in Next step, which opens the card on that size -- the orders waiting for it. */
+function ctsDetailRows(c, fabric) {
   var rows = [];
   c.sizes.forEach(function (z) {
     if (z.cut > 0 || z.sent > 0) {
+      var send = fabric && z.left > 0 ? '<button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(fabric) + '" data-ctssize="' + esc(z.key) + '" title="Make an RFD challan to a printer for the orders waiting for ' + esc(ctsSizeText(z)) + '">Send to printer</button>' : '';
       rows.push('<tr><td class="tl b">' + esc(ctsSizeText(z)) + '</td><td class="num">' + nf(z.cut) + ' pcs</td><td class="num">' + (z.sent ? nf(z.sent) + ' pcs' : '—') + '</td>'
-        + '<td class="num b">' + nf(z.left) + ' pcs<div class="sub">' + ctsN(z.leftM) + ' m</div></td><td class="tl"></td><td></td></tr>');
+        + '<td class="num b">' + nf(z.left) + ' pcs<div class="sub">' + ctsN(z.leftM) + ' m</div></td><td class="tl">' + (z.left > 0 ? '<span class="muted">Ready to send</span>' : '<span class="muted">All sent</span>') + '</td><td>' + send + '</td></tr>');
     }
     z.asks.forEach(function (r) { rows.push(ctsAskRow(r)); });
   });
@@ -3068,7 +3071,7 @@ function ctsSendBlocked() {
   if (typeof flowScreenAllowed === 'function' && !flowScreenAllowed().some(function (b) { return b[0] === 'drfd'; })) return 'Making an RFD challan needs Demand → RFD access.';
   return '';
 }
-async function ctsSendOpen(fabric) {
+async function ctsSendOpen(fabric, sizeKey) {
   var why = ctsSendBlocked(); if (why) { lmSay('warn', why); return; }
   lmSay('ok', 'Reading the lines waiting for ' + fabric + '…');
   try { await flowEnsureData(); } catch (e) {
@@ -3077,7 +3080,9 @@ async function ctsSendOpen(fabric) {
   }
   var sizes = ctsOf(fabric).sizes.filter(function (z) { return z.left > 0; });
   if (!sizes.length) { lmSay('warn', 'No approved cut pieces of ' + fabric + ' are left to send.'); return; }
-  CTS_SEND = { fabric: fabric, size: sizes[0].key, off: {} };
+  /* opened from a size's own button: that size; from the button above the table: the first size with pieces left */
+  var first = sizes.filter(function (z) { return z.key === sizeKey; })[0] || sizes[0];
+  CTS_SEND = { fabric: fabric, size: first.key, off: {} };
   ptOpenDialog({
     title: 'Cut pieces — ' + fabric + ' → printer',
     subtitle: 'From the pieces already cut to size. Each line takes the pieces it still owes, oldest order first, while the cut pieces last. Untick a line to leave it out.',
@@ -3087,7 +3092,7 @@ async function ctsSendOpen(fabric) {
         return '<option value="' + esc(p.code) + '">' + esc(p.desc || p.name || p.code) + '</option>';
       }).join('') + '</select></label>'
       + '<label>Cut size<select id="ctsSize">' + sizes.map(function (z) {
-        return '<option value="' + esc(z.key) + '">' + esc(ctsSizeText(z)) + ' — ' + nf(z.left) + ' pcs left</option>';
+        return '<option value="' + esc(z.key) + '"' + (z.key === first.key ? ' selected' : '') + '>' + esc(ctsSizeText(z)) + ' — ' + nf(z.left) + ' pcs left</option>';
       }).join('') + '</select></label>'
       + '<label>Date<input value="' + esc(dToday()) + '" readonly title="A challan from here is made today"></label></div>'
       + '<div id="ctsBody" style="margin-top:10px;border:1px solid var(--line,#e3e7ef);border-radius:10px;max-height:55vh;overflow:auto"></div>'
@@ -3141,7 +3146,7 @@ function wireCutToSize() {
     var t = ev.target.closest ? ev.target.closest('[data-ctsmode],[data-ctsdec],[data-ctssend]') : null; if (!t) return;
     if (t.getAttribute('data-ctsmode') && CUT) { CUT.mode = t.getAttribute('data-ctsmode'); cutDraw(); return; }
     if (t.getAttribute('data-ctsdec')) { var d = t.getAttribute('data-ctsdec').split('|'); ctsDecideOnScreen(d[0], d[1] === 'ok'); return; }
-    if (t.getAttribute('data-ctssend')) { ctsSendOpen(t.getAttribute('data-ctssend')); return; }
+    if (t.getAttribute('data-ctssend')) { ctsSendOpen(t.getAttribute('data-ctssend'), t.getAttribute('data-ctssize') || ''); return; }
   });
   /* the printer card lives in the app's own dialog, so its boxes are heard on the page, not in the desk's root */
   window.document.addEventListener('change', function (ev) {
@@ -3903,7 +3908,7 @@ function invDetail(r, col) {
     empty = 'Nothing of ' + r.fabric + ' is at an RFD processor.';
   } else if (col === 'cut') {
     head = ['Size (W × L)', 'Cut', 'Sent to printer', 'Left', 'Status', 'Next step'];
-    body = ctsDetailRows(r.cut);
+    body = ctsDetailRows(r.cut, r.fabric);
     empty = 'Nothing has been cut to size from ' + r.fabric + ' yet.';
   } else {
     head = ['Lot', 'PO', 'Supplier challan', 'RFD processor', 'Back on', 'Came back', 'To cutting', 'Damaged', 'On shelf', 'Next step'];

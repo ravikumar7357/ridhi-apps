@@ -127,6 +127,8 @@ const det = G.invDetail(invRow('Sheeting 72'), 'cut');
 ok('the drop-down has the Send to printer button at the top when pieces are left', det.indexOf('data-ctssend="Sheeting 72"') > 0 && det.indexOf('data-ctssend') < det.indexOf('<table'));
 ok('…rows by size with Cut, Sent to printer, Left', /60 × 90/.test(text(det)) && /Sent to printer/.test(text(det)) && /Left/.test(text(det)) && /40 pcs/.test(text(det)));
 ok('…and the waiting 60 × 60 with its status', /Waiting approval/.test(text(det)) && /10 pcs/.test(text(det)));
+/* Vishesh, 23 Nov: "the page is showing pieces but where is the option to send to printer" */
+ok('…each size with pieces left has its own Send to printer in Next step, for that size', /data-ctssend="Sheeting 72" data-ctssize="[^"]+"/.test(det) && /Ready to send/.test(text(det)));
 deskWith([shelf(1000)]); signIn(STORE); ask(60, 90, 40);
 ok('no Send to printer button while nothing approved is left', !/data-ctssend/.test(G.invDetail(invRow('Sheeting 72'), 'cut')));
 
