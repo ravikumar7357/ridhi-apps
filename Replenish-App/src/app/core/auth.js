@@ -259,7 +259,7 @@ onAuthStateChanged(auth, async user => {
      * the Replenishment snapshot at sign-in — a vendor's among them. */
     'vlog', 'cx', ...FLOW_TABS,
     /* The Greige Desk's four rights (2026-10-13) are factory screens too. */
-    'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdpo', 'gdpoappr',
+    'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdcut', 'gdpo', 'gdpoappr',
     /* Approving a change of printer on an RFD challan is a factory right too (Vishesh, 23 Nov). */
     'flprn'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));

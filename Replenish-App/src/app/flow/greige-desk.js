@@ -22,7 +22,7 @@ const GD = (function () {
   };
   var localStorage = { getItem: function () { return null; }, setItem: function () {} };
   var GD_CSS = "[hidden]{display:none!important} img{max-width:100%} \n/* Layout: the Replenish app's own frame -- a bar of screens across the top, soft cards on a tinted\n   ground -- with the greige work at its centre: each PO opens into its challans, each challan into its\n   bales, and receiving is a drawer from the right, opened from the PO itself. */\n:host{display:block;\n  --bg:#F3F5F8; --card:#ffffff; --soft:#F7F9FB; --chip:#EFF2F6; --hover:#EFF2F6; --zebra:#FBFCFE; --line:#E8EDF3;\n  --ink:#14181F; --muted:#5A6472; --faint:#98A1AE;\n  --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#ffffff;\n  --accent:#4A5A3C; --accent-bg:#EDF0E7; --ok-ink:#2F6B33;\n  --bad:#9B1C1C; --bad-bg:#FBE9E9; --bad-line:#EBB9B9;\n  --warn-ink:#8A5A12; --warn-bg:#FFF3D6; --proc-ink:#7F6000;\n  --pink:#9B3F86; --pink-bg:#F7E8F3;\n  --c-greige:#9A6410; --c-proc:#2F6DB5; --c-rfd:#3F7D3A; --wa:#128C3E;\n  --scrim:rgba(15,23,42,.45); --toast-bg:#14181F; --toast-fg:#ffffff;\n  --sh-1:0 2px 10px rgba(20,24,31,.05); --sh-2:0 4px 16px rgba(20,24,31,.09); --sh-3:0 24px 64px rgba(20,24,31,.22);\n  --ring:0 0 0 3px rgba(110,144,181,.32); --ring-line:#6E90B5;\n  --r-card:18px; --r-ctl:12px; --r-sm:10px; --r-pill:999px; --ctl:40px;\n  --sans:\"Plus Jakarta Sans\",ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;\n  --serif:\"Libre Caslon Text\",\"Iowan Old Style\",Baskerville,\"Times New Roman\",serif;\n  --mono:ui-monospace,\"Cascadia Mono\",Consolas,\"Courier New\",monospace;\n}\n\n\n\n*{box-sizing:border-box}\n.gdroot{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;border-radius:18px}\n.pill,.tnum,.metric .v,.dfig,.gk-v,.num,.prog,.pc-m,.pc input,.pr input{font-variant-numeric:tabular-nums}\nh1,h2{letter-spacing:-.02em;text-wrap:balance}\n.muted{color:var(--muted)} .b{font-weight:700} .sub{font-size:12px;color:var(--muted)} .grow{flex:1}\n.mono{font-family:var(--mono);font-size:12.5px} .hide{display:none!important}\n.sel{user-select:text}\n\n/* ---- the frame ---- */\n.shell{display:flex;flex-direction:column;min-height:100%}\n.side{position:static;border-radius:18px 18px 0 0;display:flex;align-items:center;gap:2px;flex-wrap:wrap;\n  background:var(--card);box-shadow:var(--sh-1);padding:8px 16px}\n.brand{padding:0 14px 0 2px}\n.brandname{font-family:var(--serif);font-size:16px;letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column;line-height:1}\n.brandsub{font-family:var(--sans);font-size:7.5px;font-weight:600;letter-spacing:.22em;color:var(--muted);margin-top:3px}\n.navgrp{background:transparent;color:var(--muted);box-shadow:none;border:0;font:inherit;font-size:13px;font-weight:600;padding:8px 12px;border-radius:var(--r-sm);cursor:pointer}\n.navgrp:hover{color:var(--ink);background:var(--hover)}\n.navgrp.here{color:var(--brand);background:var(--brand-bg);font-weight:800}\n.sidefoot{margin-left:auto;display:flex;align-items:center;gap:8px}\n.lm-tag{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);background:var(--warn-bg);color:var(--warn-ink);font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}\n.main{flex:1;min-width:0;width:100%;max-width:1560px;margin:0 auto;padding-inline:22px;padding-block:18px 48px}\n@media (max-width:640px){.main{padding-inline:16px}.side{padding:8px 12px;position:static}.brandsub{display:none}.frow select{flex:1 1 100%}}\n.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}\n.lm-h{font-family:var(--serif);font-weight:400;font-size:25px;margin:0}\n.topacts{margin-left:auto;display:flex;gap:8px;min-width:0;flex:0 1 480px;align-items:center}.toppick:empty{display:none}.histday-end td{border-bottom:2px solid var(--line)}.toppick{flex:0 0 auto}.toppick select{width:auto;min-width:150px;max-width:240px;height:var(--ctl)}\n.topacts input{width:100%}\n\n/* ---- controls ---- */\nlabel{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}\ninput,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-ctl);padding:9px 12px;width:100%;min-width:0}\ninput:focus,select:focus,textarea:focus{outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}\ninput[readonly]{background:var(--soft);color:var(--muted)}\ninput::placeholder,textarea::placeholder{color:var(--faint)}\nbutton{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:10px 18px;background:var(--brand);color:var(--on-brand);\n  box-shadow:0 4px 12px rgba(74,106,146,.25);transition:background .12s,box-shadow .12s,transform .06s;white-space:nowrap}\nbutton:hover{background:var(--brand-ink)}\nbutton:active{transform:translateY(1px);box-shadow:none}\nbutton:focus-visible,a:focus-visible{outline:none;box-shadow:var(--ring)}\nbutton.ghost{background:var(--card);color:var(--muted);font-weight:600;box-shadow:var(--sh-1)}\nbutton.ghost:hover{color:var(--ink);box-shadow:var(--sh-2)}\nbutton.armed,button.ghost.armed{background:var(--bad);color:#fff}\n.btnlink{display:inline-flex;align-items:center;padding:10px 18px;border-radius:var(--r-ctl);background:var(--card);color:var(--brand-ink);font-weight:700;text-decoration:none;box-shadow:var(--sh-1)}\n.btnlink:hover{box-shadow:var(--sh-2)}\n.btnlink{gap:7px}\n.btnlink.wa,.jw-btn.wa{color:var(--wa)}\n.jw-btn.ico{width:32px;padding:0;display:inline-grid;place-items:center}\na.jw-btn{text-decoration:none}\n.frozen{padding:8px 11px;border-radius:var(--r-ctl);background:var(--soft);color:var(--ink);font-size:12.5px;min-width:200px}\n@media print{body *{visibility:hidden}#docPaper,#docPaper *{visibility:visible}#docPaper{position:absolute;left:0;top:0;box-shadow:none;margin:0;padding:0}}\n.jw-btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:var(--r-sm);background:var(--chip);color:var(--muted);font-weight:700;box-shadow:none}\n.jw-btn:hover{background:var(--line);color:var(--ink)}\n.jw-btn.jw-primary{background:var(--brand-bg);color:var(--brand-ink)}\n.jw-btn.jw-wa{background:var(--accent-bg);color:var(--accent)}\n.row{display:flex;gap:10px;flex-wrap:wrap}\n.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n.seg{display:inline-flex;background:var(--chip);border-radius:var(--r-sm);padding:3px;gap:2px}\n.segbtn{background:transparent;color:var(--muted);box-shadow:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:600}\n.segbtn:hover{background:transparent;color:var(--ink)}\n.segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}\n.segbtn .n{color:var(--faint);font-weight:500;margin-left:3px}\n\n/* ---- cards, figures, tables ---- */\n.card{background:var(--card);border-radius:var(--r-card);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sh-1);min-width:0}\n.kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}\n.kpi{flex:1 1 300px;background:var(--card);border-radius:var(--r-card);padding:13px 16px;box-shadow:var(--sh-1)}\n.kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}\n.kpiname{font-size:13px;font-weight:700} .kpiwhen{font-size:11px;color:var(--muted)}\n.metrics{display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between}\n.metric .v{font-size:19px;font-weight:700;line-height:1.2} .metric .l{font-size:11px;color:var(--muted);margin-top:2px}\n.ff-cap{font-size:12.5px;color:var(--muted);margin:0 0 8px;line-height:1.5;max-width:110ch}\n.ff-grid,.scroll{overflow-x:auto}\n.ok{background:var(--accent-bg);color:var(--accent);padding:11px 14px;border-radius:var(--r-sm);font-size:13.5px;border-left:3px solid var(--accent)}\n.err{background:var(--bad-bg);color:var(--bad);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--bad);margin-bottom:10px;line-height:1.5}\n.warn{background:var(--warn-bg);color:var(--warn-ink);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--warn-ink)}\ntable.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}\ntable.xl th,table.xl td{border-bottom:1px solid var(--line);padding:9px 11px;white-space:nowrap;background:var(--card);text-align:center;vertical-align:middle}\ntable.xl thead th{position:sticky;top:0;z-index:2;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--faint);text-transform:uppercase}\ntable.xl .frz{position:sticky;left:0;z-index:1;border-right:1px solid var(--line)}\ntable.xl thead th.frz{z-index:3}\ntable.xl tbody tr:nth-child(even) td{background:var(--zebra)}\ntable.xl tbody tr:hover td{background:var(--soft)}\ntable.xl tfoot td{background:var(--soft);font-weight:800}\ntable.xl.xl-dense th,table.xl.xl-dense td{padding:6px 8px;font-size:12.5px}\n.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;white-space:nowrap}\n.pill-ok{background:var(--accent-bg);color:var(--accent)} .pill-low{background:var(--warn-bg);color:var(--warn-ink)}\n.pill-out{background:var(--bad-bg);color:var(--bad)} .pill-sea{background:var(--brand-bg);color:var(--brand-ink)} .pill-mute{background:var(--chip);color:var(--muted)}\n.lm-note{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}\n.lm-why{font-size:12px;color:var(--muted);line-height:1.55;margin-top:8px}\n.lm-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px}\n.lm-lines td{padding:5px 6px} .lm-lines input,.lm-lines select{padding:6px 8px;font-size:12.5px}\n.lm-x{background:transparent;color:var(--bad);box-shadow:none;padding:4px 8px;font-size:15px}\n.lm-x:hover{background:var(--bad-bg)}\n\n/* ---- the dashboard ---- */\n.dashcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:14px;margin-bottom:14px}\n.dcard{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal}\n.dcard:hover{background:var(--card);box-shadow:var(--sh-2)}\n.dhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}\n.dicon{width:22px;height:22px;border-radius:7px;background:var(--chip);color:var(--brand-ink);display:inline-flex;align-items:center;justify-content:center;flex:none}\n.dtitle{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}\n.dchip{margin-left:auto;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:var(--accent-bg);color:var(--accent);white-space:nowrap}\n.dfig{font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.01em}\n.dsub{font-size:12px;color:var(--muted);margin-top:2px}\n.dsplit{display:flex;gap:30px;flex-wrap:wrap}\n.dnote{font-size:12px;color:var(--muted);margin-left:auto;padding-bottom:3px}\n.dash2col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:14px;align-items:stretch;margin-bottom:14px}\n\n/* ---- Greige POs: the figures, each one a filter ---- */\n.pobar{display:flex;gap:10px;flex-wrap:wrap;margin:-4px 0 14px}\n.gk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}\n.gk{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto;column-gap:8px;text-align:left;background:var(--card);color:var(--ink);\n  border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal;outline:1.5px solid transparent}\n.gk:hover{background:var(--card);box-shadow:var(--sh-2)}\n.gk.on{outline-color:var(--brand)}\n.gk-ic{grid-column:2;grid-row:1/3;width:34px;height:34px;border-radius:10px;display:grid;place-items:center}\n.gk-v{grid-column:1;font-size:21px;font-weight:800;letter-spacing:-.01em}\n.gk-l{grid-column:1;font-size:12.5px;color:var(--muted);font-weight:600}\n.gk-s{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:9px}\n.tone-blue{background:var(--brand-bg);color:var(--brand-ink)} .tone-amber{background:var(--warn-bg);color:var(--warn-ink)}\n.tone-green{background:var(--accent-bg);color:var(--accent)} .tone-red{background:var(--bad-bg);color:var(--bad)}\n.filters{padding:12px 14px;display:flex;flex-direction:column;gap:10px}\n.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}\n.frow select{flex:0 1 200px;width:auto;height:38px;padding-block:0}\n.pair{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0}\n.frow input[type=date]{width:160px;max-width:100%;height:38px;padding-block:0}\nlabel.inl{margin:0;font-size:12px}\n.frow2{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}\n.count{font-size:12.5px}\n.tablecard{padding:0;overflow:hidden}\n.t{width:100%;min-width:1080px;border-collapse:collapse}\n.t > thead th,.ct > thead th{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--card)}\n.t > tbody > tr > td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\nth.num,td.num{text-align:right;white-space:nowrap} th.ra{text-align:right} td.tl,th.tl{text-align:left}\n.xrow{cursor:pointer}\n.xrow:hover > td,.xrow.open > td{background:var(--soft)}\n.plus{color:var(--muted);font-weight:600}\n.w-chev{width:40px;padding-left:12px!important;padding-right:0!important}\n.chev{width:26px;height:26px;padding:0;background:transparent;box-shadow:none;border-radius:7px;display:grid;place-items:center;color:var(--muted)}\n.chev:hover{background:var(--line);color:var(--ink)}\n.chev svg{transition:transform .15s ease}\n.open > td .chev svg{transform:rotate(90deg)}\n.mill{display:flex;gap:10px;align-items:center}\n.av{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800}\n.av-a{background:var(--brand-bg);color:var(--brand-ink)} .av-b{background:var(--pink-bg);color:var(--pink)}\n.av-c{background:var(--accent-bg);color:var(--accent)} .av-d{background:var(--warn-bg);color:var(--warn-ink)}\n.prog{display:flex;align-items:center;gap:8px;font-weight:700}\n.actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;min-width:230px}\n.plate{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;background:var(--card);white-space:nowrap}\n.detail > td{padding:0!important;background:var(--soft);border-bottom:1px solid var(--line)}\n.panel{padding:6px 18px 18px 52px;display:flex;flex-direction:column;gap:12px}\n@media (max-width:640px){.panel{padding-left:14px}}\n.panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.panel-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}\n.lsum{display:flex;gap:10px;flex-wrap:wrap}\n.lchip{background:var(--card);border-radius:12px;padding:10px 13px;min-width:min(270px,100%);box-shadow:var(--sh-1)}\n.lchip .top2{display:flex;justify-content:space-between;gap:12px;font-size:13px}\n.lchip .due{color:var(--warn-ink)}\n.bar{height:5px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}\n.bar i{display:block;height:100%;background:var(--brand);border-radius:3px}\n.bar i.full{background:var(--accent)}\n.ct.li th{background:var(--card)}\n.ct.li td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct.li tr.tot td{border-bottom:0;font-weight:700;background:var(--soft)}\n.bar.sm{height:4px;margin-top:5px;min-width:70px}\n.box{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--sh-1)}\n.ct{width:100%;border-collapse:collapse}\n.ct > tbody > tr > td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct .xrow:hover > td,.ct .xrow.open > td{background:var(--brand-bg)}\n.empty{padding:18px;color:var(--muted);font-size:13.5px}\n.pieces{padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px;background:var(--soft)}\n.pieces-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}\n.pl-h{font-size:13px;margin-bottom:7px}\n.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}\n.pc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:3px}\n.pc.short{border-color:var(--bad-line);background:var(--bad-bg)}\n.pc-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}\n.pc-m{font-weight:700}\n.pc input{padding:4px 7px;font-size:13px;border-radius:7px}\n.pc-lab{font-size:11px;font-weight:500;color:var(--faint);margin:0}\n.d{font-weight:700} .d.short{color:var(--bad)} .d.extra{color:var(--ok-ink)} .d.ok{color:var(--faint);font-weight:500}\n.foot{font-size:12.5px;color:var(--muted);max-width:90ch;margin:4px 2px 0;line-height:1.55}\n\n/* ---- the receive drawer ---- */\n.scrim{position:fixed;inset:0;background:var(--scrim);z-index:1010}\n.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--card);z-index:1011;display:flex;flex-direction:column;box-shadow:var(--sh-3);\n  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}\n.dr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line)}\n.dr-head h2{font-size:19px;margin:2px 0 0}\n.crumb{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}\n.dr-body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}\n.dr-foot{border-top:1px solid var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}\n@media (max-width:520px){.dr-head,.dr-body,.dr-foot{padding-inline:16px}}\n.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n@media (max-width:520px){.grid2{grid-template-columns:1fr}}\n.fld{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted);margin:0}\n.fld small{font-weight:400;font-size:12px}\n.fld.wide{grid-column:1/-1}\n.sect{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}\n.sect span{font-weight:500;letter-spacing:0;text-transform:none}\n.dl{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--soft)}\n.prh,.pr{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 32px;gap:8px;align-items:center}\n.prh{font-size:11.5px;color:var(--faint);font-weight:600}\n.pr input{padding:7px 10px}\n.pr-i{font-size:12px;color:var(--faint);text-align:right}\n.x{width:32px;height:32px;padding:0;background:transparent;box-shadow:none;color:var(--muted);font-size:18px;line-height:1;border-radius:8px}\n.x:hover{background:var(--line);color:var(--ink)}\n.dl-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}\n.dl-sum{margin-left:auto;font-weight:700;font-size:13px}\n.link{background:none;box-shadow:none;color:var(--brand-ink);font-size:13px;font-weight:700;padding:2px 0}\n.link:hover{background:none;text-decoration:underline}\n.paste{display:flex;flex-direction:column;gap:8px}\n.paste textarea{min-height:84px;resize:vertical;font-family:var(--mono);font-size:13px}\n.warnline{font-size:12.5px;color:var(--warn-ink)}\n.note{font-size:12.5px;color:var(--muted)}\n.empty-sm{border:1px dashed var(--line);border-radius:12px;padding:16px;color:var(--muted);font-size:13.5px}\n.pohead{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}\n.pohead-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}\n.ct.mini th{padding:7px 8px;background:transparent}\n.ct.mini td{padding:7px 8px;font-size:12.5px}\n.ct.mini tr.tot td{border-bottom:0;font-weight:700}\n.due{color:var(--warn-ink)}\n.dl-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.lotf{flex:0 0 150px}\n.lotf input{font-family:var(--mono);font-weight:700}\n.supline{background:var(--brand-bg);color:var(--brand-ink);padding:10px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.55}\n.cellbtn{background:transparent;box-shadow:none;color:inherit;font:inherit;font-weight:inherit;padding:4px 8px;border-radius:8px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}\n.cellbtn:hover,.cellbtn.on{background:var(--brand-bg);color:var(--brand-ink);text-decoration:none}\n.cellbtn .caret{font-size:10px;opacity:.7}\ntr.invdet > td{background:var(--soft)!important;padding:4px 12px 14px!important;white-space:normal!important;text-align:left!important}\n.invdrop{display:flex;flex-direction:column;gap:8px}\n.balegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}\n.bale{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer}\n.bale input{width:15px;height:15px;flex:none}.bale b{margin-left:auto;font-variant-numeric:tabular-nums}\n.bale.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-ink)}\n.okline{background:var(--accent-bg);color:var(--accent);padding:8px 12px;border-radius:var(--r-sm);font-size:12.5px}\n.approvals{border-left:4px solid var(--warn-ink)}\n.closeline{display:flex;align-items:center;gap:9px;margin:0;font-size:13px;font-weight:600;color:var(--ink);background:var(--warn-bg);border-radius:var(--r-sm);padding:9px 12px}\n.closeline input{width:16px;height:16px;flex:none}\n.dr-total{display:flex;justify-content:space-between;gap:12px;font-weight:700;flex-wrap:wrap}\n.dr-btns{display:flex;justify-content:flex-end;gap:8px}\n\n/* ---- dialogs ---- */\n.modal{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}\n.modalbox{background:var(--card);border-radius:var(--r-card);padding:20px;width:min(720px,100%);max-height:92vh;overflow:auto;box-shadow:var(--sh-3)}\n.en-groups{display:flex;flex-direction:column;gap:7px;margin:4px 0 16px}\n.en-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}\n.en-gname{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);width:82px;flex:none}\n.en-chip{display:inline-flex;align-items:center;gap:7px;background:var(--chip);color:var(--ink);box-shadow:none;border-radius:var(--r-pill);padding:6px 13px;font-size:12.5px;font-weight:600}\n.en-chip:hover{background:var(--line);color:var(--ink)}\n.en-chip.on{background:var(--card);box-shadow:inset 0 0 0 1.5px var(--ink),var(--sh-1);font-weight:800}\n.en-dot{width:8px;height:8px;border-radius:50%;flex:none}\n.en-after{background:var(--brand-bg);color:var(--brand-ink);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.7;margin-bottom:10px}\n.en-after-h{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.75;margin-bottom:2px}\n.en-after .bad{color:var(--bad)}\n.docbox{width:min(860px,100%)}\n.docpaper{background:#ffffff;color:#000000;border-radius:8px;padding:16px;overflow-x:auto;box-shadow:inset 0 0 0 1px var(--line);margin:12px 0 16px}\n.mailbox{background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px;margin:8px 0 12px}\n.mailbox pre{margin:6px 0 0;white-space:pre-wrap;font:13px/1.5 var(--sans);color:var(--ink)}\n.err-in{color:var(--bad);font-weight:600}\n\n.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--toast-bg);color:var(--toast-fg);\n  padding:11px 16px;border-radius:12px;font-size:13.5px;z-index:80;width:max-content;max-width:calc(100% - 32px);box-shadow:var(--sh-3);border-left:4px solid var(--brand);z-index:1100}\n.toast.ok{border-left-color:var(--c-rfd)} .toast.warn{border-left-color:var(--c-greige)} .toast.err{border-left-color:var(--bad)}\n@media (prefers-reduced-motion: reduce){*{transition:none!important}}\n";
-  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">Greige · RFD · POs</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><span id=\"lmTopPick\" class=\"toppick\"></span><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div style=\"margin-top:12px\"><label for=\"poTc\">Terms &amp; conditions (optional)</label><textarea id=\"poTc\" rows=\"4\" style=\"width:100%\" placeholder=\"Quality, delivery, payment and any other conditions the supplier must follow\"></textarea><div class=\"muted\" style=\"font-size:11px;margin-top:3px\">Starts with your standard terms from the PO settings; change them for this PO if needed. Printed on the PO and put in the mail.</div></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
+  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">Greige · RFD · POs</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><span id=\"lmTopPick\" class=\"toppick\"></span><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div style=\"margin-top:12px\"><label for=\"poTc\">Terms &amp; conditions (optional)</label><textarea id=\"poTc\" rows=\"4\" style=\"width:100%\" placeholder=\"Quality, delivery, payment and any other conditions the supplier must follow\"></textarea><div class=\"muted\" style=\"font-size:11px;margin-top:3px\">Starts with your standard terms from the PO settings; change them for this PO if needed. Printed on the PO and put in the mail.</div></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutMode\" class=\"seg\" role=\"tablist\" aria-label=\"Kind of cutting\" style=\"margin-top:12px\"></div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\" id=\"cutSect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
 
 /* core/util.js -- Small shared helpers: escaping, number and date formatting, ids, lists in words.
  * An ES module. Its imports are worked out from the code by the split script. */
@@ -141,13 +141,13 @@ var FAB_SIGN = {
 var FAB_LABEL = {
   RECEIVE_GREIGE: 'Greige received', ISSUE_TO_RFD: 'Greige sent for RFD', RECEIVE_RFD: 'RFD received',
   OPENING_RFD: 'RFD opening stock', PURCHASE_RFD: 'RFD bought (received ready)',
-  ISSUE_TO_CUTTING: 'RFD to cutting',
+  ISSUE_TO_CUTTING: 'RFD to cutting', CUT_TO_PRINTER: 'Cut pieces to printer',
   DAMAGE: 'Damaged \u2014 written off',
 };
 /* The state a movement leaves the cloth in -- a receipt of RFD makes RFD, whatever the row says. */
 var FAB_TXN_STATE = {
   RECEIVE_GREIGE: 'GREIGE', ISSUE_TO_RFD: 'GREIGE', RECEIVE_RFD: 'RFD',
-  OPENING_RFD: 'RFD', PURCHASE_RFD: 'RFD', ISSUE_TO_CUTTING: 'RFD',
+  OPENING_RFD: 'RFD', PURCHASE_RFD: 'RFD', ISSUE_TO_CUTTING: 'RFD', CUT_TO_PRINTER: 'RFD',
 };
 var FAB_STATE_LABEL = { GREIGE: 'Greige', RFD: 'RFD', PRINTED: 'Printed' };
 
@@ -1017,7 +1017,11 @@ function dashAlerts() {
 
   /* AN RFD RECEIPT THAT SHRANK TOO MUCH waits for someone who may approve it. */
   (DB.fab || []).forEach(function (r) {
-    if (r.approval && r.approval.status === 'pending') out.push({ bad: true, tag: 'Approve', what: nf(fabQty(r)) + ' m of RFD on ' + r.lot + ' shrank ' + r.approval.pct + '%', who: r.party + ', waiting for approval', go: 'po' });
+    if (r.txnType === 'RECEIVE_RFD' && r.approval && r.approval.status === 'pending') out.push({ bad: true, tag: 'Approve', what: nf(fabQty(r)) + ' m of RFD on ' + r.lot + ' shrank ' + r.approval.pct + '%', who: r.party + ', waiting for approval', go: 'po' });
+  });
+  /* A CUT TO SIZE waits for the production head or accounts head (Vishesh, 23 Nov). */
+  ctsWaiting().forEach(function (r) {
+    out.push({ bad: true, tag: 'Approve', what: r.approval.ask, who: 'asked by ' + (r.approval.by || 'the store'), go: 'po' });
   });
   /* …and a PO the store asked to close: the accounts head approves it (Ravi, 21 Nov). */
   (DB.gpo || []).forEach(function (po) {
@@ -1931,7 +1935,7 @@ function renderPo() {
         + '<th class="num">Pieces</th><th class="num">Metres</th><th>Checked</th></tr></thead><tbody>' + chs.map(function (c) { return chRow(c, true); }).join('') + '</tbody></table>'
       : '<div class="empty">No challan matches these filters.</div>';
   }
-  return bar + rrApprovalsHtml() + closeAsksHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
+  return bar + rrApprovalsHtml() + ctsApprovalsHtml() + closeAsksHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
     + '<p class="foot">A PO rarely comes in one go. The supplier sends greige over several challans, and each challan is a bundle '
     + 'of bales with the metres written against them. When the last one is in, accounts close the PO and what never came is written on it. Every challan is written into the fabric ledger as a new lot, so stock, the '
     + 'processor and the dashboard count it at once.</p>';
@@ -2542,7 +2546,7 @@ function lotThans(lot) {
 function cutOpen(lot) {
   var g = fabLot(lot);
   if (!g || g.rfdLeft <= 0.05) { lmSay('warn', 'Lot ' + lot + ' has no RFD on the shelf.'); return; }
-  CUT = { lot: lot, pick: {}, qty: '', lines: cutLinesFor(cutRfdOf(g)), lpick: {} };
+  CUT = { lot: lot, pick: {}, qty: '', lines: cutLinesFor(cutRfdOf(g)), lpick: {}, mode: 'products', w: '', l: '', p: '' };
   $('cutTitle').textContent = 'Send to cutting · ' + lot;
   $('cutDate').value = lmToday(); $('cutTo').value = ''; $('cutRem').value = '';
   $('cutErr').classList.add('hide');
@@ -2554,6 +2558,8 @@ function cutRfdOf(g) { return g.rfdFabric || fabRfdOfGreige(g.fabricType) || g.f
 function cutDraw() {
   var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), rfd = cutRfdOf(g);
   $('cutErr').classList.add('hide');   // a tick changed: the last refusal may no longer be true
+  ctsModeDraw();
+  if (CUT.mode === 'size') { ctsDraw(g, rfd); return; }
   var head = '<div class="dl-top"><div><b class="mono">' + esc(CUT.lot) + '</b> · RFD <b>' + esc(rfd) + '</b>'
     + '<div class="sub">' + (g.poNo ? esc(g.poNo) + ' · ' : '') + (g.processor ? 'from ' + esc(g.processor) + ' · ' : '') + '<b>' + nf(g.rfdLeft) + ' m on the shelf</b></div></div>';
   if (!thans.length) {
@@ -2644,6 +2650,7 @@ function cutFlowKeep(patch) {
   FLOW.dem = dem;
 }
 function cutSave() {
+  if (CUT.mode === 'size') { ctsSave(); return; }
   var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), date = $('cutDate').value;
   var picked = thans.length ? thans.filter(function (t) { return CUT.pick[t.than]; }) : null;
   var q = picked ? r1(picked.reduce(function (s, t) { return s + t.m; }, 0)) : (parseFloat(CUT.qty) || 0);
@@ -2662,6 +2669,381 @@ function cutSave() {
   CUT = null; render();
 }
 
+/* ---- CUT TO SIZE: CLOTH CUT FROM THE RFD ON THE SHELF WITH NO PRODUCT BEHIND IT (Vishesh, 23 Nov) ----
+ * A second way to use the Send to cutting card: type width × length (inches) and pieces, no product needed. The metres
+ * are pieces × length × 0.0254. The entry is one ledger row (ISSUE_TO_CUTTING, cutToSize) that waits for the production
+ * head or accounts head (right gdcut); until it is approved it counts nowhere (fabCounts), so the metres stay on the RFD
+ * shelf. Approved, the metres leave the shelf and the pieces appear in the Inventory's Cut to size column. From there
+ * they go to a printer: one RFD challan through the flow's own writer, and one CUT_TO_PRINTER row per lot the pieces
+ * came from (oldest lot first), which moves no cloth figure -- only Sent to printer and Left.
+ * Errors: asking, approving and sending are stock, so a refusal is said in the card, never swallowed, and nothing is
+ * written. A save that fails says "Not saved" (lmSaveDb). The challan is made first; if the desk's rows cannot be saved
+ * after it, that same message shows and the pieces still read as left until they are written again.
+ * Two approvers at once: the decision is written to that row's approval alone and the desk has no compare-and-set, so
+ * the last one to press wins. */
+var CTS_INCH_METRES = 0.0254;   // one inch in metres
+var CTS_X = '×';
+var ctsN = function (n) { return r2(n).toLocaleString('en-IN', { maximumFractionDigits: 2 }); };
+var canCutApprove = function () { return gdHas('gdcut'); };
+/** Metres of cloth for pieces of one length (inches), to the paisa-style two places. */
+function ctsMetres(pcs, length) { return r2(pcs * length * CTS_INCH_METRES); }
+/** "60 × 90" for the screen; ctsSizeKey is the same size as the challan and the sums write it. */
+function ctsSizeText(s) { return ctsN(+s.w) + ' ' + CTS_X + ' ' + ctsN(+s.l); }
+function ctsSizeKey(s) { return ctsN(+s.w) + CTS_X + ctsN(+s.l); }
+/** The RFD width of a fabric from Master data, in inches; 0 when nobody has written it. */
+function ctsRfdWidth(rfd) { var m = mstOf(rfd); return m ? parseFloat(m.rfdWidth) || 0 : 0; }
+/** What asking for this cut would mean: { err, warn, metres }. spec = { rfd, lot, w, l, pcs, date }. err is '' when the cut can be asked. */
+function ctsCheck(spec) {
+  var out = { err: '', warn: '', metres: ctsMetres(spec.pcs, spec.l) }, rw = ctsRfdWidth(spec.rfd);
+  if (!(spec.w > 0) || !(spec.l > 0) || !(spec.pcs > 0)) { out.err = 'Type the width, the length and the pieces.'; return out; }
+  if (spec.pcs !== Math.floor(spec.pcs)) { out.err = 'Pieces are whole numbers.'; return out; }
+  if (!(rw > 0)) { out.err = 'Put the RFD width of ' + spec.rfd + ' in Master data first.'; return out; }
+  if (spec.w > rw) { out.err = spec.rfd + ' is ' + ctsN(rw) + '" wide — a ' + ctsN(spec.w) + '" piece can\'t be cut from it.'; return out; }
+  if (spec.w < rw) out.warn = 'Cutting ' + ctsN(spec.w) + '" wide from ' + ctsN(rw) + '" cloth — ' + ctsN(rw - spec.w) + '" of each piece\'s width is left over.';
+  out.err = fabEntryCheck({ txnType: 'ISSUE_TO_CUTTING', date: spec.date, lot: spec.lot, fabric: spec.rfd, qty: out.metres });
+  return out;
+}
+/** The three boxes of the open card as numbers. */
+function ctsSpec() {
+  return { rfd: cutRfdOf(fabLot(CUT.lot)), lot: CUT.lot, w: parseFloat(CUT.w) || 0, l: parseFloat(CUT.l) || 0, pcs: parseFloat(CUT.p) || 0, date: $('cutDate').value };
+}
+/** The card's choice of way, and the labels that follow it. */
+function ctsModeDraw() {
+  var size = CUT.mode === 'size';
+  $('cutMode').innerHTML = [['products', 'For products waiting'], ['size', 'Cut to size (no product)']].map(function (m) {
+    var on = CUT.mode === m[0];
+    return '<button type="button" role="tab" class="segbtn' + (on ? ' on' : '') + '" aria-selected="' + on + '" data-ctsmode="' + m[0] + '">' + esc(m[1]) + '</button>';
+  }).join('');
+  $('cutSect').textContent = size ? 'Pieces to cut' : 'Thans going to cutting';
+  $('cutSave').textContent = size ? 'Ask for approval' : 'Send to cutting';
+}
+function ctsDraw(g, rfd) {
+  var rw = ctsRfdWidth(rfd), box = function (id, key, label) {
+    return '<div><label for="' + id + '">' + label + '</label><input id="' + id + '" type="text" inputmode="decimal" autocomplete="off" data-num="7" data-ctsbox="' + key + '" value="' + esc(CUT[key]) + '"></div>';
+  };
+  $('cutBody').innerHTML = '<div class="dl"><div class="dl-top"><div><b class="mono">' + esc(CUT.lot) + '</b> · RFD <b>' + esc(rfd) + '</b>'
+    + '<div class="sub"><b>' + nf(g.rfdLeft) + ' m on the shelf</b>' + (rw ? ' · ' + ctsN(rw) + '" wide' : ' · no RFD width in Master data') + '</div></div></div></div>'
+    + '<div class="lm-fields">' + box('ctsW', 'w', 'Width (") *') + box('ctsL', 'l', 'Length (") *') + box('ctsP', 'p', 'Pieces *')
+    + '<div><label for="ctsM">Metres (worked out)</label><input id="ctsM" readonly title="Pieces × length × 0.0254"></div></div>'
+    + '<div id="ctsInfo"></div>'
+    + '<div class="lm-why">The metres come off the shelf only when the production head or accounts head approves.</div>';
+  $('cutTot').innerHTML = '';
+  ctsInfoDraw();
+}
+/** The metres, and what is wrong or worth knowing about this size, as the boxes are typed. */
+function ctsInfoDraw() {
+  var c = ctsCheck(ctsSpec()), typed = CUT.w !== '' && CUT.l !== '' && CUT.p !== '', box = $('ctsInfo');
+  $('ctsM').value = c.metres > 0 ? ctsN(c.metres) : '';
+  box.className = typed && c.err ? 'err' : 'warnline';
+  box.textContent = typed ? (c.err || c.warn) : '';
+}
+function ctsSave() {
+  var spec = ctsSpec(), c = ctsCheck(spec), g = fabLot(CUT.lot), by = meUser().name;
+  if (c.err) { $('cutErr').textContent = c.err; $('cutErr').classList.remove('hide'); return; }
+  var row = { id: uid(), date: spec.date, lot: CUT.lot, fabricType: spec.rfd, txnType: 'ISSUE_TO_CUTTING', qty: c.metres,
+    party: $('cutTo').value.trim() || 'Cutting', bill: '', orderNo: g.poNo || '', done: false, by: by,
+    size: { w: spec.w, l: spec.l }, pcs: spec.pcs, cutToSize: true,
+    approval: { status: 'pending', ask: 'Cut ' + nf(spec.pcs) + ' pcs of ' + ctsSizeText(spec) + ' (' + ctsN(c.metres) + ' m) from RFD ' + spec.rfd + ', lot ' + CUT.lot, by: by, at: new Date().toISOString() } };
+  if ($('cutRem').value.trim()) row.remark = $('cutRem').value.trim();
+  DB.fab.push(row); lmSaveDb();
+  $('lmCut').classList.add('hide');
+  lmSay('ok', 'Saved — waits for the production head or accounts head to approve.');
+  CUT = null; render();
+}
+
+/* ---- how the ledger page shows these rows ---- */
+/** What an approval was asked about: the shrinkage of an RFD receipt, or a cut to size. */
+function ctsApprovalWhy(r) { return r.cutToSize ? 'cut to size' : r.approval.pct + '% shrinkage'; }
+/** The pieces and size on a cut-to-size entry or on cut pieces sent to a printer; '' on every other row. */
+function ctsPiecesNote(r) {
+  return r.size && r.pcs ? '<div class="sub">' + nf(r.pcs) + ' pcs of ' + esc(ctsSizeText(r.size)) + '</div>' : '';
+}
+/** These rows are decided from the Inventory (approve, send to printer); the ledger's Edit would drop their size and approval. */
+function ctsLedgerLocked(r) { return r.cutToSize === true || r.txnType === 'CUT_TO_PRINTER'; }
+
+/* ---- the entries waiting for the approver, and the decision ---- */
+function ctsWaiting() { return (DB.fab || []).filter(function (r) { return r.cutToSize && r.approval && r.approval.status === 'pending'; }); }
+/** Approve or refuse one waiting cut. '' when done, else what stopped it. Approving checks the shelf again: the metres may have gone since it was asked. */
+function ctsDecide(id, ok, why) {
+  var r = (DB.fab || []).filter(function (x) { return x.id === id; })[0];
+  if (!r || !r.cutToSize || !r.approval || r.approval.status !== 'pending') return 'This cut is not waiting for approval any more.';
+  if (!canCutApprove()) return 'Only the production head or accounts head can approve cutting to size.';
+  var g = fabLot(r.lot), now = { ask: r.approval.ask, by: meUser().name, at: new Date().toISOString() };
+  if (ok && (!g || fabQty(r) > g.rfdLeft + 1e-9)) {
+    return 'Lot ' + r.lot + ' holds ' + ctsN(g ? g.rfdLeft : 0) + ' m of RFD now, less than the ' + ctsN(fabQty(r)) + ' m this cut needs. Refuse it, or approve once more RFD is in.';
+  }
+  r.approval = Object.assign(now, ok ? { status: 'approved' } : { status: 'refused', why: String(why || '').trim() });
+  ctsSaveApproval(r);
+  return '';
+}
+/** Saves the decision as that row's approval field alone, so nothing else on the row is written over. */
+function ctsSaveApproval(row) {
+  var patch = {};
+  if (GD_SNAP && GD_SNAP.fab) GD_SNAP.fab[row.id] = JSON.stringify(row);   // the row is not written whole: only its approval, below
+  patch[GD_NODE + '/fab/' + row.id + '/approval'] = JSON.parse(JSON.stringify(row.approval));
+  lmSaveDb(patch);
+}
+function ctsDecideButtons(r) {
+  if (!canCutApprove()) return '<span class="muted">for the production head or accounts head</span>';
+  return '<div class="actions"><button type="button" class="jw-btn jw-wa" data-ctsdec="' + esc(r.id) + '|ok">Approve</button>'
+    + '<button type="button" class="jw-btn" data-ctsdec="' + esc(r.id) + '|no">Refuse</button></div>';
+}
+/** The cuts waiting for approval, as a card on the Greige POs page beside the RFD receipts waiting for approval. */
+function ctsApprovalsHtml() {
+  var list = ctsWaiting(); if (!list.length) return '';
+  return '<div class="card approvals"><div class="kpihead"><span class="kpiname">Cutting to size waiting for approval</span><span class="kpiwhen">no product behind it</span></div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>RFD fabric</th><th>Lot</th><th>Size (W × L)</th><th class="num">Pieces</th><th class="num">Metres</th><th>Asked by</th><th></th></tr></thead><tbody>'
+    + list.map(function (r) {
+      return '<tr><td class="tl b">' + esc(r.fabricType) + '</td><td class="tl mono">' + esc(r.lot) + '</td><td class="tl">' + esc(ctsSizeText(r.size)) + '</td>'
+        + '<td class="num">' + nf(r.pcs) + '</td><td class="num">' + ctsN(fabQty(r)) + ' m</td>'
+        + '<td class="tl">' + esc(r.approval.by || '') + '<div class="sub">' + esc(fmtD(lmToday(r.approval.at))) + '</div></td><td>' + ctsDecideButtons(r) + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+}
+
+/* ---- what is cut, what went to a printer, what is left (the Inventory's Cut to size column) ---- */
+/** Every cut-to-size entry of one RFD fabric, whatever its approval says. */
+function ctsRowsOf(fabric) {
+  var F = String(fabric || '').trim().toUpperCase();
+  return (DB.fab || []).filter(function (r) { return r.cutToSize === true && r.txnType === 'ISSUE_TO_CUTTING' && fabLineOf(r).toUpperCase() === F; });
+}
+/** Cut pieces already sent to a printer, for one RFD fabric. */
+function ctsSentRowsOf(fabric) {
+  var F = String(fabric || '').trim().toUpperCase();
+  return (DB.fab || []).filter(function (r) { return r.txnType === 'CUT_TO_PRINTER' && fabCounts(r) && fabLineOf(r).toUpperCase() === F; });
+}
+/** One fabric's cut pieces by size: { sizes: [{ key, w, l, cut, cutM, sent, sentM, left, leftM, asks }], leftPcs, leftM, waiting }.
+ *  Only approved entries count as cut; a waiting or refused one is listed in asks and moves nothing. */
+function ctsOf(fabric) {
+  var by = {}, out = { sizes: [], leftPcs: 0, leftM: 0, waiting: 0 };
+  var at = function (s) {
+    var k = ctsSizeKey(s);
+    if (!by[k]) { by[k] = { key: k, w: +s.w, l: +s.l, cut: 0, cutM: 0, sent: 0, sentM: 0, left: 0, leftM: 0, asks: [] }; out.sizes.push(by[k]); }
+    return by[k];
+  };
+  ctsRowsOf(fabric).forEach(function (r) {
+    var z = at(r.size);
+    if (fabCounts(r)) { z.cut += +r.pcs || 0; z.cutM += fabQty(r); return; }
+    z.asks.push(r);
+    if (r.approval.status === 'pending') out.waiting++;
+  });
+  ctsSentRowsOf(fabric).forEach(function (r) { var z = at(r.size); z.sent += +r.pcs || 0; z.sentM += fabQty(r); });
+  out.sizes.sort(function (a, b) { return a.w - b.w || a.l - b.l; });
+  out.sizes.forEach(function (z) {
+    z.left = Math.max(0, z.cut - z.sent); z.leftM = Math.max(0, r2(z.cutM - z.sentM));
+    out.leftPcs += z.left; out.leftM = r2(out.leftM + z.leftM);
+  });
+  return out;
+}
+/** The Cut to size cell: pieces left, the metres under them, and how many are waiting for approval. Opens the drop-down. */
+function invCutCell(r) {
+  var c = r.cut, key = r.fabric + '|cut', on = UI.invOpen === key;
+  if (!(c.leftPcs > 0) && !c.waiting) return '<td class="num"><span class="muted">&mdash;</span></td>';
+  return '<td class="num"><button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '" title="Show what makes this up">'
+    + (c.leftPcs > 0 ? nf(c.leftPcs) + ' pcs' : '—') + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button>'
+    + (c.leftPcs > 0 ? '<div class="sub">' + ctsN(c.leftM) + ' m</div>' : '')
+    + (c.waiting ? '<div class="sub">' + nf(c.waiting) + ' waiting approval</div>' : '') + '</td>';
+}
+/** The drop-down's rows: each size with what was cut, sent and is left, then the entries still waiting or refused under it. */
+function ctsDetailRows(c) {
+  var rows = [];
+  c.sizes.forEach(function (z) {
+    if (z.cut > 0 || z.sent > 0) {
+      rows.push('<tr><td class="tl b">' + esc(ctsSizeText(z)) + '</td><td class="num">' + nf(z.cut) + ' pcs</td><td class="num">' + (z.sent ? nf(z.sent) + ' pcs' : '—') + '</td>'
+        + '<td class="num b">' + nf(z.left) + ' pcs<div class="sub">' + ctsN(z.leftM) + ' m</div></td><td class="tl"></td><td></td></tr>');
+    }
+    z.asks.forEach(function (r) { rows.push(ctsAskRow(r)); });
+  });
+  return rows;
+}
+function ctsAskRow(r) {
+  var waiting = r.approval.status === 'pending', who = esc(r.approval.by || '') + ' · ' + esc(fmtD(lmToday(r.approval.at))) + ' · lot ' + esc(r.lot);
+  var status = waiting ? '<span class="pill pill-low">Waiting approval</span><div class="sub">asked by ' + who + '</div>'
+    : '<span class="muted">Refused' + (r.approval.why ? ' — ' + esc(r.approval.why) : '') + '</span><div class="sub">' + who + '</div>';
+  return '<tr' + (waiting ? '' : ' class="muted" style="opacity:.6"') + '><td class="tl b">' + esc(ctsSizeText(r.size)) + '</td><td class="num muted">' + nf(r.pcs) + ' pcs</td>'
+    + '<td class="num muted">—</td><td class="num muted">—</td><td class="tl">' + status + '</td><td>' + (waiting ? ctsDecideButtons(r) : '') + '</td></tr>';
+}
+
+/* ---- SEND CUT PIECES TO A PRINTER ---- *
+ * Opens over the Inventory (the flow's own dialog): a printer, one cut size, and the Demand → RFD lines of the same fabric and
+ * the same size. A line's size is read as two numbers, so "60x60", "60 X 60" and "60×60" are one size, and 60x90 is also 90x60.
+ * Pieces per line are not typed: oldest order first, each takes what it still owes while the cut pieces last; untick a line to
+ * leave it out. A line PPC planned for another printer is not sent from here -- changing the printer is asked on the Inventory's
+ * RFD card -- and is listed with that note. Inside the ERP only: without the production flow there are no lines. */
+var CTS_SEND = null;   // the open card: { fabric, size: a size key, off: { line key: true } for the unticked }
+var ctsEl = function (id) { return window.document.getElementById(id); };   // the card is the app's dialog, not inside the desk's shadow root
+/** The two numbers in a size written any way ("60x60", "60 X 60", "60×60"); null unless there are exactly two. */
+function ctsParseSize(text) {
+  var m = String(text == null ? '' : text).match(/\d+(?:\.\d+)?/g);
+  return m && m.length === 2 ? [parseFloat(m[0]), parseFloat(m[1])] : null;
+}
+/** True when a written size is W × L, in either order. */
+function ctsSizeMatches(text, w, l) {
+  var p = ctsParseSize(text);
+  return !!p && ((p[0] === w && p[1] === l) || (p[0] === l && p[1] === w));
+}
+/** The size a PPC line asks for: the line's own, else its master row's. */
+function ctsLineSize(x) {
+  var own = String((x.r && x.r.size) || '').trim();
+  if (own) return own;
+  try { return String(((typeof cutSkuOf === 'function' && cutSkuOf(x.r.sku)) || {}).size || ''); } catch (e) { return ''; }
+}
+/** The lines on Demand → RFD waiting for this fabric in this size, oldest order first, each with the pieces it still owes (the card's own flowShLine). */
+function ctsLinesFor(fabric, w, l) {
+  if (typeof flowRows !== 'function' || typeof flowShLine !== 'function') return [];
+  var F = flowFabKey(fabric);
+  return flowRows().filter(function (x) {
+    return flowInView('drfd', x.s) && x.s.route !== 'stitch' && flowFabKey(((x.s.plan || {}).fabric || {}).name) === F && ctsSizeMatches(ctsLineSize(x), w, l);
+  }).map(flowShLine).filter(function (ln) { return ln.pcs > 0; })
+    .sort(function (a, b) { return String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)); });
+}
+/** What would go for this printer: { size, lines, picks: [{ line, pcs, metres }], skipped: [{ line, why }], pcs, metres }. Reads only. */
+function ctsSendPlan(S, code) {
+  var z = ctsOf(S.fabric).sizes.filter(function (s) { return s.key === S.size; })[0];
+  var plan = { size: z || null, lines: [], picks: [], skipped: [], pcs: 0, metres: 0 };
+  if (!z) return plan;
+  var left = z.left;
+  plan.lines = ctsLinesFor(S.fabric, z.w, z.l);
+  plan.lines.forEach(function (ln) {
+    if (code && ln.printer && String(ln.printer) !== String(code)) { plan.skipped.push({ line: ln, why: 'Planned for ' + (ln.printerName || ln.printer) }); return; }
+    if (S.off[ln.key] || left <= 0) return;
+    var n = Math.min(ln.pcs, left);
+    left -= n; plan.picks.push({ line: ln, pcs: n, metres: ctsMetres(n, z.l) });
+    plan.pcs += n; plan.metres = r2(plan.metres + ctsMetres(n, z.l));
+  });
+  return plan;
+}
+/** The approved lots of this size with pieces left, oldest first: [{ lot, left }]. */
+function ctsLotsLeft(fabric, key) {
+  var left = {}, order = [];
+  ctsRowsOf(fabric).filter(function (r) { return fabCounts(r) && ctsSizeKey(r.size) === key; })
+    .sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); })
+    .forEach(function (r) { if (!(r.lot in left)) { left[r.lot] = 0; order.push(r.lot); } left[r.lot] += +r.pcs || 0; });
+  ctsSentRowsOf(fabric).filter(function (r) { return ctsSizeKey(r.size) === key && r.lot in left; })
+    .forEach(function (r) { left[r.lot] -= +r.pcs || 0; });
+  return order.map(function (lot) { return { lot: lot, left: left[lot] }; }).filter(function (x) { return x.left > 0; });
+}
+/** The ledger rows for pieces going to a printer: one per lot they come from, oldest lot first. They move no cloth figure. */
+function ctsSentRows(fabric, z, pcs, party, challanNo) {
+  var rows = [], need = pcs, at = new Date().toISOString();
+  ctsLotsLeft(fabric, z.key).forEach(function (L) {
+    if (need <= 0) return;
+    var n = Math.min(need, L.left); need -= n;
+    rows.push({ id: uid(), date: lmToday(), lot: L.lot, fabricType: fabric, txnType: 'CUT_TO_PRINTER', qty: ctsMetres(n, z.l), size: { w: z.w, l: z.l }, pcs: n,
+      party: party, bill: challanNo, orderNo: '', done: false, at: at, by: meUser().name });
+  });
+  return rows;
+}
+/** The RFD challan for a plan, then the desk's rows. Returns { err } when refused or failed, else { no }. */
+async function ctsSendWrite(v, fabric, plan, note) {
+  var picks = plan.picks, z = plan.size;
+  if (!picks.length) return { err: 'Tick at least one line.' };
+  if (picks.some(function (p) { return !!p.line.x.r.__t; }) && picks.some(function (p) { return !p.line.x.r.__t; })) return { err: 'A test order and a real one cannot share a challan.' };
+  var orders = uniq(picks.map(function (p) { return p.line.x.r.orderNo; })), vname = v.desc || v.name || v.code;
+  var ch = { no: '', date: dToday(), orderNo: orders.join(', '), orders: orders, vendor: { code: v.code, name: vname },
+    note: note, at: new Date().toISOString(), by: (typeof ME !== 'undefined' && ME && ME.email) || '', from: 'Greige Desk cut to size',
+    lines: picks.map(function (p) {
+      var ln = p.line;
+      return { key: ln.key, sku: obUC(ln.x.r.sku), item: flowChItem(ln.x.r), print: ln.print, extras: [],
+        fabric: ((ln.x.s.plan || {}).fabric || {}).name || fabric, pcs: p.pcs, metres: p.metres, cutSize: ctsSizeKey(z) };
+    }) };
+  var err = await flowChallanWrite(ch, v, { isTest: picks.every(function (p) { return !!p.line.x.r.__t; }),
+    unplanned: picks.filter(function (p) { return !p.line.printer; }).map(function (p) { return p.line.key; }) });
+  if (err) return { err: err };
+  ctsSentRows(fabric, z, plan.pcs, vname, ch.no).forEach(function (r) { DB.fab.push(r); });
+  lmSaveDb();
+  return { no: ch.no };
+}
+/** Why the card cannot open here ('' when it can). */
+function ctsSendBlocked() {
+  if (typeof flowRows !== 'function' || typeof flowShLine !== 'function' || typeof flowChallanWrite !== 'function' || typeof flowPrinters !== 'function'
+    || typeof flowEnsureData !== 'function' || typeof ptOpenDialog !== 'function') return 'Sending cut pieces to a printer needs the production flow.';
+  if (typeof flowScreenAllowed === 'function' && !flowScreenAllowed().some(function (b) { return b[0] === 'drfd'; })) return 'Making an RFD challan needs Demand → RFD access.';
+  return '';
+}
+async function ctsSendOpen(fabric) {
+  var why = ctsSendBlocked(); if (why) { lmSay('warn', why); return; }
+  lmSay('ok', 'Reading the lines waiting for ' + fabric + '…');
+  try { await flowEnsureData(); } catch (e) {
+    console.error('Send cut pieces for ' + fabric + ' could not open:', e);
+    lmSay('err', 'The lines waiting for ' + fabric + ' could not be read (' + ((e && e.message) || e) + '). Nothing was saved.'); return;
+  }
+  var sizes = ctsOf(fabric).sizes.filter(function (z) { return z.left > 0; });
+  if (!sizes.length) { lmSay('warn', 'No approved cut pieces of ' + fabric + ' are left to send.'); return; }
+  CTS_SEND = { fabric: fabric, size: sizes[0].key, off: {} };
+  ptOpenDialog({
+    title: 'Cut pieces — ' + fabric + ' → printer',
+    subtitle: 'From the pieces already cut to size. Each line takes the pieces it still owes, oldest order first, while the cut pieces last. Untick a line to leave it out.',
+    wide: true,
+    html: '<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">'
+      + '<label>Printer<select id="ctsVen"><option value="">— pick the printer —</option>' + flowPrinters().map(function (p) {
+        return '<option value="' + esc(p.code) + '">' + esc(p.desc || p.name || p.code) + '</option>';
+      }).join('') + '</select></label>'
+      + '<label>Cut size<select id="ctsSize">' + sizes.map(function (z) {
+        return '<option value="' + esc(z.key) + '">' + esc(ctsSizeText(z)) + ' — ' + nf(z.left) + ' pcs left</option>';
+      }).join('') + '</select></label>'
+      + '<label>Date<input value="' + esc(dToday()) + '" readonly title="A challan from here is made today"></label></div>'
+      + '<div id="ctsBody" style="margin-top:10px;border:1px solid var(--line,#e3e7ef);border-radius:10px;max-height:55vh;overflow:auto"></div>'
+      + '<div id="ctsSum" style="margin-top:10px"></div>'
+      + '<label style="display:block;margin-top:10px">Note (vehicle, who carried it…)<input id="ctsNote"></label>',
+    saveLabel: 'Make the challan',
+    onSave: ctsSendSave
+  });
+  ctsDlgDraw();
+}
+/** Draws the matching lines and the sum from the printer and size picked. */
+function ctsDlgDraw() {
+  var S = CTS_SEND; if (!S) return;
+  var code = ctsEl('ctsVen').value, plan = ctsSendPlan(S, code), z = plan.size;
+  var going = {}; plan.picks.forEach(function (p) { going[p.line.key] = p; });
+  var skipped = {}; plan.skipped.forEach(function (s) { skipped[s.line.key] = s.why; });
+  ctsEl('ctsBody').innerHTML = plan.lines.length
+    ? '<table class="xl" style="width:100%"><thead><tr><th></th><th style="text-align:left">Order</th><th style="text-align:left">Item</th><th>Owes</th><th>Going</th><th>Metres</th></tr></thead><tbody>'
+      + plan.lines.map(function (ln) {
+        var p = going[ln.key], why = skipped[ln.key];
+        return '<tr><td><input type="checkbox" data-ctsk="' + esc(ln.key) + '"' + (!S.off[ln.key] && !why ? ' checked' : '') + (why ? ' disabled title="' + esc(why) + '"' : '') + ' style="width:auto"></td>'
+          + '<td style="text-align:left">' + esc(ln.x.r.orderNo) + '</td>'
+          + '<td style="text-align:left"><b>' + esc(obUC(ln.x.r.sku)) + '</b><div class="muted" style="font-size:11px">' + esc(flowChItem(ln.x.r)) + (why ? ' · ' + esc(why) + ' — change the printer on the Inventory RFD card' : '') + '</div></td>'
+          + '<td class="num">' + nf(ln.pcs) + '</td><td class="num">' + (p ? '<b>' + nf(p.pcs) + '</b>' : '—') + '</td><td class="num">' + (p ? ctsN(p.metres) : '—') + '</td></tr>';
+      }).join('') + '</tbody></table>'
+    : '<div class="muted" style="padding:14px">No line on Demand → RFD is waiting for ' + esc(S.fabric) + ' in ' + esc(z ? ctsSizeText(z) : 'this size') + '.</div>';
+  ctsEl('ctsSum').innerHTML = z ? 'Going: <b>' + nf(plan.pcs) + ' pcs · ' + ctsN(plan.metres) + ' m</b> of the ' + nf(z.left) + ' pcs left in ' + esc(ctsSizeText(z)) + (code ? '' : ' · pick the printer') : '';
+}
+async function ctsSendSave() {
+  var S = CTS_SEND; if (!S) return 'The card was closed — open it again.';
+  var code = ctsEl('ctsVen').value, v = flowPrinters().filter(function (p) { return String(p.code) === String(code); })[0];
+  if (!v) return 'Which printer are the pieces going to? Pick one.';
+  var plan = ctsSendPlan(S, code), made = await ctsSendWrite(v, S.fabric, plan, ctsEl('ctsNote').value.trim());
+  if (made.err) return made.err;
+  CTS_SEND = null;
+  lmSay('ok', 'Challan ' + made.no + ' made: ' + nf(plan.pcs) + ' pcs of ' + ctsSizeText(plan.size) + ' from the cut stock sent to ' + (v.desc || v.name || v.code) + '.');
+  setTimeout(render, 0);
+  return '';
+}
+/** Approve / Refuse pressed on the screen: a refusal asks for its reason first. */
+function ctsDecideOnScreen(id, ok) {
+  var why = '';
+  if (!ok) { why = typeof window.prompt === 'function' ? window.prompt('Why is this cut refused? (the person who asked will see it)', '') : ''; if (why === null) return; }
+  var r = (DB.fab || []).filter(function (x) { return x.id === id; })[0], err = ctsDecide(id, ok, why);
+  if (err) { lmSay('err', err); return; }
+  lmSay(ok ? 'ok' : 'warn', (ok ? 'Approved: ' : 'Refused: ') + r.approval.ask + (ok ? '. The metres have left the RFD shelf.' : '. Nothing moved.'));
+  render();
+}
+function wireCutToSize() {
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest ? ev.target.closest('[data-ctsmode],[data-ctsdec],[data-ctssend]') : null; if (!t) return;
+    if (t.getAttribute('data-ctsmode') && CUT) { CUT.mode = t.getAttribute('data-ctsmode'); cutDraw(); return; }
+    if (t.getAttribute('data-ctsdec')) { var d = t.getAttribute('data-ctsdec').split('|'); ctsDecideOnScreen(d[0], d[1] === 'ok'); return; }
+    if (t.getAttribute('data-ctssend')) { ctsSendOpen(t.getAttribute('data-ctssend')); return; }
+  });
+  /* the printer card lives in the app's own dialog, so its boxes are heard on the page, not in the desk's root */
+  window.document.addEventListener('change', function (ev) {
+    var t = ev.target; if (!CTS_SEND || !t || !t.closest || !t.closest('#ctsVen,#ctsSize,[data-ctsk]')) return;
+    if (t.id === 'ctsSize') { CTS_SEND.size = t.value; CTS_SEND.off = {}; }
+    if (t.getAttribute('data-ctsk')) { if (t.checked) delete CTS_SEND.off[t.getAttribute('data-ctsk')]; else CTS_SEND.off[t.getAttribute('data-ctsk')] = true; }
+    ctsDlgDraw();
+  });
+}
+
 /* ---- RECEIVE RFD, THAN BY THAN, WITH A SHRINKAGE CHECK (Ravi, 13 Oct: "on receiving the thans of RFD, if shrinkage
  * is more than 5% it asks for approval") ---- *
  * RFD comes back from the processor as thans, typed against the lot that went out. When the receipt closes the lot,
@@ -2672,7 +3054,7 @@ var RR = null;
 function rrLotsOf(po) {
   return fabLots().filter(function (g) { return String(g.poNo).toUpperCase() === String(po.poNo).toUpperCase() && g.withProcessor > 0.05; });
 }
-function rrPendingOf(lot) { return (DB.fab || []).filter(function (r) { return r.lot === lot && r.approval && r.approval.status === 'pending'; })[0] || null; }
+function rrPendingOf(lot) { return (DB.fab || []).filter(function (r) { return r.lot === lot && r.txnType === 'RECEIVE_RFD' && r.approval && r.approval.status === 'pending'; })[0] || null; }
 function rrOpen(no, onlyLot) {
   var po = poFind(no); if (!po) return;
   var lots = rrLotsOf(po).filter(function (g) { return !onlyLot || g.lot === onlyLot; });
@@ -2755,7 +3137,7 @@ function rrSave() {
   RR = null; render();
 }
 /** The receipts waiting for someone to approve their shrinkage. */
-function rrPending() { return (DB.fab || []).filter(function (r) { return r.approval && r.approval.status === 'pending'; }); }
+function rrPending() { return (DB.fab || []).filter(function (r) { return r.txnType === 'RECEIVE_RFD' && r.approval && r.approval.status === 'pending'; }); }
 function rrApprovalsHtml() {
   var list = rrPending(); if (!list.length) return '';
   var who = (DB.users || []).filter(function (x) { return x.approve && x.active !== false; }).map(function (x) { return x.name; });
@@ -3079,9 +3461,10 @@ function invAll() {
   if (ppc && !ppc.__loading) Object.keys(ppc).forEach(function (k) { if (!flow[k] && !order[k]) names.push(ppc[k].name); });
   return uniq(names).map(function (n) {
     var e = flow[n.toUpperCase()] || {}, o = order[n.toUpperCase()];
-    var g = e.greigeLeft || 0, p = e.withProcessor || 0, r = e.rfdLeft || 0;
+    var g = e.greigeLeft || 0, p = e.withProcessor || 0, r = e.rfdLeft || 0, cut = ctsOf(n);
+    /* The cloth cut to size and not yet sent to a printer is still ours: it is in the total though it left the RFD shelf. */
     return { fabric: n, type: invType(n), greige: fabGreigeOf(n), onOrder: o ? o.m : 0,
-      inStoreGreige: g, atProcessor: p, inStoreRfd: r, owned: g + p + r,
+      inStoreGreige: g, atProcessor: p, inStoreRfd: r, cut: cut, owned: g + p + r + cut.leftM,
       ppc: ppc && !ppc.__loading ? (ppc[n.toUpperCase()] || null) : null };
   }).filter(invWorthShowing)
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
@@ -3154,7 +3537,7 @@ function renderInv() {
   if (!withPpc || loading) UI.invShow = 'all';
   var shown = function (k) { return inView.filter(function (x) { return k === 'all' || invNeedState(x) === k; }); };
   var rows = shown(UI.invShow).sort(function (a, b) { return INV_SHOW_ORDER[invNeedState(a)] - INV_SHOW_ORDER[invNeedState(b)]; });
-  UI.invCols = withPpc ? 8 : 6;
+  UI.invCols = withPpc ? 9 : 7;
   var tools = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'
     + (withPpc && !loading ? '<div class="seg" role="tablist" aria-label="Show">' + ['all', 'short', 'ok', 'none'].map(function (k) {
         return '<button type="button" role="tab" class="segbtn' + (UI.invShow === k ? ' on' : '') + '" aria-selected="' + (UI.invShow === k) + '" data-invshow="' + k + '">'
@@ -3164,11 +3547,11 @@ function renderInv() {
     + (canLedgerEdit() ? '<button type="button" class="ghost" data-act="OPENING_RFD" title="RFD already on the floor: its own lot, so it is issued like any other and never counted as cloth back from a processor.">+ RFD opening stock</button>' : '')
     + (withPpc ? '<button type="button" class="ghost" data-gdflow="drfd" title="Open the flow’s Demand → RFD">Demand → RFD</button>' : '')
     + '</div>';
-  var stockHeads = ['Greige ordered', 'Greige in store', 'At RFD processor', 'RFD on shelf'];
+  var stockHeads = ['Greige ordered', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Cut to size'];
   var group = '<tr><th class="frz"></th>' + (withPpc ? '<th></th><th></th>' : '')
-    + '<th colspan="4" style="text-align:center;color:var(--muted);font-weight:600;border-bottom:0">Where the cloth is now →</th><th></th></tr>';
+    + '<th colspan="5" style="text-align:center;color:var(--muted);font-weight:600;border-bottom:0">Where the cloth is now →</th><th></th></tr>';
   var heads = th(withPpc ? ['Fabric', 'PPC need, covered by RFD', 'Action'].concat(stockHeads, ['Total']) : ['Fabric'].concat(stockHeads, ['Total']),
-    withPpc ? [3, 4, 5, 6, 7] : [1, 2, 3, 4, 5]).replace('<thead>', '<thead>' + group);
+    withPpc ? [3, 4, 5, 6, 7, 8] : [1, 2, 3, 4, 5, 6]).replace('<thead>', '<thead>' + group);
   var table = tools + '<div class="card"><div class="ff-grid"><table class="xl">' + heads
     + '<tbody>' + (rows.map(function (r) {
       return '<tr><td class="frz" style="text-align:left">' + invFabricName(r.fabric)
@@ -3178,6 +3561,7 @@ function renderInv() {
         + invCell(r, 'store', r.inStoreGreige, '')
         + invCell(r, 'proc', r.atProcessor, 'color:var(--proc-ink)')
         + invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700')
+        + invCutCell(r)
         + '<td class="num" style="font-weight:700">' + dash(r.owned) + '</td></tr>'
         + (UI.invOpen.indexOf(r.fabric + '|') === 0 ? invDetail(r, UI.invOpen.split('|')[1]) : '');
     }).join('') || emptyRow(UI.invCols, UI.invShow !== 'all' ? 'No fabric is ' + INV_SHOW_LABEL[UI.invShow].toLowerCase() + (UI.inv === 'all' ? '.' : ' in ' + UI.inv + '.')
@@ -3251,6 +3635,10 @@ function invDetail(r, col) {
         + '<td>' + (g.poNo ? '<button type="button" class="jw-btn jw-wa" data-rr="' + esc(g.poNo) + '|' + esc(g.lot) + '">Receive RFD</button>' : '') + '</td></tr>';
     });
     empty = 'Nothing of ' + r.fabric + ' is at an RFD processor.';
+  } else if (col === 'cut') {
+    head = ['Size (W × L)', 'Cut', 'Sent to printer', 'Left', 'Status', 'Next step'];
+    body = ctsDetailRows(r.cut);
+    empty = 'Nothing has been cut to size from ' + r.fabric + ' yet.';
   } else {
     head = ['Lot', 'PO', 'Supplier challan', 'RFD processor', 'Back on', 'Came back', 'To cutting', 'Damaged', 'On shelf', 'Next step'];
     body = invLotsOf(r.fabric).filter(function (g) { return g.rfdLeft > 0.05; }).map(function (g) {
@@ -3268,10 +3656,11 @@ function invDetail(r, col) {
     });
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
   }
-  var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf' }[col];
+  var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf', cut: 'Cut to size' }[col];
   return '<tr class="invdet"><td colspan="' + (UI.invCols || 6) + '"><div class="invdrop"><div class="sect">' + esc(title) + ' · ' + esc(r.fabric) + '</div>'
+    + (col === 'cut' && r.cut.leftPcs > 0 ? '<div class="actions" style="justify-content:flex-start;margin:6px 0"><button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer from the pieces already cut">Send to printer</button></div>' : '')
     + (body.length ? '<div class="box scroll"><table class="ct li"><thead><tr>' + head.map(function (x, i) {
-        return '<th' + (/^(Ordered|Received|Still due|Sent|Back so far|Still out|In store|Came back|To cutting|Damaged|On shelf|Days out|Sent to RFD)$/.test(x) ? ' class="num"' : '') + '>' + esc(x) + '</th>';
+        return '<th' + (/^(Ordered|Received|Still due|Sent|Back so far|Still out|In store|Came back|To cutting|Damaged|On shelf|Days out|Sent to RFD|Cut|Sent to printer|Left)$/.test(x) ? ' class="num"' : '') + '>' + esc(x) + '</th>';
       }).join('') + '</tr></thead><tbody>' + body.join('') + '</tbody></table></div>'
       : '<div class="empty">' + esc(empty) + '</div>')
     + '</div></td></tr>';
@@ -3588,16 +3977,17 @@ function renderLedger() {
         + '<td style="text-align:left"><b>' + esc(r.lot) + '</b></td>'
         + '<td style="text-align:left"' + (r.txnType === 'DAMAGE' ? ' style="text-align:left;color:var(--bad);font-weight:700"' : '') + '>'
         + esc(FAB_LABEL[r.txnType] || r.txnType)
-        + (r.approval && r.approval.status !== 'approved' ? '<div><span class="pill ' + (r.approval.status === 'pending' ? 'pill-low' : 'pill-out') + '">' + (r.approval.status === 'pending' ? 'Waiting for approval' : 'Rejected') + ' · ' + r.approval.pct + '% shrinkage</span></div>' : '')
-        + (r.approval && r.approval.status === 'approved' ? '<div class="sub">approved by ' + esc(r.approval.by || '') + ' · ' + r.approval.pct + '%</div>' : '')
+        + (r.approval && r.approval.status !== 'approved' ? '<div><span class="pill ' + (r.approval.status === 'pending' ? 'pill-low' : 'pill-out') + '">' + (r.approval.status === 'pending' ? 'Waiting for approval' : r.cutToSize ? 'Refused' : 'Rejected') + ' · ' + ctsApprovalWhy(r) + '</span></div>' : '')
+        + (r.approval && r.approval.status === 'approved' ? '<div class="sub">approved by ' + esc(r.approval.by || '') + (r.cutToSize ? '' : ' · ' + r.approval.pct + '%') + '</div>' : '')
         + (r.bales && r.bales.length ? '<div class="sub">' + r.bales.length + ' bales</div>' : '')
         + (r.thans && r.thans.length ? '<div class="sub">' + r.thans.length + ' thans</div>' : '')
+        + ctsPiecesNote(r)
         + (r.txnType === 'DAMAGE' && r.note
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + esc(r.note) + '</div>' : '')
         + '</td>'
         + '<td><span class="pill ' + (fabState(r) === 'GREIGE' ? 'pill-low' : 'pill-sea') + '">'
         + esc(FAB_STATE_LABEL[fabState(r)] || fabState(r)) + '</span></td>'
-        + '<td class="num" style="font-weight:700">' + (sign < 0 ? '−' : '+') + nf(fabQty(r))
+        + '<td class="num" style="font-weight:700">' + (sign < 0 ? '−' : sign > 0 ? '+' : '') + nf(fabQty(r))
         + (r.pieces && r.pieces.length ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + r.pieces.length + ' pcs on the challan</div>' : '')
         + (r.returned
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + nf(r.gross)
@@ -3607,7 +3997,7 @@ function renderLedger() {
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + esc(r.remark) + '</div>' : '')
         + '</td>'
         + '<td style="white-space:nowrap">' + (!canLedgerEdit() ? '<span class="muted" title="' + esc(fulfilledBy(r)) + '">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
-        + (!canLedgerEdit() ? '' : '<button type="button" class="jw-btn jw-primary" data-edit="' + esc(r.id) + '">Edit</button> ')
+        + (!canLedgerEdit() || ctsLedgerLocked(r) ? '' : '<button type="button" class="jw-btn jw-primary" data-edit="' + esc(r.id) + '">Edit</button> ')
         + (!canLedgerEdit() ? '' : r.done
           ? '<button type="button" class="jw-btn jw-wa" data-done="' + esc(r.id) + '" '
             + 'title="' + esc(fulfilledBy(r)) + '. Click to put it back on the list.">✓ Fulfilled</button>'
@@ -4607,6 +4997,7 @@ function wireUsersRfd() {
   document.addEventListener('input', function (ev) {
     var el = ev.target;
     if (CUT && el.getAttribute && el.getAttribute('data-cutqty')) { CUT.qty = el.value; $('cutErr').classList.add('hide'); $('cutTot').innerHTML = cutTotHtml(parseFloat(el.value) || 0, ''); return; }   // a new figure: the last refusal may no longer be true
+    if (CUT && el.getAttribute && el.getAttribute('data-ctsbox')) { CUT[el.getAttribute('data-ctsbox')] = el.value; $('cutErr').classList.add('hide'); ctsInfoDraw(); return; }
     var lot = el.getAttribute && el.getAttribute('data-rrlot'); if (!lot || !RR) return;
     RR.thans[lot][+el.getAttribute('data-pi')][el.getAttribute('data-f')] = el.value; rrSums();
   });
@@ -4930,7 +5321,7 @@ function gdSendToPrinter(fabric) {
     if (GD_STATE !== 'ok') { $('lmPane').innerHTML = '<div class="card" style="color:#b91c1c">The Greige Desk could not be read just now (' + esc(GD_STATE.replace(/^err: /, '')) + '). Nothing was changed. Open it again in a moment.</div>'; return; }
     lmLoad();
     if (typeof gdLinkMasters === 'function') gdLinkMasters();   // the Master Data's fabrics and vendors, read fresh each time
-    if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireGd(); }
+    if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireCutToSize(); wireGd(); }
     render();
   }
   return { open: open, ensure: function () { return gdLoad(); }, rfdKnown: function (n) { return !!mstOf(n); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); }, state: function () { return GD_STATE; },
