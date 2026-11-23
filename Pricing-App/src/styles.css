@@ -779,6 +779,40 @@
   .sd-panel{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);
     padding:16px 18px;margin-bottom:24px}
   .sd-h2{font-size:14px;font-weight:600;color:var(--ink);margin:0 0 12px}
+  /* This week in plain English (sales/sales-insight.js, 23 Nov 2026): the movers as bars, the summary, three tiles. Colours from the tokens (light + dark). */
+  .vi-box{background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);padding:16px 18px;margin:0 0 20px;min-width:0}
+  .vi-box[hidden]{display:none}
+  .vi-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .vi-h{font-size:16px;font-weight:700;color:var(--ink);margin:0 0 4px}
+  .vi-sub{font-size:12.5px;color:var(--muted);line-height:1.45}
+  .vi-body{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:18px;margin-top:14px;min-width:0}
+  .vi-left{min-width:0;display:flex;flex-direction:column;gap:12px}
+  .vi-bars{display:flex;flex-direction:column;gap:8px}
+  .vi-row{display:grid;grid-template-columns:minmax(0,38%) minmax(0,1fr) auto;align-items:center;gap:10px;min-width:0}
+  .vi-name{min-width:0;display:flex;flex-direction:column}
+  .vi-name b{font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .vi-name small{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .vi-track{height:12px;border-radius:6px;background:var(--line);overflow:hidden;min-width:0}
+  .vi-track i{display:block;height:100%;border-radius:6px;background:var(--muted)}
+  .vi-row.is-dn .vi-track i{background:var(--bad)} .vi-row.is-up .vi-track i{background:var(--accent)} .vi-row.is-rest .vi-track i{background:var(--faint,var(--muted));opacity:.6}
+  .vi-amt{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .vi-row.is-dn .vi-amt{color:var(--bad-ink)} .vi-row.is-up .vi-amt{color:var(--accent-ink)} .vi-row.is-rest .vi-amt{color:var(--muted)}
+  .vi-sum{border:1px solid var(--card-line);border-radius:10px;padding:10px 12px;background:var(--soft,var(--bg))}
+  .vi-sum p{margin:4px 0 0;font-size:13.5px;line-height:1.5;color:var(--ink)}
+  .vi-sum small{display:block;margin-top:4px;font-size:11.5px;color:var(--muted)}
+  .vi-tag{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .vi-sum.is-ai .vi-tag{color:var(--accent-ink)}
+  .vi-tiles{display:flex;flex-direction:column;gap:10px;min-width:0}
+  .vi-tile{border:1px solid var(--card-line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;min-width:0}
+  .vi-tile b{font-size:18px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .vi-tile span{font-size:12px;color:var(--muted)} .vi-tile small{font-size:11px;color:var(--muted)}
+  .vi-foot{margin-top:12px;font-size:11.5px;color:var(--muted);line-height:1.45}
+  .vi-box.vi-in .vi-row,.vi-box.vi-in .vi-tile,.vi-box.vi-in .vi-sum{animation:viIn .35s ease both}
+  @keyframes viIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.vi-box.vi-in .vi-row,.vi-box.vi-in .vi-tile,.vi-box.vi-in .vi-sum{animation:none}}
+  @media (max-width:860px){.vi-body{grid-template-columns:minmax(0,1fr)} .vi-tiles{flex-direction:row;flex-wrap:wrap} .vi-tile{flex:1 1 140px}
+    .vi-row{grid-template-columns:minmax(0,1fr) auto} .vi-track{grid-column:1 / -1;grid-row:2}}
+  #paneDash .dash-vi .dash-vi-t{margin:2px 0 0;font-size:14px;line-height:1.5;color:var(--ink)} #paneDash .dash-vi .dash-vi-why{color:var(--muted);font-size:13px}
   .sd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
   @media (max-width:900px){ .sd-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
   .sd-stat{background:color-mix(in srgb,var(--ink) 3%,var(--card));border-radius:var(--r-ctl);padding:12px 14px}

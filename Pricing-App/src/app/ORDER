@@ -78,5 +78,6 @@ listing/bought-together.js
 ads/ppc-new.js
 ads/product-why.js
 sales/sales-check.js
+sales/sales-insight.js
 core/dashboard.js
 core/version-check.js

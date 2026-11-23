@@ -421,6 +421,8 @@ function renderSales() {
   $('sdSynced').textContent = (SD.at || '—') + (SD_LIVE ? ` · today refreshed ${SD_LIVE}` : '')
     + (T_MATCH.biz ? ` · Amazon accounts: Seller Central's own totals as at ${T_MATCH.biz.at || '?'}` : '')
     + (legs ? ` · read: ${legs}` : ' · read from this browser');
+  // "This week in plain English" (sales/sales-insight.js): the box above the cards, for the channel on view — it reads, never writes
+  if (typeof viDraw === 'function') viDraw();
 }
 
 // The free date range at the bottom: sales, quantity, items and the average per item between the two dates.
