@@ -5283,7 +5283,7 @@
      the boxes. A heading, box or summary figure with a dotted line or a help cursor says what it means on hover. ----- */
   .sta-scope .card.sta-barcard{padding:12px 14px 10px}
   .sta-scope .toolbar.sta-top,.sta-scope .toolbar.sta-row2{align-items:flex-end;gap:10px 14px}
-  .sta-scope .toolbar.sta-row2{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .sta-scope .toolbar.sta-row2{display:flex;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}   /* flex: .sta-row2 is also the dialogs' two-column grid */
   .sta-scope .sta-fld{display:flex;flex-direction:column;gap:4px;min-width:0;margin:0}
   .sta-scope .sta-fld.sta-grow{flex:1 1 240px}
   .sta-scope .sta-lab{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;line-height:1.2}
@@ -5292,6 +5292,7 @@
   .sta-scope .sta-fld>input{width:100%}
   .sta-scope .sta-fld>button,.sta-scope .sta-acts>button{height:var(--ctl);padding-top:0;padding-bottom:0;flex:0 0 auto;white-space:nowrap;
     display:inline-flex;align-items:center;justify-content:center;line-height:1}
+  .sta-scope .sta-acts>button.hide{display:none}   /* the rule above would otherwise show a hidden button (N-Gram's Download Excel) */
   .sta-scope select.sta-brandsel{width:168px}
   .sta-scope input.sta-minsp{width:120px}
   .sta-scope select.sta-ngmin{width:130px}
@@ -5359,6 +5360,257 @@
     .sta-scope .sta-pop{left:0;right:0;width:auto}
     .sta-scope .sta-acts{margin-left:0}
   }
+
+  /* ----- 24 Nov 2026 (Search Term Analysis, N-Gram, Placement): the no-target warning at the top of the page (staTgtWarn), the
+     word dialog's "sells here — chosen by hand" lines, the small terms' spend, and Plan my moves' first line. Tokens only. ----- */
+  .sta-scope .sta-tgtwarns{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}
+  .sta-scope .sta-tgtwarns.hide{display:none}
+  .sta-scope .sta-tgtwarn{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--r-row);background:var(--rev-bg);color:var(--rev-ink);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rev) 45%,var(--card));font-size:12.5px;line-height:1.5}
+  .sta-scope .sta-tgtwarn>div{flex:1 1 auto;min-width:0}
+  .sta-scope .sta-tgtwarn b{color:inherit}
+  .sta-scope .sta-tgtwarn svg{flex:none;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .sta-scope .sta-tgtwarn button.sta-btn{flex:none;color:var(--rev-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rev) 60%,var(--card))}
+  @media (max-width:640px){.sta-scope .sta-tgtwarn{flex-wrap:wrap}}
+  .sta-sellwarn{display:none;margin-top:3px;font-size:11.5px;font-weight:600;color:var(--act-ink);white-space:normal}
+  tr.sta-sellon .sta-sellwarn{display:block}
+  tr.sta-sellon td{background:color-mix(in srgb,var(--act) 7%,var(--card))}
+  .sta-sellwarn.sta-sellwarn-tot{display:inline;margin:0 0 0 6px;padding:1px 8px;border-radius:var(--r-pill);background:var(--act-bg)}
+  .sta-dcp td.num small{display:block;font-size:11px;white-space:nowrap}
+  .sta-planhead{margin:0 0 10px;padding:9px 12px;border-radius:var(--r-row);background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .sta-planhead b{color:var(--ink)}
+
+  /* ===== REIMBURSEMENT (24 Nov 2026, paneReimb and paneRbclaim, reimb/reimb-overview.js and reimb-claim.js; the shared dialogs in #rbDialogs) =====
+     The Advertising pages' look — sta-scope, sta-barcard, sta-box, sta-tcard, sta-chip, sta-modal, the Ad Console's adx-plot —
+     with rb- adding only what they lack: the six coloured boxes, the type / status / days / % pills, the banners, the action
+     list's cells and ⋯ menu, the stacked bars, the case dialog. Colours from the tokens only, light and dark. ----- */
+  /* The menu group's icon (a receipt), the way the other groups have theirs. */
+  .navgrp[data-grp="reimb"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h12v18l-3-2-3 2-3-2-3 2z'/%3E%3Cpath d='M9.5 8h5M9.5 11.5h5M9.5 15h3'/%3E%3C/svg%3E")}
+  .rb-scope .rb-asof{font-size:12.5px;color:var(--muted);white-space:nowrap}
+  .rb-scope .rb-sample{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:var(--r-pill);background:var(--rev-bg);color:var(--rev-ink);
+    font-size:12px;font-weight:700;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rev) 50%,var(--card))}
+  .rb-scope .rb-dates-in{display:flex;align-items:center;gap:6px;color:var(--muted)}
+  .rb-scope .rb-dates-in input{height:var(--ctl);box-sizing:border-box}
+  .rb-scope .rb-sample.hide,.rb-scope .rb-banner.hide,.rb-scope .rb-empty.hide,.rb-scope .rb-dates.hide{display:none}
+  /* The banners: sample data (yellow), Amazon paid below our cost (orange). */
+  .rb-scope .rb-banner{display:flex;align-items:flex-start;gap:10px;margin-top:10px;padding:9px 12px;border-radius:var(--r-row);font-size:12.5px;line-height:1.5}
+  .rb-scope .rb-banner>div{flex:1 1 auto;min-width:0}
+  .rb-scope .rb-banner b{color:inherit}
+  .rb-scope .rb-banner svg{flex:none;width:18px;height:18px;margin-top:1px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .rb-scope .rb-banner-rev{background:var(--rev-bg);color:var(--rev-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rev) 45%,var(--card))}
+  .rb-scope .rb-banner-act{align-items:center;margin-top:12px;background:var(--act-bg);color:var(--act-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--act) 45%,var(--card))}
+  .rb-scope .rb-banner-act button.sta-btn{flex:none;color:var(--act-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--act) 55%,var(--card))}
+  .rb-scope .rb-banner-act button.sta-btn:hover{background:color-mix(in srgb,var(--act) 12%,var(--card))}
+  .rb-scope .rb-saved{color:var(--accent-ink);font-weight:600}
+  /* The six boxes: a coloured left edge and a light tint of the box's colour (--c); Lost to deadlines neutral, its number red. */
+  .rb-scope .rb-boxes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin:12px 0 0}
+  .rb-scope button.adx-box.sta-box.rb-box,.rb-scope button.adx-box.sta-box.rb-box:hover,.rb-scope button.adx-box.sta-box.rb-box:active{
+    display:flex;flex-direction:column;padding:13px 14px 11px;border-left:4px solid var(--c);background:color-mix(in srgb,var(--c) 6%,var(--card))}
+  .rb-scope button.adx-box.sta-box.rb-box:hover{box-shadow:var(--sh-2)}
+  .rb-scope button.adx-box.sta-box.rb-box.on{box-shadow:inset 0 0 0 2px var(--c),var(--sh-2)}
+  .rb-scope button.adx-box.sta-box.rb-box.rb-box-n,.rb-scope button.adx-box.sta-box.rb-box.rb-box-n:hover{background:var(--card)}
+  .rb-scope .rb-box .adx-l{white-space:normal;line-height:1.25}
+  .rb-scope .rb-box .sta-big{margin-top:6px}
+  .rb-scope .rb-box .sta-big b{font-size:22px}
+  .rb-scope .rb-box .sta-q{flex:1 1 auto;font-size:12px}
+  .rb-scope .rb-box .sta-go{margin-top:8px;padding-top:7px;font-size:12px}
+  /* The ⓘ sits right after its label, off the coloured glow, in the label's own grey (readable in both themes). */
+  .rb-scope .rb-i{margin-left:1px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:help}
+  .rb-scope .rb-box:hover .rb-i{color:var(--ink)}
+  /* Underpaid without sourcing costs: what it needs, never a $; the grey hint under it. */
+  .rb-scope .rb-box .sta-big b .rb-na{font-size:15px;font-weight:650;letter-spacing:0;color:var(--act-ink)}
+  .rb-scope .rb-hint{display:block;margin-top:4px;color:var(--faint)}
+  .rb-scope button.adx-box.sta-box.rb-box.rb-box-na{cursor:default}
+  .rb-scope .rb-red{color:var(--bad-ink)}
+  .rb-scope .rb-part{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:0 6px}
+  .rb-scope .rb-part>span:last-child{margin-left:auto;white-space:nowrap}
+  .rb-scope .rb-part b{font-weight:650;color:var(--ink);font-variant-numeric:tabular-nums}
+  .rb-scope .rb-dl{font-size:11.5px;font-weight:700;color:var(--faint);white-space:nowrap}
+  .rb-scope .rb-dl.is-good{color:var(--accent-ink)}
+  .rb-scope .rb-dl.is-bad{color:var(--bad-ink)}
+  .rb-scope .rb-warnw{color:var(--act-ink)}
+  .rb-scope .rb-box.rb-skel{display:flex;flex-direction:column;gap:12px;min-height:118px;padding:14px 16px;border-left:4px solid var(--line)}
+  .rb-scope .rb-skel .ui-loading{background-color:var(--hover)}
+  .rb-scope .rb-sk1{width:55%;height:13px}
+  .rb-scope .rb-sk2{width:40%;height:24px}
+  .rb-scope .rb-sk3{width:78%;height:11px}
+  .rb-scope .rb-later{margin:8px 2px 0;font-size:12px;color:var(--faint)}
+  @media (max-width:1500px){.rb-scope .rb-boxes{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media (max-width:760px){.rb-scope .rb-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  /* The cards. */
+  .rb-scope .card.sta-tcard,.rb-scope .card.rb-chartcard{margin-top:14px}
+  .rb-scope .card.rb-chartcard{padding:14px 16px 12px}
+  .rb-scope .rb-count{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 7px;margin-left:6px;border-radius:var(--r-pill);background:var(--chip);
+    color:var(--chip-ink);font-size:11.5px;font-weight:700;vertical-align:1px}
+  .rb-scope label.rb-switch{display:inline-flex;align-items:center;gap:7px;margin:0;font-size:12.5px;font-weight:500;color:var(--ink);cursor:pointer}
+  /* The pills: type (a neutral pill with the type's dot), status, days left, % paid back; the small tags. */
+  .rb-scope .rb-type,.rb-scope .rb-st,.rb-scope .rb-days,.rb-scope .rb-pct{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:var(--r-pill);
+    font-size:11.5px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .rb-scope .rb-type{padding-left:8px;background:var(--chip);color:var(--chip-ink);font-weight:600}
+  .rb-scope .rb-type::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;background:var(--d)}
+  .rb-scope .rb-st-claim{background:var(--brand-bg);color:var(--brand-ink)}
+  .rb-scope .rb-st-wait,.rb-scope .rb-d-wait{background:var(--chip);color:var(--muted)}
+  .rb-scope .rb-st-case{background:color-mix(in srgb,var(--violet-ink) 12%,var(--card));color:var(--violet-ink)}
+  .rb-scope .rb-st-paid,.rb-scope .rb-pct-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  .rb-scope .rb-st-expired,.rb-scope .rb-d-bad,.rb-scope .rb-pct-bad{background:var(--bad-bg);color:var(--bad-ink)}
+  .rb-scope .rb-st-archived{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+  .rb-scope .rb-d-act{background:var(--act-bg);color:var(--act-ink)}
+  .rb-scope .rb-d-rev,.rb-scope .rb-pct-rev{background:var(--rev-bg);color:var(--rev-ink)}
+  .rb-scope .rb-d-n{background:var(--chip);color:var(--chip-ink)}
+  .rb-scope .rb-d-wait{font-weight:600}
+  .rb-scope .rb-tags{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;margin-top:3px}
+  .rb-scope .rb-tag{display:inline-block;padding:0 6px;border-radius:var(--r-pill);background:var(--chip);color:var(--muted);font-size:10.5px;font-weight:600;line-height:18px;white-space:nowrap}
+  /* The action list. */
+  .rb-scope button.sta-chip.rb-tc::before{background:var(--d,var(--faint))}
+  .rb-scope button.sta-chip.rb-tc-exp::before{background:var(--bad)}
+  .rb-scope .rb-sep{width:1px;height:20px;margin:0 4px;background:var(--line)}
+  .rb-scope .rb-focus{display:inline-flex;align-items:center;gap:6px;margin-left:auto;padding:2px 4px 2px 10px;border-radius:var(--r-pill);background:var(--brand-bg);
+    color:var(--brand-ink);font-size:12.5px}
+  .rb-scope .rb-focus b{color:inherit}
+  .rb-scope table.xl td.rb-item{min-width:240px;max-width:380px}
+  .rb-scope .rb-ttl{max-width:360px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--ink)}
+  .rb-scope .rb-ttl b{font-weight:600}
+  .rb-scope table.xl tr.rb-row.is-wait td.rb-item .sta-term,.rb-scope table.xl tr.rb-row.is-wait .rb-ttl{color:var(--muted)}
+  .rb-scope table.xl tr.rb-row.is-archived td{background:var(--soft)}
+  .rb-scope td.rb-actcell{white-space:nowrap}
+  .rb-scope .rb-acts{display:flex;align-items:center;gap:6px}
+  .rb-scope button.rb-go{padding:6px 14px;font-size:12.5px;border-radius:var(--r-sm)}
+  .rb-scope .rb-why{max-width:260px;font-size:12px;line-height:1.35;color:var(--muted);white-space:normal}
+  .rb-scope .rb-why.is-bad{color:var(--bad-ink);font-weight:600}
+  .rb-scope .rb-why+button.sta-btn{margin-top:5px}
+  .rb-scope .rb-more{position:relative}
+  .rb-scope .rb-more summary{display:grid;place-items:center;width:30px;height:30px;border-radius:var(--r-sm);list-style:none;cursor:pointer;color:var(--muted);font-weight:700}
+  .rb-scope .rb-more summary::-webkit-details-marker{display:none}
+  .rb-scope .rb-more summary:hover,.rb-scope .rb-more[open] summary{background:var(--hover);color:var(--ink)}
+  .rb-scope .rb-more summary:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+  .rb-scope .rb-menu{position:absolute;right:calc(100% + 4px);top:50%;z-index:30;min-width:130px;padding:4px;transform:translateY(-50%);background:var(--card);
+    border-radius:var(--r-row);box-shadow:var(--sh-3),inset 0 0 0 1px var(--line)}
+  .rb-scope .rb-menu button{display:block;width:100%;padding:7px 10px;text-align:left;font-size:12.5px;border-radius:var(--r-sm)}
+  .rb-scope .rb-empty{margin:0;padding:22px 16px;text-align:center;font-size:13px;color:var(--muted)}
+  .rb-scope .rb-empty b{color:var(--ink)}
+  .rb-scope .rb-tick{display:inline-grid;place-items:center;width:22px;height:22px;margin-right:8px;border-radius:50%;background:var(--accent-bg);color:var(--accent-ink);font-weight:700}
+  .rb-scope .rb-fail{padding:14px 16px;font-size:12.5px;color:var(--bad-ink)}
+  /* The chart: stacked bars in the parts' colours, reversals a thin red bar under the zero line. */
+  .rb-scope #rbChartLegend{margin:2px 0 8px}
+  .rb-scope .adx-plot rect.rb-bar{fill:var(--c)}
+  .rb-scope .adx-plot rect.rb-rev{opacity:.9}
+  .rb-scope .adx-plot .rb-zero{stroke:var(--muted);stroke-width:1}
+  .rb-scope .adx-plot .adx-tip div+div{margin-top:2px}
+  /* The case dialog, and the small ones. */
+  .rb-scope .modal.rb-dlg .modalbox{width:min(980px,100%)}
+  .rb-scope .modal.rb-ask .modalbox{width:min(460px,100%)}
+  .rb-scope .sta-figs.rb-figs{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
+  .rb-scope .sta-figs.rb-figs b{min-width:0;overflow-wrap:anywhere}
+  .rb-scope .rb-dtable{margin-top:12px;max-height:32vh}
+  .rb-scope .rb-note{margin:0 0 10px;padding:8px 11px;border-radius:var(--r-row);background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px;line-height:1.45;color:var(--muted)}
+  .rb-scope .sta-dcp+.rb-note{margin-top:10px}
+  .rb-scope .rb-note b{color:var(--ink)}
+  .rb-scope .rb-note.is-act{background:var(--act-bg);color:var(--act-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--act) 40%,var(--card))}
+  .rb-scope .rb-note.is-act b{color:inherit}
+  .rb-scope .rb-cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;margin-top:14px}
+  .rb-scope .rb-h4{margin:14px 0 6px;font-size:13px;font-weight:700;color:var(--ink)}
+  .rb-scope .rb-cols .rb-h4{margin-top:0}
+  .rb-scope .rb-h4 small{margin-left:6px;font-size:12px;font-weight:500;color:var(--muted)}
+  .rb-scope .rb-steps{margin:0;padding-left:20px;font-size:12.5px;line-height:1.6;color:var(--ink)}
+  .rb-scope .rb-steps-big{margin-bottom:12px;font-size:13px}
+  .rb-scope .rb-checks{display:flex;flex-direction:column;gap:7px}
+  .rb-scope label.rb-check{display:flex;align-items:flex-start;gap:8px;margin:0;font-size:12.5px;font-weight:500;line-height:1.4;color:var(--ink);cursor:pointer;text-transform:none;letter-spacing:0}
+  .rb-scope label.rb-check input{flex:none;width:16px;height:16px;margin:1px 0 0;padding:0;accent-color:var(--brand)}
+  .rb-scope textarea.rb-text{display:block;width:100%;min-height:200px;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-ctl);font:inherit;font-size:12.5px;line-height:1.5;resize:vertical}
+  .rb-scope .rb-row2{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .rb-scope a.rb-link{display:inline-flex;align-items:center;padding:6px 12px;border-radius:var(--r-sm);background:var(--card);color:var(--muted);font-size:12.5px;font-weight:600;
+    text-decoration:none;box-shadow:inset 0 0 0 1px var(--line)}
+  .rb-scope a.rb-link:hover{background:var(--hover);color:var(--ink)}
+  .rb-scope .rb-caseid{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .rb-scope .rb-caseid .sta-f{flex:1 1 260px;margin:0}
+  .rb-scope .rb-lab{display:block;margin-bottom:6px;font-size:12.5px;font-weight:600;color:var(--ink)}
+  .rb-scope .rb-lab small{font-weight:500;color:var(--muted)}
+  .rb-scope .rb-caseid button{height:40px}
+  .rb-scope .rb-archbody{display:flex;flex-direction:column;gap:9px}
+  .rb-scope .rb-muted{margin:10px 0 0;font-size:12px;color:var(--muted)}
+  .rb-scope .rb-note.is-bad{background:var(--bad-bg);color:var(--bad-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--bad) 40%,var(--card))}
+  .rb-scope .rb-note.is-ok{background:var(--accent-bg);color:var(--accent-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,var(--card))}
+  /* "Connect Amazon's data": what to upload and what each report unlocks. */
+  .rb-scope .card.rb-connect{margin-top:12px;padding:16px 18px}
+  .rb-scope .rb-connect .ui-note{max-width:760px}
+  .rb-scope ol.rb-conn{display:flex;flex-direction:column;gap:8px;margin:12px 0 0;padding:0;list-style:none}
+  .rb-scope ol.rb-conn li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--r-row);background:var(--soft);box-shadow:inset 0 0 0 1px var(--line)}
+  .rb-scope ol.rb-conn li>div{flex:1 1 auto;min-width:0}
+  .rb-scope ol.rb-conn b{display:block;font-size:13px;font-weight:650;color:var(--ink)}
+  .rb-scope ol.rb-conn small{display:block;font-size:12px;line-height:1.45;color:var(--muted)}
+  .rb-scope .rb-cn{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--brand-bg);color:var(--brand-ink);font-size:12.5px;font-weight:700}
+  /* Upload Amazon reports. */
+  .rb-scope .modal.rb-updlg .modalbox{width:min(760px,100%)}
+  .rb-scope .rb-upbrand{margin-bottom:6px}
+  .rb-scope .rb-upsec{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .rb-scope .rb-upsec .rb-h4{margin-top:0}
+  .rb-scope .rb-upsec .rb-muted{margin:4px 0 0;line-height:1.5}
+  .rb-scope .rb-upsec .rb-note{margin:10px 0 0}
+  .rb-scope label.rb-file{display:inline-flex;align-items:center;gap:6px;margin:10px 0 0;padding:7px 12px;border-radius:var(--r-sm);font-size:12.5px;font-weight:600;
+    color:var(--brand-ink);background:var(--card);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand) 45%,var(--card));cursor:pointer;text-transform:none;letter-spacing:0}
+  .rb-scope label.rb-file:hover{background:var(--brand-bg)}
+  .rb-scope label.rb-file.is-off{color:var(--faint);box-shadow:inset 0 0 0 1px var(--line);cursor:not-allowed}
+  .rb-scope label.rb-file input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .rb-scope label.rb-file:focus-within{outline:2px solid var(--brand);outline-offset:1px}
+  @media (max-width:720px){.rb-scope .rb-cols{grid-template-columns:minmax(0,1fr)}}
+  /* The case dialog's inbound Proof section (rbProofHtml): the saved fields in a grid, the invoice link with its Open ↗. */
+  .rb-scope .rb-cols.rb-cols-1{grid-template-columns:minmax(0,1fr)}
+  .rb-scope .rb-proof{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .rb-scope .rb-proof .rb-h4{margin-top:0}
+  .rb-scope .rb-pfgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 12px;align-items:end}
+  .rb-scope label.rb-pf{margin:0;min-width:0}
+  .rb-scope label.rb-pf.rb-pf-wide{grid-column:span 2}
+  .rb-scope label.rb-pf input{width:100%;height:var(--ctl);box-sizing:border-box}
+  .rb-scope label.rb-pf .rb-lab small{display:inline;margin-left:4px;font-size:11.5px}
+  .rb-scope .rb-pfrow{display:flex;gap:6px;align-items:center}
+  .rb-scope .rb-pfrow input{flex:1 1 auto;min-width:0}
+  .rb-scope .rb-pfrow a.rb-link{flex:none;height:var(--ctl);box-sizing:border-box}
+  .rb-scope label.rb-check.rb-pfpod{align-self:center}
+  .rb-scope input.rb-bad{outline:1.5px solid var(--bad);outline-offset:0}
+  .rb-scope .rb-pfmsg{align-self:center;font-size:12px}
+  .rb-scope .rb-tag.rb-tag-rate{background:var(--brand-bg);color:var(--brand-ink)}
+  /* Overview: "See all in To Claim →" under Do this week. */
+  .rb-scope .sta-more.rb-weekgo{justify-content:flex-end;padding-top:0;border-top:0}
+  .rb-scope .sta-more.rb-weekgo:empty{display:none}
+  .rb-scope .rb-golink{font-size:12.5px}
+  @media (max-width:720px){.rb-scope .rb-pfgrid{grid-template-columns:minmax(0,1fr)}.rb-scope label.rb-pf.rb-pf-wide{grid-column:auto}}
+
+  /* ----- REIMBURSEMENT · TO CLAIM (paneRbclaim, reimb/reimb-claim.js): Overview's look; rbq- only for its own cells — the
+     four boxes, the greyed "coming soon" chips, the tick column, an inbound row's SKUs, the two proof marks, the
+     selection bar's refusal. Tokens only, light and dark. ----- */
+  .rb-scope .rb-boxes.rbq-boxes{grid-template-columns:repeat(4,minmax(0,1fr))}
+  @media (max-width:1100px){.rb-scope .rb-boxes.rbq-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .rb-scope .rbq-chips{align-items:center}
+  .rb-scope .rbq-chips .rb-sep{margin:0 3px}
+  .rb-scope button.sta-chip.rbq-st::before{display:none}
+  .rb-scope button.sta-chip.rbq-soon,.rb-scope button.sta-chip.rbq-soon:hover{background:transparent;color:var(--faint);cursor:not-allowed;
+    box-shadow:inset 0 0 0 1px var(--line)}
+  .rb-scope button.sta-chip.rbq-soon::before{opacity:.45}
+  .rb-scope button.sta-chip.rbq-soon small{font-size:10.5px;font-weight:600;color:var(--faint)}
+  .rb-scope .rbq-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .rb-scope table.xl th.rbq-ck,.rb-scope table.xl td.rbq-ck{width:30px;padding-right:0}
+  .rb-scope table.xl td.rbq-ck input:disabled{opacity:.35;cursor:not-allowed}
+  .rb-scope .rbq-ship{display:flex;align-items:flex-start;gap:6px}
+  .rb-scope button.rbq-tog{flex:none;display:grid;place-items:center;width:24px;height:24px;padding:0;border-radius:var(--r-sm);background:transparent;
+    color:var(--muted);font-size:12px;box-shadow:none}
+  .rb-scope button.rbq-tog:hover,.rb-scope button.rbq-tog[aria-expanded="true"]{background:var(--hover);color:var(--ink)}
+  .rb-scope table.xl tr.rbq-sub>td{padding-top:4px;padding-bottom:12px;background:var(--soft)}
+  .rb-scope table.xl.rbq-skus{width:100%;background:var(--card);border-radius:var(--r-row);box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px}
+  .rb-scope table.xl.rbq-skus th{background:transparent}
+  .rb-scope table.xl.rbq-skus td small{display:block;font-size:11.5px;color:var(--faint)}
+  .rb-scope table.xl tr.is-off td{color:var(--faint)}
+  .rb-scope small.rbq-ev{white-space:nowrap}
+  .rb-scope .rbq-pf{display:inline-flex;gap:5px}
+  .rb-scope .rbq-pi{position:relative;display:inline-grid;place-items:center;width:28px;height:26px;border-radius:var(--r-sm)}
+  .rb-scope .rbq-pi svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .rb-scope .rbq-pi b{position:absolute;right:-3px;bottom:-3px;display:grid;place-items:center;width:13px;height:13px;border-radius:50%;
+    background:var(--card);font-size:9px;font-weight:800;line-height:1;box-shadow:0 0 0 1px currentColor}
+  .rb-scope .rbq-pi.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  .rb-scope .rbq-pi.is-no{background:var(--act-bg);color:var(--act-ink)}
+  .rb-scope .rbq-ok{font-size:12px;font-weight:650;color:var(--accent-ink);white-space:nowrap}
+  .rb-scope .sta-selbar.rbq-selbar{flex-wrap:wrap}
+  .rb-scope .rbq-why{padding:3px 10px;border-radius:var(--r-pill);background:var(--act-bg);color:var(--act-ink);font-size:12.5px;font-weight:600}
+  @media (max-width:760px){.rb-scope .sta-selbar.rbq-selbar{width:auto;margin-left:0;margin-right:0}}
 
   /* ===== MODULE: INVENTORY ===== */  /* ----- INVENTORY AGE (paneAge, inventory/inventory-age.js): the Ad Console look — .adx-meta's line, .ls-toolbar's bar,
      .adx-box number boxes (a box is also a filter, like .sta-box), the stock's age mix as bars, a flush table card like

@@ -48,6 +48,8 @@ async function loadAccessList() {
     snap.forEach(d => rows.push(Object.assign({ email: d.id }, d.data())));
     rows.sort((a, b) => a.email.localeCompare(b.email));
     if (typeof acxMount === 'function') acxMount(rows);
+    /* The "Parts of a page" section under it (core/access-parts.js, 24 Nov 2026): the same people list. */
+    if (typeof acpMount === 'function') acpMount(rows);
   } catch (e) {
     if (src) src.textContent = 'Could not read the access list, so nothing is shown and nobody\'s access has changed — Firestore may be out of reach from this network; try again in a moment. ('
       + String(e && (e.code || e.message) || e) + ')';

@@ -141,25 +141,31 @@ console.log('== the built pages (a real build, in a folder of its own) ==');
   let built = true, why = '';
   try { cp.execFileSync(process.execPath, [path.join(__dirname, 'build-test-erp.js')], { env: Object.assign({}, process.env, { TEST_ERP_OUT: out }), stdio: 'pipe' }); }
   catch (e) { built = false; why = String(e.stderr || e.message).slice(0, 300); }
-  ok('the test ERP builds, UAT included', built, why);
+  ok('the test ERP builds, the Test page with UAT mode included', built, why);
   if (built) {
-    const uat = fs.readFileSync(path.join(out, 'uat', 'index.html'), 'utf8');
-    const link = fs.readFileSync(path.join(out, 'replenish', 'index.html'), 'utf8');
+    /* ONE TEST PAGE (24 Nov): replenish/ reads ERP data, saving off, with a UAT mode switch; uat/ opens it in UAT mode */
+    const test = fs.readFileSync(path.join(out, 'replenish', 'index.html'), 'utf8');
     const sell = fs.readFileSync(path.join(out, 'sellora', 'index.html'), 'utf8');
-    const head = uat.slice(0, uat.search(/<title[\s>]/i));
-    ok('UAT: its layer runs first, then the guard, both before the page', head.indexOf('UAT GUARD (Ravi') >= 0 && head.indexOf('UAT GUARD (Ravi') < head.indexOf('/* TEST ERP GUARD'));
-    ok('UAT: the guard hands every database request to the UAT layer', /window\.__UAT && \/firebasedatabase/.test(uat) && /window\.__UAT\.write\(url, method, init, origFetch\)/.test(uat));
-    ok('UAT: never loads from or saves to ERP data', uat.indexOf('__TEST_ERP_SB_PAGE = true') < 0 && uat.indexOf('__sbFsSave(') < 0);
-    ok('UAT: Firestore saves stay in the browser', (uat.match(/await __uatFsSave\(/g) || []).length >= 2 && /const deleteDoc = async ref => __uatFsSave/.test(uat));
-    ok('UAT: Firestore reads are live + your changes', /const getDoc = async ref => \{ const s = await __real_getDoc\(ref\)/.test(uat) && /window\.__UAT\.fsWatch\(ref, next, err, __real_onSnapshot\)/.test(uat));
-    ok('UAT: no live Firebase connection (it would go round the layer)', uat.indexOf("import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')") < 0 && uat.indexOf('const ptLiveable = node => false &&') >= 0);
-    ok('UAT: the live mirror is off', /const MIR = \{\r?\n\s*on: false && /.test(uat));
-    ok('UAT: Reset sits next to Sign out', uat.indexOf('<button id="uatResetBtn"') >= 0 && uat.indexOf('<button id="uatResetBtn"') < uat.indexOf('<button id="logoutBtn"'));
-    ok('UAT: the tab says UAT', uat.indexOf('<title>R-one · UAT</title>') >= 0);
-    ok('test link: still loads from and saves to ERP data', link.indexOf('__TEST_ERP_SB_PAGE = true') >= 0 && link.indexOf('await __sbFsSave(') >= 0);
-    ok('test link: has no UAT layer and no UAT button', link.indexOf('UAT GUARD (Ravi') < 0 && link.indexOf('uatResetBtn') < 0 && link.indexOf('__uatFsSave') < 0);
-    ok('Sellora: unchanged way of saving (ERP data), no UAT layer', sell.indexOf('await __sbFsSave(') >= 0 && sell.indexOf('UAT GUARD (Ravi') < 0);
-    ok('the front page offers UAT', fs.readFileSync(path.join(out, 'index.html'), 'utf8').indexOf('href="uat/"') >= 0);
+    const front = fs.readFileSync(path.join(out, 'index.html'), 'utf8');
+    const head = test.slice(0, test.search(/<title[\s>]/i));
+    const flagAt = head.indexOf('__TEST_ERP_SB_PAGE = true'), layerAt = head.indexOf('UAT GUARD (Ravi'), guardAt = head.indexOf('/* TEST ERP GUARD —');
+    ok('Test: the ERP-data flag, then the UAT layer, then the guard, all before the page', flagAt >= 0 && flagAt < layerAt && layerAt < guardAt);
+    ok('Test: ERP data is never saved to (test saves off)', /testSaves: false/.test(test) && test.indexOf('await __sbFsSave(') < 0);
+    ok('Test: the UAT layer takes database requests only in UAT mode', /var uatOn = !!\(window\.__UAT && window\.__UAT\.on\);/.test(test) && /if \(uatOn && \/firebasedatabase/.test(test));
+    ok('Test: in UAT mode "live" is ERP data, not Firebase', /var live = window\.__TEST_ERP\.sbOn \? function \(u\) \{ return sbRtdb\(String\(u\), origFetch\); \}/.test(test) && /window\.__UAT\.write\(url, method, init, live\)/.test(test));
+    ok('Test: Firestore saves go to the UAT layer (kept on the PC in UAT mode, refused when off)', (test.match(/await __uatFsSave\(/g) || []).length >= 2 && /const deleteDoc = async ref => __uatFsSave/.test(test));
+    ok('Test: Firestore reads are ERP data + your changes', /const s = await __sbGetDocRaw\(ref\); await window\.__UAT\.ready; return window\.__UAT\.fsDoc\(ref, s\)/.test(test)
+      && /docs = window\.__UAT\.fsDocs\(col, \{ docs \}\)\.docs/.test(test) && /window\.__UAT\.fsWatch\(ref, next, err, __sbWatchRaw\)/.test(test));
+    ok('Test: UAT mode is off unless this browser turned it on', test.indexOf("ON = window.localStorage.getItem(MODE_KEY) === '1'") >= 0 && test.indexOf('if (!U.on) return Promise.reject(') >= 0);
+    ok('Test: no live Firebase connection', test.indexOf("import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')") < 0 && test.indexOf('const ptLiveable = node => false &&') >= 0);
+    ok('Test: the live mirror is off', /const MIR = \{\r?\n\s*on: false && /.test(test));
+    ok('Test: Reset sits next to Sign out', test.indexOf('<button id="uatResetBtn"') >= 0 && test.indexOf('<button id="uatResetBtn"') < test.indexOf('<button id="logoutBtn"'));
+    ok('Test: the tab says Test', test.indexOf('<title>R-one · Test</title>') >= 0);
+    const redirect = fs.readFileSync(path.join(out, 'uat', 'index.html'), 'utf8');
+    ok('uat/ opens the Test page with UAT mode on', /localStorage\.setItem\('uat:r1UatMode', '1'\)/.test(redirect) && /location\.replace\('\.\.\/replenish\/'/.test(redirect) && redirect.indexOf('UAT GUARD') < 0);
+    ok('Sellora: reads ERP data, test saves off, no UAT layer', sell.indexOf('__TEST_ERP_SB_PAGE = true') >= 0 && /testSaves: false/.test(sell) && sell.indexOf('UAT GUARD (Ravi') < 0);
+    ok('the front page: one Test card with UAT mode, no separate UAT card, no copier', front.indexOf('href="replenish/"') >= 0 && /UAT mode/.test(front) && front.indexOf('href="uat/"') < 0 && front.indexOf('copier/') < 0);
+    ok('no copier page', !fs.existsSync(path.join(out, 'copier')));
   }
   fs.rmSync(out, { recursive: true, force: true });
 }

@@ -78,6 +78,10 @@ const doc = (_db, ...p) => ({ path: p.join('/') });
 const getDoc = async ref => ({ exists: () => Object.prototype.hasOwnProperty.call(DOCS, ref.path),
   data: () => DOCS[ref.path] });
 const setDoc = async (ref, data) => { SETS.push({ path: ref.path, data }); DOCS[ref.path] = data; };
+/* The screen saves through the app's own fsSetDoc (core/mirror.js, 13 Nov), which is Firestore's setDoc plus a copy to the
+ * live mirror. The mirror is not part of this suite, so the save lands in the same place as setDoc (24 Nov: the suite had
+ * stopped at "fsSetDoc is not defined" in the bulk update). */
+const fsSetDoc = (ref, data, opts) => setDoc(ref, data, opts);
 const serverTimestamp = () => 'ts';
 
 let REPL = { SP: null, CPC: null };
@@ -179,7 +183,7 @@ function ordLines() {
 }
 const dToday = () => new Date().toISOString().slice(0, 10);   // the page's own helper, outside this slice
 const ctx = { AUDIT_OFF: true, BASE_SPLIT_OFF: true,
-  $, esc, nf, csvCell, parseCsv, colIdx, doc, getDoc, setDoc, serverTimestamp, db: dbx, dToday,
+  $, esc, nf, csvCell, parseCsv, colIdx, doc, getDoc, setDoc, fsSetDoc, serverTimestamp, db: dbx, dToday,
   PRAPI, API, prGet, apiGet, REPL, ME, INDIA_LOADED, INDIA_ROWS, confirm, alert,
   indiaFromFg,
   MS, msInit, msFill, msVals, msHas, msSet, msClearAll, msPaint, msToggle, msChanged,

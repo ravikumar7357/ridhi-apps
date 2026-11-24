@@ -305,6 +305,12 @@ function soB2BMeta(sku) {
 /* ---- the form ---- */
 let SOF = { id: null, lines: [], page: 0 };
 const SOF_PAGE = 200;
+/* The order form's line columns: heading → page part (core/page-parts.js). #, Product, SKU, Article, Colour, Size and Qty are always there.
+ * A hidden column keeps what the line already holds; it is only not shown. */
+const SOF_COL_PART = { 'Type': 'so.dlg.form.col.type', 'Priority': 'so.dlg.form.col.priority', 'Delivery': 'so.dlg.form.col.lineDelivery',
+  'Image': 'so.dlg.form.col.image', 'Brand': 'so.dlg.form.col.brand', 'Label': 'so.dlg.form.col.label', 'Material': 'so.dlg.form.col.material',
+  'Customization': 'so.dlg.form.col.customization' };
+const sofColPart = h => (SOF_COL_PART[h] ? soPart(SOF_COL_PART[h]) : '');
 
 function soSkuMeta(sku) {
   const s = obUC(sku);
@@ -320,6 +326,7 @@ function soSkuMeta(sku) {
 }
 
 function soFormOpen(id) {
+  if (!soPopupAllowed('so.dlg.form')) return;
   const editing = (SOX.rows || []).find(x => x._id === id) || null;
   if (id && !editing) return;
   const canEdit = soCanEdit(editing);
@@ -346,21 +353,21 @@ function soFormOpen(id) {
       <option value="">— AIR or SEA —</option>${SO_MODES.map(m => `<option${(o.shipMode || soModeOf(o._id)) === m ? ' selected' : ''}>${m}</option>`).join('')}
     </select></label>
     <label>Order date<input id="sof_date" type="date" value="${esc(o.orderDate || today)}"${ro}></label>
-    <label title="The month this order is meant to sell in — the sales projection it answers (e.g. January 2027)">Sale month<input id="sof_smonth" type="month" value="${esc(o.saleMonth || '')}"${ro}></label>
-    <div class="sof-f">Order type<input id="sof_type" type="hidden" value="${nd ? 'newdev' : 'regular'}">
+    <label data-part="so.dlg.form.fld.saleMonth" title="The month this order is meant to sell in — the sales projection it answers (e.g. January 2027)">Sale month<input id="sof_smonth" type="month" value="${esc(o.saleMonth || '')}"${ro}></label>
+    <div class="sof-f" data-part="so.dlg.form.fld.orderType">Order type<input id="sof_type" type="hidden" value="${nd ? 'newdev' : 'regular'}">
       <div class="sof-seg" role="group" aria-label="Order type">
         <button type="button" data-softype="regular" class="${nd ? '' : 'on'}"${ro}>Regular</button>
         <button type="button" data-softype="newdev" class="${nd ? 'on' : ''}"${ro}>New development</button>
       </div></div>
-    <label>Delivery<input id="sof_delivery" type="date" value="${esc(o.deliveryDate || '')}"${ro}></label>
-    <label>Reference<input id="sof_legacy" type="text" value="${esc(o.legacyOrderId || '')}" placeholder="optional"${ro}></label>
+    <label data-part="so.dlg.form.fld.delivery">Delivery<input id="sof_delivery" type="date" value="${esc(o.deliveryDate || '')}"${ro}></label>
+    <label data-part="so.dlg.form.fld.reference">Reference<input id="sof_legacy" type="text" value="${esc(o.legacyOrderId || '')}" placeholder="optional"${ro}></label>
   </div>`;
 
   /* What the paragraph beside these buttons used to say is their tooltip now. */
   const tools = `<div class="sof-bar"><span class="sof-h">Order lines</span><span style="flex:1"></span>${canEdit ? `
-      <button id="sof_add" class="ghost" type="button">+ Add line</button>
-      <button id="sof_tmpl" class="ghost" type="button" title="A file to fill in: SKU, quantity, delivery date.">Template</button>
-      <button id="sof_up" class="ghost" type="button" title="A file replaces or adds to the lines below. One unknown SKU rejects the whole file. A negative quantity subtracts from what is already on order.">Upload</button>
+      <button id="sof_add" data-part="so.dlg.form.btn.addLine" class="ghost" type="button">+ Add line</button>
+      <button id="sof_tmpl" data-part="so.dlg.form.btn.template" class="ghost" type="button" title="A file to fill in: SKU, quantity, delivery date.">Template</button>
+      <button id="sof_up" data-part="so.dlg.form.btn.upload" class="ghost" type="button" title="A file replaces or adds to the lines below. One unknown SKU rejects the whole file. A negative quantity subtracts from what is already on order.">Upload</button>
       <input id="sof_file" type="file" accept=".csv,.xlsx,text/csv" style="display:none">` : ''}
     </div>`;
 
@@ -391,6 +398,8 @@ function soFormOpen(id) {
     deleteWhat: editing ? `Sales order ${editing._id} · ${nf(soLines(editing).length)} line(s)`
       + (soStatus(editing) === 'approved' ? ' · its order-book lines are NOT removed with it' : '') : '',
   });
+  soDlgButtonOff('ptDlgSave', 'so.dlg.form.btn.saveDraft');
+  soDlgButtonOff('ptDlgDelete', 'so.dlg.form.btn.delete');
   soFormLines();
   soIdPreview();
   if (canEdit) {
@@ -439,26 +448,26 @@ function soFormLines() {
     const inp = (i, f, l, w, ph) => `<input data-sof="${f}" data-i="${i}" value="${esc(l[f] == null ? '' : l[f])}" placeholder="${ph || ''}"${d} style="width:${w}px">`;
     $('sof_table').innerHTML = '<thead><tr>'
       + ['#', 'Image', 'Brand', 'SKU', 'Article', 'Color', 'Size', 'Label', 'Material', 'Qty', 'Customization', 'Delivery', ''].map((h, i) =>
-        `<th${i === 9 ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
+        `<th${i === 9 ? ' class="num"' : ''}${sofColPart(h)}>${h}</th>`).join('') + '</tr></thead><tbody>'
       + slice.map((l, k) => {
         const i = from + k;
         const extra = l.extra && Object.keys(l.extra).length ? Object.entries(l.extra).map(([a, b]) => a + ': ' + b).join(' · ') : '';
         return `<tr><td class="muted">${i + 1}</td>`
-          + `<td style="padding:3px 6px">${(() => { const pic = String(l.img || '').trim() || l.imgData || B2BIMG.map[obUC(l.sku)] || '';
+          + `<td${sofColPart('Image')} style="padding:3px 6px">${(() => { const pic = String(l.img || '').trim() || l.imgData || B2BIMG.map[obUC(l.sku)] || '';
             return pic ? `<img src="${esc(pic)}" alt="" loading="lazy" style="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block;margin-bottom:2px">` : ''; })()}`
           + `${!String(l.img || '').trim() && (l.imgData || B2BIMG.map[obUC(l.sku)]) ? '<div class="muted" style="font-size:10px">picture from the sheet</div>' : ''}`
           + `${soImgLink(l.img).page ? '<div style="font-size:10px;color:var(--bad);max-width:120px;white-space:normal">a page link, not a picture — copy the picture\'s own address</div>' : ''}${inp(i, 'img', l, 110, 'image link')}</td>`
-          + `<td>${inp(i, 'brand', l, 110, 'brand')}</td>`
+          + `<td${sofColPart('Brand')}>${inp(i, 'brand', l, 110, 'brand')}</td>`
           + `<td><input data-sof="sku" data-i="${i}" value="${esc(l.sku)}" placeholder="blank = new code"${d} style="width:140px;font-family:ui-monospace,monospace;text-transform:uppercase">`
           + `<div id="sof_meta_${i}" style="font-size:10.5px;text-align:left">${soB2BMeta(l.sku)}</div></td>`
           + `<td>${inp(i, 'itemName', l, 160, 'article')}</td>`
           + `<td>${inp(i, 'color', l, 110, 'color name')}</td>`
           + `<td>${inp(i, 'size', l, 80, 'size')}</td>`
-          + `<td>${inp(i, 'label', l, 120, 'No, or the details')}</td>`
-          + `<td>${inp(i, 'material', l, 100, 'material')}</td>`
+          + `<td${sofColPart('Label')}>${inp(i, 'label', l, 120, 'No, or the details')}</td>`
+          + `<td${sofColPart('Material')}>${inp(i, 'material', l, 100, 'material')}</td>`
           + `<td class="num"><input data-sof="qty" data-i="${i}" type="number" step="1" min="0" value="${esc(l.qty)}"${d} style="width:80px;text-align:right"></td>`
-          + `<td>${inp(i, 'customization', l, 140, 'No, or the details')}${extra ? `<div class="muted" style="font-size:10.5px;max-width:160px;white-space:normal">${esc(extra)}</div>` : ''}</td>`
-          + `<td><input data-sof="deliveryDate" data-i="${i}" type="date" value="${esc(l.deliveryDate)}"${d}></td>`
+          + `<td${sofColPart('Customization')}>${inp(i, 'customization', l, 140, 'No, or the details')}${extra ? `<div class="muted" style="font-size:10.5px;max-width:160px;white-space:normal">${esc(extra)}</div>` : ''}</td>`
+          + `<td${sofColPart('Delivery')}><input data-sof="deliveryDate" data-i="${i}" type="date" value="${esc(l.deliveryDate)}"${d}></td>`
           + `<td>${ro ? '' : `<button class="ghost" data-sofdel="${i}" style="padding:2px 8px;color:var(--bad)">✕</button>`}</td></tr>`;
       }).join('') + '</tbody>';
     $('sof_pager').innerHTML = pages > 1 ? `Showing ${nf(from + 1)}–${nf(Math.min(total, from + SOF_PAGE))} of ${nf(total)}
@@ -472,22 +481,22 @@ function soFormLines() {
    * off the right-hand edge — the old table scrolled sideways and hid Qty and Delivery. */
   $('sof_table').innerHTML = '<thead><tr>'
     + ['#', 'Product', 'Type', 'Priority', 'Qty', 'Delivery', ''].map((h, i) =>
-      `<th${i === 4 ? ' class="num"' : ''}${i === 0 ? ' style="width:36px"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
+      `<th${i === 4 ? ' class="num"' : ''}${sofColPart(h)}${i === 0 ? ' style="width:36px"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
     + slice.map((l, k) => {
       const i = from + k, meta = soSkuMeta(l.sku);
       return `<tr${obUC(l.sku) && !meta.ok ? ' class="bad"' : ''}><td class="muted">${i + 1}</td>`
         + `<td><div class="sof-prod"><span id="sof_img_${i}">${soThumb(l.sku)}</span><div style="min-width:0">`
         + `<input class="sof-sku" data-sof="sku" data-i="${i}" value="${esc(l.sku)}" placeholder="SKU"${d}>`
         + `<div id="sof_meta_${i}" class="sof-meta">${meta.html}</div></div></div></td>`
-        + `<td><select data-sof="orderTypeKey" data-i="${i}"${d}>`
+        + `<td${sofColPart('Type')}><select data-sof="orderTypeKey" data-i="${i}"${d}>`
         + `<option value="regular"${l.orderTypeKey !== 'newdev' ? ' selected' : ''}>Regular</option>`
         + `<option value="newdev"${l.orderTypeKey === 'newdev' ? ' selected' : ''}>New dev</option></select></td>`
-        + `<td><select data-sof="priority" data-i="${i}"${d}><option value="">—</option>`
+        + `<td${sofColPart('Priority')}><select data-sof="priority" data-i="${i}"${d}><option value="">—</option>`
         + ['P1', 'P2', 'P3', 'P4'].map(p => `<option value="${p}"${l.priority === p ? ' selected' : ''}>${p}</option>`).join('')
         + `</select></td>`
         + `<td class="num"><input class="sof-qty" data-sof="qty" data-i="${i}" type="number" step="1" value="${esc(l.qty)}"${d}`
         + ` title="Positive adds. Negative subtracts from what is already on order."></td>`
-        + `<td><input data-sof="deliveryDate" data-i="${i}" type="date" value="${esc(l.deliveryDate)}"${d}></td>`
+        + `<td${sofColPart('Delivery')}><input data-sof="deliveryDate" data-i="${i}" type="date" value="${esc(l.deliveryDate)}"${d}></td>`
         + `<td>${ro ? '' : `<button class="sof-del" type="button" data-sofdel="${i}" aria-label="Remove line ${i + 1}" title="Remove this line">×</button>`}</td></tr>`;
     }).join('') + '</tbody>';
 
@@ -959,6 +968,7 @@ async function soDeleteOrder(id) {
 function soReview(id) {
   const o = (SOX.rows || []).find(x => x._id === id); if (!o) return;
   if (!ME.admin) return;
+  if (!soPopupAllowed('so.dlg.review')) return;
   const w = soWork(), s = soSummary(o, w);
   const perLine = o.deliveryMode === 'lines' || o.deliveryMode === 'partial';
   ptOpenDialog({
@@ -977,19 +987,21 @@ function soReview(id) {
           value="${esc(o.saRemarks || '')}" placeholder="Required to send it back; optional to approve"></label>
       </div>
       <div class="xlwrap" style="max-height:34vh;border:1px solid var(--line);border-radius:10px;margin-top:10px">
-        <table class="xl"><thead><tr><th>SKU</th><th>Image</th>${soIsB2B(o.channel) ? '<th>Brand</th><th>Article</th><th>Color</th><th>Size</th><th>Label</th><th>Material</th><th>Customization</th>' : ''}<th class="num">Qty</th><th>Delivery</th><th>In order book</th></tr></thead>
+        <table class="xl"><thead><tr><th>SKU</th><th${soPart('so.dlg.review.col.image')}>Image</th>${soIsB2B(o.channel) ? '<th>Brand</th><th>Article</th><th>Color</th><th>Size</th><th>Label</th><th>Material</th><th>Customization</th>' : ''}<th class="num">Qty</th><th>Delivery</th><th${soPart('so.dlg.review.col.inBook')}>In order book</th></tr></thead>
         <tbody>${s.groups.slice(0, 300).map(g => { const bl = soIsB2B(o.channel) ? (soLines(o).find(x => obUC(x.sku) === obUC(g.sku)) || {}) : null; return `<tr><td style="font-family:ui-monospace,monospace;text-align:left">${esc(g.sku)}${bl && !(PTG.mdb || []).some(m => obUC(m.sku) === obUC(g.sku)) ? '<div style="font-size:10px;color:#7f6000">custom SKU</div>' : ''}</td>`
-          + (bl && bl.img ? ptImgCellSrc(g.sku, bl.img) : ptImgCell(g.sku))
+          + soMarkTd(bl && bl.img ? ptImgCellSrc(g.sku, bl.img) : ptImgCell(g.sku), 'so.dlg.review.col.image')
           + (bl ? ['brand', 'itemName', 'color', 'size', 'label', 'material', 'customization'].map(k => `<td style="text-align:left;white-space:normal;max-width:180px;font-size:12px">${esc(bl[k] || '') || '<span class="muted">—</span>'}</td>`).join('') : '')
           + `<td class="num" style="font-weight:700">${nf(g.qty)}</td>`
           + `<td>${esc(g.delivery) || '<span class="muted">—</span>'}</td>`
-          + `<td>${g.inBook ? '<span class="pill pill-ok">already</span>' : '<span class="muted">will be added</span>'}</td></tr>`; }).join('')}</tbody>
+          + `<td${soPart('so.dlg.review.col.inBook')}>${g.inBook ? '<span class="pill pill-ok">already</span>' : '<span class="muted">will be added</span>'}</td></tr>`; }).join('')}</tbody>
       </table></div>`
       + (s.groups.length > 300 ? `<div class="muted" style="margin-top:8px;font-size:12px">Showing the first 300 of ${nf(s.groups.length)} SKUs. All of them are approved.</div>` : ''),
     onSave: () => soApproveRun(o._id),
     saveLabel: 'Approve into production',
     alt: { label: 'Send back to the buyer', run: () => soReturnRun(o._id) },
   });
+  soDlgButtonOff('ptDlgSave', 'so.dlg.review.btn.approve');
+  soDlgButtonOff('ptDlgAlt', 'so.dlg.review.btn.sendBack');
   ptImgFill(s.groups.slice(0, 300).map(g => g.sku), false, ptImgPatch);
 }
 

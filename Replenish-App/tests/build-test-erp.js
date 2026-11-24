@@ -17,8 +17,9 @@
  *   3. Paths that assumed the site's root ("/logo.png") are made relative, because the test ERP lives in a sub-folder.
  *   4. The offline service worker is not installed, so a phone never keeps an old test version.
  *   5. A speed log (the "⏱ Speed" button): how long each screen took to open in this browser, and how much it downloaded.
- *   6. UAT (Ravi, 21 Nov): a second copy of the factory ERP in uat/ that reads LIVE and keeps every save in the tester's own
- *      browser, with a Reset button (all, after a time, back to a restore point). How it works: tests/uat-guard.js.
+ *   6. UAT MODE (Ravi, 21 Nov; one page since 24 Nov): the factory ERP's Test page has a UAT mode switch. On, every save is kept
+ *      in the tester's own browser and laid over live data, with Reset (all, after a time, back to a restore point). Off, saving
+ *      is off. Either way ERP data is only read. How it works: tests/uat-guard.js. uat/ opens the Test page in UAT mode.
  *
  * The build stops with an error if any of these cannot be applied exactly — a test ERP that might write is worse than
  * no test ERP. */
@@ -35,6 +36,15 @@ const WHEN = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
  * tokens have the fulfilment permissions and Ravi says to switch it on; then true, and only that one POST goes through —
  * every other write stays stopped. */
 const HUB_SHOPIFY_WRITES = false;
+/* THE TEST SAVE SWITCH (Ravi, 24 Nov: "get the test save switch off first"). Since the switch to Supabase (main:
+ * shared/erp-data/mode.json = "supabase") the LIVE ERP reads and saves the same ERP data project the test link saved into —
+ * so a test save was a live save. OFF: the factory ERP and Sellora on the test link only READ ERP data; every save (registers,
+ * Firestore documents, compare-and-set) is stopped with "Saving is off", any other write to Supabase is stopped, and the
+ * Firestore copier page is not built. UAT is not affected (its saves stay in the tester's browser). Turn it back on only
+ * when the test link has an ERP data project of its own. */
+const TEST_SAVES = false;
+/* Supabase calls that only READ (the doors the test link loads through); any other write to Supabase is stopped */
+const SB_READ_DOORS = ['rt_get', 'rt_get_text', 'rt_get_json', 'rt_changes', 'rt_list_upto', 'rt_live_upto', 'fs_get', 'fs_list'];
 /* THE FACTORY ERP LOADS FROM SUPABASE (Ravi, 14 Nov: "the test link loads from ERP data … remove these badges"). Its data
  * comes from ERP data (Supabase project R-one MAIN), not Firebase: every read of the factory registers is answered by the
  * door core.rt_get, every Firestore document by core.fs_get / fs_list — the same data in the same shape (proven record for
@@ -50,7 +60,7 @@ const SB_DATA = { url: 'https://xkpktnsdmpkwaingvdbd.supabase.co', key: 'sb_publ
 const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-test-erp.js; not in the real ERP. */
 (function () {
   var MSG = 'Saving is off in the TEST ERP \\u2014 nothing was saved.';
-  window.__TEST_ERP = { sha: ${JSON.stringify(SHA)}, branch: ${JSON.stringify(BRANCH)}, built: ${JSON.stringify(WHEN)}, blocked: 0, hubShopifyWrites: ${HUB_SHOPIFY_WRITES},
+  window.__TEST_ERP = { sha: ${JSON.stringify(SHA)}, branch: ${JSON.stringify(BRANCH)}, built: ${JSON.stringify(WHEN)}, blocked: 0, hubShopifyWrites: ${HUB_SHOPIFY_WRITES}, testSaves: ${TEST_SAVES},
     sb: ${JSON.stringify(SB_DATA)}, sbReads: 0, sbOn: !!window.__TEST_ERP_SB_PAGE };
   /* A read of the factory registers (Firebase Realtime Database REST: <path>.json?auth=<sign-in>&orderBy=…) answered by ERP data's
    * door core.rt_get with the same sign-in — same data, same shape. Only pages that turn it on (the factory ERP) use it. */
@@ -310,6 +320,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     paths.forEach(function (p) { var reg = String(p).split('/')[0]; if (reg) SBSTALE[window.__TEST_ERP.sb.url + '|' + (reg.indexOf('fs') === 0 ? 'fs' : reg)] = 1; });
   }
   window.__TEST_ERP.sbSave = function (changes, screen, tok, origFetch) {
+    if (!window.__TEST_ERP.testSaves) return window.__testErpBlock('save to ERP data (test saves are off)');
     return sbRpc('rt_save', { p_changes: changes, p_screen: screen || String(location.hash || '').slice(1, 40) }, tok, origFetch || window.__TEST_ERP.origFetch)
       .then(function (n) { sbTouched(changes.map(function (c) { return c.p; })); window.__TEST_ERP.saves += changes.length; told('Saved to ERP data (test link \\u2014 not the real ERP)'); return n; });
   };
@@ -349,6 +360,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   var BACKEND_GET_WRITES = /[?&](notify|shopSkuBuild|adState)=|[?&]repl=(primeSetup|primeStop|primeLiveSetup|primeTest|histbuild)(&|$)/;
   /* UAT: the only sends allowed out — signing in, keeping the sign-in fresh, and Firestore reading (never its save channel) */
   var UAT_MAY_SEND = /identitytoolkit\\.googleapis\\.com\\/v1\\/accounts:(signInWithPassword|signInWithCustomToken|lookup)\\b|securetoken\\.googleapis\\.com\\/|firestore\\.googleapis\\.com\\/(?!.*(\\/Write\\/|:commit|:batchWrite))/;
+  var SB_READ_RE = new RegExp('/rest/v1/rpc/(' + ${JSON.stringify(SB_READ_DOORS.join('|'))} + ')$');
   var origFetch = window.fetch;
   window.__TEST_ERP.origFetch = origFetch;
   window.fetch = function (input, init) {
@@ -377,11 +389,20 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     /* THE UAT PAGE (Ravi, 21 Nov — tests/uat-guard.js): the registers are read from live with the tester's changes laid on
      * top, and a save is kept in this browser only. Any other send to any other service is stopped, except signing in and
      * Firestore's reading channel (its saves never reach the network here: the page's Firestore save functions are replaced). */
-    if (window.__UAT && /firebasedatabase\\.app|firebaseio\\.com/.test(url) && method !== 'HEAD') {
-      return write ? window.__UAT.write(url, method, init, origFetch) : window.__UAT.read(url, init, origFetch);
+    /* THE TEST PAGE (Ravi, 24 Nov: "UAT + test as one Test, which reads from Supabase"): the same layer, but "live" is ERP data
+     * (Supabase) read through its read doors only — Firebase is not read and Supabase is never written. */
+    /* UAT MODE OFF on the Test page: none of this — reads go to ERP data below and every save is stopped, as on the test link */
+    var uatOn = !!(window.__UAT && window.__UAT.on);
+    if (uatOn && /firebasedatabase\\.app|firebaseio\\.com/.test(url) && method !== 'HEAD') {
+      var live = window.__TEST_ERP.sbOn ? function (u) { return sbRtdb(String(u), origFetch); } : origFetch;
+      return write ? window.__UAT.write(url, method, init, live) : window.__UAT.read(url, init, live);
     }
-    if (window.__UAT && !write && method !== 'GET' && method !== 'HEAD' && !/script\\.google\\.com/.test(url) && !UAT_MAY_SEND.test(url)) { write = true; what = 'send ' + method; }
-    if (write && window.__TEST_ERP.sbOn && what.indexOf('database ') === 0) return sbWrite(url, method, init, origFetch);   // the factory ERP saves to ERP data only
+    if (uatOn && !write && method !== 'GET' && method !== 'HEAD' && !/script\\.google\\.com/.test(url) && !UAT_MAY_SEND.test(url)
+        && !(window.__TEST_ERP.sbOn && /\\.supabase\\.co\\//.test(url) && SB_READ_RE.test(url.replace(/[?#].*$/, '')))) { write = true; what = 'send ' + method; }
+    /* TEST SAVES OFF: a write to Supabase that is not one of the read doors is stopped (the guard's own reads bypass this) */
+    if (!write && !window.__TEST_ERP.testSaves && /\\.supabase\\.co\\//.test(url) && method !== 'GET' && method !== 'HEAD'
+        && !SB_READ_RE.test(url.replace(/[?#].*$/, ''))) { write = true; what = 'Supabase ' + method; }
+    if (write && window.__TEST_ERP.sbOn && window.__TEST_ERP.testSaves && what.indexOf('database ') === 0) return sbWrite(url, method, init, origFetch);   // only with test saves on: the factory ERP saves to ERP data
     if (write) return window.__testErpBlock(what + ' ' + url.replace(/[?#].*$/, '').slice(0, 120));
     if (window.__TEST_ERP.sbOn && /firebasedatabase\\.app|firebaseio\\.com/.test(url) && method === 'GET') {   // the factory ERP loads from ERP data
       if (!hdrGet(init, 'X-Firebase-ETag')) return sbRtdb(url, origFetch);
@@ -523,8 +544,8 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   document.addEventListener('DOMContentLoaded', function () {
     var s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
     var l = document.createElement('div'); l.id = 'testErpLabel';
-    l.textContent = 'R1 \\u00b7 ' + (window.__UAT ? 'UAT'   /* the UAT bar beside it says the rest */
-      : 'test ERP \\u00b7 ' + (window.__TEST_ERP.sbOn ? 'ERP data \\u00b7 saves go to ERP data only' : 'live data, saving off')) + ' \\u00b7 ' + window.__TEST_ERP.branch + ' @ ' + window.__TEST_ERP.sha;
+    l.textContent = 'R1 \\u00b7 ' + (window.__UAT ? (window.__UAT.on ? 'Test \\u00b7 UAT mode' : 'Test')   /* the bar beside it says the rest */
+      : 'test ERP \\u00b7 ' + (window.__TEST_ERP.sbOn ? (window.__TEST_ERP.testSaves ? 'ERP data \\u00b7 saves go to ERP data only' : 'ERP data \\u00b7 saving off') : 'live data, saving off')) + ' \\u00b7 ' + window.__TEST_ERP.branch + ' @ ' + window.__TEST_ERP.sha;
     document.body.appendChild(l);
     var pb = document.createElement('div'); pb.id = 'r1SpeedPanel'; document.body.appendChild(pb);
     var sb = document.createElement('button'); sb.id = 'r1SpeedBtn'; sb.type = 'button'; sb.textContent = '\\u23f1 Speed';
@@ -611,7 +632,9 @@ function blockFirestoreWrites(html, label, mode) {
    * lists as query(collection, orderBy(…), limit(…))). UAT keeps live's own query functions. */
   const READS = mode === 'uat' ? ['getDoc', 'getDocs', 'getDocsFromServer', 'onSnapshot']
     : ['getDoc', 'getDocs', 'getDocsFromServer', 'onSnapshot', 'query', 'orderBy', 'limit', 'where'];
-  const save = mode === 'uat' ? '__uatFsSave' : '__sbFsSave';
+  /* 'test' (the Test page, 24 Nov): reads from ERP data as 'sb' does, saves kept in the browser as 'uat' does */
+  const keep = mode === 'uat' || mode === 'test';
+  const save = keep ? '__uatFsSave' : '__sbFsSave';
   return must(html, /import\s*\{([^}]*)\}\s*from\s*"(https:\/\/www\.gstatic\.com\/firebasejs\/[^"]+\/firebase-firestore\.js)";/g, (all, names, url) => {
     const list = names.split(',').map(s => s.trim()).filter(Boolean);
     const blocked = list.filter(n => WRITES.includes(n));
@@ -619,17 +642,19 @@ function blockFirestoreWrites(html, label, mode) {
     const kept = list.map(n => (WRITES.includes(n) || READS.includes(n) ? `${n} as __real_${n}` : n));
     const stubs = blocked.map(n => SAVES.includes(n) ? firestoreWrite(n, list.includes('doc'), save)
       : `const ${n} = (...a) => window.__testErpBlock('Firestore ${n}');`).join('\n')
-      + (blocked.some(n => SAVES.includes(n)) ? '\n' + FS_CHANGE_HELPERS + '\n' + (mode === 'uat' ? UAT_FS_SAVE : SB_FS_SAVE) : '');
-    const reads = !read.length ? '' : '\n' + (mode === 'uat' ? uatFirestoreReads(read) : sbFirestoreReads(read));
+      + (blocked.some(n => SAVES.includes(n)) ? '\n' + FS_CHANGE_HELPERS + '\n' + (keep ? UAT_FS_SAVE : SB_FS_SAVE) : '');
+    const reads = !read.length ? '' : '\n' + (mode === 'uat' ? uatFirestoreReads(read) : sbFirestoreReads(read, mode === 'test'));
     return `import { ${kept.join(', ')} }\n  from "${url}";\n/* TEST ERP: Firestore writes are refused (build-test-erp.js). */\n${stubs}` + reads;
   }, 1, label + ' Firestore import');
 }
 /* TEST ERP: Firestore READS answered by ERP data (core.fs_get / fs_list) with the person's own sign-in — the same documents.
  * A config document is read from Firebase (only it may hold an API key, and keys are never in Supabase). The time fields
  * Firestore keeps as timestamps (at, dataAt, saved, updatedAt) come back as timestamps, so "last updated" still shows. */
-function sbFirestoreReads(names) {
+function sbFirestoreReads(names, overlay) {
   const has = n => names.includes(n);
-  return `/* TEST ERP: Firestore reads come from ERP data (build-test-erp.js) */
+  /* overlay (the Test page): what ERP data answers, with this browser's own changes laid on (tests/uat-guard.js) */
+  const raw = has('getDoc') || has('onSnapshot');
+  return `/* TEST ERP: Firestore reads come from ERP data${overlay ? ', with your changes on top' : ''} (build-test-erp.js) */
 const __sbTs = s => { const d = new Date(s); return { toDate: () => new Date(d), toMillis: () => d.getTime(), seconds: Math.floor(d.getTime() / 1000), nanoseconds: 0, toJSON: () => s, toString: () => s, valueOf: () => d.getTime() }; };
 const __sbDoc = (ref, v) => { const out = v == null ? undefined : JSON.parse(JSON.stringify(v));
   if (out && typeof out === 'object') for (const f of ['at', 'dataAt', 'saved', 'updatedAt']) if (typeof out[f] === 'string' && /^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d(\\.\\d+)?Z$/.test(out[f])) out[f] = __sbTs(out[f]);
@@ -643,7 +668,8 @@ async function __sbRpc(fn, body) {
   window.__TEST_ERP.sbReads++; return t ? JSON.parse(t) : null;
 }
 const __sbIsKeyDoc = ref => String(ref && ref.path || '').split('/')[0] === 'config';
-${has('getDoc') ? `const getDoc = async ref => __sbIsKeyDoc(ref) ? __real_getDoc(ref) : __sbDoc(ref, await __sbRpc('fs_get', { p_coll: ref.parent.id, p_id: ref.id }));` : ''}
+${raw ? `const __sbGetDocRaw = async ref => __sbIsKeyDoc(ref) ? (typeof __real_getDoc === 'function' ? __real_getDoc(ref) : __sbDoc(ref, null)) : __sbDoc(ref, await __sbRpc('fs_get', { p_coll: ref.parent.id, p_id: ref.id }));` : ''}
+${has('getDoc') ? (overlay ? 'const getDoc = async ref => { const s = await __sbGetDocRaw(ref); await window.__UAT.ready; return window.__UAT.fsDoc(ref, s); };' : 'const getDoc = __sbGetDocRaw;') : ''}
 ${has('query') ? 'const query = (col, ...cs) => ({ __sbq: true, col, cs, type: "query" });' : ''}
 ${has('orderBy') ? 'const orderBy = (f, dir) => ({ __ob: String(f), dir: dir === "desc" ? -1 : 1 });' : ''}
 ${has('limit') ? 'const limit = n => ({ __lim: Number(n) });' : ''}
@@ -652,7 +678,8 @@ ${has('getDocs') || has('getDocsFromServer') ? `const __sbField = (o, f) => Stri
 const __sbCmp = (a, b) => { const v = x => (x && typeof x.toMillis === 'function') ? x.toMillis() : x; a = v(a); b = v(b); return a === b ? 0 : a === undefined || a === null ? -1 : b === undefined || b === null ? 1 : a < b ? -1 : 1; };
 const __sbGetDocs = async q => { const col = q && q.__sbq ? q.col : q, cs = (q && q.__sbq ? q.cs : []) || [];
   const coll = String(col.path || col.id); const list = await __sbRpc('fs_list', { p_coll: coll }) || [];
-  let docs = list.map(x => __sbDoc({ id: x.id, path: coll + '/' + x.id, parent: col }, x.data));
+  let docs = list.map(x => __sbDoc({ id: x.id, path: coll + '/' + x.id, parent: col }, x.data));${overlay ? `
+  await window.__UAT.ready; docs = window.__UAT.fsDocs(col, { docs }).docs;   /* your changes first, then the question */` : ''}
   for (const c of cs) if (c && c.__wf) docs = docs.filter(d => { const a = __sbField(d.data(), c.__wf), b = c.v;
     switch (c.op) { case '==': return __sbCmp(a, b) === 0; case '!=': return __sbCmp(a, b) !== 0; case '<': return __sbCmp(a, b) < 0; case '<=': return __sbCmp(a, b) <= 0;
       case '>': return __sbCmp(a, b) > 0; case '>=': return __sbCmp(a, b) >= 0; case 'in': return (b || []).some(x => __sbCmp(a, x) === 0);
@@ -663,8 +690,9 @@ const __sbGetDocs = async q => { const col = q && q.__sbq ? q.col : q, cs = (q &
   return { docs, size: docs.length, empty: !docs.length, forEach: f => docs.forEach(f) }; };` : ''}
 ${has('getDocs') ? 'const getDocs = __sbGetDocs;' : ''}
 ${has('getDocsFromServer') ? 'const getDocsFromServer = __sbGetDocs;' : ''}
-${has('onSnapshot') ? `const onSnapshot = (ref, next, err) => { let off = false; const run = () => getDoc(ref).then(s => { if (!off) next(s); }).catch(e => { if (!off && typeof err === 'function') err(e); });
-  run(); const t = setInterval(run, 15000); return () => { off = true; clearInterval(t); }; };   /* asked again every 15 s (no live channel) */` : ''}`;
+${has('onSnapshot') ? `const __sbWatchRaw = (ref, next, err) => { let off = false; const run = () => __sbGetDocRaw(ref).then(s => { if (!off) next(s); }).catch(e => { if (!off && typeof err === 'function') err(e); });
+  run(); const t = setInterval(run, 15000); return () => { off = true; clearInterval(t); }; };   /* asked again every 15 s (no live channel) */
+${overlay ? 'const onSnapshot = (ref, next, err) => window.__UAT.fsWatch(ref, next, err, __sbWatchRaw);' : 'const onSnapshot = __sbWatchRaw;'}` : ''}`;
 }
 
 /* The guard goes just before the page's first <title>, which is the real top of the page in both apps (the factory
@@ -697,15 +725,18 @@ fs.writeFileSync(path.join(OUT, '.nojekyll'), '');
  * Both: the live Firebase connection is not opened (its library is not loaded — every screen then reads plainly, which the
  * guard answers), the check badges and the live mirror are off, and the paths work from a sub-folder. */
 function buildFactory(folder, mode) {
-  const uat = mode === 'uat', name = uat ? 'factory ERP (UAT)' : 'factory ERP';
+  /* mode 'test' (24 Nov, the one Test page): reads ERP data, saving off, with a UAT mode switch (tests/uat-guard.js) that keeps
+   * saves on the tester's PC. 'sb' and 'uat' are the two pages it replaced, kept buildable. */
+  const uat = mode === 'uat' || mode === 'test', sbData = mode !== 'uat';
+  const name = mode === 'test' ? 'factory ERP (Test)' : uat ? 'factory ERP (UAT)' : 'factory ERP';
   const src = path.join(ROOT, 'Replenish-App', 'public'), dst = path.join(OUT, folder);
   copyDir(src, dst, ['index.html']);
   let html = fs.readFileSync(path.join(src, 'index.html'), 'utf8');
   html = guardPage(html, name);
   html = blockFirestoreWrites(html, name, mode);
-  html = must(html, '<script>/* TEST ERP GUARD', uat
-    ? '<script>' + uatGuardScript() + '</script><script>/* TEST ERP GUARD'
-    : '<script>/* TEST ERP GUARD (factory ERP: loads from ERP data) */ window.__TEST_ERP_SB_PAGE = true; </script><script>/* TEST ERP GUARD', 1, name + (uat ? ' UAT guard' : ' loads from ERP data'));
+  const flag = '<script>/* TEST ERP GUARD (factory ERP: loads from ERP data) */ window.__TEST_ERP_SB_PAGE = true; </script>';
+  html = must(html, '<script>/* TEST ERP GUARD', (sbData ? flag : '') + (uat ? '<script>' + uatGuardScript() + '</script>' : '') + '<script>/* TEST ERP GUARD',
+    1, name + (uat ? ' UAT guard' : '') + (sbData ? ' loads from ERP data' : ''));
   html = must(html, "import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js')", "Promise.reject(new Error('test ERP: no live Firebase connection — every read is a plain read'))", null, name + ' no live Firebase connection');
   html = must(html, /const ASH = \{(\r?\n)(\s*)on: /, 'const ASH = {$1$2on: false && ', 1, name + ' check badges off');
   /* no read first tries the live Firebase connection that is not there (16 Nov: each read failed on it first — wasted work and
@@ -733,26 +764,26 @@ function buildFactory(folder, mode) {
   html = must(html, "fetch('/', { method: 'HEAD'", "fetch('./', { method: 'HEAD'", 1, name + ' version check');
   /* R1: the test ERP's own name and mark, so nobody mistakes it for the real one. Screens only: documents (POs,
    * challans) keep the company name, which is what a vendor must see. */
-  const word = uat ? 'UAT' : 'Test ERP';
-  html = must(html, '<title>Ridhi Home &amp; Living</title>', `<title>R1${uat ? ' UAT' : ''}</title>`, null, name + ' title');
+  const word = mode === 'uat' ? 'UAT' : 'Test ERP', tag = mode === 'uat' ? ' UAT' : mode === 'test' ? ' Test' : '';
+  html = must(html, '<title>Ridhi Home &amp; Living</title>', `<title>R1${tag}</title>`, null, name + ' title');
   html = must(html, '<link rel="icon" href="logo.png">', '<link rel="icon" href="r1-icon.svg" type="image/svg+xml">', null, name + ' tab icon');
   html = must(html, '<link rel="apple-touch-icon" href="apple-touch-icon.png">', '<link rel="apple-touch-icon" href="r1-icon.svg">', null, name + ' phone icon');
   html = must(html, 'src="wordmark.png" alt="Ridhi Home &amp; Living"', `src="r1-logo.svg" alt="R1 ${word}"`, null, name + ' sign-in logo');
   html = must(html, '<span class="brandname">Ridhi<span class="brandsub">Home &amp; Living</span></span>',
     `<span class="brandname">R1<span class="brandsub">${word}</span></span>`, null, name + ' header name');
   html = must(html, "+ 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }",
-    `+ 'R1${uat ? ' UAT' : ''}'; } catch (e) { /* nothing depends on it */ }`, null, name + ' tab name');
+    `+ 'R1${tag}'; } catch (e) { /* nothing depends on it */ }`, null, name + ' tab name');
   /* UAT: the browser tab says so, and the Reset button sits in the bar with Guide · Install app · Sign out (Ravi's screenshot, 21 Nov) */
-  if (uat) html = must(html, '<title>R-one</title>', '<title>R-one · UAT</title>', 1, name + ' tab title');
+  if (uat) html = must(html, '<title>R-one</title>', `<title>R-one ·${tag}</title>`, 1, name + ' tab title');
   if (uat) html = must(html, '<button id="logoutBtn" class="nav">Sign out</button>',
     '<button id="uatResetBtn" class="nav" type="button" title="Your test changes on this PC: reset all, undo after a time, restore points">UAT · Reset</button>'
     + '<button id="logoutBtn" class="nav">Sign out</button>', 1, name + ' Reset button');
   fs.writeFileSync(path.join(dst, 'index.html'), html);
   fs.writeFileSync(path.join(dst, 'r1-icon.svg'), R1_ICON);
-  fs.writeFileSync(path.join(dst, 'r1-logo.svg'), r1Logo(uat ? 'UAT' : 'TEST ERP'));
+  fs.writeFileSync(path.join(dst, 'r1-logo.svg'), r1Logo(mode === 'uat' ? 'UAT' : 'TEST ERP'));
   /* the install manifest: relative to its own folder */
   const mf = JSON.parse(fs.readFileSync(path.join(src, 'manifest.webmanifest'), 'utf8'));
-  mf.name = uat ? 'R1 UAT' : 'R1 test ERP'; mf.short_name = uat ? 'R1 UAT' : 'R1'; mf.start_url = './?source=app'; mf.scope = './';
+  mf.name = mode === 'uat' ? 'R1 UAT' : 'R1 test ERP'; mf.short_name = mode === 'uat' ? 'R1 UAT' : 'R1'; mf.start_url = './?source=app'; mf.scope = './';
   mf.icons = [{ src: 'r1-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }];
   fs.writeFileSync(path.join(dst, 'manifest.webmanifest'), JSON.stringify(mf, null, 2));
 }
@@ -762,8 +793,13 @@ function uatGuardScript() {
   if (/<\/script/i.test(code)) throw new Error('uat-guard.js: "</script" inside it would end the page\'s script early.');
   return code;
 }
-buildFactory('replenish', 'sb');
-buildFactory('uat', 'uat');
+/* ONE TEST PAGE (Ravi, 24 Nov): the test link and UAT are one page, replenish/, with a UAT mode switch. Both modes read
+ * ERP data (Supabase) only — never written — and Firebase's registers are not read. uat/ opens it with UAT mode on. */
+buildFactory('replenish', 'test');
+fs.mkdirSync(path.join(OUT, 'uat'), { recursive: true });
+fs.writeFileSync(path.join(OUT, 'uat', 'index.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex">
+<title>R1 · UAT moved</title></head><body style="font:15px system-ui,sans-serif;padding:24px">UAT is now a mode of the Test page. Opening it with UAT mode on…
+<script>try { localStorage.setItem('uat:r1UatMode', '1'); } catch (e) {} location.replace('../replenish/' + location.hash);</script></body></html>`);
 
 /* Sellora */
 {
@@ -786,8 +822,9 @@ buildFactory('uat', 'uat');
  * This page does what the Apps Script reader would: an ADMIN signed in to the test link opens …/copier/ and leaves it open; it
  * reads Firestore with their own sign-in (names + update times first, then only the changed documents) and hands them to ERP
  * data (core.fs_copy_put — admins only). The collections the scripts write: every 5 minutes; every collection the rules name:
- * every hour. It never writes to Firebase; API keys (config/*: key / secret / token / password fields) are never sent. */
-{
+ * every hour. It never writes to Firebase; API keys (config/*: key / secret / token / password fields) are never sent.
+ * TEST SAVES OFF (24 Nov): not built — it wrote Firebase's copies over ERP data, which is now the live ERP's own data. */
+if (TEST_SAVES) {
   const fsrc = fs.readFileSync(path.join(ROOT, 'Replenish-App', 'public', 'index.html'), 'utf8');
   const key = (fsrc.match(/const FB_KEY = "([^"]+)"/) || [])[1];
   const cfgM = fsrc.match(/const firebaseConfig = \{([\s\S]*?)\};/);
@@ -910,11 +947,10 @@ main{max-width:520px;width:100%;display:grid;gap:14px}h1{margin:0;font-size:28px
 a.card{display:block;background:#fff;border:1px solid #e2e4e8;border-radius:12px;padding:16px 18px;text-decoration:none;color:inherit}a.card:hover{border-color:#2b3a8c}
 a.card b{display:block;font-size:18px}small,p{color:#5d636b}@media(prefers-color-scheme:dark){body{background:#111214;color:#e9eaec}a.card{background:#18191c;border-color:#2a2c30}small,p{color:#a0a4ab}}</style></head>
 <body><main><img src="replenish/r1-logo.svg" alt="R1" width="200" style="justify-self:start"><span class="tag">TEST ERP</span><h1>R1 · the test ERP</h1>
-<p>The same apps as the real ERP, built from the <b>${BRANCH}</b> branch on GitHub. Nothing here can change the real ERP: both apps read and <b>save to ERP data (Supabase) only</b> — test saves are wiped when the real switch happens. E-mails, Shopify, Amazon and logins stay switched off.</p>
-<a class="card" href="replenish/"><b>Factory ERP</b><small>Replenishment, production, vendors, stock · loads from and saves to ERP data (Supabase)</small></a>
-<a class="card" href="sellora/"><b>Sellora</b><small>Research, sales, listings, advertising · loads from and saves to ERP data (Supabase)</small></a>
-<a class="card" href="uat/"><b>UAT · factory ERP on live data</b><small>Reads the live ERP; every change you make stays on your own PC and never reaches live or any other service. Reset any time: everything, after a time, or back to a restore point.</small></a>
-<a class="card" href="copier/"><b>Firestore copier</b><small>Admins: keep it open while people test — copies what the Apps Scripts write into ERP data</small></a>
+<p>The same apps as the real ERP, built from the <b>${BRANCH}</b> branch on GitHub. Both apps <b>only read</b> ERP data (Supabase), the live ERP's own data — nothing here is ever written to it, or to Firebase. E-mails, Shopify, Amazon and logins stay switched off.</p>
+<a class="card" href="replenish/"><b>Factory ERP · Test</b><small>Replenishment, production, vendors, stock · live data, saving off. Turn on <b>UAT mode</b> (the bar at the bottom) to try saves: they stay on your own PC, laid over live data, with Reset — everything, after a time, or back to a restore point.</small></a>
+<a class="card" href="sellora/"><b>Sellora</b><small>Research, sales, listings, advertising · live data from ERP data · saving off</small></a>
+${TEST_SAVES ? '<a class="card" href="copier/"><b>Firestore copier</b><small>Admins: keep it open while people test — copies what the Apps Scripts write into ERP data</small></a>' : ''}
 <small>Built from commit ${SHA} · ${WHEN}</small></main></body></html>`);
 
-console.log(`test ERP built into ${OUT} from ${BRANCH} @ ${SHA}: factory ERP + Sellora (ERP data), UAT (live, changes kept in the browser).`);
+console.log(`test ERP built into ${OUT} from ${BRANCH} @ ${SHA}: factory ERP Test page with UAT mode + Sellora, both reading ERP data only; uat/ opens Test in UAT mode.`);

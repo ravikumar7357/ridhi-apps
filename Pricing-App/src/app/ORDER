@@ -17,6 +17,11 @@ core/backend.js
 core/stock-doc.js
 sales/brand-analytics.js
 inventory/inventory-age.js
+reimb/reimb-core.js
+reimb/reimb-sample.js
+reimb/reimb-data.js
+reimb/reimb-overview.js
+reimb/reimb-claim.js
 listing/listing-health.js
 listing/listing-rules.js
 listing/listing-match.js

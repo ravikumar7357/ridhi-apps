@@ -120,7 +120,9 @@ onAuthStateChanged(auth, async user => {
        * its own — pay, rates and slips stay shut unless Finance & HR is granted as well. */
       ME.empEdit = d.empEdit === true;
       /* …and: may SEE the Access page (who can open what) and change nothing (core/access-host.js). */
-      ME.accessView = d.accessView === true; }
+      ME.accessView = d.accessView === true;
+      /* The role this person is given in the Access page, which decides the parts of a page they see (core/page-parts.js). */
+      ME.accessRole = String(d.accessRole || ''); }
   } catch (e) { /* no perms = no access */ }
   if (typeof accessShadow === 'function') accessShadow(user, ASH_DOC, ASH_MS);   // test ERP only (core/access-shadow.js): never waits, never throws
   /* A perms read that fails leaves ME.tabs empty, which is the correct answer — but the cover still
@@ -289,9 +291,9 @@ onAuthStateChanged(auth, async user => {
         /* ...and the Finished Goods light-open switch (inventory/finished-goods.js), also from the next page load. */
         if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(!!d && (d.fgLite === true || d.fgLite === 1 || d.fgLite === '1' || d.fgLite === 'on'));
         /* ...and the printer's hold switch (flow/flow-printorder.js: a new plan's Vendor Order waits for its RFD challan), also from the next page load. */
-        if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(!!d && (d.printerHold === true || d.printerHold === 1 || d.printerHold === '1' || d.printerHold === 'on'));
+        if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(!(d && (d.printerHold === false || d.printerHold === 0 || d.printerHold === '0' || d.printerHold === 'off')));   // on unless switched off (24 Nov)
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(false); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(true); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }
@@ -318,6 +320,8 @@ onAuthStateChanged(auth, async user => {
   }
 
   if (slim) await slim;
+  /* Which parts of a page this person sees (core/page-parts.js): read before the first screen shows; never throws, falls back to everything shown. */
+  if (typeof apxLoad === 'function') await apxLoad();
   /* The screen the address names, when this account may open it — a tab opened from a menu link, or a
    * reload. showTab itself sends anything else to the first screen this account has. A report link to one order
    * ("#ord?q=…") is read first, because showTab rewrites the address to the bare screen. */

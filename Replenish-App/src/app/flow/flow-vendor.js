@@ -63,12 +63,34 @@ let FLOW_VP_AS = null;   // { code, name } while an admin looks as a printer
 const flowVpMayLook = () => !!(ME.admin || ME.vpView || ME.vpRecv);
 /** THE PRINTER'S HOLD in the portal (flow-printorder.js flowHoldOn): a real printer sign-in does not see lines marked awaitRfd, nor
  *  an order left with none; an admin "View as printer" sees them, marked in the line's note. Old orders carry no mark: untouched. */
+/* ONLY WHAT WAS GIVEN (Ravi, 24 Nov: "mera order 400 pcs ka h but abhi rfd wale ne 100 pcs diye h to vendor ko bhi 100 pcs dikhne chahiye"):
+ * a gated line (rfdGate, put on when it was held) shows the printer the metres / pieces its RFD challans gave so far (flowProg, the
+ * portal's own Raw figure), never more than was ordered; nothing given yet → the line is held as before. The office sees the full
+ * line with a note. */
+function flowVpGate(o, lines, asAdmin) {
+  if (!lines.some(l => l && l.rfdGate) || typeof vpRawCtx !== 'function' || typeof vpLineRaw !== 'function') return lines;
+  const ctx = vpRawCtx(o);
+  return lines.map(l => {
+    if (!l || !l.rfdGate || l.awaitRfd) return l;
+    const f = l.meters != null && l.qty == null ? 'meters' : 'qty', full = +l[f] || 0, given = +((vpLineRaw(o, l, ctx) || {}).raw || 0);
+    if (given >= full - 0.01) return l;
+    const u = f === 'meters' ? ' m' : ' pcs', note = `Given so far: ${nf(given)}${u} of ${nf(full)}${u} ordered — the rest comes with the next RFD challan. `;
+    if (!(given > 0)) return Object.assign({}, l, { awaitRfd: true });
+    return Object.assign({}, l, { [f]: f === 'meters' ? Math.round(given * 100) / 100 : Math.floor(given), orderedTotal: full, notes: note + (l.notes || '') });
+  });
+}
+/* VIEW AS PRINTER = WHAT THE PRINTER SEES (Ravi, 24 Nov: "rfd wala bhejega tab printer ko show hona chahiye abhi direct show gya h" — the
+ * office's view showed held lines, marked only in a note the portal never prints). The office now sees exactly the printer's portal: held
+ * lines left out, a part-sent line at what was given; how many lines are held is said on the PRINTER'S VIEW bar (FLOW_VP_HELD). */
+let FLOW_VP_HELD = { lines: 0, orders: 0 };
 function flowVpHoldApply(rows, asAdmin) {
   const isHeld = l => !!(l && l.awaitRfd);
-  return (rows || []).map(o => {
-    const lines = o && o.lines ? voLines(o) : [];
+  FLOW_VP_HELD = { lines: 0, orders: 0 };
+  return (rows || []).map(o0 => {
+    const lines0 = o0 && o0.lines ? voLines(o0) : [];
+    const gated = flowVpGate(o0, lines0, asAdmin), o = gated === lines0 ? o0 : Object.assign({}, o0, { lines: gated }), lines = gated;
     if (!lines.some(isHeld)) return o;
-    if (asAdmin) return Object.assign({}, o, { lines: lines.map(l => (isHeld(l) ? Object.assign({}, l, { notes: 'Waiting for RFD challan — the printer does not see this line yet. ' + (l.notes || '') }) : l)) });
+    FLOW_VP_HELD.lines += lines.filter(isHeld).length; FLOW_VP_HELD.orders++;
     const open = lines.filter(l => !isHeld(l));
     return open.length ? Object.assign({}, o, { lines: open }) : null;   // every line held: the order is not shown yet
   }).filter(Boolean);
@@ -83,6 +105,8 @@ async function flowVpAfterLoad() {
   }
   if (!VP.code) return;
   VP.rows = flowVpHoldApply(VP.rows, VP.viewAs);
+  if (VP.viewAs && typeof document !== 'undefined' && document.getElementById) { const el = document.getElementById('flVpHeld');
+    if (el) el.innerHTML = FLOW_VP_HELD.lines ? `<span style="padding:3px 10px;border-radius:999px;background:#FFF4E0;color:#7A3A0C;font-size:12px;font-weight:700" title="Planned for this printer, but no RFD challan yet — they appear for the printer once the cloth or cut pieces are sent">${nf(FLOW_VP_HELD.lines)} line${FLOW_VP_HELD.lines > 1 ? 's' : ''} waiting for cloth — hidden from the printer</span>` : ''; }
   /* A PRINTER'S OWN SIGN-IN NEVER SEES A TEST ORDER (14 Oct: the flow is on the live app now, where real printers sign in).
    * Test orders reach the portal only when an admin looks at it "as printer". */
   if (!VP.viewAs) { VP.rows = (VP.rows || []).filter(o => !(o && o.virtual)); return; }
@@ -97,7 +121,7 @@ async function flowVpBar() {
     <label style="display:flex;gap:6px;align-items:center;margin:0;font-size:12.5px">See the portal as printer
       <select id="flVpAs" style="width:auto;min-width:220px"><option value="" disabled selected>— pick a printer —</option></select></label>
     <span class="muted" style="font-size:12px">${flowMay('flchl') ? 'what that printer sees — receive its goods on each line' : 'what that printer sees, view only — nothing can be changed from here'}</span>
-    <span style="flex:1"></span><span id="flVpX"></span></div>`);
+    <span id="flVpHeld"></span><span style="flex:1"></span><span id="flVpX"></span></div>`);
   let map = {}; try { map = (await ptGet('pt_vendorMap')) || {}; } catch (e) { map = {}; }
   const sel = $('flVpAs'); if (!sel) return;
   sel.innerHTML += Object.entries(map).filter(([, v]) => v).sort((a, b) => String(a[1].name || a[0]).localeCompare(String(b[1].name || b[0])))

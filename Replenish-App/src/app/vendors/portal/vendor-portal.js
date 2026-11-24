@@ -791,7 +791,7 @@ function vpSheetCells(o, l, note) {
   const extra = vpVsApproved(vpVsOf(o, l));
   return `<td style="font-size:12px;white-space:nowrap">${esc(o.orderDate || '') || '<span class="muted">—</span>'}</td>`
     + pic
-    + `<td style="text-align:left;font-weight:700;font-size:12.5px">${esc(vpIsShop(o) && (l.shopRef || l.shopOrderNo) ? (l.shopRef || l.shopOrderNo) : (o.orderNo || o.id))}${note || ''}</td>`
+    + `<td style="text-align:left;font-weight:700;font-size:12.5px">${esc(vpIsShop(o) && (l.shopRef || l.shopOrderNo) ? (l.shopRef || l.shopOrderNo) : (o.orderNo || o.id))}${note || ''}${typeof pclLineHtml === 'function' ? pclLineHtml(o, l) : ''}</td>`
     + `<td style="text-align:left;font-size:12.5px;line-height:1.35">${esc(what) || '<span class="muted">—</span>'}${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</td>`
     + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span>${extra > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${nf(extra)} approved</div>` : ''}</td>`
     + `<td class="num">${nf(vpOnTheWay(vpVsSum(vpVsOf(o, l)), rc.qty))}</td>`
@@ -949,6 +949,26 @@ const vpBuyerOf = l => (/^B2B-/.test(obUC(l && l.shopOrderNo)) && String((l && l
 
 /** What Ridhi Home & Living gave the printer for this order and what came back — the office's entries, written onto the
  * order as flowProg (flow-printorder.js). Nothing for an order the flow did not make. */
+/* THE WHOLE ORDER, WHILE PART OF THE CLOTH HAS COME (Ravi, 24 Nov: "printer ko ek notify ho jay ki total 400 pcs ka order h but abhi 100
+ * ka fabric mila h jisase printer 1 bar me color bana lega"). A line shown only for what the RFD challans gave so far (flow-vendor.js
+ * flowVpGate: rfdGate) is named here, on top of the order, in amber: the full quantity, what came so far, and to make the colour for
+ * all of it in one go. The office's "View as printer" sees the same box. */
+function vpPartNotice(o) {
+  const ls = voLines(o).filter(l => l && l.rfdGate && !l.awaitRfd);
+  if (!ls.length) return '';
+  const ctx = vpRawCtx(o), out = [];
+  ls.forEach(l => {
+    const f = l.meters != null && l.qty == null ? 'meters' : 'qty', u = f === 'meters' ? 'm' : 'pcs';
+    const full = +(l.orderedTotal != null ? l.orderedTotal : l[f]) || 0, given = +((vpLineRaw(o, l, ctx) || {}).raw || 0);
+    if (!(full > 0) || given >= full - 0.01) return;
+    const what = [l.sku, l.fabricType, l.color].filter(Boolean).join(' · ') || 'this line';
+    out.push(`<li><b>${esc(what)}</b>: full order <b>${nf(Math.round(full * 100) / 100)} ${u}</b> — ${u === 'm' ? 'fabric' : 'pieces'} for <b>${nf(Math.round(given * 100) / 100)} ${u}</b> given so far</li>`);
+  });
+  if (!out.length) return '';
+  return `<div style="margin-top:8px;padding:9px 12px;border-radius:10px;background:#FFF4E0;border:1px solid #F5C77E;color:#7A3A0C;font-size:13px;white-space:normal">`
+    + `<b>Part of the fabric has come.</b> Make the colour for the FULL order in one go — the rest of the fabric comes with the next challan.`
+    + `<ul style="margin:6px 0 0 18px;padding:0">${out.join('')}</ul></div>`;
+}
 function vpProgHtml(o) {
   const p = o && o.flowProg; if (!p) return '';
   const u = p.unit === 'pcs' ? 'pcs' : 'm', q = n => nf(Math.round((+n || 0) * 100) / 100) + ' ' + u;
@@ -1265,7 +1285,7 @@ function vpTable(rows, f) {
           <span class="pill ${cls}">${esc(st)}</span>
         </div>
         ${o.notes ? `<div class="ptnote" style="margin-top:7px">From the buyer: ${esc(o.notes)}</div>` : ''}
-        ${vpProgHtml(o)}
+        ${vpPartNotice(o)}${vpProgHtml(o)}
         ${flow ? `<div style="margin-top:7px">
           <button data-vpflow="${esc(o.id)}">${flow === 'Acknowledged' ? 'Acknowledge this order' : 'Start production'}</button>
         </div>` : ''}
@@ -1376,7 +1396,7 @@ function vpCard(o, f) {
       <span style="flex:1"></span><span class="pill ${cls}">${esc(st)}</span>
     </div>
     ${o.notes ? `<div class="ptnote" style="margin-top:8px">From the buyer: ${esc(o.notes)}</div>` : ''}
-    ${vpProgHtml(o)}
+    ${vpPartNotice(o)}${vpProgHtml(o)}
     <div class="xlwrap" style="border:1px solid var(--line);border-radius:10px;margin-top:8px">
       <table class="xl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
     ${on && keep.length < all.length ? `<div class="muted" style="font-size:12px;margin-top:6px">${

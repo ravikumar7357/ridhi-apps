@@ -91,11 +91,27 @@ async function loadMyPerms(user) {
   }
 }
 
+/* THE REIMBURSEMENT MENU ON A LOCAL TEST COPY ONLY (24 Nov 2026). While the module is built on sample data, a copy of Sellora
+ * run on this computer (hostname localhost, 127.0.0.1, 0.0.0.0 or empty — the same host test as clTestSite in
+ * listing/create-listing.js, without its test-site half) shows every tab of the Reimbursement menu group to any signed-in
+ * account, so it can be looked at without first ticking 'reimb' on the Access page. Only the menu: what those tabs may read or
+ * save still follows firestore.rules (reimbCases needs can('reimb') there), whatever this says. On the dev and live sites
+ * nothing changes — 'reimb' must be ticked like any other right — and no other tab is touched on any host.
+ * loc: for the tests (window.location otherwise). */
+const accLocalHost = loc => {
+  const l = loc || (typeof location !== 'undefined' ? location : null);
+  return !!l && /^(localhost|127\.0\.0\.1|0\.0\.0\.0|)$/.test(l.hostname || '');
+};
+// The tabs of the Reimbursement menu group, read off the menu (NAV_GROUPS, core/nav.js); 'reimb' before the menu is read.
+const accReimbTabs = () => ((typeof NAV_GROUPS !== 'undefined' && NAV_GROUPS.find(g => g.key === 'reimb')) || { tabs: ['reimb'] }).tabs;
+const accLocalOpen = (t, loc) => accLocalHost(loc) && accReimbTabs().includes(t);
+
 // Build the menu from ME: show the granted tab buttons, trim the ad brand pickers, drop menu groups with
 // nothing left in them, and open the first tab allowed — or the "no access" notice when there is none.
 function applyPerms() {
-  // May this account open tab t? An admin may; so may anyone granted it, or granted the tab it comes with.
-  const allowedOwn = t => ME.admin || ME.tabs.includes(t) || (!!TAB_INHERIT[t] && ME.tabs.includes(TAB_INHERIT[t]));
+  // May this account open tab t? An admin may; so may anyone granted it, or granted the tab it comes with — and, on a local
+  // test copy only, anyone for the Reimbursement menu (accLocalOpen above).
+  const allowedOwn = t => ME.admin || ME.tabs.includes(t) || (!!TAB_INHERIT[t] && ME.tabs.includes(TAB_INHERIT[t])) || accLocalOpen(t);
   // The Dashboard (core/dashboard.js, 20 Nov 2026) comes with any screen: each of its cards shows only what that screen may show.
   const allowed = t => (t === 'dash' ? TABS.some(x => x !== 'dash' && !HIDDEN_TABS.includes(x) && allowedOwn(x)) : allowedOwn(t));
   // --- tab buttons ---

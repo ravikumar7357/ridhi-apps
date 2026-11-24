@@ -133,7 +133,12 @@ function plcAgg() {
         addTo(box[n] || (box[n] = blank()), v);
       });
     });
-    (pack.worst || []).forEach(w => worst.push({ ...w, p: plcName(w.p), brand: b }));
+    // The product, campaign and stock filters (shared with the decisions): the table of spend with no orders is per
+    // campaign, so it follows them; the chart and the totals are not split by campaign (renderPlc says so).
+    (pack.worst || []).forEach(w => {
+      if (typeof plxCampPass === 'function' && staFOn() && !plxCampPass(b, w.cid || plxCidOf(b, w.cn))) return;
+      worst.push({ ...w, p: plcName(w.p), brand: b });
+    });
   });
   worst.sort((a, b) => b.sp - a.sp);
   const names = [...new Set([...PLC_ORDER.filter(p => place[p]), ...Object.keys(place)])];
@@ -212,7 +217,8 @@ function renderPlc() {
 
   // --- the chart's line ---
   $('plcChSub').innerHTML = `${money(totSpend)} spent, ${money(T[4])} back · <span style="color:var(--bad-ink);font-weight:700">${money(totMis)}</span> ${PLC_NOORD.toLowerCase()}`
-    + (PLC.at ? ` · built ${esc(PLC.at)}` : '');
+    + (PLC.at ? ` · built ${esc(PLC.at)}` : '')
+    + (typeof staFOn === 'function' && staFOn() ? ' · every campaign: this report is not split by campaign, so the filters do not narrow the chart or the totals (the table of spend with no orders follows them)' : '');
 }
 
 /* Hand-drawn stacked bars. This app deliberately loads no charting library — one <script> from a CDN

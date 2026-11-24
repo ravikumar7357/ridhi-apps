@@ -98,6 +98,58 @@ const run = js => vm.runInContext(js, ctx);
   const block = rules.slice(rules.indexOf('match /creatorOrders/{ref}'), rules.indexOf('match /creatorOrders/{ref}') + 900);
   ok(/allow delete: if canCreators\(\) && !\(\('amazon' in resource\.data\) && \('orderId' in resource\.data\.amazon\)\s+&& resource\.data\.amazon\.orderId != ''\);/.test(block), 'the Firestore rule allows delete only without an Amazon order id');
 
+  console.log('== tracking links (24 Nov) ==');
+  ok(run(`croTrackUrl('UPS', '1Z999AA10123456784')`) === 'https://www.ups.com/track?tracknum=1Z999AA10123456784', 'UPS → ups.com');
+  ok(run(`croTrackUrl('', '1Z999AA10123456784')`).startsWith('https://www.ups.com/'), 'a 1Z number with no carrier is UPS');
+  ok(run(`croTrackUrl('USPS', '9400111899223')`).startsWith('https://tools.usps.com/'), 'USPS → usps.com');
+  ok(run(`croTrackUrl('FedEx', '7712')`).startsWith('https://www.fedex.com/'), 'FedEx → fedex.com');
+  ok(run(`croTrackUrl('AMZL_US', 'TBA123456789000')`) === 'https://track.amazon.com/tracking/TBA123456789000', 'Amazon (TBA…) → track.amazon.com');
+  ok(run(`croTrackUrl('Some Co', '123')`) === '' && run(`croTrackUrl('UPS', '')`) === '', 'unknown carrier or no number → no link');
+  const two = run(`croTrackHtml({ carrier: 'UPS', tracking: '1ZAAA, 1ZBBB' })`);
+  ok((two.match(/<a /g) || []).length === 2 && /target="_blank"/.test(two) && /rel="noopener noreferrer"/.test(two), 'two numbers → two links, each opening a new tab safely');
+  ok(run(`croTrackHtml({ carrier: 'X', tracking: '<b>' })`).indexOf('<b>') < 0, 'the number is escaped');
+  ok(run(`croTrackHtml({})`) === '', 'no tracking → nothing');
+
+  console.log('== steps and next step ==');
+  ctx.SHOP_STOCK_LOADED = false; ctx.sdPT = t => new Date(t); ctx.nf = n => String(n);
+  run(`CRO.list = [
+    { reference: 'A1', status: 'New' }, { reference: 'A2', status: 'Checked' }, { reference: 'A3', status: 'Sent to Amazon', amazon: { orderId: 'SHOP-A3' } },
+    { reference: 'A4', status: 'Shipped', amazon: { orderId: 'SHOP-A4', carrier: 'UPS', tracking: '1ZX' } }, { reference: 'A5', status: 'Delivered' },
+    { reference: 'A6', status: 'Problem', notes: 'bad address' }, { reference: 'A7', status: 'Shipped', lastReportError: 'refused' }];
+    CRO.from = ''; CRO.to = ''; CRO.store = ''; CRO.q = ''; CRO.status = ''; CRO.src = '';`);
+  const lane = k => run(`CRO.lane = '${k}'; croRows().map(o => o.reference).join()`);
+  ok(lane('') === 'A1,A2,A3,A4,A5,A6,A7', 'All → every order');
+  ok(lane('check') === 'A1' && lane('send') === 'A2' && lane('amazon') === 'A3', 'To check / Ready to send / With Amazon');
+  ok(lane('shipped') === 'A4,A7' && lane('delivered') === 'A5', 'Shipped / Delivered');
+  ok(lane('attention') === 'A6,A7', 'Needs attention = Problem, Cancelled, or Creator Setu not told');
+  ok(run(`CRO.lane = 'check'; croRows(true).length`) === 7, 'the step counts are taken before the step filter');
+  run(`CRO.lane = ''`);
+  ok(/Check product/.test(run(`croNext(croOf('A1'))`)) && /Send to Amazon/.test(run(`croNext(croOf('A2'))`)), 'next step: New → check, Checked → send');
+  ok(/Waiting for Amazon/.test(run(`croNext(croOf('A3'))`)) && /not asked Amazon yet/.test(run(`croNext(croOf('A3'))`)), 'Sent → waiting, and says Amazon was not asked yet');
+  ok(/ups\.com/.test(run(`croNext(croOf('A4'))`)) && /mark Delivered/.test(run(`croNext(croOf('A4'))`)), 'Shipped → the tracking link and "mark Delivered"');
+  const pr = run(`croProgress({ status: 'Sent to Amazon', createdAt: '2026-11-18T10:00:00Z', checkedAt: '2026-11-18T12:00:00Z', amazon: { sentAt: '2026-11-19T07:05:00Z' } })`);
+  ok((pr.match(/cro-step done/g) || []).length === 2 && (pr.match(/cro-step now/g) || []).length === 1, 'progress: New and Checked done, Sent to Amazon is now');
+  ok(/cro-off/.test(run(`croProgress({ status: 'Problem', notes: 'x' })`)), 'a Problem order shows the red banner');
+
+  console.log('== tracking is asked for by itself ==');
+  const now = Date.now(), iso = ms => new Date(ms).toISOString();
+  run(`CRO_ASKED.clear(); CRO.busy = false; CRO.list = [
+    { reference: 'T1', status: 'Sent to Amazon', amazon: { orderId: 'SHOP-T1' } },
+    { reference: 'T2', status: 'Sent to Amazon', amazon: { orderId: 'SHOP-T2', checkedAt: '${iso(now - 5 * 60e3)}' } },
+    { reference: 'T3', status: 'Shipped', amazon: { orderId: 'SHOP-T3', checkedAt: '${iso(now - 2 * 3600e3)}' } },
+    { reference: 'T4', status: 'Shipped', amazon: { orderId: 'SHOP-T4', tracking: '1ZDONE' } },
+    { reference: 'T5', status: 'Checked' }];`);
+  ok(run(`CRO.list.filter(o => croTrackDue(o)).map(o => o.reference).join()`) === 'T1,T3',
+    'due: never asked, or asked over 30 min ago, and no tracking yet — not one asked 5 min ago, not one with tracking, not one not sent');
+  const askedAmazon = [];
+  ctx.croStatusOne = async ref => { askedAmazon.push(ref); run(`croOf('${ref}').status = 'Shipped'`); return ''; };
+  ctx.location = { hash: '', hostname: 'localhost' };
+  ok((await run(`croTrackAuto()`)) === 0 && askedAmazon.length === 0, 'not on the real ERP (test ERP, localhost) → Amazon is not asked');
+  ctx.location = { hash: '', hostname: 'fabricrush-replenish.web.app' };
+  ok((await run(`croTrackAuto()`)) === 2 && askedAmazon.join() === 'T1,T3', 'on the real ERP → asks Amazon about T1 and T3, one after the other');
+  ok((await run(`croTrackAuto()`)) === 0 && askedAmazon.length === 2, 'opening the page again → not asked twice in one sitting');
+  ok(/croTrackAuto\(\)/.test(SRC.slice(SRC.indexOf('async function croShow'))), 'the page asks when it opens');
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

@@ -215,6 +215,7 @@ if ($('shTable')) $('shTable').addEventListener('change', e => {
   shPickBtn();
 });
 async function shOpenSo() {
+  if (!apxOn('so.dlg.form')) return shMsg(SO_NOT_OPEN, true);   // the order form is off for this person: stop before loading anything
   const all = new Map(SH_LAST.map(r => [r.sku, r]));
   const picked = [...SH_PICK].map(k => all.get(k)).filter(Boolean);
   const lines = picked.filter(r => r.need > 0).map(r => ({ sku: obUC(r.sku), qty: r.need, deliveryDate: '', orderTypeKey: 'regular', priority: '' }));

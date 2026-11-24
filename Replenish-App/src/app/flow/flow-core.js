@@ -185,7 +185,7 @@ const flowScreenAllowed = () => flowBucketsAllowed().filter(b => b[4] === 'flow'
  * embroidery then cut and then Q.C"): printed as running cloth, sent in metres to the embroidery department or an embroidery
  * vendor (picked per line — plan.emb), back as pieces, cut (the cloth round the embroidery is trimmed), then QC — no
  * karigar. A SKU whose subtype says Embroidery starts on it. */
-const FLOW_ROUTES = [['inhouse', 'Printing — printed by a vendor, then cut & stitched here', 'Printing'],
+const FLOW_ROUTES = [['inhouse', 'Printing — printed by a vendor, then made here', 'Printing'],
   ['emb', 'Printing + Embroidery — printed, embroidered, cut, then QC', 'Embroidery'],
   ['stitch', 'Cutting — no printing, straight to the cutting department', 'Cutting'],
   ['jobwork', 'Job Work — no printing, no cutting, straight to the karigars', 'Job Work'],
@@ -405,6 +405,11 @@ function flowState(r) {
       (r.handedAt || r.shopDoneAt) ? 'done'
     : (isNew && !p) ? (flowBoardOwns(r) ? 'board' : (flowIsBack(r) ? 'back' : 'ppc'))   // 'board' is in no flow list: the SHP board plans it
     : (route === 'outsource') ? (s.india < qty ? 'out' : 'done')
+    /* ALL OF IT IS IN FINISHED GOODS (Ravi, 24 Nov: the PPC history showed "In QC 402 · 47 d" beside "✓ Into FG" for a line
+     * whose 497 pieces were all received into Finished Goods while QC had entered only 95). India stock is the last word:
+     * nothing of the line is left to make, whatever an earlier register missed. A made-to-order line still waits for its
+     * hand-over to shipping. */
+    : (qty > 0 && s.india >= qty && !flowIsMto(r)) ? 'done'
     : (s.needFab || s.needAcc) ? 'demand'
     : (printed && s.given < qty) ? 'vendor'
     : (printed && s.back < qty) ? 'fabric'
