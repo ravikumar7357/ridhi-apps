@@ -47,7 +47,7 @@ function load(o) {
     document: { querySelector: () => o.box || null },
     vpVsCan: () => true, flowDueRows: () => o.due || [], flowRows: () => flowRowsNow, dToday: () => '2026-11-16',
     flowMay: tab => !!(ctx.ME.admin || (ctx.ME.tabs || []).includes(tab)), cutSkuOf: sku => (o.master || {})[sku] || null,
-    vpPartOk: () => true, vpQOk: () => true, vpLineOn: () => false, voLineMatches: () => true, voDueOf: (x, l) => l.dueX || null, voWant: () => '',
+    VP_PART: '', vpPartOk: () => true, vpQOk: () => true, vpLineOn: () => false, voLineMatches: () => true, voDueOf: (x, l) => l.dueX || null, voWant: () => '',
     vpDueClass: x => (x && x.st === 'late' ? 'vo-late' : ''), voDueHtml: x => (x ? x.due : '—'), vpIsShop: () => false,
     ptImgCellSrc: () => '<td></td>', ptImgCell: () => '<td></td>', vpRunPic: () => '<td></td>', flowVoProgSync: () => syncs.push(1), $: id => els[id], reads: [], flowChIndex: () => o.chIx || {}, flowRecvRows: () => o.recvRows || [], vpHistRows: () => o.oldRows || [], patches: [], ptPatch: async p => { if (o.patchFails) throw new Error('offline'); ctx.patches.push(p); }, voProm: l => l.prom || '', VO_SOON: 3, flowDueDay: d => d,
     flowEnsureData: () => { ctx.reads.push(1); return Promise.resolve(); },
