@@ -1146,5 +1146,7 @@ function alDashOf(view) {
   if (!r || !r.ok) return { empty: true, why: r ? r.why : '' };
   return { n: r.alerts.length, usd: Math.round(r.atRisk), crit: r.counts.critical,
     top: r.alerts.slice(0, 3).map(a => ({ name: alShort(a.name), usd: Math.round(a.atRisk), why: a.soft ? `${a.watchState} · Watch` : AL_HEAD[a.cause.k], sev: a.sev, pct: alPctL(a.drop, false).replace('%', '') })),
+    // the confirmed wins, biggest extra $/week first (the page's own order) — the Dashboard's "Wins this week" shows the top two
+    wins: r.wins.slice(0, 2).map(a => ({ name: alShort(a.name), pct: Math.round(a.gain), usd: Math.round(a.extra) })), winN: r.wins.length,
     when: `finished days up to ${alDay(r.last)}` };
 }

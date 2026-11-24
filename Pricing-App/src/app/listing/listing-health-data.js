@@ -870,6 +870,9 @@ function renderHealth() {
   // the same trap healthOf has to avoid.
   const isActive = row => /active/i.test(row.status || '') && !/inactive/i.test(row.status || '');
   const view = $('hIssueView').value;
+  // New (30 days) / New (7 days) (listing/new-listings.js): the sales stores and Listing History are read once, then this draws again.
+  const isNew = /^new\d+$/.test(view) && typeof nlHealthPick === 'function';
+  if (isNew) nlHealthEnsure();
   // One predicate, used two ways: in child view it picks ROWS, in parent view it picks which
   // PARENTS to show (any parent with at least one matching child) while the counts still describe
   // all of that parent's children.
@@ -888,6 +891,8 @@ function renderHealth() {
     noimg: row => !!row._h.pics && !row._h.pics.main,
     fewimg: row => !!row._h.pics && row._h.pics.main && row._h.pics.n < H_RULES.minImages,
     noaplus: row => row._h.aplus.v === false && !row._h.aplus.stale,
+    new7: row => isNew && nlHealthPick(row, 'new7'),
+    new30: row => isNew && nlHealthPick(row, 'new30'),
   }[view] || null;
 
   const search = $('hFilter').value.trim().toLowerCase();
@@ -985,6 +990,9 @@ function renderHealth() {
     if (PRED) rows = rows.filter(PRED);
     if (search) rows = rows.filter(row => textOf(row).includes(search));
 
+    // New listings: their own columns — date listed, days, status, stock, units and $ since listed, images, A+, errors, needs help
+    if (isNew) defs.push(...nlHealthDefs(multiBrand));
+    else {
     /* SKU / ASIN · Status · Severity · Issues · Inventory · Title · Size · Variation · Images — Ravi's drawing —
      * then Content (A+, bullets, description), Health, the reasons, and a suggested title where one applies.
      * A coloured dot is the worst issue in that area; ✓ is judged and fine; — could not be judged. */
@@ -1013,13 +1021,14 @@ function renderHealth() {
     defs.push({ k: 'suggest', t: '', noTotal: 1, map: () => '',
       cell: row => (row._h.found.some(found => found.area === 'Title' || found.area === 'Size' || found.area === 'Variation') && lrTemplateFor(row, LR || LR_DEFAULT))
         ? `<button class="ghost" data-hsug="${lrEsc(row.brand)}|${lrEsc(row.sku)}" style="padding:2px 8px;font-size:12px;white-space:nowrap">Suggest title</button>` : '' });
+    }
   }
 
   // --- sort, then draw (the first H_PAGE rows; totals, cards and Export use them all) ---
   const val = (row, def) => (def.map ? def.map(row) : row[def.k]);
   // Parent view leads with the parents that need the most work; child view with the worst listings.
   const sortDef = defs.find(def => def.k === H_SORT.k)
-    || defs.find(def => def.k === (H_VIEW === 'parent' ? 'critical' : 'score'));
+    || defs.find(def => def.k === (H_VIEW === 'parent' ? 'critical' : 'score')) || defs.find(def => def.dflt) || defs[0];
   // SMOOTH (18 Nov 2026): each row's sort value worked out once, not twice per comparison (a parent's area column walks all its
   // children) — the same values, the same stable sort, so the same order.
   const sortVal = new Map(rows.map(row => [row, val(row, sortDef)]));
@@ -1068,7 +1077,7 @@ function renderHealth() {
   const rowOpen = row => {
     if (H_VIEW !== 'child') return '<tr>';
     const key = row.brand + '|' + row.sku;
-    return `<tr class="ls-row${key === selKey ? ' is-open' : ''}" data-lk-row="${esc(key)}" tabindex="0" aria-selected="${key === selKey}" aria-label="${esc(row.sku)}: open its details">`;
+    return `<tr class="ls-row${key === selKey ? ' is-open' : ''}${row._nlHelp && row._nlHelp.length && isNew ? ' nl-needs' : ''}" data-lk-row="${esc(key)}" tabindex="0" aria-selected="${key === selKey}" aria-label="${esc(row.sku)}: open its details">`;
   };
   const rowHtml = row => rowOpen(row) + defs.map(def => {
     const value = val(row, def);

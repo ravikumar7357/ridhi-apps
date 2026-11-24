@@ -36,6 +36,7 @@ listing/listing-send-check.js
 listing/kw-fix.js
 listing/title-fix.js
 listing/listing-history.js
+listing/new-listings.js
 listing/bsr-audit.js
 listing/family-check.js
 listing/category-check.js

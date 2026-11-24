@@ -1,66 +1,60 @@
-/* ================= CORE · DASHBOARD: the first screen after sign-in (20–21 Nov 2026) =================
+/* ================= CORE · DASHBOARD: the first screen after sign-in — the business in five seconds (24 Nov 2026 redesign) =================
  * Screens: Dashboard (tab 'dash', #paneDash; core/nav.js calls ensureDash when it opens), the Sellora logo in the top bar (opens
  *          it) and the ✨ button beside the theme switch (#fxBtn: the animation on / off for the Dashboard and the Sales Dashboard —
- *          sales/sales-charts.js reads the same choice, selloraDashFx; nothing on any other screen moves or stops with it).
- * Does: shows, for Both / Ridhi / CPC (remembered in this browser), the numbers the other screens work out — never one of its own.
- *   NEVER EMPTY: every card first shows the number it showed last time (this browser's copy, selloraDash.v3, amber "as of <time>"),
- *   then counts over to the fresh number when that lands. The very first time, a shimmer stands in, and morphs into the number.
- *   THE LOADS START WHEN SIGN-IN SUCCEEDS (dashPrefetch, from this file's own onAuthStateChanged — core/auth.js is not touched), all
- *   at once, each card on its own (15 s each, then the cached number or "couldn't load"): Sales · PPC · Inventory, then Listing
- *   Health, then pictures · errors · BSR · Listing History. Each reads what its screen reads, read-only, and data a screen already
- *   holds is used as it is:
- *     sales    the Sales Dashboard's own loader (ensureSales) and sums (sdSum, sdSeries) — its numbers and its date, to the cent;
- *     ads      the PPC & Organic weekly store (WEEKLY, else ONE read of its saved snapshot into the Dashboard's OWN copy);
- *     age      Inventory Age's saved snapshot (loadAgeCache);
- *     health   EXACTLY what Listing Health's header counts (renderHealthKpis): its snapshot (loadHealthCache), its rules (lrLoad),
- *              catalogue (only a fresh saved copy — lrLoadCatalog WRITES a new one otherwise), Amazon's status (amzEnsure), the
- *              picture list (imListLoad), the picture-check marks (pcLoad), the shared copy of live reads (svLoad) and the listing
- *              cache's first refresh — then hCtx + hHealthKept, the header's own judgement, with Monitor counted on its own. Any of those
- *              changing later (dashWatch: hCtx, LI_WS.liveV …) counts again. A self-check (dashHealthCheck) compares the Dashboard
- *              with the header each time Listing Health draws it, and logs any difference in the console;
- *     img/lerr Image Manager's list (IML) — "need pictures" (imProblems · IM_NEEDS) and Listing Errors' "Errors only" count;
- *     bsr      BSR Audit's "Got worse" (its compare when drawn, else the latest two stored weeks through its own functions);
- *     lh       Listing History, this month and last month (LH.rows when loaded, else the newest LISTING log documents — up to the 800
- *              the screen reads — until last month is covered).
- * NEVER: an Amazon refresh, "Refresh both brands", "Refresh from Amazon", AI, or a write anywhere but this browser (localStorage).
- * Look: GSAP 3.12.5 + ScrollTrigger + MotionPathPlugin (jsDelivr, fetched the first time the Dashboard opens with ✨ on): an aurora
- *       behind, a slow dot field, the greeting typed in, a live clock, a sliding brand pill, glass KPI cards with sparklines, tilt, a
- *       rotating rim and a shine, a flow of glowing pipes with dots running through them, donuts that draw segment by segment and pop on
- *       hover, a line that draws with a rider dot and a crosshair, elastic bars with a striped running week, tiles that reveal on
- *       scroll, a ticker of what needs attention, and confetti once a day for a real win. No GSAP: the CSS motion. ✨ off / reduced
- *       motion: no motion at all (GSAP not fetched), same numbers. Every loop stops while the tab is hidden or another screen is open.
- * Main functions: ensureDash, dashPrefetch, dashRun, dashWatch, dashHealthCheck, dashData, dashRender, dashPaint, dashAnim. */
+ *          sales/sales-charts.js reads the same choice, selloraDashFx).
+ * Does: for Ridhi / CPC / All (remembered in this browser), top to bottom, nothing else:
+ *   1. the greeting, the date, the brand switch and "Updated HH:MM";
+ *   2. ONE LINE written from the real numbers ("November is going well: $560k so far, +70% vs last year, on track for ~$827k.") —
+ *      dashSummaryText; down: "… −Y% vs last year — 2 products to watch" (Sales Alerts' confirmed ones);
+ *   3. four KPI cards: Sales this month · Yesterday · Ad spend this week + TACoS · Year to date vs last year — each with its ▲ / ▼, a
+ *      small trend line and its exact definition (ⓘ, keyboard-reachable);
+ *   4. one chart: daily sales vs last year, the last 30 days (last year = the same weekday, 364 days back, as the Sales Dashboard);
+ *   5. small cards: "This week, explained" (sales/sales-insight.js), "New listings" (listing/new-listings.js) and, only when there is
+ *      one, "Wins this week" (Sales Alerts' confirmed wins).
+ *   NO LISTING ERROR COUNTS here (24 Nov 2026, the MD: some errors are left on purpose) — they live on Listing Health, Image Manager,
+ *   Listing Errors… with every detail; "New listings → Open" takes you to Listing Health's "New (30 days)" with its errors.
+ *   EVERY NUMBER IS ANOTHER SCREEN'S, with its "as of":
+ *     sales   the Sales Dashboard's own loader (ensureSales) and sums (sdSum, sdSeries, sdLastYear) — MTD and YTD include today like
+ *             its cards, their % on complete days like its cards; the month projection is its "where this month lands" rule;
+ *     ads     the PPC & Organic weekly store (WEEKLY, else ONE read of its saved snapshot into the Dashboard's OWN copy) — the latest
+ *             week as renderWeeklyKpis adds it, TACoS against the week before;
+ *     vi / al This week in plain English / Sales Alerts, their own Dashboard hooks (viDashOf, alDashOf);
+ *     nl      New listings (nlNow / nlSummary): Listing Health's rows, the listing cache, the sales stores, Listing History.
+ *   NEVER EMPTY: each card first shows what it showed last time (this browser's copy, selloraDash.v4, amber "as of <time>"), then
+ *   the fresh number; the very first time, a skeleton in the card's exact shape (no jump when the number lands).
+ *   (DASH_CALC.age stays for Numbers Check, sales/sales-check.js, which compares it with Inventory Age; it is not drawn here.)
+ * NEVER: an Amazon refresh, AI, or a write anywhere but this browser (localStorage).
+ * Look: calm cards (16px, soft border, a shadow only in light), one blue for this year, green / red only on ▲ / ▼. Motion (GSAP 3.12.5
+ *       from jsDelivr, else CSS; ✨ off or reduced motion: none): the line fades in, the numbers count up, the trend lines and the chart
+ *       draw once. Every count ends on the exact text, whatever happens to the animation.
+ * Main functions: ensureDash, dashPrefetch, dashRun, dashWatch, dashData, dashSummaryText, dashRender, dashPaint, dashAnim. */
 
 // var, not const: core/nav.js's load-time showTab calls ensureDash before this file has run (it waits for this).
 var DASH_READY = false;
-const DASH_LS = { brand: 'selloraDashBrand', fx: 'selloraDashFx', cache: 'selloraDash.v3', old: 'selloraDash.v2', party: 'selloraDashConfetti' };
+const DASH_LS = { brand: 'selloraDashBrand', fx: 'selloraDashFx', cache: 'selloraDash.v4', nl: 'selloraDashNlDays' };
 const DASH_CDN = 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/';
 const DASH_TIMEOUT = 15000;
-const DASH = { brand: 'ALL', st: {}, memo: {}, sigUsed: {}, shown: {}, was: {}, tw: {}, timing: {}, t0: 0, weekly: null, lhOwn: null,
-  bsrOwn: null, catOk: {}, imlP: null, gs: null, plug: {}, eng: 'none', cu: [], raf: 0, safety: 0, rendered: false, lastFresh: 0,
-  dots: null, clockT: 0, watchT: 0, paused: false };
+const DASH = { brand: 'ALL', nlDays: 30, st: {}, memo: {}, sigUsed: {}, shown: {}, was: {}, tw: {}, timing: {}, t0: 0, weekly: null,
+  gs: null, eng: 'none', cu: [], raf: 0, safety: 0, rendered: false, lastFresh: 0, watchT: 0, drawn: {} };
 const DASH_NUM = new Intl.NumberFormat('en-US');
 const DASH_FMT = {
   money: v => '$' + DASH_NUM.format(Math.round(v)),         // the Sales Dashboard's sdMoney: whole dollars
-  usd2: v => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),   // Inventory Age's storage
   num: v => DASH_NUM.format(Math.round(v)),
+  pct: v => (v > 0.05 ? '+' : v < -0.05 ? '−' : '') + Math.abs(v).toFixed(1) + '%',
 };
-const DASH_SLOTS = ['ticker', 'tVi', 'tAl', 'kSales', 'kYtd', 'kAds', 'kList', 'flow', 'donut', 'line', 'bars', 'tImg', 'tErr', 'tBsr', 'tAge'];
+// The page, top to bottom.
+const DASH_SLOTS = ['summary', 'kMtd', 'kYest', 'kAds', 'kYtd', 'chart', 'cVi', 'cNew', 'cWins'];
 // Each data source: the screen whose access it needs, and the cards it fills.
 const DASH_KEYS = {
-  sales: { tab: 'sales', slots: ['kSales', 'kYtd', 'line', 'ticker'] },
-  ads: { tab: 'ppcn', slots: ['kAds', 'bars', 'ticker'] },
-  vi: { tab: 'sales', slots: ['tVi'] },                 // This week in plain English (sales/sales-insight.js)
-  al: { tab: 'salert', slots: ['tAl'] },                // Sales Alerts (sales/sales-alerts.js)
-  age: { tab: 'age', slots: ['tAge', 'ticker'] },
-  health: { tab: 'health', slots: ['kList', 'flow', 'donut', 'ticker'] },
-  lh: { tab: 'lhist', slots: ['flow'] },
-  img: { tab: 'img', slots: ['tImg', 'ticker'] },
-  lerr: { tab: 'lerr', slots: ['tErr', 'ticker'] },
-  bsr: { tab: 'bsr', slots: ['tBsr', 'ticker'] },
+  sales: { tab: 'sales', slots: ['summary', 'kMtd', 'kYest', 'kYtd', 'chart'] },
+  ads: { tab: 'ppcn', slots: ['kAds'] },
+  vi: { tab: 'sales', slots: ['cVi'] },                 // This week in plain English (sales/sales-insight.js)
+  al: { tab: 'salert', slots: ['summary', 'cWins'] },   // Sales Alerts (sales/sales-alerts.js): "N products to watch", the wins
+  nl: { tab: 'health', slots: ['cNew'] },               // New listings (listing/new-listings.js)
 };
 const DASH_VIEWS = ['ALL', 'SP', 'CPC'];
-const DASH_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DASH_MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const DASH_DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const dashEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const dashGet = key => { try { return localStorage.getItem(key); } catch (e) { return null; } };
 const dashSet = (key, value) => { try { localStorage.setItem(key, value); } catch (e) { /* private window: not remembered */ } };
@@ -78,14 +72,24 @@ const dashWhen = d => {
 const dashHm = ms => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 const dashMq = q => { try { return !!(window.matchMedia && window.matchMedia(q).matches); } catch (e) { return false; } };
 const dashReduce = () => dashMq('(prefers-reduced-motion: reduce)');
-const dashPhone = () => dashMq('(max-width:700px)') || dashMq('(pointer:coarse)');
 const dashFxSaved = () => dashGet(DASH_LS.fx) !== '0';
 const dashFxOn = () => dashFxSaved() && !dashReduce();
 // How the Dashboard moves right now: 'gsap', 'css' (GSAP not loaded), or 'none' (✨ off / reduced motion).
 const dashEngine = () => (!dashFxOn() ? 'none' : window.gsap && DASH.gs === true ? 'gsap' : 'css');
 const dashShown = () => !!$('paneDash') && !$('paneDash').classList.contains('hide');
-const dashLive = () => dashShown() && (typeof document === 'undefined' || document.visibilityState !== 'hidden');
 const dashMs = () => Math.round(performance.now() - (DASH.t0 || 0));
+const dashDay = iso => { const d = new Date(iso + 'T00:00:00Z'); return DASH_DOW[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + DASH_MONTH[d.getUTCMonth()].slice(0, 3); };
+// "$560k", "$56.3k", "$8,450", "$1.24M" — the summary line's money (the cards keep every dollar).
+function dashCompact(v) {
+  const a = Math.abs(Number(v) || 0), s = v < 0 ? '−' : '';
+  const trim = x => x.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+  if (a >= 1e6) return s + '$' + trim((a / 1e6).toFixed(2)) + 'M';
+  if (a >= 1e5) return s + '$' + Math.round(a / 1e3) + 'k';
+  if (a >= 1e4) return s + '$' + trim((a / 1e3).toFixed(1)) + 'k';
+  return s + '$' + DASH_NUM.format(Math.round(a));
+}
+// A change as the summary says it: whole per cent from 10 %, one decimal under it; "+" or "−".
+const dashPctWord = p => (p >= 0 ? '+' : '−') + (Math.abs(p) >= 10 ? Math.round(Math.abs(p)) : Math.abs(p).toFixed(1)) + '%';
 
 /* ================= THE NAME: the account's display name; else the e-mail name — never a two-letter piece of it ================= */
 function dashWho() {
@@ -105,18 +109,9 @@ function dashWho() {
 function dashCacheAll() {
   try { return JSON.parse(dashGet(DASH_LS.cache) || '{}') || {}; } catch (e) { return {}; }
 }
-// v2 kept Listing Health / pictures / history numbers worked out before the inputs were all in: only its sales, PPC and age come over.
-(() => {
-  try {
-    if (dashGet(DASH_LS.cache)) return;
-    const old = JSON.parse(dashGet(DASH_LS.old) || 'null');
-    if (!old) return;
-    const keep = {};
-    ['sales', 'ads', 'age'].forEach(k => { if (old[k]) keep[k] = old[k]; });
-    dashSet(DASH_LS.cache, JSON.stringify(keep));
-  } catch (e) { /* starts empty */ }
-})();
-// Keep a source's fresh numbers for all three views (Both, Ridhi, CPC), so the next sign-in shows them at once.
+// The copies of the old page (v2 / v3 held Listing Health counts) and its confetti day go.
+(() => { try { ['selloraDash.v3', 'selloraDash.v2', 'selloraDashConfetti'].forEach(k => localStorage.removeItem(k)); } catch (e) { /* nothing kept */ } })();
+// Keep a source's fresh numbers for all three views (All, Ridhi, CPC), so the next sign-in shows them at once.
 function dashStore(key) {
   const res = dashCalc(key);
   if (!res) return;
@@ -131,17 +126,12 @@ function dashStore(key) {
 /* ================= WORKING OUT THE NUMBERS — from what is in memory, all three views at once (kept until an input changes) ================= */
 // What each source's numbers are worked out from — when any of these is a different object or value, they are worked out again.
 const DASH_SIG = {
-  sales: () => [SD && SD.at, SD && SD.d, SD_LIVE, typeof T_MATCH !== 'undefined' && T_MATCH.biz],
+  sales: () => [SD && SD.at, SD && SD.d, SD_LIVE, typeof T_MATCH !== 'undefined' && T_MATCH.biz, sdToday()],
   ads: () => [WEEKLY.rows, WEEKLY.at, DASH.weekly],
   vi: () => [typeof VI !== 'undefined' ? VI.v : 0, typeof sdToday === 'function' ? sdToday() : '', H_LOADED],
   al: () => [typeof AL !== 'undefined' ? AL.v : 0, typeof VI !== 'undefined' ? VI.v : 0, typeof sdToday === 'function' ? sdToday() : '', H_LOADED,
     typeof AL !== 'undefined' ? AL.store.marks : null, typeof AL !== 'undefined' ? AL.store.settings : null],
-  age: () => [AGE_LOADED, AGE.SP, AGE.CPC],
-  health: () => [H_LOADED, LR, HEALTH.SP, HEALTH.CPC, H_LOADED && LR ? hCtx() : null, typeof LI_WS !== 'undefined' ? LI_WS.liveV : 0, new Date().toDateString()],
-  lh: () => [LH.rows, LH.loading, DASH.lhOwn],
-  img: () => [IML.SP, IML.CPC, IML.SP && IML.SP.items, IML.CPC && IML.CPC.items, typeof lmVersion === 'function' ? lmVersion() : 0, typeof PC !== 'undefined' ? PC.v : 0],
-  lerr: () => [IML.SP, IML.CPC, IML.SP && IML.SP.items, IML.CPC && IML.CPC.items, typeof lmVersion === 'function' ? lmVersion() : 0],
-  bsr: () => [BSR_RENDER && BSR_RENDER.all, DASH.bsrOwn],
+  nl: () => [typeof nlNow === 'function' ? nlNow() : null],
 };
 const dashSigOf = key => { try { return DASH_SIG[key](); } catch (e) { return [Math.random()]; } };
 const dashSame = (a, b) => !!(a && b && a.length === b.length && a.every((x, i) => x === b[i]));
@@ -157,10 +147,26 @@ const dashPerView = fn => { const out = {}; DASH_VIEWS.forEach(view => { out[vie
 const DASH_CALC = {
   // This week in plain English (sales/sales-insight.js): the first sentence of the summary, per view — the same movers as the box
   vi: () => dashPerView(view => viDashOf(view)),
-  // Sales Alerts (sales/sales-alerts.js): how many need attention, $/week at risk and the top three, per view — the page's own alerts
+  // Sales Alerts (sales/sales-alerts.js): how many to watch, and the confirmed wins, per view — the page's own lists
   al: () => dashPerView(view => alDashOf(view)),
+  // New listings (listing/new-listings.js), per view and per window (7 / 30 days)
+  nl: () => {
+    const res = typeof nlNow === 'function' ? nlNow() : null;
+    if (!res) return null;
+    return dashPerView(view => {
+      const bs = dashBrandsOf(view).filter(b => HEALTH[b] && HEALTH[b].rows);
+      if (!bs.length) return { empty: true, why: 'no Listing Health snapshot yet' };
+      const w = {};
+      NL_WINDOWS.forEach(n => { w[n] = nlSummary(res, bs, n); });
+      const lm = typeof lmDataLabel === 'function' ? lmDataLabel(bs) : null;
+      const at = bs.map(b => HEALTH[b].at).filter(Boolean).map(d => d.getTime());
+      return { w, src: res.src, salesAt: res.salesAt, only: bs.length < dashBrandsOf(view).length ? bs.map(dashName).join(', ') + ' only' : '',
+        when: (lm ? 'listings: ' + lm.text : at.length ? 'listings: snapshot ' + dashWhen(Math.min(...at)) : 'listings: Listing Health')
+          + (res.salesAt ? ' · sales up to ' + res.salesAt : '') };
+    });
+  },
   // The Sales Dashboard's own sums: sdSum / sdSeries read the channel on view (SD_CH), so it is set for each brand and put back
-  // straight after, in the same moment (nothing else runs in between).
+  // straight after, in the same moment (nothing else runs in between). Numbers Check compares mtd / ytd with the Sales Dashboard.
   sales: () => {
     if (!(SD && SD.at)) return null;
     const keep = SD_CH;
@@ -168,29 +174,49 @@ const DASH_CALC = {
     const monthStart = today.slice(0, 8) + '01', yearStart = today.slice(0, 4) + '-01-01';
     const T = typeof T_MATCH !== 'undefined' && T_MATCH.biz;
     const when = 'nightly run ' + SD.at + (SD_LIVE ? ' · today ' + SD_LIVE : '') + (T ? ' · Seller Central totals' : '');
+    // the Sales Dashboard's "where this month lands": complete days so far + the last 7 complete days' rate × the days still to come
+    const daysInMonth = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0)).getUTCDate();
+    const doneDays = Number(today.slice(8, 10)) - 1;
+    const days30 = [];
+    for (let i = 29; i >= 0; i--) days30.push(sdShift(today, -i));
     try {
       return dashPerView(view => {
         const bs = dashBrandsOf(view);
-        const sum = (from, to) => bs.reduce((t, ch) => { SD_CH = ch; return t + sdSum(from, to)[0]; }, 0);
-        const series = from => {
+        const sum = (from, to) => Math.round(bs.reduce((t, ch) => { SD_CH = ch; return t + sdSum(from, to)[0]; }, 0) * 100) / 100;
+        // day → sales, the brands added together; a day no brand holds is not there (missing is not $0)
+        const byDay = (from, to) => {
           const by = {};
-          bs.forEach(ch => { SD_CH = ch; sdSeries(from, today).forEach(p => { by[p.d] = (by[p.d] || 0) + p.v; }); });
-          return Object.keys(by).sort().map(d => ({ d, v: Math.round(by[d] * 100) / 100 }));
+          bs.forEach(ch => { SD_CH = ch; sdSeries(from, to).forEach(p => { by[p.d] = (by[p.d] || 0) + p.v; }); });
+          return by;
         };
-        const pts = series(sdShift(today, -89));
-        const months = [];
-        for (let m = 1; m <= Number(today.slice(5, 7)); m++) {
-          const mm = String(m).padStart(2, '0');
-          months.push(sum(`${today.slice(0, 4)}-${mm}-01`, new Date(Date.UTC(Number(today.slice(0, 4)), m, 0)).toISOString().slice(0, 10)));
+        const mc = sum(monthStart, yest), ml = sum(sdLastYear(monthStart), sdLastYear(yest));
+        const yc = sum(yearStart, yest), yl = sum(sdLastYear(yearStart), sdLastYear(yest));
+        const rate7 = sum(sdShift(yest, -6), yest) / 7;
+        const ty = byDay(sdShift(today, -29), today), ly = byDay(sdShift(today, -29 - 364), sdShift(today, -364));
+        const r2 = v => (v == null ? null : Math.round(v * 100) / 100);
+        const days = days30.map(d => ({ d, v: d in ty ? r2(ty[d]) : null, ly: sdShift(d, -364) in ly ? r2(ly[sdShift(d, -364)]) : null }));
+        // the trend lines: this month's complete days (else the last 30), the last 30 complete days, the YTD % vs last year day by day
+        const done = days.slice(0, -1);
+        const monthDays = done.filter(p => p.d >= monthStart);
+        const ytdTy = byDay(yearStart, yest), ytdLy = byDay(sdLastYear(yearStart), sdLastYear(yest));
+        const ytdPct = [], from30 = sdShift(yest, -29);
+        let a = 0, b = 0;
+        for (let d = yearStart; d <= yest; d = sdShift(d, 1)) {
+          a += ytdTy[d] || 0;
+          b += ytdLy[sdLastYear(d)] || 0;
+          if (d >= from30) ytdPct.push(b ? (a - b) / b * 100 : null);
         }
-        return { mtd: sum(monthStart, today), ytd: sum(yearStart, today),
-          mc: sum(monthStart, yest), ml: sum(sdLastYear(monthStart), sdLastYear(yest)),
-          yc: sum(yearStart, yest), yl: sum(sdLastYear(yearStart), sdLastYear(yest)),
-          pts, spark30: pts.slice(-30).map(p => p.v), months, day: SD.at, when };
+        const yLyDay = sdShift(yest, -364);
+        return { mtd: sum(monthStart, today), ytd: sum(yearStart, today), mc, ml, yc, yl,
+          yest: sum(yest, yest), yestDay: yest, yestLy: yLyDay in ly ? r2(ly[yLyDay]) : sum(yLyDay, yLyDay), yestLyDay: yLyDay,
+          rate7: Math.round(rate7 * 100) / 100, proj: Math.round(((doneDays > 0 ? mc : 0) + rate7 * (daysInMonth - doneDays)) * 100) / 100,
+          doneDays, daysInMonth, month: DASH_MONTH[Number(today.slice(5, 7)) - 1], today,
+          spark: { mtd: (monthDays.length >= 2 ? monthDays : done).map(p => p.v), yest: done.map(p => p.v), ytd: ytdPct },
+          days, day: SD.at, when };
       });
     } finally { SD_CH = keep; }
   },
-  // PPC & Organic: per week of the last 8, sales and ad spend; the latest week's TACoS as renderWeeklyKpis works it out.
+  // PPC & Organic: per week of the last 8, sales and ad spend; the latest week's TACoS as renderWeeklyKpis works it out, and the week before.
   ads: () => {
     const W = WEEKLY.weeks.length && Object.keys(WEEKLY.rows).length ? WEEKLY : DASH.weekly;
     if (!W) return null;
@@ -206,13 +232,14 @@ const DASH_CALC = {
         rows.forEach(r => { const c = (r.weeks || {})[w]; if (c) { rev += c.rev || 0; spend += c.spend || 0; } });
         return { w, rev, spend, done: wWeekDone(w), label: wLabel(w) };
       });
-      const last = per[per.length - 1];
+      const last = per[per.length - 1], prev = per[per.length - 2];
       return { per, last, tacos: last && last.rev ? Math.round(last.spend / last.rev * 100) : null, days: last && !last.done ? wDaysIn(last.w) : 7,
+        prevTacos: prev && prev.rev ? Math.round(prev.spend / prev.rev * 100) : null, prevLabel: prev ? prev.label : '',
         only: bs.length < dashBrandsOf(view).length ? bs.map(dashName).join(', ') + ' only' : '',
         when: (W.at ? 'sales as at ' + W.at : 'not pulled yet') + (W.adAt ? ' · ads ' + W.adAt : '') };
     });
   },
-  // Inventory Age: aged 181+ units and the storage charge, as renderAgeKpis adds them up.
+  // Inventory Age: aged 181+ units and the storage charge, as renderAgeKpis adds them up — NOT on this page; Numbers Check reads it.
   age: () => {
     if (!AGE_LOADED) return null;
     return dashPerView(view => {
@@ -230,160 +257,22 @@ const DASH_CALC = {
         when: ats.length ? 'updated ' + dashWhen(new Date(Math.min(...ats.map(d => d.getTime())))) : '' };
     });
   },
-  // Listing Health's header (renderHealthKpis): every listing of the snapshot, judged by hHealthKept with hCtx, counted by its level.
-  health: () => {
-    const per = dashHealthCounts();
-    if (!per) return null;
-    return dashPerView(view => {
-      const bs = dashBrandsOf(view).filter(b => per[b]);
-      if (!bs.length) return { empty: true, when: 'no snapshot yet' };
-      const v = { n: 0, critical: 0, action: 0, review: 0, healthy: 0, monitor: 0, unchecked: 0 };
-      bs.forEach(b => Object.keys(v).forEach(k => { v[k] += per[b][k]; }));
-      const whens = [...new Set(bs.map(b => per[b].when))];
-      return Object.assign(v, { per: Object.fromEntries(bs.map(b => [b, per[b]])),
-        when: whens.length === 1 ? whens[0] : bs.map(b => dashName(b) + ': ' + per[b].when).join(' · ') });
-    });
-  },
-  // Listing History: listings sent after approval, and listings Amazon accepted — this month and last month.
-  lh: () => {
-    const rows = Array.isArray(LH.rows) && !LH.loading && !LH.err ? LH.rows : DASH.lhOwn;
-    if (!rows) return null;
-    const blank = { from: '', to: '', user: '', what: '', screen: '', result: '', q: '' };
-    const month = lhFiltered(rows, Object.assign({}, blank, { range: 'month' }));
-    const d = new Date();
-    const iso = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-    const prev = lhFiltered(rows, Object.assign({}, blank, { range: 'custom', from: iso(new Date(d.getFullYear(), d.getMonth() - 1, 1)),
-      to: iso(new Date(d.getFullYear(), d.getMonth(), 0)) }));
-    const count = (list, bs) => {
-      const mine = list.filter(r => bs.includes(r.brand));
-      return { fixed: new Set(mine.filter(r => r.result !== 'notsent').map(r => r.brand + '|' + r.sku)).size,
-        amz: new Set(mine.filter(r => r.result === 'accepted').map(r => r.brand + '|' + r.sku)).size };
-    };
-    return dashPerView(view => {
-      const bs = dashBrandsOf(view);
-      const now = count(month, bs), was = count(prev, bs);
-      return { fixed: now.fixed, amz: now.amz, fixedPrev: was.fixed, amzPrev: was.amz, when: 'Listing History · ' + DASH_MON[d.getMonth()] };
-    });
-  },
-  img: () => dashImlCount(it => it.lvl !== 'parent', (it, b) => imProblems(it, b).some(k => IM_NEEDS.includes(k))),
-  lerr: () => dashImlCount(x => x.lvl !== 'parent', x => (x.iss || []).some(i => i.s === 'E') || (!!x.ie && !x.iss)),
-  // BSR Audit's "Got worse": its compare as drawn (the weeks picked there), else the latest two stored weeks worked out here.
-  bsr: () => {
-    const all = BSR_LOADED && BSR_RENDER && Array.isArray(BSR_RENDER.all) && BSR_RENDER.all.length ? BSR_RENDER.all : null;
-    if (all) {
-      const pick = $('bBrandView') ? $('bBrandView').value : 'ALL';
-      const wA = $('bWeekA') ? $('bWeekA').value : '', wB = $('bWeekB') ? $('bWeekB').value : '';
-      return dashPerView(view => {
-        const bs = dashBrandsOf(view);
-        if (pick !== 'ALL' && bs.some(b => b !== pick)) return null;
-        const worse = all.filter(r => bs.includes(r.brand) && r.move === 'worse');
-        return { n: worse.length, high: worse.filter(r => r.prio && r.prio.p === 'High').length, when: wA && wB ? wA + ' vs ' + wB : 'BSR Audit' };
-      });
-    }
-    const own = DASH.bsrOwn;
-    if (!own) return null;
-    return dashPerView(view => (own.none ? { empty: true, when: 'no snapshots yet' }
-      : { n: dashBrandsOf(view).reduce((s, b) => s + (own[b] || 0), 0), high: null, when: own.wA + ' vs ' + own.wB }));
-  },
 };
-// Listing Health's header numbers per brand — renderHealthKpis' tally over renderHealth's rows: each snapshot row copied with its brand,
-// judged by hHealthKept(snapshot row, copy, hCtx(), now). null until every input Listing Health judges with is in.
-function dashHealthCounts() {
-  if (!H_LOADED || !LR) return null;
-  if (['SP', 'CPC'].some(b => HEALTH[b] && !LR_CAT[b] && !DASH.catOk[b])) return null;      // its catalogue: not in, and not fresh
-  if (hColdMany()) { dashWarmHealth(); return null; }                                         // new rows (a refresh): judged in slices first
-  const hc = hCtx();
-  const now = Date.now();
-  const per = {};
-  ['SP', 'CPC'].forEach(brand => {
-    if (!HEALTH[brand]) return;
-    const c = { n: 0, critical: 0, action: 0, review: 0, healthy: 0, monitor: 0, unchecked: 0, nodata: 0 };
-    HEALTH[brand].rows.forEach(src => {
-      const row = { ...src, brand };
-      const h = hHealthKept(src, row, hc, now);
-      c.n++;
-      if (h.bucket in c) c[h.bucket]++;
-      if (h.bucket === 'unchecked' && row.tried) c.nodata++;
-    });
-    const lm = typeof lmDataLabel === 'function' ? lmDataLabel([brand]) : null;
-    c.when = lm ? lm.text : HEALTH[brand].at ? 'updated ' + dashWhen(HEALTH[brand].at) : '';
-    per[brand] = c;
-  });
-  return per;
-}
-// Many listings not judged yet (a refresh brought new rows): Listing Health's own slices (hWarm), then counted again and kept.
-function dashWarmHealth() {
-  if (DASH.warmP) return;
-  DASH.warmP = Promise.resolve(hWarm()).catch(() => {}).then(() => {
-    DASH.warmP = null;
-    delete DASH.memo.health;
-    if (dashCalc('health')) { dashStore('health'); DASH.lastFresh = Date.now(); }
-    if (dashShown() && DASH.rendered) { dashPaint([...new Set(DASH_KEYS.health.slots)], 'swap'); dashLiveLine(); }
-  });
-}
-// Image Manager's list (IML), counted per brand: the child listings `kid` keeps for which `hit` is true.
-function dashImlCount(kid, hit) {
-  if (!['SP', 'CPC'].every(b => b in IML)) return null;
-  const per = {};
-  ['SP', 'CPC'].forEach(b => {
-    const data = IML[b];
-    if (data && Array.isArray(data.items)) per[b] = { n: data.items.filter(it => kid(it) && hit(it, b)).length,
-      when: (typeof lmDataLabel === 'function' && lmDataLabel([b])) ? lmDataLabel([b]).text : data.at ? 'snapshot ' + dashWhen(data.at) : '' };
-  });
-  return dashPerView(view => {
-    const bs = dashBrandsOf(view).filter(b => per[b]);
-    if (!bs.length) return { empty: true, when: 'no snapshot yet' };
-    const whens = [...new Set(bs.map(b => per[b].when))];
-    return { n: bs.reduce((s, b) => s + per[b].n, 0), only: bs.length < dashBrandsOf(view).length ? bs.map(dashName).join(', ') + ' only' : '',
-      when: whens.length === 1 ? whens[0] : bs.map(b => dashName(b) + ': ' + per[b].when).join(' · ') };
-  });
-}
 
-/* ================= THE SELF-CHECK: the Dashboard against Listing Health's own header ================= */
-// Each time Listing Health draws its header showing every listing (no level, no search), its numbers are read off the page and set
-// beside the Dashboard's, worked out at that moment from the same data. A difference is logged (console.warn) and counted again.
-function dashHealthCheck() {
-  const box = $('hKpis');
-  if (!box) return { checked: false, why: 'no header' };
-  if (($('hIssueView') || {}).value !== 'ALL' || String(($('hFilter') || {}).value || '').trim()) return { checked: false, why: 'a filter is on' };
-  const screen = {};
-  box.querySelectorAll('.lh-kpibrand').forEach(card => {
-    const name = ((card.querySelector('.lh-kpiname') || {}).textContent || '').trim();
-    const brand = name === 'Ridhi' ? 'SP' : name === 'CPC' ? 'CPC' : '';
-    if (!brand) return;
-    const v = {};
-    card.querySelectorAll('.ls-box').forEach(b => {
-      const label = ((b.querySelector('.ls-l') || {}).textContent || '').replace(/[●▲✓]/g, '').trim();
-      const num = Number(((b.querySelector('.ls-v b') || {}).textContent || '').replace(/[^\d.-]/g, ''));
-      const note = (b.querySelector('.ls-note') || {}).textContent || '';
-      if (label === 'Critical') v.critical = num;
-      else if (label === 'Needs Action') v.action = num;
-      else if (label === 'Needs Review') v.review = num;
-      else if (label === 'Healthy') { v.healthyAll = num; const m = note.match(/([\d,]+)\s+monitor/); v.monitor = m ? Number(m[1].replace(/,/g, '')) : 0; }
-      else if (label === 'Listings') v.n = num;
-    });
-    screen[brand] = v;
-  });
-  delete DASH.memo.health;
-  const per = dashHealthCounts();
-  if (!per) return { checked: false, why: 'the Dashboard has not every input yet', screen };
-  const out = { checked: true, same: true, brands: {} };
-  Object.keys(screen).forEach(b => {
-    const s = screen[b], d = per[b];
-    if (!d || s.n !== HEALTH[b].rows.length) return;                    // the header is not showing every listing of the brand
-    const mine = { n: d.n, critical: d.critical, action: d.action, review: d.review, healthyAll: d.healthy + d.monitor, monitor: d.monitor };
-    const same = Object.keys(mine).every(k => mine[k] === s[k]);
-    out.brands[b] = { same, dashboard: mine, listingHealth: s };
-    if (!same) out.same = false;
-  });
-  if (!out.same) {
-    console.warn('[Dashboard] Listing Health numbers differ from the Listing Health header — counting again', out.brands);
-    dashChanged('health');
-  }
-  if (Object.keys(out.brands).length && out.same) dashStore('health');
-  return out;
+/* ================= THE ONE LINE: written by code from the real numbers, never a number of its own ================= */
+// s = the sales numbers of one view, al = Sales Alerts' (or null). → { tone: 'up' | 'level' | 'down' | 'neutral', text }.
+function dashSummaryText(s, al) {
+  if (!s) return null;
+  const so = dashCompact(s.mtd);
+  const track = s.rate7 > 0 ? `on track for ~${dashCompact(s.proj)}` : '';
+  if (!s.doneDays) return { tone: 'neutral', text: `${s.month} has just begun: ${so} so far today${track ? ', ' + track : ''}.` };
+  if (!s.ml) return { tone: 'neutral', text: `${s.month} so far: ${so}${track ? ', ' + track : ''}. No last-year figures to compare with yet.` };
+  const pct = (s.mc - s.ml) / s.ml * 100;
+  if (pct >= 2) return { tone: 'up', text: `${s.month} is going well: ${so} so far, ${dashPctWord(pct)} vs last year${track ? ', ' + track : ''}.` };
+  if (pct > -2) return { tone: 'level', text: `${s.month} is level with last year: ${so} so far (${dashPctWord(pct)})${track ? ', ' + track : ''}.` };
+  const watch = al && !al.empty && al.n ? ` — ${al.n} product${al.n === 1 ? '' : 's'} to watch` : '';
+  return { tone: 'down', text: `${s.month}: ${so} so far, ${dashPctWord(pct)} vs last year${track ? ', ' + track : ''}${watch}.` };
 }
-if (typeof window !== 'undefined') window.dashHealthCheck = dashHealthCheck;   // in the console: dashHealthCheck()
 
 /* ================= LOADING — read-only, each source on its own ================= */
 // The backend address arrives a moment after sign-in (core/auth.js reads config/api): wait for it, at most 15 s.
@@ -398,6 +287,7 @@ async function dashLoadSales() {
   if (SD_BUSY) await SD_BUSY;
 }
 // PPC & Organic: what that screen holds, else ONE read of its saved snapshot (audit/weekly + weeklyrows/n) into the Dashboard's own copy.
+// (Also used by This week, Sales Alerts, Numbers Check and New listings.)
 async function dashLoadAds() {
   if (WEEKLY.weeks.length && Object.keys(WEEKLY.rows).length) return;
   if (DASH.weekly) return;
@@ -411,91 +301,7 @@ async function dashLoadAds() {
   }
   DASH.weekly = { weeks: d.weeks || [], rows, at: d.at || '', adAt: d.adAt || '' };
 }
-async function dashLoadAge() { if (!AGE_LOADED) await loadAgeCache(); }
-// Image Manager's list for both brands — once, shared by Listing Health, Need pictures and Errors (never the Amazon read).
-function dashLoadIml() {
-  if (!DASH.imlP) DASH.imlP = Promise.all(['SP', 'CPC'].filter(b => !(b in IML)).map(b => Promise.resolve(imListLoad(b)).catch(() => {})));
-  return DASH.imlP;
-}
-// The catalogue Listing Health judges with: taken only when its saved copy is fresh (under a day) — exactly what lrLoadCatalog does
-// then. An old copy is left alone: lrLoadCatalog would read the workbook and WRITE a new copy, which the Dashboard never does.
-async function dashCatalog() {
-  for (const b of ['SP', 'CPC']) {
-    if (LR_CAT[b]) continue;
-    const snap = await getDoc(doc(db, 'listingrules', 'catalog_' + b));
-    const data = snap.exists() ? snap.data() : null;
-    const fresh = data && data.at && data.at.toDate && Date.now() - data.at.toDate().getTime() < 24 * 3600 * 1000;
-    if (data && data.map && fresh) { LR_CAT[b] = data.map; DASH.catOk[b] = true; H_CTX = null; }
-  }
-}
-// Listing Health: every input its header is judged with — the same loaders it (and Image Manager / the sync at sign-in) uses.
-async function dashLoadHealth() {
-  await dashApi();
-  const jobs = [];
-  if (!LR) jobs.push(lrLoad());
-  jobs.push(dashCatalog());
-  if (!AMZ.map) jobs.push(amzEnsure());
-  jobs.push(dashLoadIml());
-  if (!H_LOADED) jobs.push(loadHealthCache());
-  if (typeof pcLoad === 'function') jobs.push(pcLoad());                  // the picture-check marks ("Main not OK")
-  if (typeof svLoad === 'function') jobs.push(svLoad());                  // the shared copy of the live reads
-  await Promise.all(jobs.map(p => Promise.resolve(p).catch(() => {})));
-  // the listing cache's first refresh (started just after its browser copy is read), and a screen's amzEnsure still running
-  await dashSleep(0);
-  if (typeof LM !== 'undefined' && LM.busy) await Promise.race([Promise.resolve(LM.busy).catch(() => {}), dashSleep(10000)]);
-  for (let i = 0; i < 200 && AMZ.busy; i++) await dashSleep(50);
-  H_CTX = null;
-  if (hColdMany()) await hWarm();
-  if (['SP', 'CPC'].some(b => HEALTH[b] && !LR_CAT[b] && !DASH.catOk[b])) throw new Error('the catalogue copy is over a day old — open Listing Health to update it');
-}
-// Listing History, this month and last: the newest log documents of the shared /history collection — more while the oldest LISTING
-// document read is still inside last month, up to the 800 the Listing History screen reads (other apps' documents carry a day too).
-async function dashLoadLh() {
-  if (Array.isArray(LH.rows) && !LH.loading && !LH.err) return;
-  const d = new Date();
-  const fromDay = new Date(d.getFullYear(), d.getMonth() - 1, 1, -24).toISOString().slice(0, 10);   // a day early: the log's day is UTC
-  for (let n = 60; ; n = Math.min(n * 2, LH_DOCS)) {
-    const snap = await getDocs(query(collection(db, 'history'), orderBy('day', 'desc'), limit(n)));
-    const rows = [];
-    let count = 0, oldest = '';
-    snap.forEach(docSnap => {
-      count++;
-      const data = docSnap.data() || {};
-      if (!/^listing_/.test(docSnap.id) || data.kind !== 'listing') return;
-      if (data.day && (!oldest || data.day < oldest)) oldest = data.day;
-      Object.values(data.rows || {}).forEach(row => { if (row && row.kind === 'listing') rows.push(row); });
-    });
-    if (count < n || (oldest && oldest < fromDay) || n >= LH_DOCS) { DASH.lhOwn = rows; return; }
-  }
-}
-// BSR Audit: its compare when drawn; else the latest two stored weeks (as its week pickers default) through its own functions.
-async function dashLoadBsr() {
-  if (BSR_LOADED && BSR_RENDER && Array.isArray(BSR_RENDER.all) && BSR_RENDER.all.length) return;
-  if (!BSR_LOADED) await loadBsrCache();
-  const weeks = allWeeks();
-  if (!weeks.length) { DASH.bsrOwn = { none: true }; return; }
-  const wA = weeks[weeks.length - 1], wB = weeks[weeks.length - 2] || wA;
-  const own = { wA, wB };
-  for (const b of ['SP', 'CPC']) {
-    if (BSR_WEEKS[b].includes(wA)) await loadBsrWeek(b, wA);
-    if (BSR_WEEKS[b].includes(wB)) await loadBsrWeek(b, wB);
-    await bsrLoadDays(b, wA);
-    await bsrLoadDays(b, wB);
-    const A = bsrWeekEntries(b, wA).r, B = bsrWeekEntries(b, wB).r;
-    let n = 0;
-    new Set([...Object.keys(A), ...Object.keys(B)]).forEach(p => {
-      const ea = A[p], eb = B[p];
-      const used = bsrUsed(ea, eb);
-      const catChanged = used.kind === 'sub' ? !!(ea && ea.subCat && eb && eb.subCat && ea.subCat !== eb.subCat)
-        : !!(ea && ea.cat && eb && eb.cat && ea.cat !== eb.cat);
-      if (used.b && used.a && !catChanged && bsrMove(used.a, used.b, used.kind) === 'worse') n++;   // bsrDecide's move
-    });
-    own[b] = n;
-  }
-  DASH.bsrOwn = own;
-}
-const DASH_LOAD = { sales: dashLoadSales, ads: dashLoadAds, vi: () => viDashLoad(), al: () => alDashLoad(), age: dashLoadAge, health: dashLoadHealth, lh: dashLoadLh,
-  img: dashLoadIml, lerr: dashLoadIml, bsr: dashLoadBsr };
+const DASH_LOAD = { sales: dashLoadSales, ads: dashLoadAds, vi: () => viDashLoad(), al: () => alDashLoad(), nl: async () => { await dashApi(); await nlLoad(); } };
 
 // A source's data changed: work its numbers out again, and redraw its cards when the Dashboard is on screen.
 function dashChanged(key) {
@@ -512,13 +318,13 @@ function dashRun(key) {
   const timer = setTimeout(() => { if (DASH.st[key].s === 'loading') { DASH.st[key].s = 'timeout'; dashChanged(key); } }, DASH_TIMEOUT);
   Promise.resolve().then(DASH_LOAD[key]).then(() => { DASH.st[key] = { s: 'ok', ms: dashMs() }; DASH.lastFresh = Date.now(); },
     e => { DASH.st[key] = { s: 'fail', why: String((e && e.message) || e || '') }; })
-    .then(() => { clearTimeout(timer); delete DASH.memo[key]; if (DASH.st[key].s === 'ok') dashStore(key); dashChanged(key); dashLiveLine();
+    .then(() => { clearTimeout(timer); delete DASH.memo[key]; if (DASH.st[key].s === 'ok') dashStore(key); dashChanged(key); dashUpdated();
       if (typeof ncSoon === 'function') ncSoon(key); });   // Numbers Check runs again on what just loaded (sales/sales-check.js)
 }
-// Every source, in order: Sales · PPC · Inventory first, then Listing Health, then the four that read the listing lists.
+// Every source, sales first.
 function dashPrefetch() {
   if (!dashMay('dash')) return;
-  ['sales', 'ads', 'vi', 'al', 'age', 'health', 'img', 'lerr', 'bsr', 'lh'].forEach(dashRun);
+  ['sales', 'ads', 'vi', 'al', 'nl'].forEach(dashRun);
   if (!DASH.watchT) DASH.watchT = setInterval(dashWatch, 2000);
 }
 // Every 2 s: a loaded source whose inputs changed since its numbers were worked out (a screen loaded more, the listing cache
@@ -532,11 +338,11 @@ function dashWatch() {
     dashCalc(key);
     dashStore(key);
     DASH.lastFresh = Date.now();
-    if (dashShown() && DASH.rendered) { dashPaint([...new Set(DASH_KEYS[key].slots)], 'swap'); dashLiveLine(); }
+    if (dashShown() && DASH.rendered) { dashPaint([...new Set(DASH_KEYS[key].slots)], 'swap'); dashUpdated(); }
   });
 }
 
-/* ================= WHAT A CARD SHOWS: fresh, else cached (amber), else a shimmer while loading, else why not ================= */
+/* ================= WHAT A CARD SHOWS: fresh, else cached (amber), else a skeleton while loading, else why not ================= */
 function dashData(key) {
   if (!dashMayKey(key)) return { state: 'deny' };
   const st = DASH.st[key] || { s: 'idle' };
@@ -547,7 +353,7 @@ function dashData(key) {
   const c = (dashCacheAll()[key] || {})[DASH.brand];
   if (c && (key !== 'ads' || c.ab === dashAdKey())) {
     dashMark(key, 'cached');
-    const busy = st.s === 'loading' || st.s === 'idle' || (key === 'health' && DASH.warmP);
+    const busy = st.s === 'loading' || st.s === 'idle';
     return { state: 'cached', v: c, note: busy ? ' · updating…' : st.why ? ' · ' + st.why : " · couldn't update" };
   }
   if (st.s === 'loading' || st.s === 'idle') return { state: 'loading' };
@@ -559,320 +365,312 @@ function dashMark(key, kind) {
   if (t[kind] == null && dashShown()) t[kind] = dashMs();
 }
 const dashOk = d => (d.state === 'fresh' || d.state === 'cached') && d.v && !d.v.empty;
-const dashSk = w => `<span class="dash-sk" style="width:${w}"></span>`;
-const dashOpenBtn = tab => (dashMay(tab) ? `<button type="button" class="dash-open" data-dash-open="${tab}">Open →</button>` : '');
-const dashFootText = d => (d.state === 'fresh' ? d.v.when : d.state === 'cached' ? 'as of ' + dashWhen(d.v.at) + d.note : d.state === 'loading' ? 'loading…'
-  : d.state === 'deny' ? 'not in your access' : "couldn't load");
-function dashFoot(d, tab) {
-  if (d.state === 'fail') return `<div class="dash-w" title="${dashEsc(d.why || '')}">couldn't load · <button type="button" class="dash-go" data-dash-open="${tab}">open the screen</button></div>`;
-  const t = dashFootText(d);
-  return `<div class="dash-w${d.state === 'cached' ? ' is-old' : d.state === 'loading' ? ' is-wait' : ''}" title="${dashEsc(t)}">${dashEsc(t)}</div>`;
+const dashSk = (w, h) => `<span class="dash-sk" style="width:${w}${h ? ';height:' + h : ''}" aria-hidden="true"></span>`;
+const dashOpenBtn = (tab, label, level) => (dashMay(tab) ? `<button type="button" class="dash-open" data-dash-open="${tab}"${level ? ` data-dash-level="${level}"` : ''}${label ? ` aria-label="${dashEsc(label)}"` : ''}>Open <span aria-hidden="true">→</span></button>` : '');
+// The "as of" under each card: the source's own time when fresh; amber "as of <when this browser saw it>" for a kept copy.
+function dashAsOf(d) {
+  if (d.state === 'fresh') return `<div class="dash-asof" title="${dashEsc(d.v.when)}">as of ${dashEsc(d.v.when)}</div>`;
+  if (d.state === 'cached') { const t = 'as of ' + dashWhen(d.v.at) + d.note; return `<div class="dash-asof is-old" title="${dashEsc(t)}">${dashEsc(t)}</div>`; }
+  if (d.state === 'loading') return '<div class="dash-asof">loading…</div>';
+  if (d.state === 'deny') return '<div class="dash-asof">not in your access</div>';
+  return `<div class="dash-asof" title="${dashEsc(d.why || '')}">couldn't load just now</div>`;
 }
 // A number that counts: the exact text is there from the start; the animation only runs towards it. k names it across redraws.
-const dashCu = (v, fmt, k, tag) => `<${tag || 'span'} data-cu="${Number(v) || 0}" data-fmt="${fmt}" data-k="${k}">${dashEsc(DASH_FMT[fmt](v))}</${tag || 'span'}>`;
-const dashDelta = (now, was) => (was ? `<span class="dash-badge ${now >= was ? 'is-up' : 'is-dn'}">${now < was ? '▼' : '▲'} ${Math.abs((now - was) / was * 100).toFixed(1)}%</span><span>vs LY</span>`
-  : '<span>— vs LY</span>');
-// A sparkline of a few values (a path the motion draws).
-function dashSpark(vals, cls) {
-  const v = (vals || []).filter(x => x != null);
-  if (v.length < 2) return '';
-  const W = 120, H = 34, max = Math.max(...v), min = Math.min(...v), span = max - min || 1;
-  const p = v.map((x, i) => `${i ? 'L' : 'M'}${(i / (v.length - 1) * W).toFixed(1)} ${(H - 3 - (x - min) / span * (H - 6)).toFixed(1)}`).join(' ');
-  return `<svg class="dash-spark ${cls || ''}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="${p}"/></svg>`;
+const dashCu = (v, fmt, k) => `<span data-cu="${Number(v) || 0}" data-fmt="${fmt}" data-k="${k}">${dashEsc(DASH_FMT[fmt](v))}</span>`;
+// ▲ / ▼ with its per cent; `good` says which way is green (TACoS: down is good). No baseline: "—", never a made-up 0 %.
+function dashChg(now, was, what, good) {
+  if (!was || now == null) return `<span class="dash-chg is-none">—</span><span class="dash-vs">${dashEsc(what ? 'no ' + what + ' to compare' : '')}</span>`;
+  const p = (now - was) / was * 100;
+  const fine = good === 'down' ? p <= 0 : p >= 0;
+  return `<span class="dash-chg ${fine ? 'is-up' : 'is-dn'}"><span aria-hidden="true">${p < 0 ? '▼' : '▲'}</span> ${Math.abs(p).toFixed(1)}%</span><span class="dash-vs">vs ${dashEsc(what)}</span>`;
+}
+// A small trend line (a path the motion draws once). A gap in the values breaks it.
+function dashSpark(vals, label) {
+  const v = (vals || []).map(x => (x == null || !isFinite(x) ? null : Number(x)));
+  const have = v.filter(x => x != null);
+  if (have.length < 2) return '<div class="dash-spark is-none" aria-hidden="true"></div>';
+  const W = 120, H = 36, max = Math.max(...have), min = Math.min(...have), span = max - min || 1;
+  let d = '', pen = false;
+  v.forEach((x, i) => {
+    if (x == null) { pen = false; return; }
+    d += `${pen ? 'L' : 'M'}${(i / (v.length - 1) * W).toFixed(1)} ${(H - 3 - (x - min) / span * (H - 6)).toFixed(1)}`;
+    pen = true;
+  });
+  return `<svg class="dash-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${dashEsc(label)}"><path d="${d}"/></svg>`;
+}
+// One KPI card: label + ⓘ (its definition, on hover and on keyboard focus), the big number, ▲ / ▼, the trend line, "as of".
+function dashKpi(id, label, def, d, body) {
+  const ok = dashOk(d);
+  const tip = `dashTip-${id}`;
+  const b = ok ? body(d.v) : null;
+  return `<article class="dash-card dash-kpi" aria-label="${dashEsc(label)}">`
+    + `<div class="dash-kpi-h"><span class="dash-lbl">${dashEsc(label)}</span><span class="dash-info"><button type="button" class="dash-i" aria-label="What “${dashEsc(label)}” means" aria-describedby="${tip}">i</button>`
+    + `<span class="dash-tipbox" role="tooltip" id="${tip}">${dashEsc(def)}</span></span></div>`
+    + `<div class="dash-num">${ok ? b.num : d.state === 'loading' ? dashSk('62%', '34px') : '—'}</div>`
+    + `<div class="dash-delta">${ok ? b.chg : d.state === 'loading' ? dashSk('48%', '16px') : ''}</div>`
+    + (ok ? b.spark : d.state === 'loading' ? dashSk('100%', '36px') : '<div class="dash-spark is-none" aria-hidden="true"></div>')
+    + dashAsOf(d) + '</article>';
 }
 
-function dashKpi(i, icon, label, tab, d, value, sub, spark) {
-  const ok = dashOk(d);
-  return `<article class="dash-card dash-kpi dash-glass" style="--i:${i}">
-    <span class="dash-ring" aria-hidden="true"><i></i></span><span class="dash-shine" aria-hidden="true"></span>
-    <div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">${icon}</span>${label}</span>${dashOpenBtn(tab)}</div>
-    <div class="dash-v${ok ? '' : ' is-none'}">${ok ? value() : d.state === 'loading' ? dashSk('62%') : '—'}</div>
-    <div class="dash-s">${ok ? sub() : d.state === 'loading' ? dashSk('45%') : ''}</div>
-    ${ok && spark ? spark() : ''}
-    ${dashFoot(d, tab)}</article>`;
-}
-// A "needs attention" tile: the whole tile opens its screen; it breathes softly in its colour while its number is above 0.
-function dashTile(i, icon, motion, tone, label, tab, d, big, more, hot) {
-  const ok = dashOk(d);
-  const go = dashMay(tab);
-  const foot = d.state === 'fail' ? `<span class="dash-w" title="${dashEsc(d.why || '')}">couldn't load · open the screen</span>`
-    : `<span class="dash-w${d.state === 'cached' ? ' is-old' : d.state === 'loading' ? ' is-wait' : ''}">${dashEsc(dashFootText(d))}</span>`;
-  return `<button type="button" class="dash-card dash-tile is-${tone}${ok && hot(d.v) ? ' is-hot' : ''}" style="--i:${i}" data-motion="${motion}"${go ? ` data-dash-open="${tab}"` : ' disabled'}>
-    <span class="dash-t"><span class="dash-ic" aria-hidden="true">${icon}</span>${dashEsc(label)}</span>
-    <b>${ok ? big(d.v) : d.state === 'loading' ? dashSk('40%') : '—'}</b><span class="dash-more">${ok ? more(d.v) : ''}</span>
-    ${foot}${go ? '<span class="dash-open">Open →</span>' : ''}</button>`;
-}
-const DASH_BUCKETS = [['critical', 'is-c', 'Critical'], ['action', 'is-a', 'Needs Action'], ['review', 'is-r', 'Needs Review'],
-  ['healthy', 'is-h', 'Healthy'], ['monitor', 'is-m', 'Monitor'], ['unchecked', 'is-u', 'Not checked']];
-
-// Each card's HTML; i = its place in the stagger.
+// Each card's HTML.
 const DASH_PAINT = {
-  // This week in plain English: the headline, one sentence (Claude's when it checked, else the rule-written one) and Open → the Sales Dashboard
-  tVi: i => {
-    const d = dashData('vi');
-    const ok = dashOk(d);
-    // the headline with its ▲ / ▼ badge, then the first sentence (an older browser copy without a headline shows the sentence alone)
-    const head = ok && d.v.head ? `<b class="dash-vi-h">${dashEsc(d.v.head)}${d.v.pct != null ? ` <span class="dash-vi-b ${d.v.up ? 'is-up' : 'is-dn'}">${d.v.up ? '▲' : '▼'} ${Math.abs(d.v.pct).toFixed(1)}%</span>` : ''}</b>` : '';
-    const body = ok ? head + dashEsc(d.v.text) : d.state === 'fresh' && d.v && d.v.why ? `<span class="dash-vi-why">${dashEsc(d.v.why)}</span>` : d.state === 'loading' ? dashSk('80%') : '—';
-    return `<article class="dash-card dash-vi dash-glass" style="--i:${i}"><div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">💬</span>This week in plain English</span>${dashOpenBtn('sales')}</div>`
-      + `<p class="dash-vi-t">${body}</p>${dashFoot(d, 'sales')}</article>`;
+  summary: () => {
+    const d = dashData('sales'), a = dashData('al');
+    if (d.state === 'deny') return '';
+    if (!dashOk(d)) return `<div class="dash-sum-box">${d.state === 'loading' ? `<p class="dash-sum">${dashSk('72%', '26px')}</p>${dashSk('30%', '13px')}`
+      : '<p class="dash-sum is-none">Sales numbers could not load just now — they will show here as soon as they do.</p>'}</div>`;
+    const s = dashSummaryText(d.v, dashOk(a) ? a.v : null);
+    return `<div class="dash-sum-box"><p class="dash-sum is-${s.tone}" aria-live="polite">${dashEsc(s.text)}</p>`
+      + `<div class="dash-sum-asof${d.state === 'cached' ? ' is-old' : ''}">Sales Dashboard figures · ${dashEsc(d.state === 'cached' ? 'as of ' + dashWhen(d.v.at) + d.note : d.v.when)}${
+        s.text.includes('on track') ? ' · “on track” = the Sales Dashboard\'s month projection (complete days + the last 7 days\' rate)' : ''}</div></div>`;
   },
-  // Sales Alerts: "3 need attention · $4,200/week at risk", the top three (biggest money first) and Open → the Sales Alerts page
-  tAl: i => {
-    const d = dashData('al');
-    const ok = dashOk(d);
-    let body;
-    if (ok && d.v.n) {
-      body = `<b class="dash-al-h">${DASH_FMT.num(d.v.n)} need${d.v.n === 1 ? 's' : ''} attention · ${dashCu(d.v.usd, 'money', 'alusd')}/week at risk</b>`
-        + `<ul class="dash-al-l">${d.v.top.map(t => `<li><i class="dash-al-dot is-${dashEsc(t.sev)}" aria-hidden="true"></i><span>${dashEsc(t.name)} <em>−${t.pct}% · ${dashEsc(t.why)}</em></span><b>−${DASH_FMT.money(t.usd)}/wk</b></li>`).join('')}</ul>`;
-    } else if (ok) body = '<b class="dash-al-h">All good — no real drops this week ✅</b>';
-    else body = d.state === 'fresh' && d.v && d.v.why ? `<span class="dash-vi-why">${dashEsc(d.v.why)}</span>` : d.state === 'loading' ? dashSk('80%') : '—';
-    return `<article class="dash-card dash-al dash-glass" style="--i:${i}"><div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">🚨</span>Sales Alerts</span>${dashOpenBtn('salert')}</div>`
-      + `<div class="dash-al-b">${body}</div>${dashFoot(d, 'salert')}</article>`;
-  },
-  // What needs attention, in real numbers only (fresh or this browser's copy): up to five lines.
-  ticker: () => {
-    const lines = [];
-    const h = dashData('health'), e = dashData('lerr'), a = dashData('age'), b = dashData('bsr'), p = dashData('img'), s = dashData('sales'), ad = dashData('ads');
-    if (dashOk(h) && h.v.critical) lines.push(['is-c', `${DASH_FMT.num(h.v.critical)} listings Critical`]);
-    if (dashOk(e) && e.v.n) lines.push(['is-c', `${DASH_FMT.num(e.v.n)} listings with an Amazon error`]);
-    if (dashOk(a) && a.v.units) lines.push(['is-a', `${DASH_FMT.num(a.v.units)} units aged 181+`]);
-    if (dashOk(b) && b.v.n) lines.push(['is-a', `${DASH_FMT.num(b.v.n)} parents' BSR got worse`]);
-    if (dashOk(p) && p.v.n) lines.push(['is-r', `${DASH_FMT.num(p.v.n)} listings need pictures`]);
-    if (lines.length < 5 && dashOk(s) && s.v.ml) { const c = (s.v.mc - s.v.ml) / s.v.ml * 100; lines.push([c < 0 ? 'is-c' : 'is-h', `Sales MTD ${c < 0 ? '▼' : '▲'}${Math.abs(c).toFixed(1)}% vs LY`]); }
-    if (lines.length < 5 && dashOk(ad) && ad.v.tacos != null) lines.push([ad.v.tacos > 20 ? 'is-a' : 'is-h', `TACoS ${ad.v.tacos}% · ${ad.v.last.label}`]);
-    if (!lines.length) return '';
-    const run = lines.slice(0, 5).map(([cls, t]) => `<span class="dash-tick"><i class="dash-dot ${cls}"></i>${dashEsc(t)}</span>`).join('');
-    return `<div class="dash-ticker" role="status" aria-label="Needs attention"><span class="dash-ticker-h">Needs attention</span>`
-      + `<div class="dash-ticker-v"><div class="dash-ticker-in">${run}<span class="dash-ticker-copy" aria-hidden="true">${run}</span></div></div></div>`;
-  },
-  kSales: i => { const d = dashData('sales'); return dashKpi(i, '💰', 'Sales MTD', 'sales', d, () => dashCu(d.v.mtd, 'money', 'mtd'), () => dashDelta(d.v.mc, d.v.ml) + '<span>· complete days</span>', () => dashSpark(d.v.spark30)); },
-  kYtd: i => { const d = dashData('sales'); return dashKpi(i, '📈', 'Sales YTD', 'sales', d, () => dashCu(d.v.ytd, 'money', 'ytd'), () => dashDelta(d.v.yc, d.v.yl) + '<span>· complete days</span>', () => dashSpark(d.v.months)); },
-  kAds: i => {
+  kMtd: () => dashKpi('mtd', 'Sales this month', 'Month to date: every order from the 1st to now (US Pacific days), as the Sales Dashboard shows it. ▲ / ▼ compares complete days only — the 1st to yesterday — with the same dates last year. The line: daily sales this month.',
+    dashData('sales'), v => ({ num: dashCu(v.mtd, 'money', 'mtd'), chg: dashChg(v.mc, v.ml, 'last year', 'up'), spark: dashSpark(v.spark.mtd, 'Daily sales this month') })),
+  kYest: () => dashKpi('yest', 'Yesterday', 'Yesterday\'s sales — one whole US Pacific day, as the Sales Dashboard\'s Yesterday card. ▲ / ▼ against the same weekday last year (364 days back), as its daily chart. The line: the last 30 complete days.',
+    dashData('sales'), v => ({ num: dashCu(v.yest, 'money', 'yest'), chg: dashChg(v.yest, v.yestLy, dashDay(v.yestLyDay) + ' last year', 'up'), spark: dashSpark(v.spark.yest, 'Daily sales, the last 30 complete days') })),
+  kAds: () => {
     const d = dashData('ads');
-    return dashKpi(i, '📢', 'Ad spend · latest week', 'ppcn', d, () => dashCu(d.v.last.spend, 'money', 'spend'),
-      () => `<span>TACoS <b class="${d.v.tacos != null && d.v.tacos > 20 ? 'dash-bad' : ''}">${d.v.tacos == null ? '—' : d.v.tacos + '%'}</b></span>`
-        + `<span>${dashEsc(d.v.last.label)}${d.v.last.done ? '' : ' · ' + d.v.days + '/7 days'}</span>${d.v.only ? `<span>${dashEsc(d.v.only)}</span>` : ''}`,
-      () => dashSpark(d.v.per.map(p => p.spend), 'is-act'));
+    return dashKpi('ads', 'Ad spend this week', 'Ad spend in the latest week (Sun–Sat) of PPC & Organic, as its latest-week card adds it; a running week counts its days so far (ads land 1–2 days late). TACoS = ad spend ÷ all sales that week; ▲ / ▼ against the week before — lower is better (green). The line: TACoS week by week, the last 8 weeks (a ratio, so a week still running does not dip).',
+      d, v => ({ num: dashCu(v.last.spend, 'money', 'spend'),
+        chg: `<span class="dash-tacos">TACoS <b>${v.tacos == null ? '—' : v.tacos + '%'}</b></span>${v.tacos != null && v.prevTacos != null
+          ? (v.tacos === v.prevTacos ? `<span class="dash-vs">same as ${dashEsc(v.prevLabel)}</span>`
+            : `<span class="dash-chg ${v.tacos < v.prevTacos ? 'is-up' : 'is-dn'}"><span aria-hidden="true">${v.tacos < v.prevTacos ? '▼' : '▲'}</span> ${Math.abs(v.tacos - v.prevTacos)} pt</span><span class="dash-vs">vs ${dashEsc(v.prevLabel)}</span>`) : ''}`
+          + `<span class="dash-vs dash-wk">${dashEsc(v.last.label)}${v.last.done ? '' : ' · ' + v.days + '/7 days'}${v.only ? ' · ' + dashEsc(v.only) : ''}</span>`,
+        spark: dashSpark(v.per.map(p => (p.rev ? p.spend / p.rev * 100 : null)), 'TACoS week by week, the last 8 weeks') }));
   },
-  kList: i => {
-    const d = dashData('health');
-    return dashKpi(i, '🩺', 'Listings', 'health', d, () => dashCu(d.v.n, 'num', 'ln'),
-      () => `<span><b class="dash-bad">${DASH_FMT.num(d.v.critical)}</b> critical</span><span>${DASH_FMT.num(d.v.action)} action · ${DASH_FMT.num(d.v.review)} review</span>`, null);
-  },
-  flow: i => {
-    const h = dashData('health'), l = dashData('lh');
-    const hv = dashOk(h) ? h.v : null, lv = dashOk(l) ? l.v : null;
-    const step = (s, cls, label, src, v, sub, tab, level, vol) => {
-      const go = dashMay(tab);
-      const val = v != null ? dashCu(v, 'num', 'f' + s) : src.state === 'loading' ? dashSk('50%') : '—';
-      return `<button type="button" class="dash-step ${cls}${vol ? ' has-n' : ''}" style="--s:${s}" data-s="${s}" data-vol="${vol || 0}"${go ? ` data-dash-open="${tab}"${level ? ` data-dash-level="${level}"` : ''}` : ' disabled'}`
-        + ` title="${dashEsc(label)}${go ? ' — open' : ''}"><span class="dash-step-l">${dashEsc(label)}</span><b>${val}</b><small>${sub}</small></button>`;
-    };
-    // a pipe: the glowing tube, its arrowhead, and the dots that run through it
-    const pipe = s => `<span class="dash-arrow dash-pipe" style="--s:${s}" data-s="${s}" aria-hidden="true"><svg viewBox="0 0 44 14">`
-      + `<path class="dash-pipe-bg" d="M2 7H40"/><path class="dash-pipe-p" pathLength="1" d="M2 7H40"/><path class="dash-pipe-h" pathLength="1" d="M35 2.5 40.5 7 35 11.5"/>`
-      + '<circle class="dash-flowdot" r="2.2" cx="0" cy="0"/><circle class="dash-flowdot" r="2.2" cx="0" cy="0"/><circle class="dash-flowdot" r="2.2" cx="0" cy="0"/></svg></span>';
-    const lhTab = dashMay('lhist') ? 'lhist' : 'health';
-    const zero = (now, prev, what) => (now === 0 && prev != null ? `0 this month · last month ${DASH_FMT.num(prev)}` : what);
-    const problems = hv ? hv.critical + hv.action + hv.review : null;
-    const line = [...new Set([dashFootText(h), dashFootText(l)])].filter(Boolean).join(' · ');
-    return `<article class="dash-card dash-flowcard" style="--i:${i}">
-      <div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">🔁</span>Listing flow</span>${dashOpenBtn('health')}</div>
-      <div class="dash-flowrow">
-        <div class="dash-track" aria-hidden="true"><span class="dash-runner"><i></i></span></div>
-        ${step(0, '', 'All listings', h, hv ? hv.n : null, 'in Listing Health', 'health', 'ALL', hv && hv.n)}${pipe(0)}
-        ${step(1, 'is-act', 'Problems found', h, problems, 'critical + action + review', 'health', 'ALL', problems)}${pipe(1)}
-        ${step(2, 'is-bad', 'Critical', h, hv ? hv.critical : null, 'fix first', 'health', 'critical', hv && hv.critical)}${pipe(2)}
-        ${step(3, 'is-brand', 'Fixed / Approved', l, lv ? lv.fixed : null, dashEsc(lv ? zero(lv.fixed, lv.fixedPrev, 'sent this month') : 'sent this month'), lhTab, '', lv && lv.fixed)}${pipe(3)}
-        ${step(4, 'is-ok', 'On Amazon', l, lv ? lv.amz : null, dashEsc(lv ? zero(lv.amz, lv.amzPrev, 'accepted this month') : 'accepted this month'), lhTab, '', lv && lv.amz)}
-      </div>
-      <div class="dash-w${h.state === 'cached' || l.state === 'cached' ? ' is-old' : ''}" title="${dashEsc(line)}">${dashEsc(line)}${
-        h.state === 'fail' ? ' · <button type="button" class="dash-go" data-dash-open="health">open the screen</button>' : ''}</div></article>`;
-  },
-  donut: i => {
-    const d = dashData('health');
-    const ok = dashOk(d) && d.v.per;
-    const one = b => {
-      const x = d.v.per[b];
-      const parts = DASH_BUCKETS.map(([k, cls, label]) => [k, cls, label, x[k] || 0]);
-      const total = parts.reduce((s, p) => s + p[3], 0) || 1;
-      let at = 0;
-      const segs = parts.filter(p => p[3] > 0).map(([k, cls, label, n]) => {
-        const len = n / total * 100;
-        const mid = (at + len / 2) / 100 * Math.PI * 2;
-        const seg = `<circle class="dash-seg ${cls}" data-b="${k}" data-n="${n}" data-pct="${(n / total * 100).toFixed(1)}" data-label="${dashEsc(label)}" data-brand="${dashEsc(dashName(b))}"`
-          + ` data-dx="${(Math.cos(mid) * 6).toFixed(2)}" data-dy="${(Math.sin(mid) * 6).toFixed(2)}" data-len="${Math.max(0, len - (len > 1.2 ? 0.6 : 0)).toFixed(2)}"`
-          + ` cx="60" cy="60" r="44" pathLength="100" stroke-dasharray="${Math.max(0, len - (len > 1.2 ? 0.6 : 0)).toFixed(2)} 100" stroke-dashoffset="${(-at).toFixed(2)}"></circle>`;
-        at += len;
-        return seg;
-      }).join('');
-      return `<figure class="dash-donut"><svg viewBox="0 0 120 120" role="img" aria-label="${dashEsc(dashName(b))}: ${x.critical} critical, ${x.action} needs action, ${x.review} needs review, ${x.healthy} healthy, ${x.monitor} monitor">`
-        + `<defs><mask id="dashMask${b}"><circle class="dash-dm" cx="60" cy="60" r="44" pathLength="1" stroke="white" transform="rotate(-90 60 60)"/></mask></defs>`
-        + `<g mask="url(#dashMask${b})"><g transform="rotate(-90 60 60)">${segs}</g></g>`
-        + `<text class="dash-mid" x="60" y="62" text-anchor="middle">${dashCu(x.n, 'num', 'dn' + b, 'tspan')}</text><text class="dash-midl" x="60" y="77" text-anchor="middle">listings</text></svg>`
-        + `<figcaption>${dashEsc(dashName(b))}</figcaption><div class="dash-mini">`
-        + DASH_BUCKETS.slice(0, 5).map(([k, cls]) => `<span data-b="${k}"><i class="dash-dot ${cls}"></i>${DASH_FMT.num(x[k] || 0)}</span>`).join('')
-        + '</div></figure>';
-    };
-    const bs = ok ? Object.keys(d.v.per) : [];
-    const anyU = ok && bs.some(b => d.v.per[b].unchecked);
-    return `<article class="dash-card dash-donutcard" style="--i:${i}">
-      <div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">🍩</span>Listing Health</span>${dashOpenBtn('health')}</div>
-      ${ok ? `<div class="dash-donuts">${bs.map(one).join('')}</div>
-      <div class="dash-key">${DASH_BUCKETS.filter(([k]) => k !== 'unchecked' || anyU).map(([k, cls, label]) => `<span class="dash-chip" data-b="${k}"><i class="dash-dot ${cls}"></i>${label}</span>`).join('')}</div>`
-        : d.state === 'loading' ? '<div class="dash-donuts"><span class="dash-sk is-round"></span><span class="dash-sk is-round"></span></div>' : '<div class="dash-v is-none">—</div>'}
-      <div class="dash-tip" aria-hidden="true"></div>
-      ${dashFoot(d, 'health')}</article>`;
-  },
-  line: i => {
+  kYtd: () => {
     const d = dashData('sales');
-    const ok = dashOk(d) && d.v.pts && d.v.pts.length > 1;
-    let svg = '';
-    if (ok) {
-      const pts = d.v.pts;
-      const W = 300, H = 130, L = 4, R = 6, T = 18, B = 18;
-      const max = Math.max(1, ...pts.map(p => p.v));
-      const x = k => L + k / (pts.length - 1) * (W - L - R);
-      const y = v => T + (H - T - B) - v / max * (H - T - B);
-      const line = pts.map((p, k) => (k ? 'L' : 'M') + x(k).toFixed(1) + ' ' + y(p.v).toFixed(1)).join(' ');
-      const area = `M${x(0).toFixed(1)} ${H - B} ` + pts.map((p, k) => 'L' + x(k).toFixed(1) + ' ' + y(p.v).toFixed(1)).join(' ') + ` L${x(pts.length - 1).toFixed(1)} ${H - B} Z`;
-      const short = iso => String(Number(iso.slice(8, 10))) + ' ' + DASH_MON[Number(iso.slice(5, 7)) - 1];
-      const top = pts.reduce((m, p, k) => (p.v > pts[m].v ? k : m), 0);
-      const lx = x(pts.length - 1), ly = y(pts[pts.length - 1].v);
-      svg = `<svg class="dash-chart dash-linechart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sales, last 90 days" data-n="${pts.length}" data-l="${L}" data-r="${R}" data-w="${W}">`
-        + '<defs><linearGradient id="dashAreaG" x1="0" y1="0" x2="0" y2="1"><stop class="dash-st1" offset="0"/><stop class="dash-st2" offset="1"/></linearGradient></defs>'
-        + `<line class="dash-base" x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}"/>`
-        + `<path class="dash-area" d="${area}" fill="url(#dashAreaG)"/><path class="dash-line" pathLength="1" d="${line}"/>`
-        + `<g class="dash-top" transform="translate(${x(top).toFixed(1)} ${y(pts[top].v).toFixed(1)})"><path class="dash-star" d="M0-6 1.8-1.9 6.2-1.9 2.7 0.8 4 5.2 0 2.6-4 5.2-2.7 0.8-6.2-1.9-1.8-1.9Z"/>`
-        + `<text class="dash-axis dash-toplabel" x="${x(top) > W - 70 ? -8 : 8}" y="-6" text-anchor="${x(top) > W - 70 ? 'end' : 'start'}">top day ${DASH_FMT.money(pts[top].v)}</text></g>`
-        + `<g class="dash-cross" style="opacity:0"><line class="dash-cross-l" x1="0" y1="${T - 6}" x2="0" y2="${H - B}"/><circle class="dash-cross-c" r="3.5" cx="0" cy="0"/></g>`
-        + `<circle class="dash-ride" r="4" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}"/><circle class="dash-ride-p" r="4" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}"/>`
-        + `<text class="dash-axis" x="${L}" y="${H - 4}">${short(pts[0].d)}</text><text class="dash-axis" x="${W - R}" y="${H - 4}" text-anchor="end">${short(pts[pts.length - 1].d)}</text></svg>`;
-    }
-    return `<article class="dash-card dash-linecard" style="--i:${i}">
-      <div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">📊</span>Sales · last 90 days</span>${dashOpenBtn('sales')}</div>
-      ${ok ? `<div class="dash-s"><b>${dashCu(d.v.pts.reduce((t, p) => t + p.v, 0), 'money', 's90')}</b><span>in 90 days</span></div>${svg}`
-        : d.state === 'loading' ? `<div class="dash-s">${dashSk('40%')}</div><span class="dash-sk is-chart"></span>` : '<div class="dash-v is-none">—</div>'}
-      <div class="dash-tip" aria-hidden="true"></div>
-      ${dashFoot(d, 'sales')}</article>`;
+    return dashKpi('ytd', 'Year to date vs last year', 'Sales from 1 January to yesterday against the same dates last year (complete days, as the Sales Dashboard\'s YTD %). Under it: year-to-date sales including today, as its YTD card. The line: that % day by day, the last 30 days.',
+      d, v => (v.yl ? { num: `<span class="${v.yc >= v.yl ? 'is-up' : 'is-dn'}">${dashCu((v.yc - v.yl) / v.yl * 100, 'pct', 'ytdp')}</span>`,
+        chg: `<span class="dash-vs">${DASH_FMT.money(v.ytd)} so far this year</span>`, spark: dashSpark(v.spark.ytd, 'Year to date vs last year, %, the last 30 days') }
+        : { num: dashCu(v.ytd, 'money', 'ytd'), chg: '<span class="dash-chg is-none">—</span><span class="dash-vs">no last year to compare</span>', spark: dashSpark(v.spark.ytd, '') }));
   },
-  bars: i => {
-    const d = dashData('ads');
-    const ok = dashOk(d) && d.v.per && d.v.per.length;
-    let svg = '';
-    if (ok) {
-      const W = 300, H = 130, T = 6, B = 18;
-      const n = d.v.per.length, gw = W / n, bw = Math.min(14, gw * 0.32);
-      const max = Math.max(1, ...d.v.per.map(p => Math.max(p.rev, p.spend)));
-      const h = v => v / max * (H - T - B);
-      svg = `<svg class="dash-chart dash-barchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sales and ad spend, last ${n} weeks">`
-        + '<defs><pattern id="dashStripe" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><g class="dash-stripes">'
-        + '<rect class="dash-stripe-a" width="6" height="6"/><rect class="dash-stripe-b" width="3" height="6"/><rect class="dash-stripe-b" x="6" width="3" height="6"/><rect class="dash-stripe-b" x="-6" width="3" height="6"/></g></pattern></defs>'
-        + `<line class="dash-base" x1="0" y1="${H - B}" x2="${W}" y2="${H - B}"/>`
-        + d.v.per.map((p, k) => {
-          const cx = gw * k + gw / 2, run = p.done ? '' : ' is-run';
-          const data = ` data-w="${dashEsc(p.label)}${p.done ? '' : ' (still running)'}" data-rev="${p.rev}" data-spend="${p.spend}"`;
-          return `<g class="dash-week"${data}>`
-            + `<rect class="dash-hit" x="${(gw * k).toFixed(1)}" y="0" width="${gw.toFixed(1)}" height="${H - B}"/>`
-            + `<rect class="dash-bar is-sales${run}" style="--b:${k * 2}" x="${(cx - bw - 1).toFixed(1)}" y="${(H - B - h(p.rev)).toFixed(1)}" width="${bw.toFixed(1)}" height="${h(p.rev).toFixed(1)}" rx="2"${p.done ? '' : ' fill="url(#dashStripe)"'}/>`
-            + `<rect class="dash-bar is-spend${run}" style="--b:${k * 2 + 1}" x="${(cx + 1).toFixed(1)}" y="${(H - B - h(p.spend)).toFixed(1)}" width="${bw.toFixed(1)}" height="${h(p.spend).toFixed(1)}" rx="2"/>`
-            + `<text class="dash-axis" x="${cx.toFixed(1)}" y="${H - 5}" text-anchor="middle">${dashEsc(p.label.split('-')[0])}</text></g>`;
-        }).join('') + '</svg>';
-    }
-    return `<article class="dash-card dash-barcard" style="--i:${i}">
-      <div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">📦</span>PPC · weekly</span>${dashOpenBtn('ppcn')}</div>
-      ${ok ? `<div class="dash-key" style="justify-content:flex-start"><span><i class="dash-dot is-sales"></i>Sales</span><span><i class="dash-dot is-spend"></i>Ad spend</span><span><i class="dash-dot is-run"></i>running week</span>${d.v.only ? `<span>${dashEsc(d.v.only)}</span>` : ''}</div>${svg}`
-        : d.state === 'loading' ? `<div class="dash-s">${dashSk('35%')}</div><span class="dash-sk is-chart"></span>` : '<div class="dash-v is-none">—</div>'}
-      <div class="dash-tip" aria-hidden="true"></div>
-      ${dashFoot(d, 'ppcn')}</article>`;
+  chart: () => {
+    const d = dashData('sales');
+    if (d.state === 'deny') return '';
+    const ok = dashOk(d) && d.v.days && d.v.days.some(p => p.v != null);
+    return `<article class="dash-card dash-chartcard"><div class="dash-chart-h"><h3 class="dash-h3">Daily sales vs last year</h3>`
+      + `<span class="dash-chart-sub">Last 30 days · <i class="dash-k is-ty" aria-hidden="true"></i>this year <i class="dash-k is-ly" aria-hidden="true"></i>last year, same weekday</span>${dashOpenBtn('sales', 'Open the Sales Dashboard')}</div>`
+      + (ok ? dashChartHtml(d.v.days, d.v.today) : d.state === 'loading' ? `<div class="dash-plot">${dashSk('100%', '100%')}</div>`
+        : '<div class="dash-plot is-none"><p>No daily sales to draw yet.</p></div>')
+      + dashAsOf(d) + '</article>';
   },
-  tImg: i => dashTile(i, '🖼', 'wiggle', 'violet', 'Need pictures', 'img', dashData('img'), v => dashCu(v.n, 'num', 'img'), v => 'listings that need pictures · Image Manager' + (v.only ? ' · ' + dashEsc(v.only) : ''), v => v.n > 0),
-  tErr: i => dashTile(i, '⚠️', 'bounce', 'red', 'Listing errors', 'lerr', dashData('lerr'), v => dashCu(v.n, 'num', 'err'), v => 'listings with an Amazon error' + (v.only ? ' · ' + dashEsc(v.only) : ''), v => v.n > 0),
-  tBsr: i => dashTile(i, '📉', 'dip', 'orange', 'BSR got worse', 'bsr', dashData('bsr'), v => dashCu(v.n, 'num', 'bsr'), v => 'parents' + (v.high != null ? ` · ${DASH_FMT.num(v.high)} high priority` : ''), v => v.n > 0),
-  tAge: i => dashTile(i, '⏳', 'spin', 'teal', 'Aged 181+ units', 'age', dashData('age'), v => dashCu(v.units, 'num', 'aged'),
-    v => (v.storage ? dashCu(v.storage, 'usd2', 'stor') : '—') + ' storage' + (v.only ? ' · ' + dashEsc(v.only) : ''), v => v.units > 0),
+  cVi: () => {
+    const d = dashData('vi');
+    if (d.state === 'deny') return '';
+    const ok = dashOk(d);
+    const head = ok && d.v.head ? `<b class="dash-vi-h">${dashEsc(d.v.head)}${d.v.pct != null ? ` <span class="dash-chg ${d.v.up ? 'is-up' : 'is-dn'}"><span aria-hidden="true">${d.v.up ? '▲' : '▼'}</span> ${Math.abs(d.v.pct).toFixed(1)}%</span>` : ''}</b>` : '';
+    const body = ok ? head + `<span class="dash-vi-t">${dashEsc(d.v.text)}</span>` : d.state === 'fresh' && d.v && d.v.why ? `<span class="dash-muted">${dashEsc(d.v.why)}</span>`
+      : d.state === 'loading' ? `${dashSk('70%', '18px')}${dashSk('95%', '14px')}${dashSk('80%', '14px')}` : '<span class="dash-muted">—</span>';
+    return `<article class="dash-card dash-small"><div class="dash-small-h"><h3 class="dash-h3">This week, explained</h3>${dashOpenBtn('sales', 'Open the Sales Dashboard')}</div>`
+      + `<p class="dash-vi">${body}</p>${dashAsOf(d)}</article>`;
+  },
+  cNew: () => {
+    const d = dashData('nl');
+    if (d.state === 'deny') return '';
+    const n = DASH.nlDays;
+    const tg = k => `<button type="button" data-dash-nl="${k}" aria-pressed="${n === k}">${k} days</button>`;
+    const head = `<div class="dash-small-h"><h3 class="dash-h3">New listings</h3><span class="dash-seg dash-nl-seg" role="group" aria-label="Window">${tg(7)}${tg(30)}</span>`
+      + `${dashOpenBtn('health', `Open Listing Health: new listings, last ${n} days`, 'new' + n)}</div>`;
+    if (!dashOk(d)) {
+      const body = d.state === 'loading' ? `<div class="dash-nl-n">${dashSk('55%', '34px')}</div>${dashSk('85%', '14px')}<div class="dash-nl-bars">${dashSk('100%', '40px')}</div>${dashSk('60%', '14px')}`
+        : `<p class="dash-muted">${dashEsc(d.state === 'fresh' && d.v && d.v.why ? d.v.why : 'New listings could not be worked out just now.')}</p>`;
+      return `<article class="dash-card dash-small dash-nl">${head}${body}${dashAsOf(d)}</article>`;
+    }
+    const w = d.v.w[n] || d.v.w[String(n)];
+    if (!w) return `<article class="dash-card dash-small dash-nl">${head}<p class="dash-muted">—</p>${dashAsOf(d)}</article>`;
+    const bars = dashBars(w.bars);
+    const srcWords = { amazon: 'Amazon\'s create / open date', snapshot: 'first Sellora snapshot', lh: 'Listing History (Create Listing)' };
+    const srcNote = `First-listed date: ${(w.srcUsed && w.srcUsed.length ? w.srcUsed : ['amazon']).map(k => srcWords[k] || k).join(' · ')}`
+      + (w.relisted ? ` · ${w.relisted} relisted SKU${w.relisted === 1 ? '' : 's'} not counted` : '');
+    if (!w.n) return `<article class="dash-card dash-small dash-nl">${head}<p class="dash-nl-empty">No new listings in the last ${n} days.</p>`
+      + `${bars}<div class="dash-nl-src">${dashEsc(srcNote)}</div>${dashAsOf(d)}</article>`;
+    const parts = [[w.selling, 'selling'], [w.nosale, 'live, no sale yet'], [w.notlive, 'not live yet']].map(([k, t]) => `${DASH_FMT.num(k)} ${t}`);
+    if (w.nodata) parts.push(`${DASH_FMT.num(w.nodata)} no sales data yet`);
+    return `<article class="dash-card dash-small dash-nl">${head}`
+      + `<div class="dash-nl-n">${dashCu(w.n, 'num', 'nl' + n)}<span class="dash-nl-w"> new listing${w.n === 1 ? '' : 's'}</span></div>`
+      + `<div class="dash-nl-split">${parts.join(' · ')}</div>${bars}`
+      + (w.top ? `<div class="dash-nl-top" title="${dashEsc(w.top.name)}">Top: <b>${dashEsc(String(w.top.name).slice(0, 60))}</b> · ${DASH_FMT.num(w.top.units)} unit${w.top.units === 1 ? '' : 's'}</div>` : '')
+      + `<div class="dash-nl-src">${dashEsc(srcNote)}${d.v.only ? ' · ' + dashEsc(d.v.only) : ''}</div>${dashAsOf(d)}</article>`;
+  },
+  cWins: () => {
+    const d = dashData('al');
+    if (!dashOk(d) || !d.v.wins || !d.v.wins.length) return '';
+    return `<article class="dash-card dash-small dash-wins"><div class="dash-small-h"><h3 class="dash-h3">Wins this week</h3>${dashOpenBtn('salert', 'Open Sales Alerts')}</div>`
+      + `<ul class="dash-win-l">${d.v.wins.slice(0, 2).map(x => `<li><span class="dash-win-n" title="${dashEsc(x.name)}">${dashEsc(x.name)}</span><b class="dash-win-v">+${Math.round(x.pct)}% · +${DASH_FMT.money(x.usd)}/wk</b></li>`).join('')}</ul>`
+      + dashAsOf(d) + '</article>';
+  },
 };
+// The new-listings bars: one per week, the last 8 (the running week last).
+function dashBars(bars) {
+  if (!bars || !bars.length) return '';
+  const max = Math.max(1, ...bars.map(b => b.n));
+  const total = bars.reduce((s, b) => s + b.n, 0);
+  return `<div class="dash-nl-bars" role="img" aria-label="New listings per week, the last ${bars.length} weeks: ${bars.map(b => b.n).join(', ')} (${total} in all)">`
+    + bars.map((b, i) => `<span class="dash-bar${i === bars.length - 1 ? ' is-now' : ''}" style="--h:${(b.n / max * 100).toFixed(1)}%" title="Week of ${dashEsc(dashDay(b.wk))}: ${b.n}"></span>`).join('') + '</div>';
+}
+
+/* ================= THE CHART: this year (blue, soft fill), last year (grey, dashed), today dashed — an SVG and a crosshair ================= */
+const DASH_CW = 1000, DASH_CH = 300, DASH_CT = 14;
+// A smooth line through the points (monotone cubic: it never overshoots a day), one piece per run of days that have a value.
+function dashSmooth(pts) {
+  const n = pts.length;
+  if (n < 2) return n ? `M${pts[0][0]} ${pts[0][1]}` : '';
+  const dx = [], m = [], t = [];
+  for (let i = 0; i < n - 1; i++) { dx[i] = pts[i + 1][0] - pts[i][0]; m[i] = (pts[i + 1][1] - pts[i][1]) / (dx[i] || 1); }
+  t[0] = m[0]; t[n - 1] = m[n - 2];
+  for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : 3 * (dx[i - 1] + dx[i]) / ((2 * dx[i] + dx[i - 1]) / m[i - 1] + (dx[i] + 2 * dx[i - 1]) / m[i]);
+  let d = `M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3;
+    d += `C${(pts[i][0] + h).toFixed(1)} ${(pts[i][1] + t[i] * h).toFixed(1)} ${(pts[i + 1][0] - h).toFixed(1)} ${(pts[i + 1][1] - t[i + 1] * h).toFixed(1)} ${pts[i + 1][0].toFixed(1)} ${pts[i + 1][1].toFixed(1)}`;
+  }
+  return d;
+}
+const dashRuns = (vals, X, Y) => {
+  const out = [];
+  let cur = [];
+  vals.forEach((v, i) => { if (v == null) { if (cur.length) out.push(cur); cur = []; } else cur.push([X(i), Y(v)]); });
+  if (cur.length) out.push(cur);
+  return out;
+};
+const dashNice = v => { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); return [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map(k => k * p).find(k => k >= v); };
+function dashChartHtml(days, today) {
+  const n = days.length;
+  const max = dashNice(Math.max(...days.map(p => Math.max(p.v || 0, p.ly || 0))) * 1.08);
+  const X = i => i / (n - 1) * DASH_CW, Y = v => DASH_CT + (1 - v / max) * (DASH_CH - DASH_CT);
+  const isToday = days[n - 1].d === today && days[n - 1].v != null;
+  const tyMain = days.map((p, i) => (isToday && i === n - 1 ? null : p.v));
+  const tyRuns = dashRuns(tyMain, X, Y), lyRuns = dashRuns(days.map(p => p.ly), X, Y);
+  const line = tyRuns.map(dashSmooth).join(' ');
+  const area = tyRuns.filter(r => r.length > 1).map(r => dashSmooth(r) + `L${r[r.length - 1][0].toFixed(1)} ${DASH_CH}L${r[0][0].toFixed(1)} ${DASH_CH}Z`).join(' ');
+  const todayP = isToday && days[n - 2].v != null ? `M${X(n - 2).toFixed(1)} ${Y(days[n - 2].v).toFixed(1)}L${X(n - 1).toFixed(1)} ${Y(days[n - 1].v).toFixed(1)}` : '';
+  const grid = [0, 0.5, 1].map(f => `<line class="dash-grid" x1="0" x2="${DASH_CW}" y1="${Y(max * f).toFixed(1)}" y2="${Y(max * f).toFixed(1)}"/>`).join('');
+  const yl = [1, 0.5, 0].map(f => `<span class="dash-yl" style="top:${(Y(max * f) / DASH_CH * 100).toFixed(2)}%">${dashEsc(dashCompact(max * f))}</span>`).join('');
+  const xl = [0, Math.round((n - 1) / 2), n - 1].map(i => `<span class="dash-xl" style="left:${(X(i) / DASH_CW * 100).toFixed(2)}%">${dashEsc(i === n - 1 && isToday ? 'Today' : dashDay(days[i].d))}</span>`).join('');
+  // the summary a screen reader hears (and the chart's keyboard: ← → move the crosshair)
+  const both = days.filter(p => p.v != null && p.ly != null && p.d !== today);
+  const tySum = both.reduce((s, p) => s + p.v, 0), lySum = both.reduce((s, p) => s + p.ly, 0);
+  const best = days.filter(p => p.d !== today && p.v != null).reduce((m, p) => (!m || p.v > m.v ? p : m), null);
+  const aria = `Daily sales, the last ${n} days. On the ${both.length} complete days both years hold: ${DASH_FMT.money(tySum)} this year against ${DASH_FMT.money(lySum)} on the same weekdays last year`
+    + (lySum ? ` (${DASH_FMT.pct((tySum - lySum) / lySum * 100)})` : '') + '.' + (best ? ` Best day: ${dashDay(best.d)}, ${DASH_FMT.money(best.v)}.` : '')
+    + ' Use the left and right arrow keys to read each day.';
+  return `<div class="dash-plot" tabindex="0" role="img" aria-label="${dashEsc(aria)}" data-n="${n}">${yl}`
+    + `<svg class="dash-svg" viewBox="0 0 ${DASH_CW} ${DASH_CH}" preserveAspectRatio="none" aria-hidden="true">`
+    + '<defs><linearGradient id="dashFill" x1="0" y1="0" x2="0" y2="1"><stop class="dash-f1" offset="0"/><stop class="dash-f2" offset="1"/></linearGradient></defs>'
+    + grid + (area ? `<path class="dash-area" d="${area}" fill="url(#dashFill)"/>` : '')
+    + lyRuns.map(r => `<path class="dash-ly" d="${dashSmooth(r)}"/>`).join('')
+    + (line ? `<path class="dash-ty" d="${line}"/>` : '') + (todayP ? `<path class="dash-today" d="${todayP}"/>` : '') + '</svg>'
+    + '<div class="dash-cross" aria-hidden="true"><i class="dash-dot is-ty"></i><i class="dash-dot is-ly"></i></div>'
+    + `<div class="dash-ctip" role="status" aria-live="polite"></div><div class="dash-xls" aria-hidden="true">${xl}</div></div>`;
+}
+// The crosshair and its tooltip for day i (or hidden): this year, last year (its own date), and the change.
+function dashCross(plot, i) {
+  const cross = plot.querySelector('.dash-cross'), tip = plot.querySelector('.dash-ctip');
+  const d = dashData('sales');
+  const days = dashOk(d) ? d.v.days : null;
+  if (i == null || !days || !days[i]) { plot.classList.remove('is-x'); if (tip) tip.textContent = ''; return; }
+  const n = days.length, p = days[i];
+  const max = dashNice(Math.max(...days.map(x => Math.max(x.v || 0, x.ly || 0))) * 1.08);
+  const yp = v => ((DASH_CT + (1 - v / max) * (DASH_CH - DASH_CT)) / DASH_CH * 100).toFixed(2) + '%';
+  const left = i / (n - 1) * 100;
+  plot.classList.add('is-x');
+  cross.style.left = left + '%';
+  const [a, b] = cross.querySelectorAll('.dash-dot');
+  a.style.top = p.v == null ? '-99px' : yp(p.v);
+  b.style.top = p.ly == null ? '-99px' : yp(p.ly);
+  const lyDay = sdShift(p.d, -364);
+  const pc = p.v != null && p.ly ? (p.v - p.ly) / p.ly * 100 : null;
+  tip.innerHTML = `<b>${dashEsc(dashDay(p.d))}${p.d === d.v.today ? ' · so far' : ''}</b>`
+    + `<span><i class="dash-k is-ty"></i>This year <b>${p.v == null ? '—' : DASH_FMT.money(p.v)}</b></span>`
+    + `<span><i class="dash-k is-ly"></i>Last year · ${dashEsc(dashDay(lyDay))} <b>${p.ly == null ? '—' : DASH_FMT.money(p.ly)}</b></span>`
+    + `<span>vs last year <b class="${pc == null ? '' : pc < 0 ? 'is-dn' : 'is-up'}">${pc == null ? '—' : DASH_FMT.pct(pc)}</b></span>`;
+  tip.classList.toggle('is-left', left > 60);
+  tip.style.left = left + '%';
+}
+function dashChartWire(el) {
+  const plot = el.querySelector('.dash-plot[data-n]');
+  if (!plot) return;
+  const n = Number(plot.dataset.n);
+  let at = null;
+  const fromX = x => { const r = plot.getBoundingClientRect(); return Math.max(0, Math.min(n - 1, Math.round((x - r.left) / (r.width || 1) * (n - 1)))); };
+  plot.addEventListener('pointermove', e => { at = fromX(e.clientX); dashCross(plot, at); });
+  plot.addEventListener('pointerleave', () => { if (document.activeElement !== plot) { at = null; dashCross(plot, null); } });
+  plot.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') {
+      e.preventDefault();
+      at = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : Math.max(0, Math.min(n - 1, (at == null ? n - 1 : at) + (e.key === 'ArrowLeft' ? -1 : 1)));
+      dashCross(plot, at);
+    } else if (e.key === 'Escape') { at = null; dashCross(plot, null); }
+  });
+  plot.addEventListener('focus', () => { if (at == null) { at = n - 1; dashCross(plot, at); } });
+  plot.addEventListener('blur', () => { at = null; dashCross(plot, null); });
+}
 
 /* ================= DRAWING ================= */
-// Draw these cards. mode 'intro' = the page arriving; 'brand' = another brand picked (numbers count over, charts draw again);
-// 'swap' = new numbers for cards already on screen (they count over; a shimmer morphs into its number; nothing else moves).
-function dashPaint(ids, mode) {
-  const eng = DASH.eng || 'none';                 // the motion chosen when the page was drawn (dashRender)
-  ids.forEach(id => {
-    const el = $('dash-' + id);
-    if (!el) return;
-    dashKill(id);
-    let html;
-    try { html = DASH_PAINT[id](DASH_SLOTS.indexOf(id)); } catch (e) { html = '<article class="dash-card"><div class="dash-v is-none">—</div></article>'; }
-    const was = DASH.was[id];
-    DASH.was[id] = /dash-sk/.test(html) ? 'sk' : /data-cu=/.test(html) ? 'ok' : 'none';
-    el.classList.toggle('is-swap', mode === 'swap');
-    el.classList.toggle('is-empty', !html);
-    el.innerHTML = html;
-    try { dashAnim(id, el, mode === 'intro' ? DASH_SLOTS.indexOf(id) : 0, mode, eng, was); } catch (e) { /* shown as it is */ }
-    try { dashHover(id, el, eng); } catch (e) { /* the numbers are there anyway */ }
-  });
-  dashStRefresh();
-  dashParty();
-}
-// The whole page: background, greeting, clock, brand switch, the ticker, then every card.
-function dashRender() {
-  const root = $('dashRoot');
-  if (!root) return;
-  dashKillAll();
-  dashStop();
-  dashDotsStop();
-  DASH.memo = {};
-  DASH.shown = {};
-  DASH.was = {};
-  const eng = DASH.eng = dashEngine();
-  $('paneDash').classList.toggle('dash-fx', eng === 'css');
-  $('paneDash').classList.toggle('dash-gs', eng === 'gsap');
+// The greeting, the date, the brand switch, "Updated".
+function dashHeadHtml() {
   const hour = new Date().getHours();
   const hi = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const who = dashWho();
   const date = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const brand = (v, t) => `<button type="button" data-dash-brand="${v}" aria-pressed="${DASH.brand === v}">${t}</button>`;
+  return `<header class="dash-head"><div><h2 class="dash-hi">${hi}${who ? ', ' + dashEsc(who) : ''}</h2>`
+    + `<p class="dash-date">${dashEsc(date)} · <span class="dash-upd"></span></p></div>`
+    + `<div class="dash-seg dash-brands" role="group" aria-label="Brand">${brand('SP', 'Ridhi')}${brand('CPC', 'CPC')}${brand('ALL', 'All')}</div></header>`;
+}
+// Draw these cards. mode 'intro' = the page arriving; 'brand' = another brand picked (numbers count over); 'swap' = new numbers for
+// cards already on screen (they count over; a skeleton fades into its number; nothing else moves).
+function dashPaint(ids, mode) {
+  const eng = DASH.eng || 'none';
+  ids.forEach(id => {
+    const el = $('dash-' + id);
+    if (!el) return;
+    dashKill(id);
+    let html;
+    try { html = DASH_PAINT[id](); } catch (e) { html = '<article class="dash-card"><div class="dash-num is-none">—</div></article>'; }
+    const was = DASH.was[id];
+    DASH.was[id] = /dash-sk/.test(html) ? 'sk' : html ? 'ok' : 'none';
+    el.classList.toggle('is-empty', !html);
+    el.innerHTML = html;
+    try { dashAnim(id, el, mode, eng, was); } catch (e) { /* shown as it is */ }
+    try { dashChartWire(el); } catch (e) { /* the chart is there anyway */ }
+  });
+  const small = document.querySelector('#paneDash .dash-smalls');
+  if (small) small.dataset.n = String(small.querySelectorAll('.dash-slot:not(.is-empty)').length);
+}
+// The whole page.
+function dashRender() {
+  const root = $('dashRoot');
+  if (!root) return;
+  dashKillAll();
+  dashStop();
+  DASH.memo = {};
+  DASH.shown = {};
+  DASH.was = {};
+  DASH.drawn = {};
+  const eng = DASH.eng = dashEngine();
+  $('paneDash').classList.toggle('dash-fx', eng === 'css');
+  $('paneDash').classList.toggle('dash-gs', eng === 'gsap');
   const slot = id => `<div class="dash-slot" id="dash-${id}"></div>`;
-  root.innerHTML = '<div class="dash-glow dash-aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div><canvas class="dash-dots" aria-hidden="true"></canvas>'
-    + `<header class="dash-hero"><div><h3 class="dash-hi"><span class="dash-hi-t">${hi}${who ? ', ' : ''}</span>${who ? `<span class="dash-name">${dashEsc(who)}</span>` : ''}</h3>`
-    + `<div class="dash-date"><span class="dash-clock">${dashClockText()}</span><span>${dashEsc(date)}</span><span class="dash-live"><i></i><b>Live</b> <span class="dash-live-t"></span></span></div><button type="button" class="nc-chip" id="ncChipDash" hidden></button></div>`
-    + `<div class="dash-brands" role="group" aria-label="Brand"><span class="dash-pill" aria-hidden="true"></span>${brand('ALL', 'Both')}${brand('SP', 'Ridhi')}${brand('CPC', 'CPC')}</div></header>`
-    + slot('ticker')
-    + `<section class="dash-grid dash-vi-row">${slot('tVi')}${slot('tAl')}</section>`
-    + `<section class="dash-grid dash-kpis">${['kSales', 'kYtd', 'kAds', 'kList'].map(slot).join('')}</section>`
-    + `<section class="dash-grid">${slot('flow')}</section>`
-    + `<section class="dash-grid dash-row3">${['donut', 'line', 'bars'].map(slot).join('')}</section>`
-    + `<section class="dash-grid dash-tiles">${['tImg', 'tErr', 'tBsr', 'tAge'].map(slot).join('')}</section>`;
+  root.innerHTML = dashHeadHtml() + slot('summary')
+    + `<section class="dash-kpis" aria-label="Key numbers">${['kMtd', 'kYest', 'kAds', 'kYtd'].map(slot).join('')}</section>`
+    + slot('chart')
+    + `<section class="dash-smalls">${['cVi', 'cNew', 'cWins'].map(slot).join('')}</section>`;
   DASH.rendered = true;
-  dashLiveLine();
-  dashPill(false);
-  if (eng === 'gsap') dashGsRoot(root);
+  dashUpdated();
   dashPaint(DASH_SLOTS, 'intro');
-  dashDotsStart(root);
-  dashLoops();
-  if (typeof ncChipPaint === 'function') ncChipPaint();   // the Numbers Check chip under the greeting (sales/sales-check.js)
 }
-// The brand switch's sliding pill: under the brand on view (moved with GSAP, or by a CSS transition without it).
-function dashPill(move) {
-  const box = document.querySelector('#paneDash .dash-brands');
-  const pill = box && box.querySelector('.dash-pill');
-  const on = box && box.querySelector('[aria-pressed="true"]');
-  if (!pill || !on) return;
-  const x = on.offsetLeft, w = on.offsetWidth;
-  if (move && DASH.eng === 'gsap') window.gsap.to(pill, { x, width: w, duration: 0.45, ease: 'power3.out' });
-  else { pill.style.width = w + 'px'; pill.style.transform = `translateX(${x}px)`; }
-  pill.classList.add('is-on');
-}
-// The clock and the "● Live" line (the time of the newest number that arrived).
-const dashClockText = () => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-function dashLiveLine() {
-  const el = document.querySelector('#paneDash .dash-live-t');
-  if (el) el.textContent = DASH.lastFresh ? '· updated ' + dashHm(DASH.lastFresh) : '· loading…';
+// "Updated HH:MM" — the time of the newest number that arrived (amber "Showing saved numbers" until one does).
+function dashUpdated() {
+  const el = document.querySelector('#paneDash .dash-upd');
+  if (!el) return;
+  const busy = Object.values(DASH.st).some(s => s.s === 'loading');
+  el.textContent = DASH.lastFresh ? 'Updated ' + dashHm(DASH.lastFresh) + (busy ? ' · updating…' : '') : busy ? 'Loading…' : 'Showing saved numbers';
+  el.classList.toggle('is-old', !DASH.lastFresh);
 }
 
-/* ================= MOTION — GSAP (+ ScrollTrigger, MotionPathPlugin), else CSS; nothing when ✨ is off ================= */
+/* ================= MOTION — GSAP, else CSS; nothing when ✨ is off ================= */
 const dashScript = src => new Promise(resolve => {
   try {
     const s = document.createElement('script');
@@ -883,179 +681,74 @@ const dashScript = src => new Promise(resolve => {
     document.head.appendChild(s);
   } catch (e) { resolve(false); }
 });
-// GSAP and its two plugins, fetched once, the first time the Dashboard opens with ✨ on. true = GSAP ready (the plugins are extras).
+// GSAP, fetched once, the first time the Dashboard opens with ✨ on (the Sales Dashboard reuses it). true = ready.
 function dashGsap() {
   if (window.gsap && DASH.gs === true) return Promise.resolve(true);
   if (!DASH.gsTry) DASH.gsTry = (async () => {
     const ok = window.gsap || await dashScript(DASH_CDN + 'gsap.min.js');
     if (!ok || !window.gsap) { DASH.gs = false; return false; }
-    const [st, mp] = await Promise.all([window.ScrollTrigger || dashScript(DASH_CDN + 'ScrollTrigger.min.js'), window.MotionPathPlugin || dashScript(DASH_CDN + 'MotionPathPlugin.min.js')]);
-    try {
-      window.gsap.config({ nullTargetWarn: false });
-      window.gsap.ticker.fps(60);
-      DASH.plug.st = !!(st && window.ScrollTrigger);
-      DASH.plug.mp = !!(mp && window.MotionPathPlugin);
-      window.gsap.registerPlugin(...[DASH.plug.st && window.ScrollTrigger, DASH.plug.mp && window.MotionPathPlugin].filter(Boolean));
-      DASH.gs = true;
-    } catch (e) { DASH.gs = false; }
+    try { window.gsap.config({ nullTargetWarn: false }); DASH.gs = true; } catch (e) { DASH.gs = false; }
     return DASH.gs;
   })();
   return DASH.gsTry;
 }
 const dashTw = (id, t) => { if (t) (DASH.tw[id] || (DASH.tw[id] = [])).push(t); return t; };
+// Stop a card's animations and leave every element as it is meant to look (no half-drawn line, no half-faded text).
 function dashKill(id) {
-  (DASH.tw[id] || []).forEach(t => {
-    try { if (t.scrollTrigger) t.scrollTrigger.kill(); } catch (e) { /* gone */ }
-    try { t.kill(); } catch (e) { /* gone */ }
-  });
+  (DASH.tw[id] || []).forEach(t => { try { t.progress(1).kill(); } catch (e) { /* gone */ } });
   DASH.tw[id] = [];
 }
-// ScrollTrigger measures where each tile is when it is made; a drawing that changes the page's height (or a scroll it has not seen
-// yet) would leave a tile waiting for a scroll that never comes — so it measures again just after every drawing.
-function dashStRefresh() {
-  if (!(DASH.plug.st && window.ScrollTrigger) || DASH.eng !== 'gsap') return;
-  clearTimeout(DASH.stT);
-  DASH.stT = setTimeout(() => { try { window.ScrollTrigger.refresh(); } catch (e) { /* the tiles show anyway when scrolled */ } }, 120);
-}
 const dashKillAll = () => Object.keys(DASH.tw).forEach(dashKill);
-// The page: the greeting typed in, the aurora drifting.
-function dashGsRoot(root) {
-  const g = window.gsap;
-  const hero = root.querySelector('.dash-hero');
-  dashTw('root', g.from(hero, { opacity: 0, y: 16, duration: 0.6, ease: 'power3.out', clearProps: 'opacity,transform' }));
-  const typed = hero.querySelectorAll('.dash-hi-t, .dash-name');
-  typed.forEach(el => { el.dataset.full = el.textContent; });
-  const total = [...typed].reduce((s, el) => s + el.dataset.full.length, 0);
-  const o = { n: 0 };
-  typed.forEach(el => { el.textContent = ''; });
-  dashTw('root', g.to(o, { n: total, duration: Math.min(1.4, 0.045 * total), ease: 'none', delay: 0.15,
-    onUpdate: () => { let left = Math.round(o.n); typed.forEach(el => { const t = el.dataset.full; el.textContent = t.slice(0, Math.max(0, left)); left -= t.length; }); },
-    onComplete: () => { typed.forEach(el => { el.textContent = el.dataset.full; }); hero.classList.add('is-typed'); } }));
-  dashGsAurora(root);
-}
-function dashGsAurora(root) {
-  root.querySelectorAll('.dash-aurora i').forEach((blob, k) => {
-    dashTw('root', window.gsap.to(blob, { xPercent: [14, -12, 10, -16][k], yPercent: [10, 16, -12, -8][k], scale: 1.18, duration: 16 + k * 5, ease: 'sine.inOut', yoyo: true, repeat: -1 }));
-  });
-}
-// GSAP arrived after the page was drawn with the CSS motion (a slow first download): once the CSS entrance is over, the page moves to
-// GSAP quietly — the cards are drawn again with the same numbers (nothing counts or comes in again) and the GSAP loops start.
-function dashGsUpgrade() {
-  setTimeout(() => {
-    if (DASH.eng !== 'css' || !dashFxOn() || !(window.gsap && DASH.gs === true) || !dashShown()) return;
-    DASH.eng = 'gsap';
-    $('paneDash').classList.remove('dash-fx');
-    $('paneDash').classList.add('dash-gs');
-    const root = $('dashRoot');
-    root.querySelector('.dash-hero').classList.add('is-typed');
-    dashGsAurora(root);
-    dashPaint(DASH_SLOTS, 'swap');
-    dashLoops();
-  }, 2800);
-}
-// One card: its numbers; with GSAP its entrance, charts, pipes and loops.
-function dashAnim(id, el, i, mode, eng, was) {
-  dashNumbers(id, el, i, mode, eng, was);
-  if (eng !== 'gsap') return;
-  const g = window.gsap;
-  const d = i * 0.07 + 0.08;
-  const card = el.querySelector('.dash-card, .dash-ticker');
-  const reveal = mode === 'swap' && was === 'sk';                     // a shimmer that becomes its number
-  const draw = mode !== 'swap' || was !== 'ok';                         // the charts draw when they first appear (and on a brand change)
-  if (mode === 'intro' && card) {
-    if (/^t[A-Z]/.test(id) && DASH.plug.st) {
-      dashTw(id, g.from(card, { opacity: 0, y: 30, scale: 0.94, duration: 0.8, ease: 'back.out(1.6)', clearProps: 'opacity,transform',
-        scrollTrigger: { trigger: card, start: 'top 96%', once: true } }));
-    } else dashTw(id, g.from(card, { opacity: 0, y: 26, scale: 0.9, duration: 1.1, ease: 'elastic.out(1, 0.75)', delay: d, clearProps: 'opacity,transform' }));
+// One card: its numbers, and (GSAP) its entrance: the line fades in, trend lines and the chart draw — once per page (DASH.drawn).
+function dashAnim(id, el, mode, eng, was) {
+  dashNumbers(id, el, mode, eng);
+  if (eng === 'none') return;
+  const first = !DASH.drawn[id] && DASH.was[id] === 'ok';
+  if (DASH.was[id] === 'ok') DASH.drawn[id] = true;
+  const reveal = mode === 'swap' && was === 'sk';
+  if (eng === 'css') {
+    el.classList.remove('is-in', 'is-draw');
+    if (first || reveal) { void el.offsetWidth; el.classList.add('is-in'); if (first) el.classList.add('is-draw'); }
+    return;
   }
-  if (reveal) dashTw(id, g.from(el.querySelectorAll('.dash-v, .dash-s, .dash-step b, .dash-tile b, .dash-donuts, .dash-chart, .dash-spark'),
-    { opacity: 0, scale: 0.94, filter: 'blur(6px)', duration: 0.6, ease: 'power2.out', stagger: 0.04, clearProps: 'filter,transform,opacity' }));
-  const dd = mode === 'intro' ? d + 0.25 : 0.05;
-  if (draw) {
-    el.querySelectorAll('.dash-badge').forEach(b => dashTw(id, g.from(b, { scale: 0, opacity: 0, duration: 0.6, ease: 'back.out(3)', delay: dd + 0.5, clearProps: 'transform,opacity' })));
-    el.querySelectorAll('.dash-spark path').forEach(p => dashTw(id, g.fromTo(p, { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 1.1, ease: 'power2.out', delay: dd + 0.2 })));
-    const steps = el.querySelectorAll('.dash-step');
-    if (steps.length) dashTw(id, g.from(steps, { opacity: 0, y: 14, scale: 0.94, duration: 0.55, ease: 'back.out(1.7)', delay: dd, stagger: 0.16, clearProps: 'opacity,transform' }));
-    el.querySelectorAll('.dash-pipe').forEach((a, k) => {
-      dashTw(id, g.fromTo(a.querySelectorAll('.dash-pipe-p, .dash-pipe-h'), { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 0.45, ease: 'power1.out', delay: dd + 0.2 + k * 0.16 }));
-    });
-    el.querySelectorAll('.dash-seg').forEach((s, k) => {
-      const len = s.dataset.len;
-      dashTw(id, g.fromTo(s, { attr: { 'stroke-dasharray': '0 100' } }, { attr: { 'stroke-dasharray': `${len} 100` }, duration: 0.5, ease: 'power2.out', delay: dd + k % 6 * 0.18 }));
-    });
-    el.querySelectorAll('.dash-line').forEach(p => dashTw(id, g.fromTo(p, { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 1.4, ease: 'power1.inOut', delay: dd })));
-    el.querySelectorAll('.dash-area').forEach(p => dashTw(id, g.from(p, { opacity: 0, duration: 0.9, delay: dd + 1.1 })));
-    el.querySelectorAll('.dash-top').forEach(t => dashTw(id, g.from(t, { scale: 0, opacity: 0, transformOrigin: '0px 0px', duration: 0.6, ease: 'back.out(3)', delay: dd + 1.3 })));
-    const line = el.querySelector('.dash-line'), ride = el.querySelector('.dash-ride');
-    if (line && ride && DASH.plug.mp) {
-      const cx = ride.getAttribute('cx'), cy = ride.getAttribute('cy');
-      ride.setAttribute('cx', 0); ride.setAttribute('cy', 0);
-      dashTw(id, g.fromTo(ride, { opacity: 0 }, { opacity: 1, duration: 0.2, delay: dd }));
-      dashTw(id, g.to(ride, { duration: 1.4, ease: 'power1.inOut', delay: dd, motionPath: { path: line, align: line, alignOrigin: [0.5, 0.5] },
-        onComplete: () => { g.set(ride, { clearProps: 'transform' }); ride.setAttribute('cx', cx); ride.setAttribute('cy', cy); } }));
-    }
-    const sales = el.querySelectorAll('.dash-bar.is-sales'), spend = el.querySelectorAll('.dash-bar.is-spend');
-    if (sales.length) dashTw(id, g.from(sales, { scaleY: 0, transformOrigin: '50% 100%', duration: 1, ease: 'elastic.out(1, 0.55)', delay: dd, stagger: 0.07 }));
-    if (spend.length) dashTw(id, g.from(spend, { scaleY: 0, transformOrigin: '50% 100%', duration: 1, ease: 'elastic.out(1, 0.55)', delay: dd + 0.35, stagger: 0.07 }));
-    const icon = el.querySelector('.dash-tile .dash-ic');
-    const motion = card && card.dataset ? card.dataset.motion : '';
-    if (icon && motion) {
-      const st = DASH.plug.st && mode === 'intro' ? { trigger: card, start: 'top 96%', once: true } : undefined;
-      g.set(icon, { transformOrigin: '50% 50%' });
-      const tl = g.timeline({ delay: dd + 0.5, scrollTrigger: st });
-      if (motion === 'wiggle') [-14, 12, -8, 5, 0].forEach(r => tl.to(icon, { rotation: r, duration: 0.15, ease: 'sine.inOut' }));
-      else if (motion === 'bounce') [-8, 0, -3, 0].forEach((y, k) => tl.to(icon, { y, duration: 0.18, ease: k % 2 ? 'bounce.out' : 'power2.out' }));
-      else if (motion === 'dip') tl.to(icon, { y: 5, rotation: -8, duration: 0.3, ease: 'power2.in' }).to(icon, { y: 0, rotation: 0, duration: 0.45, ease: 'back.out(3)' });
-      else if (motion === 'spin') tl.to(icon, { rotation: 180, duration: 0.9, ease: 'power2.inOut' });
-      dashTw(id, tl);
-    }
-  }
-  // --- the loops (stopped with the page: hidden tab, another screen) ---
-  el.querySelectorAll('.dash-pipe').forEach(a => {
-    const path = a.querySelector('.dash-pipe-p');
-    const step = el.querySelector(`.dash-step[data-s="${a.dataset.s}"]`);
-    const vol = Number(step && step.dataset.vol) || 0;
-    const dur = Math.max(0.7, Math.min(2.6, 2.6 - Math.log10(vol + 1) * 0.55));        // more listings, faster flow
-    a.querySelectorAll('.dash-flowdot').forEach((dot, k) => {
-      if (!vol) { g.set(dot, { opacity: 0 }); return; }
-      if (!DASH.plug.mp) g.set(dot, { attr: { cx: 2, cy: 7 } });
-      const tl = g.timeline({ repeat: -1, delay: (mode === 'intro' ? dd + 1 : 0.2) + k * dur / 3 });
-      tl.fromTo(dot, DASH.plug.mp ? {} : { x: 0 }, Object.assign({ duration: dur, ease: 'none' },
-        DASH.plug.mp ? { motionPath: { path, align: path, alignOrigin: [0.5, 0.5] } } : { x: 36 }), 0)
-        .fromTo(dot, { opacity: 0 }, { opacity: 1, duration: dur * 0.15, ease: 'none' }, 0)
-        .to(dot, { opacity: 0, duration: dur * 0.15, ease: 'none' }, dur * 0.85);
-      dashTw(id, tl);
-    });
-  });
-  const crit = el.querySelector('.dash-step.is-bad');
-  if (crit && Number(crit.dataset.vol) > 0) dashTw(id, g.to(crit, { '--glow': 1, duration: 1.4, ease: 'sine.inOut', yoyo: true, repeat: -1 }));
-  // (the soft pulse at today's point is CSS in both engines: transform-box keeps it on its centre)
-  el.querySelectorAll('.dash-stripes').forEach(s => dashTw(id, g.fromTo(s, { x: 0 }, { x: 6, duration: 0.8, ease: 'none', repeat: -1 })));
+  const g = window.gsap;
+  const i = DASH_SLOTS.indexOf(id);
+  const delay = mode === 'intro' ? 0.06 * i : 0;
+  if (id === 'summary' && (first || reveal)) dashTw(id, g.fromTo(el.querySelector('.dash-sum-box'), { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.7, ease: 'power2.out', delay: 0.05, clearProps: 'opacity,transform' }));
+  else if (reveal) dashTw(id, g.fromTo(el.firstElementChild, { opacity: 0.4 }, { opacity: 1, duration: 0.45, ease: 'power1.out', clearProps: 'opacity' }));
+  if (!first) return;
+  // a line draws from left to right: its picture is uncovered (a clip), whatever the stroke or the card's width
+  el.querySelectorAll('svg.dash-spark, .dash-svg').forEach(p => dashTw(id, g.fromTo(p, { clipPath: 'inset(0% 100% 0% 0%)' },
+    { clipPath: 'inset(0% 0% 0% 0%)', duration: p.classList.contains('dash-svg') ? 1.3 : 0.9, ease: 'power2.inOut', delay: delay + 0.15, clearProps: 'clipPath' })));
+  el.querySelectorAll('.dash-area, .dash-ly, .dash-today').forEach(p => dashTw(id, g.fromTo(p, { opacity: 0 }, { opacity: 1, duration: 0.8, ease: 'power1.out', delay: delay + 0.5, clearProps: 'opacity' })));
+  const bars = el.querySelectorAll('.dash-bar');
+  if (bars.length) dashTw(id, g.fromTo(bars, { scaleY: 0 }, { scaleY: 1, transformOrigin: '50% 100%', duration: 0.6, ease: 'power2.out', stagger: 0.04, delay: delay + 0.1, clearProps: 'transform' }));
 }
 // The numbers: from 0 on arrival (or from what was on screen for a brand change / new data), always ending on the exact text.
-function dashNumbers(id, el, i, mode, eng, was) {
+function dashNumbers(id, el, mode, eng) {
   el.querySelectorAll('[data-cu]').forEach(n => {
     const v = Number(n.dataset.cu), fmt = DASH_FMT[n.dataset.fmt], k = n.dataset.k;
     const prev = k in DASH.shown ? DASH.shown[k] : null;
     DASH.shown[k] = v;
     if (!fmt || eng === 'none') return;
-    const from = mode === 'intro' ? 0 : prev == null ? 0 : prev;
+    const from = mode === 'intro' || prev == null ? 0 : prev;
     if (from === v) return;
     const end = n.textContent;
-    const delay = mode === 'intro' ? i * 70 + 200 : 0;
+    const delay = mode === 'intro' ? 120 + 60 * Math.max(0, DASH_SLOTS.indexOf(id)) : 0;
     if (eng === 'gsap') {
-      const g = window.gsap, o = { x: from };
+      const o = { x: from };
       n.textContent = fmt(from);
-      dashTw(id, g.to(o, { x: v, duration: mode === 'intro' ? 1.1 : 0.8, ease: 'power3.out', delay: delay / 1000,
+      dashTw(id, window.gsap.to(o, { x: v, duration: mode === 'intro' ? 1.1 : 0.7, ease: 'power3.out', delay: delay / 1000,
         onUpdate: () => { n.textContent = fmt(o.x); }, onComplete: () => { n.textContent = end; } }));
-      if (mode === 'swap' && prev != null) dashTw(id, g.fromTo(n, { opacity: 0.3 }, { opacity: 1, duration: 0.6, ease: 'power1.out' }));
       return;
     }
     n.textContent = fmt(from);
     DASH.cu.push({ el: n, from, v, fmt, end, t0: performance.now() + delay });
   });
   if (DASH.cu.length && !DASH.raf) DASH.raf = requestAnimationFrame(dashTick);
-  if (DASH.cu.length) { clearTimeout(DASH.safety); DASH.safety = setTimeout(dashStop, 3000); }   // a frame that never comes: the exact text anyway
+  // the safety net: whatever happens to the frames or the tweens, every number shows its exact text within 3 s
+  clearTimeout(DASH.safety);
+  DASH.safety = setTimeout(() => { dashStop(); dashKillAll(); }, 3000);
 }
 function dashTick(t) {
   DASH.raf = 0;
@@ -1077,214 +770,27 @@ function dashStop() {
   clearTimeout(DASH.safety);
 }
 
-/* ================= HOVER: tooltips (always), lift / tilt / shine / pop (with motion) ================= */
-function dashTip(card, html, x, y) {
-  const tip = card.querySelector('.dash-tip');
-  if (!tip) return;
-  if (!html) { tip.classList.remove('is-on'); return; }
-  tip.innerHTML = html;
-  tip.classList.add('is-on');
-  const w = tip.offsetWidth, cw = card.clientWidth;
-  tip.style.transform = `translate(${Math.max(6, Math.min(cw - w - 6, x - w / 2))}px, ${Math.max(4, y - tip.offsetHeight - 12)}px)`;
-}
-function dashHover(id, el, eng) {
-  const g = eng === 'gsap' ? window.gsap : null;
-  const card = el.querySelector('.dash-card');
-  if (!card) return;
-  const rel = e => { const r = card.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top, r]; };
-  // KPI cards: 3D tilt (max 6°) and a shine that follows the pointer — GSAP, wide screens, a mouse
-  if (g && card.classList.contains('dash-kpi') && !dashPhone()) {
-    const rx = g.quickTo(card, 'rotationX', { duration: 0.4, ease: 'power3.out' }), ry = g.quickTo(card, 'rotationY', { duration: 0.4, ease: 'power3.out' });
-    const shine = card.querySelector('.dash-shine');
-    const sx = shine ? g.quickTo(shine, 'x', { duration: 0.3, ease: 'power2.out' }) : null;
-    g.set(card, { transformPerspective: 800 });
-    card.addEventListener('mousemove', e => {
-      const [x, y, r] = rel(e);
-      ry((x / r.width - 0.5) * 12);
-      rx(-(y / r.height - 0.5) * 12);
-      if (sx) sx(x - r.width);
-    });
-    card.addEventListener('mouseenter', () => { g.to(card, { y: -4, duration: 0.25, ease: 'power2.out', overwrite: 'auto' }); if (shine) g.to(shine, { opacity: 1, duration: 0.25 }); });
-    card.addEventListener('mouseleave', () => { rx(0); ry(0); g.to(card, { y: 0, duration: 0.3, ease: 'power2.out', overwrite: 'auto' }); if (shine) g.to(shine, { opacity: 0, duration: 0.3 }); });
-  } else if (g) {
-    card.addEventListener('mouseenter', () => g.to(card, { y: -4, duration: 0.22, ease: 'power2.out', overwrite: 'auto' }));
-    card.addEventListener('mouseleave', () => g.to(card, { y: 0, duration: 0.28, ease: 'power2.out', overwrite: 'auto' }));
-  }
-  // flow: a box lifts, the pipe before it brightens
-  el.querySelectorAll('.dash-step').forEach(step => {
-    const pipe = el.querySelector(`.dash-pipe[data-s="${Number(step.dataset.s) - 1}"]`);
-    step.addEventListener('mouseenter', () => { if (pipe) pipe.classList.add('is-hot'); if (g) g.to(step, { y: -5, scale: 1.03, duration: 0.25, ease: 'power2.out', overwrite: 'auto' }); });
-    step.addEventListener('mouseleave', () => { if (pipe) pipe.classList.remove('is-hot'); if (g) g.to(step, { y: 0, scale: 1, duration: 0.3, ease: 'power2.out', overwrite: 'auto' }); });
-  });
-  // donut: a segment pops out 6px, its count and share, its legend chip lights
-  el.querySelectorAll('.dash-seg').forEach(seg => {
-    const chips = card.querySelectorAll(`.dash-chip[data-b="${seg.dataset.b}"], .dash-mini [data-b="${seg.dataset.b}"]`);
-    seg.addEventListener('mouseenter', () => {
-      if (eng !== 'none') { if (g) g.to(seg, { x: Number(seg.dataset.dx), y: Number(seg.dataset.dy), duration: 0.25, ease: 'back.out(2)' }); else seg.style.transform = `translate(${seg.dataset.dx}px,${seg.dataset.dy}px)`; }
-      chips.forEach(c => c.classList.add('is-on'));
-    });
-    seg.addEventListener('mousemove', e => { const [x, y] = rel(e); dashTip(card, `<b>${dashEsc(seg.dataset.brand)} · ${dashEsc(seg.dataset.label)}</b>${DASH_FMT.num(Number(seg.dataset.n))} listings · ${seg.dataset.pct}%`, x, y); });
-    seg.addEventListener('mouseleave', () => {
-      if (g) g.to(seg, { x: 0, y: 0, duration: 0.3, ease: 'power2.out' }); else seg.style.transform = '';
-      chips.forEach(c => c.classList.remove('is-on'));
-      dashTip(card, '');
-    });
-  });
-  // the 90-day line: crosshair + date and sales
-  const lc = el.querySelector('.dash-linechart');
-  if (lc) {
-    const d = dashData('sales');
-    const pts = dashOk(d) ? d.v.pts : [];
-    const n = Number(lc.dataset.n), L = Number(lc.dataset.l), R = Number(lc.dataset.r), W = Number(lc.dataset.w);
-    const cross = lc.querySelector('.dash-cross'), dot = lc.querySelector('.dash-cross-c');
-    const line = lc.querySelector('.dash-line');
-    lc.addEventListener('mousemove', e => {
-      const r = lc.getBoundingClientRect();
-      const vx = (e.clientX - r.left) / r.width * W;
-      const k = Math.max(0, Math.min(n - 1, Math.round((vx - L) / (W - L - R) * (n - 1))));
-      const p = pts[k];
-      if (!p || !line) return;
-      const px = L + k / (n - 1) * (W - L - R);
-      const seg = line.getAttribute('d').split(/[ML]/).filter(Boolean)[k];
-      const py = seg ? Number(seg.trim().split(' ')[1]) : 0;
-      cross.style.opacity = 1;
-      cross.setAttribute('transform', `translate(${px.toFixed(1)} 0)`);
-      dot.setAttribute('cy', py);
-      const [cx, cy] = rel(e);
-      dashTip(card, `<b>${dashEsc(new Date(p.d + 'T12:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }))}</b>${DASH_FMT.money(p.v)}`, cx, cy);
-    });
-    lc.addEventListener('mouseleave', () => { cross.style.opacity = 0; dashTip(card, ''); });
-  }
-  // PPC bars: the week glows, with sales, ad spend and TACoS
-  el.querySelectorAll('.dash-week').forEach(w => {
-    w.addEventListener('mouseenter', () => w.classList.add('is-on'));
-    w.addEventListener('mousemove', e => {
-      const rev = Number(w.dataset.rev), spend = Number(w.dataset.spend);
-      const [x, y] = rel(e);
-      dashTip(card, `<b>${dashEsc(w.dataset.w)}</b>Sales ${DASH_FMT.money(rev)} · Ad spend ${DASH_FMT.money(spend)} · TACoS ${rev ? Math.round(spend / rev * 100) + '%' : '—'}`, x, y);
-    });
-    w.addEventListener('mouseleave', () => { w.classList.remove('is-on'); dashTip(card, ''); });
-  });
-}
-
-/* ================= BACKGROUND DOTS, CONFETTI, PAUSING ================= */
-// About 40 slow dots behind the cards (a canvas). Only with motion, never on a phone, at most 30 frames a second, only while seen.
-function dashDotsStart(root) {
-  const cv = root.querySelector('.dash-dots');
-  if (!cv || DASH.eng === 'none' || dashPhone() || !cv.getContext) return;
-  const ctx = cv.getContext('2d');
-  const D = { cv, ctx, pts: [], raf: 0, last: 0, w: 0, h: 0, col: '' };
-  const size = () => {
-    const r = cv.getBoundingClientRect(), dpr = Math.min(1.5, window.devicePixelRatio || 1);
-    D.w = Math.max(1, r.width); D.h = Math.max(1, r.height);
-    cv.width = Math.round(D.w * dpr); cv.height = Math.round(D.h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    D.col = getComputedStyle(root).getPropertyValue('--brand').trim() || 'gray';
-    if (!D.pts.length) D.pts = Array.from({ length: 40 }, () => ({ x: Math.random() * D.w, y: Math.random() * D.h, r: 0.8 + Math.random() * 1.6,
-      vx: (Math.random() - 0.5) * 0.18, vy: (Math.random() - 0.5) * 0.18, a: 0.15 + Math.random() * 0.3 }));
-  };
-  const frame = t => {
-    D.raf = 0;
-    if (!dashLive()) return;
-    D.raf = requestAnimationFrame(frame);
-    if (t - D.last < 33) return;
-    D.last = t;
-    ctx.clearRect(0, 0, D.w, D.h);
-    ctx.fillStyle = D.col;
-    D.pts.forEach(p => {
-      p.x += p.vx; p.y += p.vy;
-      if (p.x < -4) p.x = D.w + 4; else if (p.x > D.w + 4) p.x = -4;
-      if (p.y < -4) p.y = D.h + 4; else if (p.y > D.h + 4) p.y = -4;
-      ctx.globalAlpha = p.a;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
-    });
-    ctx.globalAlpha = 1;
-  };
-  try {
-    size();
-    D.ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { try { size(); } catch (e) { /* next frame */ } }) : null;
-    if (D.ro) D.ro.observe(cv);
-    D.go = () => { if (!D.raf && dashLive()) D.raf = requestAnimationFrame(frame); };
-    DASH.dots = D;
-    D.go();
-  } catch (e) { DASH.dots = null; }
-}
-function dashDotsStop() {
-  const D = DASH.dots;
-  if (!D) return;
-  if (D.raf) cancelAnimationFrame(D.raf);
-  if (D.ro) D.ro.disconnect();
-  DASH.dots = null;
-}
-// Confetti, once a day, only for a real win: Sales MTD more than 50% above last year (complete days), fresh numbers, with motion on.
-function dashParty() {
-  if (DASH.eng === 'none' || DASH.partyDone || !dashLive()) return;
-  const d = dashData('sales');
-  if (d.state !== 'fresh' || !d.v.ml || (d.v.mc - d.v.ml) / d.v.ml <= 0.5) return;
-  const today = new Date().toDateString();
-  if (dashGet(DASH_LS.party) === today) { DASH.partyDone = true; return; }
-  DASH.partyDone = true;
-  dashSet(DASH_LS.party, today);
-  const root = $('dashRoot');
-  const cv = document.createElement('canvas');
-  cv.className = 'dash-party';
-  cv.setAttribute('aria-hidden', 'true');
-  root.appendChild(cv);
-  const r = cv.getBoundingClientRect(), ctx = cv.getContext('2d');
-  cv.width = r.width; cv.height = r.height;
-  const css = getComputedStyle(root), cols = ['--brand', '--accent', '--act', '--rev', '--violet-ink'].map(v => css.getPropertyValue(v).trim()).filter(Boolean);
-  const bits = Array.from({ length: 110 }, () => ({ x: r.width / 2, y: r.height * 0.25, vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 12 - 4,
-    w: 5 + Math.random() * 5, h: 3 + Math.random() * 4, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, c: cols[Math.floor(Math.random() * cols.length)] }));
-  const t0 = performance.now();
-  const frame = t => {
-    const p = (t - t0) / 1800;
-    ctx.clearRect(0, 0, cv.width, cv.height);
-    if (p >= 1 || !cv.isConnected) { cv.remove(); return; }
-    bits.forEach(b => {
-      b.x += b.vx; b.y += b.vy; b.vy += 0.42; b.vx *= 0.99; b.rot += b.vr;
-      ctx.save(); ctx.globalAlpha = 1 - p; ctx.translate(b.x, b.y); ctx.rotate(b.rot); ctx.fillStyle = b.c; ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h); ctx.restore();
-    });
-    requestAnimationFrame(frame);
-  };
-  requestAnimationFrame(frame);
-}
-// The Dashboard's OWN animations (every one is kept in DASH.tw) stop and go again with the page. Never GSAP's whole clock
-// (gsap.globalTimeline): the Sales Dashboard runs on the same GSAP, and pausing the clock froze every Sales entrance at its first
-// frame — the page stayed empty with ✨ on when Sales was opened from the Dashboard (24 Nov 2026). Only what was running is held,
-// so an entrance still waiting for its scroll is left to ScrollTrigger; a second stop adds to the held list, never empties it.
-function dashHold(on) {
-  if (on) { (DASH.held || []).forEach(t => { try { t.resume(); } catch (e) { /* killed meanwhile */ } }); DASH.held = []; return; }
-  const run = Object.values(DASH.tw).flat().filter(t => t && typeof t.paused === 'function' && !t.paused());
-  run.forEach(t => { try { t.pause(); } catch (e) { /* gone */ } });
-  DASH.held = (DASH.held || []).concat(run);
-}
-// Run or stop every loop: the Dashboard's GSAP animations, the dots, the clock, the CSS loops — only while the Dashboard is on
-// screen in a shown tab.
-function dashLoops() {
-  const on = dashLive();
-  const pane = $('paneDash');
-  if (pane) pane.classList.toggle('dash-paused', !on);
-  if (window.gsap && DASH.gs === true) dashHold(on);
-  if (DASH.dots) { if (on) DASH.dots.go(); }
-  clearInterval(DASH.clockT);
-  DASH.clockT = 0;
-  if (on) DASH.clockT = setInterval(() => { const c = document.querySelector('#paneDash .dash-clock'); if (c) c.textContent = dashClockText(); }, 1000);
-}
-
 /* ================= OPENING A SCREEN FROM A CARD ================= */
-// Listing Health opens with the level asked for (and the brand on view), exactly as its own level boxes set it.
+// Listing Health opens on "New (N days)" (or the level asked for), for the brand on view, on Child listings, newest first.
 function dashOpen(tab, level) {
   if (!dashMay(tab)) return;
   if (tab === 'health') {
-    const pick = (id, v) => { const el = $(id); if (el && [...el.options].some(o => o.value === v)) el.value = v; };
-    if (level) pick('hIssueView', level);
+    const pick = (id, v) => { const el = $(id); if (el && [...el.options].some(o => o.value === v)) { el.value = v; return true; } return false; };
     pick('hBrandView', DASH.brand);
+    if (level && pick('hIssueView', level) && /^new\d+$/.test(level)) {
+      if (typeof LI_WS !== 'undefined' && LI_WS.on && $('hViewChild')) $('hViewChild').click();   // out of the Workspace, onto the table
+      if ($('hFilter')) $('hFilter').value = '';
+      if (typeof H_FOCUS !== 'undefined') H_FOCUS = null;
+      if (typeof H_VIEW !== 'undefined') H_VIEW = 'child';
+      if (typeof H_SORT !== 'undefined') H_SORT = { k: 'nlDays', dir: 1 };
+    }
+    if (typeof renderHealth === 'function' && typeof H_LOADED !== 'undefined' && H_LOADED) { try { renderHealth(); } catch (e) { /* drawn when it opens */ } }
   }
   showTab(tab);
 }
 
 /* ================= THE SCREEN, THE SWITCH, THE LOGO, SIGN-IN ================= */
-// Opening the Dashboard: drawn at once (fresh, cached or shimmering cards); the loads already running fill it as they land. The first
+// Opening the Dashboard: drawn at once (fresh, cached or skeleton cards); the loads already running fill it as they land. The first
 // time with ✨ on, GSAP is fetched — waited for at most 300 ms, after which the CSS motion is used for this drawing.
 async function ensureDash() {
   if (!DASH_READY) return;
@@ -1292,13 +798,14 @@ async function ensureDash() {
   if (dashFxOn() && DASH.gs == null) await Promise.race([dashGsap(), dashSleep(300)]);
   if ($('paneDash').classList.contains('hide')) return;
   try { dashRender(); } catch (e) { /* the page stays as it was */ }
-  if (DASH.eng === 'css' && DASH.gsTry) DASH.gsTry.then(ok => { if (ok) dashGsUpgrade(); });
 }
 (() => {
   try {
     const saved = dashGet(DASH_LS.brand);
     if (saved === 'ALL' || saved === 'SP' || saved === 'CPC') DASH.brand = saved;
-  } catch (e) { /* Both */ }
+    const nl = Number(dashGet(DASH_LS.nl));
+    if (NL_WINDOWS.includes(nl)) DASH.nlDays = nl;
+  } catch (e) { /* All, 30 days */ }
   const pane = $('paneDash');
   if (pane) pane.addEventListener('click', e => {
     const b = e.target.closest('[data-dash-brand]');
@@ -1307,23 +814,27 @@ async function ensureDash() {
       DASH.brand = b.dataset.dashBrand;
       dashSet(DASH_LS.brand, DASH.brand);
       pane.querySelectorAll('[data-dash-brand]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-      dashPill(true);
       dashPaint(DASH_SLOTS, 'brand');
+      return;
+    }
+    const w = e.target.closest('[data-dash-nl]');
+    if (w) {
+      const n = Number(w.dataset.dashNl);
+      if (n === DASH.nlDays) return;
+      DASH.nlDays = n;
+      dashSet(DASH_LS.nl, String(n));
+      dashPaint(['cNew'], 'brand');
+      const again = pane.querySelector(`[data-dash-nl="${n}"]`);
+      if (again) again.focus({ preventScroll: true });
       return;
     }
     const o = e.target.closest('[data-dash-open]');
     if (o && !o.disabled) dashOpen(o.dataset.dashOpen, o.dataset.dashLevel || '');
   });
-  // the loops follow the page: another screen, or the tab hidden
-  if (pane && typeof MutationObserver === 'function') new MutationObserver(() => dashLoops()).observe(pane, { attributes: true, attributeFilter: ['class'] });
-  document.addEventListener('visibilitychange', () => dashLoops());
-  // the self-check: each time Listing Health draws its header
-  const kpis = $('hKpis');
-  let checkT = 0;
-  if (kpis && typeof MutationObserver === 'function') new MutationObserver(() => {
-    clearTimeout(checkT);
-    checkT = setTimeout(() => { try { if (DASH.st.health && DASH.st.health.s === 'ok') dashHealthCheck(); } catch (e) { /* a check only */ } }, 400);
-  }).observe(kpis, { childList: true });
+  // another screen, or the tab hidden: every animation ends where it was going (nothing keeps running unseen)
+  const settle = () => { if (!dashShown() || document.visibilityState === 'hidden') { dashStop(); dashKillAll(); } };
+  if (pane && typeof MutationObserver === 'function') new MutationObserver(settle).observe(pane, { attributes: true, attributeFilter: ['class'] });
+  document.addEventListener('visibilitychange', settle);
   // ✨: aria-pressed = the choice; the title also says when the computer's reduced-motion setting keeps it still.
   const btn = $('fxBtn');
   const sync = () => {
