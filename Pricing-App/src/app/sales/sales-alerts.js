@@ -124,6 +124,10 @@ function alCompute(o) {
     season[b] = lb && lw != null ? { f: Math.min(1.5, Math.max(0.7, lw / lb)), raw: lw / lb, lb } : { f: 1, raw: null, lb: null };
   });
   const ctx = { o, S, last, base, win, chart, W0, B0, weeks, season, lyMean, now: o.now || Date.now() };
+  // the dates the per-product days hold at all: a date is MISSING only when no product has any figure for it (a gap in the load) —
+  // a product without a sale that day simply has $0 (24 Nov 2026: zero-sale days never make data "incomplete")
+  ctx.held = new Set();
+  Object.values(days.d).forEach(byDay => Object.keys(byDay || {}).forEach(d => ctx.held.add(d)));
   if (o.trace != null) {                          // salesAlertsReport ('' = every product): every number used, for the products asked about
     const q = String(o.trace).toLowerCase();
     ctx.traced = [];
@@ -165,8 +169,11 @@ function alCompute(o) {
     asOf: { sales: last, run: days.at || '', ads: adsUpTo, sessions: alSessionsUpTo(o.weekly, last), stock: brands.map(b => o.stock && o.stock[b] && o.stock[b].at).filter(Boolean).sort()[0] || '' },
     season: brands.map(b => season[b].raw == null ? null : season[b].f), seasonHeld: brands.some(b => season[b].raw != null) });
 }
-/** The product's OWN season, from its own last year in the weekly store (PPC & Organic's weeks, 364 days back): the judged weeks
- *  against its 4 normal weeks, capped 0.7–1.5 — or null when the store does not hold them (it keeps 26 weeks today, so: null). */
+/* OWN LAST YEAR — RETIRED (24 Nov 2026, real data: 1 true drop + 6 clear wins all in "Needs a look"). It read the product's last year
+ * from PPC & Organic's weekly store, but that store never removes old cells (saveWeekly writes each row's whole weeks map; only the
+ * list of weeks on screen is kept to 26): it holds SCATTERED weeks of last year — the same partial cells that once gave "+1,327 %".
+ * The factor came out wrong but plausible (capped 0.7–1.5), moved expected above a drop's own weeks or below a win's, and check ⑤
+ * then rightly refused it. The season now comes ONLY from the brand's own daily history and only ever calms. Kept for reference. */
 function alOwnSeason(g, ctx) {
   const W = ctx.o.weekly && ctx.o.weekly.rows;
   if (!W) return null;
@@ -238,7 +245,7 @@ function alEval(g, ctx) {
   // THE SEASON ONLY CALMS (24 Nov 2026, found on real data): the brand's last year (a whole-brand shape — November's tablecloths)
   // may LOWER what a drop is judged against and RAISE what a win is judged against, never the other way round; only the product's
   // OWN last year (alOwnSeason) may move it either way. And only on the 14 judged days — the baseline weeks keep their own range.
-  const own = alOwnSeason(g, ctx);
+  const own = null;                                // the product's own last year: not used — see "OWN LAST YEAR — RETIRED" below
   const fb = season[g.brand].f;
   const fDown = own != null ? own : Math.min(1, fb), fUp = own != null ? own : Math.max(1, fb);
   const inWin = d => d >= ctx.W0;
@@ -386,7 +393,12 @@ function alEvidence(g, ctx) {
   const bsum = d => (bd && bd[d] ? Number(bd[d][0]) || 0 : null);
   const own = ends.map(e => block(e, sales)), brand = ends.map(e => (bd ? block(e, bsum) : null));
   return { N: own.slice(0, weeks), J1: own[weeks], J2: own[weeks + 1], bN: brand.slice(0, weeks), bJ1: brand[weeks], bJ2: brand[weeks + 1],
-    labels: ends.map(e => `${alDay(alAdd(e, -6))}–${alDay(e)}`), complete: !o.days.from || o.days.from <= alAdd(ends[0], -6) };
+    labels: ends.map(e => `${alDay(alAdd(e, -6))}–${alDay(e)}`), gaps: alGaps(alAdd(ends[0], -6), last, ctx) };
+}
+// The dates in [a, b] the per-product days do not hold at all (before the cache's first day, or no product has a figure that date).
+function alGaps(a, b, ctx) {
+  const from = ctx.o.days.from || '';
+  return alRange(a, b).filter(d => (from && d < from) || (ctx.held && ctx.held.size && !ctx.held.has(d)));
 }
 const alK = v => (Math.abs(v) >= 1000 ? (v < 0 ? '−$' : '$') + (Math.abs(v) / 1000).toFixed(1) + 'k' : alMoney(v));
 const alAvg = a => a.reduce((s, v) => s + v, 0) / (a.length || 1);
@@ -404,22 +416,27 @@ function alVerify(a, ev, ctx) {
   const brand = ev.bN.every(v => v != null) && bUsed.every(v => v != null) && alAvg(ev.bN) ? (alAvg(bUsed) / alAvg(ev.bN) - 1) * 100 : null;
   const dir = up ? 'above' : 'below';
   const weeksTxt = `own weeks ${alK(nAvg)} → ${used.map(alK).join(' / ')} (${alPctTxt(prod, true)})`;
-  const lo = Math.min(...ev.N), hi = Math.max(...ev.N);
+  const num = v => AL_NF.format(Math.round(v));
+  const gaps = ev.gaps || [];
+  const perDayOwn = a.rawExp != null && a.days ? a.rawExp / a.days : null, perDayUsed = a.exp != null && a.days ? a.exp / a.days : null;
+  // each check: ok, and its numbers — the failing ones are what "Needs a look" shows, the passing ones what salesAlertsReport prints
   const checks = [
-    { k: 'weekly', ok: ch.every(c => (up ? c >= AL_CHK.week : c <= -AL_CHK.week)),
-      t: `${weeksTxt} — ${used.length === 2 ? 'both judged weeks' : 'the last week'} should be ${AL_CHK.week}%+ ${dir} the normal average (${ch.map(c => alPctTxt(c, true)).join(' / ')})` },
-    { k: 'steady', ok: ev.N.every(v => nAvg && Math.abs(v / nAvg - 1) * 100 <= AL_CHK.steady),
-      t: `baseline too uneven — normal weeks ${alK(lo)}–${alK(hi)}, not all within ±${AL_CHK.steady}% of their average ${alK(nAvg)}` },
-    { k: 'brand', ok: brand == null || Math.abs(prod - brand) > AL_CHK.brand,
-      t: `moves with the brand — product ${alPctTxt(prod, true)}, ${AL_BRAND_NAME[a.brand]} ${brand == null ? '—' : alPctTxt(brand, true)} the same weeks (within ${AL_CHK.brand} points)` },
-    { k: 'volume', ok: nAvg >= S.minWeek && ev.complete,
-      t: nAvg < S.minWeek ? `too small — normal ${alK(nAvg)}/week, under ${alMoney(S.minWeek)}` : 'the per-product days do not cover all six weeks' },
-    { k: 'season', ok: a.rawExp == null || (up ? a.exp >= a.rawExp - 0.5 : a.exp <= a.rawExp + 0.5),
-      t: `expected was moved ${up ? 'below' : 'above'} its own normal weeks` },
+    { k: 'weekly', n: '①', ok: ch.every(c => (up ? c >= AL_CHK.week : c <= -AL_CHK.week)),
+      t: `weekly: ${weeksTxt}; ${used.length === 2 ? 'each judged week' : 'the last week (the move is under 4 days in the first)'} ${ch.map(c => alPctTxt(c, true)).join(' / ')} — needs ${AL_CHK.week}%+ ${dir}` },
+    { k: 'steady', n: '②', ok: ev.N.length > 0 && ev.N.every(v => nAvg && Math.abs(v / nAvg - 1) * 100 <= AL_CHK.steady),
+      t: `baseline ${ev.N.every(v => nAvg && Math.abs(v / nAvg - 1) * 100 <= AL_CHK.steady) ? 'steady' : 'uneven'}: weeks ${ev.N.map(num).join(' / ')} (each within ±${AL_CHK.steady}% of ${num(nAvg)}?)` },
+    { k: 'brand', n: '③', ok: brand == null || Math.abs(prod - brand) > AL_CHK.brand,
+      t: brand == null ? `brand not held for these weeks — passes` : `${Math.abs(prod - brand) > AL_CHK.brand ? 'not the brand' : 'moves with the brand'}: product ${alPctTxt(prod, true)}, ${AL_BRAND_NAME[a.brand]} ${alPctTxt(brand, true)} the same weeks (more than ${AL_CHK.brand} points apart?)` },
+    { k: 'volume', n: '④', ok: nAvg >= S.minWeek && !gaps.length,
+      t: nAvg < S.minWeek ? `too small: normal ${alK(nAvg)}/week, under ${alMoney(S.minWeek)}`
+        : gaps.length ? `data incomplete: no figures at all for ${gaps.slice(0, 4).map(alDay).join(', ')}${gaps.length > 4 ? ` (+${gaps.length - 4} more)` : ''}` : `volume ${alK(nAvg)}/week, all ${(ev.labels || []).length * 7} days loaded` },
+    { k: 'season', n: '⑤', ok: a.rawExp == null || (up ? a.exp >= a.rawExp - 0.5 : a.exp <= a.rawExp + 0.5),
+      t: perDayOwn == null ? 'season: not used' : `season: own normal ${alMoney(perDayOwn)}/day, expected used ${alMoney(perDayUsed)}/day${(up ? a.exp >= a.rawExp - 0.5 : a.exp <= a.rawExp + 0.5) ? '' : ` — moved ${up ? 'below' : 'above'} its own weeks`}` },
   ];
+  checks.forEach(c => { c.line = `${c.n} ${c.t}`; });
   const failed = checks.filter(c => !c.ok).map(c => c.k);
   const steadyTxt = ev.N.length < 4 ? `steady baseline (${ev.N.length} weeks)` : 'steady baseline';
-  const proof = failed.length ? 'Needs a look — ' + checks.filter(c => !c.ok).map(c => c.t).join(' · ')
+  const proof = failed.length ? 'Needs a look — ' + checks.filter(c => !c.ok).map(c => c.line).join(' · ')
     : `Checked ✓ — ${weeksTxt}, ${brand == null ? 'brand not held for these weeks' : `${AL_BRAND_NAME[a.brand]} ${alPctTxt(brand, true)} same weeks`}, ${steadyTxt}.`;
   return { ok: !failed.length, checks, failed, proof, nAvg, prod, brand, used, ch };
 }
@@ -682,12 +699,19 @@ function alHeroHtml(r) {
   const n = r.alerts.length;
   const sent = n ? `<span class="al-cu" data-to="${n}">${n}</span> product${n === 1 ? ' needs' : 's need'} attention · <span class="al-cu al-risk" data-to="${Math.round(r.atRisk)}" data-money="1">${alMoney(r.atRisk)}</span>/week at risk`
     : 'All good — no real drops this week ✅';
-  const chip = k => `<button type="button" class="al-chip is-${k}" data-al-filter="${k}" aria-pressed="${AL.filter === k}"><span aria-hidden="true">${AL_SEV[k][0]}</span> ${AL_SEV[k][1]} <b>${r.counts[k]}</b></button>`;
+  // the chips count ONLY confirmed drops; what still waits for a check shows beside them in grey (never in the number)
+  const toCheck = k => r.review.filter(a => a.kind === 'alerts' && a.sev === k).length;
+  const chip = k => `<button type="button" class="al-chip is-${k}" data-al-filter="${k}" aria-pressed="${AL.filter === k}"><span aria-hidden="true">${AL_SEV[k][0]}</span> ${AL_SEV[k][1]} <b>${r.counts[k]}</b>`
+    + `${['critical', 'important', 'watch'].includes(k) && toCheck(k) ? ` <small class="al-tocheck">(+${toCheck(k)} to check)</small>` : ''}</button>`;
+  const lookDrops = r.review.filter(a => a.kind === 'alerts'), lookWins = r.review.length - lookDrops.length;
+  const lookUsd = lookDrops.reduce((s, a) => s + (a.atRisk || 0), 0);
   return `<section class="al-hero"><h2 class="al-hl">${sent}</h2><div class="al-chips" role="group" aria-label="Filter">${['critical', 'important', 'watch', 'waiting', 'recovered'].map(chip).join('')}</div>`
     + `<p class="al-sub">${AL_BRAND_NAME[r.brand]} · finished days up to <b>${alDay(r.last)}</b> (US Pacific) against the normal ${r.base.weeks} weeks ${alDay(r.base.from)}–${alDay(r.base.to)}`
     + `${r.missing.length ? ` · the nightly days for ${alDay(r.missing[r.missing.length - 1])} are not in yet` : ''}</p>`
     + `<p class="al-sum">Sellora checked <b>${AL_NF.format(r.checked)}</b> products · <b>${r.alerts.length}</b> confirmed drop${r.alerts.length === 1 ? '' : 's'} · <b>${r.wins.length}</b> confirmed win${r.wins.length === 1 ? '' : 's'}`
-    + ` · <b>${r.review.length}</b> need${r.review.length === 1 ? 's' : ''} a look · <b>${r.skipped.length}</b> not judged${r.hidden.length ? ` · ${r.hidden.length} dismissed or snoozed` : ''}</p></section>`;
+    + ` · <b>${r.review.length}</b> need${r.review.length === 1 ? 's' : ''} a look${r.review.length ? ` (${lookDrops.length} drop${lookDrops.length === 1 ? '' : 's'}, ${lookWins} win${lookWins === 1 ? '' : 's'})` : ''}`
+    + ` · <b>${r.skipped.length}</b> not judged${r.hidden.length ? ` · ${r.hidden.length} dismissed or snoozed` : ''}</p>`
+    + (lookDrops.length ? `<p class="al-sum al-more">+ ${alMoney(lookUsd)}/week more waiting for a check (${lookDrops.length} item${lookDrops.length === 1 ? '' : 's'}) — under ⚠️ Needs a look</p>` : '') + '</section>';
 }
 /** The trust check's one line, on every card: "Checked ✓ — own weeks $14.8k → $10.7k / $11.0k (−26%), Ridhi +35% same weeks, steady baseline." */
 const alProofHtml = a => (a.check ? `<p class="al-proof ${a.check.ok ? 'is-ok' : 'is-look'}">${alEsc(a.check.proof)}</p>` : '');
@@ -771,7 +795,7 @@ function alHowHtml(r) {
     + `<p><b>The trust check</b> — every drop and win is checked before it is shown, the way a person would by hand, on its own weekly sales (7-day weeks ending ${alDay(r.last)}): `
     + `① both judged weeks ${AL_CHK.week}%+ below (a win: above) the average of its ${r.base.weeks} normal weeks — a drop of under 4 days in the first judged week is checked on the last week; `
     + `② its normal weeks steady, each within ±${AL_CHK.steady}% of their average; ③ not just the whole brand moving the same way (more than ${AL_CHK.brand} points apart); `
-    + `④ enough volume (${alMoney(S.minWeek)}/week) and complete days; ⑤ expected never moved above (a win: below) its own normal weeks. All pass → <b>Confirmed</b>; any fails → <b>Needs a look</b>, never in the numbers at the top or on the Dashboard.</p>`
+    + `④ enough volume (${alMoney(S.minWeek)}/week) and complete days (a day without a sale is a $0 day — only a date with no figures for any product at all is missing); ⑤ expected never moved above (a win: below) its own normal weeks. All pass → <b>Confirmed</b>; any fails → <b>Needs a look</b>, never in the numbers at the top or on the Dashboard.</p>`
     + `<div class="al-btns"><button type="button" class="al-btn" data-al-act="csv">Download full check (CSV)</button><span class="muted">one row per product: its weeks, the checks and the verdict</span></div>`
     + `<div class="al-sets">${rows}</div><div class="al-btns"><button type="button" class="al-btn is-main" data-al-act="save-set">Save settings</button><button type="button" class="al-btn" data-al-act="reset-set">Back to defaults</button></div>`
     + `<p class="al-asof">Settings are shared with everyone who opens Sales Alerts.${by}${AL.storeNote ? ' ' + alEsc(AL.storeNote) : ''}</p></div></details>`;
@@ -980,7 +1004,7 @@ async function salesAlertsReport(query, brand) {
   const out = [], moved = [];
   const verdictOf = (r, t) => {
     const a = [].concat(r.alerts, r.waiting, r.recovered, r.wins, r.hidden, r.skipped).find(x => x.parent === t.parent && x.brand === t.brand);
-    return { list: a ? a.list : 'none', text: !a ? 'no alert (inside its range)' : a.list === 'alerts' ? `CONFIRMED ${a.sev}: ${a.head} · −$${Math.round(a.atRisk)}/wk · ${a.check ? a.check.proof : ''}`
+    return { checks: a && a.check ? a.check.checks.map(c => (c.ok ? '  ✓ ' : '  ✗ ') + c.line) : [], list: a ? a.list : 'none', text: !a ? 'no alert (inside its range)' : a.list === 'alerts' ? `CONFIRMED ${a.sev}: ${a.head} · −$${Math.round(a.atRisk)}/wk · ${a.check ? a.check.proof : ''}`
       : a.list === 'wins' ? `CONFIRMED win: ${a.head} · ${a.check ? a.check.proof : ''}` : a.list === 'review' ? `NEEDS A LOOK (${a.kind === 'wins' ? 'win' : 'drop'}): ${a.head} · ${a.check.proof}`
       : a.list + (a.why ? ': ' + a.why : a.head ? ': ' + a.head : '') };
   };
@@ -994,7 +1018,8 @@ async function salesAlertsReport(query, brand) {
       const now = verdictOf(r, t), before = verdictOf(was, t);
       t.verdict = now.text; t.before = before.text;
       if ((now.list === 'alerts') !== (before.list === 'alerts')) moved.push({ product: t.product, brand: AL_BRAND_NAME[t.brand], before: before.text, now: now.text });
-      console.log(`%c${t.product} (${t.parent}, ${AL_BRAND_NAME[t.brand]})`, 'font-weight:bold', '\nnow:    ' + t.verdict, '\nbefore: ' + t.before,
+      t.checks = now.checks;                     // the five checks, ✓ / ✗, each with its numbers
+      console.log(`%c${t.product} (${t.parent}, ${AL_BRAND_NAME[t.brand]})`, 'font-weight:bold', '\nnow:    ' + t.verdict + (now.checks.length ? '\n' + now.checks.join('\n') : ''), '\nbefore: ' + t.before,
         `\nnormal (own weeks) $${t.normalPerDay}/day · expected used $${t.expectedUsedPerDay}/day · brand last year ×${t.brandSeason} → used for drops ×${t.seasonUsedForDrops}, for wins ×${t.seasonUsedForWins}`
         + ` · own last year ${t.ownLastYear == null ? 'not held' : '×' + t.ownLastYear} · own normal days outside its range ${t.baselineDaysOutsideRange}`);
       console.table(t.weeks);

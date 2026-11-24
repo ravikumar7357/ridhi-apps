@@ -262,7 +262,7 @@ const MVb = find(run({ brandDaily: brandRun(1, 0.6) }, 'CPC'), 'PMOVER');
 ok('a product down 40% exactly as the whole brand (−40% the same weeks) → no alert: "moves with the brand"', MVb && MVb.list === 'review' && MVb.check.failed.join() === 'brand' && /moves with the brand/.test(MVb.check.proof), dbg(MVb));
 ok('…the same product with no brand move → ✅ Confirmed', (find(RC, 'PMOVER') || {}).list === 'alerts', dbg(find(RC, 'PMOVER')));
 const UBc = find(R, 'PUB');
-ok('an uneven baseline (one normal week 65% over the average) → ⚠️ Needs a look: "baseline too uneven"', UBc && UBc.list === 'review' && UBc.check.failed.includes('steady') && /baseline too uneven/.test(UBc.check.proof), dbg(UBc));
+ok('an uneven baseline (one normal week 65% over the average) → ⚠️ Needs a look: "baseline too uneven"', UBc && UBc.list === 'review' && UBc.check.failed.includes('steady') && /② baseline uneven: weeks /.test(UBc.check.proof), dbg(UBc));
 ok('Needs a look is never in the hero, the chips or the Dashboard numbers', R.review.length >= 1 && !R.alerts.some(a => R.review.includes(a))
   && Math.abs(R.atRisk - R.alerts.reduce((s, a) => s + a.atRisk, 0)) < 0.01 && R.counts.critical + R.counts.important + R.counts.watch === R.alerts.length);
 const fake = { list: 'alerts', brand: 'SP', run: [], exp: 1200, rawExp: 1000 };
@@ -272,7 +272,64 @@ ok('check ④: a product under $500/week normal fails "volume"', X.alVerify(Obje
 ok('check ①: a fresh 4-day drop is checked on the last week only', X.alVerify(Object.assign({}, fake, { exp: 900, run: ['2026-11-20', '2026-11-21', '2026-11-22', '2026-11-23'] }), Object.assign({}, fev, { J1: 7000, J2: 5000 }), { S: X.AL_DEF, last: LAST }).ok);
 const heroT = X.alHeroHtml(R).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
 ok('the summary under the hero: "Sellora checked N products · X confirmed drops · Y confirmed wins · Z need a look · W not judged"',
-  heroT.includes(`Sellora checked ${R.checked} products · ${R.alerts.length} confirmed drops · ${R.wins.length} confirmed win${R.wins.length === 1 ? '' : 's'} · ${R.review.length} need${R.review.length === 1 ? 's' : ''} a look · ${R.skipped.length} not judged`), heroT.slice(heroT.indexOf('Sellora'), heroT.indexOf('Sellora') + 160));
+  heroT.includes(`Sellora checked ${R.checked} products · ${R.alerts.length} confirmed drops · ${R.wins.length} confirmed win${R.wins.length === 1 ? '' : 's'} · ${R.review.length} need${R.review.length === 1 ? 's' : ''} a look (${R.review.filter(a => a.kind === 'alerts').length} drops, ${R.review.filter(a => a.kind === 'wins').length} wins) · ${R.skipped.length} not judged`), heroT.slice(heroT.indexOf('Sellora'), heroT.indexOf('Sellora') + 200));
+const lookD = R.review.filter(a => a.kind === 'alerts');
+ok('one line under the hero: "+ $X/week more waiting for a check (N items)" — never in the hero sentence',
+  heroT.includes(`+ $${Math.round(lookD.reduce((s, a) => s + a.atRisk, 0)).toLocaleString('en-US')}/week more waiting for a check (${lookD.length} items)`) && !heroT.startsWith(`${R.alerts.length + lookD.length} products`), heroT.slice(heroT.indexOf('+ $'), heroT.indexOf('+ $') + 90));
+const critToCheck = lookD.filter(a => a.sev === 'critical').length;
+ok('the chips count confirmed only, with what waits for a check in grey: "Critical N (+M to check)"', critToCheck > 0 && heroT.includes(`Critical ${R.counts.critical} (+${critToCheck} to check)`), heroT.slice(heroT.indexOf('Critical'), heroT.indexOf('Critical') + 40));
+
+console.log('== real data, 24 Nov: everything sat in "Needs a look" — the own-last-year factor from the weekly store\'s scattered old cells ==');
+// Pillow Cover with the real weeks: 15,439 / 14,457 / 14,779 / 14,445 → 10,729 / 11,017 (one 7-day week each, every day the same share)
+const PCW = [15439, 14457, 14779, 14445, 10729, 11017];
+const real = () => {
+  const d = Object.assign({}, D), br = Object.assign({}, BR);
+  d.RPC1 = {}; br.RPC1 = 'SP'; PARENT.RPC1 = 'RPCOVER';
+  for (let wi = 0; wi < 6; wi++) for (let k = 0; k < 7; k++) { const day = alAdd('2026-10-13', wi * 7 + k), v = Math.round(PCW[wi] / 7 * 100) / 100; d.RPC1[day] = [Math.round(v / 20), v]; }
+  // the six real wins (Ridhi): normal $900/day, then +80 %, +154 %, +128 %, +81 %, +66 %, +51 % both judged weeks; one has zero-sale days in its normal weeks
+  [80, 154, 128, 81, 66, 51].forEach((p, i) => {
+    const a = 'RW' + i; d[a] = {}; br[a] = 'SP'; PARENT[a] = 'RWIN' + i;
+    for (let day = '2026-10-13'; day <= LAST; day = alAdd(day, 1)) {
+      const zero = i === 5 && day < '2026-11-10' && alDow(day) === 2;           // Table Runner: no sale on Tuesdays (a $0 day, never "missing")
+      const v = day >= '2026-11-10' ? 900 * (1 + p / 100) : zero ? 0 : 900 * (i === 5 ? 7 / 6 : 1);
+      if (v) d[a][day] = [Math.round(v / 30), v];
+    }
+  });
+  return { d, br };
+};
+const alDow = k => new Date(k + 'T00:00:00Z').getUTCDay();
+const RD0 = real();
+// a weekly store holding SCATTERED last-year cells (as PPC & Organic's never-pruned rows do): a bogus "own last year" ×1.5 for the cover
+const oldCells = { rows: Object.assign({}, weekly.rows, { RPC1: { brand: 'SP', weeks: Object.fromEntries(['2025-11-09', '2025-11-16', '2025-10-12', '2025-10-19', '2025-10-26', '2025-11-02'].map((k, i) => [k, { rev: i < 2 ? 15000 : 10000 }])) } }) };
+const runReal = (more, brand) => run(Object.assign({ days: Object.assign({}, dailyAsin, { d: RD0.d, brand: RD0.br }), weekly: oldCells }, more || {}), brand);
+const withBrand = runReal({ brandDaily: brandRun(1.35, 1) }), noBrand = runReal();
+[['brand +35% held', withBrand], ['brand not held', noBrand]].forEach(([t, r]) => {
+  const p = find(r, 'RPCOVER');
+  ok(`Ridhi Block Print Pillow Cover (real weeks, ${t}; weekly store with scattered old cells) → 🔴 Critical, ✅ Confirmed, 14 days`, p && p.list === 'alerts' && p.sev === 'critical' && p.check.ok && p.days === 14 && p.atRisk >= 2000, dbg(p));
+});
+ok('…its proof (real weeks: 10,873 ÷ 14,780 = −26.4%): "Checked ✓ — own weeks $14.8k → $10.7k / $11.0k (−26%), Ridhi +35% same weeks, steady baseline."',
+  (find(withBrand, 'RPCOVER') || { check: {} }).check.proof === 'Checked ✓ — own weeks $14.8k → $10.7k / $11.0k (−26%), Ridhi +35% same weeks, steady baseline.', (find(withBrand, 'RPCOVER') || { check: {} }).check.proof);
+ok('…and without the brand\'s days: "brand not held for these weeks" — check ③ passes', /brand not held for these weeks/.test((find(noBrand, 'RPCOVER') || { check: {} }).check.proof));
+ok('the expected used is never above its own normal weeks — the store\'s old cells are not read as "its own last year"', (find(withBrand, 'RPCOVER') || {}).fOwn == null && (find(withBrand, 'RPCOVER') || {}).fDown <= 1);
+[0, 1, 2, 3, 4, 5].forEach(i => {
+  const w = find(withBrand, 'RWIN' + i);
+  ok(`real win ${['Embroidery Napkin +80%', 'Tablecloth 2 +154%', 'Cotton Napkins 20" +128%', 'Pillow Inserts +81%', 'Asparagus Blue Paisley Round +66%', 'Table Runner +51% (zero-sale Tuesdays)'][i]} → ✅ in Wins`, w && w.list === 'wins' && w.check.ok, dbg(w));
+});
+ok('the summary agrees with the lists: every "confirmed win" is in Wins, none in Needs a look', withBrand.wins.every(a => a.check.ok) && withBrand.review.every(a => !a.check.ok));
+// the Whimsical Pillow Insert (CPC): the X1 pattern in CPC
+{
+  const d = Object.assign({}, D, { WPI1: D.X1 }), br = Object.assign({}, BR, { WPI1: 'CPC' }); PARENT.WPI1 = 'WHIMSICAL';
+  const p = find(run({ days: Object.assign({}, dailyAsin, { d, brand: br }), weekly: oldCells }, 'CPC'), 'WHIMSICAL');
+  ok('THE WHIMSICAL CORNER Pillow Insert (CPC) → 🔴 Critical, ✅ Confirmed', p && p.list === 'alerts' && p.sev === 'critical' && p.check.ok, dbg(p));
+}
+ok('CPC Cotton print club Napkin → ✅ Win', (find(runReal({}, 'CPC'), 'PNAPKIN') || {}).list === 'wins');
+ok('zero-sale days are $0, never "missing": the Table Runner\'s no-sale Tuesdays pass ④', (find(withBrand, 'RWIN5') || { check: { checks: [] } }).check.checks.find(c => c.k === 'volume').ok);
+{
+  // a real gap: one date that NO product has (the load missed it) → ④ "data incomplete", Needs a look
+  const d = {}; Object.entries(RD0.d).forEach(([a, byDay]) => { d[a] = Object.assign({}, byDay); delete d[a]['2026-10-20']; });
+  const p = find(run({ days: Object.assign({}, dailyAsin, { d, brand: RD0.br }), brandDaily: brandRun(1.35, 1) }), 'RPCOVER');
+  ok('a date no product has at all (a gap in the load) → ④ "data incomplete: no figures at all for 20 Oct" → Needs a look', p && p.list === 'review' && p.check.failed.join() === 'volume' && /data incomplete: no figures at all for 20 Oct/.test(p.check.proof), dbg(p));
+}
 const csv = X.alCsvText(R).split('\r\n');
 ok('Download full check (CSV): a header with the six weeks and one row per product checked, each with its verdict',
   csv.length === R.checked + 1 && /Normal week 1 \(13 Oct–19 Oct\) \$/.test(csv[0]) && /Judged week 2 \(17 Nov–23 Nov\) \$/.test(csv[0])
