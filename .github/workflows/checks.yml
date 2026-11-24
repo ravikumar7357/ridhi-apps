@@ -46,6 +46,10 @@ jobs:
       - name: Apps Script files parse
         run: node Replenish-App/tests/gs-syntax-test.js
 
+      # 21 Nov: a bare apostrophe in one label stopped the whole factory ERP page; "matches its source" cannot see that
+      - name: The factory ERP page's scripts parse
+        run: node Replenish-App/tests/page-scripts-parse-test.js
+
       - name: Test suites
         working-directory: Replenish-App
         run: |

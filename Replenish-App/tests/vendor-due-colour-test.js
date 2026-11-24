@@ -38,7 +38,7 @@ ok('past its date but waiting for cloth from us → white', F.voDueOf(waiting, w
 
 /* every list of the portal takes the colour */
 const uses = (VP.match(/vpDueClass\(/g) || []).length;
-ok('the custom sheet, the order table, the single order and the two card boards all colour their lines (5 places)', uses === 5, String(uses));
+ok('the custom sheet, the order sheet (21 Nov), the order table, the single order and the two card boards all colour their lines (6 places)', uses === 6, String(uses));
 ok('the colours are in the stylesheet: red rows, yellow rows, red and yellow cards',
   /table\.xl tbody tr\.vo-late td\{background:var\(--bad-bg\)\}/.test(CSS) && /table\.xl tbody tr\.vo-near td\{background:var\(--warn-bg\)\}/.test(CSS)
   && /\.vpb-line\.vo-late\{background:var\(--bad-bg\)\}/.test(CSS) && /\.vpb-line\.vo-near\{background:var\(--warn-bg\)\}/.test(CSS));

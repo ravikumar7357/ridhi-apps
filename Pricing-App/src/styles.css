@@ -513,10 +513,11 @@
   .nav.on,.nav.on:hover{background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
   /* THE LISTING DROP-DOWN (13 Nov 2026): a wide panel of four columns — 1 Fix & improve · 2 Check · 3 Rules & ideas · 4 Records —
      each screen with a small line icon. Scoped to #secListing: every other menu is untouched. The buttons, their ids, clicks and
-     access are the same (a hidden screen stays hidden; a column with none left hides). In the phone drawer it stays the plain list. */
-  #secListing .nav::before{content:"";flex:none;width:16px;height:16px;background:var(--muted);mask:var(--ic) center/contain no-repeat;-webkit-mask:var(--ic) center/contain no-repeat}
-  #secListing .nav:hover::before{background:var(--ink)}
-  #secListing .nav.on::before{background:var(--brand-ink)}
+     access are the same (a hidden screen stays hidden; a column with none left hides). In the phone drawer it stays the plain list.
+     SALES (21 Nov 2026) is the second menu on these same rules — :is(#secListing,#secSales); another menu joins by adding its id. */
+  :is(#secListing,#secSales) .nav::before{content:"";flex:none;width:16px;height:16px;background:var(--muted);mask:var(--ic) center/contain no-repeat;-webkit-mask:var(--ic) center/contain no-repeat}
+  :is(#secListing,#secSales) .nav:hover::before{background:var(--ink)}
+  :is(#secListing,#secSales) .nav.on::before{background:var(--brand-ink)}
   #tabOpt{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5'/%3E%3C/svg%3E")}
   #tabLerr{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E")}
   #tabImg{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Ccircle cx='9' cy='9' r='2'/%3E%3Cpath d='m21 15-5-5L5 21'/%3E%3C/svg%3E")}
@@ -530,19 +531,35 @@
   #tabLrules{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6'/%3E%3C/svg%3E")}
   #tabBasket{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 1 1 0 10h-2M8 12h8'/%3E%3C/svg%3E")}
   #tabLhist{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3Cpath d='M12 7v5l4 2'/%3E%3C/svg%3E")}
-  #secListing .navcol:not(:has(> .nav:not(.hide))){display:none}
-  #secListing .navcol-h{padding:6px 12px 8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+  /* The Sales drop-down (21 Nov 2026) uses these same rules: Sales Dashboard · Profit & Margin · Sales Analysis · Parent Listing Review. */
+  #tabSales{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='m19 9-5 5-4-4-3 3'/%3E%3C/svg%3E")}
+  #tabProfit{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 18V6'/%3E%3C/svg%3E")}
+  #tabSa{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='13.5' cy='6.5' r='.5'/%3E%3Ccircle cx='17.5' cy='10.5' r='.5'/%3E%3Ccircle cx='8.5' cy='7.5' r='.5'/%3E%3Ccircle cx='6.5' cy='12.5' r='.5'/%3E%3Cpath d='M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1a1.6 1.6 0 0 1 1.6-1.7h2c3 0 5.6-2.5 5.6-5.6C22 6 17.5 2 12 2z'/%3E%3C/svg%3E")}
+  #tabPlaudit{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='6' rx='1'/%3E%3Crect x='2' y='16' width='6' height='6' rx='1'/%3E%3Crect x='16' y='16' width='6' height='6' rx='1'/%3E%3Cpath d='M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8'/%3E%3C/svg%3E")}
+  #tabNcheck{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4M9.5 16l1.8 1.8 3.2-3.3'/%3E%3C/svg%3E")}
+  :is(#secListing,#secSales) .navcol:not(:has(> .nav:not(.hide))){display:none}
+  :is(#secListing,#secSales) .navcol-h{padding:6px 12px 8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+  /* A heading marked .num is numbered by the browser: a hidden group (no screen this account can open) is not counted, so the
+     numbers on show never skip — 1 · Overview, 2 · Analyse. The Listing headings carry their numbers in the text, as before. */
+  :is(#secListing,#secSales){counter-reset:navcol}
+  :is(#secListing,#secSales) .navcol{counter-increment:navcol}
+  :is(#secListing,#secSales) .navcol-h.num::before{content:counter(navcol) " · "}
   @media (min-width:861px){
-    .navwrap:has(> #secListing){position:static}        /* the wide panel hangs from the whole bar, so it never runs off the screen */
-    #secListing.open{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,220px);top:calc(100% + 6px);left:50%;right:auto;
-      transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);padding:12px;overflow-x:auto;animation:navInX .12s ease-out}
-    #secListing .navcol{min-width:0;padding:0 6px}
-    #secListing .navcol + .navcol{border-left:1px solid var(--line)}
-    #secListing .nav{white-space:nowrap}
+    .navwrap:has(> :is(#secListing,#secSales)){position:static}        /* the wide panel hangs from the whole bar, so it never runs off the screen */
+    :is(#secListing,#secSales).open{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,220px);top:calc(100% + 6px);right:auto;
+      width:max-content;max-width:calc(100vw - 32px);padding:12px;overflow-x:auto}
+    #secListing.open{left:50%;transform:translateX(-50%);animation:navInX .12s ease-out}
+    /* SALES opens just under the bar like Listing, but left-aligned with its own button: nav.js (fitNavPanel) sets --nav-left from
+       the button, moved left just enough when the panel would pass the right edge of the screen (never past the left edge). */
+    #secSales.open{left:var(--nav-left,0px)}
+    :is(#secListing,#secSales) .navcol{min-width:0;padding:0 6px}
+    /* the line goes between groups ON SHOW: a hidden group never leaves a line before the first one */
+    :is(#secListing,#secSales) .navcol:has(> .nav:not(.hide)) ~ .navcol{border-left:1px solid var(--line)}
+    :is(#secListing,#secSales) .nav{white-space:nowrap}
   }
   @keyframes navInX{from{opacity:0;transform:translate(-50%,-4px)}}
-  @media (max-width:860px){ #secListing .navcol-h{display:none} }
-  @media (prefers-reduced-motion:reduce){ #secListing.open{animation:none} }
+  @media (max-width:860px){ :is(#secListing,#secSales) .navcol-h{display:none} }
+  @media (prefers-reduced-motion:reduce){ :is(#secListing,#secSales).open{animation:none} }
   /* The TEST tag on a menu row: a small amber pill with a dot. */
   .navtag{display:inline-flex;align-items:center;gap:5px;margin-left:4px;padding:1px 7px 1px 6px;
     border-radius:var(--r-pill);background:var(--act-bg);color:var(--act-ink);font-size:10px;font-weight:700;
@@ -4073,6 +4090,30 @@
   .adh-skel-w{width:55%;height:14px}
   .adh-urg.adh-wait{--sev:var(--line);background:none}
   @keyframes adh-pulse{50%{opacity:.45}}
+  /* Money at stake and Data as of (ads/ads-health.js), over the Overview */
+  .adt-stake{margin-top:12px;padding:12px 16px}
+  .adt-sk-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .adt-sk-main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;cursor:pointer;border-radius:var(--r-sm);padding:2px 4px;margin:-2px -4px}
+  .adt-sk-main:hover .adt-sk-v{text-decoration:underline;text-underline-offset:3px}
+  .adt-sk-main:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .adt-sk-l{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;align-self:center}
+  .adt-sk-vw{display:inline-flex;align-items:baseline;gap:6px}
+  .adt-sk-v{font-size:24px;font-weight:700;letter-spacing:-.025em;color:var(--bad-ink);font-variant-numeric:tabular-nums;line-height:1.1}
+  .adt-sk-v.adt-sk-ok{color:var(--accent-ink)}
+  .adt-sk-v .adh-skel-w{width:110px;height:20px}
+  .adt-sk-vw small{font-size:13px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+  .adt-sk-sub{font-size:11.5px;color:var(--faint);white-space:nowrap}
+  .adt-sk-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 320px}
+  .adt-sk-chip{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:var(--r-pill);border:1px solid var(--line);
+    background:var(--sev-bg,var(--soft));color:var(--ink);font-size:12px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}
+  .adt-sk-chip:hover{transform:translateY(-1px);box-shadow:var(--sh-1)}
+  .adt-sk-chip span{color:var(--muted)} .adt-sk-chip b{color:var(--sev-ink,var(--ink));font-variant-numeric:tabular-nums}
+  .adt-sk-wait{font-size:12px;color:var(--faint);align-self:center}
+  .adt-asof{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--muted)}
+  .adt-asof>b{font-weight:600;color:var(--ink)}
+  .adt-asof-i em{font-style:normal;color:var(--faint);margin-right:2px}
+  .adt-asof-i.adt-late{color:var(--act-ink)} .adt-asof-i.adt-late::after{content:" · old";font-weight:600}
+  .adt-asof-win{color:var(--accent-ink)}
   .adh-body{border-top:1px solid var(--line);animation:adh-open .18s ease both}
   @keyframes adh-open{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
   .adh-srcs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--faint)}
@@ -4342,4 +4383,1088 @@
   }
   @media (max-width:520px){.adx-boxes{grid-template-columns:minmax(0,1fr)}}
 
-  /* ===== MODULE: INVENTORY ===== */
+  /* ----- Search Term Analysis (paneSt, ads/search-terms.js): the bar, four analysis boxes, the view card, the dialogs,
+     the review list. Reuses .card / .toolbar / .seg / table.xl / .ui-badge / .adx-box / .modal; sta- adds only the layout. ----- */
+  .sta-scope .hide{display:none}
+  .sta-msg{margin-top:10px;font-size:12.5px;color:var(--muted);display:flex;gap:6px 18px;flex-wrap:wrap}
+  .sta-msg b{color:var(--ink);font-weight:600}
+  .sta-msg .sta-ok{color:var(--accent-ink);font-weight:600}
+  .sta-msg .sta-bad{color:var(--bad-ink);font-weight:600}
+  .sta-rl{position:relative}
+  .sta-n{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;margin-left:8px;border-radius:999px;
+    background:var(--brand);color:var(--on-brand);font-size:11px;font-weight:700}
+  .sta-boxes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:12px 0}
+  button.adx-box.sta-box,button.adx-box.sta-box:hover,button.adx-box.sta-box:active{display:block;width:100%;cursor:pointer;padding:14px 16px 12px;
+    text-align:left;font:inherit;font-weight:400;color:var(--ink);background:var(--card);border:1px solid var(--card-line);border-radius:var(--r-card)}
+  .sta-box.on{box-shadow:inset 0 0 0 2px var(--c),var(--sh-2)}
+  .sta-box:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+  .sta-q{font-size:12.5px;color:var(--muted);margin:6px 0 0;line-height:1.4}
+  .sta-big{display:flex;align-items:baseline;gap:8px;margin:8px 0 0}
+  .sta-big b{font-size:24px;font-weight:700;letter-spacing:-.025em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .sta-big span{font-size:12.5px;color:var(--muted)}
+  .sta-go{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid var(--line);
+    font-size:12.5px;font-weight:600;color:var(--brand-ink)}
+  .sta-tcard{padding:0;overflow:hidden}
+  .sta-thead{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .sta-thead .tt b{display:block;font-size:14.5px;font-weight:650;color:var(--ink);letter-spacing:-.01em}
+  .sta-thead .tt small{display:block;font-size:12px;color:var(--muted);margin-top:2px;max-width:760px}
+  .sta-thead .seg .segbtn{padding:6px 12px;font-size:13px}
+  .sta-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .sta-wrap{overflow:auto;max-height:70vh}
+  .sta-scope table.xl{font-size:13px}
+  .sta-scope table.xl td{vertical-align:middle}
+  .sta-scope table.xl th{white-space:nowrap}
+  .sta-term{font-weight:600;color:var(--ink);white-space:nowrap}
+  .sta-under{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+  .sta-path{min-width:230px}
+  .sta-path b{display:block;font-weight:500;color:var(--ink);white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+  .sta-path small,.sta-s{display:block;font-size:11.5px;color:var(--faint);white-space:nowrap;margin-top:1px}
+  .sta-s.up{color:var(--muted)}
+  .sta-scope table.xl td.sta-ev{min-width:320px;max-width:430px;white-space:normal;font-size:12.5px;color:var(--muted);line-height:1.45}
+  .sta-ev b{color:var(--ink);font-weight:600}
+  .sta-money{font-weight:700;color:var(--bad-ink)}
+  .sta-next{white-space:nowrap}
+  .sta-next small{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px}
+  .sta-inrl{font-size:12.5px;color:var(--brand-ink);font-weight:600}
+  button.sta-btn{font-size:12.5px;padding:6px 12px;border-radius:var(--r-sm);font-weight:600;background:var(--card);color:var(--brand-ink);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand) 45%,var(--card))}
+  button.sta-btn:hover{background:var(--brand-bg)}
+  button.sta-btn.neg{color:var(--bad-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--bad) 45%,var(--card))}
+  button.sta-btn.neg:hover{background:var(--bad-bg)}
+  button.sta-btn.dim{color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+  .sta-dash{color:var(--faint)}
+  .sta-cb{width:16px;height:16px;accent-color:var(--brand);vertical-align:middle;margin:0}
+  .sta-scope table.xl tr.sel td{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
+  .sta-scope table.xl tr.tot td{background:var(--soft);font-weight:700;color:var(--ink)}
+  .sta-scope table.xl tr.grp td{background:var(--soft);padding-top:11px;padding-bottom:11px}
+  .sta-grp b{font-size:13.5px;color:var(--ink)}
+  .sta-grp span{color:var(--muted);font-size:12.5px;margin-left:8px}
+  .sta-grp span em{font-style:normal;color:var(--bad-ink);font-weight:600}
+  .sta-limit{background:color-mix(in srgb,var(--rev) 10%,var(--card));border-radius:var(--r-sm);padding:7px 10px;font-size:12.5px;color:var(--rev-ink);
+    white-space:normal;max-width:360px;line-height:1.45}
+  .sta-more{display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap;padding:10px 16px;font-size:12.5px;
+    color:var(--muted);border-top:1px solid var(--line)}
+  .sta-more.err{color:var(--bad-ink)}
+  .sta-more button{font-size:12.5px;padding:5px 12px}
+  .sta-selbar{position:sticky;bottom:14px;z-index:20;display:flex;align-items:center;gap:12px;margin:12px auto 0;width:max-content;max-width:100%;
+    padding:10px 12px 10px 18px;background:var(--ink);color:var(--card);border-radius:14px;box-shadow:var(--sh-3);font-size:13px}
+  .sta-selbar b{font-weight:700}
+  .sta-selbar button{font-size:12.5px;padding:7px 14px}
+  .sta-selbar button.ghost{background:color-mix(in srgb,var(--card) 14%,transparent);color:var(--card)}
+  .modal.sta-modal .modalbox{width:min(620px,100%);padding:0;max-height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden}
+  .modal.sta-wide .modalbox{width:min(1320px,100%)}
+  .sta-mh{padding:18px 22px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px}
+  .sta-mh b{display:block;font-size:16.5px;font-weight:700;letter-spacing:-.015em;color:var(--ink)}
+  .sta-mh small{display:block;font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.45}
+  .sta-mh small b{display:inline;font-size:12.5px;font-weight:600;letter-spacing:0}
+  .sta-x{width:30px;height:30px;padding:0;border-radius:50%;background:var(--hover);color:var(--muted);font-size:16px;flex:none}
+  .sta-mb{padding:16px 22px;overflow:auto}
+  .sta-figs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;background:var(--soft);border:1px solid var(--line);
+    border-radius:var(--r-row);padding:12px 14px}
+  .sta-figs small{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .sta-figs b{display:block;font-size:15px;font-weight:650;color:var(--ink);margin-top:3px;font-variant-numeric:tabular-nums}
+  .sta-figs-7{font-size:12px;color:var(--muted);margin:7px 2px 0;line-height:1.45}
+  .sta-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  .sta-f label{display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin:0 0 6px;text-transform:none;letter-spacing:0}
+  .sta-f select,.sta-f input{width:100%;height:40px;box-sizing:border-box}
+  .sta-f small{display:block;font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
+  .sta-checks{margin:14px 0 0;padding:10px 12px;border-radius:var(--r-row);background:color-mix(in srgb,var(--accent) 6%,var(--card));
+    border:1px solid color-mix(in srgb,var(--accent) 20%,var(--card));font-size:12.5px;color:var(--ink);line-height:1.6}
+  .sta-checks div{display:flex;gap:7px;padding:2px 0}
+  .sta-checks i{font-style:normal;font-weight:700;flex:none;width:14px;text-align:center}
+  .sta-checks .ck-ok i{color:var(--accent-ink)}
+  .sta-checks .ck-warn i{color:var(--rev-ink)}
+  .sta-checks .ck-bad{color:var(--bad-ink)}
+  .sta-checks .ck-bad i{color:var(--bad-ink)}
+  .sta-mf{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .sta-mf small{font-size:12px;color:var(--muted);max-width:340px;line-height:1.4}
+  .sta-mf .btns{display:flex;gap:8px;flex:none}
+  .sta-mf button:disabled{opacity:.5;cursor:not-allowed}
+  .sta-calc{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .sta-calc b{color:var(--ink)}
+  .sta-rlseg{margin:12px 22px 0;width:max-content}
+  .sta-rlbody{padding:12px 0 0}
+  .sta-rlnote{margin:12px 22px 0;padding:10px 12px;border-radius:var(--r-row);background:var(--brand-bg);color:var(--brand-ink);font-size:12.5px;line-height:1.5}
+  .sta-rlnote.warn{background:var(--rev-bg);color:var(--rev-ink)}
+  /* 19 Nov: review list by bulk file, clashes, confirm-on-the-button, Undo toast, Plan my moves */
+  .sta-scope table.xl tr.sta-batch td{background:var(--soft);border-top:1px solid var(--line);padding-top:10px;padding-bottom:10px}
+  .sta-scope table.xl tr.sta-batch b{font-weight:700;color:var(--ink)}
+  .sta-batchbtns{text-align:right;white-space:nowrap}
+  .sta-batchbtns .sta-btn+.sta-btn{margin-left:6px}
+  .sta-scope table.xl tr.sta-clash td{background:color-mix(in srgb,var(--bad) 6%,var(--card))}
+  .sta-clashtxt{color:var(--bad-ink)!important;font-weight:600;white-space:normal}
+  .sta-mf button.sta-armed{background:var(--bad);color:#fff;box-shadow:none}
+  .sta-mf button svg.sta-lock{width:12px;height:12px;margin-right:6px;vertical-align:-1px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  /* "Newer data has arrived" (brand-analytics.js baNewerBar): a screen opened from this browser's copy */
+  .ba-newer{position:fixed;right:20px;bottom:20px;z-index:60;display:flex;align-items:center;gap:10px;padding:10px 12px 10px 16px;border-radius:12px;background:var(--card);color:var(--ink);box-shadow:0 8px 28px rgba(0,0,0,.18),inset 0 0 0 1px var(--line);font-size:13px}
+  .ba-newer button{font-size:12.5px;padding:6px 12px}
+  .ba-newer button.ghost{padding:6px 8px}
+  /* Action dialog: the Apply line runs the full width above the buttons, not squeezed beside them */
+  #stDlg .sta-mf{flex-wrap:wrap;row-gap:12px}
+  #stDlg .sta-mf>small{flex:1 1 100%;max-width:none;padding:8px 12px;border-radius:var(--r-row);background:var(--soft)}
+  #stDlg .sta-mf>.btns{margin-left:auto}
+  #stDlg .sta-applybtn:not(:disabled){color:var(--brand-ink);box-shadow:inset 0 0 0 1px var(--brand)}
+  .sta-modal .sta-bad,.sta-under .sta-bad{color:var(--bad-ink);font-weight:600}
+  .sta-linkbtn{background:none;border:0;padding:0 2px;font:inherit;font-weight:700;color:var(--brand-ink);cursor:pointer;text-decoration:underline;text-underline-offset:2px;box-shadow:none}
+  .sta-linkbtn:hover{color:var(--brand)}
+  .sta-added{color:var(--accent-ink)}
+  button.sta-planbtn{display:inline-flex;align-items:center;gap:6px;color:var(--brand-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand) 35%,transparent);background:var(--brand-bg)}
+  button.sta-planbtn svg{width:14px;height:14px;fill:currentColor;stroke:none}
+  ol.sta-plan{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .sta-move{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-row);background:var(--card)}
+  .sta-move.done{opacity:.6}
+  .sta-moven{flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--brand-bg);color:var(--brand-ink);font-weight:700;font-size:12px}
+  .sta-movet{flex:1;min-width:0}
+  .sta-movet b{display:block;font-size:13.5px;color:var(--ink)}
+  .sta-movet p{margin:3px 0 4px;font-size:12.5px;line-height:1.45;color:var(--muted)}
+  .sta-move>.sta-btn,.sta-move>.ui-badge{flex:none;align-self:center}
+  .sta-planbusy,.sta-plannote{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:9px 12px;border-radius:var(--r-row);background:var(--soft);font-size:12.5px;color:var(--muted)}
+  .sta-plannote{background:var(--rev-bg);color:var(--rev-ink)}
+  .sta-spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--brand);animation:staSpin .8s linear infinite;flex:none}
+  @keyframes staSpin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.sta-spin{animation:none}}
+  .modal.sta-wide table.xl td{white-space:normal}
+  .modal.sta-wide table.xl td.sta-ev{min-width:220px;max-width:300px}
+  .modal.sta-wide .sta-term{white-space:normal;min-width:130px}
+  .modal.sta-wide .sta-rlcp{max-width:230px;min-width:160px}
+  .modal.sta-wide .sta-rlwhat{max-width:230px}
+  .modal.sta-wide table.xl th:first-child,.modal.sta-wide table.xl td:first-child{padding-left:22px}
+  .modal.sta-wide table.xl th:last-child,.modal.sta-wide table.xl td:last-child{padding-right:24px}
+  /* Search Term Analysis, 17 Nov: the filters row, the summary strip, the fixed view bar, the frozen term column, grouped
+     rows, sortable headings, pages, hold reasons, brand chips, the lists dialog, the legend, the bulk-file preview. */
+  .sta-more-f{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .sta-more-f select{flex:0 0 190px}
+  .sta-sum{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:1px;margin:12px 0 0;border-radius:var(--r-row);overflow:hidden;
+    background:var(--line);border:1px solid var(--line)}
+  .sta-sum>div{background:var(--card);padding:9px 12px}
+  .sta-sum small{display:block;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .sta-sum b{display:block;font-size:15px;font-weight:650;color:var(--ink);margin-top:2px;font-variant-numeric:tabular-nums}
+  .sta-sum>div:last-child b{color:var(--rev-ink)}
+  /* 18 Nov: money at stake first, and the branded / non-branded line across the strip's full width */
+  .sta-sum{grid-template-columns:repeat(9,minmax(0,1fr))}
+  .sta-sum>div.sta-stake{background:color-mix(in srgb,var(--bad) 7%,var(--card))}
+  .sta-sum>div.sta-stake b{color:var(--bad-ink);font-size:17px}
+  .sta-sum>div.sta-bline{grid-column:1/-1;display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);padding:8px 12px}
+  .sta-sum>div.sta-bline b{display:inline;font-size:12.5px;margin:0;color:var(--ink)}
+  .sta-sum>div.sta-bline .sta-btn{margin:0}
+  .sta-sum>div.sta-bline span:last-child{margin-left:auto}
+  .sta-sum em.sta-sumsub{display:block;font-style:normal;font-size:11px;font-weight:500;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sta-sum>div.sta-stake em.sta-sumsub{color:var(--act-ink)}
+  .sta-negq{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+  .sta-negq .sta-btn{margin:0}
+  .sta-prov{color:var(--rev-ink);font-weight:700}
+  .sta-costwarn .sta-btn{margin:6px 0 0;display:inline-block}
+  .sta-legend-btn{font-size:12.5px;padding:6px 12px;flex:none}
+  .sta-vbar{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line);
+    background:var(--soft)}
+  .sta-vbar .seg .segbtn{padding:6px 12px;font-size:13px}
+  .sta-pgsz{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);margin:0;text-transform:none;letter-spacing:0;font-weight:500}
+  .sta-pgsz select{height:32px;padding:0 8px}
+  .sta-scope table.xl th.sta-stick,.sta-scope table.xl td.sta-stick{position:sticky;left:0;z-index:2;background:var(--card);min-width:240px;max-width:320px;
+    box-shadow:1px 0 0 var(--line)}
+  .sta-scope table.xl thead th.sta-stick{z-index:3;background:var(--soft)}
+  .sta-scope table.xl tr.sel td.sta-stick{background:color-mix(in srgb,var(--brand) 5%,var(--card))}
+  .sta-scope table.xl tr.tot td.sta-stick,.sta-scope table.xl tr.grp td.sta-stick{background:var(--soft)}
+  td.sta-stick{white-space:normal}
+  td.sta-stick>.sta-cb,td.sta-stick>.sta-cbgap{float:left;margin:2px 9px 0 0}
+  .sta-cbgap{display:inline-block;width:16px;height:16px}
+  .sta-tc{overflow:hidden}
+  .sta-term{white-space:normal;word-break:break-word}
+  .sta-asin{font-family:var(--mono,ui-monospace,monospace);font-size:12.5px;letter-spacing:.02em}
+  .sta-caret{width:22px;height:22px;padding:0;margin-right:6px;border-radius:6px;background:var(--hover);color:var(--ink);font-size:12px;line-height:22px;
+    vertical-align:middle;box-shadow:none}
+  .sta-scope table.xl tr.sta-grprow td{border-top:1px solid var(--line)}
+  .sta-scope table.xl tr.sta-subrow td{background:color-mix(in srgb,var(--soft) 55%,var(--card))}
+  .sta-scope table.xl tr.sta-subrow td.sta-stick{background:color-mix(in srgb,var(--soft) 55%,var(--card));padding-left:30px}
+  .sta-scope table.xl td.sta-ev.sta-ev-s{min-width:220px;max-width:300px}
+  .sta-why{margin-top:5px;font-size:12px;color:var(--muted);line-height:1.45;white-space:normal}
+  .sta-hold{display:inline-block;font-size:12px;color:var(--muted);white-space:normal;max-width:260px;line-height:1.4}
+  .sta-next{min-width:190px}
+  .sta-next small{white-space:normal;max-width:260px}
+  th.sta-sort{cursor:pointer;user-select:none}
+  th.sta-sort:hover{color:var(--ink)}
+  th.sta-sort.on{color:var(--brand-ink)}
+  .sta-pages{display:flex;align-items:center;gap:8px}
+  .sta-pages button:disabled{opacity:.45;cursor:default}
+  .ui-badge.is-brand-SP{background:color-mix(in srgb,var(--brand) 12%,var(--card));color:var(--brand-ink)}
+  .ui-badge.is-brand-CPC{background:color-mix(in srgb,var(--violet-ink) 14%,var(--card));color:var(--violet-ink)}
+  .sta-f textarea{width:100%;box-sizing:border-box;min-height:92px;font:inherit;font-size:13px;padding:8px 10px;resize:vertical}
+  .sta-chips{display:flex;flex-wrap:wrap;gap:5px}
+  .sta-cplist{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r-row)}
+  .sta-cplist label{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:500;margin:0;text-transform:none;letter-spacing:0;color:var(--ink)}
+  .sta-legend h4{margin:14px 0 6px;font-size:13.5px;color:var(--ink)}
+  .sta-legend h4:first-child{margin-top:0}
+  .sta-legend ul{margin:0;padding-left:18px;font-size:12.5px;color:var(--muted);line-height:1.6}
+  .sta-legend b{color:var(--ink)}
+  .sta-legcols{display:grid;grid-template-columns:1fr 1fr;gap:8px 32px}
+  .sta-scope table.xl tr.sta-wait td{color:var(--rev-ink);background:color-mix(in srgb,var(--rev) 6%,var(--card))}
+  /* Search Term Analysis, 18 Nov: next-step chips under the tabs, copy buttons on the campaign and ad-group names, the New
+     tab, short evidence lines, "Lower bid anyway" under a hold. */
+  .sta-actbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:9px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+  .sta-actl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-right:4px}
+  button.sta-chip{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:999px;font-size:12.5px;font-weight:600;
+    background:var(--card);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+  button.sta-chip span{font-size:11.5px;font-weight:700;color:var(--faint);font-variant-numeric:tabular-nums}
+  button.sta-chip:hover{background:var(--hover);color:var(--ink)}
+  button.sta-chip.on{background:var(--brand-bg);color:var(--brand-ink);box-shadow:inset 0 0 0 1.5px var(--brand)}
+  button.sta-chip.on span{color:var(--brand-ink)}
+  button.sta-chip.a-neg.on{background:var(--bad-bg);color:var(--bad-ink);box-shadow:inset 0 0 0 1.5px var(--bad)}
+  button.sta-chip.a-neg.on span{color:var(--bad-ink)}
+  button.sta-chip::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  button.sta-chip[data-a=""]::before{display:none}
+  button.sta-chip.a-neg::before{background:var(--bad)}
+  button.sta-chip.a-reduce::before{background:var(--rev)}
+  button.sta-chip.a-pause::before{background:var(--act)}
+  button.sta-chip.a-exact::before,button.sta-chip.a-raise::before{background:var(--accent)}
+  button.sta-chip.a-review::before{background:var(--brand)}
+  .sta-actall{margin-left:auto}
+  button.sta-btn.sm{font-size:12px;padding:4px 10px;margin-top:6px}
+  .sta-next .sta-hold+button.sta-btn{display:block}
+  .sta-segn{font-weight:500;opacity:.7;margin-left:2px}
+  .sta-pl{display:flex;align-items:center;gap:4px;max-width:330px}
+  .sta-pl b,.sta-pl small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sta-pl small{margin:0}
+  .sta-path .sta-pt{display:block;max-width:330px;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  button.sta-copy{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;padding:0;border-radius:6px;background:transparent;
+    color:var(--faint);box-shadow:none;opacity:.55}
+  button.sta-copy svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  tr:hover button.sta-copy,button.sta-copy:focus-visible{opacity:1}
+  button.sta-copy:hover{background:var(--hover);color:var(--ink)}
+  button.sta-copy.done{opacity:1;color:var(--accent-ink);background:color-mix(in srgb,var(--accent) 14%,var(--card))}
+  button.sta-copy.fail{opacity:1;color:var(--bad-ink)}
+  .sta-scope table.xl td.sta-ev{min-width:250px;max-width:340px}
+  /* Above the sticky top menu (z 60): a tall review list kept its close button under the menu. */
+  .modal.sta-modal{z-index:65}
+  /* ----- Placement (18 Nov 2026): decisions per campaign × placement, Terra-style cards, the chart and two tables below.
+     Shares Search Term Analysis's layout (.sta-scope): cards, chips, sticky first column, review list. ----- */
+  .plx .sta-tcard,.plx .plx-chcard{margin-top:12px}
+  .plx .plx-chcard{padding:0;overflow:hidden}
+  .plx-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:12px 0 0}
+  .plx-kpi{padding:14px 16px 12px}
+  .plx-kpi.plx-click{cursor:pointer}
+  .plx-kpi.plx-click:hover{box-shadow:inset 0 0 0 1.5px var(--c),var(--sh-2)}
+  .plx-kpi.plx-click:focus-visible{outline:2px solid var(--c);outline-offset:2px}
+  .plx-big{margin:8px 0 0}
+  .plx-big b{font-size:26px;font-weight:700;letter-spacing:-.025em;color:var(--ink);font-variant-numeric:tabular-nums}
+  .plx-big b.plx-good{color:var(--accent-ink)}
+  .plx-big b.plx-bad{color:var(--bad-ink)}
+  .plx-sub{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .plx-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+  .plx-tags span{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:5px;white-space:nowrap;
+    color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+  .plx-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:7px;vertical-align:0}
+  .sta-scope table.xl tr.plx-camp td{background:var(--soft);padding-top:10px;padding-bottom:10px}
+  .sta-scope table.xl tr.plx-camp td.sta-stick{background:var(--soft)}
+  .sta-scope table.xl tr.plx-camp+tr td{border-top:0}
+  .plx-ctgt{font-size:12px;white-space:nowrap}
+  .plx-dec .ui-badge{margin-right:8px}
+  .plx-move{font-size:13px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .plx-move b{font-weight:700}
+  .plx-dec .sta-why{margin-top:4px}
+  .plx-actc{white-space:nowrap}
+  .plx-acts{display:flex;gap:6px;align-items:center}
+  button.sta-btn.plx-apply{background:var(--brand);color:var(--on-brand);box-shadow:none;display:inline-flex;align-items:center;gap:6px}
+  button.sta-btn.plx-apply:disabled{background:var(--soft);color:var(--faint);cursor:not-allowed;box-shadow:inset 0 0 0 1px var(--line);opacity:1}
+  button.sta-btn.plx-apply svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+  th.plx-sort{cursor:pointer;user-select:none}
+  th.plx-sort.on{color:var(--brand-ink)}
+  button.sta-chip.a-praise::before{background:var(--accent)}
+  button.sta-chip.a-plower::before{background:var(--bad)}
+  button.sta-chip.a-pkeep::before{background:var(--muted)}
+  button.sta-chip.a-pthin::before{background:var(--faint)}
+  button.sta-chip.a-preview::before{background:var(--brand)}
+  button.sta-chip.a-phold::before{background:var(--rev)}
+  .sta-warnline{margin-top:6px;padding:8px 11px;border-radius:var(--r-sm);background:color-mix(in srgb,var(--rev) 9%,var(--card));color:var(--rev-ink);font-size:12.5px;line-height:1.45}
+  .plx-note{color:var(--accent-ink);font-weight:600;margin-right:12px}
+  .plx-legend{display:flex;gap:10px 26px;flex-wrap:wrap;padding:12px 16px 4px}
+  .plx-lg small{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+  .plx-lg small i{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .plx-lg b{display:block;font-size:16px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:2px}
+  .plx-lg.tot{padding-left:22px;border-left:1px solid var(--line)}
+  .plx-chart{overflow:hidden;padding:4px 16px 14px}
+  .plx-chart svg{display:block;max-width:100%}
+  /* 22 Nov review: each half says its window (the decisions: settled 7-day; the chart and tables: the nightly 30-day), the
+     line between them says the totals differ; Decision and Action right after the first column, the numbers tighter. */
+  .plx-win{margin-left:8px;font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--muted);padding:2px 8px;border-radius:999px;
+    box-shadow:inset 0 0 0 1px var(--line);vertical-align:2px;white-space:nowrap}
+  .plx-win:empty{display:none}
+  .plx-split{margin:18px 2px 0;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:10px}
+  .plx-split::before,.plx-split::after{content:"";flex:1;height:1px;background:var(--line)}
+  .sta-scope #plxTable td.sta-ev.plx-dec{min-width:220px;max-width:290px}
+  .sta-scope #plxTable th.sta-stick,.sta-scope #plxTable td.sta-stick{min-width:210px;max-width:280px}
+  .sta-scope #plxTable th.num,.sta-scope #plxTable td.num{padding-left:8px;padding-right:8px}
+  .sta-scope #plxTable th.num{white-space:nowrap;line-height:1.25;vertical-align:bottom}
+  .sta-scope #plxTable .plx-acts{gap:4px}
+  @media (max-width:1100px){.plx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:1100px){.sta-sum{grid-template-columns:repeat(4,minmax(0,1fr))!important}.sta-legcols{grid-template-columns:1fr}}
+  @media (max-width:1100px){.sta-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:620px){.sta-boxes{grid-template-columns:minmax(0,1fr)}.sta-figs{grid-template-columns:repeat(3,minmax(0,1fr))}.sta-row2{grid-template-columns:1fr}}
+  /* ----- PPC History (20 Nov 2026, panePpch, ads/ppc-history.js): who changed what from Sellora's ads screens, from which
+     device, and when. Search Term Analysis's bar, data line, strip, chips, table and pager; added here only the strip's five
+     cells, the tick box in the filters row, the row buttons and the steps timeline under an opened row. ----- */
+  #panePpch .sta-tcard{margin-top:12px}
+  #panePpch .sta-sum{grid-template-columns:repeat(5,minmax(0,1fr))}
+  #panePpch .sta-sum>div:last-child b{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #panePpch .ppch-chk{display:inline-flex;align-items:center;gap:8px;margin:0;font-size:13px;font-weight:500;color:var(--ink);text-transform:none;
+    letter-spacing:0;white-space:nowrap;cursor:pointer}
+  #panePpch .sta-msg .sta-linkbtn{font-size:12.5px}
+  #panePpch table.xl td button.sta-btn.sm{margin-top:0;white-space:nowrap}
+  #panePpch table.xl tr.ppch-row{cursor:pointer}
+  #panePpch table.xl tr.ppch-row.on td{border-bottom-color:transparent}
+  #panePpch .ppch-when{white-space:nowrap;font-variant-numeric:tabular-nums}
+  #panePpch table.xl td.ppch-what{white-space:normal;min-width:150px;max-width:250px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  #panePpch .ppch-mail{max-width:170px;overflow:hidden;text-overflow:ellipsis}
+  #panePpch .ppch-cut{max-width:190px;overflow:hidden;text-overflow:ellipsis}
+  #panePpch table.xl tr.ppch-steps td{background:var(--soft);padding:12px 16px 4px}
+  #panePpch ol.ppch-tl{list-style:none;margin:0;padding:0;position:sticky;left:16px;width:max-content;max-width:min(980px,calc(100vw - 80px))}
+  #panePpch .ppch-tl li{--c:var(--brand);position:relative;padding:0 0 10px 20px;font-size:12.5px;line-height:1.45;color:var(--muted);white-space:normal}
+  #panePpch .ppch-tl li::before{content:"";position:absolute;left:0;top:5px;width:9px;height:9px;border-radius:50%;background:var(--c);
+    box-shadow:0 0 0 3px var(--soft)}
+  #panePpch .ppch-tl li::after{content:"";position:absolute;left:4px;top:17px;bottom:-2px;width:1px;background:var(--line)}
+  #panePpch .ppch-tl li:last-child::after{display:none}
+  #panePpch .ppch-tl li.is-ok{--c:var(--accent)}
+  #panePpch .ppch-tl li.is-warn{--c:var(--rev)}
+  #panePpch .ppch-tl li.is-bad{--c:var(--bad)}
+  #panePpch .ppch-tl li.old{--c:var(--faint)}
+  #panePpch .ppch-tl b{color:var(--ink);font-weight:600}
+  #panePpch .ppch-tl .ppch-t{color:var(--ink);font-variant-numeric:tabular-nums}
+  #panePpch .ppch-tl .ppch-dev{color:var(--faint)}
+  @media (max-width:1100px){#panePpch .sta-sum{grid-template-columns:repeat(5,minmax(0,1fr))!important}}
+  @media (max-width:760px){#panePpch .sta-sum{grid-template-columns:repeat(2,minmax(0,1fr))!important}#panePpch .sta-sum>div:last-child{grid-column:1/-1}}
+  /* ----- The status dropdown (21 Nov 2026, staStatus in ads/search-terms.js): Search Term Analysis's and N-Gram Analysis's
+     data lines folded into one summary line (a ghost button, like "How Sellora decides") and a panel in the Filters row's look.
+     Red when something stops suggestions. ----- */
+  .sta-msg button.sta-stat{display:inline-flex;align-items:center;gap:10px;max-width:100%;padding:6px 12px;font-size:12.5px;font-weight:500;
+    color:var(--muted);text-align:left;white-space:normal;line-height:1.4}
+  .sta-msg button.sta-stat b{color:var(--ink);font-weight:600}
+  .sta-msg button.sta-stat.is-bad{color:var(--bad-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--bad) 45%,var(--card))}
+  .sta-msg button.sta-stat .sta-stat-c{flex:none;font-size:11px;color:var(--faint)}
+  .sta-msg .sta-stat-p{flex:1 1 100%;margin-top:4px}
+  .sta-msg .sta-stat-p.hide{display:none}
+  /* ----- N-Gram Analysis (21 Nov 2026, paneNgram, ads/ngram.js): Search Term Analysis's bar, status line, boxes, chips, table
+     and pager; added here only the pattern-size switch in the bar, the Rows choice at the end of the chips, and the row that
+     opens under a pattern (its terms, and what the action does). ----- */
+  #paneNgram .toolbar .seg.ng-size{flex:none}
+  #paneNgram .toolbar .seg.ng-size .segbtn{padding:6px 12px;font-size:13px}
+  #paneNgram .sta-actbar .ng-rows{margin-left:auto}
+  #paneNgram .sta-tcard{margin-top:0}
+  #paneNgram table.xl tr.ng-sub>td{background:var(--soft);padding:12px 16px 14px}
+  /* The figures' headings may take two lines ("Converting terms"), so Next step stays on screen at laptop widths. */
+  #paneNgram #ngTable thead th.num{white-space:normal;min-width:64px;max-width:96px;vertical-align:bottom;line-height:1.25}
+  #paneNgram #ngTable td.sta-ev.sta-ev-s{min-width:200px;max-width:250px}
+  #paneNgram #ngTable td.sta-next{min-width:150px}
+  #paneNgram #ngTable td.sta-next button.sta-btn.sm{margin-top:0;white-space:nowrap}
+  /* 22 Nov review: Waste with nothing to negate says why, then "Open in Search Term Analysis"; merged rows list the others;
+     Protected only is a flag, set apart from the four class chips; the single-term n-grams the filter found. */
+  #paneNgram #ngTable td.sta-next .sta-hold{display:block}
+  #paneNgram #ngTable td.sta-next button.ng-gost{margin-top:4px}
+  #paneNgram .ng-same{margin-top:2px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+  #paneNgram .sta-actbar .ng-flag{display:inline-flex;align-items:center;margin-left:6px;padding-left:10px;border-left:1px solid var(--line)}
+  #paneNgram #ngTable tr.ng-solo>td{white-space:normal;padding:10px 14px;background:var(--soft)}
+  #paneNgram #ngTable tr.ng-solo button.sta-btn.sm{margin-top:0;margin-left:6px}
+  #paneNgram .ng-split{position:sticky;left:16px;width:min(1400px,calc(100vw - 96px));display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:12px 24px;white-space:normal}
+  #paneNgram .ng-col{min-width:0}
+  #paneNgram table.xl.ng-mini td{white-space:normal}
+  #paneNgram table.xl.ng-mini td:first-child{min-width:140px}
+  #paneNgram .ng-col h5{display:block;margin:0 0 8px}
+  #paneNgram .ng-col p{margin:0 0 8px;font-size:12.5px;line-height:1.5;color:var(--ink)}
+  #paneNgram .ng-col p.sta-s{white-space:normal;color:var(--muted)}
+  #paneNgram table.xl.ng-mini{width:100%;font-size:12.5px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-row);overflow:hidden}
+  #paneNgram table.xl.ng-mini td,#paneNgram table.xl.ng-mini th{padding-top:6px;padding-bottom:6px}
+  #paneNgram table.xl.ng-mini .sta-term{font-weight:500}
+  #paneNgram table.xl.ng-mini td.ng-cp{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+  #paneNgram table.xl.ng-mini button.sta-btn.sm{margin-top:0;white-space:nowrap}
+  #paneNgram .ng-more{margin-top:6px;white-space:normal}
+  #paneNgram ul.ng-plan{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-direction:column;gap:4px}
+  #paneNgram .ng-plan li{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:6px 10px;border-radius:var(--r-sm);background:var(--card);
+    box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px}
+  #paneNgram .ng-plan li b{font-weight:600;color:var(--ink)}
+  #paneNgram .ng-plan li em{margin-left:auto;font-style:normal;font-weight:600;color:var(--muted)}
+  #paneNgram .ng-plan li.is-neg em{color:var(--bad-ink)}
+  #paneNgram .ng-plan li.is-kept em{color:var(--accent-ink)}
+  @media (max-width:900px){#paneNgram .ng-split{grid-template-columns:minmax(0,1fr)}}
+  /* N-Gram's table fits 1366–1500 px (26 Nov): the reason in 2 lines (all of it on hover), tighter numbers, Next step wraps. */
+  #paneNgram #ngTable .ng-why{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  #paneNgram #ngTable td.num,#paneNgram #ngTable th.num{padding-left:7px;padding-right:7px}
+  #paneNgram #ngTable thead th.num{min-width:50px;max-width:94px}
+  #paneNgram #ngTable td.sta-ev.sta-ev-s{min-width:180px;max-width:230px}
+  #paneNgram #ngTable td.sta-next{white-space:normal;min-width:136px;max-width:190px}
+  #paneNgram #ngTable td.sta-next button.sta-btn.sm{white-space:normal;text-align:left;line-height:1.3}
+  #paneNgram #ngTable td.sta-next small{max-width:190px;margin-bottom:4px}
+  #paneNgram #ngTable td.sta-next .sta-btn+.ng-gost{margin-top:4px;display:block}
+  /* The two kinds of Waste, small chips right after Waste. */
+  #paneNgram .sta-actbar .ng-wks{display:inline-flex;gap:4px;margin-right:4px}
+  #paneNgram button.sta-chip.ng-wk{height:24px;padding:0 9px;font-size:11.5px;gap:5px}
+  #paneNgram button.sta-chip.ng-wk::before{width:5px;height:5px;background:var(--bad)}
+  #paneNgram button.sta-chip.ng-wk.on{background:var(--bad-bg);color:var(--bad-ink);box-shadow:inset 0 0 0 1.5px var(--bad)}
+  #paneNgram button.sta-chip.ng-wk.on span{color:var(--bad-ink)}
+  /* The word dialog ("Add negative phrase"): wider, its campaigns as a table that scrolls inside itself. */
+  .modal.sta-modal.sta-dlgword .modalbox{width:min(1000px,100%)}
+  .sta-figs.sta-figs7{grid-template-columns:repeat(7,minmax(0,1fr))}
+  .sta-exterms{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+  .sta-exterms>span:first-child{margin-right:3px}
+  .sta-tchip{display:inline-block;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 8px;border-radius:var(--r-pill);
+    background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font-size:11.5px;line-height:1.6}
+  .sta-dcphead{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin:14px 0 6px;font-size:12.5px}
+  .sta-dcphead>b{font-weight:600;color:var(--ink)}
+  .sta-dcphead>#stDlgCpN{margin-left:auto}
+  .sta-dcpmin{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:12.5px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
+  .sta-dcpmin select{width:auto;height:28px;padding:0 26px 0 8px;font-size:12.5px}
+  .sta-dcp{max-height:45vh;overflow:auto;border:1px solid var(--line);border-radius:var(--r-row);background:var(--card)}
+  .sta-dcp table.xl{width:100%;font-size:12.5px}
+  .sta-dcp table.xl th,.sta-dcp table.xl td{text-align:left;padding:7px 9px;vertical-align:top}
+  .sta-dcp table.xl td{white-space:normal}
+  .sta-dcp table.xl th.num,.sta-dcp table.xl td.num{text-align:right;white-space:nowrap}
+  .sta-dcp .sta-dcb{width:20px;padding-right:0}
+  .sta-dcp input.sta-cb{width:16px;height:16px;margin:1px 0 0}
+  .sta-dcp .sta-dcn{font-weight:600;color:var(--ink);max-width:300px;overflow-wrap:anywhere}
+  .sta-dcp td small{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.35}
+  .sta-dcp td.sta-dev{color:var(--muted);min-width:130px}
+  .sta-dcp tr.is-off td,.sta-dcp tr.is-off .sta-dcn{color:var(--muted)}
+  .sta-dcp tr.is-off input.sta-cb{opacity:.45}
+  .sta-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  @media (max-width:620px){.sta-figs.sta-figs7{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  /* ----- The bar, 23 Nov 2026 (Search Term Analysis and N-Gram Analysis; staBarWire in ads/search-terms.js): brand, date
+     window, filters and actions on the first row, each control under a small heading; the search and the other choices on
+     the second; then the chips of every active filter, the 7-day note, and "At a glance" / "Where to act" over the strip and
+     the boxes. A heading, box or summary figure with a dotted line or a help cursor says what it means on hover. ----- */
+  .sta-scope .card.sta-barcard{padding:12px 14px 10px}
+  .sta-scope .toolbar.sta-top,.sta-scope .toolbar.sta-row2{align-items:flex-end;gap:10px 14px}
+  .sta-scope .toolbar.sta-row2{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .sta-scope .sta-fld{display:flex;flex-direction:column;gap:4px;min-width:0;margin:0}
+  .sta-scope .sta-fld.sta-grow{flex:1 1 240px}
+  .sta-scope .sta-lab{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;line-height:1.2}
+  .sta-scope .sta-lab[title],.sta-scope h3.sta-h[title]{cursor:help}
+  .sta-scope .sta-fld>input,.sta-scope .sta-fld>select{height:var(--ctl);padding-top:0;padding-bottom:0;line-height:calc(var(--ctl) - 2px);box-sizing:border-box}
+  .sta-scope .sta-fld>input{width:100%}
+  .sta-scope .sta-fld>button,.sta-scope .sta-acts>button{height:var(--ctl);padding-top:0;padding-bottom:0;flex:0 0 auto;white-space:nowrap;
+    display:inline-flex;align-items:center;justify-content:center;line-height:1}
+  .sta-scope select.sta-brandsel{width:168px}
+  .sta-scope input.sta-minsp{width:120px}
+  .sta-scope select.sta-ngmin{width:130px}
+  .sta-scope select.sta-ngcls{width:190px}
+  .sta-scope .sta-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-left:auto}
+  /* The date window: 7 / 14 / 30 / 60 days; a small second line says "sales still coming in" or "coming soon". */
+  .sta-scope .seg.sta-win{height:var(--ctl);box-sizing:border-box}
+  .sta-scope .seg.sta-win .segbtn{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:64px;padding:0 12px;line-height:1.1}
+  .sta-scope .seg.sta-win .segbtn small{font-size:9.5px;font-weight:600;color:var(--muted);letter-spacing:.01em}
+  .sta-scope .seg.sta-win .segbtn:disabled,.sta-scope .seg.sta-pfstock .segbtn:disabled{color:var(--faint);cursor:not-allowed;opacity:.75}
+  .sta-scope .seg.sta-win .segbtn:disabled small{color:var(--faint)}
+  /* The three lists and the stock chip; a list opens under its button. */
+  .sta-scope .sta-pf{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .sta-scope .sta-pfw{position:relative;display:inline-flex}
+  .sta-scope button.sta-pfb{height:var(--ctl);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .sta-scope button.sta-pfb .sta-n{margin-left:2px}
+  .sta-scope button.sta-pfb .sta-pfc{font-size:10px;color:var(--faint)}
+  .sta-scope button.sta-pfb.on{background:var(--brand-bg);color:var(--brand-ink);font-weight:600;box-shadow:inset 0 0 0 1.5px var(--brand)}
+  .sta-scope .seg.sta-pfstock{height:var(--ctl);box-sizing:border-box}
+  .sta-scope .seg.sta-pfstock .segbtn{padding:0 12px;font-size:13px}
+  .sta-scope .sta-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:40;width:min(380px,calc(100vw - 32px));display:flex;flex-direction:column;
+    text-align:left;background:var(--card);border-radius:var(--r-row);box-shadow:var(--sh-3),inset 0 0 0 1px var(--line)}
+  .sta-scope .sta-pop input.sta-popq{margin:10px 10px 0;height:36px;width:auto;box-sizing:border-box}
+  .sta-scope .sta-popbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}
+  .sta-scope .sta-popbar b{font-weight:600;color:var(--ink)}
+  .sta-scope .sta-popl{max-height:320px;overflow:auto}
+  .sta-scope label.sta-popi{display:flex;align-items:flex-start;gap:10px;margin:0;padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer;
+    font-size:13px;font-weight:400;line-height:1.35;color:var(--ink);text-transform:none;letter-spacing:0}
+  .sta-scope label.sta-popi:hover{background:var(--hover)}
+  .sta-scope label.sta-popi.on{background:color-mix(in srgb,var(--brand) 6%,var(--card))}
+  .sta-scope label.sta-popi input.sta-cb{flex:none;margin-top:2px}
+  .sta-scope .sta-popt{flex:1 1 auto;min-width:0}
+  .sta-scope .sta-popt b{display:block;font-weight:600;overflow-wrap:anywhere}
+  .sta-scope .sta-popt small{display:block;margin-top:1px;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sta-scope .sta-popt small b{display:inline}
+  .sta-scope .sta-popoos{color:var(--bad-ink)}
+  .sta-scope .sta-poplow{color:var(--act-ink)}
+  .sta-scope .sta-popn{flex:none;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .sta-scope .sta-popnone{margin:0;padding:10px 12px;font-size:12.5px;color:var(--muted)}
+  .sta-scope .sta-popf{padding:9px 12px;font-size:12px;line-height:1.45;color:var(--muted);background:var(--soft);border-radius:0 0 var(--r-row) var(--r-row)}
+  /* Every active filter as a chip that removes itself, with "Showing X of Y terms". */
+  .sta-scope .sta-fchips{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:10px;padding:7px 10px;border-radius:var(--r-row);
+    background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px}
+  .sta-scope .sta-fchips.hide,.sta-scope .sta-winnote.hide{display:none}
+  .sta-scope .sta-fshow{margin-right:4px;font-weight:600;color:var(--ink)}
+  .sta-scope .sta-fchip{display:inline-flex;align-items:center;gap:4px;max-width:100%;height:28px;padding:0 4px 0 10px;border-radius:var(--r-pill);
+    background:var(--chip);color:var(--chip-ink);font-weight:500}
+  .sta-scope .sta-fchip b{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:var(--ink)}
+  .sta-scope button.sta-fx{width:22px;height:22px;padding:0;border:0;border-radius:var(--r-pill);background:transparent;color:var(--muted);font-size:12px;line-height:1;cursor:pointer;box-shadow:none}
+  .sta-scope button.sta-fx:hover{background:var(--hover);color:var(--ink)}
+  /* 7 days: sales still coming in — what that means, and the way back to 30 days. */
+  .sta-scope .sta-winnote{display:flex;align-items:flex-start;gap:10px;margin-top:10px;padding:9px 12px;border-radius:var(--r-row);background:var(--rev-bg);
+    color:var(--rev-ink);font-size:12.5px;line-height:1.5;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rev) 45%,var(--card))}
+  .sta-scope .sta-winnote svg{flex:none;width:18px;height:18px;margin-top:1px;fill:none;stroke:currentColor;stroke-width:2}
+  .sta-scope .sta-winnote b,.sta-scope .sta-winnote .sta-linkbtn{color:inherit}
+  /* The headings over the strip and the boxes. */
+  .sta-scope h3.sta-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin:18px 2px 0;font-size:14px;font-weight:700;color:var(--ink);letter-spacing:0}
+  .sta-scope h3.sta-h small{font-size:12.5px;font-weight:400;color:var(--muted)}
+  .sta-scope h3.sta-h+.sta-sum,.sta-scope h3.sta-h+.sta-boxes{margin-top:8px}
+  .sta-scope .sta-sum>div[title]>small{cursor:help;text-decoration:underline dotted;text-decoration-color:color-mix(in srgb,var(--faint) 70%,transparent);text-underline-offset:3px}
+  .sta-scope table.xl th[title]:not([data-sort]){cursor:help}
+  @media (max-width:620px){
+    .sta-scope .sta-pf{position:relative}
+    .sta-scope .sta-pfw{position:static}
+    .sta-scope .sta-pop{left:0;right:0;width:auto}
+    .sta-scope .sta-acts{margin-left:0}
+  }
+
+  /* ===== MODULE: INVENTORY ===== */  /* ----- INVENTORY AGE (paneAge, inventory/inventory-age.js): the Ad Console look — .adx-meta's line, .ls-toolbar's bar,
+     .adx-box number boxes (a box is also a filter, like .sta-box), the stock's age mix as bars, a flush table card like
+     .sta-tcard whose parent rows open to their SKUs, like Product Performance. Scoped to #paneAge; tokens only.
+     Age colours run green → red with the days (--c, set by class, never inline): ag-b0 0–90, b1 91–180, b2 181–330,
+     b3 331–365, b4 366–455, b5 456+. ----- */
+  #paneAge{--ag-glow:.12}
+  :root[data-theme="dark"] #paneAge{--ag-glow:.2}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) #paneAge{--ag-glow:.2}}
+  #paneAge .hide{display:none}
+  #paneAge .ag-b0{--c:var(--accent)}
+  #paneAge .ag-b1{--c:color-mix(in srgb,var(--accent) 50%,var(--rev))}
+  #paneAge .ag-b2{--c:var(--rev)}
+  #paneAge .ag-b3{--c:var(--act)}
+  #paneAge .ag-b4{--c:var(--bad)}
+  #paneAge .ag-b5{--c:color-mix(in srgb,var(--bad) 62%,var(--violet-ink))}
+  /* The meta line: what the page is, and how fresh each brand's snapshot is (amber past a week). */
+  #paneAge .ag-meta{display:flex;justify-content:space-between;align-items:baseline;gap:4px 16px;flex-wrap:wrap;margin:0 2px 10px;
+    font-size:12px;color:var(--muted)}
+  #paneAge .ag-meta b{color:var(--ink);font-weight:600}
+  #paneAge .ag-meta>span:last-child{color:var(--faint)}
+  #paneAge .ag-meta .is-old,#paneAge .ag-meta .is-old b{color:var(--warn-ink)}
+  /* The toolbar card. */
+  #paneAge .card.ag-toolbar{padding:12px 16px;border-radius:var(--r-card);box-shadow:var(--sh-1);border:1px solid var(--card-line);margin-bottom:12px}
+  #paneAge .ag-tb{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  #paneAge #ageMsg:empty{display:none}
+  #paneAge #ageMsg{margin-top:8px;font-size:12.5px}
+  #paneAge .ag-seg{display:inline-flex;align-items:center;gap:2px;height:auto;padding:3px;border-radius:var(--r-pill);
+    background:var(--hover);border:1px solid var(--line);flex:none}
+  #paneAge .ag-seg .segbtn{border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:600;line-height:1;
+    padding:7px 12px;border-radius:var(--r-pill);box-shadow:none;cursor:pointer;transition:background-color .15s ease,color .15s ease,box-shadow .15s ease}
+  #paneAge .ag-seg .segbtn:hover{color:var(--ink);background:color-mix(in srgb,var(--card) 55%,transparent)}
+  #paneAge .ag-seg .segbtn.on,#paneAge .ag-seg .segbtn.on:hover{background:var(--raise);color:var(--ink);box-shadow:var(--sh-1)}
+  #paneAge .ag-seg .segbtn:focus-visible{outline:2px solid var(--accent);outline-offset:1px;box-shadow:none}
+  #paneAge .ag-sel{flex:0 0 auto;width:auto;max-width:190px;height:var(--ctl);padding:0 30px 0 12px;border:1px solid var(--line);
+    border-radius:var(--r-ctl);background-color:var(--card);font-size:13px;font-weight:600;color:var(--ink)}
+  #paneAge .ag-search{display:flex;align-items:center;gap:8px;flex:1 1 220px;min-width:180px;height:var(--ctl);padding:0 12px;margin:0;
+    border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);color:var(--faint);text-transform:none;letter-spacing:0;font-weight:400}
+  #paneAge .ag-search svg{width:15px;height:15px;flex:none}
+  #paneAge .ag-search input{width:100%;height:100%;min-height:0;margin:0;padding:0;border:0;border-radius:0;background:transparent;
+    background-image:none;box-shadow:none;outline:none;font-size:13.5px;color:var(--ink)}
+  #paneAge .ag-search:focus-within{box-shadow:var(--ring)}
+  #paneAge .ag-btn{height:var(--ctl);padding:0 14px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--card);
+    color:var(--ink);font-size:13px;font-weight:600;line-height:1;box-shadow:none;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
+  #paneAge .ag-btn:hover{background:var(--hover);color:var(--ink);box-shadow:none}
+  #paneAge .ag-btn:focus-visible{outline:none;box-shadow:var(--ring)}
+    #paneAge .ag-btn.ag-dark,#paneAge .ag-btn.ag-dark:hover{background:var(--ink);color:var(--card);border-color:var(--ink);border-radius:var(--r-pill);padding:0 18px}
+  #paneAge .ag-btn.ag-dark:hover{background:color-mix(in srgb,var(--ink) 86%,var(--card))}
+  #paneAge .ag-btn.ag-dark:disabled{opacity:.6;cursor:default}
+  #paneAge .ag-btn .spin{border-color:color-mix(in srgb,var(--card) 35%,transparent);border-top-color:var(--card)}
+  /* Five number boxes, like .adx-box: icon, label, big number, two small lines, the soft corner circle. A box is a button;
+     the one whose focus is on wears the ring. */
+  #paneAge .ag-boxes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0 0 12px}
+  #paneAge button.ag-box,#paneAge button.ag-box:hover,#paneAge button.ag-box:active{--c:var(--brand);position:relative;overflow:hidden;min-width:0;display:flex;
+    flex-direction:column;align-items:stretch;margin:0;padding:12px 14px 10px;background:var(--card);border:1px solid var(--card-line);
+    border-radius:var(--r-card);box-shadow:var(--sh-1);color:var(--ink);font:inherit;font-weight:400;text-align:left;line-height:1.3;cursor:pointer;
+    transition:transform .15s cubic-bezier(.2,.7,.2,1),box-shadow .15s ease,border-color .15s ease}
+  #paneAge button.ag-box::after{content:"";position:absolute;right:-55px;top:-65px;width:160px;height:160px;border-radius:50%;
+    background:radial-gradient(circle,var(--c) 0,transparent 68%);opacity:var(--ag-glow);pointer-events:none}
+  #paneAge button.ag-box:hover{transform:translateY(-3px);box-shadow:var(--sh-2);border-color:color-mix(in srgb,var(--c) 40%,var(--card-line))}
+  #paneAge button.ag-box:active{transform:translateY(-1px) scale(.99)}
+  #paneAge button.ag-box:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 35%,transparent)}
+  #paneAge button.ag-box.on{border-color:color-mix(in srgb,var(--c) 60%,var(--card-line));box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 30%,transparent)}
+  #paneAge .ag-box.is-brand{--c:var(--brand)}
+  #paneAge .ag-box.is-act{--c:var(--act)}
+  #paneAge .ag-box.is-bad{--c:var(--bad)}
+  #paneAge .ag-box.is-vio{--c:var(--violet-ink)}
+  #paneAge .ag-box.is-ok{--c:var(--accent)}
+  #paneAge .ag-l{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+  #paneAge .ag-ic{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:var(--r-sm);color:var(--c);
+    background:color-mix(in srgb,var(--c) 14%,transparent);transition:transform .25s cubic-bezier(.2,.7,.2,1)}
+  #paneAge .ag-ic svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  #paneAge .ag-box:hover .ag-ic{transform:scale(1.1) rotate(-6deg)}
+  #paneAge .ag-v{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:9px 0 3px}
+  #paneAge .ag-v>b{font-size:22px;font-weight:700;letter-spacing:-.025em;line-height:1.15;color:var(--ink);font-variant-numeric:tabular-nums}
+  #paneAge .ag-box.is-act .ag-v>b{color:var(--act-ink)}
+  #paneAge .ag-box.is-bad .ag-v>b{color:var(--bad-ink)}
+  #paneAge .ag-v>span{display:inline-flex;align-items:center;padding:1px 8px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;
+    background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--ink)}
+  #paneAge .ag-note{font-size:11.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #paneAge .ag-note b{color:var(--muted);font-weight:600}
+  #paneAge .ag-go{margin-top:8px;padding-top:7px;border-top:1px solid var(--line);font-size:11.5px;font-weight:600;color:var(--muted)}
+  #paneAge .ag-box.on .ag-go{color:var(--ink)}
+  /* The cards under the boxes. */
+  #paneAge .card.ag-card{border-radius:var(--r-card);box-shadow:var(--sh-1);border:1px solid var(--card-line);margin:0 0 12px}
+  /* Age mix: one stacked bar per brand, the buckets green → red, then the legend with units and shares. */
+  #paneAge .ag-mix{padding:14px 16px}
+  #paneAge .ag-mixhead{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;flex-wrap:wrap;margin-bottom:10px}
+  #paneAge .ag-mixhead b{font-size:14.5px;font-weight:650;color:var(--ink);letter-spacing:-.01em}
+  #paneAge .ag-mixhead small{font-size:12px;color:var(--muted)}
+  #paneAge .ag-mixrow{display:grid;grid-template-columns:72px minmax(0,1fr) 128px;align-items:center;gap:12px;padding:5px 0}
+  #paneAge .ag-mixrow>span{font-size:12.5px;font-weight:600;color:var(--ink);white-space:nowrap}
+  #paneAge .ag-mixrow>em{font-style:normal;font-size:12px;color:var(--muted);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  #paneAge .ag-mixrow>em b{color:var(--ink);font-weight:600}
+  #paneAge .ag-stack{display:flex;height:14px;border-radius:var(--r-pill);overflow:hidden;background:var(--hover);gap:2px}
+  #paneAge .ag-stack i{display:block;height:100%;background:var(--c);min-width:2px;transform-origin:left;animation:ag-grow .5s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes ag-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  #paneAge .ag-legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  #paneAge .ag-lg{display:flex;flex-direction:column;gap:2px;padding:7px 10px;border-radius:var(--r-sm);background:color-mix(in srgb,var(--c) 8%,transparent)}
+  #paneAge .ag-lg small{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+  #paneAge .ag-lg small i{width:9px;height:9px;border-radius:3px;background:var(--c);flex:none}
+  #paneAge .ag-lg b{font-size:15px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  #paneAge .ag-lg b span{font-size:11.5px;font-weight:600;color:var(--muted);margin-left:6px}
+  #paneAge .ag-lg.is-aged small::after{content:"aged";margin-left:auto;padding:0 6px;border-radius:var(--r-pill);font-size:10px;letter-spacing:.04em;
+    text-transform:uppercase;background:color-mix(in srgb,var(--c) 20%,transparent);color:var(--ink)}
+  /* The table card, like .sta-tcard: a title, a line on what it shows, the focus pills; then the calm table. */
+  #paneAge .ag-tcard{padding:0;overflow:hidden}
+  #paneAge .ag-thead{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line)}
+  #paneAge .ag-thead .tt b{display:block;font-size:14.5px;font-weight:650;color:var(--ink);letter-spacing:-.01em}
+  #paneAge .ag-thead .tt small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+  #paneAge .ag-wrap{overflow:auto;max-height:70vh}
+  #paneAge table.ag-tbl{font-size:13.5px}
+  #paneAge table.ag-tbl thead th{background:var(--card);color:var(--faint);font-size:11px;font-weight:700;letter-spacing:.04em;padding:11px 11px;
+    box-shadow:inset 0 -1px 0 var(--line)}
+  #paneAge table.ag-tbl thead th[data-k]:hover{color:var(--ink)}
+  #paneAge table.ag-tbl thead th.is-sorted{color:var(--ink)}
+  #paneAge table.ag-tbl thead th .ag-arw{color:var(--brand-ink);margin-left:3px}
+  /* The group row over the age columns: Healthy · under 181 days, Aged · 181+ days. */
+  #paneAge table.ag-tbl thead tr.ag-grp th{height:28px;padding:6px 10px 0;text-align:center;box-shadow:none;cursor:default;letter-spacing:.08em;vertical-align:bottom}
+  #paneAge table.ag-tbl thead tr.ag-grp th span{display:block;padding-bottom:4px;border-bottom:2px solid var(--line)}
+  #paneAge table.ag-tbl thead tr.ag-grp th.ag-g-ok span{border-color:var(--accent);color:var(--accent-ink)}
+  #paneAge table.ag-tbl thead tr.ag-grp th.ag-g-aged span{border-color:var(--act);color:var(--act-ink)}
+  #paneAge table.ag-tbl thead tr.ag-grp+tr th{top:28px}
+  #paneAge table.ag-tbl tbody td{height:46px;padding:8px 11px;line-height:1.3;background:var(--card)}
+  #paneAge table.ag-tbl tbody tr:nth-child(even) .frz{background:var(--card)}
+  #paneAge table.ag-tbl tbody tr:hover td,#paneAge table.ag-tbl tbody tr:hover td.frz{background:var(--soft)}
+  #paneAge table.ag-tbl .frz{font-family:inherit;border-right:0;box-shadow:1px 0 0 var(--line)}
+  #paneAge table.ag-tbl tfoot td{background:var(--soft);color:var(--ink);font-weight:700}
+  #paneAge table.ag-tbl tfoot .frz{background:var(--soft)}
+  #paneAge .ag-id{font:500 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);letter-spacing:.01em}
+  #paneAge .ag-dash{color:var(--faint)}
+  #paneAge .ag-prod{display:block;max-width:250px;overflow:hidden;text-overflow:ellipsis;font-weight:550;color:var(--ink)}
+  #paneAge .ag-prod+small{display:block;font-size:11.5px;color:var(--faint);margin-top:1px}
+  #paneAge .ag-brand{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:1.4}
+  #paneAge .ag-brand.is-SP{background:var(--brand-bg);color:var(--brand-ink)}
+  #paneAge .ag-brand.is-CPC{background:color-mix(in srgb,var(--violet-ink) 14%,var(--card));color:var(--violet-ink)}
+  #paneAge .ag-kids{display:inline-block;min-width:28px;padding:1px 8px;border-radius:var(--r-pill);background:var(--hover);color:var(--ink);font-size:12px;
+    font-weight:600;text-align:center;font-variant-numeric:tabular-nums}
+  /* An aged bucket's figure sits in a chip whose tint deepens with the size (h1–h4, of the column's largest). */
+  #paneAge .ag-heat{display:inline-block;min-width:44px;padding:3px 8px;border-radius:var(--r-sm);font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink);
+    background:color-mix(in srgb,var(--c) 8%,transparent)}
+  #paneAge .ag-heat.ag-h2{background:color-mix(in srgb,var(--c) 16%,transparent)}
+  #paneAge .ag-heat.ag-h3{background:color-mix(in srgb,var(--c) 26%,transparent)}
+  #paneAge .ag-heat.ag-h4{background:color-mix(in srgb,var(--c) 40%,transparent);font-weight:700}
+  #paneAge td.ag-fresh{color:var(--muted)}
+  /* Total aged: the figure, its share of what is available under it. */
+  #paneAge .ag-tot b{font-weight:700;color:var(--ink)}
+  #paneAge .ag-tot small{display:block;font-size:11px;font-weight:600;color:var(--faint)}
+  #paneAge .ag-tot small.is-hi{color:var(--bad-ink)}
+  #paneAge .ag-tot small.is-mid{color:var(--act-ink)}
+  /* The row's own age mix, a thin stacked bar. */
+  #paneAge td.ag-mixc{min-width:112px}
+  #paneAge .ag-mini{display:flex;width:100px;height:8px;border-radius:var(--r-pill);overflow:hidden;background:var(--hover);gap:1px}
+  #paneAge .ag-mini i{display:block;height:100%;background:var(--c)}
+  /* A parent row opens to its SKUs, like Product Performance: the chevron turns, the SKU rows sit on the soft tint behind a brand rule. */
+  #paneAge tr.ag-prow{cursor:pointer}
+  #paneAge tr.ag-prow:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  #paneAge .ag-chev{display:inline-grid;place-items:center;width:18px;height:18px;margin-right:6px;border-radius:5px;color:var(--faint);vertical-align:-4px;
+    transition:transform .2s ease,background-color .15s ease,color .15s ease}
+  #paneAge .ag-chev svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+  #paneAge tr.ag-prow:hover .ag-chev{background:var(--hover);color:var(--ink)}
+  #paneAge tr.ag-prow.is-open .ag-chev{transform:rotate(90deg);color:var(--brand-ink)}
+  #paneAge tr.ag-prow.is-open td{background:var(--soft)}
+  #paneAge tr.ag-kid td,#paneAge tr.ag-kid td.frz{background:var(--soft);font-size:12.5px;height:38px;padding-top:5px;padding-bottom:5px}
+  #paneAge tr.ag-kid td.frz{box-shadow:inset 3px 0 0 var(--brand),1px 0 0 var(--line);padding-left:36px}
+  #paneAge tr.ag-kid .ag-heat{min-width:38px;padding:2px 7px}
+  #paneAge .ag-empty{padding:28px 16px;text-align:center;color:var(--muted)}
+  #paneAge .ag-empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+  /* The first-run card, before any snapshot exists. */
+  #paneAge .ag-boxes .ag-first{grid-column:1/-1;padding:22px 20px;border:1px dashed var(--line);border-radius:var(--r-card);background:var(--card);color:var(--muted)}
+  #paneAge .ag-first b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+  @media (max-width:1240px){#paneAge .ag-boxes{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media (max-width:860px){
+    #paneAge .ag-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}
+    #paneAge .ag-search{flex-basis:100%}
+    #paneAge .ui-spacer{display:none}
+    #paneAge .ag-mixrow{grid-template-columns:56px minmax(0,1fr)}
+    #paneAge .ag-mixrow>em{grid-column:2;text-align:left}
+  }
+  @media (max-width:520px){#paneAge .ag-boxes{grid-template-columns:minmax(0,1fr)}}
+  @media (prefers-reduced-motion:reduce){#paneAge .ag-stack i,#paneAge .ag-ic,#paneAge .ag-chev,#paneAge button.ag-box{animation:none;transition:none}}
+
+  /* ===== DASHBOARD (20–21 Nov 2026, app/core/dashboard.js) =====
+     The first screen after sign-in. Scoped to #paneDash and the two top-bar buttons (#tabDash, #fxBtn): no other screen changes.
+     .dash-gs = GSAP drives the motion (only a few loops below stay CSS); .dash-fx = no GSAP, the CSS motion; neither = ✨ off or
+     reduced motion: nothing moves. .dash-paused (another screen, a hidden tab) stops every CSS loop. Intro animations give only their
+     FROM state with fill backwards, so anything not animated is simply shown. Only transform, opacity, stroke and filter move.
+     Tokens only: light and dark follow the theme. ===== */
+  /* THE MENU BUTTON: looks like a menu group heading, with no chevron and no menu under it. */
+  .navdash{display:inline-flex;align-items:center;gap:7px;width:auto;height:36px;padding:0 12px;
+    text-align:left;background:transparent;border:0;border-radius:var(--r-pill);box-shadow:none;min-height:0;
+    cursor:pointer;font:inherit;font-size:13.5px;font-weight:500;letter-spacing:0;text-transform:none;
+    color:var(--muted);white-space:nowrap;transition:background-color .15s ease,color .15s ease;
+    --ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='9' rx='1.5'/%3E%3Crect x='14' y='3' width='7' height='5' rx='1.5'/%3E%3Crect x='14' y='12' width='7' height='9' rx='1.5'/%3E%3Crect x='3' y='16' width='7' height='5' rx='1.5'/%3E%3C/svg%3E")}
+  .navdash::before{content:"";flex:none;width:16px;height:16px;background:currentColor;mask:var(--ic) center/contain no-repeat;-webkit-mask:var(--ic) center/contain no-repeat}
+  .navdash:hover{background:var(--hover);color:var(--ink)}
+  .navdash.on,.navdash.on:hover{background:var(--brand-bg);color:var(--brand-ink);font-weight:600}
+  @media (min-width:861px) and (max-width:1199px){ .navdash{padding:0 10px} .navdash::before{display:none} }
+  @media (max-width:860px){ .navdash{width:100%;height:40px;border-radius:var(--r-ctl)} }
+  /* The logo opens the Dashboard (dashboard.js). */
+  .side .brandtile,.side .brandname{cursor:pointer}
+  /* ✨ — the Dashboard's animation switch, beside the theme switch: dimmed when off. */
+  .dashfx span{font-size:16px;line-height:1;transition:opacity .15s ease}
+  .dashfx[aria-pressed="false"] span{opacity:.35;filter:grayscale(1)}
+  @media (prefers-reduced-motion:reduce){ .navdash,.dashfx span{transition:none} }
+
+  /* --- the page and its background: an aurora of four soft colour fields, and a canvas of slow dots --- */
+  #paneDash .dash{position:relative;isolation:isolate;display:flex;flex-direction:column;gap:16px;min-width:0}
+  #paneDash .dash-aurora{position:absolute;inset:-24px -12px;z-index:-2;overflow:hidden;pointer-events:none;border-radius:var(--r-card)}
+  #paneDash .dash-aurora i{position:absolute;width:58%;height:60%;border-radius:50%;opacity:.75}
+  #paneDash .dash-aurora i:nth-child(1){left:-12%;top:-14%;background:radial-gradient(closest-side,color-mix(in srgb,var(--brand) 26%,transparent),transparent)}
+  #paneDash .dash-aurora i:nth-child(2){right:-14%;top:4%;background:radial-gradient(closest-side,color-mix(in srgb,var(--violet-ink) 22%,transparent),transparent)}
+  #paneDash .dash-aurora i:nth-child(3){left:20%;bottom:-18%;background:radial-gradient(closest-side,color-mix(in srgb,color-mix(in srgb,var(--accent) 60%,var(--brand)) 22%,transparent),transparent)}
+  #paneDash .dash-aurora i:nth-child(4){right:6%;bottom:-24%;background:radial-gradient(closest-side,color-mix(in srgb,var(--act) 16%,transparent),transparent)}
+  #paneDash .dash-dots{position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
+  #paneDash .dash-party{position:absolute;inset:0;width:100%;height:100%;z-index:5;pointer-events:none}
+
+  /* --- the hero: greeting (typed, the name shimmering), clock, date, "● Live", the brand pill --- */
+  #paneDash .dash-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  #paneDash .dash-hi{margin:0;min-height:1.2em;font-size:26px;font-weight:700;letter-spacing:-.025em;line-height:1.2}
+  #paneDash .dash-name{background:linear-gradient(100deg,var(--ink) 0 38%,var(--brand) 48%,var(--violet-ink) 54%,var(--ink) 64% 100%);background-size:250% 100%;
+    background-position:100% 0;-webkit-background-clip:text;background-clip:text;color:transparent}
+  #paneDash .dash-date{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-top:4px;font-size:13px;color:var(--muted)}
+  #paneDash .dash-clock{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+  #paneDash .dash-live{display:inline-flex;align-items:center;gap:6px}
+  #paneDash .dash-live i{position:relative;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  #paneDash .dash-live i::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--accent);opacity:0}
+  #paneDash .dash-live b{font-weight:600;color:var(--accent-ink)}
+  #paneDash .dash-brands{position:relative;display:inline-flex;gap:2px;padding:3px;background:color-mix(in srgb,var(--card) 80%,transparent);
+    border:1px solid var(--card-line);border-radius:var(--r-pill);box-shadow:var(--sh-1)}
+  #paneDash .dash-pill{position:absolute;left:0;top:3px;height:30px;border-radius:var(--r-pill);background:var(--brand);opacity:0;z-index:0;
+    box-shadow:0 4px 14px -4px color-mix(in srgb,var(--brand) 70%,transparent)}
+  #paneDash .dash-pill.is-on{opacity:1}
+  #paneDash .dash-brands button{position:relative;z-index:1;height:30px;min-height:0;width:auto;padding:0 14px;border:0;border-radius:var(--r-pill);
+    background:transparent;color:var(--muted);box-shadow:none;font:inherit;font-size:13px;font-weight:500;transition:none}
+  #paneDash .dash-brands button:hover{background:transparent;color:var(--ink)}
+  #paneDash .dash-brands button[aria-pressed="true"],#paneDash .dash-brands button[aria-pressed="true"]:hover{background:transparent;color:var(--on-brand);font-weight:600}
+
+  /* --- the ticker: what needs attention, real numbers, scrolling with motion on --- */
+  #paneDash .dash-slot.is-empty{display:none}
+  #paneDash .dash-ticker{display:flex;align-items:center;gap:12px;width:100%;min-width:0;padding:8px 16px;overflow:hidden;font-size:12.5px;color:var(--muted);
+    background:color-mix(in srgb,var(--card) 72%,transparent);border:1px solid var(--card-line);border-radius:var(--r-pill)}
+  #paneDash .dash-ticker-h{flex:none;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--act-ink)}
+  #paneDash .dash-ticker-v{flex:1;min-width:0;overflow:hidden;-webkit-mask:linear-gradient(90deg,transparent,black 24px,black calc(100% - 24px),transparent);
+    mask:linear-gradient(90deg,transparent,black 24px,black calc(100% - 24px),transparent)}
+  #paneDash .dash-ticker-in{display:inline-flex;flex-wrap:wrap;row-gap:4px;white-space:nowrap}
+  #paneDash .dash-tick{display:inline-flex;align-items:center;margin-right:28px;color:var(--ink);font-weight:500}
+  #paneDash .dash-ticker-copy{display:none}
+  #paneDash.dash-fx .dash-ticker-in,#paneDash.dash-gs .dash-ticker-in{flex-wrap:nowrap;animation:dashMarquee 32s linear infinite}
+  #paneDash.dash-fx .dash-ticker-copy,#paneDash.dash-gs .dash-ticker-copy{display:inline-flex}
+  #paneDash .dash-ticker:hover .dash-ticker-in{animation-play-state:paused}
+
+  /* --- grids --- */
+  #paneDash .dash-grid{display:grid;gap:16px;min-width:0}
+  #paneDash .dash-kpis,#paneDash .dash-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
+  #paneDash .dash-row3{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr)}
+  #paneDash .dash-slot{display:flex;min-width:0}
+  #paneDash .dash-slot>*{flex:1 1 auto;min-width:0}
+  @media (max-width:1100px){
+    #paneDash .dash-kpis,#paneDash .dash-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+    #paneDash .dash-row3{grid-template-columns:minmax(0,1fr)}
+  }
+  @media (max-width:520px){
+    #paneDash .dash-kpis,#paneDash .dash-tiles{grid-template-columns:minmax(0,1fr)}
+    #paneDash .dash-hi{font-size:21px}
+  }
+
+  /* --- a card; the KPI cards are glass, with a rim that turns on hover and a shine --- */
+  #paneDash .dash-card{position:relative;display:flex;flex-direction:column;gap:6px;width:100%;min-width:0;height:auto;min-height:0;
+    margin:0;padding:16px 18px;text-align:left;font:inherit;font-weight:400;color:var(--ink);background:var(--card);
+    border:1px solid var(--card-line);border-radius:var(--r-card);box-shadow:var(--sh-1);transition:none}
+  #paneDash button.dash-card:hover{background:var(--card);color:var(--ink)}
+  #paneDash button.dash-card:disabled{opacity:1;cursor:default}
+  #paneDash .dash-glass{overflow:hidden;background:color-mix(in srgb,var(--card) 70%,transparent);border-color:color-mix(in srgb,var(--ink) 10%,transparent);
+    -webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%)}
+  #paneDash .dash-glass>*{position:relative;z-index:1}
+  #paneDash .dash-glass>.dash-ring,#paneDash .dash-glass>.dash-shine{position:absolute;z-index:0}
+  #paneDash .dash-ring{inset:0;padding:1.5px;border-radius:inherit;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .25s ease;
+    -webkit-mask:linear-gradient(black 0 0) content-box,linear-gradient(black 0 0);-webkit-mask-composite:xor;
+    mask:linear-gradient(black 0 0) content-box,linear-gradient(black 0 0);mask-composite:exclude}
+  #paneDash .dash-ring i{position:absolute;left:50%;top:50%;width:220%;aspect-ratio:1;transform:translate(-50%,-50%);
+    background:conic-gradient(from 0deg,transparent 0 50%,var(--brand) 66%,var(--violet-ink) 78%,var(--accent) 90%,transparent 100%)}
+  #paneDash .dash-glass:hover .dash-ring{opacity:1}
+  #paneDash .dash-shine{top:0;left:0;width:60%;height:100%;pointer-events:none;opacity:0;
+    background:linear-gradient(105deg,transparent 20%,color-mix(in srgb,white 22%,transparent) 50%,transparent 80%)}
+  #paneDash .dash-h{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+  #paneDash .dash-t{display:inline-flex;align-items:center;gap:7px;min-width:0;font-size:12.5px;font-weight:600;color:var(--muted)}
+  #paneDash .dash-ic{display:inline-block;flex:none;font-size:16px;line-height:1}
+  #paneDash .dash-open{flex:none;width:auto;height:26px;min-height:0;padding:0 10px;border:0;border-radius:var(--r-pill);
+    background:transparent;color:var(--brand-ink);box-shadow:none;font:inherit;font-size:12px;font-weight:600;white-space:nowrap;transition:none}
+  #paneDash .dash-open:hover{background:var(--brand-bg);color:var(--brand-ink)}
+  #paneDash .dash-v{font-size:31px;font-weight:700;letter-spacing:-.025em;line-height:1.15;font-variant-numeric:tabular-nums;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneDash .dash-v.is-none{color:var(--faint)}
+  #paneDash .dash-s{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:12.5px;color:var(--muted)}
+  #paneDash .dash-badge{display:inline-flex;align-items:center;padding:1px 8px;border-radius:var(--r-pill);font-size:12px;font-weight:700}
+  #paneDash .dash-badge.is-up{background:var(--accent-bg);color:var(--accent-ink)}
+  #paneDash .dash-badge.is-dn{background:var(--bad-bg);color:var(--bad-ink)}
+  #paneDash .dash-bad{color:var(--bad-ink);font-weight:600}
+  #paneDash .dash-spark{display:block;width:100%;height:34px;margin-top:2px;overflow:visible}
+  #paneDash .dash-spark path{fill:none;stroke:var(--brand);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1}
+  #paneDash .dash-spark.is-act path{stroke:var(--act)}
+  #paneDash .dash-w{margin-top:auto;padding-top:4px;font-size:11.5px;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #paneDash .dash-w.is-old{color:var(--act-ink)}
+  #paneDash .dash-w.is-wait{color:var(--faint)}
+  #paneDash .dash-go{display:inline;width:auto;height:auto;min-height:0;padding:0;border:0;background:none;box-shadow:none;
+    color:var(--brand-ink);font:inherit;font-weight:600;cursor:pointer;transition:none}
+  #paneDash .dash-go:hover{background:none;color:var(--brand-ink);text-decoration:underline}
+  #paneDash .dash-tip{position:absolute;left:0;top:0;z-index:4;pointer-events:none;opacity:0;padding:6px 10px;border-radius:8px;
+    background:var(--ink);color:var(--card);font-size:12px;line-height:1.35;white-space:nowrap;box-shadow:var(--sh-2)}
+  #paneDash .dash-tip b{display:block;font-weight:700}
+  #paneDash .dash-tip.is-on{opacity:1}
+
+  /* --- loading: a shimmer stands in for a number not known yet (the very first visit) --- */
+  #paneDash .dash-sk{position:relative;display:inline-block;vertical-align:middle;height:1em;min-width:36px;overflow:hidden;border-radius:6px;background:var(--hover)}
+  #paneDash .dash-v .dash-sk{height:30px}
+  #paneDash .dash-step b .dash-sk{height:24px}
+  #paneDash .dash-tile b .dash-sk{height:26px}
+  #paneDash .dash-sk.is-chart{display:block;width:100%;height:110px;margin-top:6px}
+  #paneDash .dash-sk.is-round{width:116px;height:116px;border-radius:50%}
+  #paneDash .dash-sk::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--card) 65%,transparent),transparent)}
+
+  /* --- ROW B: the listing flow — boxes with an inner glow, glowing pipes, dots running through them --- */
+  #paneDash .dash-flowrow{position:relative;display:grid;align-items:center;margin:8px 0 2px;
+    grid-template-columns:minmax(0,1fr) 44px minmax(0,1fr) 44px minmax(0,1fr) 44px minmax(0,1fr) 44px minmax(0,1fr)}
+  #paneDash .dash-step{--tone:var(--brand);position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;min-width:0;
+    height:auto;min-height:0;margin:0;padding:12px 14px;text-align:left;font:inherit;font-weight:400;color:var(--ink);
+    background:var(--soft);border:1px solid var(--card-line);border-radius:var(--r-row);box-shadow:none;transition:none}
+  #paneDash .dash-step::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    box-shadow:inset 0 0 22px color-mix(in srgb,var(--tone) 22%,transparent)}
+  #paneDash .dash-step:hover{background:var(--hover);color:var(--ink)}
+  #paneDash .dash-step:disabled{opacity:1;cursor:default}
+  #paneDash .dash-step:disabled:hover{background:var(--soft)}
+  #paneDash .dash-step-l{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  #paneDash .dash-step b{font-size:25px;font-weight:700;letter-spacing:-.02em;line-height:1.2;font-variant-numeric:tabular-nums}
+  #paneDash .dash-step small{font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  #paneDash .dash-step.is-act{--tone:var(--act);background:var(--act-bg);border-color:var(--act-bg)}
+  #paneDash .dash-step.is-act b{color:var(--act-ink)}
+  #paneDash .dash-step.is-bad{--tone:var(--bad);background:var(--bad-bg);border-color:var(--bad-bg)}
+  #paneDash .dash-step.is-bad b{color:var(--bad-ink)}
+  #paneDash .dash-step.is-bad::before{content:"";position:absolute;inset:-3px;border-radius:calc(var(--r-row) + 3px);pointer-events:none;
+    box-shadow:0 0 0 2px color-mix(in srgb,var(--bad) 55%,transparent),0 0 22px color-mix(in srgb,var(--bad) 45%,transparent);opacity:calc(var(--glow,0) * .9)}
+  #paneDash .dash-step.is-brand{--tone:var(--brand);background:var(--brand-bg);border-color:var(--brand-bg)}
+  #paneDash .dash-step.is-brand b{color:var(--brand-ink)}
+  #paneDash .dash-step.is-ok{--tone:var(--accent);background:var(--accent-bg);border-color:var(--accent-bg)}
+  #paneDash .dash-step.is-ok b{color:var(--accent-ink)}
+  #paneDash .dash-arrow{display:flex;align-items:center;justify-content:center;min-width:0}
+  #paneDash .dash-pipe svg{width:100%;height:14px;overflow:visible}
+  #paneDash .dash-pipe-bg{fill:none;stroke:color-mix(in srgb,var(--brand) 16%,transparent);stroke-width:7;stroke-linecap:round}
+  #paneDash .dash-pipe-p,#paneDash .dash-pipe-h{fill:none;stroke:var(--brand);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;opacity:.6;
+    filter:drop-shadow(0 0 3px color-mix(in srgb,var(--brand) 60%,transparent))}
+  #paneDash .dash-pipe.is-hot .dash-pipe-p,#paneDash .dash-pipe.is-hot .dash-pipe-h{opacity:1;filter:drop-shadow(0 0 6px var(--brand))}
+  #paneDash .dash-flowdot{fill:var(--brand);opacity:0;filter:drop-shadow(0 0 3px var(--brand))}
+  #paneDash .dash-track{position:absolute;left:0;right:0;top:50%;height:16px;margin-top:-8px;z-index:0;pointer-events:none;overflow:hidden}
+  #paneDash .dash-runner{display:none;position:absolute;left:0;top:8px;width:100%;height:0}
+  #paneDash .dash-runner i{position:absolute;left:0;top:-4px;width:8px;height:8px;margin-left:-4px;border-radius:50%;
+    background:var(--brand);box-shadow:0 0 0 4px var(--brand-bg)}
+  @media (max-width:700px){
+    #paneDash .dash-flowrow{grid-template-columns:minmax(0,1fr)}
+    #paneDash .dash-arrow{height:28px}
+    #paneDash .dash-pipe svg{width:28px;transform:rotate(90deg)}
+    #paneDash .dash-track{left:50%;right:auto;top:0;bottom:0;width:16px;height:auto;margin:0 0 0 -8px}
+    #paneDash .dash-runner{left:8px;top:0;width:0;height:100%}
+    #paneDash .dash-runner i{left:-4px;top:0;margin:-4px 0 0}
+  }
+
+  /* --- ROW C: donuts, the 90-day line, the PPC bars --- */
+  #paneDash .dash-donuts{display:flex;flex-wrap:wrap;justify-content:space-around;gap:10px;margin-top:4px}
+  #paneDash .dash-donut{margin:0;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+  #paneDash .dash-donut svg{width:136px;height:136px;overflow:visible}
+  #paneDash .dash-donut figcaption{font-size:12.5px;font-weight:600;color:var(--muted)}
+  #paneDash .dash-seg{fill:none;stroke-width:16;cursor:pointer}
+  #paneDash .dash-seg.is-c{stroke:var(--bad)}
+  #paneDash .dash-seg.is-a{stroke:var(--act)}
+  #paneDash .dash-seg.is-r{stroke:var(--rev)}
+  #paneDash .dash-seg.is-h{stroke:var(--accent)}
+  #paneDash .dash-seg.is-m{stroke:color-mix(in srgb,var(--accent) 40%,var(--line))}
+  #paneDash .dash-seg.is-u{stroke:var(--line)}
+  #paneDash.dash-fx .dash-seg{transition:transform .2s ease}
+  #paneDash .dash-dm{fill:none;stroke-width:24;stroke-dasharray:1}
+  #paneDash .dash-mid{font-size:20px;font-weight:700;fill:var(--ink);font-variant-numeric:tabular-nums}
+  #paneDash .dash-midl{font-size:10px;fill:var(--faint)}
+  #paneDash .dash-mini{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 8px;font-size:11.5px;font-variant-numeric:tabular-nums}
+  #paneDash .dash-mini span.is-on{font-weight:700;color:var(--ink)}
+  #paneDash .dash-key{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 6px;font-size:11.5px;color:var(--muted)}
+  #paneDash .dash-key>span{padding:1px 6px;border-radius:var(--r-pill)}
+  #paneDash .dash-chip.is-on{background:var(--hover);color:var(--ink);font-weight:600}
+  #paneDash .dash-dot{display:inline-block;width:8px;height:8px;margin-right:4px;border-radius:50%;vertical-align:0}
+  #paneDash .dash-dot.is-c{background:var(--bad)}
+  #paneDash .dash-dot.is-a{background:var(--act)}
+  #paneDash .dash-dot.is-r{background:var(--rev)}
+  #paneDash .dash-dot.is-h{background:var(--accent)}
+  #paneDash .dash-dot.is-m{background:color-mix(in srgb,var(--accent) 40%,var(--line))}
+  #paneDash .dash-dot.is-u{background:var(--line)}
+  #paneDash .dash-dot.is-sales{background:var(--brand)}
+  #paneDash .dash-dot.is-spend{background:var(--act)}
+  #paneDash .dash-dot.is-run{background:repeating-linear-gradient(45deg,var(--brand) 0 2px,transparent 2px 4px)}
+  #paneDash .dash-chart{display:block;width:100%;height:auto;overflow:visible}
+  #paneDash .dash-linechart{cursor:crosshair}
+  #paneDash .dash-line{fill:none;stroke:var(--brand);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:1;
+    filter:drop-shadow(0 2px 4px color-mix(in srgb,var(--brand) 45%,transparent))}
+  #paneDash .dash-st1{stop-color:var(--brand);stop-opacity:.32}
+  #paneDash .dash-st2{stop-color:var(--brand);stop-opacity:0}
+  #paneDash .dash-base{stroke:var(--line);stroke-width:1}
+  #paneDash .dash-axis{font-size:9.5px;fill:var(--faint)}
+  #paneDash .dash-star{fill:var(--rev);stroke:var(--card);stroke-width:.8}
+  #paneDash .dash-toplabel{font-weight:600;fill:var(--muted)}
+  #paneDash .dash-cross-l{stroke:var(--faint);stroke-width:1;stroke-dasharray:3 3}
+  #paneDash .dash-cross-c{fill:var(--card);stroke:var(--brand);stroke-width:2}
+  #paneDash .dash-ride{fill:var(--brand);filter:drop-shadow(0 0 5px var(--brand))}
+  #paneDash .dash-ride-p{fill:var(--brand);opacity:0;transform-box:fill-box;transform-origin:center}
+  #paneDash .dash-bar{transform-box:fill-box;transform-origin:50% 100%}
+  #paneDash .dash-bar.is-sales:not(.is-run){fill:var(--brand)}
+  #paneDash .dash-bar.is-spend{fill:var(--act)}
+  #paneDash .dash-bar.is-spend.is-run{opacity:.55}
+  #paneDash .dash-stripe-a{fill:color-mix(in srgb,var(--brand) 45%,transparent)}
+  #paneDash .dash-stripe-b{fill:var(--brand)}
+  #paneDash .dash-hit{fill:transparent}
+  #paneDash .dash-week.is-on .dash-bar{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--brand) 70%,transparent))}
+
+  /* --- ROW D: needs attention — each tile in its colour, breathing while its number is above 0 --- */
+  #paneDash .dash-tile{--tone:var(--brand);--tone-ink:var(--brand-ink);cursor:pointer}
+  #paneDash .dash-tile.is-violet{--tone:var(--violet-ink);--tone-ink:var(--violet-ink)}
+  #paneDash .dash-tile.is-red{--tone:var(--bad);--tone-ink:var(--bad-ink)}
+  #paneDash .dash-tile.is-orange{--tone:var(--act);--tone-ink:var(--act-ink)}
+  #paneDash .dash-tile.is-teal{--tone:color-mix(in srgb,var(--accent) 60%,var(--brand));--tone-ink:var(--accent-ink)}
+  #paneDash .dash-tile b{font-size:27px;font-weight:700;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums}
+  #paneDash .dash-tile.is-hot b{color:var(--tone-ink)}
+  #paneDash .dash-tile .dash-more{font-size:12.5px;color:var(--muted)}
+  #paneDash .dash-tile .dash-open{align-self:flex-start;margin-top:2px;padding:0}
+  #paneDash .dash-tile:hover .dash-open{text-decoration:underline;background:transparent}
+  #paneDash .dash-tile.is-hot::after{content:"";position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;opacity:.3;
+    box-shadow:0 0 0 1.5px color-mix(in srgb,var(--tone) 55%,transparent),0 0 26px color-mix(in srgb,var(--tone) 35%,transparent)}
+
+  /* --- MOTION. Loops shared by both engines (CSS), then the CSS-only engine (.dash-fx), then pausing and reduced motion. --- */
+  @keyframes dashUp{from{opacity:0;transform:translateY(16px) scale(.96)}}
+  @keyframes dashFade{from{opacity:0}}
+  @keyframes dashDraw{from{stroke-dashoffset:1}}
+  @keyframes dashRise{from{transform:scaleY(0)}}
+  @keyframes dashRun{0%{transform:translateX(0);opacity:0}6%{opacity:1}94%{opacity:1}100%{transform:translateX(100%);opacity:0}}
+  @keyframes dashRunY{0%{transform:translateY(0);opacity:0}6%{opacity:1}94%{opacity:1}100%{transform:translateY(100%);opacity:0}}
+  @keyframes dashDrift{from{transform:translate(0,0) scale(1)}to{transform:translate(9%,11%) scale(1.15)}}
+  @keyframes dashBreath{0%,100%{opacity:.18}50%{opacity:.85}}
+  @keyframes dashPing{from{opacity:.6;transform:scale(1)}to{opacity:0;transform:scale(2.8)}}
+  @keyframes dashShimmer{0%{background-position:100% 0}60%,100%{background-position:-60% 0}}
+  @keyframes dashMarquee{to{transform:translateX(-50%)}}
+  @keyframes dashSpin{to{transform:translate(-50%,-50%) rotate(360deg)}}
+  @keyframes dashShim{to{transform:translateX(100%)}}
+  @keyframes dashStripe{to{transform:translateX(6px)}}
+  #paneDash.dash-fx .dash-name,#paneDash.dash-gs .dash-hero.is-typed .dash-name{animation:dashShimmer 6s ease-in-out .4s infinite}
+  #paneDash.dash-fx .dash-live i::after,#paneDash.dash-gs .dash-live i::after{animation:dashPing 1.8s ease-out infinite}
+  #paneDash.dash-fx .dash-glass:hover .dash-ring i,#paneDash.dash-gs .dash-glass:hover .dash-ring i{animation:dashSpin 3s linear infinite}
+  #paneDash.dash-fx .dash-tile.is-hot::after,#paneDash.dash-gs .dash-tile.is-hot::after{animation:dashBreath 3.2s ease-in-out 1.2s infinite}
+  #paneDash.dash-fx .dash-sk::after,#paneDash.dash-gs .dash-sk::after{animation:dashShim 1.3s ease-in-out infinite}
+  #paneDash.dash-gs .dash-pill{will-change:transform}
+  /* without GSAP: the same page in CSS */
+  #paneDash.dash-fx .dash-hero{animation:dashUp .5s cubic-bezier(.2,.7,.2,1) backwards}
+  #paneDash.dash-fx .dash-pill{transition:transform .35s cubic-bezier(.2,.7,.2,1)}
+  #paneDash.dash-fx .dash-aurora i{animation:dashDrift 18s ease-in-out infinite alternate}
+  #paneDash.dash-fx .dash-aurora i:nth-child(2){animation-duration:23s;animation-delay:-7s}
+  #paneDash.dash-fx .dash-aurora i:nth-child(3){animation-duration:27s;animation-delay:-13s}
+  #paneDash.dash-fx .dash-aurora i:nth-child(4){animation-duration:31s;animation-delay:-4s}
+  #paneDash.dash-fx .dash-card{transition:transform .2s ease}
+  #paneDash.dash-fx .dash-card:hover{transform:translateY(-3px)}
+  #paneDash.dash-fx .dash-step{transition:transform .2s ease}
+  #paneDash.dash-fx .dash-step:hover{transform:translateY(-4px)}
+  #paneDash.dash-fx .dash-slot:not(.is-swap) .dash-card,#paneDash.dash-fx .dash-slot:not(.is-swap) .dash-ticker{animation:dashUp .6s cubic-bezier(.2,.7,.2,1) backwards;animation-delay:calc(var(--i,0) * 80ms + 60ms)}
+  #paneDash.dash-fx .dash-slot:not(.is-swap) .dash-step{animation:dashUp .45s ease-out backwards;animation-delay:calc(var(--i,0) * 80ms + var(--s,0) * 170ms + 160ms)}
+  #paneDash.dash-fx .dash-slot:not(.is-swap) .dash-pipe-p,#paneDash.dash-fx .dash-slot:not(.is-swap) .dash-pipe-h{animation:dashDraw .4s ease-out backwards;animation-delay:calc(var(--i,0) * 80ms + var(--s,0) * 170ms + 250ms)}
+  #paneDash.dash-fx .dash-slot:not(.is-swap) .dash-spark path{animation:dashDraw 1.1s ease-out backwards;animation-delay:calc(var(--i,0) * 80ms + 300ms)}
+  #paneDash.dash-fx .dash-runner{display:block;animation:dashRun 5s linear 1.6s infinite}
+  #paneDash.dash-fx .dash-step.is-bad.has-n::before{animation:dashBreath 2.8s ease-in-out infinite}
+  #paneDash.dash-fx .dash-slot:not(.is-swap) .dash-dm{animation:dashDraw 1.1s cubic-bezier(.3,.6,.2,1) backwards;animation-delay:calc(var(--i,0) * 80ms + 220ms)}
+  #paneDash.dash-fx .dash-slot:not(.is-swap) .dash-line{animation:dashDraw 1.2s ease-out backwards;animation-delay:calc(var(--i,0) * 80ms + 220ms)}
+  #paneDash.dash-fx .dash-slot:not(.is-swap) .dash-area{animation:dashFade .9s ease-out backwards;animation-delay:calc(var(--i,0) * 80ms + 700ms)}
+  #paneDash.dash-fx .dash-slot:not(.is-swap) .dash-top{animation:dashFade .5s ease-out backwards;animation-delay:calc(var(--i,0) * 80ms + 1100ms)}
+  #paneDash.dash-fx .dash-ride-p,#paneDash.dash-gs .dash-ride-p{animation:dashPing 1.8s ease-out 1.6s infinite}
+  #paneDash.dash-fx .dash-slot:not(.is-swap) .dash-bar{animation:dashRise .6s cubic-bezier(.2,.7,.2,1) backwards;animation-delay:calc(var(--i,0) * 80ms + var(--b,0) * 45ms + 220ms)}
+  #paneDash.dash-fx .dash-stripes{animation:dashStripe .8s linear infinite}
+  @media (max-width:700px){ #paneDash.dash-fx .dash-runner{animation-name:dashRunY} }
+  /* stopped: another screen is open or the tab is hidden */
+  #paneDash.dash-paused *,#paneDash.dash-paused *::before,#paneDash.dash-paused *::after{animation-play-state:paused}
+  @media (prefers-reduced-motion:reduce){ #paneDash *,#paneDash *::before,#paneDash *::after{animation:none;transition:none} }
+  /* ================= NUMBERS CHECK (21 Nov 2026, app/sales/sales-check.js) =================
+     The chip on the Dashboard (under the greeting) and on the Sales Dashboard (top bar), and the Numbers Check page: summary cards,
+     the checks table, the rule book. Only the app's own tokens, so light and dark follow the theme. */
+  .nc-chip{display:inline-flex;align-items:center;gap:6px;width:auto;height:28px;min-height:0;margin:0;padding:0 12px;
+    border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:var(--r-pill);
+    background:var(--accent-bg);color:var(--accent-ink);box-shadow:none;font-size:12.5px;font-weight:600;line-height:1;
+    white-space:nowrap;cursor:pointer}
+  .nc-chip[hidden]{display:none}
+  .nc-chip:hover{filter:brightness(.97)}
+  .nc-chip.is-warn{border-color:color-mix(in srgb,var(--act) 40%,transparent);background:var(--act-bg);color:var(--act-ink)}
+  .nc-chip.is-wait{border-color:var(--line);background:var(--soft);color:var(--muted)}
+  #paneDash .nc-chip{margin-top:10px}
+  #paneNcheck .nc-wrap{max-width:1280px}
+  .nc-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:16px}
+  .nc-head p{margin:0;color:var(--muted);font-size:13px;flex:1 1 360px}
+  .nc-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px}
+  @media (max-width:900px){ .nc-kpis{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .nc-kpi{padding:14px 16px;border:1px solid var(--card-line);border-radius:var(--r-card);background:var(--card);box-shadow:var(--sh-1)}
+  .nc-kpi .lbl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .nc-kpi .val{margin-top:8px;font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.2}
+  .nc-kpi .sub{margin-top:4px;font-size:12px;color:var(--muted)}
+  .nc-kpi.is-ok .val{color:var(--accent-ink)}
+  .nc-kpi.is-warn .val{color:var(--act-ink)}
+  .nc-sec{margin:0 0 20px;padding:16px;border:1px solid var(--card-line);border-radius:var(--r-card);background:var(--card);box-shadow:var(--sh-1)}
+  .nc-sec h2{margin:0 0 4px;font-size:16px;font-weight:700;color:var(--ink)}
+  .nc-sec > .muted{margin:0 0 12px;font-size:12.5px}
+  .nc-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .nc-tbl{width:100%;min-width:820px;border-collapse:collapse;font-size:13px}
+  .nc-tbl th{padding:8px 10px;border-bottom:1px solid var(--line);background:var(--soft);color:var(--muted);font-size:11.5px;font-weight:600;
+    text-align:left;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+  .nc-tbl td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+  .nc-tbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .nc-tbl td.num{min-width:150px;max-width:220px;white-space:normal}
+  .nc-tbl tr.nc-grp td{padding:12px 10px 6px;border-bottom:0;background:transparent}
+  .nc-tbl tr.nc-grp .nc-name{font-size:13.5px}
+  .nc-tbl .nc-tol{margin-left:10px;font-size:11.5px;color:var(--muted)}
+  .nc-tbl tr.is-skip td{color:var(--muted)}
+  .nc-tbl tr.is-warn td:first-child{box-shadow:inset 3px 0 0 var(--act)}
+  .nc-tbl tr.is-ok td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+  .nc-tbl .nc-name{font-weight:600;color:var(--ink)}
+  .nc-tbl .nc-sub{display:block;margin-top:2px;font-size:11.5px;font-weight:400;color:var(--muted)}
+  .nc-tbl .nc-why{min-width:240px;max-width:420px;font-size:12px;color:var(--muted);white-space:normal}
+  .nc-mark{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:var(--r-pill);font-size:12px;font-weight:700;white-space:nowrap}
+  .nc-mark.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  .nc-mark.is-warn{background:var(--act-bg);color:var(--act-ink)}
+  .nc-mark.is-skip{background:var(--soft);color:var(--muted)}
+  .nc-mark.is-note{background:var(--brand-bg);color:var(--brand-ink)}
+  .nc-mark.is-defn{background:var(--rev-bg);color:var(--rev-ink)}
+  .nc-tbl tr.is-defn td:first-child{box-shadow:inset 3px 0 0 var(--rev)}
+  .nc-diag{margin-top:14px}
+  .nc-diag h3{margin:16px 0 4px;font-size:14px;color:var(--ink)}
+  .nc-diag .nc-tbl td:nth-child(-n+2){white-space:nowrap}
+  /* PPC & Organic: a row with no brand (ads/ppc-organic.js wRenderUnassigned) */
+  .w-unas{display:inline-block;margin-left:6px;padding:0 6px;border-radius:var(--r-pill);background:var(--act-bg);color:var(--act-ink);font:600 10.5px/16px inherit;font-family:inherit;vertical-align:1px}
+  .nc-na{color:var(--faint);font-weight:500;font-style:italic}
+  .nc-tbl tr.is-note td:first-child{box-shadow:inset 3px 0 0 var(--brand)}
+  .nc-tbl tr.is-skip td:first-child{box-shadow:inset 3px 0 0 var(--line)}
+  .nc-rules{display:grid;gap:6px}
+  .nc-rules details{border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  .nc-rules summary{display:flex;gap:10px;align-items:baseline;padding:9px 12px;cursor:pointer;list-style:none;font-size:13px;color:var(--ink)}
+  .nc-rules summary::-webkit-details-marker{display:none}
+  .nc-rules summary::before{content:"▸";color:var(--faint);transition:transform .12s ease}
+  .nc-rules details[open] summary::before{transform:rotate(90deg)}
+  .nc-rules summary b{flex:none;min-width:150px}
+  .nc-rules summary span{color:var(--muted)}
+  .nc-rules dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0;padding:4px 14px 12px 34px;font-size:12.5px}
+  .nc-rules dt{color:var(--muted);font-weight:600}
+  .nc-rules dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
+  .nc-rules code{font-size:11.5px}
+  .nc-risk{margin:12px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink)}
+  .nc-risk li{margin:3px 0}
+  @media (max-width:700px){
+    .nc-rules summary{flex-wrap:wrap}
+    .nc-rules summary b{min-width:0}
+    .nc-rules dl{grid-template-columns:1fr;padding-left:14px}
+    .nc-kpi .val{font-size:20px}
+  }
+  @media (prefers-reduced-motion:reduce){ .nc-rules summary::before{transition:none} }

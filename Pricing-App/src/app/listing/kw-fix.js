@@ -97,7 +97,7 @@ function kfItemOf(brand, row, ctx, kid) {
   let full = lrKwBytes(kw) >= bytes && (!lmCut || lrKwBytes(kw) > lrKwBytes(lmKw));
   if (!full && lmKw && !lmCut && lrKwBytes(lmKw) >= bytes) { kw = lmKw; full = true; }   // a live read kept 300 letters; the cache has it whole
   if (read) { kw = read.kw; full = true; }                                 // read whole for this, from Amazon
-  const label = kid && typeof faLabel === 'function' ? faLabel(kid, ctx) : [typeof lrColorOf === 'function' ? lrColorOf(fresh) : '', (hTitleSizes(hTitleText(fresh))[0] || {}).text || ''].filter(Boolean).join(' · ') || row.sku;
+  const label = kid && typeof faLabel === 'function' ? faLabel(kid, ctx) : [typeof lrColorOf === 'function' ? lrColorOf(fresh) : '', (hTitleSizes(hTitleText(fresh), lrIsRound(fresh))[0] || {}).text || ''].filter(Boolean).join(' · ') || row.sku;
   const pt = (read && read.pt) || (kid && kid.lr && kid.lr.pt) || (m && m.pt) || '';
   return { key, brand, sku: row.sku, asin: row.asin || '', parent: row.parent || row.asin || row.sku || '—', label, title: hTitleText(fresh), kw, full, pt, brands: kfBrands(fresh, ctx.cfg),
     // what the suggestion-words rule protects for this listing (its product, real shape, material, own colour, size)

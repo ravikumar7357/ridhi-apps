@@ -30,7 +30,7 @@
  * and this page's own read-only copy of the finished-goods ledger (fgiLoad is not used: it can rewrite the Amazon
  * listings index). */
 
-const FR = { built: false, shown: false, sel: 0, items: [], fg: null, at: '', loading: false, cards: [], tick: new Set(), subOpen: new Set() };
+const FR = { built: false, shown: false, sel: 0, items: [], fg: null, dem: null, at: '', loading: false, cards: [], tick: new Set(), subOpen: new Set() };
 const frMay = tab => !!(ME && (ME.admin || (ME.tabs || []).includes(tab)));
 const frTry = (f, d) => { try { return f(); } catch (e) { return d; } };
 const frNum = v => Number(v) || 0;
@@ -43,6 +43,32 @@ const frGates = async () => { if (typeof ptLoadGates === 'function') await ptLoa
 
 /* ---------- the work ---------- */
 
+/** Printer-change requests waiting for this person (approvers only; nobody else reads anything for them). They come from the
+ *  production flow when it is loaded, else from the bell's own one-time read of the demand lines (FR.dem). */
+function frPrnWaiting() {
+  if (typeof flowPrnMay !== 'function' || !flowPrnMay()) return [];
+  if (typeof FLOW !== 'undefined' && FLOW.dem && typeof flowPrnWaiting === 'function') return flowPrnWaiting();
+  return Object.entries(FR.dem || {}).filter(([, x]) => x && x.printerMove && x.printerMove.status === 'waiting').map(([key, x]) => ({ key, x, req: x.printerMove }));
+}
+/** Before approving: the production flow's data must be in memory, as the approve works on it. */
+async function frPrnReady() {
+  if (!FLOW.dem && typeof flowEnsureData === 'function') await flowEnsureData();
+  if (FLOW.dem) FR.dem = null;
+}
+/** Receive dates waiting for accounts (Vishesh, 23 Nov) — greige and RFD receipts from the Greige Desk, printed goods from the production
+ *  flow; for those who may approve them (right gdpoappr; nobody else reads anything for them). Each comes from the desk or the
+ *  flow when it is loaded, else from the bell's own one-time read (FR.gdFab, FR.chs). */
+function frDateAsks() {
+  if (!frMay('gdpoappr')) return [];
+  const deskOn = typeof GD !== 'undefined' && GD.state && GD.state() === 'ok';
+  const desk = typeof GD !== 'undefined' && GD.dateAsks ? (deskOn ? GD.dateAsks() : GD.dateAsksIn(FR.gdFab)) : [];
+  const chs = typeof FLOW !== 'undefined' && FLOW.ch ? FLOW.ch : FR.chs;
+  const printed = typeof flowDateAsksWaiting === 'function' ? flowDateAsksWaiting(chs || {}) : [];
+  return [...desk.map(x => ({ kind: x.kind, id: x.id, no: x.no, po: x.po, ask: x.ask, m: x.m, unit: 'm' })),
+    ...printed.map(w => ({ kind: 'Printed goods', chNo: w.no, id: w.id, no: w.no, po: w.ch.orderNo || '', ask: w.ask, m: Object.values(w.rc.items || {}).reduce((n, v) => n + (+v || 0), 0) }))];
+}
+/** Before approving a printed-goods date: the production flow's challans must be in memory, as the approve works on them. */
+async function frDateReady() { if (!FLOW.ch && typeof flowLoad === 'function') await flowLoad(); }
 /** Every card: approvals one per item; waiting and problems one per kind. A card is
  *  { grp, tab, title, detail, lines, n, open, act } and act = { label, what(), prep(), run() → '' | error,
  *  bulk (may go in Approve all), danger, own (opens the screen's own window instead of asking here) }. */
@@ -63,6 +89,32 @@ function frCards() {
           return `Job work entry for ${q.empName || '—'} (${q.sku || ''}) changes: ${d.length ? d.map(x => `${x[0]} ${x[1]} → ${x[2]}`).join(', ') : Object.entries(q.change || {}).map(([k, v]) => `${k} → ${v}`).join(', ')}.`; },
         run: () => jwCorrApprove(q.id) });
   });
+  /* Goods rejected on receive (Ravi, 19 Nov: "ravi must be informed") — admins; "Seen" takes it off every admin's bell
+   * (vendors/portal/printer-receive.js). */
+  if (ME.admin && typeof vprRejPending === 'function') vprRejPending().forEach(r => item('vend',
+    `Rejected · ${r.printer || r.code} · ${frNum(r.qty)} ${r.unit === 'm' ? 'm' : 'pcs'} · ${r.orderNo || ''}`,
+    [r.reason, frQ(r.note), r.sku, r.fabric, r.by && 'by ' + String(r.by).split('@')[0]].filter(Boolean).join(' · '),
+    () => vprOpenPrinter(r.code),
+    { label: 'Seen', bulk: true, what: () => `Marks the reject of ${frNum(r.qty)} ${r.unit} on ${r.orderNo} (${r.printer}) as seen. It leaves every admin's bell; the printer still owes it.`,
+      run: () => vprRejSeen(r.id) }));
+  /* Printer changes asked on an RFD challan (Vishesh, 23 Nov) — for those allowed to approve them (right flprn). Approve is the
+   * Greige Desk's own flowPrnApprove; not in Approve all, because it moves work from one printer to another. */
+  frPrnWaiting().forEach(({ key, req }) => item('gdesk',
+    `Printer change · ${req.orderNo || ''} · ${req.sku || ''}: ${(req.from || {}).name || '—'} → ${(req.to || {}).name || '—'} · ${frNum(req.pcs)} pcs`,
+    [req.fabric, req.by && 'asked by ' + req.by].filter(Boolean).join(' · '),
+    () => { showTab('gdesk'); GD.open('inv'); },
+    { label: 'Approve', prep: frPrnReady,
+      what: () => `Moves ${frNum(req.pcs)} pcs of ${req.sku} (order ${req.orderNo}) from ${(req.from || {}).name || '—'} to ${(req.to || {}).name || '—'} on the RFD challan.`,
+      run: async () => (await flowPrnApprove(key)) || '' }));
+  /* Receive dates asked on a receipt (Vishesh, 23 Nov): greige, RFD and printed goods. Approve moves only that receipt's date; the
+   * Greige Desk's own card also has Refuse. Not in Approve all: it changes the books' date. */
+  frDateAsks().forEach(x => item('gdesk',
+    `Receive date · ${x.kind} · ${x.no || '—'}${x.po ? ' · ' + x.po : ''}: asked ${x.ask.date}`,
+    [x.kind === 'Printed goods' ? `${frNum(x.m)} received` : `${frNum(x.m)} m`, x.ask.by && 'asked by ' + x.ask.by, 'counted on today until approved'].filter(Boolean).join(' · '),
+    () => { showTab('gdesk'); GD.open('po'); },
+    { label: 'Approve', prep: x.kind === 'Printed goods' ? frDateReady : async () => { await GD.ensure(); },
+      what: () => `The ${x.kind.toLowerCase()} receipt ${x.no || ''} moves from today to ${x.ask.date}. Its challan, lot and PO stay as they are.`,
+      run: async () => (x.kind === 'Printed goods' ? await flowDateDecide(x.chNo, x.id, true) : await GD.dateDecide(x.id, true)) || '' }));
   /* Sales-order lines asked to be deleted — odrDeleteRun([id]) really deletes them: red warning, never in Approve all. */
   if (frMay('so') && frTry(odrCanAnswer, false) && ODR.rows) odrPending().forEach(r => item('so', `Delete ${r.sku || ''} from sales order ${r.orderNo || ''}`,
     [`${frNum(r.qty)} pcs`, frQ(r.why), r.by && 'asked by ' + r.by].filter(Boolean).join(' · '),
@@ -165,6 +217,12 @@ async function frLoad(force) {
     if (frMay('fgi') && frTry(fgiCanEdit, false)) jobs.push(() => fgiCorrLoad());
   }
   if (frMay('hr') && (ME.admin || frTry(prCanApprove, false)) && (force || HR.emp === null)) jobs.push(() => { if (force) HR.emp = null; return ensureHr(); });
+  if (ME.admin && typeof vprRejLoad === 'function' && (force || VPR_REJ.rows === null)) jobs.push(() => vprRejLoad());
+  /* Printer-change requests: approvers only, and only when the production flow is not loaded (it holds them already). */
+  if (typeof flowPrnMay === 'function' && flowPrnMay() && !FLOW.dem && (force || !FR.dem)) jobs.push(() => ptGet('pt_flowDemand').then(v => { FR.dem = v || {}; }));
+  /* Receive dates waiting for accounts: approvers only, and only what the desk and the flow have not already loaded. */
+  if (frMay('gdpoappr') && typeof GD !== 'undefined' && GD.fabNode && GD.state() !== 'ok' && (force || !FR.gdFab)) jobs.push(() => ptGet(GD.fabNode()).then(v => { FR.gdFab = v || {}; }));
+  if (frMay('gdpoappr') && typeof FLOW !== 'undefined' && !FLOW.ch && (force || !FR.chs)) jobs.push(() => ptGet('pt_flowChallans').then(v => { FR.chs = v || {}; }));
   for (const job of jobs) {
     try { await job(); } catch (e) { console.warn('[my work]', e); }
     frDraw(); frCount();
@@ -218,7 +276,8 @@ const FR_GROUPS = [['approve', 'Needs your approval', 'fr-warn', '✓'], ['wait'
  * the screen's own window have no tick box — they are never approved in a batch. */
 const FR_SUBS = [[/^Job work correction/, 'Job work corrections'], [/^Quantity change/, 'Order quantity changes'],
   [/^Extra hours/, 'Extra hours to authorise'], [/^Printer rate/, 'Printer rates'], [/^Sales order/, 'Sales orders to review'],
-  [/^Finished goods correction/, 'Finished goods corrections'], [/^Delete /, 'Lines asked to be deleted']];
+  [/^Finished goods correction/, 'Finished goods corrections'], [/^Printer change/, 'Printer changes on RFD challans'], [/^Delete /, 'Lines asked to be deleted'],
+  [/^Receive date/, 'Receive dates waiting for accounts']];
 const FR_SUB_SHOW = 4;
 const frSub = c => { const i = FR_SUBS.findIndex(s => s[0].test(c.title)); return i < 0 ? FR_SUBS.length : i; };
 const frSubName = i => (FR_SUBS[i] || [0, 'Other approvals'])[1];
@@ -355,7 +414,7 @@ function frWire(cards, bulk, ticked) {
 /* ROLES (admins) — the ready-made roles (roles.js, made from R-one's own access): each one's screens and permissions,
  * in the menu's words. "View as" shows this page as that role. */
 const FR_TAB_NAMES = { flppc: 'PPC', fldem: 'Demand', flacc: 'Accessories (flow)', flchl: 'Challans', flcut: 'To cut', flraw: 'Raw cutting',
-  flwip: 'WIP', gdesk: 'Greige Desk', gdled: 'Greige ledger', gdledit: 'Greige corrections', gdappr: 'Greige approvals',
+  flwip: 'WIP', flprn: 'Approve printer change', gdesk: 'Greige Desk', gdled: 'Greige ledger', gdledit: 'Greige corrections', gdappr: 'Greige approvals', gdcut: 'Cut-to-size approvals', gdpo: 'Greige PO close', gdpoappr: 'Greige close approvals',
   qcalt: 'QC — alteration out', qcret: 'QC — alteration back', vend: 'Vendor portal', mst: 'Masters', shopret: 'Shopify returns', shopbkt: 'Shopify production bucket' };
 function frRoles() {
   const menu = Object.fromEntries(frScreens().map(s => [s.tab, s.name]));
@@ -540,6 +599,7 @@ async function frPoll() {
   if (frMay('pbase') && frTry(ptCanEdit, false)) jobs.push(jwCorrLoad());
   if (frMay('so') && frTry(odrCanAnswer, false)) jobs.push(odrLoad(true));
   if (frMay('fgi') && frTry(fgiCanEdit, false)) jobs.push(fgiCorrLoad());
+  if (ME.admin && typeof vprRejLoad === 'function') jobs.push(vprRejLoad());
   await Promise.all(jobs.map(p => Promise.resolve(p).catch(() => {})));
   const now = frCards().filter(c => c.grp === 'approve'), fresh = now.filter(c => !before.has(c.key));
   FR.known = new Set(now.map(c => c.key));

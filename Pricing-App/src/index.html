@@ -65,6 +65,9 @@
     <!-- Each heading names the tabs it owns in data-tabs. That one attribute is what lets a group
          hide itself when every tab under it is hidden or not permitted, so there is no second list
          to keep in step when a tab moves between groups. -->
+    <!-- THE DASHBOARD (20 Nov 2026, app/core/dashboard.js): the first screen after sign-in, one button with no menu under it.
+         Not a .navgrp (nav.js reads every .navgrp as a menu group); TABS in nav.js wires its click like every tab's. -->
+    <div class="navwrap"><button id="tabDash" class="navdash" type="button">Dashboard</button></div>
     <div class="navwrap"><button class="navgrp" id="grpResearch" type="button" aria-controls="secResearch" data-grp="research" data-tabs="link,new,pr,kw">
       <span class="caret">&#9656;</span> Research</button>
     <div class="navsec" id="secResearch">
@@ -74,13 +77,24 @@
       <button id="tabKw" class="nav">Keywords</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,shop,adj,ba">
+    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,ncheck,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
-      <button id="tabSales" class="nav">Sales Dashboard</button>
+      <!-- THE SALES DROP-DOWN (21 Nov 2026): the Listing menu's columns (styles.css "THE LISTING DROP-DOWN"), four groups.
+           A group with no screen this account can open hides, and the numbers count only the groups on show (class "num").
+           To add a screen: one button line inside its group, e.g. in Check & alerts
+             <button id="tabSalert" class="nav">Sales Alerts</button>
+           (plus its key in data-tabs above, its pane and its TABS / TAB_TITLE entry in nav.js, as for every screen,
+           and one #tabSalert{--ic:…} icon line in styles.css). -->
+      <div class="navcol"><div class="navcol-h num">Overview</div>
+      <button id="tabSales" class="nav">Sales Dashboard</button></div>
+      <div class="navcol"><div class="navcol-h num">Check &amp; alerts</div>
+      <button id="tabNcheck" class="nav">Numbers Check</button></div>
+      <div class="navcol"><div class="navcol-h num">Analyse</div>
       <button id="tabProfit" class="nav">Profit &amp; Margin</button>
       <button id="tabSa" class="nav">Sales Analysis</button>
-      <button id="tabPlaudit" class="nav">Parent Listing Review</button>
+      <button id="tabPlaudit" class="nav">Parent Listing Review</button></div>
+      <div class="navcol"><div class="navcol-h num">Act</div></div>
       <!-- MOVED to the Replenishment app, which is where these two are worked now. Hidden rather
            than deleted: the code below still runs, so anything that turns out to have been missed in
            the move can be checked against the original before it is finally removed. -->
@@ -111,14 +125,16 @@
       <button id="tabLhist" class="nav">Listing History</button></div>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,plc,deals">
+    <div class="navwrap"><button class="navgrp" id="grpAds" type="button" aria-controls="secAds" data-grp="ads" data-tabs="trends,weekly,ppcn,st,ngram,plc,ppch,deals">
       <span class="caret">&#9656;</span> Advertising</button>
     <div class="navsec" id="secAds">
-      <button id="tabTrends" class="nav">Ad Console</button>
+      <button id="tabTrends" class="nav">Overview</button>
       <button id="tabWeekly" class="nav">PPC &amp; Organic</button>
       <button id="tabPpcn" class="nav">Product Performance</button>
-      <button id="tabSt" class="nav">Search Terms</button>
+      <button id="tabSt" class="nav">Search Term Analysis</button>
+      <button id="tabNgram" class="nav">N-Gram Analysis</button>
       <button id="tabPlc" class="nav">Placement</button>
+      <button id="tabPpch" class="nav">PPC History</button>
       <button id="tabDeals" class="nav">Deal Calendar</button>
     </div></div>
 
@@ -144,6 +160,10 @@
         <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
+      </button>
+      <!-- The Dashboard's animation on / off (app/core/dashboard.js keeps aria-pressed = on). Touches the Dashboard only. -->
+      <button id="fxBtn" class="themesw dashfx" type="button" aria-label="Dashboard animation" aria-pressed="true" title="Dashboard animation: on">
+        <span aria-hidden="true">&#10024;</span>
       </button>
       <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
       <button id="guideBtn" class="ghost" type="button"
@@ -412,8 +432,8 @@
             <label><input type="checkbox" class="accbrand" data-br="SP"> Ridhi</label>
             <label><input type="checkbox" class="accbrand" data-br="CPC"> CPC</label>
             <span class="muted">(none ticked = both)</span></div>
-          <div class="accg-note">Hides the other brand in Product Performance, Ad Console, Search Terms and Placement only — every other screen shows both. A display limit, not isolation: fine for colleagues, not for a separate party.</div>
-          <button id="accessAdOnly" class="ghost accg-preset" type="button" title="Ticks Product Performance, Ad Console, Search Terms and Placement and unticks everything else in both apps">Ad data only — untick everything else</button>
+          <div class="accg-note">Hides the other brand in Product Performance, Overview, Search Term Analysis and Placement only — every other screen shows both. A display limit, not isolation: fine for colleagues, not for a separate party.</div>
+          <button id="accessAdOnly" class="ghost accg-preset" type="button" title="Ticks Product Performance, Overview, Search Term Analysis and Placement and unticks everything else in both apps">Ad data only — untick everything else</button>
         </div></section>
 
       <section class="accg" data-accg="research"><header><h4>Research</h4><span class="accg-n"></span><span class="accg-app">Sellora</span><button type="button" class="ghost accg-all">All</button><button type="button" class="ghost accg-none">None</button></header>
@@ -437,6 +457,10 @@
   </div>
 
   <!-- ============ PANE: by link (variation explorer) ============ -->
+  <!-- ============ DASHBOARD ============ -->
+  <!-- Drawn by app/core/dashboard.js from what the other screens already hold: no Amazon call, no AI, no write. -->
+  <div id="paneDash" class="hide"><div id="dashRoot" class="dash"></div></div>
+
   <div id="paneLink">
   <div class="card">
     <label>Reference product — link or ASIN</label>
@@ -662,26 +686,44 @@
   </div><!-- /paneBa -->
 
   <!-- ============ PANE: FBA inventory age ============ -->
+  <!-- THE INVENTORY AGE LOOK (17 Nov 2026): the Ad Console layout (Overview / Product Performance / Search Terms) — a meta
+       line, a toolbar card (pill switch, search box with its icon, outline Export, one dark round main button), five number
+       boxes that also pick what the table shows, the stock's age mix as bars, and a flush table card whose parent rows open
+       to their SKUs. Every id the JS reads is kept; the look is the .ag-* rules (styles.css, INVENTORY AGE block). -->
   <div id="paneAge" class="hide">
-    <div class="card" style="padding:12px 14px">
-      <div class="toolbar">
-        <div class="seg">
-          <button id="ageViewParent" class="segbtn on">Parent ASINs</button>
-          <button id="ageViewChild" class="segbtn">Child ASINs</button>
+    <div class="ag-meta"><span><b>Inventory Age</b> · how long the FBA stock has sat at Amazon</span><span id="ageWhen"></span></div>
+    <div class="card ag-toolbar">
+      <div class="toolbar ag-tb">
+        <div class="seg ag-seg" role="group" aria-label="View">
+          <button id="ageViewParent" class="segbtn on" type="button">Parent ASINs</button>
+          <button id="ageViewChild" class="segbtn" type="button">Child ASINs</button>
         </div>
-        <select id="ageBrandView" style="flex:0 0 140px">
+        <select id="ageBrandView" class="ag-sel" aria-label="Brand">
           <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
         </select>
-        <input id="ageFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter SKU / ASIN / Parent / product">
-        <button id="ageCsv" class="ghost">Export</button>
-        <button id="ageGo">Refresh both brands</button>
+        <label class="ag-search"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="ageFilter" placeholder="Search SKU / ASIN / Parent / product" aria-label="Search SKU, ASIN, parent or product"></label>
+        <span class="ui-spacer"></span>
+        <button id="ageCsv" class="ghost ag-btn" type="button" title="Exactly what the table shows — view, brand, search, focus and sort — as a CSV">Export</button>
+        <button id="ageGo" class="ag-btn ag-dark" type="button" title="Asks Amazon for a fresh FBA inventory age report for Ridhi, then CPC (a few minutes each)">Refresh both brands</button>
       </div>
       <div id="ageMsg" class="muted"></div>
     </div>
 
     <div id="ageResult" class="hide">
-      <div id="ageKpis" class="kpis"></div>
-      <div class="card xlwrap"><table class="xl" id="ageTable"></table></div>
+      <div id="ageKpis" class="ag-boxes"></div>
+      <div id="ageMix" class="card ag-card ag-mix"></div>
+      <div class="card ag-card ag-tcard">
+        <div class="ag-thead">
+          <div class="tt"><b id="ageTitle">Every parent ASIN</b><small id="ageSub"></small></div>
+          <div class="seg ag-seg" id="ageFocusSeg" role="group" aria-label="Show">
+            <button class="segbtn on" type="button" data-f="all">All stock</button>
+            <button class="segbtn" type="button" data-f="aged">Aged 181+</button>
+            <button class="segbtn" type="button" data-f="year">Over a year</button>
+            <button class="segbtn" type="button" data-f="healthy">Healthy only</button>
+          </div>
+        </div>
+        <div class="ag-wrap"><table class="xl ag-tbl" id="ageTable"></table></div>
+      </div>
     </div>
   </div><!-- /paneAge -->
 
@@ -904,6 +946,9 @@
     <!-- Sales that failed the nightly cross-check. Held back rather than shown, and said so here. -->
     <div id="wCheckBanner" class="card hide"
          style="padding:10px 14px;margin-bottom:12px;border-left:4px solid var(--bad);font-size:13px"></div>
+    <!-- Rows with no brand (22 Nov 2026, wRenderUnassigned): listed, never dropped from "All"; no number changes. -->
+    <div id="wUnassigned" class="card hide"
+         style="padding:10px 14px;margin-bottom:12px;border-left:4px solid var(--act);font-size:13px"></div>
     <div class="card" style="padding:12px 14px">
       <div class="toolbar">
         <select id="wBrand" style="flex:0 0 140px">
@@ -983,69 +1028,299 @@
     </div>
   </div><!-- /paneWeekly -->
 
-  <!-- ============ Search Terms: what people typed vs what we bid on ============ -->
-  <div id="paneSt" class="hide">
-    <div class="card" style="padding:12px 14px">
-      <div class="toolbar">
-        <select id="stBrand" style="flex:0 0 160px">
-          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
-        </select>
-        <div class="seg" id="stViewSeg">
-          <button class="segbtn on" data-v="harvest" title="Search terms that produced orders but are not in your target list.">Harvest</button>
-          <button class="segbtn" data-v="waste" title="Targets you added that spent money and produced no order.">Waste</button>
-          <button class="segbtn" data-v="neg" title="Search terms that spent money and produced no order.">Negative</button>
-          <button class="segbtn" data-v="all" title="Every search term with the target that caught it. Nothing filtered out.">All terms</button>
-          <button class="segbtn" data-v="cp" title="Every campaign × product: how it did over 30 days, what to do about it, and the FBA stock behind it.">Campaign × Product</button>
+  <!-- ============ Search Term Analysis: what shoppers typed, what it cost, and what to do about it ============ -->
+  <div id="paneSt" class="hide sta-scope">
+    <div class="card sta-barcard">
+      <!-- The bar, 23 Nov 2026: brand, date window, filters, then the actions; the search and the rest of the filters below. -->
+      <div class="toolbar sta-top">
+        <div class="sta-fld"><span class="sta-lab">Brand</span>
+          <select id="stBrand" class="sta-brandsel" aria-label="Brand">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
+          </select></div>
+        <div class="sta-fld"><span class="sta-lab" title="The days every figure, verdict and table is drawn from. The same on N-Gram Analysis, and remembered on this device.">Date window</span>
+          <div class="seg sta-win" id="stWin" role="group" aria-label="Date window"></div></div>
+        <div class="sta-fld sta-pff"><span class="sta-lab" title="A search term belongs to an ad group, so it shows under every product in that ad group.">Filter by product and campaign</span>
+          <div class="sta-pf" id="stPf" role="group" aria-label="Filter by product and campaign"></div></div>
+        <div class="sta-acts">
+          <button id="stPlanBtn" class="ghost sta-planbtn" type="button" title="The 5–7 moves worth making first, from Sellora's top suggestions; one click ticks each move's rows"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>Plan my moves</button>
+          <button id="stRlBtn" class="ghost sta-rl" type="button" title="Changes picked here, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="stRlN" class="sta-n hide">0</span></button>
+          <button id="stCsv" class="ghost" type="button" title="Every row of the view on screen, under the filters and the date window, as a CSV">Export</button>
+          <button id="stSetBtn" class="ghost" type="button" title="Brand terms, product words, blocked words, competitor brands, break-even">Lists &amp; settings</button>
         </div>
-        <select id="stCpShow" class="hide" style="flex:0 0 150px" title="Show only one kind of verdict">
-          <option value="">Every verdict</option><option value="bad">Bad only</option><option value="good">Good only</option><option value="watch">Watch only</option><option value="running">Running ads only</option><option value="stopped">Paused / archived only</option>
-        </select>
-        <input id="stCpTarget" class="hide" type="number" min="1" max="100" step="1" style="flex:0 0 120px" placeholder="Target ACoS %"
-          title="The ACoS a product is judged against when its unit cost is not known. Where the cost is known, its own break-even ACoS is used instead.">
-        <input id="stFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter term / campaign / ASIN">
-        <input id="stMinSpend" type="number" min="0" step="1" style="flex:0 0 130px" placeholder="Min spend $">
-        <button id="stCsv" class="ghost">Export</button>
       </div>
-      <div id="stMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div class="toolbar sta-row2">
+        <label class="sta-fld sta-grow"><span class="sta-lab">Search</span>
+          <input id="stFilter" placeholder="Search term, campaign or ASIN" aria-label="Filter"></label>
+        <label class="sta-fld"><span class="sta-lab">Min spend</span>
+          <input id="stMinSpend" class="sta-minsp" type="number" min="0" step="1" placeholder="$ 0" aria-label="Minimum spend"></label>
+        <div class="sta-fld"><span class="sta-lab">More filters</span>
+          <button id="stMoreBtn" class="ghost" type="button" aria-expanded="false" title="Match type, campaign type, verdict and tag">Match type, campaign type, verdict, tag<span id="stMoreN" class="sta-n hide">0</span></button></div>
+      </div>
+      <div id="stMore" class="toolbar sta-more-f hide">
+        <select id="stFMt" aria-label="Match type"><option value="">Every match type</option><option value="exact">Exact</option><option value="phrase">Phrase</option><option value="broad">Broad</option><option value="auto">Auto targets</option><option value="pt">Product / category targets</option></select>
+        <select id="stFCt" aria-label="Campaign type"><option value="">Every campaign type</option><option value="auto">Auto campaigns</option><option value="kw">Manual keyword</option><option value="pt">Manual product targeting</option></select>
+        <select id="stFV" aria-label="Verdict"><option value="">Every verdict</option><option value="act">To act on</option><option value="burn">Burning money</option><option value="scale">Worth scaling</option><option value="watch">Watch</option><option value="hold">On hold</option><option value="ok">Selling / winner</option><option value="check">Data check</option></select>
+        <select id="stFTag" aria-label="Tag"><option value="">Every tag</option><option value="brand">Brand term</option><option value="leak">Brand leak (outside brand campaigns)</option><option value="product">Product word</option><option value="main">Main keyword</option><option value="season">Seasonal</option><option value="own">Own product ASIN</option><option value="sister">Sister-brand ASIN</option><option value="comp">Competitor ASIN</option><option value="new">New or launch</option><option value="halo">Mostly other products' sales</option></select>
+        <button id="stFClear" class="ghost" type="button">Clear filters</button>
+      </div>
+      <div id="stChips" class="sta-fchips hide" role="group" aria-label="Active filters"></div>
+      <div id="stWinNote" class="sta-winnote hide" role="note"></div>
+      <div id="stMsg" class="sta-msg"></div>
     </div>
-    <div class="card xlwrap" style="margin-top:12px;overflow:auto;max-height:70vh">
-      <table id="stTable" class="xl"></table>
+    <h3 class="sta-h" title="Spend, sales, ACoS, orders and clicks of the ads in view, and the money Sellora suggests stopping or moving">At a glance <small id="stSumSub"></small></h3>
+    <div id="stSum" class="sta-sum"></div>
+    <h3 class="sta-h" title="Each box opens its view in the table below">Where to act <small>click a box to open its view</small></h3>
+    <div id="stBoxes" class="sta-boxes"></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead">
+        <div class="tt"><b id="stTitle">Every search term</b><small id="stSub"></small></div>
+        <button id="stLegendBtn" class="ghost sta-legend-btn" type="button" aria-haspopup="dialog">How Sellora decides</button>
+      </div>
+      <div class="sta-vbar">
+        <div class="seg" id="stViewSeg" role="tablist" aria-label="View">
+          <button class="segbtn" type="button" data-v="burn" title="Search terms that spent with no sales, sold above break-even, or convert poorly">Burning money</button>
+          <button class="segbtn" type="button" data-v="scale" title="Search terms selling under their campaign's target ACoS, with room to grow">Worth scaling</button>
+          <button class="segbtn" type="button" data-v="paths" title="The same search term reaching the same product through more than one keyword or target">Competing paths</button>
+          <button class="segbtn on" type="button" data-v="all" title="Every search term with the target that caught it, a verdict and the next step">All terms</button>
+          <button class="segbtn" type="button" data-v="new" title="Campaigns, ad groups and keywords launched in the last 30 days: watched, not judged yet">New <span class="sta-segn">under 30 days</span></button>
+          <button class="segbtn" type="button" data-v="cp" title="Every campaign × product: how it did over 30 days, what to do about it, and the FBA stock behind it.">Campaign × Product</button>
+        </div>
+        <div class="sta-tools">
+          <div class="seg hide" id="stBurnSeg" aria-label="Burning money by">
+            <button class="segbtn on" type="button" data-s="term" title="One row per search term">By search term</button>
+            <button class="segbtn" type="button" data-s="target" title="One row per keyword or target, with one bid line each">By target</button>
+            <button class="segbtn" type="button" data-s="word" title="Words that recur across many search terms without selling, and your blocked words and competitor brands">By word</button>
+          </div>
+          <select id="stCpShow" class="hide" style="flex:0 0 150px" title="Show only one kind of verdict" aria-label="Verdict">
+            <option value="">Every verdict</option><option value="bad">Bad only</option><option value="good">Good only</option><option value="watch">Watch only</option><option value="running">Running ads only</option><option value="stopped">Paused / archived only</option>
+          </select>
+          <input id="stCpTarget" class="hide" type="number" min="1" max="100" step="1" style="flex:0 0 120px" placeholder="Target ACoS %" aria-label="Target ACoS"
+            title="The ACoS a product is judged against when its unit cost is not known. Where the cost is known, its own break-even ACoS is used instead.">
+          <label class="sta-pgsz" id="stSizeWrap">Rows <select id="stSize" aria-label="Rows per page"><option>50</option><option selected>100</option><option>250</option></select></label>
+        </div>
+      </div>
+      <div class="sta-actbar hide" id="stActBar" role="group" aria-label="Show rows by next step"></div>
+      <div class="sta-wrap"><table id="stTable" class="xl"></table></div>
+      <div id="stFoot" class="sta-more"></div>
     </div>
+    <div id="stSelBar" class="sta-selbar hide"><span id="stSelTxt"></span><button id="stSelAdd" type="button">Add to the review list</button><button id="stSelClear" class="ghost" type="button">Clear</button></div>
+
   </div><!-- /paneSt -->
+  <!-- Search Term Analysis's dialogs, outside its pane so Placement opens the same review list (18 Nov 2026). -->
+  <div id="staModals" class="sta-scope">
+    <!-- One dialog for every change: Add negative, Raise / Reduce bid, Pause, Add as exact, Negative phrase for a word. Filled by staOpen. -->
+    <div id="stDlg" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-labelledby="stDlgTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="stDlgTitle"></b><small id="stDlgSub"></small></div><button id="stDlgX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="stDlgBody" class="sta-mb"></div>
+      <div class="sta-mf"><small id="stDlgNote"></small>
+        <div class="btns"><button id="stDlgXlsx" class="ghost hide" type="button" title="This pattern's campaigns and search terms as an Excel file">Download Excel</button><button id="stDlgCancel" class="ghost" type="button">Cancel</button><button id="stDlgApply" class="ghost sta-applybtn" type="button" disabled><svg class="sta-lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Apply at Amazon</button><button id="stDlgOk" type="button">Add to review list</button></div></div>
+    </div></div>
+
+    <!-- The review list: changes waiting, approved, downloaded; the bulk file is previewed before it downloads. -->
+    <div id="stRl" class="modal sta-modal sta-wide hide" role="dialog" aria-modal="true" aria-label="Review list"><div class="modalbox">
+      <div class="sta-mh"><div><b id="stRlTitle">Review list</b><small id="stRlSub"></small></div><button id="stRlX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div class="seg sta-rlseg" id="stRlSeg">
+        <button class="segbtn on" type="button" data-r="open">Open</button>
+        <button class="segbtn" type="button" data-r="done">Downloaded and done</button>
+        <button class="segbtn" type="button" data-r="removed">Removed</button>
+      </div>
+      <div class="sta-mb sta-rlbody"><table id="stRlTable" class="xl"></table></div>
+      <div id="stRlNote" class="sta-rlnote"></div>
+      <div class="sta-mf"><small id="stRlSel"></small>
+        <div class="btns"><button id="stRlBack" class="ghost hide" type="button">Back</button><button id="stRlRemove" class="ghost" type="button">Remove</button><button id="stRlUnapprove" class="ghost" type="button">Un-approve</button><button id="stRlApprove" class="ghost" type="button">Approve</button><button id="stRlRestore" class="ghost hide" type="button">Put back</button><button id="stRlCancel" class="ghost hide" type="button" title="For a download that was never uploaded">Cancel download</button><button id="stRlApply" class="ghost" type="button" disabled><svg class="sta-lock" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Apply approved</button><button id="stRlDl" type="button">Preview bulk file</button></div></div>
+    </div></div>
+
+    <!-- Plan my moves: the 5–7 moves worth making first; each ticks its rows (search-terms.js, PLAN MY MOVES). -->
+    <div id="stPlan" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-label="Plan my moves"><div class="modalbox">
+      <div class="sta-mh"><div><b>Plan my moves</b><small id="stPlanSub"></small></div><button id="stPlanX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="stPlanBody" class="sta-mb"></div>
+      <div class="sta-mf"><small>Claude can only point at changes Sellora already suggested; each still passes the usual checks when added.</small>
+        <div class="btns"><button id="stPlanAgain" class="ghost" type="button">Plan again</button></div></div>
+    </div></div>
+
+    <!-- Lists & settings, per brand: brand terms, product words, blocked words, competitor brands, the target ACoS without a unit cost. -->
+    <div id="stSet" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-label="Lists and settings"><div class="modalbox">
+      <div class="sta-mh"><div><b>Lists &amp; settings</b><small id="stSetSub">What Sellora never negates, and what it always flags. One list per brand.</small></div><button id="stSetX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div class="sta-mb">
+        <div class="seg" id="stSetSeg" style="width:max-content;margin-bottom:12px"><button class="segbtn on" type="button" data-b="SP">Ridhi</button><button class="segbtn" type="button" data-b="CPC">Cotton Print Club</button></div>
+        <div id="stSetBody"></div>
+      </div>
+      <div class="sta-mf"><small id="stSetNote"></small>
+        <div class="btns"><button id="stSetCancel" class="ghost" type="button">Cancel</button><button id="stSetOk" type="button">Save</button></div></div>
+    </div></div>
+
+    <!-- How Sellora decides: every line the verdicts are drawn with, and what each badge means. -->
+    <div id="stLegend" class="modal sta-modal sta-wide hide" role="dialog" aria-modal="true" aria-label="How Sellora decides"><div class="modalbox">
+      <div class="sta-mh"><div><b>How Sellora decides</b><small>Every rule on this page, with its numbers. Nothing here changes anything at Amazon by itself.</small></div><button id="stLegendX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="stLegendBody" class="sta-mb sta-legend"></div>
+    </div></div>
+    <!-- "Who is making this change?" on a shared login (once per device), and "Name this device" (ads/ppc-history.js). Last, so it sits over the review list. -->
+    <div id="ppchDlg" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-labelledby="ppchDlgTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="ppchDlgTitle">Who is making this change?</b><small id="ppchDlgSub"></small></div><button id="ppchDlgX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div class="sta-mb"><div class="sta-f"><label id="ppchDlgLbl" for="ppchDlgIn">Your name</label><input id="ppchDlgIn" maxlength="40" autocomplete="off"><small id="ppchDlgHelp"></small></div></div>
+      <div class="sta-mf"><small id="ppchDlgNote"></small>
+        <div class="btns"><button id="ppchDlgCancel" class="ghost" type="button">Cancel</button><button id="ppchDlgOk" type="button">Save</button></div></div>
+    </div></div>
+  </div><!-- /staModals -->
+
+  <!-- ============ N-Gram Analysis: word patterns across the search terms, and the action each supports (ads/ngram.js) ============ -->
+  <div id="paneNgram" class="hide sta-scope">
+    <div class="card sta-barcard">
+      <!-- Search Term Analysis's bar, 23 Nov 2026: brand, date window, filters, then the actions; the pattern choices below. -->
+      <div class="toolbar sta-top">
+        <div class="sta-fld"><span class="sta-lab">Brand</span>
+          <select id="ngBrand" class="sta-brandsel" aria-label="Brand">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
+          </select></div>
+        <div class="sta-fld"><span class="sta-lab" title="The days every pattern is summed over. The same on Search Term Analysis, and remembered on this device.">Date window</span>
+          <div class="seg sta-win" id="ngWin" role="group" aria-label="Date window"></div></div>
+        <div class="sta-fld sta-pff"><span class="sta-lab" title="A search term belongs to an ad group, so it shows under every product in that ad group.">Filter by product and campaign</span>
+          <div class="sta-pf" id="ngPf" role="group" aria-label="Filter by product and campaign"></div></div>
+        <div class="sta-acts">
+          <button id="ngRlBtn" class="ghost sta-rl" type="button" title="Changes picked here and in Search Term Analysis, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="ngRlN" class="sta-n hide">0</span></button>
+          <button id="ngCsv" class="ghost" type="button" title="Every row after the filters and the date window, as a CSV">Export</button>
+          <button id="ngXlsx" class="ghost hide" type="button" title="The Waste patterns on screen and the campaigns each would be negated in, as an Excel file">Download Excel</button>
+        </div>
+      </div>
+      <div class="toolbar sta-row2">
+        <label class="sta-fld sta-grow"><span class="sta-lab">Search</span>
+          <input id="ngFilter" placeholder="Search pattern, term or campaign" aria-label="Filter"></label>
+        <div class="sta-fld"><span class="sta-lab" title="1-, 2- or 3-word patterns, or every size together">Pattern size</span>
+          <div class="seg ng-size" id="ngSize" role="group" aria-label="Pattern size">
+            <button class="segbtn on" type="button" data-n="1" aria-pressed="true">1-word</button><button class="segbtn" type="button" data-n="2" aria-pressed="false">2-word</button><button class="segbtn" type="button" data-n="3" aria-pressed="false">3-word</button><button class="segbtn" type="button" data-n="0" aria-pressed="false">All</button>
+          </div></div>
+        <label class="sta-fld"><span class="sta-lab" title="Patterns with fewer clicks are Needs data">Min clicks</span>
+          <select id="ngMin" class="sta-ngmin" aria-label="Minimum clicks" title="Patterns with fewer clicks are Needs data">
+            <option value="5">5+ clicks</option><option value="10" selected>10+ clicks</option><option value="20">20+ clicks</option><option value="50">50+ clicks</option>
+          </select></label>
+        <label class="sta-fld"><span class="sta-lab">Classification</span>
+          <select id="ngClass" class="sta-ngcls" aria-label="Classification">
+            <option value="">Every classification</option><option value="waste">Waste</option><option value="waste-ns">Waste · no sales</option><option value="waste-be">Waste · over break-even</option><option value="winner">Winner</option><option value="mixed">Mixed</option><option value="need">Needs data</option>
+          </select></label>
+        <button id="ngLegendBtn" class="ghost sta-row2btn" type="button" aria-haspopup="dialog">How Sellora decides</button>
+      </div>
+      <div id="ngChips" class="sta-fchips hide" role="group" aria-label="Active filters"></div>
+      <div id="ngWinNote" class="sta-winnote hide" role="note"></div>
+      <div id="ngMsg" class="sta-msg"></div>
+    </div>
+    <h3 class="sta-h" title="Each box sets the classification of the table below">Where to act <small>each search term counted once per box · click a box to show its patterns</small></h3>
+    <div id="ngBoxes" class="sta-boxes"></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead">
+        <div class="tt"><b id="ngTitle">Word patterns</b><small id="ngSub"></small></div>
+      </div>
+      <div class="sta-actbar" id="ngActBar" role="group" aria-label="Show rows by classification"></div>
+      <div class="sta-wrap"><table id="ngTable" class="xl"></table></div>
+      <div id="ngFoot" class="sta-more"></div>
+    </div>
+    <div id="ngSelBar" class="sta-selbar hide"><span id="ngSelTxt"></span><button id="ngSelAdd" type="button">Add to the review list</button><button id="ngSelClear" class="ghost" type="button">Clear</button></div>
+
+    <div id="ngLegend" class="modal sta-modal sta-wide hide" role="dialog" aria-modal="true" aria-label="How Sellora decides word patterns"><div class="modalbox">
+      <div class="sta-mh"><div><b>How Sellora decides word patterns</b><small>Every rule on this page, with its numbers. Nothing here changes anything at Amazon by itself.</small></div><button id="ngLegendX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="ngLegendBody" class="sta-mb sta-legend"></div>
+    </div></div>
+  </div><!-- /paneNgram -->
 
   <!-- ============ Placement: where the ad was shown, and what each spot bought ============ -->
-  <div id="panePlc" class="hide">
+  <div id="panePlc" class="hide sta-scope plx">
     <div class="card" style="padding:12px 14px">
       <div class="toolbar">
-        <select id="plcBrand" style="flex:0 0 160px">
-          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">CPC</option>
+        <select id="plcBrand" style="flex:0 0 180px" aria-label="Brand">
+          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
         </select>
-        <div class="seg" id="plcGranSeg">
-          <button class="segbtn on" data-g="day">Day</button>
-          <button class="segbtn" data-g="week">Week</button>
-          <button class="segbtn" data-g="month">Month</button>
-        </div>
-        <button id="plcCsv" class="ghost">Export</button>
+        <input id="plxFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter campaign" aria-label="Filter campaigns">
+        <select id="plxPlace" style="flex:0 0 170px" aria-label="Placement">
+          <option value="">Every placement</option><option value="tos">Top of Search</option><option value="ros">Rest of Search</option><option value="pp">Product Page</option><option value="off">Off Amazon</option>
+        </select>
+        <button id="plxRlBtn" class="ghost sta-rl" type="button" title="Changes picked here and in Search Term Analysis, waiting to be approved and downloaded as an Amazon bulk file">Review list<span id="plxRlN" class="sta-n hide">0</span></button>
+        <button id="plcCsv" class="ghost" type="button" title="The decisions table, the placement totals and the spend with no orders, as one CSV">Export</button>
       </div>
-      <div id="plcMsg" class="muted" style="margin-top:8px;font-size:13px"></div>
+      <div id="plcMsg" class="sta-msg"></div>
+    </div>
+    <div id="plxKpis" class="plx-kpis"></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead">
+        <div class="tt"><b>Placement decisions by campaign <span id="plxWin" class="plx-win"></span></b><small id="plxSub"></small></div>
+        <button id="plxLegendBtn" class="ghost sta-legend-btn" type="button" aria-haspopup="dialog">How Sellora decides</button>
+      </div>
+      <div class="sta-actbar" id="plxActBar" role="group" aria-label="Show rows by decision"></div>
+      <div class="sta-wrap"><table id="plxTable" class="xl"></table></div>
+      <div id="plxFoot" class="sta-more"></div>
+    </div>
+    <div id="plxSelBar" class="sta-selbar hide"><span id="plxSelTxt"></span><button id="plxSelAdd" type="button">Send to review</button><button id="plxSelClear" class="ghost" type="button">Clear</button></div>
+
+    <p class="plx-split">From a different report than the decisions above, so totals differ slightly.</p>
+    <div class="card plx-chcard">
+      <div class="sta-thead">
+        <div class="tt"><b>Spend by placement <span class="plx-win">Last 30 days · 30-day sales</span></b><small id="plcChSub">Every Sponsored Products campaign, day by day.</small></div>
+        <div class="seg" id="plcGranSeg">
+          <button class="segbtn on" type="button" data-g="day">Day</button>
+          <button class="segbtn" type="button" data-g="week">Week</button>
+          <button class="segbtn" type="button" data-g="month">Month</button>
+        </div>
+      </div>
+      <div id="plcKpis" class="plx-legend"></div>
+      <div id="plcChart" class="plx-chart"></div>
     </div>
 
-    <div class="card" style="margin-top:12px;padding:12px 14px">
-      <div id="plcKpis" style="display:flex;gap:26px;flex-wrap:wrap;margin-bottom:10px"></div>
-      <div id="plcChart" style="overflow-x:auto"></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead"><div class="tt"><b>Every placement together <span class="plx-win">Last 30 days · 30-day sales</span></b><small>From the nightly placement report. Spend with no orders: spend on clicks that produced no order at all, per campaign and placement.</small></div></div>
+      <div class="sta-wrap"><table id="plcTable" class="xl"></table></div>
     </div>
 
-    <div class="card xlwrap" style="margin-top:12px"><table id="plcTable" class="xl"></table></div>
-
-    <div class="card" style="margin-top:12px;padding:12px 14px">
-      <div class="sec" style="margin-top:0">Where the wasted spend is</div>
-      <div class="muted" style="font-size:12px;margin-bottom:8px">Each campaign and placement that
-        took clicks and returned no order at all across the whole window. Counted over the window, not
-        per day — a click needs weeks to convert, so a daily count would call almost everything waste
-        and then quietly improve on its own.</div>
-      <div class="xlwrap" style="max-height:40vh"><table id="plcWorst" class="xl"></table></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead"><div class="tt"><b>Where the spend with no orders is <span class="plx-win">Last 30 days · 30-day sales</span></b><small>Each campaign and placement that took clicks and returned no order at all across the 30 days. Counted over the window, not per day: a click needs weeks to convert.</small></div></div>
+      <div class="sta-wrap" style="max-height:44vh"><table id="plcWorst" class="xl"></table></div>
     </div>
+
+    <div id="plxLegend" class="modal sta-modal sta-wide hide" role="dialog" aria-modal="true" aria-label="How Sellora decides placements"><div class="modalbox">
+      <div class="sta-mh"><div><b>How Sellora decides placements</b><small>Every rule on this page, with its numbers. Nothing here changes anything at Amazon by itself.</small></div><button id="plxLegendX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="plxLegendBody" class="sta-mb sta-legend"></div>
+    </div></div>
   </div><!-- /panePlc -->
+
+  <!-- ============ PPC History: who changed what in the ads from Sellora, from which device, and when (ads/ppc-history.js) ============ -->
+  <div id="panePpch" class="hide sta-scope">
+    <div class="card" style="padding:12px 14px">
+      <div class="toolbar">
+        <select id="ppchBrand" style="flex:0 0 180px" aria-label="Brand">
+          <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
+        </select>
+        <input id="ppchFilter" style="flex:1 1 220px;min-width:0" placeholder="Filter term / keyword / campaign / person" aria-label="Filter">
+        <select id="ppchRange" style="flex:0 0 150px" aria-label="Time range">
+          <option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90" selected>Last 90 days</option><option value="365">Last 365 days</option>
+        </select>
+        <button id="ppchMoreBtn" class="ghost" type="button" aria-expanded="false" aria-controls="ppchMore" title="Person, action, change type, reached Amazon">Filters<span id="ppchMoreN" class="sta-n hide">0</span></button>
+        <button id="ppchCsv" class="ghost" type="button" title="Every row of the view on screen, as a CSV">Export</button>
+      </div>
+      <div id="ppchMore" class="toolbar sta-more-f hide">
+        <select id="ppchFPerson" aria-label="Person"><option value="">Every person</option></select>
+        <select id="ppchFAct" aria-label="Action"><option value="">Every action</option></select>
+        <select id="ppchFKind" aria-label="Change type"><option value="">Every change type</option></select>
+        <label class="ppch-chk"><input id="ppchFAmz" type="checkbox" class="sta-cb">Only changes that reached Amazon</label>
+        <button id="ppchFClear" class="ghost" type="button">Clear filters</button>
+      </div>
+      <div id="ppchMsg" class="sta-msg"></div>
+    </div>
+    <div id="ppchSum" class="sta-sum"></div>
+    <div class="card sta-tcard">
+      <div class="sta-thead">
+        <div class="tt"><b id="ppchTitle">Every change made from Sellora</b><small id="ppchSub"></small></div>
+      </div>
+      <div class="sta-vbar">
+        <div class="seg" id="ppchViewSeg" role="tablist" aria-label="View">
+          <button class="segbtn on" type="button" data-v="item" aria-selected="true" title="One row per change; open a row for its steps">By change</button>
+          <button class="segbtn" type="button" data-v="step" aria-selected="false" title="Every step of every change, newest first">Every step</button>
+        </div>
+        <div class="sta-tools">
+          <label class="sta-pgsz">Rows <select id="ppchSize" aria-label="Rows per page"><option>50</option><option selected>100</option><option>250</option></select></label>
+        </div>
+      </div>
+      <div class="sta-actbar" id="ppchActBar" role="group" aria-label="Show rows by change type"></div>
+      <div class="sta-wrap"><table id="ppchTable" class="xl"></table></div>
+      <div id="ppchFoot" class="sta-more"></div>
+    </div>
+  </div><!-- /panePpch -->
 
   <!-- ============ Ad Console: whole-account KPIs, chart, and metrics × periods ============ -->
   <div id="paneTrends" class="hide">
@@ -1079,6 +1354,8 @@
       <div id="tMsg" class="muted" style="margin-top:8px;font-size:12px"></div>
     </div>
 
+    <!-- Money at stake and Data as of (ads/ads-health.js): the waste the Recommendation names, counted once per campaign. -->
+    <div id="tStake" class="card adt-stake hide"></div>
     <div id="tKpis" class="kpis" style="margin-top:12px"></div>
     <!-- The boxes, two line charts and Campaign performance (ads/ads-charts.js). Each stays hidden until it has drawn;
          the card above is hidden only while the boxes are showing. -->
@@ -1113,8 +1390,14 @@
   </div><!-- /paneTrends -->
 
   <!-- ============ Sales Dashboard ============ -->
+  <!-- NUMBERS CHECK (21 Nov 2026, app/sales/sales-check.js): the rule book for every sales / ads / stock number, and the same number
+       compared across screens. Drawn by the script; reads only what is loaded or cached. -->
+  <div id="paneNcheck" class="hide"><div id="ncPane"></div></div>
+
   <div id="paneSales" class="hide">
     <div class="toolbar sa-gap-12 sa-sd-head">
+      <!-- the Numbers Check chip (sales/sales-check.js ncChipPaint): hidden until a check has run -->
+      <button id="ncChipSd" class="nc-chip" type="button" hidden></button>
       <span id="sdMsg" class="muted"></span>
       <button id="sdRefresh" class="ghost sa-btn-sm"
         title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>

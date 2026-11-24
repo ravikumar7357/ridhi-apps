@@ -195,7 +195,7 @@ const ACCESS_GROUPS = [
   { key: 'reports', repl: ['rep', 'pa', 'ka'] },
   { key: 'sales', sellora: ['sales', 'profit', 'sa', 'plaudit'] },
   { key: 'listing', sellora: ['opt', 'img', 'lerr', 'basket', 'health', 'lrules', 'audit', 'bsr'] },
-  { key: 'ads', sellora: ['trends', 'weekly', 'st', 'plc', 'deals'] },
+  { key: 'ads', sellora: ['trends', 'weekly', 'st', 'ngram', 'plc', 'ppch', 'deals'] },
   { key: 'research', sellora: ['new', 'pr', 'link', 'kw'] },
   { key: 'stock', sellora: ['age', 'tiktok', 'carousel', 'ba'] },
   { key: 'other' },
@@ -204,7 +204,7 @@ const ACCESS_GROUPS = [
 // names for it, anything left over lands in "Other", and each card's items become one checkbox each.
 // An item is [kind, key, label]: kind 's' = a Sellora tab, 'r' = a Replenishment section.
 function accessTabBoxes() {
-  const usable = TABS.filter(t => !HIDDEN_TABS.includes(t) && !TAB_INHERIT[t]);
+  const usable = TABS.filter(t => !HIDDEN_TABS.includes(t) && !TAB_INHERIT[t] && t !== 'dash');   // the Dashboard is never granted: it comes with any screen (core/access.js)
   const replKeys = REPL_SECTIONS.map(([k]) => k);
   const replLabel = k => (REPL_SECTIONS.find(([x]) => x === k) || [k, k])[1];
   // --- place each tab and section on its card (the first card that names it wins) ---
@@ -290,7 +290,7 @@ function accessSummary(r) {
 }
 /* The advertising tabs, as one thing. Named here rather than typed into the click handler so the
  * set has somewhere to live when a fifth ad tab arrives. */
-const AD_TABS = ['weekly', 'trends', 'st', 'plc'];
+const AD_TABS = ['weekly', 'trends', 'st', 'ngram', 'plc', 'ppch'];
 // The "Advertising only" shortcut: tick the four ad tabs and clear everything else, in both apps.
 $('accessAdOnly').onclick = () => {
   $('accessGroups').querySelectorAll('[data-tab]').forEach(c => { c.checked = AD_TABS.includes(c.dataset.tab); });

@@ -711,7 +711,8 @@
         </div>
         <div class="toolbar" id="vpBar1">
           <select id="vpView" style="flex:0 0 210px" title="One table puts every order's lines together, with nothing to scroll inside. By order gives each one its own card.">
-            <option value="product" selected>By product &mdash; one card per SKU</option>
+            <option value="sheet" selected>Order sheet &mdash; one row a line</option>
+            <option value="product">By product &mdash; one card per SKU</option>
             <option value="board">Colour board &mdash; one card per colour</option>
             <option value="lines">Every line &mdash; one table</option>
             <option value="orders">By order &mdash; one card each</option>
@@ -973,6 +974,7 @@
           <!-- Receive / Issue from Excel taken off (Ravi, 2026-09-29: "excel se remove kro bas excel me export kar pay"). -->
           <button id="fgOpening" class="ghost">Opening stock</button>
           <button id="fgExport" class="ghost">Export</button>
+          <button id="fgRefresh" class="ghost" title="Read the stock again: shows what other computers have saved">Refresh</button>
           <button id="fgLstRefresh" class="ghost hide" title="Ask Amazon for every listing of both brands — takes several minutes">Refresh Amazon listings</button>
         </div>
         <!-- WHAT NEEDS SOMEBODY, on the screen itself (Ravi, 2026-09-25: "ye listing ke andar aana chahiye").
@@ -1477,7 +1479,6 @@
               <option value="passed">QC passed</option>
               <option value="dept">Spotting &amp; touching</option>
               <option value="ledger">QC ledger (day-wise)</option>
-              <option value="checks">Checks</option>
               <option value="issue">Issued for alteration</option>
               <option value="ret">Received back from alteration</option>
             </select>

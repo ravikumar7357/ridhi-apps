@@ -101,7 +101,7 @@ function loKeepWords(reply, brand, asin, sku) {
   // the backend's reordering; a competitor's ASIN (no row of ours) keeps the backend's suggestion, its risky words out
   if (row.sku && rows.some(r => r.sku === row.sku) && typeof lrTitleFix === 'function' && typeof hCtx === 'function') {
     const fx = lrTitleFix(Object.assign({}, row, { shownTitle: sug.current }), hCtx(), { title: sug.current, max: +sug.cap || 75, risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, row, cfg) : null });
-    Object.assign(sug, { suggested: fx.after, newLen: fx.after.length, why: fx.fixes.length ? fx.fixes : ['No mistake to correct — the title keeps its own format and word order.'] });
+    Object.assign(sug, { suggested: fx.after, newLen: fx.after.length, why: fx.held ? [fx.held] : fx.fixes.length ? fx.fixes : ['No mistake to correct — the title keeps its own format and word order.'] });
     return reply;
   }
   const facts = lrSwFacts(row, cfg, null, { title: sug.current });

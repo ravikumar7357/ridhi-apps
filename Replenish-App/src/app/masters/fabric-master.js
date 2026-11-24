@@ -260,14 +260,15 @@ function fmAddFabric() {
 function fmAddVendor() {
   ptOpenDialog({ title: 'Add vendor', note: 'Saved to the vendor details of Master Data. The app’s own vendor list (Masters → Vendor) is not changed.',
     fields: [{ key: 'name', label: 'Vendor name *', value: '', span: 1 }, { key: 'type', label: 'Vendor type *', type: 'select', value: '', options: [['', 'Choose type']].concat(Object.entries(FM_VTYPES)) },
-      { key: 'work', label: 'Work done', value: '' }, { key: 'contact', label: 'Contact person', value: '' }, { key: 'phone', label: 'Phone', value: '' },
+      { key: 'contact', label: 'Contact person', value: '' }, { key: 'phone', label: 'Phone', value: '' },
       { key: 'city', label: 'City', value: 'Jaipur' }, { key: 'state', label: 'State', value: 'Rajasthan' }, { key: 'address', label: 'Address', value: '', span: 1 },
       { key: 'pincode', label: 'Pincode', value: '' }, { key: 'gstin', label: 'GSTIN', value: '' }, { key: 'pan', label: 'PAN', value: '' },
       { key: 'reg', label: 'Registration type', type: 'select', value: 'Regular', options: ['Regular', 'Composition', 'Unregistered/Consumer'] },
       { key: 'tds', label: 'TDS deductible', type: 'select', value: 'No', options: ['No', 'Yes · Individual/HUF - Resident', 'Yes · Individual - Resident', 'Yes · Partnership firm', 'Yes · Company - Resident'] }],
     saveLabel: 'Add vendor',
     async onSave(v) {
-      const rec = {}; ['name', 'type', 'work', 'contact', 'phone', 'city', 'state', 'address', 'pincode', 'gstin', 'pan', 'reg', 'tds'].forEach(k => { rec[k] = String(v[k] == null ? '' : v[k]).trim(); });
+      /* no "Work done" box on a new vendor any more (Vishesh, 23 Nov); vendors saved with one keep it */
+      const rec = {}; ['name', 'type', 'contact', 'phone', 'city', 'state', 'address', 'pincode', 'gstin', 'pan', 'reg', 'tds'].forEach(k => { rec[k] = String(v[k] == null ? '' : v[k]).trim(); });
       if (!rec.name) return 'Enter the vendor name.';
       if (!FM_VTYPES[rec.type]) return 'Choose a vendor type.';
       rec.gstin = rec.gstin.toUpperCase(); rec.pan = rec.pan.toUpperCase() || (rec.gstin ? rec.gstin.slice(2, 12) : '');

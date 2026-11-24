@@ -36,6 +36,8 @@ async function flowEnsureData() {
     ['QC checks', typeof QC !== 'undefined' && QC.checks == null ? ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }) : null],
     ['Finished Goods', typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function' ? fgiLoad() : null],
     ['plans and challans', flowLoad()], ['the fabric register', flowFabLoad()],
+    /* the printers' copies of the RFD challans: what is still on its way to them (flow-challan.js, CLOTH ON ITS WAY) */
+    ['cloth at printers', FLOW.cloth == null ? flowClothLoad() : null],
     ['store stock', typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore() : null],
     ['printer allocation', PAL.printers === null ? palLoad() : null],
     ['vendor orders', typeof ensureVo === 'function' ? ensureVo() : null],
@@ -43,7 +45,11 @@ async function flowEnsureData() {
     /* the Custom SKUs list: a Shopify / B2B SKU that is only there has its BOM written there from PPC (flowMasterBox) */
     ['custom SKUs', typeof ptEnsureCustom === 'function' ? ptEnsureCustom() : null],
     /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
-    ['the Greige Desk', FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure() : null]]));
+    ['the Greige Desk', FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure() : null],
+    /* THE COMPANY ON THE RFD CHALLAN (Vishesh, 23 Nov: "add GST number of the company"): the challan prints the company's name,
+     * address and GSTIN from the PO settings, which only the Greige POs screen read — so a challan made from Demand or the
+     * Inventory card printed without them. The small settings record alone is read here, once. */
+    ['company details', typeof GPO !== 'undefined' && !GPO.settings ? ptGet('pt_poSettings').then(v => { if (!GPO.settings) GPO.settings = v || {}; }) : null]]));
   FLOW.readErr = errs;
 }
 
@@ -514,6 +520,12 @@ function flowByPrintTable(rows) {
 }
 /* WHAT THE CUTTING DEPARTMENT CUTS FROM, for a planned line: the printed fabric (from the store, or back from the
  * printer), how much, for how many pieces of the order. */
+/** Which lot the Greige Desk sent to cutting for this line, so the cutting master knows whose thans they are (Ravi, 21 Nov). */
+function flowCutFromLot(s) {
+  const fr = s.demand && s.demand.fabricReady;
+  if (!fr || !fr.cutEntry || !fr.lot) return '';
+  return `<div style="font-size:10.5px;color:#166534"><b>${esc(fr.lot)}</b> · ${nf(+fr.metres || 0)} m sent to cutting</div>`;
+}
 function flowCutFrom(x) {
   const p = x.s.plan;
   /* THE CUTTING ROUTE (16 Oct: the column said "—"). No printer: the line is cut from RFD — or, ticked "already printed / in
@@ -522,7 +534,8 @@ function flowCutFrom(x) {
     const colour = String(((cutSkuOf(x.r.sku) || {}).color) || x.r.color || '').trim();
     const m = flowR2((+p.fabric.metres || 0) || (+p.fabric.perPc || 0) * (+x.r.qty || 0));
     return `<b>${esc(p.fabric.name)}</b>${p.fabric.noRfd && colour ? ' · ' + esc(colour) : ''} <span class="pill ${p.fabric.noRfd ? 'ok' : 'mute'}" style="font-size:10.5px">${p.fabric.noRfd ? 'printed, in hand' : 'RFD'}</span>`
-      + `<div class="muted" style="font-size:10.5px">${nf(m)} m for ${nf(x.r.qty)} pcs</div>`;
+      + `<div class="muted" style="font-size:10.5px">${nf(m)} m for ${nf(x.r.qty)} pcs</div>`
+      + flowCutFromLot(x.s);
   }
   if (!p || !flowPrinted(x.s.route)) return '<span class="muted">—</span>';
   const w = flowPrintWhat(x.r, p), m = flowR2(+(p.fabric && p.fabric.metres) || 0), fp = +(p.fabric && p.fabric.fromPrinted) || 0;

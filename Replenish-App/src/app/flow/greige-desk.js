@@ -21,8 +21,8 @@ const GD = (function () {
     readyState: 'complete'
   };
   var localStorage = { getItem: function () { return null; }, setItem: function () {} };
-  var GD_CSS = "[hidden]{display:none!important} img{max-width:100%} \n/* Layout: the Replenish app's own frame -- a bar of screens across the top, soft cards on a tinted\n   ground -- with the greige work at its centre: each PO opens into its challans, each challan into its\n   bales, and receiving is a drawer from the right, opened from the PO itself. */\n:host{display:block;\n  --bg:#F3F5F8; --card:#ffffff; --soft:#F7F9FB; --chip:#EFF2F6; --hover:#EFF2F6; --zebra:#FBFCFE; --line:#E8EDF3;\n  --ink:#14181F; --muted:#5A6472; --faint:#98A1AE;\n  --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#ffffff;\n  --accent:#4A5A3C; --accent-bg:#EDF0E7; --ok-ink:#2F6B33;\n  --bad:#9B1C1C; --bad-bg:#FBE9E9; --bad-line:#EBB9B9;\n  --warn-ink:#8A5A12; --warn-bg:#FFF3D6; --proc-ink:#7F6000;\n  --pink:#9B3F86; --pink-bg:#F7E8F3;\n  --c-greige:#9A6410; --c-proc:#2F6DB5; --c-rfd:#3F7D3A; --wa:#128C3E;\n  --scrim:rgba(15,23,42,.45); --toast-bg:#14181F; --toast-fg:#ffffff;\n  --sh-1:0 2px 10px rgba(20,24,31,.05); --sh-2:0 4px 16px rgba(20,24,31,.09); --sh-3:0 24px 64px rgba(20,24,31,.22);\n  --ring:0 0 0 3px rgba(110,144,181,.32); --ring-line:#6E90B5;\n  --r-card:18px; --r-ctl:12px; --r-sm:10px; --r-pill:999px; --ctl:40px;\n  --sans:\"Plus Jakarta Sans\",ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;\n  --serif:\"Libre Caslon Text\",\"Iowan Old Style\",Baskerville,\"Times New Roman\",serif;\n  --mono:ui-monospace,\"Cascadia Mono\",Consolas,\"Courier New\",monospace;\n}\n\n\n\n*{box-sizing:border-box}\n.gdroot{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;border-radius:18px}\n.pill,.tnum,.metric .v,.dfig,.gk-v,.num,.prog,.pc-m,.pc input,.pr input{font-variant-numeric:tabular-nums}\nh1,h2{letter-spacing:-.02em;text-wrap:balance}\n.muted{color:var(--muted)} .b{font-weight:700} .sub{font-size:12px;color:var(--muted)} .grow{flex:1}\n.mono{font-family:var(--mono);font-size:12.5px} .hide{display:none!important}\n.sel{user-select:text}\n\n/* ---- the frame ---- */\n.shell{display:flex;flex-direction:column;min-height:100%}\n.side{position:static;border-radius:18px 18px 0 0;display:flex;align-items:center;gap:2px;flex-wrap:wrap;\n  background:var(--card);box-shadow:var(--sh-1);padding:8px 16px}\n.brand{padding:0 14px 0 2px}\n.brandname{font-family:var(--serif);font-size:16px;letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column;line-height:1}\n.brandsub{font-family:var(--sans);font-size:7.5px;font-weight:600;letter-spacing:.22em;color:var(--muted);margin-top:3px}\n.navgrp{background:transparent;color:var(--muted);box-shadow:none;border:0;font:inherit;font-size:13px;font-weight:600;padding:8px 12px;border-radius:var(--r-sm);cursor:pointer}\n.navgrp:hover{color:var(--ink);background:var(--hover)}\n.navgrp.here{color:var(--brand);background:var(--brand-bg);font-weight:800}\n.sidefoot{margin-left:auto;display:flex;align-items:center;gap:8px}\n.lm-tag{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);background:var(--warn-bg);color:var(--warn-ink);font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}\n.main{flex:1;min-width:0;width:100%;max-width:1560px;margin:0 auto;padding-inline:22px;padding-block:18px 48px}\n@media (max-width:640px){.main{padding-inline:16px}.side{padding:8px 12px;position:static}.brandsub{display:none}.frow select{flex:1 1 100%}}\n.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}\n.lm-h{font-family:var(--serif);font-weight:400;font-size:25px;margin:0}\n.topacts{margin-left:auto;display:flex;gap:8px;min-width:0;flex:0 1 280px}\n.topacts input{width:100%}\n\n/* ---- controls ---- */\nlabel{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}\ninput,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-ctl);padding:9px 12px;width:100%;min-width:0}\ninput:focus,select:focus,textarea:focus{outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}\ninput[readonly]{background:var(--soft);color:var(--muted)}\ninput::placeholder,textarea::placeholder{color:var(--faint)}\nbutton{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:10px 18px;background:var(--brand);color:var(--on-brand);\n  box-shadow:0 4px 12px rgba(74,106,146,.25);transition:background .12s,box-shadow .12s,transform .06s;white-space:nowrap}\nbutton:hover{background:var(--brand-ink)}\nbutton:active{transform:translateY(1px);box-shadow:none}\nbutton:focus-visible,a:focus-visible{outline:none;box-shadow:var(--ring)}\nbutton.ghost{background:var(--card);color:var(--muted);font-weight:600;box-shadow:var(--sh-1)}\nbutton.ghost:hover{color:var(--ink);box-shadow:var(--sh-2)}\nbutton.armed,button.ghost.armed{background:var(--bad);color:#fff}\n.btnlink{display:inline-flex;align-items:center;padding:10px 18px;border-radius:var(--r-ctl);background:var(--card);color:var(--brand-ink);font-weight:700;text-decoration:none;box-shadow:var(--sh-1)}\n.btnlink:hover{box-shadow:var(--sh-2)}\n.btnlink{gap:7px}\n.btnlink.wa,.jw-btn.wa{color:var(--wa)}\n.jw-btn.ico{width:32px;padding:0;display:inline-grid;place-items:center}\na.jw-btn{text-decoration:none}\n.frozen{padding:8px 11px;border-radius:var(--r-ctl);background:var(--soft);color:var(--ink);font-size:12.5px;min-width:200px}\n@media print{body *{visibility:hidden}#docPaper,#docPaper *{visibility:visible}#docPaper{position:absolute;left:0;top:0;box-shadow:none;margin:0;padding:0}}\n.jw-btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:var(--r-sm);background:var(--chip);color:var(--muted);font-weight:700;box-shadow:none}\n.jw-btn:hover{background:var(--line);color:var(--ink)}\n.jw-btn.jw-primary{background:var(--brand-bg);color:var(--brand-ink)}\n.jw-btn.jw-wa{background:var(--accent-bg);color:var(--accent)}\n.row{display:flex;gap:10px;flex-wrap:wrap}\n.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n.seg{display:inline-flex;background:var(--chip);border-radius:var(--r-sm);padding:3px;gap:2px}\n.segbtn{background:transparent;color:var(--muted);box-shadow:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:600}\n.segbtn:hover{background:transparent;color:var(--ink)}\n.segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}\n.segbtn .n{color:var(--faint);font-weight:500;margin-left:3px}\n\n/* ---- cards, figures, tables ---- */\n.card{background:var(--card);border-radius:var(--r-card);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sh-1);min-width:0}\n.kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}\n.kpi{flex:1 1 300px;background:var(--card);border-radius:var(--r-card);padding:13px 16px;box-shadow:var(--sh-1)}\n.kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}\n.kpiname{font-size:13px;font-weight:700} .kpiwhen{font-size:11px;color:var(--muted)}\n.metrics{display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between}\n.metric .v{font-size:19px;font-weight:700;line-height:1.2} .metric .l{font-size:11px;color:var(--muted);margin-top:2px}\n.ff-cap{font-size:12.5px;color:var(--muted);margin:0 0 8px;line-height:1.5;max-width:110ch}\n.ff-grid,.scroll{overflow-x:auto}\n.ok{background:var(--accent-bg);color:var(--accent);padding:11px 14px;border-radius:var(--r-sm);font-size:13.5px;border-left:3px solid var(--accent)}\n.err{background:var(--bad-bg);color:var(--bad);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--bad);margin-bottom:10px;line-height:1.5}\n.warn{background:var(--warn-bg);color:var(--warn-ink);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--warn-ink)}\ntable.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}\ntable.xl th,table.xl td{border-bottom:1px solid var(--line);padding:9px 11px;white-space:nowrap;background:var(--card);text-align:center;vertical-align:middle}\ntable.xl thead th{position:sticky;top:0;z-index:2;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--faint);text-transform:uppercase}\ntable.xl .frz{position:sticky;left:0;z-index:1;border-right:1px solid var(--line)}\ntable.xl thead th.frz{z-index:3}\ntable.xl tbody tr:nth-child(even) td{background:var(--zebra)}\ntable.xl tbody tr:hover td{background:var(--soft)}\ntable.xl tfoot td{background:var(--soft);font-weight:800}\ntable.xl.xl-dense th,table.xl.xl-dense td{padding:6px 8px;font-size:12.5px}\n.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;white-space:nowrap}\n.pill-ok{background:var(--accent-bg);color:var(--accent)} .pill-low{background:var(--warn-bg);color:var(--warn-ink)}\n.pill-out{background:var(--bad-bg);color:var(--bad)} .pill-sea{background:var(--brand-bg);color:var(--brand-ink)} .pill-mute{background:var(--chip);color:var(--muted)}\n.lm-note{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}\n.lm-why{font-size:12px;color:var(--muted);line-height:1.55;margin-top:8px}\n.lm-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px}\n.lm-lines td{padding:5px 6px} .lm-lines input,.lm-lines select{padding:6px 8px;font-size:12.5px}\n.lm-x{background:transparent;color:var(--bad);box-shadow:none;padding:4px 8px;font-size:15px}\n.lm-x:hover{background:var(--bad-bg)}\n\n/* ---- the dashboard ---- */\n.dashcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:14px;margin-bottom:14px}\n.dcard{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal}\n.dcard:hover{background:var(--card);box-shadow:var(--sh-2)}\n.dhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}\n.dicon{width:22px;height:22px;border-radius:7px;background:var(--chip);color:var(--brand-ink);display:inline-flex;align-items:center;justify-content:center;flex:none}\n.dtitle{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}\n.dchip{margin-left:auto;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:var(--accent-bg);color:var(--accent);white-space:nowrap}\n.dfig{font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.01em}\n.dsub{font-size:12px;color:var(--muted);margin-top:2px}\n.dsplit{display:flex;gap:30px;flex-wrap:wrap}\n.dnote{font-size:12px;color:var(--muted);margin-left:auto;padding-bottom:3px}\n.dash2col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:14px;align-items:stretch;margin-bottom:14px}\n\n/* ---- Greige POs: the figures, each one a filter ---- */\n.pobar{display:flex;gap:10px;flex-wrap:wrap;margin:-4px 0 14px}\n.gk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}\n.gk{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto;column-gap:8px;text-align:left;background:var(--card);color:var(--ink);\n  border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal;outline:1.5px solid transparent}\n.gk:hover{background:var(--card);box-shadow:var(--sh-2)}\n.gk.on{outline-color:var(--brand)}\n.gk-ic{grid-column:2;grid-row:1/3;width:34px;height:34px;border-radius:10px;display:grid;place-items:center}\n.gk-v{grid-column:1;font-size:21px;font-weight:800;letter-spacing:-.01em}\n.gk-l{grid-column:1;font-size:12.5px;color:var(--muted);font-weight:600}\n.gk-s{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:9px}\n.tone-blue{background:var(--brand-bg);color:var(--brand-ink)} .tone-amber{background:var(--warn-bg);color:var(--warn-ink)}\n.tone-green{background:var(--accent-bg);color:var(--accent)} .tone-red{background:var(--bad-bg);color:var(--bad)}\n.filters{padding:12px 14px;display:flex;flex-direction:column;gap:10px}\n.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}\n.frow select{flex:0 1 200px;width:auto;height:38px;padding-block:0}\n.pair{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0}\n.frow input[type=date]{width:160px;max-width:100%;height:38px;padding-block:0}\nlabel.inl{margin:0;font-size:12px}\n.frow2{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}\n.count{font-size:12.5px}\n.tablecard{padding:0;overflow:hidden}\n.t{width:100%;min-width:1080px;border-collapse:collapse}\n.t > thead th,.ct > thead th{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--card)}\n.t > tbody > tr > td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\nth.num,td.num{text-align:right;white-space:nowrap} th.ra{text-align:right} td.tl,th.tl{text-align:left}\n.xrow{cursor:pointer}\n.xrow:hover > td,.xrow.open > td{background:var(--soft)}\n.plus{color:var(--muted);font-weight:600}\n.w-chev{width:40px;padding-left:12px!important;padding-right:0!important}\n.chev{width:26px;height:26px;padding:0;background:transparent;box-shadow:none;border-radius:7px;display:grid;place-items:center;color:var(--muted)}\n.chev:hover{background:var(--line);color:var(--ink)}\n.chev svg{transition:transform .15s ease}\n.open > td .chev svg{transform:rotate(90deg)}\n.mill{display:flex;gap:10px;align-items:center}\n.av{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800}\n.av-a{background:var(--brand-bg);color:var(--brand-ink)} .av-b{background:var(--pink-bg);color:var(--pink)}\n.av-c{background:var(--accent-bg);color:var(--accent)} .av-d{background:var(--warn-bg);color:var(--warn-ink)}\n.prog{display:flex;align-items:center;gap:8px;font-weight:700}\n.actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;min-width:230px}\n.plate{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;background:var(--card);white-space:nowrap}\n.detail > td{padding:0!important;background:var(--soft);border-bottom:1px solid var(--line)}\n.panel{padding:6px 18px 18px 52px;display:flex;flex-direction:column;gap:12px}\n@media (max-width:640px){.panel{padding-left:14px}}\n.panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.panel-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}\n.lsum{display:flex;gap:10px;flex-wrap:wrap}\n.lchip{background:var(--card);border-radius:12px;padding:10px 13px;min-width:min(270px,100%);box-shadow:var(--sh-1)}\n.lchip .top2{display:flex;justify-content:space-between;gap:12px;font-size:13px}\n.lchip .due{color:var(--warn-ink)}\n.bar{height:5px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}\n.bar i{display:block;height:100%;background:var(--brand);border-radius:3px}\n.bar i.full{background:var(--accent)}\n.ct.li th{background:var(--card)}\n.ct.li td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct.li tr.tot td{border-bottom:0;font-weight:700;background:var(--soft)}\n.bar.sm{height:4px;margin-top:5px;min-width:70px}\n.box{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--sh-1)}\n.ct{width:100%;border-collapse:collapse}\n.ct > tbody > tr > td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct .xrow:hover > td,.ct .xrow.open > td{background:var(--brand-bg)}\n.empty{padding:18px;color:var(--muted);font-size:13.5px}\n.pieces{padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px;background:var(--soft)}\n.pieces-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}\n.pl-h{font-size:13px;margin-bottom:7px}\n.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}\n.pc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:3px}\n.pc.short{border-color:var(--bad-line);background:var(--bad-bg)}\n.pc-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}\n.pc-m{font-weight:700}\n.pc input{padding:4px 7px;font-size:13px;border-radius:7px}\n.pc-lab{font-size:11px;font-weight:500;color:var(--faint);margin:0}\n.d{font-weight:700} .d.short{color:var(--bad)} .d.extra{color:var(--ok-ink)} .d.ok{color:var(--faint);font-weight:500}\n.foot{font-size:12.5px;color:var(--muted);max-width:90ch;margin:4px 2px 0;line-height:1.55}\n\n/* ---- the receive drawer ---- */\n.scrim{position:fixed;inset:0;background:var(--scrim);z-index:1010}\n.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--card);z-index:1011;display:flex;flex-direction:column;box-shadow:var(--sh-3);\n  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}\n.dr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line)}\n.dr-head h2{font-size:19px;margin:2px 0 0}\n.crumb{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}\n.dr-body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}\n.dr-foot{border-top:1px solid var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}\n@media (max-width:520px){.dr-head,.dr-body,.dr-foot{padding-inline:16px}}\n.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n@media (max-width:520px){.grid2{grid-template-columns:1fr}}\n.fld{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted);margin:0}\n.fld small{font-weight:400;font-size:12px}\n.fld.wide{grid-column:1/-1}\n.sect{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}\n.sect span{font-weight:500;letter-spacing:0;text-transform:none}\n.dl{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--soft)}\n.prh,.pr{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 32px;gap:8px;align-items:center}\n.prh{font-size:11.5px;color:var(--faint);font-weight:600}\n.pr input{padding:7px 10px}\n.pr-i{font-size:12px;color:var(--faint);text-align:right}\n.x{width:32px;height:32px;padding:0;background:transparent;box-shadow:none;color:var(--muted);font-size:18px;line-height:1;border-radius:8px}\n.x:hover{background:var(--line);color:var(--ink)}\n.dl-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}\n.dl-sum{margin-left:auto;font-weight:700;font-size:13px}\n.link{background:none;box-shadow:none;color:var(--brand-ink);font-size:13px;font-weight:700;padding:2px 0}\n.link:hover{background:none;text-decoration:underline}\n.paste{display:flex;flex-direction:column;gap:8px}\n.paste textarea{min-height:84px;resize:vertical;font-family:var(--mono);font-size:13px}\n.warnline{font-size:12.5px;color:var(--warn-ink)}\n.note{font-size:12.5px;color:var(--muted)}\n.empty-sm{border:1px dashed var(--line);border-radius:12px;padding:16px;color:var(--muted);font-size:13.5px}\n.pohead{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}\n.pohead-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}\n.ct.mini th{padding:7px 8px;background:transparent}\n.ct.mini td{padding:7px 8px;font-size:12.5px}\n.ct.mini tr.tot td{border-bottom:0;font-weight:700}\n.due{color:var(--warn-ink)}\n.dl-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.lotf{flex:0 0 150px}\n.lotf input{font-family:var(--mono);font-weight:700}\n.supline{background:var(--brand-bg);color:var(--brand-ink);padding:10px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.55}\n.cellbtn{background:transparent;box-shadow:none;color:inherit;font:inherit;font-weight:inherit;padding:4px 8px;border-radius:8px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}\n.cellbtn:hover,.cellbtn.on{background:var(--brand-bg);color:var(--brand-ink);text-decoration:none}\n.cellbtn .caret{font-size:10px;opacity:.7}\ntr.invdet > td{background:var(--soft)!important;padding:4px 12px 14px!important;white-space:normal!important;text-align:left!important}\n.invdrop{display:flex;flex-direction:column;gap:8px}\n.balegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}\n.bale{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer}\n.bale input{width:15px;height:15px;flex:none}.bale b{margin-left:auto;font-variant-numeric:tabular-nums}\n.bale.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-ink)}\n.okline{background:var(--accent-bg);color:var(--accent);padding:8px 12px;border-radius:var(--r-sm);font-size:12.5px}\n.approvals{border-left:4px solid var(--warn-ink)}\n.closeline{display:flex;align-items:center;gap:9px;margin:0;font-size:13px;font-weight:600;color:var(--ink);background:var(--warn-bg);border-radius:var(--r-sm);padding:9px 12px}\n.closeline input{width:16px;height:16px;flex:none}\n.dr-total{display:flex;justify-content:space-between;gap:12px;font-weight:700;flex-wrap:wrap}\n.dr-btns{display:flex;justify-content:flex-end;gap:8px}\n\n/* ---- dialogs ---- */\n.modal{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}\n.modalbox{background:var(--card);border-radius:var(--r-card);padding:20px;width:min(720px,100%);max-height:92vh;overflow:auto;box-shadow:var(--sh-3)}\n.en-groups{display:flex;flex-direction:column;gap:7px;margin:4px 0 16px}\n.en-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}\n.en-gname{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);width:82px;flex:none}\n.en-chip{display:inline-flex;align-items:center;gap:7px;background:var(--chip);color:var(--ink);box-shadow:none;border-radius:var(--r-pill);padding:6px 13px;font-size:12.5px;font-weight:600}\n.en-chip:hover{background:var(--line);color:var(--ink)}\n.en-chip.on{background:var(--card);box-shadow:inset 0 0 0 1.5px var(--ink),var(--sh-1);font-weight:800}\n.en-dot{width:8px;height:8px;border-radius:50%;flex:none}\n.en-after{background:var(--brand-bg);color:var(--brand-ink);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.7;margin-bottom:10px}\n.en-after-h{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.75;margin-bottom:2px}\n.en-after .bad{color:var(--bad)}\n.docbox{width:min(860px,100%)}\n.docpaper{background:#ffffff;color:#000000;border-radius:8px;padding:16px;overflow-x:auto;box-shadow:inset 0 0 0 1px var(--line);margin:12px 0 16px}\n.mailbox{background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px;margin:8px 0 12px}\n.mailbox pre{margin:6px 0 0;white-space:pre-wrap;font:13px/1.5 var(--sans);color:var(--ink)}\n.err-in{color:var(--bad);font-weight:600}\n\n.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--toast-bg);color:var(--toast-fg);\n  padding:11px 16px;border-radius:12px;font-size:13.5px;z-index:80;width:max-content;max-width:calc(100% - 32px);box-shadow:var(--sh-3);border-left:4px solid var(--brand);z-index:1100}\n.toast.ok{border-left-color:var(--c-rfd)} .toast.warn{border-left-color:var(--c-greige)} .toast.err{border-left-color:var(--bad)}\n@media (prefers-reduced-motion: reduce){*{transition:none!important}}\n";
-  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">Greige · RFD · POs</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"number\" step=\"0.01\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"number\" step=\"0.01\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
+  var GD_CSS = "[hidden]{display:none!important} img{max-width:100%} \n/* Layout: the Replenish app's own frame -- a bar of screens across the top, soft cards on a tinted\n   ground -- with the greige work at its centre: each PO opens into its challans, each challan into its\n   bales, and receiving is a drawer from the right, opened from the PO itself. */\n:host{display:block;\n  --bg:#F3F5F8; --card:#ffffff; --soft:#F7F9FB; --chip:#EFF2F6; --hover:#EFF2F6; --zebra:#FBFCFE; --line:#E8EDF3;\n  --ink:#14181F; --muted:#5A6472; --faint:#98A1AE;\n  --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#ffffff;\n  --accent:#4A5A3C; --accent-bg:#EDF0E7; --ok-ink:#2F6B33;\n  --bad:#9B1C1C; --bad-bg:#FBE9E9; --bad-line:#EBB9B9;\n  --warn-ink:#8A5A12; --warn-bg:#FFF3D6; --proc-ink:#7F6000;\n  --pink:#9B3F86; --pink-bg:#F7E8F3;\n  --c-greige:#9A6410; --c-proc:#2F6DB5; --c-rfd:#3F7D3A; --wa:#128C3E;\n  --scrim:rgba(15,23,42,.45); --toast-bg:#14181F; --toast-fg:#ffffff;\n  --sh-1:0 2px 10px rgba(20,24,31,.05); --sh-2:0 4px 16px rgba(20,24,31,.09); --sh-3:0 24px 64px rgba(20,24,31,.22);\n  --ring:0 0 0 3px rgba(110,144,181,.32); --ring-line:#6E90B5;\n  --r-card:18px; --r-ctl:12px; --r-sm:10px; --r-pill:999px; --ctl:40px;\n  --sans:\"Plus Jakarta Sans\",ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;\n  --serif:\"Libre Caslon Text\",\"Iowan Old Style\",Baskerville,\"Times New Roman\",serif;\n  --mono:ui-monospace,\"Cascadia Mono\",Consolas,\"Courier New\",monospace;\n}\n\n\n\n*{box-sizing:border-box}\n.gdroot{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;border-radius:18px}\n.pill,.tnum,.metric .v,.dfig,.gk-v,.num,.prog,.pc-m,.pc input,.pr input{font-variant-numeric:tabular-nums}\nh1,h2{letter-spacing:-.02em;text-wrap:balance}\n.muted{color:var(--muted)} .b{font-weight:700} .sub{font-size:12px;color:var(--muted)} .grow{flex:1}\n.mono{font-family:var(--mono);font-size:12.5px} .hide{display:none!important}\n.sel{user-select:text}\n\n/* ---- the frame ---- */\n.shell{display:flex;flex-direction:column;min-height:100%}\n.side{position:static;border-radius:18px 18px 0 0;display:flex;align-items:center;gap:2px;flex-wrap:wrap;\n  background:var(--card);box-shadow:var(--sh-1);padding:8px 16px}\n.brand{padding:0 14px 0 2px}\n.brandname{font-family:var(--serif);font-size:16px;letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column;line-height:1}\n.brandsub{font-family:var(--sans);font-size:7.5px;font-weight:600;letter-spacing:.22em;color:var(--muted);margin-top:3px}\n.navgrp{background:transparent;color:var(--muted);box-shadow:none;border:0;font:inherit;font-size:13px;font-weight:600;padding:8px 12px;border-radius:var(--r-sm);cursor:pointer}\n.navgrp:hover{color:var(--ink);background:var(--hover)}\n.navgrp.here{color:var(--brand);background:var(--brand-bg);font-weight:800}\n.sidefoot{margin-left:auto;display:flex;align-items:center;gap:8px}\n.lm-tag{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);background:var(--warn-bg);color:var(--warn-ink);font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}\n.main{flex:1;min-width:0;width:100%;max-width:1560px;margin:0 auto;padding-inline:22px;padding-block:18px 48px}\n@media (max-width:640px){.main{padding-inline:16px}.side{padding:8px 12px;position:static}.brandsub{display:none}.frow select{flex:1 1 100%}}\n.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}\n.lm-h{font-family:var(--serif);font-weight:400;font-size:25px;margin:0}\n.topacts{margin-left:auto;display:flex;gap:8px;min-width:0;flex:0 1 480px;align-items:center}.toppick:empty{display:none}.histday-end td{border-bottom:2px solid var(--line)}.toppick{flex:0 0 auto}.toppick select{width:auto;min-width:150px;max-width:240px;height:var(--ctl)}\n.topacts input{width:100%}\n\n/* ---- controls ---- */\nlabel{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}\ninput,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-ctl);padding:9px 12px;width:100%;min-width:0}\ninput:focus,select:focus,textarea:focus{outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}\ninput[readonly]{background:var(--soft);color:var(--muted)}\ninput::placeholder,textarea::placeholder{color:var(--faint)}\nbutton{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:10px 18px;background:var(--brand);color:var(--on-brand);\n  box-shadow:0 4px 12px rgba(74,106,146,.25);transition:background .12s,box-shadow .12s,transform .06s;white-space:nowrap}\nbutton:hover{background:var(--brand-ink)}\nbutton:active{transform:translateY(1px);box-shadow:none}\nbutton:focus-visible,a:focus-visible{outline:none;box-shadow:var(--ring)}\nbutton.ghost{background:var(--card);color:var(--muted);font-weight:600;box-shadow:var(--sh-1)}\nbutton.ghost:hover{color:var(--ink);box-shadow:var(--sh-2)}\nbutton.armed,button.ghost.armed{background:var(--bad);color:#fff}\n.btnlink{display:inline-flex;align-items:center;padding:10px 18px;border-radius:var(--r-ctl);background:var(--card);color:var(--brand-ink);font-weight:700;text-decoration:none;box-shadow:var(--sh-1)}\n.btnlink:hover{box-shadow:var(--sh-2)}\n.btnlink{gap:7px}\n.btnlink.wa,.jw-btn.wa{color:var(--wa)}\n.jw-btn.ico{width:32px;padding:0;display:inline-grid;place-items:center}\na.jw-btn{text-decoration:none}\n.frozen{padding:8px 11px;border-radius:var(--r-ctl);background:var(--soft);color:var(--ink);font-size:12.5px;min-width:200px}\n@media print{body *{visibility:hidden}#docPaper,#docPaper *{visibility:visible}#docPaper{position:absolute;left:0;top:0;box-shadow:none;margin:0;padding:0}}\n.jw-btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:var(--r-sm);background:var(--chip);color:var(--muted);font-weight:700;box-shadow:none}\n.jw-btn:hover{background:var(--line);color:var(--ink)}\n.jw-btn.jw-primary{background:var(--brand-bg);color:var(--brand-ink)}\n.jw-btn.jw-wa{background:var(--accent-bg);color:var(--accent)}\n.row{display:flex;gap:10px;flex-wrap:wrap}\n.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n.seg{display:inline-flex;background:var(--chip);border-radius:var(--r-sm);padding:3px;gap:2px}\n.segbtn{background:transparent;color:var(--muted);box-shadow:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:600}\n.segbtn:hover{background:transparent;color:var(--ink)}\n.segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}\n.segbtn .n{color:var(--faint);font-weight:500;margin-left:3px}\n\n/* ---- cards, figures, tables ---- */\n.card{background:var(--card);border-radius:var(--r-card);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sh-1);min-width:0}\n.kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}\n.kpi{flex:1 1 300px;background:var(--card);border-radius:var(--r-card);padding:13px 16px;box-shadow:var(--sh-1)}\n.kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}\n.kpiname{font-size:13px;font-weight:700} .kpiwhen{font-size:11px;color:var(--muted)}\n.metrics{display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between}\n.metric .v{font-size:19px;font-weight:700;line-height:1.2} .metric .l{font-size:11px;color:var(--muted);margin-top:2px}\n.ff-cap{font-size:12.5px;color:var(--muted);margin:0 0 8px;line-height:1.5;max-width:110ch}\n.ff-grid,.scroll{overflow-x:auto}\n.ok{background:var(--accent-bg);color:var(--accent);padding:11px 14px;border-radius:var(--r-sm);font-size:13.5px;border-left:3px solid var(--accent)}\n.err{background:var(--bad-bg);color:var(--bad);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--bad);margin-bottom:10px;line-height:1.5}\n.warn{background:var(--warn-bg);color:var(--warn-ink);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--warn-ink)}\ntable.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}\ntable.xl th,table.xl td{border-bottom:1px solid var(--line);padding:9px 11px;white-space:nowrap;background:var(--card);text-align:center;vertical-align:middle}\ntable.xl thead th{position:sticky;top:0;z-index:2;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--faint);text-transform:uppercase}\ntable.xl .frz{position:sticky;left:0;z-index:1;border-right:1px solid var(--line)}\ntable.xl thead th.frz{z-index:3}\ntable.xl tbody tr:nth-child(even) td{background:var(--zebra)}\ntable.xl tbody tr:hover td{background:var(--soft)}\ntable.xl tfoot td{background:var(--soft);font-weight:800}\ntable.xl.xl-dense th,table.xl.xl-dense td{padding:6px 8px;font-size:12.5px}\n.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;white-space:nowrap}\n.pill-ok{background:var(--accent-bg);color:var(--accent)} .pill-low{background:var(--warn-bg);color:var(--warn-ink)}\n.pill-out{background:var(--bad-bg);color:var(--bad)} .pill-sea{background:var(--brand-bg);color:var(--brand-ink)} .pill-mute{background:var(--chip);color:var(--muted)}\n.lm-note{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}\n.lm-why{font-size:12px;color:var(--muted);line-height:1.55;margin-top:8px}\n.lm-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px}\n.lm-lines td{padding:5px 6px} .lm-lines input,.lm-lines select{padding:6px 8px;font-size:12.5px}\n.lm-x{background:transparent;color:var(--bad);box-shadow:none;padding:4px 8px;font-size:15px}\n.lm-x:hover{background:var(--bad-bg)}\n\n/* ---- the dashboard ---- */\n.dashcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:14px;margin-bottom:14px}\n.dcard{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal}\n.dcard:hover{background:var(--card);box-shadow:var(--sh-2)}\n.dhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}\n.dicon{width:22px;height:22px;border-radius:7px;background:var(--chip);color:var(--brand-ink);display:inline-flex;align-items:center;justify-content:center;flex:none}\n.dtitle{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}\n.dchip{margin-left:auto;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:var(--accent-bg);color:var(--accent);white-space:nowrap}\n.dfig{font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.01em}\n.dsub{font-size:12px;color:var(--muted);margin-top:2px}\n.dsplit{display:flex;gap:30px;flex-wrap:wrap}\n.dnote{font-size:12px;color:var(--muted);margin-left:auto;padding-bottom:3px}\n.dash2col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:14px;align-items:stretch;margin-bottom:14px}\n\n/* ---- Greige POs: the figures, each one a filter ---- */\n.pobar{display:flex;gap:10px;flex-wrap:wrap;margin:-4px 0 14px}\n.gk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}\n.gk{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto;column-gap:8px;text-align:left;background:var(--card);color:var(--ink);\n  border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal;outline:1.5px solid transparent}\n.gk:hover{background:var(--card);box-shadow:var(--sh-2)}\n.gk.on{outline-color:var(--brand)}\n.gk-ic{grid-column:2;grid-row:1/3;width:34px;height:34px;border-radius:10px;display:grid;place-items:center}\n.gk-v{grid-column:1;font-size:21px;font-weight:800;letter-spacing:-.01em}\n.gk-l{grid-column:1;font-size:12.5px;color:var(--muted);font-weight:600}\n.gk-s{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:9px}\n.tone-blue{background:var(--brand-bg);color:var(--brand-ink)} .tone-amber{background:var(--warn-bg);color:var(--warn-ink)}\n.tone-green{background:var(--accent-bg);color:var(--accent)} .tone-red{background:var(--bad-bg);color:var(--bad)}\n.filters{padding:12px 14px;display:flex;flex-direction:column;gap:10px}\n.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}\n.frow select{flex:0 1 200px;width:auto;height:38px;padding-block:0}\n.pair{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0}\n.frow input[type=date]{width:160px;max-width:100%;height:38px;padding-block:0}\nlabel.inl{margin:0;font-size:12px}\n.frow2{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}\n.count{font-size:12.5px}\n.tablecard{padding:0;overflow:hidden}\n.t{width:100%;min-width:1080px;border-collapse:collapse}\n.t > thead th,.ct > thead th{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--card)}\n.t > tbody > tr > td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\nth.num,td.num{text-align:right;white-space:nowrap} th.ra{text-align:right} td.tl,th.tl{text-align:left}\n.xrow{cursor:pointer}\n.xrow:hover > td,.xrow.open > td{background:var(--soft)}\n.plus{color:var(--muted);font-weight:600}\n.w-chev{width:40px;padding-left:12px!important;padding-right:0!important}\n.chev{width:26px;height:26px;padding:0;background:transparent;box-shadow:none;border-radius:7px;display:grid;place-items:center;color:var(--muted)}\n.chev:hover{background:var(--line);color:var(--ink)}\n.chev svg{transition:transform .15s ease}\n.open > td .chev svg{transform:rotate(90deg)}\n.mill{display:flex;gap:10px;align-items:center}\n.av{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800}\n.av-a{background:var(--brand-bg);color:var(--brand-ink)} .av-b{background:var(--pink-bg);color:var(--pink)}\n.av-c{background:var(--accent-bg);color:var(--accent)} .av-d{background:var(--warn-bg);color:var(--warn-ink)}\n.prog{display:flex;align-items:center;gap:8px;font-weight:700}\n.actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;min-width:230px}\n.plate{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;background:var(--card);white-space:nowrap}\n.detail > td{padding:0!important;background:var(--soft);border-bottom:1px solid var(--line)}\n.panel{padding:6px 18px 18px 52px;display:flex;flex-direction:column;gap:12px}\n@media (max-width:640px){.panel{padding-left:14px}}\n.panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.panel-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}\n.lsum{display:flex;gap:10px;flex-wrap:wrap}\n.lchip{background:var(--card);border-radius:12px;padding:10px 13px;min-width:min(270px,100%);box-shadow:var(--sh-1)}\n.lchip .top2{display:flex;justify-content:space-between;gap:12px;font-size:13px}\n.lchip .due{color:var(--warn-ink)}\n.bar{height:5px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}\n.bar i{display:block;height:100%;background:var(--brand);border-radius:3px}\n.bar i.full{background:var(--accent)}\n.ct.li th{background:var(--card)}\n.ct.li td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct.li tr.tot td{border-bottom:0;font-weight:700;background:var(--soft)}\n.bar.sm{height:4px;margin-top:5px;min-width:70px}\n.box{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--sh-1)}\n.ct{width:100%;border-collapse:collapse}\n.ct > tbody > tr > td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct .xrow:hover > td,.ct .xrow.open > td{background:var(--brand-bg)}\n.empty{padding:18px;color:var(--muted);font-size:13.5px}\n.pieces{padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px;background:var(--soft)}\n.pieces-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}\n.pl-h{font-size:13px;margin-bottom:7px}\n.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}\n.pc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:3px}\n.pc.short{border-color:var(--bad-line);background:var(--bad-bg)}\n.pc-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}\n.pc-m{font-weight:700}\n.pc input{padding:4px 7px;font-size:13px;border-radius:7px}\n.pc-lab{font-size:11px;font-weight:500;color:var(--faint);margin:0}\n.d{font-weight:700} .d.short{color:var(--bad)} .d.extra{color:var(--ok-ink)} .d.ok{color:var(--faint);font-weight:500}\n.foot{font-size:12.5px;color:var(--muted);max-width:90ch;margin:4px 2px 0;line-height:1.55}\n\n/* ---- the receive drawer ---- */\n.scrim{position:fixed;inset:0;background:var(--scrim);z-index:1010}\n.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--card);z-index:1011;display:flex;flex-direction:column;box-shadow:var(--sh-3);\n  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}\n.dr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line)}\n.dr-head h2{font-size:19px;margin:2px 0 0}\n.crumb{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}\n.dr-body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}\n.dr-foot{border-top:1px solid var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}\n@media (max-width:520px){.dr-head,.dr-body,.dr-foot{padding-inline:16px}}\n.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n@media (max-width:520px){.grid2{grid-template-columns:1fr}}\n.fld{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted);margin:0}\n.fld small{font-weight:400;font-size:12px}\n.fld.wide{grid-column:1/-1}\n.sect{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}\n.sect span{font-weight:500;letter-spacing:0;text-transform:none}\n.dl{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--soft)}\n.prh,.pr{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 32px;gap:8px;align-items:center}\n.prh{font-size:11.5px;color:var(--faint);font-weight:600}\n.pr input{padding:7px 10px}\n.pr-i{font-size:12px;color:var(--faint);text-align:right}\n.x{width:32px;height:32px;padding:0;background:transparent;box-shadow:none;color:var(--muted);font-size:18px;line-height:1;border-radius:8px}\n.x:hover{background:var(--line);color:var(--ink)}\n.dl-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}\n.dl-sum{margin-left:auto;font-weight:700;font-size:13px}\n.link{background:none;box-shadow:none;color:var(--brand-ink);font-size:13px;font-weight:700;padding:2px 0}\n.link:hover{background:none;text-decoration:underline}\n.paste{display:flex;flex-direction:column;gap:8px}\n.paste textarea{min-height:84px;resize:vertical;font-family:var(--mono);font-size:13px}\n.warnline{font-size:12.5px;color:var(--warn-ink)}\n.note{font-size:12.5px;color:var(--muted)}\n.empty-sm{border:1px dashed var(--line);border-radius:12px;padding:16px;color:var(--muted);font-size:13.5px}\n.pohead{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}\n.pohead-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}\n.ct.mini th{padding:7px 8px;background:transparent}\n.ct.mini td{padding:7px 8px;font-size:12.5px}\n.ct.mini tr.tot td{border-bottom:0;font-weight:700}\n.due{color:var(--warn-ink)}\n.dl-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.lotf{flex:0 0 150px}\n.lotf input{font-family:var(--mono);font-weight:700}\n.supline{background:var(--brand-bg);color:var(--brand-ink);padding:10px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.55}\n.cellbtn{background:transparent;box-shadow:none;color:inherit;font:inherit;font-weight:inherit;padding:4px 8px;border-radius:8px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}\n.cellbtn:hover,.cellbtn.on{background:var(--brand-bg);color:var(--brand-ink);text-decoration:none}\n.cellbtn .caret{font-size:10px;opacity:.7}\ntr.invdet > td{background:var(--soft)!important;padding:4px 12px 14px!important;white-space:normal!important;text-align:left!important}\n.invdrop{display:flex;flex-direction:column;gap:8px}\n.balegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}\n.bale{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer}\n.bale input{width:15px;height:15px;flex:none}.bale b{margin-left:auto;font-variant-numeric:tabular-nums}\n.bale.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-ink)}\n.okline{background:var(--accent-bg);color:var(--accent);padding:8px 12px;border-radius:var(--r-sm);font-size:12.5px}\n.approvals{border-left:4px solid var(--warn-ink)}\n.closeline{display:flex;align-items:center;gap:9px;margin:0;font-size:13px;font-weight:600;color:var(--ink);background:var(--warn-bg);border-radius:var(--r-sm);padding:9px 12px}\n.closeline input{width:16px;height:16px;flex:none}\n.dr-total{display:flex;justify-content:space-between;gap:12px;font-weight:700;flex-wrap:wrap}\n.dr-btns{display:flex;justify-content:flex-end;gap:8px}\n\n/* ---- dialogs ---- */\n.modal{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}\n.modalbox{background:var(--card);border-radius:var(--r-card);padding:20px;width:min(720px,100%);max-height:92vh;overflow:auto;box-shadow:var(--sh-3)}\n.en-groups{display:flex;flex-direction:column;gap:7px;margin:4px 0 16px}\n.en-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}\n.en-gname{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);width:82px;flex:none}\n.en-chip{display:inline-flex;align-items:center;gap:7px;background:var(--chip);color:var(--ink);box-shadow:none;border-radius:var(--r-pill);padding:6px 13px;font-size:12.5px;font-weight:600}\n.en-chip:hover{background:var(--line);color:var(--ink)}\n.en-chip.on{background:var(--card);box-shadow:inset 0 0 0 1.5px var(--ink),var(--sh-1);font-weight:800}\n.en-dot{width:8px;height:8px;border-radius:50%;flex:none}\n.en-after{background:var(--brand-bg);color:var(--brand-ink);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.7;margin-bottom:10px}\n.en-after-h{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.75;margin-bottom:2px}\n.en-after .bad{color:var(--bad)}\n.docbox{width:min(860px,100%)}\n.docpaper{background:#ffffff;color:#000000;border-radius:8px;padding:16px;overflow-x:auto;box-shadow:inset 0 0 0 1px var(--line);margin:12px 0 16px}\n.mailbox{background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px;margin:8px 0 12px}\n.mailbox pre{margin:6px 0 0;white-space:pre-wrap;font:13px/1.5 var(--sans);color:var(--ink)}\n.err-in{color:var(--bad);font-weight:600}\n\n.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--toast-bg);color:var(--toast-fg);\n  padding:11px 16px;border-radius:12px;font-size:13.5px;z-index:80;width:max-content;max-width:calc(100% - 32px);box-shadow:var(--sh-3);border-left:4px solid var(--brand);z-index:1100}\n.toast.ok{border-left-color:var(--c-rfd)} .toast.warn{border-left-color:var(--c-greige)} .toast.err{border-left-color:var(--bad)}\n@media (prefers-reduced-motion: reduce){*{transition:none!important}}\n";
+  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">Greige · RFD · POs</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><span id=\"lmTopPick\" class=\"toppick\"></span><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div style=\"margin-top:12px\"><label for=\"poTc\">Terms &amp; conditions (optional)</label><textarea id=\"poTc\" rows=\"4\" style=\"width:100%\" placeholder=\"Quality, delivery, payment and any other conditions the supplier must follow\"></textarea><div class=\"muted\" style=\"font-size:11px;margin-top:3px\">Starts with your standard terms from the PO settings; change them for this PO if needed. Printed on the PO and put in the mail.</div></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutMode\" class=\"seg\" role=\"tablist\" aria-label=\"Kind of cutting\" style=\"margin-top:12px\"></div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\" id=\"cutSect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. The lot closes by itself when all its thans are back. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
 
 /* core/util.js -- Small shared helpers: escaping, number and date formatting, ids, lists in words.
  * An ES module. Its imports are worked out from the code by the split script. */
@@ -41,11 +41,23 @@ function money(n) {
  * which is UTC: from midnight to half past five in the morning, India time, every entry, PO and
  * "days out" count was stamped with yesterday's date. The date is built from the local calendar now,
  * which is also how every other date in this file is read back (Date.parse of 'YYYY-MM-DDT00:00:00'). */
-function lmToday() {
-  var d = new Date(), two = function (n) { return (n < 10 ? '0' : '') + n; };
+/** The business day (YYYY-MM-DD) on this PC's clock — today, or the day a stored moment (UTC) fell on. */
+function lmToday(moment) {
+  var d = moment ? new Date(moment) : new Date(), two = function (n) { return (n < 10 ? '0' : '') + n; };
   return d.getFullYear() + '-' + two(d.getMonth() + 1) + '-' + two(d.getDate());
 }
 function uid() { return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+/* METRES AND RATES ARE TYPED AS NUMBERS ONLY (Ravi, 21 Nov: "only number can be entered and only upto 7 digits").
+ * Digits and one decimal point, up to 7 digits before it and 2 after (9,999,999.99); a discount % box takes 3 before
+ * it. The boxes are plain text boxes marked data-num="<digits before the point>", because a browser number box lets
+ * "e", "+" and "-" in and hides what was really typed. */
+var NUM_WHOLE_DIGITS = 7, NUM_DECIMALS = 2, PCT_WHOLE_DIGITS = 3;
+function cleanNumber(text, wholeDigits) {
+  var s = String(text == null ? '' : text).replace(/[^0-9.]/g, ''), dot = s.indexOf('.');
+  if (dot >= 0) s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, '');
+  var parts = s.split('.'), whole = parts[0].slice(0, wholeDigits || NUM_WHOLE_DIGITS);
+  return parts.length > 1 ? whole + '.' + parts[1].slice(0, NUM_DECIMALS) : whole;
+}
 function uniq(list) {
   var seen = {}, out = [];
   list.forEach(function (x) { var k = String(x || '').trim(); if (k && !seen[k]) { seen[k] = 1; out.push(k); } });
@@ -129,13 +141,13 @@ var FAB_SIGN = {
 var FAB_LABEL = {
   RECEIVE_GREIGE: 'Greige received', ISSUE_TO_RFD: 'Greige sent for RFD', RECEIVE_RFD: 'RFD received',
   OPENING_RFD: 'RFD opening stock', PURCHASE_RFD: 'RFD bought (received ready)',
-  ISSUE_TO_CUTTING: 'RFD to cutting',
+  ISSUE_TO_CUTTING: 'RFD to cutting', CUT_TO_PRINTER: 'Cut pieces to printer',
   DAMAGE: 'Damaged \u2014 written off',
 };
 /* The state a movement leaves the cloth in -- a receipt of RFD makes RFD, whatever the row says. */
 var FAB_TXN_STATE = {
   RECEIVE_GREIGE: 'GREIGE', ISSUE_TO_RFD: 'GREIGE', RECEIVE_RFD: 'RFD',
-  OPENING_RFD: 'RFD', PURCHASE_RFD: 'RFD', ISSUE_TO_CUTTING: 'RFD',
+  OPENING_RFD: 'RFD', PURCHASE_RFD: 'RFD', ISSUE_TO_CUTTING: 'RFD', CUT_TO_PRINTER: 'RFD',
 };
 var FAB_STATE_LABEL = { GREIGE: 'Greige', RFD: 'RFD', PRINTED: 'Printed' };
 
@@ -314,13 +326,6 @@ function lmSample() {
   };
 }
 
-function lmLoad() {
-  try {
-    var raw = localStorage.getItem(LM_KEY);
-    if (raw) { DB = JSON.parse(raw); if (DB && DB.fab && DB.gpo && DB.mst) { lmMigrate(); return; } }
-  } catch (e) { /* a blocked or cleared store is not a reason to show nothing */ }
-  DB = lmSample();
-}
 /* ANYTHING TYPED BEFORE THE COLUMNS WERE CUT STILL OPENS. The warp and weft used to be four boxes
  * (a count and a fold each); they are one box now, written the way a sales note writes it. */
 function lmMigrate() {
@@ -362,11 +367,6 @@ function lmMigrate() {
     });
   }
 }
-
-function lmSaveDb() { try { localStorage.setItem(LM_KEY, JSON.stringify(DB)); } catch (e) { /* nothing to do */ } }
-
-/** Put the sample registers back -- the Reset button. Done here because this file owns the register. */
-function lmResetSample() { DB = lmSample(); lmSaveDb(); }
 
 /* core/stock.js -- The stock rules: fabric names and specs, lot balances, the fabric roll-up, and what the ledger accepts.
  * An ES module. Its imports are worked out from the code by the split script. */
@@ -470,15 +470,14 @@ function gpoFabrics() {
  * lost anything yet, so it counts as "at processor" and nowhere else; the percentage is struck off
  * settled lots alone, which is what makes one processor at 6% and another at 14% a figure worth
  * arguing with instead of an artefact of what happens to be out today. */
+/* A lot answers to two names -- its greige one and the RFD name it comes back as -- and the figures
+ * belong on one line, under the RFD name, because that is what the cutting table asks for. */
+function fabLineOf(r) {
+  var f = String(r.fabricType || '').trim();
+  return fabRfdOfGreige(f) || f;
+}
 function fabFlowRows(rows) {
   var by = {}, order = [];
-  /* A lot answers to two names -- its greige one and the RFD name it comes back as -- and the
-   * figures belong on one line, under the RFD name, because that is what the cutting table asks
-   * for. */
-  function line(r) {
-    var f = String(r.fabricType || '').trim();
-    return fabRfdOfGreige(f) || f;
-  }
   function bump(name) {
     var k = name.toUpperCase();
     if (!by[k]) {
@@ -490,7 +489,7 @@ function fabFlowRows(rows) {
   }
   (rows || []).forEach(function (r) {
     if (!fabCounts(r)) return;
-    var n = line(r); if (!n) return;
+    var n = fabLineOf(r); if (!n) return;
     var g = bump(n), q = fabQty(r);
     if (r.txnType === 'RECEIVE_GREIGE') g.greigeIn += q;
     else if (r.txnType === 'ISSUE_TO_RFD') g.toRfd += q;
@@ -522,6 +521,48 @@ function fabFlowRows(rows) {
   }).sort(function (a, b) {
     return (b.greigeIn + b.rfdIn + b.rfdOpen + b.rfdBuy) - (a.greigeIn + a.rfdIn + a.rfdOpen + a.rfdBuy);
   });
+}
+
+/* ---- ONE FABRIC'S SHELF, ENTRY BY ENTRY (Ravi, 20 Nov: "full history of in and out ... in the tally ledger format") ---- *
+ *
+ * Two shelves, as on the Inventory page: greige in the store and RFD on the shelf. Cloth at the processor is on
+ * neither. The rows and the rules are fabFlowRows' own (same fabric line, same approval hold, damage off the shelf it
+ * was on), so the last closing is always the figure the Inventory page shows. Reading only; nothing is saved. */
+var FAB_SHELF_MOVES = {
+  greige: { RECEIVE_GREIGE: 1, ISSUE_TO_RFD: -1 },
+  rfd: { RECEIVE_RFD: 1, OPENING_RFD: 1, PURCHASE_RFD: 1, ISSUE_TO_CUTTING: -1 },
+};
+/** +1 when the entry puts cloth on this shelf, -1 when it takes cloth off, 0 when it is not this shelf's. */
+function fabShelfSign(r, shelf) {
+  if (r.txnType === 'DAMAGE') return (fabState(r) === 'GREIGE') === (shelf === 'greige') ? -1 : 0;
+  return (FAB_SHELF_MOVES[shelf] || {})[r.txnType] || 0;
+}
+/** This fabric's entries on this shelf, oldest first; on the same day, in the order they were written. */
+function fabShelfMoves(rows, fabric, shelf) {
+  var F = String(fabric || '').trim().toUpperCase();
+  return (rows || []).map(function (r, i) { return { r: r, i: i }; }).filter(function (x) {
+    return fabCounts(x.r) && fabLineOf(x.r).toUpperCase() === F && fabShelfSign(x.r, shelf) !== 0;
+  }).sort(function (a, b) {
+    return String(a.r.date || '').localeCompare(String(b.r.date || '')) || a.i - b.i;
+  }).map(function (x) { return x.r; });
+}
+/**
+ * The ledger page, Tally's way: what the shelf held when the period opened, each entry with the balance before and
+ * after it, and the period's totals. from / to are YYYY-MM-DD, both counted in; blank means no limit. Entries before
+ * "from" make the opening; entries after "to" are left out.
+ */
+function fabShelfLedger(rows, fabric, shelf, from, to) {
+  var page = { opening: 0, lines: [], inQty: 0, outQty: 0, closing: 0 };
+  fabShelfMoves(rows, fabric, shelf).forEach(function (r) {
+    var d = String(r.date || ''), q = fabQty(r) * fabShelfSign(r, shelf);
+    if (to && d > to) return;
+    if (from && d < from) { page.opening += q; return; }
+    var before = page.opening + page.inQty - page.outQty;
+    page.lines.push({ row: r, opening: before, inQty: q > 0 ? q : 0, outQty: q < 0 ? -q : 0, closing: before + q });
+    if (q > 0) page.inQty += q; else page.outQty -= q;
+  });
+  page.closing = page.opening + page.inQty - page.outQty;
+  return page;
 }
 
 /* ---- and lot by lot, which is how the floor actually talks about it ------------------------- */
@@ -744,8 +785,16 @@ function gpoReceived(po) {
  * the two documents end up disagreeing. */
 function gpoLineMoney(l) {
   var gross = Math.round(((parseFloat(l.metres) || 0) * (parseFloat(l.rate) || 0)) * 100) / 100;
-  /* NO DISCOUNT ON A GREIGE PO (Ravi, 13 Oct): metres at the rate, nothing taken off. */
-  return { gross: gross, disc: 0, amount: gross, total: gross };
+  /* A DISCOUNT PER LINE, AS A PERCENT (Ravi, 21 Nov — it replaces "no discount on a greige PO", 13 Oct). Worked out in
+   * paise and rounded once, so the lines and the total always agree to the paisa. */
+  var disc = Math.round(gross * gpoDiscPct(l)) / 100;
+  var amount = Math.round((gross - disc) * 100) / 100;
+  return { gross: gross, disc: disc, amount: amount, total: amount };
+}
+/** A line's discount percent: 0 when none is typed; never below 0 or above 100. */
+function gpoDiscPct(l) {
+  var p = parseFloat(l && l.disc);
+  return isFinite(p) ? Math.min(100, Math.max(0, p)) : 0;
 }
 function gpoTotals(po) {
   return ((po && po.lines) || []).reduce(function (t, l) {
@@ -833,6 +882,28 @@ function venOfKind(kind) {
  * should be just RFD processor"). Names saved before keep working: Mill reads as Supplier, Processor as RFD Processor. */
 function venKind(v) { var k = String((v && v.kind) || ''); return k === 'Mill' ? 'Supplier' : k === 'Processor' ? 'RFD Processor' : k; }
 function gpoMills() { return venOfKind('Supplier'); }
+/* A NEW PO'S SUPPLIER IS PICKED, NOT TYPED (Vishesh, 23 Nov: "no new name can be added from here … you can type name but cannot
+ * enter it and it will not save it, it can just be used to search from the suppliers feeded in the master data"). Only the
+ * greige suppliers of Master data, switched on; a name kept only because an old PO carries it is not offered. */
+function gpoPickMills() {
+  return uniq((DB.ven || []).filter(function (v) {
+    return v.active !== false && !v.deskOnly && (venKind(v) === 'Supplier' || v.kind === 'Both');
+  }).map(function (v) { return v.name; }));
+}
+/** The Master data spelling of a supplier typed in any case; '' when it is not one of them. */
+function gpoPickedMill(name) {
+  var k = String(name || '').trim().toLowerCase();
+  return gpoPickMills().filter(function (n) { return n.toLowerCase() === k; })[0] || '';
+}
+/** The supplier of the latest PO that is still a Master data supplier: the grey sample in the supplier box. '' when none. */
+function gpoLastMill() {
+  var best = null;
+  (DB.gpo || []).forEach(function (po, i) {
+    if (!gpoPickedMill(po.mill)) return;
+    if (!best || String(po.date || '') >= String(best.date || '')) best = { date: po.date, mill: gpoPickedMill(po.mill), i: i };
+  });
+  return best ? best.mill : '';
+}
 function lmProcessors() { return venOfKind('RFD Processor'); }
 /** How many rows of the register answer to this name -- a vendor on one is not deleted. */
 function venUsed(name) {
@@ -873,9 +944,9 @@ function venByName(n) {
 function poFind(no) { return (DB.gpo || []).filter(function (p) { return p.poNo === no; })[0] || null; }
 function poFileName(po) { return String(po.poNo || 'PO').replace(/[\/\\:*?"<>|]+/g, '-') + '.pdf'; }
 
-/* THE DESCRIPTION OF GOODS, as RIDHI writes it on a PO: the quality, the count, the loom width,
- * and "Gray Fabric" -- "Sheeting 30S 67" Gray Fabric". All of it is already in Master data; the
- * line can still be written over by hand for anything unusual (a Voil 120"(Mullmull)). */
+/* The old built description -- "Sheeting 30S 67" Gray Fabric" (quality, count, loom width). No screen or PO shows it now
+ * (Ravi, 21 Nov: the greige is named as Master data names it); lmMigrate still uses it to recognise old lines that
+ * stored it as their description. */
 function poDesc(rfd) {
   var m = mstOf(rfd); if (!m) return '';
   var base = String(m.rfd || '').replace(/\s*\d+(\.\d+)?\s*$/, '').trim()
@@ -968,7 +1039,16 @@ function dashAlerts() {
 
   /* AN RFD RECEIPT THAT SHRANK TOO MUCH waits for someone who may approve it. */
   (DB.fab || []).forEach(function (r) {
-    if (r.approval && r.approval.status === 'pending') out.push({ bad: true, tag: 'Approve', what: nf(fabQty(r)) + ' m of RFD on ' + r.lot + ' shrank ' + r.approval.pct + '%', who: r.party + ', waiting for approval', go: 'po' });
+    if (r.txnType === 'RECEIVE_RFD' && r.approval && r.approval.status === 'pending') out.push({ bad: true, tag: 'Approve', what: nf(fabQty(r)) + ' m of RFD on ' + r.lot + ' shrank ' + r.approval.pct + '%', who: r.party + ', waiting for approval', go: 'po' });
+  });
+  /* A CUT TO SIZE waits for the production head or accounts head (Vishesh, 23 Nov). */
+  ctsWaiting().forEach(function (r) {
+    out.push({ bad: true, tag: 'Approve', what: r.approval.ask, who: 'asked by ' + (r.approval.by || 'the store'), go: 'po' });
+  });
+  /* …and a PO the store asked to close: the accounts head approves it (Ravi, 21 Nov). */
+  (DB.gpo || []).forEach(function (po) {
+    if (po.closeAsk) out.push({ bad: true, tag: 'Approve', what: 'Close ' + po.poNo + ' with ' + nf(gpoProgress(po).pending) + ' m not supplied',
+      who: 'asked by ' + (po.closeAsk.by || 'the store') + ' on challan ' + (po.closeAsk.challan || '—'), go: 'po' });
   });
 
   /* A cloth the cutting table cannot be given at all. */
@@ -1133,6 +1213,7 @@ function render() {
   if (UI.tab === 'mst' && gdIsLinked()) UI.tab = 'po';   // in the app the masters are Setup's (no Master data tab)
   meFill();
   $('lmTitle').innerHTML = LM_TITLE[UI.tab];
+  $('lmTopPick').innerHTML = '';   // only the Inventory puts its cloth-type drop-down here
   var body = UI.tab === 'inv' ? renderInv()
     : UI.tab === 'ledger' ? renderLedger() : UI.tab === 'mst' ? renderMst() : renderPo();
   $('lmPane').innerHTML = body;
@@ -1165,6 +1246,16 @@ function armed(btn, words) {
 
 /* ---- wiring: the tabs, the search box, closing dialogs, the reset button --------------------------- */
 function wireShell() {
+  /* Every number box is cleaned as it is typed or pasted, before any other screen code reads it (capture phase). */
+  document.addEventListener('input', function (ev) {
+    var el = ev.target;
+    if (!el || !el.hasAttribute || !el.hasAttribute('data-num')) return;
+    var was = el.value, now = cleanNumber(was, parseInt(el.getAttribute('data-num'), 10));
+    if (now === was) return;
+    var at = el.selectionStart == null ? now.length : Math.max(0, el.selectionStart - (was.length - now.length));
+    el.value = now;
+    try { el.setSelectionRange(at, at); } catch (e) { /* the cursor goes to the end: nothing is lost */ }
+  }, true);
   document.addEventListener('click', function (ev) {
     var md = ev.target.closest ? ev.target.closest('[data-gdmd]') : null;
     if (md && typeof gdOpenMasterData === 'function') { gdOpenMasterData(md.getAttribute('data-gdmd')); return; }
@@ -1197,6 +1288,7 @@ function wireShell() {
   document.addEventListener('keydown', function (ev) {
     if (ev.key !== 'Escape') return;
     $('lmPo').classList.add('hide'); $('lmDoc').classList.add('hide');
+    if ($('lmHist')) $('lmHist').classList.add('hide');
     if (RD) closeDrawer();
   });
   $('lmQ').addEventListener('input', function () { UI.q = this.value.trim().toLowerCase(); render(); });
@@ -1514,7 +1606,9 @@ var I = {
 
 /* A PO LINE IS THE GREIGE BOUGHT, AND WHAT IT BECOMES (Ravi, 13 Oct: "main article griege fabric, uske against
  * me kya RFD ready fabric hoga wo description me"). */
-function lineGreigeText(l) { return poDesc(l.rfd) || l.greige || ''; }
+/* The greige is named as Master data names it, everywhere: screens, the printed PO and the mail (Ravi, 21 Nov: the built
+ * "Sheeting 20S 98\" Gray Fabric" was not the actual greige name). */
+function lineGreigeText(l) { return String(l.greige || ''); }
 function lineRfdText(l) { return l.desc || ('RFD ready: ' + (l.rfd || '')); }
 var r1 = function (n) { return Math.round((n || 0) * 10) / 10; };
 var m1 = function (n) { return r1(n).toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); };
@@ -1594,10 +1688,11 @@ function millCell(name) {
 /* ---- status, in words and colour ------------------------------------------------------------ */
 function poPill(po) {
   var st = gpoStatus(po), p = gpoProgress(po), late = gpoLateDays(po);
+  var asked = po.closeAsk ? ' · close asked by ' + esc(po.closeAsk.by || 'the store') : '';
   if (st === 'cancelled') return '<span class="pill pill-mute">Cancelled</span>';
-  if (st === 'received') return '<span class="pill pill-ok">' + I.check + ' Received' + (po.closed ? ' · ' + nf(po.closed.short) + ' m not supplied' : '') + '</span>';
-  if (st === 'part') return '<span class="pill ' + (late ? 'pill-out' : 'pill-low') + '">' + I.dot + ' Part received · ' + nf(p.pending) + ' m due' + (late ? ' · ' + late + ' d late' : '') + '</span>';
-  return '<span class="pill ' + (late ? 'pill-out' : 'pill-sea') + '">' + I.dot + ' Sent' + (late ? ' · ' + late + ' d late' : '') + '</span>';
+  if (st === 'received') return '<span class="pill pill-ok">' + I.check + ' Received' + (po.closed ? ' · ' + nf(gpoNotSupplied(po)) + ' m not supplied' : '') + '</span>';
+  if (st === 'part') return '<span class="pill ' + (late ? 'pill-out' : 'pill-low') + '">' + I.dot + ' Part received · ' + nf(p.pending) + ' m due' + (late ? ' · ' + late + ' d late' : '') + asked + '</span>';
+  return '<span class="pill ' + (late ? 'pill-out' : 'pill-sea') + '">' + I.dot + ' Sent' + (late ? ' · ' + late + ' d late' : '') + asked + '</span>';
 }
 function checkPill(c) {
   var k = chCheck(c);
@@ -1609,15 +1704,21 @@ function checkPill(c) {
 }
 
 /* ---- the filters ---------------------------------------------------------------------------- */
+/* "Closed short" is a Received PO that was closed before all of it came (Ravi, 21 Nov: it was hidden among the
+ * POs that got every metre). */
+var PO_STATUS_FILTERS = ['sent', 'part', 'received', 'closedshort', 'cancelled'];
+function poHasStatus(po, want) {
+  if (want === 'closedshort') return !!po.closed && gpoStatus(po) === 'received' && gpoNotSupplied(po) > 0.05;
+  return gpoStatus(po) === want;
+}
 function poPass(po) {
   if (PV.mill && po.mill !== PV.mill) return false;
   if (PV.from && po.date < PV.from) return false;
   if (PV.to && po.date > PV.to) return false;
-  var st = gpoStatus(po);
   if (PV.st === 'late' && !gpoLateDays(po)) return false;
   if (PV.st === 'tocheck' && !chOfPo(po.poNo).some(chToCheck)) return false;
   if (PV.st === 'short' && !chOfPo(po.poNo).some(function (c) { return chCheck(c).shortN > 0; })) return false;
-  if (['open', 'sent', 'part', 'received', 'closed', 'cancelled'].indexOf(PV.st) >= 0 && st !== PV.st) return false;
+  if (PO_STATUS_FILTERS.indexOf(PV.st) >= 0 && !poHasStatus(po, PV.st)) return false;
   if (UI.q) {
     var hay = [po.poNo, po.mill].concat((po.lines || []).map(function (l) { return l.greige + ' ' + l.rfd + ' ' + (l.desc || ''); }),
       chOfPo(po.poNo).map(function (c) { return c.no + ' ' + c.vehicle + ' ' + c.lr + ' ' + c.rows.map(function (r) { return r.lot; }).join(' '); })).join(' ').toLowerCase();
@@ -1633,7 +1734,7 @@ function chPass(c) {
   if (PV.st === 'tocheck' && !chToCheck(c)) return false;
   if (PV.st === 'short' && !(chCheck(c).shortN > 0)) return false;
   if (PV.st === 'late' && !(po && gpoLateDays(po))) return false;
-  if (['open', 'sent', 'part', 'received', 'closed', 'cancelled'].indexOf(PV.st) >= 0 && !(po && gpoStatus(po) === PV.st)) return false;
+  if (PO_STATUS_FILTERS.indexOf(PV.st) >= 0 && !(po && poHasStatus(po, PV.st))) return false;
   if (UI.q) {
     var hay = [c.no, c.mill, c.po, c.transporter, c.invoice, c.lr].concat(c.rows.map(function (r) { return r.fabricType + ' ' + r.lot + ' ' + fabRfdOfGreige(r.fabricType); })).join(' ').toLowerCase();
     if (hay.indexOf(UI.q) < 0) return false;
@@ -1697,7 +1798,7 @@ function piecesHtml(c) {
           var key = r.id + '|' + pi, id = 'pc-' + r.id + '-' + pi, short = p.chk != null && p.chk - p.m <= -0.05;
           return '<div class="pc' + (short ? ' short' : '') + '" id="' + id + '"><div class="pc-top"><span>Bale ' + esc(p.than) + '</span><span id="pd-' + r.id + '-' + pi + '">' + diffSpan(p) + '</span></div>'
             + '<div class="pc-m">' + m1(p.m) + ' m</div>'
-            + '<label class="pc-lab" for="chk-' + r.id + '-' + pi + '">measured</label><input id="chk-' + r.id + '-' + pi + '" type="number" step="0.1" min="0" inputmode="decimal" data-chk="' + esc(key) + '" value="' + (p.chk == null ? '' : p.chk) + '" placeholder="m"></div>';
+            + '<label class="pc-lab" for="chk-' + r.id + '-' + pi + '">measured</label><input id="chk-' + r.id + '-' + pi + '" type="text" inputmode="decimal" autocomplete="off" data-num="7" data-chk="' + esc(key) + '" value="' + (p.chk == null ? '' : p.chk) + '" placeholder="m"></div>';
         }).join('') + '</div></div>';
     }).join('') + '</div>';
 }
@@ -1708,7 +1809,7 @@ function poRow(po) {
   var chs = chOfPo(po.poNo), open = !!PV.openPo[po.poNo], l0 = (po.lines || [])[0] || {}, more = (po.lines || []).length - 1;
   var acts = '';
   var canRcv = ['open', 'sent', 'part'].indexOf(st) >= 0 && p.pending > 0.05;
-  if (canRcv) acts += '<button type="button" class="jw-btn jw-primary" data-rcv="' + esc(po.poNo) + '">Receive</button>';
+  if (canRcv) acts += '<button type="button" class="jw-btn jw-primary" data-rcv="' + esc(po.poNo) + '">Receive greige</button>';
   if (issLotsOf(po).length) acts += '<button type="button" class="jw-btn jw-wa" data-iss="' + esc(po.poNo) + '">Issue to RFD</button>';
   if (rrLotsOf(po).length) acts += '<button type="button" class="jw-btn jw-wa" data-rr="' + esc(po.poNo) + '">Receive RFD</button>';
   if (['open', 'sent', 'part'].indexOf(st) >= 0) acts += '<button type="button" class="jw-btn" data-pedit="' + esc(po.poNo) + '">Edit</button>';
@@ -1737,10 +1838,10 @@ function poPanel(po) {
   var items = p.lines.map(function (l, i) {
     var pc = l.ordered ? Math.min(100, l.received / l.ordered * 100) : 0, m = gpoLineMoney(l);
     var sent = fabLots().filter(function (g) { return String(g.poNo).toUpperCase() === po.poNo.toUpperCase() && String(g.fabricType).toLowerCase() === String(l.greige).toLowerCase(); }).reduce(function (s, g) { return s + g.toRfd; }, 0);
-    var left = l.pending > 0.05 ? '<b class="due">' + nf(l.pending) + ' m</b>'
+    var left = l.pending > 0.05 ? stillDueCell(po, l.pending)
       : (l.received > l.ordered + 0.05 ? '<span class="d extra">' + nf(l.received - l.ordered) + ' m extra</span>' : '<span class="pill pill-ok">complete</span>');
     return '<tr><td class="num muted">' + (i + 1) + '</td>'
-      + '<td class="tl"><b>' + esc(lineGreigeText(l)) + '</b><div class="sub">' + esc(l.greige) + '</div></td>'
+      + '<td class="tl"><b>' + esc(lineGreigeText(l)) + '</b></td>'
       + '<td class="tl">' + esc(lineRfdText(l)) + '</td>'
       + '<td class="tl">' + esc(fmtD(l.due || po.date)) + '</td>'
       + '<td class="num">' + nf(l.ordered) + ' m</td>'
@@ -1753,7 +1854,7 @@ function poPanel(po) {
   var lineTable = '<div class="box scroll"><table class="ct li"><thead><tr><th class="num">#</th><th>Greige fabric</th><th>RFD ready fabric</th><th>Due on</th>'
     + '<th class="num">Ordered</th><th class="num">Received</th><th class="num">Still due</th><th class="num">Sent to RFD</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>'
     + '<tbody>' + items + '<tr class="tot"><td></td><td class="tl" colspan="3">Total</td><td class="num">' + nf(p.ordered) + ' m</td><td class="num">' + nf(p.received) + ' m</td>'
-    + '<td class="num">' + (p.pending > 0.05 ? '<b class="due">' + nf(p.pending) + ' m</b>' : '—') + '</td><td></td><td></td><td class="num b">' + RUPEE + money(t.amount) + '</td></tr></tbody></table></div>';
+    + '<td class="num">' + (p.pending > 0.05 ? stillDueCell(po, p.pending) : '—') + '</td><td></td><td></td><td class="num b">' + RUPEE + money(t.amount) + '</td></tr></tbody></table></div>';
   var head = '<div class="panel-head"><div class="sect">Line items</div>'
     + '<div class="row">' + (issLotsOf(po).length ? '<button type="button" class="ghost" data-iss="' + esc(po.poNo) + '">Issue to RFD</button>' : '')
     + (rrLotsOf(po).length ? '<button type="button" class="ghost" data-rr="' + esc(po.poNo) + '">Receive RFD</button>' : '')
@@ -1769,13 +1870,43 @@ function poPanel(po) {
       + chs.map(function (c) { return chRow(c, false); }).join('') + '</tbody></table></div>';
   }
   var sups = (DB.gpo || []).filter(function (x) { return x.supplementOf === po.poNo; });
-  var foot = (sups.length ? '<div class="panel-foot"><span>Supplement POs: ' + sups.map(function (x) { return '<b>' + esc(x.poNo) + '</b> (' + nf(gpoTotals(x).metres) + ' m)'; }).join(', ') + '</span></div>' : '') + '<div class="panel-foot"><span class="muted">' + esc(inrWords(t.amount)) + '</span><span class="grow"></span>'
-    + (po.closed ? '<span class="muted">Closed ' + esc(fmtD(po.closed.at)) + ' · ' + nf(po.closed.short) + ' m not supplied (' + esc(po.closed.by || '') + ')</span>'
-      + '<button type="button" class="ghost" id="pc-' + esc(po.id) + '" data-pclose="' + esc(po.poNo) + '">Reopen the PO</button>'
-      : (st === 'part' ? '<button type="button" class="ghost" id="pc-' + esc(po.id) + '" data-pclose="' + esc(po.poNo) + '">Close the PO</button>' : ''))
-
-    + '<button type="button" class="ghost" data-doc="' + esc(po.poNo) + '">Open the PO</button></div>';
+  /* "Open the PO" is gone from here (Ravi, 21 Nov): Print and the mail button on the PO's row open the same page. */
+  var foot = (sups.length ? '<div class="panel-foot"><span>Supplement POs: ' + sups.map(function (x) { return '<b>' + esc(x.poNo) + '</b> (' + nf(gpoTotals(x).metres) + ' m)'; }).join(', ') + '</span></div>' : '')
+    + '<div class="panel-foot"><span class="muted">' + esc(inrWords(t.amount)) + '</span><span class="grow"></span>' + poCloseNote(po) + poCloseButtons(po) + '</div>'
+    + poHistoryHtml(po);
   return '<div class="panel">' + head + list + foot + '</div>';
+}
+/** A line's "still due": amber while the PO is open; on a closed PO it is what was never supplied, in grey. */
+function stillDueCell(po, m) {
+  return po.closed ? '<span class="muted">' + nf(m) + ' m not supplied</span>' : '<b class="due">' + nf(m) + ' m</b>';
+}
+/** Who closed or cancelled it, a close the store asked for, or one the accounts head turned down. */
+function poCloseNote(po) {
+  if (po.closed) return '<span class="muted">Closed ' + esc(fmtD(po.closed.at)) + ' · ' + nf(gpoNotSupplied(po)) + ' m not supplied (' + esc(gpoClosedBy(po)) + ')</span>';
+  if (po.status === 'cancelled') return '<span class="muted">Cancelled ' + esc(fmtD((po.cancelled || {}).at)) + (po.cancelled && po.cancelled.by ? ' by ' + esc(po.cancelled.by) : '') + '</span>';
+  if (po.closeAsk) return '<span class="pill pill-low">Close asked by ' + esc(po.closeAsk.by || 'the store') + ' on challan ' + esc(po.closeAsk.challan || '') + ' · waiting for accounts</span>';
+  if (po.closeDown) return '<span class="muted">Close turned down by ' + esc(po.closeDown.by || '') + ': ' + esc(po.closeDown.reason || '') + '</span>';
+  return '';
+}
+/** Close / Reopen / Cancel / Undo cancel: for the accounts department only (right gdpo). */
+function poCloseButtons(po) {
+  if (!canPoClose()) return '';
+  var st = gpoStatus(po), id = esc(po.id), no = esc(po.poNo), btn = function (pre, attr, words) {
+    return '<button type="button" class="ghost" id="' + pre + id + '" ' + attr + '="' + no + '">' + words + '</button>';
+  };
+  if (po.closed) return btn('pc-', 'data-pclose', 'Reopen the PO');
+  if (st === 'cancelled') return btn('px-', 'data-pcancel', 'Undo cancel');
+  var nothingCame = gpoProgress(po).received <= 0.05;
+  return (st === 'sent' || st === 'part' ? btn('pc-', 'data-pclose', 'Close the PO') : '') + (nothingCame ? btn('px-', 'data-pcancel', 'Cancel the PO') : '');
+}
+/** The PO's own history: every close, cancel, reopen, request and decision, newest first. */
+function poHistoryHtml(po) {
+  var log = (po.log || []).slice().reverse();
+  if (!log.length) return '';
+  return '<div class="panel-foot" style="display:block"><div class="sect" style="margin:0 0 4px">History</div>'
+    + log.map(function (e) {
+      return '<div class="sub">' + esc(fmtD(lmToday(e.at))) + ' · <b>' + esc(e.what) + '</b>' + (e.by ? ' by ' + esc(e.by) : '') + (e.note ? ' · ' + esc(e.note) : '') + '</div>';
+    }).join('') + '</div>';
 }
 /* One challan row; `wide` adds the mill and the PO for the Challans view. */
 function chRow(c, wide) {
@@ -1783,7 +1914,7 @@ function chRow(c, wide) {
   var h = '<tr class="xrow' + (open ? ' open' : '') + '" data-tch="' + esc(c.id) + '">'
     + '<td class="w-chev"><button type="button" class="chev" data-tch="' + esc(c.id) + '" aria-expanded="' + open + '" aria-label="Pieces on challan ' + esc(c.no || c.id) + '">' + I.chev + '</button></td>'
     + '<td class="tl"><span class="b mono">' + (c.no ? esc(c.no) : '<span class="muted">no number</span>') + '</span></td>'
-    + '<td class="tl">' + esc(fmtD(c.date)) + '<div class="sub">' + (d === null ? '' : d === 0 ? 'today' : daysWord(d) + ' ago') + '</div></td>'
+    + '<td class="tl">' + esc(fmtD(c.date)) + '<div class="sub">' + (d === null ? '' : d === 0 ? 'today' : daysWord(d) + ' ago') + '</div>' + gdDateAskNote(c.rows) + '</td>'
     + (wide ? '<td class="tl">' + millCell(c.mill) + '</td><td class="tl">' + (c.po ? '<span class="b">' + esc(c.po) + '</span>' : '<span class="muted">no PO</span>') + '</td>' : '')
     + '<td class="tl">' + (c.transporter ? esc(c.transporter) : '') + (c.lr ? '<div><span class="plate">' + esc(c.lr) + '</span></div>' : (c.transporter ? '' : '<span class="sub">—</span>'))
     + (c.invoice ? '<div class="sub">Invoice ' + esc(c.invoice) + '</div>' : '') + '</td>'
@@ -1804,7 +1935,8 @@ function renderPo() {
   var bar = '<div class="pobar"><button type="button" data-act="po">+ Greige PO</button>'
     + '<span class="muted" style="align-self:center;font-size:12.5px">Greige is received against its PO: press <b>Receive</b> on an open PO.</span></div>';
   var filters = '<div class="card filters"><div class="frow">'
-    + '<select id="pvSt" aria-label="Status">' + opt('', 'Any status', PV.st) + opt('sent', 'Sent', PV.st) + opt('part', 'Part received', PV.st) + opt('received', 'Received', PV.st) + '</select>'
+    + '<select id="pvSt" aria-label="Status">' + opt('', 'Any status', PV.st) + opt('sent', 'Sent', PV.st) + opt('part', 'Part received', PV.st) + opt('received', 'Received', PV.st)
+    + opt('closedshort', 'Closed short', PV.st) + opt('cancelled', 'Cancelled', PV.st) + '</select>'
     + '<select id="pvMill" aria-label="Supplier">' + opt('', 'All suppliers', PV.mill) + mills.map(function (m) { return opt(m, m, PV.mill); }).join('') + '</select>'
     + '<span class="pair"><label class="inl" for="pvFrom">From</label><input id="pvFrom" type="date" value="' + esc(PV.from) + '"></span>'
     + '<span class="pair"><label class="inl" for="pvTo">To</label><input id="pvTo" type="date" value="' + esc(PV.to) + '"></span>'
@@ -1825,9 +1957,9 @@ function renderPo() {
         + '<th class="num">Pieces</th><th class="num">Metres</th><th>Checked</th></tr></thead><tbody>' + chs.map(function (c) { return chRow(c, true); }).join('') + '</tbody></table>'
       : '<div class="empty">No challan matches these filters.</div>';
   }
-  return bar + rrApprovalsHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
+  return bar + rrApprovalsHtml() + ctsApprovalsHtml() + gdDateAsksHtml() + closeAsksHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
     + '<p class="foot">A PO rarely comes in one go. The supplier sends greige over several challans, and each challan is a bundle '
-    + 'of bales with the metres written against them. When the last one is in, close the PO and what never came is written on it. Every challan is written into the fabric ledger as a new lot, so stock, the '
+    + 'of bales with the metres written against them. When the last one is in, accounts close the PO and what never came is written on it. Every challan is written into the fabric ledger as a new lot, so stock, the '
     + 'processor and the dashboard count it at once.</p>';
 }
 
@@ -1838,8 +1970,14 @@ function renderPo() {
  * whole PO -- every line, what has come so far on which challan -- and the supplier's challan is typed bale
  * by bale under the lines still due. A PO that comes in several challans can be closed with its last one. */
 var RD = null;
+/* THE NEXT BALE (OR THAN) NUMBER KEEPS THE FORMAT (Ravi, 21 Nov: after "001" came "2"; it should be "002"): one more
+ * than the last number typed, at least 3 digits with zeros in front, and as wide as the last one ("2360" → "2361"). */
+var BALE_NO_DIGITS = 3;
 function rdNextBale(ps) {
-  for (var i = ps.length - 1; i >= 0; i--) { var t = String(ps[i].than).trim(); if (/^\d+$/.test(t)) return String(+t + 1); }
+  for (var i = ps.length - 1; i >= 0; i--) {
+    var t = String(ps[i].than).trim();
+    if (/^\d+$/.test(t)) return String(+t + 1).padStart(Math.max(t.length, BALE_NO_DIGITS), '0');
+  }
   return '';
 }
 /* The lots this challan will open: the next numbers in the series, one per line still due -- each can be
@@ -1860,7 +1998,7 @@ function rdPoHtml(po) {
   var p = gpoProgress(po), chs = chOfPo(po.poNo);
   var lines = '<table class="ct mini"><thead><tr><th>Greige fabric</th><th>RFD ready fabric</th><th class="num">Ordered</th><th class="num">Received</th><th class="num">Due</th></tr></thead><tbody>'
     + p.lines.map(function (l) {
-      return '<tr><td class="tl"><b>' + esc(lineGreigeText(l)) + '</b><div class="sub">' + esc(l.greige) + '</div></td>'
+      return '<tr><td class="tl"><b>' + esc(lineGreigeText(l)) + '</b></td>'
         + '<td class="tl">' + esc(l.rfd) + '</td><td class="num">' + nf(l.ordered) + ' m</td><td class="num">' + nf(l.received) + ' m</td>'
         + '<td class="num">' + (l.pending > 0.05 ? '<b class="due">' + nf(l.pending) + ' m</b>' : '<span class="pill pill-ok">complete</span>') + '</td></tr>';
     }).join('')
@@ -1882,14 +2020,14 @@ function rdDraw() {
   $('dPo').innerHTML = rdPoHtml(po);
   $('dLines').innerHTML = Object.keys(RD.lines).map(function (k) {
     var li = +k, l = pg.lines[li], ps = RD.lines[li];
-    return '<div class="dl"><div class="dl-top"><div><div class="b">' + esc(lineGreigeText(l)) + '</div><div class="sub">' + esc(l.greige) + ' → RFD ' + esc(l.rfd)
+    return '<div class="dl"><div class="dl-top"><div><div class="b">' + esc(lineGreigeText(l)) + '</div><div class="sub">→ RFD ' + esc(l.rfd)
       + ' · <b>' + nf(l.pending) + ' m still due</b> · up to ' + nf(rdRoom(l)) + ' m with the 10% allowance</div></div>'
       + '<label class="fld lotf" for="lot-' + li + '"><span>Lot no.</span><input id="lot-' + li + '" value="' + esc(RD.lot[li] || '') + '" readonly title="Given by the register; it cannot be changed"></label></div>'
       + '<div class="prh"><span></span><span>Bale no.</span><span>Metres (on challan) *</span><span></span></div>'
       + ps.map(function (p, pi) {
         return '<div class="pr"><span class="pr-i">' + (pi + 1) + '</span>'
           + '<input id="pt-' + li + '-' + pi + '" data-li="' + li + '" data-pi="' + pi + '" data-f="than" value="' + esc(p.than) + '" placeholder="Bale no." aria-label="Bale number ' + (pi + 1) + '">'
-          + '<input id="pm-' + li + '-' + pi + '" data-li="' + li + '" data-pi="' + pi + '" data-f="m" type="number" step="0.1" min="0" inputmode="decimal" value="' + esc(p.m) + '" placeholder="Metres" aria-label="Metres, bale ' + (pi + 1) + '">'
+          + '<input id="pm-' + li + '-' + pi + '" data-li="' + li + '" data-pi="' + pi + '" data-f="m" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(p.m) + '" placeholder="Metres" aria-label="Metres, bale ' + (pi + 1) + '">'
           + '<button type="button" class="x" data-dr="rm" data-li="' + li + '" data-pi="' + pi + '" aria-label="Remove bale ' + (pi + 1) + '">×</button></div>';
       }).join('')
       + '<div class="dl-actions"><button type="button" class="jw-btn" data-dr="add" data-li="' + li + '">+ Bale</button>'
@@ -1931,7 +2069,9 @@ function rdSums() {
   $('dTotal').innerHTML = '<span>Challan total</span><span class="tnum">' + plural(tp, 'bale') + ' · ' + m1(tm) + ' m</span>';
   /* THE LAST CHALLAN CLOSES THE PO -- offered only while something would still be left open. */
   $('dCloseWrap').hidden = !(after > 0.05);
-  $('dCloseTxt').textContent = 'This is the supplier’s last challan: close the PO with ' + nf(after) + ' m not supplied';
+  /* Accounts close it at once; anyone else's tick asks the accounts head (Ravi, 21 Nov). */
+  $('dCloseTxt').textContent = canPoClose() ? 'This is the supplier’s last challan: close the PO with ' + nf(after) + ' m not supplied'
+    : 'This is the supplier’s last challan: ask accounts to close the PO (' + nf(after) + ' m not supplied)';
 }
 function openDrawer(poNo) {
   var po = poFind(poNo), st = gpoStatus(po);
@@ -1939,7 +2079,7 @@ function openDrawer(poNo) {
   if (st === 'received' || st === 'cancelled') { lmSay('warn', po.poNo + ' is ' + (GPO_STATUS[st] || [st])[0].toLowerCase() + '. Nothing more is expected on it.'); return; }
   RD = { po: po.poNo, lines: {}, paste: {}, lot: {}, sup: {} };
   rdInitLines(); rdDraw();
-  $('dNo').value = ''; $('dLr').value = ''; $('dInv').value = ''; $('dTrn').value = ''; $('dDate').value = lmToday(); $('dClose').checked = false;
+  $('dNo').value = ''; $('dLr').value = ''; $('dInv').value = ''; $('dTrn').value = ''; $('dDate').value = lmToday(); $('dDate').max = lmToday(); $('dClose').checked = false;
   $('dErr').hidden = true;
   $('drTitle').textContent = 'Challan against ' + po.poNo;
   $('scrim').hidden = false; $('drawer').hidden = false;
@@ -1973,7 +2113,7 @@ function rdSave() {
   if (no && chList().some(function (c) { return String(c.mill).toLowerCase() === String(po.mill).toLowerCase() && String(c.no).toLowerCase() === no.toLowerCase(); })) {
     errs.push('Challan ' + no + ' from ' + po.mill + ' is already in. Check the number.');
   }
-  if (!$('dDate').value) errs.push('Fill in the challan date.');
+  var dErr = gdRecvDateErr($('dDate').value, po.date, 'the PO was raised'); if (dErr) errs.push(dErr);
   var pg = gpoProgress(po), seen = {};
   var lines = Object.keys(RD.lines).map(Number).sort(function (a, b) { return a - b; }).map(function (li) {
     return { li: li, lot: String(RD.lot[li] || '').trim().toUpperCase(),
@@ -1991,44 +2131,164 @@ function rdSave() {
     var dup = {}; l.pieces.forEach(function (p) { if (p.than !== '—') { if (dup[p.than]) errs.push(name + ': bale ' + p.than + ' is typed twice.'); dup[p.than] = 1; } });
   });
   if (errs.length) { $('dErr').innerHTML = uniq(errs).map(esc).join('<br>'); $('dErr').hidden = false; return; }
-  var chId = uid(), date = $('dDate').value, lr = $('dLr').value.trim(), inv = $('dInv').value.trim(), trn = $('dTrn').value.trim();
+  var chId = uid(), typed = $('dDate').value, lr = $('dLr').value.trim(), inv = $('dInv').value.trim(), trn = $('dTrn').value.trim();
   /* THE SUPPLEMENT PO (Ravi, 13 Oct): the supplier sent more than the PO and its 10% allowance. The PO takes what
    * was still due; a supplement PO on the same supplier, fabric and rate is raised for the rest and received on this
    * same challan, as the same lot. One supplement PO carries every line that needed one. */
   var supLines = lines.filter(function (l) { return l.sup > 0; }), sup = null;
   if (supLines.length) {
     sup = { id: uid(), poNo: supNoFor(po), date: lmToday(), mill: po.mill, sent: { at: lmToday() }, supplementOf: po.poNo,
-      pay: po.pay || '', disp: po.disp || '', dest: po.dest || '', terms: po.terms || '', other: 'Supplement to ' + po.poNo + ', challan ' + no,
-      lines: supLines.map(function (l) { var pl = po.lines[l.li]; return { rfd: pl.rfd, greige: pl.greige, desc: pl.desc || ('RFD ready: ' + pl.rfd), due: lmToday(), metres: l.sup, rate: pl.rate }; }) };
+      pay: po.pay || '', disp: po.disp || '', dest: po.dest || '', terms: po.terms || '', tc: po.tc || '', other: 'Supplement to ' + po.poNo + ', challan ' + no,
+      lines: supLines.map(function (l) { var pl = po.lines[l.li]; return { rfd: pl.rfd, greige: pl.greige, desc: pl.desc || ('RFD ready: ' + pl.rfd), due: lmToday(), metres: l.sup, rate: pl.rate, disc: pl.disc }; }) };
     DB.gpo.push(sup);
   }
   lines.forEach(function (l) {
     var pl = pg.lines[l.li], got = r1(l.pieces.reduce(function (s, p) { return s + p.m; }, 0));
-    DB.fab.push({ id: uid(), chId: chId, date: date, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
+    DB.fab.push(gdDated({ id: uid(), chId: chId, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
       qty: r1(got - l.sup), party: po.mill, bill: no, orderNo: po.poNo,
-      lr: lr, invoice: inv, transporter: trn, pieces: l.pieces, done: false });
-    if (l.sup) DB.fab.push({ id: uid(), chId: chId, date: date, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
-      qty: l.sup, party: po.mill, bill: no, orderNo: sup.poNo, supplementOf: po.poNo, lr: lr, invoice: inv, transporter: trn, done: false });
+      lr: lr, invoice: inv, transporter: trn, pieces: l.pieces, done: false }, typed));
+    if (l.sup) DB.fab.push(gdDated({ id: uid(), chId: chId, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
+      qty: l.sup, party: po.mill, bill: no, orderNo: sup.poNo, supplementOf: po.poNo, lr: lr, invoice: inv, transporter: trn, done: false }, typed));
   });
-  var closing = $('dClose').checked && !$('dCloseWrap').hidden, shortM = 0;
-  if (closing) { shortM = gpoProgress(po).pending; po.closed = { at: date, short: shortM, by: 'challan ' + no }; }
+  var lastOne = $('dClose').checked && !$('dCloseWrap').hidden, endWords = '';
+  if (lastOne) endWords = ' ' + poLastChallan(po, no, meUser().name);
+  else if (po.closeAsk && gpoStatus(po) === 'received') gpoClearAsk(po, meUser().name, 'everything has come');
   lmSaveDb();
   PV.openPo[po.poNo] = true; PV.openCh[chId] = true;
   var c = chBy(chId);
   closeDrawer(); if (UI.tab !== 'inv') UI.tab = 'po'; render();
   lmSay('ok', 'Challan ' + no + ' in against ' + po.poNo + ': ' + plural(chPcs(c), 'bale') + ', ' + m1(chM(c)) + ' m, as '
-    + lmList(lines.map(function (l) { return l.lot; })) + '.' + (closing ? ' ' + po.poNo + ' closed with ' + nf(shortM) + ' m not supplied.' : '')
+    + lmList(lines.map(function (l) { return l.lot; })) + '.' + endWords
     + (sup ? ' Supplement PO ' + sup.poNo + ' raised and received for ' + nf(gpoTotals(sup).metres) + ' m.' : ''));
 }
-/* CLOSING A PO BY HAND: the supplier has said the rest is not coming. What did come stays; what did not is
- * written on the PO as not supplied, and the PO leaves every "still due" figure. Reopened, it counts again. */
+/* ==== CLOSING, CANCELLING AND THE STORE'S CLOSE REQUEST (Ravi, 21 Nov) ====
+ * A PO is closed when the supplier has said the rest is not coming: what did come stays, what did not is "not supplied"
+ * and the PO leaves every "still due" figure. A PO nothing ever came on can also be cancelled (the order was called off).
+ * WHO: closing, cancelling and reopening are the accounts department's (right gdpo). The store's "last challan" tick only
+ * ASKS; the accounts head (right gdpoappr) approves it, or turns it down with a reason. Accounts' own tick closes at once.
+ * "NOT SUPPLIED" is ordered − received, worked out every time (gpoNotSupplied), so a challan removed after the close still
+ * shows the right figure. closed.short is still written for older readers, never read.
+ * Every close, cancel, reopen, request and decision adds a line to the PO's own history (po.log): what, when (UTC), who.
+ * ERRORS: these rules change only the PO; saving is lmSaveDb's (a failed save says "Not saved"). A press without the
+ * right, or a turn-down without a reason, is refused with a message saying what to do — never ignored quietly. */
+var canPoClose = function () { return gdHas('gdpo'); };
+var canPoApprove = function () { return gdHas('gdpoappr'); };
+
+/** The metres a closed PO will never get: ordered and not come, worked out now. 0 for a PO that is not closed. */
+function gpoNotSupplied(po) { return po && po.closed ? gpoProgress(po).pending : 0; }
+/** Who closed it, in words: "by hand, Priya" / "asked by Ramesh on challan SBM/1241, approved, Neha". Older closes
+ *  wrote only `by` ("closed by hand", "challan SBM/1241"). */
+function gpoClosedBy(po) {
+  var c = po.closed || {};
+  return c.how ? c.how + (c.by ? ', ' + c.by : '') : (c.by || '');
+}
+/** One line in the PO's own history. */
+function gpoLog(po, what, who, note) {
+  po.log = (po.log || []).concat([{ at: new Date().toISOString(), what: what, by: who || '', note: note || '' }]);
+}
+/** Close the PO; a request still waiting is answered by it. Returns the metres not supplied. */
+function gpoClose(po, who, how, day) {
+  var short = gpoProgress(po).pending;
+  if (po.closeAsk) gpoClearAsk(po, who, 'the PO was closed');
+  po.closed = { at: day || lmToday(), short: short, by: who || '', how: how };
+  delete po.closeDown;
+  gpoLog(po, 'closed', who, how + ' · ' + nf(short) + ' m not supplied');
+  return short;
+}
+function gpoReopen(po, who) { delete po.closed; gpoLog(po, 'reopened', who, nf(gpoProgress(po).pending) + ' m due again'); }
+/** Cancel: only a PO nothing has come on. Returns why not, or ''. */
+function gpoCancel(po, who) {
+  if (gpoProgress(po).received > 0.05) return po.poNo + ' has greige in already, so it cannot be cancelled. Close it instead.';
+  if (po.closeAsk) gpoClearAsk(po, who, 'the PO was cancelled');
+  po.status = 'cancelled'; po.cancelled = { at: lmToday(), by: who || '' };
+  gpoLog(po, 'cancelled', who);
+  return '';
+}
+function gpoUncancel(po, who) { delete po.status; delete po.cancelled; gpoLog(po, 'cancel undone', who); }
+/** The store's request to close, made with the challan it came on. A newer request replaces an older one. */
+function gpoAskClose(po, who, challan) {
+  po.closeAsk = { at: new Date().toISOString(), by: who || '', challan: challan || '' };
+  delete po.closeDown;
+  gpoLog(po, 'close asked', who, 'on challan ' + (challan || '—') + ' · ' + nf(gpoProgress(po).pending) + ' m not come');
+}
+function gpoClearAsk(po, who, why) { delete po.closeAsk; gpoLog(po, 'close request cleared', who, why); }
+/** The accounts head's answer to a request. Returns why it could not be done, or ''. */
+function gpoDecideAsk(po, who, approve, reason) {
+  var ask = po.closeAsk;
+  if (!ask) return 'No close request is waiting on ' + po.poNo + '.';
+  if (!approve && !String(reason || '').trim()) return 'Type why the close is turned down, so the store knows.';
+  delete po.closeAsk;
+  if (approve) { gpoClose(po, who, 'asked by ' + (ask.by || 'the store') + ' on challan ' + (ask.challan || '—') + ', approved'); return ''; }
+  po.closeDown = { at: new Date().toISOString(), by: who || '', reason: String(reason).trim(), askedBy: ask.by || '' };
+  gpoLog(po, 'close turned down', who, String(reason).trim());
+  return '';
+}
+/** The "last challan" tick on a saved challan: accounts close the PO, anyone else asks. Returns the words for the message. */
+function poLastChallan(po, no, who) {
+  if (canPoClose()) return po.poNo + ' closed with ' + nf(gpoClose(po, who, 'on challan ' + no)) + ' m not supplied.';
+  gpoAskClose(po, who, no);
+  return 'Accounts are asked to close ' + po.poNo + '; until then it stays open.';
+}
+
+/* ---- the buttons ---- */
+var NOT_ACCOUNTS = 'Closing, cancelling and reopening a greige PO is for the accounts department. Ask them to do it.';
+/** Close the PO / Reopen the PO (each asks for a second press). */
 function poCloseToggle(no, btn) {
   var po = poFind(no); if (!po) return;
-  if (po.closed) { delete po.closed; lmSaveDb(); render(); lmSay('ok', po.poNo + ' is open again: ' + nf(gpoProgress(po).pending) + ' m due.'); return; }
+  if (!canPoClose()) { lmSay('warn', NOT_ACCOUNTS); return; }
+  var who = meUser().name;
+  if (po.closed) {
+    if (!armed(btn, 'Press again to reopen ' + po.poNo)) return;
+    gpoReopen(po, who); lmSaveDb(); render();
+    lmSay('ok', po.poNo + ' is open again: ' + nf(gpoProgress(po).pending) + ' m due.');
+    return;
+  }
   var due = gpoProgress(po).pending;
   if (!armed(btn, 'Press again to close with ' + nf(due) + ' m not supplied')) return;
-  po.closed = { at: lmToday(), short: due, by: 'closed by hand' };
-  lmSaveDb(); render(); lmSay('ok', po.poNo + ' closed. ' + nf(due) + ' m was not supplied.');
+  gpoClose(po, who, 'by hand'); lmSaveDb(); render();
+  lmSay('ok', po.poNo + ' closed. ' + nf(due) + ' m was not supplied.');
+}
+/** Cancel the PO / Undo cancel (each asks for a second press). */
+function poCancelToggle(no, btn) {
+  var po = poFind(no); if (!po) return;
+  if (!canPoClose()) { lmSay('warn', NOT_ACCOUNTS); return; }
+  var who = meUser().name, undo = gpoStatus(po) === 'cancelled';
+  if (!armed(btn, undo ? 'Press again to bring ' + po.poNo + ' back' : 'Press again to cancel ' + po.poNo)) return;
+  if (undo) { gpoUncancel(po, who); lmSaveDb(); render(); lmSay('ok', po.poNo + ' is back: ' + nf(gpoProgress(po).pending) + ' m due.'); return; }
+  var why = gpoCancel(po, who);
+  if (why) { lmSay('warn', why); return; }
+  lmSaveDb(); render(); lmSay('ok', po.poNo + ' cancelled. It no longer counts as due.');
+}
+/** The accounts head approves a close request, or turns it down with the reason typed beside it. */
+function poAskDecide(no, approve, btn) {
+  var po = poFind(no); if (!po) return;
+  if (!canPoApprove()) { lmSay('warn', 'Only the accounts head approves closing a PO.'); return; }
+  var reason = approve ? '' : (($('pkr-' + po.id) || {}).value || '');
+  if (!approve && !String(reason).trim()) { lmSay('warn', 'Type why the close is turned down, so the store knows.'); return; }
+  if (!approve && !armed(btn, 'Press again to turn it down')) return;
+  var why = gpoDecideAsk(po, meUser().name, approve, reason);
+  if (why) { lmSay('warn', why); return; }
+  lmSaveDb(); render();
+  lmSay(approve ? 'ok' : 'warn', approve ? po.poNo + ' closed. ' + nf(gpoNotSupplied(po)) + ' m was not supplied.'
+    : 'Turned down: ' + po.poNo + ' stays open. The reason is on the PO.');
+}
+/** The requests waiting for the accounts head, the same card as RFD receipts waiting for approval. */
+function closeAsksHtml() {
+  var list = (DB.gpo || []).filter(function (po) { return po.closeAsk; });
+  if (!list.length) return '';
+  return '<div class="card approvals"><div class="kpihead"><span class="kpiname">POs the store asked to close</span><span class="kpiwhen">the last challan is in</span></div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>PO</th><th>Supplier</th><th>Last challan</th><th class="num">Not supplied</th><th>Asked by</th><th></th></tr></thead><tbody>'
+    + list.map(function (po) {
+      var a = po.closeAsk, id = esc(po.id), no = esc(po.poNo);
+      return '<tr><td class="tl b">' + no + '</td><td class="tl">' + esc(po.mill) + '</td><td class="tl mono">' + esc(a.challan || '—') + '</td>'
+        + '<td class="num"><b class="due">' + nf(gpoProgress(po).pending) + ' m</b></td>'
+        + '<td class="tl">' + esc(a.by || '') + '<div class="sub">' + esc(fmtD(lmToday(a.at))) + '</div></td>'
+        + '<td>' + (canPoApprove()
+          ? '<div class="actions"><button type="button" class="jw-btn jw-wa" data-pask="' + no + '|ok">Approve</button>'
+            + '<input id="pkr-' + id + '" aria-label="Why the close of ' + no + ' is turned down" placeholder="Why not (needed to turn down)" style="min-width:180px">'
+            + '<button type="button" class="jw-btn" id="pkd-' + id + '" data-pask="' + no + '|no">Turn down</button></div>'
+          : '<span class="muted">for the accounts head</span>') + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
 }
 
 
@@ -2050,9 +2310,11 @@ function poOpen(editNo) {
     PO_DRAFT.lines.forEach(function (l, i) { l._rec = pg.lines[i] ? pg.lines[i].received : 0; l.descAuto = true; l.due = l.due || src.date; });
     PO_DRAFT.editId = src.id;
   } else {
-    PO_DRAFT = { poNo: gpoNewNo(), date: lmToday(), mill: '', pay: '', disp: '', dest: '', terms: '', other: '', lines: [], editId: null };
+    /* the standard terms & conditions from the PO settings fill in; they can be changed for this PO (Ravi, 21 Nov) */
+    PO_DRAFT = { poNo: gpoNewNo(), date: lmToday(), mill: '', pay: '', disp: '', dest: '', terms: '', other: '', tc: (DB.co || {}).terms || '', lines: [], editId: null };
     poAddLine();
   }
+  $('poTc').value = PO_DRAFT.tc || '';
   $('poTitle').textContent = src ? 'Edit ' + src.poNo : 'New greige PO';
   $('poNo').value = PO_DRAFT.poNo;
   $('poDate').value = PO_DRAFT.date;
@@ -2062,7 +2324,11 @@ function poOpen(editNo) {
   $('poMill').readOnly = locked;
   $('poMillLock').textContent = locked ? 'Greige has come from this supplier on this PO, so the supplier stays.' : '';
   $('poMore').open = false;
-  $('poMills').innerHTML = gpoMills().map(function (m) { return '<option value="' + esc(m) + '">'; }).join('');
+  $('poMills').innerHTML = '';
+  $('poMill').removeAttribute('list');   // the desk's own search list instead of the browser's
+  PO_MILL_HI = 0; poMillListClose();
+  /* the last PO's supplier as grey sample text, a reminder only — the supplier is still picked (Vishesh, 23 Nov) */
+  $('poMill').placeholder = gpoLastMill() || 'Pick a supplier from the list';
   $('lmPoErr').classList.add('hide');
   var co = DB.co || {}, miss = !String(co.addr || '').trim() && !String(co.gstin || '').trim();
   $('poCoNote').classList.toggle('hide', !miss);
@@ -2077,20 +2343,94 @@ function poOpen(editNo) {
 function poMillHint() {
   var name = $('poMill').value.trim(), v = venByName(name), box = $('poMillNote');
   if (!name) { box.textContent = ''; return; }
-  if (!v) { box.textContent = 'Not in Master data → Suppliers & RFD processors yet — the PO will carry the name only.'; return; }
+  if (!gpoPickedMill(name) && !poMillKept(name)) {
+    box.innerHTML = '<span class="err-in">Not a supplier in Master data — pick one from the list. A new supplier is added in Master data first.</span>'; return;
+  }
+  if (!v) { box.textContent = 'Not in Master data → Suppliers & RFD processors — this PO keeps the name it was saved with.'; return; }
   var bits = [v.email ? 'Mails to ' + v.email : 'no e-mail on record', v.phone ? 'WhatsApp ' + v.phone : 'no phone on record'];
   if (!v.gstin) bits.push('no GSTIN on record');
   box.textContent = bits.join(' · ');
 }
+/* ---- THE SUPPLIER SEARCH (Vishesh, 23 Nov: "when I type the name of the supplier in the box it should show the matching
+ * suppliers as a search box so that I can choose from those") ---- *
+ * A list under the box of the Master data suppliers whose name holds what is typed; a click, or ↑ ↓ and Enter, picks one.
+ * The browser's own suggestion list did not show inside the desk, so the desk draws its own. */
+var PO_MILL_HI = 0;   // which suggestion ↑ ↓ are on
+/** The Master data suppliers whose name holds the typed text, in the list's order; all of them when nothing is typed. */
+function poMillMatches(typed) {
+  var k = String(typed || '').trim().toLowerCase();
+  return gpoPickMills().filter(function (n) { return !k || n.toLowerCase().indexOf(k) >= 0; });
+}
+/** The list under the supplier box, made the first time it is needed. */
+function poMillListBox() {
+  var have = $('poMillList'); if (have && have.id) return have;
+  var box = document.createElement('div'), inp = $('poMill');
+  box.id = 'poMillList'; box.hidden = true; box.setAttribute('role', 'listbox');
+  box.style.cssText = 'position:absolute;left:0;right:0;z-index:5;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--sh-2);max-height:240px;overflow:auto';
+  inp.parentNode.style.position = 'relative';
+  inp.parentNode.insertBefore(box, inp.nextSibling);
+  /* mousedown, not click: a click comes after the box has lost focus and closed the list */
+  box.addEventListener('mousedown', function (ev) {
+    var o = ev.target.closest ? ev.target.closest('[data-pomill]') : null; if (!o) return;
+    ev.preventDefault(); poMillPick(o.getAttribute('data-pomill'));
+  });
+  return box;
+}
+function poMillListDraw() {
+  var box = poMillListBox(), inp = $('poMill');
+  if (inp.readOnly) { box.hidden = true; return; }
+  box.style.top = ((inp.offsetTop || 0) + (inp.offsetHeight || 0) + 4) + 'px';   // right under the box, above the note under it
+  var list = poMillMatches(inp.value), k = inp.value.trim();
+  PO_MILL_HI = Math.max(0, Math.min(PO_MILL_HI, list.length - 1));
+  var mark = function (n) {
+    var at = k ? n.toLowerCase().indexOf(k.toLowerCase()) : -1;
+    return at < 0 ? esc(n) : esc(n.slice(0, at)) + '<b>' + esc(n.slice(at, at + k.length)) + '</b>' + esc(n.slice(at + k.length));
+  };
+  box.innerHTML = list.length
+    ? list.map(function (n, i) {
+      return '<div data-pomill="' + esc(n) + '" role="option" aria-selected="' + (i === PO_MILL_HI) + '" style="padding:8px 12px;cursor:pointer;font-size:13px'
+        + (i === PO_MILL_HI ? ';background:var(--brand-bg);color:var(--brand-ink)' : '') + '">' + mark(n) + '</div>';
+    }).join('')
+    : '<div style="padding:8px 12px;font-size:12.5px;color:var(--muted)">No supplier in Master data matches "' + esc(k) + '". A new supplier is added in Master data first.</div>';
+  box.hidden = false;
+}
+function poMillListClose() { var b = $('poMillList'); if (b && b.id) b.hidden = true; }
+function poMillPick(name) { $('poMill').value = name; poMillListClose(); poMillHint(); }
+/** ↑ ↓ move through the list, Enter picks, Esc closes the list (not the PO). Returns whether the key was used. */
+function poMillKey(key) {
+  var box = $('poMillList'), open = !!(box && box.id && !box.hidden), list = poMillMatches($('poMill').value);
+  if (key === 'ArrowDown' || key === 'ArrowUp') {
+    if (open) PO_MILL_HI = (PO_MILL_HI + (key === 'ArrowDown' ? 1 : -1) + list.length) % Math.max(1, list.length);
+    poMillListDraw(); return true;
+  }
+  if (key === 'Enter' && open && list.length) { poMillPick(list[PO_MILL_HI] || list[0]); return true; }
+  if (key === 'Escape' && open) { poMillListClose(); return true; }
+  return false;
+}
+/** An open PO being changed keeps the supplier it was saved with, even one Master data no longer has. */
+function poMillKept(name) {
+  var was = PO_DRAFT && PO_DRAFT.editId ? (DB.gpo || []).filter(function (p) { return p.id === PO_DRAFT.editId; })[0] : null;
+  return !!was && String(was.mill || '').trim().toLowerCase() === String(name || '').trim().toLowerCase();
+}
+/* THE LAST RATE AS A SAMPLE (Vishesh, 23 Nov): an empty rate box shows, in grey, the rate that greige was last bought at on a PO
+ * here (invRate), or 0 when it never was. It is a reference only — a rate must still be put in — but Tab in the empty box takes it. */
+function poRateSample(greige) { var r = invRate(greige); return r ? r.rate : 0; }
+/** Tab in an empty rate box: the sample rate goes in. Returns whether it did (nothing when there is no earlier rate). */
+function poRateTab(i) {
+  var l = PO_DRAFT && PO_DRAFT.lines[i]; if (!l || String(l.rate || '').trim() !== '') return false;
+  var r = poRateSample(l.greige); if (!(r > 0)) return false;
+  l.rate = String(r);
+  return true;
+}
 function poAddLine() {
   var first = gpoFabrics()[0], rfd = first ? first.rfd : '';
   PO_DRAFT.lines.push({ rfd: rfd, greige: first ? first.greige : '', desc: 'RFD ready: ' + rfd, descAuto: true,
-    due: PO_DRAFT.date || lmToday(), metres: '', rate: '', _rec: 0 });
+    due: PO_DRAFT.date || lmToday(), metres: '', rate: '', disc: '', _rec: 0 });
   poDraw();
 }
 function poDraw() {
   var opts = gpoFabrics();
-  $('poLines').innerHTML = th(['Greige fabric *', 'Description · RFD ready fabric', 'Due on *', 'Metres *', 'Rate *', 'Amount', ''], [3, 4, 5])
+  $('poLines').innerHTML = th(['Greige fabric *', 'Description · RFD ready fabric', 'Due on *', 'Metres *', 'Rate *', 'Disc %', 'Amount', ''], [3, 4, 5, 6])
     + '<tbody>' + PO_DRAFT.lines.map(function (l, i) {
       var m = gpoLineMoney(l), spec = mstSpecLine(mstOf(l.rfd)), rec = +l._rec || 0;
       return '<tr data-row="' + i + '"><td class="frz" style="text-align:left">'
@@ -2098,14 +2438,16 @@ function poDraw() {
         + opts.map(function (o) {
           return '<option value="' + esc(o.greige) + '"' + (o.greige === l.greige ? ' selected' : '') + '>' + esc(o.greige) + '</option>';
         }).join('') + '</select>'
-        + '<div class="muted" style="font-size:10.5px;margin-top:3px">' + esc(poDesc(l.rfd)) + '</div></td>'
+        + '</td>'
         /* THE RFD NAME IS READ, NOT TYPED: it comes from the fabric pair in Master data. */
         + '<td style="text-align:left"><div class="frozen" title="Set by Master data">' + esc(lineRfdText(l)) + '</div>'
         + (spec ? '<div class="muted" style="font-size:10.5px;margin-top:3px">' + esc(spec) + '</div>' : '') + '</td>'
         + '<td><input data-li="' + i + '" data-f="due" type="date" value="' + esc(l.due) + '" min="' + esc(PO_DRAFT.date) + '" style="width:138px" aria-label="Due on"></td>'
-        + '<td><input data-li="' + i + '" data-f="metres" type="number" step="0.01" min="' + rec + '" value="' + esc(l.metres) + '" style="width:104px" aria-label="Metres">'
+        + '<td><input data-li="' + i + '" data-f="metres" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(l.metres) + '" style="width:104px" aria-label="Metres">'
         + (rec > 0 ? '<div class="muted" style="font-size:10.5px;margin-top:3px">' + nf(rec) + ' m already in</div>' : '') + '</td>'
-        + '<td><input data-li="' + i + '" data-f="rate" type="number" step="0.01" value="' + esc(l.rate) + '" style="width:84px" aria-label="Rate"></td>'
+        + '<td><input data-li="' + i + '" data-f="rate" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(l.rate) + '" placeholder="' + esc(String(poRateSample(l.greige))) + '"'
+        + ' title="' + esc(invRate(l.greige) ? 'Last bought at ' + RUPEE + ' ' + invRate(l.greige).rate + ' on ' + invRate(l.greige).poNo + ' — Tab takes it' : 'Not bought on a PO here before') + '" style="width:84px" aria-label="Rate"></td>'
+        + '<td><input data-li="' + i + '" data-f="disc" type="text" inputmode="decimal" autocomplete="off" data-num="' + PCT_WHOLE_DIGITS + '" value="' + esc(l.disc == null ? '' : l.disc) + '" placeholder="0" style="width:64px" aria-label="Discount percent"></td>'
         + '<td class="num po-total">' + money(m.amount) + '</td>'
         + '<td>' + (rec > 0 ? '' : '<button type="button" class="lm-x" data-porm="' + i + '" aria-label="Remove this line">&times;</button>') + '</td></tr>';
     }).join('') + '</tbody>';
@@ -2126,21 +2468,28 @@ function poSyncRow(i) {
 }
 /** Save -- a new PO on the next number, or the open one changed in place -- and if asked, open it to send. */
 function poSave(after) {
-  PO_DRAFT.mill = $('poMill').value.trim();
+  var typed = $('poMill').value.trim();
+  if (typed && !gpoPickedMill(typed) && !poMillKept(typed)) {
+    $('lmPoErr').textContent = '"' + typed + '" is not a supplier in Master data. Pick one from the list (a new supplier is added in Master data first).';
+    $('lmPoErr').classList.remove('hide'); return;
+  }
+  PO_DRAFT.mill = gpoPickedMill(typed) || typed;
   ['pay', 'disp', 'dest', 'terms', 'other'].forEach(function (k) {
     PO_DRAFT[k] = $('po' + k.charAt(0).toUpperCase() + k.slice(1)).value.trim();
   });
+  PO_DRAFT.tc = $('poTc').value.trim();   // optional; its line breaks are kept
   var err = gpoCheck(PO_DRAFT);
   if (!err) {
     PO_DRAFT.lines.some(function (l) {
       if (!l.due) { err = 'Put a due date on ' + l.greige + '.'; return true; }
+      if (String(l.disc || '').trim() !== '' && !(parseFloat(l.disc) >= 0 && parseFloat(l.disc) <= 100)) { err = 'The discount on ' + l.greige + ' has to be between 0 and 100%.'; return true; }
       if (+l._rec > 0 && (parseFloat(l.metres) || 0) < +l._rec - 0.05) { err = nf(l._rec) + ' m of ' + l.greige + ' has already come in, so the line cannot be less than that.'; return true; }
       return false;
     });
   }
   if (err) { $('lmPoErr').textContent = err; $('lmPoErr').classList.remove('hide'); return; }
   var po = JSON.parse(JSON.stringify(PO_DRAFT));
-  po.lines.forEach(function (l) { delete l.descAuto; delete l._rec; delete l.disc; });
+  po.lines.forEach(function (l) { delete l.descAuto; delete l._rec; if (!(parseFloat(l.disc) > 0)) delete l.disc; });
   delete po.editId;
   if (PO_DRAFT.editId) {
     var at = DB.gpo.map(function (p) { return p.id; }).indexOf(PO_DRAFT.editId), was = DB.gpo[at];
@@ -2168,7 +2517,7 @@ var WA_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true
 function poWaText(po) {
   var co = DB.co || {}, t = gpoTotals(po), NL = String.fromCharCode(10);
   return 'Purchase Order ' + po.poNo + ' dated ' + fmtD(po.date) + NL
-    + (po.lines || []).map(function (l, i) { return (i + 1) + '. ' + lineGreigeText(l) + ' - ' + nf(l.metres) + ' m @ ' + RUPEE + money(l.rate) + ', due ' + fmtD(l.due || po.date); }).join(NL) + NL
+    + (po.lines || []).map(function (l, i) { return (i + 1) + '. ' + lineGreigeText(l) + ' - ' + nf(l.metres) + ' m @ ' + RUPEE + money(l.rate) + (gpoDiscPct(l) ? ' less ' + money(gpoDiscPct(l)) + '%' : '') + ', due ' + fmtD(l.due || po.date); }).join(NL) + NL
     + 'Total ' + nf(t.metres) + ' m, ' + RUPEE + ' ' + money(t.amount) + NL + NL
     + 'Kindly confirm receipt and the delivery date.' + NL + (co.name || '');
 }
@@ -2178,49 +2527,12 @@ function poWaUrl(po) {
   return 'https://wa.me/' + (d.length >= 11 ? d : '') + '?text=' + encodeURIComponent(poWaText(po));
 }
 
-/* ---- WHO IS WORKING, AND WHAT THEY MAY DO (Ravi, 13 Oct: "make fabric ledger access specific on the basis of user") ---- *
- * Each person in Users & access has a ledger right -- no access, view only, or view and edit -- and may or may
- * not approve a shrinkage. "Working as" in the top bar says who is at the keyboard. This page has no sign-in,
- * so it models the rights; the Replenish app enforces them with each person's own login. */
-function meUser() {
-  var list = DB.users || [];
-  return list.filter(function (x) { return x.id === DB.me; })[0] || list[0] || { id: '', name: 'Admin', role: 'Admin', ledger: 'edit', approve: true };
-}
+/* ---- WHAT THE PERSON AT THE KEYBOARD MAY DO: read from meUser() (their own login's rights, further down) ---- */
 var canLedger = function () { return meUser().ledger !== 'none'; };
 var canLedgerEdit = function () { return meUser().ledger === 'edit'; };
 var canApprove = function () { return !!meUser().approve; };
 var isAdmin = function () { return meUser().role === 'Admin'; };
-function meFill() {
-  var sel = $('meSel'); if (!sel) return;
-  sel.innerHTML = (DB.users || []).filter(function (x) { return x.active !== false; }).map(function (x) {
-    return '<option value="' + esc(x.id) + '"' + (x.id === meUser().id ? ' selected' : '') + '>' + esc(x.name) + ' · ' + esc(x.role) + '</option>';
-  }).join('');
-  [].forEach.call(document.querySelectorAll('.navgrp[data-tab="ledger"]'), function (b) { b.hidden = !canLedger(); });
-}
 var LEDGER_LABEL = { none: 'No access', view: 'View only', edit: 'View & edit' };
-function renderMstUsers() {
-  var admin = isAdmin();
-  var rows = (DB.users || []).map(function (x, i) {
-    if (!admin) {
-      return '<tr><td class="frz" style="text-align:left"><b>' + esc(x.name) + '</b></td><td>' + esc(x.role) + '</td><td>' + esc(LEDGER_LABEL[x.ledger] || x.ledger) + '</td>'
-        + '<td>' + (x.approve ? 'Yes' : '—') + '</td><td></td></tr>';
-    }
-    return '<tr><td class="frz" style="text-align:left"><input data-ui="' + i + '" data-uf="name" value="' + esc(x.name) + '" style="width:170px;font-weight:700" aria-label="Name"></td>'
-      + '<td><select data-ui="' + i + '" data-uf="role" style="width:130px" aria-label="Role">' + ['Admin', 'Store', 'Accounts', 'Production', 'Other'].map(function (r) { return '<option' + (r === x.role ? ' selected' : '') + '>' + r + '</option>'; }).join('') + '</select></td>'
-      + '<td><select data-ui="' + i + '" data-uf="ledger" style="width:150px" aria-label="Fabric ledger access">' + ['none', 'view', 'edit'].map(function (k) { return '<option value="' + k + '"' + (k === x.ledger ? ' selected' : '') + '>' + LEDGER_LABEL[k] + '</option>'; }).join('') + '</select></td>'
-      + '<td><input type="checkbox" data-ui="' + i + '" data-uf="approve"' + (x.approve ? ' checked' : '') + ' style="width:16px;height:16px" aria-label="Can approve shrinkage"></td>'
-      + '<td>' + (x.id === meUser().id ? '<span class="muted">you</span>' : '<button type="button" class="lm-x" data-urm="' + i + '" aria-label="Remove ' + esc(x.name) + '">&times;</button>') + '</td></tr>';
-  }).join('');
-  return '<div class="card"><div class="ff-cap">Who may open the <b>fabric ledger</b> (no access, view only, or view and edit) and who may <b>approve</b> an RFD receipt that shrank more than '
-    + RR_SHRINK_LIMIT + '%. Pick who is working in the top bar. ' + (admin ? 'Changes save as you make them.' : 'Only an Admin changes these.') + '</div>'
-    + '<div class="ff-grid"><table class="xl xl-dense lm-lines"><thead><tr><th class="frz">Name *</th><th>Role</th><th>Fabric ledger</th><th>Approves shrinkage</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-    + (admin ? '<div class="row" style="margin-top:12px"><button type="button" id="userAdd">+ Add a user</button></div>' : '') + '</div>';
-}
-/* At least one Admin who can edit the ledger and approve must always remain, or nobody could change this again. */
-function usersSafe() {
-  return (DB.users || []).some(function (x) { return x.role === 'Admin' && x.ledger === 'edit' && x.approve && x.active !== false && String(x.name || '').trim(); });
-}
-
 /* ---- ISSUE TO RFD, FROM THE PO, BALE BY BALE (Ravi, 13 Oct: "make issue to RFD on the basis of bales") ---- *
  * The bales of a lot are the ones its challan brought in. Ticking bales is what goes out; the metres are the
  * bales' own (as the supplier's challan wrote them). A bale that has gone is not offered again. Older issues
@@ -2273,7 +2585,7 @@ function issDraw() {
       + '<div class="sub">' + nf(g.greigeIn) + ' m received' + (g.toRfd ? ', ' + nf(g.toRfd) + ' m sent already' : '') + ' · <b>' + nf(g.greigeLeft) + ' m in store</b></div></div>';
     if (!bales.length) {
       return '<div class="dl">' + head + '</div><label class="fld" style="max-width:220px"><span>Metres to send * (this lot came without bales)</span>'
-        + '<input type="number" step="0.1" min="0" max="' + r1(g.greigeLeft) + '" data-issqty="' + esc(g.lot) + '" value="' + esc(ISS.qty[g.lot]) + '"></label></div>';
+        + '<input type="text" inputmode="decimal" autocomplete="off" data-num="7" data-issqty="' + esc(g.lot) + '" value="' + esc(ISS.qty[g.lot]) + '"></label></div>';
     }
     return '<div class="dl">' + head + '<div class="row"><button type="button" class="jw-btn" data-issall="' + esc(g.lot) + '">' + (picked.length === bales.length ? 'Clear all' : 'All ' + bales.length + ' bales') + '</button></div></div>'
       + '<div class="balegrid">' + bales.map(function (b) {
@@ -2287,7 +2599,7 @@ function issDraw() {
   $('issTot').innerHTML = 'Going out: <b>' + plural(t.n, 'bale') + ' · ' + m1(t.m) + ' m</b>';
 }
 function issSave() {
-  var po = poFind(ISS.po), proc = $('issProc').value.trim(), date = $('issDate').value, errs = [], rows = [];
+  var po = poFind(ISS.po), proc = $('issProc').value.trim(), date = lmToday(), errs = [], rows = [];   // issued today, whatever the box says
   if (!proc) { $('issErr').textContent = 'Choose the RFD processor the greige is going to.'; $('issErr').classList.remove('hide'); return; }
   /* THE RFD CHALLAN IS REQUIRED (Ravi, 13 Oct): no greige leaves for an RFD processor without our challan, and one
    * challan number is used once. */
@@ -2340,47 +2652,509 @@ function lotThans(lot) {
 function cutOpen(lot) {
   var g = fabLot(lot);
   if (!g || g.rfdLeft <= 0.05) { lmSay('warn', 'Lot ' + lot + ' has no RFD on the shelf.'); return; }
-  CUT = { lot: lot, pick: {}, qty: '' };
+  /* the width starts as the cloth's RFD width from Master data; it can be typed smaller (Vishesh, 23 Nov) */
+  var rfdW = parseFloat((mstOf(cutRfdOf(g)) || {}).rfdWidth) || 0;
+  CUT = { lot: lot, pick: {}, qty: '', lines: cutLinesFor(cutRfdOf(g)), lpick: {}, mode: 'products', w: rfdW ? String(rfdW) : '', l: '', p: '' };
   $('cutTitle').textContent = 'Send to cutting · ' + lot;
   $('cutDate').value = lmToday(); $('cutTo').value = ''; $('cutRem').value = '';
   $('cutErr').classList.add('hide');
   cutDraw();
   $('lmCut').classList.remove('hide');
 }
+/** The RFD fabric a lot's cloth is, by the name the flow and PPC use. */
+function cutRfdOf(g) { return g.rfdFabric || fabRfdOfGreige(g.fabricType) || g.fabricType; }
 function cutDraw() {
-  var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), rfd = g.rfdFabric || fabRfdOfGreige(g.fabricType) || g.fabricType;
+  var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), rfd = cutRfdOf(g);
+  $('cutErr').classList.add('hide');   // a tick changed: the last refusal may no longer be true
+  ctsModeDraw();
+  if (CUT.mode === 'size') { ctsDraw(g, rfd); return; }
   var head = '<div class="dl-top"><div><b class="mono">' + esc(CUT.lot) + '</b> · RFD <b>' + esc(rfd) + '</b>'
     + '<div class="sub">' + (g.poNo ? esc(g.poNo) + ' · ' : '') + (g.processor ? 'from ' + esc(g.processor) + ' · ' : '') + '<b>' + nf(g.rfdLeft) + ' m on the shelf</b></div></div>';
   if (!thans.length) {
-    $('cutBody').innerHTML = '<div class="dl">' + head + '</div><label class="fld" style="max-width:240px"><span>Metres to cutting * (this lot has no thans listed)</span>'
-      + '<input type="number" step="0.1" min="0" max="' + r1(g.rfdLeft) + '" data-cutqty="1" value="' + esc(CUT.qty) + '"></label></div>';
-    $('cutTot').innerHTML = 'Going to cutting: <b>' + m1(parseFloat(CUT.qty) || 0) + ' m</b>';
+    $('cutBody').innerHTML = cutLinesHtml() + '<div class="dl">' + head + '</div><label class="fld" style="max-width:240px"><span>Metres to cutting * (this lot has no thans listed)</span>'
+      + '<input type="text" inputmode="decimal" autocomplete="off" data-num="7" data-cutqty="1" value="' + esc(CUT.qty) + '"></label></div>';
+    $('cutTot').innerHTML = cutTotHtml(parseFloat(CUT.qty) || 0, '');
     return;
   }
   var picked = thans.filter(function (t) { return CUT.pick[t.than]; }), pm = r1(picked.reduce(function (s, t) { return s + t.m; }, 0));
-  $('cutBody').innerHTML = '<div class="dl">' + head + '<div class="row"><button type="button" class="jw-btn" data-cutall="1">' + (picked.length === thans.length ? 'Clear all' : 'All ' + thans.length + ' thans') + '</button></div></div>'
+  $('cutBody').innerHTML = cutLinesHtml() + '<div class="dl">' + head + '<div class="row"><button type="button" class="jw-btn" data-cutall="1">' + (picked.length === thans.length ? 'Clear all' : 'All ' + thans.length + ' thans') + '</button></div></div>'
     + '<div class="balegrid">' + thans.map(function (t) {
       var on = !!CUT.pick[t.than];
       return '<label class="bale' + (on ? ' on' : '') + '"><input type="checkbox" data-cutthan="' + esc(t.than) + '"' + (on ? ' checked' : '') + '><span>Than ' + esc(t.than) + '</span><b>' + m1(t.m) + ' m</b></label>';
     }).join('') + '</div></div>';
-  $('cutTot').innerHTML = 'Going to cutting: <b>' + plural(picked.length, 'than') + ' · ' + m1(pm) + ' m</b>';
+  $('cutTot').innerHTML = cutTotHtml(pm, plural(picked.length, 'than') + ' · ');
+}
+/* ---- THE PRODUCTS THE CLOTH GOES FOR (Ravi, 21 Nov: "Link it to the lines") ----
+ * Above the thans: the no-printing lines of this fabric still waiting for cloth, or marked ready and not cut (the flow's
+ * flowCutLines). Ravi's rules: at least one line is ticked, and the ticked thans cover the ticked lines -- the extra goes
+ * with them, less is refused. The save takes the thans off the shelf and marks those lines' fabric ready in ONE write, so
+ * the shelf and the lines never disagree; the lines then show on Cutting Data with the lot.
+ * Errors: the save is stock, so it is refused out loud in the window; the list loads quietly ("Loading…") and a failed
+ * read goes to the console. Inside the ERP only -- run on its own the desk has no production flow, so no line to tick. */
+function cutLinesFor(rfd) {
+  if (typeof flowCutLines !== 'function') return [];
+  if (!gdFlowReady()) {
+    if (typeof flowEnsureData === 'function') flowEnsureData().then(function () { if (CUT) { CUT.lines = cutLinesFor(rfd); cutDraw(); } },
+      function (e) { console.warn('Send to cutting: the products waiting for ' + rfd + ' could not be read', e); });
+    return null;
+  }
+  return flowCutLines(rfd);
+}
+function cutLinesPicked() { return (CUT.lines || []).filter(function (l) { return CUT.lpick[l.key]; }); }
+function cutLinesNeed(lines) { return r1(lines.reduce(function (s, l) { return s + (+l.metres || 0); }, 0)); }
+function cutLinesHtml() {
+  if (CUT.lines === null) return '<div class="dl"><div class="sub">Loading the products waiting for this cloth…</div></div>';
+  if (!CUT.lines.length) return '<div class="dl"><div class="sub">No product on the no-printing route is waiting for this fabric, so nothing can go to cutting. Plan the line in PPC first.</div></div>';
+  return '<div class="dl"><div class="b" style="margin-bottom:6px">For these products *</div><table class="ct mini"><thead><tr><th></th><th>Order</th><th>SKU</th><th class="num">Pcs</th><th class="num">Needs</th></tr></thead><tbody>'
+    + CUT.lines.map(function (l) {
+      return '<tr><td><input type="checkbox" data-cutline="' + esc(l.key) + '"' + (CUT.lpick[l.key] ? ' checked' : '') + ' aria-label="For ' + esc(l.orderNo + ' ' + l.sku) + '"></td>'
+        + '<td class="tl b">' + esc(l.orderNo) + (l.ready ? ' <span class="pill pill-sea" title="Fabric already marked ready; its cloth is held on the shelf">ready</span>' : '') + '</td>'
+        + '<td class="tl mono">' + esc(l.sku) + '</td><td class="num">' + nf(l.pcs) + '</td><td class="num">' + m1(l.metres) + ' m</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+/** The window's bottom line: what the ticked products need against what is going, and the extra or the shortfall. */
+function cutTotHtml(going, thans) {
+  var need = cutLinesNeed(cutLinesPicked()), gap = r1(going - need);
+  return 'For ' + plural(cutLinesPicked().length, 'product') + ': <b>' + m1(need) + ' m</b> · Going to cutting: <b>' + thans + m1(going) + ' m</b>'
+    + (need > 0 && gap > 0.05 ? ' · ' + m1(gap) + ' m extra' : '')
+    + (gap < -0.05 ? ' · <span style="color:var(--bad);font-weight:700">' + m1(-gap) + ' m short</span>' : '');
+}
+/** Why this cloth cannot go yet, in the window's words; '' when it can. A lot with no thans listed has its metres typed,
+ *  so the refusal speaks of metres, not thans (Ravi's UAT check, 21 Nov). */
+function cutLinesCheck(going, byThans) {
+  if (CUT.lines === null) return 'The products are still loading. Try again in a moment.';
+  var lines = cutLinesPicked(), need = cutLinesNeed(lines);
+  if (!lines.length) return 'Tick the products this cloth is for.';
+  if (going >= need - 0.05) return '';
+  return byThans
+    ? 'The thans come to ' + m1(going) + ' m; the ticked products need ' + m1(need) + ' m. Tick another than or fewer products.'
+    : m1(going) + ' m is going; the ticked products need ' + m1(need) + ' m. Send more metres or tick fewer products.';
+}
+/** The flow's side of the save: each ticked line's fabric marked ready, carrying the lot and this entry. The old mark is
+ *  kept on the entry (lineWas) so removing the entry puts each line back exactly as it was. */
+function cutLinesPatch(row, lines) {
+  var patch = {}, at = new Date().toISOString();
+  row.lines = lines.map(function (l) { return l.key; });
+  row.lineWas = {};
+  row.forOrders = uniq(lines.map(function (l) { return l.orderNo; })).join(', ');
+  lines.forEach(function (l) {
+    row.lineWas[l.key] = l.was || null;
+    patch['pt_flowDemand/' + l.key + '/fabricReady'] = { at: at, by: (typeof ME !== 'undefined' && ME && ME.email) || row.by || '', what: row.fabricType, metres: l.metres,
+      note: 'Sent to cutting · ' + row.lot, lot: row.lot, cutEntry: row.id };
+  });
+  return patch;
+}
+/** Removing a cutting entry: the lines it was for go back to how they were. */
+function cutLinesUndoPatch(row) {
+  var patch = {};
+  (row.lines || []).forEach(function (k) { patch['pt_flowDemand/' + k + '/fabricReady'] = (row.lineWas || {})[k] || null; });
+  return patch;
+}
+/** Keep the flow on this screen in step with what was just written (it reads its own copy, FLOW.dem). */
+function cutFlowKeep(patch) {
+  if (typeof FLOW === 'undefined' || !FLOW) return;
+  var dem = Object.assign({}, FLOW.dem || {});
+  Object.keys(patch).forEach(function (p) { var k = p.split('/')[1]; dem[k] = Object.assign({}, dem[k] || {}, { fabricReady: patch[p] }); });
+  FLOW.dem = dem;
 }
 function cutSave() {
-  var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), date = $('cutDate').value;
+  if (CUT.mode === 'size') { ctsSave(); return; }
+  var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), date = lmToday();   // issued to cutting today, whatever the box says
   var picked = thans.length ? thans.filter(function (t) { return CUT.pick[t.than]; }) : null;
   var q = picked ? r1(picked.reduce(function (s, t) { return s + t.m; }, 0)) : (parseFloat(CUT.qty) || 0);
-  var rfd = g.rfdFabric || fabRfdOfGreige(g.fabricType) || g.fabricType, err = '';
+  var rfd = cutRfdOf(g), err = '';
   if (!(q > 0)) err = picked ? 'Tick the thans that are going to cutting.' : 'How many metres are going to cutting?';
-  else err = fabEntryCheck({ txnType: 'ISSUE_TO_CUTTING', date: date, lot: CUT.lot, fabric: rfd, qty: q });
+  else err = cutLinesCheck(q, !!picked) || fabEntryCheck({ txnType: 'ISSUE_TO_CUTTING', date: date, lot: CUT.lot, fabric: rfd, qty: q });
   if (err) { $('cutErr').textContent = err; $('cutErr').classList.remove('hide'); return; }
   var row = { id: uid(), date: date, lot: CUT.lot, fabricType: rfd, txnType: 'ISSUE_TO_CUTTING', qty: q, party: $('cutTo').value.trim() || 'Cutting',
     bill: '', orderNo: g.poNo || '', done: false, by: meUser().name };
   if (picked) row.thans = picked.map(function (t) { return t.than; });
   if ($('cutRem').value.trim()) row.remark = $('cutRem').value.trim();
+  var flowPatch = cutLinesPatch(row, cutLinesPicked());
+  DB.fab.push(row); lmSaveDb(flowPatch); cutFlowKeep(flowPatch);
+  $('lmCut').classList.add('hide');
+  lmSay('ok', (picked ? plural(picked.length, 'than') + ', ' : '') + nf(q) + ' m of RFD ' + rfd + ' from ' + CUT.lot + ' sent to cutting for ' + row.forOrders + '.');
+  CUT = null; render();
+}
+
+/* ---- CUT TO SIZE: CLOTH CUT FROM THE RFD ON THE SHELF WITH NO PRODUCT BEHIND IT (Vishesh, 23 Nov) ----
+ * A second way to use the Send to cutting card: type width × length (inches) and pieces, no product needed. The metres
+ * are pieces × length × 0.0254. The entry is one ledger row (ISSUE_TO_CUTTING, cutToSize) that waits for the production
+ * head or accounts head (right gdcut); until it is approved it counts nowhere (fabCounts), so the metres stay on the RFD
+ * shelf. Approved, the metres leave the shelf and the pieces appear in the Inventory's Cut to size column. From there
+ * they go to a printer: one RFD challan through the flow's own writer, and one CUT_TO_PRINTER row per lot the pieces
+ * came from (oldest lot first), which moves no cloth figure -- only Sent to printer and Left.
+ * Errors: asking, approving and sending are stock, so a refusal is said in the card, never swallowed, and nothing is
+ * written. A save that fails says "Not saved" (lmSaveDb). The challan is made first; if the desk's rows cannot be saved
+ * after it, that same message shows and the pieces still read as left until they are written again.
+ * Two approvers at once: the decision is written to that row's approval alone and the desk has no compare-and-set, so
+ * the last one to press wins. */
+var CTS_INCH_METRES = 0.0254;   // one inch in metres
+var CTS_X = '×';
+var ctsN = function (n) { return r2(n).toLocaleString('en-IN', { maximumFractionDigits: 2 }); };
+var canCutApprove = function () { return gdHas('gdcut'); };
+/** Metres of cloth for pieces of one length (inches), to the paisa-style two places. */
+function ctsMetres(pcs, length) { return r2(pcs * length * CTS_INCH_METRES); }
+/** "60 × 90" for the screen; ctsSizeKey is the same size as the challan and the sums write it. */
+function ctsSizeText(s) { return ctsN(+s.w) + ' ' + CTS_X + ' ' + ctsN(+s.l); }
+function ctsSizeKey(s) { return ctsN(+s.w) + CTS_X + ctsN(+s.l); }
+/** The RFD width of a fabric from Master data, in inches; 0 when nobody has written it. */
+function ctsRfdWidth(rfd) { var m = mstOf(rfd); return m ? parseFloat(m.rfdWidth) || 0 : 0; }
+/** What asking for this cut would mean: { err, warn, metres }. spec = { rfd, lot, w, l, pcs, date }. err is '' when the cut can be asked. */
+function ctsCheck(spec) {
+  var out = { err: '', warn: '', metres: ctsMetres(spec.pcs, spec.l) }, rw = ctsRfdWidth(spec.rfd);
+  if (!(spec.w > 0) || !(spec.l > 0) || !(spec.pcs > 0)) { out.err = 'Type the width, the length and the pieces.'; return out; }
+  if (spec.pcs !== Math.floor(spec.pcs)) { out.err = 'Pieces are whole numbers.'; return out; }
+  if (!(rw > 0)) { out.err = 'Put the RFD width of ' + spec.rfd + ' in Master data first.'; return out; }
+  if (spec.w > rw) { out.err = spec.rfd + ' is ' + ctsN(rw) + '" wide — a ' + ctsN(spec.w) + '" piece can\'t be cut from it.'; return out; }
+  if (spec.w < rw) out.warn = 'Cutting ' + ctsN(spec.w) + '" wide from ' + ctsN(rw) + '" cloth — ' + ctsN(rw - spec.w) + '" of each piece\'s width is left over.';
+  out.err = fabEntryCheck({ txnType: 'ISSUE_TO_CUTTING', date: spec.date, lot: spec.lot, fabric: spec.rfd, qty: out.metres });
+  return out;
+}
+/** The three boxes of the open card as numbers. */
+function ctsSpec() {
+  return { rfd: cutRfdOf(fabLot(CUT.lot)), lot: CUT.lot, w: parseFloat(CUT.w) || 0, l: parseFloat(CUT.l) || 0, pcs: parseFloat(CUT.p) || 0, date: lmToday() };
+}
+/** The card's choice of way, and the labels that follow it. */
+function ctsModeDraw() {
+  var size = CUT.mode === 'size';
+  $('cutMode').innerHTML = [['products', 'For products waiting'], ['size', 'Cut to size (no product)']].map(function (m) {
+    var on = CUT.mode === m[0];
+    return '<button type="button" role="tab" class="segbtn' + (on ? ' on' : '') + '" aria-selected="' + on + '" data-ctsmode="' + m[0] + '">' + esc(m[1]) + '</button>';
+  }).join('');
+  $('cutSect').textContent = size ? 'Pieces to cut' : 'Thans going to cutting';
+  $('cutSave').textContent = size ? 'Ask for approval' : 'Send to cutting';
+}
+function ctsDraw(g, rfd) {
+  var rw = ctsRfdWidth(rfd), box = function (id, key, label) {
+    return '<div><label for="' + id + '">' + label + '</label><input id="' + id + '" type="text" inputmode="decimal" autocomplete="off" data-num="7" data-ctsbox="' + key + '" value="' + esc(CUT[key]) + '"></div>';
+  };
+  $('cutBody').innerHTML = '<div class="dl"><div class="dl-top"><div><b class="mono">' + esc(CUT.lot) + '</b> · RFD <b>' + esc(rfd) + '</b>'
+    + '<div class="sub"><b>' + nf(g.rfdLeft) + ' m on the shelf</b>' + (rw ? ' · ' + ctsN(rw) + '" wide' : ' · no RFD width in Master data') + '</div></div></div></div>'
+    + '<div class="lm-fields">' + box('ctsW', 'w', 'Width (") *') + box('ctsL', 'l', 'Length (") *') + box('ctsP', 'p', 'Pieces *')
+    + '<div><label for="ctsM">Metres (worked out)</label><input id="ctsM" readonly title="Pieces × length × 0.0254"></div></div>'
+    + '<div id="ctsInfo"></div>'
+    + '<div class="lm-why">The metres come off the shelf only when the production head or accounts head approves.</div>';
+  $('cutTot').innerHTML = '';
+  ctsInfoDraw();
+}
+/** The metres, and what is wrong or worth knowing about this size, as the boxes are typed. */
+function ctsInfoDraw() {
+  var c = ctsCheck(ctsSpec()), typed = CUT.w !== '' && CUT.l !== '' && CUT.p !== '', box = $('ctsInfo');
+  $('ctsM').value = c.metres > 0 ? ctsN(c.metres) : '';
+  box.className = typed && c.err ? 'err' : 'warnline';
+  box.textContent = typed ? (c.err || c.warn) : '';
+}
+function ctsSave() {
+  var spec = ctsSpec(), c = ctsCheck(spec), g = fabLot(CUT.lot), by = meUser().name;
+  if (c.err) { $('cutErr').textContent = c.err; $('cutErr').classList.remove('hide'); return; }
+  var row = { id: uid(), date: spec.date, lot: CUT.lot, fabricType: spec.rfd, txnType: 'ISSUE_TO_CUTTING', qty: c.metres,
+    party: $('cutTo').value.trim() || 'Cutting', bill: '', orderNo: g.poNo || '', done: false, by: by,
+    size: { w: spec.w, l: spec.l }, pcs: spec.pcs, cutToSize: true,
+    approval: { status: 'pending', ask: 'Cut ' + nf(spec.pcs) + ' pcs of ' + ctsSizeText(spec) + ' (' + ctsN(c.metres) + ' m) from RFD ' + spec.rfd + ', lot ' + CUT.lot, by: by, at: new Date().toISOString() } };
+  if ($('cutRem').value.trim()) row.remark = $('cutRem').value.trim();
   DB.fab.push(row); lmSaveDb();
   $('lmCut').classList.add('hide');
-  lmSay('ok', (picked ? plural(picked.length, 'than') + ', ' : '') + nf(q) + ' m of RFD ' + rfd + ' from ' + CUT.lot + ' sent to cutting.');
+  lmSay('ok', 'Saved — waits for the production head or accounts head to approve.');
   CUT = null; render();
+}
+
+/* ---- how the ledger page shows these rows ---- */
+/** What an approval was asked about: the shrinkage of an RFD receipt, or a cut to size. */
+function ctsApprovalWhy(r) { return r.cutToSize ? 'cut to size' : r.approval.pct + '% shrinkage'; }
+/** The pieces and size on a cut-to-size entry or on cut pieces sent to a printer; '' on every other row. */
+function ctsPiecesNote(r) {
+  return r.size && r.pcs ? '<div class="sub">' + nf(r.pcs) + ' pcs of ' + esc(ctsSizeText(r.size)) + '</div>' : '';
+}
+/** These rows are decided from the Inventory (approve, send to printer); the ledger's Edit would drop their size and approval. */
+function ctsLedgerLocked(r) { return r.cutToSize === true || r.txnType === 'CUT_TO_PRINTER'; }
+
+/* ---- the entries waiting for the approver, and the decision ---- */
+function ctsWaiting() { return (DB.fab || []).filter(function (r) { return r.cutToSize && r.approval && r.approval.status === 'pending'; }); }
+/** Approve or refuse one waiting cut. '' when done, else what stopped it. Approving checks the shelf again: the metres may have gone since it was asked. */
+function ctsDecide(id, ok, why) {
+  var r = (DB.fab || []).filter(function (x) { return x.id === id; })[0];
+  if (!r || !r.cutToSize || !r.approval || r.approval.status !== 'pending') return 'This cut is not waiting for approval any more.';
+  if (!canCutApprove()) return 'Only the production head or accounts head can approve cutting to size.';
+  var g = fabLot(r.lot), now = { ask: r.approval.ask, by: meUser().name, at: new Date().toISOString() };
+  if (ok && (!g || fabQty(r) > g.rfdLeft + 1e-9)) {
+    return 'Lot ' + r.lot + ' holds ' + ctsN(g ? g.rfdLeft : 0) + ' m of RFD now, less than the ' + ctsN(fabQty(r)) + ' m this cut needs. Refuse it, or approve once more RFD is in.';
+  }
+  r.approval = Object.assign(now, ok ? { status: 'approved' } : { status: 'refused', why: String(why || '').trim() });
+  ctsSaveApproval(r);
+  return '';
+}
+/** Saves the decision as that row's approval field alone, so nothing else on the row is written over. */
+function ctsSaveApproval(row) {
+  var patch = {};
+  if (GD_SNAP && GD_SNAP.fab) GD_SNAP.fab[row.id] = JSON.stringify(row);   // the row is not written whole: only its approval, below
+  patch[GD_NODE + '/fab/' + row.id + '/approval'] = JSON.parse(JSON.stringify(row.approval));
+  lmSaveDb(patch);
+}
+function ctsDecideButtons(r) {
+  if (!canCutApprove()) return '<span class="muted">for the production head or accounts head</span>';
+  return '<div class="actions"><button type="button" class="jw-btn jw-wa" data-ctsdec="' + esc(r.id) + '|ok">Approve</button>'
+    + '<button type="button" class="jw-btn" data-ctsdec="' + esc(r.id) + '|no">Refuse</button></div>';
+}
+/** The cuts waiting for approval, as a card on the Greige POs page beside the RFD receipts waiting for approval. */
+function ctsApprovalsHtml() {
+  var list = ctsWaiting(); if (!list.length) return '';
+  return '<div class="card approvals"><div class="kpihead"><span class="kpiname">Cutting to size waiting for approval</span><span class="kpiwhen">no product behind it</span></div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>RFD fabric</th><th>Lot</th><th>Size (W × L)</th><th class="num">Pieces</th><th class="num">Metres</th><th>Asked by</th><th></th></tr></thead><tbody>'
+    + list.map(function (r) {
+      return '<tr><td class="tl b">' + esc(r.fabricType) + '</td><td class="tl mono">' + esc(r.lot) + '</td><td class="tl">' + esc(ctsSizeText(r.size)) + '</td>'
+        + '<td class="num">' + nf(r.pcs) + '</td><td class="num">' + ctsN(fabQty(r)) + ' m</td>'
+        + '<td class="tl">' + esc(r.approval.by || '') + '<div class="sub">' + esc(fmtD(lmToday(r.approval.at))) + '</div></td><td>' + ctsDecideButtons(r) + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+}
+
+/* ---- what is cut, what went to a printer, what is left (the Inventory's Cut to size column) ---- */
+/** Every cut-to-size entry of one RFD fabric, whatever its approval says. */
+function ctsRowsOf(fabric) {
+  var F = String(fabric || '').trim().toUpperCase();
+  return (DB.fab || []).filter(function (r) { return r.cutToSize === true && r.txnType === 'ISSUE_TO_CUTTING' && fabLineOf(r).toUpperCase() === F; });
+}
+/** Cut pieces already sent to a printer, for one RFD fabric. */
+function ctsSentRowsOf(fabric) {
+  var F = String(fabric || '').trim().toUpperCase();
+  return (DB.fab || []).filter(function (r) { return r.txnType === 'CUT_TO_PRINTER' && fabCounts(r) && fabLineOf(r).toUpperCase() === F; });
+}
+/** One fabric's cut pieces by size: { sizes: [{ key, w, l, cut, cutM, sent, sentM, left, leftM, asks }], leftPcs, leftM, waiting }.
+ *  Only approved entries count as cut; a waiting or refused one is listed in asks and moves nothing. */
+function ctsOf(fabric) {
+  var by = {}, out = { sizes: [], leftPcs: 0, leftM: 0, waiting: 0 };
+  var at = function (s) {
+    var k = ctsSizeKey(s);
+    if (!by[k]) { by[k] = { key: k, w: +s.w, l: +s.l, cut: 0, cutM: 0, sent: 0, sentM: 0, left: 0, leftM: 0, asks: [] }; out.sizes.push(by[k]); }
+    return by[k];
+  };
+  ctsRowsOf(fabric).forEach(function (r) {
+    var z = at(r.size);
+    if (fabCounts(r)) { z.cut += +r.pcs || 0; z.cutM += fabQty(r); return; }
+    z.asks.push(r);
+    if (r.approval.status === 'pending') out.waiting++;
+  });
+  ctsSentRowsOf(fabric).forEach(function (r) { var z = at(r.size); z.sent += +r.pcs || 0; z.sentM += fabQty(r); });
+  out.sizes.sort(function (a, b) { return a.w - b.w || a.l - b.l; });
+  out.sizes.forEach(function (z) {
+    z.left = Math.max(0, z.cut - z.sent); z.leftM = Math.max(0, r2(z.cutM - z.sentM));
+    out.leftPcs += z.left; out.leftM = r2(out.leftM + z.leftM);
+  });
+  return out;
+}
+/** The Cut to size cell: pieces left, the metres under them, and how many are waiting for approval. Opens the drop-down. */
+function invCutCell(r) {
+  var c = r.cut, key = r.fabric + '|cut', on = UI.invOpen === key;
+  if (!(c.leftPcs > 0) && !c.waiting) return '<td class="num"><span class="muted">&mdash;</span></td>';
+  return '<td class="num"><button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '" title="Show what makes this up">'
+    + (c.leftPcs > 0 ? nf(c.leftPcs) + ' pcs' : '—') + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button>'
+    + (c.leftPcs > 0 ? '<div class="sub">' + ctsN(c.leftM) + ' m</div>' : '')
+    + (c.waiting ? '<div class="sub">' + nf(c.waiting) + ' waiting approval</div>' : '') + '</td>';
+}
+/** The drop-down's rows: each size with what was cut, sent and is left, then the entries still waiting or refused under it. */
+/* SEND TO PRINTER ON EACH SIZE (Vishesh, 23 Nov: "the page is showing pieces but where is the option to send to printer"): a size
+ * with pieces left has its own Send to printer in Next step, which opens the card on that size -- the orders waiting for it. */
+function ctsDetailRows(c, fabric) {
+  var rows = [];
+  c.sizes.forEach(function (z) {
+    if (z.cut > 0 || z.sent > 0) {
+      var send = fabric && z.left > 0 ? '<button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(fabric) + '" data-ctssize="' + esc(z.key) + '" title="Make an RFD challan to a printer for the orders waiting for ' + esc(ctsSizeText(z)) + '">Send to printer</button>' : '';
+      rows.push('<tr><td class="tl b">' + esc(ctsSizeText(z)) + '</td><td class="num">' + nf(z.cut) + ' pcs</td><td class="num">' + (z.sent ? nf(z.sent) + ' pcs' : '—') + '</td>'
+        + '<td class="num b">' + nf(z.left) + ' pcs<div class="sub">' + ctsN(z.leftM) + ' m</div></td><td class="tl">' + (z.left > 0 ? '<span class="muted">Ready to send</span>' : '<span class="muted">All sent</span>') + '</td><td>' + send + '</td></tr>');
+    }
+    z.asks.forEach(function (r) { rows.push(ctsAskRow(r)); });
+  });
+  return rows;
+}
+function ctsAskRow(r) {
+  var waiting = r.approval.status === 'pending', who = esc(r.approval.by || '') + ' · ' + esc(fmtD(lmToday(r.approval.at))) + ' · lot ' + esc(r.lot);
+  var status = waiting ? '<span class="pill pill-low">Waiting approval</span><div class="sub">asked by ' + who + '</div>'
+    : '<span class="muted">Refused' + (r.approval.why ? ' — ' + esc(r.approval.why) : '') + '</span><div class="sub">' + who + '</div>';
+  return '<tr' + (waiting ? '' : ' class="muted" style="opacity:.6"') + '><td class="tl b">' + esc(ctsSizeText(r.size)) + '</td><td class="num muted">' + nf(r.pcs) + ' pcs</td>'
+    + '<td class="num muted">—</td><td class="num muted">—</td><td class="tl">' + status + '</td><td>' + (waiting ? ctsDecideButtons(r) : '') + '</td></tr>';
+}
+
+/* ---- SEND CUT PIECES TO A PRINTER ---- *
+ * Opens over the Inventory (the flow's own dialog): a printer, one cut size, and the Demand → RFD lines of the same fabric and
+ * the same size. A line's size is read as two numbers, so "60x60", "60 X 60" and "60×60" are one size, and 60x90 is also 90x60.
+ * Pieces per line are not typed: oldest order first, each takes what it still owes while the cut pieces last; untick a line to
+ * leave it out. A line PPC planned for another printer is not sent from here -- changing the printer is asked on the Inventory's
+ * RFD card -- and is listed with that note. Inside the ERP only: without the production flow there are no lines. */
+var CTS_SEND = null;   // the open card: { fabric, size: a size key, off: { line key: true } for the unticked }
+var ctsEl = function (id) { return window.document.getElementById(id); };   // the card is the app's dialog, not inside the desk's shadow root
+/** The two numbers in a size written any way ("60x60", "60 X 60", "60×60"); null unless there are exactly two. */
+function ctsParseSize(text) {
+  var m = String(text == null ? '' : text).match(/\d+(?:\.\d+)?/g);
+  return m && m.length === 2 ? [parseFloat(m[0]), parseFloat(m[1])] : null;
+}
+/** True when a written size is W × L, in either order. */
+function ctsSizeMatches(text, w, l) {
+  var p = ctsParseSize(text);
+  return !!p && ((p[0] === w && p[1] === l) || (p[0] === l && p[1] === w));
+}
+/** The size a PPC line asks for: the line's own, else its master row's. */
+function ctsLineSize(x) {
+  var own = String((x.r && x.r.size) || '').trim();
+  if (own) return own;
+  try { return String(((typeof cutSkuOf === 'function' && cutSkuOf(x.r.sku)) || {}).size || ''); } catch (e) { return ''; }
+}
+/** The lines on Demand → RFD waiting for this fabric in this size, oldest order first, each with the pieces it still owes (the card's own flowShLine). */
+function ctsLinesFor(fabric, w, l) {
+  if (typeof flowRows !== 'function' || typeof flowShLine !== 'function') return [];
+  var F = flowFabKey(fabric);
+  return flowRows().filter(function (x) {
+    return flowInView('drfd', x.s) && x.s.route !== 'stitch' && flowFabKey(((x.s.plan || {}).fabric || {}).name) === F && ctsSizeMatches(ctsLineSize(x), w, l);
+  }).map(flowShLine).filter(function (ln) { return ln.pcs > 0; })
+    .sort(function (a, b) { return String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)); });
+}
+/** What would go for this printer: { size, lines, picks: [{ line, pcs, metres }], skipped: [{ line, why }], pcs, metres }. Reads only. */
+function ctsSendPlan(S, code) {
+  var z = ctsOf(S.fabric).sizes.filter(function (s) { return s.key === S.size; })[0];
+  var plan = { size: z || null, lines: [], picks: [], skipped: [], pcs: 0, metres: 0 };
+  if (!z) return plan;
+  var left = z.left;
+  plan.lines = ctsLinesFor(S.fabric, z.w, z.l);
+  plan.lines.forEach(function (ln) {
+    if (code && ln.printer && String(ln.printer) !== String(code)) { plan.skipped.push({ line: ln, why: 'Planned for ' + (ln.printerName || ln.printer) }); return; }
+    if (S.off[ln.key] || left <= 0) return;
+    var n = Math.min(ln.pcs, left);
+    left -= n; plan.picks.push({ line: ln, pcs: n, metres: ctsMetres(n, z.l) });
+    plan.pcs += n; plan.metres = r2(plan.metres + ctsMetres(n, z.l));
+  });
+  return plan;
+}
+/** The approved lots of this size with pieces left, oldest first: [{ lot, left }]. */
+function ctsLotsLeft(fabric, key) {
+  var left = {}, order = [];
+  ctsRowsOf(fabric).filter(function (r) { return fabCounts(r) && ctsSizeKey(r.size) === key; })
+    .sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); })
+    .forEach(function (r) { if (!(r.lot in left)) { left[r.lot] = 0; order.push(r.lot); } left[r.lot] += +r.pcs || 0; });
+  ctsSentRowsOf(fabric).filter(function (r) { return ctsSizeKey(r.size) === key && r.lot in left; })
+    .forEach(function (r) { left[r.lot] -= +r.pcs || 0; });
+  return order.map(function (lot) { return { lot: lot, left: left[lot] }; }).filter(function (x) { return x.left > 0; });
+}
+/** The ledger rows for pieces going to a printer: one per lot they come from, oldest lot first. They move no cloth figure. */
+function ctsSentRows(fabric, z, pcs, party, challanNo) {
+  var rows = [], need = pcs, at = new Date().toISOString();
+  ctsLotsLeft(fabric, z.key).forEach(function (L) {
+    if (need <= 0) return;
+    var n = Math.min(need, L.left); need -= n;
+    rows.push({ id: uid(), date: lmToday(), lot: L.lot, fabricType: fabric, txnType: 'CUT_TO_PRINTER', qty: ctsMetres(n, z.l), size: { w: z.w, l: z.l }, pcs: n,
+      party: party, bill: challanNo, orderNo: '', done: false, at: at, by: meUser().name });
+  });
+  return rows;
+}
+/** The RFD challan for a plan, then the desk's rows. Returns { err } when refused or failed, else { no }. */
+async function ctsSendWrite(v, fabric, plan, note) {
+  var picks = plan.picks, z = plan.size;
+  if (!picks.length) return { err: 'Tick at least one line.' };
+  if (picks.some(function (p) { return !!p.line.x.r.__t; }) && picks.some(function (p) { return !p.line.x.r.__t; })) return { err: 'A test order and a real one cannot share a challan.' };
+  var orders = uniq(picks.map(function (p) { return p.line.x.r.orderNo; })), vname = v.desc || v.name || v.code;
+  var ch = { no: '', date: dToday(), orderNo: orders.join(', '), orders: orders, vendor: { code: v.code, name: vname },
+    note: note, at: new Date().toISOString(), by: (typeof ME !== 'undefined' && ME && ME.email) || '', from: 'Greige Desk cut to size',
+    lines: picks.map(function (p) {
+      var ln = p.line;
+      return { key: ln.key, sku: obUC(ln.x.r.sku), item: flowChItem(ln.x.r), print: ln.print, extras: [],
+        fabric: ((ln.x.s.plan || {}).fabric || {}).name || fabric, pcs: p.pcs, metres: p.metres, cutSize: ctsSizeKey(z) };
+    }) };
+  var err = await flowChallanWrite(ch, v, { isTest: picks.every(function (p) { return !!p.line.x.r.__t; }),
+    unplanned: picks.filter(function (p) { return !p.line.printer; }).map(function (p) { return p.line.key; }) });
+  if (err) return { err: err };
+  ctsSentRows(fabric, z, plan.pcs, vname, ch.no).forEach(function (r) { DB.fab.push(r); });
+  lmSaveDb();
+  return { no: ch.no };
+}
+/** Why the card cannot open here ('' when it can). */
+function ctsSendBlocked() {
+  if (typeof flowRows !== 'function' || typeof flowShLine !== 'function' || typeof flowChallanWrite !== 'function' || typeof flowPrinters !== 'function'
+    || typeof flowEnsureData !== 'function' || typeof ptOpenDialog !== 'function') return 'Sending cut pieces to a printer needs the production flow.';
+  if (typeof flowScreenAllowed === 'function' && !flowScreenAllowed().some(function (b) { return b[0] === 'drfd'; })) return 'Making an RFD challan needs Demand → RFD access.';
+  return '';
+}
+async function ctsSendOpen(fabric, sizeKey) {
+  var why = ctsSendBlocked(); if (why) { lmSay('warn', why); return; }
+  lmSay('ok', 'Reading the lines waiting for ' + fabric + '…');
+  try { await flowEnsureData(); } catch (e) {
+    console.error('Send cut pieces for ' + fabric + ' could not open:', e);
+    lmSay('err', 'The lines waiting for ' + fabric + ' could not be read (' + ((e && e.message) || e) + '). Nothing was saved.'); return;
+  }
+  var sizes = ctsOf(fabric).sizes.filter(function (z) { return z.left > 0; });
+  if (!sizes.length) { lmSay('warn', 'No approved cut pieces of ' + fabric + ' are left to send.'); return; }
+  /* opened from a size's own button: that size; from the button above the table: the first size with pieces left */
+  var first = sizes.filter(function (z) { return z.key === sizeKey; })[0] || sizes[0];
+  CTS_SEND = { fabric: fabric, size: first.key, off: {} };
+  ptOpenDialog({
+    title: 'Cut pieces — ' + fabric + ' → printer',
+    subtitle: 'From the pieces already cut to size. Each line takes the pieces it still owes, oldest order first, while the cut pieces last. Untick a line to leave it out.',
+    wide: true,
+    html: '<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">'
+      + '<label>Printer<select id="ctsVen"><option value="">— pick the printer —</option>' + flowPrinters().map(function (p) {
+        return '<option value="' + esc(p.code) + '">' + esc(p.desc || p.name || p.code) + '</option>';
+      }).join('') + '</select></label>'
+      + '<label>Cut size<select id="ctsSize">' + sizes.map(function (z) {
+        return '<option value="' + esc(z.key) + '"' + (z.key === first.key ? ' selected' : '') + '>' + esc(ctsSizeText(z)) + ' — ' + nf(z.left) + ' pcs left</option>';
+      }).join('') + '</select></label>'
+      + '<label>Date<input value="' + esc(dToday()) + '" readonly title="A challan from here is made today"></label></div>'
+      + '<div id="ctsBody" style="margin-top:10px;border:1px solid var(--line,#e3e7ef);border-radius:10px;max-height:55vh;overflow:auto"></div>'
+      + '<div id="ctsSum" style="margin-top:10px"></div>'
+      + '<label style="display:block;margin-top:10px">Note (vehicle, who carried it…)<input id="ctsNote"></label>',
+    saveLabel: 'Make the challan',
+    onSave: ctsSendSave
+  });
+  ctsDlgDraw();
+}
+/** Draws the matching lines and the sum from the printer and size picked. */
+function ctsDlgDraw() {
+  var S = CTS_SEND; if (!S) return;
+  var code = ctsEl('ctsVen').value, plan = ctsSendPlan(S, code), z = plan.size;
+  var going = {}; plan.picks.forEach(function (p) { going[p.line.key] = p; });
+  var skipped = {}; plan.skipped.forEach(function (s) { skipped[s.line.key] = s.why; });
+  ctsEl('ctsBody').innerHTML = plan.lines.length
+    ? '<table class="xl" style="width:100%"><thead><tr><th></th><th style="text-align:left">Order</th><th style="text-align:left">Item</th><th>Owes</th><th>Going</th><th>Metres</th></tr></thead><tbody>'
+      + plan.lines.map(function (ln) {
+        var p = going[ln.key], why = skipped[ln.key];
+        return '<tr><td><input type="checkbox" data-ctsk="' + esc(ln.key) + '"' + (!S.off[ln.key] && !why ? ' checked' : '') + (why ? ' disabled title="' + esc(why) + '"' : '') + ' style="width:auto"></td>'
+          + '<td style="text-align:left">' + esc(ln.x.r.orderNo) + '</td>'
+          + '<td style="text-align:left"><b>' + esc(obUC(ln.x.r.sku)) + '</b><div class="muted" style="font-size:11px">' + esc(flowChItem(ln.x.r)) + (why ? ' · ' + esc(why) + ' — change the printer on the Inventory RFD card' : '') + '</div></td>'
+          + '<td class="num">' + nf(ln.pcs) + '</td><td class="num">' + (p ? '<b>' + nf(p.pcs) + '</b>' : '—') + '</td><td class="num">' + (p ? ctsN(p.metres) : '—') + '</td></tr>';
+      }).join('') + '</tbody></table>'
+    : '<div class="muted" style="padding:14px">No line on Demand → RFD is waiting for ' + esc(S.fabric) + ' in ' + esc(z ? ctsSizeText(z) : 'this size') + '.</div>';
+  ctsEl('ctsSum').innerHTML = z ? 'Going: <b>' + nf(plan.pcs) + ' pcs · ' + ctsN(plan.metres) + ' m</b> of the ' + nf(z.left) + ' pcs left in ' + esc(ctsSizeText(z)) + (code ? '' : ' · pick the printer') : '';
+}
+async function ctsSendSave() {
+  var S = CTS_SEND; if (!S) return 'The card was closed — open it again.';
+  var code = ctsEl('ctsVen').value, v = flowPrinters().filter(function (p) { return String(p.code) === String(code); })[0];
+  if (!v) return 'Which printer are the pieces going to? Pick one.';
+  var plan = ctsSendPlan(S, code), made = await ctsSendWrite(v, S.fabric, plan, ctsEl('ctsNote').value.trim());
+  if (made.err) return made.err;
+  CTS_SEND = null;
+  lmSay('ok', 'Challan ' + made.no + ' made: ' + nf(plan.pcs) + ' pcs of ' + ctsSizeText(plan.size) + ' from the cut stock sent to ' + (v.desc || v.name || v.code) + '.');
+  setTimeout(render, 0);
+  return '';
+}
+/** Approve / Refuse pressed on the screen: a refusal asks for its reason first. */
+function ctsDecideOnScreen(id, ok) {
+  var why = '';
+  if (!ok) { why = typeof window.prompt === 'function' ? window.prompt('Why is this cut refused? (the person who asked will see it)', '') : ''; if (why === null) return; }
+  var r = (DB.fab || []).filter(function (x) { return x.id === id; })[0], err = ctsDecide(id, ok, why);
+  if (err) { lmSay('err', err); return; }
+  lmSay(ok ? 'ok' : 'warn', (ok ? 'Approved: ' : 'Refused: ') + r.approval.ask + (ok ? '. The metres have left the RFD shelf.' : '. Nothing moved.'));
+  render();
+}
+function wireCutToSize() {
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest ? ev.target.closest('[data-ctsmode],[data-ctsdec],[data-ctssend]') : null; if (!t) return;
+    if (t.getAttribute('data-ctsmode') && CUT) { CUT.mode = t.getAttribute('data-ctsmode'); cutDraw(); return; }
+    if (t.getAttribute('data-ctsdec')) { var d = t.getAttribute('data-ctsdec').split('|'); ctsDecideOnScreen(d[0], d[1] === 'ok'); return; }
+    if (t.getAttribute('data-ctssend')) { ctsSendOpen(t.getAttribute('data-ctssend'), t.getAttribute('data-ctssize') || ''); return; }
+  });
+  /* the printer card lives in the app's own dialog, so its boxes are heard on the page, not in the desk's root */
+  window.document.addEventListener('change', function (ev) {
+    var t = ev.target; if (!CTS_SEND || !t || !t.closest || !t.closest('#ctsVen,#ctsSize,[data-ctsk]')) return;
+    if (t.id === 'ctsSize') { CTS_SEND.size = t.value; CTS_SEND.off = {}; }
+    if (t.getAttribute('data-ctsk')) { if (t.checked) delete CTS_SEND.off[t.getAttribute('data-ctsk')]; else CTS_SEND.off[t.getAttribute('data-ctsk')] = true; }
+    ctsDlgDraw();
+  });
 }
 
 /* ---- RECEIVE RFD, THAN BY THAN, WITH A SHRINKAGE CHECK (Ravi, 13 Oct: "on receiving the thans of RFD, if shrinkage
@@ -2393,15 +3167,17 @@ var RR = null;
 function rrLotsOf(po) {
   return fabLots().filter(function (g) { return String(g.poNo).toUpperCase() === String(po.poNo).toUpperCase() && g.withProcessor > 0.05; });
 }
-function rrPendingOf(lot) { return (DB.fab || []).filter(function (r) { return r.lot === lot && r.approval && r.approval.status === 'pending'; })[0] || null; }
+function rrPendingOf(lot) { return (DB.fab || []).filter(function (r) { return r.lot === lot && r.txnType === 'RECEIVE_RFD' && r.approval && r.approval.status === 'pending'; })[0] || null; }
 function rrOpen(no, onlyLot) {
   var po = poFind(no); if (!po) return;
   var lots = rrLotsOf(po).filter(function (g) { return !onlyLot || g.lot === onlyLot; });
   if (!lots.length) { lmSay('warn', 'Nothing from ' + po.poNo + ' is out at an RFD processor.'); return; }
-  RR = { po: po.poNo, lots: lots.map(function (g) { return g.lot; }), thans: {}, fin: {} };
-  lots.forEach(function (g) { RR.thans[g.lot] = [{ than: '', m: '' }]; RR.fin[g.lot] = true; });
+  RR = { po: po.poNo, lots: lots.map(function (g) { return g.lot; }), thans: {} };
+  lots.forEach(function (g) { RR.thans[g.lot] = [{ than: '', m: '' }]; });
   $('rrTitle').textContent = 'Receive RFD · ' + po.poNo;
-  $('rrDate').value = lmToday(); $('rrNo').value = '';
+  /* the day the RFD came back can be put in (Vishesh, 23 Nov): today or earlier, not before the greige was sent */
+  $('rrDate').value = lmToday(); $('rrDate').readOnly = false; $('rrDate').max = lmToday(); $('rrDate').min = rrSentOn(RR.lots) || '';
+  $('rrDate').title = 'The day the RFD came back — today or earlier'; $('rrNo').value = '';
   $('rrErr').classList.add('hide');
   rrDraw();
   $('lmRr').classList.remove('hide');
@@ -2410,6 +3186,22 @@ function rrOpen(no, onlyLot) {
 function rrShrink(g, add, fin) {
   var back = g.rfdIn + add, pct = g.toRfd > 0 ? Math.round(((g.toRfd - back) / g.toRfd) * 1000) / 10 : 0;
   return { back: back, pct: fin ? pct : null, need: fin && pct > RR_SHRINK_LIMIT };
+}
+/** The thans typed for one lot: only those with metres, as they are saved. */
+function rrThansOf(lot) {
+  return (RR.thans[lot] || []).filter(function (p) { return +p.m > 0; }).map(function (p) { return { than: String(p.than).trim() || '—', m: r1(+p.m) }; });
+}
+/* THE LOT CLOSES BY ITSELF (Vishesh, 23 Nov: no more "this closes the lot" tick). Greige sent with its thans listed (the
+ * `bales` on the Issue to RFD rows): the lot closes when as many thans are back, counting this receipt, as were sent. Greige sent
+ * without thans listed: it closes when 95% of the metres sent are back. Anything less leaves the cloth at the processor. */
+var RR_CLOSE_METRES_SHARE = 0.95;
+function rrLotCloses(g, ps, q) {
+  var sent = invRowsOfLot(g.lot, 'ISSUE_TO_RFD').reduce(function (n, r) { return n + (r.bales || []).length; }, 0);
+  if (sent > 0) {
+    var back = invRowsOfLot(g.lot, 'RECEIVE_RFD').filter(fabCounts).reduce(function (n, r) { return n + (r.pieces || []).length; }, 0);
+    return back + ps.length >= sent;
+  }
+  return g.toRfd > 0 && g.rfdIn + q >= g.toRfd * RR_CLOSE_METRES_SHARE - 1e-9;
 }
 function rrSum(lot) { return r1((RR.thans[lot] || []).reduce(function (s, p) { return s + (parseFloat(p.m) || 0); }, 0)); }
 function rrDraw() {
@@ -2426,11 +3218,10 @@ function rrDraw() {
       + ps.map(function (p, pi) {
         return '<div class="pr"><span class="pr-i">' + (pi + 1) + '</span>'
           + '<input id="rt-' + lot + '-' + pi + '" data-rrlot="' + esc(lot) + '" data-pi="' + pi + '" data-f="than" value="' + esc(p.than) + '" placeholder="Than no." aria-label="Than number ' + (pi + 1) + '">'
-          + '<input id="rm-' + lot + '-' + pi + '" data-rrlot="' + esc(lot) + '" data-pi="' + pi + '" data-f="m" type="number" step="0.1" min="0" inputmode="decimal" value="' + esc(p.m) + '" placeholder="Metres" aria-label="Metres, than ' + (pi + 1) + '">'
+          + '<input id="rm-' + lot + '-' + pi + '" data-rrlot="' + esc(lot) + '" data-pi="' + pi + '" data-f="m" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(p.m) + '" placeholder="Metres" aria-label="Metres, than ' + (pi + 1) + '">'
           + '<button type="button" class="x" data-rrrm="' + esc(lot) + '|' + pi + '" aria-label="Remove than ' + (pi + 1) + '">×</button></div>';
       }).join('')
       + '<div class="dl-actions"><button type="button" class="jw-btn" data-rradd="' + esc(lot) + '">+ Than</button>'
-      + '<label class="inl" style="display:flex;align-items:center;gap:7px;margin:0;font-weight:600;color:var(--ink)"><input type="checkbox" data-rrfin="' + esc(lot) + '"' + (RR.fin[lot] ? ' checked' : '') + ' style="width:16px;height:16px">This is the whole lot back (close it)</label>'
       + '<span class="dl-sum" id="rrsum-' + lot + '"></span></div><div id="rrsh-' + lot + '"></div></div>';
   }).join('');
   rrSums();
@@ -2438,7 +3229,7 @@ function rrDraw() {
 function rrSums() {
   RR.lots.forEach(function (lot) {
     var g = fabLot(lot); if (!g || rrPendingOf(lot)) return;
-    var s = rrSum(lot), n = (RR.thans[lot] || []).filter(function (p) { return +p.m > 0; }).length, sh = rrShrink(g, s, RR.fin[lot]);
+    var s = rrSum(lot), n = rrThansOf(lot).length, sh = rrShrink(g, s, rrLotCloses(g, rrThansOf(lot), s));
     var el = $('rrsum-' + lot); if (el) el.textContent = plural(n, 'than') + ' · ' + m1(s) + ' m';
     var box = $('rrsh-' + lot); if (!box) return;
     if (s > g.withProcessor + 0.05) { box.className = 'err'; box.textContent = 'Only ' + nf(g.withProcessor) + ' m of this lot is out. More has come back than went.'; return; }
@@ -2448,20 +3239,35 @@ function rrSums() {
       + (sh.need ? '. More than ' + RR_SHRINK_LIMIT + '%, so this receipt will wait for approval before it counts.' : ', within ' + RR_SHRINK_LIMIT + '%.');
   });
 }
+/* ISSUE TODAY, RECEIVE ON THE DAY IT CAME (Vishesh, 23 Nov: "any date of issue is to be fixed but receiving date can be
+ * changed"). Cloth going out is dated today, whatever a box says. Cloth coming in can be dated back to the day it came —
+ * never after today, and never before the day it went out (or was ordered). '' when the date is fine. */
+function gdRecvDateErr(date, notBefore, sinceWhat) {
+  if (!date) return 'Put the date it came.';
+  if (date > lmToday()) return 'It cannot have come after today (' + fmtD(lmToday()) + ').';
+  if (notBefore && date < notBefore) return 'It cannot have come before ' + fmtD(notBefore) + ', when ' + sinceWhat + '.';
+  return '';
+}
+/** The first day greige of these lots went to the RFD processor: no RFD can have come back before it. */
+function rrSentOn(lots) {
+  return (lots || []).map(function (lot) { return invRowsOfLot(lot, 'ISSUE_TO_RFD').map(function (r) { return r.date; }).sort()[0] || ''; })
+    .filter(Boolean).sort()[0] || '';
+}
 function rrSave() {
-  var po = poFind(RR.po), no = $('rrNo').value.trim(), date = $('rrDate').value, errs = [], rows = [], held = [];
+  var po = poFind(RR.po), no = $('rrNo').value.trim(), typed = $('rrDate').value, date = lmToday(), errs = [], rows = [], held = [];
   if (!no) errs.push('Type the processor’s challan number.');
+  var dErr = gdRecvDateErr(typed, rrSentOn(RR.lots), 'the greige was sent for RFD'); if (dErr) errs.push(dErr);
   RR.lots.forEach(function (lot) {
     var g = fabLot(lot); if (!g || rrPendingOf(lot)) return;
-    var ps = (RR.thans[lot] || []).filter(function (p) { return +p.m > 0; }).map(function (p) { return { than: String(p.than).trim() || '—', m: r1(+p.m) }; });
+    var ps = rrThansOf(lot);
     if (!ps.length) return;
     var q = r1(ps.reduce(function (s, p) { return s + p.m; }, 0)), rfd = fabRfdOfGreige(g.fabricType) || g.fabricType;
     var err = fabEntryCheck({ txnType: 'RECEIVE_RFD', date: date, lot: lot, fabric: rfd, qty: q, party: g.processor });
     if (err) { errs.push(err); return; }
     var dup = {}; ps.forEach(function (p) { if (p.than !== '—') { if (dup[p.than]) errs.push(lot + ': than ' + p.than + ' is typed twice.'); dup[p.than] = 1; } });
-    var sh = rrShrink(g, q, RR.fin[lot]);
-    var row = { id: uid(), date: date, lot: lot, fabricType: rfd, txnType: 'RECEIVE_RFD', qty: q, party: g.processor, bill: no,
-      orderNo: g.poNo, final: !!RR.fin[lot], pieces: ps, done: false, by: meUser().name };
+    var closes = rrLotCloses(g, ps, q), sh = rrShrink(g, q, closes);
+    var row = gdDated({ id: uid(), lot: lot, fabricType: rfd, txnType: 'RECEIVE_RFD', qty: q, party: g.processor, bill: no,
+      orderNo: g.poNo, final: closes, pieces: ps, done: false, by: meUser().name }, typed);
     if (sh.need) { row.approval = { status: 'pending', pct: sh.pct, askedBy: meUser().name, at: lmToday() }; held.push(lot + ' (' + sh.pct + '%)'); }
     rows.push(row);
   });
@@ -2475,8 +3281,119 @@ function rrSave() {
     + (held.length ? ' Waiting for approval: ' + held.join(', ') + ' shrank more than ' + RR_SHRINK_LIMIT + '%.' : ''));
   RR = null; render();
 }
+/* A CHANGED RECEIVE DATE WAITS FOR ACCOUNTS (Vishesh, 23 Nov). Greige and RFD receipts typed for any day but today are saved on
+ * TODAY, with the typed day beside them as a request: dateAsk = { at, by, date, status: 'waiting' | 'approved' | 'refused',
+ * decidedBy, decidedAt, why }. Until it is approved every figure counts the receipt on today. Deciding is Ravi's or the accounts
+ * head's (right gdpoappr, as for a PO close request). Approving moves only that receipt's date; its challan, lot and PO stay.
+ * One greige challan can carry several receipts (one per lot): they are decided together.
+ * ERRORS: a press without the right, a refusal without a reason, or a request somebody else decided first is refused with a
+ * message saying what to do. Saving is lmSaveDb's (a failed save says "Not saved"). */
+var canDateApprove = function () { return gdHas('gdpoappr'); };
+/** The receipt dated today; when another day was typed, it also carries the ask for that day. A new row, the one given is not changed. */
+function gdDated(row, typed) {
+  var ask = typed && typed !== lmToday() ? { dateAsk: { at: new Date().toISOString(), by: meUser().id, date: typed, status: 'waiting' } } : {};
+  return Object.assign({}, row, { date: lmToday() }, ask);
+}
+function gdDateAsksWaiting(fab) {
+  return (fab || DB.fab || []).filter(function (r) { return (r.txnType === 'RECEIVE_GREIGE' || r.txnType === 'RECEIVE_RFD') && r.dateAsk && r.dateAsk.status === 'waiting'; });
+}
+/** The receipts decided together with this one: its whole greige challan, or just the RFD receipt. */
+function gdDateAskRows(row, fab) {
+  if (row.txnType !== 'RECEIVE_GREIGE' || !row.chId) return [row];
+  return gdDateAsksWaiting(fab).filter(function (x) { return x.chId === row.chId; });
+}
+/** What waits, one entry per decision: { id, kind, no, po, lots, m, ask }. */
+function gdDateAskItems(fab) {
+  var out = [], seen = {};
+  gdDateAsksWaiting(fab).forEach(function (r) {
+    var key = r.txnType === 'RECEIVE_GREIGE' && r.chId ? r.chId : r.id; if (seen[key]) return; seen[key] = 1;
+    var rows = gdDateAskRows(r, fab);
+    out.push({ id: r.id, kind: r.txnType === 'RECEIVE_GREIGE' ? 'Greige' : 'RFD', no: r.bill || '', po: r.orderNo || '', ask: r.dateAsk,
+      lots: uniq(rows.map(function (x) { return x.lot; })), m: r1(rows.reduce(function (n, x) { return n + fabQty(x); }, 0)) });
+  });
+  return out;
+}
+/** Approve (the receipt moves to the day asked) or refuse (it stays today). '' when done, else what stopped it. */
+async function gdDateDecide(id, ok, why) {
+  var r = (DB.fab || []).filter(function (x) { return x.id === id; })[0];
+  if (!r || !r.dateAsk || r.dateAsk.status !== 'waiting') return 'Already decided — this date is not waiting any more.';
+  if (!canDateApprove()) return 'Only Ravi, or the accounts head, can decide a changed receive date.';
+  if (!ok && !String(why || '').trim()) return 'Type why the date is refused, so the store knows.';
+  var patch = {}, now = new Date().toISOString(), rows = gdDateAskRows(r);
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i], ask = row.dateAsk, path = GD_NODE + '/fab/' + row.id;
+    var decided = Object.assign({}, ask, { status: ok ? 'approved' : 'refused', decidedBy: meUser().id, decidedAt: now }, ok ? {} : { why: String(why).trim() });
+    var lost = '';
+    try { if (typeof ptCas === 'function' && await ptCas(path + '/dateAsk', ask, decided)) lost = 'changed'; } catch (e) { return 'Could not save: ' + (e && e.message || e); }
+    if (lost) return 'Already decided by someone else — open the Greige Desk again to see it.';
+    row.dateAsk = decided; if (ok) row.date = ask.date;
+    patch[path + '/dateAsk'] = JSON.parse(JSON.stringify(decided)); if (ok) patch[path + '/date'] = ask.date;
+    if (GD_SNAP && GD_SNAP.fab) GD_SNAP.fab[row.id] = JSON.stringify(row);   // written by field, below; not the whole row
+  }
+  lmSaveDb(patch);
+  return '';
+}
+/** Approve / Refuse pressed on the card: a refusal asks for its reason first. */
+function gdDateDecideOnScreen(id, ok) {
+  var why = '';
+  if (!ok) { why = typeof window.prompt === 'function' ? window.prompt('Why is this date refused? (the person who asked will see it)', '') : ''; if (why === null) return; }
+  gdDateDecide(id, ok, why).then(function (err) {
+    if (err) { lmSay('err', err); return; }
+    lmSay(ok ? 'ok' : 'warn', ok ? 'Approved: the receipt now carries the date asked.' : 'Refused: the receipt stays on today.');
+    render();
+  });
+}
+/** The same for printed goods back from a printer: the production flow decides and keeps it. */
+function gdFlowDateDecideOnScreen(no, id, ok) {
+  var why = '';
+  if (!ok) { why = typeof window.prompt === 'function' ? window.prompt('Why is this date refused? (the person who asked will see it)', '') : ''; if (why === null) return; }
+  flowDateDecide(no, id, ok, why).then(function (err) {
+    if (err) { lmSay('err', err); return; }
+    lmSay(ok ? 'ok' : 'warn', ok ? 'Approved: the printed goods carry the date asked.' : 'Refused: the printed goods stay on today.');
+    render();
+  });
+}
+/** The small note under a receipt or challan date while its changed day waits; '' otherwise. */
+function gdDateAskNote(rows) {
+  var w = (rows || []).filter(function (r) { return r.dateAsk && r.dateAsk.status === 'waiting'; })[0];
+  return w ? '<div class="sub">asked: ' + esc(fmtD(w.dateAsk.date)) + ' — waiting for accounts</div>' : '';
+}
+/** Approve / Refuse; `attr` says whose decision it is: data-gdask (a greige or RFD receipt) or data-gdflowask (printed goods back from a printer). */
+function gdDateAskButtons(attr, id) {
+  if (!canDateApprove()) return '<span class="muted">for the accounts head</span>';
+  return '<div class="actions"><button type="button" class="jw-btn jw-wa" ' + attr + '="' + esc(id) + '|ok">Approve</button>'
+    + '<button type="button" class="jw-btn" ' + attr + '="' + esc(id) + '|no">Refuse</button></div>';
+}
+/** Printed goods received with a changed day, from the production flow when it is loaded: [{ no, id, rc, ask, ch }]. */
+function gdFlowDateAsks() {
+  return typeof flowDateAsksWaiting === 'function' && typeof FLOW !== 'undefined' && FLOW.ch ? flowDateAsksWaiting() : [];
+}
+/** Receive dates waiting for accounts, as a card on the Greige POs page beside the other approvals. */
+function gdDateAsksHtml() {
+  var list = gdDateAskItems(), printed = gdFlowDateAsks(); if (!list.length && !printed.length) return '';
+  return '<div class="card approvals"><div class="kpihead"><span class="kpiname">Receive dates waiting for accounts</span><span class="kpiwhen">counted on today until approved</span></div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>Receipt</th><th>Their challan</th><th>PO</th><th>Lot</th><th class="num">Metres</th><th>Day asked</th><th>Asked by</th><th></th></tr></thead><tbody>'
+    + list.map(function (x) {
+      return '<tr><td class="tl b">' + (x.kind === 'Greige' ? 'Greige' : 'RFD') + '</td><td class="tl mono">' + esc(x.no || '—') + '</td><td class="tl">' + esc(x.po || '—') + '</td>'
+        + '<td class="tl mono">' + esc(x.lots.join(', ')) + '</td><td class="num">' + m1(x.m) + ' m</td><td class="tl b">' + esc(fmtD(x.ask.date)) + '</td>'
+        + '<td class="tl">' + esc(x.ask.by || '') + '<div class="sub">' + esc(fmtD(lmToday(x.ask.at))) + '</div></td><td>' + gdDateAskButtons('data-gdask', x.id) + '</td></tr>';
+    }).join('') + printed.map(function (w) {
+      var m = Object.keys(w.rc.items || {}).reduce(function (n, k) { return n + (+w.rc.items[k] || 0); }, 0);
+      return '<tr><td class="tl b">Printed goods</td><td class="tl mono">' + esc(w.no) + '</td><td class="tl">' + esc(w.ch.orderNo || '—') + '</td><td class="tl">—</td><td class="num">' + nf(m) + '</td>'
+        + '<td class="tl b">' + esc(fmtD(w.ask.date)) + '</td><td class="tl">' + esc(w.ask.by || '') + '<div class="sub">' + esc(fmtD(lmToday(w.ask.at))) + '</div></td>'
+        + '<td>' + gdDateAskButtons('data-gdflowask', w.no + '|' + w.id) + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+}
+function wireDateAsks() {
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest ? ev.target.closest('[data-gdask],[data-gdflowask]') : null; if (!t) return;
+    if (t.getAttribute('data-gdask')) { var d = t.getAttribute('data-gdask').split('|'); gdDateDecideOnScreen(d[0], d[1] === 'ok'); return; }
+    var f = t.getAttribute('data-gdflowask').split('|'); gdFlowDateDecideOnScreen(f[0], f[1], f[2] === 'ok');
+  });
+}
+
 /** The receipts waiting for someone to approve their shrinkage. */
-function rrPending() { return (DB.fab || []).filter(function (r) { return r.approval && r.approval.status === 'pending'; }); }
+function rrPending() { return (DB.fab || []).filter(function (r) { return r.txnType === 'RECEIVE_RFD' && r.approval && r.approval.status === 'pending'; }); }
 function rrApprovalsHtml() {
   var list = rrPending(); if (!list.length) return '';
   var who = (DB.users || []).filter(function (x) { return x.approve && x.active !== false; }).map(function (x) { return x.name; });
@@ -2534,6 +3451,7 @@ function poDocBody(po) {
       + '<td class="c it">' + esc(fmtD(l.due || po.date)) + '</td>'
       + '<td class="n b">' + money(l.metres) + ' Mtr</td>'
       + '<td class="n">' + money(l.rate) + '</td>'
+      + '<td class="n">' + (gpoDiscPct(l) ? money(gpoDiscPct(l)) + ' %' : '') + '</td>'
       + '<td class="c">Mtr</td>'
       + '<td class="n b">' + money(m.amount) + '</td></tr>';
   }).join('');
@@ -2578,19 +3496,20 @@ function poDocBody(po) {
     + '<tr><td>' + shipTo + '</td><td colspan="2" rowspan="2">' + cell('Terms of Delivery', po.terms, false) + '</td></tr>'
     + '<tr><td>' + supplier + '</td></tr>'
     + '</table>'
-    + '<table class="items"><colgroup><col style="width:5%"><col style="width:40%"><col style="width:11%">'
-    + '<col style="width:14%"><col style="width:10%"><col style="width:5%"><col style="width:15%"></colgroup>'
+    + '<table class="items"><colgroup><col style="width:5%"><col style="width:35%"><col style="width:10%">'
+    + '<col style="width:13%"><col style="width:9%"><col style="width:8%"><col style="width:5%"><col style="width:15%"></colgroup>'
     + '<thead><tr><th>Sl<br>No.</th><th>Description of Goods</th><th>Due on</th><th>Quantity</th><th>Rate</th>'
-    + '<th>per</th><th>Amount</th></tr></thead>'
+    + '<th>Disc %</th><th>per</th><th>Amount</th></tr></thead>'
     + '<tbody>' + rows
-    + '<tr><td style="height:' + fill + 'px"></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
+    + '<tr><td style="height:' + fill + 'px"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
     + '<tr class="tot"><td></td><td style="text-align:right">Total</td><td></td>'
-    + '<td class="n b">' + money(t.metres) + ' Mtr</td><td></td><td></td>'
+    + '<td class="n b">' + money(t.metres) + ' Mtr</td><td></td><td></td><td></td>'
     + '<td class="n b">' + RUPEE + ' ' + money(t.amount) + '</td></tr>'
     + '</tbody></table>'
     + '<div class="box"><div style="display:flex;justify-content:space-between">'
     + '<span>Amount Chargeable (in words)</span><i>E. &amp; O.E</i></div>'
     + '<div class="words">' + esc(inrWords(t.amount)) + '</div></div>'
+    + (String(po.tc || '').trim() ? '<div class="box"><div><b>Terms &amp; Conditions</b></div><div style="white-space:pre-line">' + esc(po.tc) + '</div></div>' : '')
     + '<div class="foot"><div class="l">'
     + (co.pan ? '<div>Company\u2019s PAN <span style="display:inline-block;width:40px"></span>: <b>' + esc(co.pan) + '</b></div>' : '')
     + '</div><div class="r"><b>for ' + esc(co.name || '') + '</b><span>Authorised Signatory</span></div></div>'
@@ -2613,6 +3532,7 @@ function poMailText(po) {
     body: 'Dear Sir/Madam,' + NL + NL
       + 'Please find attached our Purchase Order ' + po.poNo + ' dated ' + fmtD(po.date) + ' for '
       + nf(t.metres) + ' m (' + RUPEE + ' ' + money(t.amount) + ').' + NL + NL
+      + (String(po.tc || '').trim() ? 'Terms & conditions:' + NL + String(po.tc).trim() + NL + NL : '')
       + 'Kindly confirm receipt and the delivery date.' + NL + NL + 'Regards,' + NL + who
   };
 }
@@ -2645,7 +3565,7 @@ function poShow(no) {
 /* ---- wiring: the PO list, the challans, the drawer and the new-PO dialog -------------------------- */
 function wirePurchaseOrders() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-act],[data-sent],[data-porm],[data-doc],[data-rcv],[data-tpo],[data-tch],[data-fill],[data-kpi],[data-pv],[data-pvclear],[data-dr],[data-pclose],[data-pedit],[data-iss],[data-isspick],#docCopy,#issSave') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-act],[data-sent],[data-porm],[data-doc],[data-rcv],[data-tpo],[data-tch],[data-fill],[data-kpi],[data-pv],[data-pvclear],[data-dr],[data-pclose],[data-pcancel],[data-pask],[data-pedit],[data-iss],[data-isspick],#docCopy,#issSave') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
     if (t.id === 'docCopy') {
@@ -2671,6 +3591,8 @@ function wirePurchaseOrders() {
     }
     if (g('data-doc')) { poShow(g('data-doc')); return; }
     if (g('data-pclose')) { poCloseToggle(g('data-pclose'), t); return; }
+    if (g('data-pcancel')) { poCancelToggle(g('data-pcancel'), t); return; }
+    if (g('data-pask')) { var pa = g('data-pask').split('|'); poAskDecide(pa[0], pa[1] === 'ok', t); return; }
     if (g('data-pedit')) { poOpen(g('data-pedit')); return; }
     if (g('data-iss')) { var ip = g('data-iss').split('|'); issOpen(ip[0], ip[1] || ''); return; }
     if (t.id === 'issSave') { issSave(); return; }
@@ -2739,6 +3661,13 @@ function wirePurchaseOrders() {
   /* The PO lines keep their own state as they are typed, so a redraw never loses a figure. */
   $('poLines').addEventListener('input', poEdit);
   $('poLines').addEventListener('change', poEdit);
+  /* Tab in an empty rate box takes the sample rate, then moves on as Tab does (Vishesh, 23 Nov) */
+  $('poLines').addEventListener('keydown', function (ev) {
+    var el = ev.target;
+    if (ev.key !== 'Tab' || ev.shiftKey || !el.getAttribute || el.getAttribute('data-f') !== 'rate') return;
+    var i = parseInt(el.getAttribute('data-li'), 10);
+    if (poRateTab(i)) { el.value = PO_DRAFT.lines[i].rate; poSyncRow(i); }
+  });
   function poEdit(ev) {
     var el = ev.target, i = el.getAttribute('data-li'), f = el.getAttribute('data-f');
     if (i === null || !f) return;
@@ -2757,8 +3686,12 @@ function wirePurchaseOrders() {
      * figures that are worked out move. */
     poSyncRow(idx);
   }
-  $('poMill').addEventListener('input', poMillHint);
-  $('poMill').addEventListener('change', poMillHint);
+  /* while a name is being typed it is a search: the red "not a supplier" waits until the box is left */
+  $('poMill').addEventListener('input', function () { PO_MILL_HI = 0; poMillListDraw(); $('poMillNote').textContent = ''; if (gpoPickedMill(this.value)) poMillHint(); });
+  $('poMill').addEventListener('focus', poMillListDraw);
+  $('poMill').addEventListener('blur', function () { setTimeout(function () { poMillListClose(); poMillHint(); }, 150); });
+  /* stopPropagation: Esc that closes the list must not also close the PO window */
+  $('poMill').addEventListener('keydown', function (ev) { if (poMillKey(ev.key)) { ev.preventDefault(); ev.stopPropagation(); } });
   $('poAdd').addEventListener('click', poAddLine);
   $('poSave').addEventListener('click', function () { poSave(''); });
   $('poSaveDoc').addEventListener('click', function () { poSave('doc'); });
@@ -2795,72 +3728,220 @@ function invAll() {
   if (ppc && !ppc.__loading) Object.keys(ppc).forEach(function (k) { if (!flow[k] && !order[k]) names.push(ppc[k].name); });
   return uniq(names).map(function (n) {
     var e = flow[n.toUpperCase()] || {}, o = order[n.toUpperCase()];
-    var g = e.greigeLeft || 0, p = e.withProcessor || 0, r = e.rfdLeft || 0;
+    /* RFD ON SHELF LESS WHAT WENT TO PRINTERS (Vishesh, 23 Nov): the RFD challans to printers take their metres off the shelf
+     * here too, by the flow's own rule (flowRfdStock: the desk's count less the challans since it began counting that fabric),
+     * so this column and PPC's "RFD free" agree. Challans are not by lot: the lots below still show what each lot had. */
+    var chOut = invChallanOut(n), transit = invTransit(n);
+    var g = e.greigeLeft || 0, p = e.withProcessor || 0, r = Math.max(0, (e.rfdLeft || 0) - chOut), cut = ctsOf(n);
+    /* The cloth cut to size and not yet sent to a printer is still ours: it is in the total though it left the RFD shelf. */
     return { fabric: n, type: invType(n), greige: fabGreigeOf(n), onOrder: o ? o.m : 0,
-      inStoreGreige: g, atProcessor: p, inStoreRfd: r, owned: g + p + r,
+      inStoreGreige: g, atProcessor: p, inStoreRfd: r, rfdToPrinters: chOut, transit: transit, cut: cut, owned: g + p + r + cut.leftM,
       ppc: ppc && !ppc.__loading ? (ppc[n.toUpperCase()] || null) : null };
-  }).filter(function (x) { return x.owned > 0.05 || x.onOrder > 0.05 || (x.ppc && x.ppc.need > 0.05); })
+  }).filter(invWorthShowing)
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
 }
+/* THE INVENTORY, LAID OUT TO ACT ON (Ravi, 21 Nov: "the page seems very dirty in format make it better with the functions I
+ * have"). Every function stays; the page reads in this order:
+ *   - one toolbar: the cloth-type drop-down and search (in the top bar), + RFD opening stock, Demand → RFD
+ *   - a filter by what needs doing: All · Short for PPC · Covered · No PPC demand (counts on each)
+ *   - per fabric: its PPC need with a bar for how much the RFD free covers, an Action (Raise PO · m, or what blocks it),
+ *     then where the cloth is now — greige ordered → in store → at processor → RFD on shelf — and the total. Every
+ *     figure still opens what makes it up; the fabric's name still opens its stock history.
+ *   - short fabrics first, then covered, then those PPC does not need.
+ * PPC demand exists only in the app (gdPpcMap); run on its own the desk shows the stock columns alone. */
+var INV_SHOW_LABEL = { all: 'All', short: 'Short for PPC', ok: 'Covered', none: 'No PPC demand' };
+var INV_SHOW_ORDER = { short: 0, ok: 1, none: 2 };
+UI.invShow = 'all';
+/** What PPC's demand asks of this fabric: 'short' (greige to order), 'ok' (covered, or covered by what is on its way),
+ *  or 'none' (PPC does not need it). */
+function invNeedState(r) {
+  var p = r && r.ppc;
+  if (!p || !(p.need > 0.05)) return 'none';
+  return p.short > 0.05 && p.greigeM > 0 ? 'short' : 'ok';
+}
+/** A fabric earns an Inventory row when it has cloth, a PO, or a PPC need the desk can act on. A short fabric with no greige
+ *  name in Master data is left out (Ravi, 21 Nov: "remove those fabrics … whose says add greige name"): no PO can be raised
+ *  for it here, so the row only said "add greige name". It still shows on Demand → RFD; once Setup gives it a greige name it
+ *  comes back here with its Raise PO button. */
+function invWorthShowing(r) {
+  if (invNeedState(r) === 'short' && !r.ppc.greige) return false;
+  return r.owned > 0.05 || r.onOrder > 0.05 || invTransitM(r) > 0.05 || invNeedState(r) !== 'none';
+}
+/** How much of the PPC need the RFD free covers, in whole percent (0–100). */
+function invCoverPct(p) { return p && p.need > 0.05 ? Math.min(100, Math.round((p.free || 0) / p.need * 100)) : 0; }
+function invNeedCell(r, loading) {
+  if (loading) return '<td class="tl muted">…</td>';
+  var p = r.ppc;
+  if (invNeedState(r) === 'none') return '<td class="tl muted" style="font-size:12px">no PPC demand</td>';
+  var pct = invCoverPct(p), col = pct >= 100 ? 'var(--ok-ink)' : pct >= 50 ? 'var(--warn-ink)' : 'var(--bad)';
+  var tip = 'RFD free ' + nf(p.free) + ' m' + (p.desk > 0.05 ? ' (' + nf(p.desk) + ' m on this desk)' : '') + (p.onWay > 0.05 ? ' · ' + nf(p.onWay) + ' m greige on its way' : '');
+  var words = p.short > 0.05
+    ? pct + '% covered · <span style="color:var(--bad);font-weight:700">' + nf(p.short) + ' short</span>' + (p.greigeM ? '' : ' · covered by what is on its way')
+    : 'fully covered';
+  /* the lines open Demand → RFD with only this fabric's lines (Ravi, 21 Nov) */
+  return '<td class="tl" title="' + esc(tip) + '"><div><b>' + nf(p.need) + ' m</b> <span class="muted" style="font-size:11px">· </span>'
+    + '<button type="button" class="link" data-gdlines="' + esc(p.name) + '" style="font-size:11px;padding:0" title="See these lines on Demand → RFD">' + plural(p.lines, 'line') + '</button></div>'
+    + '<div style="height:6px;border-radius:3px;background:var(--soft);overflow:hidden;margin:5px 0 3px" role="img" aria-label="' + pct + '% covered">'
+    + '<div style="height:100%;width:' + pct + '%;background:' + col + '"></div></div>'
+    + '<div class="muted" style="font-size:11px">' + nf(p.free) + ' m RFD free · ' + words + '</div></td>';
+}
+function invActionCell(r, loading) {
+  if (loading) return '<td></td>';
+  var p = r.ppc, st = invNeedState(r);
+  if (st === 'short' && p.greige) return '<td><button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(p.name) + '|' + p.greigeM + '" style="white-space:nowrap;padding:4px 10px;font-size:12px" title="Raise a greige PO for what PPC is short of (with the processor’s share)">Raise PO · ' + nf(p.greigeM) + ' m</button></td>';
+  if (st === 'ok') return '<td><span class="pill pill-ok">covered</span></td>';
+  return '<td></td>';
+}
+/* ---- WHAT NEEDS DOING, FIRST (Vishesh, 23 Nov: "refine the inventory design … to the best for making it more actionable") ---- *
+ * Above the table, a strip of to-do tiles, each a count and the metres behind it, in the order the cloth moves:
+ *   Short for PPC (greige to order) · Greige in store (to issue to RFD) · Late at the processor (over CHASE_PROCESSOR_DAYS)
+ *   · RFD for PPC lines (to send to printers) · Cut pieces left (to send) · Approvals waiting (on Greige POs).
+ * A tile shows only when there is something behind it; pressing it shows only those fabrics (pressing it again shows all).
+ * Each fabric row has a Next step: the most pressing thing to do with it as a button, and the other things it needs as
+ * small links under it. Every button is one the page already had (Raise PO, Issue to RFD, Send to printer, …): a step
+ * that needs a lot or a PO opens the figure's drop-down, where the lot's own button is. Short and late rows carry a coloured
+ * edge so they stand out down the list. Nothing is worked out twice: the tiles and the rows read the same tests. */
+var INV_ACT = {
+  store: { label: 'Greige in store', sub: 'to issue to RFD', tone: 'greige' },
+  late: { label: 'Late at the processor', sub: 'over ' + CHASE_PROCESSOR_DAYS + ' days — chase', tone: 'bad' },
+  send: { label: 'RFD for PPC lines', sub: 'on the shelf — send to printers', tone: 'rfd' },
+  cut: { label: 'Cut pieces left', sub: 'to send to printers', tone: 'brand' }
+};
+INV_SHOW_LABEL.store = INV_ACT.store.label; INV_SHOW_LABEL.late = INV_ACT.late.label; INV_SHOW_LABEL.send = INV_ACT.send.label; INV_SHOW_LABEL.cut = INV_ACT.cut.label;
+/** The lots of a fabric at an RFD processor for longer than CHASE_PROCESSOR_DAYS: [{ lot, m, days, who }]. */
+function invLateOf(r) {
+  return invLotsOf(r.fabric).filter(function (g) { return g.withProcessor > 0.05; }).map(function (g) {
+    var out = invRowsOfLot(g.lot, 'ISSUE_TO_RFD'), d = lmDays(invLastDate(out));
+    return { lot: g.lot, m: g.withProcessor, days: d, who: invJoin(out.map(function (x) { return x.party; })) };
+  }).filter(function (x) { return x.days !== null && x.days > CHASE_PROCESSOR_DAYS; });
+}
+/** Does a fabric need this to-do (store / late / send / cut)? */
+function invNeeds(r, k) {
+  if (k === 'store') return r.inStoreGreige > 0.05;
+  if (k === 'late') return invLateOf(r).length > 0;
+  if (k === 'send') return r.inStoreRfd > 0.05 && !!(r.ppc && r.ppc.lines > 0);
+  if (k === 'cut') return !!(r.cut && r.cut.leftPcs > 0);
+  return false;
+}
+/** A row is shown under a filter: one of PPC's (all / short / ok / none) or one of the to-dos. */
+function invShows(r, k) { return k === 'all' ? true : INV_ACT[k] ? invNeeds(r, k) : invNeedState(r) === k; }
+/** The approvals waiting on Greige POs: RFD receipts that shrank, cuts to size, POs asked to close, printer changes. */
+function invApprovalsN() {
+  var n = rrPending().length + ctsWaiting().length + (DB.gpo || []).filter(function (po) { return !!po.closeAsk; }).length;
+  return n + (typeof flowPrnWaiting === 'function' ? flowPrnWaiting().length : 0);
+}
+/** The to-do strip. */
+function invTodoHtml(rows, withPpc, loading) {
+  var tiles = [], m = function (list, f) { return list.reduce(function (a, r) { return a + f(r); }, 0); };
+  var tile = function (k, n, big, sub, tone, attr) {
+    return '<button type="button" class="gdx-tile ' + tone + (UI.invShow === k ? ' on' : '') + '" ' + attr + ' aria-pressed="' + (UI.invShow === k) + '">'
+      + '<span class="gdx-n">' + nf(n) + '</span><span class="gdx-l">' + esc(big) + '</span><span class="gdx-s">' + sub + '</span></button>';
+  };
+  if (withPpc && !loading) {
+    var sh = rows.filter(function (r) { return invNeedState(r) === 'short'; });
+    if (sh.length) tiles.push(tile('short', sh.length, 'Short for PPC', nf(m(sh, function (r) { return r.ppc.greigeM; })) + ' m greige to order', 'bad', 'data-invshow="' + (UI.invShow === 'short' ? 'all' : 'short') + '"'));
+  }
+  ['store', 'late', 'send', 'cut'].forEach(function (k) {
+    var list = rows.filter(function (r) { return invNeeds(r, k); }); if (!list.length) return;
+    var sub = k === 'store' ? nf(m(list, function (r) { return r.inStoreGreige; })) + ' m · ' + INV_ACT.store.sub
+      : k === 'late' ? plural(m(list, function (r) { return invLateOf(r).length; }), 'lot') + ' · ' + INV_ACT.late.sub
+      : k === 'send' ? nf(m(list, function (r) { return r.inStoreRfd; })) + ' m ' + INV_ACT.send.sub
+      : nf(m(list, function (r) { return r.cut.leftPcs; })) + ' pcs ' + INV_ACT.cut.sub;
+    tiles.push(tile(k, list.length, INV_ACT[k].label, sub, INV_ACT[k].tone, 'data-invshow="' + (UI.invShow === k ? 'all' : k) + '"'));
+  });
+  var ap = invApprovalsN();
+  if (ap) tiles.push('<button type="button" class="gdx-tile warn" data-invgo="po"><span class="gdx-n">' + nf(ap) + '</span><span class="gdx-l">Approvals waiting</span><span class="gdx-s">on Greige POs — open them →</span></button>');
+  if (!tiles.length) return '<div class="gdx-clear">✓ Nothing waiting — every fabric is covered and moving.</div>';
+  return '<div class="gdx-todo" role="group" aria-label="What needs doing">' + tiles.join('') + '</div>';
+}
+/** The Next step cell: the most pressing step as a button, the others as small links under it. */
+function invNextCell(r, loading) {
+  if (loading) return '<td></td>';
+  var steps = [], st = invNeedState(r), F = esc(r.fabric), late = invLateOf(r);
+  var btn = function (cls, attr, words, tip) { return { cls: cls, attr: attr, words: words, tip: tip }; };
+  if (st === 'short' && r.ppc.greige) steps.push(btn('jw-primary', 'data-ppcpo="' + esc(r.ppc.name) + '|' + r.ppc.greigeM + '"', 'Raise PO · ' + nf(r.ppc.greigeM) + ' m', 'Raise a greige PO for what PPC is short of (with the processor’s share)'));
+  if (late.length) steps.push(btn('gdx-bad', 'data-invd="' + F + '|proc"', 'Chase ' + plural(late.length, 'lot') + ' at processor', late.map(function (x) { return x.lot + ' · ' + x.who + ' · ' + x.days + ' days'; }).join('\n')));
+  if (invNeeds(r, 'send')) steps.push(btn('jw-primary', 'data-gdsend="' + F + '"', 'Send to printer', 'Make an RFD challan to a printer for the ' + plural(r.ppc.lines, 'line') + ' waiting'));
+  if (invNeeds(r, 'store')) steps.push(btn('jw-wa', 'data-invd="' + F + '|store"', 'Issue ' + nf(r.inStoreGreige) + ' m to RFD', 'Open the greige lots in the store, each with its Issue to RFD'));
+  if (invNeeds(r, 'cut')) steps.push(btn('', 'data-ctssend="' + F + '"', 'Send ' + nf(r.cut.leftPcs) + ' cut pcs', 'Make an RFD challan from the pieces already cut to size'));
+  if (r.onOrder > 0.05) steps.push(btn('', 'data-invd="' + F + '|order"', 'Receive greige', nf(r.onOrder) + ' m still due on open POs'));
+  if (!steps.length) return '<td>' + (st === 'ok' ? '<span class="pill pill-ok">covered</span>' : '<span class="muted" style="font-size:12px">nothing to do</span>') + '</td>';
+  var a = steps[0];
+  return '<td class="gdx-next"><button type="button" class="jw-btn ' + a.cls + '" ' + a.attr + ' title="' + esc(a.tip) + '">' + esc(a.words) + '</button>'
+    + (steps.length > 1 ? '<div class="gdx-more">' + steps.slice(1).map(function (s) { return '<button type="button" class="link" ' + s.attr + ' title="' + esc(s.tip) + '">' + esc(s.words) + '</button>'; }).join('') + '</div>' : '')
+    + (st === 'ok' ? '<div><span class="pill pill-ok" style="margin-top:4px">covered</span></div>' : '') + '</td>';
+}
+/** The coloured edge of a row: red when short for PPC, amber when cloth is late at a processor. */
+function invEdge(r) { return invNeedState(r) === 'short' ? 'var(--bad)' : invLateOf(r).length ? 'var(--warn-ink)' : ''; }
+var INV_CSS = '<style>'
+  + '.gdx-todo{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin:0 0 12px}'
+  + '.gdx-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);cursor:pointer;box-shadow:none;color:var(--ink);height:auto;min-height:0;white-space:normal;position:relative;overflow:hidden}'
+  + '.gdx-tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tone)}'
+  + '.gdx-tile:hover{border-color:var(--tone);background:var(--soft)}'
+  + '.gdx-tile.on{border-color:var(--tone);box-shadow:0 0 0 2px var(--tone) inset;background:var(--soft)}'
+  + '.gdx-tile.bad{--tone:var(--bad)}.gdx-tile.greige{--tone:var(--c-greige)}.gdx-tile.rfd{--tone:var(--c-rfd)}.gdx-tile.brand{--tone:var(--brand)}.gdx-tile.warn{--tone:var(--warn-ink)}'
+  + '.gdx-n{font-size:24px;font-weight:800;line-height:1.1;color:var(--tone)}'
+  + '.gdx-l{font-size:13px;font-weight:700}.gdx-s{font-size:11.5px;color:var(--muted)}'
+  + '.gdx-clear{margin:0 0 12px;padding:12px 16px;border-radius:14px;background:var(--accent-bg);color:var(--ok-ink);font-weight:700;font-size:13px}'
+  + '.gdx-next{text-align:left;min-width:170px}.gdx-next .jw-btn{white-space:nowrap;padding:5px 11px;font-size:12px}'
+  + '.gdx-bad{background:var(--bad-bg)!important;color:var(--bad)!important;border-color:var(--bad-line)!important}'
+  + '.gdx-more{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:5px}.gdx-more .link{font-size:11.5px;padding:0}'
+  + '</style>';
 function renderInv() {
   var all = invAll(), types = uniq(all.map(function (x) { return x.type; })).sort();
   if (UI.inv !== 'all' && types.indexOf(UI.inv) < 0) UI.inv = 'all';
-  var rows = all.filter(function (x) {
-    return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type));
-  });
-  var sum = function (k) { return rows.reduce(function (a, x) { return a + (x[k] || 0); }, 0); };
   var count = function (t) { return all.filter(function (x) { return t === 'all' || x.type === t; }).length; };
-  var seg = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px">'
-    + '<div class="seg" role="tablist" aria-label="Type of cloth">'
+  /* EVERY CLOTH TYPE IN ONE DROP-DOWN BESIDE THE SEARCH BOX (Ravi, 21 Nov: the row of chips ran off the screen with the
+   * real fabrics). "All" first, then each type with how many fabrics it holds. */
+  $('lmTopPick').innerHTML = '<select id="invType" aria-label="Type of cloth">'
     + ['all'].concat(types).map(function (t) {
-      return '<button type="button" role="tab" aria-selected="' + (UI.inv === t) + '" class="segbtn' + (UI.inv === t ? ' on' : '') + '" data-inv="' + esc(t) + '">'
-        + esc(t === 'all' ? 'All' : t) + ' <span class="n">' + count(t) + '</span></button>';
-    }).join('') + '</div></div>';
-  /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, before what is on order — and the greige PO for what is short, from
-   * here. And the RFD already on the floor goes in as opening stock from here too. Only in the app (gdPpcMap). */
-  var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap;
-  UI.invCols = withPpc ? 7 : 6;
-  var ppcCell = function (r) {
-    if (ppcMap && ppcMap.__loading) return '<td class="num muted">…</td>';
-    var p = r.ppc; if (!p) return '<td class="num">' + dash(0) + '</td>';
-    /* What the old Greige for PPC tab showed (Ravi, 15 Oct: "remove this and integrate … under the ppc demand column"):
-     * need, the RFD free against it, short, what is already on its way, and the greige to order. */
-    var sm = 'font-size:10.5px;line-height:1.5';
-    return '<td class="num"><b>' + nf(p.need) + ' m</b><div class="muted" style="' + sm + '">' + plural(p.lines, 'line') + '</div>'
-      + '<div class="muted" style="' + sm + '">RFD free ' + nf(p.free) + ' m' + (p.desk > 0.05 ? ' (' + nf(p.desk) + ' m this desk)' : '') + '</div>'
-      + (p.short > 0.05 ? '<div style="' + sm + ';color:var(--bad);font-weight:700">short ' + nf(p.short) + ' m</div>'
-        + (p.onWay > 0.05 ? '<div class="muted" style="' + sm + '">' + nf(p.onWay) + ' m greige on its way</div>' : '')
-        + (p.greigeM ? '<div style="' + sm + ';font-weight:700">greige to order ' + nf(p.greigeM) + ' m</div>' : '<div style="' + sm + ';color:var(--ok-ink,#166534)">covered by what is on its way</div>')
-        : '<div style="' + sm + ';color:var(--ok-ink,#166534)">covered</div>')
-      + (p.greigeM && p.greige ? '<button type="button" class="jw-btn jw-primary" data-ppcpo="' + esc(p.name) + '|' + p.greigeM + '" style="margin-top:4px;padding:3px 10px;font-size:12px">Raise greige PO · ' + nf(p.greigeM) + ' m</button>'
-        : p.greigeM ? '<div class="err-in" style="font-size:10.5px">no greige name in Master data</div>' : '') + '</td>';
-  };
-  var tools = '<div class="row" style="margin:0 0 10px;align-items:center">'
+      return '<option value="' + esc(t) + '"' + (UI.inv === t ? ' selected' : '') + '>' + esc(t === 'all' ? 'All' : t) + ' (' + count(t) + ')</option>';
+    }).join('') + '</select>';
+  /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, and the greige PO for what is short, from here. Only in the app. */
+  var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap, loading = !!(ppcMap && ppcMap.__loading);
+  var inView = all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type)); });
+  if ((!withPpc || loading) && !INV_ACT[UI.invShow]) UI.invShow = 'all';
+  var shown = function (k) { return inView.filter(function (x) { return invShows(x, k); }); };
+  /* short first, then late, then covered, then those PPC does not need */
+  var rows = shown(UI.invShow).sort(function (a, b) {
+    return INV_SHOW_ORDER[invNeedState(a)] - INV_SHOW_ORDER[invNeedState(b)] || (invLateOf(b).length ? 1 : 0) - (invLateOf(a).length ? 1 : 0);
+  });
+  UI.invCols = withPpc ? 9 : 8;
+  var tools = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'
+    + (withPpc && !loading ? '<div class="seg" role="tablist" aria-label="Show">' + ['all', 'short', 'ok', 'none'].map(function (k) {
+        return '<button type="button" role="tab" class="segbtn' + (UI.invShow === k ? ' on' : '') + '" aria-selected="' + (UI.invShow === k) + '" data-invshow="' + k + '">'
+          + INV_SHOW_LABEL[k] + ' <span class="n">' + shown(k).length + '</span></button>';
+      }).join('') + '</div>' : '')
+    + (INV_ACT[UI.invShow] ? '<span class="pill pill-sea">Showing: ' + esc(INV_SHOW_LABEL[UI.invShow]) + ' <button type="button" class="link" data-invshow="all" style="padding:0 0 0 4px" aria-label="Show all">✕</button></span>' : '')
+    + '<span style="margin-left:auto"></span>'
     + (canLedgerEdit() ? '<button type="button" class="ghost" data-act="OPENING_RFD" title="RFD already on the floor: its own lot, so it is issued like any other and never counted as cloth back from a processor.">+ RFD opening stock</button>' : '')
-    + (withPpc ? '<button type="button" class="ghost" data-gdflow="drfd">Open the flow’s Demand → RFD</button>' : '')
-    + (withPpc ? '<span class="muted" style="font-size:12px;align-self:center">PPC demand is what the production plans need in RFD; short is after the RFD free today; the PO button orders the greige for it (with ' + Math.round((typeof GD_LOSS !== 'undefined' ? GD_LOSS : 0.05) * 100) + '% for what the processor takes).</span>' : '')
+    + (withPpc ? '<button type="button" class="ghost" data-gdflow="drfd" title="Open the flow’s Demand → RFD">Demand → RFD</button>' : '')
     + '</div>';
-  var table = tools + '<div class="card"><div class="ff-grid"><table class="xl">'
-    + th(withPpc ? ['Fabric', 'PPC demand', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'] : ['Fabric', 'Greige order', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Total'],
-      withPpc ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5])
+  var stockHeads = ['Greige ordered', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Cut to size'];
+  var group = '<tr><th class="frz"></th>' + (withPpc ? '<th></th>' : '') + '<th></th>'
+    + '<th colspan="5" style="text-align:center;color:var(--muted);font-weight:600;border-bottom:0">Where the cloth is now →</th><th></th></tr>';
+  var heads = th(withPpc ? ['Fabric', 'PPC need, covered by RFD', 'Next step'].concat(stockHeads, ['Total']) : ['Fabric', 'Next step'].concat(stockHeads, ['Total']),
+    withPpc ? [3, 4, 5, 6, 7, 8] : [2, 3, 4, 5, 6, 7]).replace('<thead>', '<thead>' + group);
+  var table = INV_CSS + invTodoHtml(inView, withPpc, loading) + tools + '<div class="card"><div class="ff-grid"><table class="xl">' + heads
     + '<tbody>' + (rows.map(function (r) {
-      return '<tr><td class="frz" style="text-align:left"><b>' + esc(r.fabric) + '</b>'
+      var edge = invEdge(r);
+      return '<tr><td class="frz" style="text-align:left' + (edge ? ';box-shadow:inset 4px 0 0 ' + edge : '') + '">' + invFabricName(r.fabric)
         + (r.greige ? '<div class="muted" style="font-size:10.5px">bought as ' + esc(r.greige) + '</div>' : '') + '</td>'
-        + (withPpc ? ppcCell(r) : '')
+        + (withPpc ? invNeedCell(r, loading) : '') + invNextCell(r, loading)
         + invCell(r, 'order', r.onOrder, 'color:var(--warn-ink)')
         + invCell(r, 'store', r.inStoreGreige, '')
         + invCell(r, 'proc', r.atProcessor, 'color:var(--proc-ink)')
-        + invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700')
+        + invRfdCell(r)
+        + invCutCell(r)
         + '<td class="num" style="font-weight:700">' + dash(r.owned) + '</td></tr>'
         + (UI.invOpen.indexOf(r.fabric + '|') === 0 ? invDetail(r, UI.invOpen.split('|')[1]) : '');
-    }).join('') || emptyRow(UI.invCols, 'Nothing on order or in stock' + (UI.inv === 'all' ? '.' : ' for ' + UI.inv + '.')))
-    + '</tbody>'
-    + (rows.length > 1 ? '<tfoot><tr><td class="frz" style="text-align:left">Total' + (UI.inv === 'all' ? '' : ' · ' + esc(UI.inv)) + '</td>'
-      + (withPpc ? '<td class="num">' + dash(rows.reduce(function (a, x) { return a + (x.ppc ? x.ppc.need : 0); }, 0)) + '</td>' : '')
-      + '<td class="num">' + dash(sum('onOrder')) + '</td><td class="num">' + dash(sum('inStoreGreige')) + '</td><td class="num">' + dash(sum('atProcessor')) + '</td>'
-      + '<td class="num">' + dash(sum('inStoreRfd')) + '</td><td class="num">' + dash(sum('owned')) + '</td></tr></tfoot>' : '')
-    + '</table></div></div>';
-  return seg + table;
+    }).join('') || emptyRow(UI.invCols, UI.invShow !== 'all' ? 'No fabric is ' + INV_SHOW_LABEL[UI.invShow].toLowerCase() + (UI.inv === 'all' ? '.' : ' in ' + UI.inv + '.')
+      : 'Nothing on order or in stock' + (UI.inv === 'all' ? '.' : ' for ' + UI.inv + '.')))
+    + '</tbody>'   /* no Total row (Ravi, 21 Nov): metres of different cloths added together told nobody anything */
+    + '</table></div></div>'
+    + (withPpc ? '<div class="lm-why">Metres. The bar shows how much of the PPC need the RFD free covers; Raise PO orders the greige with '
+      + Math.round((typeof GD_LOSS !== 'undefined' ? GD_LOSS : 0.05) * 100) + '% for what the processor takes.</div>' : '');
+  return table;
 }
 
 /* ---- wiring: the type tabs ------------------------------------------------------------------------- */
@@ -2877,6 +3958,12 @@ function invLotsOf(fabric) {
 function invRowsOfLot(lot, kind) { return (DB.fab || []).filter(function (r) { return r.lot === lot && r.txnType === kind; }); }
 var invJoin = function (list) { return uniq(list).join(', ') || '—'; };
 var invLastDate = function (rows) { return rows.map(function (r) { return r.date; }).sort().pop() || ''; };
+/* A small "N waiting approval" note beside Send to printer when someone asked to change the printer on an RFD challan for this
+ * fabric and the approver has not answered yet (Vishesh, 23 Nov). Nothing shows while the flow's request list is not there. */
+function gdPrnWaitingPill(fabric) {
+  var n = typeof flowPrnWaiting === 'function' ? flowPrnWaiting(fabric).length : 0;
+  return n > 0 ? ' <span class="pill" title="A change of printer was asked and waits for the approver">' + n + ' waiting approval</span>' : '';
+}
 function invDetail(r, col) {
   var head, body, empty;
   if (col === 'order') {
@@ -2919,6 +4006,10 @@ function invDetail(r, col) {
         + '<td>' + (g.poNo ? '<button type="button" class="jw-btn jw-wa" data-rr="' + esc(g.poNo) + '|' + esc(g.lot) + '">Receive RFD</button>' : '') + '</td></tr>';
     });
     empty = 'Nothing of ' + r.fabric + ' is at an RFD processor.';
+  } else if (col === 'cut') {
+    head = ['Size (W × L)', 'Cut', 'Sent to printer', 'Left', 'Status', 'Next step'];
+    body = ctsDetailRows(r.cut, r.fabric);
+    empty = 'Nothing has been cut to size from ' + r.fabric + ' yet.';
   } else {
     head = ['Lot', 'PO', 'Supplier challan', 'RFD processor', 'Back on', 'Came back', 'To cutting', 'Damaged', 'On shelf', 'Next step'];
     body = invLotsOf(r.fabric).filter(function (g) { return g.rfdLeft > 0.05; }).map(function (g) {
@@ -2930,36 +4021,263 @@ function invDetail(r, col) {
         + '<td class="tl">' + esc(g.processor || '—') + '</td><td class="tl">' + esc(fmtD(invLastDate(back) || g.date)) + '</td>'
         + '<td class="num">' + nf(came) + ' m</td><td class="num">' + (g.rfdOut ? nf(g.rfdOut) + ' m' : '—') + '</td>'
         + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(g.rfdLeft) + ' m</td>'
-        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdflow="drfd">Send to printer</button>'
+        /* Send to printer opens the RFD challan for this fabric right here (Vishesh, 23 Nov; before: its lines on Demand → RFD) */
+        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>' + gdPrnWaitingPill(r.fabric)
         + '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button></div></td></tr>';
     });
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
   }
-  var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf' }[col];
+  var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf', cut: 'Cut to size' }[col];
   return '<tr class="invdet"><td colspan="' + (UI.invCols || 6) + '"><div class="invdrop"><div class="sect">' + esc(title) + ' · ' + esc(r.fabric) + '</div>'
+    + (col === 'rfd' && r.rfdToPrinters > 0.05 ? '<div class="muted" style="font-size:12px">' + nf(r.rfdToPrinters) + ' m of it went to printers on RFD challans — taken off the shelf figure above; the lots below show what each lot had before.</div>' : '')
+    + (col === 'cut' && r.cut.leftPcs > 0 ? '<div class="actions" style="justify-content:flex-start;margin:6px 0"><button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer from the pieces already cut">Send to printer</button></div>' : '')
     + (body.length ? '<div class="box scroll"><table class="ct li"><thead><tr>' + head.map(function (x, i) {
-        return '<th' + (/^(Ordered|Received|Still due|Sent|Back so far|Still out|In store|Came back|To cutting|Damaged|On shelf|Days out|Sent to RFD)$/.test(x) ? ' class="num"' : '') + '>' + esc(x) + '</th>';
+        return '<th' + (/^(Ordered|Received|Still due|Sent|Back so far|Still out|In store|Came back|To cutting|Damaged|On shelf|Days out|Sent to RFD|Cut|Sent to printer|Left)$/.test(x) ? ' class="num"' : '') + '>' + esc(x) + '</th>';
       }).join('') + '</tr></thead><tbody>' + body.join('') + '</tbody></table></div>'
       : '<div class="empty">' + esc(empty) + '</div>')
+    + (col === 'rfd' ? invTransitHtml(r) : '')
     + '</div></td></tr>';
 }
 /** A figure that opens its drop-down; a dash when there is nothing behind it. */
+/* IN TRANSIT TO PRINTERS (Vishesh, 23 Nov: "dont add a new column but just add a small line under it, and when I click on the value
+ * show against which order it is in transit"). Under RFD on shelf: the metres on RFD challans the printer has not yet marked
+ * received. They are already off the shelf figure and not in the total; once received they are gone from our count. */
+function invRfdCell(r) {
+  var tr = invTransitM(r);
+  if (!(tr > 0.05)) return invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700');
+  return '<td class="num">' + invCellBtn(r, 'rfd', r.inStoreRfd, 'font-weight:700')
+    + '<div style="font-size:10.5px;color:var(--warn-ink);font-weight:600;white-space:nowrap">+ ' + nf(tr) + ' m in transit to printers</div></td>';
+}
+/** The metres of a row still on their way to printers. */
+function invTransitM(r) { return (r.transit || []).reduce(function (a, x) { return a + (+x.metres || 0); }, 0); }
+/** The challan lines of this fabric not yet received by the printer, since the desk began counting it; [] when the flow is not read. */
+function invTransit(name) {
+  if (typeof flowClothInTransit !== 'function' || typeof FLOW === 'undefined' || !FLOW || !FLOW.cloth) return [];
+  var opened = gdRfdOpened(name); if (!opened) return [];
+  try { return flowClothInTransit(name, opened) || []; } catch (e) { console.warn('In transit for ' + name + ': not counted (' + ((e && e.message) || e) + ').'); return []; }
+}
+/** The "In transit to printers" list under the RFD lots: challan, printer, order, SKU, metres, sent. */
+function invTransitHtml(r) {
+  var list = r.transit || []; if (!list.length) return '';
+  return '<div class="sect" style="margin-top:10px">In transit to printers · ' + nf(invTransitM(r)) + ' m</div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>Challan</th><th>Printer</th><th>Order</th><th>SKU</th><th class="num">Metres</th><th>Sent</th></tr></thead><tbody>'
+    + list.map(function (x) {
+      return '<tr><td class="mono">' + esc(x.no) + '</td><td class="tl">' + esc(x.vendor) + '</td><td class="mono">' + esc(x.orderNo) + '</td><td class="mono">' + esc(x.sku)
+        + '</td><td class="num">' + nf(x.metres) + ' m</td><td>' + esc(fmtD(x.date)) + '</td></tr>';
+    }).join('') + '</tbody></table></div>'
+    + '<div class="muted" style="font-size:11.5px;margin-top:4px">A line leaves this list when the printer presses "Cloth received" in their portal; its metres then leave our inventory.</div>';
+}
 function invCell(r, col, v, style) {
   if (!(v > 0.05)) return '<td class="num"' + (style ? ' style="' + style + '"' : '') + '><span class="muted">&mdash;</span></td>';
+  return '<td class="num">' + invCellBtn(r, col, v, style) + '</td>';
+}
+/** The figure as the button that opens its drop-down. */
+function invCellBtn(r, col, v, style) {
   var key = r.fabric + '|' + col, on = UI.invOpen === key;
-  return '<td class="num"><button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '"'
-    + (style ? ' style="' + style + '"' : '') + ' title="Show what makes this up">' + nf(v) + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button></td>';
+  return '<button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '"'
+    + (style ? ' style="' + style + '"' : '') + ' title="Show what makes this up">' + nf(v) + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button>';
+}
+/** A PO opens on Greige POs, expanded -- and the challan inside it too, when there is one. */
+function invOpenPo(poNo, chId) {
+  PV.openPo[poNo] = true; if (chId) PV.openCh[chId] = true;
+  PV.view = 'po'; PV.st = ''; UI.tab = 'po'; render(); window.scrollTo(0, 0);
 }
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo]') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow],[data-invgo]') : null;
+    if (d && d.getAttribute('data-invgo')) { UI.tab = d.getAttribute('data-invgo'); UI.invOpen = ''; render(); return; }
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
-    /* A PO in a drop-down opens on Greige POs, expanded. */
-    if (d && d.getAttribute('data-openpo')) { var pn = d.getAttribute('data-openpo'); PV.openPo[pn] = true; PV.view = 'po'; PV.st = ''; UI.tab = 'po'; render(); window.scrollTo(0, 0); return; }
-    var t = ev.target.closest ? ev.target.closest('[data-inv]') : null;
-    if (!t) return;
-    UI.inv = t.getAttribute('data-inv') || 'all'; UI.invOpen = ''; render();
+    if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
+    if (d && d.getAttribute('data-invh')) { invHistOpen(d.getAttribute('data-invh')); return; }
+    if (d && d.getAttribute('data-histshelf')) { INV_HIST.shelf = d.getAttribute('data-histshelf'); invHistDraw(); return; }
+    if (d && d.getAttribute('data-histday')) { var day = d.getAttribute('data-histday'); INV_HIST.open[day] = !INV_HIST.open[day]; invHistDraw(); return; }
+    if (d && d.id === 'histAll') { invHistOpenAll(); return; }
+    if (d && d.getAttribute('data-histpo')) { var p = d.getAttribute('data-histpo').split('|'); $('lmHist').classList.add('hide'); invOpenPo(p[0], p[1]); return; }
+    if (d && d.id === 'histXlsx') { invHistXlsx(); return; }
+    if (d && d.getAttribute('data-invshow')) { UI.invShow = d.getAttribute('data-invshow'); UI.invOpen = ''; render(); return; }
   });
+  document.addEventListener('change', function (ev) {
+    if (ev.target.id === 'invType') { UI.inv = ev.target.value || 'all'; UI.invOpen = ''; render(); return; }
+    if (ev.target.id !== 'histFrom' && ev.target.id !== 'histTo') return;
+    INV_HIST.from = $('histFrom').value; INV_HIST.to = $('histTo').value; invHistDraw();
+  });
+}
+
+/* ---- A FABRIC'S STOCK HISTORY (Ravi, 20 Nov: click the fabric name, see every in and out "in the tally ledger format") ---- *
+ *
+ * A pop-up over the Inventory page: one tab per shelf (RFD on the shelf first, then greige in the store), each a
+ * ledger page -- date, cause, opening, in, out, closing -- worked out by fabShelfLedger, so its last closing is the
+ * figure on the page. A row with a PO opens that PO (and its challan) on Greige POs.
+ * Errors: it only reads, so nothing here can lose data. The one thing that can fail is the Excel file; that says so in
+ * the toast and on the console, and nothing is downloaded. */
+var INV_HIST = { fabric: '', shelf: 'rfd', from: '', to: '', open: {} };   // open: the dates shown opened
+var INV_SHELF_LABEL = { rfd: 'RFD on shelf', greige: 'Greige in store' };
+
+/** The fabric's name on the Inventory page: a button to its history for whoever may see the fabric ledger. */
+function invFabricName(fabric) {
+  if (!canLedger()) return '<b>' + esc(fabric) + '</b>';
+  return '<button type="button" class="link" style="font-size:inherit;padding:0;text-align:left" data-invh="' + esc(fabric) + '" title="See every in and out of ' + esc(fabric) + '">'
+    + esc(fabric) + '</button>';
+}
+function invHistOpen(fabric) {
+  INV_HIST.fabric = fabric; INV_HIST.shelf = 'rfd'; INV_HIST.from = ''; INV_HIST.to = ''; INV_HIST.open = {};
+  invHistMount();
+  $('histFrom').value = ''; $('histTo').value = '';
+  var m = mstOf(fabric);
+  $('histTitle').textContent = fabric + ' — stock history';
+  $('histSub').textContent = m && m.greige ? 'bought as ' + m.greige : '';
+  invHistDraw();
+  $('lmHist').classList.remove('hide');
+}
+/** The pop-up's frame, made once: the tabs and the date boxes stay put while the ledger under them is redrawn. */
+function invHistMount() {
+  if ($('lmHist')) return;
+  var box = document.createElement('div');
+  box.className = 'modal hide'; box.id = 'lmHist';
+  box.innerHTML = '<div class="modalbox" style="width:min(980px,100%)">'
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">'
+    + '<div><div class="crumb">Stock history</div><h2 style="margin:2px 0 0;font-size:19px" id="histTitle"></h2><div class="sub" id="histSub"></div></div>'
+    + '<button type="button" class="x" data-close="lmHist" aria-label="Close">×</button></div>'
+    + '<div class="toolbar" style="margin:14px 0 10px">'
+    + '<div class="seg" role="tablist" aria-label="Which stock" id="histTabs"></div>'
+    + '<div class="pair" style="margin-left:auto"><label class="inl" for="histFrom">From</label><input type="date" id="histFrom" style="width:150px;height:34px;padding-block:0"></div>'
+    + '<div class="pair"><label class="inl" for="histTo">To</label><input type="date" id="histTo" style="width:150px;height:34px;padding-block:0"></div>'
+    + '<button type="button" class="ghost" id="histXlsx" style="height:34px;padding:0 14px">Download Excel</button></div>'
+    + '<div id="histBody"></div></div>';
+  document.body.appendChild(box);
+}
+/** Open every date, or close them all when all are already open. */
+function invHistOpenAll() {
+  var H = INV_HIST, days = histDays(fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to).lines);
+  var all = days.length && days.every(function (d) { return H.open[d.date]; });
+  H.open = {}; if (!all) days.forEach(function (d) { H.open[d.date] = true; });
+  invHistDraw();
+}
+/** The PO an entry belongs to: its own, or its lot's (an issue to RFD or to cutting is written against the lot). */
+function invHistPoOf(r, lotPo) { return String(r.orderNo || lotPo[r.lot] || '').trim(); }
+/** The cause line and the details under it, as the floor says them. */
+function invHistCause(r) {
+  var party = String(r.party || '').trim();
+  return (FAB_LABEL[r.txnType] || r.txnType) + (party && party !== 'Cutting' ? ' · ' + party : '');
+}
+function invHistDetails(r, po) {
+  var bill = { RECEIVE_GREIGE: 'challan ', ISSUE_TO_RFD: 'our challan ', RECEIVE_RFD: 'their challan ' }[r.txnType] || 'bill ';
+  return [r.lot ? 'Lot ' + r.lot : '', r.bill ? bill + r.bill : '', po ? 'PO ' + po : '', r.forOrders ? 'for ' + r.forOrders : '', r.note || r.remark || '']
+    .filter(Boolean).join(' · ');
+}
+/* THE STOCK HISTORY, FOLDED BY DATE (Ravi, 21 Nov: "put an dropdown in the date … till then it should show only opening
+ * and closing balance and also in and out should be hidden and only pops up when it is clicked on the date").
+ * On top, the period in four figures: Opening · Came in · Went out · Closing. Below, one line per date — the date with
+ * its weekday, what moved that day ("+594 in", "−300 out") and its opening and closing balance — under a month heading.
+ * A click on the date opens its movements: an "in" label (green) for cloth that came in, "out" (red) for cloth that went out, the details,
+ * and the balance after each. "Open all" opens every date. A movement with a PO still opens that PO. The Excel keeps
+ * plain numbers. */
+function histIn(m) { return '<span style="color:var(--ok-ink);font-weight:600;white-space:nowrap">+' + nf(m) + '</span>'; }
+function histOut(m) { return '<span style="color:var(--bad);font-weight:600;white-space:nowrap">−' + nf(m) + '</span>'; }
+/** One movement's metres, signed: what came in, or what went out. */
+function histMove(x) { return x.inQty ? histIn(x.inQty) : x.outQty ? histOut(x.outQty) : ''; }
+/** The history split into days (Ravi, 21 Nov: "opening balance and closing balance for each date"): each day opens on
+ *  the balance before its first movement and closes on the balance after its last, with what came in and went out that
+ *  day. The lines keep their order; a day is every line with the same date. */
+function histDays(lines) {
+  var days = [];
+  lines.forEach(function (x) {
+    var d = days[days.length - 1];
+    if (!d || d.date !== x.row.date) { d = { date: x.row.date, opening: x.opening, closing: x.closing, inQty: 0, outQty: 0, lines: [] }; days.push(d); }
+    d.lines.push(x); d.closing = x.closing; d.inQty += x.inQty || 0; d.outQty += x.outQty || 0;
+  });
+  return days;
+}
+var HIST_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+var HIST_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** A business date (YYYY-MM-DD) read as that calendar day, wherever the PC's clock is. */
+function histDateParts(ymd) { var p = String(ymd || '').split('-').map(Number); return { y: p[0], m: p[1] - 1, d: p[2], w: new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay() }; }
+/** "Fri 20 Nov" — the day line's date. */
+function histDayName(ymd) { var p = histDateParts(ymd); return p.y ? HIST_WEEKDAYS[p.w] + ' ' + p.d + ' ' + HIST_MONTHS[p.m].slice(0, 3) : ''; }
+/** "November 2026" — the heading over a month's dates. */
+function histMonthName(ymd) { var p = histDateParts(ymd); return p.y ? HIST_MONTHS[p.m] + ' ' + p.y : ''; }
+/** A day's labels: "+594 in" in green, "−300 out" in red — only what moved. */
+function histDayBadges(d) {
+  var pill = function (cls, words) { return '<span class="pill ' + cls + '" style="font-weight:600;margin-right:6px">' + words + '</span>'; };
+  return (d.inQty ? pill('pill-ok', '+' + nf(d.inQty) + ' in') : '') + (d.outQty ? pill('pill-out', '−' + nf(d.outQty) + ' out') : '');
+}
+function invHistDraw() {
+  var H = INV_HIST, page = fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to), lotPo = {};
+  fabLots(DB.fab || []).forEach(function (L) { lotPo[L.lot] = L.poNo; });
+  $('histTabs').innerHTML = ['rfd', 'greige'].map(function (s) {
+    return '<button type="button" role="tab" aria-selected="' + (H.shelf === s) + '" class="segbtn' + (H.shelf === s ? ' on' : '') + '" data-histshelf="' + s + '">' + INV_SHELF_LABEL[s] + '</button>';
+  }).join('');
+  if (!page.lines.length) {
+    $('histBody').innerHTML = '<div class="empty">' + esc(H.from || H.to
+      ? 'No ' + INV_SHELF_LABEL[H.shelf] + ' entries for ' + H.fabric + ' in these dates. It held ' + nf(page.closing) + ' m.'
+      : 'No ' + INV_SHELF_LABEL[H.shelf] + ' entries for ' + H.fabric + ' yet.') + '</div>';
+    return;
+  }
+  var days = histDays(page.lines), allOpen = days.every(function (d) { return H.open[d.date]; });
+  var figure = function (label, value) {
+    return '<div style="background:var(--soft);border-radius:var(--r-sm);padding:9px 12px"><div class="muted" style="font-size:12px">' + label + '</div>'
+      + '<div style="font-size:19px;font-weight:700;font-variant-numeric:tabular-nums">' + value + '</div></div>';
+  };
+  var summary = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:0 0 12px">'
+    + figure('Opening' + (H.from ? ' on ' + esc(fmtD(H.from)) : ''), nf(page.opening)) + figure('Came in', page.inQty ? histIn(page.inQty) : '0')
+    + figure('Went out', page.outQty ? histOut(page.outQty) : '0') + figure('Closing' + (H.to ? ' on ' + esc(fmtD(H.to)) : ''), nf(page.closing)) + '</div>';
+  var bar = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 6px">'
+    + '<span class="muted" style="font-size:12px">Click a date to see what moved that day</span>'
+    + '<button type="button" class="ghost" id="histAll" style="height:30px;padding:0 12px">' + (allOpen ? 'Close all' : 'Open all') + '</button></div>';
+  var month = '', rows = days.map(function (d) {
+    var on = !!H.open[d.date], m = histMonthName(d.date), h = '';
+    if (m !== month) { month = m; h += '<tr><td colspan="4" class="tl" style="padding:12px 8px 4px;font-size:12px;font-weight:700;color:var(--muted);border-bottom:0">' + esc(m) + '</td></tr>'; }
+    h += '<tr class="xrow" data-histday="' + esc(d.date) + '" aria-expanded="' + on + '" title="' + (on ? 'Hide' : 'Show') + ' what moved on ' + esc(fmtD(d.date)) + '">'
+      + '<td class="tl" style="white-space:nowrap;font-weight:700"><span style="display:inline-block;width:14px;color:var(--muted)">' + (on ? '▾' : '▸') + '</span>' + esc(histDayName(d.date)) + '</td>'
+      + '<td class="tl">' + histDayBadges(d) + '<span class="muted" style="font-size:12px">' + plural(d.lines.length, 'movement') + '</span></td>'
+      + '<td class="num muted">' + nf(d.opening) + '</td><td class="num b">' + nf(d.closing) + '</td></tr>';
+    if (on) h += d.lines.map(function (x) {
+      var r = x.row, po = invHistPoOf(r, lotPo), came = !!x.inQty, bad = r.txnType === 'DAMAGE' ? ';color:var(--bad)' : '';
+      return '<tr' + (po ? ' class="xrow" data-histpo="' + esc(po + '|' + (r.chId || '')) + '" title="Open PO ' + esc(po) + '"' : '') + ' style="background:var(--soft)">'
+        + '<td class="num">' + (came ? '<span class="pill pill-ok" title="came in">in</span>' : '<span class="pill pill-out" title="went out">out</span>') + '</td>'
+        + '<td class="tl"><div style="' + bad + '">' + esc(invHistCause(r)) + '</div><div class="sub">' + esc(invHistDetails(r, po)) + '</div></td>'
+        + '<td class="num">' + histMove(x) + '</td><td class="num">' + nf(x.closing) + '</td></tr>';
+    }).join('');
+    return h;
+  }).join('');
+  $('histBody').innerHTML = summary + bar + '<div class="box scroll" style="max-height:55vh;overflow:auto"><table class="ct li"><thead><tr>'
+    + '<th style="width:150px">Date</th><th>That day</th><th class="num" style="width:110px">Opening</th><th class="num" style="width:110px">Closing</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table></div><div class="lm-why">Metres. '
+    + (H.to ? 'The closing figure is the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' at the end of ' + esc(fmtD(H.to)) + '.'
+      : 'The closing figure matches the ' + esc(INV_SHELF_LABEL[H.shelf]) + ' figure on the Inventory page.')
+    + ' A movement with a PO opens that PO.</div>';
+}
+/** The same page as an Excel file, made by the app's own writer (the PPC report's). */
+function invHistXlsx() {
+  var H = INV_HIST;
+  if (typeof flowRepXlsx !== 'function') {
+    console.warn('Stock history: the Excel writer (flow-report.js) is not loaded; nothing downloaded.');
+    lmSay('err', 'The Excel file could not be made here. Nothing was downloaded.');
+    return;
+  }
+  var page = fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to), lotPo = {};
+  fabLots(DB.fab || []).forEach(function (L) { lotPo[L.lot] = L.poNo; });
+  var m2 = function (v) { return Math.round(v * 100) / 100; };
+  var c = function (v, st) { return { v: v, st: st || {} }; }, bold = { b: 1 }, date = { fmt: 165, h: 'left' };
+  var rows = [[c(H.fabric + ' — ' + INV_SHELF_LABEL[H.shelf] + ' · ' + (H.from || H.to ? (H.from ? fmtD(H.from) : 'start') + ' to ' + (H.to ? fmtD(H.to) : 'today') : 'all history'), bold)],
+    ['Date', 'Cause', 'Details', 'Opening (m)', 'In (m)', 'Out (m)', 'Closing (m)'].map(function (h) { return c(h, { b: 1, fill: 'F1EFE8' }); })];
+  page.lines.forEach(function (x) {
+    var r = x.row, po = invHistPoOf(r, lotPo);
+    rows.push([c(flowRepSerial(r.date), date), c(invHistCause(r)), c(invHistDetails(r, po)), c(m2(x.opening)),
+      c(x.inQty ? m2(x.inQty) : ''), c(x.outQty ? m2(x.outQty) : ''), c(m2(x.closing), bold)]);
+  });
+  rows.push([c(''), c('Total', bold), c(''), c(m2(page.opening), bold), c(m2(page.inQty), bold), c(m2(page.outQty), bold), c(m2(page.closing), bold)]);
+  try {
+    var bytes = flowRepXlsx([{ name: INV_SHELF_LABEL[H.shelf], rows: rows, freeze: { x: 0, y: 2 }, widths: [12, 34, 48, 13, 11, 11, 13],
+      merges: [], filter: 'A2:G' + (rows.length - 1), heights: {} }]);
+    var a = window.document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = 'stock-history-' + H.fabric.replace(/[^A-Za-z0-9]+/g, '-') + '-' + H.shelf + '-' + lmToday() + '.xlsx';
+    a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  } catch (e) {
+    console.error('Stock history Excel for ' + H.fabric + ' failed:', e);
+    lmSay('err', 'The Excel file for ' + H.fabric + ' could not be made. Nothing was downloaded.');
+  }
 }
 
 /* ui/ledger.js -- The Fabric ledger screen and its filter.
@@ -2969,16 +4287,18 @@ function wireInventory() {
 var LF = { from: '', to: '', kind: '', fabric: '', party: '', po: '', done: '' };
 
 /* ---- the register itself, which is the only thing that is actually stored ------------------- */
-/** Does a row survive the filter bar? Every box left blank matches everything. */
-function lfKeep(r) {
+/** Does a row survive the filter bar? Every box left blank matches everything. `but` names boxes to leave out (the tiles' counts). */
+function lfKeep(r, but) {
+  but = but || {};
   if (LF.from && String(r.date || '') < LF.from) return false;
   if (LF.to && String(r.date || '') > LF.to) return false;
-  if (LF.kind && r.txnType !== LF.kind) return false;
+  if (LF.kind && !but.kind && r.txnType !== LF.kind) return false;
   if (LF.fabric && String(r.fabricType || '').trim() !== LF.fabric) return false;
   if (LF.party && String(r.party || '').trim() !== LF.party) return false;
   if (LF.po && String(r.orderNo || '').trim().toUpperCase() !== LF.po.toUpperCase()) return false;
-  if (LF.done === 'open' && r.done) return false;
-  if (LF.done === 'done' && !r.done) return false;
+  if (!but.done && LF.done === 'open' && r.done) return false;
+  if (!but.done && LF.done === 'done' && !r.done) return false;
+  if (!but.done && LF.done === 'wait' && !lfWaits(r)) return false;
   return true;
 }
 var lfOn = function () {
@@ -2995,6 +4315,57 @@ function lfSelect(key, label, values, labels) {
     }).join('') + '</select></label>';
 }
 
+/* ---- THE LEDGER, LAID OUT TO ACT ON (Vishesh, 23 Nov: "refine … fabric ledger design to the best for making it more actionable") ---- *
+ *   - tiles on top: Not yet fulfilled · Waiting for approval · Damaged · In / Out — each a filter (pressing it again clears it)
+ *   - quick periods beside the dates: Today · 7 days · 30 days · This month · All
+ *   - the movements grouped by day (newest first), each day with its count and its metres in and out
+ *   - a movement reads in colour: green when cloth came in, red when it went out, the metres signed the same way
+ *   - a movement waiting for approval carries Approve / Refuse on its own row for whoever may decide (the same decisions as
+ *     the Greige POs page: rrDecide for an RFD receipt that shrank, ctsDecide for a cut to size)
+ * Every filter, button and figure the ledger had is kept. */
+var LF_PERIODS = [['today', 'Today'], ['7', '7 days'], ['30', '30 days'], ['month', 'This month'], ['', 'All']];
+/** The from / to of a quick period, from today. */
+function lfPeriod(k) {
+  var t = lmToday(), d = new Date(t + 'T00:00:00Z');
+  var back = function (n) { var x = new Date(d.getTime() - n * 86400000); return x.toISOString().slice(0, 10); };
+  if (k === 'today') return { from: t, to: t };
+  if (k === '7') return { from: back(6), to: t };
+  if (k === '30') return { from: back(29), to: t };
+  if (k === 'month') return { from: t.slice(0, 8) + '01', to: t };
+  return { from: '', to: '' };
+}
+/** The quick period the filter's dates are on now ('' = all; null = some other dates). */
+function lfPeriodNow() {
+  for (var i = 0; i < LF_PERIODS.length; i++) { var p = lfPeriod(LF_PERIODS[i][0]); if (p.from === LF.from && p.to === LF.to) return LF_PERIODS[i][0]; }
+  return null;
+}
+/** A movement waiting for someone to approve it. */
+var lfWaits = function (r) { return !!(r.approval && r.approval.status === 'pending'); };
+/** Approve / Refuse on the row, for whoever may decide it; else who it waits for. */
+function lfDecideHtml(r) {
+  if (!lfWaits(r)) return '';
+  if (r.cutToSize) return ctsDecideButtons(r);
+  if (r.txnType === 'RECEIVE_RFD') return canApprove() ? '<div class="actions"><button type="button" class="jw-btn jw-wa" data-appr="' + esc(r.id) + '|ok">Approve</button><button type="button" class="jw-btn" id="rej-' + esc(r.id) + '" data-appr="' + esc(r.id) + '|no">Reject</button></div>'
+    : '<span class="muted" style="font-size:11.5px">waits for an approver</span>';
+  return '';
+}
+var LED_CSS = '<style>'
+  + '.gdx-todo{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:0 0 12px}'
+  + '.gdx-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);cursor:pointer;box-shadow:none;color:var(--ink);height:auto;min-height:0;white-space:normal;position:relative;overflow:hidden}'
+  + '.gdx-tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tone)}'
+  + '.gdx-tile:hover{border-color:var(--tone);background:var(--soft)}.gdx-tile.on{border-color:var(--tone);box-shadow:0 0 0 2px var(--tone) inset;background:var(--soft)}'
+  + '.gdx-tile.bad{--tone:var(--bad)}.gdx-tile.warn{--tone:var(--warn-ink)}.gdx-tile.brand{--tone:var(--brand)}.gdx-tile.ok{--tone:var(--ok-ink)}'
+  + '.gdx-tile[disabled]{cursor:default}.gdx-tile[disabled]:hover{border-color:var(--line);background:var(--card)}'
+  + '.gdx-n{font-size:24px;font-weight:800;line-height:1.1;color:var(--tone)}.gdx-l{font-size:13px;font-weight:700}.gdx-s{font-size:11.5px;color:var(--muted)}'
+  + '.gdx-per{display:inline-flex;gap:4px;flex-wrap:wrap}.gdx-per button{height:32px;padding:0 12px;font-size:12.5px;border-radius:999px;width:auto}'
+  + '.gdx-per button.on{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}'
+  + '.gdx-day td{background:var(--soft)!important;text-align:left!important;font-size:12.5px;padding:8px 12px!important;border-top:1px solid var(--line)}'
+  + '.gdx-day b{font-size:13px;margin-right:8px}'
+  + '.gdx-mv{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}'
+  + '.gdx-mv.in{background:var(--accent-bg);color:var(--ok-ink)}.gdx-mv.out{background:var(--bad-bg);color:var(--bad)}.gdx-mv.nil{background:var(--chip);color:var(--muted)}'
+  + '.gdx-mv.dmg{background:var(--bad);color:#fff}'
+  + 'tr.gdx-wait>td{background:var(--warn-bg)!important}tr.gdx-wait>td:first-child{box-shadow:inset 4px 0 0 var(--warn-ink)}'
+  + '</style>';
 function renderLedger() {
   var all = (DB.fab || []).slice().sort(function (a, b) {
     return String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id));
@@ -3017,34 +4388,58 @@ function renderLedger() {
   var inM = rows.reduce(function (a, r) { return a + (FAB_SIGN[r.txnType] > 0 ? fabQty(r) : 0); }, 0);
   var outM = rows.reduce(function (a, r) { return a + (FAB_SIGN[r.txnType] < 0 ? fabQty(r) : 0); }, 0);
 
+  /* the tiles count what the dates, fabric, party and PO let through -- not the tile's own filter, so they never read 0 once pressed */
+  var base = all.filter(function (r) { return lfKeep(r, { done: true, kind: LF.kind === 'DAMAGE' }); });
+  var openN = base.filter(function (r) { return !r.done; }).length, waitN = base.filter(lfWaits).length;
+  var dmg = base.filter(function (r) { return r.txnType === 'DAMAGE'; }), dmgM = dmg.reduce(function (a, r) { return a + fabQty(r); }, 0);
+  var tile = function (on, tone, n, big, sub, attr) {
+    return '<button type="button" class="gdx-tile ' + tone + (on ? ' on' : '') + '" ' + attr + '><span class="gdx-n">' + n + '</span><span class="gdx-l">' + big + '</span><span class="gdx-s">' + sub + '</span></button>';
+  };
+  var tiles = '<div class="gdx-todo">'
+    + tile(LF.done === 'open', 'brand', nf(openN), 'Not yet fulfilled', 'movements nobody has ticked', 'data-lfgo="open"')
+    + tile(LF.done === 'wait', waitN ? 'warn' : 'ok', nf(waitN), 'Waiting for approval', waitN ? 'decide them on their rows' : 'nothing waiting', 'data-lfgo="wait"' + (waitN || LF.done === 'wait' ? '' : ' disabled'))
+    + tile(LF.kind === 'DAMAGE', dmg.length ? 'bad' : 'ok', nf(dmgM) + ' m', 'Damaged', plural(dmg.length, 'entry', 'entries') + (lfPeriodNow() === '' ? ', all time' : ' in these dates'), 'data-lfgo="dmg"' + (dmg.length || LF.kind === 'DAMAGE' ? '' : ' disabled'))
+    + '<div class="gdx-tile ok" style="cursor:default"><span class="gdx-n" style="font-size:18px"><span style="color:var(--ok-ink)">+' + nf(inM) + '</span> <span style="color:var(--bad)">−' + nf(outM) + '</span></span><span class="gdx-l">Metres in / out</span><span class="gdx-s">of the movements below</span></div>'
+    + '</div>';
+
+  var per = lfPeriodNow();
   var filters = '<div class="card" style="padding:12px 14px;margin-bottom:12px">'
-    + '<div class="toolbar" style="gap:10px">'
+    + '<div class="toolbar" style="gap:10px;align-items:center">'
+    + '<div class="gdx-per" role="group" aria-label="Period">' + LF_PERIODS.map(function (p) {
+      return '<button type="button" class="ghost' + (per === p[0] ? ' on' : '') + '" data-lfper="' + p[0] + '">' + p[1] + '</button>';
+    }).join('') + '</div>'
     + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">From'
     + '<input type="date" data-lf="from" value="' + esc(LF.from) + '" style="height:32px;width:auto;font-size:12.5px"></label>'
     + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">To'
-    + '<input type="date" data-lf="to" value="' + esc(LF.to) + '" style="height:32px;width:auto;font-size:12.5px"></label>'
+    + '<input type="date" data-lf="to" value="' + esc(LF.to) + '" style="height:32px;width:auto;font-size:12.5px"></label></div>'
+    + '<div class="toolbar" style="gap:10px;margin-top:8px">'
     + lfSelect('kind', 'Movement', kinds, kinds.map(function (k) { return FAB_LABEL[k]; }))
     + lfSelect('fabric', 'Fabric', fabrics)
     + lfSelect('party', 'Party', parties)
     + lfSelect('po', 'PO', pos)
-    + lfSelect('done', 'Status', ['open', 'done'], ['Still open', 'Fulfilled'])
+    + lfSelect('done', 'Status', ['open', 'done', 'wait'], ['Not yet fulfilled', 'Fulfilled', 'Waiting for approval'])   /* "open" is a PO's word (Ravi, 21 Nov) */
     + (lfOn() ? '<button type="button" class="jw-btn" id="lfClear">Clear the filter</button>' : '')
     + '</div></div>';
 
   var count = rows.length === all.length
     ? all.length + ' movement' + (all.length === 1 ? '' : 's')
     : '<b>' + rows.length + '</b> of ' + all.length + ' movements';
-  var openN = rows.filter(function (r) { return !r.done; }).length;
-  if (openN !== rows.length) count += ' · <b>' + openN + '</b> still open';
+  var openR = rows.filter(function (r) { return !r.done; }).length;
+  if (openR !== rows.length) count += ' · <b>' + openR + '</b> not yet fulfilled';
 
-  return '<div class="row" style="margin-bottom:10px;align-items:center">'
+  /* one header a day: the day, how many movements, the metres in and out */
+  var days = {}; rows.forEach(function (r) { var d = String(r.date || ''); var e = days[d] || (days[d] = { n: 0, i: 0, o: 0 }); e.n++;
+    if (FAB_SIGN[r.txnType] > 0) e.i += fabQty(r); else if (FAB_SIGN[r.txnType] < 0) e.o += fabQty(r); });
+  var lastDay = null;
+
+  return LED_CSS + '<div class="row" style="margin-bottom:10px;align-items:center">'
     + '<span class="muted" style="font-size:12px;align-self:center">Add a movement:</span>'
     + (canLedgerEdit() ? '' : '<span class="pill pill-mute">View only · ' + esc(meUser().name) + '</span>')
     + kinds.filter(function (k) { return canLedgerEdit() && k !== 'RECEIVE_GREIGE' && k !== 'ISSUE_TO_RFD' && k !== 'RECEIVE_RFD'; }).map(function (k) {
       return '<button type="button" class="ghost" data-act="' + k + '" style="padding:6px 12px;font-size:12.5px">'
         + esc(FAB_LABEL[k]) + '</button>';
     }).join('') + '<span class="muted" style="font-size:12px;align-self:center">Greige received, sent to RFD and RFD received back are done from each PO on Greige POs.</span></div>'
-    + filters
+    + tiles + filters
     + '<div class="card"><div class="ff-cap">' + count + ', newest first · '
     + '<b style="color:var(--ok-ink)">' + nf(inM) + ' m</b> in · <b style="color:var(--bad)">' + nf(outM) + ' m</b> out. '
     + 'Nothing on this page is a stored total — every figure in the app is worked out from these rows.</div>'
@@ -3054,8 +4449,12 @@ function renderLedger() {
      * the first one. */
     + th(['Date', 'PO', 'Fabric', 'Challan', 'Party', 'Lot', 'Movement', 'State', 'Metres', ''], [8])
     + '<tbody>' + (rows.map(function (r) {
-      var sign = FAB_SIGN[r.txnType] || 0;
-      return '<tr><td class="frz">' + esc(r.date) + '</td>'
+      var sign = FAB_SIGN[r.txnType] || 0, d = String(r.date || ''), dd = days[d], head = '';
+      if (d !== lastDay) { lastDay = d;
+        head = '<tr class="gdx-day"><td colspan="10"><b>' + esc(d ? fmtD(d) : 'No date') + '</b><span class="muted">' + plural(dd.n, 'movement') + '</span>'
+          + (dd.i ? ' · <span style="color:var(--ok-ink);font-weight:700">+' + nf(dd.i) + ' m</span>' : '') + (dd.o ? ' · <span style="color:var(--bad);font-weight:700">−' + nf(dd.o) + ' m</span>' : '') + '</td></tr>'; }
+      var mv = r.txnType === 'DAMAGE' ? 'dmg' : sign > 0 ? 'in' : sign < 0 ? 'out' : 'nil', waits = lfWaits(r);
+      return head + '<tr' + (waits ? ' class="gdx-wait"' : '') + '><td class="frz">' + esc(r.date) + '</td>'
         + '<td>' + (r.orderNo ? '<b>' + esc(r.orderNo) + '</b>' : '<span class="muted">—</span>') + '</td>'
         + '<td style="text-align:left">' + esc(r.fabricType) + '</td>'
         /* The bill or challan sits with the cloth it came on: the two are read together off the
@@ -3063,30 +4462,32 @@ function renderLedger() {
         + '<td>' + (r.bill ? '<span class="mono">' + esc(r.bill) + '</span><div class="sub">' + ({ ISSUE_TO_RFD: 'our RFD challan', RECEIVE_RFD: 'processor’s', RECEIVE_GREIGE: 'supplier’s', PURCHASE_RFD: 'supplier’s' }[r.txnType] || '') + '</div>' : '<span class="muted">—</span>') + '</td>'
         + '<td style="text-align:left">' + (r.party ? esc(r.party) : '<span class="muted">—</span>') + '</td>'
         + '<td style="text-align:left"><b>' + esc(r.lot) + '</b></td>'
-        + '<td style="text-align:left"' + (r.txnType === 'DAMAGE' ? ' style="text-align:left;color:var(--bad);font-weight:700"' : '') + '>'
-        + esc(FAB_LABEL[r.txnType] || r.txnType)
-        + (r.approval && r.approval.status !== 'approved' ? '<div><span class="pill ' + (r.approval.status === 'pending' ? 'pill-low' : 'pill-out') + '">' + (r.approval.status === 'pending' ? 'Waiting for approval' : 'Rejected') + ' · ' + r.approval.pct + '% shrinkage</span></div>' : '')
-        + (r.approval && r.approval.status === 'approved' ? '<div class="sub">approved by ' + esc(r.approval.by || '') + ' · ' + r.approval.pct + '%</div>' : '')
+        + '<td style="text-align:left"><span class="gdx-mv ' + mv + '">' + esc(FAB_LABEL[r.txnType] || r.txnType) + '</span>'
+        + (r.approval && r.approval.status !== 'approved' ? '<div><span class="pill ' + (r.approval.status === 'pending' ? 'pill-low' : 'pill-out') + '">' + (r.approval.status === 'pending' ? 'Waiting for approval' : r.cutToSize ? 'Refused' : 'Rejected') + ' · ' + ctsApprovalWhy(r) + '</span></div>' : '')
+        + (r.approval && r.approval.status === 'approved' ? '<div class="sub">approved by ' + esc(r.approval.by || '') + (r.cutToSize ? '' : ' · ' + r.approval.pct + '%') + '</div>' : '')
         + (r.bales && r.bales.length ? '<div class="sub">' + r.bales.length + ' bales</div>' : '')
         + (r.thans && r.thans.length ? '<div class="sub">' + r.thans.length + ' thans</div>' : '')
+        + ctsPiecesNote(r)
         + (r.txnType === 'DAMAGE' && r.note
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + esc(r.note) + '</div>' : '')
         + '</td>'
         + '<td><span class="pill ' + (fabState(r) === 'GREIGE' ? 'pill-low' : 'pill-sea') + '">'
         + esc(FAB_STATE_LABEL[fabState(r)] || fabState(r)) + '</span></td>'
-        + '<td class="num" style="font-weight:700">' + (sign < 0 ? '−' : '+') + nf(fabQty(r))
+        + '<td class="num" style="font-weight:800;color:' + (sign > 0 ? 'var(--ok-ink)' : sign < 0 ? 'var(--bad)' : 'var(--ink)') + '">' + (sign < 0 ? '−' : sign > 0 ? '+' : '') + nf(fabQty(r))
         + (r.pieces && r.pieces.length ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + r.pieces.length + ' pcs on the challan</div>' : '')
         + (r.returned
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + nf(r.gross)
             + ' on the challan, ' + nf(r.returned) + ' sent back</div>' : '')
+        + (r.forOrders ? '<div class="muted" style="font-size:10.5px;font-weight:400">for ' + esc(r.forOrders) + '</div>' : '')
         + (r.remark && r.txnType !== 'DAMAGE'
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + esc(r.remark) + '</div>' : '')
         + '</td>'
-        + '<td style="white-space:nowrap">' + (!canLedgerEdit() ? '<span class="muted">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
-        + (!canLedgerEdit() ? '' : '<button type="button" class="jw-btn jw-primary" data-edit="' + esc(r.id) + '">Edit</button> ')
-        + (!canLedgerEdit() ? '' : r.done
+        + '<td style="white-space:nowrap">' + (waits ? lfDecideHtml(r) : '')
+        + (!canLedgerEdit() ? '<span class="muted" title="' + esc(fulfilledBy(r)) + '">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
+        + (!canLedgerEdit() || ctsLedgerLocked(r) ? '' : '<button type="button" class="jw-btn jw-primary" data-edit="' + esc(r.id) + '">Edit</button> ')
+        + (!canLedgerEdit() || waits ? '' : r.done
           ? '<button type="button" class="jw-btn jw-wa" data-done="' + esc(r.id) + '" '
-            + 'title="Dealt with. Click to put it back on the list.">✓ Fulfilled</button>'
+            + 'title="' + esc(fulfilledBy(r)) + '. Click to put it back on the list.">✓ Fulfilled</button>'
           : '<button type="button" class="jw-btn" data-done="' + esc(r.id) + '" '
             + 'title="Mark this movement as dealt with">Mark fulfilled</button>')
         + '</td></tr>';
@@ -3094,12 +4495,29 @@ function renderLedger() {
     + '</tbody></table></div></div>';
 }
 
+/** Tick or untick "fulfilled", keeping who did it and when (Ravi, 21 Nov: a tick nobody can trace is no use). */
+function markFulfilled(r, done, who) {
+  r.done = done;
+  if (done) { r.doneBy = who || ''; r.doneAt = new Date().toISOString(); } else { delete r.doneBy; delete r.doneAt; }
+}
+/** "Fulfilled by Priya on 21-Nov-26" — or just "Dealt with" for a tick from before names were kept. */
+function fulfilledBy(r) {
+  if (!r.done) return '';
+  return r.doneBy ? 'Fulfilled by ' + r.doneBy + (r.doneAt ? ' on ' + fmtD(lmToday(r.doneAt)) : '') : 'Dealt with';
+}
+
 /* ---- wiring: the ledger rows and the filter bar ---------------------------------------------------- */
 function wireLedger() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('#lfClear,[data-edit],[data-done],[data-del]') : null;
+    var t = ev.target.closest ? ev.target.closest('#lfClear,[data-edit],[data-done],[data-del],[data-lfgo],[data-lfper]') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
+    /* the ledger's tiles and quick periods (Vishesh, 23 Nov) */
+    if (g('data-lfgo') !== null) { var go = g('data-lfgo');
+      /* pressing a tile turns its filter on; pressing it again turns it off */
+      if (go === 'dmg') LF.kind = LF.kind === 'DAMAGE' ? '' : 'DAMAGE'; else LF.done = LF.done === go ? '' : go;
+      render(); return; }
+    if (g('data-lfper') !== null) { var pr = lfPeriod(g('data-lfper')); LF.from = pr.from; LF.to = pr.to; render(); return; }
     if (g('data-edit')) {
       var er = (DB.fab || []).filter(function (x) { return x.id === g('data-edit'); })[0];
       if (er) entryOpen(er.txnType, er);
@@ -3109,8 +4527,9 @@ function wireLedger() {
       /* A WORKING MARK, NOT A FIGURE. Fulfilled says somebody has dealt with this row -- chased it,
        * filed it, tallied it against the paper. It changes no balance anywhere: what the cloth did
        * is a fact, and a tick cannot alter it. */
+      if (!canLedgerEdit()) { lmSay('warn', 'Marking a movement fulfilled needs the right to correct the fabric ledger.'); return; }
       var dr = (DB.fab || []).filter(function (x) { return x.id === g('data-done'); })[0];
-      if (dr) { dr.done = !dr.done; lmSaveDb(); render(); }
+      if (dr) { markFulfilled(dr, !dr.done, meUser().name); lmSaveDb(); render(); }
       return;
     }
     if (g('data-del')) {
@@ -3293,6 +4712,7 @@ var CO_FIELDS = [
   ['iec', 'IEC', 'text', 'Import-export code'],
   ['pan', 'PAN', 'text', ''],
   ['jurisdiction', 'Jurisdiction', 'text', '"Subject to ___ jurisdiction"'],
+  ['terms', 'Standard terms & conditions', 'area', 'Fills in on every new PO; it can be changed on each PO'],
   ['poPrefix', 'PO number prefix', 'text', 'RIDHI/PO/GREIG/'],
   ['rfdPrefix', 'RFD challan prefix', 'text', 'RIDHI/RFD/ -- our challan to the RFD processor, numbered 001 on'],
   ['poNext', 'Next PO number', 'text', 'The series carries on from this, or from the last PO raised, whichever is higher']
@@ -4013,7 +5433,8 @@ function wireEntry() {
     /* Every figure in the app is worked out from these rows, so the button says what goes first. */
     if (!armed(this, 'Press again to remove ' + nf(fabQty(r)) + ' m from lot ' + r.lot)) return;
     DB.fab = DB.fab.filter(function (x) { return x.id !== EN_ID; });
-    lmSaveDb(); entryClose(); render();
+    var back = cutLinesUndoPatch(r);   // a cutting entry's products wait for cloth again
+    lmSaveDb(back); cutFlowKeep(back); entryClose(); render();
     lmSay('ok', (FAB_LABEL[r.txnType] || r.txnType) + ' of ' + nf(fabQty(r)) + ' m taken off lot ' + r.lot + '.');
   });
 
@@ -4038,18 +5459,18 @@ function wireEntry() {
 
 function wireUsersRfd() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-issall],[data-issbale],[data-rradd],[data-rrrm],[data-rrfin],[data-rr],[data-appr],[data-urm],#userAdd,#rrSave,[data-cut],[data-cutall],[data-cutthan],#cutSave') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-issall],[data-issbale],[data-rradd],[data-rrrm],[data-rr],[data-appr],[data-urm],#userAdd,#rrSave,[data-cut],[data-cutall],[data-cutthan],[data-cutline],#cutSave') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
     if (g('data-issall') && ISS) { var lot = g('data-issall'), bs = lotBales(lot), all = bs.every(function (b) { return ISS.pick[lot][b.than]; }); ISS.pick[lot] = {}; if (!all) bs.forEach(function (b) { ISS.pick[lot][b.than] = true; }); issDraw(); return; }
     if (g('data-issbale') && ISS) { var p = g('data-issbale').split('|'); ISS.pick[p[0]][p[1]] = t.checked; issDraw(); return; }
-    if (g('data-rradd') && RR) { var l = g('data-rradd'), ps = RR.thans[l], last = ps.length ? String(ps[ps.length - 1].than).trim() : ''; ps.push({ than: /^\d+$/.test(last) ? String(+last + 1) : '', m: '' }); rrDraw(); var f = $('rm-' + l + '-' + (ps.length - 1)); if (f) f.focus(); return; }
+    if (g('data-rradd') && RR) { var l = g('data-rradd'), ps = RR.thans[l]; ps.push({ than: rdNextBale(ps), m: '' }); /* same numbering as Receive greige */ rrDraw(); var f = $('rm-' + l + '-' + (ps.length - 1)); if (f) f.focus(); return; }
     if (g('data-rrrm') && RR) { var q = g('data-rrrm').split('|'), arr = RR.thans[q[0]]; arr.splice(+q[1], 1); if (!arr.length) arr.push({ than: '', m: '' }); rrDraw(); return; }
-    if (g('data-rrfin') && RR) { RR.fin[g('data-rrfin')] = t.checked; rrSums(); return; }
     if (t.id === 'rrSave') { rrSave(); return; }
     if (g('data-cut')) { cutOpen(g('data-cut')); return; }
     if (g('data-cutall') && CUT) { var ts = lotThans(CUT.lot), every = ts.every(function (x) { return CUT.pick[x.than]; }); CUT.pick = {}; if (!every) ts.forEach(function (x) { CUT.pick[x.than] = true; }); cutDraw(); return; }
     if (g('data-cutthan') && CUT) { CUT.pick[g('data-cutthan')] = t.checked; cutDraw(); return; }
+    if (g('data-cutline') && CUT) { CUT.lpick[g('data-cutline')] = t.checked; cutDraw(); return; }
     if (t.id === 'cutSave') { cutSave(); return; }
     if (g('data-rr')) { var z = g('data-rr').split('|'); rrOpen(z[0], z[1] || ''); return; }
     if (g('data-appr')) { var y = g('data-appr').split('|'); rrDecide(y[0], y[1] === 'ok', t); return; }
@@ -4067,7 +5488,8 @@ function wireUsersRfd() {
   document.addEventListener('change', userEdit);
   document.addEventListener('input', function (ev) {
     var el = ev.target;
-    if (CUT && el.getAttribute && el.getAttribute('data-cutqty')) { CUT.qty = el.value; $('cutTot').innerHTML = 'Going to cutting: <b>' + m1(parseFloat(el.value) || 0) + ' m</b>'; return; }
+    if (CUT && el.getAttribute && el.getAttribute('data-cutqty')) { CUT.qty = el.value; $('cutErr').classList.add('hide'); $('cutTot').innerHTML = cutTotHtml(parseFloat(el.value) || 0, ''); return; }   // a new figure: the last refusal may no longer be true
+    if (CUT && el.getAttribute && el.getAttribute('data-ctsbox')) { CUT[el.getAttribute('data-ctsbox')] = el.value; $('cutErr').classList.add('hide'); ctsInfoDraw(); return; }
     var lot = el.getAttribute && el.getAttribute('data-rrlot'); if (!lot || !RR) return;
     RR.thans[lot][+el.getAttribute('data-pi')][el.getAttribute('data-f')] = el.value; rrSums();
   });
@@ -4111,9 +5533,11 @@ function gdSnap() {
 }
 /* WHAT CHANGED IS WHAT IS WRITTEN: one PO or one ledger row at a time, so two people working at once do not
  * overwrite each other's rows. */
-function lmSaveDb() {
+/** Saves what changed on the desk as one patch. alsoWrite (optional) is more paths written in that same patch -- the
+ *  flow's lines a cutting entry is for -- so the two never land apart. */
+function lmSaveDb(alsoWrite) {
   if (!DB || GD_STATE !== 'ok') return;   // never write a desk this screen could not read
-  var now = gdSnap(), was = GD_SNAP || { gpo: {}, fab: {}, mst: '', ven: '', co: '' }, patch = {};
+  var now = gdSnap(), was = GD_SNAP || { gpo: {}, fab: {}, mst: '', ven: '', co: '' }, patch = Object.assign({}, alsoWrite || {});
   ['gpo', 'fab'].forEach(function (k) {
     Object.keys(now[k]).forEach(function (id) { if (was[k][id] !== now[k][id]) patch[GD_NODE + '/' + k + '/' + id] = JSON.parse(now[k][id]); });
     Object.keys(was[k]).forEach(function (id) { if (!(id in now[k])) patch[GD_NODE + '/' + k + '/' + id] = null; });
@@ -4193,7 +5617,9 @@ function gdClearAll() { DB.gpo = []; DB.fab = []; gdSaveAll(); }
 /* ---- WHO IS WORKING: the person signed in to the app, and the rights they hold ---- *
  * gdesk opens the desk; gdled shows the fabric ledger; gdledit lets them add and correct it; gdappr approves an RFD
  * receipt that shrank more than 5%. An admin holds all four. */
-var GD_RIGHTS = [['gdesk', 'Open the Greige Desk'], ['gdled', 'See the fabric ledger'], ['gdledit', 'Add to and correct the fabric ledger'], ['gdappr', 'Approve an RFD receipt that shrank more than 5%']];
+var GD_RIGHTS = [['gdesk', 'Open the Greige Desk'], ['gdled', 'See the fabric ledger'], ['gdledit', 'Add to and correct the fabric ledger'], ['gdappr', 'Approve an RFD receipt that shrank more than 5%'],
+  /* Ravi, 21 Nov: closing a greige PO is the accounts department's; the store's "last challan" asks the accounts head. */
+  ['gdpo', 'Close, cancel and reopen greige POs'], ['gdpoappr', 'Approve the store’s request to close a greige PO']];
 /* AN EMPTY TABS LIST IS NO ACCESS, as it is everywhere else in the app (auth.js: a failed or empty perms read
  * gives nothing). It used to hand all four rights to such an account. Only the desk run on its own, with no
  * app login at all, still opens with every right. */
@@ -4230,6 +5656,13 @@ function usersSafe() { return true; }
 var GD_LOSS = 0.05;
 /* Page registers on: PPC's figures are not ready until the order book and the factory registers are all in (a plain look, it reads nothing). */
 function gdFlowReady() { return typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowRfdCover === 'function' && (typeof prOn !== 'function' || !prOn() || ptHas(PTG_ALL)); }
+/** RFD metres of a fabric that left on the flow's RFD challans to printers since the desk began counting it; 0 when the flow
+ *  is not in this page or not read yet, or the desk has no opening count for the fabric (the flow then counts it elsewhere). */
+function invChallanOut(name) {
+  if (typeof flowRfdChallanOut !== 'function' || typeof FLOW === 'undefined' || !FLOW || !FLOW.ch) return 0;
+  var opened = gdRfdOpened(name); if (!opened) return 0;
+  try { return Math.max(0, +flowRfdChallanOut(name, opened) || 0); } catch (e) { console.warn('RFD on shelf for ' + name + ': challans to printers not counted (' + ((e && e.message) || e) + ').'); return 0; }
+}
 function gdRfdShelf(name) {
   if (!DB) return 0;
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0];
@@ -4283,10 +5716,13 @@ function gdPoFor(rfd, metres) {
   lmSay('ok', nf(metres) + ' m of ' + greige + ' for PPC is on the PO. Pick the supplier and the rate.');
 }
 /** Over to the production flow, at one of its Demand tabs. */
-function gdToFlow(view) {
+function gdToFlow(view, find) {
   if (typeof showTab !== 'function') return;
   showTab('flow');
   try { FLOW_VIEW = view || 'drfd'; } catch (e) { /* the flow picks its own */ }
+  /* `find` (a fabric's name) goes in the flow's search box, so only that fabric's lines show; the app's page, not the desk's */
+  var box = window.document.getElementById('flQ');
+  if (box && find != null) box.value = find;
   if (typeof ensureFlow === 'function') ensureFlow();
 }
 
@@ -4331,7 +5767,8 @@ function gdLinkMasters() {
   /* The company on the PO: the app's own Greige PO settings (no Company page on the desk in the app). The numbering stays the desk's. */
   var s = (typeof GPO !== 'undefined' && GPO && GPO.settings) || null;
   if (s) DB.co = Object.assign({}, DB.co || {}, { name: s.company || (DB.co || {}).name || gdCoName(), addr: s.address || (DB.co || {}).addr || '',
-    gstin: s.gstin || (DB.co || {}).gstin || '', email: s.email || (DB.co || {}).email || '', pan: s.pan || (DB.co || {}).pan || '' });
+    gstin: s.gstin || (DB.co || {}).gstin || '', email: s.email || (DB.co || {}).email || '', pan: s.pan || (DB.co || {}).pan || '',
+    terms: s.terms || (DB.co || {}).terms || '' });   // the PO settings' "Default terms" start every new PO's terms & conditions
 }
 /** Over to Setup -> Master Database, at its Greige & RFD fabric or its Vendors. */
 function gdOpenMasterData(view) {
@@ -4342,9 +5779,26 @@ function gdOpenMasterData(view) {
 
 function wireGd() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-ppcpo],[data-gdflow]') : null; if (!t) return;
+    var t = ev.target.closest ? ev.target.closest('[data-ppcpo],[data-gdflow],[data-gdlines],[data-gdsend]') : null; if (!t) return;
     if (t.getAttribute('data-ppcpo')) { var p = t.getAttribute('data-ppcpo').split('|'); gdPoFor(p[0], +p[1]); return; }
-    if (t.getAttribute('data-gdflow')) { gdToFlow(t.getAttribute('data-gdflow')); return; }
+    if (t.getAttribute('data-gdflow')) { gdToFlow(t.getAttribute('data-gdflow'), ''); return; }   // the whole list: no fabric left in the search
+    if (t.getAttribute('data-gdlines')) { gdToFlow('drfd', t.getAttribute('data-gdlines')); return; }
+    if (t.getAttribute('data-gdsend')) { gdSendToPrinter(t.getAttribute('data-gdsend')); return; }
+  });
+}
+/* SEND TO PRINTER MAKES THE CHALLAN HERE (Vishesh, 23 Nov). The card is the flow's (flowShelfChallanOpen); the desk asks for it,
+ * says why when it cannot open, and draws itself again once the challan is made. Without the flow in the page it falls back
+ * to that fabric's lines on Demand → RFD, as before. */
+function gdSendToPrinter(fabric) {
+  if (typeof flowShelfChallanOpen !== 'function') { gdToFlow('drfd', fabric); return; }
+  lmSay('ok', 'Reading the lines waiting for ' + fabric + '…');
+  /* `no` is '' when only printer changes were asked for (they wait for approval); `said` then says what waits */
+  flowShelfChallanOpen(fabric, function (no, said) {
+    lmSay('ok', ((no ? 'Challan ' + no + ' made for ' + fabric + '. ' : '') + (said || '')).trim() || 'Nothing was sent.');
+    render();
+  }).then(function (why) { if (why) lmSay('warn', why); }, function (e) {
+    console.error('Send to printer for ' + fabric + ' could not open:', e);
+    lmSay('err', 'The challan for ' + fabric + ' could not open (' + ((e && e.message) || e) + '). Nothing was saved.');
   });
 }
 
@@ -4366,10 +5820,12 @@ function wireGd() {
     if (GD_STATE !== 'ok') { $('lmPane').innerHTML = '<div class="card" style="color:#b91c1c">The Greige Desk could not be read just now (' + esc(GD_STATE.replace(/^err: /, '')) + '). Nothing was changed. Open it again in a moment.</div>'; return; }
     lmLoad();
     if (typeof gdLinkMasters === 'function') gdLinkMasters();   // the Master Data's fabrics and vendors, read fresh each time
-    if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireGd(); }
+    if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireCutToSize(); wireDateAsks(); wireGd(); }
     render();
   }
-  return { open: open, ensure: function () { return gdLoad(); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); }, state: function () { return GD_STATE; },
+  return { open: open, ensure: function () { return gdLoad(); }, dateAsks: function () { return GD_STATE === 'ok' && DB ? gdDateAskItems() : []; },
+    /* the same, from the ledger rows alone as the bell reads them (pt_gdTest/fab) when the desk itself was never opened */
+    dateAsksIn: function (fabNode) { return gdDateAskItems(Object.keys(fabNode || {}).map(function (k) { return Object.assign({ id: k }, fabNode[k]); })); }, fabNode: function () { return GD_NODE + '/fab'; }, dateDecide: function (id, ok, why) { return gdDateDecide(id, ok, why); }, rfdKnown: function (n) { return !!mstOf(n); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); }, state: function () { return GD_STATE; },
     /* Read the desk again (the flow's Refresh): what is on screen stays until the new read answers. */
     reload: function () { if (GD_READY) { var was = GD_READY; GD_READY = null; return was.then(function () { GD_READY = null; return gdLoad(); }); } return gdLoad(); } };
 })();

@@ -138,9 +138,10 @@ function flowRfdCover() {
   const F = name => { const k = flowFabKey(name); return fab[k] || (fab[k] = { name: String(name || '').trim(), stock: flowRfdStock(name), held: 0, need: 0, lines: 0 }); };
   rows.forEach(({ s }) => {
     const fr = s.demand && s.demand.fabricReady, p = s.plan;
-    /* A line on a challan has already come off the stock (flowRfdChallanOut) — it is not held a second time. Cloth made
-     * ready by hand (no challan) is held until the line is cut or issued. */
-    if (!fr || !p || fr.challan || s.route === 'outsource' || s.cut || s.issued || s.given) return;
+    /* A line on a challan has already come off the stock (flowRfdChallanOut) — it is not held a second time. Nor is one the
+     * Greige Desk sent to cutting (cutEntry): its thans left the shelf in that entry. Cloth made ready by hand (no challan)
+     * is held until the line is cut or issued. */
+    if (!fr || !p || fr.challan || fr.cutEntry || s.route === 'outsource' || s.cut || s.issued || s.given) return;
     const name = fr.what || (p.fabric && p.fabric.name); if (!name) return;
     F(name).held += +fr.metres || +(p.fabric && p.fabric.metres) || 0;
   });
@@ -156,6 +157,22 @@ function flowRfdCover() {
     });
   Object.values(fab).forEach(f => { f.free = flowR2(f.stock - f.held); f.short = flowR2(Math.max(0, f.need - Math.max(0, f.free))); });
   return { fab, line };
+}
+/* ---- SEND TO CUTTING FROM THE GREIGE DESK, LINKED TO THE LINES (Ravi, 21 Nov: "Link it to the lines") ----
+ * The no-printing lines of one RFD fabric that cloth off the shelf may go for: still waiting on Demand → RFD, or marked
+ * ready by hand and not cut yet (their cloth is held on the shelf). Printed lines go by printer challan, never here.
+ * metres = what a waiting line still needs, or what was made ready for a held one. Oldest order first. */
+function flowCutLines(fabric) {
+  const k = flowFabKey(fabric), cover = flowRfdCover().line;
+  return flowRows().map(({ r, s }) => {
+    const p = s.plan, fr = s.demand && s.demand.fabricReady;
+    if (!p || s.route !== 'stitch' || s.bucket === 'done') return null;
+    if (flowFabKey((fr && fr.what) || (p.fabric && p.fabric.name)) !== k) return null;
+    const waiting = flowInView('drfd', s), held = !!fr && !fr.challan && !fr.cutEntry && !s.cut && !s.issued;
+    if (!waiting && !held) return null;
+    return { key: s.key, orderNo: r.orderNo, orderDate: r.orderDate || '', sku: obUC(r.sku), pcs: +r.qty || 0,
+      metres: flowR2(waiting ? ((cover[s.key] || {}).need || 0) : (+fr.metres || 0)), ready: !waiting, was: fr || null };
+  }).filter(Boolean).sort((a, b) => a.orderDate.localeCompare(b.orderDate) || String(a.orderNo).localeCompare(String(b.orderNo)));
 }
 /** Accessories the same way, for the Accessories department: on the shelf, held, and what the lines waiting need. */
 function flowAccCover() {
