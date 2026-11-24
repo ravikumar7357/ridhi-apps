@@ -26,7 +26,7 @@ function load(opts) {
     vpRawCtx: () => ({}), vpLineRaw: (o, l) => ({ raw: (opts.given || {})[l.lineId] || 0 }),
     ptList: x => x || [], ptGet: async () => opts.branch || null, flowTestsOn: () => false, flowMay: () => false, nf: v => String(v), $: () => null,
   };
-  const api = new Function(...Object.keys(ctx), FLOW_SRC + '\n;return { flowHoldOn, flowVoLines, flowVoSync, flowVoRelease, flowVpAfterLoad, flowVpHoldApply, flowHoldSaveFlag, VO:()=>VO, VP:()=>VP, setAs:v=>{FLOW_VP_AS=v}, ls:()=>ls };')(...Object.values(ctx));
+  const api = new Function(...Object.keys(ctx), FLOW_SRC + '\n;return { flowHoldOn, flowVoLines, flowVoSync, flowVoRelease, flowVpAfterLoad, flowVpHoldApply, flowHoldSaveFlag, held:()=>FLOW_VP_HELD, VO:()=>VO, VP:()=>VP, setAs:v=>{FLOW_VP_AS=v}, ls:()=>ls };')(...Object.values(ctx));
   return api;
 }
 const printOrder = items => ({ no: 'PRN-1', orderNo: 'AMZ-1', printer: { code: 'P1', name: 'Sanganer Prints' }, items: Object.fromEntries(items.map(([k, it]) => [k, it])) });
@@ -95,8 +95,8 @@ console.log('The printer\'s portal');
     admin.setAs({ code: 'P1', name: 'Sanganer' });
     await admin.flowVpAfterLoad();
     const V = admin.VP().rows, a = V.find(o => o.id === 'a');
-    ok('View as printer: held lines still shown', a.lines.length === 2 && V.some(o => o.id === 'b'));
-    ok('View as printer: held line marked waiting for RFD challan', /Waiting for RFD challan/.test(a.lines[0].notes) && !/Waiting/.test(a.lines[1].notes));
+    ok('View as printer (24 Nov) = what the printer sees: held line hidden, all-held order gone', a.lines.length === 1 && a.lines[0].lineId === '2' && !V.some(o => o.id === 'b'));
+    ok('…and how many lines are held is counted for the bar', admin.held().lines === 2 && admin.held().orders === 2);
   }
 }
 
@@ -118,7 +118,7 @@ async function gateTests() {
   const A = load({ me: { admin: true }, vp: { code: 'P1', name: 'Sanganer', rows: [] }, branch: rows(), given: { 1: 100 } });
   A.setAs({ code: 'P1', name: 'Sanganer' }); await A.flowVpAfterLoad();
   const a1 = A.VP().rows[0].lines.find(l => l.lineId === '1');
-  ok('View as printer: the full line, with what was given so far in its note', a1.qty === 400 && /Given so far: 100 pcs of 400 pcs/.test(a1.notes));
+  ok('View as printer: the same 100 the printer sees', a1.qty === 100 && a1.orderedTotal === 400);
   const H = load({ ls: { printerHold: '1' } });
   const held = sync(H, printOrder([[K1, item('S1', 'RB1-H', 10)]]));
   /* the amber box on top of the order: full quantity, what came, colour for all of it at once */
