@@ -134,13 +134,33 @@ async function soQtyBulkRun(plan) {
     + (stopped.message || stopped) + ' The ones already written are done; upload the rest again.' : '', done };
 }
 
+/* The export's columns, each with the list column (page part) that shows it. Order is always written. A column the person's
+ * list does not show is left out too (Buyer shows the person who raised a B2B order, so it needs Buyer AND Raised by), so the file matches the screen. That is tidiness, not security: the data is still in the browser. */
+const SO_EXPORT_COLS = [
+  { head: 'Order', value: o => o._id },
+  { head: 'Date', part: 'so.col.date', value: o => o.orderDate },
+  { head: 'Sale month', part: 'so.col.date', value: o => o.saleMonth || '' },
+  { head: 'Channel', part: 'so.col.channel', value: o => o.channel },
+  { head: 'Buyer', parts: ['so.col.buyer', 'so.col.raisedBy'], value: o => o.buyerName },
+  { head: 'Status', part: 'so.col.status', value: o => soStatus(o) },
+  { head: 'SKU', part: 'so.col.skus', value: (o, g) => g.sku },
+  { head: 'Lines merged', part: 'so.col.skus', value: (o, g) => g.lines },
+  { head: 'Qty', part: 'so.col.pieces', value: (o, g) => g.qty },
+  { head: 'Cut', part: 'so.col.cut', value: (o, g) => g.cut },
+  { head: 'Made', part: 'so.col.made', value: (o, g) => g.press },
+  { head: 'Owed', part: 'so.col.made', value: (o, g) => Math.max(0, g.qty - g.press) },
+  { head: 'Delivery', part: 'so.col.delivery', value: (o, g) => g.delivery },
+  { head: 'Priority', part: 'so.col.delivery', value: (o, g) => g.priority },
+  { head: 'In order book', part: 'so.col.inBook', value: (o, g) => (g.inBook ? 'yes' : 'no') },
+];
+const soExportCols = () => SO_EXPORT_COLS.filter(c => (c.parts || [c.part]).filter(Boolean).every(apxOn));
+
 $('sxExport').onclick = () => {
   const rows = SOX.shown || []; if (!rows.length) return;
   const w = soWork();
-  const lines = [['Order', 'Date', 'Sale month', 'Channel', 'Buyer', 'Status', 'SKU', 'Lines merged', 'Qty', 'Cut', 'Made', 'Owed', 'Delivery', 'Priority', 'In order book'].map(csvCell).join(',')];
-  rows.forEach(({ o }) => soSkus(o, w).forEach(g => lines.push([o._id, o.orderDate, o.saleMonth || '', o.channel, o.buyerName, soStatus(o),
-    g.sku, g.lines, g.qty, g.cut, g.press, Math.max(0, g.qty - g.press), g.delivery, g.priority,
-    g.inBook ? 'yes' : 'no'].map(csvCell).join(','))));
+  const cols = soExportCols();
+  const lines = [cols.map(c => csvCell(c.head)).join(',')];
+  rows.forEach(({ o }) => soSkus(o, w).forEach(g => lines.push(cols.map(c => csvCell(c.value(o, g))).join(','))));
   ptDownload('sales-orders', lines);
 };
 
