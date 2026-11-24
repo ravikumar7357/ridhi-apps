@@ -414,7 +414,9 @@ function liveSnapshotWrite_(data) {
 function liveSnapshotJob() {
   try { var snap = liveSnapshot_(); snap.monthsGid = prop_('LIVE_MONTHS_GID') || ''; liveSnapshotWrite_(snap); } catch (e) { console.error('live snapshot: ' + (e.message || e)); }
   // The month-by-product report: a slice of the Orders workbooks a run, then live.html's copy (see liveMonthsTick_).
-  try { liveMonthsTick_(); liveMonthsPublish_(); } catch (e) { console.error('live months: ' + (e.message || e)); }
+  try { liveMonthsTick_(); } catch (e) { console.error('live months: ' + (e.message || e)); }
+  try { liveAmzTick_(); } catch (e) { console.error('live amazon: ' + (e.message || e)); }
+  try { liveMonthsPublish_(); } catch (e) { console.error('live months publish: ' + (e.message || e)); }
 }
 /** Run once from the editor: sheet + first snapshot + the trigger (any older one removed first). */
 function liveSnapshotSetup() {
@@ -530,7 +532,8 @@ function liveMonthsTick_() {
 function liveMonths_() {
   var c = cacheRead_('monthAsin') || {}, a = cacheRead_('monthAds') || {}, w = cacheRead_('monthWip') || {};
   return { ok: true, at: c.at || '', from: LIVE_MONTHS_FROM, d: c.d || null, ads: a.d || {}, adsAt: a.at || '', files: a.files || [],
-    building: w.day ? { book: w.book, row: w.row, of: ORDERS_DATA_IDS.length } : null };
+    building: w.day ? { book: w.book, row: w.row, of: ORDERS_DATA_IDS.length } : null,
+    amz: cacheRead_('amzPage') || null };                // live.html's MSI tab (liveAmzTick_) rides along
 }
 /* POST { key, lads:'put', brand:'SP'|'CPC', kind:'sp'|'sd'|'sb', file, months: { 'YYYY-MM': [[asin, sku, spend, adSales,
  * adOrders, adUnits, clicks, impressions], …] } } — the browser reads the report and sums it by month. A month sent again
@@ -585,7 +588,7 @@ function liveAdsDrop_(p) {
 }
 /** live.html's copy, on the "months" tab of the live sheet — written only when something in it changed. */
 function liveMonthsPublish_() {
-  var m = liveMonths_(), stamp = m.at + '|' + m.adsAt + '|' + (m.building ? m.building.book + ':' + m.building.row : '');
+  var m = liveMonths_(), stamp = m.at + '|' + m.adsAt + '|' + (m.building ? m.building.book + ':' + m.building.row : '') + '|' + ((m.amz || {}).at || '');
   if (prop_('LIVE_MONTHS_STAMP') === stamp) return;
   var ss = liveSnapshotSheet_(), sh = ss.getSheetByName('months') || ss.insertSheet('months');
   var s = JSON.stringify(m), parts = [];
@@ -597,4 +600,165 @@ function liveMonthsPublish_() {
   var props = PropertiesService.getScriptProperties();
   props.setProperty('LIVE_MONTHS_STAMP', stamp);
   props.setProperty('LIVE_MONTHS_GID', String(sh.getSheetId()));
+}
+
+/* ---- MSI: EVERYTHING ELSE AMAZON GIVES, FOR live.html (Ravi, 24 Nov 2026: "remove Shopify … build the MSI section — everything
+ * Amazon gives — only in live.html") ----
+ * Per brand, kept in cache "amzPage" and handed to live.html inside the months tab (liveMonths_ → liveMonthsPublish_):
+ *   tr / trLy  Sales & Traffic (GET_SALES_AND_TRAFFIC_REPORT) for the last 30 finished days and the same 30 days a year back
+ *              (364 days, same weekdays): per day sessions, page views, Buy Box %, unit session % (conversion), units,
+ *              ordered sales, order items, B2B; per child ASIN the same over the 30 days (top 60 by sales).
+ *   inv        FBA + AWD stock from the inventory sync's per-SKU snapshot (Firestore inv_<brand>, every 3 hours): totals,
+ *              days of cover, out of stock with sales, running low.
+ *   age        FBA Inventory Planning report: units per age bucket, storage cost, the oldest stock.
+ *   sqp        Brand Analytics Search Query Performance for the last full month, summed over the brand's ASINs per query.
+ *   bask       Brand Analytics Market Basket for the last full month: our own pairs, other sellers' products bought with ours.
+ * Reports are asked one run and collected a later one (state in cache "amzWip"); traffic and age once a day, Brand Analytics
+ * once a month. Each brand's figures keep their last good copy if a report fails; the error is kept beside them. */
+var LIVE_AMZ_TASKS = ['tr', 'trLy', 'age', 'sqp', 'bask'];
+function liveAmzKey_(t, day) {
+  if (t === 'sqp' || t === 'bask') return baPeriodWindow_('MONTH', 1).start.toISOString().slice(0, 7);
+  return day;
+}
+function liveAmzAsk_(t, day) {
+  if (t === 'tr') return trafficCreate_(liveShift_(day, -30), liveShift_(day, -1));
+  if (t === 'trLy') return trafficCreate_(liveShift_(day, -394), liveShift_(day, -365));
+  if (t === 'age') return ageCreate_();
+  if (t === 'sqp') return baCreate_('sqp', 'MONTH', '', 1);
+  return basketAsk_('MONTH', 1);
+}
+/** Download a finished SP-API report document as text (gzip or plain). */
+function liveAmzDoc_(id) {
+  var r = sp_('/reports/2021-06-30/reports/' + encodeURIComponent(id));
+  var st = r.processingStatus || '';
+  if (st === 'FATAL' || st === 'CANCELLED') return { dead: st };
+  if (st !== 'DONE') return { wait: st };
+  var d = sp_('/reports/2021-06-30/documents/' + encodeURIComponent(r.reportDocumentId));
+  var resp = UrlFetchApp.fetch(d.url, { muteHttpExceptions: true });
+  var text = String(d.compressionAlgorithm || '').toUpperCase() === 'GZIP'
+    ? Utilities.ungzip(resp.getBlob().setContentType('application/x-gzip')).getDataAsString() : resp.getContentText();
+  return { text: text };
+}
+/** Sales & Traffic → { days: [[date, sessions, pageViews, buyBox%, unitSession%, units, sales, orderItems, b2bSales, b2bUnits]],
+ *  asins: [[asin, sessions, pageViews, buyBox%, unitSession%, units, sales, b2bSales]] }. */
+function liveAmzTraffic_(text) {
+  var j = JSON.parse(text || '{}'), n = function (v) { return Number(v) || 0; }, r2 = function (v) { return Math.round(v * 100) / 100; };
+  var days = (j.salesAndTrafficByDate || []).map(function (x) {
+    var s = x.salesByDate || {}, t = x.trafficByDate || {};
+    return [String(x.date || '').slice(0, 10), n(t.sessions), n(t.pageViews), r2(n(t.buyBoxPercentage)), r2(n(t.unitSessionPercentage)),
+      n(s.unitsOrdered), r2(n((s.orderedProductSales || {}).amount)), n(s.totalOrderItems), r2(n((s.orderedProductSalesB2B || {}).amount)), n(s.unitsOrderedB2B)];
+  }).filter(function (r) { return r[0]; }).sort(function (a, b) { return a[0] < b[0] ? -1 : 1; });
+  var by = {};
+  (j.salesAndTrafficByAsin || []).forEach(function (x) {
+    var a = String(x.childAsin || x.parentAsin || '').trim().toUpperCase(); if (!a) return;
+    var s = x.salesByAsin || {}, t = x.trafficByAsin || {}, o = by[a] || (by[a] = [a, 0, 0, 0, 0, 0, 0, 0, 0]);
+    o[1] += n(t.sessions); o[2] += n(t.pageViews); o[5] += n(s.unitsOrdered); o[6] += n((s.orderedProductSales || {}).amount);
+    o[7] += n((s.orderedProductSalesB2B || {}).amount);
+    o[8] += n(t.buyBoxPercentage) * n(t.pageViews);   // Buy Box % weighted by page views, divided out below
+  });
+  var asins = Object.keys(by).map(function (a) {
+    var o = by[a];
+    return [a, o[1], o[2], o[2] ? r2(o[8] / o[2]) : 0, o[1] ? r2(o[5] / o[1] * 100) : 0, o[5], r2(o[6]), r2(o[7])];
+  }).sort(function (x, y) { return y[6] - x[6]; }).slice(0, 60);
+  return { days: days, asins: asins, nAsins: Object.keys(by).length };
+}
+function liveAmzAge_(id) {
+  var g = agePoll_(id);
+  if (!g.ok) return { dead: g.error || 'failed' };
+  if (g.status !== 'done') return { wait: g.status };
+  var cols = g.ageCols || [], tot = cols.map(function () { return 0; }), storage = 0, avail = 0;
+  (g.rows || []).forEach(function (r) { cols.forEach(function (c, i) { tot[i] += r.age[c] || 0; }); storage += r.storage || 0; avail += r.available || 0; });
+  var old = cols.slice(-2);                            // the two oldest buckets Amazon reports
+  var top = (g.rows || []).map(function (r) { return { r: r, o: old.reduce(function (t, c) { return t + (r.age[c] || 0); }, 0) }; })
+    .filter(function (x) { return x.o > 0; }).sort(function (a, b) { return b.o - a.o; }).slice(0, 25)
+    .map(function (x) { return [x.r.sku, x.r.asin, x.r.available, cols.map(function (c) { return x.r.age[c] || 0; }), Math.round((x.r.storage || 0) * 100) / 100]; });
+  return { v: { cols: cols, tot: tot, storage: Math.round(storage * 100) / 100, available: avail, skus: g.total || 0, oldest: top } };
+}
+function liveAmzSqp_(id) {
+  var p = sqpAllCollect_(id, '');
+  if (!p.ok) return { dead: p.error || 'failed' };
+  if (p.status !== 'done') return { wait: p.status };
+  var by = {};
+  Object.keys(p.d || {}).forEach(function (a) {
+    (p.d[a] || []).forEach(function (r) {
+      var q = by[r.q] || (by[r.q] = { q: r.q, vol: 0, i: 0, c: 0, cart: 0, o: 0, mktI: 0, mktC: 0, mktO: 0, asins: 0 });
+      q.vol = Math.max(q.vol, r.vol); q.mktI = Math.max(q.mktI, r.mktI); q.mktC = Math.max(q.mktC, r.mktC); q.mktO = Math.max(q.mktO, r.mktO);
+      q.i += r.i; q.c += r.c; q.cart += r.cart; q.o += r.o; q.asins++;
+    });
+  });
+  var list = Object.keys(by).map(function (k) { return by[k]; });
+  var top = list.slice().sort(function (x, y) { return (y.o - x.o) || (y.vol - x.vol); }).slice(0, 40)
+    .map(function (q) { return [q.q, q.vol, q.i, q.mktI, q.c, q.mktC, q.cart, q.o, q.mktO, q.asins]; });
+  var miss = list.filter(function (q) { return q.vol > 0 && q.o === 0; }).sort(function (x, y) { return y.vol - x.vol; }).slice(0, 20)
+    .map(function (q) { return [q.q, q.vol, q.i, q.mktI, q.c, q.mktC, q.cart, q.o, q.mktO, q.asins]; });
+  return { v: { month: baPeriodWindow_('MONTH', 1).start.toISOString().slice(0, 7), queries: list.length, top: top, missed: miss } };
+}
+function liveAmzBasket_(id) {
+  var g = basketAll_(id);
+  if (!g.ok) return { dead: g.error || 'failed' };
+  if (g.status !== 'done') return { wait: g.status };
+  var pairs = (g.pairs || []).slice(0, 20).map(function (x) { return [x.a, x.aSku || '', x.b, x.bSku || '', x.share || 0, String(x.title || '').slice(0, 80)]; });
+  var gaps = (g.gaps || []).slice(0, 20).map(function (x) { return [x.asin, String(x.title || '').slice(0, 80), x.n || 0, x.best || 0]; });
+  return { v: { month: baPeriodWindow_('MONTH', 1).start.toISOString().slice(0, 7), pairs: pairs, gaps: gaps } };
+}
+/** Inventory from the sync's snapshot (no report to wait for). */
+function liveAmzInv_(b) {
+  var set = invReadSet_('inv', b, 'inv_' + b), cols = (set.idx || {}).cols || [], rows = set.rows || [];
+  if (!rows.length) return null;
+  var ix = {}; cols.forEach(function (c, i) { ix[c] = i; });
+  var g = function (r, c) { return ix[c] == null ? 0 : (Number(r[ix[c]]) || 0); };
+  var s = function (r, c) { return ix[c] == null ? '' : String(r[ix[c]] || ''); };
+  var T = { skus: 0, total: 0, ful: 0, res: 0, uns: 0, inbound: 0, awd: 0, awdT: 0, l30: 0, l90amt: 0, oos: 0, oosSelling: 0 };
+  var low = [], out = [];
+  rows.forEach(function (r) {
+    T.skus++; T.total += g(r, 'Total Stock'); T.ful += g(r, 'fulfillable'); T.res += g(r, 'reserved'); T.uns += g(r, 'Unsellable');
+    T.inbound += g(r, 'inbound_working') + g(r, 'inbound_shipped') + g(r, 'inbound_receiving');
+    T.awd += g(r, 'AWD Available'); T.awdT += g(r, 'AWD Transit'); T.l30 += g(r, 'Last 30 Days'); T.l90amt += g(r, 'Last 90 Days $');
+    var l30 = g(r, 'Last 30 Days'), ful = g(r, 'fulfillable'), dos = g(r, 'Air DoS');
+    var row = [s(r, 'SKU'), s(r, 'ASIN'), s(r, 'Color'), s(r, 'Size'), ful, g(r, 'inbound_working') + g(r, 'inbound_shipped') + g(r, 'inbound_receiving'), g(r, 'AWD Available') + g(r, 'AWD Transit'), l30, Math.round(dos)];
+    if (ful <= 0) { T.oos++; if (l30 > 0) { T.oosSelling++; out.push(row); } }
+    else if (l30 > 0 && dos > 0 && dos < 21) low.push(row);
+  });
+  out.sort(function (a, b) { return b[7] - a[7]; }); low.sort(function (a, b) { return a[8] - b[8] || b[7] - a[7]; });
+  T.l90amt = Math.round(T.l90amt);
+  return { at: (set.idx || {}).at || 0, t: T, out: out.slice(0, 30), low: low.slice(0, 30) };
+}
+function liveAmzTick_() {
+  var day = Utilities.formatDate(new Date(), LIVE_TZ, 'yyyy-MM-dd'), deadline = Date.now() + 100000;
+  var page = cacheRead_('amzPage') || {}, wip = cacheRead_('amzWip') || {}, changed = false;
+  ['SP', 'CPC'].forEach(function (b) {
+    var P = page[b] || (page[b] = {}), W = wip[b] || (wip[b] = {});
+    // Inventory: from the snapshot, at most once an hour.
+    if (Date.now() < deadline && (!P.invReadAt || Date.now() - P.invReadAt > 3600000)) {
+      try { var iv = liveAmzInv_(b); if (iv) { P.inv = iv; changed = true; } P.invReadAt = Date.now(); P.invErr = ''; }
+      catch (e) { P.invErr = String(e.message || e).slice(0, 200); P.invReadAt = Date.now(); }
+    }
+    LIVE_AMZ_TASKS.forEach(function (t) {
+      if (Date.now() > deadline) return;
+      var w = W[t] || (W[t] = {}), want = liveAmzKey_(t, day);
+      try {
+        setBrand_(b);
+        if (w.id) {
+          var got;
+          if (t === 'tr' || t === 'trLy') { var d = liveAmzDoc_(w.id); got = d.dead ? { dead: d.dead } : d.wait ? { wait: d.wait } : { v: liveAmzTraffic_(d.text) }; }
+          else if (t === 'age') got = liveAmzAge_(w.id);
+          else if (t === 'sqp') got = liveAmzSqp_(w.id);
+          else got = liveAmzBasket_(w.id);
+          if (got.wait && Date.now() - (w.askedMs || 0) < 6 * 3600000) return;
+          if (got.v) { got.v.from = w.from || ''; got.v.to = w.to || ''; P[t] = got.v; P[t + 'At'] = new Date().toISOString(); P[t + 'Err'] = ''; changed = true; }
+          else P[t + 'Err'] = got.dead ? String(got.dead).slice(0, 300) : 'report took too long';
+          w.id = ''; w.done = w.key; return;
+        }
+        if (w.done === want) return;
+        var r = liveAmzAsk_(t, day);
+        if (r && r.reportId) {
+          w.id = r.reportId; w.key = want; w.askedMs = Date.now();
+          w.from = t === 'tr' ? liveShift_(day, -30) : t === 'trLy' ? liveShift_(day, -394) : '';
+          w.to = t === 'tr' ? liveShift_(day, -1) : t === 'trLy' ? liveShift_(day, -365) : '';
+        } else { P[t + 'Err'] = String((r && r.error) || 'no report id').slice(0, 300); w.done = want; changed = true; }
+      } catch (e) { P[t + 'Err'] = String(e.message || e).slice(0, 300); w.id = ''; w.done = want; changed = true; }
+    });
+  });
+  if (changed) { page.at = new Date().toISOString(); cacheWrite_('amzPage', page); }
+  cacheWrite_('amzWip', wip);
 }
