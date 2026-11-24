@@ -89,13 +89,24 @@ body[data-period="msi"] .box.msi{display:flex!important}
   function age(b, P) {
     if (!P.age) return box('age', 'Inventory age', BR[b], waitBox('The inventory age report', P.ageErr));
     const A = P.age, name = c => c.replace(/^inv[-_ ]?age[-_ ]?/i, '').replace(/[-_]/g, ' ').replace(/ days?$/i, '') + ' days';
-    const all = A.tot.reduce((t, v) => t + v, 0);
-    const tiles = A.cols.slice(0, 7).map((c, i) => tile(name(c), int(A.tot[i]), pc(A.tot[i], all) + ' of aged units', i >= A.cols.length - 2 && A.tot[i] ? 'dn' : '', false, ['#14b8a6', '#3b82f6', '#6366f1', '#a855f7', '#f59e0b', '#f97316', '#ef4444'][i % 7])).join('')
+    /* Amazon's report carries two overlapping sets of buckets (0–90, 91–180 … and 0–30, 31–60 …) and a snapshot-date column.
+       Only one chain that does not overlap is counted: in the report's own order, each bucket starting where the last ended —
+       0–90, 91–180, 181–270, 271–365, 366–455, 456+ (24 Nov: the overlap had been summed, so the shares read 2%). */
+    const chain = []; let next = 0;
+    A.cols.forEach((c, i) => {
+      const m = c.match(/(\d+)[-_ ]to[-_ ](\d+)[-_ ]days?/i), p = c.match(/(\d+)[-_ ]plus[-_ ]days?/i);
+      if (m && +m[1] === next) { chain.push(i); next = +m[2] + 1; } else if (p && +p[1] === next) { chain.push(i); next = Infinity; }
+    });
+    const all = chain.reduce((t, i) => t + A.tot[i], 0), colors = ['#14b8a6', '#3b82f6', '#6366f1', '#a855f7', '#f59e0b', '#f97316', '#ef4444'];
+    const tiles = chain.map((i, k) => tile(name(A.cols[i]), int(A.tot[i]), pc(A.tot[i], all) + ' of FBA units', k >= chain.length - 2 && A.tot[i] ? 'dn' : '', false, colors[k % 7])).join('')
       + tile('Storage cost', usd(A.storage), 'estimated, this month', '', false, '#64748b');
-    const rows = A.oldest.map(r => `<tr><td class="l">${esc(r[0])}</td><td class="l">${esc(r[1])}</td><td>${int(r[2])}</td>${r[3].map(v => `<td>${v ? int(v) : ''}</td>`).join('')}<td>${r[4] ? usd(r[4]) : '—'}</td></tr>`).join('') || `<tr><td class="l" colspan="${4 + A.cols.length}">No stock in the oldest buckets</td></tr>`;
-    return box('age', 'Inventory age', `${BR[b]} · FBA Inventory Planning report · ${int(A.skus)} SKUs${P.ageAt ? ' · ' + dname(P.ageAt.slice(0, 10), true) : ''}`,
+    // The backend picked these SKUs by the report's last two columns, which are "331–365 days" and the snapshot date — so the
+    // list is the SKUs with the most stock aged 331–365 days, and is called that; its columns are the chain above.
+    const i331 = A.cols.findIndex(c => /331[-_ ]to[-_ ]365/i.test(c));
+    const rows = A.oldest.map(r => `<tr><td class="l">${esc(r[0])}</td><td class="l">${esc(r[1])}</td><td>${int(r[2])}</td>${chain.map(i => `<td>${r[3][i] ? int(r[3][i]) : ''}</td>`).join('')}<td>${i331 >= 0 && r[3][i331] ? int(r[3][i331]) : ''}</td><td>${r[4] ? usd(r[4]) : '—'}</td></tr>`).join('') || `<tr><td class="l" colspan="${5 + chain.length}">None</td></tr>`;
+    return box('age', 'Inventory age', `${BR[b]} · FBA Inventory Planning report · ${int(all)} units in ${int(A.skus)} SKUs${P.ageAt ? ' · ' + dname(P.ageAt.slice(0, 10), true) : ''}`,
       `<div class="strip big four">${tiles}</div>
-      <div class="card tcard"><h2>Oldest stock (the two oldest age buckets)</h2><div class="tbl"><table><thead><tr><th>SKU</th><th>ASIN</th><th>Available</th>${A.cols.map(c => `<th>${esc(name(c))}</th>`).join('')}<th>Storage</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+      <div class="card tcard"><h2>SKUs with the most stock aged 331–365 days</h2><div class="tbl"><table><thead><tr><th>SKU</th><th>ASIN</th><th>Available</th>${chain.map(i => `<th>${esc(name(A.cols[i]))}</th>`).join('')}<th>331–365 days</th><th>Storage</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
   }
 
   /* ---------- Search (Brand Analytics SQP) ---------- */
@@ -115,11 +126,14 @@ body[data-period="msi"] .box.msi{display:flex!important}
   function basket(b, P) {
     if (!P.bask) return box('bask', 'Bought together', BR[b], waitBox('Brand Analytics (Market Basket)', P.baskErr));
     const K = P.bask, mo = new Date(K.month + '-15T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', month: 'long', year: 'numeric' });
-    const pairs = K.pairs.map(p => `<tr><td class="l">${esc(p[0])}${p[1] ? ' · ' + esc(p[1]) : ''}</td><td class="l">${esc(p[2])}${p[3] ? ' · ' + esc(p[3]) : ''}</td><td>${pct1(+p[4])}</td><td class="l">${esc(p[5])}</td></tr>`).join('') || '<tr><td class="l" colspan="4">None</td></tr>';
-    const gaps = K.gaps.map(g => `<tr><td class="l">${esc(g[0])}</td><td class="l">${esc(g[1])}</td><td>${int(g[2])}</td><td>${pct1(+g[3])}</td></tr>`).join('') || '<tr><td class="l" colspan="4">None</td></tr>';
-    return box('bask', 'Bought together', `${BR[b]} · Brand Analytics Market Basket · ${mo}`,
-      `<div class="two"><div class="card tcard"><h2>Our products bought together (bundle ideas)</h2><div class="tbl"><table><thead><tr><th>Product</th><th>With</th><th>Share</th><th>Title</th></tr></thead><tbody>${pairs}</tbody></table></div></div>
-      <div class="card tcard"><h2>Other sellers' products bought with ours (range gaps)</h2><div class="tbl"><table><thead><tr><th>ASIN</th><th>Title</th><th>With # of ours</th><th>Best share</th></tr></thead><tbody>${gaps}</tbody></table></div></div></div>`);
+    // Only the columns Amazon filled: in this report the share and title came back empty (24 Nov), so they are left out then.
+    const pS = K.pairs.some(p => +p[4]), pT = K.pairs.some(p => p[5]), gT = K.gaps.some(g => g[1]), gS = K.gaps.some(g => +g[3]);
+    const link = a => `<a href="https://www.amazon.com/dp/${encodeURIComponent(a)}" target="_blank" rel="noopener">${esc(a)}</a>`;
+    const pairs = K.pairs.map(p => `<tr><td class="l">${link(p[0])}${p[1] ? ' · ' + esc(p[1]) : ''}</td><td class="l">${link(p[2])}${p[3] ? ' · ' + esc(p[3]) : ''}</td>${pS ? `<td>${pct1(+p[4])}</td>` : ''}${pT ? `<td class="l">${esc(p[5])}</td>` : ''}</tr>`).join('') || '<tr><td class="l" colspan="4">None</td></tr>';
+    const gaps = K.gaps.map(g => `<tr><td class="l">${link(g[0])}</td>${gT ? `<td class="l">${esc(g[1])}</td>` : ''}<td>${int(g[2])}</td>${gS ? `<td>${pct1(+g[3])}</td>` : ''}</tr>`).join('') || '<tr><td class="l" colspan="4">None</td></tr>';
+    return box('bask', 'Bought together', `${BR[b]} · Brand Analytics Market Basket · ${mo} (the latest month Amazon gave)`,
+      `<div class="two"><div class="card tcard"><h2>Our products bought together (bundle ideas)</h2><div class="tbl"><table><thead><tr><th>Product</th><th>Bought with</th>${pS ? '<th>Share</th>' : ''}${pT ? '<th>Title</th>' : ''}</tr></thead><tbody>${pairs}</tbody></table></div></div>
+      <div class="card tcard"><h2>Other sellers' products bought with ours (range gaps)</h2><div class="tbl"><table><thead><tr><th>ASIN</th>${gT ? '<th>Title</th>' : ''}<th>Bought with how many of ours</th>${gS ? '<th>Best share</th>' : ''}</tr></thead><tbody>${gaps}</tbody></table></div><p class="note">ASINs open on Amazon.com.</p></div></div>`);
   }
 
   function render(host, amz, keys) {
