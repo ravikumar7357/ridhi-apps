@@ -144,6 +144,13 @@
       <button id="tabAge" class="nav">Inventory Age</button>
     </div></div>
 
+    <!-- Reimbursement (24 Nov 2026): its own group and its own right ('reimb'). Overview now; Paid, To Claim, Cases, Fee Check later. -->
+    <div class="navwrap"><button class="navgrp" id="grpReimb" type="button" aria-controls="secReimb" data-grp="reimb" data-tabs="reimb">
+      <span class="caret">&#9656;</span> Reimbursement</button>
+    <div class="navsec" id="secReimb">
+      <button id="tabReimb" class="nav">Overview</button>
+    </div></div>
+
     <div class="navwrap"><button class="navgrp" id="grpSocial" type="button" aria-controls="secSocial" data-grp="social" data-tabs="tiktok,carousel">
       <span class="caret">&#9656;</span> Social</button>
     <div class="navsec" id="secSocial">
@@ -440,6 +447,9 @@
         <div class="accg-boxes"></div></section>
 
       <section class="accg" data-accg="stock"><header><h4>Inventory &amp; social</h4><span class="accg-n"></span><span class="accg-app">Sellora</span><button type="button" class="ghost accg-all">All</button><button type="button" class="ghost accg-none">None</button></header>
+        <div class="accg-boxes"></div></section>
+
+      <section class="accg" data-accg="reimb"><header><h4>Reimbursement</h4><span class="accg-n"></span><span class="accg-app">Sellora</span><button type="button" class="ghost accg-all">All</button><button type="button" class="ghost accg-none">None</button></header>
         <div class="accg-boxes"></div></section>
 
       <section class="accg" data-accg="other"><header><h4>Other</h4><span class="accg-n"></span><span class="accg-app"></span><button type="button" class="ghost accg-all">All</button><button type="button" class="ghost accg-none">None</button></header>
@@ -1321,6 +1331,109 @@
       <div id="ppchFoot" class="sta-more"></div>
     </div>
   </div><!-- /panePpch -->
+
+  <!-- ============ Reimbursement · Overview: what Amazon owes us, what to claim this week, and what it paid (reimb/reimb-overview.js) ============
+       Search Term Analysis's and N-Gram Analysis's look (sta-scope); rb- adds only what they lack (styles.css: REIMBURSEMENT).
+       Real data only (reimb/reimb-data.js, rbLoad): the backend caches, else uploaded reports, else "Connect Amazon's data".
+       The sample only with ?sample=1. Changes nothing at Amazon. -->
+  <div id="paneReimb" class="hide sta-scope rb-scope">
+    <div class="card sta-barcard">
+      <div class="toolbar sta-top">
+        <div class="sta-fld"><span class="sta-lab">Brand</span>
+          <select id="rbBrand" class="sta-brandsel" aria-label="Brand">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
+          </select></div>
+        <div class="sta-fld"><span class="sta-lab" title="Changes Recovered and Lost to deadlines, and their arrows. Owed now, Expiring, Underpaid and Open cases are always today.">Period</span>
+          <div class="seg rb-period" id="rbPeriod" role="group" aria-label="Period">
+            <button class="segbtn on" type="button" data-p="30" aria-pressed="true">30 days</button><button class="segbtn" type="button" data-p="90" aria-pressed="false">90 days</button><button class="segbtn" type="button" data-p="365" aria-pressed="false">12 months</button><button class="segbtn" type="button" data-p="custom" aria-pressed="false">Custom</button>
+          </div></div>
+        <div class="sta-fld rb-dates hide" id="rbDates"><span class="sta-lab">From – to</span>
+          <div class="rb-dates-in"><input type="date" id="rbFrom" aria-label="From"><span aria-hidden="true">→</span><input type="date" id="rbTo" aria-label="To"></div></div>
+        <div class="sta-acts" id="rbBarInfo">
+          <span id="rbAsOf" class="rb-asof"></span>
+          <span id="rbSampleBadge" class="rb-sample hide" title="Opened with ?sample=1: every number on this page is made up">Sample data</span>
+          <button id="rbUpBtn" class="ghost" type="button" aria-haspopup="dialog" title="Amazon's Reimbursements report and Inventory Ledger, downloaded from Seller Central">Upload Amazon reports</button>
+          <button id="rbLegendBtn" class="ghost" type="button" aria-haspopup="dialog">How Sellora counts</button>
+          <button id="rbCsv" class="ghost" type="button" title="The action list below, every row under its choices, as a CSV">Export</button>
+        </div>
+      </div>
+      <div id="rbSampleNote" class="rb-banner rb-banner-rev hide" role="note"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+        <div><b>Sample data</b> — Amazon's reimbursement reports aren't connected yet. The numbers are made up to show the page.</div></div>
+      <div id="rbMsg" class="sta-msg"></div>
+    </div>
+    <!-- Nothing read yet: what to upload and what each report unlocks (rbDrawConnect), in place of everything below. -->
+    <div id="rbConnect" class="card rb-connect hide"></div>
+    <div id="rbMain">
+    <div id="rbBoxes" class="rb-boxes"></div>
+    <p id="rbLater" class="rb-later"></p>
+    <div id="rbFix" class="rb-banner rb-banner-act hide" role="note"></div>
+
+    <div class="card sta-tcard" id="rbWeekCard">
+      <div class="sta-thead">
+        <div class="tt"><b>Do this week <span class="rb-count" id="rbWeekN"></span></b><small id="rbWeekSub"></small></div>
+        <div class="sta-tools"><label class="rb-switch"><input type="checkbox" id="rbArch" class="sta-cb"> <span>Show archived</span></label></div>
+      </div>
+      <div class="sta-actbar" id="rbChips" role="group" aria-label="Show rows by type"></div>
+      <div id="rbWeekBody"><div class="sta-wrap"><table id="rbTable" class="xl"></table></div></div>
+      <div id="rbFoot" class="sta-more"></div>
+    </div>
+
+    <div class="card rb-chartcard" id="rbChartCard">
+      <div class="adx-ch-head"><div class="adx-ch-tt"><h3 class="ui-card-title">Payouts by month</h3><div class="ui-note adx-ch-sub">The last 12 months, always · reversals below the line</div></div>
+        <div class="seg" id="rbChartSeg" role="group" aria-label="Chart view"><button class="segbtn on" type="button" data-cm="cases" aria-pressed="true">Cases vs automatic</button><button class="segbtn" type="button" data-cm="reason" aria-pressed="false">By reason</button></div></div>
+      <div id="rbChartBody">
+        <div class="adx-legend" id="rbChartLegend"></div>
+        <div class="adx-plot" id="rbPlot"></div>
+        <p class="rb-empty hide" id="rbChartEmpty">No payouts in the last 12 months.</p>
+      </div>
+    </div>
+
+    <div class="card sta-tcard" id="rbLostCard">
+      <div class="sta-thead"><div class="tt"><b>Most-lost products</b><small id="rbLostSub">The last 12 months, from the inventory ledger and the payouts · the top 10 by value</small></div></div>
+      <div id="rbLostBody"><div class="sta-wrap"><table id="rbLost" class="xl"></table></div></div>
+      <div class="sta-more"><span>Many losses on one product often mean packaging or prep — worth a look.</span></div>
+    </div>
+    </div><!-- /rbMain -->
+
+    <!-- Upload Amazon reports: the brand first, then each report read in this browser, checked, and saved on "Save" (rbUpDraw). -->
+    <div id="rbUpDlg" class="modal sta-modal rb-updlg hide" role="dialog" aria-modal="true" aria-labelledby="rbUpTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbUpTitle">Upload Amazon reports</b><small>Download each report in Seller Central, then choose it here. Uploading again replaces the rows it shares, never doubles them.</small></div><button id="rbUpX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div class="sta-mb">
+        <div class="sta-fld rb-upbrand"><span class="sta-lab">Brand — first</span>
+          <div class="seg" id="rbUpBrand" role="group" aria-label="Brand of the report"><button class="segbtn" type="button" data-b="SP" aria-pressed="false">Ridhi</button><button class="segbtn" type="button" data-b="CPC" aria-pressed="false">Cotton Print Club</button></div></div>
+        <div id="rbUpBody"></div>
+      </div>
+      <div class="sta-mf"><small id="rbUpNote"></small><div class="btns"><button id="rbUpClose" class="ghost" type="button">Close</button></div></div>
+    </div></div>
+
+    <!-- Make case / Re-check / Dispute: one dialog, filled by rbOpen. Closing it after Copy with no case ID asks rbAsk. -->
+    <div id="rbDlg" class="modal sta-modal rb-dlg hide" role="dialog" aria-modal="true" aria-labelledby="rbDlgTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbDlgTitle"></b><small id="rbDlgSub"></small></div><button id="rbDlgX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="rbDlgBody" class="sta-mb"></div>
+      <div class="sta-mf"><small id="rbDlgNote"></small><div class="btns"><button id="rbDlgClose" class="ghost" type="button">Close</button></div></div>
+    </div></div>
+    <div id="rbAsk" class="modal sta-modal rb-ask hide" role="alertdialog" aria-modal="true" aria-labelledby="rbAskTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbAskTitle">Did you create the case?</b><small>You copied the case text. If you made the case, put its ID in, so Sellora never suggests a second claim for it.</small></div></div>
+      <div class="sta-mf"><small></small><div class="btns"><button id="rbAskNo" class="ghost" type="button">No, not yet</button><button id="rbAskYes" type="button">Yes — add the case ID</button></div></div>
+    </div></div>
+    <div id="rbArchDlg" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-labelledby="rbArchTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbArchTitle">Archive</b><small id="rbArchSub"></small></div><button id="rbArchX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="rbArchBody" class="sta-mb rb-archbody"></div>
+      <div class="sta-mf"><small id="rbArchMsg"></small><div class="btns"><button id="rbArchCancel" class="ghost" type="button">Cancel</button><button id="rbArchOk" type="button">Archive</button></div></div>
+    </div></div>
+    <div id="rbCasesDlg" class="modal sta-modal sta-wide rb-casesdlg hide" role="dialog" aria-modal="true" aria-labelledby="rbCasesTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbCasesTitle">Open cases</b><small id="rbCasesSub"></small></div><button id="rbCasesX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="rbCasesBody" class="sta-mb"></div>
+    </div></div>
+    <div id="rbFixDlg" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-labelledby="rbFixTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbFixTitle">Set our sourcing cost at Amazon (2 steps)</b><small>So the next reimbursements for these products are paid at our cost.</small></div><button id="rbFixX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="rbFixBody" class="sta-mb"></div>
+    </div></div>
+    <div id="rbLegend" class="modal sta-modal sta-wide hide" role="dialog" aria-modal="true" aria-label="How Sellora counts"><div class="modalbox">
+      <div class="sta-mh"><div><b>How Sellora counts</b><small>Every rule on this page, with its numbers. Nothing here changes anything at Amazon.</small></div><button id="rbLegendX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="rbLegendBody" class="sta-mb sta-legend"></div>
+    </div></div>
+  </div><!-- /paneReimb -->
 
   <!-- ============ Ad Console: whole-account KPIs, chart, and metrics × periods ============ -->
   <div id="paneTrends" class="hide">

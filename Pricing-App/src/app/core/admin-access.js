@@ -198,6 +198,7 @@ const ACCESS_GROUPS = [
   { key: 'ads', sellora: ['trends', 'weekly', 'st', 'ngram', 'plc', 'ppch', 'deals'] },
   { key: 'research', sellora: ['new', 'pr', 'link', 'kw'] },
   { key: 'stock', sellora: ['age', 'tiktok', 'carousel', 'ba'] },
+  { key: 'reimb', sellora: ['reimb'] },   // Reimbursement (24 Nov 2026): its own card; firestore.rules reimbCases reads can('reimb')
   { key: 'other' },
 ];
 // Build the checkbox cards: every Sellora tab and every Replenishment section goes on the card ACCESS_GROUPS

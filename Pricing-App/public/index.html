@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 79 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 83 files of src/ joined into one page.
      The real, grouped source: Pricing-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
-       src/app/<group>/ the code, by group: core, research, sales, inventory, listing, ads
+       src/app/<group>/ the code, by group: core, research, sales, inventory, reimb, listing, ads
      Rebuild after editing src/:  node Replenish-App/tests/assemble.js --root Pricing-App
      Inside the script below, every source file starts with a "FILE: src/app/..." comment, every group with "GROUP:".
      ================================================================================================ --><title>Sellora</title>
@@ -4855,7 +4855,7 @@
      the boxes. A heading, box or summary figure with a dotted line or a help cursor says what it means on hover. ----- */
   .sta-scope .card.sta-barcard{padding:12px 14px 10px}
   .sta-scope .toolbar.sta-top,.sta-scope .toolbar.sta-row2{align-items:flex-end;gap:10px 14px}
-  .sta-scope .toolbar.sta-row2{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .sta-scope .toolbar.sta-row2{display:flex;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}   /* flex: .sta-row2 is also the dialogs' two-column grid */
   .sta-scope .sta-fld{display:flex;flex-direction:column;gap:4px;min-width:0;margin:0}
   .sta-scope .sta-fld.sta-grow{flex:1 1 240px}
   .sta-scope .sta-lab{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap;line-height:1.2}
@@ -4864,6 +4864,7 @@
   .sta-scope .sta-fld>input{width:100%}
   .sta-scope .sta-fld>button,.sta-scope .sta-acts>button{height:var(--ctl);padding-top:0;padding-bottom:0;flex:0 0 auto;white-space:nowrap;
     display:inline-flex;align-items:center;justify-content:center;line-height:1}
+  .sta-scope .sta-acts>button.hide{display:none}   /* the rule above would otherwise show a hidden button (N-Gram's Download Excel) */
   .sta-scope select.sta-brandsel{width:168px}
   .sta-scope input.sta-minsp{width:120px}
   .sta-scope select.sta-ngmin{width:130px}
@@ -4931,6 +4932,179 @@
     .sta-scope .sta-pop{left:0;right:0;width:auto}
     .sta-scope .sta-acts{margin-left:0}
   }
+
+  /* ===== REIMBURSEMENT (24 Nov 2026, paneReimb, reimb/reimb-overview.js) =====
+     The Advertising pages' look — sta-scope, sta-barcard, sta-box, sta-tcard, sta-chip, sta-modal, the Ad Console's adx-plot —
+     with rb- adding only what they lack: the six coloured boxes, the type / status / days / % pills, the banners, the action
+     list's cells and ⋯ menu, the stacked bars, the case dialog. Colours from the tokens only, light and dark. ----- */
+  /* The menu group's icon (a receipt), the way the other groups have theirs. */
+  .navgrp[data-grp="reimb"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h12v18l-3-2-3 2-3-2-3 2z'/%3E%3Cpath d='M9.5 8h5M9.5 11.5h5M9.5 15h3'/%3E%3C/svg%3E")}
+  .rb-scope .rb-asof{font-size:12.5px;color:var(--muted);white-space:nowrap}
+  .rb-scope .rb-sample{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:var(--r-pill);background:var(--rev-bg);color:var(--rev-ink);
+    font-size:12px;font-weight:700;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rev) 50%,var(--card))}
+  .rb-scope .rb-dates-in{display:flex;align-items:center;gap:6px;color:var(--muted)}
+  .rb-scope .rb-dates-in input{height:var(--ctl);box-sizing:border-box}
+  .rb-scope .rb-sample.hide,.rb-scope .rb-banner.hide,.rb-scope .rb-empty.hide,.rb-scope .rb-dates.hide{display:none}
+  /* The banners: sample data (yellow), Amazon paid below our cost (orange). */
+  .rb-scope .rb-banner{display:flex;align-items:flex-start;gap:10px;margin-top:10px;padding:9px 12px;border-radius:var(--r-row);font-size:12.5px;line-height:1.5}
+  .rb-scope .rb-banner>div{flex:1 1 auto;min-width:0}
+  .rb-scope .rb-banner b{color:inherit}
+  .rb-scope .rb-banner svg{flex:none;width:18px;height:18px;margin-top:1px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .rb-scope .rb-banner-rev{background:var(--rev-bg);color:var(--rev-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rev) 45%,var(--card))}
+  .rb-scope .rb-banner-act{align-items:center;margin-top:12px;background:var(--act-bg);color:var(--act-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--act) 45%,var(--card))}
+  .rb-scope .rb-banner-act button.sta-btn{flex:none;color:var(--act-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--act) 55%,var(--card))}
+  .rb-scope .rb-banner-act button.sta-btn:hover{background:color-mix(in srgb,var(--act) 12%,var(--card))}
+  .rb-scope .rb-saved{color:var(--accent-ink);font-weight:600}
+  /* The six boxes: a coloured left edge and a light tint of the box's colour (--c); Lost to deadlines neutral, its number red. */
+  .rb-scope .rb-boxes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin:12px 0 0}
+  .rb-scope button.adx-box.sta-box.rb-box,.rb-scope button.adx-box.sta-box.rb-box:hover,.rb-scope button.adx-box.sta-box.rb-box:active{
+    display:flex;flex-direction:column;padding:13px 14px 11px;border-left:4px solid var(--c);background:color-mix(in srgb,var(--c) 6%,var(--card))}
+  .rb-scope button.adx-box.sta-box.rb-box:hover{box-shadow:var(--sh-2)}
+  .rb-scope button.adx-box.sta-box.rb-box.on{box-shadow:inset 0 0 0 2px var(--c),var(--sh-2)}
+  .rb-scope button.adx-box.sta-box.rb-box.rb-box-n,.rb-scope button.adx-box.sta-box.rb-box.rb-box-n:hover{background:var(--card)}
+  .rb-scope .rb-box .adx-l{white-space:normal;line-height:1.25}
+  .rb-scope .rb-box .sta-big{margin-top:6px}
+  .rb-scope .rb-box .sta-big b{font-size:22px}
+  .rb-scope .rb-box .sta-q{flex:1 1 auto;font-size:12px}
+  .rb-scope .rb-box .sta-go{margin-top:8px;padding-top:7px;font-size:12px}
+  /* The ⓘ sits right after its label, off the coloured glow, in the label's own grey (readable in both themes). */
+  .rb-scope .rb-i{margin-left:1px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:help}
+  .rb-scope .rb-box:hover .rb-i{color:var(--ink)}
+  /* Underpaid without sourcing costs: what it needs, never a $; the grey hint under it. */
+  .rb-scope .rb-box .sta-big b .rb-na{font-size:15px;font-weight:650;letter-spacing:0;color:var(--act-ink)}
+  .rb-scope .rb-hint{display:block;margin-top:4px;color:var(--faint)}
+  .rb-scope button.adx-box.sta-box.rb-box.rb-box-na{cursor:default}
+  .rb-scope .rb-red{color:var(--bad-ink)}
+  .rb-scope .rb-part{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:0 6px}
+  .rb-scope .rb-part>span:last-child{margin-left:auto;white-space:nowrap}
+  .rb-scope .rb-part b{font-weight:650;color:var(--ink);font-variant-numeric:tabular-nums}
+  .rb-scope .rb-dl{font-size:11.5px;font-weight:700;color:var(--faint);white-space:nowrap}
+  .rb-scope .rb-dl.is-good{color:var(--accent-ink)}
+  .rb-scope .rb-dl.is-bad{color:var(--bad-ink)}
+  .rb-scope .rb-warnw{color:var(--act-ink)}
+  .rb-scope .rb-box.rb-skel{display:flex;flex-direction:column;gap:12px;min-height:118px;padding:14px 16px;border-left:4px solid var(--line)}
+  .rb-scope .rb-skel .ui-loading{background-color:var(--hover)}
+  .rb-scope .rb-sk1{width:55%;height:13px}
+  .rb-scope .rb-sk2{width:40%;height:24px}
+  .rb-scope .rb-sk3{width:78%;height:11px}
+  .rb-scope .rb-later{margin:8px 2px 0;font-size:12px;color:var(--faint)}
+  @media (max-width:1500px){.rb-scope .rb-boxes{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media (max-width:760px){.rb-scope .rb-boxes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  /* The cards. */
+  .rb-scope .card.sta-tcard,.rb-scope .card.rb-chartcard{margin-top:14px}
+  .rb-scope .card.rb-chartcard{padding:14px 16px 12px}
+  .rb-scope .rb-count{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 7px;margin-left:6px;border-radius:var(--r-pill);background:var(--chip);
+    color:var(--chip-ink);font-size:11.5px;font-weight:700;vertical-align:1px}
+  .rb-scope label.rb-switch{display:inline-flex;align-items:center;gap:7px;margin:0;font-size:12.5px;font-weight:500;color:var(--ink);cursor:pointer}
+  /* The pills: type (a neutral pill with the type's dot), status, days left, % paid back; the small tags. */
+  .rb-scope .rb-type,.rb-scope .rb-st,.rb-scope .rb-days,.rb-scope .rb-pct{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:var(--r-pill);
+    font-size:11.5px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .rb-scope .rb-type{padding-left:8px;background:var(--chip);color:var(--chip-ink);font-weight:600}
+  .rb-scope .rb-type::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;background:var(--d)}
+  .rb-scope .rb-st-claim{background:var(--brand-bg);color:var(--brand-ink)}
+  .rb-scope .rb-st-wait,.rb-scope .rb-d-wait{background:var(--chip);color:var(--muted)}
+  .rb-scope .rb-st-case{background:color-mix(in srgb,var(--violet-ink) 12%,var(--card));color:var(--violet-ink)}
+  .rb-scope .rb-st-paid,.rb-scope .rb-pct-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  .rb-scope .rb-st-expired,.rb-scope .rb-d-bad,.rb-scope .rb-pct-bad{background:var(--bad-bg);color:var(--bad-ink)}
+  .rb-scope .rb-st-archived{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+  .rb-scope .rb-d-act{background:var(--act-bg);color:var(--act-ink)}
+  .rb-scope .rb-d-rev,.rb-scope .rb-pct-rev{background:var(--rev-bg);color:var(--rev-ink)}
+  .rb-scope .rb-d-n{background:var(--chip);color:var(--chip-ink)}
+  .rb-scope .rb-d-wait{font-weight:600}
+  .rb-scope .rb-tags{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;margin-top:3px}
+  .rb-scope .rb-tag{display:inline-block;padding:0 6px;border-radius:var(--r-pill);background:var(--chip);color:var(--muted);font-size:10.5px;font-weight:600;line-height:18px;white-space:nowrap}
+  /* The action list. */
+  .rb-scope button.sta-chip.rb-tc::before{background:var(--d,var(--faint))}
+  .rb-scope button.sta-chip.rb-tc-exp::before{background:var(--bad)}
+  .rb-scope .rb-sep{width:1px;height:20px;margin:0 4px;background:var(--line)}
+  .rb-scope .rb-focus{display:inline-flex;align-items:center;gap:6px;margin-left:auto;padding:2px 4px 2px 10px;border-radius:var(--r-pill);background:var(--brand-bg);
+    color:var(--brand-ink);font-size:12.5px}
+  .rb-scope .rb-focus b{color:inherit}
+  .rb-scope table.xl td.rb-item{min-width:240px;max-width:380px}
+  .rb-scope .rb-ttl{max-width:360px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--ink)}
+  .rb-scope .rb-ttl b{font-weight:600}
+  .rb-scope table.xl tr.rb-row.is-wait td.rb-item .sta-term,.rb-scope table.xl tr.rb-row.is-wait .rb-ttl{color:var(--muted)}
+  .rb-scope table.xl tr.rb-row.is-archived td{background:var(--soft)}
+  .rb-scope td.rb-actcell{white-space:nowrap}
+  .rb-scope .rb-acts{display:flex;align-items:center;gap:6px}
+  .rb-scope button.rb-go{padding:6px 14px;font-size:12.5px;border-radius:var(--r-sm)}
+  .rb-scope .rb-why{max-width:260px;font-size:12px;line-height:1.35;color:var(--muted);white-space:normal}
+  .rb-scope .rb-why.is-bad{color:var(--bad-ink);font-weight:600}
+  .rb-scope .rb-why+button.sta-btn{margin-top:5px}
+  .rb-scope .rb-more{position:relative}
+  .rb-scope .rb-more summary{display:grid;place-items:center;width:30px;height:30px;border-radius:var(--r-sm);list-style:none;cursor:pointer;color:var(--muted);font-weight:700}
+  .rb-scope .rb-more summary::-webkit-details-marker{display:none}
+  .rb-scope .rb-more summary:hover,.rb-scope .rb-more[open] summary{background:var(--hover);color:var(--ink)}
+  .rb-scope .rb-more summary:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+  .rb-scope .rb-menu{position:absolute;right:calc(100% + 4px);top:50%;z-index:30;min-width:130px;padding:4px;transform:translateY(-50%);background:var(--card);
+    border-radius:var(--r-row);box-shadow:var(--sh-3),inset 0 0 0 1px var(--line)}
+  .rb-scope .rb-menu button{display:block;width:100%;padding:7px 10px;text-align:left;font-size:12.5px;border-radius:var(--r-sm)}
+  .rb-scope .rb-empty{margin:0;padding:22px 16px;text-align:center;font-size:13px;color:var(--muted)}
+  .rb-scope .rb-empty b{color:var(--ink)}
+  .rb-scope .rb-tick{display:inline-grid;place-items:center;width:22px;height:22px;margin-right:8px;border-radius:50%;background:var(--accent-bg);color:var(--accent-ink);font-weight:700}
+  .rb-scope .rb-fail{padding:14px 16px;font-size:12.5px;color:var(--bad-ink)}
+  /* The chart: stacked bars in the parts' colours, reversals a thin red bar under the zero line. */
+  .rb-scope #rbChartLegend{margin:2px 0 8px}
+  .rb-scope .adx-plot rect.rb-bar{fill:var(--c)}
+  .rb-scope .adx-plot rect.rb-rev{opacity:.9}
+  .rb-scope .adx-plot .rb-zero{stroke:var(--muted);stroke-width:1}
+  .rb-scope .adx-plot .adx-tip div+div{margin-top:2px}
+  /* The case dialog, and the small ones. */
+  .rb-scope .modal.rb-dlg .modalbox{width:min(980px,100%)}
+  .rb-scope .modal.rb-ask .modalbox{width:min(460px,100%)}
+  .rb-scope .sta-figs.rb-figs{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
+  .rb-scope .rb-dtable{margin-top:12px;max-height:32vh}
+  .rb-scope .rb-note{margin:0 0 10px;padding:8px 11px;border-radius:var(--r-row);background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px;line-height:1.45;color:var(--muted)}
+  .rb-scope .sta-dcp+.rb-note{margin-top:10px}
+  .rb-scope .rb-note b{color:var(--ink)}
+  .rb-scope .rb-note.is-act{background:var(--act-bg);color:var(--act-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--act) 40%,var(--card))}
+  .rb-scope .rb-note.is-act b{color:inherit}
+  .rb-scope .rb-cols{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;margin-top:14px}
+  .rb-scope .rb-h4{margin:14px 0 6px;font-size:13px;font-weight:700;color:var(--ink)}
+  .rb-scope .rb-cols .rb-h4{margin-top:0}
+  .rb-scope .rb-h4 small{margin-left:6px;font-size:12px;font-weight:500;color:var(--muted)}
+  .rb-scope .rb-steps{margin:0;padding-left:20px;font-size:12.5px;line-height:1.6;color:var(--ink)}
+  .rb-scope .rb-steps-big{margin-bottom:12px;font-size:13px}
+  .rb-scope .rb-checks{display:flex;flex-direction:column;gap:7px}
+  .rb-scope label.rb-check{display:flex;align-items:flex-start;gap:8px;margin:0;font-size:12.5px;font-weight:500;line-height:1.4;color:var(--ink);cursor:pointer;text-transform:none;letter-spacing:0}
+  .rb-scope label.rb-check input{flex:none;width:16px;height:16px;margin:1px 0 0;padding:0;accent-color:var(--brand)}
+  .rb-scope textarea.rb-text{display:block;width:100%;min-height:200px;box-sizing:border-box;padding:10px 12px;border-radius:var(--r-ctl);font:inherit;font-size:12.5px;line-height:1.5;resize:vertical}
+  .rb-scope .rb-row2{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .rb-scope a.rb-link{display:inline-flex;align-items:center;padding:6px 12px;border-radius:var(--r-sm);background:var(--card);color:var(--muted);font-size:12.5px;font-weight:600;
+    text-decoration:none;box-shadow:inset 0 0 0 1px var(--line)}
+  .rb-scope a.rb-link:hover{background:var(--hover);color:var(--ink)}
+  .rb-scope .rb-caseid{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .rb-scope .rb-caseid .sta-f{flex:1 1 260px;margin:0}
+  .rb-scope .rb-lab{display:block;margin-bottom:6px;font-size:12.5px;font-weight:600;color:var(--ink)}
+  .rb-scope .rb-lab small{font-weight:500;color:var(--muted)}
+  .rb-scope .rb-caseid button{height:40px}
+  .rb-scope .rb-archbody{display:flex;flex-direction:column;gap:9px}
+  .rb-scope .rb-muted{margin:10px 0 0;font-size:12px;color:var(--muted)}
+  .rb-scope .rb-note.is-bad{background:var(--bad-bg);color:var(--bad-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--bad) 40%,var(--card))}
+  .rb-scope .rb-note.is-ok{background:var(--accent-bg);color:var(--accent-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 40%,var(--card))}
+  /* "Connect Amazon's data": what to upload and what each report unlocks. */
+  .rb-scope .card.rb-connect{margin-top:12px;padding:16px 18px}
+  .rb-scope .rb-connect .ui-note{max-width:760px}
+  .rb-scope ol.rb-conn{display:flex;flex-direction:column;gap:8px;margin:12px 0 0;padding:0;list-style:none}
+  .rb-scope ol.rb-conn li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--r-row);background:var(--soft);box-shadow:inset 0 0 0 1px var(--line)}
+  .rb-scope ol.rb-conn li>div{flex:1 1 auto;min-width:0}
+  .rb-scope ol.rb-conn b{display:block;font-size:13px;font-weight:650;color:var(--ink)}
+  .rb-scope ol.rb-conn small{display:block;font-size:12px;line-height:1.45;color:var(--muted)}
+  .rb-scope .rb-cn{flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--brand-bg);color:var(--brand-ink);font-size:12.5px;font-weight:700}
+  /* Upload Amazon reports. */
+  .rb-scope .modal.rb-updlg .modalbox{width:min(760px,100%)}
+  .rb-scope .rb-upbrand{margin-bottom:6px}
+  .rb-scope .rb-upsec{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .rb-scope .rb-upsec .rb-h4{margin-top:0}
+  .rb-scope .rb-upsec .rb-muted{margin:4px 0 0;line-height:1.5}
+  .rb-scope .rb-upsec .rb-note{margin:10px 0 0}
+  .rb-scope label.rb-file{display:inline-flex;align-items:center;gap:6px;margin:10px 0 0;padding:7px 12px;border-radius:var(--r-sm);font-size:12.5px;font-weight:600;
+    color:var(--brand-ink);background:var(--card);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand) 45%,var(--card));cursor:pointer;text-transform:none;letter-spacing:0}
+  .rb-scope label.rb-file:hover{background:var(--brand-bg)}
+  .rb-scope label.rb-file.is-off{color:var(--faint);box-shadow:inset 0 0 0 1px var(--line);cursor:not-allowed}
+  .rb-scope label.rb-file input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .rb-scope label.rb-file:focus-within{outline:2px solid var(--brand);outline-offset:1px}
+  @media (max-width:720px){.rb-scope .rb-cols{grid-template-columns:minmax(0,1fr)}}
 
   /* ===== MODULE: INVENTORY ===== */  /* ----- INVENTORY AGE (paneAge, inventory/inventory-age.js): the Ad Console look — .adx-meta's line, .ls-toolbar's bar,
      .adx-box number boxes (a box is also a filter, like .sta-box), the stock's age mix as bars, a flush table card like
@@ -5620,6 +5794,13 @@
       <button id="tabAge" class="nav">Inventory Age</button>
     </div></div>
 
+    <!-- Reimbursement (24 Nov 2026): its own group and its own right ('reimb'). Overview now; Paid, To Claim, Cases, Fee Check later. -->
+    <div class="navwrap"><button class="navgrp" id="grpReimb" type="button" aria-controls="secReimb" data-grp="reimb" data-tabs="reimb">
+      <span class="caret">&#9656;</span> Reimbursement</button>
+    <div class="navsec" id="secReimb">
+      <button id="tabReimb" class="nav">Overview</button>
+    </div></div>
+
     <div class="navwrap"><button class="navgrp" id="grpSocial" type="button" aria-controls="secSocial" data-grp="social" data-tabs="tiktok,carousel">
       <span class="caret">&#9656;</span> Social</button>
     <div class="navsec" id="secSocial">
@@ -5916,6 +6097,9 @@
         <div class="accg-boxes"></div></section>
 
       <section class="accg" data-accg="stock"><header><h4>Inventory &amp; social</h4><span class="accg-n"></span><span class="accg-app">Sellora</span><button type="button" class="ghost accg-all">All</button><button type="button" class="ghost accg-none">None</button></header>
+        <div class="accg-boxes"></div></section>
+
+      <section class="accg" data-accg="reimb"><header><h4>Reimbursement</h4><span class="accg-n"></span><span class="accg-app">Sellora</span><button type="button" class="ghost accg-all">All</button><button type="button" class="ghost accg-none">None</button></header>
         <div class="accg-boxes"></div></section>
 
       <section class="accg" data-accg="other"><header><h4>Other</h4><span class="accg-n"></span><span class="accg-app"></span><button type="button" class="ghost accg-all">All</button><button type="button" class="ghost accg-none">None</button></header>
@@ -6797,6 +6981,109 @@
       <div id="ppchFoot" class="sta-more"></div>
     </div>
   </div><!-- /panePpch -->
+
+  <!-- ============ Reimbursement · Overview: what Amazon owes us, what to claim this week, and what it paid (reimb/reimb-overview.js) ============
+       Search Term Analysis's and N-Gram Analysis's look (sta-scope); rb- adds only what they lack (styles.css: REIMBURSEMENT).
+       Real data only (reimb/reimb-data.js, rbLoad): the backend caches, else uploaded reports, else "Connect Amazon's data".
+       The sample only with ?sample=1. Changes nothing at Amazon. -->
+  <div id="paneReimb" class="hide sta-scope rb-scope">
+    <div class="card sta-barcard">
+      <div class="toolbar sta-top">
+        <div class="sta-fld"><span class="sta-lab">Brand</span>
+          <select id="rbBrand" class="sta-brandsel" aria-label="Brand">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
+          </select></div>
+        <div class="sta-fld"><span class="sta-lab" title="Changes Recovered and Lost to deadlines, and their arrows. Owed now, Expiring, Underpaid and Open cases are always today.">Period</span>
+          <div class="seg rb-period" id="rbPeriod" role="group" aria-label="Period">
+            <button class="segbtn on" type="button" data-p="30" aria-pressed="true">30 days</button><button class="segbtn" type="button" data-p="90" aria-pressed="false">90 days</button><button class="segbtn" type="button" data-p="365" aria-pressed="false">12 months</button><button class="segbtn" type="button" data-p="custom" aria-pressed="false">Custom</button>
+          </div></div>
+        <div class="sta-fld rb-dates hide" id="rbDates"><span class="sta-lab">From – to</span>
+          <div class="rb-dates-in"><input type="date" id="rbFrom" aria-label="From"><span aria-hidden="true">→</span><input type="date" id="rbTo" aria-label="To"></div></div>
+        <div class="sta-acts" id="rbBarInfo">
+          <span id="rbAsOf" class="rb-asof"></span>
+          <span id="rbSampleBadge" class="rb-sample hide" title="Opened with ?sample=1: every number on this page is made up">Sample data</span>
+          <button id="rbUpBtn" class="ghost" type="button" aria-haspopup="dialog" title="Amazon's Reimbursements report and Inventory Ledger, downloaded from Seller Central">Upload Amazon reports</button>
+          <button id="rbLegendBtn" class="ghost" type="button" aria-haspopup="dialog">How Sellora counts</button>
+          <button id="rbCsv" class="ghost" type="button" title="The action list below, every row under its choices, as a CSV">Export</button>
+        </div>
+      </div>
+      <div id="rbSampleNote" class="rb-banner rb-banner-rev hide" role="note"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+        <div><b>Sample data</b> — Amazon's reimbursement reports aren't connected yet. The numbers are made up to show the page.</div></div>
+      <div id="rbMsg" class="sta-msg"></div>
+    </div>
+    <!-- Nothing read yet: what to upload and what each report unlocks (rbDrawConnect), in place of everything below. -->
+    <div id="rbConnect" class="card rb-connect hide"></div>
+    <div id="rbMain">
+    <div id="rbBoxes" class="rb-boxes"></div>
+    <p id="rbLater" class="rb-later"></p>
+    <div id="rbFix" class="rb-banner rb-banner-act hide" role="note"></div>
+
+    <div class="card sta-tcard" id="rbWeekCard">
+      <div class="sta-thead">
+        <div class="tt"><b>Do this week <span class="rb-count" id="rbWeekN"></span></b><small id="rbWeekSub"></small></div>
+        <div class="sta-tools"><label class="rb-switch"><input type="checkbox" id="rbArch" class="sta-cb"> <span>Show archived</span></label></div>
+      </div>
+      <div class="sta-actbar" id="rbChips" role="group" aria-label="Show rows by type"></div>
+      <div id="rbWeekBody"><div class="sta-wrap"><table id="rbTable" class="xl"></table></div></div>
+      <div id="rbFoot" class="sta-more"></div>
+    </div>
+
+    <div class="card rb-chartcard" id="rbChartCard">
+      <div class="adx-ch-head"><div class="adx-ch-tt"><h3 class="ui-card-title">Payouts by month</h3><div class="ui-note adx-ch-sub">The last 12 months, always · reversals below the line</div></div>
+        <div class="seg" id="rbChartSeg" role="group" aria-label="Chart view"><button class="segbtn on" type="button" data-cm="cases" aria-pressed="true">Cases vs automatic</button><button class="segbtn" type="button" data-cm="reason" aria-pressed="false">By reason</button></div></div>
+      <div id="rbChartBody">
+        <div class="adx-legend" id="rbChartLegend"></div>
+        <div class="adx-plot" id="rbPlot"></div>
+        <p class="rb-empty hide" id="rbChartEmpty">No payouts in the last 12 months.</p>
+      </div>
+    </div>
+
+    <div class="card sta-tcard" id="rbLostCard">
+      <div class="sta-thead"><div class="tt"><b>Most-lost products</b><small id="rbLostSub">The last 12 months, from the inventory ledger and the payouts · the top 10 by value</small></div></div>
+      <div id="rbLostBody"><div class="sta-wrap"><table id="rbLost" class="xl"></table></div></div>
+      <div class="sta-more"><span>Many losses on one product often mean packaging or prep — worth a look.</span></div>
+    </div>
+    </div><!-- /rbMain -->
+
+    <!-- Upload Amazon reports: the brand first, then each report read in this browser, checked, and saved on "Save" (rbUpDraw). -->
+    <div id="rbUpDlg" class="modal sta-modal rb-updlg hide" role="dialog" aria-modal="true" aria-labelledby="rbUpTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbUpTitle">Upload Amazon reports</b><small>Download each report in Seller Central, then choose it here. Uploading again replaces the rows it shares, never doubles them.</small></div><button id="rbUpX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div class="sta-mb">
+        <div class="sta-fld rb-upbrand"><span class="sta-lab">Brand — first</span>
+          <div class="seg" id="rbUpBrand" role="group" aria-label="Brand of the report"><button class="segbtn" type="button" data-b="SP" aria-pressed="false">Ridhi</button><button class="segbtn" type="button" data-b="CPC" aria-pressed="false">Cotton Print Club</button></div></div>
+        <div id="rbUpBody"></div>
+      </div>
+      <div class="sta-mf"><small id="rbUpNote"></small><div class="btns"><button id="rbUpClose" class="ghost" type="button">Close</button></div></div>
+    </div></div>
+
+    <!-- Make case / Re-check / Dispute: one dialog, filled by rbOpen. Closing it after Copy with no case ID asks rbAsk. -->
+    <div id="rbDlg" class="modal sta-modal rb-dlg hide" role="dialog" aria-modal="true" aria-labelledby="rbDlgTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbDlgTitle"></b><small id="rbDlgSub"></small></div><button id="rbDlgX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="rbDlgBody" class="sta-mb"></div>
+      <div class="sta-mf"><small id="rbDlgNote"></small><div class="btns"><button id="rbDlgClose" class="ghost" type="button">Close</button></div></div>
+    </div></div>
+    <div id="rbAsk" class="modal sta-modal rb-ask hide" role="alertdialog" aria-modal="true" aria-labelledby="rbAskTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbAskTitle">Did you create the case?</b><small>You copied the case text. If you made the case, put its ID in, so Sellora never suggests a second claim for it.</small></div></div>
+      <div class="sta-mf"><small></small><div class="btns"><button id="rbAskNo" class="ghost" type="button">No, not yet</button><button id="rbAskYes" type="button">Yes — add the case ID</button></div></div>
+    </div></div>
+    <div id="rbArchDlg" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-labelledby="rbArchTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbArchTitle">Archive</b><small id="rbArchSub"></small></div><button id="rbArchX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="rbArchBody" class="sta-mb rb-archbody"></div>
+      <div class="sta-mf"><small id="rbArchMsg"></small><div class="btns"><button id="rbArchCancel" class="ghost" type="button">Cancel</button><button id="rbArchOk" type="button">Archive</button></div></div>
+    </div></div>
+    <div id="rbCasesDlg" class="modal sta-modal sta-wide rb-casesdlg hide" role="dialog" aria-modal="true" aria-labelledby="rbCasesTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbCasesTitle">Open cases</b><small id="rbCasesSub"></small></div><button id="rbCasesX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="rbCasesBody" class="sta-mb"></div>
+    </div></div>
+    <div id="rbFixDlg" class="modal sta-modal hide" role="dialog" aria-modal="true" aria-labelledby="rbFixTitle"><div class="modalbox">
+      <div class="sta-mh"><div><b id="rbFixTitle">Set our sourcing cost at Amazon (2 steps)</b><small>So the next reimbursements for these products are paid at our cost.</small></div><button id="rbFixX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="rbFixBody" class="sta-mb"></div>
+    </div></div>
+    <div id="rbLegend" class="modal sta-modal sta-wide hide" role="dialog" aria-modal="true" aria-label="How Sellora counts"><div class="modalbox">
+      <div class="sta-mh"><div><b>How Sellora counts</b><small>Every rule on this page, with its numbers. Nothing here changes anything at Amazon.</small></div><button id="rbLegendX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
+      <div id="rbLegendBody" class="sta-mb sta-legend"></div>
+    </div></div>
+  </div><!-- /paneReimb -->
 
   <!-- ============ Ad Console: whole-account KPIs, chart, and metrics × periods ============ -->
   <div id="paneTrends" class="hide">
@@ -8453,11 +8740,27 @@ async function loadMyPerms(user) {
   }
 }
 
+/* THE REIMBURSEMENT MENU ON A LOCAL TEST COPY ONLY (24 Nov 2026). While the module is built on sample data, a copy of Sellora
+ * run on this computer (hostname localhost, 127.0.0.1, 0.0.0.0 or empty — the same host test as clTestSite in
+ * listing/create-listing.js, without its test-site half) shows every tab of the Reimbursement menu group to any signed-in
+ * account, so it can be looked at without first ticking 'reimb' on the Access page. Only the menu: what those tabs may read or
+ * save still follows firestore.rules (reimbCases needs can('reimb') there), whatever this says. On the dev and live sites
+ * nothing changes — 'reimb' must be ticked like any other right — and no other tab is touched on any host.
+ * loc: for the tests (window.location otherwise). */
+const accLocalHost = loc => {
+  const l = loc || (typeof location !== 'undefined' ? location : null);
+  return !!l && /^(localhost|127\.0\.0\.1|0\.0\.0\.0|)$/.test(l.hostname || '');
+};
+// The tabs of the Reimbursement menu group, read off the menu (NAV_GROUPS, core/nav.js); 'reimb' before the menu is read.
+const accReimbTabs = () => ((typeof NAV_GROUPS !== 'undefined' && NAV_GROUPS.find(g => g.key === 'reimb')) || { tabs: ['reimb'] }).tabs;
+const accLocalOpen = (t, loc) => accLocalHost(loc) && accReimbTabs().includes(t);
+
 // Build the menu from ME: show the granted tab buttons, trim the ad brand pickers, drop menu groups with
 // nothing left in them, and open the first tab allowed — or the "no access" notice when there is none.
 function applyPerms() {
-  // May this account open tab t? An admin may; so may anyone granted it, or granted the tab it comes with.
-  const allowedOwn = t => ME.admin || ME.tabs.includes(t) || (!!TAB_INHERIT[t] && ME.tabs.includes(TAB_INHERIT[t]));
+  // May this account open tab t? An admin may; so may anyone granted it, or granted the tab it comes with — and, on a local
+  // test copy only, anyone for the Reimbursement menu (accLocalOpen above).
+  const allowedOwn = t => ME.admin || ME.tabs.includes(t) || (!!TAB_INHERIT[t] && ME.tabs.includes(TAB_INHERIT[t])) || accLocalOpen(t);
   // The Dashboard (core/dashboard.js, 20 Nov 2026) comes with any screen: each of its cards shows only what that screen may show.
   const allowed = t => (t === 'dash' ? TABS.some(x => x !== 'dash' && !HIDDEN_TABS.includes(x) && allowedOwn(x)) : allowedOwn(t));
   // --- tab buttons ---
@@ -8694,6 +8997,7 @@ const ACCESS_GROUPS = [
   { key: 'ads', sellora: ['trends', 'weekly', 'st', 'ngram', 'plc', 'ppch', 'deals'] },
   { key: 'research', sellora: ['new', 'pr', 'link', 'kw'] },
   { key: 'stock', sellora: ['age', 'tiktok', 'carousel', 'ba'] },
+  { key: 'reimb', sellora: ['reimb'] },   // Reimbursement (24 Nov 2026): its own card; firestore.rules reimbCases reads can('reimb')
   { key: 'other' },
 ];
 // Build the checkbox cards: every Sellora tab and every Replenishment section goes on the card ACCESS_GROUPS
@@ -10561,14 +10865,15 @@ $('search').addEventListener('input', () => {
 // Every tab by key. Button id = 'tab' + capId(key), pane id = 'pane' + capId(key). The order matters only
 // for which tab opens first: the first one the account is allowed.
 // 'dash' (20 Nov 2026) is the Dashboard (core/dashboard.js): first, so it is the screen that opens after sign-in.
-const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
+// 'reimb' (24 Nov 2026): Reimbursement › Overview (reimb/reimb-overview.js), its own menu group and its own right.
+const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'shop', 'adj', 'kw', 'ba', 'age', 'reimb', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'ngram', 'plc', 'ppch', 'deals', 'tiktok', 'carousel', 'opt', 'img',
   'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg', 'create'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
 // The title shown at the top of the page for each tab.
 const TAB_TITLE = { dash: 'Dashboard', link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
-  age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
+  age: 'Inventory Age', reimb: 'Reimbursement · Overview', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
   trends: 'Overview', st: 'Search Term Analysis', ngram: 'N-Gram Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', ncheck: 'Numbers Check', shop: 'Shopify Orders',
@@ -10749,6 +11054,7 @@ function showTab(which) {
   if (which === 'dash') ensureDash();     // the Dashboard: what the other screens already hold, no Amazon call
   if (which === 'kw') loadNiches();       // lazy-load the niche list the first time
   if (which === 'age') ensureAge();       // show the cached snapshot without hitting Amazon
+  if (which === 'reimb') ensureReimb();   // Reimbursement › Overview: sample data until Amazon's reports are connected, no backend call
   if (which === 'health') ensureHealth();
   if (which === 'lrules') ensureLrules();
   if (which === 'audit') ensureAudit();
@@ -12266,6 +12572,1678 @@ $('ageCsv').onclick = () => {
   a.click();
   URL.revokeObjectURL(a.href);
 };
+
+/* ####################################################################################################
+ * GROUP: src/app/reimb/
+ * #################################################################################################### */
+/* ============================== FILE: src/app/reimb/reimb-core.js ============================== */
+/* ================= REIMBURSEMENT · THE ENGINE: what Amazon owes us, what it paid, and what to claim (24 Nov 2026) =================
+ * Pure functions only — no screen, no storage, no clock: "today" is always passed in, and nothing here reads Date.now().
+ * Shared by the module's five pages (Overview now; Paid, To Claim, Cases and Fee Check later), and by tests/reimb-test.js.
+ * SELLORA CHANGES NOTHING AT AMAZON. It finds the money, writes the case text, and keeps a record of each claim; the person
+ * opens the case in Seller Central themselves.
+ *
+ * WHAT IS COUNTED TODAY (RB.LIVE_TYPES): inbound shortages, underpaid reimbursements and reversals. Lost & damaged in the
+ * warehouse, removals, disposals, returns and fee errors come later (RB.TYPES has their names and colours already); the page
+ * says so under its boxes, so nobody reads the totals as complete.
+ *
+ * THE RULES (the numbers are in RB; the page's "How Sellora counts" shows the same):
+ *   VALUE        units × our SOURCING cost. Only a landed cost known: that, tagged "≈ landed" (landed includes freight,
+ *                Amazon's sourcing cost does not). No cost at all: the units only, tagged "no cost", left out of every $ total.
+ *   INBOUND      per SKU, missing = shipped − received, only when above 0. One shipment is one item (one shipment per case).
+ *                "Wait" until the shipment is CLOSED and RB.WAIT_DAYS (15) days have passed since delivery — Amazon may still
+ *                be counting; then "Claim now". Deadline RB.DEADLINE.inbound: 60 days after delivery (not confirmed yet).
+ *                A SKU Amazon already paid for itself (an Inbound payout for the same FNSKU on or after delivery) is left out
+ *                of the claim; every SKU paid → the shipment is "Paid".
+ *   UNDERPAID    a payout whose amount per unit is below our SOURCING cost (never landed). Gap = (cost − paid per unit) × units.
+ *                Re-check window RB.DEADLINE.recheck: 90 days from the payout date (not confirmed yet). A later payout naming
+ *                it as its original (Amazon's top-up) → "Paid".
+ *   REVERSAL     a payout with a negative amount (Amazon took money back, saying the unit was found). Disputable only when the
+ *                ledger shows no 'found' unit for that FNSKU within RB.FOUND_DAYS (30) days before or after it; with one, it is
+ *                not an item at all. Window RB.DEADLINE.reversal: 90 days (not confirmed yet). A later payout naming it as its
+ *                original → "Paid".
+ *   STATUS       in this order: archived, paid, in a case (from the saved case records) win; else expired (past the deadline);
+ *                else wait; else claim. The deadline day itself is still open ("0 days left"); the day after is expired.
+ *   DUPLICATES   Amazon treats a second claim for the same thing as abuse: an item already in a case, already paid or
+ *                archived can never get "Make case" (rbDupCheck says why).
+ *   LIMITS       at most RB.MAX_ITEMS (10) items per case, and Amazon advises under RB.MAX_OPEN (10) open cases: a warning,
+ *                never a block.
+ *
+ * THE DATA CONTRACT — what rbLoad (reimb-sample.js) hands over: the sample today, the backend caches later, the same shape.
+ *   { sample: true | false, asOf: ISO time,
+ *     inbound: [{ brand: 'SP' | 'CPC', shipmentId, name, status: 'RECEIVING' | 'CLOSED' | …, createdAt, deliveredAt, closedAt,
+ *                 items: [{ sku, asin, fnsku, title, shipped, received }] }],
+ *     payouts: [{ brand, date, reimbId, caseId | null, orderId | null, sku, asin, fnsku, title, reason, cashUnits, invUnits,
+ *                 amount, original: { reimbId } | null }],          // amount < 0 with units = a reversal
+ *     ledger:  [{ brand, date, fnsku, sku, asin, title, kind: 'lost' | 'found' | 'damaged' | 'destroyed', units, txnId }],
+ *     costs:   { [asin]: { sourcing: number | null, landed: number | null } } }
+ *   Dates are 'YYYY-MM-DD' or ISO times; each is read as its calendar day. Money is US dollars.
+ *   have:    { inbound, payouts, ledger, ledgerBrands? }: which parts are there at all (rbLoad, reimb-data.js). A part that is
+ *            missing is NOT read as zero: no reversal is judged without its brand's ledger, no inbound shortage without the
+ *            shipments.
+ * The backend caches (when the backend team writes them, read through ?cache=, as every Ads screen does):
+ *   reimbPaid    { at, d: { SP: [payout rows], CPC: [...] } }     reimbLedger  { at, d: { SP: [ledger rows], … } }
+ *   reimbInbound { at, d: { SP: [shipments], … } }                (rows in the shapes above; brand taken from the key)
+ * Until then a person uploads Amazon's own reports (rbParseReport below; reimb-data.js keeps them).
+ * COSTS ON SCREEN: Profit & Margin's unit cost is the LANDED cost, so values from it always show as "≈ landed"; nobody has
+ * entered SOURCING costs yet, so Underpaid says it needs them (rbOverview: underpaid.sourcing) instead of a $ figure.
+ * THE CASE RECORDS (Firestore reimbCases/{brand_type_itemKey}, saved by the page — never by this file):
+ *   { brand, type, itemKey, status: 'draft' | 'in_case' | 'paid' | 'archived', caseId, estimate, checks: { key: true },
+ *     note, reason, trail: [{ t, act, email, uid, person, dev }] }  ('draft' = proof ticked, no case yet: counts as none)
+ *
+ * Main functions: rbDay, rbValue, rbDaysLeft, rbItems, rbStatus, rbDupCheck, rbPeriod, rbOverview, rbWeekList, rbChart,
+ * rbMostLost, rbCaseText, rbDaysPill, rbPctClass, rbCsvLines. */
+
+const RB_DAY = 86400000;
+const RB = {
+  WAIT_DAYS: 15,      // days after delivery while Amazon may still be counting an inbound shipment
+  FOUND_DAYS: 30,     // a reversal is disputable when no unit of its FNSKU was found this many days either side of it
+  EXPIRING: 14,       // "Expiring in 14 days"
+  UNDER_MIN: 0.01,    // paid per unit at least this far under our sourcing cost before it counts as underpaid ($)
+  MAX_ITEMS: 10,      // items Amazon takes in one case
+  MAX_OPEN: 10,       // open cases Amazon advises staying under (its own guidance; Sellerise shows the same)
+  // The windows to claim in. None is confirmed yet: the page says "check the deadline in Seller Central" with each.
+  DEADLINE: {
+    inbound: { days: 60, from: 'delivery', confirmed: false, t: '60 days after delivery' },
+    recheck: { days: 90, from: 'the payout date', confirmed: false, t: '90 days from the payout date' },
+    reversal: { days: 90, from: 'the reversal date', confirmed: false, t: '90 days from the reversal date' },
+  },
+  // Every claim type, with its colour token (the page's dot) and how "Not counted yet" names it. live: counted today.
+  TYPES: {
+    inbound: { t: 'Inbound shortage', short: 'Inbound', c: '--brand', live: true },
+    underpaid: { t: 'Underpaid', short: 'Underpaid', c: '--act', live: true },
+    reversal: { t: 'Reversal', short: 'Reversal', c: '--bad', live: true },
+    lost: { t: 'Lost in the warehouse', short: 'Lost', c: '--act-ink', later: 'lost & damaged' },
+    damaged: { t: 'Damaged in the warehouse', short: 'Damaged', c: '--rev', later: 'lost & damaged' },
+    removal: { t: 'Removal', short: 'Removal', c: '--violet-ink', later: 'removals' },
+    disposal: { t: 'Disposal', short: 'Disposal', c: '--faint', later: 'disposals' },
+    returns: { t: 'Customer returns', short: 'Returns', c: '--brand-ink', later: 'returns' },
+    fee: { t: 'Fee error', short: 'Fee', c: '--accent-ink', later: 'fee errors' },
+  },
+  // The status pill: its words and its look (the page's rb-st-… class).
+  STATUS: {
+    claim: { t: 'Claim now', cls: 'claim' },
+    wait: { t: 'Wait', cls: 'wait' },
+    in_case: { t: 'In a case', cls: 'case' },
+    paid: { t: 'Paid', cls: 'paid' },
+    expired: { t: 'Expired', cls: 'expired' },
+    archived: { t: 'Archived', cls: 'archived' },
+  },
+  // Why an item may be archived.
+  ARCHIVE: ['Already paid', 'Not Amazon\'s error', 'Too small to claim', 'Other'],
+  // The payout reasons as the chart groups them, with the type whose colour each takes.
+  REASONS: [['Inbound', 'inbound'], ['Lost', 'lost'], ['Damaged', 'damaged'], ['Returns', 'returns'], ['Removal', 'removal'], ['Other', 'disposal']],
+  // What to keep ready for each case (each a tick the page saves): [key, words].
+  PROOF: {
+    inbound: [['own', 'Proof of ownership (e.g. the supplier invoice)'], ['pod', 'Proof of delivery / bill of lading (BOL)'], ['track', 'Carrier tracking']],
+    underpaid: [['inv', 'Supplier invoice showing our cost for this item']],
+    reversal: [['ledger', 'The inventory ledger for this FNSKU around the date (no unit found)']],
+  },
+  // The Seller Central steps for each case.
+  STEPS: {
+    inbound: ['Shipping queue (Shipments) → open the shipment', 'Contents / Reconcile', '"Research missing units" for each SKU below',
+      'Attach the proof ticked below', 'Paste the case text', 'Submit, then put the case ID here'],
+    underpaid: ['Help → Get support → Selling on Amazon → Fulfillment by Amazon', 'Choose the reimbursement inquiry (FBA reimbursements)',
+      'Give the reimbursement ID and the supplier invoice', 'Paste the case text', 'Submit, then put the case ID here'],
+    reversal: ['Help → Get support → Selling on Amazon → Fulfillment by Amazon', 'Choose the reimbursement inquiry (a reversal)',
+      'Give the reversal\'s reimbursement ID and the original one', 'Paste the case text', 'Submit, then put the case ID here'],
+  },
+  // How to set our sourcing cost at Amazon, so it pays the right amount next time (the page's "How to fix (2 steps)").
+  FIX_STEPS: ['Seller Central → Inventory → Inventory Defect and Reimbursement → Manage Your Sourcing Cost',
+    'Bulk upload → download the template → enter our costs in "Seller Cost - New" → upload it'],
+};
+// The live types, and the ones not counted yet as "Not counted yet" names them (each once).
+RB.LIVE_TYPES = Object.keys(RB.TYPES).filter(k => RB.TYPES[k].live);
+RB.LATER = [...new Set(Object.keys(RB.TYPES).filter(k => !RB.TYPES[k].live).map(k => RB.TYPES[k].later))];
+/* THE INVENTORY LEDGER'S REASON CODES → what happened to the units (Adjustments rows). Taken from Amazon's help pages on the
+ * Inventory Ledger, NOT YET CHECKED AGAINST A REAL FILE of ours: check it against the first upload, and add any code that turns
+ * up as "other". A code not listed is never dropped: it is kept as 'other' and counted ("N rows with other reason codes"). */
+RB.REASON_MAP = { M: 'lost', 5: 'lost', F: 'found', 6: 'damaged', 7: 'damaged', E: 'damaged', H: 'damaged', K: 'damaged', U: 'damaged', D: 'destroyed' };
+// The two reports a person can upload: where to find them, what each one unlocks, and their columns. need: refused without it;
+// opt: read when there. Headers are matched ignoring case, spaces, underscores and hyphens (rbHead).
+RB.REPORTS = {
+  payouts: { t: 'Reimbursements report', where: 'Seller Central → Reports → Fulfillment → Reimbursements (tab- or comma-separated)',
+    unlocks: 'Recovered, Payouts by month, reversals, and Underpaid once sourcing costs are in',
+    need: ['approval-date', 'reimbursement-id', 'case-id', 'reason', 'sku', 'fnsku', 'asin', 'amount-total', 'quantity-reimbursed-cash',
+      'quantity-reimbursed-inventory', 'original-reimbursement-id'],
+    opt: ['amazon-order-id', 'product-name', 'condition', 'currency-unit', 'amount-per-unit', 'quantity-reimbursed-total', 'original-reimbursement-type'] },
+  ledger: { t: 'Inventory Ledger, Detailed view', where: 'Seller Central → Reports → Fulfillment → Inventory → Inventory Ledger → Detailed view (CSV)',
+    unlocks: 'Most-lost products, and the check that makes a reversal disputable',
+    need: ['date', 'fnsku', 'asin', 'msku', 'title', 'event-type', 'reference-id', 'quantity', 'reason'],
+    opt: ['fulfillment-center', 'disposition', 'reconciled-quantity', 'unreconciled-quantity'] },
+};
+// Seller Central's pages, in ONE place. US marketplace — verify each in Seller Central before relying on it.
+const RB_LINKS = {
+  cases: 'https://sellercentral.amazon.com/cu/case-dashboard',                    // verify in Seller Central: Case Log
+  support: 'https://sellercentral.amazon.com/help/hub/support',                   // verify in Seller Central: Get support
+  shipments: 'https://sellercentral.amazon.com/fba/inbound-queue',                // verify in Seller Central: Shipping queue
+  sourcing: 'https://sellercentral.amazon.com/reportcentral/REIMBURSEMENTS/0',    // verify in Seller Central: Reimbursements
+};
+const RB_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/* ---------- days ---------- */
+// A day as ms at 00:00 UTC: from 'YYYY-MM-DD', an ISO time (its date part) or ms; null when missing or unreadable.
+function rbDay(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return isFinite(v) ? Math.floor(v / RB_DAY) * RB_DAY : null;
+  const t = Date.parse(String(v).slice(0, 10) + 'T00:00:00Z');
+  return isFinite(t) ? t : null;
+}
+const rbIso = ms => (ms == null ? '' : new Date(ms).toISOString().slice(0, 10));
+// "24 Nov 2026".
+const rbDate = ms => { if (ms == null) return ''; const d = new Date(ms); return `${d.getUTCDate()} ${RB_MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+// Whole days from today to a deadline: 0 on the deadline day, −1 the day after.
+const rbDaysLeft = (deadline, today) => Math.round((deadline - rbDay(today)) / RB_DAY);
+const rbMoney = v => (v == null ? '' : (v < 0 ? '−$' : '$') + Math.abs(v).toFixed(2));
+
+/* ---------- value ---------- */
+// The value of units at our cost: { v ($, or null with no cost), per (the cost per unit used), basis, approx (landed only), noCost }.
+function rbValue(units, cost) {
+  const u = Number(units) || 0, c = cost || {};
+  if (Number(c.sourcing) > 0) return { v: u * c.sourcing, per: Number(c.sourcing), basis: 'sourcing', approx: false, noCost: false };
+  if (Number(c.landed) > 0) return { v: u * c.landed, per: Number(c.landed), basis: 'landed', approx: true, noCost: false };
+  return { v: null, per: null, basis: '', approx: false, noCost: true };
+}
+// A payout reason as the chart groups it: Inbound, Lost, Damaged, Returns, Removal, Other — or Reversal.
+function rbReasonGroup(reason) {
+  const r = String(reason || '').toLowerCase();
+  if (/revers/.test(r)) return 'Reversal';
+  if (/inbound/.test(r)) return 'Inbound';
+  if (/removal/.test(r)) return 'Removal';
+  if (/return|customer/.test(r)) return 'Returns';
+  if (/damag|destroy/.test(r)) return 'Damaged';
+  if (/lost|missing/.test(r)) return 'Lost';
+  return 'Other';
+}
+const rbUnits = p => Math.abs(Number(p.cashUnits) || 0) + Math.abs(Number(p.invUnits) || 0);
+
+/* ---------- the items: one per thing to claim ---------- */
+// Every inbound shortage, underpaid payout and disputable reversal, each with its status, days left and what blocks a case.
+// recs: the saved case records (a Map or an object by key 'brand_type_itemKey'). today: a day ('YYYY-MM-DD' or ms).
+// Item: { key, brand, type, itemKey, title, sku, asin, fnsku, units, value (or null), approx, noCostUnits, event (day ms),
+//   deadline, daysLeft, opensIn (wait: days until it opens; null while not closed), status, rec, block (why no case), … }
+function rbItems(data, recs, today) {
+  const t0 = rbDay(today);
+  const costs = (data && data.costs) || {}, pays = (data && data.payouts) || [], led = (data && data.ledger) || [];
+  const recOf = k => (!recs ? null : typeof recs.get === 'function' ? recs.get(k) || null : recs[k] || null);
+  const out = [];
+  const add = it => {
+    it.key = rbKey(it.brand, it.type, it.itemKey);
+    it.rec = recOf(it.key);
+    it.daysLeft = rbDaysLeft(it.deadline, t0);
+    it.status = rbStatus(it, it.rec, t0);
+    it.block = rbDupCheck(it, it.rec);
+    out.push(it);
+  };
+  // --- inbound shortages: one item per shipment ---
+  (data && data.inbound || []).forEach(s => {
+    const del = rbDay(s.deliveredAt);
+    if (del == null) return;
+    const skus = (s.items || []).map(x => {
+      const missing = Math.max(0, (Number(x.shipped) || 0) - (Number(x.received) || 0));
+      return Object.assign({}, x, { missing, val: rbValue(missing, costs[x.asin]) });
+    }).filter(x => x.missing > 0);
+    if (!skus.length) return;
+    // A SKU Amazon already paid for by itself: an Inbound payout for the same FNSKU, on or after delivery.
+    skus.forEach(x => {
+      x.paidBy = pays.find(p => p.brand === s.brand && p.fnsku === x.fnsku && Number(p.amount) > 0 && rbReasonGroup(p.reason) === 'Inbound'
+        && rbDay(p.date) >= del) || null;
+    });
+    const open = skus.filter(x => !x.paidBy);
+    const sum = (list, f) => list.reduce((t, x) => t + f(x), 0);
+    const known = open.filter(x => x.val.v != null);
+    const first = skus[0];
+    add({ brand: s.brand, type: 'inbound', itemKey: s.shipmentId, title: s.name || s.shipmentId, shipment: s, skus,
+      sku: skus.length === 1 ? first.sku : `${skus.length} SKUs`, asin: skus.length === 1 ? first.asin : '', fnsku: skus.length === 1 ? first.fnsku : '',
+      units: sum(open, x => x.missing), value: known.length ? sum(known, x => x.val.v) : null,
+      approx: known.some(x => x.val.approx), noCostUnits: sum(open.filter(x => x.val.noCost), x => x.missing),
+      paidAll: !open.length, paidBy: (skus.find(x => x.paidBy) || {}).paidBy || null, partPaid: open.length < skus.length && open.length > 0,
+      event: del, deadline: del + RB.DEADLINE.inbound.days * RB_DAY, closed: /^CLOSED$/i.test(String(s.status || '')),
+      opensIn: /^CLOSED$/i.test(String(s.status || '')) ? Math.max(0, RB.WAIT_DAYS - Math.round((t0 - del) / RB_DAY)) : null });
+  });
+  // --- underpaid payouts: one item per payout (our sourcing cost only) ---
+  pays.forEach(p => {
+    const amount = Number(p.amount) || 0, units = Number(p.cashUnits) || 0;
+    if (!(amount > 0) || !(units > 0)) return;
+    const cost = Number((costs[p.asin] || {}).sourcing);
+    if (!(cost > 0)) return;
+    const per = amount / units;
+    if (per > cost - RB.UNDER_MIN) return;
+    const d = rbDay(p.date);
+    const topUp = pays.find(o => o !== p && Number(o.amount) > 0 && o.original && o.original.reimbId === p.reimbId) || null;
+    add({ brand: p.brand, type: 'underpaid', itemKey: p.reimbId, title: p.title || p.sku, sku: p.sku, asin: p.asin, fnsku: p.fnsku, payout: p,
+      units, per, cost, value: (cost - per) * units, approx: false, noCostUnits: 0, paidAll: !!topUp, paidBy: topUp,
+      event: d, deadline: d + RB.DEADLINE.recheck.days * RB_DAY, closed: true, opensIn: null });
+  });
+  // --- reversals: one item per reversal that the ledger does not explain (none without the ledger: it cannot be checked) ---
+  // (have.ledgerBrands: the brands whose ledger is there, when it is known per brand — an upload is one brand's)
+  const H = (data && data.have) || null;
+  const ledgerKnown = b => !H || (H.ledger !== false && (!H.ledgerBrands || H.ledgerBrands.includes(b)));
+  pays.forEach(p => {
+    const amount = Number(p.amount) || 0;
+    if (!(amount < 0) || !ledgerKnown(p.brand)) return;
+    const d = rbDay(p.date);
+    const near = led.filter(l => l.brand === p.brand && l.fnsku === p.fnsku && l.kind === 'found' && Math.abs(rbDay(l.date) - d) <= RB.FOUND_DAYS * RB_DAY);
+    if (near.reduce((t, l) => t + (Number(l.units) || 0), 0) > 0) return;   // Amazon did find units: not disputable
+    const orig = (p.original && pays.find(o => o.reimbId === p.original.reimbId)) || null;
+    const back = pays.find(o => o !== p && Number(o.amount) > 0 && o.original && o.original.reimbId === p.reimbId) || null;
+    add({ brand: p.brand, type: 'reversal', itemKey: p.reimbId, title: p.title || p.sku, sku: p.sku, asin: p.asin, fnsku: p.fnsku, payout: p, original: orig,
+      units: rbUnits(p), value: Math.abs(amount), approx: false, noCostUnits: 0, paidAll: !!back, paidBy: back,
+      checkFrom: d - RB.FOUND_DAYS * RB_DAY, checkTo: d + RB.FOUND_DAYS * RB_DAY,
+      event: d, deadline: d + RB.DEADLINE.reversal.days * RB_DAY, closed: true, opensIn: null });
+  });
+  return out;
+}
+// One item's record key: 'SP_inbound_FBA19SAMPLE01' (Firestore reimbCases/{key}; no slash can reach it).
+const rbKey = (brand, type, itemKey) => [brand, type, String(itemKey || '').replace(/[\/\s]+/g, '-')].join('_');
+
+// The status of one item: archived / paid / in a case win; else expired; else wait; else claim.
+function rbStatus(item, rec, today) {
+  const t0 = rbDay(today);
+  if (rec && rec.status === 'archived') return 'archived';
+  if ((rec && rec.status === 'paid') || item.paidAll) return 'paid';
+  if (rec && rec.status === 'in_case') return 'in_case';
+  if (rbDaysLeft(item.deadline, t0) < 0) return 'expired';
+  if (item.type === 'inbound' && (!item.closed || t0 - item.event < RB.WAIT_DAYS * RB_DAY)) return 'wait';
+  return 'claim';
+}
+// Why this item may never get "Make case" (Amazon reads a second claim as abuse), or '' when nothing stands in the way.
+function rbDupCheck(item, rec) {
+  if (rec && rec.status === 'in_case') return 'Already in case' + (rec.caseId ? ' ' + rec.caseId : '') + ': a second claim would be a duplicate';
+  if ((rec && rec.status === 'paid') || item.paidAll) {
+    const p = item.paidBy;
+    return 'Already paid' + (p ? ` on ${rbDate(rbDay(p.date))} (reimbursement ${p.reimbId})` : '') + ': a claim now would be a duplicate';
+  }
+  if (rec && rec.status === 'archived') return 'Archived' + (rec.reason ? ` (${rec.reason})` : '') + ': restore it first';
+  return '';
+}
+
+/* ---------- the period, and the six boxes ---------- */
+// key '30' | '90' | '365' | 'custom' (from / to, either order) → { key, from, to, days, prevFrom, prevTo }: days inclusive; the
+// previous period is the same length just before.
+function rbPeriod(key, today, from, to) {
+  const t0 = rbDay(today);
+  let a, z;
+  const f = rbDay(from), g = rbDay(to);
+  if (key === 'custom' && f != null && g != null) { a = Math.min(f, g); z = Math.max(f, g); }
+  else { const n = key === '90' ? 90 : key === '365' ? 365 : 30; z = t0; a = t0 - (n - 1) * RB_DAY; }
+  const days = Math.round((z - a) / RB_DAY) + 1;
+  return { key: key === 'custom' && f != null && g != null ? 'custom' : (['90', '365'].includes(key) ? key : '30'), from: a, to: z, days,
+    prevFrom: a - days * RB_DAY, prevTo: a - RB_DAY };
+}
+const rbIn = (ms, a, z) => ms != null && ms >= a && ms <= z;
+// A change: { now, was, pct (null when there was nothing before), dir: 'up' | 'down' | 'flat' }.
+function rbDelta(now, was) {
+  return { now, was, pct: was > 0 ? (now - was) / was * 100 : null, dir: Math.abs(now - was) < 0.005 ? 'flat' : now > was ? 'up' : 'down' };
+}
+// The six boxes. Owed now, Expiring, Underpaid and Open cases are TODAY; Recovered and Lost to deadlines are the period's,
+// against the period before. brand: 'ALL' | 'SP' | 'CPC'.
+function rbOverview(items, data, recs, period, today, brand) {
+  const inB = x => brand === 'ALL' || !brand || x.brand === brand;
+  const its = items.filter(inB);
+  const sumV = list => list.reduce((t, i) => t + (i.value || 0), 0);
+  const claim = its.filter(i => i.status === 'claim');
+  const exp = claim.filter(i => i.daysLeft <= RB.EXPIRING);
+  const under = its.filter(i => i.type === 'underpaid' && i.status === 'claim');
+  const pays = ((data && data.payouts) || []).filter(inB).filter(p => Number(p.amount) > 0);
+  const rec = (a, z) => {
+    const inP = pays.filter(p => rbIn(rbDay(p.date), a, z));
+    const viaCase = inP.filter(p => p.caseId), auto = inP.filter(p => !p.caseId);
+    const s = list => list.reduce((t, p) => t + Number(p.amount), 0);
+    return { all: s(inP), viaCase: s(viaCase), auto: s(auto), n: inP.length };
+  };
+  const now = rec(period.from, period.to), was = rec(period.prevFrom, period.prevTo);
+  const lostIn = (a, z) => its.filter(i => i.status === 'expired' && rbIn(i.deadline, a, z));
+  const lostNow = lostIn(period.from, period.to), lostWas = lostIn(period.prevFrom, period.prevTo);
+  const recList = !recs ? [] : typeof recs.values === 'function' ? [...recs.values()] : Object.values(recs);
+  const open = recList.filter(r => r && r.status === 'in_case' && inB(r));
+  return {
+    owed: { v: sumV(claim), n: claim.length, units: claim.reduce((t, i) => t + i.units, 0), noCost: claim.filter(i => i.value == null || i.noCostUnits > 0).length,
+      approx: claim.some(i => i.approx) },
+    expiring: { v: sumV(exp), n: exp.length },
+    recovered: Object.assign(now, { prev: was, delta: rbDelta(now.all, was.all), dCase: rbDelta(now.viaCase, was.viaCase), dAuto: rbDelta(now.auto, was.auto) }),
+    // sourcing: is any sourcing cost known at all (without one nothing can be called underpaid — the page says so instead of
+    // a $); belowLanded: payouts inside the re-check window paid below the LANDED cost — only "possible", never a $ figure.
+    underpaid: { v: sumV(under), n: under.length, sourcing: rbHasSourcing(data && data.costs), belowLanded: rbBelowLanded(data, today, brand) },
+    open: { n: open.length, v: open.reduce((t, r) => t + (Number(r.estimate) || 0), 0), many: open.length >= RB.MAX_OPEN, recs: open },
+    lost: { v: sumV(lostNow), n: lostNow.length, prev: sumV(lostWas), delta: rbDelta(sumV(lostNow), sumV(lostWas)) },
+  };
+}
+
+/* ---------- "Do this week": the action list ---------- */
+// o: { brand, type ('' = every type), focus ('owed' | 'exp' | 'under' | ''), archived (also the archived), expired (also the
+// expired) }. Paid items and those in a case are not on it (the Open cases box lists those). Order: Claim now (fewest days
+// left, then highest value), Wait (soonest to open), Expired, Archived.
+function rbWeekList(items, o) {
+  o = o || {};
+  const rank = { claim: 0, wait: 1, expired: 2, archived: 3 };
+  let list = items.filter(i => (o.brand === 'ALL' || !o.brand || i.brand === o.brand) && i.status in rank);
+  if (!o.archived) list = list.filter(i => i.status !== 'archived');
+  if (!o.expired) list = list.filter(i => i.status !== 'expired');
+  if (o.type) list = list.filter(i => i.type === o.type);
+  if (o.focus === 'owed') list = list.filter(i => i.status === 'claim');
+  if (o.focus === 'exp') list = list.filter(i => i.status === 'claim' && i.daysLeft <= RB.EXPIRING);
+  if (o.focus === 'under') list = list.filter(i => i.type === 'underpaid' && i.status === 'claim');
+  const val = i => (i.value == null ? -1 : i.value);
+  return list.slice().sort((a, z) => (rank[a.status] - rank[z.status])
+    || (a.status === 'claim' ? a.daysLeft - z.daysLeft : 0)
+    || (a.status === 'wait' ? (a.opensIn == null ? 999 : a.opensIn) - (z.opensIn == null ? 999 : z.opensIn) : 0)
+    || (a.status === 'expired' ? z.deadline - a.deadline : 0)
+    || (val(z) - val(a)) || (a.key < z.key ? -1 : 1));
+}
+
+/* ---------- the chart: payouts by month, the last 12 months ---------- */
+// { months: [{ key 'YYYY-MM', lab 'Nov 26', from, to, cases, auto, rev (≤ 0), units, reason: { Inbound, Lost, … } }] }, oldest
+// first, the month of today last.
+function rbChart(data, today, brand, n) {
+  const t0 = rbDay(today), d = new Date(t0), y = d.getUTCFullYear(), m = d.getUTCMonth();
+  const months = [];
+  for (let i = (n || 12) - 1; i >= 0; i--) {
+    const from = Date.UTC(y, m - i, 1), to = Date.UTC(y, m - i + 1, 1) - RB_DAY, md = new Date(from);
+    months.push({ key: rbIso(from).slice(0, 7), lab: RB_MON[md.getUTCMonth()] + ' ' + String(md.getUTCFullYear()).slice(2), from, to,
+      cases: 0, auto: 0, rev: 0, units: 0, reason: Object.fromEntries(RB.REASONS.map(([r]) => [r, 0])) });
+  }
+  ((data && data.payouts) || []).forEach(p => {
+    if (brand && brand !== 'ALL' && p.brand !== brand) return;
+    const dd = rbDay(p.date), mo = months.find(x => dd >= x.from && dd <= x.to);
+    if (!mo) return;
+    const a = Number(p.amount) || 0;
+    if (a < 0) { mo.rev += a; return; }
+    if (p.caseId) mo.cases += a; else mo.auto += a;
+    mo.units += rbUnits(p);
+    const g = rbReasonGroup(p.reason);
+    mo.reason[g in mo.reason ? g : 'Other'] += a;
+  });
+  return { months, any: months.some(x => x.cases || x.auto || x.rev) };
+}
+
+/* ---------- most-lost products, the last 12 months ---------- */
+// Per product: units lost (net of units found), damaged (and destroyed), their value at our cost, what Amazon paid back for
+// them (Lost and Damaged payouts of that FNSKU), and the share paid back. Top n by value (no-cost ones after, by units).
+function rbMostLost(data, today, brand, n) {
+  const t0 = rbDay(today), from = t0 - 364 * RB_DAY;
+  const costs = (data && data.costs) || {};
+  const m = new Map();
+  const row = x => {
+    const k = x.brand + '|' + x.fnsku;
+    return m.get(k) || m.set(k, { brand: x.brand, fnsku: x.fnsku, sku: x.sku, asin: x.asin, title: x.title, lost: 0, found: 0, damaged: 0, paid: 0 }).get(k);
+  };
+  const inB = x => !brand || brand === 'ALL' || x.brand === brand;
+  ((data && data.ledger) || []).forEach(l => {
+    if (!inB(l) || !rbIn(rbDay(l.date), from, t0)) return;
+    const r = row(l), u = Math.abs(Number(l.units) || 0);
+    if (l.kind === 'lost') r.lost += u;
+    else if (l.kind === 'found') r.found += u;
+    else if (l.kind === 'damaged' || l.kind === 'destroyed') r.damaged += u;
+  });
+  ((data && data.payouts) || []).forEach(p => {
+    if (!inB(p) || !(Number(p.amount) > 0) || !rbIn(rbDay(p.date), from, t0)) return;
+    const g = rbReasonGroup(p.reason);
+    if (g !== 'Lost' && g !== 'Damaged') return;
+    const k = p.brand + '|' + p.fnsku;
+    if (m.has(k)) m.get(k).paid += Number(p.amount);
+  });
+  const out = [...m.values()].map(r => {
+    const lostNet = Math.max(0, r.lost - r.found), units = lostNet + r.damaged;
+    const val = rbValue(units, costs[r.asin]);
+    return Object.assign(r, { lostNet, units, value: val.v, approx: val.approx, noCost: val.noCost,
+      pct: val.v > 0 ? Math.min(100, r.paid / val.v * 100) : null });
+  }).filter(r => r.units > 0);
+  out.sort((a, z) => ((z.value == null ? -1 : z.value) - (a.value == null ? -1 : a.value)) || (z.units - a.units));
+  return out.slice(0, n || 10);
+}
+
+/* ---------- the case text, the pills, the CSV ---------- */
+// The case text for an item, from its type's template: the facts, polite, no threats.
+function rbCaseText(it) {
+  const date = ms => rbDate(ms);
+  if (it.type === 'inbound') {
+    const s = it.shipment || {}, open = (it.skus || []).filter(x => !x.paidBy);
+    return ['Hello,', '',
+      `We are writing about inbound shipment ${it.itemKey}${s.name && s.name !== it.itemKey ? ` (${s.name})` : ''}, delivered on ${date(it.event)}${s.closedAt ? ` and closed on ${date(rbDay(s.closedAt))}` : ''}.`
+        + ' Our records show fewer units received than we shipped:', '']
+      .concat(open.map(x => `- ${x.sku} (FNSKU ${x.fnsku}, ASIN ${x.asin}): shipped ${x.shipped}, received ${x.received}, missing ${x.missing}`))
+      .concat(['', `In all, ${it.units} unit${it.units === 1 ? '' : 's'} missing.`, '',
+        'Could you please research the missing units and reconcile or reimburse them? Our proof of ownership (supplier invoice), the proof of delivery and the carrier tracking are attached.',
+        '', 'Thank you for your help.']).join('\n');
+  }
+  if (it.type === 'underpaid') {
+    const p = it.payout || {};
+    return ['Hello,', '',
+      `We are writing about reimbursement ${p.reimbId} dated ${date(rbDay(p.date))} for ${p.sku} (FNSKU ${p.fnsku}, ASIN ${p.asin}): ${it.units} unit${it.units === 1 ? '' : 's'} at ${rbMoney(it.per)} each, ${rbMoney(Number(p.amount))} in all.`,
+      '', `Our sourcing cost for this item is ${rbMoney(it.cost)} per unit (the supplier invoice is attached), so this reimbursement is ${rbMoney(it.value)} below our cost. The cost excludes shipping, handling and duties.`,
+      '', 'Could you please review the amount and reimburse the difference?', '', 'Thank you for your help.'].join('\n');
+  }
+  const p = it.payout || {}, o = it.original;
+  return ['Hello,', '',
+    `On ${date(it.event)}, reimbursement ${p.reimbId} took back ${rbMoney(Math.abs(Number(p.amount)))} for ${it.units} unit${it.units === 1 ? '' : 's'} of ${p.sku} (FNSKU ${p.fnsku}, ASIN ${p.asin}), as though the unit${it.units === 1 ? ' had' : 's had'} been found.`
+      + (o ? ` The original reimbursement was ${o.reimbId} on ${date(rbDay(o.date))}.` : ''),
+    '', `Our inventory ledger shows no unit of this FNSKU found between ${date(it.checkFrom)} and ${date(it.checkTo)}. Could you please check whether the units were found and returned to our sellable inventory, and if they were not, reverse this deduction?`,
+    '', 'Thank you for your help.'].join('\n');
+}
+// The days-left pill: { t, cls } — cls 'bad' (7 or fewer), 'act' (8–14), 'rev' (15–30), 'n' (over 30), 'wait' (not open yet).
+function rbDaysPill(it) {
+  if (it.status === 'wait') return { t: it.opensIn == null ? 'opens when closed' : it.opensIn === 0 ? 'opens today' : `opens in ${it.opensIn} d`, cls: 'wait' };
+  if (it.status === 'expired') return { t: `expired ${rbDate(it.deadline)}`, cls: 'bad' };
+  const d = it.daysLeft;
+  return { t: d === 0 ? 'last day' : `${d} day${d === 1 ? '' : 's'}`, cls: d <= 7 ? 'bad' : d <= 14 ? 'act' : d <= 30 ? 'rev' : 'n' };
+}
+// Money on screen, one format everywhere: cents under $100 ("$10.20"), whole dollars from $100 up ("$1,234"). (The case text
+// keeps exact cents: it is what Amazon reads.)
+function rbFmt(v) {
+  if (v == null || !isFinite(v)) return '—';
+  const a = Math.abs(v), s = v < 0 ? '−$' : '$';
+  return s + (Math.round(a * 100) / 100 < 100 ? a.toFixed(2) : Math.round(a).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+}
+// Is any sourcing cost known?
+const rbHasSourcing = costs => Object.values(costs || {}).some(c => c && Number(c.sourcing) > 0);
+// Payouts inside the re-check window paid below the LANDED cost per unit: possibly underpaid (landed includes freight, so a
+// payout below it may still be at or above the sourcing cost). A count, never a $.
+function rbBelowLanded(data, today, brand) {
+  const t0 = rbDay(today), costs = (data && data.costs) || {};
+  return ((data && data.payouts) || []).filter(p => {
+    if (brand && brand !== 'ALL' && p.brand !== brand) return false;
+    const units = Number(p.cashUnits) || 0, amount = Number(p.amount) || 0, landed = Number((costs[p.asin] || {}).landed);
+    const d = rbDay(p.date);
+    return amount > 0 && units > 0 && landed > 0 && amount / units < landed - RB.UNDER_MIN && d != null && t0 - d <= RB.DEADLINE.recheck.days * RB_DAY;
+  }).length;
+}
+// "% paid back": 90%+ good, 50–89% to review, under 50% bad.
+const rbPctClass = p => (p == null ? '' : p >= 90 ? 'ok' : p >= 50 ? 'rev' : 'bad');
+// The action list as CSV lines (the page's Export).
+function rbCsvLines(list) {
+  const cell = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const head = ['Type', 'Brand', 'Item', 'Title', 'SKU', 'ASIN', 'FNSKU', 'Units', 'Value $', 'Value basis', 'Days left', 'Deadline', 'Status', 'Why no case'];
+  return [head.map(cell).join(',')].concat(list.map(i => [RB.TYPES[i.type].short, i.brand, i.itemKey, i.title, i.sku, i.asin, i.fnsku, i.units,
+    i.value == null ? '' : i.value.toFixed(2), i.value == null ? 'no cost' : i.approx ? 'landed (approx.)' : i.type === 'inbound' ? 'sourcing' : 'amount',
+    i.status === 'wait' ? '' : i.daysLeft, rbIso(i.deadline), RB.STATUS[i.status].t, i.block].map(cell).join(',')));
+}
+
+/* ---------- reading Amazon's own reports (the upload): pure, so the tests read the same files the page does ---------- */
+// A header as compared: no case, no spaces, underscores or hyphens ("Event Type" = "event-type" = "EVENT_TYPE").
+const rbHead = h => String(h || '').toLowerCase().replace(/[\s_\-]+/g, '');
+// A tab- or comma-separated file → { sep, head, rows }: quotes ("a, b", "say ""x""") and both line endings understood, blank
+// lines skipped, a leading BOM dropped. The separator is the one the header line holds more of.
+function rbParseTable(text) {
+  const s = String(text || '').replace(/^﻿/, '');
+  const nl = s.search(/\r?\n/), first = nl < 0 ? s : s.slice(0, nl);
+  const sep = (first.match(/\t/g) || []).length > (first.match(/,/g) || []).length ? '\t' : ',';
+  const rows = [];
+  let row = [], cell = '', q = false;
+  const endRow = () => { row.push(cell); cell = ''; if (row.some(c => c.trim() !== '')) rows.push(row); row = []; };
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (q) {
+      if (ch !== '"') cell += ch;
+      else if (s[i + 1] === '"') { cell += '"'; i++; }
+      else q = false;
+    } else if (ch === '"' && cell.trim() === '') { cell = ''; q = true; }
+    else if (ch === sep) { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && s[i + 1] === '\n') i++; endRow(); }
+    else cell += ch;
+  }
+  if (cell !== '' || row.length) endRow();
+  return { sep, head: rows.length ? rows[0].map(h => h.trim()) : [], rows: rows.slice(1) };
+}
+// A report's date → 'YYYY-MM-DD': ISO ("2026-11-04T07:00:00+00:00"), US ("11/04/2026"), or anything Date.parse reads; '' if none.
+function rbParseDate(v) {
+  const s = String(v || '').trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s);
+  if (m) return `${m[3]}-${('0' + m[1]).slice(-2)}-${('0' + m[2]).slice(-2)}`;
+  const t = s ? Date.parse(s) : NaN;
+  return isFinite(t) ? rbIso(rbDay(t)) : '';
+}
+// "$1,234.50", "(12.30)", " 7 " → a number (0 when blank or unreadable).
+const rbNum = v => { const n = Number(String(v == null ? '' : v).replace(/[$,\s]/g, '').replace(/^\((.*)\)$/, '-$1')); return isFinite(n) ? n : 0; };
+// The key a row is kept under: a payout by reimbursement ID and SKU, a ledger row by date, FNSKU, event, reference ID,
+// quantity and reason. Uploading again replaces rows with the same key, never adds them twice.
+const rbRowKey = (kind, x) => (kind === 'payouts' ? x.reimbId + '|' + x.sku : [x.date, x.fnsku, x.event, x.txnId, x.qty, x.reason].join('|'));
+/**
+ * One uploaded report → { ok: true, rows (in the data contract's shape), kept, read, skipped, dupes, from, to, other,
+ * otherCodes, notUsd, badDate, otherBrand } or { ok: false, err, missing }. kind 'payouts' (the Reimbursements report) or
+ * 'ledger' (the Inventory Ledger, Detailed view: only its Adjustments and Receipts rows). A needed column missing: refused,
+ * naming it — never guessed. known: what Sellora already knows of the brands (sku or asin → 'SP' | 'CPC'), for the warning
+ * when most of the file belongs to the other brand.
+ */
+function rbParseReport(kind, text, brand, known) {
+  const R = RB.REPORTS[kind];
+  if (!R) return { ok: false, err: 'Not a report Sellora reads' };
+  if (brand !== 'SP' && brand !== 'CPC') return { ok: false, err: 'Pick the brand first' };
+  const T = rbParseTable(text);
+  if (!T.head.length) return { ok: false, err: 'The file is empty' };
+  const col = {};
+  R.need.concat(R.opt).forEach(n => { const i = T.head.findIndex(h => rbHead(h) === rbHead(n)); if (i >= 0) col[n] = i; });
+  const missing = R.need.filter(n => !(n in col));
+  if (missing.length) {
+    return { ok: false, missing, err: `Not read: this file has no ${missing.map(n => `"${n}"`).join(', ')} column${missing.length === 1 ? '' : 's'}, so it is not the ${R.t}. Download it again: ${R.where}.` };
+  }
+  const g = (r, n) => (n in col ? String(r[col[n]] == null ? '' : r[col[n]]).trim() : '');
+  const out = new Map(), codes = new Map();
+  let skipped = 0, other = 0, notUsd = 0, badDate = 0;
+  T.rows.forEach(r => {
+    const date = rbParseDate(g(r, kind === 'payouts' ? 'approval-date' : 'date'));
+    if (!date) { badDate++; return; }
+    let x;
+    if (kind === 'payouts') {
+      const id = g(r, 'reimbursement-id');
+      if (!id) { skipped++; return; }
+      const cur = g(r, 'currency-unit');
+      if (cur && cur.toUpperCase() !== 'USD') notUsd++;
+      const orig = g(r, 'original-reimbursement-id');
+      x = { brand, date, reimbId: id, caseId: g(r, 'case-id') || null, orderId: g(r, 'amazon-order-id') || null, sku: g(r, 'sku'), asin: g(r, 'asin'),
+        fnsku: g(r, 'fnsku'), title: g(r, 'product-name'), reason: g(r, 'reason'), cashUnits: rbNum(g(r, 'quantity-reimbursed-cash')),
+        invUnits: rbNum(g(r, 'quantity-reimbursed-inventory')), amount: rbNum(g(r, 'amount-total')), original: orig ? { reimbId: orig } : null };
+    } else {
+      const ev = g(r, 'event-type');
+      if (!/^(adjustments?|receipts?)$/i.test(ev)) { skipped++; return; }
+      const qty = rbNum(g(r, 'quantity')), code = g(r, 'reason').toUpperCase();
+      const k = /^receipt/i.test(ev) ? 'receipt' : RB.REASON_MAP[code] || 'other';
+      if (k === 'other') { other++; codes.set(code || '(blank)', (codes.get(code || '(blank)') || 0) + 1); }
+      x = { brand, date, fnsku: g(r, 'fnsku'), sku: g(r, 'msku'), asin: g(r, 'asin'), title: g(r, 'title'), kind: k, units: Math.abs(qty), qty,
+        txnId: g(r, 'reference-id'), event: ev, reason: code, fc: g(r, 'fulfillment-center') };
+    }
+    out.set(rbRowKey(kind, x), x);
+  });
+  const rows = [...out.values()], dates = rows.map(x => x.date).sort();
+  // Most of its SKUs known as the other brand's: say so before it is saved under this one.
+  let otherBrand = null;
+  if (known) {
+    const look = k => (!k ? '' : typeof known.get === 'function' ? known.get(k) || '' : known[k] || '');
+    const seen = new Map();
+    rows.forEach(x => { const id = x.sku || x.asin; if (id && !seen.has(id)) seen.set(id, look(x.sku) || look(x.asin)); });
+    const knownIds = [...seen.values()].filter(Boolean), theirs = knownIds.filter(b => b !== brand);
+    if (knownIds.length && theirs.length / knownIds.length > 0.5) otherBrand = { n: theirs.length, of: knownIds.length, brand: theirs[0] };
+  }
+  return { ok: true, kind, brand, rows, kept: rows.length, read: T.rows.length, skipped, dupes: T.rows.length - skipped - badDate - rows.length,
+    from: dates[0] || '', to: dates[dates.length - 1] || '', other, otherCodes: Object.fromEntries(codes), notUsd, badDate, otherBrand };
+}
+// The rows kept so far and a new upload of the same report and brand → { rows, added, replaced }: the same key is replaced.
+function rbMerge(kind, old, fresh) {
+  const m = new Map((old || []).map(x => [rbRowKey(kind, x), x]));
+  let replaced = 0;
+  (fresh || []).forEach(x => { const k = rbRowKey(kind, x); if (m.has(k)) replaced++; m.set(k, x); });
+  return { rows: [...m.values()], added: (fresh || []).length - replaced, replaced };
+}
+/* ============================== FILE: src/app/reimb/reimb-sample.js ============================== */
+/* ================= REIMBURSEMENT · THE SAMPLE: made-up data for the tests, and for ?sample=1 only (24 Nov 2026) =================
+ * Never on screen by default: the page shows real data (reimb-data.js, rbLoad — the backend caches, else the reports a person
+ * uploaded, else "Connect Amazon's data"). This sample is what tests/reimb-test.js runs on, and what the page shows when its
+ * address carries ?sample=1 — always with the yellow "Sample data" banner. Same shape as THE DATA CONTRACT in reimb-core.js.
+ *
+ * The sample is made up: ASINs B0SAMPLE01…, FNSKUs X0SAMPLE01…, shipments FBA19SAMPLE01…, reimbursements RBSAMPLE0001…,
+ * both brands, tablecloths, runners, napkins and pillow covers. Every date is worked out from one fixed day,
+ * RB_SAMPLE_TODAY (never the clock), so the sample says the same thing whenever it is opened:
+ *   12 inbound shipments: 3 still Wait (one not closed, one 10 and one 14 days after delivery), 5 Claim now with 3 / 9 / 20 /
+ *   40 / 45 days left (45 is the most a Claim-now shipment can have: 60 − 15), 1 already in a case, 1 expired, 1 with no cost
+ *   on one SKU, 1 with a landed cost only; one SKU of one shipment was already paid by Amazon itself.
+ *   45 payouts over 12 months, 13 of them through a case; 3 underpaid (one archived as too small to claim); 1 reversal with no
+ *   unit found near it. Ledger rows for 12 products. 1 open case record and 1 archived one (sampleCases: the page's case
+ *   records come from Firestore reimbCases once the data is real; with the sample they stay in this browser). */
+
+const RB_SAMPLE_TODAY = '2026-11-24';
+// The made-up catalogue: [key, brand, asin, sku, fnsku, title, sourcing, landed].
+const RB_SAMPLE_PRODUCTS = [
+  ['P1', 'SP', 'B0SAMPLE01', 'RH-TC-6084-NVY', 'X0SAMPLE01', 'Cotton Tablecloth 60x84 – Navy', 6.40, 8.10],
+  ['P2', 'SP', 'B0SAMPLE02', 'RH-TC-60120-IVY', 'X0SAMPLE02', 'Cotton Tablecloth 60x120 – Ivory', 7.90, 9.80],
+  ['P3', 'SP', 'B0SAMPLE03', 'RH-RN-1472-SAG', 'X0SAMPLE03', 'Table Runner 14x72 – Sage', 3.10, 4.05],
+  ['P4', 'SP', 'B0SAMPLE04', 'RH-RN-14108-TER', 'X0SAMPLE04', 'Table Runner 14x108 – Terracotta', 3.80, 4.90],
+  ['P5', 'SP', 'B0SAMPLE05', 'RH-NP-6PK-WHT', 'X0SAMPLE05', 'Cloth Napkins Set of 6 – White', 4.60, 5.70],
+  ['P6', 'SP', 'B0SAMPLE06', 'RH-PC-1818-MUS', 'X0SAMPLE06', 'Pillow Cover 18x18 – Mustard', 2.20, 2.95],
+  ['P7', 'SP', 'B0SAMPLE07', 'RH-TC-70RD-GRY', 'X0SAMPLE07', 'Round Tablecloth 70in – Grey', null, 8.60],
+  ['P8', 'SP', 'B0SAMPLE08', 'RH-PC-2020-BLU', 'X0SAMPLE08', 'Pillow Cover 20x20 – Blue Stripe', null, null],
+  ['P9', 'CPC', 'B0SAMPLE09', 'CP-TC-6090-FLR', 'X0SAMPLE09', 'Floral Print Tablecloth 60x90', 6.90, 8.70],
+  ['P10', 'CPC', 'B0SAMPLE10', 'CP-NP-4PK-GNG', 'X0SAMPLE10', 'Gingham Napkins Set of 4 – Red', 3.40, 4.30],
+  ['P11', 'CPC', 'B0SAMPLE11', 'CP-RN-1490-IND', 'X0SAMPLE11', 'Block Print Runner 14x90 – Indigo', 3.60, 4.60],
+  ['P12', 'CPC', 'B0SAMPLE12', 'CP-PC-1818-PSL', 'X0SAMPLE12', 'Paisley Pillow Cover 18x18', 2.40, 3.10],
+];
+// Inbound shipments: [n, brand, status, days since delivery, [[product, shipped, received], …]].
+const RB_SAMPLE_SHIP = [
+  [1, 'SP', 'CLOSED', 57, [['P1', 120, 112], ['P3', 60, 60]]],      // Claim now, 3 days left
+  [2, 'SP', 'CLOSED', 51, [['P5', 80, 74], ['P6', 100, 96]]],       // Claim now, 9 days left (P5 already paid by Amazon itself)
+  [3, 'CPC', 'CLOSED', 40, [['P9', 90, 84]]],                       // Claim now, 20 days left
+  [4, 'SP', 'CLOSED', 20, [['P2', 60, 57], ['P4', 50, 50]]],        // Claim now, 40 days left
+  [5, 'CPC', 'CLOSED', 15, [['P11', 70, 66], ['P12', 120, 117]]],   // Claim now, 45 days left (opened today)
+  [6, 'SP', 'CLOSED', 30, [['P8', 40, 37], ['P6', 60, 58]]],        // Claim now; P8 has no cost
+  [7, 'SP', 'CLOSED', 35, [['P7', 30, 27]]],                        // Claim now; landed cost only
+  [8, 'SP', 'CLOSED', 45, [['P1', 100, 90]]],                       // already in a case
+  [9, 'CPC', 'CLOSED', 70, [['P10', 80, 72]]],                      // expired 10 days ago
+  [10, 'SP', 'RECEIVING', 20, [['P3', 90, 80]]],                    // Wait: not closed yet
+  [11, 'CPC', 'CLOSED', 10, [['P9', 60, 55]]],                      // Wait: opens in 5 days
+  [12, 'SP', 'CLOSED', 14, [['P5', 50, 47]]],                       // Wait: opens tomorrow
+];
+// Payouts: [n, days ago, product, reason, units, paid per unit, through a case]. Reversal: n 46, below.
+const RB_SAMPLE_PAY = [
+  [1, 8, 'P2', 'Lost_Warehouse', 2, 11.20], [2, 12, 'P9', 'Damaged_Warehouse', 1, 10.40],
+  [3, 20, 'P1', 'Lost_Warehouse', 3, 4.10],                          // underpaid: our cost is $6.40
+  [4, 22, 'P4', 'CustomerReturn', 2, 6.10, 1], [5, 27, 'P5', 'Lost_Inbound', 4, 7.20],
+  [6, 33, 'P11', 'Lost_Warehouse', 3, 6.20], [7, 38, 'P6', 'Damaged_Warehouse', 5, 3.90], [8, 44, 'P12', 'CustomerServiceIssue', 2, 4.40],
+  [9, 48, 'P9', 'Lost_Warehouse', 2, 5.25],                          // underpaid: our cost is $6.90
+  [10, 52, 'P2', 'Lost_Inbound', 6, 11.00, 1], [11, 57, 'P3', 'Lost_Warehouse', 2, 3.70], [12, 61, 'P10', 'Damaged_Warehouse', 3, 5.10],
+  [13, 66, 'P1', 'Removal_Order_Lost', 2, 9.50],
+  [14, 70, 'P5', 'Lost_Warehouse', 4, 2.80],                         // underpaid: our cost is $4.60 (archived: too small to claim)
+  [15, 75, 'P4', 'Lost_Inbound', 5, 5.90, 1], [16, 83, 'P9', 'CustomerReturn', 1, 9.90], [17, 90, 'P11', 'Damaged_Warehouse', 2, 5.80],
+  [18, 97, 'P6', 'Lost_Warehouse', 6, 3.60], [19, 104, 'P2', 'Damaged_Warehouse', 1, 12.10, 1], [20, 112, 'P12', 'Lost_Inbound', 8, 4.20, 1],
+  [21, 119, 'P1', 'Lost_Warehouse', 3, 9.20], [22, 126, 'P3', 'CustomerReturn', 2, 5.10], [23, 134, 'P10', 'Lost_Warehouse', 4, 5.30],
+  [24, 141, 'P5', 'Damaged_Warehouse', 2, 7.40, 1], [25, 149, 'P9', 'Lost_Inbound', 5, 10.20, 1], [26, 156, 'P4', 'Lost_Warehouse', 3, 6.00],
+  [27, 164, 'P6', 'Removal_Order_Damaged', 4, 3.80], [28, 171, 'P11', 'Lost_Warehouse', 2, 6.30], [29, 179, 'P2', 'CustomerReturn', 1, 11.80],
+  [30, 187, 'P1', 'Lost_Inbound', 7, 9.40, 1], [31, 196, 'P12', 'Damaged_Warehouse', 3, 4.50], [32, 204, 'P3', 'Lost_Warehouse', 4, 4.90],
+  [33, 213, 'P10', 'Lost_Inbound', 6, 5.40, 1], [34, 222, 'P5', 'Lost_Warehouse', 3, 7.10], [35, 231, 'P9', 'Damaged_Warehouse', 2, 10.60],
+  [36, 240, 'P4', 'Lost_Inbound', 4, 6.20, 1], [37, 252, 'P6', 'CustomerReturn', 3, 3.70], [38, 263, 'P11', 'Lost_Warehouse', 5, 6.00],
+  [39, 275, 'P2', 'Lost_Warehouse', 2, 12.00], [40, 288, 'P1', 'Damaged_Warehouse', 2, 9.10, 1], [41, 300, 'P12', 'Lost_Warehouse', 6, 4.30],
+  [42, 314, 'P3', 'Lost_Inbound', 5, 5.00, 1], [43, 329, 'P10', 'Damaged_Warehouse', 2, 5.20], [44, 345, 'P5', 'Lost_Warehouse', 3, 7.30, 1],
+  [45, 358, 'P9', 'Removal_Order_Lost', 1, 10.00],
+];
+// Ledger: [days ago, product, kind, units].
+const RB_SAMPLE_LEDGER = [
+  [300, 'P1', 'lost', 5], [190, 'P1', 'lost', 4], [185, 'P1', 'found', 1], [120, 'P1', 'damaged', 2],
+  [280, 'P2', 'lost', 3], [100, 'P2', 'damaged', 2], [15, 'P2', 'lost', 2],
+  [210, 'P3', 'lost', 6], [130, 'P3', 'damaged', 3], [120, 'P3', 'found', 1], [60, 'P3', 'lost', 2],
+  [160, 'P4', 'lost', 4], [80, 'P4', 'lost', 3],
+  [350, 'P5', 'lost', 3], [140, 'P5', 'damaged', 4], [72, 'P5', 'lost', 5],
+  [165, 'P6', 'damaged', 7], [100, 'P6', 'lost', 6], [40, 'P6', 'destroyed', 5],
+  [55, 'P7', 'damaged', 2], [70, 'P8', 'lost', 3],
+  [360, 'P9', 'lost', 2], [235, 'P9', 'damaged', 3], [50, 'P9', 'lost', 2], [14, 'P9', 'damaged', 1],
+  [216, 'P10', 'lost', 5], [65, 'P10', 'damaged', 3],
+  [265, 'P11', 'lost', 5], [92, 'P11', 'damaged', 2], [35, 'P11', 'lost', 3],
+  [305, 'P12', 'lost', 6], [198, 'P12', 'damaged', 3], [45, 'P12', 'lost', 2],
+];
+
+// The sample in the data contract's shape, built from the tables above and RB_SAMPLE_TODAY.
+function rbSampleData() {
+  const t0 = rbDay(RB_SAMPLE_TODAY);
+  const ago = n => rbIso(t0 - n * RB_DAY);
+  const P = Object.fromEntries(RB_SAMPLE_PRODUCTS.map(([k, brand, asin, sku, fnsku, title]) => [k, { brand, asin, sku, fnsku, title }]));
+  const n2 = n => (n < 10 ? '0' : '') + n, n4 = n => ('000' + n).slice(-4);
+  const inbound = RB_SAMPLE_SHIP.map(([n, brand, status, d, items]) => ({
+    brand, shipmentId: 'FBA19SAMPLE' + n2(n), name: `${brand === 'SP' ? 'Ridhi' : 'CPC'} restock ${n2(n)}`, status,
+    createdAt: ago(d + 12), deliveredAt: ago(d), closedAt: status === 'CLOSED' ? ago(Math.max(0, d - 6)) : null,
+    items: items.map(([k, shipped, received]) => ({ sku: P[k].sku, asin: P[k].asin, fnsku: P[k].fnsku, title: P[k].title, shipped, received })),
+  }));
+  const pay = ([n, d, k, reason, units, per, viaCase]) => ({ brand: P[k].brand, date: ago(d), reimbId: 'RBSAMPLE' + n4(n), caseId: viaCase ? 'SAMPLE-CASE-' + n4(n) : null,
+    orderId: /Return|Customer/.test(reason) ? '111-SAMPLE-' + n4(n) : null, sku: P[k].sku, asin: P[k].asin, fnsku: P[k].fnsku, title: P[k].title,
+    reason, cashUnits: units, invUnits: 0, amount: Math.round(units * per * 100) / 100, original: null });
+  const payouts = RB_SAMPLE_PAY.map(pay);
+  // The reversal: Amazon took back 2 runners it said were found (the original is payout 11); no unit of it found near the date.
+  payouts.push(Object.assign(pay([46, 25, 'P3', 'Reimbursement_Reversal', -2, 3.70]), { original: { reimbId: 'RBSAMPLE0011' } }));
+  const ledger = RB_SAMPLE_LEDGER.map(([d, k, kind, units], i) => ({ brand: P[k].brand, date: ago(d), fnsku: P[k].fnsku, sku: P[k].sku, asin: P[k].asin,
+    title: P[k].title, kind, units, txnId: 'LEDSAMPLE' + n4(i + 1) }));
+  const costs = Object.fromEntries(RB_SAMPLE_PRODUCTS.map(([, , asin, , , , sourcing, landed]) => [asin, { sourcing, landed }]));
+  // The two case records of the sample (a person's own records come from reimbCases once the data is real).
+  const step = (d, act, extra) => Object.assign({ t: t0 - d * RB_DAY + 10 * 3600000, act, email: 'sample@example.com', uid: '', person: 'Sample',
+    dev: { id: '', label: 'sample data', name: '' } }, extra || {});
+  const sampleCases = [
+    { id: rbKey('SP', 'inbound', 'FBA19SAMPLE08'), brand: 'SP', type: 'inbound', itemKey: 'FBA19SAMPLE08', status: 'in_case', caseId: 'SAMPLE-0001',
+      estimate: 64, checks: { own: true, pod: true, track: true }, note: '', reason: '', trail: [step(6, 'case-created', { caseId: 'SAMPLE-0001' })] },
+    { id: rbKey('SP', 'underpaid', 'RBSAMPLE0014'), brand: 'SP', type: 'underpaid', itemKey: 'RBSAMPLE0014', status: 'archived', caseId: '',
+      estimate: 7.2, checks: {}, note: '', reason: 'Too small to claim', trail: [step(40, 'archived', { reason: 'Too small to claim' })] },
+  ];
+  return { sample: true, source: 'sample', asOf: RB_SAMPLE_TODAY + 'T00:40:00Z', inbound, payouts, ledger, costs, sampleCases,
+    have: { inbound: true, payouts: true, ledger: true } };
+}
+/* ============================== FILE: src/app/reimb/reimb-data.js ============================== */
+/* ================= REIMBURSEMENT · WHERE THE DATA COMES FROM: rbLoad, the uploads, the unit costs (24 Nov 2026) =================
+ * rbLoad() is the ONLY way the module gets its data. No made-up numbers by default; in this order:
+ *   1. the backend caches reimbPaid / reimbLedger / reimbInbound, through the same ?cache= call every Ads screen uses (baCall),
+ *      once the backend team writes them (their shapes: THE DATA CONTRACT in reimb-core.js);
+ *   2. for a report the backend does not give yet, the reports a person uploaded (Upload Amazon reports, on the page);
+ *   3. nothing: source 'none', and the page shows "Connect Amazon's data" with the upload buttons instead of empty boxes.
+ * The sample (reimb-sample.js) only with ?sample=1 in the address — and then always with the yellow banner.
+ * INBOUND SHORTAGES need the units SHIPPED per shipment, which no report a person can download holds: until reimbInbound exists
+ * there are no inbound rows, and the page says so under its boxes.
+ *
+ * THE UPLOADS are kept in Firestore reimbData/{brand}_{report}_{n}, chunked like the Deal Calendar's import: chunk 0 also holds
+ * how many there are (of), when (uploadedAt) and who uploaded it (trail, PPC History's step). An upload REPLACES the rows it
+ * shares a key with (rbMerge in reimb-core.js), never adds them twice. Until the rule is deployed (firestore.rules reimbData) a
+ * read is refused, and the uploads are kept in this browser (IndexedDB) — the page says so in the same note as the review list.
+ * UNIT COSTS come from Profit & Margin (audit/costs) and only for an account that may read it (the Profit & Margin right, or
+ * Audit); that cost is the LANDED cost, so every value from it shows as "≈ landed". Without the right: units, no $.
+ * Main functions: rbLoad, rbUploadsLoad, rbUploadSave, rbCostsLoad, rbKnownBrands, rbDataNote. */
+
+const RB_CHUNK = 1500;          // rows per reimbData document (a row is a few hundred bytes: well inside Firestore's 1 MB)
+const RB_IDB = { name: 'selloraReimb', store: 'uploads' };
+// The uploads: key 'SP_payouts' → { key, brand, report, rows, uploadedAt, of, trail, meta }; where they are kept ('fs' the
+// shared copy, 'local' this browser until the rule is deployed, 'mem' this visit only when the browser refuses too).
+const RBX = { uploads: {}, where: '', err: '' };
+const rbSampleAsked = () => { try { return /[?&]sample=1(&|$)/.test(location.search || ''); } catch (e) { return false; } };
+
+async function rbLoad() {
+  if (rbSampleAsked()) return rbSampleData();
+  const out = { sample: false, source: 'none', asOf: '', inbound: [], payouts: [], ledger: [], costs: {}, costNote: '',
+    have: { inbound: false, payouts: false, ledger: false }, from: {} };
+  // --- 1. the backend caches (a cache not written yet answers "nothing cached": skipped, not an error) ---
+  const grab = async n => { try { const r = await baCall({ cache: n }); return (r && r.data && r.data.d) ? r.data : null; } catch (e) { return null; } };
+  const rowsOf = c => Object.keys(c.d).flatMap(b => (Array.isArray(c.d[b]) ? c.d[b] : (c.d[b] && c.d[b].rows) || []).map(x => Object.assign({ brand: b }, x)));
+  const [paid, ledger, inbound] = await Promise.all(['reimbPaid', 'reimbLedger', 'reimbInbound'].map(grab));
+  [[paid, 'payouts'], [ledger, 'ledger'], [inbound, 'inbound']].forEach(([c, k]) => {
+    if (!c) return;
+    out[k] = rowsOf(c);
+    out.have[k] = true;
+    out.from[k] = 'backend ' + (c.at || '');
+  });
+  // --- 2. the uploads, for the reports the backend did not give ---
+  await rbUploadsLoad();
+  ['payouts', 'ledger'].forEach(k => {
+    if (out.have[k]) return;
+    const ups = Object.values(RBX.uploads).filter(u => u.report === k);
+    if (!ups.length) return;
+    out[k] = ups.flatMap(u => u.rows || []);
+    out.have[k] = true;
+    out.from[k] = 'upload';
+    if (k === 'ledger') out.have.ledgerBrands = ups.map(u => u.brand);   // a reversal of a brand with no ledger is not judged
+  });
+  out.source = Object.values(out.from).some(v => /^backend/.test(v)) ? 'backend' : Object.keys(out.from).length ? 'upload' : 'none';
+  // The data's day: the newest row of what was read.
+  const last = [].concat(out.payouts.map(p => p.date), out.ledger.map(l => l.date)).filter(Boolean).sort().pop();
+  out.asOf = last || '';
+  await rbCostsLoad(out);
+  return out;
+}
+
+/* ---------- unit costs: Profit & Margin's, only with its right ---------- */
+async function rbCostsLoad(out) {
+  const me = (typeof ME !== 'undefined' && ME) || { tabs: [] };
+  if (!(me.admin || (me.tabs || []).includes('profit') || (me.tabs || []).includes('audit'))) { out.costNote = 'Costs need the Profit & Margin right'; return; }
+  try { if (typeof loadCosts === 'function') await loadCosts(); } catch (e) { /* read as none below */ }
+  const c = (typeof COST !== 'undefined' && COST) || {};
+  // Profit & Margin's cost is the landed cost: never a sourcing cost (Underpaid needs that; nobody has entered it yet).
+  Object.keys(c).forEach(a => { const v = Number(c[a] && c[a].c); if (v > 0) out.costs[a] = { sourcing: null, landed: v }; });
+  if (!Object.keys(out.costs).length) out.costNote = 'No unit costs in Profit & Margin yet';
+}
+
+/* ---------- the uploads ---------- */
+// This browser's copy (IndexedDB): op 'all' → every upload, 'put' → one. Rejects when the browser refuses.
+function rbIdb(op, val) {
+  return new Promise((res, rej) => {
+    try {
+      const rq = indexedDB.open(RB_IDB.name, 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore(RB_IDB.store, { keyPath: 'key' });
+      rq.onerror = () => rej(rq.error);
+      rq.onsuccess = () => {
+        const d = rq.result, tx = d.transaction(RB_IDB.store, op === 'all' ? 'readonly' : 'readwrite'), st = tx.objectStore(RB_IDB.store);
+        const r = op === 'all' ? st.getAll() : st.put(val);
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+        tx.oncomplete = () => d.close();
+      };
+    } catch (e) { rej(e); }
+  });
+}
+// Every upload: the shared copy (each report's chunks of its newest upload, in order), else this browser's.
+async function rbUploadsLoad() {
+  const mem = RBX.where === 'mem' ? RBX.uploads : {};   // kept for this visit only: not lost when the page reads again
+  RBX.uploads = {};
+  try {
+    const s = await getDocs(collection(db, 'reimbData'));
+    const by = {};
+    s.docs.forEach(d => { const v = d.data() || {}; const k = v.brand + '_' + v.report; (by[k] = by[k] || []).push(v); });
+    Object.keys(by).forEach(k => {
+      const head = by[k].find(p => p.n === 0);
+      if (!head) return;
+      const parts = by[k].filter(p => p.uploadedAt === head.uploadedAt && p.n < head.of).sort((a, z) => a.n - z.n);
+      if (parts.length !== head.of) return;   // an upload still being written, or broken off: the page reads the last whole one next time
+      RBX.uploads[k] = { key: k, brand: head.brand, report: head.report, uploadedAt: head.uploadedAt, of: head.of, trail: head.trail || [], meta: head.meta || {},
+        rows: parts.flatMap(p => p.rows || []) };
+    });
+    RBX.where = 'fs';
+    RBX.err = '';
+  } catch (e) {
+    RBX.err = String((e && (e.code || e.message)) || e);
+    try {
+      (await rbIdb('all') || []).forEach(v => { RBX.uploads[v.key] = v; });
+      RBX.where = 'local';
+    } catch (x) { RBX.where = 'mem'; RBX.uploads = mem; }
+  }
+}
+// Save one report of one brand (its rows already merged with what was kept): the chunks, then any chunk left over from a
+// longer upload is removed. One trail step per upload (who, which device, when, how many rows).
+async function rbUploadSave(brand, report, rows, meta) {
+  await ppchNeedPerson();
+  const key = brand + '_' + report, prev = RBX.uploads[key], at = Date.now();
+  const trail = ((prev && prev.trail) || []).concat(ppchEvent('uploaded', { report, rows: rows.length })).slice(-30);
+  const of = Math.max(1, Math.ceil(rows.length / RB_CHUNK));
+  const clean = JSON.parse(JSON.stringify(rows));
+  const rec = { key, brand, report, uploadedAt: at, of, trail, meta: meta || {}, rows: clean };
+  if (RBX.where === 'fs') {
+    for (let i = 0; i < of; i++) {
+      await setDoc(doc(db, 'reimbData', `${key}_${i}`), Object.assign({ brand, report, n: i, of, uploadedAt: at, rows: clean.slice(i * RB_CHUNK, (i + 1) * RB_CHUNK) },
+        i === 0 ? { trail, meta: rec.meta } : {}));
+    }
+    for (let i = of; i < ((prev && prev.of) || 0); i++) { try { await deleteDoc(doc(db, 'reimbData', `${key}_${i}`)); } catch (e) { /* read past: chunk 0 says how many */ } }
+  } else if (RBX.where === 'local') await rbIdb('put', rec);
+  RBX.uploads[key] = rec;
+  return rec;
+}
+// What Sellora already knows of the brands — the other brand's uploads, the ad groups, Product Performance's products —
+// as sku / asin → brand, for the "most of this file belongs to the other brand" warning.
+function rbKnownBrands() {
+  const m = new Map();
+  const put = (k, b) => { if (k && b && !m.has(k)) m.set(k, b); };
+  Object.values(RBX.uploads).forEach(u => (u.rows || []).forEach(x => { put(x.sku, u.brand); put(x.asin, u.brand); }));
+  try { ['SP', 'CPC'].forEach(b => (((ST.ag || {})[b] || {}).rows || []).forEach(x => { put(x.sku, b); put(x.a, b); })); } catch (e) { /* not loaded */ }
+  try { Object.keys(WEEKLY.rows || {}).forEach(a => put(a, WEEKLY.rows[a] && WEEKLY.rows[a].brand)); } catch (e) { /* not loaded */ }
+  return m;
+}
+// Where the uploads are kept, for the bar's small note ('' when shared).
+function rbDataNote() {
+  if (!Object.keys(RBX.uploads).length) return '';
+  if (RBX.where === 'local') return '<span class="sta-bad">The uploaded reports are kept in this browser only.</span> <span>The shared copy needs its database rule (Ravi: reimbData in firestore.rules). Until then nobody else sees them.</span>';
+  if (RBX.where === 'mem') return '<span class="sta-bad">The uploaded reports are kept for this visit only</span> <span>(this browser refused to store them, and the shared copy needs its database rule).</span>';
+  return '';
+}
+/* ============================== FILE: src/app/reimb/reimb-overview.js ============================== */
+/* ================= REIMBURSEMENT · OVERVIEW: what Amazon owes us, what to claim this week, and what it paid (24 Nov 2026) =================
+ * Screen: Reimbursement › Overview (tab 'reimb', pane paneReimb; core/nav.js calls ensureReimb when it opens). Its own right
+ * ('reimb' on the Access page, not inherited from another tab). The numbers come from reimb-core.js (the engine) over what
+ * rbLoad (reimb-data.js) hands over: REAL DATA — the backend caches once they exist, else the reports a person uploads here
+ * (Upload Amazon reports), else "Connect Amazon's data" with nothing made up. The sample only with ?sample=1, with its yellow
+ * banner. It reads (never writes) the backend's caches, and nothing here changes anything at Amazon.
+ *
+ * Layout, top to bottom (Search Term Analysis's and N-Gram Analysis's classes — sta-scope, sta-barcard, sta-box, sta-tcard,
+ * sta-modal — with rb- adding only what they lack):
+ *   the bar      brand, period (30 days · 90 days · 12 months · Custom), how new the data is and where it came from, Upload
+ *                Amazon reports, How Sellora counts, Export (the action list as CSV). Brand and period are remembered on this
+ *                device (rbPrefs).
+ *   banner       sample data (yellow), only with ?sample=1. With nothing read yet, "Connect Amazon's data" (rbDrawConnect)
+ *                stands in for everything below.
+ *   six boxes    Owed now, Expiring in 14 days, Recovered (the period, through our cases / paid by Amazon itself, against the
+ *                period before), Underpaid, Open cases, Lost to deadlines (the period). Owed, Expiring and Underpaid filter
+ *                the action list; Open cases lists the cases; Recovered and Lost scroll to the chart. Under them: what is not
+ *                counted yet (RB.LATER).
+ *   fix banner   (orange) Amazon paid below our cost: how to set our sourcing cost at Amazon (2 steps).
+ *   Do this week the action list (rbWeekList): type chips, Expired, Show archived; Make case / Re-check / Dispute, ⋯ Archive;
+ *                10 rows, then Show all.
+ *   chart        payouts by month, the last 12 months: through our cases vs paid by Amazon itself, or by reason; reversals
+ *                below zero. The Ad Console's chart look (adx-plot, adx-tip, adx-legend).
+ *   most-lost    the products that lost most in the last 12 months, and how much of it Amazon paid back.
+ * Each card draws inside its own try: one failing never blanks the page.
+ *
+ * SAVING. One record per item in Firestore reimbCases/{brand_type_itemKey}: { brand, type, itemKey, status, caseId, estimate,
+ * checks, note, reason, trail }. Every change appends one trail step, the same as PPC History's (ppchEvent: who, which
+ * device, when). Never deleted. Until the rule is deployed (firestore.rules) a read is refused, and the records are kept in
+ * this browser with the same note as Search Term Analysis's review list. With the SAMPLE data the records always stay in this
+ * browser (reimbCasesSample): sample shipments must never reach the shared list.
+ * Main functions: ensureReimb, renderReimb, rbCasesLoad, rbCaseSave, rbOpen, rbDlgHtml, rbArchOpen, rbCasesOpen, rbFixOpen,
+ * rbLegendHtml, rbChartPlot, rbCsv. */
+
+// The screen's choices: brand, period (and the custom days), the type chip, the box that filters the list, Expired, Show
+// archived, Show all, the chart's view and the parts its legend switched off.
+const RBS = { brand: 'ALL', period: '30', from: '', to: '', type: '', focus: '', expired: false, arch: false, all: false, chart: 'cases', off: {} };
+const RB_PREFS = 'rbPrefs';
+const RB_SHOWN = 10;   // rows of the action list before "Show all"
+let RBD = null, RB_ERR = '', RB_LOADING = null, RB_DLG = null, RB_CH = null, RB_NOTE = '';
+// The case records: key → record; where they are kept ('fs' the shared list, 'local' this browser until the rule is deployed,
+// 'sample' this browser because the data is the sample).
+const RBC = { recs: new Map(), where: '', err: '' };
+const RB_LOCAL = 'reimbCases', RB_LOCAL_SAMPLE = 'reimbCasesSample';
+const RB_ASOF = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const RB_BRANDS = { ALL: 'Both brands', SP: 'Ridhi', CPC: 'Cotton Print Club' };
+
+/* ---------- this device's choices ---------- */
+(function rbPrefsLoad() {
+  try {
+    const p = JSON.parse(localStorage.getItem(RB_PREFS) || '{}') || {};
+    if (p.brand in RB_BRANDS) RBS.brand = p.brand;
+    if (['30', '90', '365', 'custom'].includes(p.period)) RBS.period = p.period;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(p.from || '')) RBS.from = p.from;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(p.to || '')) RBS.to = p.to;
+  } catch (e) { /* the defaults */ }
+})();
+function rbPrefsSave() {
+  try { localStorage.setItem(RB_PREFS, JSON.stringify({ brand: RBS.brand, period: RBS.period, from: RBS.from, to: RBS.to })); } catch (e) { /* kept for this visit */ }
+}
+
+/* ---------- loading ---------- */
+// Called when the tab opens: the data and the case records once (a skeleton meanwhile), then the page.
+async function ensureReimb() {
+  if (!RBD) {
+    renderReimb();
+    try { await rbLoadAll(); } catch (e) { RB_ERR = String((e && e.message) || e); }
+  }
+  renderReimb();
+}
+function rbLoadAll() {
+  if (!RB_LOADING) {
+    RB_LOADING = (async () => {
+      const d = await rbLoad();
+      await rbCasesLoad(d);
+      RBD = d;
+      RB_ERR = '';
+    })().finally(() => { RB_LOADING = null; });
+  }
+  return RB_LOADING;
+}
+// Today: the sample's own day (so its numbers never move), else this computer's calendar day.
+function rbToday() {
+  if (RBD && RBD.sample) return rbDay(RBD.asOf);
+  const d = new Date();
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/* ---------- the case records ---------- */
+async function rbCasesLoad(d) {
+  RBC.recs = new Map();
+  if (d.sample) {
+    RBC.where = 'sample';
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(RB_LOCAL_SAMPLE) || 'null'); } catch (e) { saved = null; }
+    (Array.isArray(saved) ? saved : d.sampleCases || []).forEach(r => RBC.recs.set(r.id, r));
+    return;
+  }
+  try {
+    const s = await getDocs(collection(db, 'reimbCases'));
+    s.docs.forEach(x => RBC.recs.set(x.id, Object.assign({}, x.data(), { id: x.id })));
+    RBC.where = 'fs';
+    RBC.err = '';
+  } catch (e) {
+    RBC.where = 'local';
+    RBC.err = String((e && (e.code || e.message)) || e);
+    try { (JSON.parse(localStorage.getItem(RB_LOCAL) || '[]') || []).forEach(r => RBC.recs.set(r.id, r)); } catch (x) { /* none kept */ }
+  }
+}
+// The record of an item, or a new draft one (not saved until something changes).
+function rbRecOf(it) {
+  return RBC.recs.get(it.key) || { id: it.key, brand: it.brand, type: it.type, itemKey: it.itemKey, status: 'draft', caseId: '',
+    estimate: it.value || 0, checks: {}, note: '', reason: '', trail: [] };
+}
+// Save a change to a record: the patch, one trail step (who, which device, when — PPC History's ppchEvent), then the shared
+// list or this browser. On a shared login the person is named first. A failed save changes nothing here and says why.
+async function rbCaseSave(rec, patch, act, extra) {
+  await ppchNeedPerson();
+  const next = Object.assign({}, rec, patch, { checks: Object.assign({}, rec.checks, patch.checks || {}) });
+  next.trail = (rec.trail || []).concat(ppchEvent(act, extra));
+  ppchStampPerson(next);
+  next.up = Date.now();
+  if (RBC.where === 'fs') {
+    const clean = JSON.parse(JSON.stringify(next));
+    delete clean.id;
+    await setDoc(doc(db, 'reimbCases', next.id), clean);
+  }
+  RBC.recs.set(next.id, next);
+  if (RBC.where !== 'fs') {
+    try { localStorage.setItem(RBC.where === 'sample' ? RB_LOCAL_SAMPLE : RB_LOCAL, JSON.stringify([...RBC.recs.values()])); } catch (e) { throw new Error('this browser would not store it'); }
+  }
+  return next;
+}
+// Where the records are kept, in the bar's small line.
+function rbStoreNote() {
+  if (RBC.where === 'sample') return '<span class="sta-dash">Sample data: case records made here are kept in this browser only and never reach the shared list.</span>';
+  if (RBC.where === 'local') return '<span class="sta-bad">Kept in this browser only.</span> <span>The shared case list needs its database rule (Ravi: reimbCases in firestore.rules). Until then nobody else sees these, and clearing the browser loses them.</span>';
+  return '';
+}
+
+/* ---------- drawing ---------- */
+const rbEsc = s => staEsc(s);
+// Money on screen: one format everywhere (rbFmt, reimb-core.js) — cents under $100, whole dollars from $100 up.
+const rbM0 = v => rbFmt(v);
+const rbM2 = v => rbFmt(v);
+const rbTypePill = t => `<span class="rb-type" style="--d:var(${RB.TYPES[t].c})">${rbEsc(RB.TYPES[t].short)}</span>`;
+const rbStatusPill = s => `<span class="rb-st rb-st-${RB.STATUS[s].cls}">${rbEsc(RB.STATUS[s].t)}</span>`;
+const rbDaysHtml = it => { const p = rbDaysPill(it); return `<span class="rb-days rb-d-${p.cls}">${rbEsc(p.t)}</span>`; };
+// A value with its tags: "≈ landed" (landed cost only), "N no cost" (units with no cost, left out of the $).
+function rbValHtml(v, approx, noCostUnits) {
+  const tags = (approx ? '<span class="rb-tag" title="Only the landed cost is known: it includes freight, which Amazon\'s sourcing cost does not">≈ landed</span>' : '')
+    + (noCostUnits ? `<span class="rb-tag" title="No cost for these units: left out of every $ total">${staInt(noCostUnits)} no cost</span>` : '');
+  return `${v == null ? '<span class="sta-dash">—</span>' : rbM2(v)}${tags ? '<div class="rb-tags">' + tags + '</div>' : ''}`;
+}
+// One card, drawn inside its own try: when it fails, it says so and the rest of the page stays.
+function rbCard(id, fn) {
+  try { fn(); } catch (e) {
+    const el = $(id);
+    if (el) el.innerHTML = `<div class="rb-fail">This part could not be drawn: ${rbEsc((e && e.message) || e)}</div>`;
+    try { console.error(e); } catch (x) { /* no console */ }
+  }
+}
+function renderReimb() {
+  if (!$('paneReimb') || $('paneReimb').classList.contains('hide')) return;
+  rbCard('rbBarInfo', rbDrawBar);
+  if (!RBD) {
+    if (RB_ERR) {
+      $('rbMsg').innerHTML = `<span class="sta-bad">✗ The reimbursement data could not be read: ${rbEsc(RB_ERR)}</span> <button type="button" class="sta-btn sm" data-rbretry="1">Try again</button>`;
+      $('rbBoxes').innerHTML = '';
+    } else {
+      $('rbBoxes').innerHTML = Array.from({ length: 6 }, () => '<div class="adx-box rb-box rb-skel" aria-hidden="true"><div class="ui-loading rb-sk1"></div><div class="ui-loading rb-sk2"></div><div class="ui-loading rb-sk3"></div></div>').join('');
+      $('rbTable').innerHTML = '<tbody><tr><td class="muted" style="padding:14px">Loading the reimbursements…</td></tr></tbody>';
+    }
+    return;
+  }
+  const today = rbToday();
+  const items = rbItems(RBD, RBC.recs, today);
+  const P = rbPeriod(RBS.period, today, RBS.from, RBS.to);
+  $('rbSampleNote').classList.toggle('hide', !RBD.sample);
+  const notes = [rbDataNote(), rbStoreNote(), RBD.costNote ? `<span class="sta-dash">${rbEsc(RBD.costNote)}: values show as units only.</span>` : ''].filter(Boolean);
+  $('rbMsg').innerHTML = notes.join(' ') + (RB_NOTE ? ` <span class="rb-saved">${RB_NOTE}</span>` : '');
+  // Nothing read at all: "Connect Amazon's data" instead of six empty boxes.
+  const none = !RBD.sample && RBD.source === 'none';
+  $('rbConnect').classList.toggle('hide', !none);
+  $('rbMain').classList.toggle('hide', none);
+  if (none) { rbCard('rbConnect', rbDrawConnect); return; }
+  rbCard('rbBoxes', () => rbDrawBoxes(rbOverview(items, RBD, RBC.recs, P, today, RBS.brand), P));
+  rbCard('rbLater', () => {
+    const H = RBD.have || {}, extra = [];
+    if (!H.inbound) extra.push('inbound shortages — needs Amazon\'s shipment data from the backend');
+    if (!H.ledger) extra.push('reversal checks and most-lost products — need the Inventory Ledger (Upload Amazon reports)');
+    $('rbLater').textContent = 'Not counted yet: ' + extra.concat(RB.LATER.join(', ')).join(' · ') + '.';
+  });
+  rbCard('rbFix', () => rbDrawFix(items));
+  rbCard('rbWeekBody', () => rbDrawWeek(items));
+  rbCard('rbChartBody', () => rbDrawChart(today));
+  rbCard('rbLostBody', () => rbDrawLost(today));
+}
+// The bar: the chosen brand and period, the data's day, Sample data.
+function rbDrawBar() {
+  $('rbBrand').value = RBS.brand;
+  $('rbPeriod').querySelectorAll('[data-p]').forEach(b => { const on = b.dataset.p === RBS.period; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  $('rbDates').classList.toggle('hide', RBS.period !== 'custom');
+  $('rbFrom').value = RBS.from;
+  $('rbTo').value = RBS.to;
+  const at = RBD && Date.parse(RBD.asOf);
+  $('rbAsOf').textContent = !RBD ? 'Loading…' : RBD.sample ? (at ? 'Amazon data as of ' + RB_ASOF.format(at) : '')
+    : RBD.source === 'none' ? 'No Amazon data yet'
+      : `Amazon data up to ${rbDate(rbDay(RBD.asOf))} · ${RBD.source === 'backend' ? 'read by the backend' : 'from uploaded reports'}`;
+  $('rbSampleBadge').classList.toggle('hide', !(RBD && RBD.sample));
+  $('rbUpBtn').classList.toggle('hide', !!(RBD && RBD.sample));
+}
+// ▲ 12% / ▼ 5% / new / —: green when the move is good (upGood: up is good; Lost: up is bad).
+function rbArrow(d, upGood) {
+  if (!d || d.dir === 'flat') return '<span class="rb-dl">— same as before</span>';
+  const good = (d.dir === 'up') === upGood;
+  const pct = d.pct == null ? 'new' : `${Math.round(Math.abs(d.pct))}%`;
+  return `<span class="rb-dl ${good ? 'is-good' : 'is-bad'}" title="Against the ${d.was != null ? rbM0(d.was) : '—'} of the period before, the same length">${d.dir === 'up' ? '▲' : '▼'} ${pct}</span>`;
+}
+const RB_IC = {
+  owed: '<path d="M12 3v18"/><path d="M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/>',
+  exp: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9 2h6"/>',
+  rec: '<path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/>',
+  under: '<path d="M12 3l9 16H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/>',
+  cases: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+  lost: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
+};
+function rbDrawBoxes(o, P) {
+  const per = P.key === 'custom' ? `${rbDate(P.from)} – ${rbDate(P.to)}` : P.key === '365' ? 'the last 12 months' : `the last ${P.days} days`;
+  const box = (k, c, label, tip, big, q, go, extra) => `
+    <button type="button" class="adx-box sta-box rb-box${RBS.focus === k ? ' on' : ''}${extra || ''}" data-box="${k}" style="--c:var(${c})" aria-label="${rbEsc(label + ': ' + big.replace(/<[^>]+>/g, '') + '. ' + tip)}">
+      <div class="adx-l"><span class="adx-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${RB_IC[k]}</svg></span>${label}<span class="rb-i" title="${rbEsc(tip)}" aria-hidden="true">ⓘ</span></div>
+      <div class="sta-big"><b${k === 'lost' ? ' class="rb-red"' : ''}>${big}</b></div>
+      <div class="sta-q">${q}</div>
+      ${go ? `<div class="sta-go"><span>${go} →</span></div>` : ''}
+    </button>`;
+  const r = o.recovered;
+  $('rbBoxes').innerHTML =
+    box('owed', '--brand', 'Owed now', 'Items you can claim today (status Claim now), at our cost. Items with no cost show their units and are left out of the $.',
+      rbM0(o.owed.v), `${staInt(o.owed.n)} item${o.owed.n === 1 ? '' : 's'} to claim today${o.owed.noCost ? ` · ${staInt(o.owed.noCost)} ${o.owed.noCost === 1 ? 'has' : 'have'} no cost (units only)` : ''}`, o.owed.n ? 'Show them' : '')
+    + box('exp', '--bad', `Expiring in ${RB.EXPIRING} days`, `Claim-now items with ${RB.EXPIRING} days or fewer left before the deadline.`,
+      rbM0(o.expiring.v), `${staInt(o.expiring.n)} item${o.expiring.n === 1 ? '' : 's'} with ${RB.EXPIRING} days or fewer left`, o.expiring.n ? 'Show them' : '')
+    + box('rec', '--accent', 'Recovered', `What Amazon paid in ${per}, in two parts: through our cases (payouts with a case ID) and paid by Amazon itself (no case ID); each against the period before, the same length.`,
+      rbM0(r.all), `<span class="rb-part"><span>Through our cases</span><span><b>${rbM0(r.viaCase)}</b> ${rbArrow(r.dCase, true)}</span></span>`
+        + `<span class="rb-part"><span>Paid by Amazon itself</span><span><b>${rbM0(r.auto)}</b> ${rbArrow(r.dAuto, true)}</span></span>`, 'See by month')
+    // No sourcing cost entered anywhere yet: say what it needs, never a $ (Profit & Margin's landed cost is not the one Amazon
+    // pays against). The payouts below the landed cost are a hint only: they may still be at or above the sourcing cost.
+    + (o.underpaid.sourcing
+      ? box('under', '--act', 'Underpaid', `Payouts below our sourcing cost per unit, still inside the ${RB.DEADLINE.recheck.days}-day re-check window: the gap is (cost − paid per unit) × units.`,
+        rbM0(o.underpaid.v), `${staInt(o.underpaid.n)} payout${o.underpaid.n === 1 ? '' : 's'} below our cost, still open to re-check`, o.underpaid.n ? 'Show them' : '')
+      : box('under', '--act', 'Underpaid', 'Underpaid is judged against our SOURCING cost (what the supplier is paid for one unit). Nobody has entered it yet; Profit & Margin holds the landed cost, which includes freight.',
+        '<span class="rb-na">Needs sourcing costs</span>', 'Added with the Paid page'
+          + (RBD.costNote ? `<span class="rb-hint">${rbEsc(RBD.costNote)}</span>`
+            : o.underpaid.belowLanded ? `<span class="rb-hint">${staInt(o.underpaid.belowLanded)} payout${o.underpaid.belowLanded === 1 ? ' is' : 's are'} below landed cost (possible)</span>` : ''),
+        '', ' rb-box-na'))
+    + box('cases', o.open.many ? '--act' : '--violet-ink', 'Open cases', `Cases opened from Sellora and not paid yet, with the value we estimated for each. Amazon advises under ${RB.MAX_OPEN} open cases at a time.`,
+      staInt(o.open.n), `≈ ${rbM0(o.open.v)} estimated${o.open.many ? ` · <b class="rb-warnw">Amazon advises under ${RB.MAX_OPEN} open</b>` : ''}`, o.open.n ? 'List them' : '')
+    + box('lost', '--faint', 'Lost to deadlines', `Money that passed its deadline unclaimed in ${per}, against the period before (up is bad).`,
+      rbM0(o.lost.v), `${staInt(o.lost.n)} item${o.lost.n === 1 ? '' : 's'} expired unclaimed ${rbArrow(o.lost.delta, false)}`, 'See by month', ' rb-box-n');
+}
+// The orange banner: Amazon paid below our cost (underpaid items open to re-check).
+function rbDrawFix(items) {
+  const u = items.filter(i => i.type === 'underpaid' && i.status === 'claim' && (RBS.brand === 'ALL' || i.brand === RBS.brand));
+  const el = $('rbFix');
+  el.classList.toggle('hide', !u.length);
+  if (!u.length) { el.innerHTML = ''; return; }
+  const n = new Set(u.map(i => i.brand + '|' + i.asin)).size, v = u.reduce((t, i) => t + i.value, 0);
+  el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${RB_IC.under}</svg><div><b>Amazon paid below our cost for ${staInt(n)} product${n === 1 ? '' : 's'} (${rbM2(v)}).</b> `
+    + 'Telling Amazon our sourcing cost makes the next payouts right; the ones below can be re-checked in the action list.</div>'
+    + '<button type="button" class="sta-btn" data-rbfix="1">How to fix (2 steps)</button>';
+}
+
+/* ---------- Do this week ---------- */
+const RB_VERB = { inbound: 'Make case', underpaid: 'Re-check', reversal: 'Dispute' };
+function rbWeekRows(items) {
+  return rbWeekList(items, { brand: RBS.brand, type: RBS.type, focus: RBS.focus, expired: RBS.expired, archived: RBS.arch });
+}
+function rbDrawWeek(items) {
+  const base = rbWeekList(items, { brand: RBS.brand, expired: true, archived: true });
+  const rows = rbWeekRows(items);
+  // --- the chips: every type present, Expired, and the box that filters the list ---
+  const types = RB.LIVE_TYPES.filter(t => base.some(i => i.type === t && i.status !== 'archived' && i.status !== 'expired'));
+  if (RBS.type && !types.includes(RBS.type)) RBS.type = '';
+  const count = t => base.filter(i => i.type === t && i.status !== 'archived' && i.status !== 'expired').length;
+  const nExp = base.filter(i => i.status === 'expired' && (!RBS.type || i.type === RBS.type)).length;
+  const chip = (attr, on, t, n, cls) => `<button type="button" class="sta-chip${on ? ' on' : ''}${cls ? ' ' + cls : ''}" ${attr} aria-pressed="${on}">${t}<span>${staInt(n)}</span></button>`;
+  const FOCUS = { owed: 'Owed now', exp: `Expiring in ${RB.EXPIRING} days`, under: 'Underpaid' };
+  $('rbChips').innerHTML = '<span class="sta-actl">Type</span>'
+    + chip('data-type=""', !RBS.type, 'All', types.reduce((t, k) => t + count(k), 0))
+    + types.map(t => chip(`data-type="${t}"`, RBS.type === t, rbEsc(RB.TYPES[t].short), count(t), 'rb-tc') .replace('class="sta-chip', `style="--d:var(${RB.TYPES[t].c})" class="sta-chip`)).join('')
+    + `<span class="rb-sep"></span>${chip('data-exp="1"', RBS.expired, 'Expired', nExp, 'rb-tc rb-tc-exp')}`
+    + (RBS.focus ? `<span class="rb-focus">Showing: <b>${FOCUS[RBS.focus]}</b><button type="button" class="sta-fx" data-focusx="1" title="Show every row" aria-label="Show every row">✕</button></span>` : '');
+  $('rbArch').checked = RBS.arch;
+  $('rbWeekN').textContent = staInt(rows.length);
+  $('rbWeekSub').textContent = 'Claim now first, the fewest days left first, then the biggest. Wait rows open once Amazon has finished counting.'
+    + (RBS.arch ? ' Archived rows are shown at the end.' : '');
+  // --- the table ---
+  const shown = RBS.all ? rows : rows.slice(0, RB_SHOWN);
+  const action = it => {
+    const more = it.status === 'archived' ? '' : `<details class="rb-more"><summary title="More" aria-label="More for ${rbEsc(it.itemKey)}">⋯</summary><div class="rb-menu" role="menu"><button type="button" role="menuitem" class="ghost" data-rbarch="${rbEsc(it.key)}">Archive…</button></div></details>`;
+    if (it.status === 'archived') return `<div class="rb-why is-bad">${rbEsc(it.block)}</div><button type="button" class="sta-btn dim" data-rbrestore="${rbEsc(it.key)}">Restore</button>`;
+    if (it.block) return `<div class="rb-why is-bad">${rbEsc(it.block)}</div>`;
+    if (it.status === 'claim') return `<div class="rb-acts"><button type="button" class="rb-go" data-rbopen="${rbEsc(it.key)}">${RB_VERB[it.type]}</button>${more}</div>`;
+    if (it.status === 'wait') return `<div class="rb-acts"><span class="rb-why" title="Amazon may still be counting the shipment">${it.closed ? 'Amazon is still counting' : 'Not closed yet'}</span>${more}</div>`;
+    return `<div class="rb-acts"><span class="rb-why is-bad">Past the deadline</span>${more}</div>`;
+  };
+  const body = shown.map(it => {
+    const isIn = it.type === 'inbound';
+    const sub = isIn ? (it.skus.length === 1 ? `${it.skus[0].asin} · ${it.skus[0].fnsku}` : it.skus.map(x => x.sku).join(', ')) : `${it.asin} · ${it.fnsku}`;
+    const title = isIn ? (it.skus.length === 1 ? it.skus[0].title : `${it.skus.length} SKUs · ${it.skus[0].title}…`) : it.title;
+    const part = it.partPaid ? '<span class="rb-tag" title="Amazon already paid for some SKUs by itself: they are left out of this claim">part paid</span>' : '';
+    return `<tr class="rb-row is-${it.status}">
+      <td>${rbTypePill(it.type)}</td>
+      <td class="rb-item"><div class="sta-term">${rbEsc(isIn ? it.itemKey : it.sku)}${RBS.brand === 'ALL' ? ` ${staBadge(RB_BRANDS[it.brand], 'brand-' + it.brand)}` : ''}</div>
+        <div class="rb-ttl" title="${rbEsc(title)}">${rbEsc(title)}</div><small class="sta-s">${rbEsc(isIn ? sub : (it.type === 'underpaid' ? 'Payout ' : 'Reversal ') + it.itemKey + ' · ' + sub)}</small></td>
+      <td class="num">${staInt(it.units)}</td>
+      <td class="num">${rbValHtml(it.value, it.approx, it.noCostUnits)}${part ? '<div class="rb-tags">' + part + '</div>' : ''}</td>
+      <td>${rbDaysHtml(it)}</td>
+      <td>${rbStatusPill(it.status)}</td>
+      <td class="rb-actcell">${action(it)}</td></tr>`;
+  }).join('');
+  const empty = !rows.length ? `<tr><td colspan="7" class="rb-empty">${RBS.focus || RBS.type || RBS.expired
+    ? 'Nothing here with these choices.'
+    : '<span class="rb-tick" aria-hidden="true">✓</span><b>No claims right now.</b> Nothing Amazon owes us is waiting for a case.'}</td></tr>` : '';
+  $('rbTable').innerHTML = '<thead><tr><th title="What kind of claim">Type</th><th title="The shipment, or the SKU of a payout; the product; its ASIN and FNSKU">Item</th>'
+    + '<th class="num" title="Units missing, underpaid or taken back">Units</th><th class="num" title="At our sourcing cost (≈ landed when only the landed cost is known); for an underpaid payout the gap, for a reversal the amount taken back">Value</th>'
+    + `<th title="Days to the deadline (not confirmed yet: check it in Seller Central). Red 7 or fewer, orange 8–14, yellow 15–30">Days left</th><th title="Claim now, Wait (Amazon still counting), Expired or Archived">Status</th><th>Action</th></tr></thead>`
+    + `<tbody>${body}${empty}</tbody>`;
+  $('rbFoot').innerHTML = rows.length > RB_SHOWN
+    ? `<span>${RBS.all ? `All ${staInt(rows.length)} rows` : `${RB_SHOWN} of ${staInt(rows.length)} rows`}</span><button type="button" class="ghost" data-rball="1">${RBS.all ? 'Show the first ' + RB_SHOWN : `Show all (${staInt(rows.length)})`}</button>`
+    : rows.length ? `<span>${staInt(rows.length)} row${rows.length === 1 ? '' : 's'}</span>` : '';
+}
+
+/* ---------- the chart: payouts by month ---------- */
+// An axis step: "$1.5K", "$250", "$12.5" (a quarter of a small top is not always whole).
+const rbK = v => { const a = Math.abs(v); return (v < 0 ? '−' : '') + '$' + (a >= 1000 ? (a / 1000).toFixed(a >= 10000 ? 0 : 1) + 'K' : Number.isInteger(a) ? a : a.toFixed(1)); };
+function rbNice(v) {
+  const p = Math.pow(10, Math.floor(Math.log10(Math.max(v, 1))));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
+  return 10 * p;
+}
+// The parts of the view picked: through our cases vs paid by Amazon itself, or by reason (the type colours).
+function rbParts() {
+  if (RBS.chart === 'reason') return RB.REASONS.map(([r, t]) => ({ k: r, t: r, c: RB.TYPES[t].c, get: m => m.reason[r] }));
+  return [{ k: 'cases', t: 'Through our cases', c: '--accent', get: m => m.cases }, { k: 'auto', t: 'Paid by Amazon itself', c: '--brand', get: m => m.auto }];
+}
+function rbDrawChart(today) {
+  RB_CH = rbChart(RBD, today, RBS.brand, 12);
+  const parts = rbParts();
+  $('rbChartSeg').querySelectorAll('[data-cm]').forEach(b => { const on = b.dataset.cm === RBS.chart; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  const key = (k, t, c) => `<button type="button" class="adx-lg${RBS.off[k] ? ' off' : ''}" data-part="${k}" aria-pressed="${!RBS.off[k]}" title="Show or hide ${rbEsc(t)}"><i class="adx-sq" style="--c:var(${c})"></i>${rbEsc(t)}</button>`;
+  $('rbChartLegend').innerHTML = parts.map(p => key(p.k, p.t, p.c)).join('') + (RB_CH.months.some(m => m.rev < 0) ? key('rev', 'Reversals (below zero)', '--bad') : '');
+  $('rbChartEmpty').classList.toggle('hide', RB_CH.any);
+  $('rbPlot').classList.toggle('hide', !RB_CH.any);
+  $('rbChartLegend').classList.toggle('hide', !RB_CH.any);
+  if (RB_CH.any) rbChartPlot();
+}
+// Stacked bars per month on a $ axis, reversals as a thin red bar below zero; hover snaps to a month and names its parts.
+function rbChartPlot() {
+  const el = $('rbPlot'), C = RB_CH;
+  if (!el || !C) return;
+  const W = Math.round(el.clientWidth);
+  if (!(W >= 160)) return;                      // hidden, or not laid out yet: the ResizeObserver draws it once it has a width
+  const parts = rbParts(), on = parts.filter(p => !RBS.off[p.k]), seeRev = !RBS.off.rev;
+  const M = C.months, n = M.length;
+  const H = W < 520 ? 230 : 270, L = W < 520 ? 48 : 58, R = 12, T = 14, B = 28;
+  const tot = M.map(m => on.reduce((t, p) => t + p.get(m), 0));
+  const top = rbNice(Math.max(1, ...tot) * 1.08);
+  const minRev = seeRev ? Math.min(0, ...M.map(m => m.rev)) : 0;
+  // Below zero: room for the reversals, never less than an eighth of the height (so its label stays clear of $0).
+  const low = minRev < 0 ? -rbNice(Math.max(-minRev * 1.25, top / 8)) : 0;
+  const y = v => T + (top - v) / (top - low) * (H - T - B);
+  const slot = (W - L - R) / n, bw = Math.max(6, Math.min(30, slot * 0.56));
+  const x = i => L + i * slot + (slot - bw) / 2;
+  let g = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = top * i / 4, yy = y(v);
+    g += `<line class="adx-gl" x1="${L}" x2="${W - R}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}"/><text x="${L - 8}" y="${(yy + 3.5).toFixed(1)}" text-anchor="end">${rbK(v)}</text>`;
+  }
+  if (low < 0) g += `<line class="adx-gl" x1="${L}" x2="${W - R}" y1="${y(low).toFixed(1)}" y2="${y(low).toFixed(1)}"/><text x="${L - 8}" y="${(y(low) + 3.5).toFixed(1)}" text-anchor="end">${rbK(low)}</text>`;
+  M.forEach((m, i) => {
+    let acc = 0;
+    on.forEach(p => {
+      const v = p.get(m);
+      if (!(v > 0)) return;
+      g += `<rect class="rb-bar" style="--c:var(${p.c})" x="${x(i).toFixed(1)}" y="${y(acc + v).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0.5, y(acc) - y(acc + v)).toFixed(1)}"/>`;
+      acc += v;
+    });
+    if (seeRev && m.rev < 0) g += `<rect class="rb-bar rb-rev" style="--c:var(--bad)" x="${(x(i) + bw * 0.3).toFixed(1)}" y="${y(0).toFixed(1)}" width="${(bw * 0.4).toFixed(1)}" height="${Math.max(1, y(m.rev) - y(0)).toFixed(1)}"/>`;
+  });
+  g += `<line class="rb-zero" x1="${L}" x2="${W - R}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}"/>`;
+  const every = slot >= 44 ? 1 : 2;
+  M.forEach((m, i) => { if (!(i % every) || i === n - 1) g += `<text x="${(x(i) + bw / 2).toFixed(1)}" y="${H - 9}" text-anchor="middle">${rbEsc(m.lab)}</text>`; });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${rbEsc(`Payouts by month, ${M[0].lab} to ${M[n - 1].lab}`)}">`
+    + `<rect class="adx-band hide" y="${T}" height="${H - T - B}" width="${slot.toFixed(1)}"/>${g}<rect class="adx-hit" x="${L}" y="0" width="${Math.max(0, W - L - R)}" height="${H}"/></svg><div class="adx-tip hide"></div>`;
+  const svg = el.firstChild, tip = el.lastChild, band = svg.querySelector('.adx-band');
+  svg.addEventListener('pointermove', ev => {
+    const box = svg.getBoundingClientRect();
+    const i = Math.max(0, Math.min(n - 1, Math.floor(((ev.clientX - box.left) * W / box.width - L) / slot)));
+    const m = M[i];
+    band.setAttribute('x', (L + i * slot).toFixed(1));
+    band.classList.remove('hide');
+    tip.innerHTML = `<div class="adx-tip-h">${rbEsc(m.lab)}</div>`
+      + parts.map(p => `<div><i class="adx-sq" style="--c:var(${p.c})"></i>${rbEsc(p.t)}: <b>${rbM2(p.get(m))}</b></div>`).join('')
+      + (m.rev < 0 ? `<div><i class="adx-sq" style="--c:var(--bad)"></i>Reversals: <b>${rbM2(m.rev)}</b></div>` : '')
+      + `<div>Units paid for: <b>${staInt(m.units)}</b></div>`;
+    tip.classList.remove('hide');
+    const at = (x(i) + bw / 2) * box.width / W;
+    tip.style.left = Math.round(at > box.width / 2 ? at - tip.offsetWidth - 14 : at + 14) + 'px';
+  });
+  svg.addEventListener('pointerleave', () => { band.classList.add('hide'); tip.classList.add('hide'); });
+}
+
+/* ---------- most-lost products ---------- */
+function rbDrawLost(today) {
+  const rows = rbMostLost(RBD, today, RBS.brand, 10);
+  const pct = r => (r.pct == null ? '<span class="sta-dash">—</span>' : `<span class="rb-pct rb-pct-${rbPctClass(r.pct)}">${Math.round(r.pct)}%</span>`);
+  $('rbLost').innerHTML = '<thead><tr><th>Product</th><th class="num" title="Units lost, less the units found again">Units lost</th><th class="num" title="Units damaged or destroyed">Units damaged</th>'
+    + '<th class="num" title="Lost and damaged units at our sourcing cost (≈ landed when only that is known)">Value</th><th class="num" title="Lost and damaged payouts for this product in the same 12 months">Paid back</th>'
+    + '<th class="num" title="Paid back ÷ value: green 90%+, yellow 50–89%, red under 50%">% paid back</th></tr></thead><tbody>'
+    + (rows.map(r => `<tr><td class="rb-item"><div class="rb-ttl"><b>${rbEsc(r.title)}</b>${RBS.brand === 'ALL' ? ' ' + staBadge(RB_BRANDS[r.brand], 'brand-' + r.brand) : ''}</div><small class="sta-s">${rbEsc(r.sku)} · ${rbEsc(r.asin)}</small></td>`
+      + `<td class="num">${staInt(r.lostNet)}</td><td class="num">${staInt(r.damaged)}</td><td class="num">${rbValHtml(r.value, r.approx, r.noCost ? r.units : 0)}</td>`
+      + `<td class="num">${rbM2(r.paid)}</td><td class="num">${pct(r)}</td></tr>`).join('')
+      || (RBD.have && !RBD.have.ledger
+        ? '<tr><td colspan="6" class="rb-empty"><b>Needs the Inventory Ledger.</b> Upload it with "Upload Amazon reports" (Detailed view, CSV).</td></tr>'
+        : '<tr><td colspan="6" class="rb-empty"><span class="rb-tick" aria-hidden="true">✓</span>Nothing lost or damaged in the last 12 months.</td></tr>'))
+    + '</tbody>';
+  $('rbLostSub').textContent = 'The last 12 months, from the inventory ledger and the payouts · the top 10 by value'
+    + (RBD.costNote ? ` · ${RBD.costNote}: units only` : RBD.sample ? '' : ' · values at Profit & Margin\'s landed cost (≈)');
+}
+
+/* ---------- "Connect Amazon's data": nothing read yet ---------- */
+function rbDrawConnect() {
+  const row = (n, t, where, unlocks, state) => `<li><span class="rb-cn">${n}</span><div><b>${t}</b><small>${rbEsc(where)}</small><small>Unlocks: ${rbEsc(unlocks)}</small></div>${state}</li>`;
+  const P = RB.REPORTS.payouts, L = RB.REPORTS.ledger;
+  $('rbConnect').innerHTML = '<div class="adx-ch-head"><div class="adx-ch-tt"><h3 class="ui-card-title">Connect Amazon\'s data</h3>'
+    + '<div class="ui-note">Sellora shows no made-up numbers. Upload two of Amazon\'s reports (a few minutes in Seller Central), or wait for the backend to read them every night.</div></div>'
+    + '<button type="button" data-rbup="1">Upload Amazon reports</button></div>'
+    + '<ol class="rb-conn">'
+    + row(1, rbEsc(P.t), P.where, P.unlocks, '<span class="rb-st rb-st-wait">Not uploaded</span>')
+    + row(2, rbEsc(L.t), L.where, L.unlocks, '<span class="rb-st rb-st-wait">Not uploaded</span>')
+    + row(3, 'Inbound shipments', 'From the backend: no report you can download holds the units shipped per shipment', 'Inbound shortages', '<span class="rb-st rb-st-archived">Needs the backend</span>')
+    + '</ol>'
+    + `<p class="rb-muted">${RBD.costNote ? rbEsc(RBD.costNote) + ': the values will show as units only. ' : ''}Want to see the page first? <a href="?sample=1#reimb">Open it with sample data</a>.</p>`;
+}
+
+/* ---------- Upload Amazon reports ---------- */
+// The dialog: the brand first, then each report — read in this browser, checked, summed up, and saved only on "Save".
+const RB_UP = { brand: '', res: {} };
+function rbUpOpen() {
+  if (!RB_UP.brand && RBS.brand !== 'ALL') RB_UP.brand = RBS.brand;
+  RB_UP.res = {};
+  rbUpDraw();
+  $('rbUpDlg').classList.remove('hide');
+}
+function rbUpDraw() {
+  $('rbUpBrand').querySelectorAll('[data-b]').forEach(b => { const on = b.dataset.b === RB_UP.brand; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  const b = RB_UP.brand;
+  $('rbUpBody').innerHTML = ['payouts', 'ledger'].map((k, i) => {
+    const R = RB.REPORTS[k], up = b && RBX.uploads[b + '_' + k], r = RB_UP.res[k];
+    const last = up ? `Kept now: ${staInt((up.rows || []).length)} rows${up.meta && up.meta.from ? `, ${rbDate(rbDay(up.meta.from))} – ${rbDate(rbDay(up.meta.to))}` : ''}`
+      + `, uploaded ${RB_ASOF.format(up.uploadedAt)}${(up.trail || []).length ? ' by ' + rbEsc(up.trail[up.trail.length - 1].person || up.trail[up.trail.length - 1].email || '') : ''}.` : 'Nothing uploaded yet for this brand.';
+    let res = '';
+    if (r && r.err) res = `<div class="rb-note is-bad">${rbEsc(r.err)}</div>`;
+    else if (r && r.saved) res = `<div class="rb-note is-ok">Saved ✓ ${rbEsc(r.saved)}</div>`;
+    else if (r && r.ok) {
+      const warn = [];
+      if (r.otherBrand) warn.push(`<b>Most of its SKUs belong to ${rbEsc(RB_BRANDS[r.otherBrand.brand])}</b> (${staInt(r.otherBrand.n)} of the ${staInt(r.otherBrand.of)} Sellora knows). Check the brand above before saving.`);
+      if (r.other) warn.push(`${staInt(r.other)} row${r.other === 1 ? '' : 's'} with other reason codes (${rbEsc(Object.keys(r.otherCodes).join(', '))}): kept as "other", not counted as lost, found or damaged.`);
+      if (r.notUsd) warn.push(`${staInt(r.notUsd)} row${r.notUsd === 1 ? ' is' : 's are'} not in US dollars: shown as they are.`);
+      if (r.badDate) warn.push(`${staInt(r.badDate)} row${r.badDate === 1 ? '' : 's'} without a readable date left out.`);
+      const m = rbMerge(k, up ? up.rows : [], r.rows);
+      res = `<div class="rb-note">Read <b>${staInt(r.kept)} rows</b>, ${rbDate(rbDay(r.from))} – ${rbDate(rbDay(r.to))}, for <b>${rbEsc(RB_BRANDS[b])}</b>`
+        + (k === 'ledger' && r.skipped ? ` · ${staInt(r.skipped)} row${r.skipped === 1 ? '' : 's'} of other event types left out (only Adjustments and Receipts are used)` : '')
+        + (r.dupes > 0 ? ` · ${staInt(r.dupes)} repeated in the file, kept once` : '')
+        + `. Saving ${up ? `replaces ${staInt(m.replaced)} and adds ${staInt(m.added)}` : `adds ${staInt(m.added)}`}.</div>`
+        + warn.map(w => `<div class="rb-note is-act">${w}</div>`).join('')
+        + `<div class="rb-row2"><button type="button" data-upsave="${k}">Save ${rbEsc(R.t)}</button></div>`;
+    }
+    return `<section class="rb-upsec"><h4 class="rb-h4">${i + 1}. ${rbEsc(R.t)}</h4><p class="rb-muted">${rbEsc(R.where)}.<br>Unlocks: ${rbEsc(R.unlocks)}.</p>`
+      + `<p class="rb-muted">${last}</p>`
+      + `<label class="sta-btn dim rb-file${b ? '' : ' is-off'}"><input type="file" accept=".txt,.csv,.tsv,text/plain,text/csv" data-upk="${k}"${b ? '' : ' disabled'}> Choose the file…</label>${res}</section>`;
+  }).join('') + '<p class="rb-muted">Inbound shortages need the units shipped per shipment, which no report holds: they come from the backend.</p>';
+  $('rbUpNote').innerHTML = !b ? '<b>Pick the brand first.</b>' : RBX.where === 'fs' ? 'Saved to the shared copy, with who and when.' : 'Kept in this browser only until the shared copy is switched on (reimbData in firestore.rules).';
+}
+async function rbUpFile(k, file) {
+  if (!file || !RB_UP.brand) return;
+  let text = '';
+  try { text = await file.text(); } catch (e) { RB_UP.res[k] = { err: 'This browser could not read the file.' }; rbUpDraw(); return; }
+  const r = rbParseReport(k, text, RB_UP.brand, rbKnownBrands());
+  r.file = file.name;
+  RB_UP.res[k] = r;
+  rbUpDraw();
+}
+async function rbUpSave(k) {
+  const r = RB_UP.res[k], b = RB_UP.brand;
+  if (!r || !r.ok || !b) return;
+  const up = RBX.uploads[b + '_' + k], m = rbMerge(k, up ? up.rows : [], r.rows);
+  const dates = m.rows.map(x => x.date).sort();
+  try { await rbUploadSave(b, k, m.rows, { from: dates[0] || '', to: dates[dates.length - 1] || '', file: r.file || '', kept: r.kept }); }
+  catch (e) { RB_UP.res[k] = { err: 'Not saved: ' + (e.message || e) }; rbUpDraw(); return; }
+  RB_UP.res[k] = { saved: `${staInt(m.rows.length)} rows kept for ${RB_BRANDS[b]} (${staInt(m.replaced)} replaced, ${staInt(m.added)} added).` };
+  RBD = null;
+  try { await rbLoadAll(); } catch (e) { RB_ERR = String((e && e.message) || e); }
+  rbUpDraw();
+  renderReimb();
+}
+
+/* ---------- the case dialog: Make case / Re-check / Dispute ---------- */
+const rbItemNow = key => rbItems(RBD, RBC.recs, rbToday()).find(i => i.key === key) || null;
+function rbOpen(key) {
+  const it = rbItemNow(key);
+  if (!it) return;
+  RB_DLG = { key, copied: false };
+  const rec = rbRecOf(it);
+  $('rbDlgTitle').textContent = `${RB_VERB[it.type]} · ${it.type === 'inbound' ? it.itemKey : it.sku}`;
+  const dl = RB.DEADLINE[it.type === 'inbound' ? 'inbound' : it.type === 'underpaid' ? 'recheck' : 'reversal'];
+  $('rbDlgSub').innerHTML = `${rbEsc(RB_BRANDS[it.brand])} · ${rbEsc(RB.TYPES[it.type].t)} · ${it.type === 'inbound' ? 'delivered' : 'dated'} ${rbDate(it.event)}`
+    + ` · deadline <b>${rbDate(it.deadline)}</b> (${it.daysLeft === 0 ? 'the last day' : staInt(it.daysLeft) + ' days left'})`;
+  $('rbDlgBody').innerHTML = rbDlgHtml(it, rec, dl);
+  $('rbDlgNote').innerHTML = RBC.where === 'fs' ? 'Saved to the shared case list, with who and when.' : RBC.where === 'sample' ? 'Sample data: kept in this browser only.' : 'Kept in this browser only until the shared case list is switched on.';
+  $('rbDlg').classList.remove('hide');
+  setTimeout(() => { try { $('rbCaseId').focus(); } catch (e) { /* not on screen */ } }, 0);
+}
+function rbDlgHtml(it, rec, dl) {
+  const fig = (l, v) => `<div><small>${l}</small><b>${v}</b></div>`;
+  const open = RBC.recs.size ? [...RBC.recs.values()].filter(r => r.status === 'in_case').length : 0;
+  const warn = [];
+  if (!dl.confirmed) warn.push(`<div class="rb-note">Deadline: ${rbEsc(dl.t)}. <b>Not confirmed yet</b> — check the deadline on the ${it.type === 'inbound' ? 'shipment' : 'reimbursement'} in Seller Central.</div>`);
+  if (open >= RB.MAX_OPEN) warn.push(`<div class="rb-note is-act">You have ${staInt(open)} open cases; Amazon advises under ${RB.MAX_OPEN} at a time. You can still go on.</div>`);
+  let figs = '', table = '';
+  if (it.type === 'inbound') {
+    const skus = it.skus, open2 = skus.filter(x => !x.paidBy);
+    if (open2.length > RB.MAX_ITEMS) warn.push(`<div class="rb-note is-act">${staInt(open2.length)} SKUs: Amazon takes at most ${RB.MAX_ITEMS} items in one case — split them over two cases.</div>`);
+    const sum = f => open2.reduce((t, x) => t + f(x), 0);
+    figs = fig('Shipment', rbEsc(it.itemKey)) + fig('Shipped', staInt(sum(x => x.shipped))) + fig('Received', staInt(sum(x => x.received)))
+      + fig('Missing', staInt(it.units)) + fig('Value', it.value == null ? '—' : (it.approx ? '≈ ' : '') + rbM2(it.value)) + fig('Days left', staInt(it.daysLeft));
+    table = '<table class="xl"><thead><tr><th>SKU</th><th>FNSKU · ASIN</th><th class="num">Shipped</th><th class="num">Received</th><th class="num">Missing</th><th class="num">Value</th></tr></thead><tbody>'
+      + skus.map(x => `<tr${x.paidBy ? ' class="is-off"' : ''}><td><div class="sta-dcn">${rbEsc(x.sku)}</div><small>${rbEsc(x.title)}</small></td><td>${rbEsc(x.fnsku)}<small>${rbEsc(x.asin)}</small></td>`
+        + `<td class="num">${staInt(x.shipped)}</td><td class="num">${staInt(x.received)}</td><td class="num"><b>${staInt(x.missing)}</b></td>`
+        + `<td class="num">${x.paidBy ? `<small>paid by Amazon ${rbDate(rbDay(x.paidBy.date))}</small>` : rbValHtml(x.val.v, x.val.approx, x.val.noCost ? x.missing : 0)}</td></tr>`).join('')
+      + '</tbody></table>';
+  } else if (it.type === 'underpaid') {
+    const p = it.payout;
+    figs = fig('Units', staInt(it.units)) + fig('Paid per unit', rbM2(it.per)) + fig('Our sourcing cost', rbM2(it.cost)) + fig('Gap', rbM2(it.value)) + fig('Paid', rbM2(Number(p.amount))) + fig('Days left', staInt(it.daysLeft));
+    table = '<table class="xl"><thead><tr><th>Reimbursement ID</th><th>Date</th><th>Reason</th><th class="num">Units</th><th class="num">Paid / unit</th><th class="num">Our cost</th><th class="num">Gap</th></tr></thead><tbody>'
+      + `<tr><td><div class="sta-dcn">${rbEsc(p.reimbId)}</div><small>${rbEsc(p.sku)} · ${rbEsc(p.fnsku)}</small></td><td>${rbDate(rbDay(p.date))}</td><td>${rbEsc(p.reason)}</td>`
+      + `<td class="num">${staInt(it.units)}</td><td class="num">${rbM2(it.per)}</td><td class="num">${rbM2(it.cost)}</td><td class="num"><b>${rbM2(it.value)}</b></td></tr></tbody></table>`
+      + '<div class="rb-note">Our sourcing cost only (never the landed cost): it excludes shipping, handling and duties.</div>';
+  } else {
+    const p = it.payout, o = it.original;
+    figs = fig('Units', staInt(it.units)) + fig('Taken back', rbM2(Number(p.amount))) + fig('Original payout', o ? rbM2(Number(o.amount)) : '—') + fig('Days left', staInt(it.daysLeft));
+    const tr = (x, what) => `<tr><td><div class="sta-dcn">${rbEsc(x.reimbId)}</div><small>${what}</small></td><td>${rbDate(rbDay(x.date))}</td><td>${rbEsc(x.reason)}</td><td class="num">${staInt(rbUnits(x))}</td><td class="num"><b>${rbM2(Number(x.amount))}</b></td></tr>`;
+    table = '<table class="xl"><thead><tr><th>Reimbursement ID</th><th>Date</th><th>Reason</th><th class="num">Units</th><th class="num">Amount</th></tr></thead><tbody>'
+      + tr(p, 'the reversal') + (o ? tr(o, 'the original payout') : '') + '</tbody></table>'
+      + `<div class="sta-checks"><div class="ck-ok"><i>✓</i><span>The ledger check: no unit of ${rbEsc(p.fnsku)} found between ${rbDate(it.checkFrom)} and ${rbDate(it.checkTo)} (${RB.FOUND_DAYS} days either side).</span></div></div>`;
+  }
+  const steps = '<ol class="rb-steps">' + RB.STEPS[it.type].map(s => `<li>${rbEsc(s)}</li>`).join('') + '</ol>';
+  const proof = RB.PROOF[it.type].map(([k, t]) => `<label class="rb-check"><input type="checkbox" class="sta-cb" data-rbcheck="${k}"${rec.checks && rec.checks[k] ? ' checked' : ''}> <span>${rbEsc(t)}</span></label>`).join('');
+  const link = it.type === 'inbound' ? RB_LINKS.shipments : RB_LINKS.support;
+  return warn.join('') + `<div class="sta-figs rb-figs">${figs}</div>`
+    + `<div class="sta-dcp rb-dtable">${table}</div>`
+    + `<div class="rb-cols"><section><h4 class="rb-h4">In Seller Central</h4>${steps}</section>`
+    + `<section><h4 class="rb-h4">Proof to attach <small>ticks are saved</small></h4><div class="rb-checks">${proof}</div></section></div>`
+    + `<h4 class="rb-h4">The case text <small>edit it if you like, then copy</small></h4>`
+    + `<textarea id="rbText" class="rb-text" rows="11" spellcheck="true" aria-label="The case text">${rbEsc(rbCaseText(it))}</textarea>`
+    + `<div class="rb-row2"><button type="button" class="sta-btn" data-rbcopy="1">Copy the text</button><a class="sta-btn dim rb-link" href="${rbEsc(link)}" target="_blank" rel="noopener">Open Seller Central ↗</a></div>`
+    + `<div class="rb-caseid"><label class="sta-f" for="rbCaseId"><span class="rb-lab">Case ID</span><input id="rbCaseId" maxlength="40" autocomplete="off" placeholder="The case ID Amazon gave" value="${rbEsc(rec.caseId || '')}"></label>`
+    + `<button type="button" data-rbdone="1">I've created the case</button></div>`;
+}
+// Closing the dialog: after Copy and with no case ID, ask whether the case was made.
+function rbDlgTryClose() {
+  if (!RB_DLG) { $('rbDlg').classList.add('hide'); return; }
+  if (RB_DLG.copied && !String($('rbCaseId').value || '').trim()) { $('rbAsk').classList.remove('hide'); setTimeout(() => { try { $('rbAskYes').focus(); } catch (e) { /* */ } }, 0); return; }
+  rbDlgClose();
+}
+function rbDlgClose() {
+  RB_DLG = null;
+  $('rbAsk').classList.add('hide');
+  $('rbDlg').classList.add('hide');
+}
+async function rbCaseDone() {
+  const it = RB_DLG && rbItemNow(RB_DLG.key);
+  const id = String($('rbCaseId').value || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+  if (!it) return;
+  if (!id) { $('rbDlgNote').innerHTML = '<span class="sta-bad">Put the case ID Amazon gave, so Sellora never suggests a second claim for it.</span>'; $('rbCaseId').focus(); return; }
+  try {
+    await rbCaseSave(rbRecOf(it), { status: 'in_case', caseId: id, estimate: Math.round((it.value || 0) * 100) / 100 }, 'case-created', { caseId: id });
+  } catch (e) { $('rbDlgNote').innerHTML = `<span class="sta-bad">Not saved: ${rbEsc(e.message || e)}</span>`; return; }
+  rbDlgClose();
+  RB_NOTE = `Saved: ${rbEsc(it.itemKey)} is in case ${rbEsc(id)}.`;
+  renderReimb();
+}
+async function rbCheck(k, on) {
+  const it = RB_DLG && rbItemNow(RB_DLG.key);
+  if (!it) return;
+  try { await rbCaseSave(rbRecOf(it), { checks: { [k]: on } }, on ? 'proof-ticked' : 'proof-unticked', { check: k }); }
+  catch (e) { $('rbDlgNote').innerHTML = `<span class="sta-bad">The tick was not saved: ${rbEsc(e.message || e)}</span>`; }
+}
+
+/* ---------- Archive, Restore ---------- */
+let RB_ARCH = null;
+function rbArchOpen(key) {
+  const it = rbItemNow(key);
+  if (!it) return;
+  RB_ARCH = key;
+  $('rbArchSub').textContent = `${RB.TYPES[it.type].short} · ${it.type === 'inbound' ? it.itemKey : it.sku + ' · ' + it.itemKey}. It leaves the list and never gets a case; Restore brings it back.`;
+  $('rbArchBody').innerHTML = RB.ARCHIVE.map((r, i) => `<label class="rb-check"><input type="radio" name="rbArchWhy" value="${rbEsc(r)}"${i ? '' : ' checked'}> <span>${rbEsc(r)}</span></label>`).join('')
+    + '<label class="sta-f rb-archnote" for="rbArchNote"><span class="rb-lab">Note <small>(needed with Other)</small></span><input id="rbArchNote" maxlength="200" autocomplete="off"></label>';
+  $('rbArchMsg').textContent = '';
+  $('rbArchDlg').classList.remove('hide');
+}
+async function rbArchDo() {
+  const it = RB_ARCH && rbItemNow(RB_ARCH);
+  if (!it) return;
+  const why = (document.querySelector('input[name="rbArchWhy"]:checked') || {}).value || RB.ARCHIVE[0];
+  const note = String($('rbArchNote').value || '').trim().slice(0, 200);
+  if (why === 'Other' && !note) { $('rbArchMsg').innerHTML = '<span class="sta-bad">Say why in the note.</span>'; $('rbArchNote').focus(); return; }
+  try { await rbCaseSave(rbRecOf(it), { status: 'archived', reason: why, note }, 'archived', { reason: why, note }); }
+  catch (e) { $('rbArchMsg').innerHTML = `<span class="sta-bad">Not saved: ${rbEsc(e.message || e)}</span>`; return; }
+  $('rbArchDlg').classList.add('hide');
+  RB_ARCH = null;
+  RB_NOTE = `Archived: ${rbEsc(it.itemKey)} (${rbEsc(why)}). "Show archived" lists it, with Restore.`;
+  renderReimb();
+}
+async function rbRestore(key) {
+  const it = rbItemNow(key);
+  if (!it) return;
+  try { await rbCaseSave(rbRecOf(it), { status: 'draft', reason: '', note: '' }, 'restored'); }
+  catch (e) { RB_NOTE = `<span class="sta-bad">Not restored: ${rbEsc(e.message || e)}</span>`; renderReimb(); return; }
+  RB_NOTE = `Restored: ${rbEsc(it.itemKey)} is back on the list.`;
+  renderReimb();
+}
+
+/* ---------- the small dialogs: open cases, how to fix, how Sellora counts ---------- */
+function rbCasesOpen() {
+  const items = new Map(rbItems(RBD, RBC.recs, rbToday()).map(i => [i.key, i]));
+  const recs = [...RBC.recs.values()].filter(r => r.status === 'in_case' && (RBS.brand === 'ALL' || r.brand === RBS.brand))
+    .sort((a, z) => ((z.trail || [])[0] || {}).t - ((a.trail || [])[0] || {}).t);
+  const first = r => (r.trail || []).find(e => e.act === 'case-created') || (r.trail || [])[0] || {};
+  $('rbCasesSub').textContent = `${staInt(recs.length)} open · ≈ ${rbM0(recs.reduce((t, r) => t + (Number(r.estimate) || 0), 0))} estimated` + (recs.length >= RB.MAX_OPEN ? ` · Amazon advises under ${RB.MAX_OPEN} open` : '');
+  $('rbCasesBody').innerHTML = recs.length ? '<div class="sta-dcp"><table class="xl"><thead><tr><th>Type</th><th>Item</th><th>Case ID</th><th>Opened</th><th>By</th><th class="num">Estimate</th></tr></thead><tbody>'
+    + recs.map(r => { const it = items.get(r.id), e = first(r);
+      return `<tr><td>${rbTypePill(r.type)}</td><td><div class="sta-dcn">${rbEsc(r.itemKey)}</div><small>${rbEsc(it ? it.title : '')}</small></td><td><b>${rbEsc(r.caseId)}</b></td>`
+        + `<td>${e.t ? rbDate(rbDay(e.t)) : '—'}</td><td>${rbEsc(e.person || e.email || '—')}<small>${rbEsc(e.dev ? e.dev.name || e.dev.label || '' : '')}</small></td><td class="num">${rbM2(Number(r.estimate) || 0)}</td></tr>`; }).join('')
+    + '</tbody></table></div>' : '<p class="rb-empty"><span class="rb-tick" aria-hidden="true">✓</span>No open cases.</p>';
+  $('rbCasesDlg').classList.remove('hide');
+}
+function rbFixOpen() {
+  const u = rbItems(RBD, RBC.recs, rbToday()).filter(i => i.type === 'underpaid' && i.status === 'claim' && (RBS.brand === 'ALL' || i.brand === RBS.brand));
+  const seen = new Map();
+  u.forEach(i => { if (!seen.has(i.brand + '|' + i.asin)) seen.set(i.brand + '|' + i.asin, i); });
+  $('rbFixBody').innerHTML = '<ol class="rb-steps rb-steps-big">' + RB.FIX_STEPS.map(s => `<li>${rbEsc(s)}</li>`).join('') + '</ol>'
+    + '<div class="rb-note">Our sourcing cost is what we paid the supplier for one unit. It excludes shipping, handling and duties.</div>'
+    + '<h4 class="rb-h4">The costs to enter</h4><div class="sta-dcp"><table class="xl"><thead><tr><th>SKU</th><th>ASIN</th><th class="num">Seller Cost - New</th><th class="num">Amazon paid per unit</th></tr></thead><tbody>'
+    + [...seen.values()].map(i => `<tr><td><div class="sta-dcn">${rbEsc(i.sku)}</div><small>${rbEsc(i.title)}</small></td><td>${rbEsc(i.asin)}</td><td class="num"><b>${rbM2(i.cost)}</b></td><td class="num">${rbM2(i.per)}</td></tr>`).join('')
+    + '</tbody></table></div>'
+    + `<div class="rb-row2"><a class="sta-btn dim rb-link" href="${rbEsc(RB_LINKS.sourcing)}" target="_blank" rel="noopener">Open Seller Central ↗</a></div>`
+    + '<p class="rb-muted">Sellora will fill this file for you when the Paid page is built.</p>';
+  $('rbFixDlg').classList.remove('hide');
+}
+function rbLegendHtml() {
+  const dl = k => `${RB.DEADLINE[k].t} <span class="rb-tag">not confirmed yet</span>`;
+  return '<h4>What is counted</h4><ul>'
+    + `<li><b>Inbound shortage</b>: per SKU, missing = shipped − received, only when above 0. One shipment is one case. <b>Wait</b> until Amazon closes the shipment and ${RB.WAIT_DAYS} days have passed since delivery (it may still be counting); then <b>Claim now</b>. Deadline: ${dl('inbound')} — check it on the shipment in Seller Central. A SKU Amazon already paid for by itself is left out.</li>`
+    + `<li><b>Underpaid</b>: a payout below our <b>sourcing</b> cost per unit (never the landed cost). Gap = (cost − paid per unit) × units. Re-check window: ${dl('recheck')}.</li>`
+    + `<li><b>Reversal</b>: Amazon took money back saying the unit was found. Disputable only when the inventory ledger shows no unit of that FNSKU found within ${RB.FOUND_DAYS} days before or after it. Window: ${dl('reversal')}.</li>`
+    + `<li><b>Not counted yet</b>: ${rbEsc(RB.LATER.join(', '))}. They come once Amazon's other reports are connected.</li></ul>`
+    + '<h4>The value</h4><ul><li>Units × our <b>sourcing</b> cost.</li><li>Only a landed cost known: that, tagged <span class="rb-tag">≈ landed</span> — landed includes freight, Amazon\'s sourcing cost does not.</li>'
+    + '<li>No cost at all: the units, tagged <span class="rb-tag">no cost</span>, and left out of every $ total.</li></ul>'
+    + '<h4>The status, in this order</h4><ul><li><b>Archived</b>, <b>Paid</b> and <b>In a case</b> (from the case records) win.</li><li>Else <b>Expired</b>: past the deadline (the deadline day itself is still open).</li>'
+    + '<li>Else <b>Wait</b>; else <b>Claim now</b>.</li></ul>'
+    + '<h4>Never a duplicate</h4><ul><li>Amazon treats a second claim for the same thing as abuse: an item already in a case, already paid, or archived never gets "Make case" — the row says why, in red.</li>'
+    + `<li>At most ${RB.MAX_ITEMS} items per case, and Amazon advises under ${RB.MAX_OPEN} open cases: Sellora warns, it does not block.</li></ul>`
+    + '<h4>The boxes</h4><ul><li>Owed now, Expiring, Underpaid and Open cases are <b>today</b>. Recovered and Lost to deadlines follow the period, with the change against the period before (the same length).</li>'
+    + '<li>Recovered: through our cases = payouts with a case ID; paid by Amazon itself = without one.</li></ul>'
+    + (RBD && RBD.sample ? '<p class="rb-note">These numbers are sample data: Amazon\'s reimbursement reports are not connected yet.</p>' : '');
+}
+
+/* ---------- Export ---------- */
+function rbCsv() {
+  if (!RBD) return;
+  const rows = rbWeekRows(rbItems(RBD, RBC.recs, rbToday()));
+  const blob = new Blob(['﻿' + rbCsvLines(rows).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `reimbursement-do-this-week-${RBS.brand}${RBD.sample ? '-SAMPLE' : ''}-${rbIso(rbToday())}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ---------- wiring ---------- */
+const rbRedraw = () => renderReimb();
+const rbScrollTo = id => { try { $(id).scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { /* */ } };
+$('rbBrand').addEventListener('change', () => { RBS.brand = $('rbBrand').value in RB_BRANDS ? $('rbBrand').value : 'ALL'; RBS.all = false; rbPrefsSave(); rbRedraw(); });
+$('rbPeriod').addEventListener('click', e => {
+  const b = e.target.closest('[data-p]');
+  if (!b) return;
+  RBS.period = b.dataset.p;
+  if (RBS.period === 'custom' && (!RBS.from || !RBS.to)) { const t = rbToday(); RBS.from = rbIso(t - 29 * RB_DAY); RBS.to = rbIso(t); }
+  rbPrefsSave();
+  rbRedraw();
+});
+['rbFrom', 'rbTo'].forEach(id => $(id).addEventListener('change', () => {
+  RBS.from = $('rbFrom').value || RBS.from;
+  RBS.to = $('rbTo').value || RBS.to;
+  rbPrefsSave();
+  rbRedraw();
+}));
+$('rbCsv').addEventListener('click', rbCsv);
+$('rbLegendBtn').addEventListener('click', () => { $('rbLegendBody').innerHTML = rbLegendHtml(); $('rbLegend').classList.remove('hide'); });
+$('rbMsg').addEventListener('click', e => { if (e.target.closest('[data-rbretry]')) { RB_ERR = ''; ensureReimb(); } });
+$('rbBoxes').addEventListener('click', e => {
+  const b = e.target.closest('[data-box]');
+  if (!b || !RBD) return;
+  const k = b.dataset.box;
+  if (b.classList.contains('rb-box-na')) return;   // Underpaid without sourcing costs: nothing to list
+  if (k === 'owed' || k === 'exp' || k === 'under') {
+    RBS.focus = RBS.focus === k ? '' : k;
+    RBS.type = '';
+    RBS.all = false;
+    rbRedraw();
+    if (RBS.focus) rbScrollTo('rbWeekCard');
+  } else if (k === 'cases') rbCasesOpen();
+  else rbScrollTo('rbChartCard');
+});
+$('rbFix').addEventListener('click', e => { if (e.target.closest('[data-rbfix]')) rbFixOpen(); });
+$('rbChips').addEventListener('click', e => {
+  const t = e.target.closest('[data-type]'), x = e.target.closest('[data-exp]'), f = e.target.closest('[data-focusx]');
+  if (t) RBS.type = t.dataset.type;
+  else if (x) RBS.expired = !RBS.expired;
+  else if (f) RBS.focus = '';
+  else return;
+  RBS.all = false;
+  rbRedraw();
+});
+$('rbArch').addEventListener('change', () => { RBS.arch = $('rbArch').checked; rbRedraw(); });
+$('rbFoot').addEventListener('click', e => { if (e.target.closest('[data-rball]')) { RBS.all = !RBS.all; rbRedraw(); } });
+$('rbTable').addEventListener('click', e => {
+  const o = e.target.closest('[data-rbopen]'), a = e.target.closest('[data-rbarch]'), r = e.target.closest('[data-rbrestore]');
+  if (o) rbOpen(o.dataset.rbopen);
+  else if (a) { const d = a.closest('details'); if (d) d.open = false; rbArchOpen(a.dataset.rbarch); }
+  else if (r) rbRestore(r.dataset.rbrestore);
+});
+// One ⋯ menu open at a time.
+$('rbTable').addEventListener('toggle', e => {
+  if (e.target.tagName === 'DETAILS' && e.target.open) $('rbTable').querySelectorAll('details.rb-more[open]').forEach(d => { if (d !== e.target) d.open = false; });
+}, true);
+$('rbChartSeg').addEventListener('click', e => {
+  const b = e.target.closest('[data-cm]');
+  if (!b || b.dataset.cm === RBS.chart) return;
+  RBS.chart = b.dataset.cm;
+  RBS.off = {};
+  rbCard('rbChartBody', () => rbDrawChart(rbToday()));
+});
+$('rbChartLegend').addEventListener('click', e => {
+  const b = e.target.closest('[data-part]');
+  if (!b) return;
+  const k = b.dataset.part;
+  const vis = rbParts().filter(p => !RBS.off[p.k]);
+  if (!RBS.off[k] && vis.length === 1 && vis[0].k === k) return;   // never the last part showing
+  RBS.off[k] = !RBS.off[k];
+  rbCard('rbChartBody', () => rbDrawChart(rbToday()));
+});
+// The chart redraws when its width changes (a window resized, the menu shown or hidden), at most once a frame.
+(() => {
+  if (typeof ResizeObserver !== 'function') return;
+  let w = 0, raf = 0;
+  new ResizeObserver(() => {
+    const nw = $('rbPlot').clientWidth;
+    if (!nw || nw === w) return;
+    w = nw;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => { if (RB_CH && RB_CH.any) rbCard('rbChartBody', rbChartPlot); });
+  }).observe($('rbPlot'));
+})();
+// The case dialog.
+$('rbDlg').addEventListener('click', async e => {
+  if (e.target === $('rbDlg')) { rbDlgTryClose(); return; }
+  const c = e.target.closest('[data-rbcopy]');
+  if (c) { await staCopyText($('rbText').value, c); if (RB_DLG) RB_DLG.copied = true; c.textContent = 'Copied ✓'; setTimeout(() => { c.textContent = 'Copy the text'; }, 1600); return; }
+  if (e.target.closest('[data-rbdone]')) rbCaseDone();
+});
+$('rbDlg').addEventListener('change', e => { const k = e.target.closest('[data-rbcheck]'); if (k) rbCheck(k.dataset.rbcheck, k.checked); });
+$('rbDlg').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); rbDlgTryClose(); } else if (e.key === 'Enter' && e.target.id === 'rbCaseId') rbCaseDone(); });
+$('rbDlgX').addEventListener('click', rbDlgTryClose);
+$('rbDlgClose').addEventListener('click', rbDlgTryClose);
+$('rbAskYes').addEventListener('click', () => { $('rbAsk').classList.add('hide'); $('rbDlgNote').innerHTML = '<b>Put the case ID in, then "I\'ve created the case".</b>'; $('rbCaseId').focus(); });
+$('rbAskNo').addEventListener('click', rbDlgClose);
+$('rbAsk').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); $('rbAsk').classList.add('hide'); } });
+// The other dialogs: their ✕, a click on the shade, Escape.
+[['rbArchDlg', 'rbArchX'], ['rbCasesDlg', 'rbCasesX'], ['rbFixDlg', 'rbFixX'], ['rbLegend', 'rbLegendX'], ['rbUpDlg', 'rbUpX']].forEach(([m, x]) => {
+  $(x).addEventListener('click', () => $(m).classList.add('hide'));
+  $(m).addEventListener('click', e => { if (e.target === $(m)) $(m).classList.add('hide'); });
+  $(m).addEventListener('keydown', e => { if (e.key === 'Escape') $(m).classList.add('hide'); });
+});
+// Upload Amazon reports: from the bar and from "Connect Amazon's data".
+$('rbUpBtn').addEventListener('click', rbUpOpen);
+$('rbConnect').addEventListener('click', e => { if (e.target.closest('[data-rbup]')) rbUpOpen(); });
+$('rbUpBrand').addEventListener('click', e => {
+  const b = e.target.closest('[data-b]');
+  if (!b || b.dataset.b === RB_UP.brand) return;
+  RB_UP.brand = b.dataset.b;
+  RB_UP.res = {};
+  rbUpDraw();
+});
+$('rbUpBody').addEventListener('change', e => { const f = e.target.closest('input[data-upk]'); if (f && f.files && f.files[0]) rbUpFile(f.dataset.upk, f.files[0]); });
+$('rbUpBody').addEventListener('click', e => { const s = e.target.closest('[data-upsave]'); if (s) { s.disabled = true; rbUpSave(s.dataset.upsave); } });
+$('rbUpClose').addEventListener('click', () => $('rbUpDlg').classList.add('hide'));
+$('rbArchCancel').addEventListener('click', () => $('rbArchDlg').classList.add('hide'));
+$('rbArchOk').addEventListener('click', rbArchDo);
 
 /* ####################################################################################################
  * GROUP: src/app/listing/

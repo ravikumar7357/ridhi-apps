@@ -10,14 +10,15 @@
 // Every tab by key. Button id = 'tab' + capId(key), pane id = 'pane' + capId(key). The order matters only
 // for which tab opens first: the first one the account is allowed.
 // 'dash' (20 Nov 2026) is the Dashboard (core/dashboard.js): first, so it is the screen that opens after sign-in.
-const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
+// 'reimb' (24 Nov 2026): Reimbursement › Overview (reimb/reimb-overview.js), its own menu group and its own right.
+const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'shop', 'adj', 'kw', 'ba', 'age', 'reimb', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'ngram', 'plc', 'ppch', 'deals', 'tiktok', 'carousel', 'opt', 'img',
   'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg', 'create'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
 // The title shown at the top of the page for each tab.
 const TAB_TITLE = { dash: 'Dashboard', link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
-  age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
+  age: 'Inventory Age', reimb: 'Reimbursement · Overview', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
   trends: 'Overview', st: 'Search Term Analysis', ngram: 'N-Gram Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', ncheck: 'Numbers Check', shop: 'Shopify Orders',
@@ -198,6 +199,7 @@ function showTab(which) {
   if (which === 'dash') ensureDash();     // the Dashboard: what the other screens already hold, no Amazon call
   if (which === 'kw') loadNiches();       // lazy-load the niche list the first time
   if (which === 'age') ensureAge();       // show the cached snapshot without hitting Amazon
+  if (which === 'reimb') ensureReimb();   // Reimbursement › Overview: sample data until Amazon's reports are connected, no backend call
   if (which === 'health') ensureHealth();
   if (which === 'lrules') ensureLrules();
   if (which === 'audit') ensureAudit();

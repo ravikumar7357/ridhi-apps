@@ -227,6 +227,19 @@ service cloud.firestore {
     match /adsSettings/{brand} {
       allow read, write: if can('st') || can('audit');
     }
+    // Reimbursement (24 Nov 2026): one case record per claim — an inbound shortage, an underpaid payout or a reversal — with
+    // its status (draft, in_case, paid, archived), the case ID, the proof ticked and a trail of who did what, from which
+    // device. Nobody may delete one, so the list is also the record of every claim. Until this block is deployed the screen
+    // keeps the records in each person's own browser and says so.
+    match /reimbCases/{id} {
+      allow read, create, update: if can('reimb') || can('audit');
+      allow delete: if false;
+    }
+    // Reimbursement: the Amazon reports people upload (the Reimbursements report, the Inventory Ledger), one brand and report
+    // per set of chunks {brand}_{report}_{n} with who uploaded it. A newer upload rewrites the chunks and removes any left over.
+    match /reimbData/{id} {
+      allow read, write: if can('reimb') || can('audit');
+    }
     // Unit costs, per ASIN, plus the percentage model the profit figures are built on. Amazon has no
     // API for what goods cost, so this document is typed by hand and is the ONLY copy — nothing can
     // regenerate it. Gated on the Profit tab, so an account granted the ad tabs cannot read margins.
