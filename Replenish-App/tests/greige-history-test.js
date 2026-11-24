@@ -191,9 +191,10 @@ console.log('== the Inventory and the ledger, laid out to act on (Vishesh, 23 No
   ok('a fabric with only cut pieces left: Send 40 cut pcs', /data-ctssend="Canvas"[^>]*>Send 40 cut pcs</.test(G2.invNextCell(cutR, false)));
   ok('a fabric with nothing to do says so', /nothing to do/.test(G2.invNextCell(Object.assign({}, base, { ppc: null }), false)));
   const todo = G2.invTodoHtml([shortR, cutR], true, false);
-  ok('the to-do strip: Short for PPC (7,040 m greige to order), Greige in store, RFD for PPC lines, Cut pieces left — each a filter',
-    /data-invshow="short"[\s\S]*7,040 m greige to order/.test(todo) && /data-invshow="store"/.test(todo) && /data-invshow="send"/.test(todo) && /data-invshow="cut"/.test(todo) && !/data-invshow="late"/.test(todo));
-  ok('…with nothing to do, one line says all is clear', /Nothing waiting/.test(G2.invTodoHtml([Object.assign({}, base, { ppc: null })], true, false)));
+  ok('the to-do strip: Greige in store and Cut pieces left, each a filter — no Short for PPC or RFD for PPC lines tile (Ravi, 24 Nov)',
+    /data-invshow="store"/.test(todo) && /data-invshow="cut"/.test(todo) && !/data-invshow="late"/.test(todo)
+    && !/data-invshow="short"|data-invshow="send"|Short for PPC|RFD for PPC lines/.test(todo));
+  ok('…with nothing to do, no strip at all (no tile does not mean every fabric is covered)', G2.invTodoHtml([Object.assign({}, base, { ppc: null })], true, false) === '');
   const t = new Date().toISOString().slice(0, 10);
   ok('quick periods: Today is today to today; This month starts on the 1st; All is no dates', G2.lfPeriod('today').from === t && G2.lfPeriod('today').to === t && G2.lfPeriod('month').from === t.slice(0, 8) + '01' && G2.lfPeriod('').from === '');
   ok('…7 days is today and the 6 before', (Date.parse(G2.lfPeriod('7').to) - Date.parse(G2.lfPeriod('7').from)) / 86400000 === 6);
