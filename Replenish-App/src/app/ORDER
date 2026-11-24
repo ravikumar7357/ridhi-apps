@@ -106,6 +106,7 @@ orders/reserve.js
 vendors/portal/vendor-portal.js
 vendors/portal/printer-receive.js
 vendors/portal/daily-challan.js
+vendors/portal/printer-cloth.js
 vendors/portal/vendor-sent-excel.js
 vendors/portal/vendor-master.js
 vendors/portal/phone-pin.js

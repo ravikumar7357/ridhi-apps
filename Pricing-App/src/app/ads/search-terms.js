@@ -3,8 +3,11 @@
  * until 14 Nov 2026; its key stays 'st' because permissions are stored under it.
  *
  * Layout, top to bottom:
- *   the bar        brand, filter, minimum spend, Filters (match type, campaign type, verdict, tag), Lists & settings,
- *                  Review list, Export; the data line (stMsg): window, completeness, data checks, unit costs.
+ *   the bar        (23 Nov) brand, date window (stWin), product / campaign / stock filters (stPf), then Plan my moves,
+ *                  Review list, Export, Lists & settings; below it the search, minimum spend and Filters (match type,
+ *                  campaign type, verdict, tag); the chips of every active filter (stChips); the 7-day note (stWinNote);
+ *                  the data line (stMsg): window, completeness, data checks, unit costs. THE DATE WINDOW and the
+ *                  PRODUCT, CAMPAIGN AND STOCK FILTERS are shared with N-Gram Analysis (ads/ngram.js).
  *   summary strip  (stSum) ad spend, sales, ACoS, orders, and the spend in terms too small to be listed.
  *   four boxes     (stBoxes) Burning money, Worth scaling, Competing paths, Review list.
  *   the view card  title, "How Sellora decides", the view switch (burn / scale / paths / all / cp) with Burning money's
@@ -43,8 +46,9 @@
  * Bids belong to the keyword or target, never to the search term, so a bid change moves every term of that target. */
 
 // The three caches and the optional five (each null until the backend writes it); costErr when unit costs could not be read.
+// wx: the 14- and 60-day caches (stD14, stD60, tgtD14, tgtD60) by name, once the backend writes them (THE DATE WINDOW).
 let ST = { at: '', terms: {}, tgts: {}, ag: {}, loaded: false, extra: false,
-  ent: null, set: null, rec: null, tset: null, trec: null, costs: true, costErr: '', src: {} };
+  ent: null, set: null, rec: null, tset: null, trec: null, wx: {}, costs: true, costErr: '', src: {} };
 // The view, Burning money's sub-view (term / target / word), the rows of the last draw (for the export), the page and its
 // size, the sort ({ k: column, d: 1 / -1 }), the ticked rows by key, the open groups of All terms.
 let ST_VIEW = 'all', ST_SUB = 'term', ST_LAST = [], ST_PG = 0, ST_SIZE = 100, ST_SORT = { k: '', d: -1 };
@@ -115,6 +119,49 @@ const STA_LAUNCH = /launch|new product|\(new\)|\bnew\b|ranking|\brank\b|preset/i
 // Words that say nothing on their own, left out of the word roll-up.
 const STA_STOP = new Set(['a', 'an', 'and', 'the', 'for', 'of', 'with', 'in', 'on', 'to', 'by', 'x', 'set', 'inch', 'inches',
   'in.', 'pack', 'pcs', 'piece', 'pieces', 'size', 'large', 'small', 'big', 'my', 'from', 'or', 'at', 'is', 'it']);
+
+/* THE DATE WINDOW (23 Nov 2026): one for Search Term Analysis and N-Gram Analysis, picked in the bar and remembered on this
+ * device (localStorage staWin). Every figure, verdict, box and table of both screens is drawn from it.
+ *   30 days  stSettled / tgtSettled (days 8–37 ago, their sales final): the default; the 30-day caches when they are missing.
+ *   7 days   stRecent / tgtRecent: sales still coming in — no negative and no pause from it (a lower bid at most).
+ *   14, 60   stD14 / tgtD14 and stD60 / tgtD60, rows in stSettled's shape: greyed ("coming soon — needs the backend") until
+ *            the backend writes them, then on by themselves. A negative only when the window's last day is 8+ days back (its
+ *            sales final). Amazon keeps about 65 days of search terms, so 60 is the longest there can be.
+ * Campaign × Product reads its own 30-day report and stays on 30 days whatever the window; Placement reads the model with
+ * a brand and no window (staModel), so always 30 days. */
+const STA_WINS = [
+  { k: '7', t: '7 days', st: 'stRecent', tg: 'tgtRecent' },
+  { k: '14', t: '14 days', st: 'stD14', tg: 'tgtD14' },
+  { k: '30', t: '30 days', st: 'stSettled', tg: 'tgtSettled' },
+  { k: '60', t: '60 days', st: 'stD60', tg: 'tgtD60' },
+];
+// The caches that switch 14 and 60 days on, read with the others (each null until the backend writes it).
+const STA_WIN_MORE = ['stD14', 'stD60', 'tgtD14', 'tgtD60'];
+const STA_WIN_KEY = 'staWin';
+let STA_WIN = '30';
+try { const v = localStorage.getItem(STA_WIN_KEY); if (STA_WINS.some(w => w.k === v)) STA_WIN = v; } catch (e) { /* 30 days */ }
+const staWinDef = k => STA_WINS.find(w => w.k === k) || STA_WINS[2];
+// A window's cache by name: the four read since 14 Nov keep their own place on ST, the 14- and 60-day ones are in ST.wx.
+function staWinCache(name) {
+  const own = { stSettled: ST.set, stRecent: ST.rec, tgtSettled: ST.tset, tgtRecent: ST.trec };
+  return name in own ? own[name] : (ST.wx[name] || null);
+}
+// Can this window be picked? 30 days always (it falls back to the 30-day caches); the others once their search terms are in.
+const staWinOn = k => k === '30' || !!(staWinCache(staWinDef(k).st) || {}).d;
+// The window in use: the one picked, or 30 days while the one picked is not there (yet).
+const staWin = () => (staWinOn(STA_WIN) ? STA_WIN : '30');
+// Are a window's sales final — its last day 8 or more days back, so every click in it has had its 7 days to turn into an order?
+function staWinFinal(to) {
+  const t = Date.parse(String(to || '').slice(0, 10) + 'T00:00:00Z');
+  return t > 0 && Date.now() - t >= 8 * 86400000;
+}
+// One brand's pack of a window other than 30 days, in the shape staTermsOf hands out. kind: 'st' (search terms) or 'tg' (targets).
+function staWinPack(k, kind, b) {
+  const W = staWinDef(k), c = staWinCache(kind === 'st' ? W.st : W.tg);
+  const p = (c && c.d && c.d[b]) || {};
+  const from = p.from || (c && c.from) || '', to = p.to || (c && c.to) || '';
+  return Object.assign({}, p, { rows: p.rows || [], from, to, win: k, at: (c && c.at) || '', settled: k !== '7' && staWinFinal(to) });
+}
 
 /* ---------- small helpers ---------- */
 const staEsc = s => String(s == null ? '' : s)
@@ -399,7 +446,7 @@ async function staLoad_() {
     }
     if (!ST.extra) {
       const ok = x => (x && x.d ? x : null);
-      jobs.push(Promise.all(['adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent', 'plcSettled', 'plcRecent'].map(grab)).then(([e, s, r, ts, tr, ps, pr]) => {
+      jobs.push(Promise.all(['adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent', 'plcSettled', 'plcRecent'].concat(STA_WIN_MORE).map(grab)).then(([e, s, r, ts, tr, ps, pr, ...more]) => {
         ST.ent = ok(e);
         ST.set = ok(s);
         ST.rec = ok(r);
@@ -407,6 +454,8 @@ async function staLoad_() {
         ST.trec = ok(tr);
         ST.plc = ok(ps);
         ST.plcr = ok(pr);
+        ST.wx = {};
+        STA_WIN_MORE.forEach((n, i) => { if (ok(more[i])) ST.wx[n] = more[i]; });
         ST.extra = true;
         Object.keys(STA_ENTX).forEach(k => delete STA_ENTX[k]);
       }));
@@ -476,7 +525,7 @@ function staNotLoaded(ids) {
 // Newer data behind a screen opened from this browser's copy (baCache): read again and redraw — not while a dialog is open
 // (the redraw waits for the next one). The caches this screen reads; Placement's and N-Gram Analysis's come from the same ones.
 // While it loads, the screens keep drawing the data they had (staHave).
-const STA_CACHES = ['srchTerm', 'targeting', 'adGroup', 'adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent', 'plcSettled', 'plcRecent'];
+const STA_CACHES = ['srchTerm', 'targeting', 'adGroup', 'adEntities', 'stSettled', 'stRecent', 'tgtSettled', 'tgtRecent', 'plcSettled', 'plcRecent'].concat(STA_WIN_MORE);
 let STA_NEWER_T = 0;
 window.addEventListener('sellora-cache', e => {
   if (!e.detail || !STA_CACHES.includes(e.detail.name)) return;
@@ -511,14 +560,19 @@ const staTitle = a => {
 
 /* ---------- the figures each verdict is drawn from ---------- */
 
-// The search terms of one brand to judge on: the settled window when the backend writes it, else the 30-day cache.
-function staTermsOf(b) {
+// The search terms of one brand to judge on, in a window (default: the one in use, staWin). 30 days: the settled window
+// when the backend writes it, else the 30-day cache; another window: its own cache (THE DATE WINDOW).
+function staTermsOf(b, win) {
+  const k = win || staWin();
+  if (k !== '30') return staWinPack(k, 'st', b);
   const s = ST.set && ST.set.d && ST.set.d[b];
   if (s && s.rows) return Object.assign({ settled: true }, s);
   return Object.assign({ settled: false }, ST.terms[b] || {});
 }
 // The same for targets.
-function staTgtsOf(b) {
+function staTgtsOf(b, win) {
+  const k = win || staWin();
+  if (k !== '30') return staWinPack(k, 'tg', b);
   const s = ST.tset && ST.tset.d && ST.tset.d[b];
   if (s && s.rows) return Object.assign({ settled: true }, s);
   return Object.assign({ settled: false }, ST.tgts[b] || {});
@@ -606,15 +660,19 @@ let STM = null;
 
 // Everything the views draw for the brand picked: rows (one per term and path), tg (every keyword / target), words,
 // groups (Competing paths), byKey, and per brand: have (what arrived), info (stale, data checks), protect, dest.
-function staModel(pickArg) {
+// win: the date window ('7', '14', '30', '60'). Left out, it is the one in use (staWin) — except when a brand is given
+// without one (Placement: staModel('ALL')), which stays on 30 days whatever these two screens show.
+function staModel(pickArg, winArg) {
   const pick = pickArg || $('stBrand').value;
-  const key = pick + '|' + ST_RL.stamp + '|' + (STS.stamp || 0);
+  const win = winArg || (pickArg ? '30' : staWin());
+  const key = pick + '|' + win + '|' + ST_RL.stamp + '|' + (STS.stamp || 0);
   if (STM && STM.key === key) return STM;
   const brands = pick === 'ALL' ? ['SP', 'CPC'] : [pick];
-  const M = { key, brands, rows: [], tgRows: [], tgAll: [], words: [], groups: [], overlap: 0, byKey: new Map(), settled: false,
+  const M = { key, brands, win, rows: [], tgRows: [], tgAll: [], words: [], groups: [], overlap: 0, byKey: new Map(), settled: false,
     have: {}, info: {}, protect: {}, dest: {}, agInfo: {} };
   try { ADSX.paceFresh(); } catch (e) { /* Overview's lines are not there: no unit costs */ }
   const rlOpen = staRlIndex();
+  M.rlOpen = rlOpen;   // the filtered view rebuilds By word with it (staView)
   brands.forEach(b => staModelBrand(b, M, rlOpen));
   STM = M;
   return M;
@@ -622,19 +680,31 @@ function staModel(pickArg) {
 
 // One brand's share of the model.
 function staModelBrand(b, M, rlOpen) {
-  const src = staTermsOf(b), tsrc = staTgtsOf(b);
+  const win = M.win || '30';
+  const src = staTermsOf(b, win), tsrc = staTgtsOf(b, win);
   const terms = src.rows || [], tgts = tsrc.rows || [];
   const S = staSet(b);
-  M.have[b] = { terms: terms.length, tgts: tgts.length, settled: src.settled, from: src.from || '', to: src.to || '',
+  M.have[b] = { terms: terms.length, tgts: tgts.length, settled: src.settled, from: src.from || '', to: src.to || '', win,
     dropped: src.dropped || 0, dropSpend: src.dropSpend || 0, minClicks: src.minClicks || 3 };
   if (src.settled) M.settled = true;
   // 2. A brand with no search terms, or ones older than 36 hours, gets no suggestions.
-  const at = (ST.set && ST.set.d && ST.set.d[b]) ? ST.set.at : ST.at;
+  const at = win !== '30' ? (src.at || ST.at) : (ST.set && ST.set.d && ST.set.d[b]) ? ST.set.at : ST.at;
   const old = at && Date.now() - staStamp(at) > STA.STALE_H * 3600000;
   const info = M.info[b] = { stale: !terms.length ? 'No search terms for this brand in the last run' : old ? `Search terms from ${at}: not refreshed since` : '', bad: 0, badSp: 0,
     settled: !!src.settled };
+  // A window other than 30 days whose last days' sales are not all in (7 days, always): no negative and no pause from it —
+  // a lower bid at most. noNeg / softWhy / softShort say so in every verdict, By word and N-Gram Analysis.
+  if (win !== '30' && !src.settled) {
+    info.noNeg = true;
+    info.softWhy = win === '7' ? 'Last 7 days: sales still coming in, so no negative or pause from this window'
+      : `${staWinDef(win).t}: its last days' sales are not all in yet, so no negative or pause from this window`;
+    info.softShort = win === '7' ? 'Sales still coming in' : 'Last days still coming in';
+  }
   if (!terms.length && !tgts.length) return;
-  const rec = staRecentOf(b, false), trec = staRecentOf(b, true);
+  // The last 7 days under each figure: with 30 days (they follow it), or a window that ends before they begin; never with 7 days.
+  const recOf = x => (x && x.d && x.d[b] && x.d[b].from) || (x && x.from) || '';
+  const showRec = win === '30' || (win !== '7' && src.to && recOf(ST.rec) && String(src.to).slice(0, 10) < String(recOf(ST.rec)).slice(0, 10));
+  const rec = showRec ? staRecentOf(b, false) : new Map(), trec = showRec ? staRecentOf(b, true) : new Map();
   const E = staEnt(b);
   const now = Date.now();
 
@@ -1033,7 +1103,12 @@ function staTgtVerdict(g, info, P) {
   g.beUse = be;
   const last = staLastChange(g.pathKey);
   const cool = last && Date.now() - last < STA.COOLDOWN * 86400000;
-  if (!(g.o > 0)) return staTgtNoSale(g, cool, last);
+  if (!(g.o > 0)) {
+    staTgtNoSale(g, cool, last);
+    // A window whose last days' sales are not all in (7 days): no pause from it — a lower bid meanwhile.
+    if (info.noNeg && g.next === 'pause') { g.next = 'reduce'; g.softNote = info.softWhy + ': a lower bid meanwhile'; }
+    return;
+  }
   if (tgt == null) {
     // No unit cost and no target: an ACoS over 100% still loses money on every sale (19 Nov audit).
     if (g.acos > STA.LOSS_ACOS && g.sp >= STA.LOSS_MIN_SP) {
@@ -1159,7 +1234,7 @@ function staVerdict(r, info) {
     if (r.chance < STA.NEG_CHANCE && info.settled) r.next = 'neg';
     else {
       r.soft = true;
-      r.softNote = !info.settled ? 'From the 30-day report (the settled one is missing): its last 7 days\' sales are not all in, so no negative yet'
+      r.softNote = !info.settled ? (info.softWhy || 'From the 30-day report (the settled one is missing): its last 7 days\' sales are not all in, so no negative yet')
         : `Not yet sure enough for a negative (about ${staNeed(r.rate.p, r.c, STA.NEG_CHANCE)} more clicks)`;
       r.next = g && r.kw ? 'reduce' : null;
       if (r.next) r.protectNote = r.softNote + ' — a lower bid on its keyword meanwhile';
@@ -1269,7 +1344,7 @@ function staVerdict(r, info) {
   // No negative of any kind from the 30-day fallback window (its last 7 days' sales are not all in yet).
   if (!info.settled && (r.next === 'neg' || r.next === 'pause' || r.next === 'iso')) {
     r.next = null;
-    r.hold = 'Negatives wait for the settled report (this is the 30-day one: its last 7 days\' sales are not all in)';
+    r.hold = info.softWhy || 'Negatives wait for the settled report (this is the 30-day one: its last 7 days\' sales are not all in)';
   }
   if (r.next === 'reduce' || r.next === 'raise') {
     if (!g) { r.next = r.next === 'reduce' && !r.noNeg && !r.main && !r.soft ? 'neg' : null; if (!r.next) r.hold = r.softNote || "Amazon didn't report which target caught this term"; }
@@ -1300,9 +1375,15 @@ function staFinish(r) {
  * builds it again. Each pattern: { gram, words, n (terms), c, sp, o, s, zsp (spend in terms with no order), conv (terms
  * with an order), terms (the rows themselves), cps (campaign id → { cid, cn, c, sp, s, o, n }), and the tail apart: tail (its
  * spend), tn (terms), tc (clicks), to (orders), ts (sales), tcp (campaign id → its spend) }. */
-function staGramIndex(b, M, mine) {
-  if (!M.grams) M.grams = {};
-  if (M.grams[b]) return M.grams[b];
+// o (the filtered view, staView): built from `mine` alone and not kept on the model; o.tail 'none' leaves the tail out (a
+// product or stock filter: the tail has no ad group), a Set of 'brand|campaign' keeps only its spend in those campaigns (the
+// backend names up to 8 campaigns per word, with their spend — its clicks and terms are not split by campaign).
+// The tail is the window's: the settled report's with 30 days, the window's own otherwise (none in 7 days).
+function staGramIndex(b, M, mine, o) {
+  if (!o) {
+    if (!M.grams) M.grams = {};
+    if (M.grams[b]) return M.grams[b];
+  }
   const map = new Map();
   const mk = gram => ({ gram, words: gram.split(' ').length, n: 0, c: 0, sp: 0, o: 0, s: 0, zsp: 0, conv: 0, cps: new Map(), terms: [], tail: 0, tn: 0, tc: 0, to: 0, ts: 0, tcp: new Map() });
   (mine || M.rows.filter(r => r.brand === b)).forEach(r => {
@@ -1327,8 +1408,24 @@ function staGramIndex(b, M, mine) {
     }
   });
   // The tail the backend kept as words (AdsDecide.gs: terms too small to be listed one by one).
-  const tail = (ST.set && ST.set.d && ST.set.d[b] && ST.set.d[b].grams) || [];
-  tail.forEach(t => {
+  const tail = !M.win || M.win === '30' ? (ST.set && ST.set.d && ST.set.d[b] && ST.set.d[b].grams) || [] : staTermsOf(b, M.win).grams || [];
+  const only = o && o.tail instanceof Set ? o.tail : null;
+  if (!(o && o.tail === 'none')) tail.forEach(t => {
+    if (only) {
+      // Only its spend in the campaigns picked (the tail has no order by definition: no sales to split).
+      const cps = (t[6] || []).filter(([cid]) => only.has(b + '|' + cid));
+      const sp = cps.reduce((s, c) => s + (c[1] || 0), 0);
+      if (!(sp > 0)) return;
+      const x = map.get(t[0]) || map.set(t[0], mk(t[0])).get(t[0]);
+      x.sp += sp; x.tail += sp;
+      if (!(t[4] > 0)) x.zsp += sp;
+      cps.forEach(([cid, csp]) => {
+        const cp = x.cps.get(cid) || x.cps.set(cid, { cid, cn: staName(b, cid), c: 0, sp: 0, s: 0, o: 0, n: 0 }).get(cid);
+        cp.sp += csp;
+        x.tcp.set(cid, (x.tcp.get(cid) || 0) + csp);
+      });
+      return;
+    }
     const x = map.get(t[0]) || map.set(t[0], mk(t[0])).get(t[0]);
     x.n += t[1]; x.c += t[2]; x.sp += t[3]; x.o += t[4]; x.s += t[5]; x.tail += t[3]; x.tn += t[1]; x.tc += t[2]; x.to += t[4]; x.ts += t[5];
     if (!(t[4] > 0)) x.zsp += t[3];
@@ -1338,6 +1435,7 @@ function staGramIndex(b, M, mine) {
       x.tcp.set(cid, (x.tcp.get(cid) || 0) + sp);
     });
   });
+  if (o) return map;
   return (M.grams[b] = map);
 }
 
@@ -1356,8 +1454,9 @@ function staBrandTypes(b, M) {
     .forEach(t => staNorm(t).split(' ').forEach(w => typeWords.add(staSing(w))));
   return { typeWords, allTypes };
 }
-function staWords(b, M, mine, P, info, rlOpen, bAgg) {
-  const map = staGramIndex(b, M, mine);
+// o (the filtered view, staView): { map: its own pattern index, out: the list to fill, byKey } instead of the model's.
+function staWords(b, M, mine, P, info, rlOpen, bAgg, o) {
+  const map = o ? o.map : staGramIndex(b, M, mine);
   const { typeWords, allTypes } = staBrandTypes(b, M);
   const p = bAgg.c > 0 && bAgg.o > 0 ? bAgg.o / bAgg.c : null;
   const rows = [];
@@ -1386,8 +1485,8 @@ function staWords(b, M, mine, P, info, rlOpen, bAgg) {
     row.burned = x.o > 0 ? Math.max(0, x.zsp) : x.sp;
     row.stake = row.burned;
     row.rl = [...rlOpen.keys()].some(kk => kk.startsWith(key + '|'));
-    row.next = protect ? null : info.stale ? null : row.rl ? null : 'word';
-    row.hold = protect ? `A ${protect}: never negated` : info.stale ? info.stale : '';
+    row.next = protect ? null : info.stale ? null : info.noNeg ? null : row.rl ? null : 'word';
+    row.hold = protect ? `A ${protect}: never negated` : info.stale ? info.stale : info.noNeg ? info.softWhy : '';
     row.status = row.rl ? 'In review' : 'Active';
     row.act = row.next === 'word';
     rows.push(row);
@@ -1402,8 +1501,102 @@ function staWords(b, M, mine, P, info, rlOpen, bAgg) {
     if (!r.tag && kept.some(k => !k.tag && inside(k, r))) return;
     kept.push(r);
   });
-  kept.forEach(r => { M.words.push(r); M.byKey.set(r.key, r); });
+  kept.forEach(r => {
+    if (o) { o.out.push(r); o.byKey.set(r.key, r); return; }
+    M.words.push(r);
+    M.byKey.set(r.key, r);
+  });
 }
+
+/* ---------- PRODUCT, CAMPAIGN AND STOCK FILTERS (23 Nov 2026) ----------
+ * Top right of Search Term Analysis and N-Gram Analysis, one set for both screens, kept for this visit only: parent product,
+ * child product (SKU / ASIN) and campaign — searchable lists, several picks each (any of them inside a list, every list at
+ * once) — built from the rows' own parents, asins and campaign IDs, titled from Listing Health where Sellora has the title;
+ * and a stock chip (out of stock / under 15 days of FBA stock). A search term belongs to an ad group, so it shows under every
+ * product in that ad group. A filter never changes a verdict (each is judged on the whole brand); it narrows what is shown:
+ * the summary strip, the boxes, the tables, the n-grams, Plan my moves and Export. By word and the n-grams are summed again
+ * over the terms that pass (staView). */
+const STA_F = { par: new Set(), asin: new Set(), cp: new Set(), stock: '' };
+const STA_F_LOW = 15;   // "under 15 days" of FBA stock (out of stock included)
+const STA_F_TIP = 'A search term belongs to an ad group, so it shows under every product in that ad group.';
+const STA_F_KINDS = [['par', 'Parent product', 'Parent'], ['asin', 'Child product (SKU / ASIN)', 'Child'], ['cp', 'Campaign', 'Campaign']];
+const staFOn = () => !!(STA_F.par.size || STA_F.asin.size || STA_F.cp.size || STA_F.stock);
+const staFSig = () => (staFOn() ? ['par', 'asin', 'cp'].map(k => [...STA_F[k]].sort().join(',')).join('|') + '|' + STA_F.stock : '');
+// FBA stock per ASIN of one brand: asin → { st (units), days (at its pace over the last four finished weeks; null when not
+// known), sku }, from the ad-group cache's SKUs and Listing Health's stock (cpLoadBasics). An ASIN sold as several SKUs: the
+// shortest cover. Kept on the model.
+function staStockIdx(M, b) {
+  const all = M.stockIdx || (M.stockIdx = {});
+  if (all[b]) return all[b];
+  const m = new Map(), stock = (CP.stock || {})[b];
+  if (stock) ((ST.ag[b] || {}).rows || []).forEach(x => {
+    if (!x.a || !x.sku || !Object.prototype.hasOwnProperty.call(stock, x.sku)) return;
+    const st = Number(stock[x.sku]) || 0;
+    let per = 0;
+    try { per = (ADSX.lines(x.a) || {}).perDay || 0; } catch (e) { per = 0; }
+    const days = st === 0 ? 0 : per > 0 ? st / per : null;
+    const was = m.get(x.a);
+    if (!was || (days != null && (was.days == null || days < was.days))) m.set(x.a, { st, days, sku: x.sku });
+  });
+  return (all[b] = m);
+}
+// Does an ASIN's stock pass the stock chip? 'oos': out of stock; 'low': under STA_F_LOW days, out of stock included.
+const staStockOk = (s, want) => !!s && (want === 'oos' ? s.st === 0 : s.st === 0 || (s.days != null && s.days < STA_F_LOW));
+// The filters as one test for a row of the model — a search term, a keyword or target, or a New row ({ brand, cid, asins,
+// parents } or its ad group's ai) — or null with none on. The stock chip looks at the products the other filters picked in
+// that ad group (all of them with none picked).
+function staFTest(M) {
+  if (!staFOn()) return null;
+  const F = STA_F;
+  return r => {
+    const b = r.brand;
+    if (F.cp.size && !F.cp.has(b + '|' + r.cid)) return false;
+    const ai = r.ai || {};
+    const asins = r.asins || ai.asins || [], parents = r.parents || ai.parents || [];
+    if (F.par.size && !parents.some(p => F.par.has(b + '|' + p))) return false;
+    if (F.asin.size && !asins.some(a => F.asin.has(b + '|' + a))) return false;
+    if (F.stock) {
+      const S = staStockIdx(M, b), pmap = (ST.ag[b] || {}).parent || {};
+      const look = asins.filter(a => (!F.asin.size || F.asin.has(b + '|' + a)) && (!F.par.size || F.par.has(b + '|' + (pmap[a] || ''))));
+      if (!look.some(a => staStockOk(S.get(a), F.stock))) return false;
+    }
+    return true;
+  };
+}
+// The same for a Campaign × Product row (one campaign, ad group and SKU, with its own stock and cover).
+function staFPassCp(r) {
+  const F = STA_F, b = r.brand;
+  if (F.cp.size && !F.cp.has(b + '|' + r.cid)) return false;
+  if (F.par.size && !F.par.has(b + '|' + r.parent)) return false;
+  if (F.asin.size && !F.asin.has(b + '|' + r.asin)) return false;
+  if (F.stock && !staStockOk(r.stock == null ? null : { st: r.stock, days: r.stock === 0 ? 0 : r.cover }, F.stock)) return false;
+  return true;
+}
+
+// THE MODEL UNDER THE FILTERS, once per model and filters: { M, sig, f (the row test, or null), on, rows, tgRows, tgAll, words,
+// gx (brand → pattern index, for N-Gram Analysis), byKey (By word rows rebuilt here) }. With no filter it is the model itself.
+let STV = null;
+function staView(M) {
+  const sig = staFSig();
+  if (STV && STV.M === M && STV.sig === sig) return STV;
+  const f = staFTest(M);
+  const V = { M, sig, f, on: !!f, byKey: new Map() };
+  if (!f) Object.assign(V, { rows: M.rows, tgRows: M.tgRows, tgAll: M.tgAll, words: M.words, gx: M.grams || {} });
+  else {
+    Object.assign(V, { rows: M.rows.filter(f), tgRows: M.tgRows.filter(f), tgAll: M.tgAll.filter(f), words: [], gx: {} });
+    const tail = STA_F.par.size || STA_F.asin.size || STA_F.stock ? 'none' : STA_F.cp;
+    M.brands.forEach(b => {
+      if (!M.protect[b]) return;
+      const mine = V.rows.filter(r => r.brand === b);
+      V.gx[b] = staGramIndex(b, M, mine, { tail });
+      staWords(b, M, mine, M.protect[b], M.info[b] || {}, M.rlOpen || new Map(), ((M.rate || {})[b] || {}).b || { c: 0, o: 0 },
+        { map: V.gx[b], out: V.words, byKey: V.byKey });
+    });
+  }
+  return (STV = V);
+}
+// A row by its key as the screen shows it: a By word row rebuilt under the filters, else the model's own.
+const staByKey = (M, k) => (STV && STV.M === M && STV.byKey.get(k)) || M.byKey.get(k);
 
 /* ---------- filtering ---------- */
 
@@ -1434,17 +1627,18 @@ function staVPass(r, v) {
   if (v === 'ok') return (r.badges || []).some(b => b[1] === 'ok');
   return true;
 }
-// What each view lists, after the filters.
+// What each view lists, after the filters (the product, campaign and stock ones through staView).
 function staLists() {
-  const M = staModel(), ok = staPass();
-  const all = M.rows.filter(ok);
-  const groups = M.groups.map(g => Object.assign({}, g, { shown: g.paths.filter(ok) }))
+  const M = staModel(), V = staView(M), ok = staPass();
+  const all = V.rows.filter(ok);
+  const okp = V.f ? r => V.f(r) && ok(r) : ok;
+  const groups = M.groups.map(g => Object.assign({}, g, { shown: g.paths.filter(okp) }))
     .filter(g => g.shown.some(r => r.role === 'other'));
   return {
-    M, all,
+    M, V, all,
     burn: all.filter(r => r.cat === 'burn'),
-    burnTgt: M.tgRows.filter(g => g.cat === 'burn' || g.cat === 'watch').filter(ok),
-    words: M.words.filter(ok),
+    burnTgt: V.tgRows.filter(g => g.cat === 'burn' || g.cat === 'watch').filter(ok),
+    words: V.words.filter(ok),
     scale: all.filter(r => r.cat === 'scale'),
     groups,
   };
@@ -1468,7 +1662,7 @@ function staSorted(rows, def) {
 function staTh(t, k, num, tip, S) {
   const so = S || ST_SORT;
   const on = (so.k || '') === k;
-  return `<th class="${num ? 'num ' : ''}sta-sort${on ? ' on' : ''}" data-sort="${k}" title="${staEsc(tip || 'Sort by ' + t)}" aria-sort="${on ? (so.d > 0 ? 'ascending' : 'descending') : 'none'}">${t}${on ? (so.d > 0 ? ' ▲' : ' ▼') : ''}</th>`;
+  return `<th class="${num ? 'num ' : ''}sta-sort${on ? ' on' : ''}" data-sort="${k}" title="${staEsc(tip || (STA_TH_TIPS[t] ? STA_TH_TIPS[t] + ' Click to sort.' : 'Sort by ' + t))}" aria-sort="${on ? (so.d > 0 ? 'ascending' : 'descending') : 'none'}">${t}${on ? (so.d > 0 ? ' ▲' : ' ▼') : ''}</th>`;
 }
 // This page of rows.
 function staPage(rows) {
@@ -1485,6 +1679,274 @@ function staPager(total, what, note, o) {
   (o ? o.foot : stFoot)(`<span>${staInt(a)}–${staInt(z)} of ${staInt(total)} ${what}${note ? ' · ' + note : ''}</span>`
     + (pages > 1 ? `<span class="sta-pages"><button type="button" class="ghost" data-pg="prev"${pg ? '' : ' disabled'}>‹ Previous</button>`
       + `<span>Page ${pg + 1} of ${pages}</span><button type="button" class="ghost" data-pg="next"${pg < pages - 1 ? '' : ' disabled'}>Next ›</button></span>` : ''));
+}
+
+/* ---------- the bar, both screens (23 Nov 2026): the date window, the filter lists, the stock chip, the chips of every active
+ * filter with "Showing X of Y terms", the 7-day note, and what each heading means on hover. Search Term Analysis and N-Gram
+ * Analysis each wire their own ids (staBarWire); the choices are one set for both. ---------- */
+// The page of each screen back to the first, and the ticks cleared, after a new window (other figures, other verdicts).
+function staPg0(clearSel) {
+  ST_PG = 0;
+  if (typeof NGS !== 'undefined') { NGS.pg = 0; if (clearSel) NGS.sel.clear(); }
+  if (clearSel) ST_SEL.clear();
+}
+function staWinPick(k) {
+  if (!staWinOn(k) || k === staWin()) return;
+  STA_WIN = k;
+  try { localStorage.setItem(STA_WIN_KEY, k); } catch (e) { /* kept for this visit */ }
+  staPg0(true);
+  staRedrawAds();
+}
+// The window switch: 7 / 14 / 30 / 60 days; one not there yet is greyed, "coming soon".
+function staWinBar(id) {
+  const el = $(id);
+  if (!el) return;
+  const cur = staWin();
+  el.innerHTML = STA_WINS.map(w => {
+    const on = w.k === cur, can = staWinOn(w.k);
+    const sub = w.k === '7' ? 'sales still coming in' : !can ? 'coming soon' : '';
+    const tip = w.k === '7' ? (can ? 'The last 7 days. Sales are still coming in, so nothing is negated or paused from it: watch only, a lower bid at most.' : 'The last 7 days: not read yet.')
+      : w.k === '30' ? 'Days 8–37 ago, whose sales are final: what Sellora judges on. The default.'
+        : can ? `The last ${w.t} report.` : `${w.t}: coming soon (needs the backend). It switches on by itself once the ${w.t} report is written.`;
+    return `<button type="button" class="segbtn sta-winb${on ? ' on' : ''}" data-win="${w.k}" aria-pressed="${on}"${can ? '' : ' disabled aria-disabled="true"'} title="${staEsc(tip)}">${w.t}${sub ? `<small>${sub}</small>` : ''}</button>`;
+  }).join('');
+}
+// The note under the bar while the window's sales are still coming in (7 days): what that means, and the way back.
+function staWinNote(id, M, pg) {
+  const el = $(id);
+  if (!el) return;
+  const k = M.win || '30';
+  if (!M.brands.some(b => (M.info[b] || {}).noNeg)) { el.classList.add('hide'); el.innerHTML = ''; return; }
+  const x = M.brands.map(b => M.have[b]).find(y => y && y.from) || {};
+  el.classList.remove('hide');
+  el.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+    + `<div><b>${k === '7' ? 'Last 7 days' : staWinDef(k).t}${x.from ? ', ' + staEsc(staRange(x.from, x.to)) : ''}: ${k === '7' ? 'sales still coming in' : 'its last days\' sales are not all in'}.</b> `
+    + `A click from the last few days can still turn into an order, so Sellora suggests no negative and no pause from this window${pg === 'ng' ? ' (Waste patterns wait)' : ''}, a lower bid at most. `
+    + '<button type="button" class="sta-linkbtn" data-win="30">Switch to 30 days</button> to act on them.</div>';
+}
+// A list's choices, from the rows of the brands in view — the search terms (counted, with their spend) and the keywords and
+// targets (so a product or campaign with no search term yet is there too): { key 'brand|id', label, sub (HTML), hay, n, sp },
+// picked first, then by spend. A pick no longer in the list (another brand or window) stays, so it can be unticked.
+function staFOpts(M, k, brands) {
+  const m = new Map(), inB = new Set(brands), multi = brands.length > 1;
+  const each = (r, isTerm) => {
+    if (!inB.has(r.brand)) return;
+    const b = r.brand, ai = r.ai || {};
+    const ids = k === 'cp' ? [r.cid] : k === 'par' ? (r.parents || ai.parents || []) : (r.asins || ai.asins || []);
+    ids.forEach(id => {
+      if (!id) return;
+      const key = b + '|' + id;
+      const o = m.get(key) || m.set(key, { key, b, id, n: 0, sp: 0, ai, first: '' }).get(key);
+      if (isTerm) { o.n++; o.sp += r.sp || 0; }
+      if (k === 'par' && !o.first) { const pm = (ST.ag[b] || {}).parent || {}; o.first = (r.asins || ai.asins || []).find(a => pm[a] === id) || ''; }
+    });
+  };
+  M.rows.forEach(r => each(r, true));
+  M.tgAll.forEach(r => each(r, false));
+  STA_F[k].forEach(key => {
+    if (m.has(key)) return;
+    const i = key.indexOf('|');
+    m.set(key, { key, b: key.slice(0, i), id: key.slice(i + 1), n: 0, sp: 0, ai: {}, first: '', gone: true });
+  });
+  const skus = {};
+  const skuOf = (b, a) => {
+    if (!skus[b]) { skus[b] = new Map(); ((ST.ag[b] || {}).rows || []).forEach(x => { if (x.a && x.sku) (skus[b].get(x.a) || skus[b].set(x.a, new Set()).get(x.a)).add(x.sku); }); }
+    return [...(skus[b].get(a) || [])].join(', ');
+  };
+  const CT = { auto: 'auto', kw: 'manual keyword', pt: 'product targeting' };
+  const out = [...m.values()].map(o => {
+    const brand = multi ? staBrandName(o.b) + ' · ' : '';
+    let label, sub, hay;
+    if (k === 'cp') {
+      label = staName(o.b, o.id) || 'Campaign ' + o.id;
+      sub = staEsc(brand + 'ID ' + o.id + (CT[o.ai.ctype] ? ' · ' + CT[o.ai.ctype] : ''));
+      hay = label + ' ' + o.id;
+    } else {
+      const title = staTitle(o.id) || (o.first ? staTitle(o.first) : '');
+      const sku = k === 'asin' ? skuOf(o.b, o.id) : '';
+      label = String(o.id).toUpperCase() + (sku ? ' · ' + sku : '');
+      const s = k === 'asin' ? staStockIdx(M, o.b).get(o.id) : null;
+      const stock = !s ? '' : s.st === 0 ? ' · <b class="sta-popoos">out of stock</b>'
+        : s.days != null && s.days < STA_F_LOW ? ` · <b class="sta-poplow">${staInt(Math.floor(s.days))} day${Math.floor(s.days) === 1 ? '' : 's'} left</b>` : '';
+      sub = (title ? staEsc(brand + title) : `${staEsc(brand)}<i>No title in Sellora</i>`) + stock;
+      hay = label + ' ' + title;
+    }
+    const count = o.gone ? 'not in this view' : `${staInt(o.n)} term${o.n === 1 ? '' : 's'}${o.sp >= 1 ? ' · ' + staMoney0(o.sp) : ''}`;
+    return { key: o.key, label, sub, count, hay: hay.toLowerCase(), sp: o.sp, n: o.n };
+  });
+  const on = STA_F[k];
+  return out.sort((a, z) => (on.has(z.key) - on.has(a.key)) || (z.sp - a.sp) || (z.n - a.n) || (a.label < z.label ? -1 : 1));
+}
+// The list inside an open filter: what is picked, the matches of the search, at most 200 rows (the search narrows the rest).
+function staPfList(k, all, q) {
+  const S = STA_F[k], n = S.size;
+  const hit = q ? all.filter(o => o.hay.includes(q)) : all;
+  const shown = hit.slice(0, 200);
+  return `<div class="sta-popbar"><span><b>${staInt(n)} picked</b> · ${q ? `${staInt(hit.length)} match` : `${staInt(all.length)} in all`}</span>`
+    + (n ? '<button type="button" class="sta-linkbtn" data-pfclear="1">Clear</button>' : '') + '</div>'
+    + '<div class="sta-popl">' + shown.map(o => `<label class="sta-popi${S.has(o.key) ? ' on' : ''}"><input type="checkbox" class="sta-cb" data-pfk="${staEsc(o.key)}"${S.has(o.key) ? ' checked' : ''}>`
+      + `<span class="sta-popt"><b>${staEsc(o.label)}</b><small>${o.sub}</small></span><span class="sta-popn">${o.count}</span></label>`).join('')
+    + (!shown.length ? `<p class="sta-popnone">${q ? `Nothing matches "${staEsc(q)}".` : 'Nothing to pick in this view.'}</p>` : '')
+    + (hit.length > shown.length ? `<p class="sta-popnone">${staInt(hit.length - shown.length)} more: type to narrow the list.</p>` : '') + '</div>';
+}
+// The open filter, under its button.
+let STA_POP = null;      // { pg: 'st' | 'ng', k: 'par' | 'asin' | 'cp', q, opts }
+const STA_PFLAST = {};   // pg → { id, M, brands }: the last bar drawn, so opening or closing a list redraws the bar alone
+const STA_POPQ = { par: 'Search parent ASIN or title', asin: 'Search SKU, ASIN or title', cp: 'Search campaign name or ID' };
+function staPfPop(k, M, brands) {
+  STA_POP.opts = staFOpts(M, k, brands);
+  const t = STA_F_KINDS.find(x => x[0] === k)[1];
+  return `<div class="sta-pop" role="dialog" aria-label="${staEsc(t)}">`
+    + `<input type="search" class="sta-popq" data-pfq="1" placeholder="${staEsc(STA_POPQ[k])}" aria-label="${staEsc(STA_POPQ[k])}" value="${staEsc(STA_POP.q || '')}" autocomplete="off">`
+    + `<div class="sta-popbody" data-pflist="1">${staPfList(k, STA_POP.opts, staLow(STA_POP.q || ''))}</div>`
+    + `<div class="sta-popf">${k === 'cp' ? 'Spend of the search terms in this window. ' : ''}${staEsc(STA_F_TIP)}</div></div>`;
+}
+// The three lists and the stock chip. pg: the screen ('st' / 'ng'); brands: the brands in view.
+function staPfBar(id, pg, M, brands) {
+  const el = $(id);
+  if (!el) return;
+  STA_PFLAST[pg] = { id, M, brands };
+  const open = k => !!(STA_POP && STA_POP.pg === pg && STA_POP.k === k);
+  const hasStock = M.brands.some(b => staStockIdx(M, b).size > 0);
+  const sb = (v, t, tip) => `<button type="button" class="segbtn${STA_F.stock === v ? ' on' : ''}" data-pfstock="${v}" aria-pressed="${STA_F.stock === v}"${hasStock || STA_F.stock === v ? '' : ' disabled'} title="${staEsc(hasStock ? tip : 'Needs the FBA stock (the Listing Health or Inventory Age right)')}">${t}</button>`;
+  el.innerHTML = STA_F_KINDS.map(([k, t]) => {
+    const n = STA_F[k].size;
+    return `<span class="sta-pfw"><button type="button" class="ghost sta-pfb${n ? ' on' : ''}" data-pf="${k}" aria-haspopup="dialog" aria-expanded="${open(k)}" title="${staEsc(STA_F_TIP)}">${t}`
+      + `${n ? `<span class="sta-n">${staInt(n)}</span>` : ''}<span class="sta-pfc" aria-hidden="true">${open(k) ? '▴' : '▾'}</span></button>${open(k) ? staPfPop(k, M, brands) : ''}</span>`;
+  }).join('')
+    + `<div class="seg sta-pfstock" role="group" aria-label="FBA stock">${sb('oos', 'Out of stock', 'Only ad groups advertising a product with no FBA stock')}`
+    + `${sb('low', 'Under 15 days', `Only ad groups advertising a product with under ${STA_F_LOW} days of FBA stock at its pace over the last four finished weeks (out of stock included)`)}</div>`;
+}
+// A pick's name on its chip.
+function staFName(k, key) {
+  const i = key.indexOf('|'), b = key.slice(0, i), id = key.slice(i + 1);
+  if (k === 'cp') return staName(b, id) || 'Campaign ' + id;
+  const t = staTitle(id);
+  return String(id).toUpperCase() + (t ? ' · ' + (t.length > 40 ? t.slice(0, 39) + '…' : t) : '');
+}
+// The chips of every active filter, each removable, with "Showing X of Y terms" and Clear all; hidden with none on.
+// extra: the screen's own [{ k, t, v }] (its search, minimum spend, Filters…), removed through its own fx (staBarWire).
+function staFChips(id, shown, total, extra) {
+  const el = $(id);
+  if (!el) return;
+  const chips = [];
+  if (staWin() !== '30') chips.push({ k: 'win', t: 'Window', v: staWinDef(staWin()).t });
+  STA_F_KINDS.forEach(([k, , t]) => STA_F[k].forEach(key => chips.push({ k: 'pf:' + k + ':' + key, t, v: staFName(k, key) })));
+  if (STA_F.stock) chips.push({ k: 'stock', t: 'Stock', v: STA_F.stock === 'oos' ? 'out of stock' : `under ${STA_F_LOW} days` });
+  (extra || []).forEach(x => chips.push(x));
+  el.classList.toggle('hide', !chips.length);
+  el.innerHTML = !chips.length ? '' : `<span class="sta-fshow">Showing ${staInt(shown)} of ${staInt(total)} terms</span>`
+    + chips.map(c => `<span class="sta-fchip">${staEsc(c.t)}: <b>${staEsc(c.v)}</b><button type="button" class="sta-fx" data-fx="${staEsc(c.k)}" title="Remove" aria-label="Remove ${staEsc(c.t)}: ${staEsc(c.v)}">✕</button></span>`).join('')
+    + '<button type="button" class="sta-linkbtn" data-fx="all">Clear all</button>';
+}
+// The text of a select's chosen option (a chip's value).
+function staOptText(id) {
+  const el = $(id), o = [...(el.options || [])].find(x => x.value === el.value);
+  return (o && (o.text || o.textContent)) || el.value;
+}
+// One screen's bar wired: o = { pg, win, pf, chips, note, redraw, fx (a chip of its own: k → handled?) }.
+function staBarWire(o) {
+  const winClick = e => { const b = e.target.closest('button[data-win]'); if (b && !b.disabled) staWinPick(b.dataset.win); };
+  $(o.win).addEventListener('click', winClick);
+  $(o.note).addEventListener('click', winClick);
+  const pf = $(o.pf);
+  const bar = () => { const L = STA_PFLAST[o.pg]; if (L) staPfBar(L.id, o.pg, L.M, L.brands); };
+  const focusQ = () => { const q = pf.querySelector('input[data-pfq]'); if (q) q.focus(); };
+  const changed = () => { staPg0(false); o.redraw(); };
+  pf.addEventListener('click', e => {
+    const b = e.target.closest('button[data-pf]');
+    if (b) {
+      const k = b.dataset.pf;
+      STA_POP = STA_POP && STA_POP.pg === o.pg && STA_POP.k === k ? null : { pg: o.pg, k, q: '' };
+      bar();
+      if (STA_POP) focusQ(); else { const nb = pf.querySelector(`button[data-pf="${k}"]`); if (nb) nb.focus(); }
+      return;
+    }
+    if (e.target.closest('[data-pfclear]') && STA_POP) { STA_F[STA_POP.k].clear(); changed(); focusQ(); return; }
+    const s = e.target.closest('button[data-pfstock]');
+    if (s && !s.disabled) { STA_F.stock = STA_F.stock === s.dataset.pfstock ? '' : s.dataset.pfstock; changed(); }
+  });
+  pf.addEventListener('change', e => {
+    const cb = e.target.closest('input[data-pfk]');
+    if (!cb || !STA_POP) return;
+    const S = STA_F[STA_POP.k], key = cb.dataset.pfk;
+    if (cb.checked) S.add(key); else S.delete(key);
+    const L0 = pf.querySelector('.sta-popl'), top = L0 ? L0.scrollTop : 0;
+    changed();
+    const L1 = pf.querySelector('.sta-popl');
+    if (L1) L1.scrollTop = top;
+    const again = pf.querySelector(`input[data-pfk="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(key) : key}"]`);
+    if (again) again.focus();
+  });
+  // Typing in a list's search box redraws that list alone (the box keeps its focus).
+  pf.addEventListener('input', e => {
+    const q = e.target.closest('input[data-pfq]');
+    if (!q || !STA_POP) return;
+    STA_POP.q = q.value;
+    const body = pf.querySelector('[data-pflist]');
+    if (body) body.innerHTML = staPfList(STA_POP.k, STA_POP.opts || [], staLow(q.value));
+  });
+  pf.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !STA_POP) return;
+    const k = STA_POP.k;
+    STA_POP = null;
+    bar();
+    const nb = pf.querySelector(`button[data-pf="${k}"]`);
+    if (nb) nb.focus();
+  });
+  $(o.chips).addEventListener('click', e => {
+    const x = e.target.closest('[data-fx]');
+    if (!x) return;
+    const k = x.dataset.fx;
+    if (k === 'all') {
+      ['par', 'asin', 'cp'].forEach(n => STA_F[n].clear());
+      STA_F.stock = '';
+      o.fx('all');
+      if (staWin() !== '30') { staWinPick('30'); return; }
+    } else if (k === 'win') { staWinPick('30'); return; }
+    else if (k === 'stock') STA_F.stock = '';
+    else if (k.startsWith('pf:')) { const i = k.indexOf(':', 3); STA_F[k.slice(3, i)].delete(k.slice(i + 1)); }
+    else if (!o.fx(k)) return;
+    changed();
+  });
+}
+// A click anywhere outside an open list closes it (the bar alone is drawn again).
+document.addEventListener('click', e => {
+  if (!STA_POP || (e.target && e.target.closest && e.target.closest('.sta-pfw'))) return;
+  const pg = STA_POP.pg, L = STA_PFLAST[pg];
+  STA_POP = null;
+  if (L) staPfBar(L.id, pg, L.M, L.brands);
+});
+// What each column means, on hover: every heading of a table that has no title of its own gets one (both screens).
+const STA_TH_TIPS = {
+  'Search term': 'What the shopper typed. ' + STA_F_TIP,
+  'Keyword / target': 'Your keyword or product target. The bid belongs to it, so a bid change moves every search term it catches.',
+  'Word': 'A word or short phrase that recurs across many search terms without selling.',
+  'N-gram': 'A 1-, 2- or 3-word sequence held by two or more search terms.',
+  'Verdict': 'What Sellora makes of it. "How Sellora decides" has every rule with its numbers.',
+  'Verdict · evidence': 'What Sellora makes of it, and the figures that say so. "How Sellora decides" has every rule.',
+  'Classification': 'Waste, Winner, Mixed or Needs data, from the rules in "How Sellora decides".',
+  'Next step': 'The one change Sellora suggests, or why there is none. Nothing changes at Amazon until a change is approved and its bulk file uploaded.',
+  'Spend': 'Ad spend in the window picked.', 'Ad spend': 'Ad spend in the window picked.',
+  'Sales': 'Ad sales Amazon credits to these clicks (7-day attribution with the settled and 7-day reports).', 'Ad sales': 'Ad sales Amazon credits to these clicks.',
+  'ACoS': 'Ad spend ÷ ad sales.', 'ROAS': 'Ad sales ÷ ad spend.', 'Orders': 'Orders Amazon credits to these clicks.', 'Clicks': 'Clicks in the window picked.',
+  'CVR': 'Conversion rate: orders ÷ clicks.', 'CPC': 'Cost per click: spend ÷ clicks.', 'Impr.': 'Impressions: how often the ad was shown.',
+  'Path': 'The campaign, ad group and keyword or target that caught the search term.', 'Path · campaign and target': 'The campaign, ad group and keyword or target that caught the search term.',
+  'Campaign · ad group': 'Where it runs.', 'Campaigns': 'The campaigns it spent in.', 'Campaign': 'The campaign.', 'Ad group': 'The ad group: the products it advertises.',
+  'ASIN': 'The advertised product.', 'SKU': 'The advertised SKU.', 'What to do': 'What Sellora suggests for this campaign and product.',
+  'New': 'A campaign, ad group, keyword or target in its first 30 days (launch campaigns: their first 60).', 'Status so far': 'How it is doing so far: warnings only, nothing is judged yet.',
+  'Age': 'Days since it started at Amazon.', 'Role': 'Lead path (sells it best) or a competing one.', 'Recommendation': 'What to do with this path.',
+};
+// A heading's own words, without a tick box or the sort arrow.
+const staThWords = th => String(th.textContent || '').replace(/[▲▼]/g, '').trim();
+function staHeadTips(id) {
+  const t = $(id);
+  if (!t || !t.querySelectorAll) return;
+  t.querySelectorAll('thead th').forEach(th => {
+    if (th.title && !/^Sort by /.test(th.title)) return;
+    const tip = STA_TH_TIPS[staThWords(th)];
+    if (tip) th.title = tip + (th.dataset && th.dataset.sort ? ' Click to sort.' : '');
+  });
 }
 
 /* ---------- drawing ---------- */
@@ -1507,6 +1969,7 @@ function renderSt() {
   $('stCpTarget').classList.toggle('hide', !isCp);
   $('stSizeWrap').classList.toggle('hide', isCp);
   staRlBadge();
+  staWinBar('stWin');
   const nF = ['stFMt', 'stFCt', 'stFV', 'stFTag'].filter(id => $(id).value).length;
   $('stMoreN').textContent = nF;
   $('stMoreN').classList.toggle('hide', !nF);
@@ -1533,6 +1996,7 @@ function renderSt() {
     return;
   }
   let L = staLists();
+  staStBar(L);
   staDataLine(L.M);
   staSummary(L);
   staBoxes(L);
@@ -1547,7 +2011,8 @@ function renderSt() {
   if (ST_VIEW === 'new') staDrawNew(L);
   else if (isCp) {
     $('stTitle').textContent = 'Which campaign × product is working?';
-    $('stSub').textContent = 'One row per campaign, ad group and SKU over 30 days, with whether the ad runs, its FBA stock and a verdict. Advice only.';
+    $('stSub').textContent = 'One row per campaign, ad group and SKU over 30 days, with whether the ad runs, its FBA stock and a verdict. Advice only.'
+      + (staWin() !== '30' ? ' Always 30 days, whatever the date window above (its own report).' : '');
     renderCp();
   } else if (ST_VIEW === 'burn' && ST_SUB === 'target') staDrawBurnTgt(L);
   else if (ST_VIEW === 'burn' && ST_SUB === 'word') staDrawWords(L);
@@ -1555,7 +2020,23 @@ function renderSt() {
   else if (ST_VIEW === 'scale') staDrawScale(L);
   else if (ST_VIEW === 'paths') staDrawPaths(L);
   else staDrawAll(L);
+  staHeadTips('stTable');
   staSelBar();
+}
+// The bar's parts that need the model: the filter lists, the chips (every active filter, Search Term Analysis's own
+// included), the 7-day note, and the line under "At a glance".
+function staStBar(L) {
+  const M = L.M;
+  staPfBar('stPf', 'st', M, M.brands);
+  staWinNote('stWinNote', M, 'st');
+  const ex = [];
+  const q = $('stFilter').value.trim();
+  if (q) ex.push({ k: 'q', t: 'Search', v: q });
+  const min = Number($('stMinSpend').value) || 0;
+  if (min) ex.push({ k: 'min', t: 'Min spend', v: staMoney0(min) });
+  [['stFMt', 'Match type'], ['stFCt', 'Campaign type'], ['stFV', 'Verdict'], ['stFTag', 'Tag']].forEach(([id, t]) => { if ($(id).value) ex.push({ k: 'sel:' + id, t, v: staOptText(id) }); });
+  staFChips('stChips', L.all.length, M.rows.length, ex);
+  $('stSumSub').textContent = (staFOn() ? 'the products, campaigns and stock picked' : 'every keyword and target of the brands in view') + ' · ' + staWindowTxt(M);
 }
 
 /* ---------- the next-step chips ---------- */
@@ -1606,7 +2087,8 @@ function staNewRows(L) {
   const M = L.M;
   const q = $('stFilter').value.trim().toLowerCase();
   const byAg = new Map(), out = [], seenCp = new Set();
-  M.tgAll.forEach(g => {
+  const V = L.V || staView(M);
+  V.tgAll.forEach(g => {
     const ai = g.ai;
     if (!ai) return;
     seenCp.add(g.brand + '|' + g.cid);
@@ -1631,6 +2113,8 @@ function staNewRows(L) {
       const c = E.cp[cid] || [];
       const t = Number(c[8]) || 0, cn = c[0] || staName(b, cid), launch = STA_LAUNCH.test(cn);
       if (!t || staStarted(t, launch ? STA.LAUNCH_DAYS : STA.AGE_DAYS) || seenCp.has(b + '|' + cid)) return;
+      // Under a filter only the campaigns it picks (no product is known for a campaign with no clicks yet).
+      if (V.f && !V.f({ brand: b, cid, asins: [], parents: [] })) return;
       out.push({ key: 'nc:' + b + '|' + cid, type: 'new', brand: b, cid, cn, agn: '', ai: null, what: launch ? 'Launch campaign' : 'New campaign',
         state: c[1], since: t, sp: 0, s: 0, o: 0, c: 0, i: 0 });
     });
@@ -1693,11 +2177,17 @@ function staRange(a, z) {
 }
 // The data window as one short phrase for the status line: "settled 14 Oct – 12 Nov · last 7 days 13 – 19 Nov", or the
 // 30-day fallback. M: a model (its brands and what each one has).
+// Another window: "last 7 days 16 – 22 Nov · sales still coming in", "14 days 2 – 15 Nov".
 function staWindowTxt(M) {
-  if (!M.settled) return 'last 30 days';
   const x = M.brands.map(b => M.have[b]).find(y => y && y.from) || {};
+  if (M.win && M.win !== '30') {
+    const noNeg = M.brands.some(b => (M.info[b] || {}).noNeg);
+    return (M.win === '7' ? 'last 7 days' : staWinDef(M.win).t) + (x.from ? ' ' + staRange(x.from, x.to) : '')
+      + (M.win === '7' ? ' · sales still coming in' : noNeg ? ' · last days still coming in' : '');
+  }
+  if (!M.settled) return 'last 30 days';
   const rw = ST.rec ? M.brands.map(b => ST.rec.d && ST.rec.d[b]).find(y => y && y.from) || ST.rec : null;
-  return 'settled' + (x.from ? ' ' + staRange(x.from, x.to) : '') + (rw && rw.from ? ' · last 7 days ' + staRange(rw.from, rw.to) : '');
+  return 'settled' + (x.from ? ' ' + staRange(x.from, x.to) : '') + ' (30 days)' + (rw && rw.from ? ' · last 7 days ' + staRange(rw.from, rw.to) : '');
 }
 
 // The data line: window, completeness per brand, data checks, unit costs, Amazon's record, where the lists are kept — every
@@ -1707,7 +2197,14 @@ function staDataLine(M) {
   const lines = [];
   const add = (h, lv) => lines.push([h, lv || '']);
   const h = M.have;
-  if (M.settled) {
+  if (M.win && M.win !== '30') {
+    const x = M.brands.map(b => h[b]).find(y => y && y.from) || {};
+    const days = x.from ? ', ' + staEsc(staShortDay(x.from)) + ' – ' + staEsc(staShortDay(x.to)) : '';
+    const noNeg = M.brands.some(b => (M.info[b] || {}).noNeg);
+    add(M.win === '7' ? `Judged on <b>the last 7 days${days}</b>, with 7-day sales as in the Ads console. Sales are still coming in: a click from the last few days can still turn into an order, so no negative and no pause is suggested from this window, a lower bid at most. 30 days is where those are judged.`
+      : `Judged on <b>${staEsc(staWinDef(M.win).t)}${days}</b>, with 7-day sales as in the Ads console.` + (noNeg ? ' Its last days\' sales are not all in yet, so no negative and no pause from it.' : ''));
+    add('<span class="sta-dash">Campaign × Product stays on its own 30-day report whatever the window.</span>');
+  } else if (M.settled) {
     const x = M.brands.map(b => h[b]).find(y => y && y.from) || {};
     const rw = ST.rec ? M.brands.map(b => ST.rec.d && ST.rec.d[b]).find(y => y && y.from) || ST.rec : null;
     add(`Judged on <b>settled clicks${x.from ? ', ' + staEsc(staShortDay(x.from)) + ' – ' + staEsc(staShortDay(x.to)) : ''}</b>, with 7-day sales as in the Ads console.`
@@ -1791,7 +2288,10 @@ function staSrcState() {
     return `<span class="sta-ok">✓ ${label} ${staEsc(at)}</span>`;
   };
   const parts = [one(['srchTerm', 'targeting', 'adGroup'], 'nightly search terms'), one(['adEntities'], 'IDs, bids, negatives'),
-    one(['stSettled', 'tgtSettled'], '7-day settled reports'), one(['stRecent', 'tgtRecent'], 'last 7 days')].filter(Boolean);
+    one(['stSettled', 'tgtSettled'], '7-day settled reports'), one(['stRecent', 'tgtRecent'], 'last 7 days')]
+    // The 14- and 60-day reports only once they are there (until then the window switch says "coming soon").
+    .concat([['stD14', 'tgtD14', '14 days'], ['stD60', 'tgtD60', '60 days']].map(([s, t, label]) => (src[s] && src[s].ok ? one([s, t], label) : '')))
+    .filter(Boolean);
   const html = parts.length ? 'Amazon data: ' + parts.join(' · ') : '';
   return { html, notes, block };
 }
@@ -1843,13 +2343,21 @@ function staStatus(id, o) {
 
 // The summary strip: the whole account's Sponsored Products figures for the brands in view, and what is not listed.
 function staSummary(L) {
-  const M = L.M;
+  const M = L.M, V = L.V || staView(M);
   let sp = 0, s = 0, o = 0, c = 0, tail = 0, tailN = 0;
-  M.brands.forEach(b => {
-    (staTgtsOf(b).rows || []).forEach(x => { sp += x.sp || 0; s += x.s || 0; o += x.o || 0; c += x.c || 0; });
+  // Under the product, campaign and stock filters: the keywords and targets of the ad groups they pick; the small terms
+  // (not listed) are not split by product or campaign, so they are left out.
+  if (V.on) V.tgAll.forEach(x => { sp += x.sp || 0; s += x.s || 0; o += x.o || 0; c += x.c || 0; });
+  else M.brands.forEach(b => {
+    (staTgtsOf(b, M.win).rows || []).forEach(x => { sp += x.sp || 0; s += x.s || 0; o += x.o || 0; c += x.c || 0; });
     tail += (M.have[b] || {}).dropSpend || 0;
     tailN += (M.have[b] || {}).dropped || 0;
   });
+  const scope = V.on ? 'the products, campaigns and stock picked' : 'all keywords and targets of the brands in view';
+  // Same-SKU sales: the advertised product itself, where Amazon reports it per search term (os); the rest is other products
+  // bought after the click.
+  let osS = 0, osAll = 0, osN = 0;
+  V.rows.forEach(r => { if (r.os != null) { osN++; osS += r.os || 0; osAll += r.s || 0; } });
   const act = L.all.filter(r => r.act).length + L.burnTgt.filter(g => g.next && g.next !== 'limit' && g.next !== 'lowstock').length + L.words.filter(w => w.act).length;
   const cell = (k, v, tip, cls, sub) => `<div${cls ? ` class="${cls}"` : ''}${tip ? ` title="${staEsc(tip)}"` : ''}><small>${k}</small><b>${v}</b>${sub ? `<em class="sta-sumsub">${sub}</em>` : ''}</div>`;
   // Money at stake: what Burning money and Competing paths would save, each term counted once (the larger of the two).
@@ -1870,7 +2378,7 @@ function staSummary(L) {
   // (18 Nov audit: the two shares left out the small terms, so their ACoS looked far better than the whole). The small
   // terms have no order by definition; "other" is what the keyword report counts and the search-term report does not.
   const br = { sp: 0, s: 0 }, nb = { sp: 0, s: 0 }, lk = { n: 0, sp: 0 };
-  M.rows.forEach(r => {
+  V.rows.forEach(r => {
     const t = r.tagSet && r.tagSet.has('brand') ? br : nb;
     t.sp += r.sp || 0; t.s += r.s || 0;
     if (r.tagSet && r.tagSet.has('leak')) { lk.n++; lk.sp += r.sp || 0; }
@@ -1881,11 +2389,16 @@ function staSummary(L) {
     + (provStake >= 1 ? `The ${staMoney0(provStake)} under it is overlap cost against a provisional lead (no unit cost or target to prove the lead profitable): it firms up once costs or a target are set. ` : '')
     + 'Only what is listed under the filters.';
   $('stSum').innerHTML = cell('Money at stake', staMoney0(atStake), stakeTip, 'sta-stake', provStake >= 1 ? `+ ${staMoney0(provStake)} provisional` : 'each term counted once')
-    + cell('Ad spend', staMoney0(sp), 'All keywords and targets of the brands in view, this window')
-    + cell('Ad sales', staMoney0(s)) + cell('ACoS', s > 0 ? staPct(sp / s * 100) : '—') + cell('Orders', staInt(o)) + cell('Clicks', staInt(c))
-    + cell('Search terms', staInt(M.rows.length), 'Listed one by one')
+    + cell('Ad spend', staMoney0(sp), `Ad spend of ${scope}, this window`)
+    + cell('Ad sales', staMoney0(s), `Sales Amazon credits to the ads of ${scope}, this window.`
+      + (osN ? ` Same SKU: ${staMoney0(osS)} of the ${staMoney0(osAll)} sales of the listed search terms that report it were the advertised product itself; the rest are other products bought after the click.` : ''),
+      '', osN ? `${staMoney0(osS)} same SKU` : '')
+    + cell('ACoS', s > 0 ? staPct(sp / s * 100) : '—', 'Ad spend ÷ ad sales: how much of each sale went to ads.')
+    + cell('Orders', staInt(o), `Orders Amazon credits to the ads of ${scope}.`) + cell('Clicks', staInt(c), `Clicks on the ads of ${scope}.`)
+    + cell('Search terms', staInt(V.rows.length), V.on ? `Search terms of the ad groups picked, listed one by one, of ${staInt(M.rows.length)} in all. ${STA_F_TIP}` : 'Listed one by one', '', V.on ? `of ${staInt(M.rows.length)}` : '')
     + cell('Suggestions', staInt(act), `Rows with a next step, after the filters — one per row. The boxes below count search terms and competing-path groups instead (a group holds several paths, and a term can be in more than one box), so they add up differently. Boxes together: ${staMoney0(cards)} before each term is counted once.`, '', 'one per row')
-    + cell('Not listed', staMoney0(tail), `${staInt(tailN)} terms with fewer than 3 clicks and no order, too small to list one by one. Their recurring words appear in Burning money → By word.`, '', `${staInt(tailN)} small terms`)
+    + (V.on ? cell('Not listed', '—', 'The small terms (fewer than 3 clicks and no order) are not split by product or campaign, so they are left out under these filters.', '', 'not split by product')
+      : cell('Not listed', staMoney0(tail), `${staInt(tailN)} terms with fewer than 3 clicks and no order, too small to list one by one. Their recurring words appear in Burning money → By word.`, '', `${staInt(tailN)} small terms`))
     + `<div class="sta-bline"><span title="Search terms holding a brand term from Lists &amp; settings"><b>Branded</b> ${staMoney0(br.sp)} spend · ACoS ${ac(br)}</span>`
     + `<span title="Listed search terms without a brand term"><b>Non-branded</b> ${staMoney0(nb.sp)} spend · ACoS ${ac(nb)}${tail > 0 && nb.s > 0 ? ` <span class="sta-dash">(${staPct((nb.sp + tail) / nb.s * 100)} with the small terms)</span>` : ''}</span>`
     + (tail > 0 ? `<span title="Fewer than 3 clicks and no order: no sales by definition, nearly all non-branded"><b>Small terms, not listed</b> ${staMoney0(tail)} spend · no orders</span>` : '')
@@ -1919,8 +2432,14 @@ function staBoxes(L) {
     paths: '<path d="M6 3v6a6 6 0 0 0 6 6h6"/><path d="M18 3v6"/><path d="M15 18l3-3-3-3"/>',
     rl: '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>',
   };
+  const TIP = {
+    burn: 'Search terms spending with no sale, above break-even, or converting at under half the usual rate. The figure is the money burned: spend with no sale, or spend above what break-even allows.',
+    scale: 'Search terms selling under their campaign\'s target ACoS with room to grow, or selling well without their own exact keyword yet.',
+    paths: 'The same search term reaching the same product through two or more keywords or targets. Overlap cost: what the weaker paths spent above the lead path\'s ACoS.',
+    rl: 'Changes picked here, waiting to be approved and downloaded as an Amazon bulk file. Nothing changes at Amazon until then.',
+  };
   const box = (k, c, label, big, unit, q, go) => `
-    <button type="button" class="adx-box sta-box${ST_VIEW === k ? ' on' : ''}" data-box="${k}" style="--c:${c};--adx-glow:.10" aria-label="${staEsc(label + ': ' + big + ' ' + unit + '. ' + go)}">
+    <button type="button" class="adx-box sta-box${ST_VIEW === k ? ' on' : ''}" data-box="${k}" style="--c:${c};--adx-glow:.10" title="${staEsc(TIP[k] || '')}" aria-label="${staEsc(label + ': ' + big + ' ' + unit + '. ' + go)}">
       <div class="adx-l"><span class="adx-ic"><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg></span>${label}</div>
       <div class="sta-big"><b>${big}</b><span>${unit}</span></div>
       <div class="sta-q">${q}</div>
@@ -2260,7 +2779,7 @@ function staPhraseOk(r) {
 // One click from the row: negative exact (or ASIN), or phrase, after staQuick's checks.
 async function staQuickNeg(key, phrase, btn) {
   const M = staModel();
-  const r = M.byKey.get(key);
+  const r = staByKey(M, key);
   if (!r) return;
   const q = staQuick(r);
   if (q.skip) { stFoot(`<span>Not added: "${staEsc(r.term)}" — ${staEsc(q.skip)}.</span>`, true); return; }
@@ -2343,7 +2862,7 @@ let STD = null;   // { kind, row, fields… } of the open dialog
 // The six figures at the top of every dialog, and the line under them.
 function staFigs(r) {
   const fig = (l, v) => `<div><small>${l}</small><b>${v}</b></div>`;
-  const win = (STM && STM.settled) ? 'Settled clicks' : 'The last 30 days';
+  const win = STM && STM.win && STM.win !== '30' ? 'The last ' + staWinDef(STM.win).t : (STM && STM.settled) ? 'Settled clicks' : 'The last 30 days';
   const r7 = r.r7 ? ` Last 7 days: ${staInt(r.r7.c || 0)} more clicks, ${staMoney(r.r7.sp || 0)}, ${staInt(r.r7.o || 0)} orders.` : '';
   return `<div class="sta-figs">${fig('Clicks', staInt(r.c))}${fig('Spend', staMoney(r.sp))}${fig('Sales', staMoney(r.s))}`
     + `${fig('Orders', staInt(r.o))}${fig('ACoS', r.acos != null ? staPct(r.acos) : '—')}${fig('ROAS', r.sp > 0 ? (r.s / r.sp).toFixed(2) : '—')}</div>`
@@ -2402,7 +2921,7 @@ function staCpMeta(b, cid) {
 // Open the dialog for one row (by key) and one kind of change. row: the row itself, from another screen (N-Gram Analysis
 // hands a pattern shaped like a By word row, or a term from the model it drew with) — the model is then not rebuilt.
 function staOpen(kind, key, row) {
-  const r = row || staModel().byKey.get(key);
+  const r = row || staByKey(staModel(), key);
   if (!r) return;
   if (kind === 'raise' || kind === 'reduce') kind = 'bid:' + kind;
   STD = { kind, row: r };
@@ -2940,7 +3459,7 @@ function staItem(r, kind, extra) {
     id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), v: 2, brand: r.brand, kind,
     key: r.type === 'term' ? r.key : '', pathKey: r.pathKey || '', term: r.type === 'term' || r.type === 'word' ? r.term : '',
     target: r.type === 'word' ? '' : staPathLabel(r.kw, r.mt), kw: r.kw || '', mt: r.mt || '', kid: r.kid || '', cid: r.cid || '', ag: r.ag || '',
-    cn: r.cn || '', agn: r.agn || '', ev: { c: r.c, sp: staR2(r.sp), o: r.o, s: staR2(r.s), win: STM && STM.settled ? 'settled' : '30d' },
+    cn: r.cn || '', agn: r.agn || '', ev: { c: r.c, sp: staR2(r.sp), o: r.o, s: staR2(r.s), win: STM && STM.win && STM.win !== '30' ? STM.win + 'd' : STM && STM.settled ? 'settled' : '30d' },
     status: 'review', by: staWho(ME.email), byEmail: ME.email || '', at: Date.now(),
     trail: [ppchEvent('added')],   // who, which device, when: one step per move from here on (PPC History)
   }, extra);
@@ -3683,26 +4202,27 @@ async function staPlanAi(L, rules) {
   const known = new Set(rows.map(r => r.k));
   const moves = ans.moves.slice(0, 7).map((m, i) => {
     const keys = (m.keys || []).map(String).filter(k => known.has(k));
-    const rs = keys.map(k => L.M.byKey.get(k)).filter(Boolean);
+    const rs = keys.map(k => staByKey(L.M, k)).filter(Boolean);
     return { id: 'ai' + i, kind: 'ai', title: String(m.title || '').slice(0, 90), why: String(m.why || '').slice(0, 300), keys,
       money: rs.reduce((t, r) => t + (r.stake || r.burned || 0), 0) };
   }).filter(m => m.title && m.keys.length);
   return moves.length ? { moves, model: ans.model || 'Claude' } : { err: 'the plan named no row Sellora suggested' };
 }
 async function staPlanMake(force) {
-  const pick = $('stBrand').value, day = new Date().toISOString().slice(0, 10), ck = pick + '|' + day;
+  // One plan a day per brand, window and filters (it is made from what the screen shows).
+  const pick = $('stBrand').value, day = new Date().toISOString().slice(0, 10), view = staWin() + '|' + staFSig(), ck = pick + '|' + view + '|' + day;
   if (!force) {
     try {
       const c = JSON.parse(localStorage.getItem(STA_PLAN_LOCAL) || '{}')[ck];
-      if (c && c.moves) { STA_PLAN = c; return; }
+      if (c && c.moves) { STA_PLAN = Object.assign(c, { view }); return; }
     } catch (e) { /* make a new one */ }
   }
   const L = staLists();
   const rules = staPlanRules(L);
-  STA_PLAN = { at: Date.now(), src: 'rules', moves: rules, brand: pick, note: '' };
+  STA_PLAN = { at: Date.now(), src: 'rules', moves: rules, brand: pick, view, note: '' };
   staPlanDraw(true);
   const ai = await staPlanAi(L, rules);
-  if (ai && ai.moves) STA_PLAN = { at: Date.now(), src: 'ai', model: ai.model, moves: ai.moves, brand: pick, note: '' };
+  if (ai && ai.moves) STA_PLAN = { at: Date.now(), src: 'ai', model: ai.model, moves: ai.moves, brand: pick, view, note: '' };
   else STA_PLAN.note = ai && ai.err ? `Claude could not plan this time (${ai.err}), so these come from Sellora's rules.` : 'Too few suggestions for Claude to plan: from Sellora\'s rules.';
   try {
     const all = JSON.parse(localStorage.getItem(STA_PLAN_LOCAL) || '{}');
@@ -3717,7 +4237,7 @@ function staPlanDraw(busy) {
   const P = STA_PLAN;
   const M = staModel();
   $('stPlanSub').textContent = !P ? '' : `${P.src === 'ai' ? 'Planned by ' + (P.model || 'Claude') + ' from Sellora\'s top suggestions' : 'From Sellora\'s rules'} · ${new Date(P.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
-  const live = m => m.keys.map(k => M.byKey.get(k)).filter(r => { if (!r) return false; try { return !!staQuick(r).items; } catch (e) { return false; } });
+  const live = m => m.keys.map(k => staByKey(M, k)).filter(r => { if (!r) return false; try { return !!staQuick(r).items; } catch (e) { return false; } });
   $('stPlanBody').innerHTML = (busy ? '<div class="sta-planbusy"><span class="sta-spin" aria-hidden="true"></span>Asking Claude to plan from Sellora\'s top suggestions (up to a minute)… Sellora\'s own plan below is ready now.</div>' : '')
     + (P && P.note ? `<div class="sta-plannote">${staEsc(P.note)}</div>` : '')
     + (!P || !P.moves.length ? '<p class="muted" style="padding:6px 2px">Nothing worth planning: no suggestion passes its checks right now.</p>'
@@ -3731,7 +4251,8 @@ function staPlanDraw(busy) {
 }
 async function staPlanOpen() {
   $('stPlan').classList.remove('hide');
-  if (!STA_PLAN || STA_PLAN.brand !== $('stBrand').value || new Date(STA_PLAN.at).toDateString() !== new Date().toDateString()) await staPlanMake(false);
+  if (!STA_PLAN || STA_PLAN.brand !== $('stBrand').value || STA_PLAN.view !== staWin() + '|' + staFSig()
+    || new Date(STA_PLAN.at).toDateString() !== new Date().toDateString()) await staPlanMake(false);
   staPlanDraw(false);
 }
 
@@ -3820,7 +4341,7 @@ $('stActBar').addEventListener('click', e => {
   if (t) {
     const M = staModel();
     const on = STA_ACTSHOWN.length && STA_ACTSHOWN.every(r => ST_SEL.has(r.key));
-    STA_ACTSHOWN.forEach(r => { if (on) ST_SEL.delete(r.key); else ST_SEL.set(r.key, M.byKey.get(r.key) || r); });
+    STA_ACTSHOWN.forEach(r => { if (on) ST_SEL.delete(r.key); else ST_SEL.set(r.key, staByKey(M, r.key) || r); });
     renderSt();
     return;
   }
@@ -3854,6 +4375,19 @@ $('stMoreBtn').addEventListener('click', () => {
   const on = $('stMore').classList.toggle('hide');
   $('stMoreBtn').setAttribute('aria-expanded', on ? 'false' : 'true');
 });
+// The bar's date window, filter lists, stock chip and chips (staBarWire). A chip of this screen's own (its search, minimum
+// spend and Filters) clears that control.
+staBarWire({ pg: 'st', win: 'stWin', pf: 'stPf', chips: 'stChips', note: 'stWinNote', redraw: renderSt, fx: k => {
+  if (k === 'all') {
+    $('stFilter').value = '';
+    $('stMinSpend').value = '';
+    ['stFMt', 'stFCt', 'stFV', 'stFTag'].forEach(id => { $(id).value = ''; });
+  } else if (k === 'q') $('stFilter').value = '';
+  else if (k === 'min') $('stMinSpend').value = '';
+  else if (k.startsWith('sel:')) $(k.slice(4)).value = '';
+  else return false;
+  return true;
+} });
 // "Set a target ACoS" in the data line (no unit costs) opens Lists & settings.
 $('stMsg').addEventListener('click', e => { if (e.target.closest('[data-settgt]')) staSetOpen(); else if (e.target.closest('[data-staretry]')) ensureSt(); });
 // "Try again" after a load that failed every try.
@@ -3898,7 +4432,7 @@ $('stTable').addEventListener('click', e => {
   if (!cb) return;
   const M = staModel();
   const pick = k => {
-    const r = M.byKey.get(k);
+    const r = staByKey(M, k);
     if (!r) return;
     if (cb.checked) ST_SEL.set(r.key, r); else ST_SEL.delete(r.key);
   };
@@ -4070,7 +4604,7 @@ $('stPlanBody').addEventListener('click', e => {
   const M = staModel();
   let n = 0;
   m.keys.forEach(k => {
-    const r = M.byKey.get(k);
+    const r = staByKey(M, k);
     if (!r) return;
     try { if (staQuick(r).items) { ST_SEL.set(k, r); n++; } } catch (x) { /* skipped */ }
   });
@@ -4105,7 +4639,7 @@ $('stCsv').onclick = () => {
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'search-term-analysis-' + ST_VIEW + '-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.download = 'search-term-analysis-' + ST_VIEW + '-' + staWin() + 'd' + (staFOn() ? '-filtered' : '') + '-' + new Date().toISOString().slice(0, 10) + '.csv';
   a.click();
   URL.revokeObjectURL(a.href);
 };
@@ -4296,6 +4830,7 @@ function cpBase() {
       // --- the row ---
       const r = {
         brand: b,
+        cid: x.cid || '', ag: x.ag || '',   // for the product, campaign and stock filters (staFPassCp)
         cn: names[x.cid] || '',
         agn: names[x.ag] || '',
         asin: x.a,
@@ -4332,9 +4867,11 @@ function cpRows() {
   const show = $('stCpShow').value;
   // --- verdict and filter ---
   const rows = [];
+  const fOn = staFOn();
   cpBase().forEach(b => {
     if (pick !== 'ALL' && b.brand !== pick) return;
     if (minSp > 0 && b.sp < minSp) return;
+    if (fOn && !staFPassCp(b)) return;
     b.tgt = tgt;
     Object.assign(b, cpVerdict(b));
     if (show === 'running' ? b.st !== 'E' : show === 'stopped' ? (b.st === 'E' || !b.st) : show && b.v !== show) return;

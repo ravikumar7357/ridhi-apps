@@ -22,7 +22,7 @@ const GD = (function () {
   };
   var localStorage = { getItem: function () { return null; }, setItem: function () {} };
   var GD_CSS = "[hidden]{display:none!important} img{max-width:100%} \n/* Layout: the Replenish app's own frame -- a bar of screens across the top, soft cards on a tinted\n   ground -- with the greige work at its centre: each PO opens into its challans, each challan into its\n   bales, and receiving is a drawer from the right, opened from the PO itself. */\n:host{display:block;\n  --bg:#F3F5F8; --card:#ffffff; --soft:#F7F9FB; --chip:#EFF2F6; --hover:#EFF2F6; --zebra:#FBFCFE; --line:#E8EDF3;\n  --ink:#14181F; --muted:#5A6472; --faint:#98A1AE;\n  --brand:#4A6A92; --brand-bg:#E9EFF6; --brand-ink:#3A5573; --on-brand:#ffffff;\n  --accent:#4A5A3C; --accent-bg:#EDF0E7; --ok-ink:#2F6B33;\n  --bad:#9B1C1C; --bad-bg:#FBE9E9; --bad-line:#EBB9B9;\n  --warn-ink:#8A5A12; --warn-bg:#FFF3D6; --proc-ink:#7F6000;\n  --pink:#9B3F86; --pink-bg:#F7E8F3;\n  --c-greige:#9A6410; --c-proc:#2F6DB5; --c-rfd:#3F7D3A; --wa:#128C3E;\n  --scrim:rgba(15,23,42,.45); --toast-bg:#14181F; --toast-fg:#ffffff;\n  --sh-1:0 2px 10px rgba(20,24,31,.05); --sh-2:0 4px 16px rgba(20,24,31,.09); --sh-3:0 24px 64px rgba(20,24,31,.22);\n  --ring:0 0 0 3px rgba(110,144,181,.32); --ring-line:#6E90B5;\n  --r-card:18px; --r-ctl:12px; --r-sm:10px; --r-pill:999px; --ctl:40px;\n  --sans:\"Plus Jakarta Sans\",ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;\n  --serif:\"Libre Caslon Text\",\"Iowan Old Style\",Baskerville,\"Times New Roman\",serif;\n  --mono:ui-monospace,\"Cascadia Mono\",Consolas,\"Courier New\",monospace;\n}\n\n\n\n*{box-sizing:border-box}\n.gdroot{background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased;border-radius:18px}\n.pill,.tnum,.metric .v,.dfig,.gk-v,.num,.prog,.pc-m,.pc input,.pr input{font-variant-numeric:tabular-nums}\nh1,h2{letter-spacing:-.02em;text-wrap:balance}\n.muted{color:var(--muted)} .b{font-weight:700} .sub{font-size:12px;color:var(--muted)} .grow{flex:1}\n.mono{font-family:var(--mono);font-size:12.5px} .hide{display:none!important}\n.sel{user-select:text}\n\n/* ---- the frame ---- */\n.shell{display:flex;flex-direction:column;min-height:100%}\n.side{position:static;border-radius:18px 18px 0 0;display:flex;align-items:center;gap:2px;flex-wrap:wrap;\n  background:var(--card);box-shadow:var(--sh-1);padding:8px 16px}\n.brand{padding:0 14px 0 2px}\n.brandname{font-family:var(--serif);font-size:16px;letter-spacing:.06em;text-transform:uppercase;display:flex;flex-direction:column;line-height:1}\n.brandsub{font-family:var(--sans);font-size:7.5px;font-weight:600;letter-spacing:.22em;color:var(--muted);margin-top:3px}\n.navgrp{background:transparent;color:var(--muted);box-shadow:none;border:0;font:inherit;font-size:13px;font-weight:600;padding:8px 12px;border-radius:var(--r-sm);cursor:pointer}\n.navgrp:hover{color:var(--ink);background:var(--hover)}\n.navgrp.here{color:var(--brand);background:var(--brand-bg);font-weight:800}\n.sidefoot{margin-left:auto;display:flex;align-items:center;gap:8px}\n.lm-tag{display:inline-block;padding:2px 9px;border-radius:var(--r-pill);background:var(--warn-bg);color:var(--warn-ink);font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}\n.main{flex:1;min-width:0;width:100%;max-width:1560px;margin:0 auto;padding-inline:22px;padding-block:18px 48px}\n@media (max-width:640px){.main{padding-inline:16px}.side{padding:8px 12px;position:static}.brandsub{display:none}.frow select{flex:1 1 100%}}\n.topbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}\n.lm-h{font-family:var(--serif);font-weight:400;font-size:25px;margin:0}\n.topacts{margin-left:auto;display:flex;gap:8px;min-width:0;flex:0 1 480px;align-items:center}.toppick:empty{display:none}.histday-end td{border-bottom:2px solid var(--line)}.toppick{flex:0 0 auto}.toppick select{width:auto;min-width:150px;max-width:240px;height:var(--ctl)}\n.topacts input{width:100%}\n\n/* ---- controls ---- */\nlabel{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:5px}\ninput,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-ctl);padding:9px 12px;width:100%;min-width:0}\ninput:focus,select:focus,textarea:focus{outline:none;border-color:var(--ring-line);box-shadow:var(--ring)}\ninput[readonly]{background:var(--soft);color:var(--muted)}\ninput::placeholder,textarea::placeholder{color:var(--faint)}\nbutton{font:inherit;font-weight:700;cursor:pointer;border:0;border-radius:var(--r-ctl);padding:10px 18px;background:var(--brand);color:var(--on-brand);\n  box-shadow:0 4px 12px rgba(74,106,146,.25);transition:background .12s,box-shadow .12s,transform .06s;white-space:nowrap}\nbutton:hover{background:var(--brand-ink)}\nbutton:active{transform:translateY(1px);box-shadow:none}\nbutton:focus-visible,a:focus-visible{outline:none;box-shadow:var(--ring)}\nbutton.ghost{background:var(--card);color:var(--muted);font-weight:600;box-shadow:var(--sh-1)}\nbutton.ghost:hover{color:var(--ink);box-shadow:var(--sh-2)}\nbutton.armed,button.ghost.armed{background:var(--bad);color:#fff}\n.btnlink{display:inline-flex;align-items:center;padding:10px 18px;border-radius:var(--r-ctl);background:var(--card);color:var(--brand-ink);font-weight:700;text-decoration:none;box-shadow:var(--sh-1)}\n.btnlink:hover{box-shadow:var(--sh-2)}\n.btnlink{gap:7px}\n.btnlink.wa,.jw-btn.wa{color:var(--wa)}\n.jw-btn.ico{width:32px;padding:0;display:inline-grid;place-items:center}\na.jw-btn{text-decoration:none}\n.frozen{padding:8px 11px;border-radius:var(--r-ctl);background:var(--soft);color:var(--ink);font-size:12.5px;min-width:200px}\n@media print{body *{visibility:hidden}#docPaper,#docPaper *{visibility:visible}#docPaper{position:absolute;left:0;top:0;box-shadow:none;margin:0;padding:0}}\n.jw-btn{height:32px;padding:0 13px;font-size:12.5px;border-radius:var(--r-sm);background:var(--chip);color:var(--muted);font-weight:700;box-shadow:none}\n.jw-btn:hover{background:var(--line);color:var(--ink)}\n.jw-btn.jw-primary{background:var(--brand-bg);color:var(--brand-ink)}\n.jw-btn.jw-wa{background:var(--accent-bg);color:var(--accent)}\n.row{display:flex;gap:10px;flex-wrap:wrap}\n.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}\n.seg{display:inline-flex;background:var(--chip);border-radius:var(--r-sm);padding:3px;gap:2px}\n.segbtn{background:transparent;color:var(--muted);box-shadow:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:600}\n.segbtn:hover{background:transparent;color:var(--ink)}\n.segbtn.on{background:var(--card);color:var(--ink);box-shadow:var(--sh-1)}\n.segbtn .n{color:var(--faint);font-weight:500;margin-left:3px}\n\n/* ---- cards, figures, tables ---- */\n.card{background:var(--card);border-radius:var(--r-card);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sh-1);min-width:0}\n.kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}\n.kpi{flex:1 1 300px;background:var(--card);border-radius:var(--r-card);padding:13px 16px;box-shadow:var(--sh-1)}\n.kpihead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}\n.kpiname{font-size:13px;font-weight:700} .kpiwhen{font-size:11px;color:var(--muted)}\n.metrics{display:flex;gap:24px;flex-wrap:wrap;justify-content:space-between}\n.metric .v{font-size:19px;font-weight:700;line-height:1.2} .metric .l{font-size:11px;color:var(--muted);margin-top:2px}\n.ff-cap{font-size:12.5px;color:var(--muted);margin:0 0 8px;line-height:1.5;max-width:110ch}\n.ff-grid,.scroll{overflow-x:auto}\n.ok{background:var(--accent-bg);color:var(--accent);padding:11px 14px;border-radius:var(--r-sm);font-size:13.5px;border-left:3px solid var(--accent)}\n.err{background:var(--bad-bg);color:var(--bad);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--bad);margin-bottom:10px;line-height:1.5}\n.warn{background:var(--warn-bg);color:var(--warn-ink);padding:10px 14px;border-radius:var(--r-sm);font-size:13px;border-left:3px solid var(--warn-ink)}\ntable.xl{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}\ntable.xl th,table.xl td{border-bottom:1px solid var(--line);padding:9px 11px;white-space:nowrap;background:var(--card);text-align:center;vertical-align:middle}\ntable.xl thead th{position:sticky;top:0;z-index:2;font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--faint);text-transform:uppercase}\ntable.xl .frz{position:sticky;left:0;z-index:1;border-right:1px solid var(--line)}\ntable.xl thead th.frz{z-index:3}\ntable.xl tbody tr:nth-child(even) td{background:var(--zebra)}\ntable.xl tbody tr:hover td{background:var(--soft)}\ntable.xl tfoot td{background:var(--soft);font-weight:800}\ntable.xl.xl-dense th,table.xl.xl-dense td{padding:6px 8px;font-size:12.5px}\n.pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;white-space:nowrap}\n.pill-ok{background:var(--accent-bg);color:var(--accent)} .pill-low{background:var(--warn-bg);color:var(--warn-ink)}\n.pill-out{background:var(--bad-bg);color:var(--bad)} .pill-sea{background:var(--brand-bg);color:var(--brand-ink)} .pill-mute{background:var(--chip);color:var(--muted)}\n.lm-note{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}\n.lm-why{font-size:12px;color:var(--muted);line-height:1.55;margin-top:8px}\n.lm-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px}\n.lm-lines td{padding:5px 6px} .lm-lines input,.lm-lines select{padding:6px 8px;font-size:12.5px}\n.lm-x{background:transparent;color:var(--bad);box-shadow:none;padding:4px 8px;font-size:15px}\n.lm-x:hover{background:var(--bad-bg)}\n\n/* ---- the dashboard ---- */\n.dashcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:14px;margin-bottom:14px}\n.dcard{display:block;width:100%;text-align:left;background:var(--card);color:var(--ink);border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal}\n.dcard:hover{background:var(--card);box-shadow:var(--sh-2)}\n.dhead{display:flex;align-items:center;gap:8px;margin-bottom:9px}\n.dicon{width:22px;height:22px;border-radius:7px;background:var(--chip);color:var(--brand-ink);display:inline-flex;align-items:center;justify-content:center;flex:none}\n.dtitle{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}\n.dchip{margin-left:auto;font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:var(--r-pill);background:var(--accent-bg);color:var(--accent);white-space:nowrap}\n.dfig{font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.01em}\n.dsub{font-size:12px;color:var(--muted);margin-top:2px}\n.dsplit{display:flex;gap:30px;flex-wrap:wrap}\n.dnote{font-size:12px;color:var(--muted);margin-left:auto;padding-bottom:3px}\n.dash2col{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:14px;align-items:stretch;margin-bottom:14px}\n\n/* ---- Greige POs: the figures, each one a filter ---- */\n.pobar{display:flex;gap:10px;flex-wrap:wrap;margin:-4px 0 14px}\n.gk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}\n.gk{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto;column-gap:8px;text-align:left;background:var(--card);color:var(--ink);\n  border-radius:var(--r-card);box-shadow:var(--sh-1);padding:14px 16px;font-weight:400;white-space:normal;outline:1.5px solid transparent}\n.gk:hover{background:var(--card);box-shadow:var(--sh-2)}\n.gk.on{outline-color:var(--brand)}\n.gk-ic{grid-column:2;grid-row:1/3;width:34px;height:34px;border-radius:10px;display:grid;place-items:center}\n.gk-v{grid-column:1;font-size:21px;font-weight:800;letter-spacing:-.01em}\n.gk-l{grid-column:1;font-size:12.5px;color:var(--muted);font-weight:600}\n.gk-s{grid-column:1/-1;font-size:12px;color:var(--muted);margin-top:9px}\n.tone-blue{background:var(--brand-bg);color:var(--brand-ink)} .tone-amber{background:var(--warn-bg);color:var(--warn-ink)}\n.tone-green{background:var(--accent-bg);color:var(--accent)} .tone-red{background:var(--bad-bg);color:var(--bad)}\n.filters{padding:12px 14px;display:flex;flex-direction:column;gap:10px}\n.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}\n.frow select{flex:0 1 200px;width:auto;height:38px;padding-block:0}\n.pair{display:inline-flex;align-items:center;gap:6px;flex:0 1 auto;min-width:0}\n.frow input[type=date]{width:160px;max-width:100%;height:38px;padding-block:0}\nlabel.inl{margin:0;font-size:12px}\n.frow2{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}\n.count{font-size:12.5px}\n.tablecard{padding:0;overflow:hidden}\n.t{width:100%;min-width:1080px;border-collapse:collapse}\n.t > thead th,.ct > thead th{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--card)}\n.t > tbody > tr > td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\nth.num,td.num{text-align:right;white-space:nowrap} th.ra{text-align:right} td.tl,th.tl{text-align:left}\n.xrow{cursor:pointer}\n.xrow:hover > td,.xrow.open > td{background:var(--soft)}\n.plus{color:var(--muted);font-weight:600}\n.w-chev{width:40px;padding-left:12px!important;padding-right:0!important}\n.chev{width:26px;height:26px;padding:0;background:transparent;box-shadow:none;border-radius:7px;display:grid;place-items:center;color:var(--muted)}\n.chev:hover{background:var(--line);color:var(--ink)}\n.chev svg{transition:transform .15s ease}\n.open > td .chev svg{transform:rotate(90deg)}\n.mill{display:flex;gap:10px;align-items:center}\n.av{width:32px;height:32px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800}\n.av-a{background:var(--brand-bg);color:var(--brand-ink)} .av-b{background:var(--pink-bg);color:var(--pink)}\n.av-c{background:var(--accent-bg);color:var(--accent)} .av-d{background:var(--warn-bg);color:var(--warn-ink)}\n.prog{display:flex;align-items:center;gap:8px;font-weight:700}\n.actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;min-width:230px}\n.plate{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:5px;padding:1px 7px;background:var(--card);white-space:nowrap}\n.detail > td{padding:0!important;background:var(--soft);border-bottom:1px solid var(--line)}\n.panel{padding:6px 18px 18px 52px;display:flex;flex-direction:column;gap:12px}\n@media (max-width:640px){.panel{padding-left:14px}}\n.panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.panel-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}\n.lsum{display:flex;gap:10px;flex-wrap:wrap}\n.lchip{background:var(--card);border-radius:12px;padding:10px 13px;min-width:min(270px,100%);box-shadow:var(--sh-1)}\n.lchip .top2{display:flex;justify-content:space-between;gap:12px;font-size:13px}\n.lchip .due{color:var(--warn-ink)}\n.bar{height:5px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}\n.bar i{display:block;height:100%;background:var(--brand);border-radius:3px}\n.bar i.full{background:var(--accent)}\n.ct.li th{background:var(--card)}\n.ct.li td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct.li tr.tot td{border-bottom:0;font-weight:700;background:var(--soft)}\n.bar.sm{height:4px;margin-top:5px;min-width:70px}\n.box{background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--sh-1)}\n.ct{width:100%;border-collapse:collapse}\n.ct > tbody > tr > td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}\n.ct .xrow:hover > td,.ct .xrow.open > td{background:var(--brand-bg)}\n.empty{padding:18px;color:var(--muted);font-size:13.5px}\n.pieces{padding:12px 14px 14px;display:flex;flex-direction:column;gap:12px;background:var(--soft)}\n.pieces-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}\n.pl-h{font-size:13px;margin-bottom:7px}\n.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}\n.pc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 9px;display:flex;flex-direction:column;gap:3px}\n.pc.short{border-color:var(--bad-line);background:var(--bad-bg)}\n.pc-top{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}\n.pc-m{font-weight:700}\n.pc input{padding:4px 7px;font-size:13px;border-radius:7px}\n.pc-lab{font-size:11px;font-weight:500;color:var(--faint);margin:0}\n.d{font-weight:700} .d.short{color:var(--bad)} .d.extra{color:var(--ok-ink)} .d.ok{color:var(--faint);font-weight:500}\n.foot{font-size:12.5px;color:var(--muted);max-width:90ch;margin:4px 2px 0;line-height:1.55}\n\n/* ---- the receive drawer ---- */\n.scrim{position:fixed;inset:0;background:var(--scrim);z-index:1010}\n.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--card);z-index:1011;display:flex;flex-direction:column;box-shadow:var(--sh-3);\n  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}\n.dr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line)}\n.dr-head h2{font-size:19px;margin:2px 0 0}\n.crumb{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}\n.dr-body{flex:1;overflow:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}\n.dr-foot{border-top:1px solid var(--line);padding:14px 22px;display:flex;flex-direction:column;gap:10px}\n@media (max-width:520px){.dr-head,.dr-body,.dr-foot{padding-inline:16px}}\n.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n@media (max-width:520px){.grid2{grid-template-columns:1fr}}\n.fld{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted);margin:0}\n.fld small{font-weight:400;font-size:12px}\n.fld.wide{grid-column:1/-1}\n.sect{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}\n.sect span{font-weight:500;letter-spacing:0;text-transform:none}\n.dl{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--soft)}\n.prh,.pr{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1fr) 32px;gap:8px;align-items:center}\n.prh{font-size:11.5px;color:var(--faint);font-weight:600}\n.pr input{padding:7px 10px}\n.pr-i{font-size:12px;color:var(--faint);text-align:right}\n.x{width:32px;height:32px;padding:0;background:transparent;box-shadow:none;color:var(--muted);font-size:18px;line-height:1;border-radius:8px}\n.x:hover{background:var(--line);color:var(--ink)}\n.dl-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}\n.dl-sum{margin-left:auto;font-weight:700;font-size:13px}\n.link{background:none;box-shadow:none;color:var(--brand-ink);font-size:13px;font-weight:700;padding:2px 0}\n.link:hover{background:none;text-decoration:underline}\n.paste{display:flex;flex-direction:column;gap:8px}\n.paste textarea{min-height:84px;resize:vertical;font-family:var(--mono);font-size:13px}\n.warnline{font-size:12.5px;color:var(--warn-ink)}\n.note{font-size:12.5px;color:var(--muted)}\n.empty-sm{border:1px dashed var(--line);border-radius:12px;padding:16px;color:var(--muted);font-size:13.5px}\n.pohead{background:var(--soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}\n.pohead-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}\n.ct.mini th{padding:7px 8px;background:transparent}\n.ct.mini td{padding:7px 8px;font-size:12.5px}\n.ct.mini tr.tot td{border-bottom:0;font-weight:700}\n.due{color:var(--warn-ink)}\n.dl-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}\n.lotf{flex:0 0 150px}\n.lotf input{font-family:var(--mono);font-weight:700}\n.supline{background:var(--brand-bg);color:var(--brand-ink);padding:10px 12px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.55}\n.cellbtn{background:transparent;box-shadow:none;color:inherit;font:inherit;font-weight:inherit;padding:4px 8px;border-radius:8px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}\n.cellbtn:hover,.cellbtn.on{background:var(--brand-bg);color:var(--brand-ink);text-decoration:none}\n.cellbtn .caret{font-size:10px;opacity:.7}\ntr.invdet > td{background:var(--soft)!important;padding:4px 12px 14px!important;white-space:normal!important;text-align:left!important}\n.invdrop{display:flex;flex-direction:column;gap:8px}\n.balegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}\n.bale{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12.5px;font-weight:600;cursor:pointer}\n.bale input{width:15px;height:15px;flex:none}.bale b{margin-left:auto;font-variant-numeric:tabular-nums}\n.bale.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-ink)}\n.okline{background:var(--accent-bg);color:var(--accent);padding:8px 12px;border-radius:var(--r-sm);font-size:12.5px}\n.approvals{border-left:4px solid var(--warn-ink)}\n.closeline{display:flex;align-items:center;gap:9px;margin:0;font-size:13px;font-weight:600;color:var(--ink);background:var(--warn-bg);border-radius:var(--r-sm);padding:9px 12px}\n.closeline input{width:16px;height:16px;flex:none}\n.dr-total{display:flex;justify-content:space-between;gap:12px;font-weight:700;flex-wrap:wrap}\n.dr-btns{display:flex;justify-content:flex-end;gap:8px}\n\n/* ---- dialogs ---- */\n.modal{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px}\n.modalbox{background:var(--card);border-radius:var(--r-card);padding:20px;width:min(720px,100%);max-height:92vh;overflow:auto;box-shadow:var(--sh-3)}\n.en-groups{display:flex;flex-direction:column;gap:7px;margin:4px 0 16px}\n.en-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}\n.en-gname{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);width:82px;flex:none}\n.en-chip{display:inline-flex;align-items:center;gap:7px;background:var(--chip);color:var(--ink);box-shadow:none;border-radius:var(--r-pill);padding:6px 13px;font-size:12.5px;font-weight:600}\n.en-chip:hover{background:var(--line);color:var(--ink)}\n.en-chip.on{background:var(--card);box-shadow:inset 0 0 0 1.5px var(--ink),var(--sh-1);font-weight:800}\n.en-dot{width:8px;height:8px;border-radius:50%;flex:none}\n.en-after{background:var(--brand-bg);color:var(--brand-ink);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;line-height:1.7;margin-bottom:10px}\n.en-after-h{font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;opacity:.75;margin-bottom:2px}\n.en-after .bad{color:var(--bad)}\n.docbox{width:min(860px,100%)}\n.docpaper{background:#ffffff;color:#000000;border-radius:8px;padding:16px;overflow-x:auto;box-shadow:inset 0 0 0 1px var(--line);margin:12px 0 16px}\n.mailbox{background:var(--soft);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:13px;margin:8px 0 12px}\n.mailbox pre{margin:6px 0 0;white-space:pre-wrap;font:13px/1.5 var(--sans);color:var(--ink)}\n.err-in{color:var(--bad);font-weight:600}\n\n.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--toast-bg);color:var(--toast-fg);\n  padding:11px 16px;border-radius:12px;font-size:13.5px;z-index:80;width:max-content;max-width:calc(100% - 32px);box-shadow:var(--sh-3);border-left:4px solid var(--brand);z-index:1100}\n.toast.ok{border-left-color:var(--c-rfd)} .toast.warn{border-left-color:var(--c-greige)} .toast.err{border-left-color:var(--bad)}\n@media (prefers-reduced-motion: reduce){*{transition:none!important}}\n";
-  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">Greige · RFD · POs</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><span id=\"lmTopPick\" class=\"toppick\"></span><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div style=\"margin-top:12px\"><label for=\"poTc\">Terms &amp; conditions (optional)</label><textarea id=\"poTc\" rows=\"4\" style=\"width:100%\" placeholder=\"Quality, delivery, payment and any other conditions the supplier must follow\"></textarea><div class=\"muted\" style=\"font-size:11px;margin-top:3px\">Starts with your standard terms from the PO settings; change them for this PO if needed. Printed on the PO and put in the mail.</div></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutMode\" class=\"seg\" role=\"tablist\" aria-label=\"Kind of cutting\" style=\"margin-top:12px\"></div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\" id=\"cutSect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
+  var GD_HTML = "<div class=\"shell\">\n  <div class=\"side\">\n    <div class=\"brand\"><span class=\"brandname\">Greige Desk<span class=\"brandsub\">Greige · RFD · POs</span></span></div>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"po\">Greige POs</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"inv\">Inventory</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"ledger\">Fabric ledger</button>\n    <button type=\"button\" class=\"navgrp\" data-tab=\"mst\">Master data</button>\n    <div class=\"sidefoot\">\n      <span id=\"meName\" class=\"muted\" style=\"font-size:12px\"></span>\n    </div>\n  </div>\n\n  <div class=\"main\">\n    <div class=\"topbar\">\n      <h1 class=\"lm-h\" id=\"lmTitle\">Greige POs</h1>\n      <div class=\"topacts\"><span id=\"lmTopPick\" class=\"toppick\"></span><input id=\"lmQ\" type=\"search\" placeholder=\"Search PO, supplier, challan, lot, LR…\" aria-label=\"Search\"></div>\n    </div>\n    <div id=\"lmPane\"></div>\n  </div>\n</div>\n\n<!-- ENTRY. One dialog for every movement: the kind decides which fields matter. -->\n<div class=\"modal hide\" id=\"lmEntry\">\n  <div class=\"modalbox\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"lmEnTitle\">Fabric entry</h2>\n    <div class=\"lm-note\" id=\"lmEnNote\"></div>\n    <div id=\"lmEnErr\" class=\"err hide\"></div>\n    <div id=\"enChips\" class=\"en-groups\"></div>\n    <select id=\"enKind\" class=\"hide\" aria-label=\"Movement\"></select>\n    <div class=\"lm-fields\">\n      <div><label for=\"enLot\">Lot *</label><input id=\"enLot\" list=\"enLots\" placeholder=\"LOT-005\"><datalist id=\"enLots\"></datalist></div>\n      <div><label for=\"enDate\">Date *</label><input type=\"date\" id=\"enDate\"></div>\n      <div><label for=\"enFab\">Fabric *</label><input id=\"enFab\" list=\"enFabs\" placeholder=\"Greige Sheeting 67\"><datalist id=\"enFabs\"></datalist></div>\n      <div><label for=\"enQty\">Metres *</label><input id=\"enQty\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"1200\"></div>\n      <div><label id=\"enPartyL\" for=\"enParty\">Party</label><input id=\"enParty\" list=\"enParties\" placeholder=\"Shri Balaji Mills\"><datalist id=\"enParties\"></datalist></div>\n      <div><label for=\"enBill\" id=\"enBillL\">Bill / challan</label><input id=\"enBill\" placeholder=\"Optional\"></div>\n      <div id=\"enFinalWrap\"><label>Is that the lot?</label>\n        <label style=\"display:flex;align-items:center;gap:8px;font-weight:500;color:var(--ink);margin:0;height:var(--ctl)\">\n          <input type=\"checkbox\" id=\"enFinal\" checked style=\"width:16px;height:16px\">\n          <span>Yes, close the lot</span></label></div>\n      <div id=\"enReturnedWrap\"><label for=\"enReturned\">Sent back (optional)</label>\n        <input id=\"enReturned\" type=\"text\" inputmode=\"decimal\" autocomplete=\"off\" data-num=\"7\" placeholder=\"0\" title=\"Metres refused at the door and returned\"></div>\n      <div id=\"enPoWrap\"><label for=\"enPo\">Against greige PO</label><input id=\"enPo\" list=\"enPos\" placeholder=\"Optional\"><datalist id=\"enPos\"></datalist></div>\n    </div>\n    <div style=\"margin-bottom:12px\"><label id=\"enRemarkL\" for=\"enRemark\">Remark (optional)</label>\n      <input id=\"enRemark\" placeholder=\"Anything worth remembering about this entry\"></div>\n    <div id=\"enAfter\" class=\"en-after hide\"></div>\n    <div class=\"lm-why hide\" id=\"enSpec\" style=\"background:var(--soft);border-radius:var(--r-sm);padding:9px 11px\"></div>\n    <div class=\"lm-why\" id=\"lmEnWhy\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost hide\" id=\"enDelete\" style=\"color:var(--bad);margin-right:auto\">Remove this entry</button>\n      <button type=\"button\" class=\"ghost\" data-close=\"lmEntry\">Cancel</button>\n      <button type=\"button\" id=\"enSave\">Save the entry</button>\n    </div>\n  </div>\n</div>\n\n<!-- A GREIGE PO. Written in the greige name, priced per line. -->\n<div class=\"modal hide\" id=\"lmPo\">\n  <div class=\"modalbox\" style=\"width:min(1060px,100%)\">\n    <h2 style=\"margin:0 0 4px;font-size:18px\" id=\"poTitle\">New greige PO</h2>\n    <div class=\"lm-note\">The cloth is ordered by its <b>greige</b> name, because greige comes wider than the RFD it becomes.\n      Each line’s description is written from Master data and can be changed by hand.</div>\n    <div id=\"lmPoErr\" class=\"err hide\"></div>\n    <div id=\"poCoNote\" class=\"warn hide\" style=\"margin-bottom:12px\"></div>\n    <div class=\"lm-fields\">\n      <div><label for=\"poNo\">PO number</label><input id=\"poNo\" readonly></div>\n      <div><label for=\"poDate\">Date</label><input type=\"date\" id=\"poDate\" readonly title=\"The day the PO is raised; it is not changed\"></div>\n      <div><label for=\"poMill\">Supplier *</label><input id=\"poMill\" list=\"poMills\" placeholder=\"Shri Balaji Mills\"><datalist id=\"poMills\"></datalist>\n        <div id=\"poMillNote\" class=\"muted\" style=\"font-size:11px;margin-top:4px\"></div><div id=\"poMillLock\" class=\"muted\" style=\"font-size:11px\"></div></div>\n    </div>\n    <details id=\"poMore\" style=\"margin:0 0 12px\">\n      <summary style=\"cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)\">Payment, dispatch &amp; delivery terms (optional)</summary>\n      <div class=\"lm-fields\" style=\"margin-top:10px\">\n        <div><label for=\"poPay\">Mode / terms of payment</label><input id=\"poPay\" placeholder=\"e.g. 30 days\"></div>\n        <div><label for=\"poDisp\">Dispatched through</label><input id=\"poDisp\" placeholder=\"Transporter\"></div>\n        <div><label for=\"poDest\">Destination</label><input id=\"poDest\" placeholder=\"Jaipur\"></div>\n        <div><label for=\"poOther\">Other references</label><input id=\"poOther\"></div>\n      </div>\n      <div><label for=\"poTerms\">Terms of delivery</label><input id=\"poTerms\" placeholder=\"Delivered to our godown, freight paid\"></div>\n    </details>\n    <div class=\"ff-grid\"><table class=\"xl lm-lines\" id=\"poLines\"></table></div>\n    <div class=\"row\" style=\"margin-top:8px\"><button type=\"button\" class=\"ghost\" id=\"poAdd\">+ Add a line</button></div>\n    <div id=\"poTot\" class=\"lm-why\"></div>\n    <div style=\"margin-top:12px\"><label for=\"poTc\">Terms &amp; conditions (optional)</label><textarea id=\"poTc\" rows=\"4\" style=\"width:100%\" placeholder=\"Quality, delivery, payment and any other conditions the supplier must follow\"></textarea><div class=\"muted\" style=\"font-size:11px;margin-top:3px\">Starts with your standard terms from the PO settings; change them for this PO if needed. Printed on the PO and put in the mail.</div></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\">\n      <button type=\"button\" class=\"ghost\" data-close=\"lmPo\">Cancel</button>\n      <button type=\"button\" class=\"ghost\" id=\"poSaveDoc\">Save &amp; open the PO</button>\n      <button type=\"button\" id=\"poSave\">Save the PO</button>\n    </div>\n  </div>\n</div>\n\n<!-- ISSUE TO RFD: from a PO, its lots with greige in the store, to one RFD processor. -->\n<div class=\"modal hide\" id=\"lmIss\">\n  <div class=\"modalbox\" style=\"width:min(900px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Issue to RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"issTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmIss\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"issErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"issProc\">RFD processor *</label><select id=\"issProc\"></select></div>\n      <div><label for=\"issDate\">Date</label><input type=\"date\" id=\"issDate\" readonly title=\"Today\"></div>\n      <div><label for=\"issNo\">Our RFD challan no.</label><input id=\"issNo\" readonly title=\"Given automatically, in its own series\"></div>\n      <div><label for=\"issRem\">Remark</label><input id=\"issRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\">Bales going out</div>\n    <div id=\"issLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"issTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmIss\">Cancel</button><button type=\"button\" id=\"issSave\">Issue to RFD</button></div>\n  </div>\n</div>\n\n<!-- SEND TO CUTTING: RFD thans of one lot, off the shelf to the cutting table. -->\n<div class=\"modal hide\" id=\"lmCut\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Send to cutting</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"cutTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmCut\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"cutMode\" class=\"seg\" role=\"tablist\" aria-label=\"Kind of cutting\" style=\"margin-top:12px\"></div>\n    <div id=\"cutErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"cutTo\">Cutting master / table</label><input id=\"cutTo\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n      <div><label for=\"cutDate\">Date</label><input type=\"date\" id=\"cutDate\" readonly title=\"Today\"></div>\n      <div><label for=\"cutRem\">Remark</label><input id=\"cutRem\" autocomplete=\"off\" placeholder=\"Optional\"></div>\n    </div>\n    <div class=\"sect\" id=\"cutSect\">Thans going to cutting</div>\n    <div id=\"cutBody\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div id=\"cutTot\" class=\"lm-why\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmCut\">Cancel</button><button type=\"button\" id=\"cutSave\">Send to cutting</button></div>\n  </div>\n</div>\n\n<!-- RECEIVE RFD: thans back from the RFD processor, against the lots of one PO. -->\n<div class=\"modal hide\" id=\"lmRr\">\n  <div class=\"modalbox\" style=\"width:min(820px,100%)\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Receive RFD</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"rrTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmRr\" aria-label=\"Close\">×</button>\n    </div>\n    <div id=\"rrErr\" class=\"err hide\" style=\"margin-top:12px\"></div>\n    <div class=\"lm-fields\" style=\"margin-top:12px\">\n      <div><label for=\"rrNo\">Processor’s challan no. *</label><input id=\"rrNo\" autocomplete=\"off\" placeholder=\"As printed on their challan\"></div>\n      <div><label for=\"rrDate\">Date</label><input type=\"date\" id=\"rrDate\" readonly title=\"Today\"></div>\n    </div>\n    <div class=\"sect\">Thans back <span>Enter in a metres box adds the next than. The lot closes by itself when all its thans are back. More than 5% shrinkage on a closed lot needs approval.</span></div>\n    <div id=\"rrLots\" style=\"display:flex;flex-direction:column;gap:12px;margin-top:8px\"></div>\n    <div class=\"row\" style=\"margin-top:14px;justify-content:flex-end\"><button type=\"button\" class=\"ghost\" data-close=\"lmRr\">Cancel</button><button type=\"button\" id=\"rrSave\">Save the receipt</button></div>\n  </div>\n</div>\n\n<!-- THE PO AS PAPER, and the mail that goes with it. -->\n<div class=\"modal hide\" id=\"lmDoc\">\n  <div class=\"modalbox docbox\">\n    <div style=\"display:flex;justify-content:space-between;align-items:flex-start;gap:12px\">\n      <div><div class=\"crumb\">Purchase order</div><h2 style=\"margin:2px 0 0;font-size:19px\" id=\"docTitle\"></h2></div>\n      <button type=\"button\" class=\"x\" data-close=\"lmDoc\" aria-label=\"Close\">×</button>\n    </div>\n    <div class=\"docpaper\" id=\"docPaper\"></div>\n    <div id=\"docMail\"></div>\n  </div>\n</div>\n\n<!-- RECEIVE GREIGE: opened from an open PO; the whole PO, then the supplier's challan bale by bale. -->\n<div class=\"scrim\" id=\"scrim\" hidden data-close=\"drawer\"></div>\n<aside class=\"drawer\" id=\"drawer\" hidden role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"drTitle\">\n  <div class=\"dr-head\">\n    <div><div class=\"crumb\">Receive greige</div><h2 id=\"drTitle\">New challan</h2></div>\n    <button type=\"button\" class=\"x\" data-close=\"drawer\" aria-label=\"Close\">×</button>\n  </div>\n  <div class=\"dr-body\">\n    <div id=\"dPo\"></div>\n    <div class=\"sect\">The supplier’s challan</div>\n    <div class=\"grid2\">\n      <label class=\"fld\" for=\"dNo\"><span>Challan no. *</span><input id=\"dNo\" autocomplete=\"off\" placeholder=\"As printed on the challan\"></label>\n      <label class=\"fld\" for=\"dDate\"><span>Challan date *</span><input id=\"dDate\" type=\"date\"></label>\n      <label class=\"fld\" for=\"dInv\"><span>Invoice no.</span><input id=\"dInv\" autocomplete=\"off\" placeholder=\"The supplier’s bill, if it came with the goods\"></label>\n      <label class=\"fld\" for=\"dTrn\"><span>Transporter name</span><input id=\"dTrn\" autocomplete=\"off\" placeholder=\"e.g. VRL Logistics\"></label>\n      <label class=\"fld wide\" for=\"dLr\"><span>LR no.</span><input id=\"dLr\" autocomplete=\"off\" placeholder=\"Optional\"></label>\n    </div>\n    <div class=\"sect\">Bales on this challan <span>Enter in a metres box adds the next bale</span></div>\n    <div id=\"dLines\"></div>\n  </div>\n  <div class=\"dr-foot\">\n    <div class=\"dr-total\" id=\"dTotal\"></div>\n    <label class=\"closeline\" id=\"dCloseWrap\" for=\"dClose\" hidden><input type=\"checkbox\" id=\"dClose\"><span id=\"dCloseTxt\"></span></label>\n    <div class=\"err\" id=\"dErr\" hidden></div>\n    <div class=\"dr-btns\">\n      <button type=\"button\" class=\"ghost\" data-close=\"drawer\">Cancel</button>\n      <button type=\"button\" id=\"dSave\" data-dr=\"save\">Save challan</button>\n    </div>\n  </div>\n</aside>\n<div class=\"toast\" id=\"toast\" hidden role=\"status\"></div>\n\n";
 
 /* core/util.js -- Small shared helpers: escaping, number and date formatting, ids, lists in words.
  * An ES module. Its imports are worked out from the code by the split script. */
@@ -882,6 +882,28 @@ function venOfKind(kind) {
  * should be just RFD processor"). Names saved before keep working: Mill reads as Supplier, Processor as RFD Processor. */
 function venKind(v) { var k = String((v && v.kind) || ''); return k === 'Mill' ? 'Supplier' : k === 'Processor' ? 'RFD Processor' : k; }
 function gpoMills() { return venOfKind('Supplier'); }
+/* A NEW PO'S SUPPLIER IS PICKED, NOT TYPED (Vishesh, 23 Nov: "no new name can be added from here … you can type name but cannot
+ * enter it and it will not save it, it can just be used to search from the suppliers feeded in the master data"). Only the
+ * greige suppliers of Master data, switched on; a name kept only because an old PO carries it is not offered. */
+function gpoPickMills() {
+  return uniq((DB.ven || []).filter(function (v) {
+    return v.active !== false && !v.deskOnly && (venKind(v) === 'Supplier' || v.kind === 'Both');
+  }).map(function (v) { return v.name; }));
+}
+/** The Master data spelling of a supplier typed in any case; '' when it is not one of them. */
+function gpoPickedMill(name) {
+  var k = String(name || '').trim().toLowerCase();
+  return gpoPickMills().filter(function (n) { return n.toLowerCase() === k; })[0] || '';
+}
+/** The supplier of the latest PO that is still a Master data supplier: the grey sample in the supplier box. '' when none. */
+function gpoLastMill() {
+  var best = null;
+  (DB.gpo || []).forEach(function (po, i) {
+    if (!gpoPickedMill(po.mill)) return;
+    if (!best || String(po.date || '') >= String(best.date || '')) best = { date: po.date, mill: gpoPickedMill(po.mill), i: i };
+  });
+  return best ? best.mill : '';
+}
 function lmProcessors() { return venOfKind('RFD Processor'); }
 /** How many rows of the register answer to this name -- a vendor on one is not deleted. */
 function venUsed(name) {
@@ -1892,7 +1914,7 @@ function chRow(c, wide) {
   var h = '<tr class="xrow' + (open ? ' open' : '') + '" data-tch="' + esc(c.id) + '">'
     + '<td class="w-chev"><button type="button" class="chev" data-tch="' + esc(c.id) + '" aria-expanded="' + open + '" aria-label="Pieces on challan ' + esc(c.no || c.id) + '">' + I.chev + '</button></td>'
     + '<td class="tl"><span class="b mono">' + (c.no ? esc(c.no) : '<span class="muted">no number</span>') + '</span></td>'
-    + '<td class="tl">' + esc(fmtD(c.date)) + '<div class="sub">' + (d === null ? '' : d === 0 ? 'today' : daysWord(d) + ' ago') + '</div></td>'
+    + '<td class="tl">' + esc(fmtD(c.date)) + '<div class="sub">' + (d === null ? '' : d === 0 ? 'today' : daysWord(d) + ' ago') + '</div>' + gdDateAskNote(c.rows) + '</td>'
     + (wide ? '<td class="tl">' + millCell(c.mill) + '</td><td class="tl">' + (c.po ? '<span class="b">' + esc(c.po) + '</span>' : '<span class="muted">no PO</span>') + '</td>' : '')
     + '<td class="tl">' + (c.transporter ? esc(c.transporter) : '') + (c.lr ? '<div><span class="plate">' + esc(c.lr) + '</span></div>' : (c.transporter ? '' : '<span class="sub">—</span>'))
     + (c.invoice ? '<div class="sub">Invoice ' + esc(c.invoice) + '</div>' : '') + '</td>'
@@ -1935,7 +1957,7 @@ function renderPo() {
         + '<th class="num">Pieces</th><th class="num">Metres</th><th>Checked</th></tr></thead><tbody>' + chs.map(function (c) { return chRow(c, true); }).join('') + '</tbody></table>'
       : '<div class="empty">No challan matches these filters.</div>';
   }
-  return bar + rrApprovalsHtml() + ctsApprovalsHtml() + closeAsksHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
+  return bar + rrApprovalsHtml() + ctsApprovalsHtml() + gdDateAsksHtml() + closeAsksHtml() + poKpis() + filters + '<div class="card tablecard"><div class="scroll">' + list + '</div></div>'
     + '<p class="foot">A PO rarely comes in one go. The supplier sends greige over several challans, and each challan is a bundle '
     + 'of bales with the metres written against them. When the last one is in, accounts close the PO and what never came is written on it. Every challan is written into the fabric ledger as a new lot, so stock, the '
     + 'processor and the dashboard count it at once.</p>';
@@ -2057,7 +2079,7 @@ function openDrawer(poNo) {
   if (st === 'received' || st === 'cancelled') { lmSay('warn', po.poNo + ' is ' + (GPO_STATUS[st] || [st])[0].toLowerCase() + '. Nothing more is expected on it.'); return; }
   RD = { po: po.poNo, lines: {}, paste: {}, lot: {}, sup: {} };
   rdInitLines(); rdDraw();
-  $('dNo').value = ''; $('dLr').value = ''; $('dInv').value = ''; $('dTrn').value = ''; $('dDate').value = lmToday(); $('dClose').checked = false;
+  $('dNo').value = ''; $('dLr').value = ''; $('dInv').value = ''; $('dTrn').value = ''; $('dDate').value = lmToday(); $('dDate').max = lmToday(); $('dClose').checked = false;
   $('dErr').hidden = true;
   $('drTitle').textContent = 'Challan against ' + po.poNo;
   $('scrim').hidden = false; $('drawer').hidden = false;
@@ -2091,7 +2113,7 @@ function rdSave() {
   if (no && chList().some(function (c) { return String(c.mill).toLowerCase() === String(po.mill).toLowerCase() && String(c.no).toLowerCase() === no.toLowerCase(); })) {
     errs.push('Challan ' + no + ' from ' + po.mill + ' is already in. Check the number.');
   }
-  if (!$('dDate').value) errs.push('Fill in the challan date.');
+  var dErr = gdRecvDateErr($('dDate').value, po.date, 'the PO was raised'); if (dErr) errs.push(dErr);
   var pg = gpoProgress(po), seen = {};
   var lines = Object.keys(RD.lines).map(Number).sort(function (a, b) { return a - b; }).map(function (li) {
     return { li: li, lot: String(RD.lot[li] || '').trim().toUpperCase(),
@@ -2109,7 +2131,7 @@ function rdSave() {
     var dup = {}; l.pieces.forEach(function (p) { if (p.than !== '—') { if (dup[p.than]) errs.push(name + ': bale ' + p.than + ' is typed twice.'); dup[p.than] = 1; } });
   });
   if (errs.length) { $('dErr').innerHTML = uniq(errs).map(esc).join('<br>'); $('dErr').hidden = false; return; }
-  var chId = uid(), date = $('dDate').value, lr = $('dLr').value.trim(), inv = $('dInv').value.trim(), trn = $('dTrn').value.trim();
+  var chId = uid(), typed = $('dDate').value, lr = $('dLr').value.trim(), inv = $('dInv').value.trim(), trn = $('dTrn').value.trim();
   /* THE SUPPLEMENT PO (Ravi, 13 Oct): the supplier sent more than the PO and its 10% allowance. The PO takes what
    * was still due; a supplement PO on the same supplier, fabric and rate is raised for the rest and received on this
    * same challan, as the same lot. One supplement PO carries every line that needed one. */
@@ -2122,11 +2144,11 @@ function rdSave() {
   }
   lines.forEach(function (l) {
     var pl = pg.lines[l.li], got = r1(l.pieces.reduce(function (s, p) { return s + p.m; }, 0));
-    DB.fab.push({ id: uid(), chId: chId, date: date, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
+    DB.fab.push(gdDated({ id: uid(), chId: chId, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
       qty: r1(got - l.sup), party: po.mill, bill: no, orderNo: po.poNo,
-      lr: lr, invoice: inv, transporter: trn, pieces: l.pieces, done: false });
-    if (l.sup) DB.fab.push({ id: uid(), chId: chId, date: date, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
-      qty: l.sup, party: po.mill, bill: no, orderNo: sup.poNo, supplementOf: po.poNo, lr: lr, invoice: inv, transporter: trn, done: false });
+      lr: lr, invoice: inv, transporter: trn, pieces: l.pieces, done: false }, typed));
+    if (l.sup) DB.fab.push(gdDated({ id: uid(), chId: chId, lot: l.lot, fabricType: pl.greige, txnType: 'RECEIVE_GREIGE',
+      qty: l.sup, party: po.mill, bill: no, orderNo: sup.poNo, supplementOf: po.poNo, lr: lr, invoice: inv, transporter: trn, done: false }, typed));
   });
   var lastOne = $('dClose').checked && !$('dCloseWrap').hidden, endWords = '';
   if (lastOne) endWords = ' ' + poLastChallan(po, no, meUser().name);
@@ -2302,7 +2324,11 @@ function poOpen(editNo) {
   $('poMill').readOnly = locked;
   $('poMillLock').textContent = locked ? 'Greige has come from this supplier on this PO, so the supplier stays.' : '';
   $('poMore').open = false;
-  $('poMills').innerHTML = gpoMills().map(function (m) { return '<option value="' + esc(m) + '">'; }).join('');
+  $('poMills').innerHTML = '';
+  $('poMill').removeAttribute('list');   // the desk's own search list instead of the browser's
+  PO_MILL_HI = 0; poMillListClose();
+  /* the last PO's supplier as grey sample text, a reminder only — the supplier is still picked (Vishesh, 23 Nov) */
+  $('poMill').placeholder = gpoLastMill() || 'Pick a supplier from the list';
   $('lmPoErr').classList.add('hide');
   var co = DB.co || {}, miss = !String(co.addr || '').trim() && !String(co.gstin || '').trim();
   $('poCoNote').classList.toggle('hide', !miss);
@@ -2317,10 +2343,84 @@ function poOpen(editNo) {
 function poMillHint() {
   var name = $('poMill').value.trim(), v = venByName(name), box = $('poMillNote');
   if (!name) { box.textContent = ''; return; }
-  if (!v) { box.textContent = 'Not in Master data → Suppliers & RFD processors yet — the PO will carry the name only.'; return; }
+  if (!gpoPickedMill(name) && !poMillKept(name)) {
+    box.innerHTML = '<span class="err-in">Not a supplier in Master data — pick one from the list. A new supplier is added in Master data first.</span>'; return;
+  }
+  if (!v) { box.textContent = 'Not in Master data → Suppliers & RFD processors — this PO keeps the name it was saved with.'; return; }
   var bits = [v.email ? 'Mails to ' + v.email : 'no e-mail on record', v.phone ? 'WhatsApp ' + v.phone : 'no phone on record'];
   if (!v.gstin) bits.push('no GSTIN on record');
   box.textContent = bits.join(' · ');
+}
+/* ---- THE SUPPLIER SEARCH (Vishesh, 23 Nov: "when I type the name of the supplier in the box it should show the matching
+ * suppliers as a search box so that I can choose from those") ---- *
+ * A list under the box of the Master data suppliers whose name holds what is typed; a click, or ↑ ↓ and Enter, picks one.
+ * The browser's own suggestion list did not show inside the desk, so the desk draws its own. */
+var PO_MILL_HI = 0;   // which suggestion ↑ ↓ are on
+/** The Master data suppliers whose name holds the typed text, in the list's order; all of them when nothing is typed. */
+function poMillMatches(typed) {
+  var k = String(typed || '').trim().toLowerCase();
+  return gpoPickMills().filter(function (n) { return !k || n.toLowerCase().indexOf(k) >= 0; });
+}
+/** The list under the supplier box, made the first time it is needed. */
+function poMillListBox() {
+  var have = $('poMillList'); if (have && have.id) return have;
+  var box = document.createElement('div'), inp = $('poMill');
+  box.id = 'poMillList'; box.hidden = true; box.setAttribute('role', 'listbox');
+  box.style.cssText = 'position:absolute;left:0;right:0;z-index:5;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--sh-2);max-height:240px;overflow:auto';
+  inp.parentNode.style.position = 'relative';
+  inp.parentNode.insertBefore(box, inp.nextSibling);
+  /* mousedown, not click: a click comes after the box has lost focus and closed the list */
+  box.addEventListener('mousedown', function (ev) {
+    var o = ev.target.closest ? ev.target.closest('[data-pomill]') : null; if (!o) return;
+    ev.preventDefault(); poMillPick(o.getAttribute('data-pomill'));
+  });
+  return box;
+}
+function poMillListDraw() {
+  var box = poMillListBox(), inp = $('poMill');
+  if (inp.readOnly) { box.hidden = true; return; }
+  box.style.top = ((inp.offsetTop || 0) + (inp.offsetHeight || 0) + 4) + 'px';   // right under the box, above the note under it
+  var list = poMillMatches(inp.value), k = inp.value.trim();
+  PO_MILL_HI = Math.max(0, Math.min(PO_MILL_HI, list.length - 1));
+  var mark = function (n) {
+    var at = k ? n.toLowerCase().indexOf(k.toLowerCase()) : -1;
+    return at < 0 ? esc(n) : esc(n.slice(0, at)) + '<b>' + esc(n.slice(at, at + k.length)) + '</b>' + esc(n.slice(at + k.length));
+  };
+  box.innerHTML = list.length
+    ? list.map(function (n, i) {
+      return '<div data-pomill="' + esc(n) + '" role="option" aria-selected="' + (i === PO_MILL_HI) + '" style="padding:8px 12px;cursor:pointer;font-size:13px'
+        + (i === PO_MILL_HI ? ';background:var(--brand-bg);color:var(--brand-ink)' : '') + '">' + mark(n) + '</div>';
+    }).join('')
+    : '<div style="padding:8px 12px;font-size:12.5px;color:var(--muted)">No supplier in Master data matches "' + esc(k) + '". A new supplier is added in Master data first.</div>';
+  box.hidden = false;
+}
+function poMillListClose() { var b = $('poMillList'); if (b && b.id) b.hidden = true; }
+function poMillPick(name) { $('poMill').value = name; poMillListClose(); poMillHint(); }
+/** ↑ ↓ move through the list, Enter picks, Esc closes the list (not the PO). Returns whether the key was used. */
+function poMillKey(key) {
+  var box = $('poMillList'), open = !!(box && box.id && !box.hidden), list = poMillMatches($('poMill').value);
+  if (key === 'ArrowDown' || key === 'ArrowUp') {
+    if (open) PO_MILL_HI = (PO_MILL_HI + (key === 'ArrowDown' ? 1 : -1) + list.length) % Math.max(1, list.length);
+    poMillListDraw(); return true;
+  }
+  if (key === 'Enter' && open && list.length) { poMillPick(list[PO_MILL_HI] || list[0]); return true; }
+  if (key === 'Escape' && open) { poMillListClose(); return true; }
+  return false;
+}
+/** An open PO being changed keeps the supplier it was saved with, even one Master data no longer has. */
+function poMillKept(name) {
+  var was = PO_DRAFT && PO_DRAFT.editId ? (DB.gpo || []).filter(function (p) { return p.id === PO_DRAFT.editId; })[0] : null;
+  return !!was && String(was.mill || '').trim().toLowerCase() === String(name || '').trim().toLowerCase();
+}
+/* THE LAST RATE AS A SAMPLE (Vishesh, 23 Nov): an empty rate box shows, in grey, the rate that greige was last bought at on a PO
+ * here (invRate), or 0 when it never was. It is a reference only — a rate must still be put in — but Tab in the empty box takes it. */
+function poRateSample(greige) { var r = invRate(greige); return r ? r.rate : 0; }
+/** Tab in an empty rate box: the sample rate goes in. Returns whether it did (nothing when there is no earlier rate). */
+function poRateTab(i) {
+  var l = PO_DRAFT && PO_DRAFT.lines[i]; if (!l || String(l.rate || '').trim() !== '') return false;
+  var r = poRateSample(l.greige); if (!(r > 0)) return false;
+  l.rate = String(r);
+  return true;
 }
 function poAddLine() {
   var first = gpoFabrics()[0], rfd = first ? first.rfd : '';
@@ -2345,7 +2445,8 @@ function poDraw() {
         + '<td><input data-li="' + i + '" data-f="due" type="date" value="' + esc(l.due) + '" min="' + esc(PO_DRAFT.date) + '" style="width:138px" aria-label="Due on"></td>'
         + '<td><input data-li="' + i + '" data-f="metres" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(l.metres) + '" style="width:104px" aria-label="Metres">'
         + (rec > 0 ? '<div class="muted" style="font-size:10.5px;margin-top:3px">' + nf(rec) + ' m already in</div>' : '') + '</td>'
-        + '<td><input data-li="' + i + '" data-f="rate" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(l.rate) + '" style="width:84px" aria-label="Rate"></td>'
+        + '<td><input data-li="' + i + '" data-f="rate" type="text" inputmode="decimal" autocomplete="off" data-num="7" value="' + esc(l.rate) + '" placeholder="' + esc(String(poRateSample(l.greige))) + '"'
+        + ' title="' + esc(invRate(l.greige) ? 'Last bought at ' + RUPEE + ' ' + invRate(l.greige).rate + ' on ' + invRate(l.greige).poNo + ' — Tab takes it' : 'Not bought on a PO here before') + '" style="width:84px" aria-label="Rate"></td>'
         + '<td><input data-li="' + i + '" data-f="disc" type="text" inputmode="decimal" autocomplete="off" data-num="' + PCT_WHOLE_DIGITS + '" value="' + esc(l.disc == null ? '' : l.disc) + '" placeholder="0" style="width:64px" aria-label="Discount percent"></td>'
         + '<td class="num po-total">' + money(m.amount) + '</td>'
         + '<td>' + (rec > 0 ? '' : '<button type="button" class="lm-x" data-porm="' + i + '" aria-label="Remove this line">&times;</button>') + '</td></tr>';
@@ -2367,7 +2468,12 @@ function poSyncRow(i) {
 }
 /** Save -- a new PO on the next number, or the open one changed in place -- and if asked, open it to send. */
 function poSave(after) {
-  PO_DRAFT.mill = $('poMill').value.trim();
+  var typed = $('poMill').value.trim();
+  if (typed && !gpoPickedMill(typed) && !poMillKept(typed)) {
+    $('lmPoErr').textContent = '"' + typed + '" is not a supplier in Master data. Pick one from the list (a new supplier is added in Master data first).';
+    $('lmPoErr').classList.remove('hide'); return;
+  }
+  PO_DRAFT.mill = gpoPickedMill(typed) || typed;
   ['pay', 'disp', 'dest', 'terms', 'other'].forEach(function (k) {
     PO_DRAFT[k] = $('po' + k.charAt(0).toUpperCase() + k.slice(1)).value.trim();
   });
@@ -2493,7 +2599,7 @@ function issDraw() {
   $('issTot').innerHTML = 'Going out: <b>' + plural(t.n, 'bale') + ' · ' + m1(t.m) + ' m</b>';
 }
 function issSave() {
-  var po = poFind(ISS.po), proc = $('issProc').value.trim(), date = $('issDate').value, errs = [], rows = [];
+  var po = poFind(ISS.po), proc = $('issProc').value.trim(), date = lmToday(), errs = [], rows = [];   // issued today, whatever the box says
   if (!proc) { $('issErr').textContent = 'Choose the RFD processor the greige is going to.'; $('issErr').classList.remove('hide'); return; }
   /* THE RFD CHALLAN IS REQUIRED (Ravi, 13 Oct): no greige leaves for an RFD processor without our challan, and one
    * challan number is used once. */
@@ -2546,7 +2652,9 @@ function lotThans(lot) {
 function cutOpen(lot) {
   var g = fabLot(lot);
   if (!g || g.rfdLeft <= 0.05) { lmSay('warn', 'Lot ' + lot + ' has no RFD on the shelf.'); return; }
-  CUT = { lot: lot, pick: {}, qty: '', lines: cutLinesFor(cutRfdOf(g)), lpick: {}, mode: 'products', w: '', l: '', p: '' };
+  /* the width starts as the cloth's RFD width from Master data; it can be typed smaller (Vishesh, 23 Nov) */
+  var rfdW = parseFloat((mstOf(cutRfdOf(g)) || {}).rfdWidth) || 0;
+  CUT = { lot: lot, pick: {}, qty: '', lines: cutLinesFor(cutRfdOf(g)), lpick: {}, mode: 'products', w: rfdW ? String(rfdW) : '', l: '', p: '' };
   $('cutTitle').textContent = 'Send to cutting · ' + lot;
   $('cutDate').value = lmToday(); $('cutTo').value = ''; $('cutRem').value = '';
   $('cutErr').classList.add('hide');
@@ -2651,7 +2759,7 @@ function cutFlowKeep(patch) {
 }
 function cutSave() {
   if (CUT.mode === 'size') { ctsSave(); return; }
-  var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), date = $('cutDate').value;
+  var g = fabLot(CUT.lot), thans = lotThans(CUT.lot), date = lmToday();   // issued to cutting today, whatever the box says
   var picked = thans.length ? thans.filter(function (t) { return CUT.pick[t.than]; }) : null;
   var q = picked ? r1(picked.reduce(function (s, t) { return s + t.m; }, 0)) : (parseFloat(CUT.qty) || 0);
   var rfd = cutRfdOf(g), err = '';
@@ -2705,7 +2813,7 @@ function ctsCheck(spec) {
 }
 /** The three boxes of the open card as numbers. */
 function ctsSpec() {
-  return { rfd: cutRfdOf(fabLot(CUT.lot)), lot: CUT.lot, w: parseFloat(CUT.w) || 0, l: parseFloat(CUT.l) || 0, pcs: parseFloat(CUT.p) || 0, date: $('cutDate').value };
+  return { rfd: cutRfdOf(fabLot(CUT.lot)), lot: CUT.lot, w: parseFloat(CUT.w) || 0, l: parseFloat(CUT.l) || 0, pcs: parseFloat(CUT.p) || 0, date: lmToday() };
 }
 /** The card's choice of way, and the labels that follow it. */
 function ctsModeDraw() {
@@ -2844,12 +2952,15 @@ function invCutCell(r) {
     + (c.waiting ? '<div class="sub">' + nf(c.waiting) + ' waiting approval</div>' : '') + '</td>';
 }
 /** The drop-down's rows: each size with what was cut, sent and is left, then the entries still waiting or refused under it. */
-function ctsDetailRows(c) {
+/* SEND TO PRINTER ON EACH SIZE (Vishesh, 23 Nov: "the page is showing pieces but where is the option to send to printer"): a size
+ * with pieces left has its own Send to printer in Next step, which opens the card on that size -- the orders waiting for it. */
+function ctsDetailRows(c, fabric) {
   var rows = [];
   c.sizes.forEach(function (z) {
     if (z.cut > 0 || z.sent > 0) {
+      var send = fabric && z.left > 0 ? '<button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(fabric) + '" data-ctssize="' + esc(z.key) + '" title="Make an RFD challan to a printer for the orders waiting for ' + esc(ctsSizeText(z)) + '">Send to printer</button>' : '';
       rows.push('<tr><td class="tl b">' + esc(ctsSizeText(z)) + '</td><td class="num">' + nf(z.cut) + ' pcs</td><td class="num">' + (z.sent ? nf(z.sent) + ' pcs' : '—') + '</td>'
-        + '<td class="num b">' + nf(z.left) + ' pcs<div class="sub">' + ctsN(z.leftM) + ' m</div></td><td class="tl"></td><td></td></tr>');
+        + '<td class="num b">' + nf(z.left) + ' pcs<div class="sub">' + ctsN(z.leftM) + ' m</div></td><td class="tl">' + (z.left > 0 ? '<span class="muted">Ready to send</span>' : '<span class="muted">All sent</span>') + '</td><td>' + send + '</td></tr>');
     }
     z.asks.forEach(function (r) { rows.push(ctsAskRow(r)); });
   });
@@ -2960,7 +3071,7 @@ function ctsSendBlocked() {
   if (typeof flowScreenAllowed === 'function' && !flowScreenAllowed().some(function (b) { return b[0] === 'drfd'; })) return 'Making an RFD challan needs Demand → RFD access.';
   return '';
 }
-async function ctsSendOpen(fabric) {
+async function ctsSendOpen(fabric, sizeKey) {
   var why = ctsSendBlocked(); if (why) { lmSay('warn', why); return; }
   lmSay('ok', 'Reading the lines waiting for ' + fabric + '…');
   try { await flowEnsureData(); } catch (e) {
@@ -2969,7 +3080,9 @@ async function ctsSendOpen(fabric) {
   }
   var sizes = ctsOf(fabric).sizes.filter(function (z) { return z.left > 0; });
   if (!sizes.length) { lmSay('warn', 'No approved cut pieces of ' + fabric + ' are left to send.'); return; }
-  CTS_SEND = { fabric: fabric, size: sizes[0].key, off: {} };
+  /* opened from a size's own button: that size; from the button above the table: the first size with pieces left */
+  var first = sizes.filter(function (z) { return z.key === sizeKey; })[0] || sizes[0];
+  CTS_SEND = { fabric: fabric, size: first.key, off: {} };
   ptOpenDialog({
     title: 'Cut pieces — ' + fabric + ' → printer',
     subtitle: 'From the pieces already cut to size. Each line takes the pieces it still owes, oldest order first, while the cut pieces last. Untick a line to leave it out.',
@@ -2979,7 +3092,7 @@ async function ctsSendOpen(fabric) {
         return '<option value="' + esc(p.code) + '">' + esc(p.desc || p.name || p.code) + '</option>';
       }).join('') + '</select></label>'
       + '<label>Cut size<select id="ctsSize">' + sizes.map(function (z) {
-        return '<option value="' + esc(z.key) + '">' + esc(ctsSizeText(z)) + ' — ' + nf(z.left) + ' pcs left</option>';
+        return '<option value="' + esc(z.key) + '"' + (z.key === first.key ? ' selected' : '') + '>' + esc(ctsSizeText(z)) + ' — ' + nf(z.left) + ' pcs left</option>';
       }).join('') + '</select></label>'
       + '<label>Date<input value="' + esc(dToday()) + '" readonly title="A challan from here is made today"></label></div>'
       + '<div id="ctsBody" style="margin-top:10px;border:1px solid var(--line,#e3e7ef);border-radius:10px;max-height:55vh;overflow:auto"></div>'
@@ -3033,7 +3146,7 @@ function wireCutToSize() {
     var t = ev.target.closest ? ev.target.closest('[data-ctsmode],[data-ctsdec],[data-ctssend]') : null; if (!t) return;
     if (t.getAttribute('data-ctsmode') && CUT) { CUT.mode = t.getAttribute('data-ctsmode'); cutDraw(); return; }
     if (t.getAttribute('data-ctsdec')) { var d = t.getAttribute('data-ctsdec').split('|'); ctsDecideOnScreen(d[0], d[1] === 'ok'); return; }
-    if (t.getAttribute('data-ctssend')) { ctsSendOpen(t.getAttribute('data-ctssend')); return; }
+    if (t.getAttribute('data-ctssend')) { ctsSendOpen(t.getAttribute('data-ctssend'), t.getAttribute('data-ctssize') || ''); return; }
   });
   /* the printer card lives in the app's own dialog, so its boxes are heard on the page, not in the desk's root */
   window.document.addEventListener('change', function (ev) {
@@ -3059,10 +3172,12 @@ function rrOpen(no, onlyLot) {
   var po = poFind(no); if (!po) return;
   var lots = rrLotsOf(po).filter(function (g) { return !onlyLot || g.lot === onlyLot; });
   if (!lots.length) { lmSay('warn', 'Nothing from ' + po.poNo + ' is out at an RFD processor.'); return; }
-  RR = { po: po.poNo, lots: lots.map(function (g) { return g.lot; }), thans: {}, fin: {} };
-  lots.forEach(function (g) { RR.thans[g.lot] = [{ than: '', m: '' }]; RR.fin[g.lot] = true; });
+  RR = { po: po.poNo, lots: lots.map(function (g) { return g.lot; }), thans: {} };
+  lots.forEach(function (g) { RR.thans[g.lot] = [{ than: '', m: '' }]; });
   $('rrTitle').textContent = 'Receive RFD · ' + po.poNo;
-  $('rrDate').value = lmToday(); $('rrNo').value = '';
+  /* the day the RFD came back can be put in (Vishesh, 23 Nov): today or earlier, not before the greige was sent */
+  $('rrDate').value = lmToday(); $('rrDate').readOnly = false; $('rrDate').max = lmToday(); $('rrDate').min = rrSentOn(RR.lots) || '';
+  $('rrDate').title = 'The day the RFD came back — today or earlier'; $('rrNo').value = '';
   $('rrErr').classList.add('hide');
   rrDraw();
   $('lmRr').classList.remove('hide');
@@ -3071,6 +3186,22 @@ function rrOpen(no, onlyLot) {
 function rrShrink(g, add, fin) {
   var back = g.rfdIn + add, pct = g.toRfd > 0 ? Math.round(((g.toRfd - back) / g.toRfd) * 1000) / 10 : 0;
   return { back: back, pct: fin ? pct : null, need: fin && pct > RR_SHRINK_LIMIT };
+}
+/** The thans typed for one lot: only those with metres, as they are saved. */
+function rrThansOf(lot) {
+  return (RR.thans[lot] || []).filter(function (p) { return +p.m > 0; }).map(function (p) { return { than: String(p.than).trim() || '—', m: r1(+p.m) }; });
+}
+/* THE LOT CLOSES BY ITSELF (Vishesh, 23 Nov: no more "this closes the lot" tick). Greige sent with its thans listed (the
+ * `bales` on the Issue to RFD rows): the lot closes when as many thans are back, counting this receipt, as were sent. Greige sent
+ * without thans listed: it closes when 95% of the metres sent are back. Anything less leaves the cloth at the processor. */
+var RR_CLOSE_METRES_SHARE = 0.95;
+function rrLotCloses(g, ps, q) {
+  var sent = invRowsOfLot(g.lot, 'ISSUE_TO_RFD').reduce(function (n, r) { return n + (r.bales || []).length; }, 0);
+  if (sent > 0) {
+    var back = invRowsOfLot(g.lot, 'RECEIVE_RFD').filter(fabCounts).reduce(function (n, r) { return n + (r.pieces || []).length; }, 0);
+    return back + ps.length >= sent;
+  }
+  return g.toRfd > 0 && g.rfdIn + q >= g.toRfd * RR_CLOSE_METRES_SHARE - 1e-9;
 }
 function rrSum(lot) { return r1((RR.thans[lot] || []).reduce(function (s, p) { return s + (parseFloat(p.m) || 0); }, 0)); }
 function rrDraw() {
@@ -3091,7 +3222,6 @@ function rrDraw() {
           + '<button type="button" class="x" data-rrrm="' + esc(lot) + '|' + pi + '" aria-label="Remove than ' + (pi + 1) + '">×</button></div>';
       }).join('')
       + '<div class="dl-actions"><button type="button" class="jw-btn" data-rradd="' + esc(lot) + '">+ Than</button>'
-      + '<label class="inl" style="display:flex;align-items:center;gap:7px;margin:0;font-weight:600;color:var(--ink)"><input type="checkbox" data-rrfin="' + esc(lot) + '"' + (RR.fin[lot] ? ' checked' : '') + ' style="width:16px;height:16px">This is the whole lot back (close it)</label>'
       + '<span class="dl-sum" id="rrsum-' + lot + '"></span></div><div id="rrsh-' + lot + '"></div></div>';
   }).join('');
   rrSums();
@@ -3099,7 +3229,7 @@ function rrDraw() {
 function rrSums() {
   RR.lots.forEach(function (lot) {
     var g = fabLot(lot); if (!g || rrPendingOf(lot)) return;
-    var s = rrSum(lot), n = (RR.thans[lot] || []).filter(function (p) { return +p.m > 0; }).length, sh = rrShrink(g, s, RR.fin[lot]);
+    var s = rrSum(lot), n = rrThansOf(lot).length, sh = rrShrink(g, s, rrLotCloses(g, rrThansOf(lot), s));
     var el = $('rrsum-' + lot); if (el) el.textContent = plural(n, 'than') + ' · ' + m1(s) + ' m';
     var box = $('rrsh-' + lot); if (!box) return;
     if (s > g.withProcessor + 0.05) { box.className = 'err'; box.textContent = 'Only ' + nf(g.withProcessor) + ' m of this lot is out. More has come back than went.'; return; }
@@ -3109,20 +3239,35 @@ function rrSums() {
       + (sh.need ? '. More than ' + RR_SHRINK_LIMIT + '%, so this receipt will wait for approval before it counts.' : ', within ' + RR_SHRINK_LIMIT + '%.');
   });
 }
+/* ISSUE TODAY, RECEIVE ON THE DAY IT CAME (Vishesh, 23 Nov: "any date of issue is to be fixed but receiving date can be
+ * changed"). Cloth going out is dated today, whatever a box says. Cloth coming in can be dated back to the day it came —
+ * never after today, and never before the day it went out (or was ordered). '' when the date is fine. */
+function gdRecvDateErr(date, notBefore, sinceWhat) {
+  if (!date) return 'Put the date it came.';
+  if (date > lmToday()) return 'It cannot have come after today (' + fmtD(lmToday()) + ').';
+  if (notBefore && date < notBefore) return 'It cannot have come before ' + fmtD(notBefore) + ', when ' + sinceWhat + '.';
+  return '';
+}
+/** The first day greige of these lots went to the RFD processor: no RFD can have come back before it. */
+function rrSentOn(lots) {
+  return (lots || []).map(function (lot) { return invRowsOfLot(lot, 'ISSUE_TO_RFD').map(function (r) { return r.date; }).sort()[0] || ''; })
+    .filter(Boolean).sort()[0] || '';
+}
 function rrSave() {
-  var po = poFind(RR.po), no = $('rrNo').value.trim(), date = $('rrDate').value, errs = [], rows = [], held = [];
+  var po = poFind(RR.po), no = $('rrNo').value.trim(), typed = $('rrDate').value, date = lmToday(), errs = [], rows = [], held = [];
   if (!no) errs.push('Type the processor’s challan number.');
+  var dErr = gdRecvDateErr(typed, rrSentOn(RR.lots), 'the greige was sent for RFD'); if (dErr) errs.push(dErr);
   RR.lots.forEach(function (lot) {
     var g = fabLot(lot); if (!g || rrPendingOf(lot)) return;
-    var ps = (RR.thans[lot] || []).filter(function (p) { return +p.m > 0; }).map(function (p) { return { than: String(p.than).trim() || '—', m: r1(+p.m) }; });
+    var ps = rrThansOf(lot);
     if (!ps.length) return;
     var q = r1(ps.reduce(function (s, p) { return s + p.m; }, 0)), rfd = fabRfdOfGreige(g.fabricType) || g.fabricType;
     var err = fabEntryCheck({ txnType: 'RECEIVE_RFD', date: date, lot: lot, fabric: rfd, qty: q, party: g.processor });
     if (err) { errs.push(err); return; }
     var dup = {}; ps.forEach(function (p) { if (p.than !== '—') { if (dup[p.than]) errs.push(lot + ': than ' + p.than + ' is typed twice.'); dup[p.than] = 1; } });
-    var sh = rrShrink(g, q, RR.fin[lot]);
-    var row = { id: uid(), date: date, lot: lot, fabricType: rfd, txnType: 'RECEIVE_RFD', qty: q, party: g.processor, bill: no,
-      orderNo: g.poNo, final: !!RR.fin[lot], pieces: ps, done: false, by: meUser().name };
+    var closes = rrLotCloses(g, ps, q), sh = rrShrink(g, q, closes);
+    var row = gdDated({ id: uid(), lot: lot, fabricType: rfd, txnType: 'RECEIVE_RFD', qty: q, party: g.processor, bill: no,
+      orderNo: g.poNo, final: closes, pieces: ps, done: false, by: meUser().name }, typed);
     if (sh.need) { row.approval = { status: 'pending', pct: sh.pct, askedBy: meUser().name, at: lmToday() }; held.push(lot + ' (' + sh.pct + '%)'); }
     rows.push(row);
   });
@@ -3136,6 +3281,117 @@ function rrSave() {
     + (held.length ? ' Waiting for approval: ' + held.join(', ') + ' shrank more than ' + RR_SHRINK_LIMIT + '%.' : ''));
   RR = null; render();
 }
+/* A CHANGED RECEIVE DATE WAITS FOR ACCOUNTS (Vishesh, 23 Nov). Greige and RFD receipts typed for any day but today are saved on
+ * TODAY, with the typed day beside them as a request: dateAsk = { at, by, date, status: 'waiting' | 'approved' | 'refused',
+ * decidedBy, decidedAt, why }. Until it is approved every figure counts the receipt on today. Deciding is Ravi's or the accounts
+ * head's (right gdpoappr, as for a PO close request). Approving moves only that receipt's date; its challan, lot and PO stay.
+ * One greige challan can carry several receipts (one per lot): they are decided together.
+ * ERRORS: a press without the right, a refusal without a reason, or a request somebody else decided first is refused with a
+ * message saying what to do. Saving is lmSaveDb's (a failed save says "Not saved"). */
+var canDateApprove = function () { return gdHas('gdpoappr'); };
+/** The receipt dated today; when another day was typed, it also carries the ask for that day. A new row, the one given is not changed. */
+function gdDated(row, typed) {
+  var ask = typed && typed !== lmToday() ? { dateAsk: { at: new Date().toISOString(), by: meUser().id, date: typed, status: 'waiting' } } : {};
+  return Object.assign({}, row, { date: lmToday() }, ask);
+}
+function gdDateAsksWaiting(fab) {
+  return (fab || DB.fab || []).filter(function (r) { return (r.txnType === 'RECEIVE_GREIGE' || r.txnType === 'RECEIVE_RFD') && r.dateAsk && r.dateAsk.status === 'waiting'; });
+}
+/** The receipts decided together with this one: its whole greige challan, or just the RFD receipt. */
+function gdDateAskRows(row, fab) {
+  if (row.txnType !== 'RECEIVE_GREIGE' || !row.chId) return [row];
+  return gdDateAsksWaiting(fab).filter(function (x) { return x.chId === row.chId; });
+}
+/** What waits, one entry per decision: { id, kind, no, po, lots, m, ask }. */
+function gdDateAskItems(fab) {
+  var out = [], seen = {};
+  gdDateAsksWaiting(fab).forEach(function (r) {
+    var key = r.txnType === 'RECEIVE_GREIGE' && r.chId ? r.chId : r.id; if (seen[key]) return; seen[key] = 1;
+    var rows = gdDateAskRows(r, fab);
+    out.push({ id: r.id, kind: r.txnType === 'RECEIVE_GREIGE' ? 'Greige' : 'RFD', no: r.bill || '', po: r.orderNo || '', ask: r.dateAsk,
+      lots: uniq(rows.map(function (x) { return x.lot; })), m: r1(rows.reduce(function (n, x) { return n + fabQty(x); }, 0)) });
+  });
+  return out;
+}
+/** Approve (the receipt moves to the day asked) or refuse (it stays today). '' when done, else what stopped it. */
+async function gdDateDecide(id, ok, why) {
+  var r = (DB.fab || []).filter(function (x) { return x.id === id; })[0];
+  if (!r || !r.dateAsk || r.dateAsk.status !== 'waiting') return 'Already decided — this date is not waiting any more.';
+  if (!canDateApprove()) return 'Only Ravi, or the accounts head, can decide a changed receive date.';
+  if (!ok && !String(why || '').trim()) return 'Type why the date is refused, so the store knows.';
+  var patch = {}, now = new Date().toISOString(), rows = gdDateAskRows(r);
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i], ask = row.dateAsk, path = GD_NODE + '/fab/' + row.id;
+    var decided = Object.assign({}, ask, { status: ok ? 'approved' : 'refused', decidedBy: meUser().id, decidedAt: now }, ok ? {} : { why: String(why).trim() });
+    var lost = '';
+    try { if (typeof ptCas === 'function' && await ptCas(path + '/dateAsk', ask, decided)) lost = 'changed'; } catch (e) { return 'Could not save: ' + (e && e.message || e); }
+    if (lost) return 'Already decided by someone else — open the Greige Desk again to see it.';
+    row.dateAsk = decided; if (ok) row.date = ask.date;
+    patch[path + '/dateAsk'] = JSON.parse(JSON.stringify(decided)); if (ok) patch[path + '/date'] = ask.date;
+    if (GD_SNAP && GD_SNAP.fab) GD_SNAP.fab[row.id] = JSON.stringify(row);   // written by field, below; not the whole row
+  }
+  lmSaveDb(patch);
+  return '';
+}
+/** Approve / Refuse pressed on the card: a refusal asks for its reason first. */
+function gdDateDecideOnScreen(id, ok) {
+  var why = '';
+  if (!ok) { why = typeof window.prompt === 'function' ? window.prompt('Why is this date refused? (the person who asked will see it)', '') : ''; if (why === null) return; }
+  gdDateDecide(id, ok, why).then(function (err) {
+    if (err) { lmSay('err', err); return; }
+    lmSay(ok ? 'ok' : 'warn', ok ? 'Approved: the receipt now carries the date asked.' : 'Refused: the receipt stays on today.');
+    render();
+  });
+}
+/** The same for printed goods back from a printer: the production flow decides and keeps it. */
+function gdFlowDateDecideOnScreen(no, id, ok) {
+  var why = '';
+  if (!ok) { why = typeof window.prompt === 'function' ? window.prompt('Why is this date refused? (the person who asked will see it)', '') : ''; if (why === null) return; }
+  flowDateDecide(no, id, ok, why).then(function (err) {
+    if (err) { lmSay('err', err); return; }
+    lmSay(ok ? 'ok' : 'warn', ok ? 'Approved: the printed goods carry the date asked.' : 'Refused: the printed goods stay on today.');
+    render();
+  });
+}
+/** The small note under a receipt or challan date while its changed day waits; '' otherwise. */
+function gdDateAskNote(rows) {
+  var w = (rows || []).filter(function (r) { return r.dateAsk && r.dateAsk.status === 'waiting'; })[0];
+  return w ? '<div class="sub">asked: ' + esc(fmtD(w.dateAsk.date)) + ' — waiting for accounts</div>' : '';
+}
+/** Approve / Refuse; `attr` says whose decision it is: data-gdask (a greige or RFD receipt) or data-gdflowask (printed goods back from a printer). */
+function gdDateAskButtons(attr, id) {
+  if (!canDateApprove()) return '<span class="muted">for the accounts head</span>';
+  return '<div class="actions"><button type="button" class="jw-btn jw-wa" ' + attr + '="' + esc(id) + '|ok">Approve</button>'
+    + '<button type="button" class="jw-btn" ' + attr + '="' + esc(id) + '|no">Refuse</button></div>';
+}
+/** Printed goods received with a changed day, from the production flow when it is loaded: [{ no, id, rc, ask, ch }]. */
+function gdFlowDateAsks() {
+  return typeof flowDateAsksWaiting === 'function' && typeof FLOW !== 'undefined' && FLOW.ch ? flowDateAsksWaiting() : [];
+}
+/** Receive dates waiting for accounts, as a card on the Greige POs page beside the other approvals. */
+function gdDateAsksHtml() {
+  var list = gdDateAskItems(), printed = gdFlowDateAsks(); if (!list.length && !printed.length) return '';
+  return '<div class="card approvals"><div class="kpihead"><span class="kpiname">Receive dates waiting for accounts</span><span class="kpiwhen">counted on today until approved</span></div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>Receipt</th><th>Their challan</th><th>PO</th><th>Lot</th><th class="num">Metres</th><th>Day asked</th><th>Asked by</th><th></th></tr></thead><tbody>'
+    + list.map(function (x) {
+      return '<tr><td class="tl b">' + (x.kind === 'Greige' ? 'Greige' : 'RFD') + '</td><td class="tl mono">' + esc(x.no || '—') + '</td><td class="tl">' + esc(x.po || '—') + '</td>'
+        + '<td class="tl mono">' + esc(x.lots.join(', ')) + '</td><td class="num">' + m1(x.m) + ' m</td><td class="tl b">' + esc(fmtD(x.ask.date)) + '</td>'
+        + '<td class="tl">' + esc(x.ask.by || '') + '<div class="sub">' + esc(fmtD(lmToday(x.ask.at))) + '</div></td><td>' + gdDateAskButtons('data-gdask', x.id) + '</td></tr>';
+    }).join('') + printed.map(function (w) {
+      var m = Object.keys(w.rc.items || {}).reduce(function (n, k) { return n + (+w.rc.items[k] || 0); }, 0);
+      return '<tr><td class="tl b">Printed goods</td><td class="tl mono">' + esc(w.no) + '</td><td class="tl">' + esc(w.ch.orderNo || '—') + '</td><td class="tl">—</td><td class="num">' + nf(m) + '</td>'
+        + '<td class="tl b">' + esc(fmtD(w.ask.date)) + '</td><td class="tl">' + esc(w.ask.by || '') + '<div class="sub">' + esc(fmtD(lmToday(w.ask.at))) + '</div></td>'
+        + '<td>' + gdDateAskButtons('data-gdflowask', w.no + '|' + w.id) + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+}
+function wireDateAsks() {
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest ? ev.target.closest('[data-gdask],[data-gdflowask]') : null; if (!t) return;
+    if (t.getAttribute('data-gdask')) { var d = t.getAttribute('data-gdask').split('|'); gdDateDecideOnScreen(d[0], d[1] === 'ok'); return; }
+    var f = t.getAttribute('data-gdflowask').split('|'); gdFlowDateDecideOnScreen(f[0], f[1], f[2] === 'ok');
+  });
+}
+
 /** The receipts waiting for someone to approve their shrinkage. */
 function rrPending() { return (DB.fab || []).filter(function (r) { return r.txnType === 'RECEIVE_RFD' && r.approval && r.approval.status === 'pending'; }); }
 function rrApprovalsHtml() {
@@ -3405,6 +3661,13 @@ function wirePurchaseOrders() {
   /* The PO lines keep their own state as they are typed, so a redraw never loses a figure. */
   $('poLines').addEventListener('input', poEdit);
   $('poLines').addEventListener('change', poEdit);
+  /* Tab in an empty rate box takes the sample rate, then moves on as Tab does (Vishesh, 23 Nov) */
+  $('poLines').addEventListener('keydown', function (ev) {
+    var el = ev.target;
+    if (ev.key !== 'Tab' || ev.shiftKey || !el.getAttribute || el.getAttribute('data-f') !== 'rate') return;
+    var i = parseInt(el.getAttribute('data-li'), 10);
+    if (poRateTab(i)) { el.value = PO_DRAFT.lines[i].rate; poSyncRow(i); }
+  });
   function poEdit(ev) {
     var el = ev.target, i = el.getAttribute('data-li'), f = el.getAttribute('data-f');
     if (i === null || !f) return;
@@ -3423,8 +3686,12 @@ function wirePurchaseOrders() {
      * figures that are worked out move. */
     poSyncRow(idx);
   }
-  $('poMill').addEventListener('input', poMillHint);
-  $('poMill').addEventListener('change', poMillHint);
+  /* while a name is being typed it is a search: the red "not a supplier" waits until the box is left */
+  $('poMill').addEventListener('input', function () { PO_MILL_HI = 0; poMillListDraw(); $('poMillNote').textContent = ''; if (gpoPickedMill(this.value)) poMillHint(); });
+  $('poMill').addEventListener('focus', poMillListDraw);
+  $('poMill').addEventListener('blur', function () { setTimeout(function () { poMillListClose(); poMillHint(); }, 150); });
+  /* stopPropagation: Esc that closes the list must not also close the PO window */
+  $('poMill').addEventListener('keydown', function (ev) { if (poMillKey(ev.key)) { ev.preventDefault(); ev.stopPropagation(); } });
   $('poAdd').addEventListener('click', poAddLine);
   $('poSave').addEventListener('click', function () { poSave(''); });
   $('poSaveDoc').addEventListener('click', function () { poSave('doc'); });
@@ -3461,10 +3728,14 @@ function invAll() {
   if (ppc && !ppc.__loading) Object.keys(ppc).forEach(function (k) { if (!flow[k] && !order[k]) names.push(ppc[k].name); });
   return uniq(names).map(function (n) {
     var e = flow[n.toUpperCase()] || {}, o = order[n.toUpperCase()];
-    var g = e.greigeLeft || 0, p = e.withProcessor || 0, r = e.rfdLeft || 0, cut = ctsOf(n);
+    /* RFD ON SHELF LESS WHAT WENT TO PRINTERS (Vishesh, 23 Nov): the RFD challans to printers take their metres off the shelf
+     * here too, by the flow's own rule (flowRfdStock: the desk's count less the challans since it began counting that fabric),
+     * so this column and PPC's "RFD free" agree. Challans are not by lot: the lots below still show what each lot had. */
+    var chOut = invChallanOut(n), transit = invTransit(n);
+    var g = e.greigeLeft || 0, p = e.withProcessor || 0, r = Math.max(0, (e.rfdLeft || 0) - chOut), cut = ctsOf(n);
     /* The cloth cut to size and not yet sent to a printer is still ours: it is in the total though it left the RFD shelf. */
     return { fabric: n, type: invType(n), greige: fabGreigeOf(n), onOrder: o ? o.m : 0,
-      inStoreGreige: g, atProcessor: p, inStoreRfd: r, cut: cut, owned: g + p + r + cut.leftM,
+      inStoreGreige: g, atProcessor: p, inStoreRfd: r, rfdToPrinters: chOut, transit: transit, cut: cut, owned: g + p + r + cut.leftM,
       ppc: ppc && !ppc.__loading ? (ppc[n.toUpperCase()] || null) : null };
   }).filter(invWorthShowing)
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
@@ -3494,7 +3765,7 @@ function invNeedState(r) {
  *  comes back here with its Raise PO button. */
 function invWorthShowing(r) {
   if (invNeedState(r) === 'short' && !r.ppc.greige) return false;
-  return r.owned > 0.05 || r.onOrder > 0.05 || invNeedState(r) !== 'none';
+  return r.owned > 0.05 || r.onOrder > 0.05 || invTransitM(r) > 0.05 || invNeedState(r) !== 'none';
 }
 /** How much of the PPC need the RFD free covers, in whole percent (0–100). */
 function invCoverPct(p) { return p && p.need > 0.05 ? Math.min(100, Math.round((p.free || 0) / p.need * 100)) : 0; }
@@ -3521,6 +3792,101 @@ function invActionCell(r, loading) {
   if (st === 'ok') return '<td><span class="pill pill-ok">covered</span></td>';
   return '<td></td>';
 }
+/* ---- WHAT NEEDS DOING, FIRST (Vishesh, 23 Nov: "refine the inventory design … to the best for making it more actionable") ---- *
+ * Above the table, a strip of to-do tiles, each a count and the metres behind it, in the order the cloth moves:
+ *   Short for PPC (greige to order) · Greige in store (to issue to RFD) · Late at the processor (over CHASE_PROCESSOR_DAYS)
+ *   · RFD for PPC lines (to send to printers) · Cut pieces left (to send) · Approvals waiting (on Greige POs).
+ * A tile shows only when there is something behind it; pressing it shows only those fabrics (pressing it again shows all).
+ * Each fabric row has a Next step: the most pressing thing to do with it as a button, and the other things it needs as
+ * small links under it. Every button is one the page already had (Raise PO, Issue to RFD, Send to printer, …): a step
+ * that needs a lot or a PO opens the figure's drop-down, where the lot's own button is. Short and late rows carry a coloured
+ * edge so they stand out down the list. Nothing is worked out twice: the tiles and the rows read the same tests. */
+var INV_ACT = {
+  store: { label: 'Greige in store', sub: 'to issue to RFD', tone: 'greige' },
+  late: { label: 'Late at the processor', sub: 'over ' + CHASE_PROCESSOR_DAYS + ' days — chase', tone: 'bad' },
+  send: { label: 'RFD for PPC lines', sub: 'on the shelf — send to printers', tone: 'rfd' },
+  cut: { label: 'Cut pieces left', sub: 'to send to printers', tone: 'brand' }
+};
+INV_SHOW_LABEL.store = INV_ACT.store.label; INV_SHOW_LABEL.late = INV_ACT.late.label; INV_SHOW_LABEL.send = INV_ACT.send.label; INV_SHOW_LABEL.cut = INV_ACT.cut.label;
+/** The lots of a fabric at an RFD processor for longer than CHASE_PROCESSOR_DAYS: [{ lot, m, days, who }]. */
+function invLateOf(r) {
+  return invLotsOf(r.fabric).filter(function (g) { return g.withProcessor > 0.05; }).map(function (g) {
+    var out = invRowsOfLot(g.lot, 'ISSUE_TO_RFD'), d = lmDays(invLastDate(out));
+    return { lot: g.lot, m: g.withProcessor, days: d, who: invJoin(out.map(function (x) { return x.party; })) };
+  }).filter(function (x) { return x.days !== null && x.days > CHASE_PROCESSOR_DAYS; });
+}
+/** Does a fabric need this to-do (store / late / send / cut)? */
+function invNeeds(r, k) {
+  if (k === 'store') return r.inStoreGreige > 0.05;
+  if (k === 'late') return invLateOf(r).length > 0;
+  if (k === 'send') return r.inStoreRfd > 0.05 && !!(r.ppc && r.ppc.lines > 0);
+  if (k === 'cut') return !!(r.cut && r.cut.leftPcs > 0);
+  return false;
+}
+/** A row is shown under a filter: one of PPC's (all / short / ok / none) or one of the to-dos. */
+function invShows(r, k) { return k === 'all' ? true : INV_ACT[k] ? invNeeds(r, k) : invNeedState(r) === k; }
+/** The approvals waiting on Greige POs: RFD receipts that shrank, cuts to size, POs asked to close, printer changes. */
+function invApprovalsN() {
+  var n = rrPending().length + ctsWaiting().length + (DB.gpo || []).filter(function (po) { return !!po.closeAsk; }).length;
+  return n + (typeof flowPrnWaiting === 'function' ? flowPrnWaiting().length : 0);
+}
+/** The to-do strip. */
+function invTodoHtml(rows, withPpc, loading) {
+  var tiles = [], m = function (list, f) { return list.reduce(function (a, r) { return a + f(r); }, 0); };
+  var tile = function (k, n, big, sub, tone, attr) {
+    return '<button type="button" class="gdx-tile ' + tone + (UI.invShow === k ? ' on' : '') + '" ' + attr + ' aria-pressed="' + (UI.invShow === k) + '">'
+      + '<span class="gdx-n">' + nf(n) + '</span><span class="gdx-l">' + esc(big) + '</span><span class="gdx-s">' + sub + '</span></button>';
+  };
+  if (withPpc && !loading) {
+    var sh = rows.filter(function (r) { return invNeedState(r) === 'short'; });
+    if (sh.length) tiles.push(tile('short', sh.length, 'Short for PPC', nf(m(sh, function (r) { return r.ppc.greigeM; })) + ' m greige to order', 'bad', 'data-invshow="' + (UI.invShow === 'short' ? 'all' : 'short') + '"'));
+  }
+  ['store', 'late', 'send', 'cut'].forEach(function (k) {
+    var list = rows.filter(function (r) { return invNeeds(r, k); }); if (!list.length) return;
+    var sub = k === 'store' ? nf(m(list, function (r) { return r.inStoreGreige; })) + ' m · ' + INV_ACT.store.sub
+      : k === 'late' ? plural(m(list, function (r) { return invLateOf(r).length; }), 'lot') + ' · ' + INV_ACT.late.sub
+      : k === 'send' ? nf(m(list, function (r) { return r.inStoreRfd; })) + ' m ' + INV_ACT.send.sub
+      : nf(m(list, function (r) { return r.cut.leftPcs; })) + ' pcs ' + INV_ACT.cut.sub;
+    tiles.push(tile(k, list.length, INV_ACT[k].label, sub, INV_ACT[k].tone, 'data-invshow="' + (UI.invShow === k ? 'all' : k) + '"'));
+  });
+  var ap = invApprovalsN();
+  if (ap) tiles.push('<button type="button" class="gdx-tile warn" data-invgo="po"><span class="gdx-n">' + nf(ap) + '</span><span class="gdx-l">Approvals waiting</span><span class="gdx-s">on Greige POs — open them →</span></button>');
+  if (!tiles.length) return '<div class="gdx-clear">✓ Nothing waiting — every fabric is covered and moving.</div>';
+  return '<div class="gdx-todo" role="group" aria-label="What needs doing">' + tiles.join('') + '</div>';
+}
+/** The Next step cell: the most pressing step as a button, the others as small links under it. */
+function invNextCell(r, loading) {
+  if (loading) return '<td></td>';
+  var steps = [], st = invNeedState(r), F = esc(r.fabric), late = invLateOf(r);
+  var btn = function (cls, attr, words, tip) { return { cls: cls, attr: attr, words: words, tip: tip }; };
+  if (st === 'short' && r.ppc.greige) steps.push(btn('jw-primary', 'data-ppcpo="' + esc(r.ppc.name) + '|' + r.ppc.greigeM + '"', 'Raise PO · ' + nf(r.ppc.greigeM) + ' m', 'Raise a greige PO for what PPC is short of (with the processor’s share)'));
+  if (late.length) steps.push(btn('gdx-bad', 'data-invd="' + F + '|proc"', 'Chase ' + plural(late.length, 'lot') + ' at processor', late.map(function (x) { return x.lot + ' · ' + x.who + ' · ' + x.days + ' days'; }).join('\n')));
+  if (invNeeds(r, 'send')) steps.push(btn('jw-primary', 'data-gdsend="' + F + '"', 'Send to printer', 'Make an RFD challan to a printer for the ' + plural(r.ppc.lines, 'line') + ' waiting'));
+  if (invNeeds(r, 'store')) steps.push(btn('jw-wa', 'data-invd="' + F + '|store"', 'Issue ' + nf(r.inStoreGreige) + ' m to RFD', 'Open the greige lots in the store, each with its Issue to RFD'));
+  if (invNeeds(r, 'cut')) steps.push(btn('', 'data-ctssend="' + F + '"', 'Send ' + nf(r.cut.leftPcs) + ' cut pcs', 'Make an RFD challan from the pieces already cut to size'));
+  if (r.onOrder > 0.05) steps.push(btn('', 'data-invd="' + F + '|order"', 'Receive greige', nf(r.onOrder) + ' m still due on open POs'));
+  if (!steps.length) return '<td>' + (st === 'ok' ? '<span class="pill pill-ok">covered</span>' : '<span class="muted" style="font-size:12px">nothing to do</span>') + '</td>';
+  var a = steps[0];
+  return '<td class="gdx-next"><button type="button" class="jw-btn ' + a.cls + '" ' + a.attr + ' title="' + esc(a.tip) + '">' + esc(a.words) + '</button>'
+    + (steps.length > 1 ? '<div class="gdx-more">' + steps.slice(1).map(function (s) { return '<button type="button" class="link" ' + s.attr + ' title="' + esc(s.tip) + '">' + esc(s.words) + '</button>'; }).join('') + '</div>' : '')
+    + (st === 'ok' ? '<div><span class="pill pill-ok" style="margin-top:4px">covered</span></div>' : '') + '</td>';
+}
+/** The coloured edge of a row: red when short for PPC, amber when cloth is late at a processor. */
+function invEdge(r) { return invNeedState(r) === 'short' ? 'var(--bad)' : invLateOf(r).length ? 'var(--warn-ink)' : ''; }
+var INV_CSS = '<style>'
+  + '.gdx-todo{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin:0 0 12px}'
+  + '.gdx-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);cursor:pointer;box-shadow:none;color:var(--ink);height:auto;min-height:0;white-space:normal;position:relative;overflow:hidden}'
+  + '.gdx-tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tone)}'
+  + '.gdx-tile:hover{border-color:var(--tone);background:var(--soft)}'
+  + '.gdx-tile.on{border-color:var(--tone);box-shadow:0 0 0 2px var(--tone) inset;background:var(--soft)}'
+  + '.gdx-tile.bad{--tone:var(--bad)}.gdx-tile.greige{--tone:var(--c-greige)}.gdx-tile.rfd{--tone:var(--c-rfd)}.gdx-tile.brand{--tone:var(--brand)}.gdx-tile.warn{--tone:var(--warn-ink)}'
+  + '.gdx-n{font-size:24px;font-weight:800;line-height:1.1;color:var(--tone)}'
+  + '.gdx-l{font-size:13px;font-weight:700}.gdx-s{font-size:11.5px;color:var(--muted)}'
+  + '.gdx-clear{margin:0 0 12px;padding:12px 16px;border-radius:14px;background:var(--accent-bg);color:var(--ok-ink);font-weight:700;font-size:13px}'
+  + '.gdx-next{text-align:left;min-width:170px}.gdx-next .jw-btn{white-space:nowrap;padding:5px 11px;font-size:12px}'
+  + '.gdx-bad{background:var(--bad-bg)!important;color:var(--bad)!important;border-color:var(--bad-line)!important}'
+  + '.gdx-more{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:5px}.gdx-more .link{font-size:11.5px;padding:0}'
+  + '</style>';
 function renderInv() {
   var all = invAll(), types = uniq(all.map(function (x) { return x.type; })).sort();
   if (UI.inv !== 'all' && types.indexOf(UI.inv) < 0) UI.inv = 'all';
@@ -3534,33 +3900,38 @@ function renderInv() {
   /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, and the greige PO for what is short, from here. Only in the app. */
   var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap, loading = !!(ppcMap && ppcMap.__loading);
   var inView = all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type)); });
-  if (!withPpc || loading) UI.invShow = 'all';
-  var shown = function (k) { return inView.filter(function (x) { return k === 'all' || invNeedState(x) === k; }); };
-  var rows = shown(UI.invShow).sort(function (a, b) { return INV_SHOW_ORDER[invNeedState(a)] - INV_SHOW_ORDER[invNeedState(b)]; });
-  UI.invCols = withPpc ? 9 : 7;
+  if ((!withPpc || loading) && !INV_ACT[UI.invShow]) UI.invShow = 'all';
+  var shown = function (k) { return inView.filter(function (x) { return invShows(x, k); }); };
+  /* short first, then late, then covered, then those PPC does not need */
+  var rows = shown(UI.invShow).sort(function (a, b) {
+    return INV_SHOW_ORDER[invNeedState(a)] - INV_SHOW_ORDER[invNeedState(b)] || (invLateOf(b).length ? 1 : 0) - (invLateOf(a).length ? 1 : 0);
+  });
+  UI.invCols = withPpc ? 9 : 8;
   var tools = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'
     + (withPpc && !loading ? '<div class="seg" role="tablist" aria-label="Show">' + ['all', 'short', 'ok', 'none'].map(function (k) {
         return '<button type="button" role="tab" class="segbtn' + (UI.invShow === k ? ' on' : '') + '" aria-selected="' + (UI.invShow === k) + '" data-invshow="' + k + '">'
           + INV_SHOW_LABEL[k] + ' <span class="n">' + shown(k).length + '</span></button>';
       }).join('') + '</div>' : '')
+    + (INV_ACT[UI.invShow] ? '<span class="pill pill-sea">Showing: ' + esc(INV_SHOW_LABEL[UI.invShow]) + ' <button type="button" class="link" data-invshow="all" style="padding:0 0 0 4px" aria-label="Show all">✕</button></span>' : '')
     + '<span style="margin-left:auto"></span>'
     + (canLedgerEdit() ? '<button type="button" class="ghost" data-act="OPENING_RFD" title="RFD already on the floor: its own lot, so it is issued like any other and never counted as cloth back from a processor.">+ RFD opening stock</button>' : '')
     + (withPpc ? '<button type="button" class="ghost" data-gdflow="drfd" title="Open the flow’s Demand → RFD">Demand → RFD</button>' : '')
     + '</div>';
   var stockHeads = ['Greige ordered', 'Greige in store', 'At RFD processor', 'RFD on shelf', 'Cut to size'];
-  var group = '<tr><th class="frz"></th>' + (withPpc ? '<th></th><th></th>' : '')
+  var group = '<tr><th class="frz"></th>' + (withPpc ? '<th></th>' : '') + '<th></th>'
     + '<th colspan="5" style="text-align:center;color:var(--muted);font-weight:600;border-bottom:0">Where the cloth is now →</th><th></th></tr>';
-  var heads = th(withPpc ? ['Fabric', 'PPC need, covered by RFD', 'Action'].concat(stockHeads, ['Total']) : ['Fabric'].concat(stockHeads, ['Total']),
-    withPpc ? [3, 4, 5, 6, 7, 8] : [1, 2, 3, 4, 5, 6]).replace('<thead>', '<thead>' + group);
-  var table = tools + '<div class="card"><div class="ff-grid"><table class="xl">' + heads
+  var heads = th(withPpc ? ['Fabric', 'PPC need, covered by RFD', 'Next step'].concat(stockHeads, ['Total']) : ['Fabric', 'Next step'].concat(stockHeads, ['Total']),
+    withPpc ? [3, 4, 5, 6, 7, 8] : [2, 3, 4, 5, 6, 7]).replace('<thead>', '<thead>' + group);
+  var table = INV_CSS + invTodoHtml(inView, withPpc, loading) + tools + '<div class="card"><div class="ff-grid"><table class="xl">' + heads
     + '<tbody>' + (rows.map(function (r) {
-      return '<tr><td class="frz" style="text-align:left">' + invFabricName(r.fabric)
+      var edge = invEdge(r);
+      return '<tr><td class="frz" style="text-align:left' + (edge ? ';box-shadow:inset 4px 0 0 ' + edge : '') + '">' + invFabricName(r.fabric)
         + (r.greige ? '<div class="muted" style="font-size:10.5px">bought as ' + esc(r.greige) + '</div>' : '') + '</td>'
-        + (withPpc ? invNeedCell(r, loading) + invActionCell(r, loading) : '')
+        + (withPpc ? invNeedCell(r, loading) : '') + invNextCell(r, loading)
         + invCell(r, 'order', r.onOrder, 'color:var(--warn-ink)')
         + invCell(r, 'store', r.inStoreGreige, '')
         + invCell(r, 'proc', r.atProcessor, 'color:var(--proc-ink)')
-        + invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700')
+        + invRfdCell(r)
         + invCutCell(r)
         + '<td class="num" style="font-weight:700">' + dash(r.owned) + '</td></tr>'
         + (UI.invOpen.indexOf(r.fabric + '|') === 0 ? invDetail(r, UI.invOpen.split('|')[1]) : '');
@@ -3637,7 +4008,7 @@ function invDetail(r, col) {
     empty = 'Nothing of ' + r.fabric + ' is at an RFD processor.';
   } else if (col === 'cut') {
     head = ['Size (W × L)', 'Cut', 'Sent to printer', 'Left', 'Status', 'Next step'];
-    body = ctsDetailRows(r.cut);
+    body = ctsDetailRows(r.cut, r.fabric);
     empty = 'Nothing has been cut to size from ' + r.fabric + ' yet.';
   } else {
     head = ['Lot', 'PO', 'Supplier challan', 'RFD processor', 'Back on', 'Came back', 'To cutting', 'Damaged', 'On shelf', 'Next step'];
@@ -3658,19 +4029,53 @@ function invDetail(r, col) {
   }
   var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf', cut: 'Cut to size' }[col];
   return '<tr class="invdet"><td colspan="' + (UI.invCols || 6) + '"><div class="invdrop"><div class="sect">' + esc(title) + ' · ' + esc(r.fabric) + '</div>'
+    + (col === 'rfd' && r.rfdToPrinters > 0.05 ? '<div class="muted" style="font-size:12px">' + nf(r.rfdToPrinters) + ' m of it went to printers on RFD challans — taken off the shelf figure above; the lots below show what each lot had before.</div>' : '')
     + (col === 'cut' && r.cut.leftPcs > 0 ? '<div class="actions" style="justify-content:flex-start;margin:6px 0"><button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer from the pieces already cut">Send to printer</button></div>' : '')
     + (body.length ? '<div class="box scroll"><table class="ct li"><thead><tr>' + head.map(function (x, i) {
         return '<th' + (/^(Ordered|Received|Still due|Sent|Back so far|Still out|In store|Came back|To cutting|Damaged|On shelf|Days out|Sent to RFD|Cut|Sent to printer|Left)$/.test(x) ? ' class="num"' : '') + '>' + esc(x) + '</th>';
       }).join('') + '</tr></thead><tbody>' + body.join('') + '</tbody></table></div>'
       : '<div class="empty">' + esc(empty) + '</div>')
+    + (col === 'rfd' ? invTransitHtml(r) : '')
     + '</div></td></tr>';
 }
 /** A figure that opens its drop-down; a dash when there is nothing behind it. */
+/* IN TRANSIT TO PRINTERS (Vishesh, 23 Nov: "dont add a new column but just add a small line under it, and when I click on the value
+ * show against which order it is in transit"). Under RFD on shelf: the metres on RFD challans the printer has not yet marked
+ * received. They are already off the shelf figure and not in the total; once received they are gone from our count. */
+function invRfdCell(r) {
+  var tr = invTransitM(r);
+  if (!(tr > 0.05)) return invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700');
+  return '<td class="num">' + invCellBtn(r, 'rfd', r.inStoreRfd, 'font-weight:700')
+    + '<div style="font-size:10.5px;color:var(--warn-ink);font-weight:600;white-space:nowrap">+ ' + nf(tr) + ' m in transit to printers</div></td>';
+}
+/** The metres of a row still on their way to printers. */
+function invTransitM(r) { return (r.transit || []).reduce(function (a, x) { return a + (+x.metres || 0); }, 0); }
+/** The challan lines of this fabric not yet received by the printer, since the desk began counting it; [] when the flow is not read. */
+function invTransit(name) {
+  if (typeof flowClothInTransit !== 'function' || typeof FLOW === 'undefined' || !FLOW || !FLOW.cloth) return [];
+  var opened = gdRfdOpened(name); if (!opened) return [];
+  try { return flowClothInTransit(name, opened) || []; } catch (e) { console.warn('In transit for ' + name + ': not counted (' + ((e && e.message) || e) + ').'); return []; }
+}
+/** The "In transit to printers" list under the RFD lots: challan, printer, order, SKU, metres, sent. */
+function invTransitHtml(r) {
+  var list = r.transit || []; if (!list.length) return '';
+  return '<div class="sect" style="margin-top:10px">In transit to printers · ' + nf(invTransitM(r)) + ' m</div>'
+    + '<div class="box scroll"><table class="ct li"><thead><tr><th>Challan</th><th>Printer</th><th>Order</th><th>SKU</th><th class="num">Metres</th><th>Sent</th></tr></thead><tbody>'
+    + list.map(function (x) {
+      return '<tr><td class="mono">' + esc(x.no) + '</td><td class="tl">' + esc(x.vendor) + '</td><td class="mono">' + esc(x.orderNo) + '</td><td class="mono">' + esc(x.sku)
+        + '</td><td class="num">' + nf(x.metres) + ' m</td><td>' + esc(fmtD(x.date)) + '</td></tr>';
+    }).join('') + '</tbody></table></div>'
+    + '<div class="muted" style="font-size:11.5px;margin-top:4px">A line leaves this list when the printer presses "Cloth received" in their portal; its metres then leave our inventory.</div>';
+}
 function invCell(r, col, v, style) {
   if (!(v > 0.05)) return '<td class="num"' + (style ? ' style="' + style + '"' : '') + '><span class="muted">&mdash;</span></td>';
+  return '<td class="num">' + invCellBtn(r, col, v, style) + '</td>';
+}
+/** The figure as the button that opens its drop-down. */
+function invCellBtn(r, col, v, style) {
   var key = r.fabric + '|' + col, on = UI.invOpen === key;
-  return '<td class="num"><button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '"'
-    + (style ? ' style="' + style + '"' : '') + ' title="Show what makes this up">' + nf(v) + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button></td>';
+  return '<button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '"'
+    + (style ? ' style="' + style + '"' : '') + ' title="Show what makes this up">' + nf(v) + ' <span class="caret">' + (on ? '▴' : '▾') + '</span></button>';
 }
 /** A PO opens on Greige POs, expanded -- and the challan inside it too, when there is one. */
 function invOpenPo(poNo, chId) {
@@ -3679,7 +4084,8 @@ function invOpenPo(poNo, chId) {
 }
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow]') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow],[data-invgo]') : null;
+    if (d && d.getAttribute('data-invgo')) { UI.tab = d.getAttribute('data-invgo'); UI.invOpen = ''; render(); return; }
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
     if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
     if (d && d.getAttribute('data-invh')) { invHistOpen(d.getAttribute('data-invh')); return; }
@@ -3881,16 +4287,18 @@ function invHistXlsx() {
 var LF = { from: '', to: '', kind: '', fabric: '', party: '', po: '', done: '' };
 
 /* ---- the register itself, which is the only thing that is actually stored ------------------- */
-/** Does a row survive the filter bar? Every box left blank matches everything. */
-function lfKeep(r) {
+/** Does a row survive the filter bar? Every box left blank matches everything. `but` names boxes to leave out (the tiles' counts). */
+function lfKeep(r, but) {
+  but = but || {};
   if (LF.from && String(r.date || '') < LF.from) return false;
   if (LF.to && String(r.date || '') > LF.to) return false;
-  if (LF.kind && r.txnType !== LF.kind) return false;
+  if (LF.kind && !but.kind && r.txnType !== LF.kind) return false;
   if (LF.fabric && String(r.fabricType || '').trim() !== LF.fabric) return false;
   if (LF.party && String(r.party || '').trim() !== LF.party) return false;
   if (LF.po && String(r.orderNo || '').trim().toUpperCase() !== LF.po.toUpperCase()) return false;
-  if (LF.done === 'open' && r.done) return false;
-  if (LF.done === 'done' && !r.done) return false;
+  if (!but.done && LF.done === 'open' && r.done) return false;
+  if (!but.done && LF.done === 'done' && !r.done) return false;
+  if (!but.done && LF.done === 'wait' && !lfWaits(r)) return false;
   return true;
 }
 var lfOn = function () {
@@ -3907,6 +4315,57 @@ function lfSelect(key, label, values, labels) {
     }).join('') + '</select></label>';
 }
 
+/* ---- THE LEDGER, LAID OUT TO ACT ON (Vishesh, 23 Nov: "refine … fabric ledger design to the best for making it more actionable") ---- *
+ *   - tiles on top: Not yet fulfilled · Waiting for approval · Damaged · In / Out — each a filter (pressing it again clears it)
+ *   - quick periods beside the dates: Today · 7 days · 30 days · This month · All
+ *   - the movements grouped by day (newest first), each day with its count and its metres in and out
+ *   - a movement reads in colour: green when cloth came in, red when it went out, the metres signed the same way
+ *   - a movement waiting for approval carries Approve / Refuse on its own row for whoever may decide (the same decisions as
+ *     the Greige POs page: rrDecide for an RFD receipt that shrank, ctsDecide for a cut to size)
+ * Every filter, button and figure the ledger had is kept. */
+var LF_PERIODS = [['today', 'Today'], ['7', '7 days'], ['30', '30 days'], ['month', 'This month'], ['', 'All']];
+/** The from / to of a quick period, from today. */
+function lfPeriod(k) {
+  var t = lmToday(), d = new Date(t + 'T00:00:00Z');
+  var back = function (n) { var x = new Date(d.getTime() - n * 86400000); return x.toISOString().slice(0, 10); };
+  if (k === 'today') return { from: t, to: t };
+  if (k === '7') return { from: back(6), to: t };
+  if (k === '30') return { from: back(29), to: t };
+  if (k === 'month') return { from: t.slice(0, 8) + '01', to: t };
+  return { from: '', to: '' };
+}
+/** The quick period the filter's dates are on now ('' = all; null = some other dates). */
+function lfPeriodNow() {
+  for (var i = 0; i < LF_PERIODS.length; i++) { var p = lfPeriod(LF_PERIODS[i][0]); if (p.from === LF.from && p.to === LF.to) return LF_PERIODS[i][0]; }
+  return null;
+}
+/** A movement waiting for someone to approve it. */
+var lfWaits = function (r) { return !!(r.approval && r.approval.status === 'pending'); };
+/** Approve / Refuse on the row, for whoever may decide it; else who it waits for. */
+function lfDecideHtml(r) {
+  if (!lfWaits(r)) return '';
+  if (r.cutToSize) return ctsDecideButtons(r);
+  if (r.txnType === 'RECEIVE_RFD') return canApprove() ? '<div class="actions"><button type="button" class="jw-btn jw-wa" data-appr="' + esc(r.id) + '|ok">Approve</button><button type="button" class="jw-btn" id="rej-' + esc(r.id) + '" data-appr="' + esc(r.id) + '|no">Reject</button></div>'
+    : '<span class="muted" style="font-size:11.5px">waits for an approver</span>';
+  return '';
+}
+var LED_CSS = '<style>'
+  + '.gdx-todo{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:0 0 12px}'
+  + '.gdx-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);cursor:pointer;box-shadow:none;color:var(--ink);height:auto;min-height:0;white-space:normal;position:relative;overflow:hidden}'
+  + '.gdx-tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tone)}'
+  + '.gdx-tile:hover{border-color:var(--tone);background:var(--soft)}.gdx-tile.on{border-color:var(--tone);box-shadow:0 0 0 2px var(--tone) inset;background:var(--soft)}'
+  + '.gdx-tile.bad{--tone:var(--bad)}.gdx-tile.warn{--tone:var(--warn-ink)}.gdx-tile.brand{--tone:var(--brand)}.gdx-tile.ok{--tone:var(--ok-ink)}'
+  + '.gdx-tile[disabled]{cursor:default}.gdx-tile[disabled]:hover{border-color:var(--line);background:var(--card)}'
+  + '.gdx-n{font-size:24px;font-weight:800;line-height:1.1;color:var(--tone)}.gdx-l{font-size:13px;font-weight:700}.gdx-s{font-size:11.5px;color:var(--muted)}'
+  + '.gdx-per{display:inline-flex;gap:4px;flex-wrap:wrap}.gdx-per button{height:32px;padding:0 12px;font-size:12.5px;border-radius:999px;width:auto}'
+  + '.gdx-per button.on{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}'
+  + '.gdx-day td{background:var(--soft)!important;text-align:left!important;font-size:12.5px;padding:8px 12px!important;border-top:1px solid var(--line)}'
+  + '.gdx-day b{font-size:13px;margin-right:8px}'
+  + '.gdx-mv{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}'
+  + '.gdx-mv.in{background:var(--accent-bg);color:var(--ok-ink)}.gdx-mv.out{background:var(--bad-bg);color:var(--bad)}.gdx-mv.nil{background:var(--chip);color:var(--muted)}'
+  + '.gdx-mv.dmg{background:var(--bad);color:#fff}'
+  + 'tr.gdx-wait>td{background:var(--warn-bg)!important}tr.gdx-wait>td:first-child{box-shadow:inset 4px 0 0 var(--warn-ink)}'
+  + '</style>';
 function renderLedger() {
   var all = (DB.fab || []).slice().sort(function (a, b) {
     return String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id));
@@ -3929,34 +4388,58 @@ function renderLedger() {
   var inM = rows.reduce(function (a, r) { return a + (FAB_SIGN[r.txnType] > 0 ? fabQty(r) : 0); }, 0);
   var outM = rows.reduce(function (a, r) { return a + (FAB_SIGN[r.txnType] < 0 ? fabQty(r) : 0); }, 0);
 
+  /* the tiles count what the dates, fabric, party and PO let through -- not the tile's own filter, so they never read 0 once pressed */
+  var base = all.filter(function (r) { return lfKeep(r, { done: true, kind: LF.kind === 'DAMAGE' }); });
+  var openN = base.filter(function (r) { return !r.done; }).length, waitN = base.filter(lfWaits).length;
+  var dmg = base.filter(function (r) { return r.txnType === 'DAMAGE'; }), dmgM = dmg.reduce(function (a, r) { return a + fabQty(r); }, 0);
+  var tile = function (on, tone, n, big, sub, attr) {
+    return '<button type="button" class="gdx-tile ' + tone + (on ? ' on' : '') + '" ' + attr + '><span class="gdx-n">' + n + '</span><span class="gdx-l">' + big + '</span><span class="gdx-s">' + sub + '</span></button>';
+  };
+  var tiles = '<div class="gdx-todo">'
+    + tile(LF.done === 'open', 'brand', nf(openN), 'Not yet fulfilled', 'movements nobody has ticked', 'data-lfgo="open"')
+    + tile(LF.done === 'wait', waitN ? 'warn' : 'ok', nf(waitN), 'Waiting for approval', waitN ? 'decide them on their rows' : 'nothing waiting', 'data-lfgo="wait"' + (waitN || LF.done === 'wait' ? '' : ' disabled'))
+    + tile(LF.kind === 'DAMAGE', dmg.length ? 'bad' : 'ok', nf(dmgM) + ' m', 'Damaged', plural(dmg.length, 'entry', 'entries') + (lfPeriodNow() === '' ? ', all time' : ' in these dates'), 'data-lfgo="dmg"' + (dmg.length || LF.kind === 'DAMAGE' ? '' : ' disabled'))
+    + '<div class="gdx-tile ok" style="cursor:default"><span class="gdx-n" style="font-size:18px"><span style="color:var(--ok-ink)">+' + nf(inM) + '</span> <span style="color:var(--bad)">−' + nf(outM) + '</span></span><span class="gdx-l">Metres in / out</span><span class="gdx-s">of the movements below</span></div>'
+    + '</div>';
+
+  var per = lfPeriodNow();
   var filters = '<div class="card" style="padding:12px 14px;margin-bottom:12px">'
-    + '<div class="toolbar" style="gap:10px">'
+    + '<div class="toolbar" style="gap:10px;align-items:center">'
+    + '<div class="gdx-per" role="group" aria-label="Period">' + LF_PERIODS.map(function (p) {
+      return '<button type="button" class="ghost' + (per === p[0] ? ' on' : '') + '" data-lfper="' + p[0] + '">' + p[1] + '</button>';
+    }).join('') + '</div>'
     + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">From'
     + '<input type="date" data-lf="from" value="' + esc(LF.from) + '" style="height:32px;width:auto;font-size:12.5px"></label>'
     + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">To'
-    + '<input type="date" data-lf="to" value="' + esc(LF.to) + '" style="height:32px;width:auto;font-size:12.5px"></label>'
+    + '<input type="date" data-lf="to" value="' + esc(LF.to) + '" style="height:32px;width:auto;font-size:12.5px"></label></div>'
+    + '<div class="toolbar" style="gap:10px;margin-top:8px">'
     + lfSelect('kind', 'Movement', kinds, kinds.map(function (k) { return FAB_LABEL[k]; }))
     + lfSelect('fabric', 'Fabric', fabrics)
     + lfSelect('party', 'Party', parties)
     + lfSelect('po', 'PO', pos)
-    + lfSelect('done', 'Status', ['open', 'done'], ['Not yet fulfilled', 'Fulfilled'])   /* "open" is a PO's word (Ravi, 21 Nov) */
+    + lfSelect('done', 'Status', ['open', 'done', 'wait'], ['Not yet fulfilled', 'Fulfilled', 'Waiting for approval'])   /* "open" is a PO's word (Ravi, 21 Nov) */
     + (lfOn() ? '<button type="button" class="jw-btn" id="lfClear">Clear the filter</button>' : '')
     + '</div></div>';
 
   var count = rows.length === all.length
     ? all.length + ' movement' + (all.length === 1 ? '' : 's')
     : '<b>' + rows.length + '</b> of ' + all.length + ' movements';
-  var openN = rows.filter(function (r) { return !r.done; }).length;
-  if (openN !== rows.length) count += ' · <b>' + openN + '</b> not yet fulfilled';
+  var openR = rows.filter(function (r) { return !r.done; }).length;
+  if (openR !== rows.length) count += ' · <b>' + openR + '</b> not yet fulfilled';
 
-  return '<div class="row" style="margin-bottom:10px;align-items:center">'
+  /* one header a day: the day, how many movements, the metres in and out */
+  var days = {}; rows.forEach(function (r) { var d = String(r.date || ''); var e = days[d] || (days[d] = { n: 0, i: 0, o: 0 }); e.n++;
+    if (FAB_SIGN[r.txnType] > 0) e.i += fabQty(r); else if (FAB_SIGN[r.txnType] < 0) e.o += fabQty(r); });
+  var lastDay = null;
+
+  return LED_CSS + '<div class="row" style="margin-bottom:10px;align-items:center">'
     + '<span class="muted" style="font-size:12px;align-self:center">Add a movement:</span>'
     + (canLedgerEdit() ? '' : '<span class="pill pill-mute">View only · ' + esc(meUser().name) + '</span>')
     + kinds.filter(function (k) { return canLedgerEdit() && k !== 'RECEIVE_GREIGE' && k !== 'ISSUE_TO_RFD' && k !== 'RECEIVE_RFD'; }).map(function (k) {
       return '<button type="button" class="ghost" data-act="' + k + '" style="padding:6px 12px;font-size:12.5px">'
         + esc(FAB_LABEL[k]) + '</button>';
     }).join('') + '<span class="muted" style="font-size:12px;align-self:center">Greige received, sent to RFD and RFD received back are done from each PO on Greige POs.</span></div>'
-    + filters
+    + tiles + filters
     + '<div class="card"><div class="ff-cap">' + count + ', newest first · '
     + '<b style="color:var(--ok-ink)">' + nf(inM) + ' m</b> in · <b style="color:var(--bad)">' + nf(outM) + ' m</b> out. '
     + 'Nothing on this page is a stored total — every figure in the app is worked out from these rows.</div>'
@@ -3966,8 +4449,12 @@ function renderLedger() {
      * the first one. */
     + th(['Date', 'PO', 'Fabric', 'Challan', 'Party', 'Lot', 'Movement', 'State', 'Metres', ''], [8])
     + '<tbody>' + (rows.map(function (r) {
-      var sign = FAB_SIGN[r.txnType] || 0;
-      return '<tr><td class="frz">' + esc(r.date) + '</td>'
+      var sign = FAB_SIGN[r.txnType] || 0, d = String(r.date || ''), dd = days[d], head = '';
+      if (d !== lastDay) { lastDay = d;
+        head = '<tr class="gdx-day"><td colspan="10"><b>' + esc(d ? fmtD(d) : 'No date') + '</b><span class="muted">' + plural(dd.n, 'movement') + '</span>'
+          + (dd.i ? ' · <span style="color:var(--ok-ink);font-weight:700">+' + nf(dd.i) + ' m</span>' : '') + (dd.o ? ' · <span style="color:var(--bad);font-weight:700">−' + nf(dd.o) + ' m</span>' : '') + '</td></tr>'; }
+      var mv = r.txnType === 'DAMAGE' ? 'dmg' : sign > 0 ? 'in' : sign < 0 ? 'out' : 'nil', waits = lfWaits(r);
+      return head + '<tr' + (waits ? ' class="gdx-wait"' : '') + '><td class="frz">' + esc(r.date) + '</td>'
         + '<td>' + (r.orderNo ? '<b>' + esc(r.orderNo) + '</b>' : '<span class="muted">—</span>') + '</td>'
         + '<td style="text-align:left">' + esc(r.fabricType) + '</td>'
         /* The bill or challan sits with the cloth it came on: the two are read together off the
@@ -3975,8 +4462,7 @@ function renderLedger() {
         + '<td>' + (r.bill ? '<span class="mono">' + esc(r.bill) + '</span><div class="sub">' + ({ ISSUE_TO_RFD: 'our RFD challan', RECEIVE_RFD: 'processor’s', RECEIVE_GREIGE: 'supplier’s', PURCHASE_RFD: 'supplier’s' }[r.txnType] || '') + '</div>' : '<span class="muted">—</span>') + '</td>'
         + '<td style="text-align:left">' + (r.party ? esc(r.party) : '<span class="muted">—</span>') + '</td>'
         + '<td style="text-align:left"><b>' + esc(r.lot) + '</b></td>'
-        + '<td style="text-align:left"' + (r.txnType === 'DAMAGE' ? ' style="text-align:left;color:var(--bad);font-weight:700"' : '') + '>'
-        + esc(FAB_LABEL[r.txnType] || r.txnType)
+        + '<td style="text-align:left"><span class="gdx-mv ' + mv + '">' + esc(FAB_LABEL[r.txnType] || r.txnType) + '</span>'
         + (r.approval && r.approval.status !== 'approved' ? '<div><span class="pill ' + (r.approval.status === 'pending' ? 'pill-low' : 'pill-out') + '">' + (r.approval.status === 'pending' ? 'Waiting for approval' : r.cutToSize ? 'Refused' : 'Rejected') + ' · ' + ctsApprovalWhy(r) + '</span></div>' : '')
         + (r.approval && r.approval.status === 'approved' ? '<div class="sub">approved by ' + esc(r.approval.by || '') + (r.cutToSize ? '' : ' · ' + r.approval.pct + '%') + '</div>' : '')
         + (r.bales && r.bales.length ? '<div class="sub">' + r.bales.length + ' bales</div>' : '')
@@ -3987,7 +4473,7 @@ function renderLedger() {
         + '</td>'
         + '<td><span class="pill ' + (fabState(r) === 'GREIGE' ? 'pill-low' : 'pill-sea') + '">'
         + esc(FAB_STATE_LABEL[fabState(r)] || fabState(r)) + '</span></td>'
-        + '<td class="num" style="font-weight:700">' + (sign < 0 ? '−' : sign > 0 ? '+' : '') + nf(fabQty(r))
+        + '<td class="num" style="font-weight:800;color:' + (sign > 0 ? 'var(--ok-ink)' : sign < 0 ? 'var(--bad)' : 'var(--ink)') + '">' + (sign < 0 ? '−' : sign > 0 ? '+' : '') + nf(fabQty(r))
         + (r.pieces && r.pieces.length ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + r.pieces.length + ' pcs on the challan</div>' : '')
         + (r.returned
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + nf(r.gross)
@@ -3996,9 +4482,10 @@ function renderLedger() {
         + (r.remark && r.txnType !== 'DAMAGE'
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + esc(r.remark) + '</div>' : '')
         + '</td>'
-        + '<td style="white-space:nowrap">' + (!canLedgerEdit() ? '<span class="muted" title="' + esc(fulfilledBy(r)) + '">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
+        + '<td style="white-space:nowrap">' + (waits ? lfDecideHtml(r) : '')
+        + (!canLedgerEdit() ? '<span class="muted" title="' + esc(fulfilledBy(r)) + '">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
         + (!canLedgerEdit() || ctsLedgerLocked(r) ? '' : '<button type="button" class="jw-btn jw-primary" data-edit="' + esc(r.id) + '">Edit</button> ')
-        + (!canLedgerEdit() ? '' : r.done
+        + (!canLedgerEdit() || waits ? '' : r.done
           ? '<button type="button" class="jw-btn jw-wa" data-done="' + esc(r.id) + '" '
             + 'title="' + esc(fulfilledBy(r)) + '. Click to put it back on the list.">✓ Fulfilled</button>'
           : '<button type="button" class="jw-btn" data-done="' + esc(r.id) + '" '
@@ -4022,9 +4509,15 @@ function fulfilledBy(r) {
 /* ---- wiring: the ledger rows and the filter bar ---------------------------------------------------- */
 function wireLedger() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('#lfClear,[data-edit],[data-done],[data-del]') : null;
+    var t = ev.target.closest ? ev.target.closest('#lfClear,[data-edit],[data-done],[data-del],[data-lfgo],[data-lfper]') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
+    /* the ledger's tiles and quick periods (Vishesh, 23 Nov) */
+    if (g('data-lfgo') !== null) { var go = g('data-lfgo');
+      /* pressing a tile turns its filter on; pressing it again turns it off */
+      if (go === 'dmg') LF.kind = LF.kind === 'DAMAGE' ? '' : 'DAMAGE'; else LF.done = LF.done === go ? '' : go;
+      render(); return; }
+    if (g('data-lfper') !== null) { var pr = lfPeriod(g('data-lfper')); LF.from = pr.from; LF.to = pr.to; render(); return; }
     if (g('data-edit')) {
       var er = (DB.fab || []).filter(function (x) { return x.id === g('data-edit'); })[0];
       if (er) entryOpen(er.txnType, er);
@@ -4966,14 +5459,13 @@ function wireEntry() {
 
 function wireUsersRfd() {
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-issall],[data-issbale],[data-rradd],[data-rrrm],[data-rrfin],[data-rr],[data-appr],[data-urm],#userAdd,#rrSave,[data-cut],[data-cutall],[data-cutthan],[data-cutline],#cutSave') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-issall],[data-issbale],[data-rradd],[data-rrrm],[data-rr],[data-appr],[data-urm],#userAdd,#rrSave,[data-cut],[data-cutall],[data-cutthan],[data-cutline],#cutSave') : null;
     if (!t) return;
     var g = function (k) { return t.getAttribute(k); };
     if (g('data-issall') && ISS) { var lot = g('data-issall'), bs = lotBales(lot), all = bs.every(function (b) { return ISS.pick[lot][b.than]; }); ISS.pick[lot] = {}; if (!all) bs.forEach(function (b) { ISS.pick[lot][b.than] = true; }); issDraw(); return; }
     if (g('data-issbale') && ISS) { var p = g('data-issbale').split('|'); ISS.pick[p[0]][p[1]] = t.checked; issDraw(); return; }
     if (g('data-rradd') && RR) { var l = g('data-rradd'), ps = RR.thans[l]; ps.push({ than: rdNextBale(ps), m: '' }); /* same numbering as Receive greige */ rrDraw(); var f = $('rm-' + l + '-' + (ps.length - 1)); if (f) f.focus(); return; }
     if (g('data-rrrm') && RR) { var q = g('data-rrrm').split('|'), arr = RR.thans[q[0]]; arr.splice(+q[1], 1); if (!arr.length) arr.push({ than: '', m: '' }); rrDraw(); return; }
-    if (g('data-rrfin') && RR) { RR.fin[g('data-rrfin')] = t.checked; rrSums(); return; }
     if (t.id === 'rrSave') { rrSave(); return; }
     if (g('data-cut')) { cutOpen(g('data-cut')); return; }
     if (g('data-cutall') && CUT) { var ts = lotThans(CUT.lot), every = ts.every(function (x) { return CUT.pick[x.than]; }); CUT.pick = {}; if (!every) ts.forEach(function (x) { CUT.pick[x.than] = true; }); cutDraw(); return; }
@@ -5164,6 +5656,13 @@ function usersSafe() { return true; }
 var GD_LOSS = 0.05;
 /* Page registers on: PPC's figures are not ready until the order book and the factory registers are all in (a plain look, it reads nothing). */
 function gdFlowReady() { return typeof FLOW !== 'undefined' && FLOW && FLOW.ppc && typeof flowRfdCover === 'function' && (typeof prOn !== 'function' || !prOn() || ptHas(PTG_ALL)); }
+/** RFD metres of a fabric that left on the flow's RFD challans to printers since the desk began counting it; 0 when the flow
+ *  is not in this page or not read yet, or the desk has no opening count for the fabric (the flow then counts it elsewhere). */
+function invChallanOut(name) {
+  if (typeof flowRfdChallanOut !== 'function' || typeof FLOW === 'undefined' || !FLOW || !FLOW.ch) return 0;
+  var opened = gdRfdOpened(name); if (!opened) return 0;
+  try { return Math.max(0, +flowRfdChallanOut(name, opened) || 0); } catch (e) { console.warn('RFD on shelf for ' + name + ': challans to printers not counted (' + ((e && e.message) || e) + ').'); return 0; }
+}
 function gdRfdShelf(name) {
   if (!DB) return 0;
   var k = String(name || '').trim().toUpperCase(), e = fabFlowRows(DB.fab || []).filter(function (x) { return String(x.fabricType).toUpperCase() === k; })[0];
@@ -5321,10 +5820,12 @@ function gdSendToPrinter(fabric) {
     if (GD_STATE !== 'ok') { $('lmPane').innerHTML = '<div class="card" style="color:#b91c1c">The Greige Desk could not be read just now (' + esc(GD_STATE.replace(/^err: /, '')) + '). Nothing was changed. Open it again in a moment.</div>'; return; }
     lmLoad();
     if (typeof gdLinkMasters === 'function') gdLinkMasters();   // the Master Data's fabrics and vendors, read fresh each time
-    if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireCutToSize(); wireGd(); }
+    if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireCutToSize(); wireDateAsks(); wireGd(); }
     render();
   }
-  return { open: open, ensure: function () { return gdLoad(); }, rfdKnown: function (n) { return !!mstOf(n); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); }, state: function () { return GD_STATE; },
+  return { open: open, ensure: function () { return gdLoad(); }, dateAsks: function () { return GD_STATE === 'ok' && DB ? gdDateAskItems() : []; },
+    /* the same, from the ledger rows alone as the bell reads them (pt_gdTest/fab) when the desk itself was never opened */
+    dateAsksIn: function (fabNode) { return gdDateAskItems(Object.keys(fabNode || {}).map(function (k) { return Object.assign({ id: k }, fabNode[k]); })); }, fabNode: function () { return GD_NODE + '/fab'; }, dateDecide: function (id, ok, why) { return gdDateDecide(id, ok, why); }, rfdKnown: function (n) { return !!mstOf(n); }, rfdShelf: function (n) { return gdRfdShelf(n); }, rfdOpened: function (n) { return gdRfdOpened(n); }, state: function () { return GD_STATE; },
     /* Read the desk again (the flow's Refresh): what is on screen stays until the new read answers. */
     reload: function () { if (GD_READY) { var was = GD_READY; GD_READY = null; return was.then(function () { GD_READY = null; return gdLoad(); }); } return gdLoad(); } };
 })();

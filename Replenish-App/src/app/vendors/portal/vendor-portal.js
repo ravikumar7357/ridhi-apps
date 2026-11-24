@@ -305,7 +305,10 @@ const vpLineOn = f => !!(f.at || f.sub || f.col || f.sz || f.pri);
 /* A SEARCH NARROWS THE LINES TOO (Ravi, 22 Oct: "mene particular sku search kiya but result me bahut kuch dikha rha h" —
  * CPC007-5454 found 2 orders and showed all 65 of their products). When the words are found in some lines of an order, only
  * those lines are shown and counted; an order found by its own number or note shows all of its lines. */
-const vpLineHay = l => [l.sku, l.fabricType, l.color, l.printDirection, l.articleType, l.articleSubtype, l.size].filter(Boolean).join(' ').toLowerCase();
+const vpLineHay = l => [l.sku, l.fabricType, l.color, l.printDirection, l.articleType, l.articleSubtype, l.size, ...vpForOrders(l)].filter(Boolean).join(' ').toLowerCase();
+/* SEARCH BY OUR ORDER NUMBER (Vishesh, 23 Nov: "when I open the printer portal and search for that order I should be able to see that
+ * order under that printer"): a line placed from PPC names the sales orders it is for (forOrders), so AMZ-17102026-02-SEA finds it. */
+const vpForOrders = l => ((l && l.forOrders) || []).map(x => x && x.orderNo).filter(Boolean);
 let VP_QX = { q: null, map: new WeakMap() };
 function vpQOk(o, l, f, everyDue) {
   /* "Show late only" (3 Nov) narrows every view to lines past their due date with the cloth already given; the strip counts all. */
@@ -342,7 +345,7 @@ function vpOrderMatches(o, f) {
   if (f.type && (o.orderType || 'cut') !== f.type) return false;
   if (f.q) {
     const hay = [o.orderNo, o.id, o.status, o.notes,
-      ...voLines(o).flatMap(l => [l.sku, l.fabricType, l.color, l.printDirection, l.articleType, l.articleSubtype, l.size])]
+      ...voLines(o).flatMap(l => [l.sku, l.fabricType, l.color, l.printDirection, l.articleType, l.articleSubtype, l.size, ...vpForOrders(l)])]
       .filter(Boolean).join(' ').toLowerCase();
     if (hay.indexOf(f.q) < 0) return false;
   }
@@ -539,7 +542,9 @@ function renderVp() {
   if (office) vprEnsure();
   /* COMPLETED AS CARDS (Ravi, 21 Nov): finished bulk orders follow the View box like the Bulk tab (colour board, orders,
    * product or table), for the office and the printer alike; finished custom lines keep their own table below. */
-  body.innerHTML = nag + (rows.length
+  /* the cloth we sent, above the Bulk orders (printer-cloth.js) */
+  const cloth = VP.tab === 'bulk' && typeof pclSection === 'function' ? pclSection(f.q) : '';
+  body.innerHTML = nag + cloth + (rows.length
     ? office ? vprSheet(rows, f)
     : doneTab ? (rows.some(o => !vpIsShop(o)) ? vpViewOf(rows.filter(o => !vpIsShop(o)), f) : '') + (rows.some(vpIsShop) ? vpShopTable(rows.filter(vpIsShop), f) : '')
     : (VP.tab === 'shop' ? vpCustomSheet(rows, f)
@@ -1648,7 +1653,7 @@ if ($('vpTabVs')) $('vpTabVs').onclick = () => { VP.tab = 'vsent'; renderVp(); }
 ['vpFrom', 'vpTo'].forEach(id => { if ($(id)) $(id).onchange = renderVp; });
 $('vpTabHist').onclick = () => { VP.tab = 'hist'; renderVp(); };
 $('vpTabRfd').onclick = () => { VP.tab = 'rfd'; renderVp(); };
-$('vpGo').onclick = async () => { VP.rows = null; vprRefresh(); await ensureVp(); };
+$('vpGo').onclick = async () => { VP.rows = null; if (typeof PCL !== 'undefined') PCL.code = null; vprRefresh(); await ensureVp(); };
 // Only an account that signs in with a PIN has one to change.
 $('vpPinBtn').onclick = pinOpenChange;
 /**

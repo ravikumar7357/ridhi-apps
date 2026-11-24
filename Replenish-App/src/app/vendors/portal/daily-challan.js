@@ -65,7 +65,8 @@ function dchNextNo() {
 }
 async function dchLoad(force) {
   if (DCH.saved && !force) return;
-  try { const v = await ptGet('pt_vendorChallans/' + VP.code); DCH.saved = ptList(v || {}).sort((a, b) => String(b.at || '').localeCompare(String(a.at || ''))); DCH.savedErr = ''; }
+  /* the RFD challans we sent this printer share the branch (kind 'cloth', printer-cloth.js); they are not the printer's own */
+  try { const v = await ptGet('pt_vendorChallans/' + VP.code); DCH.saved = ptList(v || {}).filter(c => !(c && c.kind === 'cloth')).sort((a, b) => String(b.at || '').localeCompare(String(a.at || ''))); DCH.savedErr = ''; }
   catch (e) { DCH.saved = []; DCH.savedErr = /permission|denied/i.test(String(e.message || e)) ? 'Saved challans are not readable yet — the database rule for daily challans is not deployed (preview).' : 'Could not read the saved challans: ' + (e.message || e); }
 }
 
