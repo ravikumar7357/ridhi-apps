@@ -87,7 +87,7 @@ const rowOf = (html, sku) => (html.split(new RegExp(`<div class="im-kid[^"]*" da
   let html = P.el('imList').innerHTML;
   const c = rowOf(html, 'C');
   ok('C\'s row: ONE red dot, right under its PT03 tile, its words on hover', (c.match(/class="im-seq"/g) || []).length === 1
-    && /data-slot="PT03">[\s\S]*?<i class="im-seq" role="img" aria-label="Out of sequence — siblings have this in PT02" title="Out of sequence — siblings have this in PT02"><\/i><\/span>/.test(c), c.slice(0, 300));
+    && /data-slot="PT03"[^>]*>[\s\S]*?<i class="im-seq" role="img" aria-label="Out of sequence — siblings have this in PT02" title="Out of sequence — siblings have this in PT02"><\/i><\/span>/.test(c), c.slice(0, 300));
   ok('A and B (in order): no dot; the single-child family: no check', !/im-seq/.test(rowOf(html, 'A')) && !/im-seq/.test(rowOf(html, 'B')) && !/im-seq/.test(rowOf(html, 'S1')));
   ok('nothing else: no error row, no chip, no count — C\'s chip is its status ("Buyable"); no "out of sequence" in the cards, the family header or the meta line',
     /class="im-chip is-ok"[^>]*>Buyable</.test(c) && !/im-kid-err/.test(c) && (html.match(/Out of sequence/g) || []).length === 2 && !/sequence|order/i.test(P.imCardsData(P.IML.SP.items).map(x => x.t + x.note).join(' ')));

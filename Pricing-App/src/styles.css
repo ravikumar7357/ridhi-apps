@@ -1551,6 +1551,43 @@
   #paneImg .im-seq-key{display:inline-flex;align-items:center;gap:5px;margin-left:8px;color:var(--muted);white-space:nowrap}
   #paneImg .im-seq-key .im-seq{position:relative;left:auto;bottom:auto;display:inline-block;margin:0;cursor:default}
   #paneImg .im-seq-key .im-seq::after{display:none}
+  /* Rearranging a listing's pictures (image-manager.js 6b, 24 Nov 2026): the lifted picture, the slot under it ("Swap" / "Move here"),
+     a changed slot (dashed, "changed"), "Paste here", the draft's bar, "1 picture copied", the Replace menu, the MAIN question. */
+  #paneImg .im-tw[data-drag]{cursor:grab;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  #paneImg .im-tw.is-lift{opacity:.35}
+  #paneImg .im-tw.is-target>.im-th{outline:2px solid var(--brand);outline-offset:2px;background:var(--brand-bg)}
+  #paneImg .im-tw.is-target::after{content:attr(data-drop-label);position:absolute;left:50%;top:-11px;z-index:4;transform:translateX(-50%);padding:2px 8px;border-radius:var(--r-pill);background:var(--brand);color:#fff;font-size:11px;font-weight:600;white-space:nowrap;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+  #paneImg .im-tw.is-chg>.im-th{outline:2px dashed var(--brand);outline-offset:1px}
+  #paneImg .im-tchg{position:absolute;left:50%;top:-7px;z-index:2;transform:translateX(-50%);padding:0 5px;border-radius:var(--r-pill);background:var(--brand);color:#fff;font-size:9.5px;font-weight:600;line-height:14px;white-space:nowrap;pointer-events:none}
+  #paneImg .im-tw.is-ksel>.im-th{outline:3px solid var(--brand);outline-offset:2px}
+  #paneImg .im-tpaste{position:absolute;left:3px;right:3px;bottom:3px;z-index:3;width:auto;min-height:0;height:20px;margin:0;padding:0 4px;border:0;border-radius:6px;background:var(--brand);color:#fff;font-size:10.5px;font-weight:600;line-height:20px;box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:copy}
+  #paneImg .im-kid.has-draft{background:color-mix(in srgb,var(--brand-bg) 45%,transparent)}
+  #paneImg .im-draft{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;padding:6px 8px;border-radius:8px;background:var(--brand-bg);color:var(--brand-ink);font-size:12px}
+  #paneImg .im-draft .im-go{margin-left:auto}
+  #paneImg .im-match{border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
+  #paneImg .im-onebar{position:fixed;left:50%;bottom:20px;z-index:50;display:flex;align-items:center;gap:10px;max-width:calc(100vw - 24px);padding:8px 10px 8px 8px;transform:translateX(-50%);border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:0 12px 32px rgba(16,24,40,.2);font-size:12.5px}
+  #paneImg .im-onebar-pic{flex:none;width:36px;height:36px;overflow:hidden;border:1px solid var(--line);border-radius:6px;background:#fff}
+  #paneImg .im-onebar-pic img{width:100%;height:100%;object-fit:contain}
+  #paneImg .im-clip .im-onebar{position:static;max-width:none;margin:0 0 8px;transform:none;border-color:color-mix(in srgb,var(--brand) 45%,var(--line));background:var(--brand-bg);box-shadow:none}
+  #paneImg .im-tpaste{opacity:0;transition:opacity .12s}
+  #paneImg .im-tw:hover>.im-tpaste,#paneImg .im-tw:focus-within>.im-tpaste,#paneImg .im-tpaste:focus-visible{opacity:1}
+  @media (hover:none){ #paneImg .im-tpaste{opacity:1} }
+  body.im-dragging,body.im-dragging *{cursor:grabbing!important;user-select:none}
+  body.im-dragging #paneImg .im-tact,body.im-dragging #paneImg .im-bf{display:none!important}
+  .im-ghost{position:fixed;z-index:9999;width:76px;height:76px;margin:14px 0 0 14px;overflow:hidden;border:2px solid var(--brand);border-radius:10px;background:#fff;box-shadow:0 14px 32px rgba(0,0,0,.3);transform:rotate(-3deg) scale(1.05);pointer-events:none}
+  .im-ghost img{width:100%;height:100%;object-fit:contain}
+  .im-rm{position:fixed;z-index:70;width:320px;max-width:calc(100vw - 24px);max-height:60vh;overflow:auto;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);box-shadow:0 16px 40px rgba(16,24,40,.22);font-size:12.5px}
+  .im-rm-h{padding:2px 6px 6px;color:var(--muted)}
+  .im-rm-sec summary{padding:7px 8px;border-radius:8px;cursor:pointer;font-weight:600}
+  .im-rm-sec summary:hover,.im-rm-up:hover{background:var(--hover)}
+  .im-rm-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:4px 6px 8px}
+  .im-rm-pic{display:flex;flex-direction:column;align-items:center;gap:2px;width:auto;min-height:0;margin:0;padding:3px;border:1px solid var(--line);border-radius:8px;background:var(--card);cursor:pointer}
+  .im-rm-pic:hover,.im-rm-pic:focus-visible{border-color:var(--brand);outline:none}
+  .im-rm-pic img{width:100%;aspect-ratio:1;object-fit:contain;background:#fff;border-radius:4px}
+  .im-rm-pic small{max-width:100%;overflow:hidden;color:var(--muted);font-size:10px;white-space:nowrap;text-overflow:ellipsis}
+  .im-rm-up{display:block;width:100%;min-height:0;margin:2px 0 0;padding:7px 8px;border:0;border-radius:8px;background:transparent;color:var(--ink);font:inherit;font-weight:600;text-align:left;cursor:pointer;box-shadow:none}
+  .im-rm-note{padding:4px 8px 0;font-size:11px}
+  .im-pv-row.is-same{opacity:.55}
   /* The clipboard bar: sticks to the bottom of the list; a tick per copied slot, the quick picks, the mode, the Preview button. */
   #paneImg .im-mono{font-family:ui-monospace,monospace}
   #paneImg .im-clip{position:sticky;bottom:0;z-index:15;margin:10px 0 0;padding:10px 14px;background:var(--card);border:1px solid color-mix(in srgb,var(--brand) 45%,var(--card-line));
