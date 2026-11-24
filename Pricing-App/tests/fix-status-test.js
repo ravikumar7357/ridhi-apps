@@ -135,7 +135,7 @@ async function bellTests() {
   const store = {};
   const rows = [row({ id: 'still1', at: T0 - 30 * H }), row({ id: 'fixed1', sku: 'RTC9', at: T0 - 3 * H }), row({ id: 'new1', sku: 'RTC10', at: T0 - 6 * H, run: 'run2' }), row({ id: 'new1b', sku: 'RTC10', attr: 'item_name', field: 'Title', fi: [], at: T0 - 6 * H, run: 'run2' })];
   const reads = { 'SP|RQL147-K': { iss: [E('90244', 'unit_count')], gAt: T0 - H, at: T0 - H }, 'SP|RTC9': { iss: [], gAt: T0 - H, at: T0 - H }, 'SP|RTC10': { iss: [E('8541', 'swatch_product_image_locator')], gAt: T0 - H, at: T0 - H } };
-  const setup = C => { C.run(`FS.on = true; FS.rows = ${JSON.stringify(rows)}; fsFresh = (b, sku) => (${JSON.stringify(reads)})[b + '|' + sku] || null; fsPics = () => null; FS.sig = null;`); C.run('FS.recs = fsCompute(FS.rows, { fresh: fsFresh, pics: fsPics, sc: {}, now: ' + T0 + ' })'); };
+  const setup = C => { C.run(`FS.on = true; FS.loaded = true; FS.rows = ${JSON.stringify(rows)}; fsFresh = (b, sku) => (${JSON.stringify(reads)})[b + '|' + sku] || null; fsPics = () => null; FS.sig = null;`); C.run('FS.recs = fsCompute(FS.rows, { fresh: fsFresh, pics: fsPics, sc: {}, now: ' + T0 + ' })'); };
   const A = app({ store, me: { email: 'asha.k@ridhi.example', tabs: ['lerr'] } });
   setup(A);
   A.run('fsBellDraw()');
@@ -176,6 +176,52 @@ async function bellTests() {
   ok('CSV: the same columns, the rows the filters keep', /^﻿SKU,Brand,Issue,Code,Fixed by,Who,Sent at,Last checked,State,New error,Hint\r\nRQL147-K,Ridhi,The value for Ounce \/ Unit Count is missing,90244,Sellora,Asha K,/.test(csv), csv.slice(0, 200));
   ok('Listing Health line: "Fixed in Sellora on 23 Nov — ⚠️ Amazon still shows it (30 h)"', /Fixed in Sellora on 23 Nov — ⚠️ Amazon still shows it \(30 h\)/.test(A.run("fsKidLine('SP', 'RQL147-K')")), A.run("fsKidLine('SP', 'RQL147-K')"));
   ok('…"✅ Fixed — confirmed 24 Nov"', /✅ Fixed — confirmed 24 Nov/.test(A.run("fsKidLine('SP', 'RTC9')")));
+
+  console.log('== the bell is always clickable: 0 items, the test site, before the data is in ==');
+  {
+    const okRows = [row({ id: 'ok1', sku: 'RTC9', at: T0 - 3 * H }), row({ id: 'chk1', sku: 'RTC11', at: T0 - 2 * H })];
+    const okReads = { 'SP|RTC9': { iss: [], gAt: T0 - H, at: T0 - H }, 'SP|RTC11': { iss: [E('90244', 'unit_count')], gAt: T0 - H, at: T0 - H } };
+    const Z0 = app();
+    Z0.run(`FS.on = true; FS.loaded = true; FS.rows = ${JSON.stringify(okRows)}; FS.recs = fsCompute(FS.rows, { fresh: (b, sku) => (${JSON.stringify(okReads)})[b + '|' + sku] || null, pics: () => null, sc: {}, now: ${T0} }); fsBellDraw();`);
+    eq('0 items: no red count', Z0.$('fsBell').badge.hidden, true);
+    Z0.run('fsPanel(true)');
+    const p0 = strip(Z0.$('fsPanel').innerHTML);
+    ok('…a click still opens the panel: "✅ All fixes accepted by Amazon — nothing waiting." + "✅ 1 fix confirmed by Amazon today" + "See all fix status →"', Z0.run('FS.open') === true && Z0.$('fsPanel').hidden === false
+      && /✅ All fixes accepted by Amazon — nothing waiting\./.test(p0) && /✅ 1 fix confirmed by Amazon today/.test(p0) && /See all fix status →/.test(p0), p0);
+    ok('…and says a recent one is still being checked (not called accepted yet)', /⏳ 1 recent fix is still being checked/.test(p0));
+    const none = app();
+    none.run('FS.on = true; FS.loaded = true; FS.rows = []; FS.recs = []; fsPanel(true)');
+    const pn = strip(none.$('fsPanel').innerHTML);
+    ok('…no fix at all: the same words, no "confirmed today" line', /✅ All fixes accepted by Amazon — nothing waiting\./.test(pn) && !/confirmed by Amazon today/.test(pn) && /See all fix status →/.test(pn), pn);
+    const seenAll = app();
+    seenAll.run(`FS.on = true; FS.loaded = true; FS.rows = ${JSON.stringify([row({ id: 'still9' })])}; FS.recs = fsCompute(FS.rows, { fresh: () => ({ iss: [${JSON.stringify(E('90244', 'unit_count'))}], gAt: ${T0 - H}, at: ${T0 - H} }), pics: () => null, sc: {}, now: ${T0} }); FS.seen.add('still9'); fsBellDraw(); fsPanel(true)`);
+    ok('…everything marked as seen: no red count, and it does not claim all were accepted', seenAll.$('fsBell').badge.hidden === true && /Nothing new waiting — the 1 you marked as seen is still in Fix status\./.test(strip(seenAll.$('fsPanel').innerHTML)));
+    const Tst = app({ test: true });
+    Tst.run(`FS.on = true; FS.loaded = true; FS.rows = ${JSON.stringify(rows)}; FS.recs = fsCompute(FS.rows, { fresh: (b, sku) => (${JSON.stringify(reads)})[b + '|' + sku] || null, pics: () => null, sc: {}, now: ${T0} }); fsBellDraw(); fsPanel(true)`);
+    const pt = strip(Tst.$('fsPanel').innerHTML);
+    ok('test site: no red count (even with records), the panel opens with the test words + "See all fix status →"', Tst.$('fsBell').badge.hidden === true && Tst.run('FS.open') === true
+      && /Test site — fixes aren't sent to Amazon here, so there's nothing to track\. Real fix status shows on live Sellora\./.test(pt) && /See all fix status →/.test(pt) && !/Mark as seen/.test(pt), pt);
+    const early = app();
+    early.run('FS.on = true; FS.rows = null; FS.recs = []; fsPanel(true)');
+    ok('before the fixes are read: the panel opens and says it is checking (never "all accepted" too early)', early.run('FS.open') === true && /Checking your fixes against Amazon…/.test(strip(early.$('fsPanel').innerHTML)) && !/All fixes accepted/.test(early.$('fsPanel').innerHTML));
+  }
+
+  console.log('== an old fix (before the bell): ✅ only when the field is right AND Amazon shows no issue on it ==');
+  {
+    const C = app();
+    const old = o => { const r = row(o); delete r.fi; delete r.e0; return r; };
+    const ounce = { s: 'W', c: '90244', a: [], m: 'The value for Ounce / Unit Count is missing' };
+    const st = (r, iss) => compute(C, [r], { 'SP|RQL147-K': { iss, gAt: T0 - H, at: T0 - H } })[0];
+    const a = st(old({ at: T0 - 30 * H }), [ounce]);
+    eq('old Unit count fix, Amazon still shows Ounce 90244 on it (a warning, no attribute named) → ⚠️ Still on Amazon, not ✅', [a.state, a.code, a.issue], ['still', '90244', 'The value for Ounce / Unit Count is missing']);
+    eq('…4 days on → the stale hint', st(old({ at: T0 - 4 * DAY }), [ounce]).hint, 'Likely stale on Amazon — re-submit once, or open a Seller Central case');
+    eq('…5 h after the send → ⏳ Checking', st(old({ at: T0 - 5 * H }), [ounce]).state, 'checking');
+    eq('…an issue naming the attribute (unit_count_type) counts too', st(old({ at: T0 - 30 * H }), [{ s: 'W', c: '99001', a: ['unit_count_type'], m: 'x' }]).state, 'still');
+    eq('…Amazon shows nothing on that field → ✅ Fixed', st(old({ at: T0 - 30 * H }), [{ s: 'E', c: '5665', a: ['item_name'], m: 'Title too long' }]).state, 'fixed');
+    const t = old({ attr: 'item_name', field: 'Title', new: 'New quilt title', at: T0 - 30 * H });
+    eq('old title fix: the title is the new one but Amazon still has an issue on item_name → ⚠️, not ✅', compute(C, [t], { 'SP|RQL147-K': { iss: [{ s: 'W', c: '8016', a: ['item_name'], m: 'Title has a word that is not allowed' }], title: 'New quilt title', cAt: T0 - H, gAt: T0 - H, at: T0 - H } })[0].state, 'still');
+    eq('…the title right and no issue on it → ✅', compute(C, [t], { 'SP|RQL147-K': { iss: [], title: 'New quilt title', cAt: T0 - H, gAt: T0 - H, at: T0 - H } })[0].state, 'fixed');
+  }
 
   console.log('== the shared watch and summary: never on the test site ==');
   const S = {};

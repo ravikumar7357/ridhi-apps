@@ -3510,6 +3510,9 @@
   .fs-it-a{display:flex;gap:6px;margin-top:6px}
   .fs-b{width:auto;min-height:0;margin:0;padding:3px 10px;font-size:12px}
   .fs-none{padding:16px 14px;color:var(--muted)}
+  .fs-empty{padding:18px 14px 8px;font-size:13.5px;line-height:1.5;color:var(--ink)}
+  .fs-empty.is-ok{font-weight:600;color:var(--accent-ink)}
+  .fs-empty-sub{padding:0 14px 12px;font-size:12.5px}
   .fs-more{padding:6px 14px;font-size:12px}
   .fs-p-f{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;padding:10px 14px;border-top:1px solid var(--line);background:var(--soft);font-size:12.5px}
   .fs-all{width:auto;min-height:0;margin:0;padding:0;border:0;background:transparent;color:var(--brand-ink);font:inherit;font-weight:600;box-shadow:none;cursor:pointer}
@@ -28291,6 +28294,21 @@ function fsFieldNow(r, e, pics) {
   if (r.attr === 'title_differentiation' && (e.hlAt || e.gAt) > r.at && Array.isArray(e.hl)) return same(e.hl.join(' '));
   return null;
 }
+/** Amazon's issues (any level) about the field a fix changed: an attribute it names is that one (or the same name with more after it,
+ *  "unit_count" ↔ "unit_count_type"); a picture slot by its attribute or "PT03" in the words; an issue naming no attribute, by the field's
+ *  own name in Amazon's words ("Unit count" in "The value for Ounce / Unit Count is missing"). */
+function fsFieldIssues(r, iss) {
+  const attr = String(r.attr || '').toLowerCase();
+  const slot = /^(main|pt0[1-8]|swch)$/.test(attr) ? attr.toUpperCase() : '';
+  const plain = s => fsNorm(s).replace(/[^a-z0-9]+/g, ' ').trim();
+  const words = plain(String(r.field || '').replace(/^spec:\s*/i, '')) || plain(attr.replace(/_/g, ' '));
+  return (iss || []).filter(i => {
+    const as = fsAttrs(i).map(a => a.toLowerCase());
+    if (slot) return as.some(a => typeof imAttrSlot === 'function' && imAttrSlot(a) === slot) || new RegExp('\\b' + slot + '\\b').test(String(i.m || i.message || ''));
+    if (as.length) return as.some(a => a === attr || a.startsWith(attr + '_') || attr.startsWith(a + '_'));
+    return words.length >= 4 && (' ' + plain(i.m || i.message || '') + ' ').includes(' ' + words + ' ');
+  });
+}
 /** Every fix of the last FS_LIST_DAYS days, judged — plus the Seller Central fixes. rows: Listing History rows; o: { fresh(brand, sku),
  *  pics(brand, sku), sc: { key: { brand, sku, k, c, m, seen, gone } }, now }. → [{ id, key, brand, sku, asin, label, field, issue, code,
  *  who, at, readAt, state, hint, newErr, by: 'sellora' | 'sc', confirmedAt }] newest first. A later fix of the same field replaces one. */
@@ -28314,16 +28332,20 @@ function fsCompute(rows, o) {
     const val = fsFieldNow(r, e, o.pics ? o.pics(r.brand, r.sku) : null);
     const e0 = new Set(Array.isArray(r.e0) ? r.e0 : []);
     const newErr = after && Array.isArray(r.e0) ? iss.filter(i => fsIsErr(i) && !e0.has(fsKey(i)) && !fi.some(t => fsHit(t, i))) : [];
+    // A fix with no issue on record (sent before the bell, or no Amazon issue then): ✅ only when the field is right AND Amazon shows no
+    // issue about that same field now (any level — the Ounce 90244 case is shown on the very field that was fixed).
+    const onField = fi.length ? [] : fsFieldIssues(r, iss);
     const age = now - r.at;
     let state;
     if (!after) state = 'checking';
     else if (newErr.length) state = 'newerr';
-    else if (fi.length ? !still.length : val !== false && !iss.some(i => fsIsErr(i) && fsAttrs(i).includes(r.attr))) state = 'fixed';
+    else if (fi.length ? !still.length : val !== false && !onField.length) state = 'fixed';
     else state = age < FS_STILL_MS ? 'checking' : 'still';
     const hint = state === 'still' && age >= FS_STALE_MS ? FS_STALE_HINT
       : state === 'checking' && !after && age >= FS_STILL_MS ? 'Not read from Amazon since the fix — Check now in Listing Health reads it' : '';
     out.push({ id: r.id, key, brand: r.brand, sku: r.sku, asin: r.asin || '', label: r.label || r.sku, field: r.field || r.attr, attr: r.attr,
-      issue: fi[0] ? fi[0].m : (r.field || r.attr), code: fi[0] ? fi[0].c : '', who: r.name || '', at: r.at, readAt: after ? readAt : 0, state, hint,
+      issue: fi[0] ? fi[0].m : onField[0] ? String(onField[0].m || onField[0].message || '') : (r.field || r.attr),
+      code: fi[0] ? fi[0].c : onField[0] ? String(onField[0].c || onField[0].code || '') : '', who: r.name || '', at: r.at, readAt: after ? readAt : 0, state, hint,
       newErr: newErr[0] ? { c: String(newErr[0].c || ''), m: String(newErr[0].m || '') } : null, by: 'sellora', confirmedAt: state === 'fixed' ? readAt : 0, run: r.run || '' });
   });
   Object.keys((o && o.sc) || {}).forEach(k => {
@@ -28386,6 +28408,14 @@ function fsWatchNow() {
 
 /* ----- the data: Listing History (shared), the watch (shared), this user's "seen" marks ----- */
 const fsTest = () => typeof sqIsTest === 'function' && sqIsTest();
+/** A test site or a copy on this computer: fixes are not sent to Amazon there, so the bell has nothing to track (no count, its own words). */
+function fsLocal() {
+  if (fsTest()) return true;
+  try {
+    const h = String(location.hostname || '');
+    return location.protocol === 'file:' || !h || h === 'localhost' || h === '0.0.0.0' || /^127\./.test(h);
+  } catch (e) { return false; }
+}
 // The user's own marks document (an id from the e-mail, never the e-mail itself).
 function fsSeenId() {
   const email = String((typeof ME !== 'undefined' && ME && ME.email) || '').toLowerCase();
@@ -28484,7 +28514,7 @@ function fsBellDraw() {
   const btn = $('fsBell');
   if (!btn) return;
   btn.hidden = !FS.on;
-  const n = FS.on ? fsUnseen().length : 0;
+  const n = FS.on && !fsLocal() ? fsUnseen().length : 0;          // no red count at 0, nor on a test / local copy
   const badge = btn.querySelector ? btn.querySelector('.fs-badge') : null;
   if (badge) { badge.hidden = !n; badge.textContent = n > 99 ? '99+' : String(n); }
   btn.setAttribute('aria-label', n ? `Fix status: ${n} still not fixed on Amazon` : 'Fix status: nothing waiting');
@@ -28502,7 +28532,21 @@ function fsItemWords(r, now) {
 const fsIssueWords = r => String(r.issue || r.field || '').replace(/\s+/g, ' ').slice(0, 140) + (r.code ? ` (${r.code})` : '');
 function fsPanelHtml(now) {
   const t = now || Date.now();
+  const head = '<div class="fs-p-h"><b>Still not fixed on Amazon</b><button type="button" class="fs-x" data-fs-close="1" aria-label="Close">×</button></div>';
+  const all = '<button type="button" class="fs-all" data-fs-all="1">See all fix status →</button>';
+  // a test site / a local copy: nothing is sent to Amazon from it, so there is nothing to track here
+  if (fsLocal()) return head + '<div class="fs-empty">Test site — fixes aren\'t sent to Amazon here, so there\'s nothing to track. Real fix status shows on live Sellora.</div>'
+    + `<div class="fs-p-f"><span></span>${all}</div>`;
+  if (!FS.loaded) return head + '<div class="fs-empty muted">Checking your fixes against Amazon…</div>' + `<div class="fs-p-f"><span></span>${all}</div>`;
   const items = fsUnseen().slice(0, 12);
+  const okToday = fsFixedToday();
+  if (!items.length) {
+    const seen = fsAlerts(FS.recs).length, checking = FS.recs.filter(r => r.state === 'checking').length;
+    return head + (seen ? `<div class="fs-empty">Nothing new waiting — the ${seen} you marked as seen ${seen === 1 ? 'is' : 'are'} still in Fix status.</div>`
+      : '<div class="fs-empty is-ok">✅ All fixes accepted by Amazon — nothing waiting.</div>')
+      + (checking ? `<div class="fs-empty-sub muted">⏳ ${checking} recent fix${checking === 1 ? ' is' : 'es are'} still being checked.</div>` : '')
+      + `<div class="fs-p-f"><span>${okToday ? `✅ ${okToday} fix${okToday === 1 ? '' : 'es'} confirmed by Amazon today` : ''}</span>${all}</div>`;
+  }
   const list = items.length ? items.map(r => `<li class="fs-it is-${r.state}"><div class="fs-it-h"><span class="fs-st" aria-hidden="true">${r.state === 'newerr' ? '❌' : '⚠️'}</span>`
     + `<b class="fs-sku">${fsEsc(r.sku)}</b><span class="muted">${fsEsc(fsBrandName(r.brand))}</span></div>`
     + `<div class="fs-it-i">${fsEsc(fsIssueWords(r))}</div><div class="fs-it-w">${fsEsc(fsItemWords(r, t))}</div>${r.hint ? `<div class="fs-it-hint">${fsEsc(r.hint)}</div>` : ''}`
@@ -28510,10 +28554,8 @@ function fsPanelHtml(now) {
     + `<button type="button" class="ghost fs-b" data-fs-seen="${fsEsc(r.id)}">Mark as seen</button></div></li>`).join('')
     : '<li class="fs-none">Nothing waiting — every fix is confirmed by Amazon or still being checked.</li>';
   const more = fsUnseen().length - items.length;
-  const ok = fsFixedToday();
-  return `<div class="fs-p-h"><b>Still not fixed on Amazon</b><button type="button" class="fs-x" data-fs-close="1" aria-label="Close">×</button></div>`
-    + `<ul class="fs-list">${list}</ul>${more > 0 ? `<div class="fs-more muted">+ ${more} more in Fix status</div>` : ''}`
-    + `<div class="fs-p-f"><span>✅ ${ok} fix${ok === 1 ? '' : 'es'} confirmed by Amazon today</span><button type="button" class="fs-all" data-fs-all="1">See all fix status →</button></div>`;
+  return head + `<ul class="fs-list">${list}</ul>${more > 0 ? `<div class="fs-more muted">+ ${more} more in Fix status</div>` : ''}`
+    + `<div class="fs-p-f"><span>✅ ${okToday} fix${okToday === 1 ? '' : 'es'} confirmed by Amazon today</span>${all}</div>`;
 }
 function fsPanelDraw() {
   const box = $('fsPanel');
@@ -28523,8 +28565,10 @@ function fsPanelDraw() {
 function fsPanel(open) {
   const box = $('fsPanel');
   const btn = $('fsBell');
-  FS.open = !!open && FS.on;
+  FS.open = !!open && FS.on;                                     // the bell shows only when FS.on: a click on it always opens this
   if (!box) return;
+  // the panel lives on the page itself, so nothing in the menu bar can clip or cover it
+  if (FS.open && typeof document !== 'undefined' && document.body && box.parentNode && box.parentNode !== document.body && document.body.appendChild) document.body.appendChild(box);
   box.hidden = !FS.open;
   if (btn) btn.setAttribute('aria-expanded', String(FS.open));
   if (!FS.open) return;
@@ -28576,7 +28620,8 @@ function fsPageHtml() {
     + `<span style="flex:1"></span><button type="button" class="ghost" data-fs-reload="1">Refresh</button><button type="button" class="ghost" data-fs-csv="1">Download (CSV)</button></div>`
     + `<div class="lh-count muted">Results: ${recs.length} · checked against Amazon's newest read of each listing (the auto refresh every ~15 min, and Check now) — nothing is sent to Amazon here${FS.err ? ' · ' + fsEsc(FS.err) : ''}</div></div>`
     + (recs.length ? `<div class="card xlwrap lh-wrap"><table class="xl lh-tbl fs-tbl"><thead><tr><th>SKU</th><th>Brand</th><th>Issue</th><th>Fixed by</th><th>Who</th><th>Sent at</th><th>Last checked</th><th>State</th><th>Hint</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
-      : `<div class="card lh-empty"><b>No fixes ${FS.rows ? 'match these filters' : 'read yet'}.</b> ${FS.rows ? '' : 'Reading Listing History…'}</div>`);
+      : fsLocal() && !all.length ? '<div class="card lh-empty"><b>Test site — fixes aren\'t sent to Amazon here, so there\'s nothing to track.</b> Real fix status shows on live Sellora.</div>'
+        : `<div class="card lh-empty"><b>No fixes ${FS.rows ? 'match these filters' : 'read yet'}.</b> ${FS.rows ? '' : 'Reading Listing History…'}</div>`);
 }
 function fsPageDraw() {
   const box = $('fsPage');
@@ -28630,6 +28675,8 @@ async function fsStart() {
   fsBellDraw();
   await Promise.all([fsSeenLoad(), fsLoadRows(false), typeof lmEnsure === 'function' ? Promise.resolve(lmEnsure()).catch(() => {}) : null,
     (async () => { try { const s = await getDoc(doc(db, 'history', 'fixwatch')); if (s.exists()) FS.watch = s.data() || null; } catch (e) { /* none yet */ } })()]);
+  FS.loaded = true;
+  FS.sig = null;
   fsRefresh();
   clearInterval(FS.timer);
   FS.timer = setInterval(() => { if (typeof document === 'undefined' || document.visibilityState !== 'hidden') fsRefresh(); }, 30000);
@@ -28659,7 +28706,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
   try {
     onAuthStateChanged(auth, async user => {
       // a new sign-in starts clean: another person's marks never carry over
-      FS.on = false; FS.seen = new Set(); FS.seenLoaded = false; FS.recs = []; FS.sig = null; fsPanel(false);
+      FS.on = false; FS.loaded = false; FS.seen = new Set(); FS.seenLoaded = false; FS.recs = []; FS.sig = null; fsPanel(false);
       if (!user) { fsBellDraw(); return; }
       const email = String(user.email || '').toLowerCase();
       for (let i = 0; i < 300 && !(ME && ME.email === email && typeof TAB_OK === 'function'); i++) await new Promise(r => setTimeout(r, 50));

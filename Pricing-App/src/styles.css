@@ -3485,6 +3485,9 @@
   .fs-it-a{display:flex;gap:6px;margin-top:6px}
   .fs-b{width:auto;min-height:0;margin:0;padding:3px 10px;font-size:12px}
   .fs-none{padding:16px 14px;color:var(--muted)}
+  .fs-empty{padding:18px 14px 8px;font-size:13.5px;line-height:1.5;color:var(--ink)}
+  .fs-empty.is-ok{font-weight:600;color:var(--accent-ink)}
+  .fs-empty-sub{padding:0 14px 12px;font-size:12.5px}
   .fs-more{padding:6px 14px;font-size:12px}
   .fs-p-f{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;padding:10px 14px;border-top:1px solid var(--line);background:var(--soft);font-size:12.5px}
   .fs-all{width:auto;min-height:0;margin:0;padding:0;border:0;background:transparent;color:var(--brand-ink);font:inherit;font-weight:600;box-shadow:none;cursor:pointer}
