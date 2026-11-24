@@ -1050,6 +1050,14 @@
   #paneSalert .al-note { margin: 6px 0; font-size: 12.5px; color: var(--al-muted); }
   #paneSalert .al-norm { margin: 8px 0 4px; font-size: 13px; color: var(--al-muted); }
   #paneSalert .al-norm b { color: var(--al-ink); font-weight: 600; }
+  /* the trust check: the summary under the hero, the proof line on every card, the Needs a look group */
+  #paneSalert .al-sum { margin: 8px 0 0; font-size: 14px; color: var(--al-muted); }
+  #paneSalert .al-sum b { color: var(--al-ink); font-variant-numeric: tabular-nums; }
+  #paneSalert .al-proof { margin: 8px 0 4px; padding: 7px 10px; border-radius: 12px; font-size: 12.5px; line-height: 1.45; }
+  #paneSalert .al-proof.is-ok { background: var(--al-green-bg); color: var(--al-ink); }
+  #paneSalert .al-proof.is-look { background: var(--al-amber-bg); color: var(--al-ink); }
+  #paneSalert .al-win small { display: block; margin-top: 4px; font-size: 12px; color: var(--al-muted); }
+  #paneSalert .al-look > summary { color: var(--al-amber); }
   #paneSalert .al-kids { margin: 10px 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--al-line); font-size: 13px; }
   #paneSalert .al-kids > b { display: block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--al-muted); margin-bottom: 4px; }
   #paneSalert .al-kid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 10px; padding: 4px 0; border-top: 1px solid var(--al-line); }

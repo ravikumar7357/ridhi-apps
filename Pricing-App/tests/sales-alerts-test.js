@@ -13,7 +13,7 @@ function load(extra) {
     localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
     ME: { admin: true, tabs: [], email: 'test@example.com' }, SD: { at: '', d: {} }, SD_CH: 'SP', sdToday: () => TODAY,
   }, extra || {}));
-  vm.runInContext(SRC + '\n;this.__x = { AL, AL_DEF, alCompute, alMedian, alMad, alAdd, alHeroHtml, alDashOf, alFor, alCardHtml, alRowHtml, alNext, AL_HEAD };', ctx);
+  vm.runInContext(SRC + '\n;this.__x = { AL, AL_DEF, alCompute, alMedian, alMad, alAdd, alHeroHtml, alDashOf, alFor, alCardHtml, alRowHtml, alNext, AL_HEAD, alVerify, alCsvText, AL_CHK };', ctx);
   return Object.assign(ctx.__x, { ctx, store });
 }
 const X = load();
@@ -99,6 +99,26 @@ for (let q = 0; q < 8; q++) {
   const f = 0.4 + rnd() * 0.2;
   asin('R' + q, 'SP', 250 + q * 40, 10, d => (lowSet.has(d) ? { x: f } : null)); kid('PR' + q, 'R' + q);
 }
+// PC2 — the real-data Ridhi Block Print Pillow Cover: steady $14.8k/week, then $10.7k and $11.0k — a real drop (the brand +35% the same weeks)
+asin('PC2a', 'SP', 14800 / 7.06, 1, d => (inn('2026-11-10', '2026-11-16')(d) ? { x: 10700 / 14800 } : inn('2026-11-17', LAST)(d) ? { x: 11000 / 14800 } : null)); kid('PCOVER', 'PC2a');
+// UB — an uneven baseline: normal weeks ×0.9, ×0.9, ×0.9, ×1.9 (one week 65% over their average), then −50% → Needs a look
+asin('UB1', 'SP', 400, 10, d => (inn('2026-11-03', '2026-11-09')(d) ? { x: 1.9 } : d >= '2026-10-13' && d <= '2026-11-02' ? { x: 0.9 } : d >= '2026-11-10' && d <= LAST ? { x: 0.45 } : null)); kid('PUB', 'UB1');
+// NP — the real-data CPC Cotton print club Napkin: normal weeks 3,259 / 4,331 / 2,502 / 2,948, judged 5,522 and 8,152 — a win that showed
+//      nothing. Its days vary inside each week (weights that add up to 7, turned a day each week), so the weeks are exactly those totals.
+{
+  const W8 = [1.2, 0.85, 1.1, 0.8, 1.15, 0.9, 1.0];
+  const tot = [3259, 4331, 2502, 2948, 5522, 8152];
+  D.NP1 = {}; BR.NP1 = 'CPC'; kid('PNAPKIN', 'NP1');
+  for (let wi = 0; wi < 6; wi++) for (let k = 0; k < 7; k++) {
+    const d = alAdd('2026-10-13', wi * 7 + k), v = Math.round(tot[wi] / 7 * W8[(k + wi * 3) % 7]);
+    D.NP1[d] = [v, v];
+  }
+  for (let d = FROM; d < '2026-10-13'; d = alAdd(d, 1)) D.NP1[d] = [466, 466];
+  // one ordinary day just before the last (as on the real page): the old rule's "in a row" broke there; the week's total stays 8,152
+  const moved = D.NP1['2026-11-22'][1] - 466; D.NP1['2026-11-22'] = [466, 466]; D.NP1[LAST] = [D.NP1[LAST][0] + moved, D.NP1[LAST][1] + moved];
+}
+// MV — CPC, down 40% for the whole 14 days — exactly as much as the whole CPC brand those weeks (in the run with the brand's days)
+asin('MV1', 'CPC', 500, 10, d => (d >= '2026-11-10' && d <= LAST ? { x: 0.6 } : null)); kid('PMOVER', 'MV1');
 // S — CPC: down 50% for 4 days, and the brand's same days last year fell 45% → seasonal dip (Watch)
 asin('S1', 'CPC', 400, 40, d => (inn('2026-11-20', LAST)(d) ? { x: 0.5 } : null)); kid('PS', 'S1');
 
@@ -111,11 +131,12 @@ const weeks = ['2026-10-18', '2026-10-25', '2026-11-01', '2026-11-08', '2026-11-
 const wrow = (sess, u, last) => ({ brand: 'SP', weeks: Object.fromEntries(weeks.map(w => [w, w === '2026-11-15' ? last : { sessions: sess, u }])) });
 const weekly = { rows: { F1: wrow(800, 56, { sessions: 400, u: 28 }), G1: wrow(800, 56, { sessions: 800, u: 28 }) }, at: '2026-11-23 06:00' };
 // ad spend per day: H spend cut 80% from 20 Nov; J spend up 60%; M spend up 70% (its win)
-const adsD = { SP: { H1: {}, J1: {}, M1: {} } };
+const adsD = { SP: { H1: {}, J1: {}, M1: {}, X1: {} } };
 days.filter(d => d <= '2026-11-22').forEach(d => {
   adsD.SP.H1[d] = [1000, 30, d >= '2026-11-20' ? 10 : 50, 3, d >= '2026-11-20' ? 30 : 120];
   adsD.SP.J1[d] = [1000, 30, d >= '2026-11-20' ? 64 : 40, 3, 90];
   adsD.SP.M1[d] = [1000, 30, d >= '2026-11-20' ? 68 : 40, 3, 150];
+  adsD.SP.X1[d] = [1000, 30, d >= '2026-11-10' ? 10 : 50, 3, d >= '2026-11-10' ? 30 : 120];      // the Pillow Insert: ads cut too
 });
 const adsDay = { d: adsD, upTo: '2026-11-22', at: '2026-11-24 05:50' };
 const plan = { 'PI|2026-11-08': { t: 'LIGHTNING', v: 20, s: '2026-11-10', d: 7 } };
@@ -131,7 +152,8 @@ const base = { days: dailyAsin, today: TODAY, parentOf: a => PARENT[a] || a, nam
   stock, weekly, adsDay, plan, lyDaily: ly, now: Date.parse('2026-11-24T10:00:00Z') };
 const run = (more, brand) => X.alCompute(Object.assign({}, base, { brand: brand || 'SP' }, more || {}));
 const R = run();
-const find = (r, p, list) => (list ? r[list] : [].concat(r.alerts, r.waiting, r.recovered, r.wins, r.hidden, r.skipped || [])).find(a => a.parent === p);
+const dbg = a => (a ? JSON.stringify([a.list, a.kind, a.head || a.why, a.check && a.check.failed, a.check && a.check.proof, a.baseOut]) : 'none');
+const find = (r, p, list) => (list ? r[list] : [].concat(r.alerts, r.waiting, r.recovered, r.wins, r.hidden, r.skipped || [], r.review || [])).find(a => a.parent === p);
 
 console.log('== the maths ==');
 ok('median of 4: one spike does not move it (100, 110, 90, 500 → 105)', X.alMedian([100, 110, 90, 500]) === 105);
@@ -181,8 +203,11 @@ const RD = run({ lyDaily: lyDn });
 ok('the brand\'s last year fell ×0.8: drops are judged against less (calmer), and no flat product becomes a "win"',
   RD.alerts.every(a => Math.abs(a.fDown - 0.8) < 1e-9) && RD.alerts.length <= R.alerts.length && RD.wins.map(a => a.parent).join() === R.wins.map(a => a.parent).join(), JSON.stringify([RD.alerts.length, R.alerts.length, RD.wins.map(a => a.parent)]));
 const W = find(R, 'PW');
-ok('the self-check: over 30% of its own normal days outside its range → "Not judged" (listed, never an alert or a win)',
-  W && W.list === 'skipped' && W.baseOut > 0.3 && /too irregular/.test(W.why) && !R.alerts.some(a => a.parent === 'PW'), W && JSON.stringify([W.list, W.baseOut]));
+ok('irregular normal weeks (×⅓, ×1, ×1, ×3⅓) → ⚠️ Needs a look "baseline too uneven", never an alert or a win; the range holds 3 of each weekday\'s 4 normal values by construction (≤ 25% outside)',
+  W && W.list === 'review' && W.check.failed.includes('steady') && W.baseOut <= 0.25 && !R.alerts.some(a => a.parent === 'PW'), W && JSON.stringify([W.list, W.baseOut, W.check && W.check.failed]));
+ok('…and the day self-check still guards: a product with only 3 normal weeks and one wild week is not judged', (() => {
+  const d3 = Object.assign({}, dailyAsin, { from: '2026-10-20' });
+  const w = find(run({ days: d3 }), 'PW'); return w && w.list === 'skipped' && /too irregular/.test(w.why); })(), dbg(find(run({ days: Object.assign({}, dailyAsin, { from: '2026-10-20' }) }), 'PW')));
 ok('the range holds the normal days of every product that is judged (≤ 30% outside)', [].concat(R.alerts, R.waiting, R.recovered, R.wins).every(a => a.baseOut <= 0.3));
 ok('baseline weeks keep their own range on the chart (no season on them)', RU.alerts.every(a => a.series.filter(p => p.d < '2026-11-10').every(p => Math.abs(p.e - (p.lo + p.hi) / 2) < Math.max(1, p.e * 0.6))));
 const normA = X.alCardHtml(A).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
@@ -207,10 +232,51 @@ const Yr = find(R, 'PY');
 ok('back inside the range the last 2 days → "Recovered", not an alert', Yr && Yr.list === 'recovered' && Yr.back === 2 && Yr.lows === 10, Yr && JSON.stringify([Yr.list, Yr.back, Yr.lows]));
 ok('2 scattered low days among 5 → no alert (not most days)', !find(R, 'PZ'));
 const Qs = Object.keys(QLOW).map(k => find(R, 'P' + k));
-ok('every product low on MOST of the last 14 days (8–13 of them, normal days at random) alerts', Qs.every(q => q && q.list === 'alerts'),
+ok('every product low on MOST of the last 14 days (8–13 of them, normal days at random) is caught: a Confirmed alert, or "Needs a look" only when a judged week is not 20%+ down',
+  Qs.every(q => q && (q.list === 'alerts' || (q.list === 'review' && q.kind === 'alerts' && q.check.failed.join() === 'weekly'))) && Qs.filter(q => q.list === 'alerts').length >= 6,
   JSON.stringify(Qs.map((q, i) => [i, q && q.list, q && q.lows, QLOW['R' + i].size])));
 ok('…and its low days are the days it was low', Qs.every((q, i) => q && q.lowDays.every(d => QLOW['R' + i].has(d))));
 ok('a fresh drop still alerts on its 3rd low day, as "New"', find(run({ days: Object.assign({}, dailyAsin, { d: Object.assign({}, D, { Q9: Object.fromEntries(Object.entries(D.A2).map(([d, v]) => [d, d >= '2026-11-21' && d <= LAST ? [2, 60] : v])) }), brand: Object.assign({}, BR, { Q9: 'SP' }) }) }), 'Q9', 'alerts').state === 'New');
+
+console.log('== the trust check: every alert and win checked before it is shown (24 Nov) ==');
+// the brands' own days THIS year for the trust check's "not the brand" — SP +35% in the judged weeks, CPC −40%
+const brandRun = (spF, cpcF) => {
+  const b = { SP: Object.assign({}, ly.SP), CPC: Object.assign({}, ly.CPC) };
+  for (let d = '2026-10-06'; d <= LAST; d = alAdd(d, 1)) { const j = d >= '2026-11-10'; b.SP[d] = [j ? 50000 * spF : 50000, 1, 1]; b.CPC[d] = [j ? 3000 * cpcF : 3000, 1, 1]; }
+  return b;
+};
+const Xc = find(R, 'PX');
+ok('Pillow Insert: a real drop, ads cut → ✅ Confirmed, the cause "Ads cut"', Xc && Xc.list === 'alerts' && Xc.check.ok && Xc.cause.k === 'adsCut', dbg(Xc));
+const RB = run({ brandDaily: brandRun(1.35, 1) });
+const PCv = find(RB, 'PCOVER');
+ok('Block Print Pillow Cover: $14.8k → $10.7k / $11.0k with the brand +35% → ✅ Confirmed', PCv && PCv.list === 'alerts' && PCv.check.ok, dbg(PCv));
+ok('…its proof line: "Checked ✓ — own weeks $14.8k → $10.7k / $11.0k (−27%), Ridhi +35% same weeks, steady baseline."',
+  PCv && PCv.check.proof === 'Checked ✓ — own weeks $14.8k → $10.7k / $11.0k (−27%), Ridhi +35% same weeks, steady baseline.', PCv && PCv.check.proof);
+ok('…and the card shows it', PCv && X.alCardHtml(PCv).includes('Checked ✓ — own weeks $14.8k → $10.7k / $11.0k (−27%)'));
+const Vb = find(RU, 'PV');
+ok('the old false Pillow alert (brand season ×1.4 inflating expected) → not shown: no alert, not even "needs a look"', !Vb || !['alerts', 'review', 'hidden'].includes(Vb.list), dbg(Vb));
+const NPc = find(RC, 'PNAPKIN');
+ok('CPC Cotton print club Napkin: +69% / +150% over its own weeks → ✅ Confirmed win (the win rule mirrors the drop rule)', NPc && NPc.list === 'wins' && NPc.check.ok, dbg(NPc));
+ok('…with the old win rule ("in a row") it showed nothing — the real-page symptom', (() => { const o = find(run({ rule: 'run' }, 'CPC'), 'PNAPKIN'); return !o || o.list !== 'wins'; })());
+const MVb = find(run({ brandDaily: brandRun(1, 0.6) }, 'CPC'), 'PMOVER');
+ok('a product down 40% exactly as the whole brand (−40% the same weeks) → no alert: "moves with the brand"', MVb && MVb.list === 'review' && MVb.check.failed.join() === 'brand' && /moves with the brand/.test(MVb.check.proof), dbg(MVb));
+ok('…the same product with no brand move → ✅ Confirmed', (find(RC, 'PMOVER') || {}).list === 'alerts', dbg(find(RC, 'PMOVER')));
+const UBc = find(R, 'PUB');
+ok('an uneven baseline (one normal week 65% over the average) → ⚠️ Needs a look: "baseline too uneven"', UBc && UBc.list === 'review' && UBc.check.failed.includes('steady') && /baseline too uneven/.test(UBc.check.proof), dbg(UBc));
+ok('Needs a look is never in the hero, the chips or the Dashboard numbers', R.review.length >= 1 && !R.alerts.some(a => R.review.includes(a))
+  && Math.abs(R.atRisk - R.alerts.reduce((s, a) => s + a.atRisk, 0)) < 0.01 && R.counts.critical + R.counts.important + R.counts.watch === R.alerts.length);
+const fake = { list: 'alerts', brand: 'SP', run: [], exp: 1200, rawExp: 1000 };
+const fev = { N: [7000, 7000, 7000, 7000], J1: 4000, J2: 4000, bN: [null], bJ1: null, bJ2: null, complete: true };
+ok('check ⑤: expected moved above its own normal weeks (season inflation) → fails "season"', X.alVerify(fake, fev, { S: X.AL_DEF, last: LAST }).failed.join() === 'season');
+ok('check ④: a product under $500/week normal fails "volume"', X.alVerify(Object.assign({}, fake, { exp: 900 }), Object.assign({}, fev, { N: [400, 400, 400, 400], J2: 200 }), { S: X.AL_DEF, last: LAST }).failed.join() === 'volume');
+ok('check ①: a fresh 4-day drop is checked on the last week only', X.alVerify(Object.assign({}, fake, { exp: 900, run: ['2026-11-20', '2026-11-21', '2026-11-22', '2026-11-23'] }), Object.assign({}, fev, { J1: 7000, J2: 5000 }), { S: X.AL_DEF, last: LAST }).ok);
+const heroT = X.alHeroHtml(R).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
+ok('the summary under the hero: "Sellora checked N products · X confirmed drops · Y confirmed wins · Z need a look · W not judged"',
+  heroT.includes(`Sellora checked ${R.checked} products · ${R.alerts.length} confirmed drops · ${R.wins.length} confirmed win${R.wins.length === 1 ? '' : 's'} · ${R.review.length} need${R.review.length === 1 ? 's' : ''} a look · ${R.skipped.length} not judged`), heroT.slice(heroT.indexOf('Sellora'), heroT.indexOf('Sellora') + 160));
+const csv = X.alCsvText(R).split('\r\n');
+ok('Download full check (CSV): a header with the six weeks and one row per product checked, each with its verdict',
+  csv.length === R.checked + 1 && /Normal week 1 \(13 Oct–19 Oct\) \$/.test(csv[0]) && /Judged week 2 \(17 Nov–23 Nov\) \$/.test(csv[0])
+  && csv.some(l => /^Ridhi,PX,.*Confirmed drop/.test(l)) && csv.some(l => /^Ridhi,PUB,.*Needs a look \(drop\)/.test(l)) && csv.some(l => /^Ridhi,PB,.*Small/.test(l)), csv[0]);
 
 console.log('== the causes ==');
 const cause = p => (find(R, p, 'alerts') || { cause: {} }).cause;
