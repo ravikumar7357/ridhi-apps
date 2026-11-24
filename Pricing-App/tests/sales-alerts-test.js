@@ -229,7 +229,8 @@ ok('…its $ at risk counts all 14 days (the normal day too) — (expected − a
 ok('…Critical: 13 low days (7+)', Xnew && Xnew.sev === 'critical');
 ok('a day without a sale is a $0 day: the sold-out child has no entry on its low days, and they count', A.run.every(d => !(d in D.A1)) && Math.abs(A.act - A.run.reduce((s, d) => s + D.A2[d][1], 0)) < 0.01);
 const Yr = find(R, 'PY');
-ok('back inside the range the last 2 days → "Recovered", not an alert', Yr && Yr.list === 'recovered' && Yr.back === 2 && Yr.lows === 10, Yr && JSON.stringify([Yr.list, Yr.back, Yr.lows]));
+ok('a BIG product back inside the range the last 2 days but its last week still −36% → 🟡 "Watch · recovering", not "Recovered"', Yr && Yr.list === 'alerts' && Yr.soft && Yr.state === 'Watch · recovering', Yr && JSON.stringify([Yr.list, Yr.state]));
+ok('a small product back inside its range the last 2 days → "Recovered"', (find(R, 'PL') || {}).list === 'recovered');
 ok('2 scattered low days among 5 → no alert (not most days)', !find(R, 'PZ'));
 const Qs = Object.keys(QLOW).map(k => find(R, 'P' + k));
 ok('every product low on MOST of the last 14 days (8–13 of them, normal days at random) is caught: a Confirmed alert, or "Needs a look" only when a judged week is not 20%+ down',
@@ -347,10 +348,11 @@ console.log('== a big product\'s Watch (real data, 24 Nov: the Pillow Cover −3
   ok('the plain alert rule: −24% is under the 25% line → no alert (what the real page showed)', !find(run({ days: days1, brandDaily: brandRun(1.35, 1), settings: { bigWeek: 1e9 } }), 'BPCOVER'));
   ok('now: 🟡 Watch — "recovering" (−30% then −19%), ✅ confirmed by the trust checks', B && B.list === 'alerts' && B.sev === 'watch' && B.soft && B.watchState === 'recovering' && B.check.ok && B.state === 'Watch · recovering', dbg(B));
   ok('…its ① is the Watch one: each judged week 10%+ down, 15%+ together', B && /weekly \(Watch\).*−30% \/ −19%/.test(B.check.checks[0].t) && B.check.checks[0].ok, B && B.check.checks[0].t);
-  ok('…its headline says so', B && /sales down 2\d% over 14 days — recovering \(a big product: watch, under the 25% alert line\)/.test(B.head), B && B.head);
+  ok('…its headline says so', B && /sales down 2\d(\.\d)?% over 14 days — recovering · a big product: Watch$/.test(B.head), B && B.head);
   ok('…it counts in the Watch chip, never in $ at risk (hero, Dashboard)', RW.counts.watch >= 1 && Math.abs(RW.atRisk - RW.alerts.filter(a => !a.soft).reduce((s, a) => s + a.atRisk, 0)) < 0.01 && RW.watchUsd >= B.atRisk - 0.01);
   const heroW = X.alHeroHtml(RW).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
-  ok('…the hero names it beside the real drops: "· 1 big product to watch"', heroW.includes(`${RW.alerts.filter(a => !a.soft).length} products need attention`) && heroW.includes('· 1 big product to watch'), heroW.slice(0, 140));
+  { const nw = RW.alerts.filter(a => a.soft).length;
+  ok('…the hero names Watch beside the real drops ("· N big products to watch"), never in their count', heroW.includes(`${RW.alerts.filter(a => !a.soft).length} products need attention`) && heroW.includes(`· ${nw} big product${nw === 1 ? '' : 's'} to watch`), heroW.slice(0, 140)); }
   ok('…the card: "−$X / week · Watch — not in the total"', X.alCardHtml(B).replace(/<[^>]+>/g, ' ').includes('/ week · Watch — not in the total'));
   // the other route: one judged week −22%, the other −12% — fewer than half the days below the range (no lasting-drop stretch)
   const days2 = with1('BPC2', 'BPCOVER2', build('BPC2', null, (wi, k) => 2100 * (wi < 4 ? 1 : wi === 4 ? (k === 6 ? 1 : 0.74) : (k === 3 ? 0.3 : 0.98))));
@@ -360,6 +362,41 @@ console.log('== a big product\'s Watch (real data, 24 Nov: the Pillow Cover −3
   const days3 = with1('SM1', 'SMALL', build('SM1', null, (wi) => 200 * (wi < 4 ? 1 : 0.8)));
   ok('a product under $2,000/week, −20% for 14 days → no Watch', !find(run({ days: days3 }), 'SMALL'));
   ok('the old ("in a row") rule never makes a Watch', !find(run({ days: days1, rule: 'run' }), 'BPCOVER') || find(run({ days: days1, rule: 'run' }), 'BPCOVER').sev !== 'watch');
+}
+console.log('== the real Pillow Cover weeks 15,027 / 14,579 / 14,351 / 14,312 → 10,255 / 11,805: one verdict, however the days fall ==');
+{
+  const W = [15027, 14579, 14351, 14312, 10255, 11805];
+  // four ways the same weeks' days can fall — before this fix they gave Watch, Recovered, Waiting and "Needs a look (Critical)"
+  const PATTERNS = [[1.25, 0.8, 1.05, 0.9, 1.15, 0.85, 1.0], [0.8, 1.25, 1.05, 0.9, 1.15, 0.85, 1.0], [1.0, 1.3, 0.75, 1.1, 0.85, 1.2, 0.8], [0.75, 1.3, 1.0, 1.2, 0.8, 1.15, 0.8]];
+  PATTERNS.forEach((wt, pi) => {
+    const byDay = {};
+    for (let wi = 0; wi < 6; wi++) for (let k = 0; k < 7; k++) {
+      const day = alAdd('2026-10-13', wi * 7 + k), v = Math.round(W[wi] / 7 * wt[(k + wi * 2) % 7] * 100) / 100;
+      byDay[day] = [Math.max(1, Math.round(v / 20)), v];
+    }
+    PARENT['RPC' + pi] = 'REALCOVER' + pi;
+    const r = run({ days: Object.assign({}, dailyAsin, { d: Object.assign({}, D, { ['RPC' + pi]: byDay }), brand: Object.assign({}, BR, { ['RPC' + pi]: 'SP' }) }), brandDaily: brandRun(1.35, 1) });
+    const p = find(r, 'REALCOVER' + pi);
+    ok(`day pattern ${pi + 1}: 🟡 Watch · recovering, ✅ confirmed (weeks −30% / −19%), never in $ at risk`,
+      p && p.list === 'alerts' && p.sev === 'watch' && p.soft && p.state === 'Watch · recovering' && p.check.ok && /−30% \/ −19%/.test(p.check.checks[0].t)
+      && Math.abs(r.atRisk - r.alerts.filter(a => !a.soft).reduce((s, a) => s + a.atRisk, 0)) < 0.01, dbg(p));
+    ok(`day pattern ${pi + 1}: in exactly one place`, r.dupes.length === 0 && [].concat(r.alerts, r.waiting, r.recovered, r.wins, r.hidden, r.skipped, r.review).filter(a => a.parent === 'REALCOVER' + pi).length === 1);
+  });
+  const p4 = (() => { const r = run({ days: Object.assign({}, dailyAsin, { d: Object.assign({}, D, { RPC3: (() => { const b = {}; for (let wi = 0; wi < 6; wi++) for (let k = 0; k < 7; k++) { const day = alAdd('2026-10-13', wi * 7 + k), v = Math.round(W[wi] / 7 * PATTERNS[3][(k + wi * 2) % 7] * 100) / 100; b[day] = [Math.max(1, Math.round(v / 20)), v]; } return b; })() }), brand: Object.assign({}, BR, { RPC3: 'SP' }) }), brandDaily: brandRun(1.35, 1), settings: { bigWeek: 1e9 } }); return find(r, 'REALCOVER3'); })();
+  ok('…pattern 4 is the real page\'s: without the big-product Watch it is "Needs a look", Critical — its alert fails only ① (the last week −19%)', p4 && p4.list === 'review' && p4.sev === 'critical' && p4.check.failed.join() === 'weekly', dbg(p4));
+}
+console.log('== one rounded value, the line decided unrounded ==');
+ok('24.6% shows as "−24.6%" (half a point from the 25% line), 26.4% as "−26%", 19.1% as "−19%", 25.3% as "−25.3%"',
+  X.ctx.alPctL(-24.6) === '−24.6%' && X.ctx.alPctL(-26.4) === '−26%' && X.ctx.alPctL(-19.1) === '−19%' && X.ctx.alPctL(-25.3) === '−25.3%' && X.ctx.alPctL(24.6, false) === '24.6%');
+console.log('== the page, the Dashboard, the strip and salesAlertsReport read ONE result ==');
+{
+  const Z = load({ VI: { v: 1, data: { days: dailyAsin, stock, weekly } }, sdDays: ch => ly[ch] || {}, SD: { at: 'x', d: { SP: {}, CPC: {} } }, wParentOf: a => PARENT[a] || a, viNameOf: p => 'Product ' + p });
+  Z.AL.data = { adsDay, plan }; Z.AL.v = 1;
+  const r1 = Z.alFor('SP'), r2 = Z.alFor('SP');
+  ok('alFor gives the very same object while nothing changed, with every product traced (the report reads it)', r1 === r2 && r1.traced && r1.traced.length === r1.checked);
+  Z.ctx.SD = { at: 'y', d: { SP: {}, CPC: {} } };
+  ok('…and a new one as soon as an input changes (the Sales Dashboard\'s days here)', Z.alFor('SP') !== r1);
+  ok('one place per product in the whole fixture', R.dupes.length === 0 && RC.dupes.length === 0);
 }
 console.log('== salesAlertsReport: the five checks for EVERY product ==');
 {
@@ -413,7 +450,7 @@ ok('All = Ridhi + CPC', run({}, 'ALL').alerts.length === R.alerts.length + RC.al
 console.log('== the page and the Dashboard ==');
 X.AL.filter = '';
 const hero = X.alHeroHtml(R).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-ok('the hero: "N products need attention · $X/week at risk" + the five chips', new RegExp(`${R.alerts.length} products need attention · \\$[\\d,]+ /week at risk`).test(hero) && /Critical/.test(hero) && /Waiting for data/.test(hero) && /Recovered this week/.test(hero), hero.slice(0, 160));
+ok('the hero: "N products need attention · $X/week at risk" + the five chips', new RegExp(`${R.alerts.filter(a => !a.soft).length} products need attention · \\$[\\d,]+ /week at risk`).test(hero) && /Critical/.test(hero) && /Waiting for data/.test(hero) && /Recovered this week/.test(hero), hero.slice(0, 160));
 const none = X.alHeroHtml(Object.assign({}, R, { alerts: [], atRisk: 0 })).replace(/<[^>]+>/g, ' ');
 ok('nothing to fix → "All good — no real drops this week ✅"', /All good — no real drops this week ✅/.test(none));
 const card = X.alCardHtml(A).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
