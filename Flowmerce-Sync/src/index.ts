@@ -4,7 +4,8 @@
  *
  *   flowmerceShopifyOrders    every 15 min · orders changed since last run → flowmerce.*   (RBP, then CPC)
  *   flowmerceShopifyBackfill  every 5 min  · older orders, a few pages per run, while switched on in flowmerce.sync_job
- *   flowmerceShopifySetup     every 6 h    · the Flowmerce app's own webhooks in each store (creates missing ones)
+ *   flowmerceShopifySetup     every 30 min · the Flowmerce app's own webhooks in each store (creates missing ones;
+ *                                            one Shopify call per store when nothing is missing)
  *   flowmerceShopifyWebhook   HTTPS        · Shopify calls it when an order, parcel or return changes
  *
  * Shopify access: each store's own Flowmerce app (client ID + secret → store token), falling back to Sellora's store tokens.
@@ -76,7 +77,7 @@ export const flowmerceShopifyBackfill = onSchedule(
 );
 
 export const flowmerceShopifySetup = onSchedule(
-  { schedule: 'every 6 hours', region: 'asia-south1', memory: '256MiB', timeoutSeconds: 120,
+  { schedule: 'every 30 minutes', region: 'asia-south1', memory: '256MiB', timeoutSeconds: 120,
     maxInstances: 1, retryCount: 0, secrets },
   async () => {
     const d = db();

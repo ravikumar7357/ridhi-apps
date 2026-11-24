@@ -1,5 +1,5 @@
 /* The Flowmerce app registers its OWN webhooks in each store, so nobody has to click them in Shopify admin.
- * Runs every 6 hours (and after every deploy, at its first run): lists the app's webhooks, creates any topic that is
+ * Runs every 30 minutes (so a deploy or a deleted webhook is fixed within the half hour): lists the app's webhooks, creates any topic that is
  * missing, moves any that point to an old address, and records what Shopify answered in flowmerce.webhook_subscription.
  * Safe to run again and again — a topic that is already right is left alone.
  *

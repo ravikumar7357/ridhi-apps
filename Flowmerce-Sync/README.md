@@ -13,7 +13,7 @@ Its own Firebase codebase `flowmerce-sync` (project price-research-48ff3, region
 |---|---|---|
 | `flowmerceShopifyOrders` | every 15 min | orders **changed** since the last run (10-minute overlap), RBP then CPC |
 | `flowmerceShopifyBackfill` | every 5 min | **all older orders**, a few pages per run, until the first order; then stops. **Off** until switched on in `flowmerce.sync_job` |
-| `flowmerceShopifySetup` | every 6 h | the **Flowmerce app registers its own webhooks** in each store: creates missing topics, moves any pointing elsewhere, records them in `flowmerce.webhook_subscription` |
+| `flowmerceShopifySetup` | every 30 min | the **Flowmerce app registers its own webhooks** in each store: creates missing topics, moves any pointing elsewhere, records them in `flowmerce.webhook_subscription` |
 | `flowmerceShopifyWebhook` | when Shopify calls | checks the signature, keeps the message once, re-reads the order and saves it. Also `app/uninstalled` (store disconnected) and the 3 required privacy webhooks |
 
 Every run writes one line to `flowmerce.sync_run`; that is what the screens show as "data as of …".
