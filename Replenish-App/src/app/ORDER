@@ -37,6 +37,7 @@ vendors/printing/fabric-catalogue.js
 core/database-auth.js
 core/history.js
 core/mirror.js
+core/monitor.js
 core/gates.js
 core/delta-sync.js
 core/data-meter.js
@@ -106,7 +107,9 @@ vendors/orders/place-vendor-order.js
 vendors/orders/same-colour-twice.js
 orders/reserve.js
 vendors/portal/vendor-portal.js
+vendors/portal/printer-receive.js
 vendors/portal/daily-challan.js
+vendors/portal/printer-cloth.js
 vendors/portal/vendor-sent-excel.js
 vendors/portal/vendor-master.js
 vendors/portal/phone-pin.js
@@ -158,7 +161,10 @@ shopify/bucket-excel.js
 shopify/returns.js
 shopify/delivery-days.js
 shopify/returns-team.js
+shopify/bucket-team.js
+shopify/shopify-hub-local.js
 shopify/creator-orders.js
+core/access-shadow.js
 replenishment/india-usa-express.js
 @shared/adjustments.js
 @shared/courier-templates.js
@@ -174,6 +180,7 @@ core/meera-bridge.js
 core/access-host.js
 core/access-design.js
 @meera/config.ts
+@meera/intent.ts
 @meera/legacy/guide-art.ts
 @meera/legacy/guide-tours.ts
 @meera/legacy/guide.ts
@@ -182,4 +189,6 @@ core/access-design.js
 @meera/legacy/guide-fill.ts
 @meera/legacy/guide-walks.ts
 @meera/legacy/guide-ai.ts
+core/r1-roles.js
 core/friendly.js
+core/ppc-one.js

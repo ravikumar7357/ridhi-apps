@@ -22,10 +22,14 @@ async function ensureQc() {
    * use, and "Received back" / "Issued for alteration" then stayed empty here until F5. */
   if (QC.checks === null || QC.issue === null || QC.ret === null || ptLack(PTG_ALL, 'mdb')) {
     QC.busy = true; renderQc();
-    await ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' });
-    if (!PTE.emp) await ptLoadEmpOrSkip('quality-control');
+    /* The registers with the order book, not after it. The employee list waits for the order book (its masters give
+     * the accessories). A refused read of it left this screen on "Loading…" for good; now it only leaves the names of
+     * who may sign a check empty. */
     try {
-      const [c, i, t] = await Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]);
+      const [, [c, i, t]] = await Promise.all([
+        ptNeed(PTG_ALL, { why: 'quality-control', has: 'mdb' }).then(() => (PTE.emp ? null : ptLoadEmpOrSkip('quality-control'))),
+        Promise.all([ptGet('pt_qcChecks'), ptGet('pt_qcIssuance'), ptGet('pt_qcReturns')]),
+      ]);
       QC.checks = ptList(c); QC.issue = ptList(i); QC.ret = ptList(t); QC.err = '';
     } catch (e) { QC.err = e.message || String(e); QC.checks = QC.checks || []; QC.issue = QC.issue || []; QC.ret = QC.ret || []; }
     QC.at = ptStamp(); QC.busy = false;
@@ -39,13 +43,28 @@ const qcNorm = v => String(v == null ? '' : v).trim().toUpperCase();
 function qcParts(sku) {
   const m = cutSkuOf(sku);
   if (m) return { at: m.articleType || '', sub: m.subtype || '', col: m.color || '', size: m.size || '', brand: m.brand || '' };
-  const b = (PT.base || []).find(r => qcNorm(r.sku) === qcNorm(sku));
+  const b = QC_IX ? qcIxOf(sku).base : (PT.base || []).find(r => qcNorm(r.sku) === qcNorm(sku));
   return b ? { at: b.articleType || '', sub: b.articleSubtype || '', col: b.color || '', size: b.size || '', brand: '' }
            : { at: '', sub: '', col: '', size: '', brand: '' };
 }
 
-const qcReceived = sku => (PT.base || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.receivedPieces) : 0), 0);
-const qcChecked = sku => (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.checked) : 0), 0);
+/* ONE PASS PER DRAW. Every helper below walked a whole register for one SKU, and the forms ask them for every SKU —
+ * thousands of full passes to draw a picker. While a draw runs (qcWithIx) they read one index made at its start;
+ * outside a draw — a save checking its ceiling — they still walk the registers, so what a save checks is never older
+ * than what is in memory. */
+let QC_IX = null;
+function qcWithIx(fn) {
+  if (QC_IX) return fn();
+  const m = new Map(), g = k => { let o = m.get(k); if (!o) m.set(k, o = { rec: 0, chk: 0, alt: 0, iss: 0, base: null }); return o; };
+  (PT.base || []).forEach(r => { const o = g(qcNorm(r.sku)); o.rec += ptNum(r.receivedPieces); if (!o.base) o.base = r; });
+  (QC.checks || []).forEach(r => { const o = g(qcNorm(r.sku)); o.chk += ptNum(r.checked); o.alt += ptNum(r.forAlteration); });
+  (QC.issue || []).forEach(r => { g(qcNorm(r.sku)).iss += ptNum(r.pieces); });
+  QC_IX = m;
+  try { return fn(); } finally { QC_IX = null; }
+}
+const qcIxOf = sku => QC_IX.get(qcNorm(sku)) || { rec: 0, chk: 0, alt: 0, iss: 0, base: null };
+const qcReceived = sku => (QC_IX ? qcIxOf(sku).rec : (PT.base || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.receivedPieces) : 0), 0));
+const qcChecked = sku => (QC_IX ? qcIxOf(sku).chk : (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.checked) : 0), 0));
 const qcAvailToCheck = sku => qcReceived(sku) - qcChecked(sku);
 /* AN ORDER'S OWN PIECES (Ravi, 27 Oct: "jo order jiske ke liye aaya h wo usi order me jana chahiye"). The SKU total above let
  * a check name ANY order of the SKU: 166 RTBX72 were passed on AMZ-16092026-02, which had nothing back from a karigar, while
@@ -65,8 +84,8 @@ const qcOrderAvail = (orderNo, sku) => Math.max(0, qcOrderRecv(orderNo, sku) - q
 /** Pieces QC has already taken off one Job Work entry — that entry cannot go below it, or lose them by being deleted. */
 const qcTookOf = baseId => ((typeof QC !== 'undefined' && QC.checks && QC.checks.length ? QC.checks : PTG.qc) || [])
   .reduce((a, c) => a + (c && !c.refId && String(c.baseId || '') === String(baseId) ? ptNum(c.checked) : 0), 0);
-const qcAltTotal = sku => (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.forAlteration) : 0), 0);
-const qcIssuedTotal = sku => (QC.issue || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.pieces) : 0), 0);
+const qcAltTotal = sku => (QC_IX ? qcIxOf(sku).alt : (QC.checks || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.forAlteration) : 0), 0));
+const qcIssuedTotal = sku => (QC_IX ? qcIxOf(sku).iss : (QC.issue || []).reduce((a, r) => a + (qcNorm(r.sku) === qcNorm(sku) ? ptNum(r.pieces) : 0), 0));
 const qcAvailToIssue = sku => qcAltTotal(sku) - qcIssuedTotal(sku);
 
 /* ---- what has come back ----
@@ -82,9 +101,11 @@ const qcPendingOf = r => Math.max(0, ptNum(r && r.pieces) - qcRetOf(r && r.id));
 /** The three jobs on this screen, in the order the work moves. */
 const QC_VIEWS = [
   ['inbox', 'Waiting for QC', 'qc'],
+  ['passed', 'QC passed', 'qc'],
   ['dept', 'Spotting & touching', 'qc'],
   ['ledger', 'QC ledger (day-wise)', 'qc'],
-  ['checks', 'Checks', 'qc'],
+  /* 'Checks' left the picker on 20 Nov (Ravi: "remove qc check screen") — checks are made from Waiting for QC, and who made
+   * one is changed with Edit on QC passed; an admin corrects the rest through QC pass. */
   ['issue', 'Issued for alteration', 'qcalt'],
   ['ret', 'Received back from alteration', 'qcret'],
 ];
@@ -123,6 +144,7 @@ const qcIssuable = () => [...new Set((QC.checks || []).filter(r => ptNum(r.forAl
 /* ---- the two registers on screen ---- */
 
 function renderQc() {
+  if (!QC_IX) return qcWithIx(renderQc);
   /* THE PICKER HOLDS ONLY WHAT THIS ACCOUNT WAS GIVEN, and qcView() is the second lock: removing an
    * option is not the same as closing a door, and a value left over from a wider grant would
    * otherwise still open it. */
@@ -149,7 +171,7 @@ function renderQc() {
 
   if (QC.busy) { $('qcMsg').className = 'muted'; $('qcMsg').textContent = 'Reading the production database…'; ptEmpty('qcTable', 'Loading…'); return; }
   if (QC.err) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'Could not read it: ' + QC.err; ptEmpty('qcTable', 'Nothing to show.'); $('qcKpis').innerHTML = ''; return; }
-  if (view === 'inbox') return renderQcInbox();
+  if (view === 'inbox' || view === 'passed') return renderQcInbox(view);
   if (view === 'dept') return renderQcDept();
   if (view === 'ledger') return renderQcLedger();
 
@@ -360,6 +382,7 @@ $('qcrSave').onclick = qcSaveReturn;
 function qcCheckMsg(t, bad) { const m = $('qcwMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
 
 function renderQcCheckForm() {
+  if (!QC_IX) return qcWithIx(renderQcCheckForm);
   const any = $('qcwSrc').value === 'any';
   const pool = any ? (PTG.mdb || []).map(r => qcNorm(r.sku)).filter(Boolean).slice(0, 6000) : qcCheckable();
   /* LIKE THE JOB WORK REGISTER. Ravi: "quality control ki entry 2 tarah se — SKU wise or article wise",
@@ -526,6 +549,7 @@ $('qcwSave').onclick = async () => {
 function qcIssueMsg(t, bad) { const m = $('qciMsg'); m.textContent = t || ''; m.className = bad ? 'err' : 'muted'; }
 
 function renderQcIssueForm() {
+  if (!QC_IX) return qcWithIx(renderQcIssueForm);
   const cur = $('qciSku').value;
   $('qciSku').innerHTML = '<option value="">— Select a flagged article —</option>'
     + qcIssuable().map(s => `<option value="${esc(s)}">${esc(s)} — ${nf(qcAvailToIssue(s))} to issue</option>`).join('');
@@ -701,7 +725,10 @@ function qcEditIssue(id) {
  */
 const QC_INBOX_FROM = '2026-10-05';
 const qcInboxFromMs = () => new Date(QC_INBOX_FROM + 'T00:00:00').getTime();
-function qcInboxRows() {
+/** What is still waiting for QC, row by row, oldest first. */
+const qcInboxRows = () => qcInboxEntries().filter(x => x.wait > 0);
+/** Every Job Work row that came back for QC — waiting, part accepted or all accepted — oldest first. */
+function qcInboxEntries() {
   const from = qcInboxFromMs();
   const took = new Map();
   (QC.checks || []).forEach(c => { if (c && c.baseId) took.set(c.baseId, (took.get(c.baseId) || 0) + ptNum(c.checked)); });
@@ -719,8 +746,8 @@ function qcInboxRows() {
     repRecvParts(r).forEach(p => { if (legacy || p.ms >= from) { since += p.pcs; if (p.ms > last) last = p.ms; } });
     /* Never more than the row says came back — a correction may have lowered it after the receipt was logged. */
     since = Math.min(since, ptNum(r.receivedPieces));
-    const accepted = took.get(r.id) || 0, wait = since - accepted;
-    if (!(wait > 0)) return;
+    const accepted = took.get(r.id) || 0, wait = Math.max(0, since - accepted);
+    if (!(since > 0)) return;
     out.push({ r, since, accepted, wait, last });
   });
   /* EMBROIDERED, CUT, STRAIGHT TO QC (Ravi, 21 Oct): a Production flow line on Printing + Embroidery has no karigar, so its
@@ -728,10 +755,12 @@ function qcInboxRows() {
   (PT.cut || []).forEach(c => {
     const id = c && (c.id || c._key); if (!id || !c.qcDirect || !c.orderNo) return;
     const ms = ptDtMs(c.cutDate) || ptDtMs(c.addedAt) || 0; if (ms && ms < from) return;
-    const pcs = ptNum(c.pieces), accepted = took.get(id) || 0, wait = pcs - accepted;
-    if (!(wait > 0)) return;
+    const pcs = ptNum(c.pieces), accepted = took.get(id) || 0, wait = Math.max(0, pcs - accepted);
+    if (!(pcs > 0)) return;
     out.push({ r: { id, sku: c.sku, orderNo: c.orderNo, articleType: c.articleType || '', articleSubtype: c.articleSubtype || '', color: c.color || '', size: c.size || '',
-      empName: 'Cut after embroidery', empType: 'no karigar — straight to QC', receivedPieces: pcs, fromCut: true }, since: pcs, accepted, wait, last: ms || Date.now() });
+      empName: 'Cut after embroidery', empType: 'no karigar — straight to QC', receivedPieces: pcs, fromCut: true,
+      qcReceivedAt: c.qcReceivedAt || '', qcReceivedBy: c.qcReceivedBy || '', qcReceivedOn: c.qcReceivedOn || '', qcReceivedPcs: c.qcReceivedPcs || 0 },
+      since: pcs, accepted, wait, last: ms || Date.now() });
   });
   out.sort((a, b) => a.last - b.last);
   /* CHECKED ON THE OLD FORM: a check that names the order and SKU but no Job Work entry (the Checks form) has already
@@ -742,7 +771,107 @@ function qcInboxRows() {
     const k = obUC(c.orderNo) + '|' + qcNorm(c.sku); free.set(k, (free.get(k) || 0) + ptNum(c.checked)); });
   if (free.size) out.forEach(x => { const k = obUC(x.r.orderNo) + '|' + qcNorm(x.r.sku), f = free.get(k) || 0; if (!f) return;
     const take = Math.min(f, x.wait); x.wait -= take; x.accepted += take; free.set(k, f - take); });
-  return out.filter(x => x.wait > 0);
+  return out;
+}
+
+/*
+ * WHERE EACH ROW'S PIECES ARE NOW (Ravi, 19 Nov: "it should show that given to karigar, touching, spotting and other
+ * columns, and if the article has passed qc completely then it shows in a list qc passed, not here").
+ * Waiting for QC keeps a row, in its own place, while any of its pieces is still waiting, at spotting, at touching or with a
+ * karigar for alteration; once QC Accept is pressed it is a grey button with the date. When nothing is left anywhere —
+ * rejected pieces do not hold a row back — the row moves to QC passed, newest first.
+ * Alteration is issued and received back by SKU, not by row, so what came back for a SKU is set against its rows'
+ * alteration pieces oldest first: mended counts as passed, still wrong as rejected.
+ */
+const QC_LISTS = {
+  inbox: { keep: x => !x.done, dated: x => x.last, newestFirst: false,
+    empty: 'Nothing waiting — every piece received from karigars has passed QC or been rejected.' },
+  passed: { keep: x => x.done, dated: x => x.ms || x.last, newestFirst: true,
+    empty: 'Nothing has finished QC in these dates.' },
+};
+
+/** Where one row's pieces are, from its own QC checks and what came back from spotting and touching. */
+function qcPiecesOf(x) {
+  const mine = (QC.checks || []).filter(c => c && c.baseId === x.r.id);
+  const takes = mine.filter(c => !c.refId), backs = mine.filter(c => c.refId);
+  const sum = (list, f) => list.reduce((a, c) => a + ptNum(f(c)), 0);
+  const backOf = send => sum(backs.filter(b => b.refId === send.id), b => ptNum(b.ok) + ptNum(b.rejected));
+  const outAt = dept => takes.filter(c => c.dept === dept).reduce((a, c) => a + Math.max(0, ptNum(c[dept]) - backOf(c)), 0);
+  const latest = list => list.reduce((a, c) => (ptDtMs(c.date) >= ptDtMs(a && a.date) ? c : a), null);
+  const last = latest(takes);
+  /* Received by QC: the QC Accept press, kept on the Job Work entry itself — or, for rows QC worked on before 19 Nov, when
+   * there was no such press, its first check. */
+  const first = takes.reduce((a, c) => (!a || ptDtMs(c.date) < ptDtMs(a.date) ? c : a), null);
+  const receipt = x.r.qcReceivedAt ? { date: x.r.qcReceivedAt, checkedBy: x.r.qcReceivedBy } : first;
+  /* Pieces of this order taken on the old Checks form (no row named) are counted as passed: that form passed or flagged
+   * them by SKU, not by row. */
+  const oldForm = Math.max(0, x.accepted - sum(takes, c => c.checked));
+  return {
+    passed: sum(takes, c => (c.dept ? 0 : c.ok)) + sum(backs, c => c.ok) + oldForm,
+    alteration: sum(takes, c => c.forAlteration), rejected: sum(takes, c => c.rejected) + sum(backs, c => c.rejected),
+    spotting: outAt('spotting'), touching: outAt('touching'),
+    by: last ? last.checkedBy || '' : '', ms: last ? ptDtMs(last.date) : 0, remarks: last ? last.remarks || '' : '',
+    received: !!receipt || x.accepted > 0, receivedBy: receipt ? receipt.checkedBy || '' : '', receivedMs: receipt ? ptDtMs(receipt.date) : 0,
+    passOpensAt: qcPassOpensAt(x.r),
+  };
+}
+/*
+ * QC PASS WAITS A MINUTE FOR EVERY PIECE RECEIVED (Ravi, 19 Nov: "for each piece there must be at least a 1 min count down …
+ * they can only click on qc passed after 1 × N pieces, where N is the number of pieces the qc has accepted"), so nobody
+ * passes pieces they had no time to look at. Counted from the QC Accept press; rows accepted before this rule have no wait.
+ */
+const QC_PASS_MS_PER_PIECE = 60 * 1000;
+function qcPassOpensAt(row) {
+  const on = Date.parse((row && row.qcReceivedOn) || '');
+  return isFinite(on) ? on + ptNum(row.qcReceivedPcs) * QC_PASS_MS_PER_PIECE : 0;
+}
+/** "4:05" or "1:02:30" — time left, rounded up to the second. */
+function qcTimeLeft(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), p = n => String(n).padStart(2, '0');
+  return h ? `${h}:${p(m)}:${p(s % 60)}` : `${m}:${p(s % 60)}`;
+}
+/** The locked QC pass button, counting down; qcPassTick wakes it when its time is up. */
+function qcPassLockedBtn(x) {
+  return `<button class="qc-closed" disabled data-qc-unlock="${x.passOpensAt}" title="QC pass opens a minute for every piece received — ${nf(ptNum(x.r.qcReceivedPcs))} piece(s)">`
+    + `QC pass · ${qcTimeLeft(x.passOpensAt - Date.now())}</button>`;
+}
+/* One timer for the whole list, every second: it rewrites the countdowns and, when one runs out, redraws the list so that
+ * QC pass turns blue. It stops itself when no countdown is left on the page (another view, or all open). */
+let QC_PASS_TIMER = null;
+function qcPassTick() {
+  const locked = [...document.querySelectorAll('[data-qc-unlock]')];
+  if (!locked.length) { clearInterval(QC_PASS_TIMER); QC_PASS_TIMER = null; return; }
+  if (locked.some(b => Number(b.getAttribute('data-qc-unlock')) <= Date.now())) return renderQc();
+  locked.forEach(b => { b.textContent = 'QC pass · ' + qcTimeLeft(Number(b.getAttribute('data-qc-unlock')) - Date.now()); });
+}
+function qcPassTimerStart() { if (!QC_PASS_TIMER) QC_PASS_TIMER = setInterval(qcPassTick, 1000); }
+/** Pieces of each SKU back from alteration: mended and still wrong. A return booked without the split counts as mended. */
+function qcAltBackBySku() {
+  const back = new Map();
+  (QC.ret || []).forEach(r => {
+    if (!r) return;
+    const k = qcNorm(r.sku), e = back.get(k) || { ok: 0, bad: 0 }, bad = ptNum(r.stillRejected);
+    const got = Math.max(ptNum(r.received), ptNum(r.reworkedOk) + bad);
+    back.set(k, { ok: e.ok + got - bad, bad: e.bad + bad });
+  });
+  return back;
+}
+/** Every row that came back for QC, oldest received first, with where its pieces are now and whether it is done. */
+function qcInboxStatuses() {
+  const altBack = qcAltBackBySku();
+  return qcInboxEntries().map(x => {
+    const s = qcPiecesOf(x), k = qcNorm(x.r.sku), back = altBack.get(k) || { ok: 0, bad: 0 };
+    const ok = Math.min(back.ok, s.alteration), bad = Math.min(back.bad, s.alteration - ok);
+    altBack.set(k, { ok: back.ok - ok, bad: back.bad - bad });
+    const now = Object.assign({}, x, s, { passed: s.passed + ok, rejected: s.rejected + bad, alteration: s.alteration - ok - bad });
+    return Object.assign(now, { done: now.wait === 0 && !now.alteration && !now.spotting && !now.touching });
+  });
+}
+/** "✓ Accepted 19/11 12:30 · Sunita" — a grey button's words: what happened, when, and who. */
+function qcStamp(word, ms, by) {
+  const p = n => String(n).padStart(2, '0'), d = new Date(ms);
+  const when = ms ? `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}` : '';
+  return ['✓ ' + word + (when ? ' ' + when : ''), by].filter(Boolean).join(' · ');
 }
 /* The Dated range, as [from, to] in ms, or nulls (2026-10-07, Ravi: "filter range not working here"). */
 function qcRangeMs() {
@@ -750,71 +879,318 @@ function qcRangeMs() {
   return [d1 ? new Date(d1 + 'T00:00:00').getTime() : null, d2 ? new Date(d2 + 'T23:59:59').getTime() : null];
 }
 const qcInRangeMs = (ms, r) => (r[0] == null || ms >= r[0]) && (r[1] == null || ms <= r[1]);
-function renderQcInbox() {
-  const q = $('qcQ').value.trim().toLowerCase(), rng = qcRangeMs();
-  const all = qcInboxRows();
-  const rows = all.filter(x => qcInRangeMs(x.last, rng) && (!q || [x.r.sku, x.r.articleType, x.r.articleSubtype, x.r.color, x.r.size, x.r.empName, x.r.orderNo]
-    .join(' ').toLowerCase().includes(q)));
+/** The rows one list shows: its own rule, the search, and the Dated range (received on Waiting, finished on QC passed). */
+function qcListRows(view) {
+  const list = QC_LISTS[view], q = $('qcQ').value.trim().toLowerCase(), rng = qcRangeMs();
+  const rows = qcInboxStatuses().filter(x => list.keep(x) && qcInRangeMs(list.dated(x), rng)
+    && (!q || [x.r.sku, x.r.articleType, x.r.articleSubtype, x.r.color, x.r.size, x.r.empName, x.r.orderNo].join(' ').toLowerCase().includes(q)));
+  return list.newestFirst ? rows.sort((a, b) => list.dated(b) - list.dated(a)) : rows;
+}
+const QC_INBOX_COLS = ['Received', 'Karigar', 'SKU', 'Image', 'Item', 'Order', 'Received', 'Passed', 'Given to karigar', 'Spotting', 'Touching', 'Rejected', 'Waiting', ''];
+
+/** Waiting for QC, or QC passed: the same columns, the list's own rows. */
+function renderQcInbox(view) {
+  const rows = qcListRows(view);
   QC.rows = rows.map(x => x.r); QC.inbox = rows;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const acceptedToday = (QC.checks || []).filter(c => c && c.baseId && ptDtMs(c.date) >= today.getTime()).reduce((a, c) => a + ptNum(c.ok), 0);
-  const oldest = rows.length ? Math.floor((Date.now() - rows[0].last) / 3600000) : 0;
-  $('qcKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
-    <div class="kpihead"><span class="kpiname">Waiting for QC — received from karigars since ${esc(QC_INBOX_FROM.split('-').reverse().join('/'))}</span>
-      <span class="kpiwhen">read live${QC.at ? ' · ' + esc(QC.at) : ''}</span></div>
-    <div class="metrics">
-      <div class="metric"><div class="v" style="color:#b45309">${nf(rows.reduce((a, x) => a + x.wait, 0))}</div><div class="l">Pieces waiting</div></div>
-      <div class="metric"><div class="v">${nf(rows.length)}</div><div class="l">Job Work entries</div></div>
-      <div class="metric"><div class="v">${nf(new Set(rows.map(x => x.r.empName)).size)}</div><div class="l">Karigars</div></div>
-      <div class="metric"><div class="v"${oldest >= 24 ? ' style="color:var(--bad)"' : ''}>${rows.length ? (oldest >= 24 ? nf(Math.floor(oldest / 24)) + ' day(s)' : nf(oldest) + ' h') : '—'}</div><div class="l">Oldest waiting</div></div>
-      <div class="metric"><div class="v" style="color:#166534">${nf(acceptedToday)}</div><div class="l">Passed today</div></div>
-    </div></div>`;
-  const head = '<thead><tr>' + ['Received', 'Karigar', 'SKU', 'Image', 'Item', 'Order', 'Received', 'Taken by QC', 'Waiting', 'Pieces', '']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([6, 7, 8].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  $('qcKpis').innerHTML = view === 'passed' ? qcPassedKpis(rows) : qcWaitingKpis(rows);
+  const head = '<thead><tr>' + QC_INBOX_COLS.map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 6 && i <= 12 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   const can = ptCanEdit() || ME.admin || (ME.tabs || []).includes('qc');
+  const num = (v, color) => `<td class="num"${v && color ? ` style="color:${color}"` : ''}>${v ? nf(v) : '<span class="muted">—</span>'}</td>`;
   $('qcTable').innerHTML = head + '<tbody>' + (rows.slice(0, 600).map(x => '<tr>'
     + (d => `<td class="frz" style="text-align:left">${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}<div class="muted" style="font-size:11px">${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}</div></td>`)(new Date(x.last))
     + `<td style="text-align:left">${esc(x.r.empName || '')}<div class="muted" style="font-size:11px">${esc(x.r.empType || '')}</div></td>`
     + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(x.r.sku)}</td>`
     + ptImgCell(x.r.sku)
-    + `<td style="text-align:left">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</td>`
-    + `<td style="text-align:left">${esc(x.r.orderNo || '') || '<span class="muted">—</span>'}</td>`
-    + `<td class="num">${nf(x.since)}</td><td class="num" style="color:#166534">${x.accepted ? nf(x.accepted) : '<span class="muted">—</span>'}</td>`
-    + `<td class="num" style="font-weight:700;color:#b45309">${nf(x.wait)}</td>`
-    + `<td>${can ? `<input type="number" min="1" max="${x.wait}" value="${x.wait}" data-qcin-qty="${esc(x.r.id)}" style="width:80px">` : ''}</td>`
-    + `<td style="white-space:nowrap">${can ? ['', 'spotting', 'touching'].map(to => `<button data-qcin-go="${esc(x.r.id)}" data-to="${to}" class="${to ? 'ghost' : ''}" style="padding:3px 10px;font-size:12px;margin-right:4px" title="${to ? 'Send these pieces to ' + to + ' — they come back as a QC pass from the Spotting & touching tab' : 'Passed by QC'}">${to ? to[0].toUpperCase() + to.slice(1) : 'QC pass'}</button>`).join('') : '<span class="muted">—</span>'}</td>`
-    + '</tr>').join('') || '<tr><td colspan="11" class="muted" style="padding:14px">Nothing waiting — everything received from karigars has been accepted.</td></tr>') + '</tbody>';
+    + `<td class="qc-wrap" style="text-align:left">${esc([x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '))}</td>`
+    + `<td class="qc-wrap" style="text-align:left">${esc(x.r.orderNo || '') || '<span class="muted">—</span>'}</td>`
+    + num(x.since) + num(x.passed, '#166534') + num(x.alteration, '#b45309') + num(x.spotting, '#b45309') + num(x.touching, '#b45309')
+    + num(x.rejected, 'var(--bad)') + `<td class="num" style="font-weight:700;color:#b45309">${x.wait > 0 ? nf(x.wait) : '<span class="muted">—</span>'}</td>`
+    + `<td style="white-space:nowrap;text-align:left">${view === 'passed' ? qcClosedBtn(qcStamp('QC passed', x.ms, x.by))
+      + (ptCanEdit() || ME.admin ? `<button data-qcp-edit="${esc(x.r.id)}" class="ghost qc-act" title="Change who checked these pieces">Edit</button>` : '')
+      : qcInboxActions(x, can)}</td>`
+    + '</tr>').join('') || `<tr><td colspan="${QC_INBOX_COLS.length}" class="muted" style="padding:14px">${QC_LISTS[view].empty}</td></tr>`) + '</tbody>';
+  if (rows.some(x => x.passOpensAt > Date.now())) qcPassTimerStart();
   $('qcMsg').className = 'muted';
-  $('qcMsg').textContent = `${nf(rows.length)} entr${rows.length === 1 ? 'y' : 'ies'} waiting, oldest first · type the pieces, then QC pass, Spotting (a stain) or Touching (a missed print) — the rest stays waiting · a QC pass is made on the Order Console, ready for shipping on a Shopify order`;
+  $('qcMsg').textContent = (view === 'passed'
+    ? `${nf(rows.length)} entr${rows.length === 1 ? 'y' : 'ies'} finished QC, newest first · every piece passed or rejected, nothing left at spotting, touching or with a karigar`
+    : `${nf(rows.length)} entr${rows.length === 1 ? 'y' : 'ies'}, oldest first · QC Accept = QC has received the pieces; then QC pass checks them (passed, alteration, rejected, spotting, touching) · a row stays here until nothing is left waiting, at spotting, at touching or with a karigar, then moves to QC passed`)
+    + (rows.length > 600 ? ' · showing the first 600 — narrow the dates or search' : '');
 }
-/**
- * Take `qty` of one Job Work row's pieces out of Waiting for QC. '' or why not.
- * `to` = '' — passed by QC; 'spotting' — a stain, to be cleaned; 'touching' — a printed piece with a missed or broken print
- * (2026-10-06, Ravi). Sent pieces are taken (checked) but not passed (ok 0); they pass when they come back.
+/* Ravi, 19 Nov: "when I do qc Accept it should show me qc accept to get grey but qc pass to stay untouched by system and
+ * only work when the user clicks on it" — QC Accept, once pressed, is a grey closed button saying when and by whom; QC pass
+ * is grey until then (QC Accept comes first), open after, and grey again only when no piece is left waiting. */
+const qcClosedBtn = (label, title) => `<button class="qc-closed" disabled${title ? ` title="${esc(title)}"` : ''}>${esc(label)}</button>`;
+function qcInboxActions(x, can) {
+  const acceptedSign = qcClosedBtn(qcStamp('Accepted', x.receivedMs, x.receivedBy), 'QC has received these pieces');
+  if (!can) return x.received ? acceptedSign : '<span class="muted">—</span>';
+  const accept = x.received ? acceptedSign
+    : `<button data-qcin-accept="${esc(x.r.id)}" class="qc-act" title="QC has received these ${nf(x.wait)} piece(s) — then QC pass to check them">QC Accept</button>`;
+  if (!x.received) return accept + qcClosedBtn('QC pass', 'Press QC Accept first');
+  if (x.passOpensAt > Date.now()) return accept + qcPassLockedBtn(x);
+  /* Ravi, 19 Nov: "when qc is accepted the qc pass should be blue … from which the user can click qc pass" — blue and
+   * open on every accepted row; with nothing left waiting, a click says what QC already did instead of opening a window. */
+  return accept + `<button data-qcin-check="${esc(x.r.id)}" class="qc-act" title="Open the QC Check window: passed, alteration, rejected, spotting, touching">QC pass</button>`;
+}
+function qcWaitingKpis(rows) {
+  const waiting = rows.filter(x => x.wait > 0), sum = f => rows.reduce((a, x) => a + f(x), 0);
+  const oldest = waiting.length ? Math.floor((Date.now() - Math.min(...waiting.map(x => x.last))) / 3600000) : 0;
+  return `<div class="kpi" style="flex-basis:100%">
+    <div class="kpihead"><span class="kpiname">Waiting for QC — received from karigars since ${esc(QC_INBOX_FROM.split('-').reverse().join('/'))}</span>
+      <span class="kpiwhen">read live${QC.at ? ' · ' + esc(QC.at) : ''}</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="v" style="color:#b45309">${nf(sum(x => x.wait))}</div><div class="l">Pieces waiting</div></div>
+      <div class="metric"><div class="v">${nf(waiting.length)}</div><div class="l">Job Work entries waiting</div></div>
+      <div class="metric"><div class="v">${nf(sum(x => x.alteration))}</div><div class="l">With a karigar</div></div>
+      <div class="metric"><div class="v">${nf(sum(x => x.spotting + x.touching))}</div><div class="l">At spotting / touching</div></div>
+      <div class="metric"><div class="v"${oldest >= 24 ? ' style="color:var(--bad)"' : ''}>${waiting.length ? (oldest >= 24 ? nf(Math.floor(oldest / 24)) + ' day(s)' : nf(oldest) + ' h') : '—'}</div><div class="l">Oldest waiting</div></div>
+    </div></div>`;
+}
+function qcPassedKpis(rows) {
+  const sum = f => rows.reduce((a, x) => a + f(x), 0);
+  return `<div class="kpi" style="flex-basis:100%">
+    <div class="kpihead"><span class="kpiname">QC passed — nothing left waiting, at spotting, at touching or with a karigar</span>
+      <span class="kpiwhen">read live${QC.at ? ' · ' + esc(QC.at) : ''}</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="v">${nf(rows.length)}</div><div class="l">Job Work entries</div></div>
+      <div class="metric"><div class="v" style="color:#166534">${nf(sum(x => x.passed))}</div><div class="l">Pieces passed</div></div>
+      <div class="metric"><div class="v" style="color:var(--bad)">${nf(sum(x => x.rejected))}</div><div class="l">Pieces rejected</div></div>
+    </div></div>`;
+}
+/*
+ * Two buttons on each Waiting for QC row (Ravi, 18–19 Nov):
+ *   QC Accept — "QC has received these pieces": the date and who, kept on the Job Work entry; nothing checked or passed.
+ *               It comes first; QC pass opens only after it.
+ *   QC pass   — the QC Check window, BEFORE anything is saved: how many pieces passed, went for alteration, were rejected,
+ *               went to spotting (a stain, 2026-10-06) or to touching (a missed or broken print). Together they are what
+ *               QC checked; the rest stays waiting. Cancel writes nothing. (No back-by day — Ravi, 19 Nov: not needed.)
+ * Sent pieces are taken (checked) but not passed (ok 0); they pass when they come back from the Spotting & touching tab.
+ * Errors: a refused or failed save stays in the window with the reason (pieces are stock); nothing here fails quietly.
+ * One check can write up to three records (the pass, a spotting send, a touching send) — in one update, all or none.
  */
 const QC_DEPTS = { spotting: 'Spotting', touching: 'Touching' };
-async function qcInboxAccept(baseId, qty, to) {
-  const x = qcInboxRows().find(e => e.r.id === baseId);
+const qcMyName = () => String(ME.email || '').split('@')[0];
+const qcSendRemark = dept => 'Sent to ' + QC_DEPTS[dept].toLowerCase() + ' from Waiting for QC';
+const qcNewCheckId = () => 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const qcPcs = v => parseInt(v, 10) || 0;
+
+/** `qty` of one Job Work row passed straight. '' or why not. The Order Console's batch pass. */
+async function qcInboxAccept(baseId, qty) {
+  return qcInboxSave(baseId, { passed: qty });
+}
+/*
+ * QC Accept: record that QC has received this row's waiting pieces. '' or why not. Pressing it twice writes once.
+ * It is kept on the Job Work entry (or the cutting entry, for pieces cut after embroidery) as two fields, not as a QC check:
+ * every report, chart, Meera answer and the Order Console's QC column counts QC checks, and a receipt is not one.
+ */
+async function qcInboxReceive(baseId) {
+  const x = qcInboxStatuses().find(e => e.r.id === baseId && e.wait > 0);
   if (!x) return 'That entry is no longer waiting — press Refresh.';
-  const q = parseInt(qty, 10);
-  const dept = QC_DEPTS[to] ? to : '';
-  if (!(q > 0)) return dept ? `Type how many pieces go to ${QC_DEPTS[dept].toLowerCase()}.` : 'Type how many pieces QC is accepting.';
-  if (q > x.wait) return `Only ${nf(x.wait)} piece(s) of this entry are waiting.`;
-  const r = x.r, p = qcParts(r.sku);
-  const rec = {
-    id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    date: ptNow(), checkedBy: String(ME.email || '').split('@')[0], brand: p.brand,
+  if (x.received) return '';
+  const node = x.r.fromCut ? 'pt_cuttingData' : 'pt_baseData';
+  /* qcReceivedOn (world time, to the second) and qcReceivedPcs start QC pass's wait: a minute for every piece received. */
+  const stamp = { qcReceivedAt: ptNow(), qcReceivedBy: qcMyName(), qcReceivedOn: new Date().toISOString(), qcReceivedPcs: x.wait };
+  await ptPatch(Object.fromEntries(Object.entries(stamp).map(([k, v]) => [`${node}/${baseId}/${k}`, v])));
+  const withStamp = list => (list || []).map(r => (r && (r.id || r._key) === baseId ? Object.assign({}, r, stamp) : r));
+  PT = Object.assign({}, PT, x.r.fromCut ? { cut: withStamp(PT.cut) } : { base: withStamp(PT.base) });
+  return '';
+}
+
+const QC_SPLIT = ['passed', 'forAlteration', 'rejected', 'spotting', 'touching'];
+/** How many pieces QC checked: everything the split names. */
+const qcCheckedOf = e => QC_SPLIT.reduce((a, k) => a + qcPcs(e[k]), 0);
+
+/** Why this split of the pieces cannot be saved, or ''. */
+function qcInboxRefusal(x, e) {
+  if (QC_SPLIT.some(k => qcPcs(e[k]) < 0)) return 'Passed, alteration, rejected, spotting and touching cannot be negative.';
+  const q = qcCheckedOf(e);
+  if (!(q > 0)) return 'Type how many pieces passed, or went for alteration, rejected, spotting or touching.';
+  if (q > x.wait) return `Passed + alteration + rejected + spotting + touching is ${nf(q)} — only ${nf(x.wait)} piece(s) of this entry are waiting.`;
+  return '';
+}
+
+/** The records one QC Check window writes for a row: the check (passed, alteration, rejected) and a send per spotting/touching. */
+function qcCheckRecords(r, entry, date) {
+  const p = qcParts(r.sku);
+  const common = {
+    date, checkedBy: String(entry.checkedBy || '').trim() || qcMyName(), brand: p.brand,
     articleType: p.at || r.articleType || '', subtype: p.sub || r.articleSubtype || '', color: p.col || r.color || '', size: p.size || r.size || '',
-    sku: qcNorm(r.sku), checked: q, ok: dept ? 0 : q, forAlteration: 0, rejected: 0,
-    ...(dept ? { dept, [dept]: q } : {}),
-    ...(r.orderNo ? { orderNo: obUC(r.orderNo) } : {}),
+    sku: qcNorm(r.sku), ...(r.orderNo ? { orderNo: obUC(r.orderNo) } : {}),
     baseId: r.id, karigar: r.empName || '', from: 'waiting', ...(r.test ? { test: true } : {}),
-    remarks: dept ? 'Sent to ' + QC_DEPTS[dept].toLowerCase() + ' from Waiting for QC' : 'Accepted from Waiting for QC',
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
-  await ptPut('pt_qcChecks/' + rec.id, rec);
-  QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
+  const ok = qcPcs(entry.passed), al = qcPcs(entry.forAlteration), rj = qcPcs(entry.rejected), kept = ok + al + rj;
+  const recs = [];
+  if (kept > 0) recs.push(Object.assign({ id: qcNewCheckId() }, common, { checked: kept, ok, forAlteration: al, rejected: rj,
+    remarks: String(entry.remarks || '').trim() || 'Accepted from Waiting for QC' }));
+  Object.keys(QC_DEPTS).filter(d => qcPcs(entry[d]) > 0).forEach(d => recs.push(Object.assign({ id: qcNewCheckId() + d[0] }, common, {
+    checked: qcPcs(entry[d]), ok: 0, forAlteration: 0, rejected: 0, dept: d, [d]: qcPcs(entry[d]), remarks: qcSendRemark(d) })));
+  return recs;
+}
+
+/**
+ * Write one QC check out of Waiting for QC. '' or why not.
+ * `entry` = { passed, forAlteration, rejected, spotting, touching, checkedBy, remarks, date } — any may be left out.
+ */
+async function qcInboxSave(baseId, entry) {
+  const x = qcInboxRows().find(e => e.r.id === baseId);
+  if (!x) return 'That entry is no longer waiting — press Refresh.';
+  const why = qcInboxRefusal(x, entry); if (why) return why;
+  const now = ptNow();
+  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(now, entry.date) : now);
+  await ptPatch(Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c])));
+  QC.checks = (QC.checks || []).concat(recs.map(c => Object.assign({ _key: c.id }, c)));
   return '';
+}
+
+/*
+ * The QC Check window's boxes, one design for both uses (Ravi, 19 Nov, pointing at it: "image 2 is the screen which we
+ * have decided is the design which should pop up when we click on the qc pass button"): filled in to be typed into while
+ * pieces wait, or filled with where the pieces are now and locked when none do.
+ */
+function qcCheckFields(x, v, locked) {
+  const num = (key, label) => ({ key, label, type: 'number', min: 0, step: 1, value: v[key], readonly: locked });
+  return [
+    { key: 'sku', label: 'SKU', value: x.r.sku, readonly: true },
+    locked ? { key: 'checkedBy', label: 'Checked by', value: v.checkedBy, readonly: true }
+      : { key: 'checkedBy', label: 'Checked by', type: 'select', value: v.checkedBy, options: [...new Set([v.checkedBy].concat(qcDeptEmps()).filter(Boolean))] },
+    num('passed', 'Passed — pieces'), num('forAlteration', 'For alteration — pieces'),
+    num('rejected', 'Rejected — pieces'), num('spotting', 'Spotting — pieces (a stain)'),
+    num('touching', 'Touching — pieces (a missed print)'),
+    { key: 'remarks', label: 'Remarks', value: v.remarks, span: true, readonly: locked },
+    ...(locked ? [] : [{ key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(v.date || ptNow()), admin: true }]),
+  ];
+}
+const qcCheckSubtitle = r => `SKU: ${r.sku || '—'}  ·  ${r.empName || '—'}  ·  ${r.orderNo || 'no order'}`;
+const qcCheckItem = r => [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ');
+/*
+ * QC pass on a row with nothing left waiting (Ravi, 20 Nov: "they can only enter the new entries; the already filled ones can
+ * only be accessed from the qc pass button of admin or Ravi"): the same window. An admin may correct the split and save; for
+ * everybody else it shows where the pieces are now, locked.
+ */
+/** The QC Pass window's number boxes, empty, for the user to type into. */
+const QC_EMPTY_SPLIT = { passed: '', forAlteration: '', rejected: '', spotting: '', touching: '' };
+/** "8 passed, 2 for alteration" — a split in words, for the window's note. */
+function qcRecordedText(v) {
+  return [[v.passed, 'passed'], [v.forAlteration, 'for alteration'], [v.rejected, 'rejected'], [v.spotting, 'to spotting'], [v.touching, 'to touching']]
+    .filter(([n]) => ptNum(n) > 0).map(([n, t]) => nf(ptNum(n)) + ' ' + t).join(', ') || 'nothing';
+}
+function qcInboxDoneWindow(x) {
+  const fix = qcCorrectable(x), admin = !!ME.admin;
+  ptOpenDialog({
+    title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
+    note: `Nothing is left waiting on this entry — all ${nf(x.since)} piece(s) received have been through QC. `
+      + (admin ? `QC recorded ${qcRecordedText(fix.values)}. As admin you can type the corrected numbers and Save; pieces you leave out go back to waiting.`
+        + (fix.fixed ? ` ${nf(fix.fixed)} piece(s) already back from spotting or touching, or taken on the old Checks form, stay as they are.` : '')
+        : 'This is what QC recorded. Only an admin can correct it.'),
+    /* Ravi, 20 Nov, pointing at the window with its number boxes empty: "when I click on qc pass button it should look like
+     * this" — the admin types the numbers; what QC recorded is in the note above them. */
+    fields: qcCheckFields(x, admin ? Object.assign({}, fix.values, QC_EMPTY_SPLIT) : { checkedBy: x.by || x.receivedBy || '', passed: x.passed, forAlteration: x.alteration, rejected: x.rejected,
+      spotting: x.spotting, touching: x.touching, remarks: x.remarks || '' }, !admin),
+    ...(admin ? { onSave: async v => {
+      const err = await qcInboxCorrect(x.r.id, v);
+      if (err) return err;
+      renderQc();
+      $('qcMsg').className = 'muted';
+      $('qcMsg').textContent = `Corrected the QC check on ${x.r.sku}. ` + $('qcMsg').textContent;
+      return '';
+    } } : {}),
+  });
+}
+/*
+ * What an admin may correct on a row: every check of it except sends already (partly) back from spotting or touching —
+ * those have a return hanging on them. Returns the checks to replace, the pieces that stay fixed, and the window's values.
+ */
+function qcCorrectable(x) {
+  const takes = (QC.checks || []).filter(c => c && c.baseId === x.r.id && !c.refId);
+  const backFor = new Set((QC.checks || []).filter(c => c && c.refId).map(c => c.refId));
+  const replace = takes.filter(c => !backFor.has(c.id)), sum = f => replace.reduce((a, c) => a + ptNum(f(c)), 0);
+  const fixed = x.accepted - sum(c => c.checked);
+  const first = replace.reduce((a, c) => (!a || ptDtMs(c.date) < ptDtMs(a.date) ? c : a), null);
+  const main = replace.find(c => !c.dept) || first || {};
+  return { replace, fixed, room: x.since - fixed, date: first ? first.date : ptNow(), values: {
+    date: first ? first.date : '', checkedBy: main.checkedBy || x.receivedBy || qcMyName(), passed: sum(c => (c.dept ? 0 : c.ok)), forAlteration: sum(c => c.forAlteration),
+    rejected: sum(c => c.rejected), spotting: sum(c => c.spotting), touching: sum(c => c.touching), remarks: main.remarks || '' } };
+}
+/*
+ * EDIT ON QC PASSED (Ravi, 20 Nov: "the only button that can be changed in qc passed screen is the who entered the value,
+ * not anything else"): the same window, everything locked but Checked by. Saving puts that name on every check of the row.
+ */
+function qcPassedEdit(baseId) {
+  if (!(ptCanEdit() || ME.admin)) { $('qcMsg').className = 'err'; $('qcMsg').textContent = PT_NO_EDIT; return; }
+  const x = qcInboxStatuses().find(e => e.r.id === baseId);
+  if (!x) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'That entry is no longer on the list — press Refresh.'; return; }
+  const by = x.by || x.receivedBy || '';
+  const fields = qcCheckFields(x, { checkedBy: by, passed: x.passed, forAlteration: x.alteration, rejected: x.rejected,
+    spotting: x.spotting, touching: x.touching, remarks: x.remarks || '' }, true)
+    .map(f => (f.key === 'checkedBy' ? { key: 'checkedBy', label: 'Checked by', type: 'select', value: by, options: [...new Set([by].concat(qcDeptEmps()).filter(Boolean))] } : f));
+  ptOpenDialog({
+    title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
+    note: 'Only Checked by — who entered this QC check — can be changed here.',
+    fields,
+    onSave: async v => {
+      const err = await qcSetCheckedBy(x.r.id, v.checkedBy);
+      if (err) return err;
+      renderQc();
+      return '';
+    },
+  });
+}
+/** Put `name` as Checked by on every QC check of one row. '' or why not. */
+async function qcSetCheckedBy(baseId, name) {
+  const who = String(name || '').trim();
+  if (!who) return 'Pick who checked these pieces.';
+  const mine = (QC.checks || []).filter(c => c && c.baseId === baseId && !c.refId);
+  if (!mine.length) return 'This entry has no QC check of its own to change.';
+  const at = new Date().toISOString();
+  await ptPatch(Object.assign({}, ...mine.map(c => ({ [`pt_qcChecks/${c.id}/checkedBy`]: who, [`pt_qcChecks/${c.id}/editedBy`]: ME.email, [`pt_qcChecks/${c.id}/editedAt`]: at }))));
+  const ids = new Set(mine.map(c => c.id));
+  QC.checks = (QC.checks || []).map(c => (c && ids.has(c.id) ? Object.assign({}, c, { checkedBy: who, editedBy: ME.email, editedAt: at }) : c));
+  return '';
+}
+/** An admin's correction of a row's QC checks: the old ones go, the new split is written, in one update. '' or why not. */
+async function qcInboxCorrect(baseId, entry) {
+  if (!ME.admin) return 'Only an admin can correct a QC check that is already filled in.';
+  const x = qcInboxStatuses().find(e => e.r.id === baseId);
+  if (!x) return 'That entry is no longer on the list — press Refresh.';
+  if (QC_SPLIT.some(k => qcPcs(entry[k]) < 0)) return 'Passed, alteration, rejected, spotting and touching cannot be negative.';
+  const fix = qcCorrectable(x), total = qcCheckedOf(entry);
+  if (total > fix.room) return `Passed + alteration + rejected + spotting + touching is ${nf(total)} — only ${nf(fix.room)} piece(s) can be set here.`;
+  /* Cutting alteration below what has already gone to the tailors would leave that issue standing on nothing. */
+  const altAfter = qcAltTotal(x.r.sku) - fix.values.forAlteration + qcPcs(entry.forAlteration), issued = qcIssuedTotal(x.r.sku);
+  if (altAfter < issued) return `${nf(issued)} piece(s) of ${x.r.sku} have already been issued for alteration — for-alteration cannot drop that far.`;
+  /* The correction keeps the day the pieces were first checked, unless the admin picked another in the date box. */
+  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(fix.date, entry.date) : fix.date).map(c => Object.assign(c, { editedBy: ME.email, editedAt: new Date().toISOString() }));
+  const gone = new Set(fix.replace.map(c => c.id));
+  await ptPatch(Object.assign(Object.fromEntries(fix.replace.map(c => ['pt_qcChecks/' + c.id, null])),
+    Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c]))));
+  QC.checks = (QC.checks || []).filter(c => !gone.has(c && c.id)).concat(recs.map(c => Object.assign({ _key: c.id }, c)));
+  return '';
+}
+/** QC pass: the QC Check window for one waiting row — all its waiting pieces filled in as passed, to be split. */
+function qcInboxOpen(baseId) {
+  const x = qcInboxStatuses().find(e => e.r.id === baseId);
+  if (!x) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'That entry is no longer on the list — press Refresh.'; return; }
+  if (!(x.wait > 0)) return qcInboxDoneWindow(x);
+  if (!x.received) { $('qcMsg').className = 'err'; $('qcMsg').textContent = `Press QC Accept first on ${x.r.sku} — QC pass opens once QC has received the pieces.`; return; }
+  if (x.passOpensAt > Date.now()) {
+    $('qcMsg').className = 'err';
+    $('qcMsg').textContent = `QC pass on ${x.r.sku} opens in ${qcTimeLeft(x.passOpensAt - Date.now())} — a minute for each of the ${nf(ptNum(x.r.qcReceivedPcs))} piece(s) received.`;
+    return;
+  }
+  ptOpenDialog({
+    title: 'QC Pass', subtitle: qcCheckSubtitle(x.r), msg: qcCheckItem(x.r),
+    note: `${nf(x.wait)} piece(s) of this entry are waiting. Type how many passed, went for alteration, were rejected, or went to `
+      + 'spotting or touching — what you leave out stays waiting. Nothing is saved until you press Save.',
+    fields: qcCheckFields(x, Object.assign({ checkedBy: qcMyName(), remarks: 'Accepted from Waiting for QC' }, QC_EMPTY_SPLIT), false),
+    onSave: async v => {
+      const err = await qcInboxSave(baseId, v);
+      if (err) return err;
+      renderQc();
+      $('qcMsg').className = 'muted';
+      $('qcMsg').textContent = 'Saved the QC check. ' + $('qcMsg').textContent;
+      return '';
+    },
+  });
 }
 
 /* ================= SPOTTING & TOUCHING =================
@@ -936,27 +1312,77 @@ function renderQcLedger() {
   const z = v => (v ? nf(v) : '<span class="muted">—</span>');
   const head = '<thead><tr>' + cols.map((c, i) => `<th${i === 0 ? ' class="frz"' : ' class="num"'}>${c[0]}</th>`).join('') + '</tr></thead>';
   $('qcTable').innerHTML = head + '<tbody>' + (rows.map(e => '<tr>'
-    + `<td class="frz" style="text-align:left">${esc(e.day.split('-').reverse().join('/'))}</td>`
+    + `<td class="frz" style="text-align:left"><button class="ghost qc-act" data-qcl-day="${esc(e.day)}" title="See this day SKU by SKU: opening, what moved, closing">${esc(e.day.split('-').reverse().join('/'))}</button></td>`
     + cols.slice(1).map(([, k]) => `<td class="num"${k === 'allPass' ? ' style="font-weight:700;color:#166534"' : ''}>${z(e[k])}</td>`).join('') + '</tr>').join('')
     || `<tr><td colspan="${cols.length}" class="muted" style="padding:14px">Nothing in these days.</td></tr>`) + '</tbody>'
     + (rows.length ? '<tfoot><tr><td class="frz">TOTAL</td>' + cols.slice(1).map(([, k]) => `<td class="num">${nf(t[k] || 0)}</td>`).join('') + '</tr></tfoot>' : '');
   $('qcMsg').className = 'muted';
-  $('qcMsg').textContent = `${nf(rows.length)} day(s), newest first · "All passed" = QC pass + back from spotting and touching · use the dates above for another window`;
+  $('qcMsg').textContent = `${nf(rows.length)} day(s), newest first · click a day to see it SKU by SKU · "All passed" = QC pass + back from spotting and touching · use the dates above for another window`;
+}
+
+/*
+ * ONE LEDGER DAY, SKU BY SKU (Ravi, 20 Nov: "when I click on its date it should give me a pop up card grouped by skus";
+ * "opening should show what is the QC passed previously before today's entry and closing should show the total pieces
+ * passed at the end of the day"). One line per SKU that moved that day: back from karigars, and what QC did — every QC
+ * check of the SKU that day, the old Checks form's too — then passed before the day and passed by the end of it.
+ */
+function qcLedgerDay(day) {
+  const start = new Date(day + 'T00:00:00').getTime(), end = start + 86400000, from = qcInboxFromMs(), bySku = new Map();
+  const line = sku => { if (!bySku.has(sku)) bySku.set(sku, { sku, recv: 0, pass: 0, alt: 0, rej: 0, spot: 0, touch: 0, before: 0 }); return bySku.get(sku); };
+  const inDay = ms => ms >= start && ms < end;
+  qcInboxEntries().forEach(x => {
+    const parts = x.r.fromCut ? [{ ms: x.last, pcs: x.since }] : repRecvParts(x.r).filter(p => /^LEG-/i.test(String(x.r.orderNo || '')) || p.ms >= from);
+    const recv = parts.filter(p => inDay(p.ms)).reduce((a, p) => a + p.pcs, 0);
+    if (recv) line(qcNorm(x.r.sku)).recv += recv;
+  });
+  (QC.checks || []).forEach(c => {
+    const ms = c && ptDtMs(c.date); if (!ms || !inDay(ms)) return;
+    const e = line(qcNorm(c.sku));
+    e.pass += ptNum(c.ok); e.rej += ptNum(c.rejected);
+    if (!c.refId) { e.alt += ptNum(c.forAlteration); e.spot += ptNum(c.spotting); e.touch += ptNum(c.touching); }
+  });
+  /* Passed before the day, for the SKUs that moved — the card's Opening; Closing adds the day's passes. */
+  (QC.checks || []).forEach(c => { const ms = c && ptDtMs(c.date), e = ms && ms < start && bySku.get(qcNorm(c.sku)); if (e) e.before += ptNum(c.ok); });
+  return [...bySku.values()].map(e => Object.assign(e, { after: e.before + e.pass })).sort((a, b) => a.sku.localeCompare(b.sku));
+}
+/* Opening and Closing sit side by side at the end (Ravi, 20 Nov: "put opening and closing columns back on the card instead
+ * of buttons … held adjacent at the last of all columns"). */
+const QC_LEDGER_DAY_COLS = [['SKU', 'sku'], ['Received', 'recv'], ['Passed', 'pass'], ['Alteration', 'alt'], ['Rejected', 'rej'], ['Spotting', 'spot'], ['Touching', 'touch'],
+  ['Opening', 'before'], ['Closing', 'after']];
+function qcLedgerDayCard(day) {
+  const lines = qcLedgerDay(day), dmy = day.split('-').reverse().join('/'), sum = k => lines.reduce((a, e) => a + e[k], 0);
+  const z = v => (v ? nf(v) : '<span class="muted">—</span>');
+  const strong = { pass: ' style="color:#166534;font-weight:700"', before: ' style="font-weight:700"', after: ' style="font-weight:700"' };
+  const row = e => `<tr><td style="font-family:ui-monospace,monospace;text-align:left">${esc(e.sku)}</td>`
+    + QC_LEDGER_DAY_COLS.slice(1).map(([, k]) => `<td class="num"${strong[k] || ''}>${z(e[k])}</td>`).join('') + '</tr>';
+  ptOpenDialog({
+    title: 'QC ledger — ' + dmy, wide: true,
+    note: `SKU by SKU: Received = back from karigars that day · Passed, Alteration, Rejected, Spotting, Touching = what QC did that day · `
+      + `Opening = pieces of the SKU passed before ${dmy} · Closing = passed by the end of ${dmy}.`,
+    html: `<div class="xlwrap" style="max-height:60vh;overflow:auto"><table class="xl"><thead><tr>${QC_LEDGER_DAY_COLS.map(([h], i) => `<th${i ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead>`
+      + `<tbody>${lines.map(row).join('') || `<tr><td colspan="${QC_LEDGER_DAY_COLS.length}" class="muted" style="padding:14px">Nothing moved this day.</td></tr>`}</tbody>`
+      + (lines.length ? `<tfoot><tr><td>TOTAL · ${nf(lines.length)} SKU(s)</td>${QC_LEDGER_DAY_COLS.slice(1).map(([, k]) => `<td class="num">${nf(sum(k))}</td>`).join('')}</tr></tfoot>` : '')
+      + '</table></div>',
+  });
 }
 
 $('qcTable').addEventListener('click', async e => {
-  const go = e.target.closest('[data-qcin-go]');
+  const check = e.target.closest('[data-qcin-check]');
+  if (check) return qcInboxOpen(check.getAttribute('data-qcin-check'));
+  const passedEdit = e.target.closest('[data-qcp-edit]');
+  if (passedEdit) return qcPassedEdit(passedEdit.getAttribute('data-qcp-edit'));
+  const ledgerDay = e.target.closest('[data-qcl-day]');
+  if (ledgerDay) return qcLedgerDayCard(ledgerDay.getAttribute('data-qcl-day'));
+  const go = e.target.closest('[data-qcin-accept]');
   if (go) {
-    const id = go.getAttribute('data-qcin-go');
-    const box = document.querySelector(`[data-qcin-qty="${CSS.escape(id)}"]`);
+    const id = go.getAttribute('data-qcin-accept');
     go.disabled = true;
     let err = '';
-    const to = go.getAttribute('data-to') || '';
-    try { err = await qcInboxAccept(id, box ? box.value : '', to); } catch (er) { err = 'Not saved: ' + (er.message || er); }
+    try { err = await qcInboxReceive(id); } catch (er) { err = 'Not saved: ' + (er.message || er); }
     go.disabled = false;
     renderQc();
     $('qcMsg').className = err ? 'err' : 'muted';
-    if (err) $('qcMsg').textContent = err; else $('qcMsg').textContent = (to ? 'Sent to ' + to + '. ' : 'Accepted into QC. ') + $('qcMsg').textContent;
+    $('qcMsg').textContent = err || 'Received by QC — now QC pass to check them. ' + $('qcMsg').textContent;
     return;
   }
   const back = e.target.closest('[data-qcd-go]');
@@ -1015,10 +1441,11 @@ $('qcExport').onclick = () => {
     return ptDownload('qc-spotting-touching', [['Sent', 'To', 'Karigar', 'SKU', 'Item', 'Order', 'Sent', 'Passed', 'Rejected', 'Still there'].map(csvCell).join(',')]
       .concat(D.map(x2 => [x2.c.date, QC_DEPTS[x2.dept], x2.c.karigar, x2.c.sku, [x2.c.subtype, x2.c.color, x2.c.size].filter(Boolean).join(' · '), x2.c.orderNo, x2.sent, x2.pass, x2.rej, x2.left].map(csvCell).join(','))));
   }
-  if (v === 'inbox') {
+  if (v === 'inbox' || v === 'passed') {
     const I = QC.inbox || []; if (!I.length) return;
-    return ptDownload('waiting-for-qc', [['Received', 'Karigar', 'SKU', 'Item', 'Order', 'Received', 'Taken by QC', 'Waiting'].map(csvCell).join(',')]
-      .concat(I.map(x2 => [new Date(x2.last).toLocaleString('en-GB'), x2.r.empName, x2.r.sku, [x2.r.articleSubtype, x2.r.color, x2.r.size].filter(Boolean).join(' · '), x2.r.orderNo, x2.since, x2.accepted, x2.wait].map(csvCell).join(','))));
+    return ptDownload(v === 'passed' ? 'qc-passed' : 'waiting-for-qc', [QC_INBOX_COLS.filter(h => h && h !== 'Image').map(csvCell).join(',')]
+      .concat(I.map(x2 => [new Date(x2.last).toLocaleString('en-GB'), x2.r.empName, x2.r.sku, [x2.r.articleSubtype, x2.r.color, x2.r.size].filter(Boolean).join(' · '), x2.r.orderNo,
+        x2.since, x2.passed, x2.alteration, x2.spotting, x2.touching, x2.rejected, x2.wait].map(csvCell).join(','))));
   }
   const rows = QC.rows || []; if (!rows.length) return;
   /* Pieces back from alteration have their own columns: what came back, what was mended, what is still wrong. */

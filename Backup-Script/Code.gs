@@ -19,19 +19,14 @@
  * ONE-TIME SETUP: open this script (Ravi's account), run installBackup() once from the editor, and allow it. After
  * that it runs by itself at about 03:15 IST. backupNow() runs it by hand; backupStatus() lists what is there.
  *
- * TWO RUNS A NIGHT (13 Nov 2026). The night of 13 Nov took 357 of Apps Script's 360 seconds; one more collection and it
- * would have been cut off. Now backupNightly saves the Realtime Database (and manifest-rtdb.json), then sets a one-off
- * trigger for backupFirestoreNightly a minute later, which saves Firestore, the Sheets and manifest.json LAST — so "a
- * night without a manifest did not finish" still holds. Each run has its own six minutes.
- * EVERY FIRESTORE COLLECTION (13 Nov 2026). The Replenishment and Listing Health collections (repl*, health*) were left
- * out as "rebuilt from Amazon"; but repl holds what people type (projection overrides, revenue target), and the copy
- * is also what the Supabase move loads from. About 15 MB more a night.
+ * NOT BACKED UP: the Replenishment and Listing Health snapshots (repl*, health*) — 30+ MB a day and rebuilt from
+ * Amazon's own reports on demand.
  */
 var PROJECT = 'price-research-48ff3';
 var RTDB = 'https://price-research-48ff3-default-rtdb.asia-southeast1.firebasedatabase.app';
 var FS = 'https://firestore.googleapis.com/v1/projects/' + PROJECT + '/databases/(default)/documents';
 var FOLDER = 'ERP backups';
-var SKIP_COLLECTIONS = [];   // none since 13 Nov 2026 — see the note above
+var SKIP_COLLECTIONS = ['repl', 'replrows', 'replslim', 'replslimrows', 'health', 'healthrows'];
 var KEEP_DAYS = 30;
 var TZ = 'Asia/Kolkata';
 /* No saved file is larger than this. Apps Script cuts a download at 50 MB and refuses a Drive file over 50 MB. */
@@ -57,7 +52,7 @@ var OWNER = 'ravi@thefabricrush.com';
 /** Run once from the editor. Running it again replaces the old triggers. */
 function installBackup() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (['backupNightly', 'dailyHealth', 'backupFirestoreNightly'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
+    if (t.getHandlerFunction() === 'backupNightly' || t.getHandlerFunction() === 'dailyHealth') ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('backupNightly').timeBased().atHour(3).nearMinute(15).everyDays(1).inTimezone(TZ).create();
   ScriptApp.newTrigger('dailyHealth').timeBased().atHour(8).nearMinute(30).everyDays(1).inTimezone(TZ).create();
@@ -67,7 +62,7 @@ function installBackup() {
 
 function removeBackup() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (['backupNightly', 'dailyHealth', 'backupFirestoreNightly'].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
+    if (t.getHandlerFunction() === 'backupNightly' || t.getHandlerFunction() === 'dailyHealth') ScriptApp.deleteTrigger(t);
   });
   Logger.log('The nightly backup and the morning health mail are off.');
 }
@@ -109,56 +104,9 @@ function backupNightlyLocked_() {
 
     var manifest = { day: day, startedAt: new Date().toISOString(), rtdb: {}, firestore: {}, skipped: [] };
     backupRtdb_(dir, tok, manifest);
-    manifest.rtdbSeconds = Math.round((Date.now() - t0) / 1000);
-    /* Half-way: the database is saved. Firestore, the Sheets and manifest.json follow in their own run. */
-    save_(dir, 'manifest-rtdb.json', JSON.stringify(manifest, null, 1));
-    scheduleFirestore_();
-    var nodes = Object.keys(manifest.rtdb);
-    Logger.log('Backed up ' + day + ' (part 1 of 2): RTDB ' + mbOf_(manifest.rtdb) + ' MB, ' + nodes.length + ' nodes ('
-      + nodes.map(function (n) { return n + (manifest.rtdb[n].parts > 1 ? ' ×' + manifest.rtdb[n].parts : ''); }).join(', ')
-      + ') in ' + manifest.rtdbSeconds + ' s. Firestore follows in about a minute (backupFirestoreNightly).');
-  } finally { lock.releaseLock(); }
-}
-
-function mbOf_(o) { return Math.round(Object.keys(o).reduce(function (s, k) { return s + o[k].bytes; }, 0) / 1048576 * 10) / 10; }
-
-/** A one-off trigger for part 2, a minute from now; any left from an earlier night is cleared first. */
-function scheduleFirestore_() {
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'backupFirestoreNightly') ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('backupFirestoreNightly').timeBased().after(60 * 1000).create();
-}
-
-/** Part 2 of the night: Firestore into the same night folder, then the Sheets, then manifest.json. */
-function backupFirestoreNightly() {
-  try { backupFirestoreLocked_(); }
-  catch (e) {
-    mail_('ERP backup FAILED (Firestore part)', 'The nightly backup saved the database but not Firestore: ' + (e && (e.stack || e.message) || e)
-      + '\n\nRun backupFirestoreNightly() from the Backup-Script editor once the cause is fixed.');
-    throw e;
-  } finally {
-    /* the one-off trigger has done its work */
-    ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'backupFirestoreNightly') ScriptApp.deleteTrigger(t); });
-  }
-}
-
-function backupFirestoreLocked_() {
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(30000)) { Logger.log('Another backup is still running — Firestore part skipped.'); throw new Error('Another backup run held the lock for 30 s.'); }
-  try {
-    var t0 = Date.now();
-    var tok = ScriptApp.getOAuthToken();
-    var root = folder_();
-    var day = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
-    var dir = dayFolder_(day);
-    if (!dir) throw new Error('No night folder for ' + day + ' — the database part did not run. Run backupNow() by hand.');
-    var mf = dir.getFilesByName('manifest-rtdb.json');
-    if (!mf.hasNext()) throw new Error('The database part of ' + day + ' did not finish (no manifest-rtdb.json). Run backupNow() by hand.');
-    var manifest = JSON.parse(mf.next().getBlob().getDataAsString());
-
     backupFirestore_(dir, tok, manifest);
-    manifest.firestoreSeconds = Math.round((Date.now() - t0) / 1000);
     manifest.finishedAt = new Date().toISOString();
-    manifest.seconds = (manifest.rtdbSeconds || 0) + manifest.firestoreSeconds;
+    manifest.seconds = Math.round((Date.now() - t0) / 1000);
     save_(dir, 'manifest.json', JSON.stringify(manifest, null, 1));
 
     prune_(root);
@@ -168,9 +116,12 @@ function backupFirestoreLocked_() {
     if (sh.failed.length) mail_('ERP backup: some Sheets were not copied', sh.failed.join('\n'));
     Logger.log('Sheets copied: ' + sh.done.join(', ') + (sh.failed.length ? ' — FAILED: ' + sh.failed.join('; ') : ''));
 
-    var cols = Object.keys(manifest.firestore);
-    Logger.log('Backed up ' + day + ' (part 2 of 2): Firestore ' + mbOf_(manifest.firestore) + ' MB, ' + cols.length + ' collection(s)'
-      + (manifest.skipped.length ? ' — skipped ' + manifest.skipped.join(', ') : '') + ' in ' + manifest.firestoreSeconds + ' s (database ' + (manifest.rtdbSeconds || '?') + ' s).');
+    var nodes = Object.keys(manifest.rtdb), cols = Object.keys(manifest.firestore);
+    var mb = function (o) { return Math.round(Object.keys(o).reduce(function (s, k) { return s + o[k].bytes; }, 0) / 1048576 * 10) / 10; };
+    Logger.log('Backed up ' + day + ': RTDB ' + mb(manifest.rtdb) + ' MB, ' + nodes.length + ' nodes ('
+      + nodes.map(function (n) { return n + (manifest.rtdb[n].parts > 1 ? ' ×' + manifest.rtdb[n].parts : ''); }).join(', ')
+      + '); Firestore ' + mb(manifest.firestore) + ' MB, ' + cols.length + ' collection(s)'
+      + (manifest.skipped.length ? ' — skipped ' + manifest.skipped.join(', ') : '') + '. ' + Math.round((Date.now() - t0) / 1000) + ' s.');
   } finally { lock.releaseLock(); }
 }
 

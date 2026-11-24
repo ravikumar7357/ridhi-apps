@@ -10,8 +10,13 @@
 let PP = { err: '', busy: false, at: '', freeze: null };
 
 async function ensurePpress() {
-  if (ptLack(PTG_ALL, 'mdb')) { PP.busy = true; renderPpress(); await ptNeed(PTG_ALL, { why: 'ppress', has: 'mdb' }); PP.busy = false; }
-  if (PP.freeze === null) { try { PP.freeze = (await ptGet('pt_pressFreezes')) || {}; } catch (e) { PP.freeze = {}; } }
+  if (ptLack(PTG_ALL, 'mdb')) { PP.busy = true; renderPpress(); }
+  /* The freezes with the order book, not after it. */
+  await Promise.all([
+    ptNeed(PTG_ALL, { why: 'ppress', has: 'mdb' }),
+    PP.freeze === null ? ptGet('pt_pressFreezes').then(v => { PP.freeze = v || {}; }, () => { PP.freeze = {}; }) : null,
+  ]);
+  PP.busy = false;
   PP.at = ptStamp();
   renderPpress();
 }

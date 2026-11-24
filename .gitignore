@@ -4,6 +4,10 @@
 !/.gitignore
 !/.gitattributes
 !/README.md
+!/RELEASE.md
+!/.github/
+!/tools/
+!/.vscode/
 !/Replenish-App/
 !/Pricing-App/
 !/Pricing-API/
@@ -52,6 +56,8 @@ Pricing-App/src/deps.json
 /Replenish-App/tests/probes/store-beyond.json
 /Pricing-App/tests/image-audit/*.csv
 
+# the test ERP build (GitHub Pages)
+_site/
 # Meera v2: the offline timing copy (meera/tests/preview-make.cjs)
 meera/.preview/
 meera/docs/phase3/

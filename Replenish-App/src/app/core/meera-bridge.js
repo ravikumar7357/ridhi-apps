@@ -366,6 +366,11 @@ const MEERA_SWITCHES = {
    * hinglish words and its meaning and formation"): a word's link, its sound, its family. meera/tools/hinglish-learn.cjs
    * writes /guide/meera-links.json. Off until proven: ?meera=hglinks */
   hglinks: false,
+  /* THE JUDGE (Ravi, 17 Nov: "make Meera a beast"): when she is not clearly sure, a model on her router is shown her top 20
+   * answers and only POINTS at the right one — she shows her own checked words (guide-ai.ts gaAiJudge, router /judge).
+   * Live figures, outside questions and chat never go to it. A pick confirmed with 👍 is kept for an admin as a new way
+   * of asking (with "learn"). Off until her gate proves it: ?meera=judge (or with lazy: ?meera=lazy,judge) */
+  judge: false,
 };
 /* THE EMERGENCY OFF (Ravi, 3 Nov: "the router's setting on the admin page should turn all seven off within seconds").
  * Each page asks her router once as it opens (GET /flags: no sign-in, no data, only on/off) and keeps the answer in this

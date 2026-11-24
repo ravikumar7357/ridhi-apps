@@ -10,7 +10,9 @@ const APP = path.join(__dirname, '..', 'src', 'app');
 const FG = rd(process.env.FG_SRC || path.join(APP, 'inventory/finished-goods.js')), FQ = rd(process.env.FQ_SRC || path.join(APP, 'flow/flow-qcfg.js'));
 const cut = (src, name) => { let i = src.indexOf('async function ' + name + '('); if (i < 0) i = src.indexOf('function ' + name + '('); if (i < 0) throw new Error(name + ' not found'); return src.slice(i, src.indexOf('\n}', i) + 2); };
 const line = (src, head) => { const i = src.indexOf(head); if (i < 0) throw new Error(head + ' not found'); return src.slice(i, src.indexOf('\n', i)) + '\n'; };
-const PARTS = [cut(FG, 'fgLiteOn'), cut(FG, 'fgiLoad'), cut(FQ, 'flowFgEnsure'), cut(FQ, 'flowFgBadge'), cut(FQ, 'flowFgBadgeLoad'), cut(FQ, 'flowFgBadgeLite'),
+/* dev's fgiLoad is one read at a time (fgiLoad -> fgiLoadRun, FGI_P / FGI_LOADED_MS): both functions and their two lets, when there */
+const FG_RUN = FG.includes('function fgiLoadRun(') ? [line(FG, 'let FGI_LOADED_MS'), cut(FG, 'fgiLoadRun')] : [];
+const PARTS = [cut(FG, 'fgLiteOn'), cut(FG, 'fgiLoad'), ...FG_RUN, cut(FQ, 'flowFgEnsure'), cut(FQ, 'flowFgBadge'), cut(FQ, 'flowFgBadgeLoad'), cut(FQ, 'flowFgBadgeLite'),
   'let FLOW_FG_LOADING = null;\n', line(FQ, 'const flowFgToAccept ='), line(FQ, 'const flowFgLines ='), line(FQ, 'const flowMayFg =')].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };

@@ -245,13 +245,14 @@ function soOldOpen(start) {
 /** One store's orders for a window: by date, plus the old unfinished ones by id, photos left for later.
  *  A script not yet updated (no `mode` in its answer, or an error on ids=) is met the old way: the dates are
  *  stretched back to the oldest of those orders. */
-async function soAskStore(brand, want, ids) {
+/* lim: prGet's options (a time limit) for every call made here; none means wait as long as Apps Script does. */
+async function soAskStore(brand, want, ids, lim) {
   const shop = brand === 'CPC' ? { shop: 'CPC' } : {};
-  const dated = prGet({ shopify: 'orders', ...shop, start: want.start, end: want.end, open: want.open, nophoto: '1' });
+  const dated = prGet({ shopify: 'orders', ...shop, start: want.start, end: want.end, open: want.open, nophoto: '1' }, lim);
   const list = [...ids];
   const parts = [];
   for (let i = 0; i < list.length; i += SO_COPY.idsPerCall) {
-    parts.push(prGet({ shopify: 'orders', ...shop, ids: list.slice(i, i + SO_COPY.idsPerCall).join(','), open: want.open, nophoto: '1' }));
+    parts.push(prGet({ shopify: 'orders', ...shop, ids: list.slice(i, i + SO_COPY.idsPerCall).join(','), open: want.open, nophoto: '1' }, lim));
   }
   const r = await dated;
   let olds = [];
@@ -268,7 +269,7 @@ async function soAskStore(brand, want, ids) {
   } else if (list.length) {
     /* The old way, for as long as the script has not learnt ids=: the whole range back to the oldest. */
     const oldest = soOldestOf(list) || sdShift(sdToday(), -SHP_REACH_MAX_DAYS);
-    const w = await prGet({ shopify: 'orders', ...shop, start: oldest, end: want.end, open: want.open });
+    const w = await prGet({ shopify: 'orders', ...shop, start: oldest, end: want.end, open: want.open }, lim);
     (w.orders || []).forEach(o => { if (!byId.has(String(o.id))) byId.set(String(o.id), o); });
     more = more || !!w.more; cursor = ''; from = oldest;
   }

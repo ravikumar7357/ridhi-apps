@@ -1319,6 +1319,91 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
   - before: (none)
   - after: c-cx-1718 · Fulfil from India — Customer Orders पर बटन: इस ऑर्डर के नाम पर India Store से पीस इश्यू कर
 
+## 2026-11-12 07:11 — R-one test link only: R-one's own answers (name, My work today, Job Work corrections, PPC) are in its bank — Meera in the page
+
+- score: test set 2: right 54→53, offered 66→67, wrong 6→7, not sure 34→33
+- score: spelling-mistake questions: right 85→83, offered 114→116, wrong 8→8, not sure 31→31
+- score: spelling set 2 (held back, scoring only): right 191→190, offered 162→163, wrong 13→13, not sure 81→81
+- score: Hindi-script spelling mistakes: right 50→50, offered 41→40, wrong 0→0, not sure 23→24
+- answer `eval|shop|can i keep two screens open in different tabs`
+  - before: - · I'm not fully sure what you mean. Is it one of these? open screen in new tab how to go to 
+  - after: - · I'm not fully sure what you mean. Is it one of these? open screen in new tab why sales ord
+- answer `eval|shop|karigar se receive kiya, ab wo piece aage kis screen pe milenge`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? karigar se maal wapas
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? hara button kya karta
+- answer `eval|shop|AB-TBL-RED-M ka stock kitna hai kaise dekhu`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? stock kitna hai low a
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? stock kitna hai finis
+- answer `eval|shop|date ke aage 8d laal kyu dikh rha`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab
+- answer `eval|shop|customer order line - how do i choose to send it from india stock`
+  - before: - · Your question fits more than one answer. Which one do you mean? fulfil customer order from
+  - after: - · Your question fits more than one answer. Which one do you mean? fulfil customer order from
+- answer `eval|shop|सिकुड़न 5% से ज़्यादा है, अप्रूव कैसे करें`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? करेक्शन रिक्वेस्ट कैसे अप्रूव कर
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? सब एक साथ अप्रूव कैसे करें करेक्
+- answer `eval|shop|goods came in, how to close the po as received`
+  - before: - · I'm not fully sure what you mean. Is it one of these? how to receive stock in store close 
+  - after: - · I'm not fully sure what you mean. Is it one of these? close greige po how to receive stock
+- answer `eval|shop|कौन सा आर्टिकल मुश्किल है ये लेवल कहाँ भरते हैं`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? शॉपिफाई के कितने ऑर्डर गए आसान/क
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? आसान/कठिन आर्टिकल कैसे तय करें श
+- answer `eval|shop|वेंडर की रिक्वेस्ट अप्रूव करनी है, बटन कहाँ है`
+  - before: vm-vreq-no-permission · आपके अकाउंट में "Can approve vendor order requests" नहीं है; मंज़ूरी देना आपका काम हो तो ए
+  - after: r1-no-vendor-rfd · वेंडर रिक्वेस्ट और RFD requirements न My work today पर हैं न किसी रोल में: उनकी स्क्रीनें 
+- answer `eval|shop|rfd requirements screen kha milegi`
+  - before: - · I'm not fully sure what you mean. Is it one of these? what is rfd where is rfd requirement
+  - after: - · Your question fits more than one answer. Which one do you mean? vendor requests not on my 
+- answer `eval|shop|mark rfd cloth as sent to the printer`
+  - before: - · Your question fits more than one answer. Which one do you mean? mark rfd sent answering an
+  - after: - · Your question fits more than one answer. Which one do you mean? mark rfd sent answering an
+- answer `eval|shop|महीने की तनख्वाह की पर्ची निकालनी है`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? सैलरी स्लिप कैसे प्रिंट करें मही
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? सैलरी स्लिप कैसे प्रिंट करें मही
+- answer `eval|shop|कल कौन सा ट्रक आएगा`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? Track क्या है Tracking क्या है T
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? चालान पर अब भी Ridhi Home &amp; 
+- answer `eval2|shop|karigar matlab darzi hi na? ya koi aur`
+  - before: - · Your question fits more than one answer. Which one do you mean? how to filter Karigar · Pr
+  - after: gn-filters-button · Press Filters in the screen's toolbar, choose what you want in each box, then press Done .
+- answer `eval2|shop|fba bolte h wo kaunsa godown h`
+  - before: - · I'm not fully sure what you mean. Is it one of these? what is fba pick which one these pie
+  - after: - · I'm not fully sure what you mean. Is it one of these? what is fba what is fba dispatch pic
+- answer `eval2|shop|ye chhota arrow wala dabba kaise kholte h`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? menu kaise band kare 
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? drop down kya hai men
+- answer `eval2|shop|upar jo bade number wale dabbe h unpe click karne se kya hota h`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? upar ke number kya ha
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? upar ke number kya ha
+- answer `eval2|shop|naam aur remark dono hindi me type kar du? chalega`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? kya hindi me likh sak
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? kya hindi me likh sak
+- answer `eval2|shop|क्वांटिटी घटाने की रिक्वेस्ट मांगते वक्त ठीक थी, अप्रूव करते समय मना क्यों कर दिया`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? क्वांटिटी बदलाव मना कैसे करें मा
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? क्वांटिटी बदलाव मना कैसे करें रि
+- answer `eval2|shop|how does finished goods arrive at the in-stock figure for one sku`
+  - before: - · Your question fits more than one answer. Which one do you mean? how to receive stock in st
+  - after: - · Your question fits more than one answer. Which one do you mean? what are the figures on to
+- answer `eval2|shop|after freezing a fortnight, if I change a rate does the payout move`
+  - before: - · Your question fits more than one answer. Which one do you mean? freeze payout what happens
+  - after: - · Your question fits more than one answer. Which one do you mean? freeze payout what happens
+- answer `eval2|shop|एक कटिंग एंट्री सेव करने से बाकी किन स्क्रीन पर फर्क पड़ता है`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? कटिंग एंट्री सेव करने से और क्या
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? कटिंग की एंट्री कैसे करें कटिंग 
+- answer `eval2|shop|karigar ko maal de diya par cutting chadhayi hi nahi thi, ab system rok raha`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? used partly unused ka
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? kata hua jo abhi issu
+- answer `eval2|shop|printer typed 100 in his portal but we accepted 92, which one gets paid`
+  - before: - · I'm not fully sure what you mean. Is it one of these? print the print order vendor portal 
+  - after: - · I'm not fully sure what you mean. Is it one of these? print the print order printer says s
+- answer `eval2|shop|maine change maanga tha, ab khud approve kyu nahi kar pa raha`
+  - before: dx-no-self-approve · Koi bhi apna correction khud approve nahi kar sakta — kisi aur ko karna hoga — aur jo requ
+  - after: r1-jw-correction-no-approve · Approve nahi aata jab request aapki apni ho, ya usme SKU, issue date ya receiving date bad
+- answer `eval2|shop|how to change the selling price of a listing on amazon from the erp`
+  - before: - · I'm not fully sure what you mean. Is it one of these? amazon order full process from start
+  - after: - · I'm not fully sure what you mean. Is it one of these? what is problems on my work today am
+
 ## 2026-11-10 12:27 — Language told right: "me" and "par" alone no longer make an English question Hinglish ("tell me the total…"), and rha, likha, aa, laal, rang, h and the like now mark Hinglish; brand product counts ("how many products are there of cpc"); Ravi, 11 Nov
 
 - answer `eval|shop|it says too many tries and wont let me log in`
@@ -1336,8 +1421,6 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
 - answer `eval2|shop|reject wale piece kise bolte h`
   - before: - · I'm not fully sure what you mean. Is it one of these? what is reject how to receive pieces
   - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? reject ka matlab kari
-- answer `eval2|shop|fba bolte h wo kaunsa godown h`
-  - before: - · I'm not fully sure what you mean. Is it one of these? what is fba pick which one these pie
   - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai qc mein o
 - answer `eval2|shop|printer gave me a paper slip with the goods, is that a challan? what do i do with it`
   - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? challan kya hai print
@@ -1363,37 +1446,12 @@ Each entry: when, why, and what it changed. Made by `node meera/tests/gate.cjs -
 - answer `eval|shop|whatsapp didnt open after issue, says no number`
   - before: pr-jw-wa-auto · WhatsApp does not open by itself after Issue or Receive. Press ⋯ on the row and choose Wha
   - after: pr-jw-wa-auto · WhatsApp opens by itself on the karigar's number as soon as you save an Issue , and after 
-- answer `eval|shop|date ke aage 8d laal kyu dikh rha`
-  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab
-  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab
-- answer `eval|shop|सिकुड़न 5% से ज़्यादा है, अप्रूव कैसे करें`
-  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? करेक्शन रिक्वेस्ट कैसे अप्रूव कर
-  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? सब एक साथ अप्रूव कैसे करें करेक्
-- answer `eval|shop|कौन सा आर्टिकल मुश्किल है ये लेवल कहाँ भरते हैं`
-  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? शॉपिफाई के कितने ऑर्डर गए आसान/क
-  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? आसान/कठिन आर्टिकल कैसे तय करें श
 - answer `eval|shop|पुराना रंग अब नहीं बनता, मास्टर लिस्ट से निकालना है`
   - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? नया रंग कैसे जोड़ें मास्टर से रं
   - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? नया रंग कैसे जोड़ें मास्टर से रं
-- answer `eval2|shop|karigar matlab darzi hi na? ya koi aur`
-  - before: - · Your question fits more than one answer. Which one do you mean? how to filter Karigar · Pr
-  - after: gn-filters-button · Press Filters in the screen's toolbar, choose what you want in each box, then press Done .
-- answer `eval2|shop|fba bolte h wo kaunsa godown h`
   - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai qc mein o
   - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai fba dispa
-- answer `eval2|shop|क्वांटिटी घटाने की रिक्वेस्ट मांगते वक्त ठीक थी, अप्रूव करते समय मना क्यों कर दिया`
-  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? क्वांटिटी बदलाव मना कैसे करें मा
-  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? क्वांटिटी बदलाव मना कैसे करें रि
-- answer `eval2|shop|how does finished goods arrive at the in-stock figure for one sku`
-  - before: - · Your question fits more than one answer. Which one do you mean? how to receive stock in st
-  - after: - · Your question fits more than one answer. Which one do you mean? what are the figures on to
-- answer `eval2|shop|after freezing a fortnight, if I change a rate does the payout move`
-  - before: - · Your question fits more than one answer. Which one do you mean? freeze payout what happens
-  - after: - · Your question fits more than one answer. Which one do you mean? freeze payout what happens
 - answer `eval2|shop|amazon ka order shuru se FBA bhejne tak kaun kaun si screen se guzarta h`
   - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? cutting entry save ka
   - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? cutting entry save ka
-- answer `eval2|shop|एक कटिंग एंट्री सेव करने से बाकी किन स्क्रीन पर फर्क पड़ता है`
-  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? कटिंग एंट्री सेव करने से और क्या
-  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? कटिंग की एंट्री कैसे करें कटिंग 
 

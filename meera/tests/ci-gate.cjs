@@ -55,6 +55,8 @@ const CHECKS = [
   { name: 'her answers are well-formed', cmd: ['meera/tests/answers-check.cjs'], fix: 'fix the answers named above in Replenish-App/public/guide/' },
   { name: 'guide-errors is up to date with the screens', cmd: ['meera/tools/make-errors.cjs', '--check'], fix: 'run: node meera/tools/make-errors.cjs, then her gate, and commit meera/client/src/legacy/guide-errors.ts', warnOnly: true },
   { name: 'her router\'s tests', cmd: ['meera/router/test/router.test.mjs'], fix: 'a router test failed (see the FAIL lines)' },
+  { name: 'the judge: only points at her own answers, cleaned, its own limits, the flywheel', cmd: ['meera/router/test/judge.test.mjs'], fix: 'a judge test failed (see the FAIL lines)' },
+  { name: 'question categories: every sample question gets its kind', cmd: ['meera/tests/intent-check.cjs'], fix: 'fix the cues in meera/client/src/intent.ts (see the FAIL lines)' },
   { name: 'her search on Cloud Functions (D.2): same answers as her browser, only the ERP may ask, keeps nothing, at most 2 instances', cmd: ['meera/functions/test/service.test.mjs'], fix: 'a check of meera/functions failed (see the FAIL lines)' },
   { name: 'never a cent: the meter stops at half the free allowance, the cent alarm, never billing', cmd: ['meera/functions/test/guards.test.mjs'], fix: 'a cost guard failed (see the FAIL lines) — never deploy the function like this' },
   { name: 'her search in use and stopped: 580 answers the same, admin message, never-break', cmd: ['meera/tests/search-stop.cjs'], fix: 'see the FAIL lines in meera/tests/search-stop.cjs' },

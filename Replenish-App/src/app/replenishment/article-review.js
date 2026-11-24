@@ -185,7 +185,7 @@ $('arTable').addEventListener('change', async e => {
     const clean = val === 'EXCESS' ? 'Excess' : val;
     if (clean) PRIO_OVR[skuU] = clean; else delete PRIO_OVR[skuU];
     R_VER++;                                   // priority feeds applyStatus, so the walk must run again
-    try { await setDoc(doc(db, 'repl', 'prodstatus'), { prioOverride: { [skuU]: clean || null } }, { merge: true }); renderArticle(); }
+    try { await fsSetDoc(doc(db, 'repl', 'prodstatus'), { prioOverride: { [skuU]: clean || null } }, { merge: true }); renderArticle(); }
     catch (err) { $('arMsg').textContent = 'Could not save priority: ' + (err.message || err); }
     return;
   }
@@ -203,14 +203,14 @@ $('arTable').addEventListener('change', async e => {
     const n = raw === '' ? null : Number(raw);
     if (n == null) delete REQ_QTY[skuU]; else REQ_QTY[skuU] = n;
     R_VER++;                                   // a typed quantity replaces the projection in the walk
-    try { await setDoc(doc(db, 'repl', 'prodstatus'), { reqQty: { [skuU]: n } }, { merge: true }); }
+    try { await fsSetDoc(doc(db, 'repl', 'prodstatus'), { reqQty: { [skuU]: n } }, { merge: true }); }
     catch (err) { $('arMsg').textContent = 'Could not save Req. Qty: ' + (err.message || err); }
     return;
   }
   const box = e.target.closest('.rmkbox'); if (!box) return;
   const sku = box.dataset.sku, val = box.value.trim().slice(0, 400);
   if (val) REMARK[sku] = val; else delete REMARK[sku];
-  try { await setDoc(doc(db, 'repl', 'prodstatus'), { remark: { [sku]: val || null } }, { merge: true }); }
+  try { await fsSetDoc(doc(db, 'repl', 'prodstatus'), { remark: { [sku]: val || null } }, { merge: true }); }
   catch (err) { $('arMsg').textContent = 'Save failed: ' + (err.message || err); }
 });
 

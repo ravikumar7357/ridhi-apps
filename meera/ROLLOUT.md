@@ -125,6 +125,28 @@ itself. Before 2 Nov it said `{"ok":true,"groq":true,"workersAi":true,"gemini":f
 **Next (B.2–B.3):** the admin page ("Meera's learning" + "New on the screens", opening even when the router is down), then
 `learn` on for everyone — each on its own "live karo".
 
+## 4b. The judge (17 Nov 2026) — switch `judge`, off for everyone
+
+**What it is:** when she is not clearly sure, her router's model is shown her top 20 answers (one line each) and only
+points at one by id; she shows her own checked words. It writes nothing, so it cannot invent a screen, button or number.
+Live figures, outside questions and chat never go to it. Router `/judge`, prompt `JUDGE_SYSTEM` in
+`meera/router/src/worker.js`; browser `gaAiJudge` in `guide-ai.ts`; numbers `judgeTop` / `judgeSure` / `judgeWaitMs` in
+`config.ts`; limits `JUDGE_DAILY` (40 a person) / `JUDGE_COMPANY` (2,000) in `wrangler.toml`, apart from `/ask`'s.
+
+1. **Checks** (no internet): `node meera/router/test/judge.test.mjs`, `node meera/tests/intent-check.cjs`, then the whole
+   gate `node meera/tests/ci-gate.cjs` — with the switch off nothing she says may change (580 golden answers the same).
+2. **Measure** with your own Groq key, on the tuning sets only: `node meera/tools/judge-eval.cjs` → right / wrong / not sure
+   before and after, fixed / broke, tokens a question. Try `--sure 0.85`, `--sure 0.95`; try `--model llama-3.1-8b-instant`.
+   Set `judgeSure` (config.ts) and `JUDGE_MODEL` (wrangler.toml) from it. Only then, once: `--held` for the honest score.
+3. **"live karo" for the router** (it must have `/judge` before any browser asks): push to main → "Meera router — test,
+   deploy". Check https://meera-router.erp-9a0.workers.dev/health still says ok. Nothing changes for staff yet.
+4. **Test link:** `?meera=lazy,judge` (and `,learn` for the flywheel). Ask 10–20 everyday questions; a judged answer looks
+   exactly like her own; "Checking…" shows for about a second. Phone too.
+5. **"live karo" for everyone:** `judge: true` in `MEERA_SWITCHES` (meera-bridge.js), push.
+
+**Undo:** admin page → Switches → judge off (router `/admin/config`, key `judge`; seconds, no deploy) — every browser then
+answers as without it. Or `judge: false` and push. One browser: `localStorage.setItem('meera.judge','0')`.
+
 ## 5. Server search (Phase 5) — PARKED (Ravi, 2 Nov 2026: "I'm not taking Workers Paid for now")
 
 Its search needs 27–53 ms of computer time per question; the free plan allows 10 ms. The code stays (switches `server`

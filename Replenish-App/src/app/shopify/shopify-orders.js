@@ -103,7 +103,7 @@ async function loadShopMeta() {
   } catch (e) { /* nothing saved yet, or no read access */ }
 }
 async function saveShopMeta() {
-  await setDoc(doc(db, 'audit', 'shoporders'),
+  await fsSetDoc(doc(db, 'audit', 'shoporders'),
     { m: SHOP_META, n: Object.keys(SHOP_META).length, by: ME.email, saved: serverTimestamp() });
 }
 
@@ -147,7 +147,7 @@ async function loadShopSku() {
   } catch (e) { /* nothing saved yet, or no read access */ }
 }
 async function saveShopSku() {
-  await setDoc(doc(db, 'audit', 'skumeta'),
+  await fsSetDoc(doc(db, 'audit', 'skumeta'),
     { m: SHOP_SKU, n: Object.keys(SHOP_SKU).length, by: ME.email, saved: serverTimestamp() });
 }
 const soSku = sku => SHOP_SKU[String(sku || '').trim().toUpperCase()] || {};
@@ -441,7 +441,7 @@ async function saveStockDoc(brand, map) {
       + 'so nothing was saved — the quantities you already had are untouched. '
       + 'Amazon is usually still building the report; try again in a few minutes.');
   }
-  await setDoc(doc(db, 'stock', brand), { m: map, n, at: serverTimestamp() });
+  await fsSetDoc(doc(db, 'stock', brand), { m: map, n, at: serverTimestamp() });
   return n;
 }
 
@@ -1158,6 +1158,9 @@ function shpOldestOpen() {
 
 async function ensureShop_() {
   soDirectSync();
+  /* THE NOTES FIRST, on their own: the old unfinished orders asked for by id (soOldOpen) are found in them, so the
+   * Shopify call below needs them. The bins and the stock do not, and are read while Shopify is asked. */
+  if (!Object.keys(SHOP_META).length) await loadShopMeta();
   if (!$('soFrom').value) {
     // The upper end is TOMORROW, not today. "Today" here is the marketplace's PT date, while the
     // Shopify store keeps its own — and an order placed this evening in the store's zone can
@@ -1174,9 +1177,9 @@ async function ensureShop_() {
      * dates stay short. Widen the dates by hand to see older shipped orders. */
     $('soFrom').value = sdShift(sdToday(), -SO_COPY.windowDays);
   }
-  /* The three reads at the same time — notes, bins, Amazon stock. Each fills its own map. */
-  await Promise.all([
-    Object.keys(SHOP_META).length ? null : loadShopMeta(),
+  /* THE BINS AND THE STOCK ARE READ WHILE SHOPIFY IS ASKED, not before it. Shopify is the long wait; the fetched
+   * orders are drawn, and the sync asked, once these two are in as well. */
+  const side = Promise.all([
     Object.keys(SHOP_SKU).length ? null : loadShopSku(),
     Object.keys(SHOP_STOCK).length ? null : loadShopStock(),
   ]);
@@ -1200,7 +1203,7 @@ async function ensureShop_() {
     if (soCopyMode() === 'copy' && !SHOP.orders.length) {
       const want = soWant();
       let shown = false;
-      try { shown = await soCopyOpen(want); } catch (e) { shown = false; }
+      try { await side.catch(() => {}); shown = await soCopyOpen(want); } catch (e) { shown = false; }
       if (shown) {
         soMsg('Showing this device\'s copy — asking Shopify what has changed…');
         renderShop();
@@ -1208,9 +1211,11 @@ async function ensureShop_() {
         return;
       }
     }
-    await fetchShopOrders();
-  }
-  else renderShop();
+    /* What was fetched a few minutes ago stays on screen while the new list is asked for — a blank tab for those
+     * seconds told nobody anything. The sync still waits for the fresh orders: it is run only after a fetch. */
+    if (SHOP.orders.length) renderShop();
+    await fetchShopOrders({ ready: side });
+  } else { await side; renderShop(); }
 }
 
 /** The window the toolbar asks for. */
@@ -1236,7 +1241,12 @@ async function fetchShopOrders(opts) {
   /* COPY MODE: the button asks what CHANGED, not everything again (soCopyRefresh fills the full way by itself when
    * the dates have moved outside what the copy holds). { live: true } is the fall-back to today's way. */
   const live = !!(opts && opts.live === true);
-  if (!live && soCopyMode() === 'copy' && SHOP.copy) { soMsg('Asking Shopify what has changed…'); await soCopyRefresh(soWant(), { now: true }); return; }
+  /* ready: what has to be in before the fetched orders are drawn (the bins and the stock, read alongside). */
+  const ready = opts && opts.ready;
+  if (!live && soCopyMode() === 'copy' && SHOP.copy) {
+    if (ready) await ready.catch(() => {});
+    soMsg('Asking Shopify what has changed…'); await soCopyRefresh(soWant(), { now: true }); return;
+  }
   const btn = $('soGo');
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>…';
   let fetched = false;
@@ -1249,9 +1259,11 @@ async function fetchShopOrders(opts) {
     const ask = Object.assign({}, win, old.reach && old.reach < win.start ? { start: old.reach } : {});
     /* Two stores, asked at the same time. CPC's own failure must not cost us Ridhi's orders — this
      * screen is the shipping queue, and half of it is worth much more than none of it. */
+    /* NINETY SECONDS, then it says so. Apps Script that never answers left "Asking Shopify…" on screen for good. */
+    const lim = { timeoutMs: 90000 };
     const [r, cpc] = await Promise.all([
-      soAskStore('SP', ask, old.ids),
-      soAskStore('CPC', ask, old.ids).catch(e => ({ orders: [], err: e.message || String(e) })),
+      soAskStore('SP', ask, old.ids, lim),
+      soAskStore('CPC', ask, old.ids, lim).catch(e => ({ orders: [], err: e.message || String(e) })),
     ]);
     SHOP = { orders: r.orders.concat(cpc.orders || []), from: r.from, to: r.to, tz: r.tz || '', at: soStamp(),
       cpcErr: cpc.err || '' };
@@ -1271,6 +1283,7 @@ async function fetchShopOrders(opts) {
     soMsg('Could not reach Shopify: ' + (e.message || e), true);
   }
   btn.disabled = false; btn.textContent = 'Fetch orders';
+  if (ready) await ready.catch(() => {});
   renderShop();
   /* PHOTOS AFTER THE ORDERS (phase 0): the list is on screen first; the pictures fill in a moment later. The
    * production sync waits for them, because it copies each line's photo onto its production row. */
@@ -1668,6 +1681,7 @@ function renderShop() {
   const pane = $('paneShop');
   if (pane && pane.classList && pane.classList.contains('hide')) { try { soRows(); } catch (e) { /* drawn on the way in */ } return; }
   /* The returns team (returns-team.js): its three tools, never the orders table. */
+  if (typeof SHOP_BKT_ONLY === 'function' && SHOP_BKT_ONLY()) { renderShopBkt(); return; }   // the production team: the bucket only
   if (typeof SHOP_RET_ONLY === 'function' && SHOP_RET_ONLY()) { renderShopRet(); return; }
   const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const money = v => '$' + Math.round(v || 0).toLocaleString('en-US');

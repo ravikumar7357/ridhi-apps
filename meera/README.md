@@ -40,6 +40,7 @@ meera-words.bin). With the "serveruse" switch the router searches them instead o
 | server | her router searches side by side (she still answers as before; differences are kept for an admin) | lazy |
 | serveruse | her router's search answers; her own copy is the fallback | lazy, router deployed |
 | screenfirst | the open screen's own answers first; another screen's answer says which screen it is for | — |
+| judge | not clearly sure → her router's model is shown her top 20 answers and only points at one; she shows her own words. Figures, outside, chat never go to it; a 👍 pick becomes a new way of asking for an admin (router `/judge`, `JUDGE_DAILY` / `JUDGE_COMPANY` / `JUDGE_MODEL` in wrangler.toml; admin switch `judge`) | router deployed |
 | autobank | on every push her answers follow the screens: new part → answer from its label and help text, renamed → reworded, removed → taken out; new screen or job → a draft on the admin page (meera/tools/autobank.cjs, list in meera/bank/CHANGES.md) | — (read by the build) |
 
 Try one for a single visit with `?meera=lazy,spell` at the end of the address, or for one browser with

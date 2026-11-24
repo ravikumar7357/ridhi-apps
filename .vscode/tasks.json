@@ -1,0 +1,42 @@
+{
+  // The four buttons. In VS Code: Terminal -> Run Task… (or Ctrl+Shift+P -> "Run Task") and pick one.
+  // Shortcuts:  Ctrl+Shift+B = button 1 (check locally).
+  //             Ctrl+Alt+T   = button 2 (send to TEST ERP) — each person adds it once, in their own
+  //             keybindings.json (Ctrl+Shift+P -> "Preferences: Open Keyboard Shortcuts (JSON)"):
+  //             { "key": "ctrl+alt+t", "command": "workbench.action.tasks.runTask", "args": "2 · Send to TEST ERP" }
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1 · Check locally (saving off)",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/check-local.ps1",
+      "group": { "kind": "build", "isDefault": true },
+      "isBackground": false,
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "2 · Send to TEST ERP",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/send-to-test.ps1",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true }
+    },
+    {
+      "label": "3 · Send to REAL (main): open the release page",
+      "type": "shell",
+      "command": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/send-to-main.ps1",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      // Reads only: is the real ERP the code on main, is R1 the code on dev, and what R1 has that the real ERP has not.
+      "label": "4 · Compare REAL ERP with GitHub (reads only)",
+      "type": "shell",
+      "command": "node tools/compare-real.js",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true }
+    }
+  ]
+}

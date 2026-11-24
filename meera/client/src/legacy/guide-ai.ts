@@ -97,6 +97,69 @@ async function gaAiFeedback(id) {
     : L(`Sorry. I have sent this to the admin team${t ? ` (ticket #${+t})` : ''}.`, `माफ़ कीजिए। मैंने इसे एडमिन टीम को भेज दिया है${t ? ` (टिकट #${+t})` : ''}।`, `Maaf kijiye. Maine ise admin team ko bhej diya hai${t ? ` (ticket #${+t})` : ''}.`), []);
 }
 
+/* ================= THE JUDGE (17 Nov 2026, switch "judge"; router /judge) =================
+ * Her search finds the right answer somewhere in her top 20 far more often than it puts it first. When she is not
+ * clearly sure (a "not sure", a "did you mean", or a sure answer under judgeSure), the model is shown her top 20 as one
+ * line each and only points at one by id — she then shows HER OWN checked answer. It writes nothing, so it cannot invent
+ * a screen, a button or a number. Live figures, outside questions and chat never go to it (intent.ts). Over its own day's
+ * limit, slow, or down: she answers exactly as without it. A pick the person confirms (👍) is kept for an admin as a new
+ * way of asking (with switch "learn") — the flywheel: next time the same words find it with no AI. */
+function gaJudgeOk() {
+  if (!gaAiOn() || !meeraOn('judge')) return false;
+  try { return localStorage.getItem('guideJudgeFull') !== gaAiDay(); } catch (e) { return true; }
+}
+/** true when the judge said the answer itself; false: answer as without it (r, her own reply, is unchanged). */
+async function gaAiJudge(q, r, pre) {
+  if (!gaJudgeOk() || !r || r.off) return false;
+  const { lang, means, words } = gaRead(q), L = gaLL(lang);
+  await gaBankLoad();
+  let hits = [];
+  const k = GA_TOPK;
+  GA_TOPK = MEERA_CONFIG.judgeTop;
+  try { hits = gaBankFind(means, words, q); } finally { GA_TOPK = k; }
+  hits = hits.filter(h => h && h.e && h.e.id && !/^learned-/.test(h.e.id));
+  if (hits.length < 2) return false;
+  if (r.bank && hits[0].s >= MEERA_CONFIG.judgeSure) return false;   // clearly sure: her own answer, no AI
+  const kind = typeof miClassify === 'function' ? miClassify(q).intent : 'unknown';
+  if (kind === 'data' || kind === 'outside' || kind === 'chat') return false;   // never to an AI
+  gaSay(L('Checking…', 'जाँच रही हूँ…', 'Check kar rahi hoon…'), []);
+  const wait = $('gaLog').lastElementChild;
+  const cleanQ = typeof mlClean === 'function' ? mlClean(q) : gaClean(q, gaNames());
+  let res: any;
+  try {
+    res = await Promise.race([gaAiCall('/judge', { q: cleanQ, lang, screen: gaHere(), kind, ids: hits.map(h => h.e.id), names: gaNames() }),
+      new Promise((_, no) => setTimeout(() => no(new Error('slow')), MEERA_CONFIG.judgeWaitMs))]);
+  } catch (e) { res = { status: 0, body: {} }; }
+  if (wait) wait.remove();
+  const b = (res && res.body) || {};
+  if (res && res.status === 429) { try { localStorage.setItem('guideJudgeFull', gaAiDay()); } catch (e) { /* asks again next time */ } return false; }
+  if (!res || res.status !== 200) return false;
+  const byId = id => hits.find(h => h.e.id === id);
+  const p = b.pick && byId(b.pick);
+  if (p) {
+    const a = gaBankAnswer(p.e, lang, L, hits.filter(h => h !== p && h.s >= GA_BANK_NEAR).slice(0, 2));
+    GA.judged = { q, id: p.e.id };
+    const fb = `<div class="ga-fb"><span>${L('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(p.e.id)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(p.e.id)}" aria-label="No">👎</button></div>`;
+    gaSay((pre || '') + a.html, a.acts, (a.after || '') + fb, 'guide');
+    return true;
+  }
+  const two = (Array.isArray(b.ask) ? b.ask : []).map(byId).filter(Boolean);
+  if (two.length >= 2) {
+    gaSay((pre || '') + L('Your question fits more than one answer. Which one do you mean?', 'आपका सवाल एक से ज़्यादा जवाबों से मिलता है। आप कौन-सा पूछ रहे हैं?', 'Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain?')
+      + gaNearHtml(two, lang, ''), []);
+    return true;
+  }
+  return false;   // none fits: as without the judge (sure: her answer; not sure: the AI writes or a ticket)
+}
+/** 👍 on the judge's pick: a new way of asking for that answer, kept (cleaned) for an admin — switch "learn" only */
+function gaAiJudgeConfirm(id) {
+  const j = GA.judged;
+  GA.judged = null;
+  if (!j || j.id !== id || !meeraOn('learn') || !gaAiOn()) return;
+  const lang = gaRead(j.q).lang, cleanQ = typeof mlClean === 'function' ? mlClean(j.q) : gaClean(j.q, gaNames());
+  gaAiCall('/learn', { kind: 'judged', q: cleanQ, answer: j.id, screen: gaHere(), lang, names: gaNames() }).catch(() => { /* not kept: no harm */ });
+}
+
 /** What admins answered or approved: joins Meera's own answers (as learned-<id>). Never holds up her own list. */
 async function gaAiLearned(list) {
   if (!gaAiOn()) return list;

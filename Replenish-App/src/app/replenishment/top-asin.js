@@ -104,8 +104,8 @@ function buildIndiaMap() {
 }
 async function saveIndiaStock(rows) {
   const chunks = Math.ceil(rows.length / INDIA_CHUNK) || 1;
-  for (let i = 0; i < chunks; i++) await setDoc(doc(db, 'repl_india', String(i)), { r: rows.slice(i * INDIA_CHUNK, (i + 1) * INDIA_CHUNK) });
-  await setDoc(doc(db, 'repl', 'indiastock'), { chunks, n: rows.length, rows: null, by: ME.email, at: serverTimestamp() });
+  for (let i = 0; i < chunks; i++) await fsSetDoc(doc(db, 'repl_india', String(i)), { r: rows.slice(i * INDIA_CHUNK, (i + 1) * INDIA_CHUNK) });
+  await fsSetDoc(doc(db, 'repl', 'indiastock'), { chunks, n: rows.length, rows: null, by: ME.email, at: serverTimestamp() });
 }
 $('topBrand').addEventListener('change', renderTop);
 
@@ -264,7 +264,7 @@ $('topTable').addEventListener('change', async e => {
   const box = e.target.closest('.rmkbox'); if (!box) return;
   const sku = box.dataset.sku, val = box.value.trim().slice(0, 400);
   if (val) REMARK[sku] = val; else delete REMARK[sku];
-  try { await setDoc(doc(db, 'repl', 'prodstatus'), { remark: { [sku]: val || null } }, { merge: true }); }
+  try { await fsSetDoc(doc(db, 'repl', 'prodstatus'), { remark: { [sku]: val || null } }, { merge: true }); }
   catch (err) { $('topMsg').textContent = 'Save failed: ' + (err.message || err); }
 });
 
@@ -299,7 +299,7 @@ $('prodLogSave').onclick = async () => {
   // Update the cell in the table without full re-render
   const cell = $('topTable').querySelector(`.prodlog-cell[data-sku="${CSS.escape(sku)}"]`);
   if (cell) cell.innerHTML = `<div class="prodlog-date">${esc(today)}</div><div class="prodlog-latest">${esc(note)}</div><br><button class="prodlog-add" data-sku="${esc(sku)}">+ Log</button>`;
-  try { await setDoc(doc(db,'repl','prodstatus'), { prodlog: { [sku]: PROD[sku] } }, { merge: true }); }
+  try { await fsSetDoc(doc(db,'repl','prodstatus'), { prodlog: { [sku]: PROD[sku] } }, { merge: true }); }
   catch (err) { $('topMsg').textContent = 'Save failed: ' + (err.message || err); }
 };
 $('topTable').addEventListener('click', e => {

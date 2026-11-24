@@ -209,21 +209,18 @@ async function palLoad() {
   PAL.busy = false; PAL.at = ptStamp();
 }
 async function ensurePal() {
-  if (PAL.printers === null) { PAL.busy = true; renderPal(); await palLoad(); }
-  /* What each colour sold comes from the snapshot rows. A slim copy written before 26 Sep has no last90; until the
-   * next snapshot writes one, an account allowed the full copy reads that instead. */
-  if (replFull() && !['SP', 'CPC'].some(b => REPL[b] && (REPL[b].rows || []).some(r => r && r.last90 != null))) {
-    try { await loadReplCache(true); } catch (e) { /* the designs still draw, without sales */ }
-  }
-  /* Measured capacity comes from the delivery log; this tab never needed it before. */
-  if (!VO.rows) {
-    try {
-      const raw = (await ptGet('pt_vendorOrders')) || {};
-      VO.rows = [];
-      Object.entries(raw).forEach(([code, orders]) => Object.values(orders || {})
-        .forEach(o => { if (o) VO.rows.push(Object.assign({ vendorCode: code }, o)); }));
-    } catch (e) { VO.rows = VO.rows || []; }
-  }
+  if (PAL.printers === null) { PAL.busy = true; renderPal(); }
+  /* Read together: the printers, the snapshot's sales and the delivery log need nothing from each other. */
+  await Promise.all([
+    PAL.printers === null ? palLoad() : null,
+    /* What each colour sold comes from the snapshot rows. A slim copy written before 26 Sep has no last90; until the
+     * next snapshot writes one, an account allowed the full copy reads that instead. */
+    replFull() && !['SP', 'CPC'].some(b => REPL[b] && (REPL[b].rows || []).some(r => r && r.last90 != null))
+      ? loadReplCache(true).catch(() => { /* the designs still draw, without sales */ }) : null,
+    /* Measured capacity comes from the delivery log; this tab never needed it before. Read the one way every screen
+     * reads it, so the vendor map comes with it — filled here by hand, the orders were in and the map never was. */
+    VO.rows === null ? ensureVo().catch(() => { VO.rows = VO.rows || []; }) : null,
+  ]);
   renderPal();
 }
 

@@ -287,7 +287,7 @@ function syncNavGroups() {
     g.head.classList.toggle('hide', dead);
     g.sec.classList.toggle('hide', dead);
   });
-  if ($('tabVpAs')) $('tabVpAs').style.display = ME && (ME.admin || ME.vpView) && !NAV_IS_VENDOR ? '' : 'none';   // the printer's view: admins, and the 'vpview' box
+  if ($('tabVpAs')) $('tabVpAs').style.display = ME && (ME.admin || ME.vpView || ME.vpRecv) && !NAV_IS_VENDOR ? '' : 'none';   // the printer's view: admins, the 'vpview' box, and Printed fabric in (receives there)
 }
 
 /* The hamburger hides the sidebar outright on a wide screen and slides it over the page on a narrow
@@ -449,14 +449,17 @@ function showTab(which) {
   if (which === 'shopprod') which = 'ord';
   /* 'shopret' (the Shopify returns team, 15 Oct) is the Shopify Orders screen in its narrow form (returns-team.js). */
   if (which === 'shopret') which = 'shop';
+  /* 'shopbkt' (the Shopify production bucket, 2 Nov) is the same screen in the production team's narrow form (bucket-team.js). */
+  if (which === 'shopbkt') which = 'shop';
   /* A production-flow bucket right opens the one flow screen; the guard below lets it in for any bucket held. */
   if (FLOW_TABS.includes(which)) which = 'flow';
   if (ME.tabs && ME.tabs.length && !ME.tabs.includes(which)
       && !(which === 'ord' && ME.tabs.includes('shopprod'))
-      && !(which === 'shop' && ME.tabs.includes('shopret'))
+      && !(which === 'shop' && (ME.tabs.includes('shopret') || ME.tabs.includes('shopbkt')))
       && !(which === 'flow' && FLOW_ON && flowBucketsAllowed().length)
       && !(which === 'gdesk' && FLOW_ON && gdAllowed())) which = FLOW_TABS.includes(ME.tabs[0]) ? 'flow' : ME.tabs[0];
   if (which === 'shopret') which = 'shop';   // the returns team's only screen, when it is the first one they hold
+  if (which === 'shopbkt') which = 'shop';   // the production team's only screen, likewise
   if (which === 'shopprod') which = 'ord';
   const panes = { access: 'paneAccess', dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', ctrend: 'paneCtrend', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj', flow: 'paneFlow', gdesk: 'paneGdesk' };
   const navs = { access: 'tabAccess', dash: 'tabDash', repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj', flow: 'tabFlow', gdesk: 'tabGdesk' };
@@ -475,6 +478,7 @@ function showTab(which) {
   VEND_WAS_ON = (which === 'vend');
   const TAB_PREV = TAB_NOW;
   TAB_NOW = which;
+  if (typeof monScreen === 'function') monScreen(which);
   /* THE ADDRESS SAYS THE SCREEN, so a link to it — a new tab, a reload — opens here again. Since 14 Oct it is pushed when
    * you move from one screen to another, so Back goes to the screen before instead of out of the app. */
   /* Back returns to the screen before (14 Oct): a screen picked here is a new step — except the first one shown, and one
@@ -493,7 +497,7 @@ function showTab(which) {
   if (typeof mobSync === 'function') mobSync(which);
   try { meeraBridgeEmit('screen', which); } catch (e) { /* Meera (through her bridge) is not on the page yet — the screen still opens */ }
   /* The screen's name where a name belongs when it is not on the page: the browser tab. */
-  try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'Ridhi Home & Living'; } catch (e) { /* nothing depends on it */ }
+  try { document.title = ($('pageTitle').textContent || '') + ($('pageTitle').textContent ? ' · ' : '') + 'R-one'; } catch (e) { /* nothing depends on it */ }
   /* There is no drawer to close any more: the menu is the bar across the top, on every width. */
   if (which === 'dash') ensureDash();
   /* THE REPLENISHMENT SCREENS READ THEIR OWN SNAPSHOT (2026-09-26). Sign-in used to read the full copy and draw the
@@ -504,6 +508,10 @@ function showTab(which) {
   if (which === 'ctrend') ensureReplData().then(renderCtrend, renderCtrend);
   if (which === 'target') ensureTarget();
   if (which === 'follow') ensureFollow();
+  /* Top and Shopify: what they need besides the snapshot is STARTED here, read while the snapshot is — each screen
+   * then finds it under way (both reads share a promise) instead of starting it after the snapshot lands. */
+  if (which === 'top') loadIndiaStock();
+  if (which === 'shopify') { shopifyStart(); ptNeed(PTG_ALL, { why: 'shopify', has: 'mdb' }).catch(() => {}); }
   if (which === 'top') ensureReplData().then(ensureTop, ensureTop);
   if (which === 'india') ensureIndia();
   if (which === 'shopify') ensureReplData().then(ensureShopify, ensureShopify);
@@ -526,9 +534,10 @@ function showTab(which) {
   if (which === 'cx') ensureCx();
   if (which === 'palloc') ensurePal();
   /* The register is re-read every time the tab is opened — Refresh used to do this, and two people
-   * entering stock on the same afternoon have to be able to see each other's work. */
-  if (which === 'fgi') { FGI.rows = null; ensureFgi(); }
-  if (which === 'fba') { FGI.rows = null; ensureFba(); }
+   * entering stock on the same afternoon have to be able to see each other's work. Within two minutes of the last
+   * read it is drawn at once and read again behind the screen (fgiOpen, finished-goods.js). */
+  if (which === 'fgi') fgiOpen('fgi');
+  if (which === 'fba') fgiOpen('fba');
   if (which === 'rep') ensureRep();
   if (which === 'pa' || which === 'ka') ensurePa();
   if (which === 'fab') ensureFab();

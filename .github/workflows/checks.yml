@@ -1,0 +1,61 @@
+# Runs on every pull request and every push to dev and main. A pull request into main can be merged only when
+# this passes (set in GitHub → Settings → Branches). See RELEASE.md.
+#
+# What it checks:
+#   - each app's public/index.html is exactly what its src/ makes (no hand edit to a generated file)
+#   - the database rules draft is exactly what rules/build-rules.js makes
+#   - every Apps Script file parses
+#   - the test suites that need no live data
+# prod-test, shop-test, tabs-test and appv-test read a backup of the live database that lives only on the
+# original developer's machine, so they are run there by hand before a release (RELEASE.md, step 4).
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Replenish-App/package-lock.json
+
+      # the ERP page is joined with esbuild since Meera's files became TypeScript (main, 2 Nov) — as replenish-hosting.yml does
+      - name: Install
+        working-directory: Replenish-App
+        run: npm ci
+
+      - name: Generated pages match their source
+        run: |
+          node Replenish-App/tests/assemble.js --check
+          node Replenish-App/tests/assemble.js --root Pricing-App --check
+
+      - name: Database rules draft matches its builder
+        run: |
+          node Pricing-App/rules/build-rules.js
+          git diff --exit-code -- Pricing-App/database.rules.next.json
+
+      - name: Apps Script files parse
+        run: node Replenish-App/tests/gs-syntax-test.js
+
+      # 21 Nov: a bare apostrophe in one label stopped the whole factory ERP page; "matches its source" cannot see that
+      - name: The factory ERP page's scripts parse
+        run: node Replenish-App/tests/page-scripts-parse-test.js
+
+      - name: Test suites
+        working-directory: Replenish-App
+        run: |
+          node tests/flow-test.js
+          node tests/delta-test.js
+          node tests/sync-test.js
+          node tests/pack-core-test.js
+          node tests/pack-scan-test.js
+          node tests/pack-verify-test.js

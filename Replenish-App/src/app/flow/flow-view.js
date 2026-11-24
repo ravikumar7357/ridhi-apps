@@ -23,17 +23,21 @@ async function flowReads(parts) {
 /** Everything the lines are worked out from — also read by the Finished Goods screen's "From QC — to accept". */
 async function flowEnsureData() {
   const errs = [];
-  if (ptLack(PTG_ALL, 'mdb')) errs.push(...await flowReads([['the order book and registers', ptNeed(PTG_ALL, { why: 'flow' })]]));
+  /* ALL AT ONCE, the order book with the rest. Everything below that needs the order book waits for it by itself (each
+   * asks ptLoadGates, which reads it once for all of them); nothing else waited for anything. Each read is named, so the
+   * line under the toolbar says which are still coming, and one that fails is said (FLOW.readErr). */
   /* Printer Allocation too: PPC's printer is suggested from it. */
   /* The store too: the printed stock PPC sees beside the RFD balance (Store Stock Balance; its Job Work and cutting
    * registers are the ones the order book has already read). */
-  /* QC checks and the Finished Goods ledger: the QC bucket and the hand-over read them. All at once now — they were read
-   * one after the other before the rest (23 Oct); the QC checks the gates have just read are not read a second time. */
+  /* QC checks and the Finished Goods ledger: the QC bucket and the hand-over read them. */
   if (typeof QC !== 'undefined' && QC.checks == null && PTG.qc && PTG.qc.length) QC.checks = PTG.qc;
   errs.push(...await flowReads([
+    ['the order book and registers', ptLack(PTG_ALL, 'mdb') ? ptNeed(PTG_ALL, { why: 'flow' }) : null],
     ['QC checks', typeof QC !== 'undefined' && QC.checks == null ? ptGet('pt_qcChecks').then(v => { QC.checks = ptList(v); }) : null],
     ['Finished Goods', typeof FGI !== 'undefined' && FGI.rows == null && typeof fgiLoad === 'function' ? fgiLoad() : null],
     ['plans and challans', flowLoad()], ['the fabric register', flowFabLoad()],
+    /* the printers' copies of the RFD challans: what is still on its way to them (flow-challan.js, CLOTH ON ITS WAY) */
+    ['cloth at printers', FLOW.cloth == null ? flowClothLoad() : null],
     ['store stock', typeof STORE !== 'undefined' && STORE.rows === null ? ensureStore() : null],
     ['printer allocation', PAL.printers === null ? palLoad() : null],
     ['vendor orders', typeof ensureVo === 'function' ? ensureVo() : null],
@@ -41,14 +45,19 @@ async function flowEnsureData() {
     /* the Custom SKUs list: a Shopify / B2B SKU that is only there has its BOM written there from PPC (flowMasterBox) */
     ['custom SKUs', typeof ptEnsureCustom === 'function' ? ptEnsureCustom() : null],
     /* The Greige Desk's RFD counts in Demand → RFD on the test link. */
-    ['the Greige Desk', FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure() : null]]));
+    ['the Greige Desk', FLOW_ON && typeof GD !== 'undefined' && flowGdReads() ? GD.ensure() : null],
+    /* THE COMPANY ON THE RFD CHALLAN (Vishesh, 23 Nov: "add GST number of the company"): the challan prints the company's name,
+     * address and GSTIN from the PO settings, which only the Greige POs screen read — so a challan made from Demand or the
+     * Inventory card printed without them. The small settings record alone is read here, once. */
+    ['company details', typeof GPO !== 'undefined' && !GPO.settings ? ptGet('pt_poSettings').then(v => { if (!GPO.settings) GPO.settings = v || {}; }) : null]]));
   FLOW.readErr = errs;
 }
 
 /* The Fabric register, for the RFD stock Demand shows — read here without drawing the Fabric screen. */
 async function flowFabLoad() {
   if (FAB.rows) return;
-  try { FAB.rows = ptList(await ptGet('pt_fabInvLedger')); await fabAutoLoad(); } catch (e) { FAB.rows = FAB.rows || []; }
+  /* The ledger and what is taken off it, read together. */
+  try { const [v] = await Promise.all([ptGet('pt_fabInvLedger'), fabAutoLoad()]); FAB.rows = ptList(v); } catch (e) { FAB.rows = FAB.rows || []; }
 }
 function flowCounts(rows) {
   const n = {}; FLOW_BUCKETS.forEach(b => { n[b[0]] = 0; });
@@ -102,8 +111,6 @@ function renderFlow() {
   FLOW.held = FLOW_VIEW === 'dacc' ? shown.filter(x => x.s.res && !x.s.issued && x.s.bucket !== 'done') : [];
   $('flTable').innerHTML = flowTable(FLOW_VIEW, rows.slice(0, 800));
   $('flTable').classList.toggle('fl-e', FLOW_VIEW === 'drfd' && (FLOW_ANGLE[FLOW_VIEW] || 'line') === 'line');
-  /* The receive sheet hugs its content (Ravi, 31 Oct: "bahut jyada space"): no stretched Item column with Size and Ordered at the far edge. */
-  $('flTable').classList.toggle('fl-due', FLOW_VIEW === 'dhist' && (FLOW_ANGLE.dhist || 'due') === 'due');
   $('flTable').classList.toggle('fl-ppc', FLOW_VIEW === 'ppc');
   /* PPC in Excel: on the PPC bucket only — the lines on screen are what the sheet holds. */
   FLOW.shownPpc = FLOW_VIEW === 'ppc' ? rows : [];
@@ -149,10 +156,10 @@ function renderFlow() {
   /* DEMAND, ONE TAB (Ravi, 12 Oct): its parts as tabs, like Listing Health's — RFD out to printers, printed fabric in, accessories. */
   if (FLOW_DEMAND.includes(FLOW_VIEW)) FLOW.panel = (FLOW.eMode && FLOW_VIEW === 'drfd' ? '' : `<div class="seg" style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-right:14px">${dem.map(([k, l]) =>
     `<button data-fldem="${k}" class="${k === FLOW_VIEW ? '' : 'ghost'}" style="width:auto;padding:5px 14px;font-size:13px">${esc(l)} <b>${nf(n[k] || 0)}</b></button>`).join('')}</div>`) + (FLOW.panel || '')
-    + (FLOW_VIEW === 'dhist' ? `<div class="seg" style="display:inline-flex;gap:4px">${[['due', 'Orders with printers · receive'], ['remind', 'Due dates · remind'], ['challan', 'By challan'], ['day', 'Received by date']].map(([k, l]) =>
-      `<button data-flang="${k}" class="${(FLOW_ANGLE.dhist || 'due') === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}${k === 'remind' ? (n => n ? ` <b style="background:#fff;color:var(--bad);border-radius:9px;padding:0 7px;margin-left:2px">${nf(n)} late</b>` : '')(flowRemLateN(only)) : ''}</button>`).join('')}</div>`
+    + (FLOW_VIEW === 'dhist' ? `<div class="seg" style="display:inline-flex;gap:4px">${[['remind', 'Due dates · remind'], ['challan', 'By challan'], ['day', 'Received by date']].map(([k, l]) =>
+      `<button data-flang="${k}" class="${flowDhistAngle() === k ? '' : 'ghost'}" style="width:auto;padding:4px 12px;font-size:12.5px">${l}${k === 'remind' ? (n => n ? ` <b style="background:#fff;color:var(--bad);border-radius:9px;padding:0 7px;margin-left:2px">${nf(n)} late</b>` : '')(flowRemLateN(only)) : ''}</button>`).join('')}</div>`
       + (FLOW_ANGLE.dhist === 'day' ? flowRecvDayBar(q, only) : '')
-      + ((FLOW_ANGLE.dhist || 'due') === 'due' ? flowDueBar(only) + ' <button type="button" class="ghost" data-fldxl="1" style="width:auto;padding:4px 12px;font-size:12.5px;margin-left:6px">Download Excel</button>' : FLOW_ANGLE.dhist === 'remind' ? '' : flowStandingHtml()) : '');
+      + (flowDhistAngle() === 'remind' ? '' : flowStandingHtml()) + flowDhistReceiveBar() : '');
   /* RFD short? The Greige Desk shows the greige to order for it (Ravi, 13 Oct: Greige Desk joined to the PPC flow). */
   if (FLOW_VIEW === 'drfd' && typeof GD !== 'undefined' && gdAllowed()) FLOW.panel = (FLOW.panel || '') + '<button type="button" class="ghost" data-gdgo="inv" style="width:auto;padding:5px 14px;font-size:13px;margin-left:10px">Greige Desk · PPC demand</button>';
   /* RFD stock is the Greige Desk's count: not read here, the Demand figures say so instead of showing a false "short". */
@@ -513,6 +520,12 @@ function flowByPrintTable(rows) {
 }
 /* WHAT THE CUTTING DEPARTMENT CUTS FROM, for a planned line: the printed fabric (from the store, or back from the
  * printer), how much, for how many pieces of the order. */
+/** Which lot the Greige Desk sent to cutting for this line, so the cutting master knows whose thans they are (Ravi, 21 Nov). */
+function flowCutFromLot(s) {
+  const fr = s.demand && s.demand.fabricReady;
+  if (!fr || !fr.cutEntry || !fr.lot) return '';
+  return `<div style="font-size:10.5px;color:#166534"><b>${esc(fr.lot)}</b> · ${nf(+fr.metres || 0)} m sent to cutting</div>`;
+}
 function flowCutFrom(x) {
   const p = x.s.plan;
   /* THE CUTTING ROUTE (16 Oct: the column said "—"). No printer: the line is cut from RFD — or, ticked "already printed / in
@@ -521,7 +534,8 @@ function flowCutFrom(x) {
     const colour = String(((cutSkuOf(x.r.sku) || {}).color) || x.r.color || '').trim();
     const m = flowR2((+p.fabric.metres || 0) || (+p.fabric.perPc || 0) * (+x.r.qty || 0));
     return `<b>${esc(p.fabric.name)}</b>${p.fabric.noRfd && colour ? ' · ' + esc(colour) : ''} <span class="pill ${p.fabric.noRfd ? 'ok' : 'mute'}" style="font-size:10.5px">${p.fabric.noRfd ? 'printed, in hand' : 'RFD'}</span>`
-      + `<div class="muted" style="font-size:10.5px">${nf(m)} m for ${nf(x.r.qty)} pcs</div>`;
+      + `<div class="muted" style="font-size:10.5px">${nf(m)} m for ${nf(x.r.qty)} pcs</div>`
+      + flowCutFromLot(x.s);
   }
   if (!p || !flowPrinted(x.s.route)) return '<span class="muted">—</span>';
   const w = flowPrintWhat(x.r, p), m = flowR2(+(p.fabric && p.fabric.metres) || 0), fp = +(p.fabric && p.fabric.fromPrinted) || 0;
@@ -615,9 +629,7 @@ function flowTable(view, rows) {
   const due = (iso, label) => iso ? `<div class="muted" style="font-size:10.5px${flowLate(iso) ? ';color:#b91c1c;font-weight:600' : ''}">${label} ${esc(iso.slice(5))}${flowLate(iso) ? ' · late' : ''}</div>` : '';
   let head = '', body = '';
   if (view === 'pord') return flowPoTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
-  /* PRINTED FABRIC IN OPENS ON THE ORDERS WITH PRINTERS (Ravi, 23 Oct): every order given to a printer, received right there. */
-  if (view === 'dhist' && (FLOW_ANGLE.dhist || 'due') === 'due') return flowDueTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
-  if (view === 'dhist' && FLOW_ANGLE.dhist === 'remind') return flowRemTable(FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
+  if (view === 'dhist' && flowDhistAngle() === 'remind') return flowRemTable(FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   if (view === 'dhist' && FLOW_ANGLE.dhist === 'day') return flowRecvDayTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   if (view === 'dhist') return flowHistTable(String($('flQ').value || '').trim().toLowerCase(), FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly());
   if (view === 'new') {

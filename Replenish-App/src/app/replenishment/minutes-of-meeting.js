@@ -56,7 +56,7 @@ $('momSave').onclick = async () => {
   const cell = $('arTable').querySelector(`.mom-cell[data-sku="${CSS.escape(sku)}"]`)
     || [...$('arTable').querySelectorAll('.mom-cell')].find(c => skuKey(c.dataset.sku) === sku);
   if (cell) cell.innerHTML = momCellHtml(cell.dataset.sku, esc);
-  try { await setDoc(doc(db, 'repl', 'prodstatus'), { momlog: { [sku]: MOM[sku] } }, { merge: true }); }
+  try { await fsSetDoc(doc(db, 'repl', 'prodstatus'), { momlog: { [sku]: MOM[sku] } }, { merge: true }); }
   catch (err) { $('arMsg').textContent = 'Save failed: ' + (err.message || err); }
 };
 $('arTable').addEventListener('click', e => {

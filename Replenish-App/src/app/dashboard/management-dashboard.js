@@ -28,7 +28,9 @@ async function ensureDash() {
     take('fabric', async () => { if (FAB.rows == null) FAB.rows = ptList(await ptGet('pt_fabInvLedger')); }),
     take('RFD', async () => { if (!RFD.decisions) { const [d, st] = await Promise.all([ptGet('pt_rfdDecisions'), ptGet('pt_rfdStock')]); RFD.decisions = d || {}; RFD.stock = st || {}; } }),
     take('vendor requests', async () => { if (VRQ.rows == null) VRQ.rows = ptList(await ptGet('pt_vendorOrderReqs')).filter(r => r && r.id); }),
-    take('employees', async () => { if (!PTE.emp) await ptLoadEmp(); }),     // the roster the attendance tile counts against
+    /* The roster the attendance tile counts against. After the order book: the employee list takes the accessories from
+     * its masters, and landing first it left them empty for every screen after this one. */
+    take('employees', async () => { if (!PTE.emp) { await ptLoadGates(); await ptLoadEmp(); } }),
   ]);
   DASH.busy = false; DASH.at = ptStamp();
   renderDash();

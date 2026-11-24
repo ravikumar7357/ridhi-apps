@@ -4,12 +4,10 @@
 const IN_COLS = ['SKU', 'India Stock'];
 async function ensureIndia() {
   $('inMsg').textContent = 'Loading…';
-  await ensureReplData();
-  if (!INDIA_LOADED) await loadIndiaStock();
   // The projection needs the same three things the In Production tab needs: the status overrides
-  // (which SKUs are stopped), what is being made, and the forecast horizon.
+  // (which SKUs are stopped), what is being made, and the forecast horizon. Read together — none waits on another.
+  await Promise.all([ensureReplData(), loadIndiaStock(), loadInProdOnce()]);
   if (!PROD_LOADED) await loadProd();
-  if (!INPROD_LOADED) await loadInProd();
   if (!FC_PLAN.length) {
     FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
     FC_CACHE = new Map();

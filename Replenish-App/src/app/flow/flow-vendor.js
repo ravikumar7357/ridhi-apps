@@ -59,29 +59,45 @@ async function flowVoExtra() {
 
 /* ---- the portal ---- */
 let FLOW_VP_AS = null;   // { code, name } while an admin looks as a printer
+/** Who may look at a printer's portal: admins, the view-only box, and (19 Nov) whoever takes printed goods in — they receive there. */
+const flowVpMayLook = () => !!(ME.admin || ME.vpView || ME.vpRecv);
+/** THE PRINTER'S HOLD in the portal (flow-printorder.js flowHoldOn): a real printer sign-in does not see lines marked awaitRfd, nor
+ *  an order left with none; an admin "View as printer" sees them, marked in the line's note. Old orders carry no mark: untouched. */
+function flowVpHoldApply(rows, asAdmin) {
+  const isHeld = l => !!(l && l.awaitRfd);
+  return (rows || []).map(o => {
+    const lines = o && o.lines ? voLines(o) : [];
+    if (!lines.some(isHeld)) return o;
+    if (asAdmin) return Object.assign({}, o, { lines: lines.map(l => (isHeld(l) ? Object.assign({}, l, { notes: 'Waiting for RFD challan — the printer does not see this line yet. ' + (l.notes || '') }) : l)) });
+    const open = lines.filter(l => !isHeld(l));
+    return open.length ? Object.assign({}, o, { lines: open }) : null;   // every line held: the order is not shown yet
+  }).filter(Boolean);
+}
 /** After the portal read its printer's branch: the view-as printer instead, and the test orders for that printer. */
 async function flowVpAfterLoad() {
   if (!FLOW_ON || typeof VP === 'undefined') return;
   VP.viewAs = false;
-  if (FLOW_VP_AS && (ME.admin || ME.vpView)) {
+  if (FLOW_VP_AS && flowVpMayLook()) {
     VP.code = FLOW_VP_AS.code; VP.name = FLOW_VP_AS.name; VP.viewAs = true;
     try { VP.rows = ptList(await ptGet('pt_vendorOrders/' + VP.code)); } catch (e) { VP.rows = []; }
   }
   if (!VP.code) return;
+  VP.rows = flowVpHoldApply(VP.rows, VP.viewAs);
   /* A PRINTER'S OWN SIGN-IN NEVER SEES A TEST ORDER (14 Oct: the flow is on the live app now, where real printers sign in).
    * Test orders reach the portal only when an admin looks at it "as printer". */
   if (!VP.viewAs) { VP.rows = (VP.rows || []).filter(o => !(o && o.virtual)); return; }
   try { await flowLoad(); } catch (e) { return; }
   VP.rows = (VP.rows || []).filter(o => !(o && o.virtual)).concat(flowTestVos().filter(v => obUC(v.vendorCode) === obUC(VP.code)));
 }
-/** The "View as printer" picker above the portal — an admin, on the preview only. */
+/** The "View as printer" picker above the portal — admins, the view-only box, and Printed fabric in (who receive on it, printer-receive.js). */
 async function flowVpBar() {
-  if (!FLOW_ON || !(ME.admin || ME.vpView) || !$('vpBody') || $('flVpAs')) return;
+  if (!FLOW_ON || !flowVpMayLook() || !$('vpBody') || $('flVpAs')) return;
   $('vpBody').insertAdjacentHTML('beforebegin', `<div class="card" style="padding:8px 12px;margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px dashed #7c3aed">
     <span style="color:#7c3aed;font-weight:600;font-size:12.5px">PRINTER'S VIEW</span>
     <label style="display:flex;gap:6px;align-items:center;margin:0;font-size:12.5px">See the portal as printer
-      <select id="flVpAs" style="width:auto;min-width:220px"><option value="">— my own sign-in —</option></select></label>
-    <span class="muted" style="font-size:12px">what that printer sees, view only — nothing can be changed from here</span></div>`);
+      <select id="flVpAs" style="width:auto;min-width:220px"><option value="" disabled selected>— pick a printer —</option></select></label>
+    <span class="muted" style="font-size:12px">${flowMay('flchl') ? 'what that printer sees — receive its goods on each line' : 'what that printer sees, view only — nothing can be changed from here'}</span>
+    <span style="flex:1"></span><span id="flVpX"></span></div>`);
   let map = {}; try { map = (await ptGet('pt_vendorMap')) || {}; } catch (e) { map = {}; }
   const sel = $('flVpAs'); if (!sel) return;
   sel.innerHTML += Object.entries(map).filter(([, v]) => v).sort((a, b) => String(a[1].name || a[0]).localeCompare(String(b[1].name || b[0])))
@@ -100,7 +116,7 @@ async function flowVpBar() {
  */
 function flowVpLinkPrepare(link) {
   FLOW_VP_AS = { code: link.code, name: link.code };
-  VP.lateOnly = !!link.late;
+  VP.dueOnly = link.late ? 'late' : '';
   VP.rows = null;
   const sel = $('flVpAs'); if (sel) sel.value = link.code;
 }

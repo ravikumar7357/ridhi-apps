@@ -180,10 +180,13 @@ function ordLines() {
 const dToday = () => new Date().toISOString().slice(0, 10);   // the page's own helper, outside this slice
 const ctx = { AUDIT_OFF: true, BASE_SPLIT_OFF: true,
   $, esc, nf, csvCell, parseCsv, colIdx, doc, getDoc, setDoc, serverTimestamp, db: dbx, dToday,
+  fsSetDoc: (ref, data, opts) => setDoc(ref, data, opts),
   PRAPI, API, prGet, apiGet, REPL, ME, INDIA_LOADED, INDIA_ROWS, confirm, alert,
   indiaFromFg,
   MS, msInit, msFill, msVals, msHas, msSet, msClearAll, msPaint, msToggle, msChanged,
   fetch, Blob, URL, document, window, open, console, setTimeout, clearTimeout,
+  /* the mirror (core/mirror.js) asks the page's host when it is off: not localhost here, so it stays off */
+  location: { hostname: 'shop-test.invalid', href: 'https://shop-test.invalid/' },
   PTG, PT, SOX, ptLoadGates, ptNum, obUC,
   /* The production block's pack rule, which this harness does not load: the number after the last dash, else 1. */
   obPcsPerPack: sku => { const m = String(sku || '').match(/-(\d{1,2})$/); return m ? +m[1] : 1; }, ptPatch, ptPut, ptDelete, obCutQty, obPressQty, ptList,

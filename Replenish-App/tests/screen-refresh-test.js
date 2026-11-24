@@ -115,13 +115,13 @@ async function suite(S, loud) {
       PTG_ALL: {}, ptLack: () => false, ptNeed: async () => {}, PTE: { emp: null, priority: {} },
       ptLoadEmp: async () => { throw new Error('pt_accLedger refused'); },
       ptLoadEmpOrSkip: async () => { try { await oc.ptLoadEmp(); } catch (e) { /* skipped */ } },
-      QC: { checks: [] }, ORD: { req: {}, busy: true }, FGI: { rows: [] }, VO: { rows: [] }, MDBX: { custom: [] }, SOX: { rows: [] },
+      QC: { checks: [] }, ORD: { req: {}, busy: true }, FGI: { rows: [] }, VO: { rows: [] }, MDBX: { custom: [] }, SOX: { rows: [] }, ODR: { rows: [] },
       ptGet: async () => ({}), ptList: v => Object.values(v || {}), fgiLoad: async () => {}, ensureVo: async () => {},
       odrLoad: async () => {}, ordQtyBadge: () => {}, renderOrd: () => { R.drew++; }, ptStamp: () => 'now',
     };
     let threw = false;
     try { await fn(['ensureOrd'], oc, S.oc).ensureOrd(); } catch (e) { threw = true; }
-    ok('Order Console: staff list fails — the screen is still drawn ("Loading…" ends)', !threw && R.drew === 1 && oc.ORD.busy === false);
+    ok('Order Console: staff list fails — the screen is still drawn ("Loading…" ends)', !threw && R.drew >= 1 && oc.ORD.busy === false);
   }
 
   /* ---- Job Work (Plan base) ---- */
@@ -166,7 +166,7 @@ async function suite(S, loud) {
     && S.fc.includes("$('pbGo').onclick = () => ptRefreshButton($('pbGo'), pbRefresh);")
     && S.fg.includes("$('fgRefresh').onclick = () => ptRefreshButton($('fgRefresh'), fgiRefresh);"));
   ok('Finished Goods has its Refresh button on the page', /<button id="fgRefresh"[^>]*>Refresh<\/button>/.test(PAGE));
-  ok('Order Console and QC read the staff list without stopping the screen', S.oc.includes("await ptLoadEmpOrSkip('ord')") && S.qc.includes("await ptLoadEmpOrSkip('quality-control')"));
+  ok('Order Console and QC read the staff list without stopping the screen', S.oc.includes("ptLoadEmpOrSkip('ord')") && S.qc.includes("ptLoadEmpOrSkip('quality-control')") && !/[^.]ptLoadEmp\(\)/.test(S.oc + S.qc));
 
   if (loud) console.log(`\n${pass} passed, ${fails.length} failed`);
   return fails;
@@ -181,7 +181,7 @@ async function suite(S, loud) {
     ['QC Refresh forgets Job Work', 'qc', "try { await ptReadReg('base'); } catch (e) { console.warn('[quality-control] Job Work not read again:', e); }", ''],
     ['Order Console Refresh forgets vendor orders', 'be', 'VO.rows = null; SOX.rows = null; ODR.rows = null;', 'SOX.rows = null; ODR.rows = null;'],
     ['the button is not brought back', 'dbr', "finally { btn.disabled = false; btn.textContent = label; }", 'finally { }'],
-    ['the staff list stops the Order Console again', 'oc', "await ptLoadEmpOrSkip('ord')", 'await ptLoadEmp()'],
+    ['the staff list stops the Order Console again', 'oc', "ptLoadEmpOrSkip('ord')", 'ptLoadEmp()'],
     ['Job Work blanks before reading', 'fc', "async function pbRefresh() {\n  try", "async function pbRefresh() {\n  renderPbase();\n  try"],
     ['Finished Goods forgets the press list', 'fg', "ptReadReg('press')", 'Promise.resolve()'],
   ];

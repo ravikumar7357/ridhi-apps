@@ -230,9 +230,9 @@ const GUIDE_TALK = [
     hi: 'आपका स्वागत है! कभी भी पूछें — <b>Ask Meera</b> बटन, या <b>?</b> दबाएँ।',
     hg: 'Koi baat nahi! Kabhi bhi poochiye — <b>Ask Meera</b> button, ya <b>?</b> dabaiye.' },
   { id: 'who', need: ['who', 'name'], k: ['who', 'you', 'name'],
-    en: 'I\'m <b>Meera</b>, the ERP assistant for Ridhi Home & Living. I show you round each screen, guide you through jobs step by step, and help when something goes wrong.',
-    hi: 'मैं <b>मीरा</b> हूँ, Ridhi Home & Living की ERP असिस्टेंट। मैं हर स्क्रीन समझाती हूँ, हर काम स्टेप-बाय-स्टेप करवाती हूँ, और कुछ गलत हो तो मदद करती हूँ।',
-    hg: 'Main <b>Meera</b> hoon, Ridhi Home & Living ki ERP assistant. Main har screen samjhati hoon, har kaam step by step karwati hoon, aur kuch galat ho to help karti hoon.' },
+    en: 'I\'m <b>Meera</b>, the R-one ERP assistant. I show you round each screen, guide you through jobs step by step, and help when something goes wrong.',
+    hi: 'मैं <b>मीरा</b> हूँ, R-one ERP की असिस्टेंट। मैं हर स्क्रीन समझाती हूँ, हर काम स्टेप-बाय-स्टेप करवाती हूँ, और कुछ गलत हो तो मदद करती हूँ।',
+    hg: 'Main <b>Meera</b> hoon, R-one ERP ki assistant. Main har screen samjhati hoon, har kaam step by step karwati hoon, aur kuch galat ho to help karti hoon.' },
   { id: 'how-you', need: ['you'], all: ['how', 'you'], k: ['how', 'you'],
     en: 'I\'m good, thank you! Ready to help. What are you working on?',
     hi: 'मैं ठीक हूँ, धन्यवाद! मदद के लिए तैयार। आप किस काम पर हैं?',
@@ -1470,16 +1470,19 @@ async function gaAsk(q) {
   if (typeof meeraLearnAnswered === 'function') meeraLearnAnswered(q, r);
   if (typeof meeraServerAfter === 'function') meeraServerAfter(q);   // Phase 5, switch "server": her router's search, side by side   // Phase 4, switch "learn": a miss or "not sure" kept (cleaned)
   const lg = gaRead(q).lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
-  const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
-  /* not sure: she asks the AI herself, within the day's limit (guide-ai.js) — no answer at all: the AI's alone; a few close
-   * ones offered: those, then the AI's below them. Without AI, or over the limit: as before. */
-  const auto = !!r.miss && !r.off && typeof gaAiAuto === 'function' && gaAiAuto();   // not about the ERP: never to the AI
-  if (auto && r.miss === true) { gaAiAsk(q, { html: r.html, acts: r.acts }); gaChipsDraw(); return; }
   /* spelling (Phase 2): she says how she read the question, with a way back to it as typed */
   const und = r.understood ? `<div class="ga-und ga-spell">${LL('Showing results for', 'इसके नतीजे', 'Iske results')} <b>${esc(r.understood.text)}</b>${LL(' — did you mean something else?', ' — कुछ और पूछना था?', ' — kuch aur poochna tha?')}`
     + ` <button type="button" class="ga-und-b" data-ga="astyped">${LL('Search what I typed', 'जैसा लिखा वैसा खोजें', 'Jaisa likha waisa khojiye')}</button></div>` : '';
   /* Phase 5: her router could not be reached (or its search is off) — said; answered on this computer (her own copy, or with no internet her small list) */
   const off = r.offline ? `<div class="ga-und">${LL('My search on the server is not available right now — I answered on this computer.', 'सर्वर पर मेरी खोज अभी उपलब्ध नहीं — मैंने इसी कंप्यूटर पर जवाब दिया।', 'Server par meri khoj abhi available nahi — maine isi computer par jawaab diya.')}</div>` : '';
+  /* THE JUDGE (17 Nov, switch "judge"; guide-ai.ts): not clearly sure — a model points at the right one of her own answers.
+   * It answered: done. It could not (off, over its limit, slow, none fits): on exactly as without it. */
+  if ((r.miss || r.bank) && !r.off && typeof gaAiJudge === 'function' && await gaAiJudge(q, r, off + und)) { if (r.miss) gaChipsDraw(); return; }
+  const fb = r.bank ? `<div class="ga-fb"><span>${LL('Did this help?', 'क्या इससे मदद मिली?', 'Kya isse madad mili?')}</span><button type="button" class="ga-fbb" data-ga="fb" data-id="up:${esc(r.bank)}" aria-label="Yes">👍</button><button type="button" class="ga-fbb" data-ga="fb" data-id="down:${esc(r.bank)}" aria-label="No">👎</button></div>` : '';
+  /* not sure: she asks the AI herself, within the day's limit (guide-ai.js) — no answer at all: the AI's alone; a few close
+   * ones offered: those, then the AI's below them. Without AI, or over the limit: as before. */
+  const auto = !!r.miss && !r.off && typeof gaAiAuto === 'function' && gaAiAuto();   // not about the ERP: never to the AI
+  if (auto && r.miss === true) { gaAiAsk(q, { html: r.html, acts: r.acts }); gaChipsDraw(); return; }
   gaSay(off + und + r.html, r.acts || [], (r.after || '') + fb, r.bank ? 'guide' : '');
   if (auto) gaAiAsk(q);
   if (r.miss) gaChipsDraw();
@@ -1492,6 +1495,7 @@ function gaAct(t, id, tab) {
   if (t === 'aians') { gaAiAnswer(id); return; }
   if (t === 'fb') {
     const up = id.startsWith('up:'), lg = gaRead(GA.lastQ || '').lang, LL = (en, hi, hg) => (lg === 'hi' ? hi : lg === 'hg' ? hg : en);
+    if (typeof gaAiJudgeConfirm === 'function') { if (up) gaAiJudgeConfirm(id.slice(3)); else GA.judged = null; }   // the judge's flywheel: 👍 on its pick
     if (!up) gaMissKeep(GA.lastQ || '', 'not-helpful ' + id.slice(5));
     if (!up && typeof meeraLearnDown === 'function') meeraLearnDown(GA.lastQ || '', id.slice(5));   // Phase 4: kept, and "What were you looking for?"
     gaSay(up ? LL('Thank you! 🙏', 'धन्यवाद! 🙏', 'Dhanyavaad! 🙏')

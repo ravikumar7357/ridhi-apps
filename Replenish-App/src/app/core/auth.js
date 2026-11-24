@@ -48,6 +48,7 @@ function authSharedOn() { try { return localStorage.getItem('sharedDevice') === 
 }
 
 let AUTH_SEEN = false;
+let ASH_DOC = null, ASH_MS = null;   // access shadow test (core/access-shadow.js) — test ERP only
 onAuthStateChanged(auth, async user => {
   $('loginView').classList.toggle('hide', !!user);
   $('appView').classList.toggle('hide', !user);
@@ -68,8 +69,11 @@ onAuthStateChanged(auth, async user => {
   /* A downloaded copy kept by ANOTHER account (or by nobody we know) is deleted before this one is used (core/delta-sync.js). */
   try { if (typeof deltaSignedIn === 'function') await deltaSignedIn(ME.email); } catch (e) { /* nothing kept */ }
   try {
-    const s = await getDoc(doc(db, 'perms', ME.email));
-    if (s.exists()) { const d = s.data(); ME.admin = d.admin === true; ME.repl = d.repl === true;
+    ASH_DOC = null; ASH_MS = null; const ashT0 = performance.now();
+    const ashSb = typeof accessFromSupabase === 'function' ? await accessFromSupabase(user) : null;   // test ERP: Supabase only, Firebase not waited for (null = use Firebase)
+    const s = ashSb ? null : await getDoc(doc(db, 'perms', ME.email));
+    if (s) { ASH_DOC = s.exists() ? s.data() : null; ASH_MS = Math.round(performance.now() - ashT0); }
+    if (ashSb || (s && s.exists())) { const d = ashSb || s.data(); ME.admin = d.admin === true; ME.repl = d.repl === true;
       // Per-section access: perms.replTabs = ['repl','follow','top']. Empty but repl=true → all (legacy).
       const rt = Array.isArray(d.replTabs) ? d.replTabs.filter(t => REPL_TABS.includes(t)) : [];
       /* Whether these sections were CHOSEN for this account or inherited as "all of them". A tab that
@@ -118,6 +122,7 @@ onAuthStateChanged(auth, async user => {
       /* …and: may SEE the Access page (who can open what) and change nothing (core/access-host.js). */
       ME.accessView = d.accessView === true; }
   } catch (e) { /* no perms = no access */ }
+  if (typeof accessShadow === 'function') accessShadow(user, ASH_DOC, ASH_MS);   // test ERP only (core/access-shadow.js): never waits, never throws
   /* A perms read that fails leaves ME.tabs empty, which is the correct answer — but the cover still
    * has to come off, or a denied account sits looking at nothing at all. */
   if (ME.empEdit && !ME.tabs.includes('hr')) { ME.tabs = ME.tabs.concat('hr'); ME.hrEmpOnly = true; }
@@ -159,6 +164,11 @@ onAuthStateChanged(auth, async user => {
    * stays view only: nothing is typed there while a printer is picked. 'vpview' stays in the list so the Production heading is shown. */
   ME.vpView = false;
   if (ME.tabs.includes('vpview') && !ME.admin) { ME.vpView = true; ME.tabs = ME.tabs.filter(t => t !== 'vpview' && t !== 'vend').concat('vend', 'vpview'); }   // both last, so the first tab is always a screen
+  /* PRINTED GOODS ARE TAKEN IN ON THE PRINTER'S VIEW (Ravi, 19 Nov: "the user which was seeing from his access at the printer fabric in page
+   * will work on this page and receive from this page"). The "Printed fabric in" right opens the printer's portal the way the view-only box
+   * does, and may receive there (vendors/portal/printer-receive.js). */
+  ME.vpRecv = false;
+  if (ME.tabs.includes('flchl') && !ME.admin) { ME.vpRecv = true; if (!ME.tabs.includes('vend')) ME.tabs = ME.tabs.concat('vend'); }
 
   /* THE SHOPIFY VIEW OF REPLENISHMENT (Ravi, 2026-10-14). An account that works the Shopify screens and holds no planning
    * screen — and is not an admin — gets Replenishment too, but only as the Shopify view: what a SKU is and what Amazon
@@ -228,6 +238,11 @@ onAuthStateChanged(auth, async user => {
     const b = $('tabShop');
     if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Returns & delivery'; }
   }
+  /* THE SHOPIFY PRODUCTION BUCKET (2 Nov): the production team's one screen is Shopify Orders in the bucket form (bucket-team.js). */
+  if (typeof SHOP_BKT_ONLY === 'function' && SHOP_BKT_ONLY()) {
+    const b = $('tabShop');
+    if (b) { b.style.display = ''; const t = b.querySelector && b.querySelector('.nav-t'); (t || b).textContent = 'Production bucket'; }
+  }
   syncNavGroups();
   /* The sidebar is now telling the truth, so it can be seen. The data loads below take their own
    * time behind it. */
@@ -251,7 +266,9 @@ onAuthStateChanged(auth, async user => {
      * the Replenishment snapshot at sign-in — a vendor's among them. */
     'vlog', 'cx', ...FLOW_TABS,
     /* The Greige Desk's four rights (2026-10-13) are factory screens too. */
-    'gdesk', 'gdled', 'gdledit', 'gdappr'];
+    'gdesk', 'gdled', 'gdledit', 'gdappr', 'gdcut', 'gdpo', 'gdpoappr',
+    /* Approving a change of printer on an RFD challan is a factory right too (Vishesh, 23 Nov). */
+    'flprn'];
   const FACTORY_ONLY = ME.tabs.every(t => FACTORY_TABS.includes(t));
   /* DATA METER (Step 0): remember what kind of user this is, ask the Firestore flag config/flags.dataMeter in the
    * background and keep its answer for the NEXT page load. Never waits, never blocks sign-in; a missing document or a
@@ -278,22 +295,25 @@ onAuthStateChanged(auth, async user => {
         if (typeof deltaSaveFlag === 'function') deltaSaveFlag(!!d && (d.deltaUse === true || d.deltaUse === 1 || d.deltaUse === '1' || d.deltaUse === 'on'));
         /* ...and the Finished Goods light-open switch (inventory/finished-goods.js), also from the next page load. */
         if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(!!d && (d.fgLite === true || d.fgLite === 1 || d.fgLite === '1' || d.fgLite === 'on'));
+        /* ...and the printer's hold switch (flow/flow-printorder.js: a new plan's Vendor Order waits for its RFD challan), also from the next page load. */
+        if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(!!d && (d.printerHold === true || d.printerHold === 1 || d.printerHold === '1' || d.printerHold === 'on'));
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(false); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }
 
+  /* The cached snapshot, which every tab EXCEPT the factory ones is built on — started now, read while the two
+   * backend addresses are, since it needs neither. Awaited below, where it always was. */
+  const slim = FACTORY_ONLY ? null : ensureReplSlim();
   if (!FACTORY_ONLY) try {
-    const c = await getDoc(doc(db, 'config', 'replapi'));
+    /* Both addresses at once. The second is separate, and allowed to fail on its own, so a denial there does not
+     * look like the whole app having no backend. India stock and the Shopify tab both depend on it. */
+    const [c, p] = await Promise.all([getDoc(doc(db, 'config', 'replapi')), getDoc(doc(db, 'config', 'api')).catch(() => false)]);
     if (c.exists()) { const d = c.data(); API = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
     else rMsg('⚠️ Backend not configured — create Firestore doc config/replapi with {url, key}.', true);
-    // Separate, and allowed to fail on its own, so a denial here does not look like the whole app
-    // having no backend. India stock and the Shopify tab both depend on it.
-    try {
-      const p = await getDoc(doc(db, 'config', 'api'));
-      if (p.exists()) { const d = p.data(); PRAPI = { url: String(d.url || '').trim(), key: String(d.key || '').trim() }; }
-    } catch (e) { PRAPI = null; }
+    if (p === false) PRAPI = null;
+    else if (p.exists()) { const d = p.data(); PRAPI = { url: String(d.url || '').trim(), key: String(d.key || '').trim(), writeKey: String(d.writeKey || '').trim() }; }
   } catch (e) {
     // Distinguish "the rules said no" from anything else — a denied read here means this account does
     // not satisfy canRepl() in firestore.rules (perms/<email>.repl must be true, or admin), even though
@@ -304,8 +324,7 @@ onAuthStateChanged(auth, async user => {
     rMsg(ACCESS_ERR, true);
   }
 
-  // The cached snapshot, which every tab EXCEPT the factory ones is built on.
-  if (!FACTORY_ONLY) await ensureReplSlim();
+  if (slim) await slim;
   /* The screen the address names, when this account may open it — a tab opened from a menu link, or a
    * reload. showTab itself sends anything else to the first screen this account has. A report link to one order
    * ("#ord?q=…") is read first, because showTab rewrites the address to the bare screen. */

@@ -26,14 +26,25 @@ async function loadInProd() {
   } catch (e) { INPROD_ROWS = []; INPROD_ERR = e.message || String(e); }
   INPROD_LOADED = true;
 }
+/* One read at a time: In Production, India Stock and Replenishment can all ask in the same second, and each used to
+ * read the sales orders for itself. */
+let INPROD_PROMISE = null;
+function loadInProdOnce() {
+  if (INPROD_LOADED) return Promise.resolve();
+  return INPROD_PROMISE || (INPROD_PROMISE = loadInProd().finally(() => { INPROD_PROMISE = null; }));
+}
+/* ALL AT ONCE: the snapshot, the POs, India stock and what is being made need nothing from each other. Only the
+ * FBA map, the catalogue and the forecast plan need the snapshot, and they are worked out after it is in. */
 async function ensureProd() {
   $('pdMsg').textContent = 'Loading…';
-  await ensureReplData();
+  await Promise.all([
+    ensureReplData(),
+    PO_LOADED ? null : loadPo().then(() => { PO_LOADED = true; }),
+    loadIndiaStock(),
+    loadInProdOnce(),
+  ]);
   buildFbaMap(); CATALOG_SET = catalogSet();
-  if (!PO_LOADED) { await loadPo(); PO_LOADED = true; }
-  if (!INDIA_LOADED) await loadIndiaStock();
-  if (!PROD_LOADED) await loadProd();          // status overrides decide which SKUs are stopped
-  if (!INPROD_LOADED) await loadInProd();
+  if (!PROD_LOADED) await loadProd();          // status overrides decide which SKUs are stopped (read with the snapshot)
   if (!FC_PLAN.length) { FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]); FC_CACHE = new Map(); }
   $('pdMsg').textContent = '';
   renderProd();

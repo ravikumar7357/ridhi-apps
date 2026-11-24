@@ -845,10 +845,10 @@ const ERP_GROUPS = [
   { name: 'Shopify', items: [['shop', 'Shopify Orders'], ['adj', 'Adjustments'], ['shopify', 'Shopify Stock'], ['shopprod', 'Order Console — Shopify only'], ['shopret', 'Shopify returns team']] },
   { name: 'Replenishment & planning', items: [['repl', 'Replenishment'], ['article', 'Article Review'], ['target', 'Revenue Target'], ['top', 'Top ASIN Status'], ['pack', 'Packing List']] },
   { name: 'Orders', items: [['so', 'Sales Orders'], ['ord', 'Order Console — every order'], ['shpacc', 'Order Console — Shipping to accept'], ['cx', 'Customer orders']] },
-  { name: 'Production flow', items: [['flppc', 'PPC and PPC completed'], ['fldem', 'Demand: RFD fabric out'], ['flacc', 'Demand: accessories'], ['flchl', 'Printed fabric in · history'], ['flcut', 'To cut'], ['flraw', 'Raw cutting in store'], ['flwip', 'WIP with karigars']] },
+  { name: 'Production flow', items: [['flppc', 'PPC and PPC completed'], ['fldem', 'Demand: RFD fabric out'], ['flacc', 'Demand: accessories'], ['flchl', 'Printed fabric in · history'], ['flcut', 'To cut'], ['flraw', 'Raw cutting in store'], ['flwip', 'WIP with karigars'], ['flprn', 'Approve a change of printer on an RFD challan']] },
   { name: 'Making', items: [['pcut', 'Cutting Data'], ['pbase', 'Job Work Register'], ['ppress', 'Press Inventory'], ['qc', 'Quality Control — checks'], ['qcalt', 'QC — issue for alteration'], ['qcret', 'QC — receive back']] },
   { name: 'Finished & dispatch', items: [['fgi', 'Finished Goods'], ['fgacc', 'Finished Goods — From QC, to accept'], ['fba', 'FBA Dispatch']] },
-  { name: 'Materials', items: [['fab', 'Fabric Inventory'], ['acc', 'Accessories'], ['gdesk', 'Greige Desk — open'], ['gdled', 'Greige Desk — fabric ledger'], ['gdledit', 'Greige Desk — correct ledger'], ['gdappr', 'Greige Desk — approve shrinkage >5%']] },
+  { name: 'Materials', items: [['fab', 'Fabric Inventory'], ['acc', 'Accessories'], ['gdesk', 'Greige Desk — open'], ['gdled', 'Greige Desk — fabric ledger'], ['gdledit', 'Greige Desk — correct ledger'], ['gdappr', 'Greige Desk — approve shrinkage >5%'], ['gdcut', 'Approve cutting to size (production head, accounts head)'], ['gdpo', 'Greige Desk — close, cancel, reopen POs (accounts)'], ['gdpoappr', 'Greige Desk — approve the store’s close request (accounts head)']] },
   { name: 'Setup', items: [['pmdb', 'Master Database'], ['mst', 'Masters']] },
   { name: 'Vendors & printers', items: [['vreq', 'Vendor Order Requests'], ['vord', 'Vendor Orders'], ['rfd', 'RFD Requirements'], ['vend', 'Vendor Portal'], ['vlog', 'History'], ['palloc', 'Printer Allocation'], ['vpview', "Printer's portal (view only)"]] },
   /* boxes some records still hold for screens that no longer exist — shown so nothing is hidden; they open nothing */
@@ -907,7 +907,7 @@ function roleAccess(role) {
   if (role.access) return JSON.parse(JSON.stringify(role.access));
   if (role.admin) return { admin: true, sellora: ALL_SELLORA.slice(), erp: ALL_ERP.slice(), rights: RIGHTS.map(r => r[0]) };
   const sellora = role.sellora === 'all' ? ALL_SELLORA.slice() : (role.sellora || []).slice();
-  const erp = role.erp === 'director' ? ALL_ERP.filter(k => !['shopprod', 'shopret', 'vend', 'gdappr'].includes(k)) : (role.erp || []).slice();
+  const erp = role.erp === 'director' ? ALL_ERP.filter(k => !['shopprod', 'shopret', 'vend', 'gdappr', 'gdcut', 'gdpoappr'].includes(k)) : (role.erp || []).slice();
   return { admin: false, sellora, erp, rights: (role.rights || []).slice() };
 }
 
@@ -1072,7 +1072,7 @@ async function acxWrite(email, a, roleKey) {
   if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
   if (SIDE === 'erp' && email === String(ME.email || '').toLowerCase() && !a.admin) throw new Error('you cannot take away your own admin rights');
   const rec = acxRecord(acxOld(email), a, roleKey);
-  await setDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
+  await fsSetDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
   try { await permMirror(email, rec); } catch (e) { throw new Error('saved, but NOT in the production database copy (' + (e.message || e) + ') — do it again'); }
 }
 /** Remove: this side's half only. When nothing is left anywhere, the record goes too. */
@@ -1083,13 +1083,13 @@ async function acxRemoveSide(email) {
   if (old.admin === true && SIDE !== 'erp') throw new Error(email + ' is an admin — that is changed in the ERP Access page');
   const rec = acxRecord(old, { admin: false, sellora: [], erp: [], rights: [] }, '');
   if (acxBare(rec)) return acxDel(email);
-  await setDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
+  await fsSetDoc(doc(db, 'perms', email), Object.assign({}, rec, { at: serverTimestamp(), by: ME.email }));
   try { await permMirror(email, rec); } catch (e) { throw new Error('saved, but NOT in the production database copy (' + (e.message || e) + ') — do it again'); }
 }
 async function acxDel(email) {
   if (!acxCanEdit()) throw new Error('view only — only an admin can change access');
   if (email === String(ME.email || '').toLowerCase()) throw new Error('you cannot remove your own access');
-  await deleteDoc(doc(db, 'perms', email));
+  await fsDeleteDoc(doc(db, 'perms', email));
   try { await permMirror(email, null); } catch (e) { throw new Error('removed, but their copy in the production database is still there (' + (e.message || e) + ') — remove again'); }
 }
 /** The roles as they stand — their boxes, and roles added here — into config/accessRoles. */
@@ -1098,7 +1098,7 @@ async function acxSaveRoles() {
   const out = {};
   ROLES.forEach(r => { out[r.key] = { access: S.roles[r.key] }; });
   (S.customRoles || []).forEach(r => { out[r.key] = Object.assign({}, out[r.key], { custom: { name: r.name, dept: r.dept, group: r.group, limit: r.limit || '', cannot: r.cannot || '' } }); });
-  await setDoc(doc(db, 'config', 'accessRoles'), { roles: out, at: serverTimestamp(), by: ME.email });
+  await fsSetDoc(doc(db, 'config', 'accessRoles'), { roles: out, at: serverTimestamp(), by: ME.email });
 }
 /** Ask, do it, say so, read the list again. */
 async function acxDo(ask, fn, ok) {

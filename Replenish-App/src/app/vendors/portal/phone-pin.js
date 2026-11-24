@@ -181,7 +181,7 @@ async function pinLink(code) {
 
   /* The Vendor Portal, and NOTHING else. A vendor is an outside firm, and any other section ticked
    * for them is something they can read. */
-  await setDoc(doc(db, 'perms', email), { admin: false, approve: false, repl: false,
+  await fsSetDoc(doc(db, 'perms', email), { admin: false, approve: false, repl: false,
     replTabs: ['vend'], replProj: false, prod: false, tabs: [], brands: [],
     at: serverTimestamp(), by: ME.email });
 
@@ -223,7 +223,7 @@ async function pinGrant(code) {
   if (d.error && !existed) return 'Could not create the login: ' + (d.error.message || 'unknown error');
 
   // The Vendor Portal, and NOTHING else. No perms.repl, so this account reads nothing in Firestore.
-  await setDoc(doc(db, 'perms', email), { admin: false, approve: false, repl: false,
+  await fsSetDoc(doc(db, 'perms', email), { admin: false, approve: false, repl: false,
     replTabs: ['vend'], replProj: false, prod: false, tabs: [], brands: [],
     at: serverTimestamp(), by: ME.email });
 
