@@ -150,7 +150,8 @@ const STA_WINS = [
   { k: '60', t: '60 days', st: 'stD60', tg: 'tgtD60' },
 ];
 // The caches that switch 14 and 60 days on, read with the others (each null until the backend writes it).
-const STA_WIN_MORE = ['stD14', 'stD60', 'tgtD14', 'tgtD60'];
+// (plcD14 / plcD60: Placement's 14- and 60-day reports, rows in plcSettled's shape — its window switch reads them.)
+const STA_WIN_MORE = ['stD14', 'stD60', 'tgtD14', 'tgtD60', 'plcD14', 'plcD60'];
 const STA_WIN_KEY = 'staWin';
 let STA_WIN = '30';
 try { const v = localStorage.getItem(STA_WIN_KEY); if (STA_WINS.some(w => w.k === v)) STA_WIN = v; } catch (e) { /* 30 days */ }
@@ -1714,24 +1715,29 @@ function staPg0(clearSel) {
   if (typeof NGS !== 'undefined') { NGS.pg = 0; if (clearSel) NGS.sel.clear(); }
   if (clearSel) ST_SEL.clear();
 }
-function staWinPick(k) {
-  if (!staWinOn(k) || k === staWin()) return;
+// on: the page's own "can this window be picked" (Placement: its placement reports); this page's search terms otherwise.
+function staWinPick(k, on) {
+  if (!(on || staWinOn)(k) || k === STA_WIN) return;
   STA_WIN = k;
   try { localStorage.setItem(STA_WIN_KEY, k); } catch (e) { /* kept for this visit */ }
   staPg0(true);
   staRedrawAds();
 }
-// The window switch: 7 / 14 / 30 / 60 days; one not there yet is greyed, "coming soon".
-function staWinBar(id) {
+// The window switch: 7 / 14 / 30 / 60 days; one not there yet is greyed, "coming soon". One switch for the three pages (the
+// window picked is shared and remembered); o (Placement): { on: k → can it be picked, cur: the window in use, need: k → the
+// backend cache it waits for, seven: the 7-day tip }.
+function staWinBar(id, o) {
   const el = $(id);
   if (!el) return;
-  const cur = staWin();
+  o = o || {};
+  const canOf = o.on || staWinOn;
+  const cur = o.cur || staWin();
   el.innerHTML = STA_WINS.map(w => {
-    const on = w.k === cur, can = staWinOn(w.k);
+    const on = w.k === cur, can = canOf(w.k);
     const sub = w.k === '7' ? 'sales still coming in' : !can ? 'coming soon' : '';
-    const tip = w.k === '7' ? (can ? 'The last 7 days. Sales are still coming in, so nothing is negated or paused from it: watch only, a lower bid at most.' : 'The last 7 days: not read yet.')
+    const tip = w.k === '7' ? (can ? o.seven || 'The last 7 days. Sales are still coming in, so nothing is negated or paused from it: watch only, a lower bid at most.' : 'The last 7 days: not read yet.')
       : w.k === '30' ? 'Days 8–37 ago, whose sales are final: what Sellora judges on. The default.'
-        : can ? `The last ${w.t} report.` : `${w.t}: coming soon (needs the backend). It switches on by itself once the ${w.t} report is written.`;
+        : can ? `The last ${w.t} report.` : `${w.t}: coming soon (needs the backend${o.need ? ': ' + o.need(w.k) : ''}). It switches on by itself once the ${w.t} report is written.`;
     return `<button type="button" class="segbtn sta-winb${on ? ' on' : ''}" data-win="${w.k}" aria-pressed="${on}"${can ? '' : ' disabled aria-disabled="true"'} title="${staEsc(tip)}">${w.t}${sub ? `<small>${sub}</small>` : ''}</button>`;
   }).join('');
 }
@@ -1870,8 +1876,9 @@ function staOptText(id) {
   return (o && (o.text || o.textContent)) || el.value;
 }
 // One screen's bar wired: o = { pg, win, pf, chips, note, redraw, fx (a chip of its own: k → handled?) }.
+// o: { pg, win, pf, chips, note, redraw, fx, winOn (the page's own window test: Placement) }.
 function staBarWire(o) {
-  const winClick = e => { const b = e.target.closest('button[data-win]'); if (b && !b.disabled) staWinPick(b.dataset.win); };
+  const winClick = e => { const b = e.target.closest('button[data-win]'); if (b && !b.disabled) staWinPick(b.dataset.win, o.winOn); };
   $(o.win).addEventListener('click', winClick);
   $(o.note).addEventListener('click', winClick);
   const pf = $(o.pf);
@@ -1944,6 +1951,12 @@ document.addEventListener('click', e => {
 });
 // What each column means, on hover: every heading of a table that has no title of its own gets one (both screens).
 const STA_TH_TIPS = {
+  // Placement (placement-decide.js): every column of its decisions table.
+  'Campaign · placement': 'A campaign, then each of its placements: Top of Search, Rest of Search, Product Page, Off Amazon. Placement figures are per campaign, so they cover every product in it.',
+  'Decision': 'Raise, Lower, Keep, Not enough data, Watch or Hold, and why — judged on the whole campaign, whatever the filters.',
+  'Action': 'Send the change to the review list (Apply at Amazon is off until Sellora may change Amazon).',
+  'Now': 'The bid adjustment set at Amazon now for this placement.',
+  'Click share': 'This placement\'s clicks ÷ the campaign\'s clicks.',
   'Search term': 'What the shopper typed. ' + STA_F_TIP,
   'Keyword / target': 'Your keyword or product target. The bid belongs to it, so a bid change moves every search term it catches.',
   'Word': 'A word or short phrase that recurs across many search terms without selling.',
