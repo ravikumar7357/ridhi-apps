@@ -91,6 +91,9 @@ export class Shopify {
     throw new Error('Shopify: query could not be made to work');
   }
 
+  /** Any query (used by setup.ts for the app's own webhooks). Errors are thrown as they come. */
+  query(q: string, variables: Record<string, unknown> = {}): Promise<any> { return this.gql(q, variables); }
+
   /** One page of orders matching a Shopify search (e.g. "updated_at:>='…'"). */
   async ordersPage(search: string, sortKey: 'UPDATED_AT' | 'CREATED_AT', reverse: boolean, after: string | null) {
     const data = await this.gqlAdaptive(

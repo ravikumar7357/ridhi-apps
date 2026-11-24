@@ -56,4 +56,11 @@ export class Db {
   webhookDone(id: number, error?: string | null) {
     return this.rpc<void>('webhook_done', { p_id: id, p_error: error ?? null });
   }
+
+  webhookSubscriptionSave(store: string, topic: string, externalId: string | null, url: string, status = 'active') {
+    return this.rpc<void>('webhook_subscription_save', { p_store: store, p_topic: topic, p_external_id: externalId, p_url: url, p_status: status });
+  }
+
+  appUninstalled(store: string) { return this.rpc<void>('store_app_uninstalled', { p_store: store }); }
+  appOk(store: string) { return this.rpc<void>('store_app_ok', { p_store: store }); }
 }

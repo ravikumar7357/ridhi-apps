@@ -1,21 +1,37 @@
 # Flowmerce-Sync: the Shopify sync backend
 
-Copies **Shopify orders, order lines, parcels (fulfillments), parcel events and tracking numbers** for RBP and CPC into
-the Supabase ERP project, schema `flowmerce`, so Flowmerce screens read the database instead of calling Shopify.
-It **only reads Shopify** and never writes to it.
+Copies **Shopify orders, order lines, parcels (fulfillments), parcel events, returns and tracking numbers** for RBP and
+CPC into the Supabase ERP project, schema `flowmerce`, so Flowmerce screens read the database instead of calling Shopify.
+It **only reads Shopify** (the one thing it creates there is its own webhooks).
 
-Built 24 Nov 2026 in the same style as `Sellora-Backend` (same Firebase project, same secrets, same deploy pattern),
-as its own codebase `flowmerce-sync`. Deploying it never touches `sellora-live` or `rone-capture`.
+Its own Firebase codebase `flowmerce-sync` (project price-research-48ff3, region asia-south1). Deploying it never touches
+`sellora-live` or `rone-capture`. **Live since 24 Nov 2026 16:44 IST.**
 
 ## What runs
 
 | Function | When | What it does |
 |---|---|---|
-| `flowmerceShopifyOrders` | every 15 min | orders **changed** since the last run (with a 10-minute overlap), for RBP then CPC. The first run ever takes the last 3 days. |
-| `flowmerceShopifyBackfill` | every 5 min | walks back through **all older orders**, a few pages per run, until the first order; then stops. **Off** until switched on in `flowmerce.sync_job`. |
-| `flowmerceShopifyWebhook` | when Shopify calls | checks the signature, keeps the message once, re-reads that order and saves it, all within a second or two |
+| `flowmerceShopifyOrders` | every 15 min | orders **changed** since the last run (10-minute overlap), RBP then CPC |
+| `flowmerceShopifyBackfill` | every 5 min | **all older orders**, a few pages per run, until the first order; then stops. **Off** until switched on in `flowmerce.sync_job` |
+| `flowmerceShopifySetup` | every 6 h | the **Flowmerce app registers its own webhooks** in each store: creates missing topics, moves any pointing elsewhere, records them in `flowmerce.webhook_subscription` |
+| `flowmerceShopifyWebhook` | when Shopify calls | checks the signature, keeps the message once, re-reads the order and saves it. Also `app/uninstalled` (store disconnected) and the 3 required privacy webhooks |
 
-Every run writes one line to `flowmerce.sync_run` (rows read and saved, errors). That line is what the screens show as "data as of …".
+Every run writes one line to `flowmerce.sync_run`; that is what the screens show as "data as of …".
+
+## Shopify access
+1. **The Flowmerce Shopify app** (Dev Dashboard): `FLOWMERCE_APP_CLIENT_ID` + `FLOWMERCE_APP_CLIENT_SECRET` are swapped for a store
+   token (~24 h, client-credentials grant), kept in memory only.
+2. **Fallback:** Sellora's store tokens (`SHOPIFY_TOKEN`, `CPC_SHOPIFY_TOKEN`), so the job never stops if the app can't log in. The log says why.
+
+Webhooks the app makes itself are signed with the **app's client secret**; webhooks made by hand in Shopify admin with
+the store's key (`SHOPIFY_WEBHOOK_SECRET_RBP` / `_CPC`). Both are accepted.
+
+Webhook topics: orders/create, orders/updated, orders/cancelled, orders/paid, orders/fulfilled, refunds/create,
+fulfillments/create, fulfillments/update, returns/request, returns/approve, returns/close, app/uninstalled.
+Privacy webhooks (customers/data_request, customers/redact, shop/redact) can't be made by the API: set their address once
+in Dev Dashboard → App → Configuration → **Compliance webhooks** (same address as below).
+
+Webhook address: `https://asia-south1-price-research-48ff3.cloudfunctions.net/flowmerceShopifyWebhook`
 
 ## How it keeps the ERP database light
 - One database call per **page** of orders (`flowmerce.ingest_shopify_orders`), saved in one transaction.
@@ -28,32 +44,23 @@ Every run writes one line to `flowmerce.sync_run` (rows read and saved, errors).
 | File | Job |
 |---|---|
 | `src/index.ts` | the **only** Firebase file (timers + web address). Swap it on "Firebase zero" day. |
-| `src/orders.ts` | the job: cursor, pages, save, finish |
-| `src/shopify.ts` | Shopify GraphQL reader (read-only) |
+| `src/auth.ts` | app login (client credentials) with the store-token fallback |
+| `src/orders.ts` | the orders job: cursor, pages, save, finish |
+| `src/setup.ts` | the app's own webhooks |
+| `src/shopify.ts` | Shopify GraphQL reader |
 | `src/map.ts` | Shopify answer → our columns. **No names, emails, phones, street addresses or note text** pass. |
-| `src/webhook.ts` | signature check, store detection, keep-once, re-read |
-| `src/db.ts` | calls the database functions (`job_start`, `ingest_shopify_orders`, `job_finish`, `webhook_keep`, `webhook_done`) |
-| `test/*.test.ts` | `npm test` — 10 tests, every outside service faked. Passed 24 Nov 2026. |
-| `sql/` | the whole `flowmerce` schema, files 01–12, exactly as applied to the ERP project (migrations `flowmerce_01_…` to `flowmerce_12_…`) |
+| `src/webhook.ts` | signature check, store detection, keep-once, re-read, uninstall, privacy |
+| `src/db.ts` | calls the database functions |
+| `test/*.test.ts` | `npm test` — 20 tests, every outside service faked |
+| `sql/` | the whole `flowmerce` schema, files 01–14, as applied to the ERP project (migrations `flowmerce_01_…` to `flowmerce_14_…`) |
 
-Deploy workflow: `.github/workflows/flowmerce-sync.yml`.
+Deploy workflow: `.github/workflows/flowmerce-sync.yml` (push to main = deploy).
 
-## To go live (in order)
-1. **Supabase → Project Settings → API → Exposed schemas:** add `flowmerce`. The backend calls the database functions through the API.
-2. ~~Move this folder into ridhi-apps~~ — done 24 Nov 2026 (branch `flowmerce-sync`).
-3. **Firebase secrets.** These already exist for Sellora and are reused: `SUPABASE_SERVICE_KEY`, `SHOPIFY_STORE`, `SHOPIFY_TOKEN`, `CPC_SHOPIFY_STORE`, `CPC_SHOPIFY_TOKEN`.
-   **Add two new ones**, the webhook signing key of each store (Shopify admin → Settings → Notifications → Webhooks, or the app's client secret if the webhooks are app-created):
-   ```
-   firebase functions:secrets:set SHOPIFY_WEBHOOK_SECRET_RBP --project price-research-48ff3
-   firebase functions:secrets:set SHOPIFY_WEBHOOK_SECRET_CPC --project price-research-48ff3
-   ```
-   They're the same values as the `shopify-os` edge function's `SHOPIFY_WEBHOOK_SECRET_RBP` / `_CPC`.
-4. **Shopify token access:** the token needs `read_orders` (and `read_fulfillments` / `read_assigned_fulfillment_orders` if Shopify asks). For UTMs, `customerJourneySummary` is used when allowed; if not, it is skipped by itself.
-5. **Push to main.** GitHub builds, tests and deploys `flowmerce-sync`.
-6. **Watch the first run:** `select * from flowmerce.sync_run order by started_at desc limit 5;`
-7. **Webhooks:** in each store, add a webhook for each topic below to the function's address
-   (`https://asia-south1-price-research-48ff3.cloudfunctions.net/flowmerceShopifyWebhook`, shown after deploy):
-   `orders/create, orders/updated, orders/cancelled, orders/paid, orders/fulfilled, fulfillments/create, fulfillments/update, refunds/create`.
-   Keep the existing shopify-os webhooks; Shopify sends to both.
-8. **Backfill (all older orders):** once steps 6–7 look right:
-   `update flowmerce.sync_job set is_enabled = true where stream = 'shopify.orders' and mode = 'backfill';`
+## Before deploying the app version
+Firebase refuses a deploy when a declared secret is missing, so these must exist first (Secret Manager, price-research-48ff3):
+`FLOWMERCE_APP_CLIENT_ID`, `FLOWMERCE_APP_CLIENT_SECRET`. Then the app is installed on both stores, and the
+**Compliance webhooks** address is set in the Dev Dashboard.
+
+## Load all older orders
+`update flowmerce.sync_job set is_enabled = true where stream = 'shopify.orders' and mode = 'backfill';`
+(needs `read_all_orders`, which the app has).
