@@ -687,6 +687,7 @@ function sdcRender(today, yr, lyr) {
   sdcSeg('sdcRange', 'r', SDC.range);
   sdcSparks(today);
   if (typeof window !== 'undefined' && window.echarts) sdcRemakeMade();
+  if (typeof alStripPaint === 'function') { try { alStripPaint(); } catch (e) { /* the strip only */ } }   // "Needs attention" (sales/sales-alerts.js)
   if (sdcShown()) { if (SDC.up) sdcRefresh(); sdcSetup(); }
 }
 /** The per-product days arrived (sales/sales-insight.js viLoad): the top products and the event labels take them. */

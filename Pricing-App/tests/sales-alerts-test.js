@@ -1,0 +1,206 @@
+/* Sales Alerts (src/app/sales/sales-alerts.js, Sales card #3): expected sales (weekday median × season), the band (± 1.5 × MAD), when it
+ * is an alert (3 low finished days, ≥ 25 %, ≥ $500/week), "waiting for data", the seasonal dip, $ at risk, severity, every root cause,
+ * siblings grouped, recovery, snooze / dismiss, wins, and the Dashboard summary.
+ *   node tests/sales-alerts-test.js           (prints the alerts the fixture makes at the end) */
+const fs = require('fs'), path = require('path'), vm = require('vm');
+let pass = 0, fail = 0;
+const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'sales', 'sales-alerts.js'), 'utf8');
+function load(extra) {
+  const store = {};
+  const ctx = vm.createContext(Object.assign({
+    console, Intl, Math, JSON, Number, String, Object, Array, Set, Map, Promise, Date, isFinite, setTimeout, clearTimeout,
+    localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
+    ME: { admin: true, tabs: [], email: 'test@example.com' }, SD: { at: '', d: {} }, SD_CH: 'SP', sdToday: () => TODAY,
+  }, extra || {}));
+  vm.runInContext(SRC + '\n;this.__x = { AL, AL_DEF, alCompute, alMedian, alMad, alAdd, alHeroHtml, alDashOf, alFor, alCardHtml, alRowHtml, alNext, AL_HEAD };', ctx);
+  return Object.assign(ctx.__x, { ctx, store });
+}
+const X = load();
+const { alAdd } = X;
+
+/* ---- the fixture: today Tue 24 Nov 2026 (PT) → the last finished day Mon 23 Nov; the last 14 days 10–23 Nov; normal weeks 13 Oct – 9 Nov ---- */
+const TODAY = '2026-11-24', LAST = '2026-11-23', FROM = '2026-10-10';
+const days = []; for (let d = FROM; d <= TODAY; d = alAdd(d, 1)) days.push(d);
+const dow = d => new Date(d + 'T00:00:00Z').getUTCDay();
+const shape = d => 1 + [0, -0.05, 0.03, 0.08, -0.06, 0.02, 0.04][dow(d)];          // a small weekday rhythm, the same every week
+const D = {}, BR = {};
+/** One ASIN: perDay $ normal, price $; mod(day) → { x: sales factor, p: price factor } for the days it changes. */
+function asin(a, brand, perDay, price, mod) {
+  D[a] = {}; BR[a] = brand;
+  days.forEach(d => {
+    const m = (mod && mod(d)) || {};
+    const pr = price * (m.p || 1);
+    const sales = Math.round(perDay * shape(d) * (m.x == null ? 1 : m.x) * 100) / 100;
+    if (sales > 0) D[a][d] = [Math.max(1, Math.round(sales / pr)), Math.round(Math.max(1, Math.round(sales / pr)) * pr * 100) / 100];
+  });
+}
+const inn = (a, b) => d => d >= a && d <= b;
+const PARENT = {};
+const kid = (p, ...as) => as.forEach(a => { PARENT[a] = p; });
+// A — a real drop, 4 days, one of two children sold out (FBA 0) → Critical? ($/week at risk decides) · out of stock
+asin('A1', 'SP', 300, 30, d => (inn('2026-11-20', LAST)(d) ? { x: 0 } : null)); asin('A2', 'SP', 300, 30); kid('PA', 'A1', 'A2');
+// B — a small product (≈$280/week) falling 80% → never an alert
+asin('B1', 'SP', 40, 20, d => (inn('2026-11-18', LAST)(d) ? { x: 0.2 } : null)); kid('PB', 'B1');
+// C — only 2 low days so far → waiting for data
+asin('C1', 'SP', 200, 25, d => (inn('2026-11-22', LAST)(d) ? { x: 0.4 } : null)); kid('PC', 'C1');
+// E — price up 20%, units down: sales −45% for 5 days → price
+asin('E1', 'SP', 250, 20, d => (inn('2026-11-19', LAST)(d) ? { x: 0.55, p: 1.2 } : null)); kid('PE', 'E1');
+// F — traffic down (sessions −50%, conversion normal), 6 days → traffic
+asin('F1', 'SP', 200, 25, d => (inn('2026-11-15', LAST)(d) ? { x: 0.5 } : null)); kid('PF', 'F1');
+// G — conversion down (sessions the same, units −50%), 6 days → conversion
+asin('G1', 'SP', 200, 25, d => (inn('2026-11-15', LAST)(d) ? { x: 0.5 } : null)); kid('PG', 'G1');
+// H — ads cut 80% (and ad sales down), 4 days → ads cut
+asin('H1', 'SP', 220, 22, d => (inn('2026-11-20', LAST)(d) ? { x: 0.55 } : null)); kid('PH', 'H1');
+// I — a Deal Calendar deal ended 16 Nov; low 4 days → deal ended
+asin('I1', 'SP', 230, 23, d => (inn('2026-11-20', LAST)(d) ? { x: 0.5 } : null)); kid('PI', 'I1');
+// J — ad spend up 60% while sales fell → ads up, no sales
+asin('J1', 'SP', 210, 21, d => (inn('2026-11-20', LAST)(d) ? { x: 0.55 } : null)); kid('PJ', 'J1');
+// K — a drop with nothing in the data to explain it → no clear cause
+asin('K1', 'SP', 190, 19, d => (inn('2026-11-20', LAST)(d) ? { x: 0.5 } : null)); kid('PK', 'K1');
+// L — dropped 15–19 Nov, back to normal since 20 Nov → recovered this week (no alert)
+asin('L1', 'SP', 260, 26, d => (inn('2026-11-15', '2026-11-19')(d) ? { x: 0.3 } : null)); kid('PL', 'L1');
+// M — a win: +60% for 4 days, ad spend up → "ads push working"
+asin('M1', 'SP', 240, 24, d => (inn('2026-11-20', LAST)(d) ? { x: 1.6 } : null)); kid('PM', 'M1');
+// N — three siblings: N1 sold out, N2 price +25% (fewer units), N3 normal → grouped by cause
+asin('N1', 'SP', 300, 30, d => (inn('2026-11-19', LAST)(d) ? { x: 0 } : null));
+asin('N2', 'SP', 300, 30, d => (inn('2026-11-19', LAST)(d) ? { x: 0.45, p: 1.25 } : null));
+asin('N3', 'SP', 300, 30); kid('PN', 'N1', 'N2', 'N3');
+// O — a big product, 8 low days → Critical by days and by money
+asin('O1', 'SP', 900, 30, d => (inn('2026-11-16', LAST)(d) ? { x: 0.4 } : null)); kid('PO', 'O1');
+// T — a huge fall TODAY only (a part day) → nothing: today never counts
+asin('T1', 'SP', 300, 30, d => (d === TODAY ? { x: 0.05 } : null)); kid('PT', 'T1');
+// U — a dear size ($50) sold out beside a cheap one ($20): the parent's plain average price falls, but no price changed → out of stock only
+asin('U1', 'SP', 400, 50, d => (inn('2026-11-20', LAST)(d) ? { x: 0 } : null)); asin('U2', 'SP', 300, 20); kid('PU', 'U1', 'U2');
+// S — CPC: down 50% for 4 days, and the brand's same days last year fell 45% → seasonal dip (Watch)
+asin('S1', 'CPC', 400, 40, d => (inn('2026-11-20', LAST)(d) ? { x: 0.5 } : null)); kid('PS', 'S1');
+
+const dailyAsin = { d: D, brand: BR, from: FROM, upTo: TODAY, at: '2026-11-24 05:40' };
+// stock: A1 and N1 at 0, the rest plenty (no entry for most → never "out of stock")
+const stock = { SP: { m: { 'SKU-A1': 0, 'SKU-A2': 400, 'SKU-N1': 0, 'SKU-N2': 300, 'SKU-N3': 300, 'SKU-U1': 0, 'SKU-U2': 500 }, at: '2026-11-24T03:00:00Z',
+  skuOf: { A1: ['SKU-A1'], A2: ['SKU-A2'], N1: ['SKU-N1'], N2: ['SKU-N2'], N3: ['SKU-N3'], U1: ['SKU-U1'], U2: ['SKU-U2'] } }, CPC: { m: {}, at: '', skuOf: {} } };
+// the weekly traffic report: F sessions halve in the week of 15 Nov (units halve too: conversion normal); G sessions hold, units halve
+const weeks = ['2026-10-18', '2026-10-25', '2026-11-01', '2026-11-08', '2026-11-15'];
+const wrow = (sess, u, last) => ({ brand: 'SP', weeks: Object.fromEntries(weeks.map(w => [w, w === '2026-11-15' ? last : { sessions: sess, u }])) });
+const weekly = { rows: { F1: wrow(800, 56, { sessions: 400, u: 28 }), G1: wrow(800, 56, { sessions: 800, u: 28 }) }, at: '2026-11-23 06:00' };
+// ad spend per day: H spend cut 80% from 20 Nov; J spend up 60%; M spend up 70% (its win)
+const adsD = { SP: { H1: {}, J1: {}, M1: {} } };
+days.filter(d => d <= '2026-11-22').forEach(d => {
+  adsD.SP.H1[d] = [1000, 30, d >= '2026-11-20' ? 10 : 50, 3, d >= '2026-11-20' ? 30 : 120];
+  adsD.SP.J1[d] = [1000, 30, d >= '2026-11-20' ? 64 : 40, 3, 90];
+  adsD.SP.M1[d] = [1000, 30, d >= '2026-11-20' ? 68 : 40, 3, 150];
+});
+const adsDay = { d: adsD, upTo: '2026-11-22', at: '2026-11-24 05:50' };
+const plan = { 'PI|2026-11-08': { t: 'LIGHTNING', v: 20, s: '2026-11-10', d: 7 } };
+// the brands' daily history (last year = 364 days back): SP flat; CPC flat except its same 4 days last year −45%
+const ly = { SP: {}, CPC: {} };
+for (let i = 0; i < 120; i++) {
+  const d = alAdd('2025-09-01', i);
+  ly.SP[d] = [5000, 200, 180];
+  ly.CPC[d] = [3000, 100, 90];
+}
+['2025-11-21', '2025-11-22', '2025-11-23', '2025-11-24'].forEach(d => { ly.CPC[d] = [1650, 55, 50]; });
+const base = { days: dailyAsin, today: TODAY, parentOf: a => PARENT[a] || a, nameOf: p => ({ PA: 'Round Tablecloth 70 inch', PO: 'Rectangle Tablecloth Main', PN: 'Napkins Set of 4' }[p] || 'Product ' + p),
+  stock, weekly, adsDay, plan, lyDaily: ly, now: Date.parse('2026-11-24T10:00:00Z') };
+const run = (more, brand) => X.alCompute(Object.assign({}, base, { brand: brand || 'SP' }, more || {}));
+const R = run();
+const find = (r, p, list) => (list ? r[list] : [].concat(r.alerts, r.waiting, r.recovered, r.wins, r.hidden)).find(a => a.parent === p);
+
+console.log('== the maths ==');
+ok('median of 4: one spike does not move it (100, 110, 90, 500 → 105)', X.alMedian([100, 110, 90, 500]) === 105);
+ok('MAD: the median distance from the median (→ 10)', X.alMad([100, 110, 90, 500], 105) === 10);
+ok('the window: the last finished day is yesterday (never today), 14 days back; 4 normal weeks before it',
+  R.ok && R.last === LAST && R.window.from === '2026-11-10' && R.base.from === '2026-10-13' && R.base.to === '2026-11-09' && R.base.weeks === 4, JSON.stringify([R.last, R.window, R.base]));
+
+console.log('== when it is an alert ==');
+const A = find(R, 'PA');
+ok('a real drop → an alert (4 low days, about −50%)', A && A.list === 'alerts' && A.days === 4 && Math.round(A.drop) >= 45, A && JSON.stringify([A.list, A.days, A.drop]));
+const exp = A.run.reduce((s, d) => s + A.series.find(p => p.d === d).e, 0), act = A.run.reduce((s, d) => s + A.series.find(p => p.d === d).v, 0);
+ok('$ at risk = (expected − actual) per low day × 7', Math.abs(A.atRisk - (exp - act) / A.days * 7) < 0.01 && Math.abs(A.exp - exp) < 0.01, `${A.atRisk} vs ${(exp - act) / A.days * 7}`);
+ok('the hero total = the alerts\' $ at risk added up', Math.abs(R.atRisk - R.alerts.reduce((s, a) => s + a.atRisk, 0)) < 0.001);
+ok('a small product (≈$280/week) never alerts, even −80%', !find(R, 'PB'));
+ok('only 2 low days → "Waiting for data", never an alert', find(R, 'PC', 'waiting') && !find(R, 'PC', 'alerts') && /2 low days so far/.test(find(R, 'PC', 'waiting').why), find(R, 'PC') && find(R, 'PC').why);
+ok('a fall today (a part day) never counts', !find(R, 'PT'));
+const late = run({ days: Object.assign({}, dailyAsin, { upTo: '2026-11-22' }) });
+ok('the nightly not in for yesterday: the last day is the last one held, and the page says so', late.last === '2026-11-22' && late.missing.join() === '2026-11-23');
+ok('…a product with 1 low day held waits "for the nightly days"; one with 3 held low days is an alert', /nightly days for 23 Nov are not in yet/.test((find(late, 'PC', 'waiting') || {}).why || '') && !!find(late, 'PA', 'alerts'), JSON.stringify(find(late, 'PC') && [find(late, 'PC').list, find(late, 'PC').why]));
+ok('the rows are ranked by $ at risk, biggest first', R.alerts.every((a, i) => !i || R.alerts[i - 1].atRisk >= a.atRisk));
+
+console.log('== season ==');
+const RC = run({}, 'CPC');
+const Sx = find(RC, 'PS');
+ok('the same days last year fell 45% (brand total) → "Seasonal dip", Watch — not Critical', Sx && Sx.list === 'alerts' && Sx.cause.k === 'season' && Sx.sev === 'watch', Sx && JSON.stringify([Sx.cause, Sx.sev, Sx.drop]));
+// a small season lift (+3 % last year on the window's days) on steady products (their 4 weeks are equal: MAD 0) — found on the real page:
+// without a minimum width the range was a line, every ordinary day "low", and a real 5-day drop was lost inside a 14-day "run"
+const ly3 = { SP: Object.assign({}, ly.SP), CPC: ly.CPC };
+for (let d = '2025-11-11'; d <= '2025-11-24'; d = alAdd(d, 1)) ly3.SP[d] = [5150, 200, 180];
+const R3 = run({ lyDaily: ly3 });
+ok('a small season lift on steady products: the same alerts, the same low days (the range is never narrower than ± 10 %)',
+  R3.alerts.map(a => a.parent + a.days).sort().join() === R.alerts.map(a => a.parent + a.days).sort().join(), R3.alerts.map(a => a.parent + a.days).join());
+ok('the season factor is capped 0.7–1.5 and used only when last year is held', RC.season.every(f => f == null || (f >= 0.7 && f <= 1.5)) && run({ lyDaily: null }).seasonHeld === false);
+
+console.log('== the causes ==');
+const cause = p => (find(R, p, 'alerts') || { cause: {} }).cause;
+ok('out of stock: FBA 0 for 1 of 2 children, no sale since 20 Nov · High', cause('PA').k === 'oos' && cause('PA').conf === 'High' && /FBA 0 for 1 of 2 children/.test(cause('PA').ev) && /no sale since 20 Nov/.test(cause('PA').ev), JSON.stringify(cause('PA')));
+ok('price: old → new price shown, since the day it changed', cause('PE').k === 'price' && /\$20\.\d\d → \$24\.\d\d \(\+\d+%\)/.test(cause('PE').ev) && /since 19 Nov/.test(cause('PE').ev), JSON.stringify(cause('PE')));
+const U = find(R, 'PU', 'alerts');
+ok('a dear size sold out beside a cheap one: out of stock — never "price change" (price is like for like per child)', U && U.cause.k === 'oos' && !U.causes.some(x => x.k === 'price'), U && JSON.stringify(U.causes));
+ok('traffic down: sessions −50%, conversion normal', cause('PF').k === 'traffic' && /800 → 400/.test(cause('PF').ev), JSON.stringify(cause('PF')));
+ok('conversion down: sessions the same, conversion −50% → listing / reviews / Buy Box', cause('PG').k === 'conv' && /7\.0% → 3\.5%/.test(cause('PG').ev), JSON.stringify(cause('PG')));
+ok('ads cut: spend $50/day → $10/day, ad sales down', cause('PH').k === 'adsCut' && /\$50\/day → \$10\/day/.test(cause('PH').ev), JSON.stringify(cause('PH')));
+ok('deal ended: the Deal Calendar\'s Lightning 20% ended 16 Nov', cause('PI').k === 'deal' && /Lightning 20% ended 16 Nov/.test(cause('PI').ev), JSON.stringify(cause('PI')));
+ok('ads up, no sales: spend +60% while sales fell → wasted spend', cause('PJ').k === 'adsUp' && /\+60%/.test(cause('PJ').ev), JSON.stringify(cause('PJ')));
+ok('nothing in the data → "No clear cause — check listing / Buy Box"', cause('PK').k === 'none' && X.alNext(cause('PK')) === 'Check listing / Buy Box');
+ok('ad figures not in yet for the low days → said, never claimed', run({ adsDay: Object.assign({}, adsDay, { upTo: '2026-11-15' }) }).alerts.find(a => a.parent === 'PH').notes.some(n => /ad figures .* not in yet/.test(n)));
+ok('sessions for the low days not in yet (weekly report) → said, never claimed', find(R, 'PA', 'alerts').notes.some(n => /sessions .* not in yet/.test(n)));
+ok('the next step follows the cause', X.alNext({ k: 'oos' }) === 'Check replenishment / send inbound' && X.alNext({ k: 'adsCut' }) === 'Check campaign status / budget'
+  && X.alNext({ k: 'traffic' }) === 'Check BSR / ads / search rank' && X.alNext({ k: 'conv' }) === 'Check listing, reviews, Buy Box' && X.alNext({ k: 'deal' }) === 'Normal after a deal — watch 7 days'
+  && /^Review the price change on 19 Nov$/.test(X.alNext(cause('PE'), find(R, 'PE'))));
+ok('the headline in plain English', /^Round Tablecloth 70 inch sales down \d+% for 4 days — likely out of stock$/.test(A.head), A.head);
+
+console.log('== siblings, severity, life cycle ==');
+const N = find(R, 'PN', 'alerts');
+ok('siblings grouped under the parent by their own cause: 1 out of stock, 1 price', N && N.groups.length === 2 && N.groups.find(g => g.k === 'oos').asins.join() === 'N1' && N.groups.find(g => g.k === 'price').asins.join() === 'N2', N && JSON.stringify(N.groups));
+const O = find(R, 'PO', 'alerts');
+ok('8 low days → Critical (7+ days), "Day 8"', O && O.sev === 'critical' && O.state === 'Day 8', O && JSON.stringify([O.sev, O.state, O.atRisk]));
+ok('severity by money: ≥ $2,000 Critical · ≥ $500 Important · else Watch', R.alerts.filter(a => a.cause.k !== 'season').every(a => a.sev === (a.atRisk >= 2000 || a.days >= 7 ? 'critical' : a.atRisk >= 500 ? 'important' : 'watch')));
+ok('a 3rd low day today → "New"', run({ days: Object.assign({}, dailyAsin, { d: Object.assign({}, D, { Q1: Object.fromEntries(Object.entries(D.A2).map(([d, v]) => [d, d >= '2026-11-21' && d <= LAST ? [2, 60] : v])) }), brand: Object.assign({}, BR, { Q1: 'SP' }) }) }).alerts.find(a => a.parent === 'Q1').state === 'New');
+const L = find(R, 'PL');
+ok('recovery: back inside the range 2+ days → "Recovered", the alert closes itself', L && L.list === 'recovered' && L.back === 4 && !find(R, 'PL', 'alerts'), L && JSON.stringify([L.list, L.back]));
+const id = A.id;
+const snoozed = run({ marks: { [id]: { a: 'snooze', by: 'x@y', at: base.now, until: base.now + 7 * 864e5 } } });
+ok('snooze 7 days: the alert steps aside (kept with who and when) and leaves the hero total', !find(snoozed, 'PA', 'alerts') && find(snoozed, 'PA', 'hidden').mark.by === 'x@y' && Math.abs(snoozed.atRisk - (R.atRisk - A.atRisk)) < 0.01);
+const hidRow = X.alRowHtml(find(snoozed, 'PA', 'hidden'));
+ok('a snoozed row says by whom and until when, with Undo — and no Snooze / Dismiss buttons', /Snoozed until 1 Dec by x@y/.test(hidRow.replace(/<[^>]+>/g, ' ')) && /data-al-act="undo"/.test(hidRow) && !/data-al-act="snooze"/.test(hidRow));
+ok('…and comes back after 7 days', !!find(run({ marks: { [id]: { a: 'snooze', until: base.now - 1 } } }), 'PA', 'alerts'));
+ok('dismiss hides only that drop: a new drop (another start day) shows again', !find(run({ marks: { [id]: { a: 'dismiss' } } }), 'PA', 'alerts') && !!find(run({ marks: { [id.replace(/\|[^|]+$/, '|2026-11-01')]: { a: 'dismiss' } } }), 'PA', 'alerts'));
+const M = find(R, 'PM', 'wins');
+ok('a win: +60% above expected for 4 days — "ads push working"', M && Math.round(M.gain) >= 55 && M.why === 'ads push working', M && JSON.stringify([M.gain, M.why]));
+ok('the settings move the line: drop at least 70% → the −50% drops are no alert', !find(run({ settings: { drop: 70 } }), 'PK', 'alerts'));
+ok('All = Ridhi + CPC', run({}, 'ALL').alerts.length === R.alerts.length + RC.alerts.length);
+
+console.log('== the page and the Dashboard ==');
+X.AL.filter = '';
+const hero = X.alHeroHtml(R).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+ok('the hero: "N products need attention · $X/week at risk" + the five chips', new RegExp(`${R.alerts.length} products need attention · \\$[\\d,]+ /week at risk`).test(hero) && /Critical/.test(hero) && /Waiting for data/.test(hero) && /Recovered this week/.test(hero), hero.slice(0, 160));
+const none = X.alHeroHtml(Object.assign({}, R, { alerts: [], atRisk: 0 })).replace(/<[^>]+>/g, ' ');
+ok('nothing to fix → "All good — no real drops this week ✅"', /All good — no real drops this week ✅/.test(none));
+const card = X.alCardHtml(A).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+ok('a top card: headline, −$/week, the cause with its evidence and confidence, what to do, Snooze / Dismiss, Create task coming soon',
+  /−\$[\d,]+ \/ week/.test(card) && /Out of stock · FBA 0/.test(card) && /High confidence/.test(card) && /Check replenishment \/ send inbound/.test(card) && /Snooze 7 days/.test(card) && /Dismiss/.test(card) && /Create task/.test(card), card.slice(0, 300));
+ok('at most 2 cause pills on a card', (X.alCardHtml(N).match(/class="al-pill/g) || []).length <= 2);
+const Y = load({ VI: { v: 1, data: { days: dailyAsin, stock, weekly } }, sdDays: ch => ly[ch] || {}, SD: { at: 'x', d: { SP: {}, CPC: {} } }, wParentOf: a => PARENT[a] || a,
+  viNameOf: p => 'Product ' + p });
+Y.AL.data = { adsDay, plan }; Y.AL.v = 1;
+const dv = Y.alDashOf('SP');
+ok('the Dashboard: how many, $/week at risk, the top three (biggest money first)', dv.n === R.alerts.length && dv.top.length === 3 && dv.top[0].usd >= dv.top[1].usd && /up to 23 Nov/.test(dv.when), JSON.stringify(dv).slice(0, 200));
+ok('the Dashboard\'s Both = Ridhi + CPC', Y.alDashOf('ALL').n === R.alerts.length + RC.alerts.length);
+
+console.log(`\n${pass} passed, ${fail} failed`);
+console.log('\n-- the fixture (Ridhi) --');
+R.alerts.forEach(a => console.log(`  ${a.sev.padEnd(9)} ${a.head}  ·  −$${Math.round(a.atRisk)}/wk  ·  ${a.cause.t}: ${a.cause.ev}`));
+R.waiting.forEach(a => console.log(`  waiting   ${a.name} — ${a.why}`));
+R.recovered.forEach(a => console.log(`  recovered ${a.head}`));
+R.wins.forEach(a => console.log(`  win       ${a.head}  +$${Math.round(a.extra)}/wk`));
+RC.alerts.forEach(a => console.log(`  CPC ${a.sev.padEnd(5)} ${a.head}  ·  ${a.cause.t}: ${a.cause.ev}`));
+process.exit(fail ? 1 : 0);

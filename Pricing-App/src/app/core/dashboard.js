@@ -45,12 +45,13 @@ const DASH_FMT = {
   usd2: v => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),   // Inventory Age's storage
   num: v => DASH_NUM.format(Math.round(v)),
 };
-const DASH_SLOTS = ['ticker', 'tVi', 'kSales', 'kYtd', 'kAds', 'kList', 'flow', 'donut', 'line', 'bars', 'tImg', 'tErr', 'tBsr', 'tAge'];
+const DASH_SLOTS = ['ticker', 'tVi', 'tAl', 'kSales', 'kYtd', 'kAds', 'kList', 'flow', 'donut', 'line', 'bars', 'tImg', 'tErr', 'tBsr', 'tAge'];
 // Each data source: the screen whose access it needs, and the cards it fills.
 const DASH_KEYS = {
   sales: { tab: 'sales', slots: ['kSales', 'kYtd', 'line', 'ticker'] },
   ads: { tab: 'ppcn', slots: ['kAds', 'bars', 'ticker'] },
   vi: { tab: 'sales', slots: ['tVi'] },                 // This week in plain English (sales/sales-insight.js)
+  al: { tab: 'salert', slots: ['tAl'] },                // Sales Alerts (sales/sales-alerts.js)
   age: { tab: 'age', slots: ['tAge', 'ticker'] },
   health: { tab: 'health', slots: ['kList', 'flow', 'donut', 'ticker'] },
   lh: { tab: 'lhist', slots: ['flow'] },
@@ -133,6 +134,8 @@ const DASH_SIG = {
   sales: () => [SD && SD.at, SD && SD.d, SD_LIVE, typeof T_MATCH !== 'undefined' && T_MATCH.biz],
   ads: () => [WEEKLY.rows, WEEKLY.at, DASH.weekly],
   vi: () => [typeof VI !== 'undefined' ? VI.v : 0, typeof sdToday === 'function' ? sdToday() : '', H_LOADED],
+  al: () => [typeof AL !== 'undefined' ? AL.v : 0, typeof VI !== 'undefined' ? VI.v : 0, typeof sdToday === 'function' ? sdToday() : '', H_LOADED,
+    typeof AL !== 'undefined' ? AL.store.marks : null, typeof AL !== 'undefined' ? AL.store.settings : null],
   age: () => [AGE_LOADED, AGE.SP, AGE.CPC],
   health: () => [H_LOADED, LR, HEALTH.SP, HEALTH.CPC, H_LOADED && LR ? hCtx() : null, typeof LI_WS !== 'undefined' ? LI_WS.liveV : 0, new Date().toDateString()],
   lh: () => [LH.rows, LH.loading, DASH.lhOwn],
@@ -154,6 +157,8 @@ const dashPerView = fn => { const out = {}; DASH_VIEWS.forEach(view => { out[vie
 const DASH_CALC = {
   // This week in plain English (sales/sales-insight.js): the first sentence of the summary, per view — the same movers as the box
   vi: () => dashPerView(view => viDashOf(view)),
+  // Sales Alerts (sales/sales-alerts.js): how many need attention, $/week at risk and the top three, per view — the page's own alerts
+  al: () => dashPerView(view => alDashOf(view)),
   // The Sales Dashboard's own sums: sdSum / sdSeries read the channel on view (SD_CH), so it is set for each brand and put back
   // straight after, in the same moment (nothing else runs in between).
   sales: () => {
@@ -489,7 +494,7 @@ async function dashLoadBsr() {
   }
   DASH.bsrOwn = own;
 }
-const DASH_LOAD = { sales: dashLoadSales, ads: dashLoadAds, vi: () => viDashLoad(), age: dashLoadAge, health: dashLoadHealth, lh: dashLoadLh,
+const DASH_LOAD = { sales: dashLoadSales, ads: dashLoadAds, vi: () => viDashLoad(), al: () => alDashLoad(), age: dashLoadAge, health: dashLoadHealth, lh: dashLoadLh,
   img: dashLoadIml, lerr: dashLoadIml, bsr: dashLoadBsr };
 
 // A source's data changed: work its numbers out again, and redraw its cards when the Dashboard is on screen.
@@ -513,7 +518,7 @@ function dashRun(key) {
 // Every source, in order: Sales · PPC · Inventory first, then Listing Health, then the four that read the listing lists.
 function dashPrefetch() {
   if (!dashMay('dash')) return;
-  ['sales', 'ads', 'vi', 'age', 'health', 'img', 'lerr', 'bsr', 'lh'].forEach(dashRun);
+  ['sales', 'ads', 'vi', 'al', 'age', 'health', 'img', 'lerr', 'bsr', 'lh'].forEach(dashRun);
   if (!DASH.watchT) DASH.watchT = setInterval(dashWatch, 2000);
 }
 // Every 2 s: a loaded source whose inputs changed since its numbers were worked out (a screen loaded more, the listing cache
@@ -611,6 +616,19 @@ const DASH_PAINT = {
     const body = ok ? head + dashEsc(d.v.text) : d.state === 'fresh' && d.v && d.v.why ? `<span class="dash-vi-why">${dashEsc(d.v.why)}</span>` : d.state === 'loading' ? dashSk('80%') : '—';
     return `<article class="dash-card dash-vi dash-glass" style="--i:${i}"><div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">💬</span>This week in plain English</span>${dashOpenBtn('sales')}</div>`
       + `<p class="dash-vi-t">${body}</p>${dashFoot(d, 'sales')}</article>`;
+  },
+  // Sales Alerts: "3 need attention · $4,200/week at risk", the top three (biggest money first) and Open → the Sales Alerts page
+  tAl: i => {
+    const d = dashData('al');
+    const ok = dashOk(d);
+    let body;
+    if (ok && d.v.n) {
+      body = `<b class="dash-al-h">${DASH_FMT.num(d.v.n)} need${d.v.n === 1 ? 's' : ''} attention · ${dashCu(d.v.usd, 'money', 'alusd')}/week at risk</b>`
+        + `<ul class="dash-al-l">${d.v.top.map(t => `<li><i class="dash-al-dot is-${dashEsc(t.sev)}" aria-hidden="true"></i><span>${dashEsc(t.name)} <em>−${t.pct}% · ${dashEsc(t.why)}</em></span><b>−${DASH_FMT.money(t.usd)}/wk</b></li>`).join('')}</ul>`;
+    } else if (ok) body = '<b class="dash-al-h">All good — no real drops this week ✅</b>';
+    else body = d.state === 'fresh' && d.v && d.v.why ? `<span class="dash-vi-why">${dashEsc(d.v.why)}</span>` : d.state === 'loading' ? dashSk('80%') : '—';
+    return `<article class="dash-card dash-al dash-glass" style="--i:${i}"><div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">🚨</span>Sales Alerts</span>${dashOpenBtn('salert')}</div>`
+      + `<div class="dash-al-b">${body}</div>${dashFoot(d, 'salert')}</article>`;
   },
   // What needs attention, in real numbers only (fresh or this browser's copy): up to five lines.
   ticker: () => {
@@ -822,7 +840,7 @@ function dashRender() {
     + `<div class="dash-date"><span class="dash-clock">${dashClockText()}</span><span>${dashEsc(date)}</span><span class="dash-live"><i></i><b>Live</b> <span class="dash-live-t"></span></span></div><button type="button" class="nc-chip" id="ncChipDash" hidden></button></div>`
     + `<div class="dash-brands" role="group" aria-label="Brand"><span class="dash-pill" aria-hidden="true"></span>${brand('ALL', 'Both')}${brand('SP', 'Ridhi')}${brand('CPC', 'CPC')}</div></header>`
     + slot('ticker')
-    + `<section class="dash-grid dash-vi-row">${slot('tVi')}</section>`
+    + `<section class="dash-grid dash-vi-row">${slot('tVi')}${slot('tAl')}</section>`
     + `<section class="dash-grid dash-kpis">${['kSales', 'kYtd', 'kAds', 'kList'].map(slot).join('')}</section>`
     + `<section class="dash-grid">${slot('flow')}</section>`
     + `<section class="dash-grid dash-row3">${['donut', 'line', 'bars'].map(slot).join('')}</section>`

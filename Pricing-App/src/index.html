@@ -77,7 +77,7 @@
       <button id="tabKw" class="nav">Keywords</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,ncheck,shop,adj,ba">
+    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,ncheck,salert,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
       <!-- THE SALES DROP-DOWN (21 Nov 2026): the Listing menu's columns (styles.css "THE LISTING DROP-DOWN"), four groups.
@@ -89,7 +89,8 @@
       <div class="navcol"><div class="navcol-h num">Overview</div>
       <button id="tabSales" class="nav">Sales Dashboard</button></div>
       <div class="navcol"><div class="navcol-h num">Check &amp; alerts</div>
-      <button id="tabNcheck" class="nav">Numbers Check</button></div>
+      <button id="tabNcheck" class="nav">Numbers Check</button>
+      <button id="tabSalert" class="nav">Sales Alerts</button></div>
       <div class="navcol"><div class="navcol-h num">Analyse</div>
       <button id="tabProfit" class="nav">Profit &amp; Margin</button>
       <button id="tabSa" class="nav">Sales Analysis</button>
@@ -1394,6 +1395,8 @@
   <!-- NUMBERS CHECK (21 Nov 2026, app/sales/sales-check.js): the rule book for every sales / ads / stock number, and the same number
        compared across screens. Drawn by the script; reads only what is loaded or cached. -->
   <div id="paneNcheck" class="hide"><div id="ncPane"></div></div>
+  <!-- ============ Sales Alerts (sales/sales-alerts.js draws all of it into #alPane; styles: styles.css "SALES ALERTS") ============ -->
+  <div id="paneSalert" class="hide"><div id="alPane"></div></div>
 
   <div id="paneSales" class="hide" data-mode="story">
     <!-- THE SALES DASHBOARD AS CHAPTERS (23 Nov 2026 — the approved preview Pricing-App/design/sales-dashboard/, with Sellora's own numbers).
@@ -1420,6 +1423,8 @@
     </header>
 
     <div class="sdx-main">
+      <!-- Needs attention (sales/sales-alerts.js alStripPaint): the brand on view's real drops, hidden when there are none -->
+      <div id="alStrip" class="al-strip" role="status" hidden></div>
       <!-- 1 -->
       <section class="sdx-ch" data-glow="#4d8dff">
         <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>

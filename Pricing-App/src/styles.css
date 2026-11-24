@@ -537,6 +537,7 @@
   #tabSa{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='13.5' cy='6.5' r='.5'/%3E%3Ccircle cx='17.5' cy='10.5' r='.5'/%3E%3Ccircle cx='8.5' cy='7.5' r='.5'/%3E%3Ccircle cx='6.5' cy='12.5' r='.5'/%3E%3Cpath d='M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1a1.6 1.6 0 0 1 1.6-1.7h2c3 0 5.6-2.5 5.6-5.6C22 6 17.5 2 12 2z'/%3E%3C/svg%3E")}
   #tabPlaudit{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='2' width='6' height='6' rx='1'/%3E%3Crect x='2' y='16' width='6' height='6' rx='1'/%3E%3Crect x='16' y='16' width='6' height='6' rx='1'/%3E%3Cpath d='M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8'/%3E%3C/svg%3E")}
   #tabNcheck{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4M9.5 16l1.8 1.8 3.2-3.3'/%3E%3C/svg%3E")}
+  #tabSalert{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9'/%3E%3Cpath d='M10.3 21a1.94 1.94 0 0 0 3.4 0'/%3E%3C/svg%3E")}
   :is(#secListing,#secSales) .navcol:not(:has(> .nav:not(.hide))){display:none}
   :is(#secListing,#secSales) .navcol-h{padding:6px 12px 8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
   /* A heading marked .num is numbered by the browser: a hidden group (no screen this account can open) is not counted, so the
@@ -962,6 +963,161 @@
   /* the app's own gutter is 16px from 860px down: the bar bleeds exactly that far, never wider than the page */
   @media (max-width: 860px) { #paneSales .sdx-bar { margin: 0 -16px; padding: 8px 16px; } }
   @media (prefers-reduced-motion: reduce) { #paneSales .sdx-lines, #paneSales #sdxDots { display: none; } #paneSales .sdx-glow { transition: none; } }
+  /* ================= SALES ALERTS (24 Nov 2026, sales/sales-alerts.js) — the Sales Dashboard's look: calm cards, one accent per
+     severity (red / amber / yellow), green only for wins, tabular numbers. Scoped to #paneSalert, the Sales Dashboard's strip
+     (#paneSales .al-strip) and the Dashboard card (#paneDash .dash-al). ================= */
+  #paneSalert {
+    --al-page: #f5f5f7; --al-card: #ffffff; --al-line: #e6e6eb; --al-ink: #1d1d1f; --al-muted: #6e6e73; --al-chip: #ececf0;
+    --al-blue: #0071e3; --al-band: rgba(0, 113, 227, .12); --al-red: #d70015; --al-red-bg: #fde8ea; --al-amber: #c2410c; --al-amber-bg: #ffedd5;
+    --al-yellow: #a16207; --al-yellow-bg: #fef9c3; --al-green: #1d8a4e; --al-green-bg: #e4f5eb; --al-grey-bg: #f0f0f3;
+    --al-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 12px 40px rgba(0, 0, 0, .06); --al-r: 24px;
+    --al-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, "Segoe UI", system-ui, sans-serif;
+    font-family: var(--al-font); color: var(--al-ink); font-size: 15px; line-height: 1.47; -webkit-font-smoothing: antialiased;
+  }
+  :root[data-theme="dark"] #paneSalert {
+    --al-page: #0a0f1e; --al-card: #111a2e; --al-line: #1e2a44; --al-ink: #f2f4f8; --al-muted: #9aa4b8; --al-chip: #1a2440;
+    --al-blue: #4c9dff; --al-band: rgba(76, 157, 255, .16); --al-red: #ff6b6b; --al-red-bg: rgba(255, 107, 107, .14); --al-amber: #fb923c; --al-amber-bg: rgba(251, 146, 60, .14);
+    --al-yellow: #facc15; --al-yellow-bg: rgba(250, 204, 21, .12); --al-green: #3ddc84; --al-green-bg: rgba(61, 220, 132, .14); --al-grey-bg: #16203a;
+    --al-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 48px rgba(0, 0, 0, .35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) #paneSalert {
+      --al-page: #0a0f1e; --al-card: #111a2e; --al-line: #1e2a44; --al-ink: #f2f4f8; --al-muted: #9aa4b8; --al-chip: #1a2440;
+      --al-blue: #4c9dff; --al-band: rgba(76, 157, 255, .16); --al-red: #ff6b6b; --al-red-bg: rgba(255, 107, 107, .14); --al-amber: #fb923c; --al-amber-bg: rgba(251, 146, 60, .14);
+      --al-yellow: #facc15; --al-yellow-bg: rgba(250, 204, 21, .12); --al-green: #3ddc84; --al-green-bg: rgba(61, 220, 132, .14); --al-grey-bg: #16203a;
+      --al-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 48px rgba(0, 0, 0, .35);
+    }
+  }
+  body:has(#paneSalert:not(.hide)) { background-color: #f5f5f7; }
+  :root[data-theme="dark"] body:has(#paneSalert:not(.hide)) { background-color: #0a0f1e; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body:has(#paneSalert:not(.hide)) { background-color: #0a0f1e; } }
+  #paneSalert .num, #paneSalert .al-chip b, #paneSalert .al-hl { font-variant-numeric: tabular-nums; }
+  #paneSalert button, #paneSalert select, #paneSalert input { font-family: inherit; }
+  #paneSalert .muted { color: var(--al-muted); }
+  #paneSalert .al { max-width: 1160px; margin: 0 auto; padding-bottom: 64px; min-width: 0; }
+  /* the bar: brand on the left, the message, Refresh on the right; 36px controls */
+  #paneSalert .al-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
+  #paneSalert #alMsg { flex: 1 1 160px; min-width: 0; font-size: 13px; }
+  #paneSalert #alMsg:empty { display: none; }
+  #paneSalert .al-bar > [data-al-act="refresh"] { margin-left: auto; }
+  #paneSalert .al-seg { display: inline-flex; height: 36px; padding: 3px; border-radius: 999px; background: var(--al-chip); gap: 2px; }
+  #paneSalert .al-seg button { border: 0; background: transparent; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--al-muted); cursor: pointer; min-height: 0; margin: 0; line-height: 1; }
+  #paneSalert .al-seg button[aria-pressed="true"] { background: var(--al-card); color: var(--al-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+  #paneSalert .al-btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; min-height: 0; margin: 0; padding: 0 14px; border: 0; border-radius: 999px;
+    background: var(--al-chip); color: var(--al-ink); font-size: 13px; font-weight: 500; cursor: pointer; text-decoration: none; white-space: nowrap; line-height: 1; }
+  #paneSalert .al-btn:hover { filter: brightness(.97); }
+  #paneSalert .al-btn:disabled { opacity: .5; cursor: not-allowed; }
+  #paneSalert .al-btn.is-main { background: var(--al-blue); color: #fff; }
+  #paneSalert :is(.al-btn, .al-seg button, .al-chip, summary):focus-visible { outline: 2px solid var(--al-blue); outline-offset: 2px; }
+  /* A — the hero */
+  #paneSalert .al-hero { margin: 0 0 40px; }
+  #paneSalert .al-hl { margin: 0 0 18px; font-size: clamp(28px, 3.6vw, 44px); line-height: 1.12; font-weight: 700; letter-spacing: -.025em; color: var(--al-ink); }
+  #paneSalert .al-risk { color: var(--al-red); }
+  #paneSalert .al-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  #paneSalert .al-chip { display: inline-flex; align-items: center; gap: 6px; height: 36px; min-height: 0; margin: 0; padding: 0 14px; border: 1px solid var(--al-line); border-radius: 999px;
+    background: var(--al-card); color: var(--al-ink); font-size: 13px; font-weight: 500; cursor: pointer; line-height: 1; }
+  #paneSalert .al-chip b { font-weight: 700; }
+  #paneSalert .al-chip[aria-pressed="true"] { border-color: var(--al-ink); box-shadow: inset 0 0 0 1px var(--al-ink); }
+  #paneSalert .al-sub { margin: 14px 0 0; color: var(--al-muted); font-size: 13px; }
+  /* sections */
+  #paneSalert .al-sec { margin: 0 0 44px; }
+  #paneSalert .al-sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  #paneSalert .al-sec-h h3 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -.015em; }
+  #paneSalert .al-empty { margin: 8px 0; }
+  /* B — fix these first: the top three */
+  #paneSalert .al-top { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+  #paneSalert .al-card { position: relative; background: var(--al-card); border-radius: var(--al-r); box-shadow: var(--al-shadow); padding: 22px 22px 18px; min-width: 0;
+    border-top: 4px solid var(--al-sev, var(--al-line)); }
+  #paneSalert .is-critical { --al-sev: var(--al-red); --al-sev-bg: var(--al-red-bg); }
+  #paneSalert .is-important { --al-sev: var(--al-amber); --al-sev-bg: var(--al-amber-bg); }
+  #paneSalert .is-watch { --al-sev: var(--al-yellow); --al-sev-bg: var(--al-yellow-bg); }
+  #paneSalert .is-waiting { --al-sev: var(--al-muted); --al-sev-bg: var(--al-grey-bg); }
+  #paneSalert .is-recovered, #paneSalert .is-win { --al-sev: var(--al-green); --al-sev-bg: var(--al-green-bg); }
+  #paneSalert .al-card-h { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 12px; color: var(--al-muted); }
+  #paneSalert .al-sev { display: inline-flex; gap: 4px; padding: 2px 9px; border-radius: 999px; font-weight: 700; color: var(--al-sev); background: var(--al-sev-bg); }
+  #paneSalert .al-head { margin: 12px 0 6px; font-size: 16px; line-height: 1.35; font-weight: 650; color: var(--al-ink); }
+  #paneSalert .al-big { font-size: 34px; font-weight: 700; letter-spacing: -.03em; color: var(--al-sev); line-height: 1.1; }
+  #paneSalert .al-big small { font-size: 14px; font-weight: 500; color: var(--al-muted); letter-spacing: 0; }
+  #paneSalert .al-chart { width: 100%; height: 150px; margin: 10px 0 4px; }
+  #paneSalert .al-chart.is-row { height: 170px; }
+  #paneSalert .al-pills { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+  #paneSalert .al-pill { display: block; padding: 6px 10px; border-radius: 12px; background: var(--al-grey-bg); font-size: 12.5px; line-height: 1.4; color: var(--al-ink); }
+  #paneSalert .al-pill i { font-style: normal; color: var(--al-muted); }
+  #paneSalert .al-do { margin: 10px 0; font-size: 14px; }
+  #paneSalert .al-do b { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--al-muted); margin-bottom: 2px; }
+  #paneSalert .al-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 6px; }
+  #paneSalert .al-asof { margin: 6px 0 0; font-size: 12px; color: var(--al-muted); }
+  #paneSalert .al-note { margin: 6px 0; font-size: 12.5px; color: var(--al-muted); }
+  #paneSalert .al-kids { margin: 10px 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--al-line); font-size: 13px; }
+  #paneSalert .al-kids > b { display: block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--al-muted); margin-bottom: 4px; }
+  #paneSalert .al-kid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 10px; padding: 4px 0; border-top: 1px solid var(--al-line); }
+  #paneSalert .al-kid:first-of-type { border-top: 0; }
+  #paneSalert .al-kid small { grid-column: 1 / -1; color: var(--al-muted); overflow-wrap: anywhere; }
+  /* C — all alerts: one row each, opens to the same detail */
+  #paneSalert .al-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #paneSalert .al-sel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--al-muted); }
+  #paneSalert .al-sel select { height: 36px; border-radius: 999px; border: 1px solid var(--al-line); background: var(--al-card); color: var(--al-ink); padding: 0 12px; font-size: 13px; }
+  #paneSalert .al-rows { background: var(--al-card); border-radius: 20px; box-shadow: var(--al-shadow); overflow: hidden; }
+  #paneSalert .al-row { border-top: 1px solid var(--al-line); }
+  #paneSalert .al-row:first-child { border-top: 0; }
+  #paneSalert .al-row > summary { display: grid; grid-template-columns: 10px minmax(0, 1fr) 150px 56px 110px 76px; gap: 12px; align-items: center; padding: 14px 18px; cursor: pointer; list-style: none; }
+  #paneSalert .al-row > summary::-webkit-details-marker { display: none; }
+  #paneSalert .al-row > summary:hover { background: var(--al-grey-bg); }
+  #paneSalert .al-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--al-sev); }
+  #paneSalert .al-row-n { min-width: 0; font-weight: 600; font-size: 14px; }
+  #paneSalert .al-row-n small { display: block; font-weight: 400; font-size: 12.5px; color: var(--al-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #paneSalert .al-row-c, #paneSalert .al-row-s { font-size: 13px; color: var(--al-muted); }
+  #paneSalert .al-row-p { font-weight: 700; color: var(--al-sev); text-align: right; }
+  #paneSalert .al-row-m { font-weight: 700; text-align: right; }
+  #paneSalert .al-det { padding: 0 18px 16px 40px; }
+  #paneSalert .al-wait { margin-top: 14px; border-radius: 20px; background: var(--al-grey-bg); overflow: hidden; }
+  #paneSalert .al-wait > summary { padding: 14px 18px; cursor: pointer; font-size: 14px; color: var(--al-muted); font-weight: 600; }
+  #paneSalert .al-wait .al-row { background: transparent; }
+  /* D — wins */
+  #paneSalert .al-wins ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; }
+  #paneSalert .al-win { display: flex; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 16px; background: var(--al-green-bg); color: var(--al-ink); font-size: 14px; }
+  #paneSalert .al-win .num { color: var(--al-green); font-weight: 700; white-space: nowrap; }
+  /* E — how we decide, and the settings */
+  #paneSalert .al-how { margin: 0 0 28px; background: var(--al-card); border-radius: 20px; box-shadow: var(--al-shadow); }
+  #paneSalert .al-how > summary { padding: 16px 20px; cursor: pointer; font-weight: 600; }
+  #paneSalert .al-how-b { padding: 0 20px 18px; font-size: 14px; color: var(--al-ink); }
+  #paneSalert .al-how-b p { margin: 0 0 10px; max-width: 820px; }
+  #paneSalert .al-sets { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px 18px; margin: 14px 0 4px; }
+  #paneSalert .al-set { display: flex; justify-content: space-between; gap: 10px; align-items: center; font-size: 13px; }
+  #paneSalert .al-set small { display: block; color: var(--al-muted); font-size: 11.5px; }
+  #paneSalert .al-set input { width: 86px; height: 36px; border-radius: 10px; border: 1px solid var(--al-line); background: var(--al-page); color: var(--al-ink); padding: 0 10px; text-align: right; font-variant-numeric: tabular-nums; }
+  /* F — the footer */
+  #paneSalert .al-foot { font-size: 12px; color: var(--al-muted); }
+  /* phone */
+  @media (max-width: 900px) { #paneSalert .al-top { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 760px) {
+    #paneSalert .al-row > summary { grid-template-columns: 10px minmax(0, 1fr) auto; grid-template-areas: "d n m" ". c p"; row-gap: 4px; padding: 12px 14px; }
+    #paneSalert .al-dot { grid-area: d; } #paneSalert .al-row-n { grid-area: n; } #paneSalert .al-row-m { grid-area: m; }
+    #paneSalert .al-row-c { grid-area: c; } #paneSalert .al-row-p { grid-area: p; } #paneSalert .al-row-s { display: none; }
+    #paneSalert .al-det { padding: 0 14px 14px; }
+    #paneSalert .al-wins ul { grid-template-columns: minmax(0, 1fr); }
+    #paneSalert .al-big { font-size: 30px; }
+  }
+  /* the Sales Dashboard's slim "Needs attention" strip */
+  #paneSales .al-strip { position: relative; z-index: 2; display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin: 24px 0 -72px; padding: 10px 10px 10px 16px;
+    border-radius: 18px; background: var(--sx-card); box-shadow: var(--sx-shadow); border-left: 4px solid var(--sx-down); font-size: 14px; color: var(--sx-ink); }
+  #paneSales .al-strip[hidden] { display: none; }
+  #paneSales .al-strip-h { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--sx-down); }
+  #paneSales .al-strip-t { flex: 1 1 280px; min-width: 0; }
+  #paneSales .al-strip-go { height: 36px; min-height: 0; margin: 0; padding: 0 14px; border: 0; border-radius: 999px; background: var(--sx-chip); color: var(--sx-ink); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+  #paneSales[data-mode="compact"] .al-strip { margin-bottom: 0; }
+  @media (max-width: 760px) { #paneSales .al-strip { margin-bottom: -40px; } }
+  /* the Dashboard card (core/dashboard.js tAl), beside "This week in plain English" */
+  @media (min-width: 1000px) { #paneDash .dash-vi-row:has(#dash-tAl > *) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+  #paneDash .dash-al .dash-al-h { display: block; margin: 2px 0 8px; font-size: 16px; font-weight: 700; line-height: 1.35; color: var(--ink); }
+  #paneDash .dash-al .dash-al-l { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; }
+  #paneDash .dash-al .dash-al-l li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+  #paneDash .dash-al .dash-al-l span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+  #paneDash .dash-al .dash-al-l em { font-style: normal; color: var(--muted); }
+  #paneDash .dash-al .dash-al-l b { font-variant-numeric: tabular-nums; color: var(--bad-ink); white-space: nowrap; }
+  #paneDash .dash-al .dash-al-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn, #d97706); }
+  #paneDash .dash-al .dash-al-dot.is-critical { background: var(--bad); }
+  #paneDash .dash-al .dash-al-dot.is-watch { background: #eab308; }
   .sd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
   @media (max-width:900px){ .sd-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
   .sd-stat{background:color-mix(in srgb,var(--ink) 3%,var(--card));border-radius:var(--r-ctl);padding:12px 14px}
