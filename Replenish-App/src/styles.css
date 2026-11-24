@@ -2383,6 +2383,7 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home table.p1g td.sg .wp.late i{opacity:1;font-weight:800}
 #p1Home table.p1g td.sg .dn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#EAF3DE;color:#3B6D11;font-weight:800;font-size:12px}
 #p1Home table.p1g td.sg.sna{color:#DDE2E9}
+#p1Home table.p1g td.sg .for{display:block;font-size:10.5px;color:var(--muted);margin-top:2px}
 #p1Home table.p1g tr.lot.urgent > td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
 #p1Home table.p1g tr.lot > td{border-top:1px solid var(--line)}
 #p1Home table.p1g tr.lot{cursor:pointer}
