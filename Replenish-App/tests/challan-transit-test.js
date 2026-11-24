@@ -88,6 +88,13 @@ async function portal() {
     /RFD-202611-455/.test(html1) && /RFD-202611-353/.test(html1) && /Received 2026-11-19/.test(html1) && !/data-pclrecv="RFD-202611-353"/.test(html1));
   ok('searching a SKU or the challan no. finds it too', P.pclShown(P.PCL.rows, 'cpctb005').length === 1 && P.pclShown(P.PCL.rows, 'rfd-202611-353').length === 1);
   ok('a search that matches nothing shows nothing (the orders below still show)', P.pclSection('shp-99') === '');
+  /* CUT PIECES IN PIECES (Ravi, 24 Nov): a copy says each line's unit; an older copy (no unit) stays in metres */
+  ok('an older copy (no unit on its lines) says its metres, as before', /277\.15 m/.test(P.pclSection('rfd-202611-455')) && /<th>Sent<\/th>/.test(P.pclSection('rfd-202611-455')));
+  P.PCL.rows.push({ kind: 'cloth', no: 'RFD-202611-464', date: '2026-11-24', metres: 31.6, lines: [{ orderNo: 'AMZ-24112026-01-AIR', sku: 'RTC327-6060', fabric: 'Sheeting 62', pcs: 20, metres: 31.6, unit: 'pcs' }] });
+  ok('cut pieces (printed on the SKU itself) are said in pieces: 20 pcs, not 31.6 m', /<td class="num">20 pcs<\/td>/.test(P.pclSection('rfd-202611-464')));
+  P.PCL.rows.push({ kind: 'cloth', no: 'RFD-202611-465', date: '2026-11-24', metres: 45.6, lines: [{ orderNo: 'X', sku: 'A', pcs: 20, metres: 31.6, unit: 'pcs' }, { orderNo: 'X', sku: 'B', pcs: 10, metres: 14, unit: 'm' }] });
+  ok('…running cloth in metres, both on one challan: "20 pcs · 14 m"', /20 pcs · 14 m/.test(P.pclSection('rfd-202611-465')));
+  P.PCL.rows = P.PCL.rows.filter(c => !/46[45]$/.test(c.no));
   ok('names on the page are text, never HTML', (P.PCL.rows[0].lines[0].sku = '<b>x', /&lt;b&gt;x/.test(P.pclSection(''))));
 
   const er = await P.pclReceive('RFD-202611-455');

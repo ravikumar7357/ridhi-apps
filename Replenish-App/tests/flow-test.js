@@ -2821,6 +2821,8 @@ const K = 'AMZ-1__S1';
     ok('…S2 (no printer from PPC) now has Sanganer as its printer; S1 and S3 keep theirs', w['pt_ppc/AMZ-1__S2/printer'].code === 'P1' && !w['pt_ppc/AMZ-1__S1/printer'] && !w['pt_ppc/SHP-9__S3/printer']);
     ok('…each printer gets its own copy (in transit): 55 m to Sanganer, 21 m to Choudhary', (w['pt_vendorChallans/P1/' + chP1.no] || {}).metres === 55 && (w['pt_vendorChallans/P2/' + chP2.no] || {}).metres === 21
       && M.flowClothInTransit('Cambric', '2026-10-01').reduce((a, x) => a + x.metres, 0) === 76);
+    ok('…each line of the copy says its unit: S1, S2 printed on the SKU itself go as pcs, S3 as running cloth (24 Nov)', (w['pt_vendorChallans/P1/' + chP1.no] || { lines: [] }).lines.map(l => l.sku + ':' + l.unit).join() === 'S1:pcs,S2:pcs'
+      && (w['pt_vendorChallans/P2/' + chP2.no] || { lines: [] }).lines.map(l => l.sku + ':' + l.unit).join() === 'S3:m');
     ok('…and the Greige Desk is told both numbers', mf && mf[0].split(', ').sort().join() === [chP1.no, chP2.no].sort().join() && M.FLOW_SH() === null, JSON.stringify(mf));
 
     /* FEWER PIECES, SAVED: 30 of S1's 100 go; the other 70 stay waiting on Demand → RFD (the PPC page) */
