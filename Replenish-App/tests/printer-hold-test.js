@@ -23,6 +23,7 @@ function load(opts) {
     fabKey: v => String(v || '').trim().toUpperCase(), cutSkuOf: () => ({ brand: 'B', color: 'Red', fabric: 'Cotton' }), ptImgOf: () => '', voFabricCatalogue: () => new Map(),
     voLines: o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {})).filter(Boolean),
     voNewOrderNo: (() => { let n = 0; return () => 'VPO-T' + (++n); })(), voTodayDMY: () => '23/11/2026',
+    vpRawCtx: () => ({}), vpLineRaw: (o, l) => ({ raw: (opts.given || {})[l.lineId] || 0 }),
     ptList: x => x || [], ptGet: async () => opts.branch || null, flowTestsOn: () => false, flowMay: () => false, nf: v => String(v), $: () => null,
   };
   const api = new Function(...Object.keys(ctx), FLOW_SRC + '\n;return { flowHoldOn, flowVoLines, flowVoSync, flowVoRelease, flowVpAfterLoad, flowVpHoldApply, flowHoldSaveFlag, VO:()=>VO, VP:()=>VP, setAs:v=>{FLOW_VP_AS=v}, ls:()=>ls };')(...Object.values(ctx));
@@ -36,7 +37,8 @@ const runningLines = res => (res.placed.find(o => o.orderType === 'running') || 
 
 console.log('The switch');
 {
-  ok('missing flag = off', load().flowHoldOn() === false);
+  ok('missing flag = ON since 24 Nov (Ravi: the printer sees an order only once its cloth went)', load().flowHoldOn() === true);
+  ok('config/flags.printerHold false (kept as printerHoldLast 0) = off', load({ ls: { printerHoldLast: '0' } }).flowHoldOn() === false);
   ok('last answer 1 = on', load({ ls: { printerHoldLast: '1' } }).flowHoldOn() === true);
   ok('device override 0 beats the flag', load({ ls: { printerHoldLast: '1', printerHold: '0' } }).flowHoldOn() === false);
   ok('device override 1 turns it on', load({ ls: { printerHold: '1' } }).flowHoldOn() === true);
@@ -47,7 +49,7 @@ console.log('The switch');
 console.log('Placing a plan');
 {
   const po = printOrder([[K1, item('S1', 'RB1-H', 10)]]);
-  const off = sync(load(), po);
+  const off = sync(load({ ls: { printerHold: '0' } }), po);
   ok('switch off: nothing is held', runningLines(off).length === 1 && !runningLines(off)[0].awaitRfd);
   const on = sync(load({ ls: { printerHold: '1' } }), po);
   ok('switch on: a new plan\'s line is held', runningLines(on).length === 1 && runningLines(on)[0].awaitRfd === true);
@@ -98,6 +100,30 @@ console.log('The printer\'s portal');
   }
 }
 
+/* ONLY WHAT WAS GIVEN (Ravi, 24 Nov: 400 ordered, 100 given → the printer sees 100) */
+async function gateTests() {
+  console.log('Only what the RFD challans gave');
+  const rows = () => [{ id: 'g', orderNo: 'VPO-G', vendorCode: 'P1', lines: [
+    { lineId: '1', flowPart: K1 + '|sku', rfdGate: true, qty: 400, notes: 'n1' },
+    { lineId: '2', flowPart: K2 + '|body', rfdGate: true, meters: 120, notes: 'n2' },
+    { lineId: '3', flowPart: 'Z|body', rfdGate: true, qty: 50 },
+    { lineId: '4', flowPart: 'Y|body', qty: 30 }] }];
+  const P = load({ vp: { code: 'P1', name: 'Sanganer', rows: rows() }, given: { 1: 100, 2: 120 } });
+  await P.flowVpAfterLoad();
+  const L = (P.VP().rows[0] || { lines: [] }).lines, by = id => L.find(l => l.lineId === id);
+  ok('400 ordered, 100 pieces given → the printer sees 100', by('1') && by('1').qty === 100 && by('1').orderedTotal === 400 && /Given so far: 100 pcs of 400 pcs/.test(by('1').notes));
+  ok('all the metres given → the line as ordered', by('2') && by('2').meters === 120 && by('2').notes === 'n2');
+  ok('a gated line with nothing given yet stays hidden', !by('3'));
+  ok('an old line (no gate) is untouched', by('4') && by('4').qty === 30);
+  const A = load({ me: { admin: true }, vp: { code: 'P1', name: 'Sanganer', rows: [] }, branch: rows(), given: { 1: 100 } });
+  A.setAs({ code: 'P1', name: 'Sanganer' }); await A.flowVpAfterLoad();
+  const a1 = A.VP().rows[0].lines.find(l => l.lineId === '1');
+  ok('View as printer: the full line, with what was given so far in its note', a1.qty === 400 && /Given so far: 100 pcs of 400 pcs/.test(a1.notes));
+  const H = load({ ls: { printerHold: '1' } });
+  const held = sync(H, printOrder([[K1, item('S1', 'RB1-H', 10)]]));
+  ok('a newly held line carries the gate for good', runningLines(held)[0].awaitRfd === true && runningLines(held)[0].rfdGate === true);
+}
+
 function afterPortal() {
 console.log('Releasing the hold');
 {
@@ -120,7 +146,7 @@ console.log('Access right');
   const design = read('core/access-design.js');
   ok('access list has flprn in Production flow', /name: 'Production flow'[^\n]*\['flprn', 'Approve a change of printer on an RFD challan'\]/.test(design));
   ok('flprn is a factory right (host, sign-in, setup, friendly names)', /'flprn'/.test(read('core/access-host.js')) && /'flprn'/.test(read('core/auth.js')) && /'flprn'/.test(read('core/setup.js')) && /flprn:/.test(read('core/friendly.js')));
-  ok('the switch is read from config/flags.printerHold at sign-in', /d\.printerHold === true/.test(read('core/auth.js')) && /flowHoldSaveFlag\(false\)/.test(read('core/auth.js')));
+  ok('the switch is read from config/flags.printerHold at sign-in', /d\.printerHold === false/.test(read('core/auth.js')) && /flowHoldSaveFlag\(true\)/.test(read('core/auth.js')));
 }
 
 console.log('Bell: My work today');
@@ -151,4 +177,4 @@ console.log('Greige Desk pill');
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
 }
-portalTests().then(afterPortal);
+portalTests().then(gateTests).then(afterPortal);

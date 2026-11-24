@@ -289,9 +289,9 @@ onAuthStateChanged(auth, async user => {
         /* ...and the Finished Goods light-open switch (inventory/finished-goods.js), also from the next page load. */
         if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(!!d && (d.fgLite === true || d.fgLite === 1 || d.fgLite === '1' || d.fgLite === 'on'));
         /* ...and the printer's hold switch (flow/flow-printorder.js: a new plan's Vendor Order waits for its RFD challan), also from the next page load. */
-        if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(!!d && (d.printerHold === true || d.printerHold === 1 || d.printerHold === '1' || d.printerHold === 'on'));
+        if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(!(d && (d.printerHold === false || d.printerHold === 0 || d.printerHold === '0' || d.printerHold === 'off')));   // on unless switched off (24 Nov)
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(false); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(true); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }

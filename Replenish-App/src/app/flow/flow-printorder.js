@@ -254,16 +254,19 @@ function flowSwatchOf(productSku, fabSku) {
  * no RFD challan yet, is marked awaitRfd. The printer's portal leaves such lines out (flow-vendor.js flowVpAfterLoad); the
  * office sees them as before. The mark is lifted, field by field, when the challan is made (flowVoRelease). Orders already
  * placed carry no mark and stay visible. Hiding is on screen only: nothing is deleted or changed in the order. */
+/* ON BY DEFAULT (Ravi, 24 Nov: "jese hi rfd wala us vendor ko rfd cut pcs ya fabric bhej de to ye order printer ko vendor portal par show
+ * ho jay … uske alawa unko order hi nahi dikhe"): config/flags.printerHold = false (or 0 / 'off') turns it off for everyone;
+ * localStorage printerHold '0' / '1' still decides on one device. */
 function flowHoldOn() {
   try {
     const s = localStorage.getItem('printerHold');
     if (s === '0') return false;
     if (s === '1') return true;
-    return localStorage.getItem('printerHoldLast') === '1';
-  } catch (e) { return false; }
+    return localStorage.getItem('printerHoldLast') !== '0';
+  } catch (e) { return true; }
 }
 function flowHoldSaveFlag(on) {
-  try { if (on) localStorage.setItem('printerHoldLast', '1'); else localStorage.removeItem('printerHoldLast'); } catch (e) { /* no storage: stays off */ }
+  try { localStorage.setItem('printerHoldLast', on ? '1' : '0'); } catch (e) { /* no storage: stays on */ }
 }
 /** The challan-index key of a Vendor Order part ("<line key>|<what>"); a ruffle part is kept under the line key + ruffle. */
 function flowVoPartKey(part) {
@@ -285,7 +288,9 @@ function flowVoPartsOf(order) {
 /** The vendor-order lines a flow print order stands for: { running: [...], cut: [...], channel }. */
 function flowVoLines(o, planOf, prevParts) {
   const out = { running: [], cut: [], channel: '' };
-  const hold = part => (flowVoHeld(part, prevParts) ? { awaitRfd: true } : {});
+  /* rfdGate stays on the line for good (flowVoRelease lifts only awaitRfd): the printer is shown only what the RFD challans gave
+   * (flow-vendor.js flowVpHoldApply) — 400 ordered, 100 given → 100 (Ravi, 24 Nov). */
+  const hold = part => (flowVoHeld(part, prevParts) ? { awaitRfd: true, rfdGate: true } : {});
   Object.entries(o.items || {}).forEach(([key, it]) => {
     if (!it) return;
     const lk0 = key.endsWith(FLOW_RUF) ? key.slice(0, -FLOW_RUF.length) : key;

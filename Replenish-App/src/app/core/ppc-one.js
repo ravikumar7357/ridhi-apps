@@ -146,6 +146,16 @@ function p1Events() {
   return out;
 }
 
+/** Pieces of a printing line still waiting at the RFD store: its cloth or cut pieces not yet put on a challan (a part sent
+ *  leaves the rest here). Cloth in metres is turned into pieces by the share of the line's metres still owed. */
+function p1RfdLeft(x) {
+  const s = x.s, q = +x.r.qty || 0;
+  if (!q || s.route === 'stitch' || typeof flowInView !== 'function' || !flowInView('drfd', s)) return 0;
+  let o = null; try { o = flowFabOwed(x.r, s); } catch (e) { o = null; }
+  if (!o) return 0;
+  if (o.unit === 'pcs') return Math.max(0, Math.round(+o.left || 0));
+  return o.need > 0 ? Math.max(0, Math.min(q, Math.round(q * (+o.left || 0) / o.need))) : 0;
+}
 /** Every piece in production right now: { stage, sku, orderNo, pcs, unit, who, since, ref }. */
 let P1_WIPC = { key: null, out: [] }, P1_INVC = { key: null, out: [] };
 /** What both lists are worked out from: when none of it changes, neither does the answer. */
@@ -163,6 +173,8 @@ function p1WipBuild() {
     (c.lines || []).forEach(l => { if (l.ruffleOnly || flowChMoved(c, l)) return; const left = flowR2(flowChSent(l) - (recv[l.key] || 0));
       if (left > 0.01) out.push({ stage: 'Printer', sku: obUC(l.sku), orderNo: obUC(l.orderNo || c.orderNo), pcs: left, unit: flowChUnit(l), who: (c.vendor && c.vendor.name) || '—', since: p1Iso(c.at || c.date), ref: 'Challan ' + c.no }); }); });
   rows.forEach(x => { const s = x.s, r = x.r, q = +r.qty || 0, o = obUC(r.orderNo), k = obUC(r.sku);
+    const rl = p1RfdLeft(x);
+    if (rl > 0) { const p = lastOf('PLAN', o, k); out.push({ stage: 'RFD store', sku: k, orderNo: o, pcs: rl, unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'cloth to send' }); }
     if (s.bucket === 'vendor') { const p = lastOf('PLAN', o, k); out.push({ stage: 'Printer', sku: k, orderNo: o, pcs: q, unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'print order to give' }); }
     if (s.bucket === 'emb') out.push({ stage: 'Embroidery', sku: k, orderNo: o, pcs: Math.max(0, q - (s.embOk || 0)), unit: 'pcs', who: s.embTo || (s.plan && s.plan.emb && s.plan.emb.name) || 'Embroidery', since: '', ref: '' });
     if (s.canCut > 0 && (s.bucket === 'cut' || s.bucket === 'fabric')) { const p = lastOf('PRN', o, k); out.push({ stage: 'Cutting', sku: k, orderNo: o, pcs: s.canCut, unit: 'pcs', who: 'Cutting department', since: p ? p.day : '', ref: 'to cut' }); }
@@ -340,12 +352,15 @@ function p1InvBuild() {
  * not go that way. Then where the lot is and its ready date (late in red), and ONE button: the step that is due.
  * On top: the stage buckets (lots and pieces waiting, how many late), the filters, and Pending / Late / Stuck / Complete.
  * A click on the lot number opens its HISTORY: every step, by whom and when. */
-const P1_COLS = [['prn', 'At printer'], ['cut', 'To cut'], ['iss', 'To issue'], ['kar', 'With karigar'], ['qc', 'In QC'], ['rdy', 'Into FG']];
+/* AT RFD STORE (Ravi, 24 Nov: "printer ko jane se pahle ye greige store me rfd wale ke pas jayega ki ye printing order is vendor ko dena h"):
+ * a printing lot first waits at the RFD store, with the printer it is for; the pieces whose cloth (or cut pieces) has gone are At printer.
+ * A part-sent line is in both: what is still to send at the store, what went at the printer. */
+const P1_COLS = [['rfd', 'At RFD store'], ['prn', 'At printer'], ['cut', 'To cut'], ['iss', 'To issue'], ['kar', 'With karigar'], ['qc', 'In QC'], ['rdy', 'Into FG']];
 const P1_BUCKETS = [['plan', 'To plan']].concat(P1_COLS);
-const P1_COL_OF = { Printer: 'prn', Embroidery: 'prn', Cutting: 'cut', 'Raw cutting in store': 'iss', 'With karigar': 'kar', QC: 'qc', 'Finished Goods to accept': 'rdy', 'To hand to shipping': 'rdy' };
-const P1_NOW = { plan: 'Not planned', prn: 'At printer', cut: 'To cut', iss: 'Cut, in store', kar: 'With karigar', qc: 'In QC', rdy: 'Ready for FG' };
+const P1_COL_OF = { 'RFD store': 'rfd', Printer: 'prn', Embroidery: 'prn', Cutting: 'cut', 'Raw cutting in store': 'iss', 'With karigar': 'kar', QC: 'qc', 'Finished Goods to accept': 'rdy', 'To hand to shipping': 'rdy' };
+const P1_NOW = { plan: 'Not planned', rfd: 'At RFD store', prn: 'At printer', cut: 'To cut', iss: 'Cut, in store', kar: 'With karigar', qc: 'In QC', rdy: 'Ready for FG' };
 /** The steps of each stage's button, in the order they come (Ravi, 26 Oct: a line's step is its own stage's, never an earlier one). */
-const P1_STAGE_STEPS = { plan: ['PLAN'], prn: ['RFD', 'PRN'], cut: ['CUT'], iss: ['ISS'], kar: ['REC'], qc: ['QC'], rdy: ['FG', 'SHIP'] };
+const P1_STAGE_STEPS = { plan: ['PLAN'], rfd: ['RFD'], prn: ['PRN'], cut: ['CUT'], iss: ['ISS'], kar: ['REC'], qc: ['QC'], rdy: ['FG', 'SHIP'] };
 const P1_LABEL = { PLAN: 'Plan', RFD: 'Make challan', PRN: 'Receive printed', CUT: 'Enter cutting', ISS: 'Give to karigar', REC: 'Receive', QC: 'Check in QC', FG: 'Accept in FG', SHIP: 'Hand to shipping' };
 const P1_STUCK = 7;   // days at one place before a lot is stuck
 const P1_CHAN = { SHP: 'Shopify', SO: 'B2B', B2B: 'B2B', AMZ: 'Amazon', ETSY: 'Etsy', ONL: 'Online' };
@@ -365,7 +380,8 @@ function p1LineStages(x, w) {
   const cuts = planned && !['jobwork', 'outsource'].includes(rt), made = planned && rt !== 'outsource';
   const g = (w0, m0, done, use) => ({ w: use ? w0 : 0, m: use ? m0 : 0, done: use && done && !w0 && !m0, na: !use });
   return { planned, q, plan: { w: planned ? 0 : q, m: 0, done: planned, na: false },
-    prn: g(w.grg + w.prn + w.emb, w.m, (+s.back || 0) + (+s.embOk || 0) >= q || (+s.cut || 0) >= q || (+s.issuedNet || 0) >= q, printed),
+    rfd: g(w.grg, 0, (+s.fabSent || 0) > 0 || (+s.given || 0) > 0 || (+s.back || 0) > 0 || (+s.cut || 0) >= q || (+s.issuedNet || 0) >= q, printed),
+    prn: g(w.prn + w.emb, w.m, (+s.back || 0) + (+s.embOk || 0) >= q || (+s.cut || 0) >= q || (+s.issuedNet || 0) >= q, printed),
     cut: g(w.cut, 0, (+s.cut || 0) >= q || (+s.issuedNet || 0) >= q, cuts),
     iss: g(w.raw, 0, (+s.issuedNet || 0) >= q || (+s.received || 0) >= q, made),
     kar: g(w.kar, 0, (+s.received || 0) >= q || (+s.qc || 0) >= q, made),
@@ -380,9 +396,9 @@ function p1SumStages(ls) {
 }
 /** The days the oldest pieces have waited at each stage, and who has them (printer, karigars). */
 function p1HoldDays(holds) {
-  const D = {}; (holds || []).forEach(h => { const k = P1_COL_OF[h.stage]; if (!k) return; const d = p1Days(h.since), e = D[k] || (D[k] = { days: null, who: [] });
+  const D = {}; (holds || []).forEach(h => { const k = h.stage === 'Printer' && h.ref === 'print order to give' ? 'rfd' : P1_COL_OF[h.stage]; if (!k) return; const d = p1Days(h.since), e = D[k] || (D[k] = { days: null, who: [] });
     if (d != null && (e.days == null || d > e.days)) e.days = d;
-    if ((k === 'prn' || k === 'kar') && h.who && !e.who.includes(h.who)) e.who.push(h.who); });
+    if ((k === 'rfd' || k === 'prn' || k === 'kar') && h.who && !e.who.includes(h.who)) e.who.push(h.who); });
   return D;
 }
 /** The stage a lot (or line) is held at now: the one with the oldest pieces past 7 days, else the one with the most pieces. */
@@ -441,7 +457,7 @@ function p1DrawInv() {
       + `<span class="bk-s">lots · ${p1N(pcs)} pcs${m ? ' + ' + p1N(m) + ' m' : ''}${lt ? ` <i>· ${p1N(lt)} late</i>` : ''}</span></button>`; };
   const tab = (v, t, n) => `<button type="button" class="${P1.tab === v ? 'on' : ''}" data-p1tab="${v}">${esc(t)} · ${p1N(n)}</button>`;
   /* ONE STAGE CELL: pieces waiting and their days, ✓ done, · not reached, — not this way */
-  const cell = (c, d) => { if (!c || c.na) return '<td class="sg snone">—</td>'; if (c.w || c.m) return `<td class="sg"><b class="wt">${c.w ? p1N(c.w) : ''}${c.m ? `${c.w ? ' + ' : ''}${p1N(c.m)} m` : ''}</b>${d && d.days != null ? `<span class="dy${d.days > P1_STUCK ? ' red' : ''}">${d.days} d</span>` : ''}</td>`;
+  const cell = (c, d, k) => { if (!c || c.na) return '<td class="sg snone">—</td>'; if (c.w || c.m) return `<td class="sg"><b class="wt">${c.w ? p1N(c.w) : ''}${c.m ? `${c.w ? ' + ' : ''}${p1N(c.m)} m` : ''}</b>${k === 'rfd' && d && d.who && d.who.length ? `<span class="dy">for ${esc(d.who.join(', '))}</span>` : ''}${d && d.days != null ? `<span class="dy${d.days > P1_STUCK ? ' red' : ''}">${d.days} d</span>` : ''}</td>`;
     return c.done ? '<td class="sg sdone">✓</td>' : '<td class="sg snone">·</td>'; };
   const btn = (nx, at, st, gk, line, main) => { if (!nx) return ''; const pcs = at && st[at] ? st[at].w : 0;
     return `<button type="button" class="${main ? 'p1-go' : 'p1-go2'}" data-p1step="${esc(gk)}" data-p1line="${line == null ? '' : line}" data-p1at="${esc(at || '')}">${esc(nx[1])}${pcs && nx[0] !== 'RFD' ? ' ' + p1N(pcs) : ''}</button>`; };
@@ -453,11 +469,11 @@ function p1DrawInv() {
   const lotRow = r => { const open = P1.inv === r.gk, main = r.over > 0 || r.stuck > P1_STUCK;
     let h = `<tr class="p1r lot${open ? ' open' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
       <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div></td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
-      ${P1_COLS.map(([k]) => cell(r.stg[k], r.D[k])).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${btn(r.next, r.at, r.stg, r.gk, null, main)}</td></tr>`;
+      ${P1_COLS.map(([k]) => cell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${btn(r.next, r.at, r.stg, r.gk, null, main)}</td></tr>`;
     if (open) h += r.ln.map((l, i) => { const nx = p1NextOf({ lines: [l.x] }, l.at) || p1NextOf({ lines: [l.x] }), od = l.due && l.due < today ? p1Days(l.due) : 0;
       return `<tr class="p1l"><td class="lc"><a class="p1-ord" data-p1hist="${esc(r.gk)}" data-p1ho="${esc(l.x.r.orderNo)}" title="This order's history">${esc(l.x.r.shopOrderNo || l.x.r.orderNo)}</a><span class="ch">${esc(l.chan)}</span></td>
         <td class="it muted sm">${esc(p1Day(p1Iso(l.x.r.orderDate) || l.x.r.openIso || ''))}</td><td class="num">${p1N(l.st.q)}</td><td class="pr">${l.printer ? esc(l.printer) : l.st.planned ? '<span class="muted">—</span>' : '<b class="np">not planned</b>'}</td>
-        ${P1_COLS.map(([k]) => cell(l.st[k], l.D[k])).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${btn(nx, l.at, l.st, r.gk, i, false)}</td></tr>`; }).join('');
+        ${P1_COLS.map(([k]) => cell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${btn(nx, l.at, l.st, r.gk, i, false)}</td></tr>`; }).join('');
     return h; };
   const shown = rows.slice(0, P1.lim), R0 = gk => all.find(r => r.gk === gk);
   el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<span class="p1-read">${P1.err ? `<b style="color:var(--bad)">Could not read everything: ${esc(P1.err)}</b> · ` : ''}${P1.more ? 'Reading the rest… · ' : ''}${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
@@ -514,7 +530,7 @@ function p1HistEvents(r) {
 function p1History(r) {
   const ev = p1HistEvents(r), lastOf = k => { for (let i = ev.length - 1; i >= 0; i--) if (ev[i].k === k) return ev[i]; return null; };
   const sum = ks => ev.filter(e => ks.includes(e.k) && e.unit !== 'm').reduce((t, e) => t + e.pcs, 0);
-  const steps = [['Planned', r.stg.plan, 'PLAN', 'plan'], ['Printed', r.stg.prn, 'PRN', 'prn'], ['Cut', r.stg.cut, 'CUT', 'cut'], ['Issued', r.stg.iss, 'ISS', 'iss'], ['Received', r.stg.kar, 'REC', 'kar'], ['QC passed', r.stg.qc, 'QC', 'qc'], ['Into FG', r.stg.rdy, 'FG', 'rdy']];
+  const steps = [['Planned', r.stg.plan, 'PLAN', 'plan'], ['Cloth to printer', r.stg.rfd, 'RFD', 'rfd'], ['Printed', r.stg.prn, 'PRN', 'prn'], ['Cut', r.stg.cut, 'CUT', 'cut'], ['Issued', r.stg.iss, 'ISS', 'iss'], ['Received', r.stg.kar, 'REC', 'kar'], ['QC passed', r.stg.qc, 'QC', 'qc'], ['Into FG', r.stg.rdy, 'FG', 'rdy']];
   const strip = steps.filter(s => s[1] && !s[1].na).map(([t, c, k, col]) => { const l = lastOf(k), d = (r.D[col] || {}).days;
     if (c.w || c.m) return `<span class="hs now">${esc(P1_NOW[col])} · ${p1N(c.w)}${c.m ? ' + ' + p1N(c.m) + ' m' : ''}${d != null ? ' · ' + d + ' d' : ''}</span>`;
     if (c.done) return `<span class="hs hok">✓ ${esc(t)}${l ? ' ' + p1Day(l.day) : ''}</span>`;
@@ -544,12 +560,11 @@ function p1HistoryDownload(r) {
 /* ---------- WHERE A LOT IS — Ravi's WIP sheet (WIP.xlsx, 28 Oct): the order, what is done, the balance, then every place
  * the pieces are, the total in process and what is not started yet; one row per order line of the lot. ---------- */
 const P1_WCOLS = [['grg', 'Greige / to print'], ['prn', 'At printer'], ['emb', 'Embroidery'], ['cut', 'To cut'], ['raw', 'Cut, in store'], ['kar', 'With karigar'], ['qc', 'QC'], ['rdy', 'Ready']];
-const P1_WOF = { Embroidery: 'emb', Cutting: 'cut', 'Raw cutting in store': 'raw', 'With karigar': 'kar', QC: 'qc', 'Finished Goods to accept': 'rdy', 'To hand to shipping': 'rdy' };
+const P1_WOF = { 'RFD store': 'grg', Embroidery: 'emb', Cutting: 'cut', 'Raw cutting in store': 'raw', 'With karigar': 'kar', QC: 'qc', 'Finished Goods to accept': 'rdy', 'To hand to shipping': 'rdy' };
 function p1WipLine(x, wipOf) {
   const r = x.r, s = x.s, q = +r.qty || 0, o = obUC(r.orderNo), k = obUC(r.sku);
   const w = { orderNo: o, sku: k, q, done: Math.min(q, s.bucket === 'done' ? q : (+s.india || 0)), m: 0, who: [], planned: !(s.bucket === 'ppc' || s.bucket === 'back') };
   P1_WCOLS.forEach(c => { w[c[0]] = 0; });
-  if (s.bucket === 'demand') w.grg = q;
   (wipOf.get(o + '|' + k) || []).forEach(h => {
     if (h.stage === 'Printer') { if (h.ref === 'print order to give') w.grg += h.pcs; else { if (h.unit === 'm') w.m += h.pcs; else w.prn += h.pcs; w.who.push(h.who); } return; }
     const c = P1_WOF[h.stage]; if (c) w[c] += h.pcs; if (h.stage === 'With karigar') w.who.push(h.who); });
