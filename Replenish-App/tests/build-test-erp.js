@@ -35,6 +35,15 @@ const WHEN = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
  * tokens have the fulfilment permissions and Ravi says to switch it on; then true, and only that one POST goes through —
  * every other write stays stopped. */
 const HUB_SHOPIFY_WRITES = false;
+/* THE TEST SAVE SWITCH (Ravi, 24 Nov: "get the test save switch off first"). Since the switch to Supabase (main:
+ * shared/erp-data/mode.json = "supabase") the LIVE ERP reads and saves the same ERP data project the test link saved into —
+ * so a test save was a live save. OFF: the factory ERP and Sellora on the test link only READ ERP data; every save (registers,
+ * Firestore documents, compare-and-set) is stopped with "Saving is off", any other write to Supabase is stopped, and the
+ * Firestore copier page is not built. UAT is not affected (its saves stay in the tester's browser). Turn it back on only
+ * when the test link has an ERP data project of its own. */
+const TEST_SAVES = false;
+/* Supabase calls that only READ (the doors the test link loads through); any other write to Supabase is stopped */
+const SB_READ_DOORS = ['rt_get', 'rt_get_text', 'rt_get_json', 'rt_changes', 'rt_list_upto', 'rt_live_upto', 'fs_get', 'fs_list'];
 /* THE FACTORY ERP LOADS FROM SUPABASE (Ravi, 14 Nov: "the test link loads from ERP data … remove these badges"). Its data
  * comes from ERP data (Supabase project R-one MAIN), not Firebase: every read of the factory registers is answered by the
  * door core.rt_get, every Firestore document by core.fs_get / fs_list — the same data in the same shape (proven record for
@@ -50,7 +59,7 @@ const SB_DATA = { url: 'https://xkpktnsdmpkwaingvdbd.supabase.co', key: 'sb_publ
 const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-test-erp.js; not in the real ERP. */
 (function () {
   var MSG = 'Saving is off in the TEST ERP \\u2014 nothing was saved.';
-  window.__TEST_ERP = { sha: ${JSON.stringify(SHA)}, branch: ${JSON.stringify(BRANCH)}, built: ${JSON.stringify(WHEN)}, blocked: 0, hubShopifyWrites: ${HUB_SHOPIFY_WRITES},
+  window.__TEST_ERP = { sha: ${JSON.stringify(SHA)}, branch: ${JSON.stringify(BRANCH)}, built: ${JSON.stringify(WHEN)}, blocked: 0, hubShopifyWrites: ${HUB_SHOPIFY_WRITES}, testSaves: ${TEST_SAVES},
     sb: ${JSON.stringify(SB_DATA)}, sbReads: 0, sbOn: !!window.__TEST_ERP_SB_PAGE };
   /* A read of the factory registers (Firebase Realtime Database REST: <path>.json?auth=<sign-in>&orderBy=…) answered by ERP data's
    * door core.rt_get with the same sign-in — same data, same shape. Only pages that turn it on (the factory ERP) use it. */
@@ -310,6 +319,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     paths.forEach(function (p) { var reg = String(p).split('/')[0]; if (reg) SBSTALE[window.__TEST_ERP.sb.url + '|' + (reg.indexOf('fs') === 0 ? 'fs' : reg)] = 1; });
   }
   window.__TEST_ERP.sbSave = function (changes, screen, tok, origFetch) {
+    if (!window.__TEST_ERP.testSaves) return window.__testErpBlock('save to ERP data (test saves are off)');
     return sbRpc('rt_save', { p_changes: changes, p_screen: screen || String(location.hash || '').slice(1, 40) }, tok, origFetch || window.__TEST_ERP.origFetch)
       .then(function (n) { sbTouched(changes.map(function (c) { return c.p; })); window.__TEST_ERP.saves += changes.length; told('Saved to ERP data (test link \\u2014 not the real ERP)'); return n; });
   };
@@ -349,6 +359,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   var BACKEND_GET_WRITES = /[?&](notify|shopSkuBuild|adState)=|[?&]repl=(primeSetup|primeStop|primeLiveSetup|primeTest|histbuild)(&|$)/;
   /* UAT: the only sends allowed out — signing in, keeping the sign-in fresh, and Firestore reading (never its save channel) */
   var UAT_MAY_SEND = /identitytoolkit\\.googleapis\\.com\\/v1\\/accounts:(signInWithPassword|signInWithCustomToken|lookup)\\b|securetoken\\.googleapis\\.com\\/|firestore\\.googleapis\\.com\\/(?!.*(\\/Write\\/|:commit|:batchWrite))/;
+  var SB_READ_RE = new RegExp('/rest/v1/rpc/(' + ${JSON.stringify(SB_READ_DOORS.join('|'))} + ')$');
   var origFetch = window.fetch;
   window.__TEST_ERP.origFetch = origFetch;
   window.fetch = function (input, init) {
@@ -381,7 +392,10 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
       return write ? window.__UAT.write(url, method, init, origFetch) : window.__UAT.read(url, init, origFetch);
     }
     if (window.__UAT && !write && method !== 'GET' && method !== 'HEAD' && !/script\\.google\\.com/.test(url) && !UAT_MAY_SEND.test(url)) { write = true; what = 'send ' + method; }
-    if (write && window.__TEST_ERP.sbOn && what.indexOf('database ') === 0) return sbWrite(url, method, init, origFetch);   // the factory ERP saves to ERP data only
+    /* TEST SAVES OFF: a write to Supabase that is not one of the read doors is stopped (the guard's own reads bypass this) */
+    if (!write && !window.__TEST_ERP.testSaves && /\\.supabase\\.co\\//.test(url) && method !== 'GET' && method !== 'HEAD'
+        && !SB_READ_RE.test(url.replace(/[?#].*$/, ''))) { write = true; what = 'Supabase ' + method; }
+    if (write && window.__TEST_ERP.sbOn && window.__TEST_ERP.testSaves && what.indexOf('database ') === 0) return sbWrite(url, method, init, origFetch);   // only with test saves on: the factory ERP saves to ERP data
     if (write) return window.__testErpBlock(what + ' ' + url.replace(/[?#].*$/, '').slice(0, 120));
     if (window.__TEST_ERP.sbOn && /firebasedatabase\\.app|firebaseio\\.com/.test(url) && method === 'GET') {   // the factory ERP loads from ERP data
       if (!hdrGet(init, 'X-Firebase-ETag')) return sbRtdb(url, origFetch);
@@ -524,7 +538,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     var s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
     var l = document.createElement('div'); l.id = 'testErpLabel';
     l.textContent = 'R1 \\u00b7 ' + (window.__UAT ? 'UAT'   /* the UAT bar beside it says the rest */
-      : 'test ERP \\u00b7 ' + (window.__TEST_ERP.sbOn ? 'ERP data \\u00b7 saves go to ERP data only' : 'live data, saving off')) + ' \\u00b7 ' + window.__TEST_ERP.branch + ' @ ' + window.__TEST_ERP.sha;
+      : 'test ERP \\u00b7 ' + (window.__TEST_ERP.sbOn ? (window.__TEST_ERP.testSaves ? 'ERP data \\u00b7 saves go to ERP data only' : 'ERP data \\u00b7 saving off') : 'live data, saving off')) + ' \\u00b7 ' + window.__TEST_ERP.branch + ' @ ' + window.__TEST_ERP.sha;
     document.body.appendChild(l);
     var pb = document.createElement('div'); pb.id = 'r1SpeedPanel'; document.body.appendChild(pb);
     var sb = document.createElement('button'); sb.id = 'r1SpeedBtn'; sb.type = 'button'; sb.textContent = '\\u23f1 Speed';
@@ -786,8 +800,9 @@ buildFactory('uat', 'uat');
  * This page does what the Apps Script reader would: an ADMIN signed in to the test link opens …/copier/ and leaves it open; it
  * reads Firestore with their own sign-in (names + update times first, then only the changed documents) and hands them to ERP
  * data (core.fs_copy_put — admins only). The collections the scripts write: every 5 minutes; every collection the rules name:
- * every hour. It never writes to Firebase; API keys (config/*: key / secret / token / password fields) are never sent. */
-{
+ * every hour. It never writes to Firebase; API keys (config/*: key / secret / token / password fields) are never sent.
+ * TEST SAVES OFF (24 Nov): not built — it wrote Firebase's copies over ERP data, which is now the live ERP's own data. */
+if (TEST_SAVES) {
   const fsrc = fs.readFileSync(path.join(ROOT, 'Replenish-App', 'public', 'index.html'), 'utf8');
   const key = (fsrc.match(/const FB_KEY = "([^"]+)"/) || [])[1];
   const cfgM = fsrc.match(/const firebaseConfig = \{([\s\S]*?)\};/);
@@ -910,11 +925,11 @@ main{max-width:520px;width:100%;display:grid;gap:14px}h1{margin:0;font-size:28px
 a.card{display:block;background:#fff;border:1px solid #e2e4e8;border-radius:12px;padding:16px 18px;text-decoration:none;color:inherit}a.card:hover{border-color:#2b3a8c}
 a.card b{display:block;font-size:18px}small,p{color:#5d636b}@media(prefers-color-scheme:dark){body{background:#111214;color:#e9eaec}a.card{background:#18191c;border-color:#2a2c30}small,p{color:#a0a4ab}}</style></head>
 <body><main><img src="replenish/r1-logo.svg" alt="R1" width="200" style="justify-self:start"><span class="tag">TEST ERP</span><h1>R1 · the test ERP</h1>
-<p>The same apps as the real ERP, built from the <b>${BRANCH}</b> branch on GitHub. Nothing here can change the real ERP: both apps read and <b>save to ERP data (Supabase) only</b> — test saves are wiped when the real switch happens. E-mails, Shopify, Amazon and logins stay switched off.</p>
-<a class="card" href="replenish/"><b>Factory ERP</b><small>Replenishment, production, vendors, stock · loads from and saves to ERP data (Supabase)</small></a>
-<a class="card" href="sellora/"><b>Sellora</b><small>Research, sales, listings, advertising · loads from and saves to ERP data (Supabase)</small></a>
+<p>The same apps as the real ERP, built from the <b>${BRANCH}</b> branch on GitHub. ${TEST_SAVES ? 'Both apps read and <b>save to ERP data (Supabase)</b>.' : 'Both apps read ERP data (Supabase), which is the live ERP\'s own data, so <b>saving is off</b>: nothing you do here is saved anywhere. To try saves, use UAT below.'} E-mails, Shopify, Amazon and logins stay switched off.</p>
+<a class="card" href="replenish/"><b>Factory ERP</b><small>Replenishment, production, vendors, stock · loads from ERP data (Supabase) · ${TEST_SAVES ? 'saves to ERP data' : 'saving off'}</small></a>
+<a class="card" href="sellora/"><b>Sellora</b><small>Research, sales, listings, advertising · loads from ERP data (Supabase) · ${TEST_SAVES ? 'saves to ERP data' : 'saving off'}</small></a>
 <a class="card" href="uat/"><b>UAT · factory ERP on live data</b><small>Reads the live ERP; every change you make stays on your own PC and never reaches live or any other service. Reset any time: everything, after a time, or back to a restore point.</small></a>
-<a class="card" href="copier/"><b>Firestore copier</b><small>Admins: keep it open while people test — copies what the Apps Scripts write into ERP data</small></a>
+${TEST_SAVES ? '<a class="card" href="copier/"><b>Firestore copier</b><small>Admins: keep it open while people test — copies what the Apps Scripts write into ERP data</small></a>' : ''}
 <small>Built from commit ${SHA} · ${WHEN}</small></main></body></html>`);
 
 console.log(`test ERP built into ${OUT} from ${BRANCH} @ ${SHA}: factory ERP + Sellora (ERP data), UAT (live, changes kept in the browser).`);
