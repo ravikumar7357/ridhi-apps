@@ -77,7 +77,7 @@ function flowVlogRows() {
       out.push({ day, key: voDayKey(day), raw: String(rc.date || ''), li: -1, di: -1, del: { qty, date: rc.date, by: rc.by || '', at: rc.at || '' },
         ok: { qty, at: rc.at || '', by: rc.by || '', note: (test ? 'TEST · ' : '') + (c.recordOnly ? 'record of cloth given earlier · ' : '') + 'received on challan ' + c.no + (rc.note ? ' · ' + rc.note : '') },
         key2: 'flow/' + c.no + '/' + rid + '/' + key, vendorCode: (c.vendor && c.vendor.code) || '', vendor: (c.vendor && c.vendor.name) || '',
-        orderNo: (test ? 'TEST · ' : '') + c.no + ' · ' + (l.orderNo || c.orderNo || ''), id: c.no, run, unit: u, printing: true,
+        orderNo: (test ? 'TEST · ' : '') + c.no + ' · ' + (l.orderNo || c.orderNo || ''), ordNo: String(l.orderNo || c.orderNo || ''), id: c.no, run, unit: u, printing: true,
         sku: run ? code : obUC(l.sku), fabric: run ? (l.fabric || '') : '', colour,
         what: run ? [code, l.fabric, colour].filter(Boolean).join(' · ') + (l.ruffleOnly ? ' (ruffle)' : '') + ' — for ' + obUC(l.sku) : (l.item || l.sku),
         qty, by: rc.by || '', at: rc.at || '', flow: true, test });

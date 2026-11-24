@@ -186,9 +186,16 @@ function ordWaitingAt(r) {
  * One order, start to finish. Every stage for every line, what each vendor holds and until when, and
  * where each line is waiting — so that "where is order X" is one click and not six screens.
  */
-function ordJourney(orderNo) {
+async function ordJourney(orderNo) {
   const no = obUC(orderNo), rows = ordLines().filter(r => r.orderNo === no);
   if (!rows.length) return;
+  /* WHAT WENT BACK TO A PRINTER (Ravi, 24 Nov): a store Return is typed in pt_storeLedger against the order; the journey lists it. */
+  if (typeof STORE !== 'undefined' && STORE.rows == null && typeof ptGet === 'function') { try { STORE.rows = ptList(await ptGet('pt_storeLedger')); } catch (e) { /* the returns wait */ } }
+  const sent = ((typeof STORE !== 'undefined' && STORE.rows) || []).filter(x => x && x.kind === 'RETURN' && obUC(x.orderNo) === no)
+    .sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+  const sentHtml = sent.length ? '<div class="card" style="margin-top:10px;padding:10px 12px;border-left:4px solid #b45309"><b>Returned to the printer</b>' + sent.map(x =>
+    `<div style="font-size:12.5px;margin-top:4px">${esc(x.date || '')} · <b>${nf(+x.qty || 0)} ${x.unit === 'm' ? 'm' : 'pcs'}</b> ${esc(x.unit === 'pcs' ? x.sku || '' : [x.fabric, x.colour].filter(Boolean).join(' · '))} → ${esc(x.printer || 'the printer')}`
+    + `${x.challan ? ' · ' + esc(x.challan) : ''}${x.reason ? ' · <i>' + esc(x.reason) + '</i>' : ''}</div>`).join('') + '</div>' : '';
   const stage = r => { const v = ordVendorOf(r.orderNo, r.sku), q = ordQcOf(r.orderNo, r.sku);
     return { ordered: r.qty, given: r.printer ? r.qty : (v ? v.given : 0), back: r.printer ? r.printed : (v ? v.back : 0),
       cut: r.cutReq ? r.cut : null, issued: r.issued, received: r.received, qc: q ? q.ok : null, pressed: r.pressed,
@@ -252,7 +259,7 @@ function ordJourney(orderNo) {
     note: 'Each figure is the same one its own register shows — cutting, Base Data, QC, press, finished goods and the vendor orders. '
       + 'A vendor order names a SKU and not a sales order, so where several orders want the same SKU the vendor\'s pieces are shared '
       + 'out once between them: open orders first, oldest first.',
-    html: strip + `<div class="xlwrap" style="max-height:50vh;border:1px solid var(--line);border-radius:10px"><table class="xl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`,
+    html: strip + `<div class="xlwrap" style="max-height:50vh;border:1px solid var(--line);border-radius:10px"><table class="xl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>` + sentHtml,
   });
 }
 
