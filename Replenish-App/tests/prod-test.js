@@ -11419,8 +11419,9 @@ console.log('\n== the printer portal: lines sent in full move to Vendor sent; or
   const ln = (sku, qty) => ({ lineId: 'ln_' + sku, sku, qty, kind: 'cut' });
   const o = { id: 'v1', orderNo: 'VPO-1', orderType: 'cut', status: 'Placed', orderDate: '12/11/2026', lines: [ln('A', 2), ln('B', 3)],
     vSent: { x: { lineId: 'ln_A', sku: 'A', qty: 2, unit: 'pcs', at: '2026-11-13T00:00:00Z' }, y: { lineId: 'ln_B', sku: 'B', qty: 1, unit: 'pcs', at: '2026-11-13T00:00:00Z' } } };
-  ok('a line the printer said is sent in full is a Vendor sent line; a part-sent one stays pending',
-    A.vpLineIsVs(o, o.lines[0]) === true && A.vpLineIsVs(o, o.lines[1]) === false);
+  ok('a line the printer said is sent in full is a Vendor sent line; so is a part-sent one (24 Nov) — both wait to be received',
+    A.vpLineIsVs(o, o.lines[0]) === true && A.vpLineIsVs(o, o.lines[1]) === true);
+  ok('a line the printer sent nothing on stays in Bulk', A.vpLineIsVs(o, { lineId: 'ln_C', sku: 'C', qty: 4, kind: 'cut' }) === false);
   ok('an order dated 12/11/2026 is inside 10–12 Nov and outside 13–20 Nov', A.vpOrderIso(o) === '2026-11-12'
     && A.vpOrderMatches(o, { from: '2026-11-10', to: '2026-11-12' }) && !A.vpOrderMatches(o, { from: '2026-11-13', to: '2026-11-20' }));
 }
