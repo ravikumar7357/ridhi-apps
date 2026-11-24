@@ -528,7 +528,7 @@
           <input id="shMult" type="number" min="0.5" max="20" step="0.5" value="1"
                  style="flex:0 0 80px" title="Plan for this many times the sales rate — 3 means: sold 100 in 90 days, plan for 300.">
           <input id="shFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter SKU / article">
-          <button id="shOpen" class="hide" title="Open a sales order for the ticked SKUs, each for its Send quantity">Open sales order</button>
+          <button id="shOpen" class="hide" data-part="so.dlg.form" title="Open a sales order for the ticked SKUs, each for its Send quantity">Open sales order</button>
           <button id="shCsv" class="ghost">Export</button>
           <button id="shGo">Refresh</button>
         </div>
@@ -659,28 +659,28 @@
     <div id="paneSo" class="hide">
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
-          <select id="sxStatus" style="flex:0 0 175px">
+          <select id="sxStatus" data-part="so.flt.status" style="flex:0 0 175px">
             <option value="">Any status</option>
             <option value="draft">Draft</option>
             <option value="submitted">Awaiting approval</option>
             <option value="returned">Returned to buyer</option>
             <option value="approved">Approved</option>
           </select>
-          <select id="sxChan" style="flex:0 0 175px" title="Which sales channel the order came from"><option value="">All channels</option></select>
-          <select id="sxMode" style="flex:0 0 140px" title="How an Amazon order ships — AIR or SEA (the end of its number)"><option value="">AIR or SEA</option><option value="AIR">AIR</option><option value="SEA">SEA</option></select>
-          <input id="sxSMonth" type="month" style="flex:0 0 160px" title="Sale month — the month the order is meant to sell in">
-          <input id="sxQ" placeholder="Search order / buyer / channel / SKU" style="flex:1 1 220px;min-width:0">
-          <span class="muted" style="font-size:12.5px;flex:0 0 auto">Ordered</span>
-          <input id="sxD1" type="date" style="flex:0 0 150px" title="Order date from">
-          <input id="sxD2" type="date" style="flex:0 0 150px" title="Order date to">
-          <button id="sxClear" class="ghost">Clear</button>
-          <button id="sxNew">+ New sales order</button>
-          <button id="sxDelReqs" class="ghost hide">Deletion requests</button>
-          <button id="sxExport" class="ghost">Export</button>
-          <button id="sxQtyTpl" class="ghost hide" title="Every approved line on the screen, with what has been made against it, ready to edit.">Qty sheet</button>
-          <button id="sxQtyImp" class="ghost hide" title="Read a filled quantity sheet back. You are shown what it would do before anything is written.">Qty import</button>
+          <select id="sxChan" data-part="so.flt.channel" style="flex:0 0 175px" title="Which sales channel the order came from"><option value="">All channels</option></select>
+          <select id="sxMode" data-part="so.flt.shipMode" style="flex:0 0 140px" title="How an Amazon order ships — AIR or SEA (the end of its number)"><option value="">AIR or SEA</option><option value="AIR">AIR</option><option value="SEA">SEA</option></select>
+          <input id="sxSMonth" data-part="so.flt.saleMonth" type="month" style="flex:0 0 160px" title="Sale month — the month the order is meant to sell in">
+          <input id="sxQ" data-part="so.flt.search" placeholder="Search order / buyer / channel / SKU" style="flex:1 1 220px;min-width:0">
+          <span class="muted" data-part="so.flt.dates" style="font-size:12.5px;flex:0 0 auto">Ordered</span>
+          <input id="sxD1" data-part="so.flt.dates" type="date" style="flex:0 0 150px" title="Order date from">
+          <input id="sxD2" data-part="so.flt.dates" type="date" style="flex:0 0 150px" title="Order date to">
+          <button id="sxClear" data-part="so.btn.clear" class="ghost">Clear</button>
+          <button id="sxNew" data-part="so.btn.new">+ New sales order</button>
+          <button id="sxDelReqs" data-part="so.btn.delReqs" class="ghost hide">Deletion requests</button>
+          <button id="sxExport" data-part="so.btn.export" class="ghost">Export</button>
+          <button id="sxQtyTpl" data-part="so.btn.qtySheet" class="ghost hide" title="Every approved line on the screen, with what has been made against it, ready to edit.">Qty sheet</button>
+          <button id="sxQtyImp" data-part="so.btn.qtyImport" class="ghost hide" title="Read a filled quantity sheet back. You are shown what it would do before anything is written.">Qty import</button>
           <input id="sxQtyFile" type="file" accept=".xlsx,.csv,text/csv" style="display:none">
-          <button id="sxGo">Refresh</button>
+          <button id="sxGo" data-part="so.btn.refresh">Refresh</button>
         </div>
         <div id="sxMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
         <div id="sxBack"></div>

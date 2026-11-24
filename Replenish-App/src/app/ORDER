@@ -6,6 +6,7 @@ core/auth.js
 core/nav.js
 core/backend.js
 core/helpers.js
+core/page-parts.js
 replenishment/replenishment.js
 core/multi-select-filter.js
 replenishment/minutes-of-meeting.js
@@ -175,6 +176,7 @@ core/mobile.js
 core/meera-bridge.js
 core/access-host.js
 core/access-design.js
+core/access-parts.js
 @meera/config.ts
 @meera/intent.ts
 @meera/legacy/guide-art.ts

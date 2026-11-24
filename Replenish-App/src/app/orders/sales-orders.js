@@ -24,6 +24,45 @@ const SO_STATUS = {
   approved: { label: 'Approved', cls: 'pill-ok' },
 };
 
+/* ---- PAGE PARTS ON THIS SCREEN (Ravi, 24 Nov 2026; keys in core/page-parts.js, PAGE_PARTS.so) ----
+ * A tile, filter, column, button or section carries data-part="<key>"; a hidden key is removed by one style rule, so the
+ * row of tiles, the toolbar and the table close up. A header cell and every cell under it carry the SAME key, so a column
+ * leaves whole. A hidden filter stops narrowing the list. A pop-up that is off refuses to open.
+ * ERROR STRATEGY: nothing here throws. A refused pop-up says "This is not open to your account." on the message line and
+ * leaves a console line; a part nobody switched off shows as before. Hiding is for tidiness, it is not security. */
+const SO_NOT_OPEN = 'This is not open to your account.';
+const soPart = key => ` data-part="${key}"`;
+/** Marks a ready-made <td> (a picture cell built by another screen's helper) with its part. */
+const soMarkTd = (td, key) => td.replace(/^<td/, '<td' + soPart(key));
+/** The value of a filter box, or '' (no limit) when that filter is switched off for this person. */
+const soFilterVal = (key, value) => (apxOn(key) ? value : '');
+/** May this pop-up open? When not, says so quietly and returns false. */
+function soPopupAllowed(key) {
+  if (apxOn(key)) return true;
+  console.info('[page parts] ' + key + ' is off for this account, so it did not open');
+  const msg = $('sxMsg');
+  if (msg) { msg.className = 'muted'; msg.textContent = SO_NOT_OPEN; }
+  return false;
+}
+/** Takes one of the shared pop-up buttons (Save, second button, Delete) off for this opening; ptOpenDialog sets them again on the next open. */
+function soDlgButtonOff(id, key) { if (!apxOn(key)) $(id).classList.add('hide'); }
+
+/* The list's columns: the heading each shows and the part that switches it. Order has none: it is always there. */
+const SO_COL_PART = { 'Date': 'so.col.date', 'Channel': 'so.col.channel', 'Buyer': 'so.col.buyer', 'Raised by': 'so.col.raisedBy',
+  'Status': 'so.col.status', 'SKUs': 'so.col.skus', 'Pieces': 'so.col.pieces', 'Cut': 'so.col.cut', 'Made': 'so.col.made',
+  'In order book': 'so.col.inBook', 'Delivery': 'so.col.delivery' };
+const soColPart = h => (SO_COL_PART[h] ? soPart(SO_COL_PART[h]) : '');
+/** The "Sent back by PPC" card inside its part mark; nothing at all when no line is sent back. */
+const soBackCardPart = html => (html ? `<div${soPart('so.sec.backByPpc')}>${html}</div>` : '');
+/* The order pop-up's columns, the same way: heading → part. SKU, Qty and the button column are always there. */
+const SO_DLG_COL_PART = { 'Image': 'so.dlg.order.col.image', 'Article': 'so.dlg.order.col.article', 'Size': 'so.dlg.order.col.size',
+  'Colour': 'so.dlg.order.col.colour', 'Quality': 'so.dlg.order.col.quality', 'Cut': 'so.dlg.order.col.cut', 'Made': 'so.dlg.order.col.made',
+  'Owed': 'so.dlg.order.col.owed', 'Delivery': 'so.dlg.order.col.delivery', 'Priority': 'so.dlg.order.col.priority',
+  'In order book': 'so.dlg.order.col.inBook' };
+const soDlgColPart = h => (SO_DLG_COL_PART[h] ? soPart(SO_DLG_COL_PART[h]) : '');
+/* The B2B detail boxes of a line (size, colour, quality, delivery date) under the heading that names them. */
+const SO_DLG_DETAIL_HEAD = { size: 'Size', color: 'Colour', material: 'Quality', deliveryDate: 'Delivery' };
+
 let SOX = { rows: null, err: '', busy: false, at: '', shown: [] };
 
 async function ensureSox() {
@@ -111,7 +150,7 @@ function renderSox() {
   if (SOX.busy) { $('sxMsg').className = 'muted'; $('sxMsg').textContent = 'Reading the sales orders…'; ptEmpty('sxTable', 'Loading…'); return; }
   if (SOX.err) { $('sxMsg').className = 'err'; $('sxMsg').textContent = 'Could not read it: ' + SOX.err; ptEmpty('sxTable', 'Nothing to show.'); $('sxKpis').innerHTML = ''; return; }
   /* SENT BACK BY PPC (flow/flow-back.js), above everything: lines PPC cannot plan until this team puts them right. */
-  if ($('sxBack')) { try { $('sxBack').innerHTML = typeof flowBackCard === 'function' ? flowBackCard() : ''; } catch (e) { $('sxBack').innerHTML = ''; } }
+  if ($('sxBack')) { try { $('sxBack').innerHTML = soBackCardPart(typeof flowBackCard === 'function' ? flowBackCard() : ''); } catch (e) { $('sxBack').innerHTML = ''; } }
   const all = SOX.rows || [];
   if (!all.length) { $('sxMsg').className = 'muted'; $('sxMsg').textContent = ''; $('sxKpis').innerHTML = ''; ptEmpty('sxTable', 'No sales orders.'); return; }
 
@@ -127,17 +166,17 @@ function renderSox() {
     chSel.innerHTML = '<option value="">All channels</option>' + chans.map(c => `<option value="${esc(c)}">${esc(c)}${names.get(c) && names.get(c).toUpperCase() !== c ? ' — ' + esc(names.get(c)) : ''} (${nf(all.filter(o => chOf(o) === c).length)})</option>`).join('');
     chSel.value = chans.indexOf(was) >= 0 ? was : '';
   }
-  const ch = (chSel && chSel.value) || '';
+  const ch = soFilterVal('so.flt.channel', (chSel && chSel.value) || '');
   const base = ch ? all.filter(o => chOf(o) === ch) : all;
-  const st = $('sxStatus').value, q = $('sxQ').value.trim().toLowerCase();
+  const st = soFilterVal('so.flt.status', $('sxStatus').value), q = soFilterVal('so.flt.search', $('sxQ').value.trim().toLowerCase());
   /* AIR OR SEA (Ravi, 16 Oct: "sales order list me AIR / SEA filter bhi add karo"): the mode kept on the order, else the end of its number. */
-  const md = String(($('sxMode') || {}).value || '');
-  const smo = String(($('sxSMonth') || {}).value || '');   // the sale month an order is for (18 Oct)
+  const md = soFilterVal('so.flt.shipMode', String(($('sxMode') || {}).value || ''));
+  const smo = soFilterVal('so.flt.saleMonth', String(($('sxSMonth') || {}).value || ''));   // the sale month an order is for (18 Oct)
   /* ON THE ORDER DATE, not on when the order was last touched — that is the date the row shows and
    * the date anybody asking for "September's orders" means. Sales orders carry it two ways, ISO from
    * the new-order form and day-first from the vendor side, which is why this goes through ptInRange
    * and not through a string compare. */
-  const [sxD1, sxD2] = ptRangeOf('sxD1', 'sxD2');
+  const [sxD1, sxD2] = apxOn('so.flt.dates') ? ptRangeOf('sxD1', 'sxD2') : ['', ''];
   const rows = base
     .filter(o => !st || soStatus(o) === st)
     .filter(o => !md || soShipMode(o) === md)
@@ -156,18 +195,18 @@ function renderSox() {
     <div class="kpihead"><span class="kpiname">Sales orders${ch ? ' · ' + esc(ch) + (names.get(ch) && names.get(ch).toUpperCase() !== ch ? ' — ' + esc(names.get(ch)) : '') : ''}</span>
       <span class="kpiwhen">read live${SOX.at ? ' · ' + esc(SOX.at) : ''}</span></div>
     <div class="metrics">
-      <div class="metric"><div class="v">${nf(base.length)}</div><div class="l">Orders</div></div>
-      <div class="metric"><div class="v" style="color:#7f6000">${nf(c('submitted'))}</div><div class="l">Awaiting approval</div></div>
-      <div class="metric"><div class="v" style="color:var(--accent)">${nf(c('approved'))}</div><div class="l">Approved</div></div>
-      <div class="metric"><div class="v">${nf(rows.reduce((s, x) => s + x.s.qty, 0))}</div><div class="l">Pieces ordered</div></div>
-      <div class="metric"><div class="v"${missing ? ' style="color:var(--bad)"' : ''}>${nf(missing)}</div><div class="l">Approved SKUs missing from the order book</div></div>
+      <div class="metric"${soPart('so.tile.orders')}><div class="v">${nf(base.length)}</div><div class="l">Orders</div></div>
+      <div class="metric"${soPart('so.tile.awaiting')}><div class="v" style="color:#7f6000">${nf(c('submitted'))}</div><div class="l">Awaiting approval</div></div>
+      <div class="metric"${soPart('so.tile.approved')}><div class="v" style="color:var(--accent)">${nf(c('approved'))}</div><div class="l">Approved</div></div>
+      <div class="metric"${soPart('so.tile.pieces')}><div class="v">${nf(rows.reduce((s, x) => s + x.s.qty, 0))}</div><div class="l">Pieces ordered</div></div>
+      <div class="metric"${soPart('so.tile.missing')}><div class="v"${missing ? ' style="color:var(--bad)"' : ''}>${nf(missing)}</div><div class="l">Approved SKUs missing from the order book</div></div>
     </div></div>`;
 
   /* WHO RAISED IT, IN A COLUMN OF ITS OWN on the B2B list (Ravi, 27 Oct) — the brand is the buyer, the person is beside it. */
   const byCol = soIsB2B(ch);
   const head = '<thead><tr>' + ['Order', 'Date', 'Channel', 'Buyer'].concat(byCol ? ['Raised by'] : [])
     .concat(['Status', 'SKUs', 'Pieces', 'Cut', 'Made', 'In order book', 'Delivery', ''])
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (['SKUs', 'Pieces', 'Cut', 'Made'].includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (['SKUs', 'Pieces', 'Cut', 'Made'].includes(h) ? ' class="num"' : '')}${soColPart(h)}>${h}</th>`).join('') + '</tr></thead>';
   $('sxTable').innerHTML = head + '<tbody>' + rows.map(({ o, s }) => {
     const sd = SO_STATUS[soStatus(o)] || SO_STATUS.draft;
     const bar = (pct, col) => `<div style="font-weight:700;color:${col}">${pct}%</div>`
@@ -176,24 +215,24 @@ function renderSox() {
     const done = soStatus(o) === 'approved';
     return '<tr>'
       + `<td class="frz" style="text-align:left;font-weight:600">${esc(o._id)}</td>`
-      + `<td>${esc(o.orderDate)}${o.saleMonth ? `<div class="muted" style="font-size:11px">for ${esc(soMonthTxt(o.saleMonth))}</div>` : ''}</td><td>${esc(o.channel)}${soShipMode(o) ? ` <span class="pill" style="font-size:11px">${esc(soShipMode(o))}</span>` : ''}</td>`
-      + `<td style="text-align:left${soIsB2B(o.channel) && soBrandOf(o) ? ';font-weight:600' : ''}"${soIsB2B(o.channel) && soBrandOf(o) && o.buyerName ? ` title="Raised by ${esc(o.buyerName)}"` : ''}>${esc(soBuyerTxt(o)) || '<span class="muted">—</span>'}</td>`
-      + (byCol ? `<td style="text-align:left">${esc(o.buyerName) || '<span class="muted">—</span>'}</td>` : '')
-      + `<td><span class="pill ${sd.cls}">${esc(sd.label)}</span></td>`
-      + `<td class="num">${nf(s.skus)}${s.skus !== s.lines ? ` <span class="muted" style="font-size:11px">of ${nf(s.lines)}</span>` : ''}</td>`
-      + `<td class="num" style="font-weight:700">${nf(s.qty)}</td>`
-      + `<td class="num">${done ? bar(s.cutPct, '#7f6000') : '<span class="muted">—</span>'}</td>`
-      + `<td class="num">${done ? bar(s.mfgPct, '#166534') : '<span class="muted">—</span>'}</td>`
+      + `<td${soColPart('Date')}>${esc(o.orderDate)}${o.saleMonth ? `<div class="muted" style="font-size:11px">for ${esc(soMonthTxt(o.saleMonth))}</div>` : ''}</td><td${soColPart('Channel')}>${esc(o.channel)}${soShipMode(o) ? ` <span class="pill" style="font-size:11px">${esc(soShipMode(o))}</span>` : ''}</td>`
+      + `<td${soColPart('Buyer')} style="text-align:left${soIsB2B(o.channel) && soBrandOf(o) ? ';font-weight:600' : ''}"${soIsB2B(o.channel) && soBrandOf(o) && o.buyerName ? ` title="Raised by ${esc(o.buyerName)}"` : ''}>${esc(soBuyerTxt(o)) || '<span class="muted">—</span>'}</td>`
+      + (byCol ? `<td${soColPart('Raised by')} style="text-align:left">${esc(o.buyerName) || '<span class="muted">—</span>'}</td>` : '')
+      + `<td${soColPart('Status')}><span class="pill ${sd.cls}">${esc(sd.label)}</span></td>`
+      + `<td class="num"${soColPart('SKUs')}>${nf(s.skus)}${s.skus !== s.lines ? ` <span class="muted" style="font-size:11px">of ${nf(s.lines)}</span>` : ''}</td>`
+      + `<td class="num"${soColPart('Pieces')} style="font-weight:700">${nf(s.qty)}</td>`
+      + `<td class="num"${soColPart('Cut')}>${done ? bar(s.cutPct, '#7f6000') : '<span class="muted">—</span>'}</td>`
+      + `<td class="num"${soColPart('Made')}>${done ? bar(s.mfgPct, '#166534') : '<span class="muted">—</span>'}</td>`
       /* An approved SKU that never reached the order book is work production was never told about. */
-      + `<td>${!done ? '<span class="muted">not yet</span>'
+      + `<td${soColPart('In order book')}>${!done ? '<span class="muted">not yet</span>'
         : (s.missing ? `<span class="pill pill-out">${nf(s.missing)} missing</span>`
                      : `<span class="pill pill-ok">all ${nf(s.skus)}</span>`)}</td>`
-      + `<td>${o.deliveryMode === 'complete' ? (esc(o.deliveryDate) || 'one date') : 'per line'}</td>`
+      + `<td${soColPart('Delivery')}>${o.deliveryMode === 'complete' ? (esc(o.deliveryDate) || 'one date') : 'per line'}</td>`
       + `<td style="white-space:nowrap">`
-      + `<button class="ghost" data-so-open="${esc(o._id)}" style="padding:3px 9px;font-size:12px">Open</button>`
-      + `${soCanEdit(o) ? ` <button class="ghost" data-so-edit="${esc(o._id)}" style="padding:3px 9px;font-size:12px">Edit</button>` : ''}`
-      + `${ME.admin && (soStatus(o) === 'submitted' || soStatus(o) === 'returned') ? ` <button data-so-review="${esc(o._id)}" style="padding:3px 9px;font-size:12px">Review</button>` : ''}`
-      + `${ME.admin && done && s.missing ? ` <button data-so-review="${esc(o._id)}" style="padding:3px 9px;font-size:12px">Add the ${nf(s.missing)} missing</button>` : ''}`
+      + `<button class="ghost"${soPart('so.btn.open')} data-so-open="${esc(o._id)}" style="padding:3px 9px;font-size:12px">Open</button>`
+      + `${soCanEdit(o) ? ` <button class="ghost"${soPart('so.btn.edit')} data-so-edit="${esc(o._id)}" style="padding:3px 9px;font-size:12px">Edit</button>` : ''}`
+      + `${ME.admin && (soStatus(o) === 'submitted' || soStatus(o) === 'returned') ? ` <button${soPart('so.btn.review')} data-so-review="${esc(o._id)}" style="padding:3px 9px;font-size:12px">Review</button>` : ''}`
+      + `${ME.admin && done && s.missing ? ` <button${soPart('so.btn.addMissing')} data-so-review="${esc(o._id)}" style="padding:3px 9px;font-size:12px">Add the ${nf(s.missing)} missing</button>` : ''}`
       + `</td></tr>`;
   }).join('') + '</tbody>';
 
@@ -236,32 +275,32 @@ function soDlgRow(o, g, opt) {
   const box = (k, type) => `<input data-sod="${k}" data-was="${esc(d[k])}"${type ? ` type="${type}"` : ''} value="${esc(d[k])}"`
     + `${k === 'material' ? ' list="sodQual"' : ''} style="height:30px;font-size:12.5px;padding:0 8px;width:100%;min-width:${type ? 130 : 90}px">`
     + `<div class="muted sod-was" style="font-size:11px;margin-top:2px;text-align:left"></div>`;
-  const cell = k => (editing && !(locked && k !== 'deliveryDate')) ? `<td>${box(k, k === 'deliveryDate' ? 'date' : '')}</td>`
-    : `<td${k === 'color' ? ' style="text-align:left"' : ''}>${esc(d[k]) || '<span class="muted">—</span>'}</td>`;
+  const cell = k => (editing && !(locked && k !== 'deliveryDate')) ? `<td${soDlgColPart(SO_DLG_DETAIL_HEAD[k])}>${box(k, k === 'deliveryDate' ? 'date' : '')}</td>`
+    : `<td${soDlgColPart(SO_DLG_DETAIL_HEAD[k])}${k === 'color' ? ' style="text-align:left"' : ''}>${esc(d[k]) || '<span class="muted">—</span>'}</td>`;
   const act = [];
   if (editing) act.push(`<button data-sod-save="${esc(g.sku)}" style="padding:3px 11px;font-size:12px">Save</button>`,
     `<button class="ghost" data-sod-cancel="1" style="padding:3px 9px;font-size:12px">Cancel</button>`);
   else {
     if (b2b && opt.mayEdit) act.push(locked
-      ? `<span class="muted" style="font-size:11px">${nf(done.floor)} cut · </span><button class="ghost" data-sod-edit="${esc(g.sku)}" style="padding:3px 9px;font-size:12px" title="Size, colour and quality are fixed once pieces are cut">Edit date</button>`
-      : `<button class="ghost" data-sod-edit="${esc(g.sku)}" style="padding:3px 9px;font-size:12px">Edit</button>`);
-    if (opt.mayQty) act.push(`<button class="ghost" data-so-qty="${esc(o._id)}|${esc(g.sku)}" style="padding:3px 9px;font-size:12px">Change qty</button>`);
+      ? `<span class="muted" style="font-size:11px">${nf(done.floor)} cut · </span><button class="ghost"${soPart('so.dlg.order.btn.editLine')} data-sod-edit="${esc(g.sku)}" style="padding:3px 9px;font-size:12px" title="Size, colour and quality are fixed once pieces are cut">Edit date</button>`
+      : `<button class="ghost"${soPart('so.dlg.order.btn.editLine')} data-sod-edit="${esc(g.sku)}" style="padding:3px 9px;font-size:12px">Edit</button>`);
+    if (opt.mayQty) act.push(`<button class="ghost"${soPart('so.dlg.order.btn.changeQty')} data-so-qty="${esc(o._id)}|${esc(g.sku)}" style="padding:3px 9px;font-size:12px">Change qty</button>`);
   }
   return `<tr data-sod-row="${esc(g.sku)}"${editing ? ' style="background:#eff6ff"' : (g.inBook ? '' : ' style="background:var(--bad-bg)"')}>`
     + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(g.sku)}`
     + `${g.lines > 1 ? ` <span class="muted" style="font-size:11px">${nf(g.lines)} lines</span>` : ''}`
     + `${g.adjusted ? ' <span class="pill pill-low">qty changed</span>' : ''}`
     + `${changed ? ' <span class="pill pill-low">changed</span>' : ''}</td>`
-    + ptImgCell(g.sku)
-    + (b2b ? `<td style="text-align:left">${esc(d.itemName) || '<span class="muted">—</span>'}</td>` + cell('size') + cell('color') + cell('material') : '')
+    + soMarkTd(ptImgCell(g.sku), 'so.dlg.order.col.image')
+    + (b2b ? `<td${soDlgColPart('Article')} style="text-align:left">${esc(d.itemName) || '<span class="muted">—</span>'}</td>` + cell('size') + cell('color') + cell('material') : '')
     + `<td class="num" style="font-weight:700">${nf(g.qty)}</td>`
-    + `<td class="num" style="color:#7f6000">${nf(g.cut)}</td>`
-    + `<td class="num" style="color:#166534">${nf(g.press)}</td>`
+    + `<td class="num"${soDlgColPart('Cut')} style="color:#7f6000">${nf(g.cut)}</td>`
+    + `<td class="num"${soDlgColPart('Made')} style="color:#166534">${nf(g.press)}</td>`
     /* A B2B order leaves out Owed and Priority (its lines carry no priority) so the size, colour and quality fit
      * beside the figures, with Save in sight. */
-    + (b2b ? cell('deliveryDate') : `<td class="num"${owed ? ' style="color:var(--bad);font-weight:700"' : ''}>${owed ? nf(owed) : '<span class="muted">—</span>'}</td>`
-      + `<td>${esc(g.delivery) || '<span class="muted">—</span>'}</td><td>${esc(g.priority) || '<span class="muted">—</span>'}</td>`)
-    + `<td style="font-weight:700;color:${g.inBook ? 'var(--accent)' : 'var(--bad)'}">${g.inBook ? 'yes' : 'NO'}</td>`
+    + (b2b ? cell('deliveryDate') : `<td class="num"${soDlgColPart('Owed')}${owed ? ' style="color:var(--bad);font-weight:700"' : ''}>${owed ? nf(owed) : '<span class="muted">—</span>'}</td>`
+      + `<td${soDlgColPart('Delivery')}>${esc(g.delivery) || '<span class="muted">—</span>'}</td><td${soDlgColPart('Priority')}>${esc(g.priority) || '<span class="muted">—</span>'}</td>`)
+    + `<td${soDlgColPart('In order book')} style="font-weight:700;color:${g.inBook ? 'var(--accent)' : 'var(--bad)'}">${g.inBook ? 'yes' : 'NO'}</td>`
     /* The buttons stay pinned to the right edge, so Save is in sight however wide the order runs. */
     + (opt.mayEdit || opt.mayQty ? `<td style="white-space:nowrap${b2b ? ';position:sticky;right:0;background:' + (editing ? '#eff6ff' : 'var(--card)') + ';box-shadow:-6px 0 6px -6px rgba(15,23,42,.25)' : ''}">${act.join(' ')}</td>` : '')
     + '</tr>';
@@ -319,6 +358,7 @@ async function soDetailRun(o, sku, want) {
 }
 
 function soOpen(id, msg) {
+  if (!soPopupAllowed('so.dlg.order')) return;
   const o = (SOX.rows || []).find(x => x._id === id); if (!o) return;
   if (SOD.id !== id) SOD = { id: '', sku: '' };
   const s = soSummary(o, soWork());
@@ -329,7 +369,7 @@ function soOpen(id, msg) {
   const mayEdit = soDetailMay(o);
   const cols = ['SKU', 'Image'].concat(b2b ? ['Article', 'Size', 'Colour', 'Quality'] : [])
     .concat(b2b ? ['Qty', 'Cut', 'Made', 'Delivery', 'In order book'] : ['Qty', 'Cut', 'Made', 'Owed', 'Delivery', 'Priority', 'In order book']).concat(mayQty || mayEdit ? [''] : []);
-  const head = cols.map((h, i) => `<th${['Qty', 'Cut', 'Made', 'Owed'].includes(h) ? ' class="num"' : ''}${b2b && !h && i === cols.length - 1 ? ' style="position:sticky;right:0;z-index:2"' : ''}>${h}</th>`).join('');
+  const head = cols.map((h, i) => `<th${['Qty', 'Cut', 'Made', 'Owed'].includes(h) ? ' class="num"' : ''}${soDlgColPart(h)}${b2b && !h && i === cols.length - 1 ? ' style="position:sticky;right:0;z-index:2"' : ''}>${h}</th>`).join('');
   const body = shown.map(g => soDlgRow(o, g, { mayQty, mayEdit })).join('');
   /* Every quality the order already uses, offered first; anything else can still be typed. */
   const quals = [...new Set(['Sheeting', 'Cambric'].concat(soLines(o).map(l => String((l && l.material) || '').trim())).filter(Boolean))];
@@ -362,15 +402,15 @@ function soOpen(id, msg) {
       + `<table class="xl" id="sxDlgTable"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
       + (b2b ? `<datalist id="sodQual">${quals.map(q => `<option value="${esc(q)}">`).join('')}</datalist>` : '')
       + (s.groups.length > 400 ? `<div class="muted" style="margin-top:8px;font-size:12px">Showing the first 400 of ${nf(s.groups.length)} SKUs. Export gives you all of them.</div>` : '')
-      + (det.length ? '<div style="margin-top:10px;font-weight:600;font-size:13px">Details changed on this order</div>'
+      + (det.length ? '<div' + soPart('so.dlg.order.sec.detailChanges') + '><div style="margin-top:10px;font-weight:600;font-size:13px">Details changed on this order</div>'
         + '<table class="xl" style="margin-top:4px"><thead><tr><th>When</th><th>SKU</th><th>What</th><th>From</th><th>To</th><th>By</th></tr></thead><tbody>'
         + det.slice(0, 40).map(c => `<tr><td style="text-align:left">${esc(ptIsoDate(c.at) || '')}</td>`
           + `<td style="text-align:left;font-family:ui-monospace,monospace">${esc(c.sku)}</td>`
           + `<td>${esc(fieldTxt(c.field))}</td><td>${esc(c.from) || '<span class="muted">—</span>'}</td>`
           + `<td style="font-weight:700;color:#166534">${esc(c.to)}</td>`
           + `<td>${esc(String(c.by || '').split('@')[0])}</td></tr>`).join('')
-        + '</tbody></table>' : '')
-      + (adj.length ? '<div style="margin-top:10px;font-weight:600;font-size:13px">Quantities changed after approval</div>'
+        + '</tbody></table></div>' : '')
+      + (adj.length ? '<div' + soPart('so.dlg.order.sec.qtyChanges') + '><div style="margin-top:10px;font-weight:600;font-size:13px">Quantities changed after approval</div>'
         + '<table class="xl" style="margin-top:4px"><thead><tr><th>When</th><th>SKU</th><th class="num">From</th><th class="num">To</th><th>Why</th><th>By</th></tr></thead><tbody>'
         + adj.slice(0, 40).map(a => `<tr><td style="text-align:left">${esc(ptIsoDate(a.at) || '')}</td>`
           + `<td style="text-align:left;font-family:ui-monospace,monospace">${esc(a.sku)}</td>`
@@ -378,7 +418,7 @@ function soOpen(id, msg) {
           + `<td class="num" style="font-weight:700;color:${a.to > a.from ? '#166534' : 'var(--bad)'}">${nf(a.to)}</td>`
           + `<td style="text-align:left">${esc(a.why || '')}</td>`
           + `<td>${esc(String(a.by || '').split('@')[0])}</td></tr>`).join('')
-        + '</tbody></table>' : ''),
+        + '</tbody></table></div>' : ''),
   });
   ptImgFill(shown.map(g => g.sku), false, ptImgPatch);
   const box = $('sxDlgTable');
@@ -420,6 +460,7 @@ function soOpen(id, msg) {
  * cannot go below.
  */
 function soQtyOpen(id, sku) {
+  if (!soPopupAllowed('so.dlg.changeQty')) return;
   const o = (SOX.rows || []).find(x => x._id === id); if (!o) return;
   const now = soQtyOf(o, sku);
   const done = soDoneOn(o._id, sku);
