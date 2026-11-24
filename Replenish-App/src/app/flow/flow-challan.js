@@ -501,6 +501,10 @@ async function flowChallanWrite(ch, v, how) {
   if (cloth) patch[`pt_vendorChallans/${v.code}/${no}`] = cloth;
   try { if (Object.keys(patch).length) await ptPatch(patch); } catch (e) { return `Challan ${no} is saved, but the lines could not be marked (${e.message || e}) — press Refresh.`; }
   FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
+  /* WHAT THE PRINTER WAS GIVEN, AT ONCE (Ravi, 24 Nov: 20 pcs went from the Greige Desk card and the printer still saw nothing): the
+   * printer's portal shows a gated line at what its challans gave (flowProg on the Vendor Order), which was written only when the
+   * office's flow screen was next drawn. It is written now, right after the challan. */
+  try { if (typeof flowVoProgSync === 'function') flowVoProgSync(); } catch (e) { console.warn(`Challan ${no}: what the printer was given is written on the next flow screen (${e.message || e}).`); }
   if (cloth) FLOW.cloth = Object.assign({}, FLOW.cloth, { [v.code]: Object.assign({}, (FLOW.cloth || {})[v.code], { [no]: cloth }) });
   if (setP.length) { FLOW.ppc = Object.assign({}, FLOW.ppc); setP.forEach(k => { FLOW.ppc[k] = Object.assign({}, FLOW.ppc[k], { printer: patch[`pt_ppc/${k}/printer`] }); }); }
   const dem = Object.assign({}, FLOW.dem);
@@ -528,7 +532,9 @@ function flowClothFor(ch, how) {
   const orders = ch.orders || [];
   const orderOf = l => orders.find(o => flowKey(o, l.sku) === l.key) || orders[0] || ch.orderNo || '';
   const lines = (ch.lines || []).filter(l => +l.metres > 0 || +l.pcs > 0)
-    .map(l => ({ orderNo: orderOf(l), sku: l.sku || '', fabric: l.fabric || '', pcs: +l.pcs || 0, metres: flowR2(+l.metres || 0) }));
+    .map(l => ({ orderNo: orderOf(l), sku: l.sku || '', fabric: l.fabric || '', pcs: +l.pcs || 0, metres: flowR2(+l.metres || 0),
+      /* cut pieces (printed on the SKU itself) or running cloth: the printer is told in the unit it gets (24 Nov) */
+      unit: typeof flowChUnit === 'function' ? flowChUnit(l) : 'm' }));
   if (!lines.length) return null;
   return { kind: FLOW_CLOTH, no: ch.no, date: ch.date, vendor: ch.vendor, lines, metres: flowR2(lines.reduce((a, l) => a + l.metres, 0)), at: ch.at, by: ch.by || '' };
 }

@@ -23,7 +23,7 @@ function pclSection(q) {
   return `<div class="card" style="padding:12px 14px;margin-bottom:12px"><div style="font-weight:700;margin-bottom:6px">Cloth sent to you`
     + ` <span class="muted" style="font-weight:400;font-size:12px">· ${q ? 'matching your search' : 'still on its way'}</span></div>`
     + `<div class="ff-grid"><table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Challan</th><th style="text-align:left">Our order</th>`
-    + `<th style="text-align:left">SKUs</th><th>Metres</th><th style="text-align:left">Status</th><th></th></tr></thead><tbody>`
+    + `<th style="text-align:left">SKUs</th><th>Sent</th><th style="text-align:left">Status</th><th></th></tr></thead><tbody>`
     + list.map(c => pclRow(c, may)).join('') + '</tbody></table></div></div>';
 }
 /** In transit ones when nothing is searched; every match when something is. */
@@ -41,7 +41,16 @@ function pclRow(c, may) {
     ? `<button type="button" data-pclrecv="${esc(c.no)}"${PCL.busy === c.no ? ' disabled' : ''}>${PCL.busy === c.no ? 'Saving…' : 'Cloth received'}</button>` : '';
   return `<tr><td style="text-align:left"><b class="mono">${esc(c.no)}</b><div class="muted" style="font-size:11.5px">${esc(c.date || '')}${fabrics ? ' · ' + esc(fabrics) : ''}</div></td>`
     + `<td style="text-align:left" class="mono">${esc(orders.join(', '))}</td><td style="text-align:left;font-size:12px">${esc(skus.join(', '))}</td>`
-    + `<td class="num">${nf(+c.metres || 0)} m</td><td style="text-align:left">${status}</td><td>${btn}</td></tr>`;
+    + `<td class="num">${pclSentTxt(c)}</td><td style="text-align:left">${status}</td><td>${btn}</td></tr>`;
+}
+/* CUT PIECES IN PIECES (Ravi, 24 Nov: "running h to same aise hi dikhe but cut pcs me h to pcs me show ho"): a copy says per line
+ * what the printer got — unit 'pcs' (cut pieces, printed on the SKU itself) or 'm' (running cloth); a copy made before carries no
+ * unit and is metres. Both kinds on one challan: "20 pcs · 31.6 m". */
+function pclSentTxt(c) {
+  const ls = c.lines || [], pcs = ls.filter(l => l.unit === 'pcs').reduce((a, l) => a + (+l.pcs || 0), 0);
+  const m = ls.filter(l => l.unit !== 'pcs').reduce((a, l) => a + (+l.metres || 0), 0);
+  if (!ls.length || !ls.some(l => l.unit)) return `${nf(+c.metres || 0)} m`;   // a copy from before 24 Nov: metres, as it always said
+  return [pcs > 0 ? `${nf(pcs)} pcs` : '', m > 0.005 ? `${nf(Math.round(m * 100) / 100)} m` : ''].filter(Boolean).join(' · ') || '—';
 }
 /** The printer's own sign-in, or an admin looking as the printer. Someone who may only look does not mark cloth received. */
 const pclMayReceive = () => !!((typeof NAV_IS_VENDOR !== 'undefined' && NAV_IS_VENDOR) || (ME && ME.admin));
