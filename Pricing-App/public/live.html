@@ -36,6 +36,7 @@ h1 { font: 800 28px/1.15 var(--f-display); margin: 0; letter-spacing: -0.01em; t
 .tile.hl { border-color: var(--y26); box-shadow: inset 0 3px 0 var(--y26); }
 /* The two top rows (2026-11-20): six big cards each, full width — sales, then advertising. */
 /* The channel toggle (Ravi, 2026-11-20): shows or hides whole sections. */
+[data-chan="shop"], [data-chan="all"],             /* Amazon only since 24 Nov 2026 */
 body[data-view="amz"] [data-chan="shop"], body[data-view="amz"] [data-chan="all"],
 body[data-view="shop"] [data-chan="amz"], body[data-view="shop"] [data-chan="all"] { display: none; }
 /* Framed sections: a coloured top edge, a faint wash of it and a solid name tag — Amazon orange and navy, Shopify green,
@@ -213,9 +214,6 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
       <button type="button" data-p="day" aria-pressed="true">Today</button><button type="button" data-p="yesterday" aria-pressed="false">Yesterday</button><button type="button" data-p="week" aria-pressed="false">Week</button><button type="button" data-p="month" aria-pressed="false">Month</button><button type="button" data-p="quarter" aria-pressed="false">Quarter</button><button type="button" data-p="year" aria-pressed="false">Year</button><button type="button" data-p="events" aria-pressed="false">Events</button><button type="button" data-p="products" aria-pressed="false">By product</button>
     </div>
     <select id="pick" class="pick" hidden aria-label="Which month or quarter"></select>
-    <div class="seg" id="chan" role="group" aria-label="Which channel to show">
-      <button type="button" data-v="both" aria-pressed="true">Amazon + Shopify</button><button type="button" data-v="amz" aria-pressed="false">Amazon</button><button type="button" data-v="shop" aria-pressed="false">Shopify</button>
-    </div>
     <label class="brand" for="brand">Brand <select id="brand"><option value="ALL">Ridhi + CPC</option><option value="SP">Ridhi</option><option value="CPC">CPC</option></select></label>
     <div class="asof" id="asof">Loading…</div>
     <button type="button" class="refresh" id="refresh" title="Load the latest numbers">Refresh</button>
@@ -313,7 +311,7 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
     </section>
   </div>
 
-  <p class="foot">Source: Amazon Sales API (order metrics) per brand — every order placed on Amazon.com, including pending ones, by Pacific hour. Sales are what buyers were charged for the items. Sellora's backend reads Amazon, Shopify and Meta every 10 minutes into Supabase; this page re-reads every 5. Meta spend is in US dollars at the day's ECB rate.</p>
+  <p class="foot">Source: Amazon Sales API (order metrics) per brand — every order placed on Amazon.com, including pending ones, by Pacific hour. Sales are what buyers were charged for the items. Sellora's backend reads Amazon every 10 minutes into Supabase; this page re-reads every 5.</p>
 </div>
 <div class="tip" id="tip" hidden></div>
 <script src="products.js?v=3"></script>
@@ -823,7 +821,7 @@ function renderPeriod(tot, lySame, lyDay) {
   $('pnote').innerHTML = `<b>${PR.label}</b> · ${range(start, end)} against ${range(lyOf(start), lyOf(end))}${PR.sameWeekday ? ' (same weekdays)' : ''}`
     + (live ? ` · today to ${ptHM(DATA.asOf)} PT, last year to the same time` : ' · whole days') + ` · history to ${H.through ? dname(H.through, false) : '—'}`
     + (first && lyOf(start) < first ? ` · <b>last year is only partly in the history</b> (it starts ${dname(first, true)})` : '')
-    + (amzK.includes('CPC') && H.shopCpcFrom && H.shopCpcFrom > start ? ` · CPC Shopify history from ${dname(H.shopCpcFrom, false)} (still filling in)` : '');
+    + (document.body.dataset.view !== 'amz' && amzK.includes('CPC') && H.shopCpcFrom && H.shopCpcFrom > start ? ` · CPC Shopify history from ${dname(H.shopCpcFrom, false)} (still filling in)` : '');
   const aov = r => (r.orders ? '$' + (r.sales / r.orders).toFixed(2) : '—');
   const vsZero = (a, b) => (b > 0 ? change(a, b) : ['+' + usd(a), a > 0 ? 'up' : '']);
   const adNote = adFrom && adFrom > start ? ` · ads from ${dname(adFrom, false)}` : '';
@@ -1000,15 +998,12 @@ function render() {
 }
 
 try { const s = localStorage.getItem('live-brand'); if (s) $('brand').value = s; } catch (e) { /* no storage */ }
-// The channel toggle: only shows or hides sections, so switching is instant. Remembered per browser.
 addEventListener('scroll', () => document.body.classList.toggle('scrolled', scrollY > 8), { passive: true });
-function setChan(v) {
-  animate(); document.body.dataset.view = v;
-  if (DATA) render();                                // the event cards and the trend follow the channel picker
-  $('chan').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
-}
-$('chan').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { setChan(b.dataset.v); try { localStorage.setItem('live-chan', b.dataset.v); } catch (e) { /* no storage */ } }));
-try { const c = localStorage.getItem('live-chan'); setChan(['both', 'amz', 'shop'].includes(c) ? c : 'both'); } catch (e) { setChan('both'); }
+/* Amazon only (Ravi, 24 Nov 2026: "remove Shopify"): the channel toggle is gone and the page stays on the Amazon view, so the
+   Total (Amazon + Shopify) and Shopify sections are hidden and the periods, Trend and Events count Amazon alone. The Shopify
+   code is left in place, unused, so it can come back by setting the view to 'both'. */
+function setChan(v) { animate(); document.body.dataset.view = v; if (DATA) render(); }
+setChan('amz');
 // The period picker: Day redraws the hour-by-hour view, the others their period to date. Remembered per browser.
 function setPeriod(p) {
   animate(); PERIOD = p; document.body.dataset.period = p;
