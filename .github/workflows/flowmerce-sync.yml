@@ -1,0 +1,74 @@
+# COPY THIS FILE TO ridhi-apps/.github/workflows/flowmerce-sync.yml when Flowmerce-Sync/ is moved into the ridhi-apps repo.
+#
+# FLOWMERCE SYNC BACKEND GOES LIVE FROM GITHUB — same pattern as sellora-backend.yml.
+#   every push / pull request touching Flowmerce-Sync/   build + tests (no keys needed: every outside service is faked)
+#   main                                                 then deployed to Firebase (price-research-48ff3, codebase
+#                                                        "flowmerce-sync") — only that codebase; sellora-live and
+#                                                        rone-capture are never touched from here.
+# Deploy key: the same one Sellora's backend uses (SELLORA_BACKEND_DEPLOY_KEY / FIREBASE_SERVICE_ACCOUNT), which already has
+# the Cloud Functions / Cloud Run / Scheduler / Secret Manager roles.
+name: Flowmerce sync backend — test, deploy
+
+on:
+  push:
+    branches: [main, 'flowmerce-sync']
+    paths: ['Flowmerce-Sync/**', '.github/workflows/flowmerce-sync.yml']
+  pull_request:
+    paths: ['Flowmerce-Sync/**', '.github/workflows/flowmerce-sync.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: flowmerce-sync-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Flowmerce-Sync
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Build (TypeScript → lib/)
+        run: npm run build
+      - name: Tests
+        run: npm test
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAS_KEY: ${{ (secrets.SELLORA_BACKEND_DEPLOY_KEY || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3) != '' }}
+    defaults:
+      run:
+        working-directory: Flowmerce-Sync
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: No deploy key yet
+        if: env.HAS_KEY != 'true'
+        run: echo "::warning::No deploy key — tests passed, nothing was deployed."
+      - name: Deploy to Firebase (codebase flowmerce-sync only)
+        if: env.HAS_KEY == 'true'
+        env:
+          DEPLOY_KEY: ${{ secrets.SELLORA_BACKEND_DEPLOY_KEY || secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_PRICE_RESEARCH_48FF3 }}
+        run: |
+          printf '%s' "$DEPLOY_KEY" > "$RUNNER_TEMP/deploy-key.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/deploy-key.json"
+          npx --yes firebase-tools@14 deploy --only functions:flowmerce-sync --project price-research-48ff3 --non-interactive --force
+          rm -f "$RUNNER_TEMP/deploy-key.json"
