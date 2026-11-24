@@ -183,8 +183,13 @@ if (typeof module !== 'undefined' && module.exports) module.exports = UAT_CORE;
 if (typeof window !== 'undefined') (function () {
   var C = UAT_CORE;
   var JOURNAL_DB = 'uat-journal';
-  /* the app's own stores that survive a reset: the change list itself and the sign-in */
-  var KEEP_ON_RESET = [JOURNAL_DB, 'uat-firebaseLocalStorageDb'];
+  /* the app's own stores that survive a reset: the change list itself, the sign-in, and the copies of ERP data (they hold
+   * ERP data as it is — your changes are laid on when a screen reads, never written into them) */
+  var KEEP_ON_RESET = [JOURNAL_DB, 'uat-firebaseLocalStorageDb', 'uat-r1-erpdata-copies-2'];
+  /* UAT MODE (Ravi, 24 Nov: one Test page; "a UAT mode and it will do what our UAT does"). OFF: the Test page reads ERP data and
+   * saving is off. ON: everything above — your changes kept on this PC, laid on every read, with Reset. Kept per browser. */
+  var MODE_KEY = 'uat:r1UatMode', ON = false;
+  try { ON = window.localStorage.getItem(MODE_KEY) === '1'; } catch (e) { /* no storage: UAT mode stays off */ }
   /* a save made this long after the tester last clicked or typed is the app's own upkeep, not tester work */
   var AUTO_AFTER_MS = 4000;
   var STORE_PREFIX = 'uat-', KEY_PREFIX = 'uat:';
@@ -207,7 +212,13 @@ if (typeof window !== 'undefined') (function () {
   /* The app's own fast copies are kept away from UAT: they would be filled with "live + your changes" and outlive a reset. */
   try { localStorage.setItem('deltaUse', '0'); localStorage.setItem('deltaShadowOff', '1'); } catch (e) { /* no storage: the app reads plainly anyway */ }
 
-  var U = window.__UAT = { changes: [], points: [], seq: 0, lastTouch: 0, broken: '', watchers: [], tags: {}, tagN: 0 };
+  var U = window.__UAT = { on: ON, changes: [], points: [], seq: 0, lastTouch: 0, broken: '', watchers: [], tags: {}, tagN: 0 };
+  /** UAT mode on or off: remembered in this browser, then the page reloads so every screen reads again in the new mode.
+   *  Your changes are kept either way (off only hides them); the app's own copies are cleared, as on a reset. */
+  U.setMode = function (on) {
+    try { realSet.call(window.localStorage, MODE_KEY, on ? '1' : '0'); } catch (e) { loud('This browser would not remember the mode.'); return; }
+    clearCopies().then(function () { location.reload(); });
+  };
   document.addEventListener('pointerdown', function () { U.lastTouch = Date.now(); }, true);
   document.addEventListener('keydown', function () { U.lastTouch = Date.now(); }, true);
 
@@ -249,6 +260,7 @@ if (typeof window !== 'undefined') (function () {
 
   /** Keep one save's changes. Fails loudly: a save this browser cannot keep is never reported as saved. */
   U.keep = function (changes, what, who) {
+    if (!U.on) return Promise.reject(new Error('Saving is off on the Test page — turn on UAT mode to try saves (they stay on this PC). Nothing was saved.'));
     if (U.broken) return Promise.reject(new Error('UAT could not keep this change in this browser (' + U.broken + '). Nothing was saved.'));
     var t = new Date().toISOString(), g = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     var auto = Date.now() - U.lastTouch > AUTO_AFTER_MS;
@@ -310,6 +322,7 @@ if (typeof window !== 'undefined') (function () {
   }
   /** A save: kept in this browser as changes, answered the way Firebase answers. Never sent to live. */
   U.write = function (url, method, init, origFetch) {
+    if (!U.on) { loud('Saving is off on the Test page — turn on UAT mode to try saves.'); return Promise.resolve(json({ error: 'Saving is off (UAT mode is off)' }, 403)); }
     return U.ready.then(function () {
       var u = new URL(url), base = pathOf(u), who = whoOf(u.searchParams.get('auth'));
       var body;
@@ -352,12 +365,14 @@ if (typeof window !== 'undefined') (function () {
   U.fsKeep = function (changes, what, who) { return U.ready.then(function () { return U.keep(changes, what, who); }).catch(function (e) { loud(String((e && e.message) || e)); throw e; }); };
   /** One document: live, with your changes on it. */
   U.fsDoc = function (ref, liveSnap) {
+    if (!U.on) return liveSnap;
     var at = 'fs/' + ref.path, mine = C.changesFor(at, U.changes);
     if (!mine.length) return liveSnap;
     return docLike(ref, C.overlay(at, liveSnap.exists() ? liveSnap.data() : null, mine));
   };
   /** A whole collection: live's documents with your changes on them, yours added, the ones you removed left out. */
   U.fsDocs = function (col, liveSnap) {
+    if (!U.on) return liveSnap;
     var at = 'fs/' + (col.path || col.id), mine = C.changesFor(at, U.changes);
     if (!mine.length) return liveSnap;
     var depth = C.segs(at).length, ids = [], live = {};
@@ -372,6 +387,7 @@ if (typeof window !== 'undefined') (function () {
   };
   /** A live watch on one document: live's updates and your own saves both redraw it. */
   U.fsWatch = function (ref, next, err, realWatch) {
+    if (!U.on) return realWatch(ref, next, err);
     var last = null, at = 'fs/' + ref.path;
     var stop = realWatch(ref, function (snap) { last = snap; U.ready.then(function () { next(U.fsDoc(ref, snap)); }); }, err);
     var mineChanged = function (rows) { if (last && rows.some(function (r) { return C.isAtOrUnder(r.p, at) || C.isAtOrUnder(at, r.p); })) next(U.fsDoc(ref, last)); };
@@ -390,7 +406,7 @@ if (typeof window !== 'undefined') (function () {
     if (a && isWhatsApp(a.getAttribute('href'))) { ev.preventDefault(); ev.stopPropagation(); U.stopped('WhatsApp'); }
   }, true);
   if (navigator.sendBeacon) navigator.sendBeacon = function () { U.stopped('a background send'); return false; };
-  U.stopped = function (what) { loud('UAT: ' + what + ' is switched off \u2014 nothing was sent.'); console.warn('[UAT] stopped: ' + what); };
+  U.stopped = function (what) { loud('Test page: ' + what + ' is switched off \u2014 nothing was sent.'); console.warn('[UAT] stopped: ' + what); };
 
   /* ---- 6. RESET ---- */
   /** Undo every change made after `cutIso` (null = all of them), forget restore points after it, clear the app's own copies
@@ -456,9 +472,19 @@ if (typeof window !== 'undefined') (function () {
     var box = document.getElementById('uatPanelBody'); if (!box || document.getElementById('uatPanel').hidden) return;
     var saves = C.savesOf(U.changes), cutIn = document.getElementById('uatCut'), cutVal = cutIn ? cutIn.value : '';
     var cut = C.indiaToUtcIso(cutVal);
+    var mode = '<div class="uat-sec"><h3>UAT mode <span>' + (U.on ? 'on' : 'off') + '</span></h3><p>'
+      + (U.on ? 'Your saves are kept on this PC and laid on top of live data. Turning it off hides them (they are kept) and saving stops.'
+              : 'Saving is off: the screens show live data only. Turn UAT mode on to try saves — they stay on this PC.')
+      + '</p><button type="button" class="uat-btn" id="uatModeBtn">' + (U.on ? 'Turn UAT mode off' : 'Turn UAT mode on') + '</button></div>';
+    if (!U.on) {
+      box.innerHTML = '<p class="uat-lead">The Test page shows <b>live data from ERP data</b>, read only. Nothing here reaches the live ERP, ERP data, '
+        + 'Firebase, Shopify, mail or WhatsApp.' + (saves.length ? ' You have ' + saves.length + ' change' + (saves.length === 1 ? '' : 's') + ' kept from UAT mode, hidden while it is off.' : '') + '</p>' + mode;
+      return;
+    }
     box.innerHTML =
       '<p class="uat-lead">What you see is <b>live data as it is now</b>, with <b>your changes</b> on top. Your changes are kept on this PC only: '
       + 'nothing reaches the live ERP, ERP data, Shopify, mail or WhatsApp. If live changes a record you also changed, you keep seeing yours until you reset.</p>'
+      + mode
       + '<div class="uat-sec"><h3>Reset everything</h3><p>Throw away ' + (saves.length === 1 ? 'your 1 change' : 'all ' + saves.length + ' changes') + ' and go back to live.</p>'
       + '<button type="button" class="uat-btn uat-danger" id="uatResetAll"' + (saves.length ? '' : ' disabled') + '>Reset everything</button></div>'
       + '<div class="uat-sec"><h3>Undo everything after a time</h3><label for="uatCut">Date and time (India)</label> '
@@ -484,8 +510,9 @@ if (typeof window !== 'undefined') (function () {
   }
   function openPanel() { document.getElementById('uatPanel').hidden = false; drawPanel(); }
   document.addEventListener('click', function (ev) {
-    var t = ev.target && ev.target.closest ? ev.target.closest('#uatResetBtn,#uatBarBtn,#uatClose,#uatResetAll,#uatUndoAfter,#uatSavePoint,[data-uat-back],[data-uat-forget]') : null;
+    var t = ev.target && ev.target.closest ? ev.target.closest('#uatModeBtn,#uatBarMode,#uatResetBtn,#uatBarBtn,#uatClose,#uatResetAll,#uatUndoAfter,#uatSavePoint,[data-uat-back],[data-uat-forget]') : null;
     if (!t) return;
+    if (t.id === 'uatModeBtn' || t.id === 'uatBarMode') { U.setMode(!U.on); return; }
     if (t.id === 'uatResetBtn' || t.id === 'uatBarBtn') { openPanel(); return; }
     if (t.id === 'uatClose') { document.getElementById('uatPanel').hidden = true; return; }
     if (t.id === 'uatResetAll') { if (armed(t, 'Press again to throw away every change')) U.undoAfter(null); return; }
@@ -526,10 +553,13 @@ if (typeof window !== 'undefined') (function () {
   document.addEventListener('DOMContentLoaded', function () {
     var s = document.createElement('style'); s.textContent = CSS; document.head.appendChild(s);
     var bar = document.createElement('div'); bar.id = 'uatBar'; bar.setAttribute('role', 'status');
-    bar.innerHTML = '<span>UAT \u00b7 live data \u00b7 changes stay on this PC \u00b7 <span id="uatBarCount">\u2026</span></span><button type="button" id="uatBarBtn">Reset</button>';
+    bar.innerHTML = U.on
+      ? '<span>UAT mode \u00b7 live data \u00b7 changes stay on this PC \u00b7 <span id="uatBarCount">\u2026</span></span><button type="button" id="uatBarBtn">Reset</button><button type="button" id="uatBarMode">UAT off</button>'
+      : '<span>Test \u00b7 live data \u00b7 saving off</span><button type="button" id="uatBarMode">UAT mode on</button>';
+    if (!U.on) bar.style.background = '#e0e7ff';
     document.body.appendChild(bar);
     var panel = document.createElement('div'); panel.id = 'uatPanel'; panel.hidden = true; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true'); panel.setAttribute('aria-labelledby', 'uatTitle');
-    panel.innerHTML = '<div class="uat-box"><div class="uat-head"><h2 id="uatTitle">UAT \u2014 your test changes</h2><button type="button" class="uat-btn" id="uatClose">Close</button></div><div id="uatPanelBody"></div></div>';
+    panel.innerHTML = '<div class="uat-box"><div class="uat-head"><h2 id="uatTitle">' + (U.on ? 'UAT mode \u2014 your test changes' : 'Test page') + '</h2><button type="button" class="uat-btn" id="uatClose">Close</button></div><div id="uatPanelBody"></div></div>';
     document.body.appendChild(panel);
     U.ready.then(drawBar);
   });
