@@ -18,6 +18,7 @@ function desk(flow) {
   const rootLine = '  var GD_ROOT = null;', anchor = '  return { open: open,';
   if (code.split(rootLine).length !== 2 || code.split(anchor).length !== 2) throw new Error('greige-desk.js: an anchor this test needs moved; update the test');
   const opened = code.replace(rootLine, '  var GD_ROOT = globalThis.__ROOT;').replace(anchor, '  globalThis.__GDT = { invAll: invAll, invDetail: invDetail, gdRfdShelf: gdRfdShelf,'
+    + ' invHistRows: invHistRows, fabShelfLedger: fabShelfLedger, invTodoHtml: invTodoHtml, invLotsLeft: invLotsLeft,'
     + ' setDB: function (v) { DB = v; GD_STATE = "ok"; GD_SNAP = gdSnap(); } };\n' + anchor);
   const ctx = Object.assign({ console, window: { document: {} }, __ROOT: root, ptPatch: async () => {}, ptPut: async () => {}, setTimeout: () => 0, clearTimeout: () => {},
     ME: { admin: true, email: 'test@example.test', tabs: [] } }, flow || {});
@@ -28,7 +29,8 @@ function desk(flow) {
 const rows = [{ id: 'o1', date: '2026-11-01', lot: 'LOT-OPEN', fabricType: 'Cambric', txnType: 'OPENING_RFD', qty: 1149, party: '', bill: '', orderNo: '' }];
 const db = { gpo: [], fab: rows, mst: [{ rfd: 'Cambric', greige: 'Greige Cambric 48', active: true, rfdWidth: 44 }], ven: [], co: {}, users: [], me: '' };
 /* the flow, as far as this needs it: 273 m of Cambric went on challans since 1 Nov */
-const flowWith = out => ({ FLOW: { ch: { 'RFD-1': {} } }, flowRfdChallanOut: (name, from) => { asked.push([name, from]); return String(name).toUpperCase() === 'CAMBRIC' ? out : 0; } });
+const flowWith = out => ({ FLOW: { ch: { 'RFD-1': {} } }, flowRfdChallanOut: (name, from) => { asked.push([name, from]); return String(name).toUpperCase() === 'CAMBRIC' ? out : 0; },
+  flowRfdChallanMoves: (name, from) => String(name).toUpperCase() === 'CAMBRIC' ? [{ no: 'RFD-1', date: '2026-11-20', vendor: 'Printer A', metres: out }] : [] });
 
 console.log('== RFD on shelf goes down when cloth goes to a printer on an RFD challan ==');
 {
@@ -38,7 +40,13 @@ console.log('== RFD on shelf goes down when cloth goes to a printer on an RFD ch
   ok('…counted from the day the desk began counting Cambric (its opening stock)', asked.some(a => a[0] === 'Cambric' && a[1] === '2026-11-01'), JSON.stringify(asked));
   ok('…and the total follows: 876 m', r.owned === 876, String(r.owned));
   const d = G.invDetail(r, 'rfd');
-  ok('the RFD lot list says 273 m went to printers on RFD challans', /273 m of it went to printers on RFD challans/.test(d));
+  ok('the RFD lot shows what is left now (876 m), not what it had (1,149 m)', /<td class="num b">876 m<\/td>/.test(d), d.slice(0, 300));
+  ok('…and no note about challans on the Inventory page', !/went to printers/.test(d));
+  const L = G.fabShelfLedger(G.invHistRows('Cambric'), 'Cambric', 'rfd', '', '');
+  ok('the stock history lists the challan as "RFD to printer", 273 m out', L.lines.some(x => x.row.txnType === 'RFD_TO_PRINTER' && x.outQty === 273 && x.row.party === 'Printer A'));
+  ok('…and closes on the Inventory figure: 876 m', L.closing === 876, String(L.closing));
+  const T = G.invTodoHtml([Object.assign({}, r, { ppc: { lines: 3, greigeM: 500, greige: 'G' } })], true, false);
+  ok('no "Short for PPC" or "RFD for PPC lines" tile on the page', !/Short for PPC|RFD for PPC lines/.test(T), T);
   ok('the desk\'s own count for the flow is not changed (the flow takes the challans off itself — never twice)', G.gdRfdShelf('Cambric') === 1149);
 }
 {
@@ -50,6 +58,18 @@ console.log('== RFD on shelf goes down when cloth goes to a printer on an RFD ch
   const G = desk({}); G.setDB(JSON.parse(JSON.stringify(db)));
   const r = G.invAll().filter(x => x.fabric === 'Cambric')[0] || {};
   ok('the flow not in the page (or not read yet): the shelf shows the desk\'s own count, nothing invented', r.inStoreRfd === 1149 && !r.rfdToPrinters && !/went to printers/.test(G.invDetail(r, 'rfd')));
+}
+
+console.log('== two lots: the challans come off the oldest lot first, and the lots add up to the shelf ==');
+{
+  const two = JSON.parse(JSON.stringify(db));
+  two.fab.push({ id: 'o2', date: '2026-11-10', lot: 'LOT-NEW', fabricType: 'Cambric', txnType: 'PURCHASE_RFD', qty: 500, party: 'Mill', bill: 'B1', orderNo: '' });
+  const G = desk(flowWith(1300)); G.setDB(two);
+  const r = G.invAll().filter(x => x.fabric === 'Cambric')[0] || {}, left = G.invLotsLeft('Cambric', r.rfdToPrinters);
+  ok('1,149 + 500 less 1,300 → LOT-OPEN 0, LOT-NEW 349', left['LOT-OPEN'] === 0 && left['LOT-NEW'] === 349, JSON.stringify(left));
+  ok('…and the lots add up to RFD on shelf (349 m)', r.inStoreRfd === 349, String(r.inStoreRfd));
+  const d = G.invDetail(r, 'rfd');
+  ok('…the emptied lot is not listed', !/LOT-OPEN/.test(d) && /LOT-NEW/.test(d));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

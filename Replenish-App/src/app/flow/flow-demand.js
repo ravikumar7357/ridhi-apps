@@ -103,19 +103,30 @@ function flowLedgerStart(name) {
 }
 /** RFD that left on the flow's own challans to printers for one fabric, from a day on (that day counted). */
 function flowRfdChallanOut(name, fromDay) {
-  const k = flowFabKey(name); let out = 0;
+  return flowR2(flowRfdChallanMoves(name, fromDay).reduce((a, m) => a + m.metres, 0));
+}
+/* THE SAME CHALLANS, ONE BY ONE (Ravi, 24 Nov: "these transactions of these fabrics to only be shown in stock history"). The
+ * Greige Desk's stock history lists each one as an "out" of RFD on the shelf; flowRfdChallanOut is their sum, so the history
+ * closes on the shelf figure. [{ no, date, vendor, metres }] — metres > 0 left the shelf, < 0 came back to it unprinted. */
+function flowRfdChallanMoves(name, fromDay) {
+  const k = flowFabKey(name), out = [];
   Object.values(FLOW.ch || {}).forEach(c => {
     if (!c || c.cancelled) return;
-    const d = String(c.date || ptIsoDate(c.at) || '').slice(0, 10);
+    const d = String(c.date || ptIsoDate(c.at) || '').slice(0, 10), vendor = String((c.vendor && c.vendor.name) || c.vendor || '');
+    /* standing cloth that came back to the store unprinted is RFD again (flowStandBackOpen) — dated the challan's own day,
+     * as the sum always counted it */
+    let back = 0;
+    Object.values(c.moved || {}).forEach(m => Object.values((m && m.settles) || {}).forEach(x => {
+      if (x && x.how === 'store' && x.as === 'rfd' && flowFabKey(m.fabric) === k) back += +x.metres || 0; }));
     if (fromDay && d < fromDay) return;
     /* a challan made from cloth already standing with the printer took nothing from the store (flowStandUseOpen) */
     /* …nor a record of cloth given earlier without a challan (flowRecordEarlier) — it left the store then — unless asked to */
-    if (!c.standing && !(c.recordOnly && !c.deduct)) (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) out += +l.metres || 0; });
-    /* standing cloth that came back to the store unprinted is RFD again (flowStandBackOpen) */
-    Object.values(c.moved || {}).forEach(m => Object.values((m && m.settles) || {}).forEach(x => {
-      if (x && x.how === 'store' && x.as === 'rfd' && flowFabKey(m.fabric) === k) out -= +x.metres || 0; }));
+    let m = 0;
+    if (!c.standing && !(c.recordOnly && !c.deduct)) (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) m += +l.metres || 0; });
+    if (m) out.push({ no: c.no || '', date: d, vendor, metres: flowR2(m) });
+    if (back) out.push({ no: c.no || '', date: d, vendor, metres: -flowR2(back) });
   });
-  return flowR2(out);
+  return out.sort((a, b) => a.date.localeCompare(b.date) || String(a.no).localeCompare(String(b.no)));
 }
 function flowRfdStock(name) {
   const known = flowGdState() === 'ok';
