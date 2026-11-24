@@ -77,7 +77,7 @@ body[data-period="msi"] .box.msi{display:flex!important}
         ${tile('Days of cover', cover == null ? '—' : int(cover), `${int(t.total)} units on hand ÷ ${int(perDay)} sold a day (30 d)`, '', false, '#f59e0b', 'All stock ÷ average daily units over the last 30 days.')}
       </div><div class="strip big four">
         ${tile('Out of stock, selling', int(t.oosSelling), `of ${int(t.oos)} SKUs at zero`, t.oosSelling ? 'dn' : '', false, '#ef4444', 'SKUs with no fulfillable stock that sold in the last 30 days.')}
-        ${tile('Running low', int(P.inv.low.length), 'under 21 days of cover', P.inv.low.length ? 'dn' : '', false, '#f97316')}
+        ${tile('Running low', P.inv.low.length >= 30 ? '30+' : int(P.inv.low.length), 'selling SKUs under 21 days of cover', P.inv.low.length ? 'dn' : '', false, '#f97316')}
         ${tile('SKUs', int(t.skus), `${int(t.l30)} units sold in 30 days`, '', false, '#64748b')}
         ${tile('Sales, 90 days', usd(t.l90amt), 'from the orders behind the cover figures', '', false, '#ec4899')}
       </div>
@@ -100,13 +100,14 @@ body[data-period="msi"] .box.msi{display:flex!important}
 
   /* ---------- Search (Brand Analytics SQP) ---------- */
   function search(b, P) {
-    if (!P.sqp) return box('sqp', 'Search', BR[b], waitBox('Brand Analytics (Search Query Performance)', P.sqpErr));
+    // Only what we actually get (Ravi, 24 Nov): no Search section until Brand Analytics Search Query Performance comes back.
+    if (!P.sqp) return '';
     const S = P.sqp, mo = new Date(S.month + '-15T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', month: 'long', year: 'numeric' });
     const share = (a, m) => (m ? pct1(a / m * 100) : '—');
     const row = q => `<tr><td class="l">${esc(q[0])}</td><td>${int(q[1])}</td><td>${int(q[2])}</td><td>${share(q[2], q[3])}</td><td>${int(q[4])}</td><td>${share(q[4], q[5])}</td><td>${int(q[6])}</td><td><b>${int(q[7])}</b></td><td>${share(q[7], q[8])}</td><td>${int(q[9])}</td></tr>`;
     const head = '<thead><tr><th>Search query</th><th>Searches</th><th>Our impr.</th><th>Share</th><th>Our clicks</th><th>Share</th><th>Cart adds</th><th>Our purchases</th><th>Share</th><th>Our ASINs</th></tr></thead>';
-    return box('sqp', 'Search', `${BR[b]} · Brand Analytics Search Query Performance · ${mo} · ${int(S.queries)} queries`,
-      `<div class="card tcard"><h2>Queries that sold the most</h2><div class="tbl"><table>${head}<tbody>${S.top.map(row).join('')}</tbody></table></div><p class="note">Share = our ASINs' figure ÷ the whole market's for that query. Summed over every ASIN of the brand.</p></div>
+    return box('sqp', 'Search', `${BR[b]} · Brand Analytics Search Query Performance · ${mo} · ${int(S.queries)} queries${S.asins ? ' · the brand’s ' + S.asins + ' best-selling ASINs' : ''}`,
+      `<div class="card tcard"><h2>Queries that sold the most</h2><div class="tbl"><table>${head}<tbody>${S.top.map(row).join('')}</tbody></table></div><p class="note">Share = our ASINs' figure ÷ the whole market's for that query. Amazon gives this report only for named ASINs (200 characters at most), so it covers the brand's best sellers of the last 30 days.</p></div>
       <div class="card tcard"><h2>Searched a lot, no purchase from us</h2><div class="tbl"><table>${head}<tbody>${S.missed.map(row).join('') || '<tr><td class="l" colspan="10">None</td></tr>'}</tbody></table></div></div>`);
   }
 
