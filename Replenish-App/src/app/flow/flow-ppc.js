@@ -190,7 +190,7 @@ const FLOW_PPC_CSS = `<style>
 .fpc-sub{color:var(--muted,#64748b);font-size:12px;margin-top:3px}
 .fpc-chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .fpc-chip{border-radius:999px;padding:3px 11px;font-size:11.5px;font-weight:600;background:rgba(148,163,184,.18);white-space:nowrap}
-.fpc-chip.ok{background:rgba(22,163,74,.14);color:#166534}.fpc-chip.bad{background:rgba(220,38,38,.12);color:#b91c1c}.fpc-chip.vio{background:rgba(124,58,237,.12);color:#5b21b6}
+.fpc-chip.yes{background:rgba(22,163,74,.14);color:#166534}.fpc-chip.bad{background:rgba(220,38,38,.12);color:#b91c1c}.fpc-chip.vio{background:rgba(124,58,237,.12);color:#5b21b6}
 .fpc-b{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:4px 22px;padding:12px 14px 14px}
 .fpc-col{min-width:0}
 .fpc-sec{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#64748b);margin:12px 0 6px}
@@ -208,6 +208,11 @@ const FLOW_PPC_CSS = `<style>
 .fpc .pill{display:inline-block;border-radius:999px;padding:1px 10px;font-weight:600;font-size:11.5px}
 .fpc .pill.ok{background:rgba(22,163,74,.14);color:#166534}.fpc .pill.bad{background:rgba(220,38,38,.12);color:#b91c1c}.fpc .pill.mute{background:rgba(148,163,184,.18);color:var(--muted,#64748b)}
 .fpc-gaps{font-size:11.5px;color:#92400e;margin-top:8px}
+.fpc-steps{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:12px}
+.fpc-steps:empty{display:none}
+.fpc-steps-t{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#64748b);margin-right:4px}
+.fpc-step{background:rgba(79,70,229,.08);color:#3730a3;border-radius:999px;padding:2px 10px;font-weight:600;white-space:nowrap}
+.fpc-step-ar{color:var(--muted,#94a3b8)}
 </style>`;
 
 /* THE ORDER, COMBINED (Ravi, 11 Oct: "jitna store me pahle order me consume hone ke bad bacha fabric is order me use karne ke
@@ -354,6 +359,21 @@ function flowMasterPatch(rows, plans, pick, need) {
   return { patch, said };
 }
 
+/* THE WAY A LINE GOES, in the order the floor does it (Ravi, 24 Nov: "correct the flow" — the plan window said "printed by a
+ * vendor, then cut & stitched here" over a tablecloth whose pieces are cut first and printed on the SKU itself). Which way
+ * is still the master row's ("Cutting required"), through flowPrintWhat; this only says it. */
+const FLOW_STEP_CUT_FIRST = 'cut to size here';
+function flowPpcSteps(o) {
+  const done = ['QC', 'Finished Goods'], rfd = `RFD ${o.fabric || 'fabric'}${+o.metres ? ' · ' + nf(o.metres) + ' m' : ''}`, prn = o.printer || 'the printer';
+  if (o.route === 'outsource') return [`${o.vendor || 'the vendor'} makes it`, 'received into Finished Goods'];
+  if (o.route === 'jobwork') return ['raw cutting in store', 'karigar makes it', ...done];
+  if (o.route === 'stitch') return [o.noRfd ? 'printed cloth in hand' : rfd, 'cutting', 'karigar stitches', ...done];
+  const printed = o.noRfd ? ['printed cloth in hand'] : [rfd, `${prn} prints the cloth`];
+  if (o.route === 'emb') return [...printed, ...(o.embDept ? ['cutting', 'embroidery karigar'] : [`embroidery${o.embTo ? ' · ' + o.embTo : ''}`, 'cutting']), ...done];
+  if (o.w && o.w.kind === 'sku') return [rfd, FLOW_STEP_CUT_FIRST, `${prn} prints the pieces`, 'karigar finishes', ...done];
+  return [...printed, 'cutting', 'karigar stitches', ...done];
+}
+
 function flowPpcOpen(orderNo, onlySku, keys) {
   /* SAME SKU, SAME DAY, ONE PLAN (Ravi, 15 Oct: "1 SKU ka same day order aay to wo sare order combine hokar dikhe PPC team
    * ko"): `keys` names lines of several orders, planned in one go — each keeps its own plan, its own print order. */
@@ -389,6 +409,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         <div class="fpc-chips" data-chips="${i}"></div>
         ${rows.length > 1 && !rows[i].s.plan ? `<label title="Untick to leave this line in PPC for now — what is typed is kept as a draft" style="display:inline-flex;gap:5px;align-items:center;font-size:12.5px;font-weight:600;white-space:nowrap;margin-left:8px"><input type="checkbox" data-fpick="${i}" style="width:auto"> Raise now</label>` : ''}
       </div>
+      <div class="fpc-steps" data-steps="${i}"></div>
       <div class="fpc-b">
         <div class="fpc-col">
           <div class="fpc-sec">Fabric</div>
@@ -401,7 +422,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           ${md ? flowMasterDiffTxt(md).replace('</div>', ` <button type="button" class="ghost" data-usem="${i}" data-n="${esc(md.name)}" data-p="${md.perPc}" style="width:auto;padding:1px 8px;font-size:11px">Use the master data</button></div>`) : ''}
           <div class="fpc-sec">Printing</div>
           <div class="fpc-g">
-            ${fld('How it is made', `<select data-fp="${i}" data-k="route">${FLOW_ROUTES.map(([k, l]) => `<option value="${k}"${flowRouteOf(p) === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`, 'w2')}
+            ${fld('How it is made', `<select data-fp="${i}" data-k="route">${FLOW_ROUTES.map(([k, l]) => `<option value="${k}"${flowRouteOf(p) === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`, 'w3')}
             ${d.dirs.length > 1 ? fld('Print direction', `<select data-fp="${i}" data-k="print.dir"><option value="">— pick —</option>${d.dirs.map(x => `<option${x === d.cur ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>`) : ''}
             ${fld('Printer', `<select data-fp="${i}" data-k="printer.code"><option value="">— PPC decides —</option>${flowPrinterOpts((p.printer || {}).code)}</select>`
               + `<small class="fpc-why">${esc((p.printer || {}).why || '')}</small>`, 'w2')}
@@ -416,7 +437,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           ${(p.acc || []).length ? `<div class="fpc-sec">Accessories</div><div class="fpc-g">${p.acc.map((a, j) => fld(`${esc(a.what)} <small>code ${esc(a.code)}</small>`, inp(i, 'acc.' + j + '.qty', a.qty, 'number'))).join('')}</div>` : ''}
           <div class="fpc-sec">Planned dates</div>
           <div class="fpc-g">
-            ${fld('Cut', inp(i, 'dates.cut', p.dates.cut, 'date'))}${fld('QC', inp(i, 'dates.qc', p.dates.qc, 'date'))}${fld('Ready', inp(i, 'dates.ready', p.dates.ready, 'date'))}
+            ${fld(`<span data-cutlbl="${i}">Cut</span>`, inp(i, 'dates.cut', p.dates.cut, 'date'))}${fld('QC', inp(i, 'dates.qc', p.dates.qc, 'date'))}${fld('Ready', inp(i, 'dates.ready', p.dates.ready, 'date'))}
             ${fld('Note', inp(i, 'note', p.note), 'w3')}
           </div>
         </div>
@@ -436,7 +457,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
   ptOpenDialog({
     title: editing ? `Edit plan — ${orderNo} · ${obUC(rows[0].r.sku)}` : `PPC — ${orderNo}`,
     subtitle: editing ? `Change what was planned and save; the line moves to wherever it now belongs.${locked ? ` Its fabric is on challan ${rows[0].s.challan.no}: fabric, route and printer stay as they are until that challan is cancelled (Demand history).` : ''}`
-      : `${nf(rows.length)} line(s). Worked out from cloth per piece, the recipe and the print rules — check, change, save. Saving raises it: the line moves on to Demand by itself.`,
+      : `${nf(rows.length)} line${rows.length > 1 ? 's' : ''}, filled in from the master data. Check, change, then raise the plan — the line moves on to Demand.`,
     html: `<div id="flpDraft" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 10px;font-size:12.5px"><span id="flpDraftSay" class="muted">Auto-save is on: what you type is kept on this computer.</span>`
       + `<button type="button" id="flpDraftBtn" class="ghost" style="width:auto;padding:3px 12px;font-size:12.5px">Save as draft</button>`
       + `<a href="#" id="flpDraftDrop" style="font-size:12px;color:#b91c1c;display:none">Discard draft</a></div>`
@@ -631,6 +652,13 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           : route === 'stitch' ? 'Nothing — no printing; the RFD goes straight to the cutting department.'
           : route === 'jobwork' ? 'Nothing — no printing, no cutting; the line goes straight to Raw cutting in store, to be issued to a karigar.'
           : 'Nothing — made outside.'}</span>`;
+      /* THE WAY THE LINE GOES (Ravi, 24 Nov: the route said "cut & stitched here" while the printer got cut pieces with no
+       * cutting after) — drawn again with the route, the printer and the fabric; the master row still decides which way. */
+      const stp = document.querySelector(`[data-steps="${i}"]`), pc0 = val(i, 'printer.code') ?? (p.printer && p.printer.code);
+      const pv0 = pc0 ? flowChVendors().find(v => String(v.code) === String(pc0)) : null;
+      const steps = flowPpcSteps({ route, w, noRfd, fabric: fname, metres, printer: pv0 ? pv0.desc || pv0.name || pv0.code : '', embTo, embDept: embDeptOn, vendor: val(i, 'outVendor') ?? p.outVendor });
+      if (stp) stp.innerHTML = '<span class="fpc-steps-t">The way it goes</span>' + steps.map(s => `<span class="fpc-step">${esc(s)}</span>`).join('<span class="fpc-step-ar">→</span>');
+      const cl = document.querySelector(`[data-cutlbl="${i}"]`); if (cl) cl.textContent = steps.includes(FLOW_STEP_CUT_FIRST) ? 'Cut (before printing)' : 'Cut';
       const mat = document.querySelector(`[data-mat="${i}"]`); if (!mat) return;
       if (out) { mat.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:left">Outsourced — nothing is raised from our stock.</td></tr>';
         const ch = document.querySelector(`[data-chips="${i}"]`); if (ch) ch.innerHTML = '<span class="fpc-chip vio">Outsourced</span>'; return; }
@@ -708,7 +736,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         ch.innerHTML = `<span class="fpc-chip vio">${esc((FLOW_ROUTES.find(x => x[0] === route) || [, , route])[2])}</span>`
           + (flowPrinted(route) && !noRfd ? `<span class="fpc-chip">${pv ? '🖨 ' + esc(pv.desc || pv.name || pv.code) : 'printer not chosen'}</span>` : noRfd ? '<span class="fpc-chip">printed cloth in hand</span>' : '')
           + (route === 'emb' ? `<span class="fpc-chip vio">🧵 ${esc(flowEmbWho(val(i, 'emb.code')).name)}</span>` : '')
-          + `<span class="fpc-chip ${short ? 'bad' : 'ok'}">${short ? '⚑ something is short' : '✓ all in stock'}</span>`; }
+          + `<span class="fpc-chip ${short ? 'bad' : 'yes'}">${short ? '⚑ something is short' : '✓ all in stock'}</span>`; }
     });
     flowComboPaint(combo, run, com, names, shelf);
   };

@@ -421,6 +421,25 @@ function p1DoneLots() {
     e.ordered += +x.r.qty || 0; e.orders.add(x.r.orderNo); e.chans.add(p1Chan(x.r)); const d = last.get(x.s.key) || ''; if (d > e.day) e.day = d; });
   return [...by.values()].sort((a, b) => String(b.day).localeCompare(String(a.day)));
 }
+/* CLEANER STAGE CELLS (Ravi, 24 Nov: "refine this page design too" — keep the columns, read them faster): pieces waiting as an
+ * amber pill with their days (red past 7), done as a soft ✓, a stage not reached yet left blank, a stage the lot does not go
+ * through a faint dash. */
+function p1StageCell(c, d) {
+  if (!c || c.na) return '<td class="sg sna">—</td>';
+  if (c.w || c.m) { const late = d && d.days != null && d.days > P1_STUCK;
+    return `<td class="sg"><span class="wp${late ? ' late' : ''}"><b>${c.w ? p1N(c.w) : ''}${c.m ? `${c.w ? ' + ' : ''}${p1N(c.m)} m` : ''}</b>${d && d.days != null ? `<i>${d.days} d</i>` : ''}</span></td>`; }
+  return c.done ? '<td class="sg sdone"><span class="dn">✓</span></td>' : '<td class="sg"></td>';
+}
+/** A lot that needs a look now: past its ready date, or stuck at one place past 7 days. */
+const p1Urgent = r => r.over > 0 || r.stuck > P1_STUCK;
+/** Pending's order (Ravi, 24 Nov: late and stuck first): the urgent lots on top, the latest first, then the longest stuck;
+ *  the rest as before — not planned first, then by lot number. */
+function p1PendingOrder(a, b) {
+  const ua = p1Urgent(a), ub = p1Urgent(b);
+  if (ua !== ub) return ua ? -1 : 1;
+  if (ua) return b.over - a.over || b.stuck - a.stuck;
+  return !!a.lot - !!b.lot || String(a.lot ? a.lot.id : '').localeCompare(String(b.lot ? b.lot.id : '')) || a.sku.localeCompare(b.sku);
+}
 function p1DrawInv() {
   const el = $('p1Home');
   let all = [];
@@ -432,17 +451,17 @@ function p1DrawInv() {
   const base = all.filter(keep), late = base.filter(r => r.over > 0), stuck = base.filter(r => r.stuck > P1_STUCK);
   const tabRows = P1.tab === 'late' ? late : P1.tab === 'stuck' ? stuck : base;
   const rows = P1.tab === 'done' ? [] : tabRows.filter(r => !P1.stage || (r.stg[P1.stage] && (r.stg[P1.stage].w > 0 || r.stg[P1.stage].m > 0)))
-    .sort((a, b) => P1.tab === 'late' ? b.over - a.over : P1.tab === 'stuck' ? b.stuck - a.stuck
-      : !!a.lot - !!b.lot || String(a.lot ? a.lot.id : '').localeCompare(String(b.lot ? b.lot.id : '')) || a.sku.localeCompare(b.sku));
+    .sort((a, b) => P1.tab === 'late' ? b.over - a.over : P1.tab === 'stuck' ? b.stuck - a.stuck : p1PendingOrder(a, b));
   const done = P1.tab === 'done' ? p1DoneLots().filter(r => (!q || (r.sku + ' ' + (r.lot ? r.lot.no : '') + ' ' + [...r.orders].join(' ')).toUpperCase().includes(q)) && (!P1.ch || r.chans.has(P1.ch)) && (!P1.prn || r.printer === P1.prn)) : [];
   const opts = (vals, cur, all0) => `<option value="">${all0}</option>` + [...new Set(vals)].filter(Boolean).sort().map(v => `<option${v === cur ? ' selected' : ''}>${esc(v)}</option>`).join('');
+  /* the stage boxes lead with the pieces waiting, the lots and the late ones under them (Ravi, 24 Nov: "refine this page") */
   const bucket = ([k, t]) => { const ls = tabRows.filter(r => r.stg[k] && (r.stg[k].w > 0 || r.stg[k].m > 0)), pcs = ls.reduce((s, r) => s + r.stg[k].w, 0), m = ls.reduce((s, r) => s + r.stg[k].m, 0), lt = ls.filter(r => r.over > 0).length;
-    return `<button type="button" class="bk${P1.stage === k ? ' on' : ''}" data-p1st="${k}" title="Only the lots with pieces waiting at ${esc(t)} — click again for all"><b>${esc(t)}</b><span class="bk-n">${p1N(ls.length)}</span>`
-      + `<span class="bk-s">lots · ${p1N(pcs)} pcs${m ? ' + ' + p1N(m) + ' m' : ''}${lt ? ` <i>· ${p1N(lt)} late</i>` : ''}</span></button>`; };
+    return `<button type="button" class="bk${P1.stage === k ? ' on' : ''}${ls.length ? '' : ' zero'}${lt ? ' late' : ''}" data-p1st="${k}" title="Only the lots with pieces waiting at ${esc(t)} — click again for all"><b>${esc(t)}</b>`
+      + `<span class="bk-n">${!pcs && m ? `${p1N(m)}<small> m</small>` : `${p1N(pcs)}<small> pcs${m ? ' + ' + p1N(m) + ' m' : ''}</small>`}</span>`
+      + `<span class="bk-s">${p1N(ls.length)} lot${ls.length === 1 ? '' : 's'}${lt ? ` · <i>${p1N(lt)} late</i>` : ''}</span></button>`; };
   const tab = (v, t, n) => `<button type="button" class="${P1.tab === v ? 'on' : ''}" data-p1tab="${v}">${esc(t)} · ${p1N(n)}</button>`;
   /* ONE STAGE CELL: pieces waiting and their days, ✓ done, · not reached, — not this way */
-  const cell = (c, d) => { if (!c || c.na) return '<td class="sg snone">—</td>'; if (c.w || c.m) return `<td class="sg"><b class="wt">${c.w ? p1N(c.w) : ''}${c.m ? `${c.w ? ' + ' : ''}${p1N(c.m)} m` : ''}</b>${d && d.days != null ? `<span class="dy${d.days > P1_STUCK ? ' red' : ''}">${d.days} d</span>` : ''}</td>`;
-    return c.done ? '<td class="sg sdone">✓</td>' : '<td class="sg snone">·</td>'; };
+  const cell = p1StageCell;
   const btn = (nx, at, st, gk, line, main) => { if (!nx) return ''; const pcs = at && st[at] ? st[at].w : 0;
     return `<button type="button" class="${main ? 'p1-go' : 'p1-go2'}" data-p1step="${esc(gk)}" data-p1line="${line == null ? '' : line}" data-p1at="${esc(at || '')}">${esc(nx[1])}${pcs && nx[0] !== 'RFD' ? ' ' + p1N(pcs) : ''}</button>`; };
   const status = (at, due, over) => `<b>${esc(at ? P1_NOW[at] : 'Nothing waiting')}</b><span class="rb${over ? ' late' : ''}">${due ? p1Day(due) : 'no date'}${over ? ` · ${over} d late` : ''}</span>`;
@@ -450,8 +469,8 @@ function p1DrawInv() {
    * from Job Work, or planned before lot numbers began) says "No lot" */
   const lotNo = r => `<a class="p1-lotno${r.lot ? '' : r.notPlanned ? ' new' : ' none'}" data-p1hist="${esc(r.gk)}" title="This lot's history">${r.lot ? esc(p1LotTxt(r.lot)) : r.notPlanned ? 'To plan' : 'No lot'}</a>`;
   const prnCell = r => r.notPlanned && r.notPlanned >= r.ordered ? '<b class="np">not planned</b>' : r.printers.length ? esc(r.printers.join(', ')) : '<span class="muted">no printer</span>';
-  const lotRow = r => { const open = P1.inv === r.gk, main = r.over > 0 || r.stuck > P1_STUCK;
-    let h = `<tr class="p1r lot${open ? ' open' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
+  const lotRow = r => { const open = P1.inv === r.gk, main = p1Urgent(r);
+    let h = `<tr class="p1r lot${open ? ' open' : ''}${main ? ' urgent' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
       <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div></td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
       ${P1_COLS.map(([k]) => cell(r.stg[k], r.D[k])).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${btn(r.next, r.at, r.stg, r.gk, null, main)}</td></tr>`;
     if (open) h += r.ln.map((l, i) => { const nx = p1NextOf({ lines: [l.x] }, l.at) || p1NextOf({ lines: [l.x] }), od = l.due && l.due < today ? p1Days(l.due) : 0;
@@ -471,7 +490,7 @@ function p1DrawInv() {
     <div class="card p1-list"><table class="p1t p1g"><thead><tr><th>Lot / order</th><th>Item</th><th class="num">Pcs</th><th>Printer</th>${P1_COLS.map(([k, t]) => `<th class="sg${P1.stage === k ? ' on' : ''}">${esc(t)}</th>`).join('')}<th>Status · ready by</th><th class="nx">Next step</th></tr></thead><tbody>
     ${P1.tab === 'done' ? done.slice(0, P1.lim).map(r => `<tr class="p1r lot done"><td class="lc"><span class="p1-lotno${r.lot ? '' : ' new'}">${r.lot ? esc(p1LotTxt(r.lot)) : '—'}</span><div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div></td>
         <td class="it"><b>${esc(r.sku)}</b><div class="muted sm">${esc(r.what)}</div></td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${esc(r.printer) || '<span class="muted">—</span>'}</td>
-        ${P1_COLS.map(() => '<td class="sg sdone">✓</td>').join('')}<td class="stc"><b>Complete</b><span class="rb">${r.day ? p1Day(r.day) : ''}</span></td><td></td></tr>`).join('') || `<tr><td colspan="${P1_COLS.length + 6}" class="empty">No lot has left production yet.</td></tr>`
+        ${P1_COLS.map(() => p1StageCell({ done: true })).join('')}<td class="stc"><b>Complete</b><span class="rb">${r.day ? p1Day(r.day) : ''}</span></td><td></td></tr>`).join('') || `<tr><td colspan="${P1_COLS.length + 6}" class="empty">No lot has left production yet.</td></tr>`
       : shown.map(lotRow).join('') || `<tr><td colspan="${P1_COLS.length + 6}" class="empty">${P1.tab === 'late' ? 'No lot is late.' : P1.tab === 'stuck' ? 'No lot is stuck.' : P1.stage ? 'No lot is waiting there.' : 'Nothing here.'}</td></tr>`}
     </tbody></table>${P1.tab !== 'done' && rows.length > P1.lim ? `<button type="button" class="lg-more" data-p1lim>Show all ${p1N(rows.length)} lots</button>` : ''}${P1.tab === 'done' && done.length > P1.lim ? `<button type="button" class="lg-more" data-p1lim>Show all ${p1N(done.length)} lots</button>` : ''}</div>
     ${P1.hist && R0(P1.hist) ? `<div class="p1-modal" data-p1modal><div class="p1-mcard" role="dialog" aria-label="Lot history">${p1History(R0(P1.hist))}</div></div>` : ''}`;
@@ -511,27 +530,69 @@ function p1HistEvents(r) {
   const keys = new Set(r.lines.map(x => x.s.key)), o = P1.hist === r.gk ? P1.histOrd : '';
   return p1Events().filter(e => keys.has(flowKey(e.orderNo, e.sku)) && (!o || e.orderNo === obUC(o)));
 }
+/* EASY TO READ (Ravi, 24 Nov: "the 2nd image is not even understandable"; asked first for "where the pieces are now"). The
+ * card now opens on one sentence and a row of steps; each step says how many of the ordered pieces have got through it, from
+ * the same line figures as the Production list (each capped at the line's order, so they never pass what was ordered), and
+ * where pieces wait, how many, since how long and with whom. The entries follow, in plain words; a total in the entries that
+ * runs past the order is said under them, never shown as if it were the count. A lot with no number says "No lot" unless
+ * something of it still waits for a plan — "To plan" sat on top of a line that was cut, issued and in QC. */
+const P1_HSTEPS = [['plan', 'Planned', ['PLAN']], ['prn', 'Printed', ['PRN']], ['cut', 'Cut', ['CUT']], ['iss', 'Given to karigar', ['ISS']],
+  ['kar', 'Back from karigar', ['REC']], ['qc', 'QC passed', ['QC']], ['rdy', 'In Finished Goods', ['FG', 'SHIP']]];
+/** How many of a line's pieces have got through each step — the line's own figures, capped at its order. */
+function p1LineDone(x, st) {
+  const s = x.s, q = st.q, c = v => Math.max(0, Math.min(q, +v || 0));
+  return { plan: st.planned ? q : 0, prn: c(s.back), cut: c(s.cut), iss: c(+s.issuedNet || +s.issued), kar: c(s.received), qc: c(s.qc), rdy: c(s.india) };
+}
+/** The steps of a lot's lines (or one order's): done, waiting (pieces, metres, days, who), or not this way. */
+function p1HistSteps(r, ln) {
+  const S = p1SumStages(ln.map(l => l.st)), D = p1HoldDays(ln.reduce((a, l) => a.concat((r.holds || []).filter(h => flowKey(h.orderNo, h.sku) === l.x.s.key)), []));
+  return P1_HSTEPS.map(([k, title, kinds]) => { const goes = ln.filter(l => !l.st[k].na);
+    return { k, title, kinds, na: S[k].na, done: S[k].done, w: S[k].w, m: S[k].m, days: (D[k] || {}).days, who: (D[k] || {}).who || [],
+      got: goes.reduce((t, l) => t + p1LineDone(l.x, l.st)[k], 0), of: goes.reduce((t, l) => t + l.st.q, 0) }; });
+}
+/** The one sentence on top: where the pieces are. */
+function p1HistSay(steps, ordered) {
+  const at = steps.filter(s => !s.na && (s.w || s.m));
+  if (!at.length) { const fg = steps.find(s => s.k === 'rdy'); return fg && fg.done ? `All ${p1N(ordered)} pieces are in Finished Goods.` : steps[0].done ? 'Nothing is waiting anywhere right now.' : 'Not planned yet.'; }
+  return at.map(s => `<b>${s.w ? p1N(s.w) + ' pcs' : ''}${s.m ? (s.w ? ' + ' : '') + p1N(s.m) + ' m' : ''}</b> ${s.who.length && s.k === 'kar' ? 'with ' + esc(s.who.join(', ')) : esc(P1_NOW[s.k].charAt(0).toLowerCase() + P1_NOW[s.k].slice(1)) + (s.who.length ? ' (' + esc(s.who.join(', ')) + ')' : '')}${s.days != null ? ` — <span class="${s.days > P1_STUCK ? 'late' : ''}">${s.days} day${s.days === 1 ? '' : 's'}</span>` : ''}`).join(' · ');
+}
+/** What an entry says beyond its step: the generic words of the register dropped, the voucher once. */
+const P1_HPLAIN = new Set(['Finished Goods', 'Job Work · issue', 'Job Work · receipt', 'Cutting Data', 'QC check', 'Press', 'Order book']);
+function p1HistNote(e) {
+  const vr = String(e.vr || ''), txt = String(e.ref || '').replace(vr, '').replace(/[\s·]+$/, '').trim();
+  return [P1_HPLAIN.has(txt) ? '' : esc(txt), vr && !(e.k === 'PLAN' || e.k === 'REPLAN') ? `<span class="hvr">${esc(vr)}</span>` : ''].filter(Boolean).join(' ');
+}
 function p1History(r) {
-  const ev = p1HistEvents(r), lastOf = k => { for (let i = ev.length - 1; i >= 0; i--) if (ev[i].k === k) return ev[i]; return null; };
-  const sum = ks => ev.filter(e => ks.includes(e.k) && e.unit !== 'm').reduce((t, e) => t + e.pcs, 0);
-  const steps = [['Planned', r.stg.plan, 'PLAN', 'plan'], ['Printed', r.stg.prn, 'PRN', 'prn'], ['Cut', r.stg.cut, 'CUT', 'cut'], ['Issued', r.stg.iss, 'ISS', 'iss'], ['Received', r.stg.kar, 'REC', 'kar'], ['QC passed', r.stg.qc, 'QC', 'qc'], ['Into FG', r.stg.rdy, 'FG', 'rdy']];
-  const strip = steps.filter(s => s[1] && !s[1].na).map(([t, c, k, col]) => { const l = lastOf(k), d = (r.D[col] || {}).days;
-    if (c.w || c.m) return `<span class="hs now">${esc(P1_NOW[col])} · ${p1N(c.w)}${c.m ? ' + ' + p1N(c.m) + ' m' : ''}${d != null ? ' · ' + d + ' d' : ''}</span>`;
-    if (c.done) return `<span class="hs hok">✓ ${esc(t)}${l ? ' ' + p1Day(l.day) : ''}</span>`;
-    return `<span class="hs ah">${esc(t)}</span>`; }).join('<span class="hs-ar">›</span>');
-  const parts = p1LotParts(r.lot, r.lines);
+  const ev = p1HistEvents(r), ords = [...r.orders], o = P1.hist === r.gk ? obUC(P1.histOrd) : '';
+  const ln = (r.ln || []).filter(l => !o || obUC(l.x.r.orderNo) === o), ordered = ln.reduce((t, l) => t + l.st.q, 0);
+  const lastDay = kinds => { for (let i = ev.length - 1; i >= 0; i--) if (kinds.includes(ev[i].k)) return ev[i].day; return ''; };
+  const steps = p1HistSteps(r, ln).filter(s => !s.na);
+  const card = s => { const now = s.w || s.m, d = lastDay(s.kinds);
+    const state = now ? `<div class="hc-now"><b>${s.w ? p1N(s.w) : ''}${s.m ? (s.w ? ' + ' : '') + p1N(s.m) + ' m' : ''}</b> ${s.k === 'kar' ? 'still with karigar' : 'waiting'}${s.days != null ? ` · <span class="${s.days > P1_STUCK ? 'late' : ''}">${s.days} d</span>` : ''}</div>${s.who.length ? `<div class="hc-who">${esc(s.who.join(', '))}</div>` : ''}`
+      : s.done ? `<div class="hc-ok">✓ Done${d ? ' · ' + p1Day(d) : ''}</div>` : '<div class="hc-ah">Not yet</div>';
+    /* done with no entry of its own (a line issued without a Cutting Data row): say so, not "0 of 497" */
+    const got = s.done && s.got < s.of && s.k !== 'plan' ? '<span class="muted">no entry of its own</span>' : `<b>${p1N(s.got)}</b> of ${p1N(s.of)}`;
+    return `<div class="hc ${now ? 'now' : s.done ? 'ok' : 'ah'}"><div class="hc-t">${esc(s.title)}</div>${state}<div class="hc-n">${got}</div></div>`; };
+  /* the entries: newest first, a day at a time */
   let prev = '', body = '';
+  const many = ords.length > 1 && !o, cols = many ? 7 : 6;
   for (let i = ev.length - 1; i >= 0; i--) { const e = ev[i];
-    if (e.day !== prev) { body += `<tr class="hd"><td colspan="8">${e.day ? p1Day(e.day) : 'no date'}</td></tr>`; prev = e.day; }
-    body += `<tr><td class="muted">${e.t ? new Date(e.ms).toTimeString().slice(0, 5) : ''}</td><td>${p1Mv(e)}</td><td>${esc(e.orderNo)}</td><td class="num">${e.k === 'REPLAN' ? '' : p1N(e.pcs) + (e.unit === 'm' ? ' m' : '')}</td>`
-      + `<td>${esc(e.party || '')}</td><td class="muted vr">${esc(e.vr || '')}</td><td>${esc(e.by || '')}</td><td class="muted">${esc(e.ref || '')}</td></tr>`; }
-  const ords = [...r.orders];
-  return `<div class="p1-hist"><div class="hh"><b class="p1-lotno">${r.lot ? esc(p1LotTxt(r.lot)) : 'To plan'}</b><span><b>${esc(r.sku)}</b> · ${esc(r.what)} · ${p1N(r.ordered)} pcs · ${ords.length} order${ords.length > 1 ? 's' : ''}</span>
-      <span class="hh-r">${ords.length > 1 ? `<select data-p1hord><option value="">All orders</option>${ords.map(o => `<option${o === P1.histOrd ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>` : ''}<button type="button" class="ghost" data-p1hdl>Download</button><button type="button" class="ghost" data-p1close>Close</button></span></div>
+    if (e.day !== prev) { body += `<tr class="hd"><td colspan="${cols}">${e.day ? p1Day(e.day) : 'no date'}</td></tr>`; prev = e.day; }
+    body += `<tr><td class="muted">${e.t ? new Date(e.ms).toTimeString().slice(0, 5) : ''}</td><td>${p1Mv(e)}</td><td class="num"><b>${e.k === 'REPLAN' ? '' : p1N(e.pcs) + (e.unit === 'm' ? ' m' : '')}</b></td>`
+      + `<td>${esc(e.party || '')}</td>${many ? `<td class="muted">${esc(e.orderNo)}</td>` : ''}<td class="muted">${esc(e.by || '')}</td><td class="hnote">${p1HistNote(e)}</td></tr>`; }
+  /* an entry total past the order is said, not counted (Ravi's CPC-01: 621 into Finished Goods on an order of 497) */
+  const over = P1_HSTEPS.map(([, t, kinds]) => [t, ev.filter(e => kinds.includes(e.k) && e.unit !== 'm').reduce((a, e) => a + e.pcs, 0)]).filter(([, n]) => n > ordered && ordered > 0);
+  const lotTag = r.lot ? esc(p1LotTxt(r.lot)) : r.notPlanned ? 'To plan' : 'No lot', parts = p1LotParts(r.lot, r.lines);
+  return `<div class="p1-hist"><div class="hh"><b class="p1-lotno${r.lot ? '' : r.notPlanned ? ' new' : ' none'}" title="${r.lot ? 'Production lot' : r.notPlanned ? 'Waiting for a plan' : 'Made without a PPC plan, or planned before lot numbers began'}">${lotTag}</b>
+      <div class="hh-t"><b>${esc(r.sku)}</b><span>${esc(r.what)}</span><span class="muted">${p1N(r.ordered)} pcs ordered · ${ords.length} order${ords.length > 1 ? 's' : ''}${r.lot ? ` · planned ${p1Day(r.lot.day)}${r.lot.by ? ' by ' + esc(r.lot.by) : ''}` : ''}</span></div>
+      <span class="hh-r">${ords.length > 1 ? `<label class="muted">Order <select data-p1hord><option value="">All orders</option>${ords.map(x => `<option${x === P1.histOrd ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></label>` : ''}<button type="button" class="ghost" data-p1hdl>Download</button><button type="button" class="ghost hx" data-p1close aria-label="Close">×</button></span></div>
     ${parts.length ? `<div class="p1-parts">${parts.map(x => `<span><i>${esc(x[0])}</i>${esc(x[1])}</span>`).join('')}</div>` : ''}
-    <div class="hstrip">${strip || '<span class="hs ah">Not planned yet</span>'}</div>
-    <div class="ff-grid hgrid"><table class="xl"><thead><tr><th>Time</th><th>Step</th><th>Order</th><th class="num">Pcs</th><th>Party</th><th>Voucher</th><th>Entered by</th><th>Note</th></tr></thead><tbody>${body || '<tr><td colspan="8" class="empty">Nothing on record yet.</td></tr>'}</tbody></table></div>
-    <div class="hfoot">${[['Ordered', r.ordered], ['Cut', sum(['CUT'])], ['Issued', sum(['ISS'])], ['Received', sum(['REC'])], ['QC passed', sum(['QC'])], ['Into FG', sum(['FG', 'SHIP'])]].map(x => `<span>${x[0]} <b>${p1N(x[1])}</b></span>`).join('')}${r.stg.kar && r.stg.kar.w ? `<span>Still with karigars <b class="wt">${p1N(r.stg.kar.w)}</b></span>` : ''}</div></div>`;
+    <div class="hsec">Where the ${p1N(ordered)} pieces are now</div>
+    <div class="hsay">${p1HistSay(steps.length ? steps : [{ k: 'plan', done: false, na: false, w: 0, m: 0 }], ordered)}</div>
+    <div class="hcards">${steps.map(card).join('<span class="hc-ar">›</span>')}</div>
+    <div class="hsec">Every entry on record <span class="muted">· ${p1N(ev.length)}, newest first</span></div>
+    <div class="ff-grid hgrid"><table class="xl"><thead><tr><th>Time</th><th>What happened</th><th class="num">Pcs</th><th>With / from</th>${many ? '<th>Order</th>' : ''}<th>Entered by</th><th>Details</th></tr></thead><tbody>${body || `<tr><td colspan="${cols}" class="empty">Nothing on record yet.</td></tr>`}</tbody></table></div>
+    ${over.length ? `<div class="hwarn">The entries add up to more than the ${p1N(ordered)} ordered — ${over.map(([t, n]) => `${esc(t.toLowerCase())} <b>${p1N(n)}</b>`).join(', ')}. The steps above count each order line only up to its order.</div>` : ''}</div>`;
 }
 function p1HistoryDownload(r) {
   const ev = p1HistEvents(r).slice().reverse();
