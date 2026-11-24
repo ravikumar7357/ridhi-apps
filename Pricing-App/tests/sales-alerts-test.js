@@ -72,6 +72,11 @@ asin('O1', 'SP', 900, 30, d => (inn('2026-11-16', LAST)(d) ? { x: 0.4 } : null))
 asin('T1', 'SP', 300, 30, d => (d === TODAY ? { x: 0.05 } : null)); kid('PT', 'T1');
 // U — a dear size ($50) sold out beside a cheap one ($20): the parent's plain average price falls, but no price changed → out of stock only
 asin('U1', 'SP', 400, 50, d => (inn('2026-11-20', LAST)(d) ? { x: 0 } : null)); asin('U2', 'SP', 300, 20); kid('PU', 'U1', 'U2');
+// V — the real-data case (Pillow Cover, 24 Nov): 15% under its own normal weeks for the whole 14 days — inside "normal"; only a brand
+//     season lift (×1.4) applied to it would call that "down 40% for 14 days"
+asin('V1', 'SP', 700, 35, d => (d >= '2026-11-10' && d <= LAST ? { x: 0.85 } : null)); kid('PV', 'V1');
+// W — irregular normal weeks (×⅓, ×1, ×1, ×3⅓ of $300): over 30% of its own normal days fall outside its range → not judged, even at −70%
+asin('W1', 'SP', 300, 10, d => (inn('2026-10-13', '2026-10-19')(d) ? { x: 1 / 3 } : inn('2026-11-03', '2026-11-09')(d) ? { x: 10 / 3 } : d >= '2026-11-17' && d <= LAST ? { x: 0.3 } : null)); kid('PW', 'W1');
 // S — CPC: down 50% for 4 days, and the brand's same days last year fell 45% → seasonal dip (Watch)
 asin('S1', 'CPC', 400, 40, d => (inn('2026-11-20', LAST)(d) ? { x: 0.5 } : null)); kid('PS', 'S1');
 
@@ -104,7 +109,7 @@ const base = { days: dailyAsin, today: TODAY, parentOf: a => PARENT[a] || a, nam
   stock, weekly, adsDay, plan, lyDaily: ly, now: Date.parse('2026-11-24T10:00:00Z') };
 const run = (more, brand) => X.alCompute(Object.assign({}, base, { brand: brand || 'SP' }, more || {}));
 const R = run();
-const find = (r, p, list) => (list ? r[list] : [].concat(r.alerts, r.waiting, r.recovered, r.wins, r.hidden)).find(a => a.parent === p);
+const find = (r, p, list) => (list ? r[list] : [].concat(r.alerts, r.waiting, r.recovered, r.wins, r.hidden, r.skipped || [])).find(a => a.parent === p);
 
 console.log('== the maths ==');
 ok('median of 4: one spike does not move it (100, 110, 90, 500 → 105)', X.alMedian([100, 110, 90, 500]) === 105);
@@ -138,6 +143,35 @@ const R3 = run({ lyDaily: ly3 });
 ok('a small season lift on steady products: the same alerts, the same low days (the range is never narrower than ± 10 %)',
   R3.alerts.map(a => a.parent + a.days).sort().join() === R.alerts.map(a => a.parent + a.days).sort().join(), R3.alerts.map(a => a.parent + a.days).join());
 ok('the season factor is capped 0.7–1.5 and used only when last year is held', RC.season.every(f => f == null || (f >= 0.7 && f <= 1.5)) && run({ lyDaily: null }).seasonHeld === false);
+
+console.log('== the season only calms (real data, 24 Nov: Pillow Cover "−50% for 14 days" was the brand\'s November, not a drop) ==');
+// the brand's last year: the 14 judged days ×1.4 its normal weeks (last year's November ramp, driven by other categories)
+const lyUp = { SP: Object.assign({}, ly.SP), CPC: ly.CPC };
+for (let d = '2025-11-11'; d <= '2025-11-24'; d = alAdd(d, 1)) lyUp.SP[d] = [7000, 200, 180];
+const RU = run({ lyDaily: lyUp });
+const V = find(RU, 'PV');
+ok('a product 15% under its own normal weeks is no alert when the BRAND\'s last year rose ×1.4 (expected is never raised above its own weeks)', !V || V.list !== 'alerts', V && JSON.stringify([V.list, V.head, V.fDown]));
+ok('…the brand factor is used ×1 for drops (never above), ×1.4 only against wins', RU.alerts.every(a => a.fDown === 1 && a.fUp === 1.4), JSON.stringify(RU.alerts.map(a => [a.parent, a.fDown, a.fUp])));
+ok('…and the real drops stay exactly the same alerts, the same days', RU.alerts.map(a => a.parent + a.days).sort().join() === R.alerts.map(a => a.parent + a.days).sort().join(), RU.alerts.map(a => a.parent + a.days).join());
+const lyDn = { SP: Object.assign({}, ly.SP), CPC: ly.CPC };
+for (let d = '2025-11-11'; d <= '2025-11-24'; d = alAdd(d, 1)) lyDn.SP[d] = [4000, 200, 180];
+const RD = run({ lyDaily: lyDn });
+ok('the brand\'s last year fell ×0.8: drops are judged against less (calmer), and no flat product becomes a "win"',
+  RD.alerts.every(a => Math.abs(a.fDown - 0.8) < 1e-9) && RD.alerts.length <= R.alerts.length && RD.wins.map(a => a.parent).join() === R.wins.map(a => a.parent).join(), JSON.stringify([RD.alerts.length, R.alerts.length, RD.wins.map(a => a.parent)]));
+const W = find(R, 'PW');
+ok('the self-check: over 30% of its own normal days outside its range → "Not judged" (listed, never an alert or a win)',
+  W && W.list === 'skipped' && W.baseOut > 0.3 && /too irregular/.test(W.why) && !R.alerts.some(a => a.parent === 'PW'), W && JSON.stringify([W.list, W.baseOut]));
+ok('the range holds the normal days of every product that is judged (≤ 30% outside)', [].concat(R.alerts, R.waiting, R.recovered, R.wins).every(a => a.baseOut <= 0.3));
+ok('baseline weeks keep their own range on the chart (no season on them)', RU.alerts.every(a => a.series.filter(p => p.d < '2026-11-10').every(p => Math.abs(p.e - (p.lo + p.hi) / 2) < Math.max(1, p.e * 0.6))));
+const normA = X.alCardHtml(A).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+const ownA = Math.round(A.rawExp / A.days);
+ok('each card: "Normal (own 4 weeks): $X/day · Expected used: $Y/day" — equal when nothing is adjusted',
+  new RegExp(`Normal \\(own 4 weeks\\): \\$${ownA.toLocaleString('en-US')}/day · Expected used: \\$${ownA.toLocaleString('en-US')}/day`).test(normA), normA.match(/Normal[^·]*·[^$]*\$[\d,]+\/day/));
+const normS = X.alCardHtml(find(RC, 'PS')).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+ok('…and when the season lowered it, both numbers and why', /Normal \(own 4 weeks\): \$[\d,]+\/day · Expected used: \$[\d,]+\/day \(×0\.\d\d: the CPC total fell last year on these days\)/.test(normS), normS.match(/Normal.{0,140}/));
+const TR = run({ trace: 'Round Tablecloth' }).traced;
+ok('salesAlertsReport: the product\'s own weekly sales (Sun–Sat), its normal and expected per day, the season used and the self-check',
+  TR.length === 1 && TR[0].weeks.length >= 5 && TR[0].weeks.every(w => typeof w.sales === 'number') && TR[0].seasonUsedForDrops === 1 && TR[0].baselineDaysOutsideRange === '0%' && TR[0].normalPerDay > 0, JSON.stringify(TR[0]).slice(0, 300));
 
 console.log('== the causes ==');
 const cause = p => (find(R, p, 'alerts') || { cause: {} }).cause;
