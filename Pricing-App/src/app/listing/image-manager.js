@@ -183,6 +183,7 @@ const imThumbL = url => /m\.media-amazon\.com\/images\/I\/[^/]+\.(jpg|png)$/i.te
 function ensureImg() {
   imStick();
   imListEnsure();
+  imStockEnsure();            // "Stock > 0 only": the stock is Listing Health's snapshot (read-only)
 }
 
 // The thin progress bar under the toolbar while the brand is read from Amazon: "Reading Ridhi listings: 2,339 of 2,831".
@@ -399,6 +400,125 @@ function imState(item, brand) {
 }
 
 /* ============================================================================================
+ * STOCK > 0 ONLY (24 Nov 2026, the MD's task #5) — the toolbar's checkbox #imStock (the same "Stock > 0 only" box as A+ Content and
+ * IP & Trademark Guard). ON (the default; remembered in this browser, sellora.imgstock): only children with 1 or more FBA units are
+ * listed. OFF: every child again — one without stock is listed plainly: no problem chip, no picture-error line, no order dot.
+ * Either way the picture problems are marked and COUNTED (the cards, the filters, "N need pictures", the order dots) only on children
+ * with stock. Stock = FBA units in Listing Health's snapshot (lrQtyOf — what the status chip already reads); while that snapshot is
+ * not held nothing is hidden (it is read, then the list is drawn again). The Download errors sheet is unchanged (live with stock only).
+ * ============================================================================================ */
+const IM_STOCK_KEY = 'sellora.imgstock';
+let IM_STOCK_ONLY = true;
+try { IM_STOCK_ONLY = localStorage.getItem(IM_STOCK_KEY) !== '0'; } catch (e) { /* no storage: on */ }
+let IM_STOCK_P = null;          // Listing Health's snapshot being read for the stock
+const imBrandOf = brand => brand || (typeof $ === 'function' && $('imBrand') ? $('imBrand').value : '');
+/** Is the brand's stock held (Listing Health's snapshot)? */
+const imStockKnown = brand => typeof HEALTH !== 'undefined' && !!HEALTH[imBrandOf(brand)] && Array.isArray(HEALTH[imBrandOf(brand)].rows);
+/** A listing's FBA units (null: not in the snapshot). */
+const imStockOf = (item, brand) => (typeof lrQtyOf === 'function' ? lrQtyOf(imBrandOf(brand), item.sku) : null);
+/** Does a child get its picture marks and counts? 1 or more FBA units — or the stock is not held yet (then nothing is hidden). */
+const imStockOk = (item, brand) => !imStockKnown(brand) || (Number(imStockOf(item, brand)) || 0) >= 1;
+/** The listing's problems as the LIST marks and counts them: imProblems for a child with stock, none for one without. */
+const imMarks = (item, brand) => (imStockOk(item, brand) ? imProblems(item, brand) : []);
+/** The checkbox: on / off, remembered, the list drawn again. */
+function imStockSet(on) {
+  IM_STOCK_ONLY = !!on;
+  try { localStorage.setItem(IM_STOCK_KEY, IM_STOCK_ONLY ? '1' : '0'); } catch (e) { /* a private window: this visit only */ }
+  if ($('imStock')) $('imStock').checked = IM_STOCK_ONLY;
+  IM_CHUNK_H.clear();
+  if (IML[$('imBrand').value]) imListAgain();
+}
+/** The stock comes from Listing Health's snapshot: read it (read-only) when it is not held yet, then draw the list again. */
+function imStockEnsure() {
+  if (IM_STOCK_P || typeof H_LOADED === 'undefined' || H_LOADED || typeof loadHealthCache !== 'function') return IM_STOCK_P;
+  IM_STOCK_P = Promise.resolve().then(loadHealthCache).catch(() => {}).then(() => {
+    IM_STOCK_P = null;
+    if (IML[$('imBrand').value]) imListRender();
+  });
+  return IM_STOCK_P;
+}
+
+/* ============================================================================================
+ * THE FAMILY'S PICTURE ORDER (24 Nov 2026, the MD's task #5): ONE small red dot under a child's picture that is not where its siblings
+ * have it — nothing else (no chip, no count, no error list, nothing on the family).
+ * SAME PICTURE = the same Amazon image id: the part after /images/I/ in the picture's link (imqId — "71abcXYZ" in
+ *   …/images/I/71abcXYZ._SL1500_.jpg). Amazon gives every uploaded file its own id and serves it at any size under that id, so two
+ *   children with the same id show the very same file; a link that is not Amazon's is compared whole. The same photo uploaded twice gets
+ *   two ids and counts as two pictures — Sellora does not download the pixels to compare them.
+ * WHICH PICTURE: each slot's picture as the tile shows it first — the one we sent, else what Amazon serves (MAIN, PT01–PT08; the swatch
+ *   is not part of the order).
+ * THE FAMILY'S ORDER, from its children with stock (2 or more; one child alone is never checked):
+ *   - a SHARED picture (on 2+ children: a size chart, a care guide, a shared lifestyle photo) — its normal slot is the slot most of
+ *     those children use it in;
+ *   - each SLOT's normal content is what most children have there: that shared picture, an own photo (a picture only that child has:
+ *     its colour / size photos), or nothing;
+ *   - the child-specific photos follow the position pattern most siblings follow: the family's own-photo slots in order (e.g. MAIN,
+ *     PT01, PT02) — a child's 1st own photo belongs in the 1st of them, its 2nd in the 2nd, and so on.
+ *   "Most" is a clear majority: more children than any other answer, and at least 2. A tie decides nothing (no dot).
+ * THE DOTS: (1) a shared picture in another slot than its normal one: "Out of sequence — siblings have this in PT02"; (2) an own photo
+ *   in a slot that is not one of the family's own-photo slots, when its place in the pattern is another slot: "Out of sequence —
+ *   siblings have this in PT01" (none for an extra photo after the pattern ends); (3) an empty slot whose normal content is a picture:
+ *   "Siblings have an image here". The slot a moved shared picture belongs in is not marked again: its dot is on the moved picture.
+ * ============================================================================================ */
+const IM_SEQ = new Map();       // sku → { slot: the dot's words } — worked out with the list (imShownGroups)
+const imSeqPic = (item, slot) => { const url = (item.img || {})[slot] || (item.live || {})[slot]; return url ? imqId(url) : ''; };
+// The key with clearly the most (more than any other, and 2 or more); null for a tie or a single one.
+function imSeqMost(counts) {
+  let best = null;
+  let most = 0;
+  let tie = false;
+  counts.forEach((n, key) => { if (n > most) { best = key; most = n; tie = false; } else if (n === most) tie = true; });
+  return best !== null && !tie && most >= 2 ? best : null;
+}
+/** One family's dots: Map sku → { slot: words } for the children given (the ones with stock). */
+function imSeqFamily(kids) {
+  const out = new Map();
+  if (!kids || kids.length < 2) return out;
+  const pics = kids.map(kid => IM_SLOTS.map(slot => imSeqPic(kid, slot)));
+  const holders = new Map();                        // picture → how many children have it
+  pics.forEach(row => new Set(row.filter(Boolean)).forEach(p => holders.set(p, (holders.get(p) || 0) + 1)));
+  const shared = p => (holders.get(p) || 0) >= 2;
+  const kind = p => (!p ? '' : shared(p) ? 'S:' + p : 'O');
+  // each shared picture's normal slot
+  const bySlot = new Map();
+  pics.forEach(row => row.forEach((p, i) => {
+    if (!p || !shared(p)) return;
+    const m = bySlot.get(p) || bySlot.set(p, new Map()).get(p);
+    m.set(IM_SLOTS[i], (m.get(IM_SLOTS[i]) || 0) + 1);
+  }));
+  const home = new Map();
+  bySlot.forEach((m, p) => home.set(p, imSeqMost(m)));
+  // each slot's normal content, and the family's own-photo slots in order
+  const norm = IM_SLOTS.map((slot, i) => { const m = new Map(); pics.forEach(row => m.set(kind(row[i]), (m.get(kind(row[i])) || 0) + 1)); return imSeqMost(m); });
+  const ownSlots = IM_SLOTS.filter((slot, i) => norm[i] === 'O');
+  kids.forEach((kid, k) => {
+    const row = pics[k];
+    const dots = {};
+    // the normal slots of the shared pictures this child has somewhere else: not marked again (the moved picture carries the dot)
+    const left = new Set();
+    row.forEach((p, i) => { const h = p && shared(p) ? home.get(p) : null; if (h && h !== IM_SLOTS[i]) left.add(h); });
+    let own = 0;
+    row.forEach((p, i) => {
+      const slot = IM_SLOTS[i];
+      if (!p) {
+        if (norm[i] && !left.has(slot)) dots[slot] = 'Siblings have an image here';
+        return;
+      }
+      if (shared(p)) {
+        const h = home.get(p);
+        if (h && h !== slot) dots[slot] = 'Out of sequence — siblings have this in ' + h;
+        return;
+      }
+      const want = ownSlots[own++];
+      if (norm[i] === 'O' || left.has(slot)) return;
+      if (want && want !== slot) dots[slot] = 'Out of sequence — siblings have this in ' + want;
+    });
+    if (Object.keys(dots).length) out.set(kid.sku, dots);
+  });
+  return out;
+}
+
+/* ============================================================================================
  * THE PICTURE CHECKS — ONE FUNCTION (17 Nov 2026, the accuracy pass): a listing is flagged only when it is really so on Amazon.
  *   imCheck(item, check, brand) → true (it is so) | false (it is not) | null (cannot be decided from the data held: "not checked",
  *   never a problem). The number cards, the filter picker, the row's chip and summary, "N need pictures", the Download errors sheet
@@ -409,7 +529,7 @@ function imState(item, brand) {
  *   live — what Amazon serves to shoppers (the catalogue). KNOWN only when the catalogue was asked about this ASIN and answered
  *          (it has an ASIN and no liveErr): an empty map after a failed read is no answer, never "Amazon serves no picture".
  *   iss  — Amazon's own current issues on the listing (severity, code, message, the attributes it names); st — Amazon's status.
- * The checks (IM_CHECKS): nomain, noown, pcbad, few, amzerr, sup (the cards) and nobuy, diff (the picker only). Each reads only
+ * The checks (IM_CHECKS): nomain, pcbad, few, amzerr, sup (the cards) and nobuy, diff (the picker only). Each reads only
  * what Amazon really gives — our submitted pictures, the catalogue's pictures with their sizes, Amazon's issues, status and enforcement
  * actions — and the Picture check's marks (a person's judgement). imProblems(item) is the listing's problems: the cards, the filters,
  * the row's chips and the Download errors sheet all read it, so the screen and the sheet always agree.
@@ -417,13 +537,11 @@ function imState(item, brand) {
  * (Amazon's catalogue returns no swatch, so "Amazon serves none" can never be known) and "Too small (under 2000)" (the company's
  * 1500 pictures are fine for Amazon). A picture's size is information only — the editor shows it, nothing counts it.
  * ============================================================================================ */
-const IM_CHECKS = { nomain: 'No main at all', noown: "Using the family's main", pcbad: 'Main not OK', few: 'Fewer than 7 pictures',
+const IM_CHECKS = { nomain: 'No main at all', pcbad: 'Main not OK', few: 'Fewer than 7 pictures',
   amzerr: 'Amazon picture error', sup: 'Search suppressed', nobuy: 'Not buyable', diff: 'Live image differs from yours' };
 // Our listing's own pictures were read / Amazon's catalogue answered for this ASIN.
 const imMineKnown = item => !!(item && item.img && typeof item.img === 'object');
 const imLiveKnown = item => !!(item && item.live && typeof item.live === 'object' && item.asin && !item.liveErr);
-/** True when the listing itself submitted no main image — what shows comes from the family. */
-const imNoOwnMain = item => imCheck(item, 'noown') === true;
 /** No main picture at all: none sent by us, none shown to shoppers. */
 const imNoMain = item => imCheck(item, 'nomain') === true;
 
@@ -531,12 +649,6 @@ function imCheck(item, k, brand) {
     if (img.MAIN || (liveOk && live.MAIN)) return false;
     return mineOk && liveOk ? true : null;
   }
-  if (k === 'noown') {
-    // we sent no main, and Amazon serves one (the family's)
-    if (img.MAIN) return false;
-    if (!mineOk || !liveOk) return null;
-    return !!live.MAIN;
-  }
   if (k === 'pcbad') {
     // a person marked the main picture shoppers see Not OK (the mark is kept per picture: a new main picture has no mark)
     const marks = typeof PC !== 'undefined' && PC.marks ? PC.marks[b] : null;
@@ -578,7 +690,7 @@ function imCheckWhy(item, k, brand) {
   const liveOk = imLiveKnown(item);
   const yn = v => (v ? 'yes' : 'no');
   const amz = v => (liveOk ? yn(v) : 'not known' + (item.liveErr ? ' (' + item.liveErr + ')' : ''));
-  if (k === 'nomain' || k === 'noown') return `our main: ${yn(img.MAIN)} · Amazon serves a main: ${amz(live.MAIN)}`;
+  if (k === 'nomain') return `our main: ${yn(img.MAIN)} · Amazon serves a main: ${amz(live.MAIN)}`;
   if (k === 'pcbad') return liveOk && live.MAIN ? `main picture ${imqId(live.MAIN)}: ${((((typeof PC !== 'undefined' && PC.marks[brand]) || {})[imqId(live.MAIN)]) || {}).v || 'no mark'}` : 'Amazon serves a main: ' + amz(live.MAIN);
   if (k === 'few') { const c = imPicCount(item); return `pictures: ours ${c.ours == null ? 'not known' : c.ours}, Amazon serves ${c.live == null ? 'not known' : c.live}`; }
   if (k === 'amzerr') return Array.isArray(item.iss) ? (imPicErrs(item).map(e => imPicErrText(e).slice(0, 160)).join(' | ') || 'no picture error') : 'issues not read';
@@ -587,7 +699,7 @@ function imCheckWhy(item, k, brand) {
   return '';
 }
 // The card checks that could not be decided for this listing (their short names) — shown as "not checked", never as a problem.
-const IM_CHECK_SHORT = { nomain: 'main', noown: "family's main", pcbad: 'Main not OK', few: 'picture count', amzerr: 'Amazon errors', sup: 'status' };
+const IM_CHECK_SHORT = { nomain: 'main', pcbad: 'Main not OK', few: 'picture count', amzerr: 'Amazon errors', sup: 'status' };
 const imUnchecked = (item, brand) => IM_CARDS.map(card => card.k).filter(k => imCheck(item, k, brand) === null).map(k => IM_CHECK_SHORT[k] || k)
   .filter((name, i, all) => all.indexOf(name) === i);
 
@@ -599,7 +711,6 @@ const imPcBad = (brand, item) => imCheck(item, 'pcbad', brand) === true;
  * cannot be decided for is counted as "not checked" in the card's small line, never in its number. */
 const IM_CARDS = [
   { k: 'nomain', t: 'No main at all', cls: 'is-err', tip: 'No main picture: none sent by us and none shown to shoppers' },
-  { k: 'noown', t: 'Using the family\'s main', cls: 'is-att', tip: 'Your listing sent no main picture of its own; shoppers see the family\'s, and Amazon can suppress it' },
   { k: 'pcbad', t: 'Main not OK', note: 'Picture check', cls: 'is-err', tip: 'Main pictures a person marked Not OK in the Picture check' },
   { k: 'few', t: 'Fewer than 7', note: 'pictures', cls: 'is-att', tip: 'Fewer than 7 real pictures (MAIN + PT01–PT08): the ones we sent or the ones Amazon serves, whichever is more; the swatch is not counted' },
   { k: 'amzerr', t: 'Amazon picture error', cls: 'is-err', tip: 'Amazon reports an error about the pictures (other errors are in Listing Errors)' },
@@ -623,7 +734,7 @@ function imCritical(item, brand) {
 }
 /** The cards' numbers: [{ k, t, note, cls, tip, n, u }] over every child listing in `items` — n flagged, u not checked. */
 function imCardsData(items, brand) {
-  const kids = items.filter(item => item.lvl !== 'parent');
+  const kids = items.filter(item => item.lvl !== 'parent' && imStockOk(item, brand));      // only children with stock are counted
   return IM_CARDS.map(card => {
     let n = 0;
     let u = 0;
@@ -656,6 +767,7 @@ function imKidMatch(item, filter, search) {
     const hay = [item.sku, item.asin, item.pa, item.psku, item.t, item.c, item.z].join(' ').toLowerCase();
     if (!search.split(/\s+/).every(word => hay.includes(word))) return false;
   }
+  if (filter && filter !== 'all' && !imStockOk(item)) return false;                    // problems are marked on children with stock only
   if (IM_PROBLEM_KEYS().includes(filter)) return imProblems(item).includes(filter);   // a card's filter: the listing's problems
   return filter in IM_CHECKS ? imCheck(item, filter) === true : true;
 }
@@ -684,10 +796,12 @@ const imBfDot = s => (s === 'n' ? '<span class="fa-bfn" aria-hidden="true">–</
 // One thumbnail in a listing's strip; `sw` marks the swatch tile. B / F shows when what shoppers see is not the picture we sent (the
 // .im-diff class — the old orange ring — is still set underneath); hover offers "Copy this picture". No size dot: a picture's size is
 // information only, shown in the editor.
-function imTile(slot, liveUrl, mineUrl, sw, sku) {
+function imTile(slot, liveUrl, mineUrl, sw, sku, seq) {
   const tile = imTileA(slot, liveUrl, mineUrl, sw);
   const url = IML_VIEW === 'live' ? (liveUrl || mineUrl) : (mineUrl || liveUrl);
-  if (!url) return tile;
+  // seq: the family-order dot's words (imSeqFamily) — one small red dot right under the tile, its words on hover
+  const dot = seq ? `<i class="im-seq" role="img" aria-label="${imEsc(seq)}" title="${imEsc(seq)}"></i>` : '';
+  if (!url) return dot ? `<span class="im-tw">${tile}${dot}</span>` : tile;
   const bf = imBfOf(liveUrl, mineUrl);
   // The swatch has no B / F: Amazon's catalogue never returns a swatch, so F would read 'not live' on every one.
   const tag = sw ? '' : `<span class="im-bf${bf.differs ? ' is-diff' : ''}" title="${imEsc((IM_BF_TIP[bf.b + bf.f] || '') + ' · B = the picture we sent, F = what shoppers see')}">B${imBfDot(bf.b)}F${imBfDot(bf.f)}</span>`;
@@ -696,7 +810,7 @@ function imTile(slot, liveUrl, mineUrl, sw, sku) {
   // Hover: View (the large viewer) · Copy · Replace (choose a file; the editor opens and uploads it into this slot, same picture rules).
   const acts = sku ? `<span class="im-tact"><button type="button" class="im-tview" data-view="${imEsc(sku)}" data-slot="${slot}" title="See ${name} large">View</button>${copy}`
     + `<button type="button" class="im-trepl" data-repl="${imEsc(sku)}" data-slot="${slot}" title="Replace ${name}: choose a file — the editor opens and uploads it here">Replace</button></span>` : '';
-  return `<span class="im-tw${sw ? ' im-tw-sw' : ''}"${sku ? ` data-sku="${imEsc(sku)}" data-slot="${slot}"` : ''}>${tile}${tag}${acts}</span>`;
+  return `<span class="im-tw${sw ? ' im-tw-sw' : ''}"${sku ? ` data-sku="${imEsc(sku)}" data-slot="${slot}"` : ''}>${tile}${tag}${acts}${dot}</span>`;
 }
 function imTileA(slot, liveUrl, mineUrl, sw) {
   /* THE TILE SHOWS YOUR OWN PICTURE BY DEFAULT. Amazon's catalogue often serves another child's
@@ -715,8 +829,9 @@ function imTileA(slot, liveUrl, mineUrl, sw) {
 
 /** THE ROW'S CHIPS: one per problem (imProblems — the very list the cards count and the sheet writes), the worst first, and "Not buyable"
  *  when it is; a listing with none shows its Amazon status ("Buyable"). [{ k, t, cls, tip }] */
-const IM_CHIP_ORDER = ['amzerr', 'sup', 'nobuy', 'nomain', 'noown', 'pcbad', 'few'];
+const IM_CHIP_ORDER = ['amzerr', 'sup', 'nobuy', 'nomain', 'pcbad', 'few'];
 function imKidChips(item, brand) {
+  if (!imStockOk(item, brand)) return [{ k: '', t: 'No stock', cls: '', tip: 'No FBA units — picture problems are shown for children with stock only' }];
   const state = imState(item, brand);
   const probs = imProblems(item, brand);
   const has = k => (k === 'nobuy' ? state.k === 'nobuy' : probs.includes(k));
@@ -725,7 +840,6 @@ function imKidChips(item, brand) {
     if (k === 'sup') return { t: state.label, cls: 'is-bad', tip: state.why === 'buyable by direct link, not in search' ? 'Amazon still allows a direct-link sale but has taken this listing out of search results.' : 'Suppressed — ' + state.why };
     if (k === 'nobuy') return { t: 'Not buyable', cls: 'is-bad', tip: 'Not buyable — ' + state.why };
     if (k === 'nomain') return { t: 'No main at all', cls: 'is-bad', tip: 'No main picture: none sent by us and none shown to shoppers' };
-    if (k === 'noown') return { t: 'Using the family\'s main', cls: 'is-att', tip: 'Your listing submitted no main image. What shows on Amazon comes from the family, and Amazon can suppress a listing for it.' };
     if (k === 'pcbad') return { t: 'Main not OK', cls: 'is-bad', tip: 'A person marked the main picture Not OK in the Picture check' };
     return { t: 'Fewer than 7', cls: 'is-att', tip: `${imPicCount(item).n} pictures (MAIN + PT01–PT08)` };
   };
@@ -740,29 +854,32 @@ function imKidSummary(item) {
   const live = item.live || {};
   const img = item.img || {};
   const urls = IM_SLOTS.map(slot => (IML_VIEW === 'live' ? (live[slot] || img[slot]) : (img[slot] || live[slot]))).filter(Boolean);
-  const nc = imUnchecked(item);
+  const nc = imStockOk(item) ? imUnchecked(item) : [];
   return `${urls.length}/9 pictures`
     + (nc.length ? ` · <span class="im-nc" title="These could not be decided from the data held, so they are not counted as a problem">not checked: ${imEsc(nc.join(', '))}</span>` : '');
 }
 /** Does this listing need picture work? (any card's problem but suppression, which is not a picture problem by itself) */
-const IM_NEEDS = ['amzerr', 'nomain', 'noown', 'pcbad', 'few'];
-const imNeeds = item => imProblems(item).some(k => IM_NEEDS.includes(k));
+const IM_NEEDS = ['amzerr', 'nomain', 'pcbad', 'few'];
+const imNeeds = item => imMarks(item).some(k => IM_NEEDS.includes(k));
 
 // One child listing's row: tick · SKU · colour · size · one status chip · quality summary · actions, then the strip of tiles.
 function imKidRow(item) {
   const live = item.live || {};
   const img = item.img || {};
-  const tiles = IM_SLOTS.map(slot => imTile(slot, live[slot], img[slot], false, item.sku)).join('')
+  const seq = IM_SEQ.get(item.sku) || {};            // the family-order dots (children with stock only)
+  const tiles = IM_SLOTS.map(slot => imTile(slot, live[slot], img[slot], false, item.sku, seq[slot])).join('')
     + '<span class="im-strip-gap"></span>' + imTile('SWCH', live.SWCH, img.SWCH, true, item.sku);
   const chips = imKidChips(item);
-  const errs = imPicErrs(item);
+  const errs = imStockOk(item) ? imPicErrs(item) : [];
   const open = IM && IM.sku === item.sku && $('imEditWrap') && !$('imEditWrap').classList.contains('hide');
-  return `<div class="im-kid${open ? ' is-open' : ''}" data-sku="${imEsc(item.sku)}">
+  const qty = imStockKnown() ? imStockOf(item) : undefined;
+  const stock = qty === undefined ? '' : `<span class="im-stock${qty > 0 ? '' : ' is-zero'}" title="FBA stock (units), from Listing Health's snapshot">${qty == null ? 'stock —' : Number(qty).toLocaleString('en-US') + ' unit' + (Number(qty) === 1 ? '' : 's')}</span>`;
+  return `<div class="im-kid${open ? ' is-open' : ''}${Object.keys(seq).length ? ' has-seq' : ''}" data-sku="${imEsc(item.sku)}">
     <label class="im-kid-sel" title="Tick to paste into this listing (Shift+click ticks a range)"><input type="checkbox" class="im-sel" data-sku="${imEsc(item.sku)}" ${IM_SEL.has(item.sku) ? 'checked' : ''} aria-label="Tick ${imEsc(item.sku)}"></label>
     <div class="im-kid-info">
       <div class="im-kid-t"><b class="im-mono">${imEsc(item.sku)}</b>${item.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml($('imBrand') ? $('imBrand').value : '', item.sku) : ''}<span class="muted">${imEsc(item.asin)}</span></div>
-      <div class="im-kid-s">${imEsc([item.c, item.z].filter(Boolean).join(' · ') || String(item.t || '').slice(0, 60))}</div>
-      <div class="im-kid-q">${typeof prOf === 'function' && imProblems(item).length ? prChipHtml(prIm($('imBrand') ? $('imBrand').value : '', item), 'im-chip') : ''}${chips.map(chip => `<span class="im-chip ${chip.cls}"${chip.k ? ` data-im-prob="${chip.k}"` : ''}${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span>`).join('')}<span class="im-kid-sum">${imKidSummary(item)}</span></div>
+      <div class="im-kid-s">${imEsc([item.c, item.z].filter(Boolean).join(' · ') || String(item.t || '').slice(0, 60))}${stock}</div>
+      <div class="im-kid-q">${typeof prOf === 'function' && imMarks(item).length ? prChipHtml(prIm($('imBrand') ? $('imBrand').value : '', item), 'im-chip') : ''}${chips.map(chip => `<span class="im-chip ${chip.cls}"${chip.k ? ` data-im-prob="${chip.k}"` : ''}${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span>`).join('')}<span class="im-kid-sum">${imKidSummary(item)}</span></div>
       ${errs.length ? `<div class="im-kid-err" title="${imEsc(errs.map(imPicErrText).join(' · '))}">${imEsc(errs.map(imPicErrText).join(' · '))}</div>` : ''}
       <div class="im-kid-act">
         <button class="ghost im-b" data-edit="${imEsc(item.sku)}" title="Open the editor beside the list (E)">Edit</button>
@@ -1071,14 +1188,20 @@ async function imReplaceFile(file) {
 }
 
 // The groups the list shows for this filter and search (and the listings picked in Listing Health, IM_ONLY): [{ parent, kids, psku, show }].
+// "Stock > 0 only" on: a family is its children with stock (its header counts those). The family-order dots are worked out here, per
+// family, from its children with stock — whatever the filter or the search shows.
 function imShownGroups(items, filter, search) {
   const groups = [];
+  IM_SEQ.clear();
   imListGroups(items).forEach(group => {
+    const stocked = group.kids.filter(kid => imStockOk(kid));
+    imSeqFamily(stocked).forEach((dots, sku) => IM_SEQ.set(sku, dots));
+    const pool = IM_STOCK_ONLY ? stocked : group.kids;
     const picked = kid => !IM_ONLY || IM_ONLY.skus.has(kid.sku);
-    let show = group.kids.filter(kid => picked(kid) && imKidMatch(kid, filter, search));
+    let show = pool.filter(kid => picked(kid) && imKidMatch(kid, filter, search));
     // A search that names the PARENT shows the whole family.
-    if (!show.length && search && group.parent && imKidMatch(group.parent, 'all', search)) show = group.kids.filter(kid => picked(kid) && imKidMatch(kid, filter, ''));
-    if (show.length) groups.push(Object.assign({}, group, { show }));
+    if (!show.length && search && group.parent && imKidMatch(group.parent, 'all', search)) show = pool.filter(kid => picked(kid) && imKidMatch(kid, filter, ''));
+    if (show.length) groups.push(Object.assign({}, group, { kids: pool, show }));
   });
   return groups;
 }
@@ -1157,7 +1280,8 @@ function imListRender() {
     + `<span>${filter !== 'all' || search ? '<button class="ghost im-b" id="imClearFilter">Clear filter</button>' : ''}</span></div>` : '';
   el.innerHTML = only + cards + `<div class="im-meta muted"><span>${nKids.toLocaleString('en-US')} listing(s) in ${groups.length.toLocaleString('en-US')} famil${groups.length === 1 ? 'y' : 'ies'} of ${data.items.length.toLocaleString('en-US')}
       · ${(typeof lmDataLabel === 'function' && lmDataLabel([brand])) ? imEsc(lmDataLabel([brand]).text) : 'snapshot ' + (data.at ? data.at.toLocaleString() : '—')}${IML_BUSY ? ' · refreshing…' : ''}
-      · tiles show <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b></span>
+      · tiles show <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b>${imStockKnown(brand) ? (IM_STOCK_ONLY ? ' · <b>stock &gt; 0 only</b>' : ' · every child (problems marked on those with stock)') : ' · stock not loaded yet'}</span>
+      <span class="im-seq-key"><i class="im-seq" aria-hidden="true"></i> red dot = image out of family order</span>
       ${groups.length ? '<span class="im-meta-act"><button class="ghost im-b" data-foldall="0" title="Open every family">Open all</button><button class="ghost im-b" data-foldall="1" title="Close every family">Close all</button></span>' : ''}
       <details class="im-key"><summary>Key</summary>${IM_LEGEND}</details></div>
     ${IM_CLIP ? '<div id="imBulk" class="muted" style="font-size:12px;margin-bottom:8px"></div>' : ''}
@@ -2040,6 +2164,10 @@ $('imQ').addEventListener('keydown', e => {
   }
 });
 $('imFilter').onchange = imListAgain;
+if ($('imStock')) {
+  $('imStock').checked = IM_STOCK_ONLY;
+  $('imStock').onchange = () => imStockSet($('imStock').checked);
+}
 $('imView').onchange = imListAgain;
 // Brand changed: page 1, nothing ticked, back to the list, that brand's snapshot.
 $('imBrand').onchange = () => {
@@ -2068,7 +2196,6 @@ const IM_DL_CHECKS = [
   { k: 'few', col: 'Fewer than 7 pictures', todo: 'Add pictures until there are at least 7' },
   { k: 'amzerr', col: 'Amazon picture error', todo: "Fix what Amazon's picture error says, in the Image Manager editor" },
   { k: 'sup', col: 'Search suppressed', todo: 'Open it in Listing Errors and fix why Amazon took it out of search' },
-  { k: 'noown', col: "Using the family's main", todo: "Upload this listing's own main picture" },
 ];
 const IM_DL_COLS = ['Brand', 'Family name', 'Parent ASIN', 'SKU', 'ASIN', 'Colour', 'Size', 'Stock (units)', 'Amazon link', 'Problems', 'What to do']
   .concat(IM_DL_CHECKS.map(c => c.col), ['Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at', 'Priority']);
@@ -2289,7 +2416,6 @@ function imOldCheck(item, k, brand, owner) {
   const img = item.img || {};
   const live = item.live || {};
   if (k === 'nomain') return !img.MAIN && !live.MAIN;
-  if (k === 'noown') return !img.MAIN && !!live.MAIN;
   if (k === 'pcbad') return typeof PC !== 'undefined' && !!live.MAIN && ((PC.marks[brand] || {})[imqId(live.MAIN)] || {}).v === 'bad';
   if (k === 'small') return IM_SLOTS.some(slot => [img[slot], live[slot]].some(url => { const wh = imqDims(url); return !!wh && imqSize(wh[0], wh[1]) !== 'g'; }));
   if (k === 'few') return IM_SLOTS.filter(slot => live[slot] || img[slot]).length < 7;
@@ -2483,9 +2609,10 @@ $('imList').addEventListener('click', e => {
     const group = imListGroups((IML[$('imBrand').value] || { items: [] }).items).find(each => imGroupKey(each) === key);
     if (!group) return;
     if (fam.dataset.famsel) {
-      group.kids.forEach(kid => IM_SEL.add(kid.sku));
+      const kids = IM_STOCK_ONLY ? group.kids.filter(kid => imStockOk(kid)) : group.kids;
+      kids.forEach(kid => IM_SEL.add(kid.sku));
       imListRender();
-      return imMsg(`Ticked all ${group.kids.length} children of ${key}.`);
+      return imMsg(`Ticked all ${kids.length} children of ${key}${IM_STOCK_ONLY && kids.length < group.kids.length ? ' with stock' : ''}.`);
     }
     const p = group.parent;
     imClipCopyOne({ brand: $('imBrand').value, sku: p.sku, asin: p.asin, c: '', z: '', psku: p.sku, slot: 'MAIN', url: (p.img || {}).MAIN || (p.live || {}).MAIN });

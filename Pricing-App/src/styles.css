@@ -1539,6 +1539,18 @@
   #paneImg .im-tw-sw .im-tcopy{right:-6px;bottom:-4px}
   #paneImg .im-bf-key{display:inline-flex;align-items:center;gap:1px;font-weight:700}
   #paneImg .im-meta .imq-dot{margin:0 1px 0 4px}
+  /* Stock > 0 only (the A+ Content / IP Guard box, its own rules), each child's FBA stock, and the family-order dot: one small red dot
+     right under a picture that is not where its siblings have it (image-manager.js imSeqFamily, 24 Nov 2026) */
+  #paneImg .im-tog{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap;cursor:pointer}
+  #paneImg .im-tog input{width:16px;height:16px;margin:0;accent-color:var(--brand)}
+  #paneImg .im-stock{margin-left:6px;padding:0 6px;border-radius:var(--r-pill);background:var(--hover);color:var(--muted);font-size:11px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+  #paneImg .im-stock.is-zero{color:var(--faint)}
+  #paneImg .im-seq{position:absolute;left:50%;bottom:-9px;z-index:1;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--bad);font-style:normal;cursor:help}
+  #paneImg .im-seq::after{content:"";position:absolute;inset:-5px}
+  #paneImg .im-kid.has-seq .im-strip{padding-bottom:9px}
+  #paneImg .im-seq-key{display:inline-flex;align-items:center;gap:5px;margin-left:8px;color:var(--muted);white-space:nowrap}
+  #paneImg .im-seq-key .im-seq{position:relative;left:auto;bottom:auto;display:inline-block;margin:0;cursor:default}
+  #paneImg .im-seq-key .im-seq::after{display:none}
   /* The clipboard bar: sticks to the bottom of the list; a tick per copied slot, the quick picks, the mode, the Preview button. */
   #paneImg .im-mono{font-family:ui-monospace,monospace}
   #paneImg .im-clip{position:sticky;bottom:0;z-index:15;margin:10px 0 0;padding:10px 14px;background:var(--card);border:1px solid color-mix(in srgb,var(--brand) 45%,var(--card-line));

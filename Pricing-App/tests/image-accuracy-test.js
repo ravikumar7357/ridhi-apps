@@ -34,6 +34,8 @@ function page(items, opts) {
 (async () => {
   const P = page([]);
   const chk = (item, k) => P.imCheck(item, k, 'SP');
+  // the listings made up below (not on the page) have FBA stock: Image Manager marks problems on children with stock only (24 Nov 2026)
+  P.HEALTH.SP.rows = P.HEALTH.SP.rows.concat(['D1', 'W1'].map(sku => ({ sku, qty: 5, status: 'Active', channel: 'AFN' })));
   // every picture of a record measured at w × h
   const measure = (item, w, h) => SLOTS.forEach(s => [item.img && item.img[s], item.live && item.live[s]].forEach(u => { if (u) P.IMQ.dims.set(P.imqId(u), [w, h]); }));
 
@@ -43,11 +45,8 @@ function page(items, opts) {
   ok('NOT CHECKED: no MAIN of ours and the catalogue did not answer (liveErr) — before this, it was flagged', chk(mk('A4', { img: without(full('A4'), 'MAIN'), live: {}, liveErr: 'catalogue 429' }), 'nomain') === null);
   ok('NOT CHECKED: no MAIN of ours and the listing has no ASIN yet (the catalogue was never asked)', chk(mk('A5', { asin: '', img: without(full('A5'), 'MAIN'), live: {} }), 'nomain') === null);
 
-  console.log('== Using the family\'s main: we sent none, Amazon serves one ==');
-  ok('TRUE: no MAIN of ours, Amazon serves one', chk(mk('B1', { img: without(full('B1'), 'MAIN') }), 'noown') === true);
-  ok('FALSE: we sent a MAIN · FALSE: none of ours and none served (that is "No main at all")', chk(mk('B2'), 'noown') === false
-    && chk(mk('B3', { img: without(full('B3'), 'MAIN'), live: without(full('B3'), 'MAIN') }), 'noown') === false);
-  ok('NOT CHECKED: none of ours and the catalogue did not answer', chk(mk('B4', { img: without(full('B4'), 'MAIN'), live: {}, liveErr: 'not in catalogue' }), 'noown') === null);
+  console.log('== "Using the family\'s main" is gone (24 Nov 2026, the MD\'s task #5) ==');
+  ok('no MAIN of ours while Amazon serves one is no check any more (imCheck has no answer for it)', chk(mk('B1', { img: without(full('B1'), 'MAIN') }), 'noown') === null);
 
   console.log('== Main not OK: a person\'s mark on the main picture shoppers see ==');
   P.PC.marks.SP = { [P.imqId(A('C1MAIN'))]: { v: 'bad' }, [P.imqId(A('C2MAIN'))]: { v: 'ok' }, [P.imqId(A('oldMAIN'))]: { v: 'bad' } };
@@ -199,15 +198,15 @@ function page(items, opts) {
     const Q = page(items);
     items.forEach(i => SLOTS.forEach(s => { if (i.img[s]) Q.IMQ.dims.set(Q.imqId(i.img[s]), [2400, 2400]); }));
     const cards = Object.fromEntries(Q.imCardsData(Q.IML.SP.items).map(c => [c.k, c]));
-    ok('N1 (no MAIN of ours, the catalogue did not answer): in NO card\'s number — "1 not checked" in No main at all, Family\'s main, Main not OK',
-      ['nomain', 'noown', 'pcbad'].every(k => cards[k].n === 0 && cards[k].u === 1 && /1 not checked/.test(cards[k].note)) && Object.values(cards).every(c => c.n === 0), JSON.stringify(Object.values(cards).map(c => [c.k, c.n, c.u])));
+    ok('N1 (no MAIN of ours, the catalogue did not answer): in NO card\'s number — "1 not checked" in No main at all, Main not OK',
+      ['nomain', 'pcbad'].every(k => cards[k].n === 0 && cards[k].u === 1 && /1 not checked/.test(cards[k].note)) && Object.values(cards).every(c => c.n === 0), JSON.stringify(Object.values(cards).map(c => [c.k, c.n, c.u])));
     ok('…what CAN be decided is: its 8 pictures of ours are enough for "Fewer than 7" (not flagged, not "not checked"); Amazon reports no picture error', cards.few.u === 0 && cards.amzerr.u === 0 && cards.sup.u === 0);
     ok('…before the accuracy pass the same listing was counted under "No main at all" (and "No swatch")', Q.imOldCheck(items[0], 'nomain', 'SP', new Map()) && Q.imOldCheck(items[0], 'noswatch', 'SP', new Map()));
     Q.IM_OPEN.add('PAR'); Q.imListRender();
     const html = Q.el('imList').innerHTML;
-    ok('its row says it quietly: "not checked: main, family\'s main, Main not OK"', /class="im-nc"[^>]*>not checked: main, family's main, Main not OK</.test(html), (html.match(/not checked:[^<]*/) || [''])[0]);
+    ok('its row says it quietly: "not checked: main, Main not OK"', /class="im-nc"[^>]*>not checked: main, Main not OK</.test(html), (html.match(/not checked:[^<]*/) || [''])[0]);
     ok('…the chip of N1 is its Amazon status ("Buyable"), not "No main at all"', Q.imKidChip(items[0]).t === 'Buyable');
-    ok('a filter shows only the listings it is really true for: "No main at all" shows nothing here', (() => { Q.el('imFilter').value = 'nomain'; Q.imListRender(); const n = (Q.el('imList').innerHTML.match(/class="im-kid"/g) || []).length; Q.el('imFilter').value = 'all'; return n === 0; })());
+    ok('a filter shows only the listings it is really true for: "No main at all" shows nothing here', (() => { Q.el('imFilter').value = 'nomain'; Q.imListRender(); const n = (Q.el('imList').innerHTML.match(/class="im-kid[" ]/g) || []).length; Q.el('imFilter').value = 'all'; return n === 0; })());
     ok('"N need pictures" on the family counts real problems only: N1 is not one', Q.imNeeds(items[0]) === false);
   }
 
@@ -225,10 +224,10 @@ function page(items, opts) {
     const Q = page([mk('K1'), k4]);
     Q.IM_OPEN.add('PAR'); Q.imListRender();
     ok('a listing Amazon shows another of our pictures on: its chip is its status ("Buyable"), the list and cards never say "another SKU"', Q.imKidChip(k4).t === 'Buyable' && !/another SKU|Shows K1/i.test(Q.el('imList').innerHTML));
-    ok('every other check is still there, by its name', ['No main at all', "Using the family's main", 'Main not OK', 'Fewer than 7 pictures', 'Amazon picture error', 'Search suppressed', 'Not buyable', 'Live image differs from yours']
-      .every(name => Object.values(P.IM_CHECKS).includes(name)) && Object.keys(P.IM_CHECKS).length === 8
-      && ['nomain', 'pcbad', 'diff', 'sup', 'amzerr', 'noown', 'few', 'nobuy'].every(k => new RegExp(`<option value="${k}">`).test((SRC('index.html').match(/<select id="imFilter"[\s\S]*?<\/select>/) || [''])[0])));
-    ok('the cards keep their names and colours', JSON.stringify(P.IM_CARDS.map(c => [c.k, c.t, c.cls])) === JSON.stringify([['nomain', 'No main at all', 'is-err'], ['noown', "Using the family's main", 'is-att'],
+    ok('every other check is still there, by its name', ['No main at all', 'Main not OK', 'Fewer than 7 pictures', 'Amazon picture error', 'Search suppressed', 'Not buyable', 'Live image differs from yours']
+      .every(name => Object.values(P.IM_CHECKS).includes(name)) && Object.keys(P.IM_CHECKS).length === 7
+      && ['nomain', 'pcbad', 'diff', 'sup', 'amzerr', 'few', 'nobuy'].every(k => new RegExp(`<option value="${k}">`).test((SRC('index.html').match(/<select id="imFilter"[\s\S]*?<\/select>/) || [''])[0])));
+    ok('the cards keep their names and colours', JSON.stringify(P.IM_CARDS.map(c => [c.k, c.t, c.cls])) === JSON.stringify([['nomain', 'No main at all', 'is-err'],
       ['pcbad', 'Main not OK', 'is-err'], ['few', 'Fewer than 7', 'is-att'], ['amzerr', 'Amazon picture error', 'is-err'], ['sup', 'Search suppressed', 'is-err']]));
   }
 
@@ -280,9 +279,9 @@ function page(items, opts) {
     ok('MATCH: Q1 (CPC) "No main at all" — Amazon still serves no main; the row says what Sellora said and what Amazon has now',
       row('Q1', 'No main at all').result === 'MATCH' && row('Q1', 'No main at all').brand === 'CPC' && /^YES — our main: no · Amazon serves a main: no$/.test(row('Q1', 'No main at all').sellora) && /^YES — /.test(row('Q1', 'No main at all').amazonNow), JSON.stringify(row('Q1', 'No main at all')));
     ok('DIFFERENT: R2 "Search suppressed" — Amazon now has it in search', row('R2', 'Search suppressed').result === 'DIFFERENT' && /^NO — status BUYABLE,DISCOVERABLE/.test(row('R2', 'Search suppressed').amazonNow), JSON.stringify(row('R2', 'Search suppressed')));
-    ok('DIFFERENT: R3 "Amazon picture error" — the error is gone; its "Using the family\'s main" still MATCHES', row('R3', 'Amazon picture error').result === 'DIFFERENT' && /no picture error/.test(row('R3', 'Amazon picture error').amazonNow) && row('R3', "Using the family's main").result === 'MATCH');
+    ok('DIFFERENT: R3 "Amazon picture error" — the error is gone (and no "Using the family\'s main" row: that check is gone)', row('R3', 'Amazon picture error').result === 'DIFFERENT' && /no picture error/.test(row('R3', 'Amazon picture error').amazonNow) && !rep.rows.some(r => r.check === "Using the family's main"));
     ok('NOT READ: R1 — Amazon could not be read (after a second try): never called a match', row('R1', 'Fewer than 7 pictures').result === 'NOT READ' && /could not be read: Amazon throttled/.test(row('R1', 'Fewer than 7 pictures').amazonNow));
-    ok('the summary counts per check, and `different` lists what to look at', rep.summary.find(s => s.check === 'Search suppressed').different === 1 && rep.summary.find(s => s.check === "Using the family's main").match === 1 && !rep.summary.some(s => s.check === 'No swatch')
+    ok('the summary counts per check, and `different` lists what to look at', rep.summary.find(s => s.check === 'Search suppressed').different === 1 && !rep.summary.some(s => s.check === "Using the family's main") && !rep.summary.some(s => s.check === 'No swatch')
       && rep.different.map(r => r.sku + ':' + r.check).sort().join() === 'R2:Search suppressed,R3:Amazon picture error', JSON.stringify(rep.summary));
     ok('…and the screen follows what Amazon said: R2 is no longer under "Search suppressed", R3 no longer under "Amazon picture error"',
       P2.imCheck(P2.IML.SP.items.find(i => i.sku === 'R2'), 'sup', 'SP') === false && P2.imCheck(P2.IML.SP.items.find(i => i.sku === 'R3'), 'amzerr', 'SP') === false);

@@ -2206,10 +2206,11 @@
           <option value="diff">Live image differs from yours</option>
           <option value="sup">Search suppressed</option>
           <option value="amzerr">Amazon picture error</option>
-          <option value="noown">Using the family's main (none of your own)</option>
           <option value="few">Fewer than 7 images</option>
           <option value="nobuy">Not buyable</option>
         </select>
+        <!-- Stock > 0 only (the A+ Content / IP Guard box): on = only children with FBA stock; remembered (image-manager.js imStockSet). -->
+        <label class="im-tog" title="On: only children with 1 or more FBA units, with their picture problems. Off: every child — those without stock show no marks. Counts always count children with stock."><input type="checkbox" id="imStock" checked> Stock &gt; 0 only</label>
         <select id="imView" title="Which picture each tile shows first" aria-label="Which picture each tile shows">
           <option value="mine">Show the pictures you sent</option>
           <option value="live">Show what Amazon serves</option>
