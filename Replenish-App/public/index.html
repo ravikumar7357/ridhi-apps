@@ -8212,12 +8212,51 @@ function fcSeasonOf(r, p, i, base) {
   const dimLy = new Date(p.y - 1, p.m + 1, 0).getDate(), raw = (ly / dimLy) / base.perDay;
   return { f: Math.round(Math.min(FC_SEASON_MAX, Math.max(FC_SEASON_MIN, raw)) * 100) / 100, raw, ly, dimLy, base };
 }
+/* SEASON FROM THE FAMILY (Ravi, 24 Nov: "CPC ka projection bhi season wise show hone chahiye" — CPCTB043, a Piping Tissue Box Cover
+ * first sold in June: no December of its own, so its Dec Proj was flat 3.93 a day × 31). A SKU without last year's month of its own
+ * takes the season of SKUs that have one: first its own brand's SKUs of the same article (subcat), then both brands' of that article,
+ * then its whole brand. Only SKUs that sold in at least 11 of the 12 months count, and the same ratio as fcSeasonOf is used: last year's
+ * month a day ÷ the 90 days to this date last year, a day (summed over the family), kept to ×0.5–×2.5. */
+const FC_FAM = { sig: '', m: new Map() };
+function fcFamPrep() {
+  if (typeof nlAutoPrep === 'function') nlAutoPrep();
+  const sig = typeof NL_AUTO !== 'undefined' ? NL_AUTO.sig : Object.keys(REPL).map(b => b + ':' + (((REPL[b] || {}).rows) || []).length).join(',');
+  if (sig === FC_FAM.sig) return;
+  FC_FAM.sig = sig; FC_FAM.m = new Map();
+  const add = (k, r) => { let F = FC_FAM.m.get(k); if (!F) FC_FAM.m.set(k, F = { mm: new Array(12).fill(0), w90: 0, n: 0 });
+    r.lym.forEach((v, i) => { F.mm[i] += Number(v) || 0; }); F.w90 += Number(r.lyw90) || 0; F.n++; };
+  Object.keys(REPL).forEach(b => (((REPL[b] || {}).rows) || []).forEach(r => {
+    if (!r || !Array.isArray(r.lym) || !(Number(r.lyw90) > 0) || r.lym.filter(v => Number(v) > 0).length < 11) return;
+    const art = String(r.subcat || '').trim().toLowerCase();
+    if (art) { add(b + '|' + art, r); add('*|' + art, r); }
+    add(b + '|*', r);
+  }));
+}
+function fcFamSeason(r, p) {
+  fcFamPrep();
+  const sku = String(r.sku || '').trim().toUpperCase(), art = String(r.subcat || '').trim().toLowerCase();
+  let b = typeof NL_AUTO !== 'undefined' ? NL_AUTO.brandOf.get(sku) : null;
+  if (!b) b = Object.keys(REPL).find(k => (((REPL[k] || {}).rows) || []).some(x => x && String(x.sku).trim().toUpperCase() === sku)) || '';
+  const tries = [[b + '|' + art, 'its own brand’s ' + (r.subcat || '') + ' SKUs'], ['*|' + art, 'both brands’ ' + (r.subcat || '') + ' SKUs'], [b + '|*', 'all of ' + (b === 'SP' ? 'Ridhi' : b) + '’s SKUs']];
+  for (const [k, who] of tries) {
+    if (k.endsWith('|') || k.startsWith('|')) continue;
+    const F = FC_FAM.m.get(k); if (!F || F.n < 2 || F.w90 < 60) continue;
+    const ly = F.mm[p.m]; if (!ly) continue;
+    const dimLy = new Date(p.y - 1, p.m + 1, 0).getDate(), perDay = F.w90 / 90, raw = (ly / dimLy) / perDay;
+    return { f: Math.round(Math.min(FC_SEASON_MAX, Math.max(FC_SEASON_MIN, raw)) * 100) / 100, raw, ly, dimLy,
+      base: { perDay, win: 'the 90 days to this date last year' }, fam: { who, n: F.n } };
+  }
+  return null;
+}
 /* the hover line of a calculated Proj cell */
 function fcSeasonTip(r, f, p) {
   if (f.nl) return `${nf(f.auto)} = new launch: ${f.nl.how}, ${p.label.slice(0, 3)} last year${p.partial ? ' (for the ' + p.days + ' days left)' : ''}. Its own Avg/day gives ${nf(f.flat)}. `;
   const s = f.sea, ads = Math.round((isStopped(r) ? 0 : (r.avgSale || 0)) * 100) / 100;
   if (!s) return FC_SEASON ? `${nf(f.auto)} = ${ads} a day × ${p.days} days (no season: not enough sales history for ${p.label.slice(0, 3)} last year). ` : '';
   const pd = n => Math.round(n * 100) / 100;
+  if (s.fam) return `${nf(f.auto)} = ${ads} a day × ${p.days} days × season ${s.f.toFixed(2)}, from its family — this SKU has no ${p.label.slice(0, 3)} last year of its own. `
+    + `${s.fam.n} of ${s.fam.who} sold ${nf(s.ly)} in ${p.label.slice(0, 3)} last year (${pd(s.ly / s.dimLy)} a day) and ${pd(s.base.perDay)} a day in ${s.base.win} → ${pd(s.raw)}`
+    + `${s.f !== Math.round(s.raw * 100) / 100 ? ' (kept to ' + FC_SEASON_MIN + '–' + FC_SEASON_MAX + ')' : ''}. Flat would be ${nf(f.flat)}. `;
   return `${nf(f.auto)} = ${ads} a day × ${p.days} days × season ${s.f.toFixed(2)}. Last year ${p.label.slice(0, 3)} sold ${nf(s.ly)} (${pd(s.ly / s.dimLy)} a day); `
     + `${s.base.win} sold ${pd(s.base.perDay)} a day → ${pd(s.raw)}${s.f !== Math.round(s.raw * 100) / 100 ? ' (kept to ' + FC_SEASON_MIN + '–' + FC_SEASON_MAX + ')' : ''}. Flat would be ${nf(f.flat)}. `;
 }
@@ -8243,7 +8282,7 @@ function replForecast(r, plan) {
     // A manual Proj wins over the calculated one — and because Excess and every later month are
     // carried from it, one override re-flows the whole rest of the forecast for that SKU.
     const ovr = projOvrOf(r.sku, p.key);
-    const sea = ads ? fcSeasonOf(r, p, i, sBase) : null, flat = Math.round(ads * p.days);
+    const sea = ads ? (fcSeasonOf(r, p, i, sBase) || (FC_SEASON && i < 12 ? fcFamSeason(r, p) : null)) : null, flat = Math.round(ads * p.days);
     const own = sea ? Math.round(ads * p.days * sea.f) : flat;
     /* A NEW SKU (replenishment/colour-trend.js nlAutoOf): what the same article + size + colour family sold in this month last
      * year, unless its own Avg/day already says more. */
