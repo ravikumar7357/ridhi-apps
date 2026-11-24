@@ -3467,9 +3467,28 @@
   .fs-bell>span:first-child{font-size:16px;line-height:1}
   .fs-bell .fs-badge{position:absolute;top:1px;right:0;min-width:17px;height:17px;padding:0 4px;border-radius:var(--r-pill);background:var(--bad);color:#fff;font-size:10.5px;font-weight:700;line-height:17px;text-align:center;box-shadow:0 0 0 2px var(--card)}
   .fs-bell .fs-badge[hidden]{display:none}
+  .fs-bell[hidden]{display:none}                  /* .themesw's display:inline-flex would show a bell that is not started */
   .fs-panel{position:fixed;z-index:80;width:380px;max-width:calc(100vw - 24px);max-height:min(560px,calc(100vh - 90px));display:flex;flex-direction:column;overflow:hidden;
     border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);box-shadow:0 18px 44px rgba(16,24,40,.24);font-size:13px;text-align:left}
   .fs-panel[hidden]{display:none}
+  .fs-secs{flex:1;min-height:0;overflow:auto}
+  .fs-sec{border-bottom:1px solid var(--line)}
+  .fs-sec:last-child{border-bottom:0}
+  .fs-sec-h{display:flex;align-items:center;gap:8px;width:100%;min-height:0;margin:0;padding:12px 14px;border:0;border-radius:0;background:transparent;color:var(--ink);font:inherit;font-weight:600;text-align:left;box-shadow:none;cursor:pointer}
+  .fs-sec-h:hover{background:var(--hover)}
+  .fs-sec-h:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+  .fs-arr{flex:none;width:16px;color:var(--muted);font-size:15px;line-height:1;text-align:center}
+  .fs-sec-t{flex:1;min-width:0}
+  .fs-sec-ok{flex:none;font-size:12px;font-weight:500;color:var(--accent-ink)}
+  .fs-sec-b{padding:0 0 6px}
+  .fs-sec-b .fs-list{flex:none;overflow:visible;padding:0}
+  .fs-sec-b .fs-it{padding-left:36px}
+  .fs-sec-b .fs-more{padding-left:36px}
+  .fs-sec-0{padding:2px 14px 10px 36px;font-size:12.5px;color:var(--accent-ink)}
+  .fs-scb{width:auto;min-height:0;margin:0;padding:3px 10px;font-size:12px;white-space:nowrap}
+  .fs-scdone{font-size:12px;font-weight:600;color:var(--accent-ink);white-space:nowrap}
+  .ls-rec-sc,.le-sc{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
+  :is(#paneHealth,#hkModal) .ls-rec-sc{grid-column:2}
   .fs-p-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
   .fs-x{width:28px;height:28px;min-height:0;margin:0;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:18px;line-height:1;box-shadow:none;cursor:pointer}
   .fs-x:hover{background:var(--hover);color:var(--ink)}

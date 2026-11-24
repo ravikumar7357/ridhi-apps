@@ -3492,9 +3492,28 @@
   .fs-bell>span:first-child{font-size:16px;line-height:1}
   .fs-bell .fs-badge{position:absolute;top:1px;right:0;min-width:17px;height:17px;padding:0 4px;border-radius:var(--r-pill);background:var(--bad);color:#fff;font-size:10.5px;font-weight:700;line-height:17px;text-align:center;box-shadow:0 0 0 2px var(--card)}
   .fs-bell .fs-badge[hidden]{display:none}
+  .fs-bell[hidden]{display:none}                  /* .themesw's display:inline-flex would show a bell that is not started */
   .fs-panel{position:fixed;z-index:80;width:380px;max-width:calc(100vw - 24px);max-height:min(560px,calc(100vh - 90px));display:flex;flex-direction:column;overflow:hidden;
     border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);box-shadow:0 18px 44px rgba(16,24,40,.24);font-size:13px;text-align:left}
   .fs-panel[hidden]{display:none}
+  .fs-secs{flex:1;min-height:0;overflow:auto}
+  .fs-sec{border-bottom:1px solid var(--line)}
+  .fs-sec:last-child{border-bottom:0}
+  .fs-sec-h{display:flex;align-items:center;gap:8px;width:100%;min-height:0;margin:0;padding:12px 14px;border:0;border-radius:0;background:transparent;color:var(--ink);font:inherit;font-weight:600;text-align:left;box-shadow:none;cursor:pointer}
+  .fs-sec-h:hover{background:var(--hover)}
+  .fs-sec-h:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}
+  .fs-arr{flex:none;width:16px;color:var(--muted);font-size:15px;line-height:1;text-align:center}
+  .fs-sec-t{flex:1;min-width:0}
+  .fs-sec-ok{flex:none;font-size:12px;font-weight:500;color:var(--accent-ink)}
+  .fs-sec-b{padding:0 0 6px}
+  .fs-sec-b .fs-list{flex:none;overflow:visible;padding:0}
+  .fs-sec-b .fs-it{padding-left:36px}
+  .fs-sec-b .fs-more{padding-left:36px}
+  .fs-sec-0{padding:2px 14px 10px 36px;font-size:12.5px;color:var(--accent-ink)}
+  .fs-scb{width:auto;min-height:0;margin:0;padding:3px 10px;font-size:12px;white-space:nowrap}
+  .fs-scdone{font-size:12px;font-weight:600;color:var(--accent-ink);white-space:nowrap}
+  .ls-rec-sc,.le-sc{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
+  :is(#paneHealth,#hkModal) .ls-rec-sc{grid-column:2}
   .fs-p-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
   .fs-x{width:28px;height:28px;min-height:0;margin:0;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:18px;line-height:1;box-shadow:none;cursor:pointer}
   .fs-x:hover{background:var(--hover);color:var(--ink)}
@@ -5957,7 +5976,7 @@
       <button id="fsBell" class="themesw fs-bell" type="button" aria-label="Fix status" aria-haspopup="dialog" aria-expanded="false" aria-controls="fsPanel" hidden>
         <span aria-hidden="true">&#128276;</span><span class="fs-badge" hidden></span>
       </button>
-      <div id="fsPanel" class="fs-panel" role="dialog" aria-label="Still not fixed on Amazon" hidden></div>
+      <div id="fsPanel" class="fs-panel" role="dialog" aria-label="Not accepted by Amazon" hidden></div>
       <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
       <button id="guideBtn" class="ghost" type="button"
             title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
@@ -14845,7 +14864,8 @@ function lrRecHtml(rec, where) {
     + `<b>${rec.bare && !stale ? '' : `<span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>`}${esc(rec.name)}${rec.bfHtml || ''}</b>`
     + (rec.sub ? `<small title="${esc(rec.sub)}">${esc(rec.sub)}</small>` : '') + '</div>'
     + `<div class="ls-rec-a"><span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}${rec.fill ? ' is-fill' : ''}" title="${esc(LR_TAG_TIP[tag] || (rec.fill ? 'Not an error: a gap worth filling.' : ''))}">${esc(tag)}</span>${fix}</div>`
-    + (rec.fix ? `<div class="ls-rec-how">${esc(rec.fix)}</div>` : '') + '</div>';
+    + (rec.fix ? `<div class="ls-rec-how">${esc(rec.fix)}</div>` : '')
+    + (rec.scHtml ? `<div class="ls-rec-sc">${rec.scHtml}</div>` : '') + '</div>';      // "I fixed this in Seller Central" (fix-status.js), already HTML
 }
 /* ---- the FOUR ANSWERS a check line gives (Rule Engine, 12 Nov 2026), on every Listing Health screen: ✓ Pass · ✕ Fix (the problem
  *      rows above, with their level word) · ○ Not checked (with the plain reason — never an error) · ◐ A person needs to look (with a
@@ -21985,6 +22005,8 @@ function lkHtml(kid, opts) {
     sub: [hit.what ? '' : hit.detail, hit.sev === 'critical' && hit.stale ? `from data ${ageOf(hit)} — Check now reads it again` : ''].filter(Boolean).join(' · '),
     fix: hit.fix, tag: hit.tag, kind: hit.kind, detector: hit.detector,
     bfHtml: typeof bfKidHtml === 'function' ? bfKidHtml(fill ? bfSpec(kid, '') : bfOf(kid, hit, hCtx())) : '',   // B / F dots (listing-bf.js)
+    // Amazon's own error: "I fixed this in Seller Central" (fix-status.js — a record only, nothing sent to Amazon)
+    scHtml: !fill && hit.detector === 'amazon_error' && typeof fsScBtnHtml === 'function' ? fsScBtnHtml(kid.brand, kid.sku) : '',
     attrs: fill ? ((kid.c.spec && kid.c.spec.attrs) || []) : ((kid.c[liWsColOf(hit)] || {}).attrs || []) }, { brand: kid.brand, sku: kid.sku });
   const group = (cls, title, items) => (items.length ? `<div class="ls-kidhead lk-gh ${cls}">${lrEsc(title)}<span class="ls-n">${liWsNf(items.length)}</span></div><div class="ls-recs">${items.join('')}</div>` : '');
   const errs = found.filter(hit => hit.sev === 'critical').map(hit => rec(hit, false));
@@ -28213,11 +28235,21 @@ function nlHealthEnsure() {
  *   FIXED IN SELLER CENTRAL: the errors Sellora knows per listing are kept in one shared document (history/fixwatch: each error and when it
  *     was first seen). An error gone from a newer read, with no Sellora send for that listing since it was first seen → "Fixed on Amazon
  *     (Seller Central) ✅" (kept 30 days).
- *   THE BELL: red count = ⚠️ + ❌ not marked as seen by THIS user (history/fixseen_<user>, remembered across computers; this browser's
- *     copy as a fallback). Its panel: each one, Open listing, Mark as seen; "✅ N fixes confirmed by Amazon today"; See all fix status →.
+ *   DONE IN SELLER CENTRAL (24 Nov 2026, later the same day): "I fixed this in Seller Central" on each Amazon error row (Listing Errors,
+ *     Listing Health's listing panel) saves a record in the shared history/fixsc { recs: { id: { brand, sku, fi, at, by, name, how } } } —
+ *     NOTHING is sent to Amazon; Undo for 1 minute (the same person). AUTO-DETECTED: a listing with an open error whose read VALUES
+ *     (title, search words, bullets / description sizes, highlights, colour, pictures) changed with no Sellora send since → a record
+ *     how 'auto' (fsWatchStep, from the reads Sellora already makes). Both are judged like a Sellora fix: ✅ when a read after it no longer
+ *     shows those issues; ⚠️ when still showing 24 h after; the stale hint from 3 days.
+ *   THE BELL "Not accepted by Amazon": ONLY ⚠️ / ❌ not marked as seen by THIS user (history/fixseen_<user>, remembered across
+ *     computers; this browser's copy as a fallback), in two sections that open with their arrow — ▸ Done in Sellora (N) · ▸ Done in
+ *     Seller Central (N) — closed at first, remembered per user. ✅ and ⏳ are only in Listing History → Fix status. Red count = the same.
  *   THE DAILY EMAIL (optional, Pricing-API/FixStatus.gs, not deployed) reads history/fixstatus — the ⚠️ / ❌ list this page keeps.
  *   Nothing is written on the test site (sqIsTest): there it shows only what is there.
- * Main functions: fsJobInfo, fsFresh, fsCompute, fsWatchStep, fsStart, fsRefresh, fsBellDraw, fsPanelHtml, fsPageHtml, fsKidLine. */
+ *   STARTS once the account's rights are APPLIED (core/access.js applyPerms replaces TAB_OK — the placeholder in core/nav.js is a
+ *     function from page load, so "a function" is not enough), checks again for 2 minutes, and a click on the bell starts it too.
+ * Main functions: fsJobInfo, fsFresh, fsCompute, fsWatchStep, fsStart, fsRefresh, fsBellDraw, fsPanelHtml, fsPageHtml, fsKidLine,
+ *   fsScMark, fsScUndo, fsScBtnHtml. */
 
 const FS_DAY = 86400000;
 const FS_STILL_MS = 24 * 3600000;          // "Still on Amazon" from 24 h after the send
@@ -28227,8 +28259,11 @@ const FS_SC_KEEP = 30 * FS_DAY;             // a Seller Central fix stays listed
 const FS_WATCH_MS = 10 * 60000;             // the shared watch / summary are brought up to date at most every 10 minutes
 const FS_STALE_HINT = 'Likely stale on Amazon — re-submit once, or open a Seller Central case';
 const FS_STATES = { fixed: '✅ Fixed', checking: '⏳ Checking', still: '⚠️ Still on Amazon', newerr: '❌ New error after fix', scfixed: '✅ Fixed in Seller Central' };
+const FS_UNDO_MS = 60000;                   // "I fixed this in Seller Central" can be undone for 1 minute
 const FS = { on: false, rows: null, recs: [], sig: null, seen: new Set(), seenLoaded: false, watch: null, watchAt: 0, sumSig: '', sumAt: 0, timer: 0,
-  open: false, f: { brand: '', state: '', who: '', range: '30' }, busy: false, err: '' };
+  open: false, f: { brand: '', state: '', who: '', range: '30', done: '' }, busy: false, err: '',
+  sec: { sellora: false, sc: false },        // the bell's two sections: open (▾) or closed (▸), per user
+  marks: {}, marksV: 0 };                    // the Seller Central records (history/fixsc), by id
 const fsEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const fsIsErr = i => /^E/i.test(String((i && (i.s || i.severity)) || ''));
 const fsAttrs = i => (i.a || i.attrs || i.attributeNames || []).map(String);
@@ -28310,8 +28345,9 @@ function fsFieldIssues(r, iss) {
   });
 }
 /** Every fix of the last FS_LIST_DAYS days, judged — plus the Seller Central fixes. rows: Listing History rows; o: { fresh(brand, sku),
- *  pics(brand, sku), sc: { key: { brand, sku, k, c, m, seen, gone } }, now }. → [{ id, key, brand, sku, asin, label, field, issue, code,
- *  who, at, readAt, state, hint, newErr, by: 'sellora' | 'sc', confirmedAt }] newest first. A later fix of the same field replaces one. */
+ *  pics(brand, sku), sc: { key: { brand, sku, k, c, m, seen, gone } }, marks: { id: { brand, sku, fi, at, by, name, how, del } }, now }.
+ *  → [{ id, key, brand, sku, asin, label, field, issue, code, who, at, readAt, state, hint, newErr, by: 'sellora' | 'sc',
+ *  how ('mark' | 'auto' | 'gone' for 'sc'), confirmedAt }] newest first. A later fix of the same field replaces one. */
 function fsCompute(rows, o) {
   const now = (o && o.now) || Date.now();
   const from = now - FS_LIST_DAYS * FS_DAY;
@@ -28348,11 +28384,33 @@ function fsCompute(rows, o) {
       code: fi[0] ? fi[0].c : onField[0] ? String(onField[0].c || onField[0].code || '') : '', who: r.name || '', at: r.at, readAt: after ? readAt : 0, state, hint,
       newErr: newErr[0] ? { c: String(newErr[0].c || ''), m: String(newErr[0].m || '') } : null, by: 'sellora', confirmedAt: state === 'fixed' ? readAt : 0, run: r.run || '' });
   });
+  // Done in Seller Central — marked by a person, or auto-detected: judged like a Sellora fix, on the issues it was about (fi)
+  const marked = [];
+  Object.keys((o && o.marks) || {}).forEach(id => {
+    const m = o.marks[id];
+    if (!m || m.del || !m.brand || !m.sku || !(m.at >= from)) return;
+    const fi = Array.isArray(m.fi) ? m.fi : [];
+    const e = o.fresh ? o.fresh(m.brand, m.sku) : null;
+    const iss = (e && e.iss) || [];
+    const readAt = e ? Math.max(e.gAt || 0, e.at || 0) : 0;
+    const after = readAt > m.at;
+    const still = fi.filter(t => iss.some(i => fsHit(t, i)));
+    const age = now - m.at;
+    const state = !after ? 'checking' : !still.length ? 'fixed' : age < FS_STILL_MS ? 'checking' : 'still';
+    const hint = state === 'still' && age >= FS_STALE_MS ? FS_STALE_HINT
+      : state === 'checking' && !after && age >= FS_STILL_MS ? 'Not read from Amazon since it was marked — Check now in Listing Health reads it' : '';
+    const t = still[0] || fi[0] || {};
+    marked.push({ brand: m.brand, sku: m.sku, keys: new Set(fi.map(fsKey)) });
+    out.push({ id: 'm:' + id, key: 'm:' + id, mark: id, brand: m.brand, sku: m.sku, asin: '', label: m.sku, field: '', attr: '', issue: t.m || ('Amazon error ' + (t.c || '')),
+      code: t.c || '', who: m.how === 'auto' ? '' : (m.name || ''), whoBy: m.by || '', at: m.at, readAt: after ? readAt : 0, state, hint, newErr: null, by: 'sc', how: m.how === 'auto' ? 'auto' : 'mark',
+      confirmedAt: state === 'fixed' ? readAt : 0, n: fi.length });
+  });
   Object.keys((o && o.sc) || {}).forEach(k => {
     const s = o.sc[k];
     if (!s || now - s.gone > FS_SC_KEEP) return;
+    if (marked.some(m => m.brand === s.brand && m.sku === s.sku && m.keys.has(s.k))) return;     // that one is already followed as a record
     out.push({ id: 'sc:' + k, key: 'sc:' + k, brand: s.brand, sku: s.sku, asin: '', label: s.sku, field: '', attr: '', issue: s.m || ('Amazon error ' + s.c), code: s.c || '',
-      who: 'Seller Central', at: s.gone, readAt: s.gone, state: 'scfixed', hint: '', newErr: null, by: 'sc', confirmedAt: s.gone, seen: s.seen });
+      who: '', at: s.gone, readAt: s.gone, state: 'scfixed', hint: '', newErr: null, by: 'sc', how: 'gone', confirmedAt: s.gone, seen: s.seen });
   });
   return out.sort((a, b) => b.at - a.at);
 }
@@ -28372,28 +28430,53 @@ function fsAlerts(recs) {
 /* ----- fixed in Seller Central: the shared watch of the errors Sellora knows ----- */
 /** One step of the watch: saved = { at, e: { 'brand|sku': { 'code|attrs': { s: first seen, m } } }, sc }; cur = Map 'brand|sku' → { at (its
  *  read), errs: [{ k, m }] } for the listings read; rows = Listing History rows (Sellora's sends). An error in the saved watch that a NEWER
- *  read no longer shows, with no Sellora send for that listing since it was first seen → a Seller Central fix. → the new { at, e, sc }. */
-function fsWatchStep(saved, cur, rows, now) {
+ *  read no longer shows, with no Sellora send for that listing since it was first seen → a Seller Central fix.
+ *  AUTO-DETECTED: cur's `h` (the listing's read values as one short code, fsValSig) and `vAt` (when read) — kept in v for each listing
+ *  with an open error. The values changed in a newer read, the listing had an open error before, at least one of those errors still
+ *  shows, no Sellora send since and no Seller Central record since (marks) → one record { brand, sku, fi (the errors it had), at, how:
+ *  'auto' } in `auto` (written to history/fixsc by fsShare, not kept in the watch). → the new { at, e, sc, v, auto }. */
+function fsWatchStep(saved, cur, rows, now, marks) {
   const s = saved || {};
   const e = {};
+  const v = {};
+  const auto = [];
   const sc = Object.assign({}, s.sc || {});
   const sentSince = (brand, sku, t) => (rows || []).some(r => r && r.brand === brand && r.sku === sku && r.at >= t - 60000 && r.result !== 'notsent');
+  const markedSince = (brand, sku, t) => Object.keys(marks || {}).some(id => { const m = marks[id]; return m && !m.del && m.brand === brand && m.sku === sku && m.at >= t; });
   cur.forEach((c, k) => {
     const was = (s.e || {})[k] || {};
     const keep = {};
     c.errs.forEach(x => { keep[x.k] = { s: was[x.k] ? was[x.k].s : c.at, m: String(x.m || '').slice(0, 160) }; });
     if (Object.keys(keep).length) e[k] = keep;
-    if (!s.at || !(c.at > s.at)) return;
     const cut = k.indexOf('|');
     const brand = k.slice(0, cut), sku = k.slice(cut + 1);
+    // the values: kept for a listing with an open error (before or now); a change while an error stays → auto-detected
+    const vWas = (s.v || {})[k];
+    if (c.h && (Object.keys(keep).length || Object.keys(was).length)) v[k] = { h: c.h, at: c.vAt || c.at };
+    if (c.h && vWas && vWas.h && vWas.h !== c.h && (c.vAt || c.at) > vWas.at && Object.keys(was).length
+      && Object.keys(was).some(ek => keep[ek]) && !sentSince(brand, sku, vWas.at) && !markedSince(brand, sku, vWas.at)) {
+      auto.push({ brand, sku, at: c.vAt || c.at, since: vWas.at, how: 'auto', by: '', name: '',
+        fi: Object.keys(was).slice(0, 8).map(ek => { const [code, attrs] = ek.split('|'); return { c: code, s: 'E', m: was[ek].m || '', a: String(attrs || '').split(',').filter(Boolean) }; }) });
+    }
+    if (!s.at || !(c.at > s.at)) return;
     Object.keys(was).forEach(ek => {
       if (keep[ek] || sentSince(brand, sku, was[ek].s)) return;
       sc[k + '|' + ek] = { brand, sku, k: ek, c: ek.split('|')[0], m: was[ek].m || '', seen: was[ek].s, gone: c.at };
     });
   });
   Object.keys(s.e || {}).forEach(k => { if (!cur.has(k)) e[k] = s.e[k]; });      // not read now: kept as it was
+  Object.keys(s.v || {}).forEach(k => { if (!cur.has(k) && s.e && s.e[k]) v[k] = s.v[k]; });
   Object.keys(sc).forEach(k => { if (now - sc[k].gone > FS_SC_KEEP) delete sc[k]; });
-  return { at: now, e, sc };
+  return { at: now, e, sc, v, auto };
+}
+// A listing's read values as one short code: the title, search words, bullet / description sizes, highlights, colour and pictures.
+function fsValSig(e, pics) {
+  if (!e || !e.cAt || !e.gAt) return '';
+  const img = pics && pics.img ? Object.keys(pics.img).sort().map(k => k + '=' + fsPicId((pics.img[k] && pics.img[k].u) || pics.img[k])).join(',') : '';
+  const text = [e.title || '', e.kw || '', e.bul || 0, e.desc || 0, (e.hl || []).join('|'), e.color || '', img].join('\u0001');
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h.toString(36);
 }
 // The errors of every listing read now: Map 'brand|sku' → { at, errs }.
 function fsWatchNow() {
@@ -28401,7 +28484,9 @@ function fsWatchNow() {
   ['SP', 'CPC'].forEach(b => ((typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].rows) || []).forEach(row => {
     const e = fsFresh(b, row.sku);
     if (!e || !e.gAt || e.lmStale) return;
-    cur.set(b + '|' + row.sku, { at: e.gAt, errs: (e.iss || []).filter(fsIsErr).map(i => ({ k: fsKey(i), m: i.m || i.message || '' })) });
+    const pics = fsPics(b, row.sku);
+    cur.set(b + '|' + row.sku, { at: e.gAt, errs: (e.iss || []).filter(fsIsErr).map(i => ({ k: fsKey(i), m: i.m || i.message || '' })),
+      h: fsValSig(e, pics), vAt: Math.max(e.cAt || 0, e.gAt || 0) });
   }));
   return cur;
 }
@@ -28425,11 +28510,105 @@ function fsSeenId() {
 }
 async function fsSeenLoad() {
   try { JSON.parse(localStorage.getItem('sellora.' + fsSeenId()) || '[]').forEach(k => FS.seen.add(k)); } catch (e) { /* none kept here */ }
+  try { const o = JSON.parse(localStorage.getItem('sellora.fsopen.' + fsSeenId()) || 'null'); if (o) FS.sec = { sellora: !!o.sellora, sc: !!o.sc }; } catch (e) { /* closed */ }
   try {
     const snap = await getDoc(doc(db, 'history', fsSeenId()));
-    if (snap.exists()) Object.keys((snap.data() || {}).seen || {}).forEach(k => FS.seen.add(k));
+    const d = snap.exists() ? snap.data() || {} : {};
+    Object.keys(d.seen || {}).forEach(k => FS.seen.add(k));
+    if (d.open && typeof d.open === 'object') FS.sec = { sellora: !!d.open.sellora, sc: !!d.open.sc };
   } catch (e) { /* this browser's copy */ }
   FS.seenLoaded = true;
+}
+/** Open or close one of the bell's sections (▸ / ▾) — remembered for this user (their own document, this browser's copy too). */
+function fsSecToggle(k) {
+  if (!(k in FS.sec)) return;
+  FS.sec = Object.assign({}, FS.sec, { [k]: !FS.sec[k] });
+  try { localStorage.setItem('sellora.fsopen.' + fsSeenId(), JSON.stringify(FS.sec)); } catch (e) { /* private window */ }
+  if (FS.open) fsPanelDraw();
+  if (!fsTest()) { try { setDoc(doc(db, 'history', fsSeenId()), { open: FS.sec, at: serverTimestamp() }, { merge: true }).catch(() => {}); } catch (e) { /* kept in this browser */ } }
+}
+
+/* ----- done in Seller Central: "I fixed this in Seller Central" (and the auto-detected ones) — history/fixsc, nothing sent to Amazon ----- */
+// Amazon's issues on a listing now (any level, with a code): the newest read, else Listing Errors' snapshot.
+function fsScIssues(brand, sku) {
+  const e = fsFresh(brand, sku);
+  let iss = (e && e.iss) || [];
+  if (!iss.length && typeof IML !== 'undefined' && IML[brand] && Array.isArray(IML[brand].items)) {
+    const x = IML[brand].items.find(it => it.sku === sku);
+    iss = (x && x.iss) || [];
+  }
+  return iss.filter(i => String(i.c || i.code || '')).slice(0, 8).map(i => ({ c: String(i.c || i.code || ''), s: String(i.s || i.severity || '').charAt(0).toUpperCase(),
+    m: String(i.m || i.message || '').slice(0, 240), a: fsAttrs(i).slice(0, 4) }));
+}
+const fsMarkId = (brand, sku, at) => `${at}-${brand}-${sku}`.replace(/[.\/~*\[\]`]/g, '_');
+// The newest Seller Central record still followed for a listing (not undone, not yet ✅), or null.
+function fsScOpen(brand, sku) {
+  const r = FS.recs.find(x => x.by === 'sc' && x.mark && x.brand === brand && x.sku === sku);
+  return r && r.state !== 'fixed' ? r : null;
+}
+/** "I fixed this in Seller Central": a record of the issues Amazon shows now on that listing, who and when — Sellora follows it like
+ *  its own fix. Nothing is sent to Amazon. → the record's id, or '' (no issue known to follow). */
+function fsScMark(brand, sku) {
+  const fi = fsScIssues(brand, sku);
+  if (!brand || !sku || !fi.length) return '';
+  const at = Date.now();
+  const id = fsMarkId(brand, sku, at);
+  const by = typeof sqBy === 'function' ? sqBy() : String((ME && ME.email) || '');
+  const rec = { brand, sku, fi, at, by, name: typeof sqName === 'function' ? sqName(by) : by, how: 'mark' };
+  FS.marks = Object.assign({}, FS.marks, { [id]: rec });
+  FS.marksV++;
+  FS.sig = null;
+  fsRefresh();
+  fsScRedraw();
+  setTimeout(fsScRedraw, FS_UNDO_MS + 500);                       // the Undo goes after a minute
+  if (!fsTest()) { try { setDoc(doc(db, 'history', 'fixsc'), { recs: { [id]: rec }, at: at }, { merge: true }).catch(e => { FS.err = String((e && e.message) || e); }); } catch (e) { /* kept here */ } }
+  return id;
+}
+// May this person still undo that record? Their own, within a minute.
+function fsScMayUndo(id) {
+  const m = FS.marks[id];
+  const me = typeof sqBy === 'function' ? sqBy() : String((ME && ME.email) || '');
+  return !!(m && !m.del && m.how === 'mark' && m.by === me && Date.now() - m.at < FS_UNDO_MS);
+}
+/** Undo (1 minute, the same person): the record is dropped — kept as undone in the shared document. */
+function fsScUndo(id) {
+  if (!fsScMayUndo(id)) return false;
+  const delAt = Date.now();
+  FS.marks = Object.assign({}, FS.marks, { [id]: Object.assign({}, FS.marks[id], { del: true, delAt }) });
+  FS.marksV++;
+  FS.sig = null;
+  fsRefresh();
+  fsScRedraw();
+  if (!fsTest()) { try { setDoc(doc(db, 'history', 'fixsc'), { recs: { [id]: { del: true, delAt } }, at: delAt }, { merge: true }).catch(() => {}); } catch (e) { /* kept here */ } }
+  return true;
+}
+// The other people's records (and the auto-detected ones): the shared document, laid over what this browser holds.
+async function fsScLoad() {
+  try {
+    const snap = await getDoc(doc(db, 'history', 'fixsc'));
+    const recs = snap.exists() ? (snap.data() || {}).recs || {} : {};
+    const next = Object.assign({}, FS.marks);
+    Object.keys(recs).forEach(id => { next[id] = Object.assign({}, next[id] || {}, recs[id]); });
+    FS.marks = next;
+    FS.marksV++;
+  } catch (e) { /* none yet */ }
+}
+/** The button on an Amazon error row (Listing Errors, Listing Health's listing panel): "I fixed this in Seller Central"; once marked,
+ *  "✓ Marked as fixed in Seller Central" (+ Undo for a minute). '' for someone who is not a Listing user, or no Amazon issue known. */
+function fsScBtnHtml(brand, sku) {
+  if (!FS.on || !brand || !sku) return '';
+  const open = fsScOpen(brand, sku);
+  if (open) {
+    const undo = fsScMayUndo(open.mark) ? ` <button type="button" class="ghost fs-scb fs-undo" data-fs-undo="${fsEsc(open.mark)}">Undo</button>` : '';
+    return `<span class="fs-scdone" title="Marked by ${fsEsc(open.who || 'auto-detection')} ${fsEsc(fsWhen(open.at))} — Sellora follows it until Amazon no longer shows it">✓ Marked as fixed in Seller Central</span>${undo}`;
+  }
+  if (!fsScIssues(brand, sku).length) return '';
+  return `<button type="button" class="ghost fs-scb" data-fs-sc="${fsEsc(brand + '|' + sku)}" title="Saves that you fixed it in Seller Central — nothing is sent to Amazon. Sellora follows it: ✅ when Amazon no longer shows it.">I fixed this in Seller Central</button>`;
+}
+// Redraw the screens that show the button.
+function fsScRedraw() {
+  try { if (typeof leRender === 'function' && $('leList') && !($('paneLerr') && $('paneLerr').classList.contains('hide'))) leRender(); } catch (e) { /* drawn next time */ }
+  try { if (typeof LK !== 'undefined' && LK.key && typeof lkRender === 'function') lkRender(true); } catch (e) { /* drawn next time */ }
 }
 /** Mark one item as seen, for this user: it leaves the bell's count and panel, and stays in the full list. */
 async function fsMarkSeen(id) {
@@ -28461,10 +28640,10 @@ function fsNoteSent(rows) {
 function fsRefresh() {
   if (!FS.on) return;
   const sig = [FS.rows, FS.watch, typeof lmVersion === 'function' ? lmVersion() : 0, typeof LM !== 'undefined' ? LM.ov : 0,
-    typeof LI_WS !== 'undefined' ? LI_WS.liveV : 0, FS.seen.size, Math.floor(Date.now() / 600000)];
+    typeof LI_WS !== 'undefined' ? LI_WS.liveV : 0, FS.seen.size, FS.marksV, Math.floor(Date.now() / 600000)];
   if (FS.sig && FS.sig.length === sig.length && FS.sig.every((x, i) => x === sig[i])) return;
   FS.sig = sig;
-  FS.recs = fsCompute(FS.rows || [], { fresh: fsFresh, pics: fsPics, sc: (FS.watch && FS.watch.sc) || {}, now: Date.now() });
+  FS.recs = fsCompute(FS.rows || [], { fresh: fsFresh, pics: fsPics, sc: (FS.watch && FS.watch.sc) || {}, marks: FS.marks, now: Date.now() });
   fsBellDraw();
   if (FS.open) fsPanelDraw();
   fsPageDraw();
@@ -28479,15 +28658,27 @@ async function fsShare() {
   FS.busy = true;
   FS.watchAt = Date.now();
   try {
+    await fsScLoad();                                              // the other people's Seller Central records first
     const snap = await getDoc(doc(db, 'history', 'fixwatch'));
     const saved = snap.exists() ? snap.data() || {} : {};
-    const next = fsWatchStep(saved, cur, FS.rows || [], Date.now());
-    // written only when what it knows changed (an error came or went) — not every 10 minutes by every Listing user
-    if (JSON.stringify([next.e, next.sc]) !== JSON.stringify([saved.e || {}, saved.sc || {}]) || !saved.at) await setDoc(doc(db, 'history', 'fixwatch'), { at: next.at, e: next.e, sc: next.sc });
+    const next = fsWatchStep(saved, cur, FS.rows || [], Date.now(), FS.marks);
+    // written only when what it knows changed (an error came or went, a value changed) — not every 10 minutes by every Listing user
+    if (JSON.stringify([next.e, next.sc, next.v]) !== JSON.stringify([saved.e || {}, saved.sc || {}, saved.v || {}]) || !saved.at) await setDoc(doc(db, 'history', 'fixwatch'), { at: next.at, e: next.e, sc: next.sc, v: next.v });
     else next.at = saved.at;
+    // auto-detected (a value changed in Seller Central while an error stays): one record each, followed like a person's mark
+    if (next.auto.length) {
+      const add = {};
+      next.auto.forEach(a => { const id = 'auto-' + fsMarkId(a.brand, a.sku, a.at); if (!FS.marks[id]) add[id] = a; });
+      if (Object.keys(add).length) {
+        FS.marks = Object.assign({}, FS.marks, add);
+        FS.marksV++;
+        await setDoc(doc(db, 'history', 'fixsc'), { recs: add, at: Date.now() }, { merge: true });
+      }
+    }
+    delete next.auto;
     FS.watch = next;
     const alerts = fsAlerts(FS.recs).slice(0, 200).map(r => ({ brand: r.brand, sku: r.sku, state: r.state, issue: String(r.issue || '').slice(0, 200),
-      at: r.at, who: r.who, hint: r.hint || '', err: r.newErr ? r.newErr.m.slice(0, 200) : '' }));
+      at: r.at, who: r.who, hint: r.hint || '', err: r.newErr ? r.newErr.m.slice(0, 200) : '', done: fsDoneWords(r) }));
     const sumSig = JSON.stringify(alerts.map(a => [a.brand, a.sku, a.state, a.issue, a.at]));
     if (sumSig !== FS.sumSig) {
       FS.sumSig = sumSig;
@@ -28517,45 +28708,55 @@ function fsBellDraw() {
   const n = FS.on && !fsLocal() ? fsUnseen().length : 0;          // no red count at 0, nor on a test / local copy
   const badge = btn.querySelector ? btn.querySelector('.fs-badge') : null;
   if (badge) { badge.hidden = !n; badge.textContent = n > 99 ? '99+' : String(n); }
-  btn.setAttribute('aria-label', n ? `Fix status: ${n} still not fixed on Amazon` : 'Fix status: nothing waiting');
-  btn.title = n ? `${n} fix${n === 1 ? '' : 'es'} still not fixed on Amazon` : 'Fix status — every fix confirmed or being checked';
+  btn.setAttribute('aria-label', n ? `Fix status: ${n} not accepted by Amazon` : 'Fix status: nothing waiting');
+  btn.title = n ? `${n} fix${n === 1 ? '' : 'es'} not accepted by Amazon` : 'Fix status — nothing rejected by Amazon';
   btn.classList.toggle('has-n', !!n);
 }
-// What an item says: "fixed 26 hours ago — Amazon still shows it" / "new error after the fix: …".
+// Where a fix was done, in words: "Sellora" / "Seller Central (marked by Asha K)" / "Seller Central (auto-detected)" / "Seller Central".
+const fsDoneWords = r => (r.by !== 'sc' ? 'Sellora' : r.how === 'mark' ? `Seller Central (marked by ${r.who || 'someone'})` : r.how === 'auto' ? 'Seller Central (auto-detected)' : 'Seller Central');
+// What an item says: "fixed 26 hours ago — Amazon still shows it" / "New error after fix: …".
 function fsItemWords(r, now) {
-  if (r.state === 'newerr') return `fixed ${fsHours(now - r.at)} ago — a new error appeared: ${r.newErr ? r.newErr.m : ''}`;
+  if (r.state === 'newerr') return `New error after fix${r.newErr && r.newErr.m ? ': ' + r.newErr.m : ''}`;
   if (r.state === 'still') return `fixed ${fsHours(now - r.at)} ago — Amazon still shows it`;
   if (r.state === 'checking') return `fixed ${fsHours(now - r.at)} ago — checking`;
   if (r.state === 'scfixed') return `fixed in Seller Central ${fsDate(r.at)}`;
   return `fixed — confirmed ${fsDate(r.confirmedAt)}`;
 }
 const fsIssueWords = r => String(r.issue || r.field || '').replace(/\s+/g, ' ').slice(0, 140) + (r.code ? ` (${r.code})` : '');
+// One item in the bell: SKU · the issue in plain words · "fixed 26 hours ago — Amazon still shows it" · Open listing · Mark as seen.
+const fsItemHtml = (r, t) => `<li class="fs-it is-${r.state}"><div class="fs-it-h"><span class="fs-st" aria-hidden="true">${r.state === 'newerr' ? '❌' : '⚠️'}</span>`
+  + `<b class="fs-sku">${fsEsc(r.sku)}</b><span class="muted">${fsEsc(fsBrandName(r.brand))}${r.by === 'sc' && r.how === 'mark' && r.who ? ' · marked by ' + fsEsc(r.who) : r.how === 'auto' ? ' · auto-detected' : ''}</span></div>`
+  + `<div class="fs-it-i">${fsEsc(fsIssueWords(r))}</div><div class="fs-it-w">${fsEsc(fsItemWords(r, t))}</div>${r.hint ? `<div class="fs-it-hint">${fsEsc(r.hint)}</div>` : ''}`
+  + `<div class="fs-it-a"><button type="button" class="ghost fs-b" data-fs-open="${fsEsc(r.brand + '|' + r.sku)}">Open listing</button>`
+  + `<button type="button" class="ghost fs-b" data-fs-seen="${fsEsc(r.id)}">Mark as seen</button></div></li>`;
+const FS_SECS = [['sellora', 'Done in Sellora'], ['sc', 'Done in Seller Central']];
+// One section: ▸ Done in Sellora (N) — a click opens it (▾); 0 → "✅ Nothing rejected".
+function fsSecHtml(k, title, items, t) {
+  const open = !!FS.sec[k];
+  const n = items.length;
+  const shown = items.slice(0, 12);
+  const body = n ? `<ul class="fs-list">${shown.map(r => fsItemHtml(r, t)).join('')}</ul>${n > shown.length ? `<div class="fs-more muted">+ ${n - shown.length} more in Fix status</div>` : ''}`
+    : '<div class="fs-sec-0">✅ Nothing rejected</div>';
+  return `<div class="fs-sec${open ? ' is-open' : ''}${n ? '' : ' is-0'}"><button type="button" class="fs-sec-h" data-fs-sec="${k}" aria-expanded="${open}">`
+    + `<span class="fs-arr" aria-hidden="true">${open ? '▾' : '▸'}</span><span class="fs-sec-t">${fsEsc(title)} (${n})</span>`
+    + `${!n && !open ? '<span class="fs-sec-ok">✅ Nothing rejected</span>' : ''}</button>${open ? `<div class="fs-sec-b">${body}</div>` : ''}</div>`;
+}
 function fsPanelHtml(now) {
   const t = now || Date.now();
-  const head = '<div class="fs-p-h"><b>Still not fixed on Amazon</b><button type="button" class="fs-x" data-fs-close="1" aria-label="Close">×</button></div>';
-  const all = '<button type="button" class="fs-all" data-fs-all="1">See all fix status →</button>';
-  // a test site / a local copy: nothing is sent to Amazon from it, so there is nothing to track here
-  if (fsLocal()) return head + '<div class="fs-empty">Test site — fixes aren\'t sent to Amazon here, so there\'s nothing to track. Real fix status shows on live Sellora.</div>'
-    + `<div class="fs-p-f"><span></span>${all}</div>`;
-  if (!FS.loaded) return head + '<div class="fs-empty muted">Checking your fixes against Amazon…</div>' + `<div class="fs-p-f"><span></span>${all}</div>`;
-  const items = fsUnseen().slice(0, 12);
-  const okToday = fsFixedToday();
-  if (!items.length) {
-    const seen = fsAlerts(FS.recs).length, checking = FS.recs.filter(r => r.state === 'checking').length;
-    return head + (seen ? `<div class="fs-empty">Nothing new waiting — the ${seen} you marked as seen ${seen === 1 ? 'is' : 'are'} still in Fix status.</div>`
-      : '<div class="fs-empty is-ok">✅ All fixes accepted by Amazon — nothing waiting.</div>')
-      + (checking ? `<div class="fs-empty-sub muted">⏳ ${checking} recent fix${checking === 1 ? ' is' : 'es are'} still being checked.</div>` : '')
-      + `<div class="fs-p-f"><span>${okToday ? `✅ ${okToday} fix${okToday === 1 ? '' : 'es'} confirmed by Amazon today` : ''}</span>${all}</div>`;
+  const head = '<div class="fs-p-h"><b>Not accepted by Amazon</b><button type="button" class="fs-x" data-fs-close="1" aria-label="Close">×</button></div>';
+  const foot = '<div class="fs-p-f"><span></span><button type="button" class="fs-all" data-fs-all="1">See all fix status →</button></div>';
+  // a test site / a local copy: nothing is sent to Amazon from it — its own words first, then what is there
+  const local = fsLocal() ? '<div class="fs-empty">Test site — fixes aren\'t sent to Amazon here, so there\'s nothing to track. Real fix status shows on live Sellora.</div>' : '';
+  if (!FS.loaded) return head + local + '<div class="fs-empty muted">Checking your fixes against Amazon…</div>' + foot;
+  // ONLY what Amazon has not accepted (⚠️ still showing after 24 h, ❌ a new error after the fix) — ✅ / ⏳ are in Fix status only
+  const items = fsUnseen();
+  const by = k => items.filter(r => (k === 'sc' ? r.by === 'sc' : r.by !== 'sc'));
+  if (!items.length && !local) {
+    const seen = fsAlerts(FS.recs).length;
+    return head + '<div class="fs-empty is-ok">✅ All fixes accepted by Amazon — nothing waiting.</div>'
+      + (seen ? `<div class="fs-empty-sub muted">${seen} you marked as seen ${seen === 1 ? 'is' : 'are'} still in Fix status.</div>` : '') + foot;
   }
-  const list = items.length ? items.map(r => `<li class="fs-it is-${r.state}"><div class="fs-it-h"><span class="fs-st" aria-hidden="true">${r.state === 'newerr' ? '❌' : '⚠️'}</span>`
-    + `<b class="fs-sku">${fsEsc(r.sku)}</b><span class="muted">${fsEsc(fsBrandName(r.brand))}</span></div>`
-    + `<div class="fs-it-i">${fsEsc(fsIssueWords(r))}</div><div class="fs-it-w">${fsEsc(fsItemWords(r, t))}</div>${r.hint ? `<div class="fs-it-hint">${fsEsc(r.hint)}</div>` : ''}`
-    + `<div class="fs-it-a"><button type="button" class="ghost fs-b" data-fs-open="${fsEsc(r.brand + '|' + r.sku)}">Open listing</button>`
-    + `<button type="button" class="ghost fs-b" data-fs-seen="${fsEsc(r.id)}">Mark as seen</button></div></li>`).join('')
-    : '<li class="fs-none">Nothing waiting — every fix is confirmed by Amazon or still being checked.</li>';
-  const more = fsUnseen().length - items.length;
-  return head + `<ul class="fs-list">${list}</ul>${more > 0 ? `<div class="fs-more muted">+ ${more} more in Fix status</div>` : ''}`
-    + `<div class="fs-p-f"><span>✅ ${okToday} fix${okToday === 1 ? '' : 'es'} confirmed by Amazon today</span>${all}</div>`;
+  return head + local + `<div class="fs-secs">${FS_SECS.map(([k, title]) => fsSecHtml(k, title, by(k), t)).join('')}</div>` + foot;
 }
 function fsPanelDraw() {
   const box = $('fsPanel');
@@ -28598,7 +28799,8 @@ function fsOpenListing(brand, sku) {
 function fsPageRecs() {
   const f = FS.f;
   const from = f.range === 'all' ? 0 : Date.now() - Number(f.range || 30) * FS_DAY;
-  return FS.recs.filter(r => (!f.brand || r.brand === f.brand) && (!f.state || r.state === f.state) && (!f.who || r.who === f.who) && r.at >= from);
+  return FS.recs.filter(r => (!f.brand || r.brand === f.brand) && (!f.state || r.state === f.state) && (!f.who || r.who === f.who)
+    && (!f.done || (f.done === 'sc' ? r.by === 'sc' : r.by !== 'sc')) && r.at >= from);
 }
 function fsPageHtml() {
   if (!FS.on) return '<div class="card lh-empty muted">Fix status is for Listing users.</div>';
@@ -28611,15 +28813,16 @@ function fsPageHtml() {
   const now = Date.now();
   const rows = recs.map(r => `<tr class="fs-row is-${r.state}"><td class="ui-mono">${fsEsc(r.sku)}</td><td>${fsEsc(fsBrandName(r.brand))}</td>`
     + `<td class="fs-issue">${fsEsc(fsIssueWords(r))}${r.newErr ? `<small class="fs-new">New error: ${fsEsc(r.newErr.m.slice(0, 160))}</small>` : ''}</td>`
-    + `<td>${r.by === 'sc' ? 'Seller Central' : 'Sellora'}</td><td>${fsEsc(r.by === 'sc' ? '—' : r.who)}</td><td>${fsWhen(r.at)}</td><td>${r.readAt ? fsWhen(r.readAt) : '<span class="muted">not yet</span>'}</td>`
+    + `<td>${fsEsc(fsDoneWords(r))}</td><td>${fsEsc(r.who || '—')}</td><td>${fsWhen(r.at)}</td><td>${r.readAt ? fsWhen(r.readAt) : '<span class="muted">not yet</span>'}</td>`
     + `<td class="fs-state"><span class="fs-tag is-${r.state}">${FS_STATES[r.state]}</span>${r.state === 'still' || r.state === 'checking' ? `<small>${fsEsc(fsHours(now - r.at))} since the fix</small>` : ''}</td>`
     + `<td class="fs-hint">${fsEsc(r.hint || '')}</td><td><button type="button" class="ghost lh-b" data-fs-open="${fsEsc(r.brand + '|' + r.sku)}">Open listing</button></td></tr>`).join('');
   return `<div class="fs-chips" role="group" aria-label="State">${chip('fixed', '✅ Fixed')}${chip('checking', '⏳ Checking')}${chip('still', '⚠️ Still on Amazon')}${chip('newerr', '❌ New error')}${chip('scfixed', 'Fixed in Seller Central')}</div>`
     + `<div class="card lh-tb"><div class="toolbar">${sel('brand', 'Both brands', [['SP', 'Ridhi'], ['CPC', 'CPC']])}${sel('state', 'Any state', Object.keys(FS_STATES).map(k => [k, FS_STATES[k]]))}`
+    + `${sel('done', 'Done in: anywhere', [['sellora', 'Done in: Sellora'], ['sc', 'Done in: Seller Central']])}`
     + `${sel('who', 'Everyone', who.map(w => [w, w]))}${sel('range', 'Sent in', [['7', 'Last 7 days'], ['30', 'Last 30 days'], ['all', 'Everything held']])}`
     + `<span style="flex:1"></span><button type="button" class="ghost" data-fs-reload="1">Refresh</button><button type="button" class="ghost" data-fs-csv="1">Download (CSV)</button></div>`
     + `<div class="lh-count muted">Results: ${recs.length} · checked against Amazon's newest read of each listing (the auto refresh every ~15 min, and Check now) — nothing is sent to Amazon here${FS.err ? ' · ' + fsEsc(FS.err) : ''}</div></div>`
-    + (recs.length ? `<div class="card xlwrap lh-wrap"><table class="xl lh-tbl fs-tbl"><thead><tr><th>SKU</th><th>Brand</th><th>Issue</th><th>Fixed by</th><th>Who</th><th>Sent at</th><th>Last checked</th><th>State</th><th>Hint</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    + (recs.length ? `<div class="card xlwrap lh-wrap"><table class="xl lh-tbl fs-tbl"><thead><tr><th>SKU</th><th>Brand</th><th>Issue</th><th>Done in</th><th>Who</th><th>Sent at</th><th>Last checked</th><th>State</th><th>Hint</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
       : fsLocal() && !all.length ? '<div class="card lh-empty"><b>Test site — fixes aren\'t sent to Amazon here, so there\'s nothing to track.</b> Real fix status shows on live Sellora.</div>'
         : `<div class="card lh-empty"><b>No fixes ${FS.rows ? 'match these filters' : 'read yet'}.</b> ${FS.rows ? '' : 'Reading Listing History…'}</div>`);
 }
@@ -28627,11 +28830,11 @@ function fsPageDraw() {
   const box = $('fsPage');
   if (box && !box.classList.contains('hide')) box.innerHTML = fsPageHtml();
 }
-const FS_CSV_COLS = ['SKU', 'Brand', 'Issue', 'Code', 'Fixed by', 'Who', 'Sent at', 'Last checked', 'State', 'New error', 'Hint'];
+const FS_CSV_COLS = ['SKU', 'Brand', 'Issue', 'Code', 'Done in', 'Who', 'Sent at', 'Last checked', 'State', 'New error', 'Hint'];
 function fsCsv(recs) {
   const q = v => { const s = String(v == null ? '' : v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const iso = ms => (ms ? new Date(ms).toISOString().replace('T', ' ').slice(0, 16) : '');
-  return '﻿' + [FS_CSV_COLS.join(',')].concat(recs.map(r => [r.sku, fsBrandName(r.brand), r.issue, r.code, r.by === 'sc' ? 'Seller Central' : 'Sellora', r.by === 'sc' ? '' : r.who,
+  return '﻿' + [FS_CSV_COLS.join(',')].concat(recs.map(r => [r.sku, fsBrandName(r.brand), r.issue, r.code, fsDoneWords(r), r.who || '',
     iso(r.at), iso(r.readAt), FS_STATES[r.state], r.newErr ? r.newErr.m : '', r.hint].map(q).join(','))).join('\r\n') + '\r\n';
 }
 function fsDownload() {
@@ -28650,13 +28853,14 @@ function fsDownload() {
 /** "Fixed in Sellora on 24 Nov — ⚠️ Amazon still shows it (26 h)" / "✅ Fixed — confirmed 24 Nov" for the newest fix of that listing, or ''. */
 function fsKidLine(brand, sku) {
   if (!FS.on) return '';
-  const r = FS.recs.find(x => x.brand === brand && x.sku === sku && x.by === 'sellora');
+  const r = FS.recs.find(x => x.brand === brand && x.sku === sku && (x.by === 'sellora' || x.mark));
   if (!r) return '';
   const h = Math.max(0, Math.round((Date.now() - r.at) / 3600000));
+  const where = r.by === 'sc' ? (r.how === 'auto' ? 'Changed in Seller Central (auto-detected)' : 'Marked fixed in Seller Central') : 'Fixed in Sellora';
   const text = r.state === 'fixed' ? `✅ Fixed — confirmed ${fsDate(r.confirmedAt)}`
-    : r.state === 'still' ? `Fixed in Sellora on ${fsDate(r.at)} — ⚠️ Amazon still shows it (${h} h)`
-      : r.state === 'newerr' ? `Fixed in Sellora on ${fsDate(r.at)} — ❌ a new error appeared after the fix`
-        : `Fixed in Sellora on ${fsDate(r.at)} — ⏳ checking (${h} h)`;
+    : r.state === 'still' ? `${where} on ${fsDate(r.at)} — ⚠️ Amazon still shows it (${h} h)`
+      : r.state === 'newerr' ? `${where} on ${fsDate(r.at)} — ❌ a new error appeared after the fix`
+        : `${where} on ${fsDate(r.at)} — ⏳ checking (${h} h)`;
   return `<div class="lk-info fs-kid is-${r.state}" title="${fsEsc(fsIssueWords(r))}">${fsEsc(text)}${r.hint ? ` · ${fsEsc(r.hint)}` : ''}</div>`;
 }
 let FS_KID_SIG = '';
@@ -28673,7 +28877,7 @@ async function fsStart() {
   if (!fsMay()) { fsPanel(false); fsBellDraw(); return; }          // not a Listing user: no bell (also after another account signed in)
   FS.on = true;
   fsBellDraw();
-  await Promise.all([fsSeenLoad(), fsLoadRows(false), typeof lmEnsure === 'function' ? Promise.resolve(lmEnsure()).catch(() => {}) : null,
+  await Promise.all([fsSeenLoad(), fsLoadRows(false), fsScLoad(), typeof lmEnsure === 'function' ? Promise.resolve(lmEnsure()).catch(() => {}) : null,
     (async () => { try { const s = await getDoc(doc(db, 'history', 'fixwatch')); if (s.exists()) FS.watch = s.data() || null; } catch (e) { /* none yet */ } })()]);
   FS.loaded = true;
   FS.sig = null;
@@ -28683,13 +28887,23 @@ async function fsStart() {
 }
 if (typeof document !== 'undefined' && document.addEventListener) {
   const bell = $('fsBell');
-  if (bell) bell.addEventListener('click', e => { e.stopPropagation(); fsPanel(!FS.open); });
+  if (bell) bell.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!FS.on && fsMay()) fsStart();                              // the rights came after the start-up check: start now (FS.on at once)
+    fsPanel(!FS.open);
+  });
   document.addEventListener('click', e => {
     const on = sel => (e.target && e.target.closest ? e.target.closest(sel) : null);
     const open = on('[data-fs-open]');
     if (open) { const [b, ...rest] = open.dataset.fsOpen.split('|'); return fsOpenListing(b, rest.join('|')); }
     const seen = on('[data-fs-seen]');
     if (seen) return fsMarkSeen(seen.dataset.fsSeen);
+    const sec = on('[data-fs-sec]');
+    if (sec) { e.stopPropagation(); return fsSecToggle(sec.dataset.fsSec); }
+    const sc = on('[data-fs-sc]');
+    if (sc) { e.stopPropagation(); const [b, ...rest] = sc.dataset.fsSc.split('|'); return fsScMark(b, rest.join('|')); }
+    const undo = on('[data-fs-undo]');
+    if (undo) { e.stopPropagation(); return fsScUndo(undo.dataset.fsUndo); }
     if (on('[data-fs-close]')) return fsPanel(false);
     if (on('[data-fs-all]')) { fsPanel(false); if (typeof lhView === 'function') lhView('fix'); if (typeof showTab === 'function') showTab('lhist'); return; }
     const chip = on('[data-fs-f]');
@@ -28706,11 +28920,20 @@ if (typeof document !== 'undefined' && document.addEventListener) {
   try {
     onAuthStateChanged(auth, async user => {
       // a new sign-in starts clean: another person's marks never carry over
-      FS.on = false; FS.loaded = false; FS.seen = new Set(); FS.seenLoaded = false; FS.recs = []; FS.sig = null; fsPanel(false);
+      FS.on = false; FS.loaded = false; FS.seen = new Set(); FS.seenLoaded = false; FS.recs = []; FS.sig = null; FS.sec = { sellora: false, sc: false }; fsPanel(false);
       if (!user) { fsBellDraw(); return; }
       const email = String(user.email || '').toLowerCase();
-      for (let i = 0; i < 300 && !(ME && ME.email === email && typeof TAB_OK === 'function'); i++) await new Promise(r => setTimeout(r, 50));
-      fsStart();
+      /* Start once THIS account's rights say Listing: ME is this e-mail and its rights (read by loadMyPerms) include a Listing tab. Asked
+         every 250 ms for 30 s, then every 5 s for 2 minutes. NOT "wait for TAB_OK": TAB_OK is a function from page load (core/nav.js's
+         placeholder), and applyPerms may run before or after this hook — the bell then started before the rights were known, or waited
+         for a change that had already happened, and stayed off: the click did nothing (24 Nov 2026). Not a Listing user: never started. */
+      const mine = () => !!auth.currentUser && String(auth.currentUser.email || '').toLowerCase() === email;
+      for (let i = 0; i < 144 && !FS.on; i++) {
+        if (!mine()) return;                                                                       // another sign-in since
+        if (ME && ME.email === email && fsMay()) { fsStart(); break; }
+        await new Promise(r => setTimeout(r, i < 120 ? 250 : 5000));
+      }
+      if (!FS.on && mine()) fsBellDraw();                                                          // not a Listing user: the bell stays hidden
     });
   } catch (e) { /* the bell stays hidden */ }
 }
@@ -57737,7 +57960,8 @@ function leRender() {
                 leEsc((LE_KINDS.find(pair => pair[0] === leKind(issue)) || [, ''])[1])}</span>
               ${leEsc(String(issue.m || '').slice(0, 200))}</div>`).join('')}${iss.length > 4 ? `<div class="muted">+${iss.length - 4} more</div>` : ''}</td>
           <td style="white-space:nowrap"><button class="im-b" data-fix="${leEsc(x.sku)}">${hasOther ? 'Fix' : 'Content'}</button>
-            ${hasImg ? `<button class="ghost im-b" data-img="${leEsc(x.sku)}">Images</button>` : ''}</td></tr>`;
+            ${hasImg ? `<button class="ghost im-b" data-img="${leEsc(x.sku)}">Images</button>` : ''}`
+            + `${iss.length && typeof fsScBtnHtml === 'function' ? `<div class="le-sc">${fsScBtnHtml(brand, x.sku)}</div>` : ''}</td></tr>`;      // fix-status.js: a record only
       }).join('') || '<tr><td colspan="6" class="muted" style="padding:14px">Nothing to fix here.</td></tr>'}</tbody></table></div>
     ${pager}`;
   // --- the buttons in what was just drawn ---

@@ -170,13 +170,21 @@ console.log('== no new calls ==');
   const calls = s => (s.match(/\b(baCall|lmNet|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g) || []).length;
   // listing-ai.js (the ✨ AI file) is set aside: its calls run only on a click, or once per page load for the status — its own test
   // (listing-ai-test.js) proves no call on page open; its only new database calls are the house style approvals (lsGet / lsSave, Listing Rules' store)
-  const mine = changed.filter(f => f !== 'listing-ai.js');
+  // fix-status.js (the Fix status bell, 24 Nov 2026) is set aside too: it never calls Amazon or the backend, and its database calls are
+  // only its own shared /history documents (fixwatch, fixstatus, fixsc = the Seller Central records, fixseen_<user> = seen marks + open arrows)
+  const mine = changed.filter(f => f !== 'listing-ai.js' && f !== 'fix-status.js');
   const was = mine.reduce((n, f) => n + calls(old[f]), 0);
   const now = mine.reduce((n, f) => n + calls(fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8')), 0);
   if (old['listing-ai.js'] !== undefined) {
     const ai = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'listing-ai.js'), 'utf8');
     const db = s => (s.match(/\b(lsGet|lsSave)\(/g) || []).length;
     ok(`listing-ai.js: its only new database calls are the house style approvals (${db(old['listing-ai.js'])} → ${db(ai)})`, db(ai) - db(old['listing-ai.js']) <= 2 && !/\b(baCall|imPost|getDoc|setDoc)\(/.test(ai));
+  }
+  if (old['fix-status.js'] !== undefined) {
+    const fsx = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'fix-status.js'), 'utf8');
+    const docs = [...fsx.matchAll(/\bdoc\(db, '([^']+)', ('[^']*'|[A-Za-z_]+\(\))\)/g)].map(m => m[1] + '/' + m[2]);
+    const bad = docs.filter(d => !/^history\/('fixwatch'|'fixstatus'|'fixsc'|fsSeenId\(\))$/.test(d));
+    ok(`fix-status.js: no Amazon / backend call; its database calls only its own /history documents (${docs.length})`, docs.length > 0 && !/\b(baCall|lmNet|imPost|fetch)\(/.test(fsx) && !bad.length, bad);
   }
   ok(`the changed files hold exactly as many backend / Amazon / database calls as before (${was})`, was === now, `${was} → ${now}`);
 }

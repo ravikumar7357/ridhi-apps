@@ -2111,7 +2111,8 @@ function lrRecHtml(rec, where) {
     + `<b>${rec.bare && !stale ? '' : `<span class="lr-lvl ${rec.fill ? 'is-f' : stale ? 'is-s' : rec.sev === 'critical' ? 'is-c' : 'is-a'}">${esc(word)}</span>`}${esc(rec.name)}${rec.bfHtml || ''}</b>`
     + (rec.sub ? `<small title="${esc(rec.sub)}">${esc(rec.sub)}</small>` : '') + '</div>'
     + `<div class="ls-rec-a"><span class="lr-tag${tag === 'Company rule' ? ' is-own' : ''}${rec.fill ? ' is-fill' : ''}" title="${esc(LR_TAG_TIP[tag] || (rec.fill ? 'Not an error: a gap worth filling.' : ''))}">${esc(tag)}</span>${fix}</div>`
-    + (rec.fix ? `<div class="ls-rec-how">${esc(rec.fix)}</div>` : '') + '</div>';
+    + (rec.fix ? `<div class="ls-rec-how">${esc(rec.fix)}</div>` : '')
+    + (rec.scHtml ? `<div class="ls-rec-sc">${rec.scHtml}</div>` : '') + '</div>';      // "I fixed this in Seller Central" (fix-status.js), already HTML
 }
 /* ---- the FOUR ANSWERS a check line gives (Rule Engine, 12 Nov 2026), on every Listing Health screen: ✓ Pass · ✕ Fix (the problem
  *      rows above, with their level word) · ○ Not checked (with the plain reason — never an error) · ◐ A person needs to look (with a
