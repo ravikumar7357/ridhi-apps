@@ -228,7 +228,9 @@ function flowPoPrint(no) {
  * order it is for (forOrders) and its flow line (flowKey/flowPart) so a re-plan finds it again. A test order never makes
  * one. A vendor order the printer has started delivering is never rewritten from here. */
 function flowChannelOf(r, m) {
-  const s = String((r && r.src) || String((r && r.orderNo) || '').split('-')[0]).toUpperCase();
+  /* the order number first: a Sales Order's lines all carry src 'SO' (24 Nov: an AMZ order's Vendor Order said no channel) */
+  const pre = String((r && r.orderNo) || '').split('-')[0].toUpperCase(), src = String((r && r.src) || '').toUpperCase();
+  const s = /^(AMZ|B2B|SHP|ONL)$/.test(pre) ? pre : (src && src !== 'SO' ? src : pre);
   if (s === 'AMZ') return 'Amazon'; if (s === 'B2B') return 'B2B';
   if (/SHP|ONL/.test(s)) return /CPC/i.test(String((m && m.brand) || '')) ? 'CPC Shopify' : 'Shopify';
   return '';

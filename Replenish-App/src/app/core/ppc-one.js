@@ -364,7 +364,10 @@ const P1_STAGE_STEPS = { plan: ['PLAN'], rfd: ['RFD'], prn: ['PRN'], cut: ['CUT'
 const P1_LABEL = { PLAN: 'Plan', RFD: 'Make challan', PRN: 'Receive printed', CUT: 'Enter cutting', ISS: 'Give to karigar', REC: 'Receive', QC: 'Check in QC', FG: 'Accept in FG', SHIP: 'Hand to shipping' };
 const P1_STUCK = 7;   // days at one place before a lot is stuck
 const P1_CHAN = { SHP: 'Shopify', SO: 'B2B', B2B: 'B2B', AMZ: 'Amazon', ETSY: 'Etsy', ONL: 'Online' };
-const p1Chan = r => P1_CHAN[obUC(r.src)] || (/^AMZ/i.test(String(r.orderNo || '')) ? 'Amazon' : /^SHP/i.test(String(r.orderNo || '')) ? 'Shopify' : obUC(r.src) || 'Other');
+/* THE ORDER NUMBER SAYS THE CHANNEL (Ravi, 24 Nov: AMZ-24112026-01-AIR showed "B2B"): every line put on the book from a Sales Order
+ * carries src 'SO', whatever its channel, so the number's first part (AMZ / SHP / B2B / ETSY / ONL …) is read first; src only after. */
+const p1Chan = r => { const pre = obUC(String(r.orderNo || '').split('-')[0]), src = obUC(r.src);
+  return (pre !== 'SO' && P1_CHAN[pre]) || (src !== 'SO' && P1_CHAN[src]) || P1_CHAN[pre] || P1_CHAN[src] || src || 'Other'; };
 /** The next step of a lot (or of one line): the first that is waiting, in the order the work goes — [movement, label, lines]. */
 function p1NextOf(r, stage) {
   const n = k => { const a = P1_ADD.find(x => x[0] === k); return a && p1MayTab(a[2]) ? r.lines.filter(x => a[3](x)) : []; };
