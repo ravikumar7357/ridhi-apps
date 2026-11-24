@@ -142,7 +142,9 @@ console.log('== Season planner, Fix all, Listing Errors card, Listing History (b
     C.LH.rows = Array.from({ length: 300 }, (_, i) => ({ id: 'h' + i, kind: 'listing', at: now - i * 3600000, by: 'a@b.c', name: ['Asha', 'Ravi'][i % 2], approvedBy: '', brand: 'SP', sku: 'SP-' + String(i).padStart(5, '0'), asin: 'B0' + i,
       label: 'Title', field: 'item_name', old: 'old ' + i, new: 'new ' + i, attr: 'item_name', api: 'patch', screen: ['ws', 'sp'][i % 2], run: i % 10 < 4 ? 'r' + Math.floor(i / 10) : '', runN: i % 10 < 4 ? 4 : 0, result: ['sent', 'live', 'error'][i % 3], why: '', doc: 'd' }));
     C.lhBuild(false); C.lhDraw();
-    return html(C, 'lhPane');
+    // 24 Nov 2026: the page starts with its "Changes / Fix status" switch (fix-status.js) — compared without it, the rest must be the same
+    return html(C, 'lhPane').replace(/^<div class="seg lh-views"[\s\S]*?<\/button><\/div>/, '').replace('<div id="lhChanges">', '')
+      .replace(/<\/div><div id="fsPage" class="hide"><\/div>$/, '');
   };
   const [la, lb] = both(hist);
   same('Listing History: the page (groups, counts, results)', la, lb);

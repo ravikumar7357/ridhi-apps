@@ -3443,6 +3443,57 @@
   #paneLhist .lh-row.is-child>td:first-child{box-shadow:inset 3px 0 0 var(--line)}
   #paneLhist .lh-pager{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:10px 0}
   #paneLhist .lh-empty{margin-top:12px;padding:16px}
+  /* ----- Fix status (listing/fix-status.js, 24 Nov 2026): Listing History's "Changes / Fix status" switch and the Fix status page; the bell
+     🔔 in the menu bar and its panel; the line in Listing Health's listing panel. The app's own tokens: light / dark follow the theme. ----- */
+  #paneLhist .lh-views{margin-bottom:12px}
+  #paneLhist .fs-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  #paneLhist .fs-chip{display:inline-flex;align-items:center;gap:6px;width:auto;min-height:0;height:32px;margin:0;padding:0 12px;border:1px solid var(--line);border-radius:var(--r-pill);background:var(--card);color:var(--ink);font-size:12.5px;font-weight:500;box-shadow:none;cursor:pointer}
+  #paneLhist .fs-chip b{font-variant-numeric:tabular-nums}
+  #paneLhist .fs-chip.on{border-color:var(--brand);background:var(--brand-bg);color:var(--brand-ink)}
+  #paneLhist .fs-tbl td{vertical-align:top}
+  #paneLhist .fs-tbl td:first-child,#paneLhist .fs-tbl td:last-child,#paneLhist .fs-tbl td:nth-child(6),#paneLhist .fs-tbl td:nth-child(7){white-space:nowrap}
+  #paneLhist .fs-issue{min-width:220px;max-width:420px}
+  #paneLhist .fs-issue small,#paneLhist .fs-state small{display:block;margin-top:2px;font-size:11.5px;color:var(--muted)}
+  #paneLhist .fs-issue .fs-new{color:var(--bad-ink)}
+  #paneLhist .fs-state{white-space:nowrap}
+  #paneLhist .fs-hint{max-width:260px;font-size:12px;color:var(--act-ink)}
+  .fs-tag{display:inline-block;padding:1px 8px;border-radius:var(--r-pill);font-size:12px;font-weight:600;white-space:nowrap;background:var(--hover);color:var(--ink)}
+  .fs-tag.is-fixed,.fs-tag.is-scfixed{background:var(--accent-bg);color:var(--accent-ink)}
+  .fs-tag.is-checking{background:var(--hover);color:var(--muted)}
+  .fs-tag.is-still{background:var(--act-bg);color:var(--act-ink)}
+  .fs-tag.is-newerr{background:var(--bad-bg);color:var(--bad-ink)}
+  /* the bell: a red count while something waits */
+  .fs-bell{position:relative}
+  .fs-bell>span:first-child{font-size:16px;line-height:1}
+  .fs-bell .fs-badge{position:absolute;top:1px;right:0;min-width:17px;height:17px;padding:0 4px;border-radius:var(--r-pill);background:var(--bad);color:#fff;font-size:10.5px;font-weight:700;line-height:17px;text-align:center;box-shadow:0 0 0 2px var(--card)}
+  .fs-bell .fs-badge[hidden]{display:none}
+  .fs-panel{position:fixed;z-index:80;width:380px;max-width:calc(100vw - 24px);max-height:min(560px,calc(100vh - 90px));display:flex;flex-direction:column;overflow:hidden;
+    border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);box-shadow:0 18px 44px rgba(16,24,40,.24);font-size:13px;text-align:left}
+  .fs-panel[hidden]{display:none}
+  .fs-p-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .fs-x{width:28px;height:28px;min-height:0;margin:0;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:18px;line-height:1;box-shadow:none;cursor:pointer}
+  .fs-x:hover{background:var(--hover);color:var(--ink)}
+  .fs-list{flex:1;overflow:auto;margin:0;padding:4px 0;list-style:none}
+  .fs-it{padding:10px 14px;border-bottom:1px solid var(--line)}
+  .fs-it:last-child{border-bottom:0}
+  .fs-it-h{display:flex;align-items:baseline;gap:6px}
+  .fs-sku{font-family:ui-monospace,monospace;font-size:12.5px}
+  .fs-it-i{margin-top:2px;color:var(--ink)}
+  .fs-it-w{margin-top:2px;font-size:12px;color:var(--muted)}
+  .fs-it.is-newerr .fs-it-w{color:var(--bad-ink)}
+  .fs-it-hint{margin-top:4px;padding:4px 8px;border-radius:8px;background:var(--act-bg);color:var(--act-ink);font-size:12px}
+  .fs-it-a{display:flex;gap:6px;margin-top:6px}
+  .fs-b{width:auto;min-height:0;margin:0;padding:3px 10px;font-size:12px}
+  .fs-none{padding:16px 14px;color:var(--muted)}
+  .fs-more{padding:6px 14px;font-size:12px}
+  .fs-p-f{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;padding:10px 14px;border-top:1px solid var(--line);background:var(--soft);font-size:12.5px}
+  .fs-all{width:auto;min-height:0;margin:0;padding:0;border:0;background:transparent;color:var(--brand-ink);font:inherit;font-weight:600;box-shadow:none;cursor:pointer}
+  @media (max-width:700px){ .fs-panel{left:8px!important;right:8px;top:auto!important;bottom:8px;width:auto;max-width:none;max-height:75vh} }
+  /* Listing Health's listing panel: the newest fix of that listing */
+  .lk-info.fs-kid{font-weight:600}
+  .lk-info.fs-kid.is-fixed{color:var(--accent-ink)}
+  .lk-info.fs-kid.is-still{color:var(--act-ink)}
+  .lk-info.fs-kid.is-newerr{color:var(--bad-ink)}
   /* ----- Family & Category Check (listing/family-check.js): number cards as filters, rows grouped by family. Scoped to #paneFam — and #paneAplus (listing/aplus-audit.js), which wears the same look. ----- */
   :is(#paneFam,#paneAplus,#paneIpg) .fc-tb{padding:12px 14px}
   :is(#paneFam,#paneAplus,#paneIpg) .fc-tb select,:is(#paneFam,#paneAplus,#paneIpg) .fc-tb input[type=search]{width:auto;min-width:0}

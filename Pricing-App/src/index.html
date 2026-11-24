@@ -167,6 +167,11 @@
       <button id="fxBtn" class="themesw dashfx" type="button" aria-label="Animation" aria-pressed="true" title="Animation: on">
         <span aria-hidden="true">&#10024;</span>
       </button>
+      <!-- 🔔 Fix status (app/listing/fix-status.js): Listing users only — fixes Amazon still shows 24 h later, new errors after a fix. -->
+      <button id="fsBell" class="themesw fs-bell" type="button" aria-label="Fix status" aria-haspopup="dialog" aria-expanded="false" aria-controls="fsPanel" hidden>
+        <span aria-hidden="true">&#128276;</span><span class="fs-badge" hidden></span>
+      </button>
+      <div id="fsPanel" class="fs-panel" role="dialog" aria-label="Still not fixed on Amazon" hidden></div>
       <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
       <button id="guideBtn" class="ghost" type="button"
             title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
