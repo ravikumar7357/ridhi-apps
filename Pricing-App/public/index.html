@@ -5282,6 +5282,25 @@
     .sta-scope .sta-acts{margin-left:0}
   }
 
+  /* ----- 24 Nov 2026 (Search Term Analysis, N-Gram, Placement): the no-target warning at the top of the page (staTgtWarn), the
+     word dialog's "sells here — chosen by hand" lines, the small terms' spend, and Plan my moves' first line. Tokens only. ----- */
+  .sta-scope .sta-tgtwarns{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}
+  .sta-scope .sta-tgtwarns.hide{display:none}
+  .sta-scope .sta-tgtwarn{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--r-row);background:var(--rev-bg);color:var(--rev-ink);
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rev) 45%,var(--card));font-size:12.5px;line-height:1.5}
+  .sta-scope .sta-tgtwarn>div{flex:1 1 auto;min-width:0}
+  .sta-scope .sta-tgtwarn b{color:inherit}
+  .sta-scope .sta-tgtwarn svg{flex:none;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .sta-scope .sta-tgtwarn button.sta-btn{flex:none;color:var(--rev-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rev) 60%,var(--card))}
+  @media (max-width:640px){.sta-scope .sta-tgtwarn{flex-wrap:wrap}}
+  .sta-sellwarn{display:none;margin-top:3px;font-size:11.5px;font-weight:600;color:var(--act-ink);white-space:normal}
+  tr.sta-sellon .sta-sellwarn{display:block}
+  tr.sta-sellon td{background:color-mix(in srgb,var(--act) 7%,var(--card))}
+  .sta-sellwarn.sta-sellwarn-tot{display:inline;margin:0 0 0 6px;padding:1px 8px;border-radius:var(--r-pill);background:var(--act-bg)}
+  .sta-dcp td.num small{display:block;font-size:11px;white-space:nowrap}
+  .sta-planhead{margin:0 0 10px;padding:9px 12px;border-radius:var(--r-row);background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px;line-height:1.5;color:var(--muted)}
+  .sta-planhead b{color:var(--ink)}
+
   /* ===== REIMBURSEMENT (24 Nov 2026, paneReimb and paneRbclaim, reimb/reimb-overview.js and reimb-claim.js; the shared dialogs in #rbDialogs) =====
      The Advertising pages' look — sta-scope, sta-barcard, sta-box, sta-tcard, sta-chip, sta-modal, the Ad Console's adx-plot —
      with rb- adding only what they lack: the six coloured boxes, the type / status / days / % pills, the banners, the action
@@ -7102,6 +7121,8 @@
 
   <!-- ============ Search Term Analysis: what shoppers typed, what it cost, and what to do about it ============ -->
   <div id="paneSt" class="hide sta-scope">
+    <!-- The no-target warning (24 Nov): per brand, at the top, never inside the notes (staTgtWarn, shared with N-Gram and Placement). -->
+    <div id="stTgtWarn" class="sta-tgtwarns hide"></div>
     <div class="card sta-barcard">
       <!-- The bar, 23 Nov 2026: brand, date window, filters, then the actions; the search and the rest of the filters below. -->
       <div class="toolbar sta-top">
@@ -7166,8 +7187,8 @@
           <select id="stCpShow" class="hide" style="flex:0 0 150px" title="Show only one kind of verdict" aria-label="Verdict">
             <option value="">Every verdict</option><option value="bad">Bad only</option><option value="good">Good only</option><option value="watch">Watch only</option><option value="running">Running ads only</option><option value="stopped">Paused / archived only</option>
           </select>
-          <input id="stCpTarget" class="hide" type="number" min="1" max="100" step="1" style="flex:0 0 120px" placeholder="Target ACoS %" aria-label="Target ACoS"
-            title="The ACoS a product is judged against when its unit cost is not known. Where the cost is known, its own break-even ACoS is used instead.">
+          <button id="stCpTarget" class="ghost hide" type="button" aria-haspopup="dialog"
+            title="Where Campaign × Product's target comes from: a product's own break-even when its unit cost is known, else the brand's target ACoS in Lists &amp; settings — the same one every page uses. Click to set it.">Target ACoS →</button>
           <label class="sta-pgsz" id="stSizeWrap">Rows <select id="stSize" aria-label="Rows per page"><option>50</option><option selected>100</option><option>250</option></select></label>
         </div>
       </div>
@@ -7237,6 +7258,8 @@
 
   <!-- ============ N-Gram Analysis: word patterns across the search terms, and the action each supports (ads/ngram.js) ============ -->
   <div id="paneNgram" class="hide sta-scope">
+    <!-- The no-target warning (24 Nov): per brand, at the top (staTgtWarn, the same piece as Search Term Analysis's). -->
+    <div id="ngTgtWarn" class="sta-tgtwarns hide"></div>
     <div class="card sta-barcard">
       <!-- Search Term Analysis's bar, 23 Nov 2026: brand, date window, filters, then the actions; the pattern choices below. -->
       <div class="toolbar sta-top">
@@ -40860,6 +40883,20 @@ async function tNightly() {
  *
  * Stored in Firestore: the review list (adsActions/{id}) and the lists (adsSettings/{brand}). Until their rules are
  * deployed (firestore.rules) a read is refused, both are kept in this browser instead, and the page says so.
+ *
+ * 24 Nov 2026:
+ *   ONE TARGET ACoS. Every view (this page, Campaign × Product, N-Gram, Plan my moves, Placement) reads the target and the
+ *   break-even from one place: the products' unit costs (Overview's lines), else the brand's own in Lists & settings (staFb)
+ *   — staTgtOf for one product, staModel's per ad group. No default, nothing typed in only on one view. A brand with neither
+ *   is judged against no target: no Winner, no "under target", Campaign × Product says "no target", and Plan my moves
+ *   neither sends nor writes a target or break-even that is not set (r.tgtSet: the 100% loss line is not a target).
+ *   THE NO-TARGET WARNING (staTgtWarn): per brand, at the top of the page (not inside the notes), one piece shared with
+ *   N-Gram and Placement; "Set a target ACoS" opens Lists & settings on that brand, on its target field (staSetOpen).
+ *   COUNTS IN ONE UNIT: "search terms" (one term per brand), "term rows" (a term × its ad group), "patterns" (N-Gram).
+ *   Burning money's box, its next-step chips (with their $) and Plan my moves' first line are one sum (staBurnSum) over the
+ *   same rows, window and filters; each plan move counts only its rows ready now, and says so.
+ *   SORTING: a column with no value (no sales → no ACoS, no clicks → no CVR / CPC) sorts last both ways (staCmpBlank).
+ *   THE WORD INDEX: the small terms' spend per campaign is kept apart (tsp) — their clicks are not split by campaign.
  */
 
 /* A search term carries NO ASIN — Amazon reports it against the ad group it matched in, and an ad group can advertise
@@ -41921,6 +41958,7 @@ function staTgtVerdict(g, info, P) {
   if (g.c < STA.MIN_CLICKS || !(g.sp > 0)) return;
   const tgt = g.brandTerm ? STA.BRAND_TGT : ln.tgt, be = g.brandTerm ? STA.BRAND_TGT : ln.be;
   g.tgtUse = tgt;
+  g.tgtSet = tgt != null;   // a target or break-even that is really set (the 100% loss line below is not one)
   g.beUse = be;
   const last = staLastChange(g.pathKey);
   const cool = last && Date.now() - last < STA.COOLDOWN * 86400000;
@@ -42013,6 +42051,8 @@ function staVerdict(r, info) {
   const brandTerm = r.tagSet.has('brand');
   const tgt = brandTerm ? STA.BRAND_TGT : ln.tgt, be = brandTerm ? STA.BRAND_TGT : ln.be;
   r.tgtUse = tgt;
+  // A target ACoS that is really set: not a brand term's limit (STA.BRAND_TGT, Sellora's own rule), not the 100% loss line below.
+  r.tgtSet = tgt != null && !brandTerm;
   r.beUse = be;
   const g = r.tr;
   const finish = () => staFinish(r);
@@ -42207,6 +42247,9 @@ function staGramIndex(b, M, mine, o) {
   }
   const map = new Map();
   const mk = gram => ({ gram, words: gram.split(' ').length, n: 0, c: 0, sp: 0, o: 0, s: 0, zsp: 0, conv: 0, cps: new Map(), terms: [], tail: 0, tn: 0, tc: 0, to: 0, ts: 0, tcp: new Map() });
+  // A campaign of a pattern: { cid, cn, c, sp, s, o, n } over its listed terms (spend and clicks from the same rows), and tsp:
+  // the tail's spend there, apart — the backend splits the tail's spend by campaign but not its clicks or terms (24 Nov:
+  // adding it to sp showed campaigns with spend and 0 clicks).
   (mine || M.rows.filter(r => r.brand === b)).forEach(r => {
     if (r.bad || r.asin) return;
     const w = staNorm(r.term).split(' ').filter(Boolean);
@@ -42223,7 +42266,7 @@ function staGramIndex(b, M, mine, o) {
         x.n++; x.c += r.c; x.sp += r.sp; x.o += r.o; x.s += r.s;
         if (!(r.o > 0)) x.zsp += r.sp; else x.conv++;
         x.terms.push(r);
-        const cp = x.cps.get(r.cid) || x.cps.set(r.cid, { cid: r.cid, cn: r.cn, c: 0, sp: 0, s: 0, o: 0, n: 0 }).get(r.cid);
+        const cp = x.cps.get(r.cid) || x.cps.set(r.cid, { cid: r.cid, cn: r.cn, c: 0, sp: 0, tsp: 0, s: 0, o: 0, n: 0 }).get(r.cid);
         cp.c += r.c; cp.sp += r.sp; cp.s += r.s; cp.o += r.o; cp.n++;
       }
     }
@@ -42241,8 +42284,8 @@ function staGramIndex(b, M, mine, o) {
       x.sp += sp; x.tail += sp;
       if (!(t[4] > 0)) x.zsp += sp;
       cps.forEach(([cid, csp]) => {
-        const cp = x.cps.get(cid) || x.cps.set(cid, { cid, cn: staName(b, cid), c: 0, sp: 0, s: 0, o: 0, n: 0 }).get(cid);
-        cp.sp += csp;
+        const cp = x.cps.get(cid) || x.cps.set(cid, { cid, cn: staName(b, cid), c: 0, sp: 0, tsp: 0, s: 0, o: 0, n: 0 }).get(cid);
+        cp.tsp += csp;
         x.tcp.set(cid, (x.tcp.get(cid) || 0) + csp);
       });
       return;
@@ -42251,8 +42294,8 @@ function staGramIndex(b, M, mine, o) {
     x.n += t[1]; x.c += t[2]; x.sp += t[3]; x.o += t[4]; x.s += t[5]; x.tail += t[3]; x.tn += t[1]; x.tc += t[2]; x.to += t[4]; x.ts += t[5];
     if (!(t[4] > 0)) x.zsp += t[3];
     (t[6] || []).forEach(([cid, sp]) => {
-      const cp = x.cps.get(cid) || x.cps.set(cid, { cid, cn: staName(b, cid), c: 0, sp: 0, s: 0, o: 0, n: 0 }).get(cid);
-      cp.sp += sp;
+      const cp = x.cps.get(cid) || x.cps.set(cid, { cid, cn: staName(b, cid), c: 0, sp: 0, tsp: 0, s: 0, o: 0, n: 0 }).get(cid);
+      cp.tsp += sp;
       x.tcp.set(cid, (x.tcp.get(cid) || 0) + sp);
     });
   });
@@ -42296,8 +42339,8 @@ function staWords(b, M, mine, P, info, rlOpen, bAgg, o) {
     if (protect && !tagged) return;
     const key = 'w:' + b + '|' + gram;
     const names = x.terms.slice(0, 8).map(r => r.term);
-    const cps = [...x.cps.values()].filter(c => c.sp >= 0.5).sort((a, z) => z.sp - a.sp)
-      .map(c => ({ cid: c.cid, cn: c.cn, sp: c.sp, s: c.s, o: c.o, n: c.n }));
+    const cps = [...x.cps.values()].filter(c => c.sp + c.tsp >= 0.5).sort((a, z) => (z.sp + z.tsp) - (a.sp + a.tsp))
+      .map(c => ({ cid: c.cid, cn: c.cn, sp: c.sp, tsp: c.tsp, c: c.c, s: c.s, o: c.o, n: c.n }));
     const row = { key, type: 'word', brand: b, term: tagged ? (P.rawOf.get(gram) || gram) : gram, gram, words: words.length, n: x.n, c: x.c, sp: x.sp, o: x.o, s: x.s,
       zsp: x.zsp, tail: x.tail || 0, cps, terms: names, tag: blocked ? 'blocked' : comp ? 'competitor' : '', protect,
       hay: (gram + ' ' + names.join(' ') + ' ' + cps.map(c => c.cn).join(' ')).toLowerCase() };
@@ -42466,18 +42509,22 @@ function staLists() {
 }
 
 /* ---------- sorting and pages ---------- */
+// A column with no value returns null (no sales → no ACoS; no clicks → no CVR or CPC): it sorts last in both directions.
 const STA_SORTS = {
-  stake: r => r.stake || 0, sp: r => r.sp, s: r => r.s, acos: r => (r.acos == null ? -1 : r.acos), o: r => r.o, c: r => r.c,
-  cvr: r => (r.c > 0 ? r.o / r.c : -1), cpc: r => (r.cpc == null ? -1 : r.cpc), i: r => r.i || 0, term: r => staLow(r.term),
+  stake: r => r.stake || 0, sp: r => r.sp, s: r => r.s, acos: r => (r.acos == null ? null : r.acos), o: r => r.o, c: r => r.c,
+  cvr: r => (r.c > 0 ? r.o / r.c : null), cpc: r => (r.cpc == null ? null : r.cpc), i: r => r.i || 0, term: r => staLow(r.term),
 };
+// Compare two sort values in direction d (1 up, −1 down); an empty value (null, undefined, NaN, '') always last.
+function staCmpBlank(x, y, d) {
+  const bx = x == null || x === '' || (typeof x === 'number' && !isFinite(x)), by = y == null || y === '' || (typeof y === 'number' && !isFinite(y));
+  if (bx || by) return bx && by ? 0 : bx ? 1 : -1;
+  return (x < y ? -1 : x > y ? 1 : 0) * d;
+}
 // The sort of the view: the column clicked, else the view's own (money at stake, or spend in All terms).
 function staSorted(rows, def) {
   const k = ST_SORT.k || def, d = ST_SORT.k ? ST_SORT.d : -1;
   const f = STA_SORTS[k] || STA_SORTS.sp;
-  return rows.slice().sort((a, z) => {
-    const x = f(a), y = f(z);
-    return (x < y ? -1 : x > y ? 1 : 0) * d || (z.sp - a.sp);
-  });
+  return rows.slice().sort((a, z) => staCmpBlank(f(a), f(z), d) || (z.sp - a.sp));
 }
 // A sortable heading. S: another screen's sort ({ k, d }: N-Gram Analysis); without it, this screen's.
 function staTh(t, k, num, tip, S) {
@@ -42645,9 +42692,10 @@ function staFName(k, key) {
   const t = staTitle(id);
   return String(id).toUpperCase() + (t ? ' · ' + (t.length > 40 ? t.slice(0, 39) + '…' : t) : '');
 }
-// The chips of every active filter, each removable, with "Showing X of Y terms" and Clear all; hidden with none on.
+// The chips of every active filter, each removable, with "Showing X of Y term rows" and Clear all; hidden with none on.
 // extra: the screen's own [{ k, t, v }] (its search, minimum spend, Filters…), removed through its own fx (staBarWire).
-function staFChips(id, shown, total, extra) {
+// unit: what is counted ('term rows' here and on N-Gram: a term × its ad group; Placement: 'campaigns').
+function staFChips(id, shown, total, extra, unit) {
   const el = $(id);
   if (!el) return;
   const chips = [];
@@ -42656,7 +42704,7 @@ function staFChips(id, shown, total, extra) {
   if (STA_F.stock) chips.push({ k: 'stock', t: 'Stock', v: STA_F.stock === 'oos' ? 'out of stock' : `under ${STA_F_LOW} days` });
   (extra || []).forEach(x => chips.push(x));
   el.classList.toggle('hide', !chips.length);
-  el.innerHTML = !chips.length ? '' : `<span class="sta-fshow">Showing ${staInt(shown)} of ${staInt(total)} terms</span>`
+  el.innerHTML = !chips.length ? '' : `<span class="sta-fshow">Showing ${staInt(shown)} of ${staInt(total)} ${staEsc(unit || 'term rows')}</span>`
     + chips.map(c => `<span class="sta-fchip">${staEsc(c.t)}: <b>${staEsc(c.v)}</b><button type="button" class="sta-fx" data-fx="${staEsc(c.k)}" title="Remove" aria-label="Remove ${staEsc(c.t)}: ${staEsc(c.v)}">✕</button></span>`).join('')
     + '<button type="button" class="sta-linkbtn" data-fx="all">Clear all</button>';
 }
@@ -42791,6 +42839,10 @@ function renderSt() {
   $('stSizeWrap').classList.toggle('hide', isCp);
   staRlBadge();
   staWinBar('stWin');
+  // The no-target warning at the top (one piece with N-Gram and Placement), and where Campaign × Product's target comes from.
+  const brandsNow = $('stBrand').value === 'ALL' ? ['SP', 'CPC'] : [$('stBrand').value];
+  staTgtWarn('stTgtWarn', brandsNow, 'only search terms with no sales, over 100% ACoS and brand terms are judged: nothing is called above break-even, a Winner or worth scaling, and Campaign × Product says "no target"');
+  $('stCpTarget').textContent = `Target ACoS: ${ST.costs ? 'unit costs, else ' : ''}${brandsNow.map(b => { const f = staFb(b); return `${staBrandName(b)} ${f ? Math.round(f.tgt) + '%' : 'no target'}`; }).join(' · ')} →`;
   const nF = ['stFMt', 'stFCt', 'stFV', 'stFTag'].filter(id => $(id).value).length;
   $('stMoreN').textContent = nF;
   $('stMoreN').classList.toggle('hide', !nF);
@@ -42861,6 +42913,19 @@ function staStBar(L) {
 }
 
 /* ---------- the next-step chips ---------- */
+// Burning money's one sum, by next step: the box, its chips and Plan my moves' first line all read it, over the same rows
+// (the term rows of the window and filters on screen). { n, sp, by: { neg | reduce | pause | hold | review …: { n, sp } } }.
+function staBurnSum(rows) {
+  const by = {};
+  let sp = 0;
+  (rows || []).forEach(r => {
+    const a = staActOf(r), x = by[a] || (by[a] = { n: 0, sp: 0 });
+    x.n++; x.sp += r.burned || 0; sp += r.burned || 0;
+  });
+  return { n: (rows || []).length, sp, by };
+}
+// What the chips count in each view.
+const staViewUnit = () => (ST_VIEW === 'burn' ? (ST_SUB === 'target' ? 'keywords and targets' : ST_SUB === 'word' ? 'words' : 'term rows') : 'term rows');
 const STA_ACTS = [['neg', 'Negative'], ['reduce', 'Lower bid'], ['pause', 'Pause'], ['exact', 'Add exact'], ['raise', 'Raise bid'], ['hold', 'Watch / hold'], ['review', 'In review']];
 // The rows the chips count in this view; null for the views without chips.
 function staViewRows(L) {
@@ -42891,11 +42956,14 @@ function staActBar(rows) {
   const n = {};
   rows.forEach(r => { const a = staActOf(r); n[a] = (n[a] || 0) + 1; });
   if (ST_ACT && !n[ST_ACT]) ST_ACT = '';
-  const chip = (k, t, c) => `<button type="button" class="sta-chip${ST_ACT === k ? ' on' : ''}${k ? ' a-' + k : ''}" data-a="${k}" aria-pressed="${ST_ACT === k}">${t}<span>${staInt(c)}</span></button>`;
+  // Burning money: each chip also says the money it burns (staBurnSum) — together they are the box's figure.
+  const money = ST_VIEW === 'burn' ? staBurnSum(rows) : null;
+  const $of = k => (!money ? '' : ` · ${staMoney0(k ? (money.by[k] || { sp: 0 }).sp : money.sp)}`);
+  const chip = (k, t, c) => `<button type="button" class="sta-chip${ST_ACT === k ? ' on' : ''}${k ? ' a-' + k : ''}" data-a="${k}" aria-pressed="${ST_ACT === k}">${t}<span>${staInt(c)}${$of(k)}</span></button>`;
   const shown = ST_ACT ? rows.filter(r => staActOf(r) === ST_ACT) : [];
   const tick = shown.filter(staCanTick);
   const allOn = tick.length && tick.every(r => ST_SEL.has(r.key));
-  bar.innerHTML = '<span class="sta-actl">Next step</span>' + chip('', 'All', rows.length) + STA_ACTS.filter(([k]) => n[k]).map(([k, t]) => chip(k, t, n[k])).join('')
+  bar.innerHTML = `<span class="sta-actl" title="${staEsc(money ? 'Counts and the money burned, by next step: together they are Burning money\'s figure' : 'Counts by next step')}">Next step · ${staEsc(staViewUnit())}</span>` + chip('', 'All', rows.length) + STA_ACTS.filter(([k]) => n[k]).map(([k, t]) => chip(k, t, n[k])).join('')
     + (tick.length ? `<button type="button" class="sta-btn dim sm sta-actall" data-tickall="1">${allOn ? 'Untick' : 'Tick'} all ${staInt(tick.length)}${tick.length > ST_SIZE ? ' (every page)' : ''}</button>` : '');
   STA_ACTSHOWN = tick;
 }
@@ -43079,11 +43147,9 @@ function staCostLine(brands) {
   if (ST.costs) return null;
   const noTgt = brands.filter(b => !staFb(b)), withTgt = brands.filter(b => !!staFb(b));
   const why = ST.costErr ? 'Unit costs could not be read for your account (Profit &amp; Margin access needed)' : 'No unit costs in Profit &amp; Margin';
+  // A brand with no target: the warning at the top of the page says so (staTgtWarn); here only a quiet line.
   return noTgt.length
-    ? [`<div class="sta-warnline sta-costwarn"><b>${why}, and no target ACoS for ${noTgt.map(staBrandName).join(' or ')}.</b> For ${noTgt.length > 1 ? 'them' : 'it'} Sellora judges only search terms with no sales, and brand terms against the ${STA.BRAND_TGT}% brand-term limit — nothing else is called above break-even or worth scaling, placements get no Raise or Lower, and competing paths stay provisional. `
-      + (withTgt.length ? `${withTgt.map(b => staBrandName(b) + ' is judged against your ' + staFbTxt(b)).join('; ')}. ` : '')
-      + `Set a target ACoS to switch the rest on now; unit costs replace it product by product when they arrive. `
-      + `<button type="button" class="sta-btn sm" data-settgt="1">Set a target ACoS</button></div>`, 'warn']
+    ? [`<span class="sta-dash">${why}. ${noTgt.map(staBrandName).join(' and ')}: no target ACoS (see the warning at the top)${withTgt.length ? '; ' + withTgt.map(b => staBrandName(b) + ' against your ' + staFbTxt(b)).join('; ') : ''}.</span>`, '']
     : [`<span class="sta-dash">${why}: judged against your settings (${brands.map(b => staBrandName(b) + ' ' + staFbTxt(b)).join(', ')}) from Lists &amp; settings</span>`, ''];
 }
 
@@ -43216,7 +43282,7 @@ function staSummary(L) {
       '', osN ? `${staMoney0(osS)} same SKU` : '')
     + cell('ACoS', s > 0 ? staPct(sp / s * 100) : '—', 'Ad spend ÷ ad sales: how much of each sale went to ads.')
     + cell('Orders', staInt(o), `Orders Amazon credits to the ads of ${scope}.`) + cell('Clicks', staInt(c), `Clicks on the ads of ${scope}.`)
-    + cell('Search terms', staInt(V.rows.length), V.on ? `Search terms of the ad groups picked, listed one by one, of ${staInt(M.rows.length)} in all. ${STA_F_TIP}` : 'Listed one by one', '', V.on ? `of ${staInt(M.rows.length)}` : '')
+    + cell('Term rows', staInt(V.rows.length), V.on ? `Term rows (a search term in one ad group) of the ad groups picked, listed one by one, of ${staInt(M.rows.length)} in all. ${STA_F_TIP}` : 'Term rows: a search term in one ad group, listed one by one', '', V.on ? `of ${staInt(M.rows.length)}` : 'a term × its ad group')
     + cell('Suggestions', staInt(act), `Rows with a next step, after the filters — one per row. The boxes below count search terms and competing-path groups instead (a group holds several paths, and a term can be in more than one box), so they add up differently. Boxes together: ${staMoney0(cards)} before each term is counted once.`, '', 'one per row')
     + (V.on ? cell('Not listed', '—', 'The small terms (fewer than 3 clicks and no order) are not split by product or campaign, so they are left out under these filters.', '', 'not split by product')
       : cell('Not listed', staMoney0(tail), `${staInt(tailN)} terms with fewer than 3 clicks and no order, too small to list one by one. Their recurring words appear in Burning money → By word.`, '', `${staInt(tailN)} small terms`))
@@ -43230,6 +43296,34 @@ function staSummary(L) {
     + `<span class="sta-dash" title="Brand terms are set per brand in Lists &amp; settings. A brand campaign has a brand term, 'brand', 'branded' or 'defense' in its name.">brand terms from Lists &amp; settings</span></div>`;
 }
 
+// The brands of a list with neither unit costs nor a target ACoS in Lists & settings: judged against no target.
+const staNoTgtBrands = brands => (ST.costs ? [] : (brands || []).filter(b => !staFb(b)));
+// The target and break-even of one product, from the one place every view reads (staModel per ad group does the same):
+// its unit cost (Overview's lines: ADSX.lines), else the brand's own in Lists & settings (staFb), else none.
+// { tgt, be, src: 'cost' | 'list' } or null.
+function staTgtOf(b, asin) {
+  let ln = null;
+  try { ln = asin && typeof ADSX !== 'undefined' && ADSX.lines ? ADSX.lines(asin) : null; } catch (e) { ln = null; }
+  if (ln && ln.tgt != null) return { tgt: ln.tgt, be: ln.be != null ? ln.be : null, src: 'cost' };
+  const f = staFb(b);
+  return f ? { tgt: f.tgt, be: f.be, src: 'list' } : null;
+}
+/* THE NO-TARGET WARNING, one piece for Search Term Analysis, N-Gram and Placement: per brand with neither unit costs nor a
+ * target ACoS, a banner at the top of the page (never inside the notes), each with "Set a target ACoS" opening Lists &
+ * settings on that brand, scrolled to its target field and focused (staSetOpen). what: the page's own words for what stays
+ * off without it. */
+function staTgtWarn(id, brands, what) {
+  const el = $(id);
+  if (!el) return;
+  const no = staNoTgtBrands(brands);
+  el.classList.toggle('hide', !no.length);
+  if (!no.length) { el.innerHTML = ''; return; }
+  const why = ST.costErr ? 'Unit costs could not be read for your account (Profit &amp; Margin access needed)' : 'No unit costs in Profit &amp; Margin';
+  el.innerHTML = no.map(b => `<div class="sta-tgtwarn" role="note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 16H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>`
+    + `<div><b>${staEsc(staBrandName(b))}: no target ACoS.</b> ${why}, and no target in Lists &amp; settings — ${staEsc(what || 'nothing is judged against a target')}. `
+    + 'Unit costs replace it product by product when they arrive.</div>'
+    + `<button type="button" class="sta-btn sm" data-settgt="${b}">Set a target ACoS</button></div>`).join('');
+}
 // Is any brand in view without unit costs AND without a target ACoS (only no-sales and brand terms are judged)?
 function staNoTarget() {
   const pick = ($('stBrand') || {}).value || 'ALL';
@@ -43254,8 +43348,8 @@ function staBoxes(L) {
     rl: '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>',
   };
   const TIP = {
-    burn: 'Search terms spending with no sale, above break-even, or converting at under half the usual rate. The figure is the money burned: spend with no sale, or spend above what break-even allows.',
-    scale: 'Search terms selling under their campaign\'s target ACoS with room to grow, or selling well without their own exact keyword yet.',
+    burn: 'Term rows (a search term in one ad group) spending with no sale, above break-even, or converting at under half the usual rate. The figure is the money burned: spend with no sale, or spend above what break-even allows. The next-step chips of Burning money add up to it, and Plan my moves starts from it.',
+    scale: 'Term rows selling under their campaign\'s target ACoS with room to grow, or selling well without their own exact keyword yet.',
     paths: 'The same search term reaching the same product through two or more keywords or targets. Overlap cost: what the weaker paths spent above the lead path\'s ACoS.',
     rl: 'Changes picked here, waiting to be approved and downloaded as an Amazon bulk file. Nothing changes at Amazon until then.',
   };
@@ -43266,7 +43360,7 @@ function staBoxes(L) {
       <div class="sta-q">${q}</div>
       <div class="sta-go"><span>${go} →</span></div>
     </button>`;
-  const burned = L.burn.reduce((t, r) => t + r.burned, 0);
+  const burned = staBurnSum(L.burn).sp;   // the one sum: the chips and Plan my moves read the same
   const none = L.burn.filter(r => r.kind === 'none').length, poor = L.burn.filter(r => r.kind === 'poor').length;
   const beB = L.burn.filter(r => r.kind === 'be' && r.beBrand).length, be = L.burn.filter(r => r.kind === 'be' && !r.beBrand).length;
   const exact = L.scale.filter(r => r.scaleKind !== 'raise').length;
@@ -43284,10 +43378,10 @@ function staBoxes(L) {
   const open = ST_RL.items.filter(x => x.status === 'review' || x.status === 'approved');
   const appr = open.filter(x => x.status === 'approved').length;
   $('stBoxes').innerHTML =
-    box('burn', 'var(--bad)', 'Burning money', staMoney0(burned), `on ${staInt(L.burn.length)} search term${L.burn.length === 1 ? '' : 's'}`,
+    box('burn', 'var(--bad)', 'Burning money', staMoney0(burned), `on ${staInt(L.burn.length)} term row${L.burn.length === 1 ? '' : 's'}`,
       burnQ, 'Negatives and lower bids')
-    + box('scale', 'var(--accent)', 'Worth scaling', staInt(L.scale.length), 'search terms', scaleQ, 'Raise bids, add as exact')
-    + box('paths', 'var(--brand)', 'Competing paths', staInt(L.groups.length), 'search terms', pathsQ, provEx >= 1 ? 'Keep the lead path (provisional)' : 'Keep the lead path')
+    + box('scale', 'var(--accent)', 'Worth scaling', staInt(L.scale.length), `term row${L.scale.length === 1 ? '' : 's'}`, scaleQ, 'Raise bids, add as exact')
+    + box('paths', 'var(--brand)', 'Competing paths', staInt(L.groups.length), 'search terms (one per product)', pathsQ, provEx >= 1 ? 'Keep the lead path (provisional)' : 'Keep the lead path')
     + box('rl', 'var(--violet-ink)', 'Review list', staInt(open.length), 'waiting',
       appr ? `${staInt(appr)} approved, ready for the bulk file.` : 'Approve, then download as an Amazon bulk file.', 'Open the review list');
 }
@@ -43445,7 +43539,7 @@ function staDrawBurn(L) {
   const none = rows.filter(r => r.kind === 'none').length, poor = rows.filter(r => r.kind === 'poor').length;
   const beB = rows.filter(r => r.kind === 'be' && r.beBrand).length, be = rows.filter(r => r.kind === 'be' && !r.beBrand).length;
   const loss = rows.filter(r => r.kind === 'loss').length;
-  staHead('Which search terms are burning money?', `${staInt(rows.length)} terms: ${staInt(none)} with no sales${loss ? `, ${staInt(loss)} over 100% ACoS` : ''}${be ? `, ${staInt(be)} above break-even` : ''}${beB ? `, ${staInt(beB)} brand term${beB === 1 ? '' : 's'} over the ${STA.BRAND_TGT}% brand-term limit` : ''}${poor ? `, ${staInt(poor)} converting at under half the normal rate` : ''}.`
+  staHead('Which search terms are burning money?', `${staInt(rows.length)} term row${rows.length === 1 ? '' : 's'}: ${staInt(none)} with no sales${loss ? `, ${staInt(loss)} over 100% ACoS` : ''}${be ? `, ${staInt(be)} above break-even` : ''}${beB ? `, ${staInt(beB)} brand term${beB === 1 ? '' : 's'} over the ${STA.BRAND_TGT}% brand-term limit` : ''}${poor ? `, ${staInt(poor)} converting at under half the normal rate` : ''}.`
     + ` Protected terms (brand, product words, main keywords, seasonal, own ASINs) get a lower bid or a hold — never a negative.`);
   const body = page.map(r => `<tr${ST_SEL.has(r.key) ? ' class="sel"' : ''}>
       ${staTermCell(r)}${staVerdictCell(r, true)}${staNextCell(r)}
@@ -43457,7 +43551,7 @@ function staDrawBurn(L) {
     + (body || '<tr><td colspan="9" class="muted" style="padding:14px">Nothing is burning money in this view.</td></tr>')
     + (page.length ? `<tr class="tot"><td class="sta-stick">Total, all ${staInt(rows.length)}</td><td></td><td></td><td class="num sta-money">${staMoney(tot)}</td><td colspan="5"></td></tr>` : '')
     + '</tbody>';
-  staPager(rows.length, 'terms', '"By target" has one bid line per keyword or target; "By word" the words that recur without selling');
+  staPager(rows.length, 'term rows', `a term × its ad group · ${staMoney0(staBurnSum(rows).sp)} burned, the same as the box and the chips · "By target" has one bid line per keyword or target; "By word" the words that recur without selling`);
 }
 
 // Burning money, by target: the keywords and targets themselves, one bid line each.
@@ -43537,7 +43631,7 @@ function staDrawScale(L) {
   $('stTable').innerHTML = `<thead><tr>${staThStick(staTickAll(page), 'Search term')}<th>Verdict · evidence</th><th>Next step</th>
     ${staTh('Orders', 'o', 1)}${staTh('Sales', 's', 1)}${staTh('Spend', 'sp', 1)}${staTh('ACoS', 'acos', 1)}<th>Path</th></tr></thead><tbody>`
     + (body || '<tr><td colspan="8" class="muted" style="padding:14px">Nothing in this view is ready to scale.</td></tr>') + '</tbody>';
-  staPager(rows.length, 'terms', `no raise under ${STA.RAISE_COVER} days of FBA stock · own and sister-brand ASINs are never scaled`);
+  staPager(rows.length, 'term rows', `a term × its ad group · no raise under ${STA.RAISE_COVER} days of FBA stock · own and sister-brand ASINs are never scaled`);
 }
 
 // Competing paths: grouped by term and product, the lead path first.
@@ -43569,7 +43663,7 @@ function staDrawPaths(L) {
   $('stTable').innerHTML = `<thead><tr><th class="sta-stick">Role</th><th>Path</th><th class="num">Spend</th><th class="num">Orders</th><th class="num">ACoS</th><th class="num">CPC</th>
     <th class="num" title="Spend above what the lead path's ACoS would have cost for the same sales">Overlap cost</th><th>Recommendation</th><th>Next step</th></tr></thead><tbody>`
     + (html || '<tr><td colspan="9" class="muted" style="padding:14px">No search term competes with itself for the same product in this view.</td></tr>') + '</tbody>';
-  staPager(groups.length, 'terms', 'without a unit cost or target, the lead is provisional: the lowest ACoS with 3+ orders, and only clearly worse paths are routed to it');
+  staPager(groups.length, 'search terms (one per product)', 'without a unit cost or target, the lead is provisional: the lowest ACoS with 3+ orders, and only clearly worse paths are routed to it');
 }
 
 // Can this term safely be a negative PHRASE where it ran? Not when it is protected, or when a longer term containing it
@@ -43699,21 +43793,26 @@ function staDayCount(b) {
 
 // What happens in a campaign of the word dialog: [badge, its colour].
 const STA_CP_WHAT = { neg: ['Negate here', 'bad'], thin: ['Kept: not enough data here', 'warn'], kept: ['Kept: sells here', 'ok'], prot: ['Protected', 'info'],
-  at: ['Already negated', ''], queued: ['In the review list', ''] };
+  at: ['Already negated', ''], queued: ['In the review list', ''], nodata: ['Not judged: no click data', ''] };
 // The campaigns of the word dialog, by spend: N-Gram Analysis hands every campaign of its plan with what happens there
 // (r.cpAll: { cid, cn, sp, c, o, s, n, what, can, on, ev, why }; r.cpAt(floor): the same at a "Minimum spend per campaign");
-// By word's campaigns are each "Negate here", ticked.
+// By word's campaigns are each "Negate here", ticked — but a campaign with no click (its spend is the small terms') is
+// "Not judged: no click data", never ticked at first.
 function staWordCpRows(r, floor) {
-  const list = typeof r.cpAt === 'function' ? r.cpAt(floor || 0) : r.cpAll || r.cps.map(c => Object.assign({ what: 'neg', can: true, on: true, ev: c.o ? `${staInt(c.o)} order${c.o === 1 ? '' : 's'} · ${staMoney(c.s)} sales` : '' }, c));
-  return list.slice().sort((a, z) => z.sp - a.sp || (a.cid < z.cid ? -1 : 1));
+  const list = typeof r.cpAt === 'function' ? r.cpAt(floor || 0) : r.cpAll || r.cps.map(c => Object.assign({ tsp: 0 }, c.c > 0 || c.c == null
+    ? { what: 'neg', can: true, on: true, ev: c.o ? `${staInt(c.o)} order${c.o === 1 ? '' : 's'} · ${staMoney(c.s)} sales` : '' }
+    : { what: 'nodata', can: true, on: false, why: 'Not judged: no click data', ev: `${staMoney(c.tsp || c.sp)} from small search terms not listed one by one (their clicks are not split by campaign)` }, c));
+  return list.slice().sort((a, z) => (z.sp + (z.tsp || 0)) - (a.sp + (a.tsp || 0)) || (a.cid < z.cid ? -1 : 1));
 }
+// What a "Kept: sells here" campaign sells (the orange line when it is ticked by hand).
+const staSellsTxt = c => `Sells here: ${staInt(c.o)} order${c.o === 1 ? '' : 's'} · ${staMoney(c.s)} sales — negating it here stops them`;
 // The word dialog's campaign table (drawn again when the minimum spend per campaign changes).
 function staWordCpTable(r, rows) {
   return '<table class="xl"><thead><tr><th class="sta-dcb"><span class="sta-sr">Tick</span></th><th>Campaign</th><th class="num">Spend</th><th class="num">Clicks</th><th class="num">Orders</th><th class="num">Terms</th><th>Evidence</th><th>What happens</th></tr></thead><tbody>'
-    + rows.map((c, i) => `<tr${c.can ? '' : ' class="is-off"'}><td class="sta-dcb"><input type="checkbox" class="sta-cb" data-cp="${i}"${c.on ? ' checked' : ''}${c.can ? '' : ' disabled'} aria-label="${staEsc((c.can ? 'Negate in ' : 'Cannot negate in ') + c.cn)}"></td>
-      <td><div class="sta-dcn" title="${staEsc(c.cn)}">${staEsc(c.cn || 'Campaign ' + c.cid)}</div><small>${staEsc(staCpMeta(r.brand, c.cid))}</small></td>
-      <td class="num">${staMoney(c.sp)}</td><td class="num">${c.c != null ? staInt(c.c) : staDash}</td><td class="num">${staInt(c.o)}</td><td class="num">${c.n != null ? staInt(c.n) : staDash}</td>
-      <td class="sta-dev">${staEsc(c.ev || '')}</td><td>${staBadge(STA_CP_WHAT[c.what][0], STA_CP_WHAT[c.what][1])}${c.why ? `<small>${staEsc(c.why)}</small>` : ''}</td></tr>`).join('')
+    + rows.map((c, i) => `<tr class="${c.can ? '' : 'is-off'}${c.what === 'kept' && c.on ? ' sta-sellon' : ''}"><td class="sta-dcb"><input type="checkbox" class="sta-cb" data-cp="${i}"${c.on ? ' checked' : ''}${c.can ? '' : ' disabled'} aria-label="${staEsc((c.can ? 'Negate in ' : 'Cannot negate in ') + c.cn)}"${c.can ? '' : ` title="${staEsc(STA_CP_WHAT[c.what][0] + ': cannot be ticked')}"`}></td>
+      <td><div class="sta-dcn" title="${staEsc(c.cn)}">${staEsc(c.cn || 'Campaign ' + c.cid)}</div><small>${staEsc(staCpMeta(r.brand, c.cid))}</small>${c.what === 'kept' ? `<small class="sta-sellwarn">${staEsc(staSellsTxt(c))} (chosen by hand)</small>` : ''}</td>
+      <td class="num">${staMoney(c.sp)}${c.tsp ? `<small class="sta-dash" title="Spend of the small search terms not listed one by one: their clicks are not split by campaign, so they are not in Clicks">+ ${staMoney(c.tsp)} small terms</small>` : ''}</td><td class="num">${c.c != null ? staInt(c.c) : staDash}</td><td class="num">${staInt(c.o)}</td><td class="num">${c.n != null ? staInt(c.n) : staDash}</td>
+      <td class="sta-dev">${staEsc(c.ev || '')}</td><td>${staBadge(STA_CP_WHAT[c.what][0], STA_CP_WHAT[c.what][1])}${c.why && c.what !== 'nodata' ? `<small>${staEsc(c.why)}</small>` : ''}</td></tr>`).join('')
     + '</tbody></table>';
 }
 // A new "Minimum spend per campaign" in the word dialog: remembered (the row's floorSave), the default ticks worked out again.
@@ -44025,7 +44124,12 @@ function staDlgCheck() {
   } else if (kind === 'word') {
     const picks = STD.cpRows.filter((c, i) => c.can && STD.cpOn.has(i));
     STD.picks = picks;
-    $('stDlgCpN').textContent = `${staInt(picks.length)} of ${staInt(STD.cpRows.length)} campaign${STD.cpRows.length === 1 ? '' : 's'} ticked · ${staMoney(picks.filter(c => !(c.o > 0)).reduce((t, c) => t + (c.sp || 0), 0))} spend with no orders`;
+    // Campaigns that sell it, ticked by hand: said in orange on the total too.
+    const sells = picks.filter(c => c.o > 0);
+    const cpN = `${staInt(picks.length)} of ${staInt(STD.cpRows.length)} campaign${STD.cpRows.length === 1 ? '' : 's'} ticked · ${staMoney(picks.filter(c => !(c.o > 0)).reduce((t, c) => t + (c.sp || 0) + (c.tsp || 0), 0))} spend with no orders`;
+    if (!sells.length) $('stDlgCpN').textContent = cpN;
+    else $('stDlgCpN').innerHTML = staEsc(cpN) + (` <span class="sta-sellwarn sta-sellwarn-tot">includes ${staInt(sells.length)} campaign${sells.length === 1 ? '' : 's'} that sell${sells.length === 1 ? 's' : ''} this pattern: ${staInt(sells.reduce((t, c) => t + c.o, 0))} order${sells.reduce((t, c) => t + c.o, 0) === 1 ? '' : 's'} · ${staMoney(sells.reduce((t, c) => t + (c.s || 0), 0))} sales</span>`);
+    if (sells.length) out.push(staCheck('warn', `${staInt(sells.length)} ticked campaign${sells.length === 1 ? ' sells' : 's sell'} this pattern (chosen by hand): the review items say "sells here — chosen by hand".`));
     if (r.protect) bad(`A ${staEsc(r.protect)}: never negated.`);
     else out.push(staCheck('ok', 'Not a product word, brand term, main keyword or seasonal word'));
     // Nothing ticked (a pattern opened to see its campaigns, or all cleared): nothing to add — said quietly, not as an error.
@@ -44319,10 +44423,10 @@ function staIsoItems(r, c, bid, negAt) {
 function staWordItems(r, picks) {
   return picks.filter(c => !ST_RL.items.some(x => (x.status === 'review' || x.status === 'approved' || x.status === 'exported') && x.kind === 'neg' && x.brand === r.brand && staNorm(x.term) === r.gram && x.cid === c.cid)
     && !staNegAtAmazon(r.brand, 'cp|' + c.cid, r.term, 'np'))
-    .map(c => staItem(Object.assign({}, r, { cid: c.cid, cn: c.cn, agn: '', ag: '', c: c.n, sp: c.sp, o: c.o, s: c.s }), 'neg', {
+    .map(c => staItem(Object.assign({}, r, { cid: c.cid, cn: c.cn, agn: '', ag: '', c: c.n, sp: c.sp + (c.tsp || 0), o: c.o, s: c.s }), 'neg', Object.assign({
       wkey: r.key, neg: { type: 'negativePhrase', level: 'cp' }, what: 'Negative phrase · campaign level',
       why: r.tag === 'blocked' ? 'Blocked word' : r.tag === 'competitor' ? 'Competitor brand' : `In ${staInt(r.n)} terms, ${staInt(r.c)} clicks, no order`,
-    }));
+    }, c.o > 0 ? { sellsHere: true, why: `Sells here — chosen by hand: ${staInt(c.o)} order${c.o === 1 ? '' : 's'} · ${staMoney(c.s)} sales in this campaign` } : {})));
 }
 function staKindName(x) {
   if (x.kind === 'plc') return x.plc.to > x.plc.from ? 'Raise placement' : 'Lower placement';
@@ -44337,7 +44441,7 @@ function staQuick(r) {
   const M = staModel();
   if (r.type === 'word') {
     if (!r.act) return { skip: 'no change' };
-    const it = staWordItems(r, r.cps);
+    const it = staWordItems(r, r.cps.filter(c => c.c == null || c.c > 0));   // never a campaign with no click
     return it.length ? { items: it } : { skip: 'already there' };
   }
   const n = r.next;
@@ -44977,18 +45081,19 @@ function staPlanRules(L) {
   add('words', pick(L.words, r => r.act),
     rs => `Block ${rs.length} word${rs.length === 1 ? '' : 's'} that keep${rs.length === 1 ? 's' : ''} spending without selling`,
     rs => `Negative phrases across the campaigns they spend in — ${staMoney(sum(rs))} at stake: ${top(rs)}.`, 'word');
+  // Never a target that is not set (r.tgtSet): without one, "over 100% ACoS or with no orders".
   add('cut', pick(L.burnTgt, g => g.next === 'reduce'),
     rs => `Lower the bid on ${rs.length} keyword${rs.length === 1 ? '' : 's'} / target${rs.length === 1 ? '' : 's'} losing money`,
-    rs => `Each from its CPC or bid, rounded toward the current bid — ${staMoney(sum(rs))} over target or with no orders. Biggest: ${top(rs)}.`, 'bid');
+    rs => `Each from its CPC or bid, rounded toward the current bid — ${staMoney(sum(rs))} ${rs.some(g => g.tgtSet) ? 'over target or with no orders' : `over ${STA.LOSS_ACOS}% ACoS or with no orders`}. Biggest: ${top(rs)}.`, 'bid');
   add('pause', pick(L.burnTgt, g => g.next === 'pause'),
     rs => `Pause ${rs.length} target${rs.length === 1 ? '' : 's'} with no orders`,
     rs => `Under 1% chance their 0 orders are bad luck — ${staMoney(sum(rs))} spent. ${top(rs)}.`, 'pause');
   add('exact', pick(L.scale, r => r.next === 'exact' || r.next === 'asinT', (a, z) => (z.s || 0) - (a.s || 0)),
     rs => `Give ${rs.length} selling search term${rs.length === 1 ? '' : 's'} ${rs.length === 1 ? 'its' : 'their'} own exact keyword`,
-    rs => `${staMoney(rs.reduce((t, r) => t + (r.s || 0), 0))} in sales under target ACoS, still reached only through broad, phrase or auto: ${top(rs)}.`, 'exact');
+    rs => `${staMoney(rs.reduce((t, r) => t + (r.s || 0), 0))} in sales ${rs.some(r => r.tgtSet) ? 'under target ACoS' : `under the ${STA.BRAND_TGT}% brand-term limit`}, still reached only through broad, phrase or auto: ${top(rs)}.`, 'exact');
   add('raise', pick((M.tgRows || []).concat(L.scale), g => g.next === 'raise', (a, z) => (z.s || 0) - (a.s || 0)),
     rs => `Raise the bid on ${rs.length} winner${rs.length === 1 ? '' : 's'}`,
-    rs => `Well under target with enough orders and stock to sell more: ${top(rs)}.`, 'bid');
+    rs => `${rs.some(g => g.tgtSet) ? 'Well under target' : `Well under the ${STA.BRAND_TGT}% brand-term limit`} with enough orders and stock to sell more: ${top(rs)}.`, 'bid');
   add('iso', pick(L.all, r => r.next === 'iso'),
     rs => `Move ${rs.length} costly search term${rs.length === 1 ? '' : 's'} to ${rs.length === 1 ? 'its' : 'their'} own exact keyword at a lower bid`,
     rs => `The keyword sells; only this term loses — it keeps showing, for less: ${top(rs)}.`, 'iso');
@@ -45003,7 +45108,10 @@ function staPlanRows(L) {
   cand.forEach(r => { if (!uniq.has(r.key)) uniq.set(r.key, r); });
   return [...uniq.values()].sort((a, z) => (z.stake || z.burned || z.s || 0) - (a.stake || a.burned || a.s || 0)).slice(0, 50).map(r => ({
     k: r.key, brand: r.brand, what: r.term || r.target || r.gram || '', type: r.type || 'term', next: r.next, kind: r.kind || '',
-    c: r.c, sp: staR2(r.sp), o: r.o, s: staR2(r.s), acos: r.acos == null ? null : Math.round(r.acos), tgt: r.tgtUse == null ? null : Math.round(r.tgtUse),
+    c: r.c, sp: staR2(r.sp), o: r.o, s: staR2(r.s), acos: r.acos == null ? null : Math.round(r.acos),
+    // A target or break-even only where one is really set (never the 100% loss line, never a default).
+    tgt: r.tgtSet && r.tgtUse != null ? Math.round(r.tgtUse) : null, be: r.tgtSet && r.beUse != null ? Math.round(r.beUse) : null,
+    brandLimit: r.brandTerm ? STA.BRAND_TGT : null,
     cp: r.cn || '', season: r.tagSet && r.tagSet.has('season') ? 1 : 0, brandTerm: r.brandTerm ? 1 : 0,
   }));
 }
@@ -45014,7 +45122,9 @@ async function staPlanAi(L, rules) {
   if (rows.length < 3) return null;
   const ask = adsPost({ ai: 'plan', brand: pick, day: new Date().toISOString().slice(0, 10), rows,
     rules: rules.map(m => ({ id: m.id, title: m.title, keys: m.keys.slice(0, 40) })),
-    want: 'Up to 7 moves, most money first. Each: title (under 12 words), why (one sentence, plain words, the numbers), keys (only from rows). Group by pattern (same word, same campaign, same season).' });
+    noTarget: staNoTgtBrands(pick === 'ALL' ? ['SP', 'CPC'] : [pick]),
+    want: 'Up to 7 moves, most money first. Each: title (under 12 words), why (one sentence, plain words, the numbers), keys (only from rows). Group by pattern (same word, same campaign, same season).'
+      + ' A row with tgt null has no target ACoS and no break-even: never mention a target, a break-even or "under / over target" for it, nor for any brand in noTarget.' });
   // Sonnet (20 Nov: Plan my moves runs on Claude Sonnet 5.5) can take 20–40 s; Sellora's own plan shows meanwhile.
   const timeout = new Promise(res => setTimeout(() => res({ ok: false, error: 'took over a minute' }), 60000));
   let ans;
@@ -45031,7 +45141,7 @@ async function staPlanAi(L, rules) {
 }
 async function staPlanMake(force) {
   // One plan a day per brand, window and filters (it is made from what the screen shows).
-  const pick = $('stBrand').value, day = new Date().toISOString().slice(0, 10), view = staWin() + '|' + staFSig(), ck = pick + '|' + view + '|' + day;
+  const pick = $('stBrand').value, day = new Date().toISOString().slice(0, 10), view = staPlanView(), ck = pick + '|' + view + '|' + day;
   if (!force) {
     try {
       const c = JSON.parse(localStorage.getItem(STA_PLAN_LOCAL) || '{}')[ck];
@@ -45052,6 +45162,17 @@ async function staPlanMake(force) {
     localStorage.setItem(STA_PLAN_LOCAL, JSON.stringify(all));
   } catch (e) { /* kept for this visit */ }
 }
+// What a plan is made from: the window, the filters of the bar, the search, minimum spend and Filters — the same rows the
+// boxes and chips count, so a change to any of them makes a new plan.
+const staPlanView = () => [staWin(), staFSig(), ...['stFilter', 'stMinSpend', 'stFMt', 'stFCt', 'stFV', 'stFTag'].map(id => ($(id) || {}).value || '')].join('|');
+// The plan's first line: Burning money as the box and the chips count it (staBurnSum, the same rows), and why the moves add
+// up to less. { html, sp, n }.
+function staPlanHead(L) {
+  const B = staBurnSum(L.burn);
+  const part = STA_ACTS.filter(([k]) => B.by[k]).map(([k, t]) => `${t} ${staMoney0(B.by[k].sp)}`).join(' · ');
+  return { sp: B.sp, n: B.n, html: `<div class="sta-planhead"><b>Burning money: ${staMoney0(B.sp)} on ${staInt(B.n)} term row${B.n === 1 ? '' : 's'}</b> — the same rows, window and filters as the box and the next-step chips${part ? ` (${part})` : ''}. `
+    + 'Each move below counts only its rows that can be added now (at most 40, not already in the review list or waiting), and keyword moves overlap the term rows, so the moves do not add up to it.</div>' };
+}
 // Draw the plan. Each move: what, why, the money, how many rows are still ready (others are in the review list already,
 // or wait), and "Tick these" (the selection bar adds them, with the usual checks).
 function staPlanDraw(busy) {
@@ -45059,7 +45180,7 @@ function staPlanDraw(busy) {
   const M = staModel();
   $('stPlanSub').textContent = !P ? '' : `${P.src === 'ai' ? 'Planned by ' + (P.model || 'Claude') + ' from Sellora\'s top suggestions' : 'From Sellora\'s rules'} · ${new Date(P.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
   const live = m => m.keys.map(k => staByKey(M, k)).filter(r => { if (!r) return false; try { return !!staQuick(r).items; } catch (e) { return false; } });
-  $('stPlanBody').innerHTML = (busy ? '<div class="sta-planbusy"><span class="sta-spin" aria-hidden="true"></span>Asking Claude to plan from Sellora\'s top suggestions (up to a minute)… Sellora\'s own plan below is ready now.</div>' : '')
+  $('stPlanBody').innerHTML = staPlanHead(staLists()).html + (busy ? '<div class="sta-planbusy"><span class="sta-spin" aria-hidden="true"></span>Asking Claude to plan from Sellora\'s top suggestions (up to a minute)… Sellora\'s own plan below is ready now.</div>' : '')
     + (P && P.note ? `<div class="sta-plannote">${staEsc(P.note)}</div>` : '')
     + (!P || !P.moves.length ? '<p class="muted" style="padding:6px 2px">Nothing worth planning: no suggestion passes its checks right now.</p>'
       : '<ol class="sta-plan">' + P.moves.map((m, i) => {
@@ -45072,18 +45193,34 @@ function staPlanDraw(busy) {
 }
 async function staPlanOpen() {
   $('stPlan').classList.remove('hide');
-  if (!STA_PLAN || STA_PLAN.brand !== $('stBrand').value || STA_PLAN.view !== staWin() + '|' + staFSig()
+  if (!STA_PLAN || STA_PLAN.brand !== $('stBrand').value || STA_PLAN.view !== staPlanView()
     || new Date(STA_PLAN.at).toDateString() !== new Date().toDateString()) await staPlanMake(false);
   staPlanDraw(false);
 }
 
 /* ================= LISTS & SETTINGS ================= */
 let STS_B = 'SP';
-function staSetOpen() {
-  STS_B = $('stBrand').value === 'CPC' ? 'CPC' : 'SP';
+// brand: the brand to open on ('SP' / 'CPC'; else the one picked on this page); focus 'tgt': scrolled to the target ACoS
+// field and focused (the no-target warning's "Set a target ACoS", here, on N-Gram and on Placement).
+function staSetOpen(brand, focus) {
+  STS_B = brand === 'SP' || brand === 'CPC' ? brand : $('stBrand').value === 'CPC' ? 'CPC' : 'SP';
   $('stSet').classList.remove('hide');
   staSetDraw();
+  if (focus === 'tgt') {
+    const f = $('stSetTgt');
+    if (f) {
+      try { f.scrollIntoView({ block: 'center' }); } catch (e) { /* old browser */ }
+      f.focus();
+    }
+  }
 }
+// Any "Set a target ACoS" button on any page (data-settgt="SP" / "CPC", or "1" for the brand picked).
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-settgt]');
+  if (!b) return;
+  e.preventDefault();
+  staSetOpen(b.dataset.settgt, 'tgt');
+});
 function staSetDraw() {
   const b = STS_B, S = staSet(b);
   $('stSetSeg').querySelectorAll('[data-b]').forEach(x => x.classList.toggle('on', x.dataset.b === b));
@@ -45175,16 +45312,11 @@ $('stActBar').addEventListener('click', e => {
 $('stBrand').addEventListener('change', () => { ST_SEL.clear(); ST_PG = 0; renderSt(); });
 $('stCpShow').addEventListener('change', renderSt);
 try {
-  const t = localStorage.getItem('stCpTarget');
-  if (t) $('stCpTarget').value = t;
   const z = Number(localStorage.getItem('stSize'));
   if ([50, 100, 250].includes(z)) { ST_SIZE = z; $('stSize').value = String(z); }
 } catch (e) { /* no storage */ }
-$('stCpTarget').addEventListener('input', () => {
-  try { localStorage.setItem('stCpTarget', $('stCpTarget').value); } catch (e) { /* no storage */ }
-  clearTimeout(ST_FT);
-  ST_FT = setTimeout(renderSt, 250);
-});
+// Campaign × Product's target: where it comes from, and Lists & settings on the brand picked (never a typed-in target).
+$('stCpTarget').addEventListener('click', () => staSetOpen($('stBrand').value, 'tgt'));
 ['stFilter', 'stMinSpend'].forEach(id => $(id).addEventListener('input', () => {
   clearTimeout(ST_FT);
   ST_PG = 0;
@@ -45210,7 +45342,8 @@ staBarWire({ pg: 'st', win: 'stWin', pf: 'stPf', chips: 'stChips', note: 'stWinN
   return true;
 } });
 // "Set a target ACoS" in the data line (no unit costs) opens Lists & settings.
-$('stMsg').addEventListener('click', e => { if (e.target.closest('[data-settgt]')) staSetOpen(); else if (e.target.closest('[data-staretry]')) ensureSt(); });
+// ("Set a target ACoS" buttons anywhere: the one data-settgt handler, with staSetOpen.)
+$('stMsg').addEventListener('click', e => { if (e.target.closest('[data-staretry]')) ensureSt(); });
 // "Try again" after a load that failed every try.
 $('stTable').addEventListener('click', e => { if (e.target.closest('[data-staretry]')) ensureSt(); });
 // "Show them" under the strip: every brand leak, in All terms, through the Tag filter (so it can be cleared like any filter).
@@ -45316,14 +45449,25 @@ $('stDlgBody').addEventListener('input', e => {
 $('stDlgBody').addEventListener('change', e => {
   if (e.target && e.target.id === 'stDlgCpMin') { staDlgCpFloor(e.target.value); return; }
   const cb = e.target && e.target.dataset && e.target.dataset.cp != null && STD && STD.cpOn ? e.target : null;
-  if (cb) { const i = Number(cb.dataset.cp); if (cb.checked) STD.cpOn.add(i); else STD.cpOn.delete(i); }
+  if (cb) {
+    const i = Number(cb.dataset.cp);
+    if (cb.checked) STD.cpOn.add(i); else STD.cpOn.delete(i);
+    // A "Kept: sells here" campaign ticked by hand: its orange line shows.
+    const tr = typeof cb.closest === 'function' ? cb.closest('tr') : null;
+    if (tr && STD.cpRows[i] && STD.cpRows[i].what === 'kept') tr.classList.toggle('sta-sellon', cb.checked);
+  }
   staDlgCheck();
 });
-// "Select all eligible" (the campaigns ticked at first: enough evidence there) and "Clear".
+// "Select all eligible": only the "Negate here" campaigns with clicks (never one with 0 clicks, never one kept); "Clear".
+const staCpEligible = c => c.what === 'neg' && c.can && c.c > 0;
 function staDlgCpSet(all) {
   if (!STD || !STD.cpRows) return;
-  STD.cpOn = new Set(all ? STD.cpRows.map((c, i) => (c.on && c.can ? i : -1)).filter(i => i >= 0) : []);
-  $('stDlgBody').querySelectorAll('input[data-cp]').forEach(x => { x.checked = STD.cpOn.has(Number(x.dataset.cp)); });
+  STD.cpOn = new Set(all ? STD.cpRows.map((c, i) => (staCpEligible(c) ? i : -1)).filter(i => i >= 0) : []);
+  $('stDlgBody').querySelectorAll('input[data-cp]').forEach(x => {
+    x.checked = STD.cpOn.has(Number(x.dataset.cp));
+    const tr = typeof x.closest === 'function' ? x.closest('tr') : null;
+    if (tr) tr.classList.toggle('sta-sellon', x.checked && (STD.cpRows[Number(x.dataset.cp)] || {}).what === 'kept');
+  });
   staDlgCheck();
 }
 $('stDlgBody').addEventListener('click', e => {
@@ -45478,7 +45622,9 @@ $('stCsv').onclick = () => {
  * cost is known (Profit & Margin).
  *
  * The verdict asks: is it running at all, then STOCK, then evidence (under CP_MIN_CLICKS clicks with no order nothing
- * can be said yet), then the money against the break-even ACoS or the typed target. Sellora only ADVISES — nothing
+ * can be said yet), then the money against the break-even ACoS, else the target from the one place every view reads (staTgtOf:
+ * unit costs, else the brand's target in Lists & settings) — never a default (24 Nov: the 30% CP_TARGET_DEFAULT and the
+ * typed box are gone; stCpTarget now opens Lists & settings). No target: "no target", nothing judged against one. Sellora only ADVISES — nothing
  * here changes a bid, a state or a campaign at Amazon.
  *
  * SPEED: everything that does not depend on the target ACoS is worked out ONCE per load (cpBase); a keystroke in the
@@ -45487,7 +45633,6 @@ $('stCsv').onclick = () => {
 const CP_MIN_CLICKS = 10;       // clicks before "no order" is evidence rather than chance
 const CP_LOW_COVER = 14;        // days of stock below which the ad is slowed so the product does not run out
 const CP_SCALE_COVER = 45;      // days of stock needed before "spend more" is advice anyone can follow
-const CP_TARGET_DEFAULT = 30;   // ACoS % used when the unit cost is not known and nothing is typed in
 // The one-letter ad status from the nightly run → its label and tooltip.
 const CP_STATE = {
   E: { t: 'Active', tip: 'Ad, ad group and campaign are all enabled.' },
@@ -45586,8 +45731,8 @@ function cpBreakEven(asin, price) {
 function cpVerdict(r) {
   const money = v => '$' + Math.round(v).toLocaleString('en-US');
   const acos = r.s > 0 ? r.sp / r.s * 100 : null;
-  const tgt = r.be != null ? r.be : r.tgt;
-  const tgtTxt = r.be != null ? `break-even ${Math.round(r.be)}%` : `target ${Math.round(r.tgt)}%`;
+  const tgt = r.be != null ? r.be : r.tgt != null ? r.tgt : null;
+  const tgtTxt = r.be != null ? `break-even ${Math.round(r.be)}%` : r.tgt != null ? `target ${Math.round(r.tgt)}%${r.tgtSrc === 'list' ? ' (Lists & settings)' : ''}` : 'no target';
   // --- running at all? ---
   /* Not running today: nothing to cut. Only worth a word when it was working and the stock is there to sell. */
   if (r.st && r.st !== 'E' && r.st !== '?') {
@@ -45617,6 +45762,13 @@ function cpVerdict(r) {
     return { v: 'bad', act: 'Pause / cut bids', why: `${money(r.sp)} on ${r.c} clicks and not one order.` };
   }
   // --- money ---
+  // No unit cost and no target for the brand: nothing judged against a target — only a loss over 100% ACoS.
+  if (tgt == null) {
+    if (acos != null && acos > STA.LOSS_ACOS && r.sp >= STA.LOSS_MIN_SP) {
+      return { v: 'bad', act: 'Lower bids', why: `ACoS ${Math.round(acos)}%: the ads cost more than the sales, whatever the unit cost.` };
+    }
+    return { v: '', act: 'No target', why: `No unit cost and no target ACoS for ${staBrandName(r.brand)}: not judged against a target. ACoS ${acos != null ? Math.round(acos) + '%' : '—'} on ${r.o} order${r.o === 1 ? '' : 's'}. Set a target in Lists & settings.` };
+  }
   if (tgt <= 0) {
     return { v: 'bad', act: 'Loses money',
       why: 'At this price and unit cost the product loses money before any ad, so every ad sale adds to the loss. '
@@ -45683,8 +45835,6 @@ function cpRows() {
   const pick = $('stBrand').value;
   const q = $('stFilter').value.trim().toLowerCase();
   const minSp = Number($('stMinSpend').value) || 0;
-  const typed = Number($('stCpTarget').value);
-  const tgt = typed > 0 ? typed : CP_TARGET_DEFAULT;
   const show = $('stCpShow').value;
   // --- verdict and filter ---
   const rows = [];
@@ -45693,7 +45843,10 @@ function cpRows() {
     if (pick !== 'ALL' && b.brand !== pick) return;
     if (minSp > 0 && b.sp < minSp) return;
     if (fOn && !staFPassCp(b)) return;
-    b.tgt = tgt;
+    // The one target (unit cost's break-even is b.be already): else the brand's own in Lists & settings; else none.
+    const T = b.be != null ? null : staTgtOf(b.brand, b.a);
+    b.tgt = T ? T.tgt : null;
+    b.tgtSrc = T ? T.src : '';
     Object.assign(b, cpVerdict(b));
     if (show === 'running' ? b.st !== 'E' : show === 'stopped' ? (b.st === 'E' || !b.st) : show && b.v !== show) return;
     if (q && !(b.hay + ' ' + b.act.toLowerCase()).includes(q)) return;
@@ -45872,16 +46025,24 @@ function cpCsv() {
  *   Without unit costs or a target setting for a brand, "above break-even" and Winner are off for it.
  *
  * THE ACTIONS, always through the shared review list and Search Term Analysis's own dialogs and checks:
- *   Waste   "Negate in N campaigns": a campaign-level negative phrase in each campaign where the pattern has no order
- *           (ngPlan at $0) — staOpen('word', …) with the pattern shaped like a By word row, whose dialog lists every
- *           campaign with the chance of its 0 orders and what happens there; staWordItems. The dialog's "Minimum spend per
- *           campaign" ($5 / $10 / $20, remembered on this device) ticks only campaigns that also pass the chance test with
- *           that much spent; any campaign with no order can be ticked by hand. Campaigns where it sells are kept; over
- *           break-even and selling somewhere also gets "Lower bids where it sells →". A protected pattern gets "Lower bids
- *           instead" (its terms in Search Term Analysis). A Waste pattern with nothing to negate says where it went, in
- *           counts, with "Open in Search Term Analysis →" — never "Watch". Every Waste row without a Negate button has
+ *   Waste   "Negate in N campaigns": a campaign-level negative phrase in each campaign where the pattern has no order and
+ *           0 orders there is unlikely to be chance (ngPlan at $0: clicks there, and under NG.NEG_CHANCE at the campaign's
+ *           order rate) — staOpen('word', …) with the pattern shaped like a By word row, whose dialog lists every campaign
+ *           with the chance of its 0 orders and what happens there; staWordItems. The dialog's "Minimum spend per campaign"
+ *           ($0 by default; $5 / $10 / $20, remembered on this device) also asks for that much spent there. A campaign with
+ *           no click (24 Nov: a chance of 100% once read "Negate here") is never ticked and never says Negate: "Not judged:
+ *           no click data", saying where its spend comes from. Every listed campaign that is not protected, already negated
+ *           or in the review list can be ticked by hand — "Kept: sells here" too, with an orange line saying what it sells
+ *           (the dialog's total, the Excel file and the review items say "sells here — chosen by hand"). Over break-even
+ *           and selling somewhere also gets "Lower bids where it sells →". A protected pattern gets "Lower bids instead"
+ *           (its terms in Search Term Analysis). A Waste pattern with nothing to negate says where it went, in counts,
+ *           with "Open in Search Term Analysis →" — never "Watch". Every Waste row without a Negate button has
  *           "Campaigns & Excel": the same dialog, nothing ticked.
- *           No-order spend: its spend in the campaigns it would be negated in (the Waste view's first sort).
+ *           A CAMPAIGN'S SPEND AND CLICKS come from the same rows: its listed search terms. The backend's word roll-up of the
+ *           terms too small to be listed one by one (the tail) splits its spend by campaign but not its clicks or terms, so
+ *           that spend is kept apart (tsp) and shown as its own line — 24 Nov: it was added to the campaign's spend, so a
+ *           campaign could show $66.29 and 0 clicks.
+ *           No-order spend (every pattern, every class): its spend on search terms with no order, the tail included.
  *           Download Excel: one pattern (the dialog, an opened row: ngPatternSheets) or every Waste pattern on screen
  *           (the toolbar: ngWasteSheets), through staXlsxBook.
  *   Winner  "Harvest best term": its term with the lowest ACoS among those with NG.HARVEST_ORDERS+ orders, within target,
@@ -45951,13 +46112,16 @@ function ngBuild(M) {
       live.forEach(r => {
         g.c += r.c; g.sp += r.sp; g.s += r.s; g.o += r.o;
         if (r.o > 0) g.conv++; else g.zsp += r.sp;
-        const cp = g.cps.get(r.cid) || g.cps.set(r.cid, { cid: r.cid, cn: r.cn, c: 0, sp: 0, s: 0, o: 0, n: 0 }).get(r.cid);
+        const cp = g.cps.get(r.cid) || g.cps.set(r.cid, { cid: r.cid, cn: r.cn, c: 0, sp: 0, tsp: 0, s: 0, o: 0, n: 0 }).get(r.cid);
         cp.c += r.c; cp.sp += r.sp; cp.s += r.s; cp.o += r.o; cp.n++;
-        if (r.tgtUse != null && r.beUse != null) { const wt = r.sp + 0.001; w += wt; tw += wt * r.tgtUse; bw += wt * r.beUse; }
+        // Only a target that is really set (r.tgtSet): never the 100% loss line of a term with no target.
+        if (r.tgtSet && r.tgtUse != null && r.beUse != null) { const wt = r.sp + 0.001; w += wt; tw += wt * r.tgtUse; bw += wt * r.beUse; }
       });
+      // The tail's spend in each campaign, kept apart (tsp): its clicks and terms are not split by campaign, so adding it to
+      // the campaign's spend made spend without clicks.
       x.tcp.forEach((sp, cid) => {
-        const cp = g.cps.get(cid) || g.cps.set(cid, { cid, cn: staName(b, cid), c: 0, sp: 0, s: 0, o: 0, n: 0 }).get(cid);
-        cp.sp += sp;
+        const cp = g.cps.get(cid) || g.cps.set(cid, { cid, cn: staName(b, cid), c: 0, sp: 0, tsp: 0, s: 0, o: 0, n: 0 }).get(cid);
+        cp.tsp += sp;
       });
       if (!(g.sp > 0) && !(g.o > 0)) return;
       g.tgt = costsOn && w > 0 ? tw / w : null;
@@ -45966,7 +46130,7 @@ function ngBuild(M) {
       g.acos = g.s > 0 ? g.sp / g.s * 100 : null;
       g.cvr = g.c > 0 ? g.o / g.c * 100 : null;
       g.chance = p && g.c > 0 ? Math.pow(1 - p, g.c) : p ? 1 : null;
-      g.ncp = [...g.cps.values()].filter(c => c.sp > 0 || c.o > 0).length;
+      g.ncp = [...g.cps.values()].filter(c => c.sp + c.tsp > 0 || c.o > 0).length;
       // What protects it, and your own lists.
       const k = staKey(x.gram);
       const tags = [];
@@ -46062,55 +46226,68 @@ function ngCpRate(g, cid) {
 //   prot    every one of its terms is protected there (Search Term Analysis's own check, noNeg: a brand or sister-brand term,
 //           a product word of that ad group, seasonal…);
 //   at      already negated at Amazon;  queued  waiting in the review list;
-//   neg     0 orders there — ticked. floor (the popup's "Minimum spend per campaign", NG_CP_FLOORS): at $0, the default and
-//           the table's rule, every such campaign, as before the evidence check (23 Nov); at $5 / $10 / $20, only where 0
-//           orders is unlikely to be chance (under NG.NEG_CHANCE at the campaign's order rate, or the brand's when the
-//           campaign has under STA.RATE_ORDERS orders) with that much spent there. A blocked word or a competitor brand at
-//           any floor, as its class;
-//   thin    0 orders there, but under the floor or could still be chance — shown, not ticked (it can be ticked by hand).
+//   nodata  no click there (its spend is the tail's: small terms not listed one by one) — "Not judged: no click data",
+//           never ticked at first, never "Negate here" (24 Nov: "0 in 0 clicks · 100.0% chance" once read Negate);
+//   neg     0 orders in its clicks there, and unlikely to be chance (under NG.NEG_CHANCE at the campaign's order rate, or the
+//           brand's when the campaign has under STA.RATE_ORDERS orders) — ticked. floor (the popup's "Minimum spend per
+//           campaign", NG_CP_FLOORS, $0 by default): also that much spent there. A blocked word or a competitor brand at any
+//           floor and any chance, as its class (but never with no click);
+//   thin    0 orders there, but under the floor or could still be chance — shown, not ticked.
 // The chance of 0 orders shows on every 0-order campaign either way, as information. A protected pattern: every campaign
-// without orders is prot. Each campaign as a copy with { what, can (can be ticked by hand: 0 orders, not protected, not
-// negated or queued), on (ticked at first), ev (the evidence), why, chance, rate, floor }.
-// { neg, thin, kept, prot, at, queued }, each by spend.
-const NG_PLAN_KEYS = ['neg', 'thin', 'kept', 'prot', 'at', 'queued'];
+// without orders is prot. Each campaign as a copy with { what, can (can be ticked by hand: anything not protected, already
+// negated or queued — kept, thin and nodata too), on (ticked at first), ev (the evidence), why, chance, rate, floor }.
+// sp: its listed terms' spend (the same rows as its clicks), tsp: the tail's spend there.
+// { neg, thin, kept, nodata, prot, at, queued }, each by spend.
+const NG_PLAN_KEYS = ['neg', 'thin', 'kept', 'nodata', 'prot', 'at', 'queued'];
 const NG_CP_FLOORS = [0, 5, 10, 20];
 function ngPlan(g, floor) {
   floor = NG_CP_FLOORS.includes(Number(floor)) ? Number(floor) : 0;
   if (!Object.prototype.hasOwnProperty.call(g, '_plans') || !g._plans) g._plans = {};
   if (g._plans[floor]) return g._plans[floor];
-  const out = { neg: [], thin: [], kept: [], prot: [], at: [], queued: [] };
+  const out = { neg: [], thin: [], kept: [], nodata: [], prot: [], at: [], queued: [] };
   const allProt = new Map();
   g.terms.forEach(r => allProt.set(r.cid, (allProt.has(r.cid) ? allProt.get(r.cid) : true) && !!r.noNeg));
   const clk = n => `${staInt(n)} click${n === 1 ? '' : 's'}`;
-  [...g.cps.values()].filter(c => c.sp >= NG.CP_MIN_SP || c.o > 0).sort((a, z) => z.sp - a.sp || (a.cid < z.cid ? -1 : 1)).forEach(c0 => {
-    const c = Object.assign({}, c0, { can: false, on: false, why: '', floor });
+  const all = c => c.sp + (c.tsp || 0);
+  [...g.cps.values()].filter(c => all(c) >= NG.CP_MIN_SP || c.o > 0).sort((a, z) => all(z) - all(a) || (a.cid < z.cid ? -1 : 1)).forEach(c0 => {
+    const c = Object.assign({ tsp: 0 }, c0, { can: false, on: false, why: '', floor });
     const put = (k, ev) => { c.what = k; c.ev = ev; out[k].push(c); };
-    if (c.o > 0) put('kept', `${staInt(c.o)} order${c.o === 1 ? '' : 's'} · ${staMoney(c.s)} sales`);
+    // It sells here: kept — but it can be ticked by hand (the dialog then says what it sells).
+    if (c.o > 0) { c.can = true; put('kept', `${staInt(c.o)} order${c.o === 1 ? '' : 's'} · ${staMoney(c.s)} sales`); }
     else if (g.protect) put('prot', `${NG_TAGS[g.protect]}: never negated`);
     else if (allProt.get(c.cid) && !(g.tcp && g.tcp.get(c.cid))) put('prot', 'Every one of its search terms is protected here');
     else if (staNegAtAmazon(g.brand, 'cp|' + c.cid, g.gram, 'np') === true) put('at', 'A negative phrase for it is already here at Amazon');
     else if (ngOpenRl(x => x.kind === 'neg' && x.brand === g.brand && staNorm(x.term) === g.gram && x.cid === c.cid)) put('queued', 'Already waiting in the review list');
+    else if (!(c.c > 0)) {
+      // No click here: nothing to judge. Its spend is the tail's (small terms not listed one by one), or spend with no click.
+      c.can = true;
+      c.why = 'Not judged: no click data';
+      put('nodata', c.tsp > 0 && !(c.sp > 0) ? `${staMoney(c.tsp)} from small search terms not listed one by one (their clicks are not split by campaign)`
+        : `${staMoney(all(c))} spent with no click recorded here`);
+    }
     else if (g.tag) { c.can = c.on = true; put('neg', `${g.tag === 'blocked' ? 'Your blocked word' : 'A competitor brand'}: negated at any spend`); }
     else {
       const R = ngCpRate(g, c.cid);
       c.rate = R;
-      c.chance = R ? Math.pow(1 - R.p, c.c || 0) : null;
+      c.chance = R ? Math.pow(1 - R.p, c.c) : null;
       c.can = true;
-      const ev = `0 in ${clk(c.c || 0)}${R ? ` · ${staChance(c.chance)} chance` : ''}`;
-      if (!floor || (R && c.chance < NG.NEG_CHANCE && c.sp >= floor)) { c.on = true; put('neg', ev); }
-      else { c.why = `${clk(c.c || 0)}, ${staMoney(c.sp)}`; put('thin', ev); }
+      const ev = `0 in ${clk(c.c)}${R ? ` · ${staChance(c.chance)} chance` : ''}`;
+      // Negate only when 0 orders in its clicks is unlikely to be chance — at any floor — with the floor's spend.
+      if (R && c.chance < NG.NEG_CHANCE && c.sp >= floor) { c.on = true; put('neg', ev); }
+      else { c.why = `${clk(c.c)}, ${staMoney(c.sp)}`; put('thin', ev); }
     }
   });
   return (g._plans[floor] = out);
 }
 // Every campaign of the plan, by spend (the dialog's table, the Excel file).
-const ngPlanAll = P => NG_PLAN_KEYS.flatMap(k => P[k]).sort((a, z) => z.sp - a.sp || (a.cid < z.cid ? -1 : 1));
+const ngPlanAll = P => NG_PLAN_KEYS.flatMap(k => P[k]).sort((a, z) => (z.sp + z.tsp) - (a.sp + a.tsp) || (a.cid < z.cid ? -1 : 1));
 // The longer line for one campaign: what happens there, and the evidence — "Negate here — 0 in 58 clicks · <0.1% chance at
 // its campaign's 8.3% order rate". Not enough data says which test it missed (the spend floor, or chance).
 function ngCpWhy(c) {
   const what = c.what === 'thin' ? `${STA_CP_WHAT.thin[0]} (${c.why})` : STA_CP_WHAT[c.what][0];
   const rate = c.rate ? ` at ${c.rate.w}'s ${(c.rate.p * 100).toFixed(1)}% order rate` : '';
-  const miss = c.what !== 'thin' ? '' : c.sp < c.floor ? ` · under the ${staMoney(c.floor)} minimum spend per campaign` : ` · ${Math.round(NG.NEG_CHANCE * 100)}% chance or more: could still be luck`;
+  const miss = c.what !== 'thin' ? '' : !c.rate ? ' · no order rate to judge it by' : c.chance >= NG.NEG_CHANCE ? ` · ${Math.round(NG.NEG_CHANCE * 100)}% chance or more: could still be luck`
+    : ` · under the ${staMoney(c.floor)} minimum spend per campaign`;
   return `${what} — ${c.ev}${c.chance != null ? rate : ''}${miss}`;
 }
 // The popup's "Minimum spend per campaign" ($0 · $5 · $10 · $20), remembered on this device; $0 at first.
@@ -46142,10 +46319,10 @@ function ngHarvestRow(r) {
 // this device) and floorSave; xlsx: its Excel file, with the campaigns ticked in the dialog.
 function ngWordRow(g) {
   const plan = ngPlan(g, 0);
-  const rowsAt = floor => ngPlanAll(ngPlan(g, floor)).map(c => ({ cid: c.cid, cn: c.cn, sp: c.sp, c: c.c, s: c.s, o: c.o, n: c.n, what: c.what, can: c.can, on: c.on, ev: c.ev, why: c.why }));
+  const rowsAt = floor => ngPlanAll(ngPlan(g, floor)).map(c => ({ cid: c.cid, cn: c.cn, sp: c.sp, tsp: c.tsp || 0, c: c.c, s: c.s, o: c.o, n: c.n, what: c.what, can: c.can, on: c.on, ev: c.ev, why: c.why }));
   return { key: g.key, type: 'word', brand: g.brand, term: g.term, gram: g.gram, words: g.words, n: g.n, c: g.c, sp: g.sp, o: g.o, s: g.s, zsp: g.zsp,
     tail: g.sp - g.terms.reduce((t, r) => t + r.sp, 0), terms: g.terms.slice().sort((a, z) => z.sp - a.sp).slice(0, 8).map(r => r.term),
-    cps: plan.neg.map(c => ({ cid: c.cid, cn: c.cn, sp: c.sp, s: c.s, o: c.o, n: c.n })), tag: g.tag === 'comp' ? 'competitor' : g.tag, protect: g.protect ? NG_TAGS[g.protect].toLowerCase() : '',
+    cps: plan.neg.map(c => ({ cid: c.cid, cn: c.cn, sp: c.sp + (c.tsp || 0), s: c.s, o: c.o, n: c.n })), tag: g.tag === 'comp' ? 'competitor' : g.tag, protect: g.protect ? NG_TAGS[g.protect].toLowerCase() : '',
     cpAll: rowsAt(0), cpAt: rowsAt, floor: ngCpFloor(), floors: NG_CP_FLOORS,
     floorSave: v => { try { localStorage.setItem('ngCpFloor', String(v)); } catch (e) { /* no storage */ } },
     xlsx: (picks, floor) => ngXlsxPattern(g, picks, floor),
@@ -46172,7 +46349,7 @@ function ngNext(g, min) {
     const sellTxt = sells ? `Sells in ${cps(P.kept.length)}: lower bids there, negate where it never sold` : '';
     if (!P.neg.length) {
       // Nothing to negate: say where it went, in counts — "Sells in 12 campaigns · protected in 3 · already negated in 2".
-      const parts = [[P.kept, 'sells in'], [P.thin, 'not enough data in'], [P.prot, 'protected in'], [P.at, 'already negated in'], [P.queued, '']]
+      const parts = [[P.kept, 'sells in'], [P.thin, 'not enough data in'], [P.nodata, 'no click data in'], [P.prot, 'protected in'], [P.at, 'already negated in'], [P.queued, '']]
         .filter(([l]) => l.length).map(([l, t], i) => (t ? `${t} ${i ? staInt(l.length) : cps(l.length)}` : `${i ? staInt(l.length) : cps(l.length)} in the review list`));
       const one = parts.length === 1 && P.kept.length;
       const short = !parts.length ? 'No campaign spent enough on it' : one ? 'Sells everywhere it spends' : parts.join(' · ').replace(/^./, ch => ch.toUpperCase());
@@ -46183,7 +46360,7 @@ function ngNext(g, min) {
     if (left <= 0) return out('st', 'Day\'s limit reached', `The day's limit of ${STA.DAY_MAX} negatives for ${staBrandName(g.brand)} is reached`, { low: sells, pop: true });
     return out('neg', `Negate in ${cps(P.neg.length)}`, `Negative phrase · campaign level · ${cps(P.neg.length)}`
       + (sells ? ' · ' + sellTxt.charAt(0).toLowerCase() + sellTxt.slice(1) : P.kept.length ? ` · kept in ${staInt(P.kept.length)} where it sells` : '')
-      + (P.thin.length ? ` · kept in ${staInt(P.thin.length)} without enough data` : ''), { n: P.neg.length, low: sells, sellTxt });
+      + (P.thin.length ? ` · kept in ${staInt(P.thin.length)} without enough data` : '') + (P.nodata.length ? ` · ${staInt(P.nodata.length)} with no click data` : ''), { n: P.neg.length, low: sells, sellTxt });
   }
   if (cls === 'winner') {
     const h = ngHarvest(g);
@@ -46212,14 +46389,14 @@ function ngRows(X, f, solo) {
   return list.filter(g => (f.brand === 'ALL' || g.brand === f.brand)
     && (!f.q || g.hay.includes(f.q) || g.terms.some(r => r.hay.includes(f.q))));
 }
-// No-order spend: the pattern's spend in the campaigns it would be negated in (no order there, and enough to tell); null
-// when its next step is not a negative.
-function ngNos(g, min) {
-  if (ngNext(g, min).act !== 'neg') return null;
-  return ngPlan(g).neg.reduce((t, c) => t + c.sp, 0);
-}
-const NG_SORTS = { term: g => g.gram, n: g => g.n, c: g => g.c, sp: g => g.sp, s: g => g.s, o: g => g.o, acos: g => (g.acos == null ? -1 : g.acos),
-  cvr: g => (g.cvr == null ? -1 : g.cvr), ncp: g => g.ncp, conv: g => g.conv, nos: g => { const v = ngNos(g, NGS.min); return v == null ? -1 : v; } };
+// No-order spend, every pattern of every class (Mixed too): its spend on search terms with no order — the small terms not
+// listed one by one included (they have no order by definition). (The spend in the campaigns it would be negated in is the
+// plan's own: ngNegSp.)
+const ngNos = g => g.zsp || 0;
+const ngNegSp = P => P.neg.reduce((t, c) => t + c.sp + (c.tsp || 0), 0);
+// A column with no value (no sales → no ACoS; no clicks → no CVR) gives null: last in both directions (staCmpBlank).
+const NG_SORTS = { term: g => g.gram, n: g => g.n, c: g => g.c, sp: g => g.sp, s: g => g.s, o: g => g.o, acos: g => g.acos,
+  cvr: g => g.cvr, ncp: g => g.ncp, conv: g => g.conv, nos: g => ngNos(g) };
 // The two kinds of Waste: which rule made it (ngClassOf's wk), and the filter values that pick one.
 const NG_WK = { nosale: 'Waste · no sales', be: 'Waste · over break-even' };
 const NG_WK_CLS = { 'waste-ns': 'nosale', 'waste-be': 'be' };
@@ -46234,7 +46411,7 @@ function ngSetCls(cls) {
 }
 function ngSorted(rows) {
   const f = NG_SORTS[NGS.sort.k] || NG_SORTS.sp, d = NGS.sort.d;
-  return rows.slice().sort((a, z) => { const x = f(a), y = f(z); return (x < y ? -1 : x > y ? 1 : 0) * d || z.sp - a.sp; });
+  return rows.slice().sort((a, z) => staCmpBlank(f(a), f(z), d) || z.sp - a.sp);
 }
 
 /* ---------- drawing ---------- */
@@ -46284,6 +46461,7 @@ function renderNg() {
   const M = staModel('ALL', staWin());
   const X = ngBuild(M);
   const f = ngFilters();
+  staTgtWarn('ngTgtWarn', f.brand === 'ALL' ? M.brands : [f.brand], '"above break-even" and Winner are off, Mixed patterns are not judged on profit');
   ngBar(M, X, f);
   ngDataLine(M, f.brand === 'ALL' ? M.brands : [f.brand]);
   // Protected only narrows first (a flag, not a class); the four classes then add up to All.
@@ -46330,7 +46508,8 @@ function ngDataLine(M, brands) {
   const cost = staCostLine(brands);
   if (cost) add(cost[0], cost[1]);
   const off = brands.filter(b => !(ST.costs || staFb(b)));
-  if (off.length) add(`<span class="sta-bad">${off.map(staBrandName).join(' and ')}: no unit cost or target ACoS, so "above break-even" and Winner are off — only patterns with no orders, over ${NG.LOSS_ACOS}% ACoS, and your blocked words and competitor brands are judged</span>`, 'warn');
+  // The warning itself is at the top of the page (staTgtWarn); here only what it means for the patterns.
+  if (off.length) add(`<span class="sta-dash">${off.map(staBrandName).join(' and ')}: no unit cost or target ACoS (see the warning at the top), so "above break-even" and Winner are off — only patterns with no orders, over ${NG.LOSS_ACOS}% ACoS, and your blocked words and competitor brands are judged</span>`, '');
   const neg = M.rows.filter(r => r.negated && brands.includes(r.brand)).length;
   if (neg) add(`<span class="sta-dash">${staInt(neg)} search term${neg === 1 ? '' : 's'} already blocked by a negative ${neg === 1 ? 'is' : 'are'} left out</span>`);
   const src = staSrcState();
@@ -46446,12 +46625,12 @@ function ngDraw(rows, f, M, solo) {
       : nx.act === 'st' ? `<td class="sta-next"><span class="sta-hold" title="${tip}">${staEsc(nx.short)}</span>${lowSell || `<button type="button" class="sta-btn dim sm ng-gost" data-ngact="st" data-k="${staEsc(g.key)}">Open in Search Term Analysis →</button>`}${pop}</td>`
         : `<td class="sta-next"><span class="sta-hold" title="${tip}">${staEsc(nx.short)}</span></td>`;
     const same = g.same && g.same.length ? `<div class="sta-s ng-same" title="${staEsc(g.same.join(', '))}">same terms: ${staEsc(g.same.slice(0, 3).map(x => '"' + x + '"').join(', '))}${g.same.length > 3 ? ` +${g.same.length - 3}` : ''}</div>` : '';
-    const nos = ngNos(g, f.min), why = ngWhy(g, f.min);
+    const nos = ngNos(g), why = ngWhy(g, f.min);
     const row = `<tr${NGS.sel.has(g.key) ? ' class="sel"' : ''}>
       <td class="sta-stick">${tick}<div class="sta-tc"><div class="sta-term">${caret}"${staEsc(g.term)}"</div>${same}
         <div class="sta-under">${f.brand === 'ALL' ? staBadge(staBrandName(g.brand), 'brand-' + g.brand) : ''}${tags}</div></div></td>
       <td class="sta-ev sta-ev-s">${ngClsBadge(g, f.min)}${g.protect ? staBadge('Protected', 'info', NG_TAGS[g.protect] + ': never negated') : ''}<div class="sta-why ng-why" title="${staEsc(why)}">${staEsc(why)}</div></td>
-      <td class="num">${staInt(g.n)}</td><td class="num">${staInt(g.c)}</td><td class="num">${staMoney(g.sp)}</td><td class="num">${nos != null ? `<b>${staMoney(nos)}</b>` : staDash}</td><td class="num">${staMoney(g.s)}</td>
+      <td class="num">${staInt(g.n)}</td><td class="num">${staInt(g.c)}</td><td class="num">${staMoney(g.sp)}</td><td class="num">${nos > 0 ? `<b>${staMoney(nos)}</b>` : staMoney(0)}</td><td class="num">${staMoney(g.s)}</td>
       <td class="num">${staInt(g.o)}</td><td class="num"><b>${g.acos != null ? staPct(g.acos) : staDash}</b></td><td class="num">${g.cvr != null ? staPct(g.cvr) : staDash}</td>
       <td class="num">${staInt(g.ncp)}</td><td class="num">${staInt(g.conv)}</td>${nextCell}</tr>`;
     return open ? row + ngSubRow(g, f, nx, COLS) : row;
@@ -46461,7 +46640,7 @@ function ngDraw(rows, f, M, solo) {
   const tickAll = tickable.length ? `<input type="checkbox" class="sta-cb" data-ngselall="1"${allOn ? ' checked' : ''} aria-label="Select every pattern with an action on this page">` : '';
   $('ngTable').innerHTML = `<thead><tr><th class="sta-stick sta-sort${S.k === 'term' ? ' on' : ''}" data-sort="term" title="Sort by pattern">${tickAll} N-gram${S.k === 'term' ? (S.d > 0 ? ' ▲' : ' ▼') : ''}</th><th>Classification</th>`
     + th('Search terms', 'n', 'Search terms holding the pattern (each term counts once for every pattern it holds)') + th('Clicks', 'c') + th('Ad spend', 'sp')
-    + th('No-order spend', 'nos', 'Its spend in the campaigns it would be negated in: no order there, and enough clicks and spend there to tell') + th('Ad sales', 's')
+    + th('No-order spend', 'nos', 'Its spend on search terms with no order (small terms not listed one by one included). Every pattern, every class.') + th('Ad sales', 's')
     + th('Orders', 'o') + th('ACoS', 'acos') + th('CVR', 'cvr', 'Orders ÷ clicks') + th('Campaigns', 'ncp', 'Campaigns it spent in') + th('Converting terms', 'conv', 'Its search terms with at least one order')
     + '<th>Next step</th></tr></thead><tbody>'
     + (body || `<tr><td colspan="${COLS}" class="muted" style="padding:14px">${NGX.rows.length ? 'Nothing matches these filters.' : 'No word pattern in these search terms yet.'}</td></tr>`)
@@ -46493,10 +46672,10 @@ function ngSubRow(g, f, nx, cols) {
     + `<small class="sta-s ng-more">${more > 0 ? `${staInt(more)} more term${more === 1 ? '' : 's'} · ` : ''}${g.tn ? `${staInt(g.tn)} small term${g.tn === 1 ? '' : 's'} not listed one by one (${staMoney(g.sp - g.terms.reduce((t, r) => t + r.sp, 0))})` : ''}${g.negN ? `${g.tn ? ' · ' : ''}${staInt(g.negN)} already negated, left out` : ''}</small></div>`;
   let right = '';
   const P = ngPlan(g);
-  const li = (c, t, cls) => `<li class="${cls}"><b>${staEsc(c.cn || 'Campaign ' + c.cid)}</b> <span class="sta-dash">${staMoney(c.sp)}${c.o ? ` · ${staInt(c.o)} order${c.o === 1 ? '' : 's'}, ${staMoney(c.s)}` : c.ev ? ' · ' + staEsc(c.ev) : ''}</span><em>${t}</em></li>`;
+  const li = (c, t, cls) => `<li class="${cls}"><b>${staEsc(c.cn || 'Campaign ' + c.cid)}</b> <span class="sta-dash">${staMoney(c.sp)}${c.tsp ? ` + ${staMoney(c.tsp)} small terms` : ''}${c.o ? ` · ${staInt(c.o)} order${c.o === 1 ? '' : 's'}, ${staMoney(c.s)}` : c.ev ? ' · ' + staEsc(c.ev) : ''}</span><em>${t}</em></li>`;
   // Every campaign of the plan, and what happens there.
   const plan = () => '<ul class="ng-plan">' + P.neg.map(c => li(c, 'Negate here', 'is-neg')).join('') + P.thin.map(c => li(c, `Kept: not enough data here (${staEsc(c.why)})`, '')).join('')
-    + P.kept.map(c => li(c, 'Kept: sells here', 'is-kept')).join('')
+    + P.kept.map(c => li(c, 'Kept: sells here', 'is-kept')).join('') + P.nodata.map(c => li(c, 'Not judged: no click data', '')).join('')
     + P.prot.map(c => li(c, 'Kept: protected here', 'is-kept')).join('') + P.at.map(c => li(c, 'Already negated at Amazon', '')).join('')
     + P.queued.map(c => li(c, 'In the review list', '')).join('') + '</ul>';
   // Every Waste pattern: its campaigns and search terms as an Excel file.
@@ -46547,8 +46726,13 @@ function ngSelBar() {
   $('ngSelTxt').innerHTML = `<b>${staInt(rows.length)} selected</b> · ${staMoney(rows.reduce((t, g) => t + g.sp, 0))} ad spend`;
   $('ngSelAdd').textContent = `Add ${rows.length} to the review list`;
 }
-// Search Term Analysis on a pattern's terms (Lower bids instead) or on one term.
+// Search Term Analysis on a pattern's terms (Lower bids instead) or on one term — with N-Gram's window and its product,
+// campaign and stock filters as they are now (24 Nov: never back to another window; the window in use is kept as the one
+// picked, so Search Term Analysis cannot fall back from it).
 function ngToSt(brand, text) {
+  const win = staWin();
+  STA_WIN = win;
+  try { localStorage.setItem(STA_WIN_KEY, win); } catch (e) { /* kept for this visit */ }
   ST_VIEW = 'all';
   ST_SUB = 'term';
   ST_PG = 0;
@@ -46560,10 +46744,9 @@ function ngToSt(brand, text) {
   showTab('st');
 }
 
-// Lists & settings, on the brand given (a pattern's, or the one picked here), for its target ACoS.
+// Lists & settings, on the brand given (a pattern's, or the one picked here), on its target ACoS field.
 function ngSetTarget(brand) {
-  staSetOpen();
-  if (brand === 'SP' || brand === 'CPC') { STS_B = brand; staSetDraw(); }
+  staSetOpen(brand === 'SP' || brand === 'CPC' ? brand : $('ngBrand').value, 'tgt');
 }
 
 /* ---------- export ---------- */
@@ -46573,7 +46756,8 @@ function ngCsvLines(rows, min) {
   const cell = v => { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const r1 = v => (v == null ? '' : Math.round(v * 10) / 10);
   return [NG_CSV_COLS.map(cell).join(',')].concat(rows.map(g => {
-    const nx = ngNext(g, min), cls = ngCls(g, min), nos = ngNos(g, min);
+    // The last column stays what its heading says: the spend in the campaigns it would be negated in (its plan at $0).
+    const nx = ngNext(g, min), cls = ngCls(g, min), nos = nx.act === 'neg' ? ngNegSp(ngPlan(g)) : null;
     return [staBrandName(g.brand), g.term, g.words, NG_CLS.find(x => x[0] === cls)[1], g.protect ? NG_TAGS[g.protect] : '', g.tags.map(t => NG_TAGS[t]).join('; '),
       g.n, g.c, staR2(g.sp), staR2(g.s), g.o, r1(g.acos), r1(g.cvr), g.ncp, g.conv, staR2(g.zsp), r1(g.tgt), r1(g.be),
       nx.act === 'harvest' ? `Harvest "${nx.r.term}"` : nx.short.replace(/ →$/, ''), ngWhy(g, min), cls === 'waste' ? (NG_WK[g.wk] || '').replace('Waste · ', '') : '',
@@ -46606,7 +46790,7 @@ function ngWho() {
 const ngAcos = (sp, s) => (s > 0 ? Math.round(sp / s * 1000) / 10 : '');
 const ngSum = (list, k) => list.reduce((t, c) => t + (c[k] || 0), 0);
 const ngXm = v => ({ v: staR2(v || 0), f: 'money' });
-const NG_XL_CP = ['Campaign', 'Campaign ID', 'Brand', 'Negate', 'Why', 'Spend', 'Clicks', 'Orders', 'Sales', 'ACoS %', 'Search terms', 'Top terms'];
+const NG_XL_CP = ['Campaign', 'Campaign ID', 'Brand', 'Negate', 'Why', 'Spend', 'Clicks', 'Orders', 'Sales', 'ACoS %', 'Search terms', 'Top terms', 'Spend in small terms not listed'];
 const NG_XL_TERMS = ['Search term', 'Campaign', 'Ad group', 'Clicks', 'Spend', 'Orders', 'Sales', 'ACoS %', 'Search Term Analysis verdict'];
 // The three sheets of one pattern: Campaigns (every campaign of its plan; Negate = ticked — in the dialog, what is ticked
 // there), Search terms (every term behind it, listed one by one), Summary. picks: a Set of campaign IDs, or none for the
@@ -46616,15 +46800,16 @@ function ngPatternSheets(g, picks, floor) {
   const on = picks instanceof Set ? picks : new Set(P.neg.map(c => c.cid));
   const yes = c => c.can && on.has(c.cid);
   // A tick changed by hand says so.
-  const why = c => (yes(c) && c.what !== 'neg' ? 'Ticked by hand — ' + c.ev : !yes(c) && c.what === 'neg' ? 'Not ticked (by hand) — ' + c.ev : ngCpWhy(c));
+  const why = c => (yes(c) && c.what === 'kept' ? 'Sells here — chosen by hand — ' + c.ev : yes(c) && c.what !== 'neg' ? 'Ticked by hand — ' + c.ev
+    : !yes(c) && c.what === 'neg' ? 'Not ticked (by hand) — ' + c.ev : ngCpWhy(c));
   const top = cid => g.terms.filter(r => r.cid === cid).sort((a, z) => z.sp - a.sp).slice(0, 3).map(r => r.term).join(', ');
-  const cps = all.map(c => [c.cn || '', String(c.cid), staBrandName(g.brand), yes(c) ? 'Yes' : 'No', why(c), staR2(c.sp), c.c || 0, c.o || 0, staR2(c.s || 0), ngAcos(c.sp, c.s), c.n || 0, top(c.cid)]);
+  const cps = all.map(c => [c.cn || '', String(c.cid), staBrandName(g.brand), yes(c) ? 'Yes' : 'No', why(c), staR2(c.sp), c.c || 0, c.o || 0, staR2(c.s || 0), ngAcos(c.sp, c.s), c.n || 0, top(c.cid), staR2(c.tsp || 0)]);
   const picked = all.filter(yes);
   const terms = g.terms.slice().sort((a, z) => z.sp - a.sp);
   const tail = g.sp - terms.reduce((t, r) => t + r.sp, 0);
   return [
-    { name: 'Campaigns', fmt: ['', '', '', '', '', 'money', '', '', 'money', 'pct', '', ''], total: true, rows: [NG_XL_CP].concat(cps,
-      [['Total', '', '', `${picked.length} Yes`, `${all.length} campaign${all.length === 1 ? '' : 's'}`, staR2(ngSum(all, 'sp')), ngSum(all, 'c'), ngSum(all, 'o'), staR2(ngSum(all, 's')), ngAcos(ngSum(all, 'sp'), ngSum(all, 's')), ngSum(all, 'n'), '']]) },
+    { name: 'Campaigns', fmt: ['', '', '', '', '', 'money', '', '', 'money', 'pct', '', '', 'money'], total: true, rows: [NG_XL_CP].concat(cps,
+      [['Total', '', '', `${picked.length} Yes`, `${all.length} campaign${all.length === 1 ? '' : 's'}`, staR2(ngSum(all, 'sp')), ngSum(all, 'c'), ngSum(all, 'o'), staR2(ngSum(all, 's')), ngAcos(ngSum(all, 'sp'), ngSum(all, 's')), ngSum(all, 'n'), '', staR2(ngSum(all, 'tsp'))]]) },
     { name: 'Search terms', fmt: ['', '', '', '', 'money', '', 'money', 'pct', ''], total: true, rows: [NG_XL_TERMS].concat(
       terms.map(r => [r.term, r.cn || '', r.agn || '', r.c || 0, staR2(r.sp), r.o || 0, staR2(r.s || 0), ngAcos(r.sp, r.s), ((r.badges || [])[0] || [])[0] || '']),
       [['Total', `${terms.length} search term${terms.length === 1 ? '' : 's'}`, '', ngSum(terms, 'c'), staR2(ngSum(terms, 'sp')), ngSum(terms, 'o'), staR2(ngSum(terms, 's')), ngAcos(ngSum(terms, 'sp'), ngSum(terms, 's')), '']]) },
@@ -46632,7 +46817,9 @@ function ngPatternSheets(g, picks, floor) {
       ['Pattern', g.term], ['Same search terms as', (g.same || []).join(', ')], ['Brand', staBrandName(g.brand)], ['Window', staWindowTxt(NGX.M)],
       ['Class', ngCls(g, min) === 'waste' ? NG_WK[g.wk] || 'Waste' : ngClsName(ngCls(g, min))], ['Reason', ngWhy(g, min)], ['Next step', nx.text],
       ['Search terms', g.n], ['Clicks', g.c], ['Spend', ngXm(g.sp)], ['Sales', ngXm(g.s)], ['Orders', g.o], ['ACoS %', g.acos != null ? { v: Math.round(g.acos * 10) / 10, f: 'pct' } : ''],
-      ['Campaigns', all.length], ['Campaigns to negate', picked.length], ['Spend with no orders in them', ngXm(ngSum(picked, 'sp'))], ['Sales at risk', ngXm(ngSum(picked, 's'))],
+      ['Campaigns', all.length], ['Campaigns to negate', picked.length], ['Spend in them', ngXm(ngSum(picked, 'sp') + ngSum(picked, 'tsp'))], ['Sales at risk', ngXm(ngSum(picked, 's'))],
+      ['Of them, chosen by hand where it sells', picked.filter(c => c.what === 'kept').length ? `${picked.filter(c => c.what === 'kept').length}: ${staInt(ngSum(picked.filter(c => c.what === 'kept'), 'o'))} orders · ${staMoney(ngSum(picked.filter(c => c.what === 'kept'), 's'))} sales` : 'none'],
+      ['No-order spend (its search terms with no order)', ngXm(g.zsp || 0)],
       ['Small terms not listed one by one', g.tn ? `${staInt(g.tn)} (${staMoney(tail)})` : 'none'], ['Minimum clicks', min], ['Minimum spend per campaign', ngXm(NG_CP_FLOORS.includes(Number(floor)) ? Number(floor) : 0)],
       ['Downloaded at', ngNow()], ['Downloaded by', ngWho()]] },
   ];
@@ -46644,12 +46831,12 @@ function ngXlsxPattern(g, picks, floor) {
 }
 // The page's file, with the Waste filter or chip on: every Waste pattern on screen (after the filters, in the table's order)
 // and each campaign it would be negated in.
-const NG_XL_PAT = ['Pattern', 'Brand', 'Waste kind', 'Reason', 'No-order spend', 'Spend', 'Clicks', 'Orders', 'Campaigns to negate', 'Sales at risk'];
+const NG_XL_PAT = ['Pattern', 'Brand', 'Waste kind', 'Reason', 'No-order spend', 'Spend', 'Clicks', 'Orders', 'Campaigns to negate', 'Spend in them', 'Sales at risk'];
 const NG_XL_WCP = ['Pattern', 'Campaign', 'Campaign ID', 'Negate', 'Reason', 'Spend', 'Clicks', 'Orders', 'Evidence'];
 function ngWasteSheets(rows, f) {
   const W = rows.filter(g => ngCls(g, f.min) === 'waste');
   const negOf = g => (ngNext(g, f.min).act === 'neg' ? ngPlan(g).neg : []);
-  const pats = W.map(g => { const neg = negOf(g); return [g.term, staBrandName(g.brand), NG_WK[g.wk] || 'Waste', ngWhy(g, f.min), staR2(ngSum(neg, 'sp')), staR2(g.sp), g.c, g.o, neg.length, staR2(ngSum(neg, 's'))]; });
+  const pats = W.map(g => { const neg = negOf(g); return [g.term, staBrandName(g.brand), NG_WK[g.wk] || 'Waste', ngWhy(g, f.min), staR2(ngNos(g)), staR2(g.sp), g.c, g.o, neg.length, staR2(ngNegSp({ neg })), staR2(ngSum(neg, 's'))]; });
   // Every campaign of every Waste pattern: Negate Yes where the table's button would negate it ($0 default), else No with
   // the reason (the campaign's, or the pattern's own when nothing of it can be negated: protected, too long, the day's limit).
   const allCps = W.flatMap(g => {
@@ -46658,16 +46845,16 @@ function ngWasteSheets(rows, f) {
   });
   const cps = allCps.map(({ g, c, yes, why }) => [g.term, c.cn || '', String(c.cid), yes ? 'Yes' : 'No', why, staR2(c.sp), c.c || 0, c.o || 0, c.ev]);
   const allNeg = W.flatMap(negOf);
-  const nos = ngSum(allNeg, 'sp');
+  const nos = ngSum(W.map(g => ({ z: ngNos(g) })), 'z'), negSp = ngNegSp({ neg: allNeg });
   return [
-    { name: 'Patterns', fmt: ['', '', '', '', 'money', 'money', '', '', '', 'money'], total: true, rows: [NG_XL_PAT].concat(pats,
-      [['Total', `${W.length} pattern${W.length === 1 ? '' : 's'}`, '', 'a search term counts once for every pattern it holds: spend and clicks overlap', staR2(nos), staR2(ngSum(W, 'sp')), ngSum(W, 'c'), ngSum(W, 'o'), allNeg.length, staR2(ngSum(allNeg, 's'))]]) },
+    { name: 'Patterns', fmt: ['', '', '', '', 'money', 'money', '', '', '', 'money', 'money'], total: true, rows: [NG_XL_PAT].concat(pats,
+      [['Total', `${W.length} pattern${W.length === 1 ? '' : 's'}`, '', 'a search term counts once for every pattern it holds: spend and clicks overlap', staR2(nos), staR2(ngSum(W, 'sp')), ngSum(W, 'c'), ngSum(W, 'o'), allNeg.length, staR2(negSp), staR2(ngSum(allNeg, 's'))]]) },
     { name: 'Campaigns', fmt: ['', '', '', '', '', 'money', '', '', ''], total: true, rows: [NG_XL_WCP].concat(cps,
       [['Total', `${cps.length} campaign${cps.length === 1 ? '' : 's'}`, '', `${allNeg.length} Yes`, '', staR2(ngSum(allCps.map(x => x.c), 'sp')), ngSum(allCps.map(x => x.c), 'c'), ngSum(allCps.map(x => x.c), 'o'), '']]) },
     { name: 'Summary', fmt: ['', ''], rows: [['Field', 'Value'],
       ['Brand', f.brand === 'ALL' ? 'Both brands' : staBrandName(f.brand)], ['Pattern size', f.size ? `${f.size}-word` : 'All'], ['Minimum clicks', f.min],
       ['Classification', ngClsName(f.cls) || 'Every classification'], ['Protected only', f.prot ? 'Yes' : 'No'], ['Filter text', f.q || '—'], ['Window', staWindowTxt(NGX.M)],
-      ['Waste patterns', W.length], ['No-order spend', ngXm(nos)], ['Spend (patterns overlap)', ngXm(ngSum(W, 'sp'))], ['Campaign negatives', allNeg.length], ['Sales at risk', ngXm(ngSum(allNeg, 's'))],
+      ['Waste patterns', W.length], ['No-order spend', ngXm(nos)], ['Spend in the campaigns to negate', ngXm(negSp)], ['Spend (patterns overlap)', ngXm(ngSum(W, 'sp'))], ['Campaign negatives', allNeg.length], ['Sales at risk', ngXm(ngSum(allNeg, 's'))],
       ['Downloaded at', ngNow()], ['Downloaded by', ngWho()]] },
   ];
 }
@@ -46848,7 +47035,8 @@ $('ngSelClear').addEventListener('click', () => { NGS.sel.clear(); renderNg(); }
 $('ngRlBtn').addEventListener('click', () => { if (ST.loaded && ST_RL.where) staRlOpen(); });
 $('ngCsv').addEventListener('click', ngCsv);
 $('ngXlsx').addEventListener('click', ngXlsxWaste);
-$('ngMsg').addEventListener('click', e => { if (e.target.closest('[data-settgt]')) ngSetTarget($('ngBrand').value); else if (e.target.closest('[data-staretry]')) ensureNgram(); });
+// ("Set a target ACoS" buttons are handled once for every page: search-terms.js, data-settgt.)
+$('ngMsg').addEventListener('click', e => { if (e.target.closest('[data-staretry]')) ensureNgram(); });
 $('ngLegendBtn').addEventListener('click', () => { ngLegend(); $('ngLegend').classList.remove('hide'); });
 $('ngLegendX').addEventListener('click', () => $('ngLegend').classList.add('hide'));
 $('ngLegend').addEventListener('click', e => { if (e.target === $('ngLegend')) $('ngLegend').classList.add('hide'); });

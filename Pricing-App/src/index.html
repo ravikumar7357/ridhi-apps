@@ -1044,6 +1044,8 @@
 
   <!-- ============ Search Term Analysis: what shoppers typed, what it cost, and what to do about it ============ -->
   <div id="paneSt" class="hide sta-scope">
+    <!-- The no-target warning (24 Nov): per brand, at the top, never inside the notes (staTgtWarn, shared with N-Gram and Placement). -->
+    <div id="stTgtWarn" class="sta-tgtwarns hide"></div>
     <div class="card sta-barcard">
       <!-- The bar, 23 Nov 2026: brand, date window, filters, then the actions; the search and the rest of the filters below. -->
       <div class="toolbar sta-top">
@@ -1108,8 +1110,8 @@
           <select id="stCpShow" class="hide" style="flex:0 0 150px" title="Show only one kind of verdict" aria-label="Verdict">
             <option value="">Every verdict</option><option value="bad">Bad only</option><option value="good">Good only</option><option value="watch">Watch only</option><option value="running">Running ads only</option><option value="stopped">Paused / archived only</option>
           </select>
-          <input id="stCpTarget" class="hide" type="number" min="1" max="100" step="1" style="flex:0 0 120px" placeholder="Target ACoS %" aria-label="Target ACoS"
-            title="The ACoS a product is judged against when its unit cost is not known. Where the cost is known, its own break-even ACoS is used instead.">
+          <button id="stCpTarget" class="ghost hide" type="button" aria-haspopup="dialog"
+            title="Where Campaign × Product's target comes from: a product's own break-even when its unit cost is known, else the brand's target ACoS in Lists &amp; settings — the same one every page uses. Click to set it.">Target ACoS →</button>
           <label class="sta-pgsz" id="stSizeWrap">Rows <select id="stSize" aria-label="Rows per page"><option>50</option><option selected>100</option><option>250</option></select></label>
         </div>
       </div>
@@ -1179,6 +1181,8 @@
 
   <!-- ============ N-Gram Analysis: word patterns across the search terms, and the action each supports (ads/ngram.js) ============ -->
   <div id="paneNgram" class="hide sta-scope">
+    <!-- The no-target warning (24 Nov): per brand, at the top (staTgtWarn, the same piece as Search Term Analysis's). -->
+    <div id="ngTgtWarn" class="sta-tgtwarns hide"></div>
     <div class="card sta-barcard">
       <!-- Search Term Analysis's bar, 23 Nov 2026: brand, date window, filters, then the actions; the pattern choices below. -->
       <div class="toolbar sta-top">
