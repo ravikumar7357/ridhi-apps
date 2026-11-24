@@ -176,6 +176,11 @@
       <button id="fxBtn" class="themesw dashfx" type="button" aria-label="Animation" aria-pressed="true" title="Animation: on">
         <span aria-hidden="true">&#10024;</span>
       </button>
+      <!-- 🔔 Fix status (app/listing/fix-status.js): Listing users only — fixes Amazon still shows 24 h later, new errors after a fix. -->
+      <button id="fsBell" class="themesw fs-bell" type="button" aria-label="Fix status" aria-haspopup="dialog" aria-expanded="false" aria-controls="fsPanel" hidden>
+        <span aria-hidden="true">&#128276;</span><span class="fs-badge" hidden></span>
+      </button>
+      <div id="fsPanel" class="fs-panel" role="dialog" aria-label="Not accepted by Amazon" hidden></div>
       <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
       <button id="guideBtn" class="ghost" type="button"
             title="How this screen works, step by step — English and Hindi">Guide · गाइड</button>
@@ -777,6 +782,9 @@
           <option value="noimg">Image missing</option>
           <option value="fewimg">Fewer than 6 images</option>
           <option value="noaplus">A+ content missing</option>
+          <!-- New listings (listing/new-listings.js): first listed in the last 30 / 7 days — the Dashboard's "New listings → Open". -->
+          <option value="new30">New (30 days)</option>
+          <option value="new7">New (7 days)</option>
         </select>
         <label class="ls-search"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="hFilter" placeholder="Search SKU / ASIN / Parent / title" aria-label="Search SKU, ASIN, parent or title"></label>
         <span class="ui-spacer"></span>
@@ -2390,10 +2398,11 @@
           <option value="diff">Live image differs from yours</option>
           <option value="sup">Search suppressed</option>
           <option value="amzerr">Amazon picture error</option>
-          <option value="noown">Using the family's main (none of your own)</option>
           <option value="few">Fewer than 7 images</option>
           <option value="nobuy">Not buyable</option>
         </select>
+        <!-- Stock > 0 only (the A+ Content / IP Guard box): on = only children with FBA stock; remembered (image-manager.js imStockSet). -->
+        <label class="im-tog" title="On: only children with 1 or more FBA units, with their picture problems. Off: every child — those without stock show no marks. Counts always count children with stock."><input type="checkbox" id="imStock" checked> Stock &gt; 0 only</label>
         <select id="imView" title="Which picture each tile shows first" aria-label="Which picture each tile shows">
           <option value="mine">Show the pictures you sent</option>
           <option value="live">Show what Amazon serves</option>

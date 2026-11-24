@@ -183,6 +183,7 @@ const imThumbL = url => /m\.media-amazon\.com\/images\/I\/[^/]+\.(jpg|png)$/i.te
 function ensureImg() {
   imStick();
   imListEnsure();
+  imStockEnsure();            // "Stock > 0 only": the stock is Listing Health's snapshot (read-only)
 }
 
 // The thin progress bar under the toolbar while the brand is read from Amazon: "Reading Ridhi listings: 2,339 of 2,831".
@@ -399,6 +400,130 @@ function imState(item, brand) {
 }
 
 /* ============================================================================================
+ * STOCK > 0 ONLY (24 Nov 2026, the MD's task #5) — the toolbar's checkbox #imStock (the same "Stock > 0 only" box as A+ Content and
+ * IP & Trademark Guard). ON (the default; remembered in this browser, sellora.imgstock): only children with 1 or more FBA units are
+ * listed. OFF: every child again — one without stock is listed plainly: no problem chip, no picture-error line, no order dot.
+ * Either way the picture problems are marked and COUNTED (the cards, the filters, "N need pictures", the order dots) only on children
+ * with stock. Stock = FBA units in Listing Health's snapshot (lrQtyOf — what the status chip already reads); while that snapshot is
+ * not held nothing is hidden (it is read, then the list is drawn again). The Download errors sheet is unchanged (live with stock only).
+ * ============================================================================================ */
+const IM_STOCK_KEY = 'sellora.imgstock';
+let IM_STOCK_ONLY = true;
+try { IM_STOCK_ONLY = localStorage.getItem(IM_STOCK_KEY) !== '0'; } catch (e) { /* no storage: on */ }
+let IM_STOCK_P = null;          // Listing Health's snapshot being read for the stock
+const imBrandOf = brand => brand || (typeof $ === 'function' && $('imBrand') ? $('imBrand').value : '');
+/** Is the brand's stock held (Listing Health's snapshot)? */
+const imStockKnown = brand => typeof HEALTH !== 'undefined' && !!HEALTH[imBrandOf(brand)] && Array.isArray(HEALTH[imBrandOf(brand)].rows);
+/** A listing's FBA units (null: not in the snapshot). */
+const imStockOf = (item, brand) => (typeof lrQtyOf === 'function' ? lrQtyOf(imBrandOf(brand), item.sku) : null);
+/** Does a child get its picture marks and counts? 1 or more FBA units — or the stock is not held yet (then nothing is hidden). */
+const imStockOk = (item, brand) => !imStockKnown(brand) || (Number(imStockOf(item, brand)) || 0) >= 1;
+/** The listing's problems as the LIST marks and counts them: imProblems for a child with stock, none for one without. */
+const imMarks = (item, brand) => (imStockOk(item, brand) ? imProblems(item, brand) : []);
+/** The checkbox: on / off, remembered, the list drawn again. */
+function imStockSet(on) {
+  IM_STOCK_ONLY = !!on;
+  try { localStorage.setItem(IM_STOCK_KEY, IM_STOCK_ONLY ? '1' : '0'); } catch (e) { /* a private window: this visit only */ }
+  if ($('imStock')) $('imStock').checked = IM_STOCK_ONLY;
+  IM_CHUNK_H.clear();
+  if (IML[$('imBrand').value]) imListAgain();
+}
+/** The stock comes from Listing Health's snapshot: read it (read-only) when it is not held yet, then draw the list again. */
+function imStockEnsure() {
+  if (IM_STOCK_P || typeof H_LOADED === 'undefined' || H_LOADED || typeof loadHealthCache !== 'function') return IM_STOCK_P;
+  IM_STOCK_P = Promise.resolve().then(loadHealthCache).catch(() => {}).then(() => {
+    IM_STOCK_P = null;
+    if (IML[$('imBrand').value]) imListRender();
+  });
+  return IM_STOCK_P;
+}
+
+/* ============================================================================================
+ * THE FAMILY'S PICTURE ORDER (24 Nov 2026, the MD's task #5): ONE small red dot under a child's picture that is not where its siblings
+ * have it — nothing else (no chip, no count, no error list, nothing on the family).
+ * SAME PICTURE = the same Amazon image id: the part after /images/I/ in the picture's link (imqId — "71abcXYZ" in
+ *   …/images/I/71abcXYZ._SL1500_.jpg). Amazon gives every uploaded file its own id and serves it at any size under that id, so two
+ *   children with the same id show the very same file; a link that is not Amazon's is compared whole. The same photo uploaded twice gets
+ *   two ids and counts as two pictures — Sellora does not download the pixels to compare them.
+ * WHICH PICTURE: each slot's picture as the tile shows it first — the one we sent, else what Amazon serves (MAIN, PT01–PT08; the swatch
+ *   is not part of the order).
+ * THE FAMILY'S ORDER, from its children with stock (2 or more; one child alone is never checked):
+ *   - a SHARED picture (on 2+ children: a size chart, a care guide, a shared lifestyle photo) — its normal slot is the slot most of
+ *     those children use it in;
+ *   - each SLOT's normal content is what most children have there: that shared picture, an own photo (a picture only that child has:
+ *     its colour / size photos), or nothing;
+ *   - the child-specific photos follow the position pattern most siblings follow: the family's own-photo slots in order (e.g. MAIN,
+ *     PT01, PT02) — a child's 1st own photo belongs in the 1st of them, its 2nd in the 2nd, and so on.
+ *   "Most" is a clear majority: more children than any other answer, and at least 2. A tie decides nothing (no dot).
+ * THE DOTS: (1) a shared picture in another slot than its normal one: "Out of sequence — siblings have this in PT02"; (2) an own photo
+ *   in a slot that is not one of the family's own-photo slots, when its place in the pattern is another slot: "Out of sequence —
+ *   siblings have this in PT01" (none for an extra photo after the pattern ends); (3) an empty slot whose normal content is a picture:
+ *   "Siblings have an image here". The slot a moved shared picture belongs in is not marked again: its dot is on the moved picture.
+ * ============================================================================================ */
+const IM_SEQ = new Map();       // sku → { slot: the dot's words } — worked out with the list (imShownGroups)
+const imSeqPic = (item, slot) => { const url = (item.img || {})[slot] || (item.live || {})[slot]; return url ? imqId(url) : ''; };
+// The key with clearly the most (more than any other, and 2 or more); null for a tie or a single one.
+function imSeqMost(counts) {
+  let best = null;
+  let most = 0;
+  let tie = false;
+  counts.forEach((n, key) => { if (n > most) { best = key; most = n; tie = false; } else if (n === most) tie = true; });
+  return best !== null && !tie && most >= 2 ? best : null;
+}
+/** One family's dots: Map sku → { slot: words } for the children given (the ones with stock). */
+/** The family's order from its children (2+): { pics (per child, per slot: the picture id), shared(id), home (shared picture → its
+ *  normal slot), norm (per slot: 'S:<id>' | 'O' own photo | '' nothing | null no clear answer), ownSlots } — imSeqFamily (the dots) and
+ *  imSeqTarget ("Match family order") both read it. */
+function imSeqPattern(kids) {
+  const pics = kids.map(kid => IM_SLOTS.map(slot => imSeqPic(kid, slot)));
+  const holders = new Map();
+  pics.forEach(row => new Set(row.filter(Boolean)).forEach(p => holders.set(p, (holders.get(p) || 0) + 1)));
+  const shared = p => (holders.get(p) || 0) >= 2;
+  const kind = p => (!p ? '' : shared(p) ? 'S:' + p : 'O');
+  const bySlot = new Map();
+  pics.forEach(row => row.forEach((p, i) => {
+    if (!p || !shared(p)) return;
+    const m = bySlot.get(p) || bySlot.set(p, new Map()).get(p);
+    m.set(IM_SLOTS[i], (m.get(IM_SLOTS[i]) || 0) + 1);
+  }));
+  const home = new Map();
+  bySlot.forEach((m, p) => home.set(p, imSeqMost(m)));
+  const norm = IM_SLOTS.map((slot, i) => { const m = new Map(); pics.forEach(row => m.set(kind(row[i]), (m.get(kind(row[i])) || 0) + 1)); return imSeqMost(m); });
+  return { pics, shared, home, norm, ownSlots: IM_SLOTS.filter((slot, i) => norm[i] === 'O') };
+}
+function imSeqFamily(kids) {
+  const out = new Map();
+  if (!kids || kids.length < 2) return out;
+  // the family's order: each shared picture's normal slot, each slot's normal content, the own-photo slots in order (imSeqPattern)
+  const { pics, shared, home, norm, ownSlots } = imSeqPattern(kids);
+  kids.forEach((kid, k) => {
+    const row = pics[k];
+    const dots = {};
+    // the normal slots of the shared pictures this child has somewhere else: not marked again (the moved picture carries the dot)
+    const left = new Set();
+    row.forEach((p, i) => { const h = p && shared(p) ? home.get(p) : null; if (h && h !== IM_SLOTS[i]) left.add(h); });
+    let own = 0;
+    row.forEach((p, i) => {
+      const slot = IM_SLOTS[i];
+      if (!p) {
+        if (norm[i] && !left.has(slot)) dots[slot] = 'Siblings have an image here';
+        return;
+      }
+      if (shared(p)) {
+        const h = home.get(p);
+        if (h && h !== slot) dots[slot] = 'Out of sequence — siblings have this in ' + h;
+        return;
+      }
+      const want = ownSlots[own++];
+      if (norm[i] === 'O' || left.has(slot)) return;
+      if (want && want !== slot) dots[slot] = 'Out of sequence — siblings have this in ' + want;
+    });
+    if (Object.keys(dots).length) out.set(kid.sku, dots);
+  });
+  return out;
+}
+
+/* ============================================================================================
  * THE PICTURE CHECKS — ONE FUNCTION (17 Nov 2026, the accuracy pass): a listing is flagged only when it is really so on Amazon.
  *   imCheck(item, check, brand) → true (it is so) | false (it is not) | null (cannot be decided from the data held: "not checked",
  *   never a problem). The number cards, the filter picker, the row's chip and summary, "N need pictures", the Download errors sheet
@@ -409,7 +534,7 @@ function imState(item, brand) {
  *   live — what Amazon serves to shoppers (the catalogue). KNOWN only when the catalogue was asked about this ASIN and answered
  *          (it has an ASIN and no liveErr): an empty map after a failed read is no answer, never "Amazon serves no picture".
  *   iss  — Amazon's own current issues on the listing (severity, code, message, the attributes it names); st — Amazon's status.
- * The checks (IM_CHECKS): nomain, noown, pcbad, few, amzerr, sup (the cards) and nobuy, diff (the picker only). Each reads only
+ * The checks (IM_CHECKS): nomain, pcbad, few, amzerr, sup (the cards) and nobuy, diff (the picker only). Each reads only
  * what Amazon really gives — our submitted pictures, the catalogue's pictures with their sizes, Amazon's issues, status and enforcement
  * actions — and the Picture check's marks (a person's judgement). imProblems(item) is the listing's problems: the cards, the filters,
  * the row's chips and the Download errors sheet all read it, so the screen and the sheet always agree.
@@ -417,13 +542,11 @@ function imState(item, brand) {
  * (Amazon's catalogue returns no swatch, so "Amazon serves none" can never be known) and "Too small (under 2000)" (the company's
  * 1500 pictures are fine for Amazon). A picture's size is information only — the editor shows it, nothing counts it.
  * ============================================================================================ */
-const IM_CHECKS = { nomain: 'No main at all', noown: "Using the family's main", pcbad: 'Main not OK', few: 'Fewer than 7 pictures',
+const IM_CHECKS = { nomain: 'No main at all', pcbad: 'Main not OK', few: 'Fewer than 7 pictures',
   amzerr: 'Amazon picture error', sup: 'Search suppressed', nobuy: 'Not buyable', diff: 'Live image differs from yours' };
 // Our listing's own pictures were read / Amazon's catalogue answered for this ASIN.
 const imMineKnown = item => !!(item && item.img && typeof item.img === 'object');
 const imLiveKnown = item => !!(item && item.live && typeof item.live === 'object' && item.asin && !item.liveErr);
-/** True when the listing itself submitted no main image — what shows comes from the family. */
-const imNoOwnMain = item => imCheck(item, 'noown') === true;
 /** No main picture at all: none sent by us, none shown to shoppers. */
 const imNoMain = item => imCheck(item, 'nomain') === true;
 
@@ -531,12 +654,6 @@ function imCheck(item, k, brand) {
     if (img.MAIN || (liveOk && live.MAIN)) return false;
     return mineOk && liveOk ? true : null;
   }
-  if (k === 'noown') {
-    // we sent no main, and Amazon serves one (the family's)
-    if (img.MAIN) return false;
-    if (!mineOk || !liveOk) return null;
-    return !!live.MAIN;
-  }
   if (k === 'pcbad') {
     // a person marked the main picture shoppers see Not OK (the mark is kept per picture: a new main picture has no mark)
     const marks = typeof PC !== 'undefined' && PC.marks ? PC.marks[b] : null;
@@ -578,7 +695,7 @@ function imCheckWhy(item, k, brand) {
   const liveOk = imLiveKnown(item);
   const yn = v => (v ? 'yes' : 'no');
   const amz = v => (liveOk ? yn(v) : 'not known' + (item.liveErr ? ' (' + item.liveErr + ')' : ''));
-  if (k === 'nomain' || k === 'noown') return `our main: ${yn(img.MAIN)} · Amazon serves a main: ${amz(live.MAIN)}`;
+  if (k === 'nomain') return `our main: ${yn(img.MAIN)} · Amazon serves a main: ${amz(live.MAIN)}`;
   if (k === 'pcbad') return liveOk && live.MAIN ? `main picture ${imqId(live.MAIN)}: ${((((typeof PC !== 'undefined' && PC.marks[brand]) || {})[imqId(live.MAIN)]) || {}).v || 'no mark'}` : 'Amazon serves a main: ' + amz(live.MAIN);
   if (k === 'few') { const c = imPicCount(item); return `pictures: ours ${c.ours == null ? 'not known' : c.ours}, Amazon serves ${c.live == null ? 'not known' : c.live}`; }
   if (k === 'amzerr') return Array.isArray(item.iss) ? (imPicErrs(item).map(e => imPicErrText(e).slice(0, 160)).join(' | ') || 'no picture error') : 'issues not read';
@@ -587,7 +704,7 @@ function imCheckWhy(item, k, brand) {
   return '';
 }
 // The card checks that could not be decided for this listing (their short names) — shown as "not checked", never as a problem.
-const IM_CHECK_SHORT = { nomain: 'main', noown: "family's main", pcbad: 'Main not OK', few: 'picture count', amzerr: 'Amazon errors', sup: 'status' };
+const IM_CHECK_SHORT = { nomain: 'main', pcbad: 'Main not OK', few: 'picture count', amzerr: 'Amazon errors', sup: 'status' };
 const imUnchecked = (item, brand) => IM_CARDS.map(card => card.k).filter(k => imCheck(item, k, brand) === null).map(k => IM_CHECK_SHORT[k] || k)
   .filter((name, i, all) => all.indexOf(name) === i);
 
@@ -599,7 +716,6 @@ const imPcBad = (brand, item) => imCheck(item, 'pcbad', brand) === true;
  * cannot be decided for is counted as "not checked" in the card's small line, never in its number. */
 const IM_CARDS = [
   { k: 'nomain', t: 'No main at all', cls: 'is-err', tip: 'No main picture: none sent by us and none shown to shoppers' },
-  { k: 'noown', t: 'Using the family\'s main', cls: 'is-att', tip: 'Your listing sent no main picture of its own; shoppers see the family\'s, and Amazon can suppress it' },
   { k: 'pcbad', t: 'Main not OK', note: 'Picture check', cls: 'is-err', tip: 'Main pictures a person marked Not OK in the Picture check' },
   { k: 'few', t: 'Fewer than 7', note: 'pictures', cls: 'is-att', tip: 'Fewer than 7 real pictures (MAIN + PT01–PT08): the ones we sent or the ones Amazon serves, whichever is more; the swatch is not counted' },
   { k: 'amzerr', t: 'Amazon picture error', cls: 'is-err', tip: 'Amazon reports an error about the pictures (other errors are in Listing Errors)' },
@@ -623,7 +739,7 @@ function imCritical(item, brand) {
 }
 /** The cards' numbers: [{ k, t, note, cls, tip, n, u }] over every child listing in `items` — n flagged, u not checked. */
 function imCardsData(items, brand) {
-  const kids = items.filter(item => item.lvl !== 'parent');
+  const kids = items.filter(item => item.lvl !== 'parent' && imStockOk(item, brand));      // only children with stock are counted
   return IM_CARDS.map(card => {
     let n = 0;
     let u = 0;
@@ -656,6 +772,7 @@ function imKidMatch(item, filter, search) {
     const hay = [item.sku, item.asin, item.pa, item.psku, item.t, item.c, item.z].join(' ').toLowerCase();
     if (!search.split(/\s+/).every(word => hay.includes(word))) return false;
   }
+  if (filter && filter !== 'all' && !imStockOk(item)) return false;                    // problems are marked on children with stock only
   if (IM_PROBLEM_KEYS().includes(filter)) return imProblems(item).includes(filter);   // a card's filter: the listing's problems
   return filter in IM_CHECKS ? imCheck(item, filter) === true : true;
 }
@@ -684,19 +801,31 @@ const imBfDot = s => (s === 'n' ? '<span class="fa-bfn" aria-hidden="true">–</
 // One thumbnail in a listing's strip; `sw` marks the swatch tile. B / F shows when what shoppers see is not the picture we sent (the
 // .im-diff class — the old orange ring — is still set underneath); hover offers "Copy this picture". No size dot: a picture's size is
 // information only, shown in the editor.
-function imTile(slot, liveUrl, mineUrl, sw, sku) {
+// ext (a child's row only — the strip that can be rearranged, 6b): { changed (a draft slot), note (where its picture came from), paste (a
+// picture is copied: "Paste here") } — the picture can be dragged, an empty slot is a place to drop.
+function imTile(slot, liveUrl, mineUrl, sw, sku, seq, ext) {
   const tile = imTileA(slot, liveUrl, mineUrl, sw);
   const url = IML_VIEW === 'live' ? (liveUrl || mineUrl) : (mineUrl || liveUrl);
-  if (!url) return tile;
+  // seq: the family-order dot's words (imSeqFamily) — one small red dot right under the tile, its words on hover
+  const dot = seq ? `<i class="im-seq" role="img" aria-label="${imEsc(seq)}" title="${imEsc(seq)}"></i>` : '';
+  const edit = !!(ext && sku && !sw);
+  const chg = edit && ext.changed ? `<span class="im-tchg" title="${imEsc((ext.note || (url ? 'Changed' : 'Emptied')) + ' — not sent yet')}">changed</span>` : '';
+  const paste = edit && ext.paste ? `<button type="button" class="im-tpaste" data-paste-one="${imEsc(sku)}" data-slot="${slot}" title="Put the copied picture in ${slot === 'MAIN' ? 'MAIN' : slot} (not sent until Send)">Paste here</button>` : '';
+  const wcls = (edit && ext.changed ? ' is-chg' : '') + (edit && IM_KSEL && IM_KSEL.sku === sku && IM_KSEL.slot === slot ? ' is-ksel' : '');
+  if (!url) {
+    if (edit) return `<span class="im-tw is-empty${wcls}" data-sku="${imEsc(sku)}" data-slot="${slot}">${tile}${chg}${paste}${dot}</span>`;
+    return dot ? `<span class="im-tw">${tile}${dot}</span>` : tile;
+  }
   const bf = imBfOf(liveUrl, mineUrl);
   // The swatch has no B / F: Amazon's catalogue never returns a swatch, so F would read 'not live' on every one.
   const tag = sw ? '' : `<span class="im-bf${bf.differs ? ' is-diff' : ''}" title="${imEsc((IM_BF_TIP[bf.b + bf.f] || '') + ' · B = the picture we sent, F = what shoppers see')}">B${imBfDot(bf.b)}F${imBfDot(bf.f)}</span>`;
   const name = slot === 'SWCH' ? 'the swatch' : slot;
   const copy = sku ? `<button type="button" class="im-tcopy" data-copy1="${imEsc(sku)}" data-slot="${slot}" data-url="${imEsc(url)}" title="Copy this picture (${name}) to the clipboard">Copy</button>` : '';
   // Hover: View (the large viewer) · Copy · Replace (choose a file; the editor opens and uploads it into this slot, same picture rules).
+  // Replace: a small menu (a picture from this listing / from a sibling / Upload from computer — the last exactly as before) — 6b
   const acts = sku ? `<span class="im-tact"><button type="button" class="im-tview" data-view="${imEsc(sku)}" data-slot="${slot}" title="See ${name} large">View</button>${copy}`
-    + `<button type="button" class="im-trepl" data-repl="${imEsc(sku)}" data-slot="${slot}" title="Replace ${name}: choose a file — the editor opens and uploads it here">Replace</button></span>` : '';
-  return `<span class="im-tw${sw ? ' im-tw-sw' : ''}"${sku ? ` data-sku="${imEsc(sku)}" data-slot="${slot}"` : ''}>${tile}${tag}${acts}</span>`;
+    + `<button type="button" class="im-trepl" data-repl="${imEsc(sku)}" data-slot="${slot}" aria-haspopup="menu" title="Replace ${name}: a picture from this listing, from a sibling, or upload one from your computer">Replace</button></span>` : '';
+  return `<span class="im-tw${sw ? ' im-tw-sw' : ''}${wcls}"${sku ? ` data-sku="${imEsc(sku)}" data-slot="${slot}"` : ''}${edit ? ' data-drag="1"' : ''}>${tile}${tag}${acts}${chg}${paste}${dot}</span>`;
 }
 function imTileA(slot, liveUrl, mineUrl, sw) {
   /* THE TILE SHOWS YOUR OWN PICTURE BY DEFAULT. Amazon's catalogue often serves another child's
@@ -709,14 +838,15 @@ function imTileA(slot, liveUrl, mineUrl, sw) {
   const tip = sw ? (url ? 'Swatch — from your listing (Amazon\'s catalogue does not return swatches)' : 'Swatch: none in your listing') : slot + (diff ? ' — Amazon is serving a different picture in this slot' : '')
     + (!liveUrl && mineUrl ? ' — from your listing, not live yet' : '')
     + (liveUrl && !mineUrl ? ' — live on Amazon, not in your listing' : '');
-  return `<a class="im-th${diff ? ' im-diff' : ''}${sw ? ' im-sw' : ''}" href="${imEsc(url)}" target="_blank" rel="noopener" title="${imEsc(tip)}">`
-    + `<img src="${imEsc(imThumbL(url))}" loading="lazy" decoding="async" alt="${slot}">${sw ? '' : `<i>${label}</i>`}</a>`;
+  return `<a class="im-th${diff ? ' im-diff' : ''}${sw ? ' im-sw' : ''}" href="${imEsc(url)}" target="_blank" rel="noopener" draggable="false" title="${imEsc(tip)}">`
+    + `<img src="${imEsc(imThumbL(url))}" loading="lazy" decoding="async" draggable="false" alt="${slot}">${sw ? '' : `<i>${label}</i>`}</a>`;
 }
 
 /** THE ROW'S CHIPS: one per problem (imProblems — the very list the cards count and the sheet writes), the worst first, and "Not buyable"
  *  when it is; a listing with none shows its Amazon status ("Buyable"). [{ k, t, cls, tip }] */
-const IM_CHIP_ORDER = ['amzerr', 'sup', 'nobuy', 'nomain', 'noown', 'pcbad', 'few'];
+const IM_CHIP_ORDER = ['amzerr', 'sup', 'nobuy', 'nomain', 'pcbad', 'few'];
 function imKidChips(item, brand) {
+  if (!imStockOk(item, brand)) return [{ k: '', t: 'No stock', cls: '', tip: 'No FBA units — picture problems are shown for children with stock only' }];
   const state = imState(item, brand);
   const probs = imProblems(item, brand);
   const has = k => (k === 'nobuy' ? state.k === 'nobuy' : probs.includes(k));
@@ -725,7 +855,6 @@ function imKidChips(item, brand) {
     if (k === 'sup') return { t: state.label, cls: 'is-bad', tip: state.why === 'buyable by direct link, not in search' ? 'Amazon still allows a direct-link sale but has taken this listing out of search results.' : 'Suppressed — ' + state.why };
     if (k === 'nobuy') return { t: 'Not buyable', cls: 'is-bad', tip: 'Not buyable — ' + state.why };
     if (k === 'nomain') return { t: 'No main at all', cls: 'is-bad', tip: 'No main picture: none sent by us and none shown to shoppers' };
-    if (k === 'noown') return { t: 'Using the family\'s main', cls: 'is-att', tip: 'Your listing submitted no main image. What shows on Amazon comes from the family, and Amazon can suppress a listing for it.' };
     if (k === 'pcbad') return { t: 'Main not OK', cls: 'is-bad', tip: 'A person marked the main picture Not OK in the Picture check' };
     return { t: 'Fewer than 7', cls: 'is-att', tip: `${imPicCount(item).n} pictures (MAIN + PT01–PT08)` };
   };
@@ -740,38 +869,427 @@ function imKidSummary(item) {
   const live = item.live || {};
   const img = item.img || {};
   const urls = IM_SLOTS.map(slot => (IML_VIEW === 'live' ? (live[slot] || img[slot]) : (img[slot] || live[slot]))).filter(Boolean);
-  const nc = imUnchecked(item);
+  const nc = imStockOk(item) ? imUnchecked(item) : [];
   return `${urls.length}/9 pictures`
     + (nc.length ? ` · <span class="im-nc" title="These could not be decided from the data held, so they are not counted as a problem">not checked: ${imEsc(nc.join(', '))}</span>` : '');
 }
 /** Does this listing need picture work? (any card's problem but suppression, which is not a picture problem by itself) */
-const IM_NEEDS = ['amzerr', 'nomain', 'noown', 'pcbad', 'few'];
-const imNeeds = item => imProblems(item).some(k => IM_NEEDS.includes(k));
+const IM_NEEDS = ['amzerr', 'nomain', 'pcbad', 'few'];
+const imNeeds = item => imMarks(item).some(k => IM_NEEDS.includes(k));
 
 // One child listing's row: tick · SKU · colour · size · one status chip · quality summary · actions, then the strip of tiles.
 function imKidRow(item) {
   const live = item.live || {};
   const img = item.img || {};
-  const tiles = IM_SLOTS.map(slot => imTile(slot, live[slot], img[slot], false, item.sku)).join('')
+  const draft = IM_DRAFT.get(item.sku) || null;     // moves / swaps / pastes not sent yet (6b)
+  const seq = draft ? {} : (IM_SEQ.get(item.sku) || {});   // the family-order dots (children with stock only) — about what is saved, so not on a draft
+  const paste = imOneFits(item);
+  const tiles = IM_SLOTS.map(slot => (draft && (draft.now[slot] || '') !== (draft.base[slot] || '')
+    ? imTile(slot, '', draft.now[slot] || '', false, item.sku, '', { changed: true, note: draft.note[slot], paste })
+    : imTile(slot, live[slot], img[slot], false, item.sku, seq[slot], { paste }))).join('')
     + '<span class="im-strip-gap"></span>' + imTile('SWCH', live.SWCH, img.SWCH, true, item.sku);
+  const nDraft = draft ? Object.keys(imDraftDiff(item.sku)).length : 0;
+  const match = !draft && IM_SEQ.has(item.sku) && imSeqTarget(item);
   const chips = imKidChips(item);
-  const errs = imPicErrs(item);
+  const errs = imStockOk(item) ? imPicErrs(item) : [];
   const open = IM && IM.sku === item.sku && $('imEditWrap') && !$('imEditWrap').classList.contains('hide');
-  return `<div class="im-kid${open ? ' is-open' : ''}" data-sku="${imEsc(item.sku)}">
+  const qty = imStockKnown() ? imStockOf(item) : undefined;
+  const stock = qty === undefined ? '' : `<span class="im-stock${qty > 0 ? '' : ' is-zero'}" title="FBA stock (units), from Listing Health's snapshot">${qty == null ? 'stock —' : Number(qty).toLocaleString('en-US') + ' unit' + (Number(qty) === 1 ? '' : 's')}</span>`;
+  return `<div class="im-kid${open ? ' is-open' : ''}${Object.keys(seq).length ? ' has-seq' : ''}${draft ? ' has-draft' : ''}" data-sku="${imEsc(item.sku)}">
     <label class="im-kid-sel" title="Tick to paste into this listing (Shift+click ticks a range)"><input type="checkbox" class="im-sel" data-sku="${imEsc(item.sku)}" ${IM_SEL.has(item.sku) ? 'checked' : ''} aria-label="Tick ${imEsc(item.sku)}"></label>
     <div class="im-kid-info">
       <div class="im-kid-t"><b class="im-mono">${imEsc(item.sku)}</b>${item.lmStale && typeof lmOldHtml === 'function' ? lmOldHtml($('imBrand') ? $('imBrand').value : '', item.sku) : ''}<span class="muted">${imEsc(item.asin)}</span></div>
-      <div class="im-kid-s">${imEsc([item.c, item.z].filter(Boolean).join(' · ') || String(item.t || '').slice(0, 60))}</div>
-      <div class="im-kid-q">${typeof prOf === 'function' && imProblems(item).length ? prChipHtml(prIm($('imBrand') ? $('imBrand').value : '', item), 'im-chip') : ''}${chips.map(chip => `<span class="im-chip ${chip.cls}"${chip.k ? ` data-im-prob="${chip.k}"` : ''}${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span>`).join('')}<span class="im-kid-sum">${imKidSummary(item)}</span></div>
+      <div class="im-kid-s">${imEsc([item.c, item.z].filter(Boolean).join(' · ') || String(item.t || '').slice(0, 60))}${stock}</div>
+      <div class="im-kid-q">${typeof prOf === 'function' && imMarks(item).length ? prChipHtml(prIm($('imBrand') ? $('imBrand').value : '', item), 'im-chip') : ''}${chips.map(chip => `<span class="im-chip ${chip.cls}"${chip.k ? ` data-im-prob="${chip.k}"` : ''}${chip.tip ? ` title="${imEsc(chip.tip)}"` : ''}>${imEsc(chip.t)}</span>`).join('')}<span class="im-kid-sum">${imKidSummary(item)}</span></div>
       ${errs.length ? `<div class="im-kid-err" title="${imEsc(errs.map(imPicErrText).join(' · '))}">${imEsc(errs.map(imPicErrText).join(' · '))}</div>` : ''}
       <div class="im-kid-act">
         <button class="ghost im-b" data-edit="${imEsc(item.sku)}" title="Open the editor beside the list (E)">Edit</button>
         <button class="ghost im-b" data-copy="${imEsc(item.sku)}" title="Copy this listing's pictures (the ones we sent; a slot we never sent takes what shoppers see) (C)">Copy all</button>
         <button class="ghost im-b" data-copy="${imEsc(item.sku)}" data-copy-live="1" title="Copy what shoppers see on this listing (Amazon's catalogue), not the pictures we sent">Copy live</button>
-        ${IM_CLIP ? `<button class="ghost im-b" data-paste1="${imEsc(item.sku)}" title="Paste the clipboard's ticked slots into this listing (a preview first)">Paste here</button>` : ''}</div>
+        ${IM_CLIP ? `<button class="ghost im-b" data-paste1="${imEsc(item.sku)}" title="Paste the clipboard's ticked slots into this listing (a preview first)">Paste here</button>` : ''}
+        ${match ? `<button class="ghost im-b im-match" data-match="${imEsc(item.sku)}" title="Put this listing's own pictures in the family's order (nothing deleted) — a before → after preview, then Send">Match family order</button>` : ''}</div>
+      ${draft ? `<div class="im-draft" role="status"><b>${nDraft} change${nDraft === 1 ? '' : 's'}</b> — not sent
+        <button type="button" class="ghost im-b" data-dr="undo" data-sku="${imEsc(item.sku)}" title="Undo the last move">Undo</button>
+        <button type="button" class="ghost im-b" data-dr="discard" data-sku="${imEsc(item.sku)}" title="Back to the pictures as they are">Discard changes</button>
+        <button type="button" class="im-b im-go" data-dr="send" data-sku="${imEsc(item.sku)}" title="A before → after preview, then Amazon checks it before anything is sent">Send…</button></div>` : ''}
     </div>
     <div class="im-strip">${tiles}</div>
   </div>`;
+}
+
+/* ============================================================================================
+ * 6b. REARRANGING A LISTING'S PICTURES IN THE LIST (24 Nov 2026) — a DRAFT on screen; nothing reaches Amazon until the row's Send.
+ *   - DRAG a picture onto another slot of the same listing (MAIN, 01–08): onto a picture → the two SWAP; onto an empty slot → it MOVES
+ *     there and its old slot is emptied. The lifted picture follows the pointer, the slot under it says "Swap" / "Move here", Esc
+ *     cancels. Mouse; touch (hold a moment, then drag — a quick swipe still scrolls); keys: Space on a picture picks it up, ← → move it,
+ *     Space / Enter puts it down, Esc puts it back.
+ *   - COPY (a picture's Copy, as before — it also goes into the clipboard) → each slot of that listing and of its siblings shows "Paste
+ *     here"; the bar says "1 picture copied · Esc to cancel". A filled slot is replaced; its old picture stays in the draft's Undo.
+ *   - REPLACE is a small menu: a picture from this listing, a picture from a sibling, or Upload from computer (imReplace, unchanged).
+ *   - MATCH FAMILY ORDER (a child with order dots): its own pictures put in the family's order (imSeqTarget) — moved, never deleted —
+ *     then the before → after preview.
+ *   - SEND → the before → after preview of all nine slots → THE ONE SEND PATH (sqSendWithCheck: Amazon checks first, the person
+ *     approves; each change logged in Listing History with the old picture and the slot it came from, so Put back can undo it; the
+ *     test site / a local copy: "not sent").
+ *   - MAIN must be this product's own photo on white: a picture that is not a main picture of the family (a size chart, care guide,
+ *     lifestyle photo) is asked about before it goes into MAIN.
+ * A slot's picture is ours, else what Amazon serves (as the tile shows it); the swatch is not moved. Drafts live while the page is open.
+ * ============================================================================================ */
+const IM_DRAFT = new Map();     // sku → { base: { slot: url } (the strip as it was), now, steps: [earlier { now, note }], note: { slot: where it came from } }
+let IM_ONE = null;              // one copied picture (a tile's Copy): { sku, psku, slot, url }
+let IM_LD = null;               // a drag going on: { sku, from, el, x0, y0, on, ghost, target, touch, timer }
+let IM_LD_END = 0;              // when the last drag ended (its click must not open the viewer)
+let IM_KSEL = null;             // a picture picked up with the keys: { sku, slot, start (the draft before) }
+let IM_MENU = null;             // the open Replace menu: { sku, slot }
+let IM_MAINQ = null;            // a change waiting for "Put it in MAIN anyway": { sku, next, notes }
+let IM_DPV = null;              // the before → after preview open: { sku }
+const imPicOf = (item, slot) => (item.img || {})[slot] || (item.live || {})[slot] || '';
+const imDraftBase = item => Object.fromEntries(IM_SLOTS.map(slot => [slot, imPicOf(item, slot)]));
+/** The listing's slots as the strip shows them now: its draft, else its pictures. */
+const imNowOf = item => (IM_DRAFT.has(item.sku) ? IM_DRAFT.get(item.sku).now : imDraftBase(item));
+/** The listing and its siblings (the children of its parent); a listing with no parent: itself. */
+function imFamilyOf(item) {
+  const items = (IML[$('imBrand').value] || { items: [] }).items || [];
+  return item && item.psku ? items.filter(x => x && x.lvl !== 'parent' && x.psku === item.psku) : (item ? [item] : []);
+}
+/** The slots a listing's draft changes: { slot: the new picture, '' = emptied }. */
+function imDraftDiff(sku) {
+  const d = IM_DRAFT.get(sku);
+  const out = {};
+  if (d) IM_SLOTS.forEach(slot => { if ((d.now[slot] || '') !== (d.base[slot] || '')) out[slot] = d.now[slot] || ''; });
+  return out;
+}
+/** One change to a listing's draft: `next` = { slot: picture } after it, `notes` = { slot: where its picture came from }. The step before
+ *  is kept for Undo; a draft back to the pictures as they are is no draft. Only the strip is drawn again. */
+function imDraftSet(sku, next, notes) {
+  const item = imItem(sku);
+  if (!item) return false;
+  const d = IM_DRAFT.get(sku) || { base: imDraftBase(item), now: imDraftBase(item), steps: [], note: {} };
+  d.steps.push({ now: Object.assign({}, d.now), note: Object.assign({}, d.note) });
+  d.now = Object.assign({}, d.now, next);
+  d.note = Object.assign({}, d.note, notes || {});
+  IM_SLOTS.forEach(slot => { if ((d.now[slot] || '') === (d.base[slot] || '')) delete d.note[slot]; });
+  IM_DRAFT.set(sku, d);
+  if (!Object.keys(imDraftDiff(sku)).length) IM_DRAFT.delete(sku);
+  imRowRedraw(sku);
+  return true;
+}
+function imDraftUndo(sku) {
+  const d = IM_DRAFT.get(sku);
+  if (!d || !d.steps.length) return false;
+  const step = d.steps.pop();
+  d.now = step.now;
+  d.note = step.note;
+  if (!Object.keys(imDraftDiff(sku)).length) IM_DRAFT.delete(sku);
+  imRowRedraw(sku);
+  return true;
+}
+function imDraftDiscard(sku) {
+  IM_DRAFT.delete(sku);
+  imRowRedraw(sku);
+}
+/** Draw one child's row again (a draft changed): only that row, wired again; the list does not move. */
+function imRowRedraw(sku) {
+  const list = $('imList');
+  const item = imItem(sku);
+  const row = list && list.querySelector && item ? list.querySelector(`.im-kid[data-sku="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(sku) : sku}"]`) : null;
+  if (!row || !row.replaceWith || typeof document === 'undefined' || !document.createElement) return;
+  const box = document.createElement('div');
+  box.innerHTML = imKidRow(item);
+  const fresh = box.firstElementChild;
+  row.replaceWith(fresh);
+  imRowsWire(fresh);
+  if (typeof imqWatch === 'function') imqWatch(fresh);
+}
+/** MAIN must be this product's own photo on a pure white background: '' when the picture is a main picture of the family already (this
+ *  listing's or a sibling's), else the warning in words — where else it is, and on how many listings (a shared picture: a size chart,
+ *  a care guide, a lifestyle photo). */
+function imMainWarn(sku, url) {
+  const item = imItem(sku);
+  if (!item || !url) return '';
+  const id = imqId(url);
+  const fam = imFamilyOf(item);
+  if (fam.some(kid => imSeqPic(kid, 'MAIN') === id) || imSeqPic(item, 'MAIN') === id) return '';
+  const where = [];
+  fam.forEach(kid => IM_SLOTS.forEach(slot => { if (imSeqPic(kid, slot) === id) where.push(kid.sku === sku ? slot : `${slot} of ${kid.sku}`); }));
+  const n = fam.filter(kid => IM_SLOTS.some(slot => imSeqPic(kid, slot) === id)).length;
+  return 'MAIN must be this product\'s own photo on a pure white background.'
+    + (n >= 2 ? ` This picture is on ${n} listings of the family — a size chart, care guide or lifestyle photo?` : ' This picture is not a main picture.')
+    + (where.length ? ` It is in ${where.slice(0, 3).join(', ')}${where.length > 3 ? '…' : ''} now.` : '');
+}
+const imMainHtml = (warn, url) => `<div class="im-pv im-mainq" role="alertdialog" aria-label="Put this picture in MAIN?"><div class="im-pv-top"><b>Put this picture in MAIN?</b>`
+  + `<span class="muted">${imEsc(warn)}</span></div><div class="im-pv-list"><span class="im-pv-pic is-new"><img src="${imEsc(imThumb(url))}" alt=""></span></div>`
+  + `<div class="im-pv-foot"><button class="ghost im-b" data-im-mainq="no">Cancel</button><button class="im-b im-go" data-im-mainq="yes">Put it in MAIN anyway</button></div></div>`;
+/** Make a change, asking first when a picture that is not a main picture would go into MAIN. → true (made) | 'ask' (asked) | false. */
+function imMainAsk(sku, next, notes, confirmed) {
+  const warn = next.MAIN ? imMainWarn(sku, next.MAIN) : '';
+  if (warn && !confirmed) {
+    IM_MAINQ = { sku, next, notes };
+    imModal(imMainHtml(warn, next.MAIN));
+    return 'ask';
+  }
+  return imDraftSet(sku, next, notes);
+}
+/** Move the picture of slot `from` onto slot `to` of the same listing: a picture there → they swap; an empty slot → it moves (`from` is
+ *  emptied). → true | 'ask' | false. */
+function imMove(sku, from, to, confirmed) {
+  if (!sku || from === to || !IM_SLOTS.includes(from) || !IM_SLOTS.includes(to)) return false;
+  const item = imItem(sku);
+  if (!item) return false;
+  const now = imNowOf(item);
+  const a = now[from] || '';
+  const b = now[to] || '';
+  if (!a) return false;
+  const notes = { [to]: 'from ' + from };
+  if (b) notes[from] = 'from ' + to;
+  return imMainAsk(sku, { [to]: a, [from]: b }, notes, confirmed);
+}
+/* ----- one copied picture → "Paste here" ----- */
+function imOneCopy(item, slot, url) {
+  if (!item || !url || !IM_SLOTS.includes(slot)) return;
+  IM_ONE = { sku: item.sku, psku: item.psku || '', slot, url };
+}
+/** Can this listing take the copied picture? The listing it came from, or a sibling (the same parent). */
+const imOneFits = item => !!(IM_ONE && item && (item.sku === IM_ONE.sku || (IM_ONE.psku && item.psku === IM_ONE.psku)));
+function imPasteOne(sku, slot, confirmed) {
+  const item = imItem(sku);
+  if (!item || !imOneFits(item) || !IM_SLOTS.includes(slot)) return false;
+  if ((imNowOf(item)[slot] || '') === IM_ONE.url) return false;
+  return imMainAsk(sku, { [slot]: IM_ONE.url }, { [slot]: 'copy of ' + IM_ONE.slot + (IM_ONE.sku === sku ? '' : ' of ' + IM_ONE.sku) }, confirmed);
+}
+function imOneClear() {
+  if (!IM_ONE) return false;
+  IM_ONE = null;
+  imListRender();
+  return true;
+}
+const imOneBarHtml = () => (IM_ONE ? `<div class="im-onebar" id="imOneBar" role="status"><span class="im-onebar-pic"><img src="${imEsc(imThumb(IM_ONE.url))}" alt=""></span>`
+  + `<span><b>1 picture copied</b> · ${imEsc(IM_ONE.slot)} of <span class="im-mono">${imEsc(IM_ONE.sku)}</span> · “Paste here” on any slot of this listing or its siblings · Esc to cancel</span>`
+  + `<button type="button" class="ghost im-b" data-one-clear="1">Cancel</button></div>` : '');
+/* ----- Replace: the small menu ----- */
+/** The menu's pictures: this listing's other slots (as the strip shows them now), and the siblings' pictures (each picture once). */
+function imReplPicks(sku, slot) {
+  const item = imItem(sku);
+  if (!item) return { own: [], sib: [] };
+  const now = imNowOf(item);
+  const own = IM_SLOTS.filter(each => each !== slot && now[each]).map(each => ({ sku, slot: each, url: now[each], c: item.c }));
+  const seen = new Set(own.map(p => imqId(p.url)).concat(now[slot] ? [imqId(now[slot])] : []));
+  const sib = [];
+  imFamilyOf(item).filter(kid => kid.sku !== sku).forEach(kid => IM_SLOTS.forEach(each => {
+    const url = imPicOf(kid, each);
+    if (!url || seen.has(imqId(url))) return;
+    seen.add(imqId(url));
+    sib.push({ sku: kid.sku, slot: each, url, c: kid.c });
+  }));
+  return { own, sib };
+}
+function imReplMenuHtml(sku, slot) {
+  const { own, sib } = imReplPicks(sku, slot);
+  const pick = p => `<button type="button" class="im-rm-pic" role="menuitem" data-rm-use="${imEsc(p.url)}" data-rm-note="${imEsc(p.sku === sku ? 'copy of ' + p.slot : p.slot + ' of ' + p.sku)}"`
+    + ` title="${imEsc((p.sku === sku ? '' : p.sku + ' · ') + p.slot)}"><img src="${imEsc(imThumbL(p.url))}" alt="${imEsc(p.slot)}" loading="lazy" draggable="false"><small>${imEsc(p.sku === sku ? p.slot : (p.c || p.sku) + ' · ' + p.slot)}</small></button>`;
+  return `<div class="im-rm" id="imRmenu" role="menu" aria-label="Replace ${imEsc(slot)}" data-sku="${imEsc(sku)}" data-slot="${slot}">`
+    + `<div class="im-rm-h">Replace <b>${imEsc(slot)}</b> of <span class="im-mono">${imEsc(sku)}</span></div>`
+    + `<details class="im-rm-sec" data-rm-sec="own"><summary>Use a picture from this listing <span class="muted">(${own.length})</span></summary><div class="im-rm-grid">${own.map(pick).join('') || '<span class="muted">No other picture on this listing.</span>'}</div></details>`
+    + `<details class="im-rm-sec" data-rm-sec="sib"><summary>Use a picture from a sibling <span class="muted">(${sib.length})</span></summary><div class="im-rm-grid">${sib.map(pick).join('') || '<span class="muted">No sibling pictures.</span>'}</div></details>`
+    + `<button type="button" class="im-rm-up" role="menuitem" data-rm-upload="1">Upload from computer…</button>`
+    + '<div class="im-rm-note muted">Nothing is sent until Send.</div></div>';
+}
+function imReplMenuClose() {
+  IM_MENU = null;
+  const old = typeof document !== 'undefined' && document.getElementById ? document.getElementById('imRmenu') : null;
+  if (old && old.remove) old.remove();
+}
+/** Open the Replace menu under a tile's Replace button (fixed on the page, kept inside the window). */
+function imReplMenu(btn, sku, slot) {
+  imReplMenuClose();
+  IM_MENU = { sku, slot };
+  if (typeof document === 'undefined' || !document.body || !document.body.insertAdjacentHTML) return;
+  document.body.insertAdjacentHTML('beforeend', imReplMenuHtml(sku, slot));
+  const menu = document.getElementById('imRmenu');
+  const r = btn && btn.getBoundingClientRect ? btn.getBoundingClientRect() : { left: 20, top: 60, bottom: 80 };
+  // Below the button when it fits, else above it — always wholly inside the window (the menu is fixed: the page cannot scroll it into
+  // view). A section opened or closed changes its height: placed again.
+  const place = () => {
+    const w = Math.min(320, window.innerWidth - 24);
+    const h = menu.offsetHeight || 0;
+    const below = r.bottom + 6, above = r.top - 6 - h;
+    const top = below + h <= window.innerHeight - 12 ? below : above >= 12 ? above : Math.max(12, window.innerHeight - 12 - h);
+    menu.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left - 8)) + 'px';
+    menu.style.top = Math.round(top) + 'px';
+  };
+  place();
+  menu.addEventListener('toggle', place, true);
+  const first = menu.querySelector('summary');
+  if (first && first.focus) first.focus();
+}
+/** A choice in the Replace menu: a picture (url + where it came from) into the slot, or Upload from computer (today's Replace). */
+function imReplPick(choice) {
+  const m = IM_MENU;
+  if (!m) return false;
+  imReplMenuClose();
+  if (choice.upload) return imReplace(m.sku, m.slot);                     // exactly as before: the file chooser, the editor, imUpload
+  if (!choice.url) return false;
+  return imMainAsk(m.sku, { [m.slot]: choice.url }, { [m.slot]: choice.note || 'replaced' });
+}
+/* ----- Match family order ----- */
+/** A child's pictures in its family's order: shared pictures in their normal slot, its own photos in the family's own-photo slots in
+ *  turn, anything else in its own slot when free, else the first free one — the same pictures, none deleted. { slot: url } or null (no
+ *  family order: fewer than 2 children with stock). */
+function imSeqTarget(item) {
+  const fam = imFamilyOf(item).filter(kid => imStockOk(kid));
+  if (!fam.some(kid => kid.sku === item.sku)) return null;
+  if (fam.length < 2) return null;
+  const pat = imSeqPattern(fam);
+  const now = imNowOf(item);
+  const pics = IM_SLOTS.filter(slot => now[slot]).map(slot => ({ slot, url: now[slot], id: imqId(now[slot]) }));
+  const out = {};
+  const done = new Set();
+  const free = slot => !out[slot];
+  pics.forEach((p, i) => { const h = pat.shared(p.id) ? pat.home.get(p.id) : null; if (h && free(h)) { out[h] = p.url; done.add(i); } });
+  let k = 0;
+  pics.forEach((p, i) => {
+    if (done.has(i) || pat.shared(p.id)) return;
+    while (k < pat.ownSlots.length && !free(pat.ownSlots[k])) k++;
+    if (k < pat.ownSlots.length) { out[pat.ownSlots[k++]] = p.url; done.add(i); }
+  });
+  pics.forEach((p, i) => { if (done.has(i)) return; out[free(p.slot) ? p.slot : IM_SLOTS.find(free)] = p.url; });
+  const target = Object.fromEntries(IM_SLOTS.map(slot => [slot, out[slot] || '']));
+  return IM_SLOTS.some(slot => (target[slot] || '') !== (now[slot] || '')) ? target : null;
+}
+/** "Match family order": the draft takes the family's order, then the before → after preview opens. */
+function imMatchFamily(sku) {
+  const item = imItem(sku);
+  const target = item && imSeqTarget(item);
+  if (!target) { imMsg('This listing already follows its family\'s order.'); return false; }
+  const now = imNowOf(item);
+  const next = {};
+  const notes = {};
+  IM_SLOTS.forEach(slot => {
+    if ((target[slot] || '') === (now[slot] || '')) return;
+    next[slot] = target[slot];
+    const from = target[slot] ? IM_SLOTS.find(each => now[each] === target[slot]) : '';
+    if (from) notes[slot] = 'from ' + from + ' (family order)';
+  });
+  imDraftSet(sku, next, notes);
+  return imDraftPreview(sku);
+}
+/* ----- Send: the before → after preview, then THE ONE SEND PATH ----- */
+/** The send of a listing's draft: only the slots that differ from what OUR listing holds (a picture only Amazon's catalogue shows is not
+ *  ours to empty). Each change names the slot its picture came from (Listing History: old → new). null when nothing would change. */
+function imDraftJob(sku) {
+  const item = imItem(sku);
+  const d = IM_DRAFT.get(sku);
+  if (!item || !d) return null;
+  const img = item.img || {};
+  const set = {};
+  Object.entries(imDraftDiff(sku)).forEach(([slot, url]) => { if ((url || '') !== (img[slot] || '')) set[slot] = url || ''; });
+  if (!Object.keys(set).length) return null;
+  const brand = $('imBrand').value;
+  return { brand, sku, asin: item.asin || '', label: [item.c, item.z].filter(Boolean).join(' · ') || sku, row: item,
+    body: { limg: 'patch', brand, sku, productType: item.pt, set },
+    changes: Object.keys(set).map(slot => ({ field: sqField(slot) + (d.note[slot] ? ' (' + d.note[slot] + ')' : ''), old: img[slot] || '(none)', new: set[slot] || '(removed)', pic: true, attr: slot, oldV: img[slot] || '' })) };
+}
+function imDraftPreviewHtml(sku) {
+  const item = imItem(sku);
+  const d = IM_DRAFT.get(sku);
+  if (!item || !d) return '';
+  const diff = imDraftDiff(sku);
+  const job = imDraftJob(sku);
+  const pic = (url, cls) => (url ? `<span class="im-pv-pic${cls || ''}"><img src="${imEsc(imThumb(url))}" alt="" loading="lazy"></span>` : '<span class="im-pv-pic is-none">empty</span>');
+  const warnMain = 'MAIN' in diff ? imMainWarn(sku, diff.MAIN) : '';
+  const rows = IM_SLOTS.map(slot => {
+    const ch = slot in diff;
+    const catalogOnly = ch && !d.now[slot] && !(item.img || {})[slot];
+    return `<div class="im-pv-row${ch ? '' : ' is-same'}"><b class="im-pv-slot">${slot === 'MAIN' ? 'Main' : slot}</b>${pic(d.base[slot])}<span class="im-pv-arrow" aria-hidden="true">→</span>${pic(d.now[slot], ch ? ' is-new' : '')}`
+      + `<span class="im-pv-q">${ch ? imEsc(d.note[slot] || (d.now[slot] ? 'replaced' : 'emptied')) : '<span class="muted">same</span>'}`
+      + (slot === 'MAIN' && warnMain ? `<span class="err" style="display:block">${imEsc(warnMain)}</span>` : '')
+      + (catalogOnly ? '<span class="muted" style="display:block">Shown from Amazon\'s catalogue, not your listing — emptying it here may not remove it.</span>' : '') + '</span></div>';
+  }).join('');
+  const n = job ? Object.keys(job.body.set).length : 0;
+  return `<div class="im-pv" role="document"><div class="im-pv-top"><b>Before → after · <span class="im-mono">${imEsc(sku)}</span></b>`
+    + `<span class="muted">${imEsc([item.c, item.z].filter(Boolean).join(' · '))} · ${n} slot${n === 1 ? '' : 's'} change. Nothing is sent yet: Amazon checks it first, then you approve.</span>`
+    + (!item.pt ? '<div class="err" style="font-size:12px;margin-top:4px">No product type in the snapshot for this listing — open it in the editor (Edit) and send from there.</div>' : '') + '</div>'
+    + `<div class="im-pv-list"><div class="im-pv-l"><div class="im-pv-rows">${rows}</div></div></div>`
+    + `<div class="im-pv-foot"><button class="ghost im-b" data-im-dpv="cancel">Back to the list</button>`
+    + `<button class="im-b im-go" data-im-dpv="go" ${n && item.pt ? '' : 'disabled'}>Continue to the Amazon check (${n})</button></div></div>`;
+}
+function imDraftPreview(sku) {
+  if (!IM_DRAFT.has(sku)) return false;
+  IM_DPV = { sku };
+  imModal(imDraftPreviewHtml(sku));
+  return true;
+}
+/** "Continue": THE ONE SEND PATH — Amazon checks, the person approves, it is sent (live only; the test site: not sent) and logged. */
+function imDraftSend(sku) {
+  IM_DPV = null;
+  const job = imDraftJob(sku);
+  if (!job || !job.row.pt || typeof sqSendWithCheck !== 'function') { imModal(''); return false; }
+  return sqSendWithCheck([job], { screen: 'Image Manager', title: 'Image Manager · move pictures · ' + sku,
+    onSent: sent => {
+      const img = Object.assign({}, sent.row.img || {});
+      Object.entries(sent.body.set).forEach(([slot, url]) => { if (url) img[slot] = url; else delete img[slot]; });
+      sent.row.img = img;                                   // what was sent, so the strip shows it
+      IM_DRAFT.delete(sent.sku);
+      IML_DIRTY = true;
+    },
+    onDone: () => imListRender() });
+}
+/* ----- drag: mouse and touch (pointer events) ----- */
+function imDragTarget(x, y) {
+  if (!IM_LD || typeof document === 'undefined' || !document.elementFromPoint) return null;
+  const el = document.elementFromPoint(x, y);
+  const tw = el && el.closest ? el.closest('.im-tw[data-sku][data-slot]') : null;
+  return tw && tw.dataset.sku === IM_LD.sku && IM_SLOTS.includes(tw.dataset.slot) && tw.dataset.slot !== IM_LD.from ? tw : null;
+}
+function imDragStart() {
+  const d = IM_LD;
+  d.on = true;
+  d.el.classList.add('is-lift');
+  const img = d.el.querySelector('img');
+  d.ghost = document.createElement('div');
+  d.ghost.className = 'im-ghost';
+  d.ghost.setAttribute('aria-hidden', 'true');
+  if (img) d.ghost.innerHTML = `<img src="${imEsc(img.getAttribute('src'))}" alt="">`;
+  document.body.appendChild(d.ghost);
+  document.body.classList.add('im-dragging');
+  imMsg(`Moving ${d.from} of ${d.sku} — drop it on another slot (Esc cancels).`);
+}
+function imDragMove(e) {
+  const d = IM_LD;
+  if (!d) return;
+  const far = Math.hypot(e.clientX - d.x0, e.clientY - d.y0);
+  if (!d.on) {
+    if (d.touch) { if (far > 10) imDragEnd(); return; }       // a swipe before the hold: the page scrolls
+    if (far < 6) return;
+    imDragStart();
+  }
+  d.ghost.style.left = e.clientX + 'px';
+  d.ghost.style.top = e.clientY + 'px';
+  const t = imDragTarget(e.clientX, e.clientY);
+  if (t !== d.target) {
+    if (d.target) { d.target.classList.remove('is-target'); delete d.target.dataset.dropLabel; }
+    d.target = t;
+    if (t) {
+      const now = imNowOf(imItem(d.sku) || {});
+      t.dataset.dropLabel = now[t.dataset.slot] ? 'Swap' : 'Move here';
+      t.classList.add('is-target');
+    }
+  }
+}
+function imDragEnd(drop) {
+  const d = IM_LD;
+  if (!d) return;
+  IM_LD = null;
+  clearTimeout(d.timer);
+  if (d.ghost && d.ghost.remove) d.ghost.remove();
+  if (d.el && d.el.classList) d.el.classList.remove('is-lift');
+  if (d.target) { d.target.classList.remove('is-target'); delete d.target.dataset.dropLabel; }
+  if (typeof document !== 'undefined' && document.body) document.body.classList.remove('im-dragging');
+  if (d.on) {
+    IM_LD_END = Date.now();
+    imMsg('');
+    if (drop && d.target) imMove(d.sku, d.from, d.target.dataset.slot);
+  }
 }
 
 /* ---------- families: a card per parent, foldable ---------- */
@@ -1071,14 +1589,20 @@ async function imReplaceFile(file) {
 }
 
 // The groups the list shows for this filter and search (and the listings picked in Listing Health, IM_ONLY): [{ parent, kids, psku, show }].
+// "Stock > 0 only" on: a family is its children with stock (its header counts those). The family-order dots are worked out here, per
+// family, from its children with stock — whatever the filter or the search shows.
 function imShownGroups(items, filter, search) {
   const groups = [];
+  IM_SEQ.clear();
   imListGroups(items).forEach(group => {
+    const stocked = group.kids.filter(kid => imStockOk(kid));
+    imSeqFamily(stocked).forEach((dots, sku) => IM_SEQ.set(sku, dots));
+    const pool = IM_STOCK_ONLY ? stocked : group.kids;
     const picked = kid => !IM_ONLY || IM_ONLY.skus.has(kid.sku);
-    let show = group.kids.filter(kid => picked(kid) && imKidMatch(kid, filter, search));
+    let show = pool.filter(kid => picked(kid) && imKidMatch(kid, filter, search));
     // A search that names the PARENT shows the whole family.
-    if (!show.length && search && group.parent && imKidMatch(group.parent, 'all', search)) show = group.kids.filter(kid => picked(kid) && imKidMatch(kid, filter, ''));
-    if (show.length) groups.push(Object.assign({}, group, { show }));
+    if (!show.length && search && group.parent && imKidMatch(group.parent, 'all', search)) show = pool.filter(kid => picked(kid) && imKidMatch(kid, filter, ''));
+    if (show.length) groups.push(Object.assign({}, group, { kids: pool, show }));
   });
   return groups;
 }
@@ -1157,11 +1681,13 @@ function imListRender() {
     + `<span>${filter !== 'all' || search ? '<button class="ghost im-b" id="imClearFilter">Clear filter</button>' : ''}</span></div>` : '';
   el.innerHTML = only + cards + `<div class="im-meta muted"><span>${nKids.toLocaleString('en-US')} listing(s) in ${groups.length.toLocaleString('en-US')} famil${groups.length === 1 ? 'y' : 'ies'} of ${data.items.length.toLocaleString('en-US')}
       · ${(typeof lmDataLabel === 'function' && lmDataLabel([brand])) ? imEsc(lmDataLabel([brand]).text) : 'snapshot ' + (data.at ? data.at.toLocaleString() : '—')}${IML_BUSY ? ' · refreshing…' : ''}
-      · tiles show <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b></span>
+      · tiles show <b>${IML_VIEW === 'live' ? 'what Amazon serves' : 'the pictures you submitted'}</b>${imStockKnown(brand) ? (IM_STOCK_ONLY ? ' · <b>stock &gt; 0 only</b>' : ' · every child (problems marked on those with stock)') : ' · stock not loaded yet'}</span>
+      <span class="im-seq-key"><i class="im-seq" aria-hidden="true"></i> red dot = image out of family order</span>
       ${groups.length ? '<span class="im-meta-act"><button class="ghost im-b" data-foldall="0" title="Open every family">Open all</button><button class="ghost im-b" data-foldall="1" title="Close every family">Close all</button></span>' : ''}
       <details class="im-key"><summary>Key</summary>${IM_LEGEND}</details></div>
     ${IM_CLIP ? '<div id="imBulk" class="muted" style="font-size:12px;margin-bottom:8px"></div>' : ''}
     ${empty}
+    ${IM_CLIP ? '' : imOneBarHtml()}
     ${groups.slice(0, firstN).map(group => imGroupHtml(group)).join('')}
     <div id="imSelBar" class="im-selbar" role="status"${IM_SEL.size && !IM_CLIP ? '' : ' hidden'}>${imSelBarHtml()}</div>
     ${imClipBar('list')}`;
@@ -1227,6 +1753,7 @@ function imRowsWire(root) {
     const item = (IML[$('imBrand').value] || { items: [] }).items.find(each => each.sku === btn.dataset.copy1);
     if (!item) return;
     imClipCopyOne({ brand: $('imBrand').value, sku: item.sku, asin: item.asin, c: item.c, z: item.z, psku: item.psku, slot: btn.dataset.slot, url: btn.dataset.url });
+    imOneCopy(item, btn.dataset.slot, btn.dataset.url);      // and "Paste here" on this listing and its siblings (6b)
     imListRender();
     imMsg('Copied ' + (btn.dataset.slot === 'SWCH' ? 'the swatch' : btn.dataset.slot) + ' of ' + item.sku + ' to the clipboard.');
   });
@@ -1832,7 +2359,7 @@ function imClipBar(where) {
   const mode = `<span class="im-seg" role="group" aria-label="How to paste">`
     + `<label><input type="radio" name="imMode" value="replace"${IM_PASTE_MODE === 'gaps' ? '' : ' checked'}> Replace these slots</label>`
     + `<label><input type="radio" name="imMode" value="gaps"${IM_PASTE_MODE === 'gaps' ? ' checked' : ''}> Only fill empty slots</label></span>`;
-  return `<div class="im-clip" id="imClipBar" role="region" aria-label="Clipboard">
+  return `<div class="im-clip" id="imClipBar" role="region" aria-label="Clipboard">${where === 'list' ? imOneBarHtml() : ''}
     <div class="im-clip-h"><b>Clipboard</b><span class="muted">from <span class="im-mono">${imEsc(clip.sku)}</span>${clip.c || clip.z ? ' · ' + imEsc([clip.c, clip.z].filter(Boolean).join(' · ')) : ''}`
     + `${clip.shop ? ' · what shoppers see' : ''} · ${clip.n} picture(s)${clip.slots.SWCH ? ' + swatch' : ''} · nothing sent yet — only the ticked slots are pasted</span>
       <span style="flex:1"></span><button class="ghost im-b" id="imClipClear">Forget it</button></div>
@@ -2040,6 +2567,10 @@ $('imQ').addEventListener('keydown', e => {
   }
 });
 $('imFilter').onchange = imListAgain;
+if ($('imStock')) {
+  $('imStock').checked = IM_STOCK_ONLY;
+  $('imStock').onchange = () => imStockSet($('imStock').checked);
+}
 $('imView').onchange = imListAgain;
 // Brand changed: page 1, nothing ticked, back to the list, that brand's snapshot.
 $('imBrand').onchange = () => {
@@ -2068,7 +2599,6 @@ const IM_DL_CHECKS = [
   { k: 'few', col: 'Fewer than 7 pictures', todo: 'Add pictures until there are at least 7' },
   { k: 'amzerr', col: 'Amazon picture error', todo: "Fix what Amazon's picture error says, in the Image Manager editor" },
   { k: 'sup', col: 'Search suppressed', todo: 'Open it in Listing Errors and fix why Amazon took it out of search' },
-  { k: 'noown', col: "Using the family's main", todo: "Upload this listing's own main picture" },
 ];
 const IM_DL_COLS = ['Brand', 'Family name', 'Parent ASIN', 'SKU', 'ASIN', 'Colour', 'Size', 'Stock (units)', 'Amazon link', 'Problems', 'What to do']
   .concat(IM_DL_CHECKS.map(c => c.col), ['Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at', 'Priority']);
@@ -2289,7 +2819,6 @@ function imOldCheck(item, k, brand, owner) {
   const img = item.img || {};
   const live = item.live || {};
   if (k === 'nomain') return !img.MAIN && !live.MAIN;
-  if (k === 'noown') return !img.MAIN && !!live.MAIN;
   if (k === 'pcbad') return typeof PC !== 'undefined' && !!live.MAIN && ((PC.marks[brand] || {})[imqId(live.MAIN)] || {}).v === 'bad';
   if (k === 'small') return IM_SLOTS.some(slot => [img[slot], live[slot]].some(url => { const wh = imqDims(url); return !!wh && imqSize(wh[0], wh[1]) !== 'g'; }));
   if (k === 'few') return IM_SLOTS.filter(slot => live[slot] || img[slot]).length < 7;
@@ -2434,6 +2963,20 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 $('imList').addEventListener('click', e => {
   const t = e.target;
   const on = sel => (t && t.closest ? t.closest(sel) : null);
+  // a drag just ended on this tile: its click does not open the viewer
+  if (Date.now() - IM_LD_END < 400 && on('.im-tw')) { if (e.preventDefault) e.preventDefault(); return; }
+  // rearranging a listing (6b): Paste here, the draft's Undo / Discard changes / Send…, Match family order
+  const one = on('[data-paste-one]');
+  if (one) return imPasteOne(one.dataset.pasteOne, one.dataset.slot);
+  const dr = on('[data-dr]');
+  if (dr) {
+    if (dr.dataset.dr === 'undo') return imDraftUndo(dr.dataset.sku);
+    if (dr.dataset.dr === 'discard') return imDraftDiscard(dr.dataset.sku);
+    return imDraftPreview(dr.dataset.sku);
+  }
+  const mt = on('[data-match]');
+  if (mt) return imMatchFamily(mt.dataset.match);
+  if (on('[data-one-clear]')) return imOneClear();
   const card = on('[data-im-card]');
   if (card) {
     $('imFilter').value = $('imFilter').value === card.dataset.imCard ? 'all' : card.dataset.imCard;
@@ -2466,7 +3009,7 @@ $('imList').addEventListener('click', e => {
   const view = on('[data-view]');
   if (view) return imViewOpen(view.dataset.view, view.dataset.slot);
   const repl = on('[data-repl]');
-  if (repl) return imReplace(repl.dataset.repl, repl.dataset.slot);
+  if (repl) return imReplMenu(repl, repl.dataset.repl, repl.dataset.slot);
   const fold = on('[data-fold]');
   if (fold) return imFamToggle(fold.dataset.fold);
   const all = on('[data-foldall]');
@@ -2483,9 +3026,10 @@ $('imList').addEventListener('click', e => {
     const group = imListGroups((IML[$('imBrand').value] || { items: [] }).items).find(each => imGroupKey(each) === key);
     if (!group) return;
     if (fam.dataset.famsel) {
-      group.kids.forEach(kid => IM_SEL.add(kid.sku));
+      const kids = IM_STOCK_ONLY ? group.kids.filter(kid => imStockOk(kid)) : group.kids;
+      kids.forEach(kid => IM_SEL.add(kid.sku));
       imListRender();
-      return imMsg(`Ticked all ${group.kids.length} children of ${key}.`);
+      return imMsg(`Ticked all ${kids.length} children of ${key}${IM_STOCK_ONLY && kids.length < group.kids.length ? ' with stock' : ''}.`);
     }
     const p = group.parent;
     imClipCopyOne({ brand: $('imBrand').value, sku: p.sku, asin: p.asin, c: '', z: '', psku: p.sku, slot: 'MAIN', url: (p.img || {}).MAIN || (p.live || {}).MAIN });
@@ -2533,7 +3077,9 @@ let IM_HOVER = { sku: '', slot: '' };
 let IM_HELP = false;
 const IM_KEYS = [['/', 'Search'], ['Esc', 'Close the viewer, the editor or a popup'], ['← →', 'Previous / next picture in the viewer'],
   ['E', 'Edit the listing under the mouse (or in the viewer)'], ['C', 'Copy the picture under the mouse — over a row\'s text: all its pictures'],
-  ['V', 'Preview pasting the clipboard into the ticked listings'], ['?', 'This help']];
+  ['V', 'Preview pasting the clipboard into the ticked listings'],
+  ['Space', 'On a picture: pick it up — ← → move it inside its listing, Space puts it down, Esc puts it back (a draft: nothing is sent until Send)'],
+  ['Esc', 'Cancel a drag, close the Replace menu, or forget "1 picture copied"'], ['?', 'This help']];
 function imHelpHtml() {
   return `<div class="im-pv im-help" role="document"><div class="im-pv-top"><b>Image Manager — keys and tips</b></div><div class="im-pv-list">`
     + `<table class="im-keys">${IM_KEYS.map(([k, t]) => `<tr><td><kbd>${imEsc(k)}</kbd></td><td>${imEsc(t)}</td></tr>`).join('')}</table>`
@@ -2553,6 +3099,34 @@ function imKey(e) {
   const key = String(e.key || '');
   const k = key.toLowerCase();
   if (IM_HELP && key === 'Escape') { imHelp(false); return true; }
+  // rearranging (6b): Esc cancels a drag / closes the Replace menu; a picture picked up with Space moves with ← →
+  if (IM_LD && key === 'Escape') { imDragEnd(false); return true; }
+  if (IM_MENU && key === 'Escape') { imReplMenuClose(); return true; }
+  if (IM_KSEL) {
+    if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      const to = IM_SLOTS[IM_SLOTS.indexOf(IM_KSEL.slot) + (key === 'ArrowLeft' ? -1 : 1)];
+      if (to && imMove(IM_KSEL.sku, IM_KSEL.slot, to) === true) { IM_KSEL.slot = to; imKselFocus(); }
+      return true;
+    }
+    if (key === ' ' || key === 'Enter') { const was = IM_KSEL; IM_KSEL = null; imRowRedraw(was.sku); imKselFocus(was); imMsg(`Put down in ${was.slot}. Nothing is sent until Send.`); return true; }
+    if (key === 'Escape') {
+      const was = IM_KSEL;
+      IM_KSEL = null;
+      if (was.start) IM_DRAFT.set(was.sku, was.start); else IM_DRAFT.delete(was.sku);
+      imRowRedraw(was.sku);
+      imMsg('Put back where it was.');
+      return true;
+    }
+  }
+  const pickTile = !IM_VW && key === ' ' && e.target && e.target.closest ? e.target.closest('.im-tw[data-drag]') : null;
+  if (pickTile) {
+    const d = IM_DRAFT.get(pickTile.dataset.sku);
+    IM_KSEL = { sku: pickTile.dataset.sku, slot: pickTile.dataset.slot, start: d ? JSON.parse(JSON.stringify(d)) : null };
+    imRowRedraw(IM_KSEL.sku);
+    imKselFocus();
+    imMsg(`Picked up ${IM_KSEL.slot} — ← → to move it, Space to put it down, Esc to cancel.`);
+    return true;
+  }
   if (IM_VW) {
     if (key === 'Escape') { imViewClose(); return true; }
     if (key === 'ArrowLeft') { imViewMove(-1); return true; }
@@ -2564,6 +3138,7 @@ function imKey(e) {
   }
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return false;
   if ($('spModal') && $('spModal').classList && !$('spModal').classList.contains('hide')) return false;    // a popup is open
+  if (key === 'Escape' && IM_ONE) return imOneClear();                 // "1 picture copied · Esc to cancel"
   if (key === '/') { $('imQ').focus(); if ($('imQ').select) $('imQ').select(); return true; }
   if (key === '?') { imHelp(true); return true; }
   if (k === 'e' && IM_HOVER.sku) { imEditOpen(IM_HOVER.sku); return true; }
@@ -2575,6 +3150,7 @@ function imKey(e) {
       const url = IML_VIEW === 'live' ? ((item.live || {})[slot] || (item.img || {})[slot]) : ((item.img || {})[slot] || (item.live || {})[slot]);
       if (!url) return false;
       imClipCopyOne({ brand: $('imBrand').value, sku: item.sku, asin: item.asin, c: item.c, z: item.z, psku: item.psku, slot, url });
+      imOneCopy(item, slot, url);
       imMsg('Copied ' + (slot === 'SWCH' ? 'the swatch' : slot) + ' of ' + item.sku + ' to the clipboard.');
     } else {
       imClipTake({ brand: $('imBrand').value, sku: item.sku, asin: item.asin, c: item.c, z: item.z, psku: item.psku, own: item.img || {}, live: item.live || {} });
@@ -2624,6 +3200,53 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     const again = $('spModalBox') && $('spModalBox').querySelector('.im-pv-list');
     if (again) again.scrollTop = keep;
   });
+}
+/* ----- rearranging (6b): the MAIN question, the before → after preview, the Replace menu, dragging ----- */
+// The keys' picked-up picture: focus its tile again after the row is drawn again.
+function imKselFocus(was) {
+  const k = was || IM_KSEL;
+  if (!k || typeof document === 'undefined' || !document.querySelector) return;
+  const tw = document.querySelector(`#imList .im-tw[data-sku="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(k.sku) : k.sku}"][data-slot="${k.slot}"]`);
+  const link = tw && tw.querySelector ? tw.querySelector('a.im-th') : null;
+  if (link && link.focus) link.focus({ preventScroll: true });
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('click', e => {
+    const on = sel => (e.target && e.target.closest ? e.target.closest(sel) : null);
+    const q = on('[data-im-mainq]');
+    if (q && IM_MAINQ) {
+      const job = IM_MAINQ;
+      IM_MAINQ = null;
+      imModal('');
+      if (q.dataset.imMainq === 'yes') imDraftSet(job.sku, job.next, job.notes);
+      return;
+    }
+    const pv = on('[data-im-dpv]');
+    if (pv && IM_DPV) {
+      if (pv.dataset.imDpv === 'go') return imDraftSend(IM_DPV.sku);
+      IM_DPV = null;
+      return imModal('');
+    }
+    if (!IM_MENU) return;
+    const use = on('[data-rm-use]');
+    if (use) return imReplPick({ url: use.dataset.rmUse, note: use.dataset.rmNote });
+    if (on('[data-rm-upload]')) return imReplPick({ upload: true });
+    if (!on('#imRmenu') && !on('[data-repl]')) imReplMenuClose();
+  });
+  // the list moves under an open menu: it closes
+  if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('scroll', () => { if (IM_MENU) imReplMenuClose(); }, { passive: true });
+  // dragging a picture (mouse at once; touch after holding it a moment, so a swipe still scrolls the page)
+  $('imList').addEventListener('pointerdown', e => {
+    if (IM_LD || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const tw = e.target && e.target.closest ? e.target.closest('.im-tw[data-drag]') : null;
+    if (!tw || e.target.closest('button')) return;
+    IM_LD = { sku: tw.dataset.sku, from: tw.dataset.slot, el: tw, x0: e.clientX, y0: e.clientY, on: false, ghost: null, target: null, touch: e.pointerType === 'touch', timer: 0 };
+    if (IM_LD.touch) IM_LD.timer = setTimeout(() => { if (IM_LD && !IM_LD.on) { imDragStart(); imDragMove({ clientX: IM_LD.x0, clientY: IM_LD.y0 }); } }, 300);
+  });
+  document.addEventListener('pointermove', e => { if (IM_LD) imDragMove(e); });
+  document.addEventListener('pointerup', () => { if (IM_LD) imDragEnd(true); });
+  document.addEventListener('pointercancel', () => { if (IM_LD) imDragEnd(false); });
+  document.addEventListener('touchmove', e => { if (IM_LD && IM_LD.on && e.cancelable) e.preventDefault(); }, { passive: false });
 }
 // Sizes measured on screen (image-quality.js) move the "Too small" card.
 IMQ.onSize = imCardsSoon;

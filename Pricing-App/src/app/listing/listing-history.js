@@ -19,7 +19,7 @@ const LH_LISTING_TABS = ['img', 'lerr', 'health', 'lrules', 'opt'];
 const LH_SCREEN = { 'Season planner': 'Season planner', 'Listing Errors': 'Listing Errors', 'Listing Content upload': 'Content upload', 'Listing Health': 'Workspace',
   'Listing Health · Put back': 'Workspace · Put back', 'Image Manager': 'Image Manager', 'Image Manager · paste': 'Image Manager · paste', 'Listing History · Put back': 'Listing History · Put back' };
 const LH_RESULT = { accepted: '✅ Accepted', rejected: '❌ Rejected', working: '⏳ Amazon working', notsent: 'Test site — not sent', sent: '⏳ Amazon working' };
-let LH = { rows: null, loading: false, err: '', built: false, page: 0, open: new Set(), busy: new Set(),
+let LH = { rows: null, loading: false, err: '', built: false, page: 0, open: new Set(), busy: new Set(), view: 'changes',
   f: { range: 'week', from: '', to: '', user: '', what: '', screen: '', result: '', q: '' } };
 const lhEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 // SMOOTH (18 Nov 2026): one number format made once — the same text as toLocaleString('en-US'), which makes a new one per number
@@ -126,14 +126,27 @@ function lhBuild(force) {
   const uniq = fn => [...new Set(rows.map(fn).filter(Boolean))].sort();
   const seg = [['today', 'Today'], ['week', 'This week'], ['month', 'This month'], ['all', 'Everything'], ['custom', 'From – to']]
     .map(([v, t]) => `<button type="button" class="segbtn${LH.f.range === v ? ' on' : ''}" data-lh="range" data-lh-v="${v}" aria-pressed="${LH.f.range === v}">${t}</button>`).join('');
-  box.innerHTML = `<div class="card lh-tb"><div class="toolbar"><div class="seg" role="group" aria-label="When">${seg}</div>`
+  // Two views: the changes (this page as it was) and Fix status (fix-status.js: did Amazon really fix it?)
+  const views = `<div class="seg lh-views" role="tablist" aria-label="Listing History">${[['changes', 'Changes'], ['fix', 'Fix status']].map(([v, t]) =>
+    `<button type="button" class="segbtn${LH.view === v ? ' on' : ''}" role="tab" data-lh="view" data-lh-v="${v}" aria-selected="${LH.view === v}">${t}</button>`).join('')}</div>`;
+  box.innerHTML = views + `<div id="lhChanges"${LH.view === 'fix' ? ' class="hide"' : ''}><div class="card lh-tb"><div class="toolbar"><div class="seg" role="group" aria-label="When">${seg}</div>`
     + `<span class="lh-custom${LH.f.range === 'custom' ? '' : ' hide'}"><input type="date" data-lh-f="from" value="${lhEsc(LH.f.from)}" aria-label="From"> – <input type="date" data-lh-f="to" value="${lhEsc(LH.f.to)}" aria-label="To"></span>`
     + opts('user', 'Everyone', uniq(r => r.name)) + opts('what', 'Any change', uniq(lhWhat)) + opts('screen', 'Any screen', uniq(r => LH_SCREEN[r.screen] || r.screen))
     + `<select data-lh-f="result" aria-label="Result"><option value="">Any result</option>${[['accepted', '✅ Accepted'], ['rejected', '❌ Rejected'], ['working', '⏳ Amazon working'], ['notsent', 'Test site — not sent']].map(([v, t]) => `<option value="${v}"${LH.f.result === v ? ' selected' : ''}>${t}</option>`).join('')}</select>`
     + `<input type="search" data-lh-f="q" value="${lhEsc(LH.f.q)}" placeholder="Search SKU, ASIN or name" aria-label="Search">`
     + '<span style="flex:1"></span><button type="button" class="ghost" data-lh="reload">Refresh</button><button type="button" class="ghost" data-lh="download">Download (CSV)</button></div>'
-    + '<div class="lh-count muted" id="lhCount"></div></div><div id="lhList"></div>';
+    + `<div class="lh-count muted" id="lhCount"></div></div><div id="lhList"></div></div><div id="fsPage"${LH.view === 'fix' ? '' : ' class="hide"'}></div>`;
   LH.built = true;
+  if (LH.view === 'fix' && typeof fsPageDraw === 'function') fsPageDraw();
+}
+/** Changes ⇄ Fix status. */
+function lhView(v) {
+  LH.view = v === 'fix' ? 'fix' : 'changes';
+  if (!LH.built) return;
+  if ($('lhChanges')) $('lhChanges').classList.toggle('hide', LH.view === 'fix');
+  if ($('fsPage')) $('fsPage').classList.toggle('hide', LH.view !== 'fix');
+  document.querySelectorAll('#lhPane [data-lh="view"]').forEach(b => { const on = b.dataset.lhV === LH.view; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+  if (LH.view === 'fix' && typeof fsPageDraw === 'function') fsPageDraw();
 }
 // The list: "Results: N", the page of items, the pager. Only this part redraws.
 function lhDraw() {
@@ -250,6 +263,7 @@ function lhPutBack(id) {
 function lhClick(el) {
   const act = el.dataset.lh;
   const v = el.dataset.lhV;
+  if (act === 'view') return lhView(v);
   if (act === 'range') { LH.f.range = v; LH.page = 0; lhBuild(true); return lhDraw(); }
   if (act === 'page') { LH.page = Math.max(0, LH.page + Number(v)); lhDraw(); const top = $('lhList'); if (top && top.scrollIntoView) top.scrollIntoView({ block: 'start' }); return; }
   if (act === 'group') { if (LH.open.has(v)) LH.open.delete(v); else LH.open.add(v); return lhDraw(); }

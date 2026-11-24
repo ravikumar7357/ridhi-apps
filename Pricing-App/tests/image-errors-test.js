@@ -11,14 +11,14 @@ const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + 
 const A = id => 'https://m.media-amazon.com/images/I/' + id + '.jpg';
 const full = (p, n) => Object.fromEntries(['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'].slice(0, n || 9).map(s => [s, A(p + s)]));
 const COLS = ['Brand', 'Family name', 'Parent ASIN', 'SKU', 'ASIN', 'Colour', 'Size', 'Stock (units)', 'Amazon link', 'Problems', 'What to do',
-  'No main picture', 'Main not OK', 'Fewer than 7 pictures', 'Amazon picture error', 'Search suppressed', "Using the family's main",
+  'No main picture', 'Main not OK', 'Fewer than 7 pictures', 'Amazon picture error', 'Search suppressed',
   'Number of pictures', 'Smallest picture size', "Amazon's picture error message", 'Data time', 'Verified at', 'Priority'];
-const KEYS = ['nomain', 'pcbad', 'few', 'amzerr', 'sup', 'noown'];      // the check columns' order
+const KEYS = ['nomain', 'pcbad', 'few', 'amzerr', 'sup'];      // the check columns' order
 const HINDI = 'Rust, "Deep" रंग ₹499';
 const SP_ITEMS = () => [
   { sku: 'PAR', lvl: 'parent', asin: 'B0PAR', t: 'Napkins, "Cotton" parent', img: { MAIN: A('par') }, live: { MAIN: A('par') }, iss: [] },
   { sku: 'K1', psku: 'PAR', pa: 'B0PAR', asin: 'B0K1', c: 'Blue', z: '18x18', st: 'BUYABLE,DISCOVERABLE', iss: [], img: Object.assign(full('k1'), { SWCH: A('k1sw') }), live: full('k1') },            // no problem
-  { sku: 'K2', psku: 'PAR', pa: 'B0PAR', asin: 'B0K2', c: 'Blue', z: '20x20', st: 'BUYABLE,DISCOVERABLE', iss: [], img: Object.assign(full('k2'), { MAIN: undefined }), live: full('k2') },     // family's main + Main not OK
+  { sku: 'K2', psku: 'PAR', pa: 'B0PAR', asin: 'B0K2', c: 'Blue', z: '20x20', st: 'BUYABLE,DISCOVERABLE', iss: [], img: Object.assign(full('k2'), { MAIN: undefined }), live: full('k2') },     // no main of its own + Main not OK
   { sku: 'K3', psku: 'PAR', pa: 'B0PAR', asin: 'B0K3', c: 'Red', z: '18x18', st: 'BUYABLE,DISCOVERABLE', img: full('k3', 5), live: full('k3', 5),                                              // few (its PT01 is 1500: no problem), Amazon error ON THE MAIN (critical)
     iss: [{ s: 'E', c: '90244', m: 'The value for Ounce / Unit Count is missing', a: ['unit_count'] }, { s: 'E', c: '18320', m: 'The main image is missing or incorrect', a: ['main_product_image_locator'] }] },
   { sku: 'K4', psku: 'PAR', pa: 'B0PAR', asin: 'B0K4', c: 'Red', z: '20x20', st: 'BUYABLE', iss: [], img: full('k4'), live: Object.assign(full('k4'), { MAIN: A('k1MAIN') }) },               // suppressed (critical)
@@ -103,7 +103,7 @@ function screenVsSheet(P, brands, sheet) {
     P.imListRender();
     const html = P.el('imList').innerHTML;
     live.forEach(i => {
-      const block = (html.split(`<div class="im-kid" data-sku="${i.sku}">`)[1] || html.split(`<div class="im-kid is-open" data-sku="${i.sku}">`)[1] || '').split('<div class="im-strip">')[0];
+      const block = (html.split(new RegExp(`<div class="im-kid[^"]*" data-sku="${i.sku}">`))[1] || '').split('<div class="im-strip">')[0];
       const chips = [...block.matchAll(/data-im-prob="(\w+)"/g)].map(m => m[1]).filter(k => KEYS.includes(k)).map(k => NAME[k]).sort();
       const r = rows.find(x => x.SKU === i.sku);
       const probs = r ? r.Problems.split(' | ').filter(Boolean).sort() : [];
@@ -123,8 +123,8 @@ function screenVsSheet(P, brands, sheet) {
   ok('Ridhi: K2, K3, K4, K7, S1 — not K1 (no problem), K5 (stock 0), K6 (not buyable), K8 (no swatch anywhere: no longer a problem)', sku.slice().sort().join() === 'K2,K3,K4,K7,S1', sku.join());
   const row = s => { const r = rows.find(x => x.sku === s); return r ? Object.fromEntries(COLS.map((c, i) => [c, r.cells[i]])) : null; };
   const yes = s => KEYS.filter((k, i) => row(s)[COLS[11 + i]] === 'Yes').join(',');
-  ok('each check column "Yes" where it applies: K2 Main not OK + family\'s main · K3 Fewer than 7, Amazon picture error (its 1500 picture: nothing) · K4 Search suppressed · K7, S1 Fewer than 7',
-    yes('K2') === 'pcbad,noown' && yes('K3') === 'few,amzerr' && yes('K4') === 'sup' && yes('K7') === 'few' && yes('S1') === 'few', ['K2', 'K3', 'K4', 'K7', 'S1'].map(s => s + ':' + yes(s)).join(' '));
+  ok('each check column "Yes" where it applies: K2 Main not OK · K3 Fewer than 7, Amazon picture error (its 1500 picture: nothing) · K4 Search suppressed · K7, S1 Fewer than 7',
+    yes('K2') === 'pcbad' && yes('K3') === 'few,amzerr' && yes('K4') === 'sup' && yes('K7') === 'few' && yes('S1') === 'few', ['K2', 'K3', 'K4', 'K7', 'S1'].map(s => s + ':' + yes(s)).join(' '));
   ok('no "No swatch", no "another SKU" and no "Too small" column; the columns are the asked ones, in order', P.IM_DL_COLS.join('|') === COLS.join('|') && !P.IM_DL_COLS.some(c => /Too small/.test(c)));
   const k3 = row('K3');
   ok('K3: brand, family, parent ASIN, ASIN, colour, size, stock (a number), link, Problems with " | ", one What to do per problem',

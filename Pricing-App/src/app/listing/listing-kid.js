@@ -55,6 +55,8 @@ function lkHtml(kid, opts) {
     sub: [hit.what ? '' : hit.detail, hit.sev === 'critical' && hit.stale ? `from data ${ageOf(hit)} — Check now reads it again` : ''].filter(Boolean).join(' · '),
     fix: hit.fix, tag: hit.tag, kind: hit.kind, detector: hit.detector,
     bfHtml: typeof bfKidHtml === 'function' ? bfKidHtml(fill ? bfSpec(kid, '') : bfOf(kid, hit, hCtx())) : '',   // B / F dots (listing-bf.js)
+    // Amazon's own error: "I fixed this in Seller Central" (fix-status.js — a record only, nothing sent to Amazon)
+    scHtml: !fill && hit.detector === 'amazon_error' && typeof fsScBtnHtml === 'function' ? fsScBtnHtml(kid.brand, kid.sku) : '',
     attrs: fill ? ((kid.c.spec && kid.c.spec.attrs) || []) : ((kid.c[liWsColOf(hit)] || {}).attrs || []) }, { brand: kid.brand, sku: kid.sku });
   const group = (cls, title, items) => (items.length ? `<div class="ls-kidhead lk-gh ${cls}">${lrEsc(title)}<span class="ls-n">${liWsNf(items.length)}</span></div><div class="ls-recs">${items.join('')}</div>` : '');
   const errs = found.filter(hit => hit.sev === 'critical').map(hit => rec(hit, false));
@@ -67,7 +69,9 @@ function lkHtml(kid, opts) {
   const bangs = [...new Set(checks.map(c => c.bang).filter(Boolean))];
   const none = !errs.length && !atts.length && !fills.length
     ? `<div class="ls-empty lk-none">${unknown.length || looks.length ? '<b>No problem found so far.</b><br>Some checks have no answer yet — see below.' : '<b>No problem on this listing.</b><br>Every Listing Rule passes.'}</div>` : '';
-  const info = (typeof prOf === 'function' && (errs.length || atts.length) ? `<div class="lk-info">${prChipHtml(prKid(kid))}</div>` : '') + (kid.live ? '' : kid.urgent ? '<div class="lk-info">Not live, but counted as an Error: fix this first.</div>'
+  // Fix status (fix-status.js): "Fixed in Sellora on 24 Nov — ⚠️ Amazon still shows it (26 h)" / "✅ Fixed — confirmed 24 Nov"
+  const info = (typeof fsKidLine === 'function' ? fsKidLine(kid.brand, kid.sku) : '')
+    + (typeof prOf === 'function' && (errs.length || atts.length) ? `<div class="lk-info">${prChipHtml(prKid(kid))}</div>` : '') + (kid.live ? '' : kid.urgent ? '<div class="lk-info">Not live, but counted as an Error: fix this first.</div>'
     : '<div class="lk-info">This listing is not live, so its problems are not counted anywhere.</div>')
     + (checking ? '<div class="lk-info">Reading this listing from Amazon now…</div>' : '')
     + (kid.notes && kid.notes.length ? `<div class="lk-info">${lrNotesHtml(kid.notes)}</div>` : '')

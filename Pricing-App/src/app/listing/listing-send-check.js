@@ -104,6 +104,9 @@ function sqChanges(job) {
 function sqSendWithCheck(jobs, opts) {
   if (SQ.run && !SQ.run.closed) sqClose();
   const run = { jobs: jobs.map(job => Object.assign({ state: 'checking', why: '', how: '' }, job)), opts: opts || {}, step: 'check', done: 0, total: jobs.length, test: sqIsTest(), at: Date.now() };
+  // THE FIX RECORD (fix-status.js, 24 Nov 2026): what each change is meant to fix — Amazon's issues on that field and every error on the
+  // listing — taken NOW, before anything is sent (after the send the listing is read again); written on its Listing History rows.
+  run.jobs.forEach(job => { if (!job.fx && typeof fsJobInfo === 'function') { try { job.fx = fsJobInfo(job); } catch (e) { job.fx = null; } } });
   SQ.run = run;
   SQ.screens = (SQ.screens || []).concat([run.opts.screen || '']).slice(-50);   // which screens sent through here (the tests read it)
   run.promise = new Promise(resolve => { run.resolve = resolve; });
@@ -457,6 +460,8 @@ function sqLogRows(job, run) {
       label: sqCut(job.label || '', 120), field: c.field, old: sqCut(c.old, SQ_CUT), new: sqCut(c.new, SQ_CUT), pic: !!c.pic, attr: c.attr || '', api: b.limg ? 'limg' : 'lfix', pt: b.productType || '', oldV,
       screen: (run.opts.screen || '') + (ai ? ' · AI suggested' : ''), run: run.at, runTitle: run.opts.title || '', runN: run.jobs.length, result: job.state, why: job.why || '', sub: job.sub || '' };
     if (ai) row.ai = true;
+    // the fix record: the issues this change was meant to fix (fi) and the errors the listing had when it was sent (e0)
+    if (job.fx && job.fx.byAttr) { row.fi = job.fx.byAttr[c.attr || ''] || []; row.e0 = job.fx.e0 || []; }
     return row;
   });
 }
@@ -470,6 +475,7 @@ async function lhistAdd(rows, run) {
   const place = (run && run.logDocs) || new Map();      // row id → its document
   const stamp = (run && run.at) || Date.now();
   const fresh = rows.filter(row => !place.has(row.id));
+  const freshIds = new Set(fresh.map(row => row.id));
   // new rows fill new documents: a new one starts before SQ_LOG_ROWS rows or SQ_LOG_BYTES bytes
   let n = new Set(place.values()).size;
   let cur = '';
@@ -492,10 +498,13 @@ async function lhistAdd(rows, run) {
   rows.forEach(row => {
     const id = place.get(row.id);
     if (!byDoc.has(id)) byDoc.set(id, {});
-    byDoc.get(id)[row.id] = Object.assign({ kind: 'listing' }, row);
+    const copy = Object.assign({ kind: 'listing' }, row);
+    if (!freshIds.has(row.id)) { delete copy.fi; delete copy.e0; }   // written again (Check again): the fix record keeps what it was meant to fix
+    byDoc.get(id)[row.id] = copy;
   });
   try {
     for (const [id, map] of byDoc) await setDoc(doc(db, SQ_LOG_COLL, id), { kind: 'listing', day: id.slice(8, 18), rows: map, at: serverTimestamp() }, { merge: true });
+    if (typeof fsNoteSent === 'function') fsNoteSent(fresh);           // the bell and Fix status count it at once
     return '';
   } catch (e) {
     return String((e && e.message) || e);

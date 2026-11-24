@@ -65,6 +65,8 @@ function picture(W, H, box, edge) {
 
   console.log('== the number cards (they set the filter picker) ==');
   const full = (p, n) => Object.fromEntries(['MAIN', 'PT01', 'PT02', 'PT03', 'PT04', 'PT05', 'PT06', 'PT07', 'PT08'].slice(0, n || 9).map(s => [s, A(p + s)]));
+  // FBA stock for every child of the page's list (Image Manager marks problems on children with stock only — 24 Nov 2026)
+  const withStock = (P, qty) => { P.HEALTH.SP = Object.assign(P.HEALTH.SP || {}, { rows: ((P.HEALTH.SP || {}).rows || []).concat(P.IML.SP.items.filter(i => i.lvl !== 'parent').map(i => ({ sku: i.sku, qty: qty == null ? 5 : qty }))) }); };
   const ITEMS = () => [
     { sku: 'PAR', lvl: 'parent', asin: 'B0PAR', t: 'Napkins parent', img: { MAIN: A('par') }, live: { MAIN: A('par') } },
     { sku: 'K1', psku: 'PAR', asin: 'B0K1', pt: 'NAPKIN', c: 'Blue', z: '18x18', st: 'BUYABLE,DISCOVERABLE', img: Object.assign(full('k1'), { SWCH: A('k1sw') }), live: full('k1') },
@@ -80,21 +82,21 @@ function picture(W, H, box, edge) {
     const P = load({ im: true, sq: true, pc: true });
     P.el('imBrand').value = 'SP';
     P.el('imFilter').value = 'all';
-    P.IML.SP = { at: new Date(), items: ITEMS() };
+    P.IML.SP = { at: new Date(), items: ITEMS() }; withStock(P);
     P.PC.marks.SP = { k2MAIN: { v: 'bad' }, k3MAIN: { v: 'ok' } };
     P.IMQ.dims = new Map([['k3PT01', [1500, 1500]], ['k1MAIN', [2400, 2400]]]);
     P.imListRender();
     const html = P.el('imList').innerHTML;
     const n = k => { const m = html.match(new RegExp(`data-im-card="${k}"[^>]*>.*?<b>(\\d+)</b>`)); return m ? +m[1] : null; };
-    ok('6 cards: No main at all · Using the family\'s main · Main not OK · Fewer than 7 · Amazon picture error · Search suppressed — "Shows another SKU\'s pictures", "No swatch" and "Too small" are gone',
-      (html.match(/data-im-card="(\w+)"/g) || []).map(s => s.slice(14, -1)).join(',') === 'nomain,noown,pcbad,few,amzerr,sup' && /Amazon picture error/.test(html) && /No main at all/.test(html)
+    ok('5 cards: No main at all · Main not OK · Fewer than 7 · Amazon picture error · Search suppressed — "Shows another SKU\'s pictures", "No swatch" and "Too small" are gone',
+      (html.match(/data-im-card="(\w+)"/g) || []).map(s => s.slice(14, -1)).join(',') === 'nomain,pcbad,few,amzerr,sup' && !/family's main|data-im-card="noown"/.test(html) && /Amazon picture error/.test(html) && /No main at all/.test(html)
       && !/another SKU/i.test(html) && !/data-im-card="other"/.test(html) && !/No swatch|noswatch/i.test(html) && !/Too small|under 2000|below 2000/i.test(html));
-    ok('numbers: No main at all 1 (K5) · family\'s main 1 (K2) · Main not OK 1 (K2) · Fewer than 7 1 (K3) · Amazon picture error 1 (K3 18320; K5 has only 90244: not counted) · suppressed 1 (K4) — K3\'s 1500 picture counts nowhere',
-      n('nomain') === 1 && n('noown') === 1 && n('pcbad') === 1 && n('small') === null && n('few') === 1 && n('amzerr') === 1 && n('sup') === 1 && n('other') === null && n('noswatch') === null,
+    ok('numbers: No main at all 1 (K5) · Main not OK 1 (K2) · Fewer than 7 1 (K3) · Amazon picture error 1 (K3 18320; K5 has only 90244: not counted) · suppressed 1 (K4) — K3\'s 1500 picture counts nowhere',
+      n('nomain') === 1 && n('noown') === null && n('pcbad') === 1 && n('small') === null && n('few') === 1 && n('amzerr') === 1 && n('sup') === 1 && n('other') === null && n('noswatch') === null,
       ['nomain', 'noown', 'pcbad', 'small', 'few', 'amzerr', 'sup', 'other', 'noswatch'].map(k => k + '=' + n(k)).join(' '));
     ok('the long grey summary line is gone (no "carry another SKU\'s pictures" text)', !/carry another SKU/.test(html) && /im-meta/.test(html));
-    ok('the dropdown has the same filters: Main missing / family\'s main / Main not OK / Amazon picture error filter the list too', ['nomain', 'noown', 'pcbad', 'amzerr'].every(k => {
-      P.el('imFilter').value = k; P.imListRender(); return (P.el('imList').innerHTML.match(/class="im-kid"/g) || []).length === 1 && new RegExp(`data-im-card="${k}" aria-pressed="true"`).test(P.el('imList').innerHTML);
+    ok('the dropdown has the same filters: Main missing / Main not OK / Amazon picture error filter the list too', ['nomain', 'pcbad', 'amzerr'].every(k => {
+      P.el('imFilter').value = k; P.imListRender(); return (P.el('imList').innerHTML.match(/class="im-kid[" ]/g) || []).length === 1 && new RegExp(`data-im-card="${k}" aria-pressed="true"`).test(P.el('imList').innerHTML);
     }));
     P.el('imFilter').value = 'all';
   }
@@ -107,7 +109,7 @@ function picture(W, H, box, edge) {
       && P.imIsPicIssue({ severity: 'ERROR', code: '5', message: 'The swatch could not be downloaded', attrs: [] }) && !P.imIsPicIssue({ s: 'E', c: '8541', m: 'Title too long', a: ['item_name'] }));
     P.el('imBrand').value = 'SP';
     P.el('imFilter').value = 'all';
-    P.IML.SP = { at: new Date(), items: ITEMS() };
+    P.IML.SP = { at: new Date(), items: ITEMS() }; withStock(P);
     P.IM_OPEN.add('PAR'); P.IM_OPEN.add('solo:S1');   // families start closed: open them to see the rows
     P.imListRender();
     const html = P.el('imList').innerHTML;
@@ -157,7 +159,7 @@ function picture(W, H, box, edge) {
     const P = load({ im: true, ctx: { sqSendWithCheck: async (jobs, opts) => { sent.push({ jobs, opts }); }, sqField: s => s, sqSummaryText: () => '', spModal: h => { modal.html = h || ''; } } });
     P.el('imBrand').value = 'SP';
     P.el('imFilter').value = 'all';
-    P.IML.SP = { at: new Date(), items: ITEMS() };
+    P.IML.SP = { at: new Date(), items: ITEMS() }; withStock(P);
     const k1 = P.IML.SP.items.find(i => i.sku === 'K1');
     P.imClipTake({ brand: 'SP', sku: 'K1', c: 'Blue', z: '18x18', psku: 'PAR', own: k1.img, live: k1.live });
     P.getClip().tick.PT08 = false;
@@ -227,7 +229,7 @@ function picture(W, H, box, edge) {
     P.el('imQ').value = '';
     P.el('imEditWrap').classList = cl(['hide']);
     P.el('imListWrap').classList = cl();
-    P.IML.SP = { at: new Date(), items: ITEMS() };
+    P.IML.SP = { at: new Date(), items: ITEMS() }; withStock(P);
     const btn = { dataset: { edit: 'K2' }, closest: () => ({ classList: cl() }) };
     P.el('imList').querySelectorAll = sel => (sel === '[data-edit]' ? [btn] : []);
     P.imListRender();
@@ -255,14 +257,14 @@ function picture(W, H, box, edge) {
     const P = load({ im: true, ctx: { localStorage: ls, sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
     P.el('imBrand').value = 'SP';
     P.el('imFilter').value = 'all';
-    P.IML.SP = { at: new Date(), items: ITEMS() };
+    P.IML.SP = { at: new Date(), items: ITEMS() }; withStock(P);
     const it = sku => P.IML.SP.items.find(i => i.sku === sku);
-    ok('ONE status chip, the worst picture problem first: K3 "Amazon picture error", K5 "No main at all", K2 "Using the family\'s main", K4 "Search suppressed", K1 "Buyable"',
-      P.imKidChip(it('K3')).t === 'Amazon picture error' && P.imKidChip(it('K5')).t === 'No main at all' && P.imKidChip(it('K2')).t === 'Using the family\'s main'
+    ok('ONE status chip, the worst picture problem first: K3 "Amazon picture error", K5 "No main at all", K2 "Buyable" (its family\'s-main chip is gone), K4 "Search suppressed", K1 "Buyable"',
+      P.imKidChip(it('K3')).t === 'Amazon picture error' && P.imKidChip(it('K5')).t === 'No main at all' && P.imKidChip(it('K2')).t === 'Buyable'
       && P.imKidChip(it('K4')).t === 'Search suppressed' && P.imKidChip(it('K1')).t === 'Buyable');
     // THE ONE "Suppressed" rule (lrShopOf) in Image Manager's status chip and its filters
     const co7 = { sku: 'CPCLS-CO-007', st: 'BUYABLE,DISCOVERABLE', iss: [{ s: 'E', c: '8541', m: 'The swatch image for colour is missing; the listing may be suppressed', a: ['swatch_product_image_locator'] }] };
-    P.HEALTH.SP = Object.assign(P.HEALTH.SP || {}, { rows: [{ sku: 'NB1', qty: 4 }, { sku: 'NB0', qty: 0 }] });
+    P.HEALTH.SP = Object.assign(P.HEALTH.SP || {}, { rows: ((P.HEALTH.SP || {}).rows || []).concat([{ sku: 'NB1', qty: 4 }, { sku: 'NB0', qty: 0 }]) });
     ok('Image Manager: CPCLS-CO-007 (BUYABLE + DISCOVERABLE, one ERROR) → "Buyable", never Search suppressed', P.imState(co7, 'SP').k === 'ok' && P.imState(co7, 'SP').label === 'Buyable');
     ok('…BUYABLE without DISCOVERABLE → "Search suppressed"; SEARCH_SUPPRESSED enforcement → "Suppressed"', P.imState({ sku: 'X', st: 'BUYABLE' }, 'SP').label === 'Search suppressed'
       && P.imState({ sku: 'X', st: 'BUYABLE,DISCOVERABLE', iss: [{ s: 'E', c: '1', m: 'm', e: ['SEARCH_SUPPRESSED'] }] }, 'SP').label === 'Suppressed');
@@ -291,7 +293,7 @@ function picture(W, H, box, edge) {
     P.IM_OPEN.add('PAR'); P.IM_OPEN.add('solo:S1');   // families start closed: open them to see the rows
     P.imListRender();
     let html = P.el('imList').innerHTML;
-    ok('family card: "5 children · 3 need pictures" (K2, K3, K5 — a missing swatch no longer counts), Copy main of this family, Select all children, Open all / Close all', /5 children · <b class="is-need">3 need pictures<\/b>/.test(html)
+    ok('family card: "5 children · 2 need pictures" (K3, K5 — a missing swatch no longer counts; K2\'s family\'s main is no check any more), Copy main of this family, Select all children, Open all / Close all', /5 children · <b class="is-need">2 need pictures<\/b>/.test(html)
       && /data-fammain="PAR"/.test(html) && /data-famsel="PAR"/.test(html) && /data-foldall="1"/.test(html), (html.match(/\d+ children[^<]*<b[^>]*>[^<]*/) || [''])[0]);
     ok('tiles: 160 px thumbnails for Amazon pictures (_SL160_), hover View · Copy · Replace', /_SL160_\.jpg/.test(html) && /data-view="K1" data-slot="PT01"/.test(html) && /data-repl="K1" data-slot="PT01"/.test(html) && /data-copy1="K1"/.test(html));
     P.IM_OPEN.delete('PAR');
@@ -330,7 +332,7 @@ function picture(W, H, box, edge) {
     const P = load({ im: true, ctx: { sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
     P.el('imBrand').value = 'SP';
     P.el('imFilter').value = 'all';
-    P.IML.SP = { at: new Date(), items: ITEMS() };
+    P.IML.SP = { at: new Date(), items: ITEMS() }; withStock(P);
     P.IMQ.dims = new Map([['k1MAIN', [2400, 2400]]]);
     P.imViewOpen('K1', 'MAIN');
     let v = P.el('imViewer');
@@ -398,7 +400,7 @@ function picture(W, H, box, edge) {
     // a big family: 195 children (more than any old page of 40)
     const big = [{ sku: 'BIG', lvl: 'parent', asin: 'B0BIG', t: 'Big family', img: { MAIN: A('bigm') }, live: { MAIN: A('bigm') } }]
       .concat(Array.from({ length: 195 }, (_, i) => ({ sku: 'B' + i, psku: 'BIG', asin: 'B0B' + i, pt: 'NAPKIN', c: 'C' + (i % 7), z: '18x18', st: 'BUYABLE,DISCOVERABLE', img: full('b' + i, 3), live: full('b' + i, 3) })));
-    P.IML.SP = { at: new Date(), items: ITEMS().concat(big) };
+    P.IML.SP = { at: new Date(), items: ITEMS().concat(big) }; withStock(P);
     P.imListRender();
     let html = P.el('imList').innerHTML;
     const rows = h => (h.match(/class="im-kid[ "]/g) || []).length;
@@ -413,7 +415,7 @@ function picture(W, H, box, edge) {
     const scrolled = [];
     const P2 = load({ im: true, window: { scrollBy: (x, y) => scrolled.push(y), scrollTo() {} }, ctx: { CSS: { escape: s => s }, sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
     P2.el('imBrand').value = 'SP'; P2.el('imFilter').value = 'all'; P2.el('imQ').value = '';
-    P2.IML.SP = { at: new Date(), items: ITEMS() };
+    P2.IML.SP = { at: new Date(), items: ITEMS() }; withStock(P2);
     let replaced = null;
     let listDrawn = 0;
     const oldCard = { querySelector: () => ({ getBoundingClientRect: () => ({ top: 300 }) }), replaceWith: x => { replaced = x; } };
@@ -423,7 +425,7 @@ function picture(W, H, box, edge) {
     const doc = { addEventListener() {}, querySelectorAll: () => [], querySelector: () => null, createElement: () => { const box = {}; Object.defineProperty(box, 'innerHTML', { set(h) { doc.html = h; } }); box.firstElementChild = freshCard; return box; } };
     const P3 = load({ im: true, window: { scrollBy: (x, y) => scrolled.push(y), scrollTo() {} }, ctx: { document: doc, CSS: { escape: s => s }, sqSendWithCheck: async () => {}, sqField: s => s, sqSummaryText: () => '' } });
     P3.el('imBrand').value = 'SP'; P3.el('imFilter').value = 'all'; P3.el('imQ').value = '';
-    P3.IML.SP = { at: new Date(), items: ITEMS() };
+    P3.IML.SP = { at: new Date(), items: ITEMS() }; withStock(P3);
     P3.el('imList').querySelector = P2.el('imList').querySelector;
     let drawn = 0;
     Object.defineProperty(P3.el('imList'), 'innerHTML', { set() { drawn++; }, get() { return ''; } });

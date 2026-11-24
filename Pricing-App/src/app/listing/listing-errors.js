@@ -192,7 +192,8 @@ function leRender() {
                 leEsc((LE_KINDS.find(pair => pair[0] === leKind(issue)) || [, ''])[1])}</span>
               ${leEsc(String(issue.m || '').slice(0, 200))}</div>`).join('')}${iss.length > 4 ? `<div class="muted">+${iss.length - 4} more</div>` : ''}</td>
           <td style="white-space:nowrap"><button class="im-b" data-fix="${leEsc(x.sku)}">${hasOther ? 'Fix' : 'Content'}</button>
-            ${hasImg ? `<button class="ghost im-b" data-img="${leEsc(x.sku)}">Images</button>` : ''}</td></tr>`;
+            ${hasImg ? `<button class="ghost im-b" data-img="${leEsc(x.sku)}">Images</button>` : ''}`
+            + `${iss.length && typeof fsScBtnHtml === 'function' ? `<div class="le-sc">${fsScBtnHtml(brand, x.sku)}</div>` : ''}</td></tr>`;      // fix-status.js: a record only
       }).join('') || '<tr><td colspan="6" class="muted" style="padding:14px">Nothing to fix here.</td></tr>'}</tbody></table></div>
     ${pager}`;
   // --- the buttons in what was just drawn ---
