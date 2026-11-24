@@ -791,7 +791,7 @@ function vpSheetCells(o, l, note) {
   const extra = vpVsApproved(vpVsOf(o, l));
   return `<td style="font-size:12px;white-space:nowrap">${esc(o.orderDate || '') || '<span class="muted">—</span>'}</td>`
     + pic
-    + `<td style="text-align:left;font-weight:700;font-size:12.5px">${esc(vpIsShop(o) && (l.shopRef || l.shopOrderNo) ? (l.shopRef || l.shopOrderNo) : (o.orderNo || o.id))}${note || ''}</td>`
+    + `<td style="text-align:left;font-weight:700;font-size:12.5px">${esc(vpIsShop(o) && (l.shopRef || l.shopOrderNo) ? (l.shopRef || l.shopOrderNo) : (o.orderNo || o.id))}${note || ''}${typeof pclLineHtml === 'function' ? pclLineHtml(o, l) : ''}</td>`
     + `<td style="text-align:left;font-size:12.5px;line-height:1.35">${esc(what) || '<span class="muted">—</span>'}${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</td>`
     + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span>${extra > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${nf(extra)} approved</div>` : ''}</td>`
     + `<td class="num">${nf(vpOnTheWay(vpVsSum(vpVsOf(o, l)), rc.qty))}</td>`

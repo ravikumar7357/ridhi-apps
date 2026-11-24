@@ -73,7 +73,8 @@ async function portal() {
       ptGet: async p => (p === 'pt_vendorChallans/P1' ? JSON.parse(JSON.stringify(branch)) : null),
       ptPut: async (p, v) => { writes.push([p, v]); }, renderVp: () => drawn.push(1), toast() {}, document: undefined };
     vm.createContext(ctx);
-    vm.runInContext(src + '\n;globalThis.__P = { pclSection, pclShown, pclReceive, pclLoad, pclMayReceive, PCL };', ctx);
+    vm.runInContext(src + '\n;globalThis.__P = { pclSection, pclShown, pclReceive, pclLoad, pclMayReceive, pclLineHtml, pclForLine, PCL, listOn: v => { PCL_LIST_SHOWN = v; } };', ctx);
+    ctx.__P.listOn(true);   // the checks of the old list (off on the page since 24 Nov) see it
     return { P: ctx.__P, ctx };
   };
   const { P, ctx } = make({ admin: false, email: 'p1@x' }, true);
@@ -88,6 +89,17 @@ async function portal() {
     /RFD-202611-455/.test(html1) && /RFD-202611-353/.test(html1) && /Received 2026-11-19/.test(html1) && !/data-pclrecv="RFD-202611-353"/.test(html1));
   ok('searching a SKU or the challan no. finds it too', P.pclShown(P.PCL.rows, 'cpctb005').length === 1 && P.pclShown(P.PCL.rows, 'rfd-202611-353').length === 1);
   ok('a search that matches nothing shows nothing (the orders below still show)', P.pclSection('shp-99') === '');
+  /* ON THE ORDER'S OWN ROW (Ravi, 24 Nov): no list above the orders; each line says what we sent for it, with Cloth received */
+  ctx.flowKey = (o, k) => (String(o).trim().toUpperCase() + '__' + String(k).trim().toUpperCase());
+  P.listOn(false);
+  ok('the list above the orders is gone from the page (24 Nov)', P.pclSection('') === '' && P.pclSection('amz-17102026-02-sea') === '');
+  const vl = { flowPart: 'AMZ-17102026-02-SEA__CPCLS-CO-005|sku' };
+  const row = P.pclLineHtml({}, vl);
+  ok('…the order line shows both challans that carried its cut pieces: in transit with Cloth received, and the one received', /325 pcs|113\.75 m/.test(row) && /RFD-202611-455 · 2026-11-23 · in transit/.test(row)
+    && /data-pclrecv="RFD-202611-455"/.test(row) && /✓ [^<]*received · RFD-202611-353 · 2026-11-19/.test(row) && !/data-pclrecv="RFD-202611-353"/.test(row), row);
+  ok('…a line we sent nothing for says nothing', P.pclLineHtml({}, { flowPart: 'SHP-1__X|body' }) === '' && P.pclLineHtml({}, {}) === '');
+  ok('…a merged line (two parts) finds each part\'s challans', P.pclForLine({}, { parts: ['AMZ-19102026-01-AIR__CPCTB005|sku', 'X__Y|body'] }).map(x => x.c.no).join() === 'RFD-202611-455');
+  P.listOn(true);
   /* CUT PIECES IN PIECES (Ravi, 24 Nov): a copy says each line's unit; an older copy (no unit) stays in metres */
   ok('an older copy (no unit on its lines) says its metres, as before', /277\.15 m/.test(P.pclSection('rfd-202611-455')) && /<th>Sent<\/th>/.test(P.pclSection('rfd-202611-455')));
   P.PCL.rows.push({ kind: 'cloth', no: 'RFD-202611-464', date: '2026-11-24', metres: 31.6, lines: [{ orderNo: 'AMZ-24112026-01-AIR', sku: 'RTC327-6060', fabric: 'Sheeting 62', pcs: 20, metres: 31.6, unit: 'pcs' }] });
