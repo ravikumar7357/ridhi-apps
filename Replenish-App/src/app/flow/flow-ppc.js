@@ -654,9 +654,10 @@ function flowPpcOpen(orderNo, onlySku, keys) {
           : 'Nothing — made outside.'}</span>`;
       /* THE WAY THE LINE GOES (Ravi, 24 Nov: the route said "cut & stitched here" while the printer got cut pieces with no
        * cutting after) — drawn again with the route, the printer and the fabric; the master row still decides which way. */
-      const stp = document.querySelector(`[data-steps="${i}"]`), pc0 = val(i, 'printer.code') ?? (p.printer && p.printer.code);
-      const pv0 = pc0 ? flowChVendors().find(v => String(v.code) === String(pc0)) : null;
-      const steps = flowPpcSteps({ route, w, noRfd, fabric: fname, metres, printer: pv0 ? pv0.desc || pv0.name || pv0.code : '', embTo, embDept: embDeptOn, vendor: val(i, 'outVendor') ?? p.outVendor });
+      /* the printer picked in the box (or on the plan), looked up once for the steps and the chip */
+      const pc = val(i, 'printer.code') ?? (p.printer && p.printer.code), pv = pc ? flowChVendors().find(v => String(v.code) === String(pc)) : null;
+      const pvName = pv ? pv.desc || pv.name || pv.code : '', stp = document.querySelector(`[data-steps="${i}"]`);
+      const steps = flowPpcSteps({ route, w, noRfd, fabric: fname, metres, printer: pvName, embTo, embDept: embDeptOn, vendor: val(i, 'outVendor') ?? p.outVendor });
       if (stp) stp.innerHTML = '<span class="fpc-steps-t">The way it goes</span>' + steps.map(s => `<span class="fpc-step">${esc(s)}</span>`).join('<span class="fpc-step-ar">→</span>');
       const cl = document.querySelector(`[data-cutlbl="${i}"]`); if (cl) cl.textContent = steps.includes(FLOW_STEP_CUT_FIRST) ? 'Cut (before printing)' : 'Cut';
       const mat = document.querySelector(`[data-mat="${i}"]`); if (!mat) return;
@@ -731,10 +732,10 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         pg.innerHTML += `<div style="color:#166534">✓ ${nf(cover[i].fab)}${u} from printed stock — <b>print ${nf(left)}${u}</b>${Object.values(cover[i].extra).some(v => v > 0) ? ` · ruffle ${nf(Object.values(cover[i].extra).reduce((a, v) => a + v, 0))} m from printed stock` : ''}</div>`; }
       /* The chips: how it is made, the printer, and whether everything is there. */
       const ch = document.querySelector(`[data-chips="${i}"]`);
-      if (ch) { const pc = val(i, 'printer.code'), pv = pc ? flowChVendors().find(v => String(v.code) === String(pc)) : null;
+      if (ch) {
         const short = /pill bad/.test(mat.innerHTML);
         ch.innerHTML = `<span class="fpc-chip vio">${esc((FLOW_ROUTES.find(x => x[0] === route) || [, , route])[2])}</span>`
-          + (flowPrinted(route) && !noRfd ? `<span class="fpc-chip">${pv ? '🖨 ' + esc(pv.desc || pv.name || pv.code) : 'printer not chosen'}</span>` : noRfd ? '<span class="fpc-chip">printed cloth in hand</span>' : '')
+          + (flowPrinted(route) && !noRfd ? `<span class="fpc-chip">${pvName ? '🖨 ' + esc(pvName) : 'printer not chosen'}</span>` : noRfd ? '<span class="fpc-chip">printed cloth in hand</span>' : '')
           + (route === 'emb' ? `<span class="fpc-chip vio">🧵 ${esc(flowEmbWho(val(i, 'emb.code')).name)}</span>` : '')
           + `<span class="fpc-chip ${short ? 'bad' : 'yes'}">${short ? '⚑ something is short' : '✓ all in stock'}</span>`; }
     });

@@ -2352,8 +2352,7 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 /* The PPC manager's list (2 Nov, after the SHP board): buckets, filters and tabs on top; lots with their orders; a lot's history */
 #p1Home .p1-head .p1-read{margin-left:auto}
 #p1Home .p1-bks{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:0 0 12px}
-#p1Home .p1-bks .bk{display:flex;flex-direction:column;align-items:flex-start;min-width:104px;padding:6px 11px;border-radius:10px;background:#fff;border:1px solid var(--line);text-align:left;line-height:1.25;cursor:pointer;color:var(--ink)}
-#p1Home .p1-bks .bk{padding:9px 13px;border-radius:12px;gap:2px}
+#p1Home .p1-bks .bk{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:104px;padding:9px 13px;border-radius:12px;background:#fff;border:1px solid var(--line);text-align:left;line-height:1.25;cursor:pointer;color:var(--ink)}
 #p1Home .p1-bks .bk:hover{border-color:#C9D2DE}
 #p1Home .p1-bks .bk b{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 #p1Home .p1-bks .bk .bk-n{font-size:22px;font-weight:800;line-height:1.15}

@@ -166,7 +166,13 @@ const K = 'AMZ-1__S1';
     ok('all 100 received into Finished Goods, QC entered only 19 → done, not "In QC" with 81', fgFull.flowState(L({ issued: 100, received: 100 })).bucket === 'done');
     const fgPart = load(Object.assign({ vendor: { 'AMZ-1|S1': { given: 100, back: 100 } }, qc: { 'AMZ-1|S1': { ok: 19 } }, fg: { 'AMZ-1|S1': { in: 60 } },
       qcChecks: [{ orderNo: 'AMZ-1', sku: 'S1', checked: 19, ok: 19 }] }, ready));
-    ok('…only 60 of 100 in Finished Goods → still with QC', fgPart.flowState(L({ issued: 100, received: 100 })).bucket === 'qcb'); }
+    ok('…only 60 of 100 in Finished Goods → still with QC', fgPart.flowState(L({ issued: 100, received: 100 })).bucket === 'qcb');
+    /* review, 24 Nov: the made-to-order exception and an unplanned line had no test */
+    const SK = 'SHP-1__S1', fgShp = load({ vendor: { 'SHP-1|S1': { given: 100, back: 100 } }, qc: { 'SHP-1|S1': { ok: 19 } }, fg: { 'SHP-1|S1': { in: 100 } },
+      qcChecks: [{ orderNo: 'SHP-1', sku: 'S1', checked: 19, ok: 19 }], ppc: { [SK]: plan({ orderNo: 'SHP-1' }) }, dem: { [SK]: { fabricReady: { at: 'x' } } } });
+    ok('…a Shopify line fully in Finished Goods, not handed over → not done (it waits for the shipping hand-over)', fgShp.flowState(L({ orderNo: 'SHP-1', src: 'SHP', issued: 100, received: 100 })).bucket !== 'done');
+    const fgNew = load({ fg: { 'AMZ-1|S1': { in: 100 } } });
+    ok('…a new line with no plan, fully in Finished Goods → stays in PPC until planned', fgNew.flowState(L()).bucket === 'ppc'); }
   { /* A SHOPIFY LINE IS MADE TO ORDER (Ravi, 14 Oct: "naye ppc flow me shopify ke order kese flow honge"): after QC it waits to be
      * handed to the shipping team, not on Finished Goods. */
     const SK = 'SHP-1__S1', shpReady = { ppc: { [SK]: plan({ orderNo: 'SHP-1' }) }, dem: { [SK]: { fabricReady: { at: 'x' } } } };
@@ -816,6 +822,13 @@ const K = 'AMZ-1__S1';
     ok('the way it goes: RFD → printer prints the cloth → cutting → karigar → QC → Finished Goods (cutting required)',
       /RFD Sheeting 92 · 6 m<\/span>.*prints the cloth.*cutting.*karigar stitches.*QC.*Finished Goods/.test(spans['[data-steps="0"]'].innerHTML), spans['[data-steps="0"]'].innerHTML);
     ok('…its Cut date is the plain "Cut"', spans['[data-cutlbl="0"]'].textContent === 'Cut');
+    { /* review, 24 Nov: the SKU itself printed (cutting not required) — the cloth is cut to size first */
+      const sp = {}, B = load({ me: { admin: true }, mdb: { 'CPC-DG-01': { color: 'Paisley', fabric: 'Sheeting 58', consumption: 1.42, cuttingRequired: false, subtype: 'Square Tablecloth' } },
+        rfd: { 'SHEETING 58': 500 }, fabRows: [{ fabricType: 'Sheeting 58' }], lines: [L({ sku: 'CPC-DG-01', qty: 50 })] });
+      B.ctx.document.querySelector = q => (/data-mat=|data-fm=|data-pget=|data-chips=|data-steps=|data-cutlbl=/.test(q) ? (sp[q] || (sp[q] = { innerHTML: '', textContent: '' })) : null);
+      B.flowPpcOpen('AMZ-1', 'CPC-DG-01');
+      ok('printed on the SKU itself: the way it goes starts "RFD → cut to size here → … prints the pieces"', /cut to size here<\/span>.*prints the pieces/.test((sp['[data-steps="0"]'] || {}).innerHTML || ''), (sp['[data-steps="0"]'] || {}).innerHTML);
+      ok('…and its Cut date reads "Cut (before printing)"', (sp['[data-cutlbl="0"]'] || {}).textContent === 'Cut (before printing)'); }
     A.ctx.document.querySelectorAll = () => []; A.els.flpUndo = { checked: false };
     let er = await A.ctx.__dlg.onSave(); let w0 = A.writes[0] || {}, pw = w0['pt_ppc/AMZ-1__RTC327-6060'] || {};
     ok('it saves with no printer picked — no printer is needed', !er && pw.fabric, er);

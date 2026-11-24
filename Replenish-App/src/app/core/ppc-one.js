@@ -480,7 +480,6 @@ function p1DrawInv() {
       + `<span class="bk-n">${!pcs && m ? `${p1N(m)}<small> m</small>` : `${p1N(pcs)}<small> pcs${m ? ' + ' + p1N(m) + ' m' : ''}</small>`}</span>`
       + `<span class="bk-s">${p1N(ls.length)} lot${ls.length === 1 ? '' : 's'}${lt ? ` · <i>${p1N(lt)} late</i>` : ''}</span></button>`; };
   const tab = (v, t, n) => `<button type="button" class="${P1.tab === v ? 'on' : ''}" data-p1tab="${v}">${esc(t)} · ${p1N(n)}</button>`;
-  const cell = p1StageCell;
   const btn = (nx, at, st, gk, line, main) => { if (!nx) return ''; const pcs = at && st[at] ? st[at].w : 0;
     return `<button type="button" class="${main ? 'p1-go' : 'p1-go2'}" data-p1step="${esc(gk)}" data-p1line="${line == null ? '' : line}" data-p1at="${esc(at || '')}">${esc(nx[1])}${pcs && nx[0] !== 'RFD' ? ' ' + p1N(pcs) : ''}</button>`; };
   const status = (at, due, over) => `<b>${esc(at ? P1_NOW[at] : 'Nothing waiting')}</b><span class="rb${over ? ' late' : ''}">${due ? p1Day(due) : 'no date'}${over ? ` · ${over} d late` : ''}</span>`;
@@ -491,11 +490,11 @@ function p1DrawInv() {
   const lotRow = r => { const open = P1.inv === r.gk, main = p1Urgent(r);
     let h = `<tr class="p1r lot${open ? ' open' : ''}${main ? ' urgent' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
       <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div></td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
-      ${P1_COLS.map(([k]) => cell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${btn(r.next, r.at, r.stg, r.gk, null, main)}</td></tr>`;
+      ${P1_COLS.map(([k]) => p1StageCell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${btn(r.next, r.at, r.stg, r.gk, null, main)}</td></tr>`;
     if (open) h += r.ln.map((l, i) => { const nx = p1NextOf({ lines: [l.x] }, l.at) || p1NextOf({ lines: [l.x] }), od = l.due && l.due < today ? p1Days(l.due) : 0;
       return `<tr class="p1l"><td class="lc"><a class="p1-ord" data-p1hist="${esc(r.gk)}" data-p1ho="${esc(l.x.r.orderNo)}" title="This order's history">${esc(l.x.r.shopOrderNo || l.x.r.orderNo)}</a><span class="ch">${esc(l.chan)}</span></td>
         <td class="it muted sm">${esc(p1Day(p1Iso(l.x.r.orderDate) || l.x.r.openIso || ''))}</td><td class="num">${p1N(l.st.q)}</td><td class="pr">${l.printer ? esc(l.printer) : l.st.planned ? '<span class="muted">—</span>' : '<b class="np">not planned</b>'}</td>
-        ${P1_COLS.map(([k]) => cell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${btn(nx, l.at, l.st, r.gk, i, false)}</td></tr>`; }).join('');
+        ${P1_COLS.map(([k]) => p1StageCell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${btn(nx, l.at, l.st, r.gk, i, false)}</td></tr>`; }).join('');
     return h; };
   const shown = rows.slice(0, P1.lim), R0 = gk => all.find(r => r.gk === gk);
   el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<span class="p1-read">${P1.err ? `<b style="color:var(--bad)">Could not read everything: ${esc(P1.err)}</b> · ` : ''}${P1.more ? 'Reading the rest… · ' : ''}${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
@@ -560,7 +559,7 @@ const P1_HSTEPS = [['plan', 'Planned', ['PLAN']], ['rfd', 'Cloth to printer', ['
 /** How many of a line's pieces have got through each step — the line's own figures, capped at its order. */
 function p1LineDone(x, st) {
   const s = x.s, q = st.q, c = v => Math.max(0, Math.min(q, +v || 0));
-  return { plan: st.planned ? q : 0, rfd: c(s.given), prn: c(s.back), cut: c(s.cut), iss: c(+s.issuedNet || +s.issued), kar: c(s.received), qc: c(s.qc), rdy: c(s.india) };
+  return { plan: st.planned ? q : 0, rfd: c(s.given), prn: c(s.back), cut: c(s.cut), iss: c(s.issuedNet), kar: c(s.received), qc: c(s.qc), rdy: c(s.india) };
 }
 /** The steps of a lot's lines (or one order's): done, waiting (pieces, metres, days, who), or not this way. */
 function p1HistSteps(r, ln) {
@@ -572,7 +571,7 @@ function p1HistSteps(r, ln) {
 /** The one sentence on top: where the pieces are. */
 function p1HistSay(steps, ordered) {
   const at = steps.filter(s => !s.na && (s.w || s.m));
-  if (!at.length) { const fg = steps.find(s => s.k === 'rdy'); return fg && fg.done ? `All ${p1N(ordered)} pieces are in Finished Goods.` : steps[0].done ? 'Nothing is waiting anywhere right now.' : 'Not planned yet.'; }
+  if (!at.length) { const fg = steps.find(s => s.k === 'rdy'); return fg && fg.done ? `All ${p1N(ordered)} pieces are in Finished Goods.` : steps[0] && steps[0].done ? 'Nothing is waiting anywhere right now.' : 'Not planned yet.'; }
   return at.map(s => `<b>${s.w ? p1N(s.w) + ' pcs' : ''}${s.m ? (s.w ? ' + ' : '') + p1N(s.m) + ' m' : ''}</b> ${s.who.length && s.k === 'kar' ? 'with ' + esc(s.who.join(', ')) : esc(P1_NOW[s.k].charAt(0).toLowerCase() + P1_NOW[s.k].slice(1)) + (s.who.length ? (s.k === 'rfd' ? ', for ' : ' (') + esc(s.who.join(', ')) + (s.k === 'rfd' ? '' : ')') : '')}${s.days != null ? ` — <span class="${s.days > P1_STUCK ? 'late' : ''}">${s.days} day${s.days === 1 ? '' : 's'}</span>` : ''}`).join(' · ');
 }
 /** What an entry says beyond its step: the generic words of the register dropped, the voucher once. */
@@ -607,7 +606,7 @@ function p1History(r) {
       <span class="hh-r">${ords.length > 1 ? `<label class="muted">Order <select data-p1hord><option value="">All orders</option>${ords.map(x => `<option${x === P1.histOrd ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></label>` : ''}<button type="button" class="ghost" data-p1hdl>Download</button><button type="button" class="ghost hx" data-p1close aria-label="Close">×</button></span></div>
     ${parts.length ? `<div class="p1-parts">${parts.map(x => `<span><i>${esc(x[0])}</i>${esc(x[1])}</span>`).join('')}</div>` : ''}
     <div class="hsec">Where the ${p1N(ordered)} pieces are now</div>
-    <div class="hsay">${p1HistSay(steps.length ? steps : [{ k: 'plan', done: false, na: false, w: 0, m: 0 }], ordered)}</div>
+    <div class="hsay">${p1HistSay(steps, ordered)}</div>
     <div class="hcards">${steps.map(card).join('<span class="hc-ar">›</span>')}</div>
     <div class="hsec">Every entry on record <span class="muted">· ${p1N(ev.length)}, newest first</span></div>
     <div class="ff-grid hgrid"><table class="xl"><thead><tr><th>Time</th><th>What happened</th><th class="num">Pcs</th><th>With / from</th>${many ? '<th>Order</th>' : ''}<th>Entered by</th><th>Details</th></tr></thead><tbody>${body || `<tr><td colspan="${cols}" class="empty">Nothing on record yet.</td></tr>`}</tbody></table></div>

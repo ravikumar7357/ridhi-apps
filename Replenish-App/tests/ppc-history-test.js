@@ -35,7 +35,10 @@ const A = load(ev);
 { const d = A.p1LineDone(line('AMZ-1', inQc, sQc).x, inQc);
   ok('step counts come from the line, capped at its order: issued 497, QC 95, in FG 497', d.iss === 497 && d.qc === 95 && d.rdy === 497 && d.cut === 0);
   const big = A.p1LineDone({ s: { india: 621, received: 900 } }, { planned: true, q: 497 });
-  ok('…a register past the order never shows more than the order (621 in FG → 497)', big.rdy === 497 && big.kar === 497); }
+  ok('…a register past the order never shows more than the order (621 in FG → 497)', big.rdy === 497 && big.kar === 497);
+  /* review, 24 Nov: all of it rejected at QC goes back to the store — "Given to karigar" must not count it */
+  ok('…issued 100, all back in the store after QC (issuedNet 0) → given to karigar 0, not 100', A.p1LineDone({ s: { issued: 100, issuedNet: 0 } }, { planned: true, q: 100 }).iss === 0);
+  ok('no steps at all → "Not planned yet." (no made-up step needed)', A.p1HistSay([], 10) === 'Not planned yet.'); }
 
 { const r = { gk: 'NEW|CPC-01', lot: null, notPlanned: 0, sku: 'CPC-01', what: 'Square Tablecloth', ordered: 497, orders: new Set(['AMZ-1']),
     ln: [line('AMZ-1', inQc, sQc)], lines: [line('AMZ-1', inQc, sQc).x], holds: [{ orderNo: 'AMZ-1', sku: 'CPC-01', stage: 'QC', since: '2026-10-08', who: 'Quality Control' }] };
