@@ -28,7 +28,7 @@ const PARTS = [line(VO, 'const voLines ='), line(VO, 'const voParts ='), line(VP
   line(FR, 'const flowQtyTxt ='), line(FR, 'let FLOW_VOIX ='), line(FR, 'const FLOW_CLOTH_OVER ='), line(FR, 'const flowMostOf ='), line(FR, 'const flowChUnit ='), cut(FR, 'flowVoIndex'), cut(FR, 'flowExtraAsks'), cut(FR, 'flowExtraAnswer'),
   line(PR, 'const VPR ='), line(PR, 'const VPR_RETRY_MS ='), cut(PR, 'vprEnsure'), line(PR, 'const vprOn ='), line(PR, 'const vprMay ='), line(PR, 'const vprReady ='), (src => { const i = src.indexOf('const vprKeys ='); return src.slice(i, src.indexOf('};\n', i) + 3); })(PR),
   line(PR, 'let VPR_IX ='), cut(PR, 'vprDueIndex'), cut(PR, 'vprTargets'), cut(PR, 'vprOffer'), cut(PR, 'vprKeysPending'), cut(PR, 'vprReceiveLine'), cut(PR, 'vprSplit'), cut(PR, 'vprShareOut'),
-  cut(PR, 'vprWholePieces'), cut(PR, 'vprRoundMetres'), line(PR, 'const vprOnlyGiven ='), cut(PR, 'vprRecvCell'),
+  cut(PR, 'vprWholePieces'), cut(PR, 'vprRoundMetres'), line(PR, 'const vprOnlyGiven ='), cut(PR, 'vprRecvCell'), cut(PR, 'vprPendingAll'), cut(PR, 'vprReceiveFor'),
   line(VP, 'const VP_SHEET_COLS ='), line(VP, 'const VP_SHEET_NUM ='), line(VP, 'const VP_SHEET_EMPTY ='), cut(VP, 'vpSheetLines'), cut(VP, 'vpSheetCells'), cut(VP, 'vpToReceiveCell'), line(VP, 'const vpToReceive ='), line(VP, 'const vpOnTheWay ='), cut(VP, 'vpSheetTable'),
   cut(PR, 'vprSplitHint'), cut(PR, 'vprSheet'), cut(PR, 'vprReceive'), cut(PR, 'vprBarSync'), cut(PR, 'vprTabSync'), line(PR, 'const VPR_HIST ='), line(PR, 'const vprHistRows ='), cut(PR, 'vprHistTotals'), cut(PR, 'vprHistHtml'), (src => { const i = src.indexOf('const VP_DUE_ONLY ='); return src.slice(i, src.indexOf('\n};', i) + 3); })(VP), cut(VP, 'vpDueOnlyOk'), cut(VP, 'vpDueChip'), cut(VP, 'vpRejNote'), line(PR, 'const VPR_REJ_REASONS ='), line(PR, 'const VPR_REJ ='), cut(PR, 'vprReject'), line(PR, 'const vprRejLink ='), cut(PR, 'vprFabricOf'), cut(PR, 'vprHistRejects'), line(PR, 'const vprIsoOfDmy ='), line(PR, 'const vprSkuFabric ='), cut(PR, 'vprHistOld'), (src => { const i = src.indexOf('const vprHistAll ='); return src.slice(i, src.indexOf('\nfunction', i) + 1); })(PR), cut(PR, 'vprRejSeen'), line(PR, 'const vprHistId ='), (src => { const i = src.indexOf('const vprHistEditLink ='); return src.slice(i, src.indexOf('function vprHistEditForm', i)); })(PR), cut(PR, 'vprRejectReceived'), line(PR, 'const vprRejPending ='), (src => { const i = src.indexOf('const flowMixTxt ='); return src.slice(i, src.indexOf("'0'; };", i) + 7); })(FR)].join('\n');
 let pass = 0, fail = 0;
@@ -55,7 +55,7 @@ function load(o) {
   };
   function flowDueRecvSaveSaid() { ctx.flowDueRecvSave.said = 'Received from RBP-Bagru on RFD-1.'; }
   const names = Object.keys(ctx);
-  const A = new Function(...names, PARTS + '\nreturn { vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowExtraAsks, flowExtraAnswer, vprSplit, vprOffer, vprRecvCell, vprSheet, vprReceive, vprBarSync, vprTabSync, vprEnsure, VPR, VPR_HIST, vprHistRows, vprHistTotals, vprHistHtml, vpDueOnlyOk, vpDueChip, vpSentKept, vprHistOld, flowMostOf, vpToReceiveCell, vpOnTheWay, vprRejectReceived, vprHistEditLink, vprReject, vpRejNote, vprRejSeen, vprRejPending, VPR_REJ };')(...names.map(k => ctx[k]));
+  const A = new Function(...names, PARTS + '\nreturn { vprPendingAll, vprReceiveFor, vpVsSum, vpVsWait, vpVsApproved, vpOrdOf, vpVsSplit, vpVsAdd, vpLineIsHist, vpCustStatus, vpCustKpis, flowExtraAsks, flowExtraAnswer, vprSplit, vprOffer, vprRecvCell, vprSheet, vprReceive, vprBarSync, vprTabSync, vprEnsure, VPR, VPR_HIST, vprHistRows, vprHistTotals, vprHistHtml, vpDueOnlyOk, vpDueChip, vpSentKept, vprHistOld, flowMostOf, vpToReceiveCell, vpOnTheWay, vprRejectReceived, vprHistEditLink, vprReject, vpRejNote, vprRejSeen, vprRejPending, VPR_REJ };')(...names.map(k => ctx[k]));
   return Object.assign(A, { patches: ctx.patches, puts, saves, said, syncs, els, ctx });
 }
 
@@ -149,6 +149,26 @@ const L = { lineId: 'a', sku: 'X', qty: 4 };
     ok('all the printer entered is in: still receivable with a box, and a note', /All the printer entered is in/.test(at(oIn).vprRecvCell(oIn, oIn.lines[0], 'o1|0')));
     ok('the figures not read yet: no button, it says so', /reading…/.test(at(o5, { notRead: true }).vprRecvCell(o5, o5.lines[0], 'o1|0')));
     ok('another printer’s lines are never received on this printer’s order', /—/.test(at(o5, { due: [due('B2B-4__P16', 6, 6, { code: 'P2' })] }).vprRecvCell(o5, o5.lines[0], 'o1|0')));
+    /* FROM THE STORE (24 Nov): every line any printer sent that is not in yet, with the same Receive offer */
+    {
+      const oS = Object.assign(cloth({ k: mb(5) }, {}), { vendorName: 'RBP-Bagru' });
+      const P = load(Object.assign({ rows: [], vo: [oS], due: [D16, D18] }, recv));
+      P.ctx.VP.code = 'KEEP';
+      const lst = P.vprPendingAll();
+      ok('the Store lists a line a printer sent that is not in yet: VPO-9, 5 sent, 0 in, 5 m offered', lst && lst.length === 1 && lst[0].id === 'o1|0' && lst[0].v.n === 5 && lst[0].sent === 5 && lst[0].got === 0 && lst[0].printer === 'RBP-Bagru',
+        JSON.stringify(lst && lst.map(x => [x.id, x.v.n, x.sent, x.got])));
+      ok('…VP.code is put back as it was', P.ctx.VP.code === 'KEEP');
+      const none = load(Object.assign({ rows: [], vo: [cloth({}, {})], due: [D16, D18] }, recv)).vprPendingAll();
+      ok('a printer that sent nothing: nothing listed', none && none.length === 0);
+      const allIn = load(Object.assign({ rows: [], vo: [cloth({ k: mb(5) }, { a: 5 })], due: [D16, D18] }, recv)).vprPendingAll();
+      ok('…all of it in: nothing listed', allIn && allIn.length === 0);
+      ok('the figures not read yet: null (the Store says it is reading)', load(Object.assign({ rows: [], vo: [oS], due: [D16, D18], notRead: true }, recv)).vprPendingAll() === null);
+      const R = load(Object.assign({ rows: [], vo: [oS], due: [D16, D18] }, recv));
+      R.ctx.VP.code = 'KEEP';
+      const er = await R.vprReceiveFor('o1|0', 5);
+      ok('Receive from the Store takes the 5 m in on the printer\'s challan, and VP.code is put back', er === '' && R.saves.length === 1 && R.ctx.VP.code === 'KEEP', er + ' ' + JSON.stringify(R.saves));
+      ok('…an order that is not on the list is refused', /not on the list/.test(await R.vprReceiveFor('zz|0', 1)));
+    }
     const oRuf = cloth({ k: mb(2) }, {}, 'B2B-4__P16|ruffle');
     ok('ruffle cloth is not received here (it goes on its challan)', !/data-vprgo/.test(at(oRuf).vprRecvCell(oRuf, oRuf.lines[0], 'o1|0')));
 
