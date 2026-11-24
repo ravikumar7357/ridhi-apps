@@ -19,8 +19,9 @@ Its own Firebase codebase `flowmerce-sync` (project price-research-48ff3, region
 Every run writes one line to `flowmerce.sync_run`; that is what the screens show as "data as of …".
 
 ## Shopify access
-1. **The Flowmerce Shopify app** (Dev Dashboard): `FLOWMERCE_APP_CLIENT_ID` + `FLOWMERCE_APP_CLIENT_SECRET` are swapped for a store
-   token (~24 h, client-credentials grant), kept in memory only.
+1. **Each store's own Flowmerce Shopify app** (Dev Dashboard — one app per store, because the stores are in different
+   organisations): `FLOWMERCE_RBP_CLIENT_ID` / `_SECRET` for Ridhi and `FLOWMERCE_CPC_CLIENT_ID` / `_SECRET` for CPC are swapped
+   for that store's token (~24 h, client-credentials grant), kept in memory only.
 2. **Fallback:** Sellora's store tokens (`SHOPIFY_TOKEN`, `CPC_SHOPIFY_TOKEN`), so the job never stops if the app can't log in. The log says why.
 
 Webhooks the app makes itself are signed with the **app's client secret**; webhooks made by hand in Shopify admin with
@@ -58,8 +59,9 @@ Deploy workflow: `.github/workflows/flowmerce-sync.yml` (push to main = deploy).
 
 ## Before deploying the app version
 Firebase refuses a deploy when a declared secret is missing, so these must exist first (Secret Manager, price-research-48ff3):
-`FLOWMERCE_APP_CLIENT_ID`, `FLOWMERCE_APP_CLIENT_SECRET`. Then the app is installed on both stores, and the
-**Compliance webhooks** address is set in the Dev Dashboard.
+`FLOWMERCE_RBP_CLIENT_ID`, `FLOWMERCE_RBP_CLIENT_SECRET`, `FLOWMERCE_CPC_CLIENT_ID`, `FLOWMERCE_CPC_CLIENT_SECRET`.
+`SHOPIFY_WEBHOOK_SECRET_RBP` / `_CPC` get a new version = that store's app client secret. Each app is installed on its own
+store (done 24 Nov 2026), and the **Compliance webhooks** address is set in each app in the Dev Dashboard.
 
 ## Load all older orders
 `update flowmerce.sync_job set is_enabled = true where stream = 'shopify.orders' and mode = 'backfill';`

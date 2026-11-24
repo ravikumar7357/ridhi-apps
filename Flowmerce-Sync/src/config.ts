@@ -2,8 +2,9 @@
  * reach the code as environment variables — never in the code, never in GitHub.
  *
  * Shopify access, in this order (auth.ts):
- *   1. the Flowmerce Shopify app (Dev Dashboard): FLOWMERCE_APP_CLIENT_ID + FLOWMERCE_APP_CLIENT_SECRET,
- *      exchanged for a store token (~24 h) by the client-credentials grant. One app, both stores.
+ *   1. the store's own Flowmerce Shopify app (Dev Dashboard) — ONE APP PER STORE (the stores are in different
+ *      organisations): FLOWMERCE_RBP_CLIENT_ID / _SECRET and FLOWMERCE_CPC_CLIENT_ID / _SECRET, each exchanged for
+ *      that store's token (~24 h) by the client-credentials grant.
  *   2. fallback: Sellora's store tokens (SHOPIFY_TOKEN / CPC_SHOPIFY_TOKEN), so nothing stops if the app cannot log in.
  * The store addresses come from Sellora's SHOPIFY_STORE / CPC_SHOPIFY_STORE. */
 
@@ -15,7 +16,8 @@ export const SECRET_NAMES = [
   'SHOPIFY_STORE', 'SHOPIFY_TOKEN',                    // Ridhi (RBP) — Sellora's names, no prefix
   'CPC_SHOPIFY_STORE', 'CPC_SHOPIFY_TOKEN',            // Cotton Print Club
   'SHOPIFY_WEBHOOK_SECRET_RBP', 'SHOPIFY_WEBHOOK_SECRET_CPC',   // each store's own webhook signing key
-  'FLOWMERCE_APP_CLIENT_ID', 'FLOWMERCE_APP_CLIENT_SECRET',     // the Flowmerce Shopify app (24 Nov 2026)
+  'FLOWMERCE_RBP_CLIENT_ID', 'FLOWMERCE_RBP_CLIENT_SECRET',     // the Ridhi store's Flowmerce app (24 Nov 2026)
+  'FLOWMERCE_CPC_CLIENT_ID', 'FLOWMERCE_CPC_CLIENT_SECRET',     // the CPC store's Flowmerce app
 ] as const;
 
 /** The ERP data project (Mumbai). SUPABASE_URL in the environment points the backend at a test project instead. */
@@ -61,8 +63,9 @@ export interface ShopCred {
   webhookSecrets: string[];
 }
 
-export function appCred(env: Env): AppCred | null {
-  const clientId = env('FLOWMERCE_APP_CLIENT_ID'), clientSecret = env('FLOWMERCE_APP_CLIENT_SECRET');
+/** The store's own Flowmerce app (each store has its own app). */
+export function appCred(env: Env, code: StoreCode): AppCred | null {
+  const clientId = env(`FLOWMERCE_${code}_CLIENT_ID`), clientSecret = env(`FLOWMERCE_${code}_CLIENT_SECRET`);
   return clientId && clientSecret ? { clientId, clientSecret } : null;
 }
 
@@ -72,7 +75,7 @@ export function storeBase(env: Env, code: StoreCode): StoreBase | null {
   if (!host) return null;
   const storeToken = env(p + 'SHOPIFY_TOKEN');
   if (storeToken.startsWith('shpss_')) throw new Error(`${code}: the Shopify token is the app's SECRET (shpss_…), not an Admin API access token (shpat_…)`);
-  const app = appCred(env);
+  const app = appCred(env, code);
   const webhookSecrets = [env('SHOPIFY_WEBHOOK_SECRET_' + code), app?.clientSecret || ''].filter(Boolean);
   return { code, host, storeToken, webhookSecrets: [...new Set(webhookSecrets)] };
 }

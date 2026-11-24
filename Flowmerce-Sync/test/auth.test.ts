@@ -36,8 +36,8 @@ test('if the app cannot log in, the store token is used and the reason is given'
   const real = globalThis.fetch;
   globalThis.fetch = fakeFetch(() => new Response('{"error":"app not installed"}', { status: 400 })).f;
   try {
-    const e = env({ SHOPIFY_STORE: 'guz0he-21', SHOPIFY_TOKEN: 'shpat_store', FLOWMERCE_APP_CLIENT_ID: 'cid', FLOWMERCE_APP_CLIENT_SECRET: 'csec' });
-    const r = await resolveCred(storeBase(e, 'RBP')!, appCred(e));
+    const e = env({ SHOPIFY_STORE: 'guz0he-21', SHOPIFY_TOKEN: 'shpat_store', FLOWMERCE_RBP_CLIENT_ID: 'cid', FLOWMERCE_RBP_CLIENT_SECRET: 'csec' });
+    const r = await resolveCred(storeBase(e, 'RBP')!, appCred(e, 'RBP'));
     assert.equal(r.cred?.via, 'store_token');
     assert.equal(r.cred?.token, 'shpat_store');
     assert.match(r.note || '', /app login refused/);
@@ -54,7 +54,34 @@ test('without app secrets the store token is used quietly; with neither the stor
 
 test('webhook keys: the store key and the app secret, without duplicates', () => {
   const b = storeBase(env({ CPC_SHOPIFY_STORE: 'liquidationfashion.myshopify.com', SHOPIFY_WEBHOOK_SECRET_CPC: 'same',
-                            FLOWMERCE_APP_CLIENT_ID: 'cid', FLOWMERCE_APP_CLIENT_SECRET: 'same' }), 'CPC')!;
+                            FLOWMERCE_CPC_CLIENT_ID: 'cid', FLOWMERCE_CPC_CLIENT_SECRET: 'same' }), 'CPC')!;
   assert.deepEqual(b.webhookSecrets, ['same']);
   assert.equal(b.host, 'liquidationfashion.myshopify.com');
+});
+
+test('one app per store: each store uses its own app, never the other store\'s', async () => {
+  const e = env({
+    SHOPIFY_STORE: 'guz0he-21', CPC_SHOPIFY_STORE: 'liquidationfashion',
+    FLOWMERCE_RBP_CLIENT_ID: 'rbp-id', FLOWMERCE_RBP_CLIENT_SECRET: 'rbp-secret',
+    FLOWMERCE_CPC_CLIENT_ID: 'cpc-id', FLOWMERCE_CPC_CLIENT_SECRET: 'cpc-secret',
+  });
+  assert.deepEqual(appCred(e, 'RBP'), { clientId: 'rbp-id', clientSecret: 'rbp-secret' });
+  assert.deepEqual(appCred(e, 'CPC'), { clientId: 'cpc-id', clientSecret: 'cpc-secret' });
+  assert.deepEqual(storeBase(e, 'RBP')!.webhookSecrets, ['rbp-secret']);
+  assert.deepEqual(storeBase(e, 'CPC')!.webhookSecrets, ['cpc-secret']);
+  // a store whose app is not set up yet has no app login (falls back to its store token)
+  assert.equal(appCred(env({ FLOWMERCE_RBP_CLIENT_ID: 'only-id' }), 'RBP'), null);
+
+  clearTokenCache();
+  const real = globalThis.fetch;
+  const { f, seen } = fakeFetch(url => new Response(JSON.stringify({ access_token: url.includes('guz0he') ? 'tok-rbp' : 'tok-cpc', expires_in: 86399 }), { status: 200 }));
+  globalThis.fetch = f;
+  try {
+    const rbp = await resolveCred(storeBase(e, 'RBP')!, appCred(e, 'RBP'));
+    const cpc = await resolveCred(storeBase(e, 'CPC')!, appCred(e, 'CPC'));
+    assert.equal(rbp.cred?.token, 'tok-rbp');
+    assert.equal(cpc.cred?.token, 'tok-cpc');
+    assert.equal(new URLSearchParams(seen[0].body).get('client_id'), 'rbp-id');
+    assert.equal(new URLSearchParams(seen[1].body).get('client_id'), 'cpc-id');
+  } finally { globalThis.fetch = real; clearTokenCache(); }
 });

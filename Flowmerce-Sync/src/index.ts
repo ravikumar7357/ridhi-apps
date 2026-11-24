@@ -7,7 +7,7 @@
  *   flowmerceShopifySetup     every 6 h    · the Flowmerce app's own webhooks in each store (creates missing ones)
  *   flowmerceShopifyWebhook   HTTPS        · Shopify calls it when an order, parcel or return changes
  *
- * Shopify access: the Flowmerce app (client ID + secret → store token), falling back to Sellora's store tokens.
+ * Shopify access: each store's own Flowmerce app (client ID + secret → store token), falling back to Sellora's store tokens.
  * Region asia-south1 (Mumbai), next to the Supabase ERP project. One copy at a time for the timers.
  * What each run did: flowmerce.sync_run, flowmerce.webhook_subscription, and the Firebase function logs. */
 
@@ -37,10 +37,9 @@ function stores(): StoreBase[] {
 
 /** Log in to every store (app first, store token as fallback). Notes say why a fallback was used. */
 async function creds(d: Db | null): Promise<{ list: ShopCred[]; notes: Record<string, string> }> {
-  const app = appCred(processEnv);
   const list: ShopCred[] = [], notes: Record<string, string> = {};
   for (const b of stores()) {
-    const r = await resolveCred(b, app);
+    const r = await resolveCred(b, appCred(processEnv, b.code));     // each store logs in with its own app
     if (r.note) notes[b.code] = r.note;
     if (r.cred) {
       list.push(r.cred);
@@ -97,7 +96,7 @@ export const flowmerceShopifyWebhook = onRequest(
   async (req, res) => {
     if (req.method !== 'POST') { res.status(200).json({ ok: true, what: 'Flowmerce Shopify webhook receiver' }); return; }
     try {
-      const out = await handleWebhook(db(), stores(), b => resolveCred(b, appCred(processEnv)).then(r => r.cred), {
+      const out = await handleWebhook(db(), stores(), b => resolveCred(b, appCred(processEnv, b.code)).then(r => r.cred), {
         raw: (req as any).rawBody ?? Buffer.from(JSON.stringify(req.body ?? {})),
         headers: Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k.toLowerCase(), Array.isArray(v) ? v[0] : v])),
       });
