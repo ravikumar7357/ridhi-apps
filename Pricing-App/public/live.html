@@ -227,6 +227,9 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
        and against our own normal days before it. From the nightly history plus today. -->
   <div class="events" id="events"></div>
   <!-- By product (Ravi, 2026-11-20): month by month per ASIN / SKU since Jan 2025 — products.js draws it (shared with Sellora). -->
+  <!-- The requested report (Ravi, 24 Nov 2026: Ridhi Jan–May 2025, CPC Jan 2025–Mar 2026, month on month, ASIN/SKU wise) —
+       on this page only: both brands' months and a "Download Excel" button (monthly-report.js), above the By product report. -->
+  <div class="prodwrap" id="reqHost"></div>
   <div class="prodwrap" id="prodHost"></div>
   <!-- Three framed sections (Ravi, 2026-11-20: "Shopify in Shopify colours, Amazon in Amazon's … formal and simple"):
        the Overview of both channels, then Amazon (cards and charts), then Shopify. Shopify opened in January 2026, so its
@@ -314,6 +317,7 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
 </div>
 <div class="tip" id="tip" hidden></div>
 <script src="products.js?v=3"></script>
+<script src="monthly-report.js?v=1"></script>
 <script src="live-data.js?v=2"></script>
 
 <script>
@@ -713,6 +717,7 @@ async function renderProducts() {
   const stamp = PROD_M.at + '|' + PROD_M.adsAt + '|' + JSON.stringify(PROD_M.building);
   if (stamp === PROD_DRAWN && $('prodHost').firstElementChild) return;
   PROD_DRAWN = stamp;
+  if (window.MonthlyReport) window.MonthlyReport.render($('reqHost'), PROD_M);
   window.ProdReport.render($('prodHost'), PROD_M, {});
 }
 /* Motion (2026-11-20): body.anim for a moment after the first paint or a picker change, so cards rise and bars grow then —
