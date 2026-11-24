@@ -12,10 +12,15 @@
  * received is never written again (safe to press twice). */
 const PCL = { code: null, rows: null, err: '', busy: '' };   // rows: this printer's copies, newest first; busy: the challan being saved
 
-/** The list above the Bulk orders, for the search q (lower case). '' when there is nothing to show. */
+/* ON THE ORDER'S OWN ROW (Ravi, 24 Nov: "printer portal par jab fabric bhej de idhar se to order neeche … aise show hone chahiye as it
+ * is, isme hi fabric / cut pcs receive ka option de do"): the separate "Cloth sent to you" list is gone. The copies are still read
+ * here, and each order line shows under its order number what we sent for it, with "Cloth received" (pclLineHtml, below). */
+let PCL_LIST_SHOWN = false;   // the tests switch the old list back on to check it
+/** Reads the copies for the printer on screen; the old list above the Bulk orders only when PCL_LIST_SHOWN. */
 function pclSection(q) {
   if (!VP.code) return '';
   if (PCL.code !== VP.code) { pclLoad(VP.code); return ''; }
+  if (!PCL_LIST_SHOWN) return '';
   if (PCL.err) return `<div class="card muted" style="padding:10px 14px;margin-bottom:10px;font-size:12.5px">Cloth sent to you: ${esc(PCL.err)}</div>`;
   const list = pclShown(PCL.rows || [], q);
   if (!list.length) return '';
@@ -23,7 +28,7 @@ function pclSection(q) {
   return `<div class="card" style="padding:12px 14px;margin-bottom:12px"><div style="font-weight:700;margin-bottom:6px">Cloth sent to you`
     + ` <span class="muted" style="font-weight:400;font-size:12px">· ${q ? 'matching your search' : 'still on its way'}</span></div>`
     + `<div class="ff-grid"><table class="xl" style="width:100%"><thead><tr><th style="text-align:left">Challan</th><th style="text-align:left">Our order</th>`
-    + `<th style="text-align:left">SKUs</th><th>Metres</th><th style="text-align:left">Status</th><th></th></tr></thead><tbody>`
+    + `<th style="text-align:left">SKUs</th><th>Sent</th><th style="text-align:left">Status</th><th></th></tr></thead><tbody>`
     + list.map(c => pclRow(c, may)).join('') + '</tbody></table></div></div>';
 }
 /** In transit ones when nothing is searched; every match when something is. */
@@ -41,7 +46,42 @@ function pclRow(c, may) {
     ? `<button type="button" data-pclrecv="${esc(c.no)}"${PCL.busy === c.no ? ' disabled' : ''}>${PCL.busy === c.no ? 'Saving…' : 'Cloth received'}</button>` : '';
   return `<tr><td style="text-align:left"><b class="mono">${esc(c.no)}</b><div class="muted" style="font-size:11.5px">${esc(c.date || '')}${fabrics ? ' · ' + esc(fabrics) : ''}</div></td>`
     + `<td style="text-align:left" class="mono">${esc(orders.join(', '))}</td><td style="text-align:left;font-size:12px">${esc(skus.join(', '))}</td>`
-    + `<td class="num">${nf(+c.metres || 0)} m</td><td style="text-align:left">${status}</td><td>${btn}</td></tr>`;
+    + `<td class="num">${pclSentTxt(c)}</td><td style="text-align:left">${status}</td><td>${btn}</td></tr>`;
+}
+/* CUT PIECES IN PIECES (Ravi, 24 Nov: "running h to same aise hi dikhe but cut pcs me h to pcs me show ho"): a copy says per line
+ * what the printer got — unit 'pcs' (cut pieces, printed on the SKU itself) or 'm' (running cloth); a copy made before carries no
+ * unit and is metres. Both kinds on one challan: "20 pcs · 31.6 m". */
+function pclSentTxt(c) {
+  const ls = c.lines || [], pcs = ls.filter(l => l.unit === 'pcs').reduce((a, l) => a + (+l.pcs || 0), 0);
+  const m = ls.filter(l => l.unit !== 'pcs').reduce((a, l) => a + (+l.metres || 0), 0);
+  if (!ls.length || !ls.some(l => l.unit)) return `${nf(+c.metres || 0)} m`;   // a copy from before 24 Nov: metres, as it always said
+  return [pcs > 0 ? `${nf(pcs)} pcs` : '', m > 0.005 ? `${nf(Math.round(m * 100) / 100)} m` : ''].filter(Boolean).join(' · ') || '—';
+}
+/** The challan copies that carried cloth or cut pieces for one Vendor Order line: its parts (flowPart "<order>__<sku>|<what>")
+ *  matched to the copy lines by the same key. [{ c, qty, unit }] — qty in the unit the printer got. */
+function pclForLine(o, l) {
+  if (!PCL.rows || PCL.code !== VP.code || !l) return [];
+  const parts = Array.isArray(l.parts) ? l.parts : String(l.flowPart || '').split('+').filter(Boolean);
+  const keys = new Set(parts.map(p => String(p).split('|')[0]).filter(Boolean));
+  if (!keys.size || typeof flowKey !== 'function') return [];
+  const out = [];
+  PCL.rows.forEach(c => {
+    if (!c || c.cancelled) return;
+    const ls = (c.lines || []).filter(x => x && keys.has(flowKey(x.orderNo, x.sku)));
+    if (!ls.length) return;
+    const pcs = ls.filter(x => x.unit === 'pcs').reduce((a, x) => a + (+x.pcs || 0), 0), m = ls.filter(x => x.unit !== 'pcs').reduce((a, x) => a + (+x.metres || 0), 0);
+    out.push({ c, txt: [pcs > 0 ? nf(pcs) + ' pcs' : '', m > 0.005 ? nf(Math.round(m * 100) / 100) + ' m' : ''].filter(Boolean).join(' · ') || '—' });
+  });
+  return out;
+}
+/** Under the order number on the order sheet: each challan that brought this line's cloth / cut pieces — in transit with
+ *  "Cloth received", or received with its date. '' when we sent nothing for it (an older order, or the copies not read). */
+function pclLineHtml(o, l) {
+  const may = pclMayReceive();
+  return pclForLine(o, l).map(({ c, txt }) => c.received
+    ? `<div style="font-size:10.5px;font-weight:600;color:#166534;margin-top:3px">✓ ${esc(txt)} received · ${esc(c.no)} · ${esc(String(c.received.at || '').slice(0, 10))}</div>`
+    : `<div style="font-size:10.5px;font-weight:600;color:#92400e;margin-top:3px">${esc(txt)} sent to you · ${esc(c.no)} · ${esc(c.date || '')} · in transit</div>`
+      + (may ? `<button type="button" data-pclrecv="${esc(c.no)}"${PCL.busy === c.no ? ' disabled' : ''} style="width:auto;height:28px;padding:0 10px;font-size:11.5px;margin-top:3px">${PCL.busy === c.no ? 'Saving…' : 'Cloth received'}</button>` : '')).join('');
 }
 /** The printer's own sign-in, or an admin looking as the printer. Someone who may only look does not mark cloth received. */
 const pclMayReceive = () => !!((typeof NAV_IS_VENDOR !== 'undefined' && NAV_IS_VENDOR) || (ME && ME.admin));

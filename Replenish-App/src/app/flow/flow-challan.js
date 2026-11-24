@@ -501,6 +501,10 @@ async function flowChallanWrite(ch, v, how) {
   if (cloth) patch[`pt_vendorChallans/${v.code}/${no}`] = cloth;
   try { if (Object.keys(patch).length) await ptPatch(patch); } catch (e) { return `Challan ${no} is saved, but the lines could not be marked (${e.message || e}) — press Refresh.`; }
   FLOW.ch = Object.assign({}, FLOW.ch, { [no]: ch });
+  /* WHAT THE PRINTER WAS GIVEN, AT ONCE (Ravi, 24 Nov: 20 pcs went from the Greige Desk card and the printer still saw nothing): the
+   * printer's portal shows a gated line at what its challans gave (flowProg on the Vendor Order), which was written only when the
+   * office's flow screen was next drawn. It is written now, right after the challan. */
+  try { if (typeof flowVoProgSync === 'function') flowVoProgSync(); } catch (e) { console.warn(`Challan ${no}: what the printer was given is written on the next flow screen (${e.message || e}).`); }
   if (cloth) FLOW.cloth = Object.assign({}, FLOW.cloth, { [v.code]: Object.assign({}, (FLOW.cloth || {})[v.code], { [no]: cloth }) });
   if (setP.length) { FLOW.ppc = Object.assign({}, FLOW.ppc); setP.forEach(k => { FLOW.ppc[k] = Object.assign({}, FLOW.ppc[k], { printer: patch[`pt_ppc/${k}/printer`] }); }); }
   const dem = Object.assign({}, FLOW.dem);
@@ -528,7 +532,9 @@ function flowClothFor(ch, how) {
   const orders = ch.orders || [];
   const orderOf = l => orders.find(o => flowKey(o, l.sku) === l.key) || orders[0] || ch.orderNo || '';
   const lines = (ch.lines || []).filter(l => +l.metres > 0 || +l.pcs > 0)
-    .map(l => ({ orderNo: orderOf(l), sku: l.sku || '', fabric: l.fabric || '', pcs: +l.pcs || 0, metres: flowR2(+l.metres || 0) }));
+    .map(l => ({ orderNo: orderOf(l), sku: l.sku || '', fabric: l.fabric || '', pcs: +l.pcs || 0, metres: flowR2(+l.metres || 0),
+      /* cut pieces (printed on the SKU itself) or running cloth: the printer is told in the unit it gets (24 Nov) */
+      unit: typeof flowChUnit === 'function' ? flowChUnit(l) : 'm' }));
   if (!lines.length) return null;
   return { kind: FLOW_CLOTH, no: ch.no, date: ch.date, vendor: ch.vendor, lines, metres: flowR2(lines.reduce((a, l) => a + l.metres, 0)), at: ch.at, by: ch.by || '' };
 }
@@ -619,15 +625,21 @@ function flowShStuck(S, l) {
 function flowShWhyNot(S, l) {
   if (!(l.perPc > 0)) return 'No cloth per piece on its master row — add it there first';
   if (flowShWaits(l)) return 'Waiting for approval of a change of printer';
-  if (!flowShPrn(S, l)) return 'Pick its printer';
+  if (!flowShPrn(S, l)) return 'PPC has not given it a printer yet — PPC sets it first';
   return flowShStuck(S, l);
 }
-/** What the card shows: the search and the printer filter (the printer as it now stands on the card). */
+/* THE RFD STORE SENDS, PPC DECIDES (Ravi, 24 Nov: "yaha rfd wala printer change na kar sake and pick a printer par jonsa printer select
+ * kare only usi ka data show ho and yaha 2 tarah se demand show ho cut pcs and running"): on this card the printer is PPC's and cannot
+ * be changed (a line PPC left without one waits for PPC); the printer picked shows that printer's lines only; and the lines are in two
+ * kinds — CUT PIECES (the printer gets pieces: the SKU is printed on itself) and RUNNING CLOTH (the printer gets metres) — one at a time. */
+const FLOW_SH_KINDS = [['cut', 'Cut pieces'], ['run', 'Running cloth']];
+const flowShKind = l => (l.x.s.fabUnit === 'pcs' || (l.print && l.print.kind === 'sku') ? 'cut' : 'run');
+/** What the card shows: the kind, the search and the printer filter. */
 function flowShShown(S) {
   const words = String(S.q || '').toLowerCase().split(/\s+/).filter(Boolean);
   const hay = l => [l.x.r.orderNo, obUC(l.x.r.sku), flowChItem(l.x.r), l.print && l.print.code, l.print && l.print.label, l.printerName, flowShVname(flowShPrn(S, l))]
     .filter(Boolean).join(' ').toLowerCase();
-  return S.lines.filter(l => (!words.length || words.every(w => hay(l).includes(w)))
+  return S.lines.filter(l => (!S.kind || flowShKind(l) === S.kind) && (!words.length || words.every(w => hay(l).includes(w)))
     && (!S.show || (S.show === '-' ? !flowShPrn(S, l) : flowShPrn(S, l) === String(S.show))));
 }
 /** The pieces that go on a line: what was typed (never more than it still needs), else all it still needs. */
@@ -754,7 +766,7 @@ function flowShelfChallanShow(fabric, after, keep) {
   if (!lines.length) return `No line is waiting for ${fabric} on Demand → RFD.`;
   FLOW_CH_COVER = flowRfdCover();
   FLOW_SH = keep ? Object.assign({}, keep, { lines, review: null })
-    : { fabric, lines, tick: new Set(), qty: {}, prn: {}, q: '', show: '', after, note: '' };
+    : { fabric, lines, tick: new Set(), qty: {}, prn: {}, q: '', show: '', after, note: '', kind: lines.some(l => flowShKind(l) === 'cut') ? 'cut' : 'run' };
   const pr = flowPrinters(), S = FLOW_SH;
   ptOpenDialog({
     title: `Send ${fabric} to printers`,
@@ -763,15 +775,14 @@ function flowShelfChallanShow(fabric, after, keep) {
     html: FLOW_SH_CSS + `<div class="shc-top">
         <div class="shc-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <input id="flshQ" type="search" value="${esc(S.q || '')}" placeholder="Search order no., SKU, item, print or printer" autocomplete="off" aria-label="Search"></div>
-        <select id="flshShow" style="flex:1 1 200px;width:auto" aria-label="Show"></select></div>
+        <span id="flshKinds" style="display:inline-flex;gap:6px"></span></div>
       <div class="shc-bar">
         <button type="button" class="ghost" data-shall="1">Select all</button>
         <button type="button" class="ghost" data-shall="0">Deselect all</button>
         <span id="flshTickN" class="shc-n"></span>
         <span style="flex:1 1 12px"></span>
-        <span style="font-size:12.5px;font-weight:600">Set printer for ticked</span>
-        <select id="flshSetPrn" style="min-width:190px"><option value="">— pick a printer —</option>${pr.map(v => `<option value="${esc(v.code)}">${esc(v.desc || v.name || v.code)}</option>`).join('')}</select>
-        <button type="button" data-shsetprn="1">Apply</button></div>
+        <span style="font-size:12.5px;font-weight:600">Printer</span>
+        <select id="flshShow" style="min-width:220px" aria-label="Printer — only its lines are shown"></select></div>
       <div id="flshBody" class="shc-list"></div>
       <div class="shc-foot"><div id="flshSum" style="flex:3 1 380px;min-width:0"></div>
         <label>Note (vehicle, who carried it…)<input id="flshNote" value="${esc(S.note || '')}"></label></div>
@@ -785,9 +796,12 @@ function flowShelfChallanShow(fabric, after, keep) {
 /** Draws the filter, the lines and the totals from the draft. */
 function flowShDraw() {
   const S = FLOW_SH; if (!S) return;
-  const count = code => S.lines.filter(l => (code === '-' ? !flowShPrn(S, l) : flowShPrn(S, l) === String(code))).length;
+  const inKind = S.lines.filter(l => !S.kind || flowShKind(l) === S.kind);
+  if ($('flshKinds')) $('flshKinds').innerHTML = FLOW_SH_KINDS.map(([k, t]) => { const n = S.lines.filter(l => flowShKind(l) === k).length, u = k === 'cut' ? 'pcs' : 'm';
+    return `<button type="button" data-shkind="${k}" class="${S.kind === k ? '' : 'ghost'}" style="width:auto;height:40px;padding:0 14px;border-radius:10px;font-weight:700" title="${k === 'cut' ? 'The printer gets cut pieces (printed on the SKU itself)' : 'The printer gets running cloth, in metres'}">${t} · ${nf(n)}</button>`; }).join('');
+  const count = code => inKind.filter(l => (code === '-' ? !flowShPrn(S, l) : flowShPrn(S, l) === String(code))).length;
   const none = count('-');
-  if ($('flshShow')) $('flshShow').innerHTML = `<option value="">All printers (${nf(S.lines.length)} lines)</option>`
+  if ($('flshShow')) $('flshShow').innerHTML = `<option value="">— pick a printer — all (${nf(inKind.length)} lines)</option>`
     + flowPrinters().map(v => ({ v, n: count(v.code) })).filter(o => o.n || String(o.v.code) === String(S.show))
       .map(o => `<option value="${esc(o.v.code)}"${String(o.v.code) === String(S.show) ? ' selected' : ''}>${esc(o.v.desc || o.v.name || o.v.code)} (${nf(o.n)})</option>`).join('')
     + (none || S.show === '-' ? `<option value="-"${S.show === '-' ? ' selected' : ''}>No printer yet (${nf(none)})</option>` : '');
@@ -835,7 +849,10 @@ function flowShRowHtml(S, l, pr) {
 }
 /** The Printer cell: a drop-down (PPC's printer marked); a change says what it was, and Undo. */
 function flowShPrnCell(S, l, pr) {
-  const wait = flowShWaits(l);
+  const wait0 = flowShWaits(l);
+  if (!wait0) return l.printer ? `<div style="font-size:12.5px;font-weight:700">${esc(l.printerName || flowShVname(l.printer))}</div><div class="sub" style="color:var(--muted)">set by PPC</div>`
+    : '<div style="font-size:12.5px;font-weight:600;color:var(--bad,#850000)">No printer yet</div><div class="sub" style="color:var(--muted)">PPC sets it first</div>';
+  const wait = wait0;
   if (wait) return `<div style="font-size:12.5px;font-weight:600">${esc(l.printerName || l.printer || '—')}</div><div class="sub" style="font-weight:600">waits for approval to ${esc(wait.to.name)}</div>`;
   const cur = flowShPrn(S, l), changed = flowShChanged(S, l), fresh = !l.printer && !!cur;
   const sel = `<select data-shprn="${esc(l.key)}"${changed || fresh ? ' class="chg"' : ''} aria-label="Printer">`
@@ -1074,8 +1091,10 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   FLOW_SH.q = t.value; flowShDraw();
 });
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', e => {
-  const t = e.target && e.target.closest && e.target.closest('[data-shall],[data-shsetprn],[data-shundo],[data-shstep],[data-shzoom]'), S = FLOW_SH; if (!S || !t) return;
+  const t = e.target && e.target.closest && e.target.closest('[data-shall],[data-shsetprn],[data-shundo],[data-shstep],[data-shzoom],[data-shkind]'), S = FLOW_SH; if (!S || !t) return;
   if (t.dataset.shzoom) { flowShZoom(t.dataset.shzoom); return; }
+  /* cut pieces or running cloth: one kind at a time — its lines only, its printers in the list, the other kind's ticks dropped */
+  if (t.dataset.shkind) { S.kind = t.dataset.shkind; S.show = ''; S.lines.forEach(l => { if (flowShKind(l) !== S.kind) S.tick.delete(l.key); }); flowShDraw(); return; }
   let said = '', bad = false;
   if (t.dataset.shstep) { const [k, d] = t.dataset.shstep.split('|'), l = S.lines.find(y => y.key === k); if (l) { said = flowShSetPcs(S, k, flowShPcs(S, l) + (+d)); bad = !!said; } }
   if (t.dataset.shall) flowShTickAll(S, t.dataset.shall === '1');

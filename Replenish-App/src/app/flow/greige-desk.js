@@ -143,6 +143,7 @@ var FAB_LABEL = {
   OPENING_RFD: 'RFD opening stock', PURCHASE_RFD: 'RFD bought (received ready)',
   ISSUE_TO_CUTTING: 'RFD to cutting', CUT_TO_PRINTER: 'Cut pieces to printer',
   DAMAGE: 'Damaged \u2014 written off',
+  RFD_TO_PRINTER: 'RFD to printer', RFD_BACK_FROM_PRINTER: 'RFD back from printer (unprinted)',
 };
 /* The state a movement leaves the cloth in -- a receipt of RFD makes RFD, whatever the row says. */
 var FAB_TXN_STATE = {
@@ -530,7 +531,8 @@ function fabFlowRows(rows) {
  * was on), so the last closing is always the figure the Inventory page shows. Reading only; nothing is saved. */
 var FAB_SHELF_MOVES = {
   greige: { RECEIVE_GREIGE: 1, ISSUE_TO_RFD: -1 },
-  rfd: { RECEIVE_RFD: 1, OPENING_RFD: 1, PURCHASE_RFD: 1, ISSUE_TO_CUTTING: -1 },
+  /* RFD_TO_PRINTER / RFD_BACK_FROM_PRINTER are not register rows: invHistRows adds them from the flow's RFD challans */
+  rfd: { RECEIVE_RFD: 1, OPENING_RFD: 1, PURCHASE_RFD: 1, ISSUE_TO_CUTTING: -1, RFD_TO_PRINTER: -1, RFD_BACK_FROM_PRINTER: 1 },
 };
 /** +1 when the entry puts cloth on this shelf, -1 when it takes cloth off, 0 when it is not this shelf's. */
 function fabShelfSign(r, shelf) {
@@ -2800,6 +2802,23 @@ function ctsSizeText(s) { return ctsN(+s.w) + ' ' + CTS_X + ' ' + ctsN(+s.l); }
 function ctsSizeKey(s) { return ctsN(+s.w) + CTS_X + ctsN(+s.l); }
 /** The RFD width of a fabric from Master data, in inches; 0 when nobody has written it. */
 function ctsRfdWidth(rfd) { var m = mstOf(rfd); return m ? parseFloat(m.rfdWidth) || 0 : 0; }
+/* THE SIZES WE MAKE, NOT TYPED (Ravi, 24 Nov: "change it to a dropdown … those fabrics which we use in production and has size
+ * variants available"). The sizes are the products' own: every Master database row whose fabric is this RFD fabric and whose
+ * size reads as two numbers. Width is the side that fits the cloth (the first, else the second). A fabric with no such
+ * products keeps the typed boxes. [{ key, w, l, n (products), fits }] largest first. */
+function ctsSizesOf(rfd) {
+  var F = String(rfd || '').trim().toUpperCase(), rw = ctsRfdWidth(rfd), by = {};
+  var rows = typeof PTG !== 'undefined' && PTG && Array.isArray(PTG.mdb) ? PTG.mdb : [];
+  rows.forEach(function (m) {
+    if (!m || m.active === false || String(m.fabric || '').trim().toUpperCase() !== F) return;
+    var p = ctsParseSize(m.size); if (!p || !(p[0] > 0) || !(p[1] > 0)) return;
+    var w = p[0], l = p[1]; if (rw > 0 && w > rw && l <= rw) { w = p[1]; l = p[0]; }
+    var k = ctsSizeKey({ w: w, l: l }), alt = ctsSizeKey({ w: l, l: w }); if (by[alt] && !by[k]) k = alt;
+    (by[k] || (by[k] = { key: k, w: w, l: l, n: 0, fits: !(rw > 0) || w <= rw })).n++;
+  });
+  return Object.keys(by).map(function (k) { return by[k]; })
+    .sort(function (a, b) { return (b.fits - a.fits) || (b.w * b.l - a.w * a.l) || a.key.localeCompare(b.key); });
+}
 /** What asking for this cut would mean: { err, warn, metres }. spec = { rfd, lot, w, l, pcs, date }. err is '' when the cut can be asked. */
 function ctsCheck(spec) {
   var out = { err: '', warn: '', metres: ctsMetres(spec.pcs, spec.l) }, rw = ctsRfdWidth(spec.rfd);
@@ -2829,9 +2848,16 @@ function ctsDraw(g, rfd) {
   var rw = ctsRfdWidth(rfd), box = function (id, key, label) {
     return '<div><label for="' + id + '">' + label + '</label><input id="' + id + '" type="text" inputmode="decimal" autocomplete="off" data-num="7" data-ctsbox="' + key + '" value="' + esc(CUT[key]) + '"></div>';
   };
+  var sizes = ctsSizesOf(rfd), pick = sizes.length
+    ? '<div style="grid-column:span 2"><label for="ctsS">Size (W × L inches) *</label><select id="ctsS" data-ctssize="1"><option value="">Choose a size</option>'
+      + sizes.map(function (z) {
+        return '<option value="' + esc(z.w + '|' + z.l) + '"' + (z.fits ? '' : ' disabled') + (CUT.sz === z.w + '|' + z.l ? ' selected' : '') + '>'
+          + esc(ctsSizeText(z)) + ' · ' + plural(z.n, 'product') + (z.fits ? '' : ' — wider than the cloth') + '</option>';
+      }).join('') + '</select></div>'
+    : box('ctsW', 'w', 'Width (") *') + box('ctsL', 'l', 'Length (") *');
   $('cutBody').innerHTML = '<div class="dl"><div class="dl-top"><div><b class="mono">' + esc(CUT.lot) + '</b> · RFD <b>' + esc(rfd) + '</b>'
     + '<div class="sub"><b>' + nf(g.rfdLeft) + ' m on the shelf</b>' + (rw ? ' · ' + ctsN(rw) + '" wide' : ' · no RFD width in Master data') + '</div></div></div></div>'
-    + '<div class="lm-fields">' + box('ctsW', 'w', 'Width (") *') + box('ctsL', 'l', 'Length (") *') + box('ctsP', 'p', 'Pieces *')
+    + '<div class="lm-fields">' + pick + box('ctsP', 'p', 'Pieces *')
     + '<div><label for="ctsM">Metres (worked out)</label><input id="ctsM" readonly title="Pieces × length × 0.0254"></div></div>'
     + '<div id="ctsInfo"></div>'
     + '<div class="lm-why">The metres come off the shelf only when the production head or accounts head approves.</div>';
@@ -3837,21 +3863,18 @@ function invTodoHtml(rows, withPpc, loading) {
     return '<button type="button" class="gdx-tile ' + tone + (UI.invShow === k ? ' on' : '') + '" ' + attr + ' aria-pressed="' + (UI.invShow === k) + '">'
       + '<span class="gdx-n">' + nf(n) + '</span><span class="gdx-l">' + esc(big) + '</span><span class="gdx-s">' + sub + '</span></button>';
   };
-  if (withPpc && !loading) {
-    var sh = rows.filter(function (r) { return invNeedState(r) === 'short'; });
-    if (sh.length) tiles.push(tile('short', sh.length, 'Short for PPC', nf(m(sh, function (r) { return r.ppc.greigeM; })) + ' m greige to order', 'bad', 'data-invshow="' + (UI.invShow === 'short' ? 'all' : 'short') + '"'));
-  }
-  ['store', 'late', 'send', 'cut'].forEach(function (k) {
+  /* No "Short for PPC" or "RFD for PPC lines" tile (Ravi, 24 Nov: remove them); the filter drop-down still has both. */
+  ['store', 'late', 'cut'].forEach(function (k) {
     var list = rows.filter(function (r) { return invNeeds(r, k); }); if (!list.length) return;
     var sub = k === 'store' ? nf(m(list, function (r) { return r.inStoreGreige; })) + ' m · ' + INV_ACT.store.sub
       : k === 'late' ? plural(m(list, function (r) { return invLateOf(r).length; }), 'lot') + ' · ' + INV_ACT.late.sub
-      : k === 'send' ? nf(m(list, function (r) { return r.inStoreRfd; })) + ' m ' + INV_ACT.send.sub
       : nf(m(list, function (r) { return r.cut.leftPcs; })) + ' pcs ' + INV_ACT.cut.sub;
     tiles.push(tile(k, list.length, INV_ACT[k].label, sub, INV_ACT[k].tone, 'data-invshow="' + (UI.invShow === k ? 'all' : k) + '"'));
   });
   var ap = invApprovalsN();
   if (ap) tiles.push('<button type="button" class="gdx-tile warn" data-invgo="po"><span class="gdx-n">' + nf(ap) + '</span><span class="gdx-l">Approvals waiting</span><span class="gdx-s">on Greige POs — open them →</span></button>');
-  if (!tiles.length) return '<div class="gdx-clear">✓ Nothing waiting — every fabric is covered and moving.</div>';
+  /* with the PPC tiles gone, no tiles does not mean every fabric is covered: say nothing */
+  if (!tiles.length) return '';
   return '<div class="gdx-todo" role="group" aria-label="What needs doing">' + tiles.join('') + '</div>';
 }
 /** The Next step cell: the most pressing step as a button, the others as small links under it. */
@@ -3861,7 +3884,7 @@ function invNextCell(r, loading) {
   var btn = function (cls, attr, words, tip) { return { cls: cls, attr: attr, words: words, tip: tip }; };
   if (st === 'short' && r.ppc.greige) steps.push(btn('jw-primary', 'data-ppcpo="' + esc(r.ppc.name) + '|' + r.ppc.greigeM + '"', 'Raise PO · ' + nf(r.ppc.greigeM) + ' m', 'Raise a greige PO for what PPC is short of (with the processor’s share)'));
   if (late.length) steps.push(btn('gdx-bad', 'data-invd="' + F + '|proc"', 'Chase ' + plural(late.length, 'lot') + ' at processor', late.map(function (x) { return x.lot + ' · ' + x.who + ' · ' + x.days + ' days'; }).join('\n')));
-  if (invNeeds(r, 'send')) steps.push(btn('jw-primary', 'data-gdsend="' + F + '"', 'Send to printer', 'Make an RFD challan to a printer for the ' + plural(r.ppc.lines, 'line') + ' waiting'));
+  /* Send to printer is under RFD on shelf (invRfdCell — Ravi, 24 Nov: "sent to printer RFD ke neeche dikhna chahiye") */
   if (invNeeds(r, 'store')) steps.push(btn('jw-wa', 'data-invd="' + F + '|store"', 'Issue ' + nf(r.inStoreGreige) + ' m to RFD', 'Open the greige lots in the store, each with its Issue to RFD'));
   if (invNeeds(r, 'cut')) steps.push(btn('', 'data-ctssend="' + F + '"', 'Send ' + nf(r.cut.leftPcs) + ' cut pcs', 'Make an RFD challan from the pieces already cut to size'));
   if (r.onOrder > 0.05) steps.push(btn('', 'data-invd="' + F + '|order"', 'Receive greige', nf(r.onOrder) + ' m still due on open POs'));
@@ -3955,6 +3978,19 @@ function invLotsOf(fabric) {
     return String(fabRfdOfGreige(g.fabricType) || g.rfdFabric || g.fabricType || '').toUpperCase() === F;
   });
 }
+/* EACH LOT AS IT STANDS NOW (Ravi, 24 Nov: "all the lots should show me the data of actual fabric left in inventory and the
+ * final should show me the total of those lots"). A challan to a printer is by fabric, not by lot, so its metres come off the
+ * lots oldest first (by the day each came onto the shelf). The lots then add up to RFD on shelf; the challans themselves are
+ * in the stock history only. { <lot>: metres left }. */
+function invLotsLeft(fabric, out) {
+  var left = {}, due = Math.max(0, +out || 0);
+  invLotsOf(fabric).filter(function (g) { return g.rfdLeft > 0.05; }).map(function (g) {
+    return { g: g, d: invLastDate(invRowsOfLot(g.lot, 'RECEIVE_RFD')) || g.date || '' };
+  }).sort(function (a, b) { return a.d.localeCompare(b.d) || String(a.g.lot).localeCompare(String(b.g.lot)); }).forEach(function (x) {
+    var take = Math.min(due, x.g.rfdLeft); due -= take; left[x.g.lot] = Math.round((x.g.rfdLeft - take) * 100) / 100;
+  });
+  return left;
+}
 function invRowsOfLot(lot, kind) { return (DB.fab || []).filter(function (r) { return r.lot === lot && r.txnType === kind; }); }
 var invJoin = function (list) { return uniq(list).join(', ') || '—'; };
 var invLastDate = function (rows) { return rows.map(function (r) { return r.date; }).sort().pop() || ''; };
@@ -4012,7 +4048,8 @@ function invDetail(r, col) {
     empty = 'Nothing has been cut to size from ' + r.fabric + ' yet.';
   } else {
     head = ['Lot', 'PO', 'Supplier challan', 'RFD processor', 'Back on', 'Came back', 'To cutting', 'Damaged', 'On shelf', 'Next step'];
-    body = invLotsOf(r.fabric).filter(function (g) { return g.rfdLeft > 0.05; }).map(function (g) {
+    var left = invLotsLeft(r.fabric, r.rfdToPrinters);
+    body = invLotsOf(r.fabric).filter(function (g) { return left[g.lot] > 0.05; }).map(function (g) {
       var rec = invRowsOfLot(g.lot, 'RECEIVE_GREIGE'), back = invRowsOfLot(g.lot, 'RECEIVE_RFD');
       var came = g.rfdIn + g.rfdOpen + g.rfdBuy, how = g.rfdOpen ? 'opening stock' : g.rfdBuy ? 'bought ready' : '';
       return '<tr><td class="tl mono b">' + esc(g.lot) + (how ? '<div class="sub">' + how + '</div>' : '') + '</td>'
@@ -4020,7 +4057,7 @@ function invDetail(r, col) {
         + '<td class="tl mono">' + esc(invJoin(rec.map(function (x) { return x.bill; }))) + '</td>'
         + '<td class="tl">' + esc(g.processor || '—') + '</td><td class="tl">' + esc(fmtD(invLastDate(back) || g.date)) + '</td>'
         + '<td class="num">' + nf(came) + ' m</td><td class="num">' + (g.rfdOut ? nf(g.rfdOut) + ' m' : '—') + '</td>'
-        + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(g.rfdLeft) + ' m</td>'
+        + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(left[g.lot]) + ' m</td>'
         /* Send to printer opens the RFD challan for this fabric right here (Vishesh, 23 Nov; before: its lines on Demand → RFD) */
         + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>' + gdPrnWaitingPill(r.fabric)
         + '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button></div></td></tr>';
@@ -4029,7 +4066,6 @@ function invDetail(r, col) {
   }
   var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf', cut: 'Cut to size' }[col];
   return '<tr class="invdet"><td colspan="' + (UI.invCols || 6) + '"><div class="invdrop"><div class="sect">' + esc(title) + ' · ' + esc(r.fabric) + '</div>'
-    + (col === 'rfd' && r.rfdToPrinters > 0.05 ? '<div class="muted" style="font-size:12px">' + nf(r.rfdToPrinters) + ' m of it went to printers on RFD challans — taken off the shelf figure above; the lots below show what each lot had before.</div>' : '')
     + (col === 'cut' && r.cut.leftPcs > 0 ? '<div class="actions" style="justify-content:flex-start;margin:6px 0"><button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer from the pieces already cut">Send to printer</button></div>' : '')
     + (body.length ? '<div class="box scroll"><table class="ct li"><thead><tr>' + head.map(function (x, i) {
         return '<th' + (/^(Ordered|Received|Still due|Sent|Back so far|Still out|In store|Came back|To cutting|Damaged|On shelf|Days out|Sent to RFD|Cut|Sent to printer|Left)$/.test(x) ? ' class="num"' : '') + '>' + esc(x) + '</th>';
@@ -4042,11 +4078,15 @@ function invDetail(r, col) {
 /* IN TRANSIT TO PRINTERS (Vishesh, 23 Nov: "dont add a new column but just add a small line under it, and when I click on the value
  * show against which order it is in transit"). Under RFD on shelf: the metres on RFD challans the printer has not yet marked
  * received. They are already off the shelf figure and not in the total; once received they are gone from our count. */
+/* SEND TO PRINTER UNDER THE SHELF (Ravi, 24 Nov): the RFD on the shelf is what goes to the printers, so its button is in this cell,
+ * under the figure — with the "N waiting approval" note beside it. */
 function invRfdCell(r) {
-  var tr = invTransitM(r);
-  if (!(tr > 0.05)) return invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700');
-  return '<td class="num">' + invCellBtn(r, 'rfd', r.inStoreRfd, 'font-weight:700')
-    + '<div style="font-size:10.5px;color:var(--warn-ink);font-weight:600;white-space:nowrap">+ ' + nf(tr) + ' m in transit to printers</div></td>';
+  var tr = invTransitM(r), send = invNeeds(r, 'send');
+  if (!(tr > 0.05) && !send) return invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700');
+  return '<td class="num">' + (r.inStoreRfd > 0.05 ? invCellBtn(r, 'rfd', r.inStoreRfd, 'font-weight:700') : '<span class="muted">&mdash;</span>')
+    + (tr > 0.05 ? '<div style="font-size:10.5px;color:var(--warn-ink);font-weight:600;white-space:nowrap">+ ' + nf(tr) + ' m in transit to printers</div>' : '')
+    + (send ? '<div class="actions" style="justify-content:flex-end;margin-top:6px"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the ' + plural(r.ppc.lines, 'line') + ' waiting">Send to printer</button>'
+      + (typeof gdPrnWaitingPill === 'function' ? gdPrnWaitingPill(r.fabric) : '') + '</div>' : '') + '</td>';
 }
 /** The metres of a row still on their way to printers. */
 function invTransitM(r) { return (r.transit || []).reduce(function (a, x) { return a + (+x.metres || 0); }, 0); }
@@ -4146,9 +4186,23 @@ function invHistMount() {
     + '<div id="histBody"></div></div>';
   document.body.appendChild(box);
 }
+/* THE CHALLANS TO PRINTERS IN THE HISTORY (Ravi, 24 Nov): the register, plus one "RFD to printer" row per RFD challan of this
+ * fabric since the desk began counting it -- the same challans, by the same rule, that the Inventory page takes off RFD on the
+ * shelf -- so the history closes on the Inventory figure. Nothing is written; the flow not read → the register alone. */
+function invHistRows(fabric) {
+  var rows = (DB.fab || []).slice(), opened = gdRfdOpened(fabric);
+  if (!opened || typeof flowRfdChallanMoves !== 'function' || typeof FLOW === 'undefined' || !FLOW || !FLOW.ch) return rows;
+  try {
+    flowRfdChallanMoves(fabric, opened).forEach(function (m) {
+      rows.push({ id: 'ch:' + m.no + ':' + (m.metres < 0 ? 'back' : 'out'), date: m.date, lot: '', fabricType: fabric,
+        txnType: m.metres < 0 ? 'RFD_BACK_FROM_PRINTER' : 'RFD_TO_PRINTER', qty: Math.abs(m.metres), party: m.vendor, bill: m.no, orderNo: '' });
+    });
+  } catch (e) { console.warn('Stock history for ' + fabric + ': challans to printers not listed (' + ((e && e.message) || e) + ').'); }
+  return rows;
+}
 /** Open every date, or close them all when all are already open. */
 function invHistOpenAll() {
-  var H = INV_HIST, days = histDays(fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to).lines);
+  var H = INV_HIST, days = histDays(fabShelfLedger(invHistRows(H.fabric), H.fabric, H.shelf, H.from, H.to).lines);
   var all = days.length && days.every(function (d) { return H.open[d.date]; });
   H.open = {}; if (!all) days.forEach(function (d) { H.open[d.date] = true; });
   invHistDraw();
@@ -4161,7 +4215,7 @@ function invHistCause(r) {
   return (FAB_LABEL[r.txnType] || r.txnType) + (party && party !== 'Cutting' ? ' · ' + party : '');
 }
 function invHistDetails(r, po) {
-  var bill = { RECEIVE_GREIGE: 'challan ', ISSUE_TO_RFD: 'our challan ', RECEIVE_RFD: 'their challan ' }[r.txnType] || 'bill ';
+  var bill = { RECEIVE_GREIGE: 'challan ', ISSUE_TO_RFD: 'our challan ', RECEIVE_RFD: 'their challan ', RFD_TO_PRINTER: 'RFD challan ', RFD_BACK_FROM_PRINTER: 'RFD challan ' }[r.txnType] || 'bill ';
   return [r.lot ? 'Lot ' + r.lot : '', r.bill ? bill + r.bill : '', po ? 'PO ' + po : '', r.forOrders ? 'for ' + r.forOrders : '', r.note || r.remark || '']
     .filter(Boolean).join(' · ');
 }
@@ -4202,7 +4256,7 @@ function histDayBadges(d) {
   return (d.inQty ? pill('pill-ok', '+' + nf(d.inQty) + ' in') : '') + (d.outQty ? pill('pill-out', '−' + nf(d.outQty) + ' out') : '');
 }
 function invHistDraw() {
-  var H = INV_HIST, page = fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to), lotPo = {};
+  var H = INV_HIST, page = fabShelfLedger(invHistRows(H.fabric), H.fabric, H.shelf, H.from, H.to), lotPo = {};
   fabLots(DB.fab || []).forEach(function (L) { lotPo[L.lot] = L.poNo; });
   $('histTabs').innerHTML = ['rfd', 'greige'].map(function (s) {
     return '<button type="button" role="tab" aria-selected="' + (H.shelf === s) + '" class="segbtn' + (H.shelf === s ? ' on' : '') + '" data-histshelf="' + s + '">' + INV_SHELF_LABEL[s] + '</button>';
@@ -4255,7 +4309,7 @@ function invHistXlsx() {
     lmSay('err', 'The Excel file could not be made here. Nothing was downloaded.');
     return;
   }
-  var page = fabShelfLedger(DB.fab || [], H.fabric, H.shelf, H.from, H.to), lotPo = {};
+  var page = fabShelfLedger(invHistRows(H.fabric), H.fabric, H.shelf, H.from, H.to), lotPo = {};
   fabLots(DB.fab || []).forEach(function (L) { lotPo[L.lot] = L.poNo; });
   var m2 = function (v) { return Math.round(v * 100) / 100; };
   var c = function (v, st) { return { v: v, st: st || {} }; }, bold = { b: 1 }, date = { fmt: 165, h: 'left' };
@@ -4435,10 +4489,10 @@ function renderLedger() {
   return LED_CSS + '<div class="row" style="margin-bottom:10px;align-items:center">'
     + '<span class="muted" style="font-size:12px;align-self:center">Add a movement:</span>'
     + (canLedgerEdit() ? '' : '<span class="pill pill-mute">View only · ' + esc(meUser().name) + '</span>')
-    + kinds.filter(function (k) { return canLedgerEdit() && k !== 'RECEIVE_GREIGE' && k !== 'ISSUE_TO_RFD' && k !== 'RECEIVE_RFD'; }).map(function (k) {
+    + kinds.filter(function (k) { return canLedgerEdit() && k !== 'RECEIVE_GREIGE' && k !== 'ISSUE_TO_RFD' && k !== 'RECEIVE_RFD' && k !== 'ISSUE_TO_CUTTING' && k !== 'CUT_TO_PRINTER'; }).map(function (k) {
       return '<button type="button" class="ghost" data-act="' + k + '" style="padding:6px 12px;font-size:12.5px">'
         + esc(FAB_LABEL[k]) + '</button>';
-    }).join('') + '<span class="muted" style="font-size:12px;align-self:center">Greige received, sent to RFD and RFD received back are done from each PO on Greige POs.</span></div>'
+    }).join('') + '<span class="muted" style="font-size:12px;align-self:center">Greige received, sent to RFD and RFD received back are done from each PO on Greige POs; to cutting from the RFD lot on Inventory.</span></div>'
     + tiles + filters
     + '<div class="card"><div class="ff-cap">' + count + ', newest first · '
     + '<b style="color:var(--ok-ink)">' + nf(inM) + ' m</b> in · <b style="color:var(--bad)">' + nf(outM) + ' m</b> out. '
@@ -5072,11 +5126,18 @@ var EN_SHORT = {
   OPENING_RFD: 'RFD opening stock', ISSUE_TO_RFD: 'Send for RFD', ISSUE_TO_CUTTING: 'To cutting',
   DAMAGE: 'Damaged'
 };
+/* ONLY WHAT HAS NO SCREEN OF ITS OWN (Ravi, 24 Nov: "remove these buttons … that are in our process in different ways like
+ * the cutting one"). Greige received is the PO's receive drawer, RFD back is Receive RFD on the PO, To cutting is Send to
+ * cutting on the RFD lot in Inventory. A new entry here is RFD bought, RFD opening stock or Damaged; correcting an old row
+ * still shows its own movement. */
+var EN_ELSEWHERE = { RECEIVE_GREIGE: 1, RECEIVE_RFD: 1, ISSUE_TO_CUTTING: 1 };
 function enChips() {
   var on = $('enKind').value;
   $('enChips').innerHTML = EN_GROUPS.map(function (grp) {
+    var kinds = grp.kinds.filter(function (k) { return EN_ID ? k === on : !EN_ELSEWHERE[k]; });
+    if (!kinds.length) return '';
     return '<div class="en-group"><span class="en-gname">' + esc(grp.name) + '</span>'
-      + grp.kinds.map(function (k) {
+      + kinds.map(function (k) {
         return '<button type="button" class="en-chip' + (k === on ? ' on' : '') + '" data-enkind="' + k + '">'
           + '<span class="en-dot" style="background:' + EN_DOT[k] + '"></span>' + esc(EN_SHORT[k]) + '</button>';
       }).join('') + '</div>';
@@ -5202,6 +5263,7 @@ function entryOpen(kind, row) {
   if (!row && kind === 'RECEIVE_GREIGE') { entryClose(); openDrawer(''); return; }
   if (!row && kind === 'ISSUE_TO_RFD') { entryClose(); UI.tab = 'po'; render(); lmSay('warn', 'Greige goes to RFD from its PO: press Issue to RFD on the PO.'); return; }
   if (!row && kind === 'RECEIVE_RFD') { entryClose(); UI.tab = 'po'; render(); lmSay('warn', 'RFD comes back on its PO: press Receive RFD on the PO.'); return; }
+  if (!row && kind === 'ISSUE_TO_CUTTING') { entryClose(); UI.tab = 'inv'; render(); lmSay('warn', 'RFD goes to cutting from Inventory: open RFD on shelf and press Send to cutting on the lot.'); return; }
   if (!canLedgerEdit()) { lmSay('warn', meUser().name + ' may only view the fabric ledger.'); return; }
   EN_AUTO = {};
   EN_ID = row ? row.id : null;
@@ -5489,6 +5551,7 @@ function wireUsersRfd() {
   document.addEventListener('input', function (ev) {
     var el = ev.target;
     if (CUT && el.getAttribute && el.getAttribute('data-cutqty')) { CUT.qty = el.value; $('cutErr').classList.add('hide'); $('cutTot').innerHTML = cutTotHtml(parseFloat(el.value) || 0, ''); return; }   // a new figure: the last refusal may no longer be true
+    if (CUT && el.getAttribute && el.getAttribute('data-ctssize')) { var wl = String(el.value || '').split('|'); CUT.sz = el.value; CUT.w = wl[0] || ''; CUT.l = wl[1] || ''; $('cutErr').classList.add('hide'); ctsInfoDraw(); return; }
     if (CUT && el.getAttribute && el.getAttribute('data-ctsbox')) { CUT[el.getAttribute('data-ctsbox')] = el.value; $('cutErr').classList.add('hide'); ctsInfoDraw(); return; }
     var lot = el.getAttribute && el.getAttribute('data-rrlot'); if (!lot || !RR) return;
     RR.thans[lot][+el.getAttribute('data-pi')][el.getAttribute('data-f')] = el.value; rrSums();

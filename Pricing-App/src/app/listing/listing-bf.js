@@ -35,18 +35,59 @@ const BF = {
 };
 
 /* ----- THE ONE DATA DOOR for new reads and writes (easy switch to another database later) ----- */
-const lsOff = () => typeof window !== 'undefined' && !!window.__TEST_ERP;   // the test site saves nothing
-/** One document, or null when there is none (or on the test site). */
-async function lsGet(coll, id) {
-  if (lsOff()) return null;
-  const snap = await getDoc(doc(db, coll, id));
-  return snap && snap.exists() ? snap.data() : null;
+/* THE TEST SITE (23 Nov 2026). Its page (Replenish-App/tests/build-test-erp.js) answers every Firestore read and save from ERP data
+ * (Supabase) when window.__TEST_ERP.sbOn — never from the live Firestore. There the SYNC's documents (history/lsync_state, the
+ * lsync_<brand>_<n> shop-side copy, the lcache_<brand>_<n> saved copy) are read and saved as on the live site, so every test page
+ * shares one sync and a reload continues it instead of starting again from 0. Every other document stays as before: nothing on the
+ * test site. A test build that cannot save (no sbOn), or a save ERP data refuses, keeps the sync's state document in this browser
+ * (localStorage): the sync is then this browser's own, and a reload still continues it. */
+const LS = { refused: false, mem: {} };
+const lsTest = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
+const lsSyncDoc = id => /^(lsync_|lcache_)/.test(String(id));
+const lsShared = () => typeof window !== 'undefined' && !!(window.__TEST_ERP && window.__TEST_ERP.sbOn) && !LS.refused;   // the test site: the sync's documents in ERP data
+const lsOff = () => lsTest() && !lsShared();          // the test site without a shared place: the sync is this browser's own
+const lsSkip = id => lsTest() && !(lsShared() && lsSyncDoc(id));   // a document this test page neither reads nor saves in a database
+// A document kept in this browser instead (only the sync's state): this page's memory, and localStorage for the next page.
+const lsLocalKey = (coll, id) => `sellora.ls.${coll}/${id}`;
+const lsLocalOk = id => id === 'lsync_state';
+function lsLocalGet(coll, id) {
+  const key = lsLocalKey(coll, id);
+  let text = LS.mem[key] || null;
+  if (!text) try { text = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null; } catch (e) { text = null; }
+  try { return text ? JSON.parse(text) : null; } catch (e) { return null; }
 }
-/** Merge `data` into one document (only the fields given are touched). False on the test site. */
+function lsLocalSave(coll, id, data) {
+  const merge = (a, b) => { Object.keys(b).forEach(k => { a[k] = b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && a[k] && typeof a[k] === 'object' && !Array.isArray(a[k]) ? merge(a[k], b[k]) : b[k]; }); return a; };
+  const text = JSON.stringify(merge(lsLocalGet(coll, id) || {}, JSON.parse(JSON.stringify(data))));
+  LS.mem[lsLocalKey(coll, id)] = text;
+  try { if (typeof localStorage !== 'undefined') localStorage.setItem(lsLocalKey(coll, id), text); } catch (e) { /* full or blocked: this page keeps it */ }
+}
+// ERP data said no (not an ERP sign-in, no right): the test page keeps its sync to itself from now on.
+const lsRefusedBy = e => lsTest() && (String((e && e.code) || '') === 'permission-denied' || /Saving is off|permission denied|not an ERP sign-in|only an admin/i.test(String((e && e.message) || e)));
+/** One document, or null when there is none (or one the test site does not keep). */
+async function lsGet(coll, id) {
+  if (lsSkip(id)) return lsOff() && lsLocalOk(id) ? lsLocalGet(coll, id) : null;
+  try {
+    const snap = await getDoc(doc(db, coll, id));
+    return snap && snap.exists() ? snap.data() : null;
+  } catch (e) {
+    if (!lsRefusedBy(e)) throw e;
+    LS.refused = true;
+    return lsLocalOk(id) ? lsLocalGet(coll, id) : null;
+  }
+}
+/** Merge `data` into one document (only the fields given are touched). False when it was not saved in a database. */
 async function lsSave(coll, id, data) {
-  if (lsOff()) return false;
-  await setDoc(doc(db, coll, id), data, { merge: true });
-  return true;
+  if (lsSkip(id)) { if (lsOff() && lsLocalOk(id)) lsLocalSave(coll, id, data); return false; }
+  try {
+    await setDoc(doc(db, coll, id), data, { merge: true });
+    return true;
+  } catch (e) {
+    if (!lsRefusedBy(e)) throw e;
+    LS.refused = true;
+    if (lsLocalOk(id)) lsLocalSave(coll, id, data);
+    return false;
+  }
 }
 
 /* ----- the answers ----- */

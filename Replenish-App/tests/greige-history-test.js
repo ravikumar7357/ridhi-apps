@@ -13,7 +13,7 @@ function desk(me) {
   const anchor = '  return { open: open,';
   const code = fs.readFileSync(SRC, 'utf8');
   if (code.split(anchor).length !== 2) throw new Error('greige-desk.js: the closing "return { open" line moved; update this test');
-  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histDays, histDayName, histMonthName, histDayBadges, invNeedState, invCoverPct, invNeedCell, invActionCell, invWorthShowing, invNextCell, invShows, invNeeds, invTodoHtml, lfPeriod, lfKeep, renderLedger, setLF: function (v) { LF = v; }, setDB: function (v) { DB = v; } };\n' + anchor);
+  const opened = code.replace(anchor, '  globalThis.__GDT = { fabShelfLedger, fabFlowRows, invFabricName, histIn, histOut, histMove, histDays, histDayName, histMonthName, histDayBadges, invNeedState, invCoverPct, invNeedCell, invActionCell, invWorthShowing, invNextCell, invRfdCell, invShows, invNeeds, invTodoHtml, lfPeriod, lfKeep, renderLedger, setLF: function (v) { LF = v; }, setDB: function (v) { DB = v; } };\n' + anchor);
   const ctx = { console, window: { document: {} }, ME: me || { admin: true } };
   vm.createContext(ctx);
   vm.runInContext(opened, ctx);
@@ -184,16 +184,20 @@ console.log('== the Inventory and the ledger, laid out to act on (Vishesh, 23 No
   const shortR = Object.assign({}, base, { ppc: { name: 'Canvas', need: 6772, lines: 39, free: 594, desk: 594, short: 6178, onWay: 0, greigeM: 7040, greige: 'Canvas Greige' }, inStoreGreige: 1200, inStoreRfd: 594 });
   const next = G2.invNextCell(shortR, false);
   ok('Next step: the most pressing first — Raise PO · 7,040 m — as the button', /^<td class="gdx-next"><button type="button" class="jw-btn jw-primary" data-ppcpo="Canvas\|7040"[^>]*>Raise PO · 7,040 m</.test(next), next.slice(0, 200));
-  ok('…then the other steps as links: Send to printer (RFD on the shelf, PPC lines waiting) and Issue 1,200 m to RFD', /class="link" data-gdsend="Canvas"/.test(next) && /data-invd="Canvas\|store"[^>]*>Issue 1,200 m to RFD</.test(next));
+  ok('…then the other steps as links: Issue 1,200 m to RFD — Send to printer is no longer in Next step (24 Nov)', !/data-gdsend=/.test(next) && /data-invd="Canvas\|store"[^>]*>Issue 1,200 m to RFD</.test(next));
+  { const rc = G2.invRfdCell(shortR);
+    ok('Send to printer sits under RFD on shelf (Ravi, 24 Nov), under the 594 m', /data-invd="Canvas\|rfd"[^>]*>594 /.test(rc) && /data-gdsend="Canvas"[^>]*>Send to printer<\/button>/.test(rc) && rc.indexOf('data-invd="Canvas|rfd"') < rc.indexOf('data-gdsend'), rc);
+    ok('…no button when nothing on the shelf or no PPC line waits', !/data-gdsend/.test(G2.invRfdCell(Object.assign({}, shortR, { inStoreRfd: 0 }))) && !/data-gdsend/.test(G2.invRfdCell(Object.assign({}, shortR, { ppc: Object.assign({}, shortR.ppc, { lines: 0 }) })))); }
   ok('the to-dos: greige in store, RFD for PPC lines; not cut pieces, not late', G2.invNeeds(shortR, 'store') && G2.invNeeds(shortR, 'send') && !G2.invNeeds(shortR, 'cut') && !G2.invNeeds(shortR, 'late'));
   ok('…a filter by a to-do shows only those fabrics; All shows everything', G2.invShows(shortR, 'store') && !G2.invShows(base, 'store') && G2.invShows(base, 'all') && G2.invShows(shortR, 'short'));
   const cutR = Object.assign({}, base, { ppc: null, cut: { leftPcs: 40, leftM: 30, waiting: 0, sizes: [] } });
   ok('a fabric with only cut pieces left: Send 40 cut pcs', /data-ctssend="Canvas"[^>]*>Send 40 cut pcs</.test(G2.invNextCell(cutR, false)));
   ok('a fabric with nothing to do says so', /nothing to do/.test(G2.invNextCell(Object.assign({}, base, { ppc: null }), false)));
   const todo = G2.invTodoHtml([shortR, cutR], true, false);
-  ok('the to-do strip: Short for PPC (7,040 m greige to order), Greige in store, RFD for PPC lines, Cut pieces left — each a filter',
-    /data-invshow="short"[\s\S]*7,040 m greige to order/.test(todo) && /data-invshow="store"/.test(todo) && /data-invshow="send"/.test(todo) && /data-invshow="cut"/.test(todo) && !/data-invshow="late"/.test(todo));
-  ok('…with nothing to do, one line says all is clear', /Nothing waiting/.test(G2.invTodoHtml([Object.assign({}, base, { ppc: null })], true, false)));
+  ok('the to-do strip: Greige in store and Cut pieces left, each a filter — no Short for PPC or RFD for PPC lines tile (Ravi, 24 Nov)',
+    /data-invshow="store"/.test(todo) && /data-invshow="cut"/.test(todo) && !/data-invshow="late"/.test(todo)
+    && !/data-invshow="short"|data-invshow="send"|Short for PPC|RFD for PPC lines/.test(todo));
+  ok('…with nothing to do, no strip at all (no tile does not mean every fabric is covered)', G2.invTodoHtml([Object.assign({}, base, { ppc: null })], true, false) === '');
   const t = new Date().toISOString().slice(0, 10);
   ok('quick periods: Today is today to today; This month starts on the 1st; All is no dates', G2.lfPeriod('today').from === t && G2.lfPeriod('today').to === t && G2.lfPeriod('month').from === t.slice(0, 8) + '01' && G2.lfPeriod('').from === '');
   ok('…7 days is today and the 6 before', (Date.parse(G2.lfPeriod('7').to) - Date.parse(G2.lfPeriod('7').from)) / 86400000 === 6);
