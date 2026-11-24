@@ -36,6 +36,12 @@
 const LM_MAX_AGE = 24 * 3600000;        // a cache older than this is not used (the age line turns amber)
 const LM_PAR = 6;                       // cache tabs read at once
 const LM_CHECK_MS = 15 * 60000;         // while the page is open and seen: is there a newer pass?
+const LM_RETRY_MS = [60000, 2 * 60000, 5 * 60000];   // a read of the backend that failed is tried again after 1, 2, then every 5 minutes
+/* STRAIGHT FROM THE BACKEND (23 Nov 2026). The Ads screens' browser copy (brand-analytics.js baCache: a copy kept up to 36 hours, the
+ * backend asked behind it) is NOT used here: it handed lmRefresh the copy of lmMeta it kept, so a newer pass looked like the one held,
+ * and the cache tabs keep their names from pass to pass, so their kept copies were the OLD records. This file keeps its own copy
+ * (IndexedDB, above) and asks the backend itself — every page shows the newest pass the moment it is read. */
+const lmNet = params => (typeof baCallNet === 'function' ? baCallNet : baCall)(params);
 const LM_FULL_AT = [13, 18];            // ListingMatch's full passes, IST (the "next refresh" in the age line) — ListingMatch.gs LM_FULL_HOURS; a test keeps the two the same
 const LM_APLUS_AT = 13;                 // the full pass the daily A+ read follows, IST — ListingMatch.gs LM_APLUS_HOUR (the same test)
 const lmHour = h => String(h).padStart(2, '0') + ':00';
@@ -183,7 +189,7 @@ async function lmReadTabs(tabs) {
     while (next < tabs.length) {
       const i = next++;
       try {
-        const r = await baCall({ cache: tabs[i] });
+        const r = await lmNet({ cache: tabs[i] });
         out[i] = { tab: tabs[i], ok: !!(r && r.data && r.data.items), data: r && r.data };
       } catch (e) { out[i] = { tab: tabs[i], ok: false, err: String((e && e.message) || e) }; }
     }
@@ -197,13 +203,14 @@ function lmRefresh() {
   LM.busy = (async () => {
     try {
       let reply;
-      try { reply = await baCall({ cache: 'lmMeta' }); }
+      try { reply = await lmNet({ cache: 'lmMeta' }); }
       catch (e) { throw Object.assign(new Error(String((e && e.message) || e)), { empty: /nothing cached/i.test(String((e && e.message) || e)) }); }
       const meta = reply && reply.data;
       if (!meta || !meta.parts) throw Object.assign(new Error('the listing cache is empty'), { empty: true });
       LM.checkedAt = Date.now();
       const apNew = lmAplusNewer(meta);                 // the brands whose A+ read is not the one held
-      if (LM.meta && LM.from && lmSameMeta(LM.meta, meta)) {
+      if (LM.meta && LM.from && !LM.partial && lmSameMeta(LM.meta, meta)) {   // a pass read only in part is read again
+        lmFailed(null);                                  // the backend answered, nothing newer: no retry waiting
         if (!apNew.length) { LM.state = 'ok'; LM.err = ''; lmAgeDraw(); return false; }
         // the listings are the ones held; only the daily A+ read is newer: its tabs alone
         const took = await lmAplusRead(meta, apNew);
@@ -245,6 +252,8 @@ function lmRefresh() {
       lmOverPrune();
       LM.state = 'ok';
       LM.err = bad ? `${bad} of ${jobs.length} cache parts could not be read — their listings keep the last copy` : '';
+      LM.partial = !!bad;
+      lmFailed(null);                                  // answered (the parts not read, if any, are read again at the next check)
       lmSave();
       lmApply();
       return true;
@@ -252,11 +261,25 @@ function lmRefresh() {
       // no cache yet, a failed read: what is held stays; without anything held the screens use their own reads (lmOk is false)
       LM.state = LM.meta ? LM.state === 'loading' ? 'saved' : LM.state : e.empty ? 'empty' : 'err';
       LM.err = String((e && e.message) || e);
+      if (!e.empty) lmFailed(e);                         // the backend did not answer: asked again in a minute or two, and said on the age line
       lmAgeDraw();
       return false;
     } finally { LM.busy = null; }
   })();
   return LM.busy;
+}
+// A read of the backend failed (e) or answered (null): the next try in 1, 2, then every 5 minutes — never only at the 15-minute check.
+function lmFailed(e) {
+  clearTimeout(LM.retryT);
+  LM.retryT = 0;
+  if (!e) { LM.fails = 0; LM.nextTry = 0; return; }
+  const wait = LM_RETRY_MS[Math.min(LM.fails || 0, LM_RETRY_MS.length - 1)];
+  LM.fails = (LM.fails || 0) + 1;
+  LM.failAt = Date.now();
+  LM.nextTry = Date.now() + wait;
+  if (typeof setTimeout !== 'function') return;
+  LM.retryT = setTimeout(() => { LM.retryT = 0; lmRefresh(); }, wait);
+  if (LM.retryT && LM.retryT.unref) LM.retryT.unref();
 }
 // The copy into this browser (a quota or a private window: the copy in memory still works for this visit).
 function lmSave() {
@@ -325,7 +348,7 @@ async function lmAplusRead(meta, brands) {
   const got = await Promise.all(brands.map(async b => {
     let took = false;
     try {
-      const r = await baCall({ cache: meta.aplus[b].tab });
+      const r = await lmNet({ cache: meta.aplus[b].tab });
       took = lmAplusTake(b, r && r.data, lmAplusKey(meta, b));
     } catch (e) { took = false; }
     LM_APLUS_FAIL[b] = took ? null : { key: lmAplusKey(meta, b), at: Date.now() };
@@ -866,7 +889,10 @@ function lmAgeHtml() {
   const old = Date.now() - at > LM_MAX_AGE;
   const tip = old ? 'Older than 24 hours — this screen uses its own reads until the next ListingMatch pass.'
     : `Read from Amazon by ListingMatch (${LM.meta.kind === 'light' ? 'the changed listings' : 'every listing'}). A live read on this page (a send, Check now, Read again) shows until a newer pass.`;
-  return `<span class="lm-age-t${old ? ' is-old' : ''}" title="${tip}">Amazon data: ${lmFmt(LM.meta.finishedAt)} · next refresh ~${lmNextFull()}</span>`;
+  // the backend could not be read just now: said here (never silently the old date), with when it is asked again
+  const fail = LM.nextTry && LM.err ? ` · could not read the newer data — trying again ~${lmClock(LM.nextTry, false)}` : '';
+  const why = fail ? ` (${String(LM.err).replace(/[<>&"]/g, '').slice(0, 160)})` : '';
+  return `<span class="lm-age-t${old || fail ? ' is-old' : ''}" title="${tip}${why}">Amazon data: ${lmFmt(LM.meta.finishedAt)} · next refresh ~${lmNextFull()}${fail}</span>`;
 }
 /* ----- THE ONE "WHEN WAS THIS READ" LABEL (17 Nov 2026): every Listing screen's data-age label comes from lmDataLabel ----- */
 // ms → '17 Nov 13:14' (IST, as ListingMatch writes its times); day false → '13:14'.

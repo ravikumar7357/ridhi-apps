@@ -1,7 +1,7 @@
 /* ================= CORE · DASHBOARD: the first screen after sign-in (20–21 Nov 2026) =================
  * Screens: Dashboard (tab 'dash', #paneDash; core/nav.js calls ensureDash when it opens), the Sellora logo in the top bar (opens
- *          it) and the ✨ button beside the theme switch (#fxBtn: the Dashboard's animation on / off — nothing on any other
- *          screen moves or stops with it).
+ *          it) and the ✨ button beside the theme switch (#fxBtn: the animation on / off for the Dashboard and the Sales Dashboard —
+ *          sales/sales-charts.js reads the same choice, selloraDashFx; nothing on any other screen moves or stops with it).
  * Does: shows, for Both / Ridhi / CPC (remembered in this browser), the numbers the other screens work out — never one of its own.
  *   NEVER EMPTY: every card first shows the number it showed last time (this browser's copy, selloraDash.v3, amber "as of <time>"),
  *   then counts over to the fresh number when that lands. The very first time, a shimmer stands in, and morphs into the number.
@@ -45,11 +45,13 @@ const DASH_FMT = {
   usd2: v => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),   // Inventory Age's storage
   num: v => DASH_NUM.format(Math.round(v)),
 };
-const DASH_SLOTS = ['ticker', 'kSales', 'kYtd', 'kAds', 'kList', 'flow', 'donut', 'line', 'bars', 'tImg', 'tErr', 'tBsr', 'tAge'];
+const DASH_SLOTS = ['ticker', 'tVi', 'tAl', 'kSales', 'kYtd', 'kAds', 'kList', 'flow', 'donut', 'line', 'bars', 'tImg', 'tErr', 'tBsr', 'tAge'];
 // Each data source: the screen whose access it needs, and the cards it fills.
 const DASH_KEYS = {
   sales: { tab: 'sales', slots: ['kSales', 'kYtd', 'line', 'ticker'] },
   ads: { tab: 'ppcn', slots: ['kAds', 'bars', 'ticker'] },
+  vi: { tab: 'sales', slots: ['tVi'] },                 // This week in plain English (sales/sales-insight.js)
+  al: { tab: 'salert', slots: ['tAl'] },                // Sales Alerts (sales/sales-alerts.js)
   age: { tab: 'age', slots: ['tAge', 'ticker'] },
   health: { tab: 'health', slots: ['kList', 'flow', 'donut', 'ticker'] },
   lh: { tab: 'lhist', slots: ['flow'] },
@@ -131,6 +133,9 @@ function dashStore(key) {
 const DASH_SIG = {
   sales: () => [SD && SD.at, SD && SD.d, SD_LIVE, typeof T_MATCH !== 'undefined' && T_MATCH.biz],
   ads: () => [WEEKLY.rows, WEEKLY.at, DASH.weekly],
+  vi: () => [typeof VI !== 'undefined' ? VI.v : 0, typeof sdToday === 'function' ? sdToday() : '', H_LOADED],
+  al: () => [typeof AL !== 'undefined' ? AL.v : 0, typeof VI !== 'undefined' ? VI.v : 0, typeof sdToday === 'function' ? sdToday() : '', H_LOADED,
+    typeof AL !== 'undefined' ? AL.store.marks : null, typeof AL !== 'undefined' ? AL.store.settings : null],
   age: () => [AGE_LOADED, AGE.SP, AGE.CPC],
   health: () => [H_LOADED, LR, HEALTH.SP, HEALTH.CPC, H_LOADED && LR ? hCtx() : null, typeof LI_WS !== 'undefined' ? LI_WS.liveV : 0, new Date().toDateString()],
   lh: () => [LH.rows, LH.loading, DASH.lhOwn],
@@ -150,6 +155,10 @@ function dashCalc(key) {
 }
 const dashPerView = fn => { const out = {}; DASH_VIEWS.forEach(view => { out[view] = fn(view); }); return out; };
 const DASH_CALC = {
+  // This week in plain English (sales/sales-insight.js): the first sentence of the summary, per view — the same movers as the box
+  vi: () => dashPerView(view => viDashOf(view)),
+  // Sales Alerts (sales/sales-alerts.js): how many need attention, $/week at risk and the top three, per view — the page's own alerts
+  al: () => dashPerView(view => alDashOf(view)),
   // The Sales Dashboard's own sums: sdSum / sdSeries read the channel on view (SD_CH), so it is set for each brand and put back
   // straight after, in the same moment (nothing else runs in between).
   sales: () => {
@@ -485,7 +494,7 @@ async function dashLoadBsr() {
   }
   DASH.bsrOwn = own;
 }
-const DASH_LOAD = { sales: dashLoadSales, ads: dashLoadAds, age: dashLoadAge, health: dashLoadHealth, lh: dashLoadLh,
+const DASH_LOAD = { sales: dashLoadSales, ads: dashLoadAds, vi: () => viDashLoad(), al: () => alDashLoad(), age: dashLoadAge, health: dashLoadHealth, lh: dashLoadLh,
   img: dashLoadIml, lerr: dashLoadIml, bsr: dashLoadBsr };
 
 // A source's data changed: work its numbers out again, and redraw its cards when the Dashboard is on screen.
@@ -509,7 +518,7 @@ function dashRun(key) {
 // Every source, in order: Sales · PPC · Inventory first, then Listing Health, then the four that read the listing lists.
 function dashPrefetch() {
   if (!dashMay('dash')) return;
-  ['sales', 'ads', 'age', 'health', 'img', 'lerr', 'bsr', 'lh'].forEach(dashRun);
+  ['sales', 'ads', 'vi', 'al', 'age', 'health', 'img', 'lerr', 'bsr', 'lh'].forEach(dashRun);
   if (!DASH.watchT) DASH.watchT = setInterval(dashWatch, 2000);
 }
 // Every 2 s: a loaded source whose inputs changed since its numbers were worked out (a screen loaded more, the listing cache
@@ -598,6 +607,29 @@ const DASH_BUCKETS = [['critical', 'is-c', 'Critical'], ['action', 'is-a', 'Need
 
 // Each card's HTML; i = its place in the stagger.
 const DASH_PAINT = {
+  // This week in plain English: the headline, one sentence (Claude's when it checked, else the rule-written one) and Open → the Sales Dashboard
+  tVi: i => {
+    const d = dashData('vi');
+    const ok = dashOk(d);
+    // the headline with its ▲ / ▼ badge, then the first sentence (an older browser copy without a headline shows the sentence alone)
+    const head = ok && d.v.head ? `<b class="dash-vi-h">${dashEsc(d.v.head)}${d.v.pct != null ? ` <span class="dash-vi-b ${d.v.up ? 'is-up' : 'is-dn'}">${d.v.up ? '▲' : '▼'} ${Math.abs(d.v.pct).toFixed(1)}%</span>` : ''}</b>` : '';
+    const body = ok ? head + dashEsc(d.v.text) : d.state === 'fresh' && d.v && d.v.why ? `<span class="dash-vi-why">${dashEsc(d.v.why)}</span>` : d.state === 'loading' ? dashSk('80%') : '—';
+    return `<article class="dash-card dash-vi dash-glass" style="--i:${i}"><div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">💬</span>This week in plain English</span>${dashOpenBtn('sales')}</div>`
+      + `<p class="dash-vi-t">${body}</p>${dashFoot(d, 'sales')}</article>`;
+  },
+  // Sales Alerts: "3 need attention · $4,200/week at risk", the top three (biggest money first) and Open → the Sales Alerts page
+  tAl: i => {
+    const d = dashData('al');
+    const ok = dashOk(d);
+    let body;
+    if (ok && d.v.n) {
+      body = `<b class="dash-al-h">${DASH_FMT.num(d.v.n)} need${d.v.n === 1 ? 's' : ''} attention · ${dashCu(d.v.usd, 'money', 'alusd')}/week at risk</b>`
+        + `<ul class="dash-al-l">${d.v.top.map(t => `<li><i class="dash-al-dot is-${dashEsc(t.sev)}" aria-hidden="true"></i><span>${dashEsc(t.name)} <em>−${t.pct}% · ${dashEsc(t.why)}</em></span><b>−${DASH_FMT.money(t.usd)}/wk</b></li>`).join('')}</ul>`;
+    } else if (ok) body = '<b class="dash-al-h">All good — no real drops this week ✅</b>';
+    else body = d.state === 'fresh' && d.v && d.v.why ? `<span class="dash-vi-why">${dashEsc(d.v.why)}</span>` : d.state === 'loading' ? dashSk('80%') : '—';
+    return `<article class="dash-card dash-al dash-glass" style="--i:${i}"><div class="dash-h"><span class="dash-t"><span class="dash-ic" aria-hidden="true">🚨</span>Sales Alerts</span>${dashOpenBtn('salert')}</div>`
+      + `<div class="dash-al-b">${body}</div>${dashFoot(d, 'salert')}</article>`;
+  },
   // What needs attention, in real numbers only (fresh or this browser's copy): up to five lines.
   ticker: () => {
     const lines = [];
@@ -808,6 +840,7 @@ function dashRender() {
     + `<div class="dash-date"><span class="dash-clock">${dashClockText()}</span><span>${dashEsc(date)}</span><span class="dash-live"><i></i><b>Live</b> <span class="dash-live-t"></span></span></div><button type="button" class="nc-chip" id="ncChipDash" hidden></button></div>`
     + `<div class="dash-brands" role="group" aria-label="Brand"><span class="dash-pill" aria-hidden="true"></span>${brand('ALL', 'Both')}${brand('SP', 'Ridhi')}${brand('CPC', 'CPC')}</div></header>`
     + slot('ticker')
+    + `<section class="dash-grid dash-vi-row">${slot('tVi')}${slot('tAl')}</section>`
     + `<section class="dash-grid dash-kpis">${['kSales', 'kYtd', 'kAds', 'kList'].map(slot).join('')}</section>`
     + `<section class="dash-grid">${slot('flow')}</section>`
     + `<section class="dash-grid dash-row3">${['donut', 'line', 'bars'].map(slot).join('')}</section>`
@@ -1215,12 +1248,23 @@ function dashParty() {
   };
   requestAnimationFrame(frame);
 }
-// Run or stop every loop: GSAP's timeline, the dots, the clock, the CSS loops — only while the Dashboard is on screen in a shown tab.
+// The Dashboard's OWN animations (every one is kept in DASH.tw) stop and go again with the page. Never GSAP's whole clock
+// (gsap.globalTimeline): the Sales Dashboard runs on the same GSAP, and pausing the clock froze every Sales entrance at its first
+// frame — the page stayed empty with ✨ on when Sales was opened from the Dashboard (24 Nov 2026). Only what was running is held,
+// so an entrance still waiting for its scroll is left to ScrollTrigger; a second stop adds to the held list, never empties it.
+function dashHold(on) {
+  if (on) { (DASH.held || []).forEach(t => { try { t.resume(); } catch (e) { /* killed meanwhile */ } }); DASH.held = []; return; }
+  const run = Object.values(DASH.tw).flat().filter(t => t && typeof t.paused === 'function' && !t.paused());
+  run.forEach(t => { try { t.pause(); } catch (e) { /* gone */ } });
+  DASH.held = (DASH.held || []).concat(run);
+}
+// Run or stop every loop: the Dashboard's GSAP animations, the dots, the clock, the CSS loops — only while the Dashboard is on
+// screen in a shown tab.
 function dashLoops() {
   const on = dashLive();
   const pane = $('paneDash');
   if (pane) pane.classList.toggle('dash-paused', !on);
-  if (window.gsap && DASH.gs === true) { if (on) window.gsap.globalTimeline.resume(); else window.gsap.globalTimeline.pause(); }
+  if (window.gsap && DASH.gs === true) dashHold(on);
   if (DASH.dots) { if (on) DASH.dots.go(); }
   clearInterval(DASH.clockT);
   DASH.clockT = 0;
@@ -1286,7 +1330,7 @@ async function ensureDash() {
     if (!btn) return;
     const on = dashFxSaved();
     btn.setAttribute('aria-pressed', String(on));
-    btn.title = 'Dashboard animation: ' + (on ? (dashReduce() ? 'on, but your computer asks for reduced motion' : 'on') : 'off');
+    btn.title = 'Animation (Dashboard and Sales): ' + (on ? (dashReduce() ? 'on, but your computer asks for reduced motion' : 'on') : 'off');
   };
   if (btn) btn.addEventListener('click', async () => {
     dashSet(DASH_LS.fx, dashFxSaved() ? '0' : '1');

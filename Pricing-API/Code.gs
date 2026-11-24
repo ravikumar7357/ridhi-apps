@@ -26,6 +26,7 @@
  *   InventoryAge.gs      FBA inventory age
  *   Notifications.gs     approval mails + two stock-column checks
  *   SalesAnalysis.gs     Sales Analysis from the Orders workbooks
+ *   SalesAI.gs           This week in plain English: Claude's summary of last week's sales movers (POST ai: 'sales_insight')
  *   ListingHealth.gs     Listing Health
  *   Research.gs          DataDive, catalogue pictures / parents, Variation explorer, Product research
  *   Setup.gs             setup helper, run once from the editor
@@ -380,6 +381,8 @@ function doPost(e) {
     /* Plan my moves (ListingAI.gs aiPlan_, 20 Nov 2026): it spends the Claude budget, so ONLY for a signed-in person with rights on record
      * (who, from writerOf_ above) — never through the key alone, even before REQUIRE_SIGNIN is switched on. */
     if (p.ai === 'plan') return json_(who.email ? aiPlan_(p, who) : { ok: false, error: 'Sign in again — the backend could not confirm who you are (' + who.why + ').' });
+    // This week in plain English (SalesAI.gs, 23 Nov 2026): Claude writes 2–3 sentences from the movers Sellora sent — signed-in people only
+    if (p.ai === 'sales_insight') return json_(who.email ? saiInsight_(p, who) : { ok: false, error: 'Sign in again — the backend could not confirm who you are (' + who.why + ').' });
     if (p.limg === 'upload') return json_(limgUpload_(p));
     if (p.mcf === 'preview') return json_(mcfPreview_(p.order || {}));
     if (p.mcf === 'create')  return json_(mcfCreate_(p.order || {}));

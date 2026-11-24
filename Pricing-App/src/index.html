@@ -77,7 +77,7 @@
       <button id="tabKw" class="nav">Keywords</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,ncheck,shop,adj,ba">
+    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,ncheck,salert,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
       <!-- THE SALES DROP-DOWN (21 Nov 2026): the Listing menu's columns (styles.css "THE LISTING DROP-DOWN"), four groups.
@@ -89,7 +89,8 @@
       <div class="navcol"><div class="navcol-h num">Overview</div>
       <button id="tabSales" class="nav">Sales Dashboard</button></div>
       <div class="navcol"><div class="navcol-h num">Check &amp; alerts</div>
-      <button id="tabNcheck" class="nav">Numbers Check</button></div>
+      <button id="tabNcheck" class="nav">Numbers Check</button>
+      <button id="tabSalert" class="nav">Sales Alerts</button></div>
       <div class="navcol"><div class="navcol-h num">Analyse</div>
       <button id="tabProfit" class="nav">Profit &amp; Margin</button>
       <button id="tabSa" class="nav">Sales Analysis</button>
@@ -161,8 +162,9 @@
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
       </button>
-      <!-- The Dashboard's animation on / off (app/core/dashboard.js keeps aria-pressed = on). Touches the Dashboard only. -->
-      <button id="fxBtn" class="themesw dashfx" type="button" aria-label="Dashboard animation" aria-pressed="true" title="Dashboard animation: on">
+      <!-- The animation on / off for the Dashboard and the Sales Dashboard (app/core/dashboard.js keeps aria-pressed = on and the
+           choice, localStorage selloraDashFx; sales/sales-charts.js follows it). The only ✨ in the app. -->
+      <button id="fxBtn" class="themesw dashfx" type="button" aria-label="Animation" aria-pressed="true" title="Animation: on">
         <span aria-hidden="true">&#10024;</span>
       </button>
       <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
@@ -1393,75 +1395,157 @@
   <!-- NUMBERS CHECK (21 Nov 2026, app/sales/sales-check.js): the rule book for every sales / ads / stock number, and the same number
        compared across screens. Drawn by the script; reads only what is loaded or cached. -->
   <div id="paneNcheck" class="hide"><div id="ncPane"></div></div>
+  <!-- ============ Sales Alerts (sales/sales-alerts.js draws all of it into #alPane; styles: styles.css "SALES ALERTS") ============ -->
+  <div id="paneSalert" class="hide"><div id="alPane"></div></div>
 
-  <div id="paneSales" class="hide">
-    <div class="toolbar sa-gap-12 sa-sd-head">
-      <!-- the Numbers Check chip (sales/sales-check.js ncChipPaint): hidden until a check has run -->
-      <button id="ncChipSd" class="nc-chip" type="button" hidden></button>
+  <div id="paneSales" class="hide" data-mode="story">
+    <!-- THE SALES DASHBOARD AS CHAPTERS (23 Nov 2026 — the approved preview Pricing-App/design/sales-dashboard/, with Sellora's own numbers).
+         Every number is still written by renderSales (sales/sales-dashboard.js) into the same ids; sales/sales-charts.js draws the charts,
+         the motion and the background; sales/sales-insight.js fills "This week, explained". Styles: #paneSales only (styles.css "sdx"). -->
+    <div class="sdx-bg" aria-hidden="true"><div class="sdx-glow" id="sdxGlow"></div><canvas id="sdxDots"></canvas></div>
+
+    <!-- One row: the brand on the left; Numbers checked, Refresh today and Story / Compact on the right. Motion and light / dark are
+         the app's own ✨ and 🌙 in the menu bar (#fxBtn, #themeBtn) — one place, the same switches on every screen. -->
+    <header class="sdx-bar">
+      <div class="sdx-seg" id="sdBrand" role="group" aria-label="Brand">
+        <button type="button" data-ch="SP" class="on" aria-pressed="true">Ridhi</button><button type="button" data-ch="CPC" aria-pressed="false">CPC</button><button type="button" data-ch="SHOP" aria-pressed="false">Shopify</button><button type="button" data-ch="ALL" aria-pressed="false">All</button>
+      </div>
       <span id="sdMsg" class="muted"></span>
-      <button id="sdRefresh" class="ghost sa-btn-sm"
-        title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>
-      <div class="sd-toggle" id="sdBrand">
-        <button data-ch="SP" class="on">Ridhi</button>
-        <button data-ch="CPC">CPC</button>
-        <button data-ch="SHOP">Shopify</button>
-        <button data-ch="ALL">All</button>
+      <div class="sdx-bar-r">
+        <!-- the Numbers Check chip (sales/sales-check.js ncChipPaint): hidden until a check has run -->
+        <button id="ncChipSd" class="nc-chip" type="button" hidden></button>
+        <button id="sdRefresh" type="button" class="sdx-btn"
+          title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>
+        <div class="sdx-seg" id="sdxMode" role="group" aria-label="Layout">
+          <button type="button" data-m="story" aria-pressed="true">Story</button><button type="button" data-m="compact" aria-pressed="false">Compact</button>
+        </div>
       </div>
-    </div>
+    </header>
 
-    <div class="sd-kpis">
-      <div class="sd-card sd-b-cyan"><div class="lbl">Today</div><div class="val" id="sdToday">—</div><div class="sub">—</div></div>
-      <div class="sd-card sd-b-teal"><div class="lbl">Yesterday</div><div class="val" id="sdYest">—</div><div class="sub">US portal day</div></div>
-      <div class="sd-card sd-b-orange"><div class="lbl">Last 7 days</div><div class="val" id="sd7">—</div><div class="sub" id="sd7p">—</div></div>
-      <div class="sd-card sd-b-purple"><div class="lbl">MTD</div><div class="val" id="sdMtd">—</div><div class="sub" id="sdMtdp">—</div></div>
-      <div class="sd-card sd-b-indigo" id="sdProjCard"
-           title="Where this month lands if the last seven complete days keep up. Today is left out of the run rate — Amazon's figure for it is hours behind all day.">
-        <div class="lbl">Expected — month</div><div class="val" id="sdProj">—</div>
-        <div class="sub" id="sdProjp">—</div></div>
-      <div class="sd-card sd-b-pink"><div class="lbl">YTD</div><div class="val" id="sdYtd">—</div><div class="sub" id="sdYtdp">—</div></div>
-    </div>
+    <div class="sdx-main">
+      <!-- Needs attention (sales/sales-alerts.js alStripPaint): the brand on view's real drops, hidden when there are none -->
+      <div id="alStrip" class="al-strip" role="status" hidden></div>
+      <!-- 1 -->
+      <section class="sdx-ch" data-glow="#4d8dff">
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
+        <h2 class="sdx-h">Sales today.</h2>
+        <p class="sdx-sub">Where the day, the week, the month and the year stand — each against the same days last year.</p>
+        <div class="sdx-card"><div class="sdx-kpis">
+          <div class="sdx-kpi"><div class="sdx-kpi-l">Today</div><div class="sdx-kpi-v" id="sdToday">—</div><div class="sdx-kpi-s" id="sdTodayp">so far · US Pacific day</div><div class="sdx-spark" data-spark="today"></div></div>
+          <div class="sdx-kpi"><div class="sdx-kpi-l">Yesterday</div><div class="sdx-kpi-v" id="sdYest">—</div><div class="sdx-kpi-s" id="sdYestp">US portal day</div><div class="sdx-spark" data-spark="yest"></div></div>
+          <div class="sdx-kpi"><div class="sdx-kpi-l">Last 7 days</div><div class="sdx-kpi-v" id="sd7">—</div><div class="sdx-kpi-s" id="sd7p">—</div><div class="sdx-spark" data-spark="seven"></div></div>
+          <div class="sdx-kpi"><div class="sdx-kpi-l">Month to date</div><div class="sdx-kpi-v" id="sdMtd">—</div><div class="sdx-kpi-s" id="sdMtdp">—</div><div class="sdx-spark" data-spark="mtd"></div></div>
+          <div class="sdx-kpi" id="sdProjCard"
+               title="Where this month lands if the last seven complete days keep up. Today is left out of the run rate — Amazon's figure for it is hours behind all day.">
+            <div class="sdx-kpi-l">Expected — month</div><div class="sdx-kpi-v" id="sdProj">—</div><div class="sdx-kpi-s" id="sdProjp">—</div><div class="sdx-spark" data-spark="proj"></div></div>
+          <div class="sdx-kpi"><div class="sdx-kpi-l">Year to date</div><div class="sdx-kpi-v" id="sdYtd">—</div><div class="sdx-kpi-s" id="sdYtdp">—</div><div class="sdx-spark" data-spark="ytd"></div></div>
+        </div></div>
+      </section>
 
-    <div class="sd-panel">
-      <div class="toolbar sa-gap-12 mb-12">
-        <h2 class="sd-h2 sa-flush">Custom Range</h2>
-        <input id="sdFrom" type="date" class="sa-date-sm">
-        <span class="muted sa-fs-14">to</span>
-        <input id="sdTo" type="date" class="sa-date-sm">
-        <button id="sdApply" class="sa-btn-dark">Apply</button>
-      </div>
-      <div class="sd-stats">
-        <div class="sd-stat"><div class="lbl">Sales</div><div class="val" id="sdrSales">—</div></div>
-        <div class="sd-stat"><div class="lbl">Quantity</div><div class="val" id="sdrQty">—</div></div>
-        <div class="sd-stat"><div class="lbl">Order items</div><div class="val" id="sdrItems">—</div></div>
-        <div class="sd-stat"><div class="lbl">Avg $ / item</div><div class="val" id="sdrAvg">—</div></div>
-      </div>
-    </div>
+      <!-- 2 -->
+      <section class="sdx-ch" data-glow="#8b5cf6">
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
+        <h2 class="sdx-h">This week, explained.</h2>
+        <p class="sdx-sub">Last finished week against the week before — the products that moved it, and why.</p>
+        <!-- "This week in plain English" (sales/sales-insight.js viDraw) -->
+        <div class="sdx-card"><div class="sdx-split" id="viBox" aria-labelledby="viH" hidden></div></div>
+      </section>
 
-    <div class="sd-charts">
-      <div class="sd-panel sa-flush"><h2 class="sd-h2">Daily Sales — Last 90 Days</h2><div id="sdChartDaily"></div></div>
-      <div class="sd-panel sa-flush"><h2 class="sd-h2">Monthly — TY vs LY</h2><div id="sdChartMonthly"></div></div>
-    </div>
+      <!-- 3 -->
+      <section class="sdx-ch" data-glow="#14b8a6">
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
+        <h2 class="sdx-h">Every day vs last year.</h2>
+        <p class="sdx-sub">This year in blue, the same weekday last year in grey. Hover any day for the gap.</p>
+        <div class="sdx-card">
+          <div class="sdx-ctl">
+            <div class="sdx-legend"><span><i></i>This year</span><span><i class="ly"></i>Same weekday last year</span></div>
+            <div class="sdx-ctl-r">
+              <div class="sdx-seg" id="sdcMetric" role="group" aria-label="Measure"><button type="button" data-m="sales" aria-pressed="true">Sales</button><button type="button" data-m="units" aria-pressed="false">Units</button><button type="button" data-m="ads" aria-pressed="false">Ad spend</button></div>
+              <div class="sdx-seg" id="sdcRange" role="group" aria-label="Days"><button type="button" data-r="30" aria-pressed="false">30 days</button><button type="button" data-r="90" aria-pressed="true">90 days</button><button type="button" data-r="ytd" aria-pressed="false">This year</button></div>
+            </div>
+          </div>
+          <div class="sdx-chart tall" id="sdChartDaily" data-chart="daily"></div>
+          <p class="sdx-note" id="sdcNote"></p>
+        </div>
+      </section>
 
-    <div class="sd-panel re-scroll-x">
-      <h2 class="sd-h2">Period Comparison — <span id="sdBrandLabel">Ridhi</span></h2>
-      <table class="xl">
-        <thead><tr>
-          <th>Metric</th><th class="num">Today</th><th class="num">Yesterday</th><th class="num">WTD</th><th class="num">LYWTD</th><th class="num">%Δ</th>
-          <th class="num">MTD</th><th class="num">LYMTD</th><th class="num">%Δ</th><th class="num">YTD</th><th class="num">LYYTD</th><th class="num">%Δ</th>
-        </tr></thead>
-        <tbody id="sdPeriodBody"></tbody>
-      </table>
-    </div>
+      <!-- 4 -->
+      <section class="sdx-ch" data-glow="#f59e0b">
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
+        <h2 class="sdx-h">Your busiest days.</h2>
+        <p class="sdx-sub">The last thirteen weeks, day by day — and the products carrying this month.</p>
+        <div class="sdx-split even">
+          <div class="sdx-card"><h3 class="sdx-card-h">Sales calendar</h3><p class="sdx-card-p">Darker = more sales.</p><div class="sdx-chart tall" id="sdxHeat" data-chart="heat"></div></div>
+          <div class="sdx-card"><h3 class="sdx-card-h">Top products this month</h3><p class="sdx-card-p" id="sdxTopSub">Against the same days last month.</p><div class="sdx-chart tall" id="sdxTop" data-chart="top"></div></div>
+        </div>
+      </section>
 
-    <div class="sd-panel re-scroll-x">
-      <h2 class="sd-h2">Monthly Comparison — This Year vs Last Year</h2>
-      <table class="xl">
-        <thead><tr><th>Month</th><th class="num">This Year</th><th class="num">Last Year</th><th class="num">Change %</th></tr></thead>
-        <tbody id="sdMonthlyBody"></tbody>
-      </table>
-    </div>
+      <!-- 5 -->
+      <section class="sdx-ch" data-glow="#22c3ee">
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
+        <h2 class="sdx-h">Your weekly rhythm.</h2>
+        <p class="sdx-sub">Which weekdays sell — and where this month's sales come from.</p>
+        <div class="sdx-split even">
+          <div class="sdx-card"><h3 class="sdx-card-h">By weekday</h3><p class="sdx-card-p" id="sdxBest">Average of the last 8 weeks.</p><div class="sdx-chart mid" id="sdxPolar" data-chart="polar"></div></div>
+          <div class="sdx-card"><h3 class="sdx-card-h">Where sales come from</h3><p class="sdx-card-p">This month so far, all three channels.</p><div class="sdx-chart mid" id="sdxDonut" data-chart="donut"></div></div>
+        </div>
+      </section>
 
-    <div class="ui-note right">Last synced: <span id="sdSynced">—</span></div>
+      <!-- 6 -->
+      <section class="sdx-ch" data-glow="#22c55e">
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
+        <h2 class="sdx-h">Month by month.</h2>
+        <p class="sdx-sub">Every month this year beside the same month last year.</p>
+        <div class="sdx-card">
+          <div class="sdx-ctl"><div class="sdx-legend"><span><i class="sq"></i>This year</span><span><i class="sq ly"></i>Last year</span></div></div>
+          <div class="sdx-chart" id="sdChartMonthly" data-chart="month"></div>
+        </div>
+      </section>
+
+      <!-- 7 -->
+      <section class="sdx-ch" data-glow="#64748b">
+        <h2 class="sdx-h">The details.</h2>
+        <p class="sdx-sub">Every window against last year, and every month — as tables.</p>
+        <div class="sdx-card">
+          <button type="button" class="sdx-link" id="sdTablesBtn" aria-expanded="false" aria-controls="sdTables">Show tables ▾</button>
+          <div class="sdx-tables" id="sdTables" hidden>
+            <div class="sdx-tbl-wrap">
+              <h3 class="sdx-card-h">Period Comparison — <span id="sdBrandLabel">Ridhi</span></h3>
+              <table class="sdx-tbl">
+                <thead><tr>
+                  <th>Metric</th><th class="num">Today</th><th class="num">Yesterday</th><th class="num">WTD</th><th class="num">LYWTD</th><th class="num">%Δ</th>
+                  <th class="num">MTD</th><th class="num">LYMTD</th><th class="num">%Δ</th><th class="num">YTD</th><th class="num">LYYTD</th><th class="num">%Δ</th>
+                </tr></thead>
+                <tbody id="sdPeriodBody"></tbody>
+              </table>
+            </div>
+            <div class="sdx-tbl-wrap">
+              <h3 class="sdx-card-h">Monthly Comparison — This Year vs Last Year</h3>
+              <table class="sdx-tbl">
+                <thead><tr><th>Month</th><th class="num">This Year</th><th class="num">Last Year</th><th class="num">Change %</th></tr></thead>
+                <tbody id="sdMonthlyBody"></tbody>
+              </table>
+            </div>
+            <div class="sdx-range">
+              <div class="sdx-range-h">
+                <h3 class="sdx-card-h">Custom Range</h3>
+                <input id="sdFrom" type="date" class="sa-date-sm">
+                <span class="muted">to</span>
+                <input id="sdTo" type="date" class="sa-date-sm">
+                <button id="sdApply" type="button" class="sdx-btn">Apply</button>
+              </div>
+              <div class="sdx-stats">
+                <div><div class="sdx-kpi-l">Sales</div><div class="sdx-stat-v" id="sdrSales">—</div></div>
+                <div><div class="sdx-kpi-l">Quantity</div><div class="sdx-stat-v" id="sdrQty">—</div></div>
+                <div><div class="sdx-kpi-l">Order items</div><div class="sdx-stat-v" id="sdrItems">—</div></div>
+                <div><div class="sdx-kpi-l">Avg $ / item</div><div class="sdx-stat-v" id="sdrAvg">—</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="sdx-foot">Last synced: <span id="sdSynced">—</span> · US Pacific days, as Seller Central.</p>
+      </section>
+    </div>
   </div><!-- /paneSales -->
 
   <!-- ============ Parent Listing Review: one row per parent, last week against its own recent

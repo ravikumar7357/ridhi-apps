@@ -28,7 +28,8 @@ let SV = {
   flushT: 0,
   writes: 0,                             // documents written (for the tests and the console)
 };
-const svIsOff = () => SV.state === 'off' || (typeof window !== 'undefined' && !!window.__TEST_ERP);
+// the test site: on when its page saves to ERP data (listing-bf.js lsOff), off when it cannot
+const svIsOff = () => SV.state === 'off' || (typeof lsOff === 'function' ? lsOff() : (typeof window !== 'undefined' && !!window.__TEST_ERP));
 function svShard(sku) {
   let h = 0;
   for (const ch of String(sku)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;

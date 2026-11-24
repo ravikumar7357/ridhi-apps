@@ -7,7 +7,7 @@
  * or all three. The figures come from the nightly cache, kept in localStorage so a reopen paints with no
  * network; a live top-up then overwrites the last few days (today first, then the month so far). Every date
  * boundary is the marketplace's day (PT).
- * Main functions: ensureSales, sdTopUp, sdSum, sdSeries, renderSales, sdRange, sdChartDaily, sdChartMonthly;
+ * Main functions: ensureSales, sdTopUp, sdSum, sdSeries, renderSales, sdRange (the charts: sales/sales-charts.js sdcRender);
  * helpers sdMsg, sdLoadLocal, sdSaveLocal, sdDefaults, sdPT, sdToday, sdShift, soStamp, sdLastYear, sdMoney,
  * sdNum, sdShort, sdDelta; ensureTiktok, ensureCarousel. */
 
@@ -411,9 +411,8 @@ function renderSales() {
   }
   $('sdMonthlyBody').innerHTML = mrows || '<tr><td colspan="4" class="ui-empty">Nothing yet.</td></tr>';
 
-  // --- charts, the date range, and the "Last synced" line ---
-  sdChartDaily(sdSeries(sdShift(today, -89), today));
-  sdChartMonthly(yr, lyr);
+  // --- the charts (sales/sales-charts.js: the KPI sparklines, the daily chart, the monthly chart), the date range, "Last synced" ---
+  if (typeof sdcRender === 'function') sdcRender(today, yr, lyr);
   sdRange();
   // Two timestamps, because they mean different things: the nightly run owns the history, the
   // top-up owns today. One combined "last synced" would hide which half is stale.
@@ -421,6 +420,8 @@ function renderSales() {
   $('sdSynced').textContent = (SD.at || '—') + (SD_LIVE ? ` · today refreshed ${SD_LIVE}` : '')
     + (T_MATCH.biz ? ` · Amazon accounts: Seller Central's own totals as at ${T_MATCH.biz.at || '?'}` : '')
     + (legs ? ` · read: ${legs}` : ' · read from this browser');
+  // "This week in plain English" (sales/sales-insight.js): the box above the cards, for the channel on view — it reads, never writes
+  if (typeof viDraw === 'function') viDraw();
 }
 
 // The free date range at the bottom: sales, quantity, items and the average per item between the two dates.
@@ -437,88 +438,7 @@ function sdRange() {
   $('sdrAvg').textContent = sum[1] ? '$' + (sum[0] / sum[1]).toFixed(2) : '—';
 }
 
-/* ---------- charts, drawn as SVG so the page stays free of external scripts ---------- */
-// The daily sales line (with a filled area) for a series of { d, v } points: grid lines with $ labels, up to
-// 8 date labels, and an invisible circle per point that carries the hover title.
-function sdChartDaily(pts) {
-  if (!pts.length) {
-    $('sdChartDaily').innerHTML = '<div class="ui-empty">No data yet.</div>';
-    return;
-  }
-  // --- geometry ---
-  const W = 640, H = 220, padL = 56, padR = 10, padT = 10, padB = 26;
-  const iw = W - padL - padR, ih = H - padT - padB;
-  const max = Math.max(1, ...pts.map(pt => pt.v));
-  const x = i => padL + (pts.length === 1 ? iw / 2 : (i / (pts.length - 1)) * iw);
-  const y = v => padT + ih - (v / max) * ih;
-  // --- the line and the area under it ---
-  let line = '', area = `M${padL} ${padT + ih}`;
-  pts.forEach((pt, i) => {
-    line += (i ? ' L' : 'M') + x(i) + ' ' + y(pt.v);
-    area += ` L${x(i)} ${y(pt.v)}`;
-  });
-  area += ` L${x(pts.length - 1)} ${padT + ih} Z`;
-  // --- the SVG: grid, line, date labels, hover titles ---
-  let svg = '';
-  for (let i = 0; i <= 4; i++) {
-    const yy = padT + ih - (i / 4) * ih;
-    svg += `<line class="sa-ch-grid" x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
-      + `<text class="sa-ch-axis" x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
-      + `$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
-  }
-  svg += `<path class="sa-ch-area" d="${area}" fill="#a855f7" opacity=".12"/>`
-    + `<path class="sa-ch-line" d="${line}" fill="none" stroke="#7c3aed" stroke-width="1.8"/>`;
-  const step = Math.ceil(pts.length / 8);
-  pts.forEach((pt, i) => {
-    if (i % step) return;
-    svg += `<text class="sa-ch-label" x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#64748b">${pt.d.slice(5)}</text>`;
-  });
-  pts.forEach((pt, i) => {
-    svg += `<circle cx="${x(i)}" cy="${y(pt.v)}" r="6" fill="transparent">`
-      + `<title>${pt.d} — $${Math.round(pt.v).toLocaleString('en-US')}</title></circle>`;
-  });
-  $('sdChartDaily').innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="sa-chart">${svg}</svg>`;
-}
-
-// The monthly bars: this year (teal) beside last year (orange) for each month, with a legend.
-function sdChartMonthly(yr, lyr) {
-  // --- the twelve pairs of sums ---
-  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const ty = [], ly = [];
-  for (let m = 0; m < 12; m++) {
-    const mm = String(m + 1).padStart(2, '0');
-    const last = new Date(Date.UTC(Number(yr), m + 1, 0)).toISOString().slice(0, 10);
-    ty.push(sdSum(`${yr}-${mm}-01`, last)[0]);
-    ly.push(sdSum(`${lyr}-${mm}-01`, `${lyr}-${mm}-31`)[0]);
-  }
-  // --- geometry ---
-  const max = Math.max(1, ...ty, ...ly);
-  const W = 640, H = 220, padL = 56, padR = 10, padT = 10, padB = 30;
-  const iw = W - padL - padR, ih = H - padT - padB;
-  const slot = iw / 12, bw = Math.min(14, slot * 0.33);
-  const y = v => padT + ih - (v / max) * ih;
-  // --- the SVG: grid, bars with hover titles, month labels, legend ---
-  let svg = '';
-  for (let i = 0; i <= 4; i++) {
-    const yy = padT + ih - (i / 4) * ih;
-    svg += `<line class="sa-ch-grid" x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" stroke="#eef2f6"/>`
-      + `<text class="sa-ch-axis" x="${padL - 8}" y="${yy + 4}" text-anchor="end" font-size="10" fill="#94a3b8">`
-      + `$${Math.round(max * i / 4).toLocaleString('en-US')}</text>`;
-  }
-  for (let m = 0; m < 12; m++) {
-    const cx = padL + slot * m + slot / 2;
-    svg += `<rect class="sa-ch-ty" x="${cx - bw - 1}" y="${y(ty[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ty[m]))}" fill="#0d9488" rx="1.5">`
-      + `<title>${MON[m]} ${yr} — $${Math.round(ty[m]).toLocaleString('en-US')}</title></rect>`
-      + `<rect class="sa-ch-ly" x="${cx + 1}" y="${y(ly[m])}" width="${bw}" height="${Math.max(0, padT + ih - y(ly[m]))}" fill="#f97316" rx="1.5">`
-      + `<title>${MON[m]} ${lyr} — $${Math.round(ly[m]).toLocaleString('en-US')}</title></rect>`
-      + `<text class="sa-ch-label" x="${cx}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#64748b">${MON[m]}</text>`;
-  }
-  svg += `<rect class="sa-ch-ty" x="${padL}" y="${H - 8}" width="9" height="9" fill="#0d9488" rx="1"/>`
-    + `<text class="sa-ch-label" x="${padL + 13}" y="${H - 1}" font-size="10" fill="#64748b">This Year</text>`
-    + `<rect class="sa-ch-ly" x="${padL + 70}" y="${H - 8}" width="9" height="9" fill="#f97316" rx="1"/>`
-    + `<text class="sa-ch-label" x="${padL + 83}" y="${H - 1}" font-size="10" fill="#64748b">Last Year</text>`;
-  $('sdChartMonthly').innerHTML = `<svg viewBox="0 0 ${W} ${H + 4}" class="sa-chart">${svg}</svg>`;
-}
+/* ---------- charts: sales/sales-charts.js draws them (sdcRender) — the daily and monthly charts lived here until 23 Nov 2026 ---------- */
 
 /* ---------- the controls ---------- */
 // The channel toggle (Ridhi / CPC / Shopify / All): mark the button pressed and redraw.
