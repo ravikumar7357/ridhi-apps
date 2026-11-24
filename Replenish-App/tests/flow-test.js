@@ -2740,16 +2740,22 @@ const K = 'AMZ-1__S1';
     ok('…while the Demand window keeps every vendor, printers first', C.flowChVendors().map(v => v.code).join() === 'P1,P2,V9');
     const why = C.flowShelfChallanShow('Cambric', (no, err) => { C.ctx.__made = [no, err]; });
     const S = C.FLOW_SH(), byKey = k => S.lines.find(l => l.key === k) || {}, body = () => C.els.flshBody.innerHTML;
+    /* CUT PIECES AND RUNNING CLOTH APART (Ravi, 24 Nov): S1, S2 are printed on the SKU itself (the printer gets pieces), S3, S5 running cloth */
+    ok('the card opens on Cut pieces: S1, S2 only; the tabs count each kind', S.kind === 'cut' && C.flowShShown(S).map(l => l.x.r.sku).join() === 'S1,S2'
+      && /data-shkind="cut"[^>]*>Cut pieces · 2/.test(C.els.flshKinds.innerHTML) && /data-shkind="run"[^>]*>Running cloth · 2/.test(C.els.flshKinds.innerHTML), (C.els.flshKinds || {}).innerHTML);
+    S.kind = 'run'; ok('…Running cloth: S3, S5', C.flowShShown(S).map(l => l.x.r.sku).sort().join() === 'S3,S5');
+    ok('…the printer list counts only the kind shown (Sanganer 1, Choudhary 1 on running cloth)', (C.flowShDraw(), /Sanganer Prints \(1\)/.test(C.els.flshShow.innerHTML) && /Choudhary Hand Block \(1\)/.test(C.els.flshShow.innerHTML)));
+    S.kind = ''; C.flowShDraw();   // the checks below see both kinds
     ok('the card opens over the page, titled for the fabric, dated today', why === '' && /Send Cambric to printers/.test(C.ctx.__dlg.title) && /2026-10-13/.test(C.ctx.__dlg.subtitle), why);
     ok('…it says nothing is saved until confirmed, and Cancel throws the changes away', /nothing is saved until you confirm/i.test(C.ctx.__dlg.subtitle) && /Cancel throws the changes away/.test(C.ctx.__dlg.subtitle));
-    ok('…a search box, a Show filter, Select all, Deselect all and Set printer for ticked — no Choose by', /id="flshQ"/.test(C.ctx.__dlg.html) && /id="flshShow"/.test(C.ctx.__dlg.html)
-      && /data-shall="1"/.test(C.ctx.__dlg.html) && /data-shall="0"/.test(C.ctx.__dlg.html) && /id="flshSetPrn"/.test(C.ctx.__dlg.html) && /data-shsetprn/.test(C.ctx.__dlg.html) && !/flshBy|Choose by/.test(C.ctx.__dlg.html));
+    ok('…a search box, the kind tabs, Select all, Deselect all and the Printer pick — no Set printer for ticked (24 Nov), no Choose by', /id="flshQ"/.test(C.ctx.__dlg.html) && /id="flshShow"/.test(C.ctx.__dlg.html) && /id="flshKinds"/.test(C.ctx.__dlg.html)
+      && /data-shall="1"/.test(C.ctx.__dlg.html) && /data-shall="0"/.test(C.ctx.__dlg.html) && !/id="flshSetPrn"/.test(C.ctx.__dlg.html) && !/data-shsetprn/.test(C.ctx.__dlg.html) && !/flshBy|Choose by/.test(C.ctx.__dlg.html));
     ok('only this fabric\'s lines: S1, S2, S3, S5 — not S4 (Sheeting 62)', S.lines.map(l => l.x.r.sku).sort().join() === 'S1,S2,S3,S5', S.lines.map(l => l.x.r.sku).join());
     ok('pieces are all still owed; metres = pieces × the master\'s cloth per piece (100 × 0.35 = 35, 40 × 0.5 = 20)',
       byKey(K1).pcs === 100 && byKey(K1).metres === 35 && byKey(K2).pcs === 40 && byKey(K2).metres === 20 && byKey(K1).perPc === 0.35);
     ok('nothing is ticked when the card opens', S.tick.size === 0);
-    ok('each line has a Printer drop-down set to PPC\'s printer, marked (PPC)', /data-shprn="AMZ-1__S1"/.test(body()) && /value="P1" selected>Sanganer Prints \(PPC\)/.test(body()) && /value="P2" selected>Choudhary Hand Block \(PPC\)/.test(body()));
-    ok('…S2 (no printer from PPC) asks for one, and cannot be ticked until it has one', /PPC set no printer/.test(body()) && /data-shk="AMZ-1__S2" disabled title="Pick its printer"/.test(body()));
+    ok('each line shows PPC\'s printer as text — the RFD store cannot change it (24 Nov)', !/data-shprn=/.test(body()) && /Sanganer Prints<\/div><div class="sub"[^>]*>set by PPC/.test(body()) && /Choudhary Hand Block<\/div><div class="sub"[^>]*>set by PPC/.test(body()));
+    ok('…S2 (no printer from PPC) waits for PPC and cannot be ticked', /No printer yet<\/div><div class="sub"[^>]*>PPC sets it first/.test(body()) && /data-shk="AMZ-1__S2" disabled title="PPC has not given it a printer yet/.test(body()));
     ok('S5 (no cloth per piece on its master row) cannot be ticked and says why; it has no pieces box', /data-shk="AMZ-1__S5" disabled/.test(body()) && /No cloth per piece on its master row/.test(body()) && !/data-shq="AMZ-1__S5"/.test(body()));
     /* "also show product images" (Vishesh, 23 Nov): every line has its photo, which opens big when clicked; tags say what is special */
     ok('each line has its product photo, opened big on a click', ['S1', 'S2', 'S3', 'S5'].every(s => new RegExp('class="shc-ph" data-shzoom="' + s + '"').test(body())));
@@ -2785,8 +2791,7 @@ const K = 'AMZ-1__S1';
     C.flowShSetPrn(S, [K2], 'P1');
     ok('S2 given Sanganer on the card: it now goes there and is ticked; not a change of printer (PPC set none)', C.flowShPrn(S, byKey(K2)) === 'P1' && S.tick.has(K2) && !C.flowShChanged(S, byKey(K2)));
     C.flowShSetPrn(S, [KS3], 'P1');
-    ok('S3 (Choudhary\'s) moved to Sanganer on the card: a change of printer, ticked, shown with "was Choudhary" and Undo', C.flowShChanged(S, byKey(KS3)) && S.tick.has(KS3)
-      && (C.flowShDraw(), /was Choudhary Hand Block · changes on confirm · <a href="#" data-shundo="SHP-9__S3">Undo/.test(body())));
+    ok('S3 (Choudhary\'s) moved to Sanganer by the draft code: a change of printer, ticked (the card itself offers no way to do it since 24 Nov)', C.flowShChanged(S, byKey(KS3)) && S.tick.has(KS3));
     ok('…Show Sanganer now lists S1, S2, S3, S5 — the card as it now stands', (S.show = 'P1', C.flowShShown(S).map(l => l.x.r.sku).sort().join() === 'S1,S2,S3,S5') && ((S.show = ''), true));
     ok('…nothing at all is saved while the card is changed', !C.writes.length && !Object.keys(C.FLOW().ch || {}).length && (C.FLOW().ppc[KS3].printer || {}).code === 'P2');
     C.flowShSetPrn(S, [KS3], 'P2');
@@ -2849,7 +2854,7 @@ const K = 'AMZ-1__S1';
       && wr.orderNo === 'SHP-9' && wr.sku === 'S3' && !!wr.at && R1.FLOW().dem[KS3].printerMove.status === 'waiting');
     ok('…the plan still says Choudhary until it is approved', (R1.FLOW().ppc[KS3].printer || {}).code === 'P2' && !R1.writes.some(x => x['pt_ppc/' + KS3 + '/printer']));
     ok('…the Greige Desk is told the challan number and what waits', af && /^RFD-/.test(af[0]) && /S3 waits for approval to Sanganer Prints/.test(af[1]), JSON.stringify(af));
-    R1.flowShelfChallanShow('Cambric'); R1.FLOW_SH().tick.add(KS3); R1.flowShDraw();
+    R1.flowShelfChallanShow('Cambric'); R1.FLOW_SH().kind = ''; R1.FLOW_SH().tick.add(KS3); R1.flowShDraw();
     ok('a line with a waiting request is not offered again; its row says it waits and its box is disabled', R1.flowShGoing(R1.FLOW_SH()).every(l => l.key !== KS3)
       && /waits for approval to Sanganer Prints/.test(R1.els.flshBody.innerHTML) && /data-shk="SHP-9__S3" disabled/.test(R1.els.flshBody.innerHTML));
     ok('The "Waiting for approval" block lists it, without buttons for someone who may not decide', R1.flowPrnWaiting('Cambric').length === 1 && R1.flowPrnWaiting('Voil 92').length === 0
@@ -2900,7 +2905,7 @@ const K = 'AMZ-1__S1';
     PS.setFLOW(Object.assign(PS.FLOW(), { ch: { 'RFD-T-1': { no: 'RFD-T-1', date: '2026-10-12', orderNo: 'SHP-9', vendor: P2, lines: [{ key: KS3, sku: 'S3', fabric: 'Cambric', pcs: 20, metres: 7, print: { kind: 'sku' } }], receipts: {} } } }));
     PS.flowShelfChallanShow('Cambric'); const SP = PS.FLOW_SH(), l3 = SP.lines.find(l => l.key === KS3);
     ok('part of its cloth already given → free with its own printer', !!l3 && l3.x.s.fabSent > 0 && PS.flowShStuck(SP, l3) === '' && PS.flowShWhyNot(SP, l3) === '');
-    PS.flowShSetPrn(SP, [KS3], 'P1'); PS.flowShDraw();
+    SP.kind = ''; PS.flowShSetPrn(SP, [KS3], 'P1'); PS.flowShDraw();
     ok('…moved to Sanganer on the card it cannot go, is unticked, and says to change it from PPC', /already went to Choudhary Hand Block — change the printer from PPC/.test(PS.flowShStuck(SP, l3)) && !SP.tick.has(KS3)
       && PS.flowShGoing(SP).every(l => l.key !== KS3) && /data-shk="SHP-9__S3" disabled/.test(PS.els.flshBody.innerHTML));
 
