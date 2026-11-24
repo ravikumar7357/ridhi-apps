@@ -70,7 +70,7 @@ service cloud.firestore {
     function canReplShop() {
       return isAdmin() || (hasPerms() && permData().repl == true
         && (!('replTabs' in permData()) || !(permData().replTabs is list) || permData().replTabs.size() == 0
-            || permData().replTabs.hasAny(['shop', 'adj', 'shopify', 'shopret', 'shopbkt'])));
+            || permData().replTabs.hasAny(['shop', 'adj', 'shopify', 'shopret'])));
     }
     // One Replenishment section by name (perms.replTabs). Used for the Shopify returns team (15 Oct), whose right lives
     // only in the Replenishment app's list.
@@ -81,7 +81,7 @@ service cloud.firestore {
     // Same list as the app's SHOP_DATA_TABS (replenishment.js). A legacy grant with no section list is not this.
     function shopDataOnly() {
       return !isAdmin() && hasPerms() && ('replTabs' in permData()) && permData().replTabs is list
-        && permData().replTabs.size() > 0 && permData().replTabs.hasOnly(['shop', 'adj', 'shopify', 'shopprod', 'shopret', 'shopbkt']);
+        && permData().replTabs.size() > 0 && permData().replTabs.hasOnly(['shop', 'adj', 'shopify', 'shopprod', 'shopret']);
     }
     // Which repl/{doc} documents are planning data rather than shared lookups.
     function replPrivate(d) { return d in ['SP', 'CPC', 'projoverride', 'revtarget']; }
@@ -115,6 +115,13 @@ service cloud.firestore {
     match /config/accessRoles {
       allow read: if isAdmin() || isAccessViewer();
       allow write: if isAdmin();
+    }
+
+    // THE SWITCHES THE ERP READS AT LOGIN (Step 0 data meter: field dataMeter). Anyone with a perms record may
+    // read; nobody writes from the app. Matches are OR'd, so this only adds to config/{doc} above (canAny).
+    match /config/flags {
+      allow read: if hasPerms() || isOwner();
+      allow write: if false;
     }
 
     // Costing rates — readable by anyone with app access, writable by the costing tab or an admin.
@@ -214,19 +221,6 @@ service cloud.firestore {
     match /audit/trends {
       allow read, write: if can('trends') || can('audit');
     }
-    // Search Term Analysis: the review list of ad changes (14 Nov 2026). One document per change — picked, approved,
-    // downloaded as an Amazon bulk file, seen at Amazon. Anybody with the tab may add, approve and remove one; nobody may
-    // delete one, so the list is also the record of what was sent to Amazon ("removed" is a status, not a deletion).
-    // Until this block is deployed the screen keeps the list in each person's own browser and says so.
-    match /adsActions/{id} {
-      allow read, create, update: if can('st') || can('audit');
-      allow delete: if false;
-    }
-    // Search Term Analysis's lists, one document per brand (17 Nov 2026): brand terms, product words, blocked words,
-    // competitor brands, the target ACoS for products without a unit cost. Until deployed, kept in each browser.
-    match /adsSettings/{brand} {
-      allow read, write: if can('st') || can('audit');
-    }
     // Unit costs, per ASIN, plus the percentage model the profit figures are built on. Amazon has no
     // API for what goods cost, so this document is typed by hand and is the ONLY copy — nothing can
     // regenerate it. Gated on the Profit tab, so an account granted the ad tabs cannot read margins.
@@ -254,8 +248,6 @@ service cloud.firestore {
       allow read, write: if can('shop') || can('adj') || can('audit');
       // The Shopify returns team (15 Oct): returns & replacements are written on the order's own entry here.
       allow read, write: if canReplTab('shopret');
-      // The Shopify production bucket (2 Nov): opening lines and taking goods from production are noted on the order here.
-      allow read, write: if canReplTab('shopbkt');
     }
     // THE SHARED COPY OF THE SHOPIFY ORDERS (2026-10-15, Replenish-App docs/shopify-fast-orders/PLAN.md phase 3).
     // Written ONLY by the Pricing-API timer (ShopifyCache.gs), with its owner's own token — which the rules do not
@@ -269,11 +261,11 @@ service cloud.firestore {
       allow read: if can('shop') || can('adj') || can('audit') || canReplShop();
       allow write: if false;
     }
-    // CONTENT CREATORS (16 Nov 2026): gift orders for creators, one document per gift, id = its reference. Most are
-    // written by the Pricing API (CreatorOrders.gs, Creator Setu → ERP) with its owner's token, which these rules do not govern.
-    // Whoever holds Shopify Orders reads and updates them, and may create only the team's own kind ("+ Create order":
-    // source "team", status "New", an ERP-CC- reference). The reference and the source never change. Delete: below.
-    // Holds creators' addresses and phones: the same audience as the Shopify orders' addresses.
+    // CONTENT CREATORS (16 Nov 2026): gift orders for creators, one document per gift, id = its reference. Creator Setu's
+    // orders are written by the Pricing API (CreatorOrders.gs) with its owner's token, which these rules do not govern.
+    // Whoever holds Shopify Orders (Sellora tabs or the Replenishment app's replTabs) reads and updates them, and may
+    // create only the team's own kind ("+ Create order": source "team", status "New", an ERP-CC- reference). The reference
+    // and the source never change. Delete: below. Holds creators' addresses: the same audience as the Shopify orders'.
     function canCreators() { return can('shop') || canReplTab('shop'); }
     match /creatorOrders/{ref} {
       allow read: if canCreators();
@@ -328,16 +320,16 @@ service cloud.firestore {
 
     match /shop/imported {
       allow read, write: if can('shop');
-      allow read: if canReplTab('shopret') || canReplTab('shopbkt');   // a return can be raised against an imported order too; the bucket counts them
+      allow read: if canReplTab('shopret');   // a return can be raised against an imported order too
     }
     match /shopimp/{doc} {
       allow read, write: if can('shop');
-      allow read: if canReplTab('shopret') || canReplTab('shopbkt');
+      allow read: if canReplTab('shopret');
     }
 
     match /audit/skumeta {
       allow read, write: if can('shop') || can('adj') || can('audit');
-      allow read: if canReplTab('shopret') || canReplTab('shopbkt');   // the returns team and the production bucket read the SKU notes (Amazon code, pack), never write them
+      allow read: if canReplTab('shopret');   // the returns team reads the SKU notes (Amazon code, pack), never writes them
     }
     // The bin-only document this replaced. Still read once, to carry old entries over.
     match /audit/skuloc {

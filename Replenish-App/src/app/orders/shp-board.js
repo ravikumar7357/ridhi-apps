@@ -24,6 +24,7 @@ const SHPB_NODE = 'pt_shpBoardTest', SHPB_PRESS = 'pt_shpBoardPress', SHPB_SHIP 
 const SHPB_PRESSMEN = ['Keshav', 'Jagdish', 'Anokhi', 'Mangal', 'Om Prakash', 'Deepak', 'Chetram', 'Kuldeep', 'Shankar'];
 let SHPB_FILLCOL = false;
 let SHPB = { tab: 'pending', stage: '', ready: {}, press: {}, ship: {}, pressBy: {}, readyAt: 0, busy: false, err: '' };
+try { SHPB.group = localStorage.getItem('shpbGroup') === '1'; } catch (e) { /* off */ }
 /* PLAN FROM EXCEL (Ravi, 2 Nov: "excel se printer ko plan de saku … sirf plan window ka data aay sara nahi and tick wala option remove"):
  * the lines in the TO PLAN bucket as PPC's sheet — fill Printer (and anything else), Raise = yes, upload; the plan form opens with those lines
  * ticked, 40 at a time (flowXlOpenNext), and its Save raises the print orders. */
@@ -277,16 +278,17 @@ function shpbFlowSpans(r, s) {
 const shpbFlow = (r, s) => '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap">' + shpbFlowSpans(r, s) + '</td>';
 
 /** One order line: date, order, ready date, item, flow, pieces, printer, then the stages. */
+/** The red "Stuck N days" pill under a line's date (Ravi, 19 Nov — as it was on 13 Nov). */
+const shpbStuckPill = x => `<div title="Nothing done on this line since ${esc(shpbDmy(x.since))} — Sundays not counted"><span class="pill" style="background:#dc2626;color:#fff;font-size:10px">Stuck ${nf(x.days)} day${x.days === 1 ? '' : 's'}</span></div>`;
 function shpbRow(r) {
   const k = shpbKey(r.orderNo, r.sku), s = shpbStages([r]), rd = shpbReadyOf(r), edit = shpbCanEdit(), late = rd.date && rd.date < dToday();
   const prn = shpbPrinterOf(r);
   const tips = { prcv: 'Owed by the printer − printed cloth received back on the challan', cut: 'Still to cut − cut so far', issue: 'Cut and not yet issued − issued to karigars', receive: 'Out with karigars − received back', qc: 'Received, not checked − passed QC', press: 'Passed QC, not pressed − pressed' };
-  const dl = shpbLate(r);
+  const dl = shpbLate(r), stuck = shpbStuck(r), waits = stuck || (dl && dl.tone === 'late' ? dl : null);
   return (dl ? '<tr class="vo-' + dl.tone + '" title="' + esc(dl.why) + '">' : '<tr>') + '<td class="frz" style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;font-size:12px">' + esc(shpbDmy(shpbDateOf(r)))
-    + (dl && dl.tone === 'late' ? `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(dl.at)}${dl.since ? ' · since ' + esc(shpbDmy(dl.since)) : ''}</div>` : '') + '</td>'
-    + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25"><a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
-    + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
-    + '</td>'
+    + (stuck ? shpbStuckPill(stuck) : '')
+    + (waits ? `<div style="font-size:10.5px;color:#b91c1c;white-space:normal;max-width:110px">last step: ${esc(waits.at)}${waits.since ? ' · since ' + esc(shpbDmy(waits.since)) : ''}</div>` : '') + '</td>'
+    + '<td style="' + SHPB_PAD + 'text-align:left;white-space:nowrap;line-height:1.25">' + shpbOrderLink(r) + '</td>'
     + shpbItem(r)
     + `<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
     + `<td style="${SHPB_PAD}text-align:left;font-size:11.5px;white-space:nowrap;line-height:1.25">${prn ? '<b>' + esc(prn) + '</b>' : (shpbPlanOf(r) ? '<span class="muted">no printer</span>' : '<b style="color:#b91c1c">not planned</b>')}`
@@ -299,6 +301,14 @@ function shpbRow(r) {
     + (SHPB_FILLCOL ? shpbFillCell(r, k) : '')
     + (shpbIsQuilt(r) ? `<td class="num" style="${SHPB_STAGE_BG};${SHPB_PAD}"><span class="muted" style="font-size:11px">not needed</span></td>` : shpbCell(s.prsA, s.prsW, s.prsD, 'press', 'Press', k, tips.press))
     + shpbStatusCell(r, k, rd, late, edit) + '</tr>';
+}
+/* The order number, and under it the buyer of a B2B order (Ravi, 21 Nov: so the board shows whose order it is at a glance —
+ * the same buyer Order Console and PPC show, from ordBuyerOf). Nothing under it for Shopify, Amazon or SPY. */
+function shpbOrderLink(r) {
+  const buyer = ordBuyerOf(r.orderNo);
+  return '<a href="#" data-ordj="' + esc(r.orderNo) + '" style="color:inherit;text-decoration:underline dotted;font-weight:700">'
+    + esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, '')) + '</a>'
+    + (buyer ? '<div style="font-size:11.5px;font-weight:600;white-space:normal;max-width:180px">' + esc(buyer) + '</div>' : '');
 }
 /** THE LAST COLUMN: the line's status (In production / OOS / Delayed / On hold), the date it will be ready, and the way to complete it from ready stock. */
 function shpbStatusCell(r, k, rd, late, edit) {
@@ -354,16 +364,38 @@ function shpbStageDue(r, stage) {
   const p = shpbPlanOf(r);
   return String((p && p.dates && p.dates[k]) || '').slice(0, 10);
 }
+/* THE STUCK PILL, BACK (Ravi, 19 Nov: "add the stuck pill on each order back"). Beside the row colour, which says late against the
+ * plan, a red "Stuck N days" under the date says how long a pending line has sat: nothing done on it for a whole working day,
+ * Monday to Saturday, Sundays not counted (the 13 Nov rule), with "last step: … since …" under it. Display only. */
+const SHPB_STUCK_DAYS = 1;
+/** Working days (Monday–Saturday) wholly between two ISO days. */
+function shpbWorkDaysBetween(a, b) {
+  const t0 = Date.parse(a + 'T00:00:00Z'), t1 = Date.parse(b + 'T00:00:00Z');
+  if (!(t0 < t1)) return 0;
+  let n = 0;
+  for (let t = t0 + 864e5; t < t1; t += 864e5) if (new Date(t).getUTCDay() !== 0) n++;
+  return n;
+}
+/** { days, since, at } for a pending line nothing has happened to for a whole working day, else null. */
+function shpbStuckNow(r, today) {
+  if (!r.open) return null;
+  const last = shpbLastMove(r), days = last ? shpbWorkDaysBetween(last, today) : 0;
+  return days >= SHPB_STUCK_DAYS ? { days, since: last, at: shpbStatusInfo(r).label } : null;
+}
 let SHPB_LATEC = { sig: null, map: new Map() };
-/** { tone: 'late' | 'near', at, since, why } for a pending line late or nearly due at its stage, else null. */
-function shpbLate(r) {
+/** A line's two marks on the board, worked out once until its records change: late against its stage date, and stuck. */
+function shpbMarks(r) {
   const today = shpbToday(), sig = [today, PT.base, PT.cut, (typeof QC !== 'undefined' && QC.checks) || null, SHPB.ready, SHPB.press,
     (typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || null, (typeof FLOW !== 'undefined' && FLOW && FLOW.ppc) || null];
   if (!SHPB_LATEC.sig || SHPB_LATEC.sig.some((x, i) => x !== sig[i])) SHPB_LATEC = { sig, map: new Map() };
   const k = shpbKey(r.orderNo, r.sku);
-  if (!SHPB_LATEC.map.has(k)) SHPB_LATEC.map.set(k, shpbLateNow(r, today));
+  if (!SHPB_LATEC.map.has(k)) SHPB_LATEC.map.set(k, { late: shpbLateNow(r, today), stuck: shpbStuckNow(r, today) });
   return SHPB_LATEC.map.get(k);
 }
+/** { tone: 'late' | 'near', at, since, why } for a pending line late or nearly due at its stage, else null. */
+const shpbLate = r => shpbMarks(r).late;
+/** { days, since, at } for a pending line stuck a working day or more, else null. */
+const shpbStuck = r => shpbMarks(r).stuck;
 function shpbLateNow(r, today) {
   if (!r.open) return null;
   const stage = shpbStageNow(r);
@@ -396,6 +428,13 @@ function renderShpBoard() {
   if (!shpbIsShp() && SHPB.stage === 'hand') SHPB.stage = '';
   /* SHIPPING TO ACCEPT ONLY: the one list this account works — pieces pressed and waiting for shipping — without the buckets, the tabs, the view
    * picker or Close lines. */
+  /* the SHP board alone (ME.shpBoardOnly, core/auth.js): no picker to the Order Console's other views, no Close lines or Export */
+  if (ME.shpBoardOnly) {
+    ['odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
+    /* the picker stays, offering the four boards only (19 Nov: Laxmi could not reach the AMZ board) */
+    const vw = $('odView');
+    if (vw && vw.options) [...vw.options].forEach(o => { const ok = shpbIsBoard(o.value); o.hidden = !ok; o.disabled = !ok; });
+  }
   if (ME.shpAccOnly) { SHPB.tab = 'done'; SHPB.stage = 'hand'; ['odView', 'odClose', 'odExport'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); }); }
   if (!SHPB.readyAt && !SHPB.busy) shpbLoad(true);
   SHPB_STK = Array.isArray(FGI.rows) ? fgiStock() : null;
@@ -418,6 +457,12 @@ function renderShpBoard() {
     + (() => { const n = pend.filter(r => (shpbLate(r) || {}).tone === 'late').length, on = !!SHPB.late;
         return `<button type="button" data-shpb-late="1" title="Pending lines past the date planned for the stage they are at — or, with no date, nothing done for 7 days" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
           + (on ? 'background:#b91c1c;color:#fff;border:1px solid #b91c1c' : 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca') + `">Late · ${nf(n)}</button>`; })()
+    /* THE REPORT BUCKET (23 Nov, orders/board-report.js): what is pending at each step and printer, as a PDF to send on WhatsApp */
+    + (typeof renderShpBoardReport === 'function' ? `<button type="button" data-shpb-report="1" title="What is pending at each step — each printer on its own — as a PDF to send on WhatsApp" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+      + (SHPB.report ? 'background:#1D4ED8;color:#fff;border:1px solid #1D4ED8' : 'background:#eef3fe;color:#1D4ED8;border:1px solid #c7d6fb') + `">Report</button>` : '')
+    /* GROUP BY SKU (Ravi, 23 Nov: "same sku me multiple orders h to unko combine krke dekhne ka option … sku grouping yaha karni h report me nahi") */
+    + `<button type="button" data-shpb-group="1" title="Lines of the same SKU together, with the SKU's total pieces and orders above them" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+      + (SHPB.group ? 'background:#7c3aed;color:#fff;border:1px solid #7c3aed' : 'background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe') + `">Group by SKU</button>`
     + `<div style="display:flex;gap:8px;margin-left:auto">${tabBtn('pending', 'Order pending · ' + nf(pend.length))}${tabBtn('done', 'Complete · ' + nf(done.length))}</div></div>`
     + (tab === 'pending' && shpbMay('plan') ? (() => {
       const can = shpbToPlan(pend).length, left = typeof FLOW_XL_IMP !== 'undefined' && FLOW_XL_IMP.length ? flowXlLeft().length : 0;
@@ -431,6 +476,7 @@ function renderShpBoard() {
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || '';
 
+  if (SHPB.report && typeof renderShpBoardReport === 'function') return renderShpBoardReport(pend, done);
   if (tab === 'done') return renderShpBoardDone(list);
   if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No ' + ({ shp: 'Shopify', amz: 'Amazon', b2b: 'B2B', spy: 'SPY' }[shpbKind()]) + ' order is pending.'); return; }
   SHPB_FILLCOL = list.some(shpbIsQuilt);   // the Filler vendor column only when a quilt is on the list
@@ -439,8 +485,31 @@ function renderShpBoard() {
   const head = '<thead><tr><th class="frz" style="' + SHPB_PAD + 'text-align:left">Date</th><th style="' + SHPB_PAD + 'text-align:left">Order ID</th><th style="' + SHPB_PAD + 'text-align:left">Item</th>'
     + '<th class="num" style="' + SHPB_PAD + '">Pcs</th><th style="' + SHPB_PAD + 'text-align:left">Printer</th>'
     + ['Printer receive', 'Cut', 'Issued', 'Received', 'QC passed'].concat(SHPB_FILLCOL ? ['Filler', 'Qty', 'Rec'] : [], ['Press']).map(h => th(h, 'num')).join('') + '<th style="' + SHPB_PAD + 'text-align:left">Status · ready by</th></tr></thead>';
-  $('odTable').innerHTML = head + '<tbody>' + rows.slice(0, 300).map(shpbRow).join('') + '</tbody>'
-    + (rows.length > 300 ? '<tfoot><tr><td colspan="' + (SHPB_FILLCOL ? 14 : 11) + '" class="muted" style="padding:10px;text-align:left">Showing the first 300 of ' + nf(rows.length) + ' lines — search or filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
+  /* 100 AT A TIME (20 Nov, "order console bahut hang"): 300 rows were ~1.1 MB of table on every redraw. Show more adds 100. */
+  const cap = Math.max(SHPB_SHOW_STEP, SHPB.show || 0);
+  /* GROUP BY SKU: the SKU's lines one under another (the oldest SKU first), each SKU with a line of its own — total pieces, orders, the
+   * pieces waiting at the bucket picked. Every line keeps its own buttons: work is still entered against an order. */
+  let body;
+  if (SHPB.group) {
+    const g = new Map(); rows.forEach(r => { const k = obUC(r.sku); (g.get(k) || g.set(k, []).get(k)).push(r); });
+    const stg = SHPB_STAGES.find(x => x[0] === SHPB.stage), cols = SHPB_FILLCOL ? 14 : 11;
+    const groups = [...g.values()].sort((a, b) => b.length - a.length || shpbDateOf(a[0]).localeCompare(shpbDateOf(b[0])));
+    const flat = []; groups.forEach(ls => { flat.push({ head: ls }); ls.forEach(r => flat.push({ r })); });
+    let n = 0; const out = [];
+    for (const x of flat) {
+      if (x.r) { if (n >= cap) break; n++; out.push(shpbRow(x.r)); continue; }
+      if (n >= cap) break;
+      const ls = x.head, r0 = ls[0], pcs = ls.reduce((a, r) => a + (+r.qty || 0), 0), at = stg ? ls.reduce((a, r) => a + (+shpbStages([r])[stg[3]] || 0), 0) : 0;
+      out.push(`<tr><td colspan="${cols}" style="${SHPB_PAD}text-align:left;background:#f5f3ff;border-top:2px solid #ddd6fe">`
+        + `<b>${esc(r0.sku)}</b> · ${esc([r0.articleSubtype, r0.color, r0.size].filter(Boolean).join(' · '))}`
+        + ` — <b>${nf(pcs)} pcs</b> in ${nf(new Set(ls.map(r => r.orderNo)).size)} order${ls.length === 1 ? '' : 's'}`
+        + (stg ? ` · <b>${nf(at)}</b> waiting at ${esc(stg[1])}` : '') + `</td></tr>`);
+    }
+    body = out.join('');
+  } else body = rows.slice(0, cap).map(shpbRow).join('');
+  $('odTable').innerHTML = head + '<tbody>' + body + '</tbody>'
+    + (rows.length > cap ? '<tfoot><tr><td colspan="' + (SHPB_FILLCOL ? 14 : 11) + '" class="muted" style="padding:10px;text-align:left">Showing the first ' + nf(cap) + ' of ' + nf(rows.length) + ' lines '
+      + '<button type="button" class="ghost" data-shpb-more="1" style="margin:0 8px;padding:3px 12px">Show ' + nf(Math.min(SHPB_SHOW_STEP, rows.length - cap)) + ' more</button> or search / filter to narrow them. Export has all of them.</td></tr></tfoot>' : '');
 }
 
 /** COMPLETE: pressed lines waiting for shipping (Accept / Not received), then handed-over lines, newest day first. */
@@ -454,9 +523,8 @@ function renderShpBoardDone(list) {
   const common = r => { const s = shpbStages([r]), px = (SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {};
     const stk = shpbStockOf(r), pr = px.pcs ? `<b>${nf(Math.min(px.pcs, +r.qty || 0))}</b> <span class="muted" style="font-size:11px">${esc((px.men || []).join(', '))}${px.last ? ' · ' + esc(shpbDmy(px.last)) : ''}</span>` : '';
     return { s, press: pr + (stk ? `<div style="font-size:11px"><b>${nf(stk)}</b> from stock</div>` : '') || '<span class="muted">—</span>' }; };
-  const link = r => `<a href="#" data-ordj="${esc(r.orderNo)}" style="color:inherit;text-decoration:underline dotted;font-weight:700">${esc(String(r.shopOrderNo || r.orderNo).replace(/^#\s*/, ''))}</a>`;
   const wRow = r => { const { s, press } = common(r), k = shpbKey(r.orderNo, r.sku), ns = (SHPB.ship || {})[k], pd = ((SHPB.pressBy || {})[k] || {}).last || '';
-    return `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(pd || shpbDateOf(r)))}</td><td style="${SHPB_PAD}text-align:left">${link(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
+    return `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(pd || shpbDateOf(r)))}</td><td style="${SHPB_PAD}text-align:left">${shpbOrderLink(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}"><b>${nf(r.qty)}</b></td>`
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${press}</td><td class="num" style="${SHPB_PAD}">${nf(s.handD)}</td>`
       + `<td style="${SHPB_PAD}text-align:left;white-space:nowrap">${nf(s.handW)} to accept `
       + (ns && ns.state === 'notrecv' ? `<span class="pill pill-out" title="${esc((ns.by || '').split('@')[0] + ' · ' + (ns.note || ''))}">not received${ns.note ? ' · ' + esc(String(ns.note).slice(0, 30)) : ''}</span> ` : '')
@@ -464,7 +532,7 @@ function renderShpBoardDone(list) {
   let prev = '';
   const hRow = ({ r, at }) => { const day = ptIsoDate(at) || '', first = day !== prev, c = common(r); prev = day;
     return (first ? `<tr><td colspan="7" style="${SHPB_PAD}text-align:left;background:#eef2f7;font-weight:700;font-size:12px">${esc(shpbDmy(day) || 'no date')} — ${shpbIsShp() ? 'handed to shipping' : 'complete'}</td></tr>` : '')
-      + `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(day))}</td><td style="${SHPB_PAD}text-align:left">${link(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}">${nf(r.qty)}</td>`
+      + `<tr><td style="${SHPB_PAD}white-space:nowrap;font-size:12px">${esc(shpbDmy(day))}</td><td style="${SHPB_PAD}text-align:left">${shpbOrderLink(r)}</td>${shpbItem(r)}<td class="num" style="${SHPB_PAD}">${nf(r.qty)}</td>`
       + `<td style="${SHPB_PAD}text-align:left">${c.press}</td><td class="num" style="${SHPB_PAD}">${nf(Math.min(+r.qty || 0, r.handedAt ? +r.qty || 0 : c.s.handD))}</td>`
       + `<td style="${SHPB_PAD}text-align:left;font-size:12px">${!shpbIsShp() ? (r.open ? 'Pressed' : 'Complete') : r.handedAt ? 'Handed over' + (r.handedBy ? ' · ' + esc(String(r.handedBy).split('@')[0]) : '') : esc(typeof SHP_DONE_TXT === 'function' ? SHP_DONE_TXT(r.shopDoneWhy) : 'Closed')}</td></tr>`; };
   $('odTable').innerHTML = head + '<tbody>'
@@ -747,6 +815,22 @@ function shpbNotRecvOpen(key) {
  * it every step with what was done, by whom, and when — printer, printed cloth back, cut, issued to which karigar, received, QC, press,
  * shipping — and where the line is waiting now. Read from the same registers the cells read. */
 const shpbDay = v => { const m = String(v || '').match(/^(\d{4}-\d{2}-\d{2})/) || String(v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})/); return !m ? '' : (m.length === 2 ? shpbDmy(m[1]) : m[1] + '-' + m[2] + '-' + m[3]); };
+/* ONE PASS OVER EACH REGISTER, NOT ONE PER LINE (Ravi, 20 Nov: "order console bahut hang ho rha h"). shpbSteps runs for every line
+ * of the board (the late colour reads its last move), and each run filtered the whole cutting, Job Work and QC registers and every
+ * challan: switching to the AMZ board took 4.7 s, 3.4 s of it here. The records are now grouped once by order + SKU. The groups live
+ * for ONE draw (cleared at the next microtask, like rfdMemo): saves change these registers in place, so nothing older is trusted.
+ * Same records, same order as the filters gave. */
+let SHPB_IX = {}, SHPB_IX_ON = false;
+function shpbIxOf(name, src, keyOf) {
+  if (!SHPB_IX_ON) { SHPB_IX_ON = true; Promise.resolve().then(() => { SHPB_IX = {}; SHPB_IX_ON = false; }); }
+  const c = SHPB_IX[name];
+  if (c && c.src === src) return c.map;
+  const map = new Map();
+  (src || []).forEach(x => { if (!x) return; const ks = keyOf(x); (Array.isArray(ks) ? ks : [ks]).forEach(k => { if (k == null) return; const a = map.get(k); if (a) a.push(x); else map.set(k, [x]); }); });
+  SHPB_IX[name] = { src, map };
+  return map;
+}
+const SHPB_NOTHING = Object.freeze([]);
 function shpbSteps(r) {
   const s = shpbStages([r]), qf = +r.qty || 0, q = qf - s.stk, key = shpbKey(r.orderNo, r.sku), plan = shpbPlanOf(r), fl = shpbFlowOf(r), out = [], rdy = shpbReadyOf(r), stt = shpbStatusOf(r);
   const st = (a, w, d, qq) => (!a && !d) ? 'future' : (w === 0 && d >= (qq == null ? q : qq) ? 'done' : (d > 0 ? 'part' : 'active'));
@@ -755,21 +839,27 @@ function shpbSteps(r) {
   if (s.stk) add('From stock', 'done', nf(s.stk) + ' of ' + nf(qf) + ' completed from ready stock in the India store, handed to shipping', shpbDay((SHPB.ready[key] || {}).at));
   add('PPC plan', plan ? 'done' : 'na', plan ? 'route ' + (plan.route || '') + (shpbPrinterOf(r) ? ' · printer ' + shpbPrinterOf(r) : '') + (plan.dates && plan.dates.ready ? ' · ready ' + shpbDmy(plan.dates.ready) : '') : 'no plan (an older order)', plan ? shpbDay(plan.at) + (plan.by ? ' · ' + String(plan.by).split('@')[0] : '') : '');
   if (fl) {
-    const chs = Object.values((typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || {}).filter(c => c && !c.cancelled && (c.lines || []).some(l => l.key === key));
+    const chSrc = (typeof FLOW !== 'undefined' && FLOW && FLOW.ch) || null;
+    const chIx = chSrc ? (SHPB_IX.ch && SHPB_IX.ch.raw === chSrc ? SHPB_IX.ch.map
+      : (shpbIxOf('ch', Object.values(chSrc), c => (c.cancelled ? null : [...new Set((c.lines || []).map(l => l && l.key).filter(Boolean))])), SHPB_IX.ch.raw = chSrc, SHPB_IX.ch.map)) : null;
+    const chs = (chIx && chIx.get(key)) || SHPB_NOTHING;
     add('Printer receive', st(s.prcA, s.prcW, s.prcD), nf(s.prcD) + ' of ' + nf(q) + ' back from the printer' + (chs.length ? ' · ' + chs.map(c => c.no).join(', ') : ' · no challan yet'),
       chs.map(c => { const rc = Object.values(c.receipts || {}).filter(x => x && x.items && x.items[key]); return rc.length ? shpbDay(rc[rc.length - 1].date) : ''; }).filter(Boolean).join(', '));
   }
   if (r.cutReq) {
-    const cs = (PT.cut || []).filter(c => c && obUC(c.orderNo) === r.orderNo && obUC(c.sku) === r.sku);
+    const cs = shpbIxOf('cut', PT.cut, c => obUC(c.orderNo) + '|' + obUC(c.sku)).get(r.orderNo + '|' + r.sku) || SHPB_NOTHING;
     add('Cut', st(s.cutA, s.cutW, s.cutD), nf(s.cutD) + ' of ' + nf(q) + ' cut' + (cs.length ? ' · ' + cs.map(c => nf(ptNum(c.pieces))).join(' + ') : ''), cs.length ? shpbDay(cs[cs.length - 1].cutDate) : '');
   }
-  const bs = (PT.base || []).filter(b => b && obUC(b.orderNo) === r.orderNo && obUC(b.sku) === r.sku);
+  const bs = shpbIxOf('base', PT.base, b => obUC(b.orderNo) + '|' + obUC(b.sku)).get(r.orderNo + '|' + r.sku) || SHPB_NOTHING;
   add('Issued', st(s.issA, s.issW, s.issD), nf(s.issD) + ' of ' + nf(q) + ' issued' + (bs.length ? ' · ' + bs.map(b => b.empName + ' ' + nf(ptNum(b.issuePieces))).join(', ') : ''), bs.length ? shpbDay(bs[bs.length - 1].issueDate) : '');
   add('Received', st(s.recA, s.recW, s.recD), nf(s.recD) + ' of ' + nf(q) + ' back from karigars' + (bs.some(b => ptNum(b.receivedPieces)) ? ' · ' + bs.filter(b => ptNum(b.receivedPieces)).map(b => b.empName + ' ' + nf(ptNum(b.receivedPieces))).join(', ') : ''),
     bs.filter(b => b.receivingDate).length ? shpbDay(bs.filter(b => b.receivingDate).pop().receivingDate) : '');
-  const qcs = ((typeof QC !== 'undefined' && QC.checks) || []).filter(c => c && obUC(c.orderNo) === r.orderNo && qcNorm(c.sku) === r.sku && ptNum(c.ok) > 0);
+  const qcs = (typeof QC !== 'undefined' && QC.checks ? shpbIxOf('qc', QC.checks, c => (ptNum(c.ok) > 0 ? obUC(c.orderNo) + '|' + qcNorm(c.sku) : null)).get(r.orderNo + '|' + r.sku) : null) || SHPB_NOTHING;
   add('QC passed', s.qcW ? (s.qcD ? 'part' : (s.qcA ? 'active' : 'future')) : (s.qcA ? 'done' : 'future'), nf(s.qcD) + ' of ' + nf(q) + ' passed' + (qcs.length ? ' · by ' + [...new Set(qcs.map(c => c.checkedBy || String(c.addedBy || '').split('@')[0]))].join(', ') : ''), qcs.length ? shpbDay(qcs[qcs.length - 1].date) : '');
-  const px = (SHPB.pressBy || {})[key] || {}, pe = Object.values(SHPB.press || {}).filter(e => e && shpbKey(e.orderNo, e.sku) === key);
+  const pxSrc = SHPB.press || null;
+  const pxIx = pxSrc ? (SHPB_IX.press && SHPB_IX.press.raw === pxSrc ? SHPB_IX.press.map
+    : (shpbIxOf('press', Object.values(pxSrc), e => shpbKey(e.orderNo, e.sku)), SHPB_IX.press.raw = pxSrc, SHPB_IX.press.map)) : null;
+  const px = (SHPB.pressBy || {})[key] || {}, pe = (pxIx && pxIx.get(key)) || SHPB_NOTHING;
   if (shpbIsQuilt(r)) { const fz = shpbFillOf(r) || {}, fi = Object.values(fz.iss || {}), fr = Object.values(fz.rec || {}), lastF = fr.concat(fi).map(x => x.date).sort().pop();
     add('Filling', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' back filled' + (fz.name ? ' · ' + fz.name : '') + ' · ' + nf(shpbFillSum(fz, 'iss')) + ' issued', lastF ? shpbDmy(lastF) : ''); }
   else add('Press', st(s.prsA, s.prsW, s.prsD), nf(s.prsD) + ' of ' + nf(q) + ' pressed' + (pe.length ? ' · ' + pe.map(e => e.pressman + ' ' + nf(e.pieces)).join(', ') : ''), px.last ? shpbDmy(px.last) : '');
@@ -797,7 +887,12 @@ function shpbJourneyOpen(orderNo) {
 }
 
 if (SHPB_ON && $('odView') && $('odView').insertAdjacentHTML) $('odView').insertAdjacentHTML('beforeend', Object.entries(SHPB_KINDS).map(([v, k]) => `<option value="${v}">${k[1]}</option>`).join(''));
+const SHPB_SHOW_STEP = 100;
 if ($('odTable') && $('odTable').addEventListener) {
+  $('odTable').addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('[data-shpb-more]'); if (!b) return;
+    SHPB.show = Math.max(SHPB_SHOW_STEP, SHPB.show || 0) + SHPB_SHOW_STEP; renderShpBoard();
+  });
   $('odTable').addEventListener('click', e => {
     if (typeof ordView !== 'function' || !shpbIsBoard(ordView())) return;
     const oj = e.target.closest && e.target.closest('[data-ordj]'); if (oj) { e.preventDefault(); e.stopPropagation(); shpbJourneyOpen(oj.getAttribute('data-ordj')); }
@@ -825,6 +920,9 @@ if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('c
 });
 if ($('odKpis') && $('odKpis').addEventListener) $('odKpis').addEventListener('click', e => {
   if (!shpbIsBoard(ordView())) return;
+  if (e.target.closest && e.target.closest('[data-shpb-report]')) { SHPB.report = !SHPB.report; renderShpBoard(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-group]')) { SHPB.group = !SHPB.group; SHPB.report = false; try { localStorage.setItem('shpbGroup', SHPB.group ? '1' : '0'); } catch (x) {} renderShpBoard(); return; }
+  if (e.target.closest && e.target.closest('[data-shpb-tab],[data-shpb-stage],[data-shpb-late]')) SHPB.report = false;   // any other bucket leaves the report
   const t = e.target.closest && e.target.closest('[data-shpb-tab]'); if (t) { SHPB.tab = t.dataset.shpbTab; SHPB.stage = ''; renderShpBoard(); return; }
   if (e.target.closest && e.target.closest('[data-shpb-xlout]')) {
     const keys = new Set(shpbToPlan(shpbView().pend).map(shpbPickKey));

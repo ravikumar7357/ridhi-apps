@@ -55,7 +55,7 @@ const flowEmbOpts = cur => flowEmbVendors().map(v => `<option value="${esc(v.cod
 /** The next number for a month: EMB-YYYYMM-001 (a test order's: TEMB-…), after every embroidery challan that month. */
 function flowEmbNo(date, test, taken) {
   const pre = (test ? 'TEMB-' : 'EMB-') + String(date || dToday()).slice(0, 7).replace('-', '') + '-';
-  const used = Object.keys(FLOW.emb || {}).concat(taken || []).filter(k => k.startsWith(pre)).map(k => +k.slice(-3) || 0);
+  const used = Object.keys(FLOW.emb || {}).concat(taken || [], typeof FLOW_CH_SEEN !== 'undefined' ? FLOW_CH_SEEN : []).filter(k => k.startsWith(pre)).map(k => +k.slice(-3) || 0);
   return pre + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
 }
 
@@ -117,6 +117,7 @@ function flowEmbSendOpen(orderNo) {
       for (let k = 0, taken = []; ; k++) {
         let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
         if (!er) break;
+        if (k === 0) await flowChSeenFresh();   // the number was taken: read the numbers the server holds (18 Nov)
         if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
         taken.push(no); no = flowEmbNo(date, isTest, taken); ch.no = no;
       }

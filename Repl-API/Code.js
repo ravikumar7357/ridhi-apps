@@ -4638,7 +4638,17 @@ function syncSalesAnalysis_(pfx, brandKey, label) {
  *   ?repl=primeTest                                                  → posts one message now
  *   ?repl=primeStop                                                  → removes the hourly trigger
  * The hourly post runs only on the event days in PRIME_DAYS; after the sale it does nothing until it is stopped. */
-var PRIME_DAYS = { '2026-10-06': { ly: '2025-10-07', label: 'Day 1' }, '2026-10-07': { ly: '2025-10-08', label: 'Day 2' } };
+/* BFCM 2026 (Ravi, 19 Nov: "mene ye link sale comparasion ke liye banai h thi abhi mujhe is link ko BFCM sale ke comparasion ke liye banana h").
+ * The same job, re-pointed: every day of the window is set against the same weekday a year back (364 days), so Black Friday meets
+ * Black Friday. Window = a week before the sale, the sale (19–30 Nov, like Amazon's Black Friday Week 20 Nov – 1 Dec 2025), two days after. */
+var PRIME_EV = { name: 'BFCM', from26: '2026-11-12', saleFrom: '2026-11-19', saleTo: '2026-11-30', to26: '2026-12-02', stopAfter: '2026-12-03',
+  baseFrom: '2026-11-09', baseTo: '2026-11-14', marks: { '2026-11-26': 'Thanksgiving', '2026-11-27': 'Black Friday', '2026-11-30': 'Cyber Monday' } };
+function primeDayPlus_(day, n) { return Utilities.formatDate(new Date(new Date(day + 'T12:00:00Z').getTime() + n * 864e5), 'UTC', 'yyyy-MM-dd'); }
+var PRIME_DAYS = (function () {
+  var o = {}, n = 1;
+  for (var d = PRIME_EV.saleFrom; d <= PRIME_EV.saleTo; d = primeDayPlus_(d, 1)) o[d] = { ly: primeDayPlus_(d, -364), label: PRIME_EV.marks[d] || ('Day ' + n), n: n++ };
+  return o;
+})();
 var PRIME_TZ = 'America/Los_Angeles';
 
 function orderMetrics_(brand, startIso, endIso, gran) {
@@ -4742,26 +4752,31 @@ function primeTest_() {
  * Drive connector, so nothing depends on anybody's computer being on. The same run posts to Teams when a webhook is stored. */
 function primeBuildData_() {
   var nowIso = new Date().toISOString();
-  var day = Utilities.formatDate(new Date(), PRIME_TZ, 'yyyy-MM-dd');
+  var day = Utilities.formatDate(new Date(), PRIME_TZ, 'yyyy-MM-dd'), lyDay = primeDayPlus_(day, -364);
   var brands = {};
   ['SP', 'CPC'].forEach(function (b) {
     var x = {};
+    /* ONE BRAND FAILING DOES NOT STOP THE OTHER (19 Nov: CPC's Amazon login said invalid_client) — that brand comes empty, with its error */
+    try { orderMetrics_(b, primeIso_(day, 0), primeIso_(day, 1), 'Hour'); } catch (e) { brands[b] = { now: [], ly: [], base: [], d25: [], d26: [], err: String(e.message || e).slice(0, 200) }; return; }
     try { x.now = orderMetrics_(b, primeIso_(day, 0), nowIso, 'Hour'); } catch (e) { x.now = []; x.err = String(e.message || e).slice(0, 200); }
-    var cache = CacheService.getScriptCache(), ck = 'prime_static_v1_' + b, hit = cache.get(ck);
+    /* last year's same weekday, the normal week and last year's days do not change: asked once per day (6 h cache) */
+    var cache = CacheService.getScriptCache(), ck = 'bfcm_static_v1_' + b + '_' + day, hit = cache.get(ck);
     var st = hit ? JSON.parse(hit) : null;
     if (!st) {
       st = {
-        ly: orderMetrics_(b, '2025-10-07T00:00:00-07:00', '2025-10-09T00:00:00-07:00', 'Hour'),
-        base: orderMetrics_(b, '2026-09-29T00:00:00-07:00', '2026-10-04T00:00:00-07:00', 'Hour'),
-        d25: orderMetrics_(b, '2025-09-30T00:00:00-07:00', '2025-10-13T00:00:00-07:00', 'Day'),
+        ly: orderMetrics_(b, primeIso_(lyDay, 0), primeIso_(primeDayPlus_(lyDay, 1), 0), 'Hour'),
+        base: orderMetrics_(b, primeIso_(PRIME_EV.baseFrom, 0), primeIso_(PRIME_EV.baseTo, 0), 'Hour'),
+        d25: orderMetrics_(b, primeIso_(primeDayPlus_(PRIME_EV.from26, -364), 0), primeIso_(primeDayPlus_(PRIME_EV.to26, -363), 0), 'Day'),
       };
-      try { cache.put(ck, JSON.stringify(st), 6 * 3600); } catch (e) { /* over 100 KB: just asked again next hour */ }
+      try { cache.put(ck, JSON.stringify(st), 6 * 3600); } catch (e) { /* over 100 KB: just asked again next time */ }
     }
     x.ly = st.ly; x.base = st.base; x.d25 = st.d25;
-    try { x.d26 = orderMetrics_(b, '2026-09-29T00:00:00-07:00', nowIso, 'Day'); } catch (e) { x.d26 = []; }
+    try { x.d26 = orderMetrics_(b, primeIso_(PRIME_EV.from26, 0), nowIso, 'Day'); } catch (e) { x.d26 = []; }
     brands[b] = x;
   });
-  return { asOf: nowIso, brands: brands };
+  var ev = {}; for (var k in PRIME_EV) ev[k] = PRIME_EV[k];
+  ev.from25 = primeDayPlus_(PRIME_EV.from26, -364); ev.today = day; ev.lyDay = lyDay;
+  return { asOf: nowIso, ev: ev, brands: brands };
 }
 function primeSheet_() {
   var id = prop_('PRIME_SHEET_ID');
@@ -4784,7 +4799,7 @@ function primeWrite_(data) {
 /** The hourly trigger: the dashboard's data, then the Teams message. Stops itself once the sale is two days gone. */
 function primeHourly() {
   var day = Utilities.formatDate(new Date(), PRIME_TZ, 'yyyy-MM-dd');
-  if (day > '2026-10-09') { primeStop_(); return; }
+  if (day > PRIME_EV.stopAfter) { primeStop_(); return; }
   try { primeWrite_(primeBuildData_()); } catch (e) { console.error('prime data: ' + (e.message || e)); }
   /* Data every 15 minutes (Ravi, 6 Oct); Teams once an hour — the first run in each Pacific hour posts. */
   var hk = Utilities.formatDate(new Date(), PRIME_TZ, 'yyyy-MM-dd HH');

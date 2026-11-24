@@ -74,9 +74,11 @@ async function ensureHr() {
       /* An employee-list-only account needs the list, and extra hours to count where a name is used.
        * Rates, freezes and advances are not read for it at all. */
       const only = hrEmpOnly(), skip = node => (only ? Promise.resolve(null) : ptGet(node));
-      const [e, r, pr, h, f, pf, ad] = await Promise.all([
+      const [e, r, pr, h, f, pf, ad, jc] = await Promise.all([
         ptGet('pt_empList'), skip('pt_rateList'), skip('pt_printerRates'), ptGet('pt_extraHours'), skip('pt_ehFreezes'),
-        skip('pt_payoutFreezes'), skip('pt_advances')]);
+        skip('pt_payoutFreezes'), skip('pt_advances'), only ? Promise.resolve(null) : ptGet('pt_jwCorrReqs').catch(() => null)]);
+      /* the pay put right by closed correction requests (production/job-work-corrections.js, jwCorrClose) */
+      HR.jwAdj = Object.values(jc || {}).filter(q => q && q.status === 'closed' && q.debit && q.debit.amount);
       /* What the DATABASE held, before any filtering — a save is compared against this, and it has
        * to be what was actually stored rather than what we chose to keep of it. */
       HR_SEEN = { pt_empList: hrCanon(e), pt_rateList: hrCanon(r), pt_printerRates: hrCanon(pr),

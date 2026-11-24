@@ -130,6 +130,8 @@ onAuthStateChanged(auth, async user => {
   if (ME.admin) (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).forEach(k => { ME[k] = true; });
   if (ME.admin) { ME.tabs = REPL_TABS.slice(); ME.projEdit = true; ME.prodEdit = true; ME.rateApprove = true; ME.shopAssign = true; ME.b2bAssign = true;
     ME.accEntry = true; ME.accEdit = true; ME.vlogAccept = true; ME.soApprove = true; ME.mdbEdit = true; ME.attendMark = true; ME.vreqApprove = true; ME.rfdApprove = true; ME.rfdSend = true; ME.fgiEdit = true; ME.fgiEntry = true; ME.empEdit = true; ME.hrEmpOnly = false; }
+  /* COLOUR TREND (22 Nov): part of Replenishment — whoever has Replenishment has it; it reads nothing more. */
+  if (ME.tabs.includes('repl') && !ME.tabs.includes('ctrend')) ME.tabs = ME.tabs.concat('ctrend');
   /* THE ACCESS PAGE (4 Nov): admins, and Access viewers, see it; it is not a box anybody is given */
   if ((ME.admin || ME.accessView) && !ME.tabs.includes('access')) ME.tabs = ME.tabs.concat('access');
   /* FROM QC — TO ACCEPT (Ravi, 27 Oct: "From QC — to accept - access me jodo"): its own box in Access, for whoever accepts what
@@ -145,11 +147,16 @@ onAuthStateChanged(auth, async user => {
   /* SHIPPING TO ACCEPT (Ravi, 30 Oct): its own box in Access, for the shipping team member who accepts what production pressed and does
    * nothing else in the Order Console. A grant, not a screen: on its own it opens the Order Console on the SHP board's "Shipping to
    * accept" list (ME.shpAccOnly, orders/shp-board.js); with the Order Console ticked as well it adds nothing. */
-  ME.shpAccOnly = false;
+  ME.shpAccOnly = false; ME.shpBoardOnly = false;
   if (ME.tabs.includes('shpacc')) {
     const only = !ME.admin && !ME.tabs.includes('ord');
     ME.tabs = ME.tabs.filter(t => t !== 'shpacc');
-    if (only) { ME.tabs = ME.tabs.concat('ord'); ME.shpAccOnly = true; }
+    /* THE SHP BOARD ALONE (Ravi, 18 Nov: "shp board show nhi ho rha h bas replenish show ho rha h but me replenish access dena nahi
+     * chahta"). The same box, with any of the board's buttons (Cut / Issue / Receive / QC / Press / Filler) ticked as well, opens the
+     * whole SHP board — every stage — and nothing else of the Order Console (ME.shpBoardOnly). Without a board button it stays the
+     * "Shipping to accept" list. The data it reads is what that box already reads, so no database rule changes. */
+    const bd = (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).some(k => ME[k]);
+    if (only) { ME.tabs = ME.tabs.concat('ord'); if (bd) ME.shpBoardOnly = true; else ME.shpAccOnly = true; }
   }
 
   /* PRINTER'S PORTAL, VIEW ONLY (Ravi, 30 Oct): its own box in Access. It adds the portal's tab so the screen can open, and ME.vpView, which
@@ -325,6 +332,10 @@ onAuthStateChanged(auth, async user => {
   if (linkPrinter && typeof flowVpLinkPrepare === 'function') flowVpLinkPrepare(linkPrinter);
   showTab(navHashTab() || ME.tabs[0]);
   if (linkOrder) ordOpenOrder(linkOrder);
+  /* A REPORT LINK OPENS ITS SCREEN, NOT MY WORK TODAY (18 Nov: the printer delay mail's link "still the same"): My work
+   * today opens on top at sign-in unless the person already went somewhere (core/friendly.js FR.touched) — a link that
+   * names an order or a printer has. */
+  if ((linkOrder || linkPrinter) && typeof FR !== 'undefined') FR.touched = true;
   /* Somebody who approves requests is told how many are waiting without having to open the tab. */
   /* With the pending-badges switch on (core/pending-badges.js) the four request counts below come from asking the database
    * for the pending rows only; the screens' own lists are not filled here and load in full when each screen is opened.

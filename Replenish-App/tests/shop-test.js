@@ -180,6 +180,7 @@ function ordLines() {
 const dToday = () => new Date().toISOString().slice(0, 10);   // the page's own helper, outside this slice
 const ctx = { AUDIT_OFF: true, BASE_SPLIT_OFF: true,
   $, esc, nf, csvCell, parseCsv, colIdx, doc, getDoc, setDoc, serverTimestamp, db: dbx, dToday,
+  fsSetDoc: (ref, data, opts) => setDoc(ref, data, opts),
   PRAPI, API, prGet, apiGet, REPL, ME, INDIA_LOADED, INDIA_ROWS, confirm, alert,
   indiaFromFg,
   MS, msInit, msFill, msVals, msHas, msSet, msClearAll, msPaint, msToggle, msChanged,

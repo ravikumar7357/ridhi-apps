@@ -10,7 +10,7 @@
 // Every tab by key. Button id = 'tab' + capId(key), pane id = 'pane' + capId(key). The order matters only
 // for which tab opens first: the first one the account is allowed.
 // 'dash' (20 Nov 2026) is the Dashboard (core/dashboard.js): first, so it is the screen that opens after sign-in.
-const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
+const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'yoy', 'profit', 'sa', 'plaudit', 'ncheck', 'shop', 'adj', 'kw', 'ba', 'age', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'ngram', 'plc', 'ppch', 'deals', 'tiktok', 'carousel', 'opt', 'img',
   'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg', 'create'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
@@ -19,7 +19,7 @@ const capId = t => t[0].toUpperCase() + t.slice(1);
 const TAB_TITLE = { dash: 'Dashboard', link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
   age: 'Inventory Age', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
-  trends: 'Overview', st: 'Search Term Analysis', ngram: 'N-Gram Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard',
+  trends: 'Overview', st: 'Search Term Analysis', ngram: 'N-Gram Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard', yoy: 'Live vs Last Year',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', ncheck: 'Numbers Check', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History',
@@ -37,7 +37,8 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ngram: 'st', ncheck: 'sales' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js); Numbers Check: with the Sales Dashboard (sales/sales-check.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', yoy: ['weekly', 'sales'], ngram: 'st', ncheck: 'sales' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js); Numbers Check: with the Sales Dashboard (sales/sales-check.js)
+// Live vs Last Year (Ravi, 19 Nov: "everyone with PPC access gets it"): with PPC & Organic, and still with Sales Dashboard; a list means any one of those tabs brings it.
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -211,6 +212,7 @@ function showTab(which) {
   if (which === 'ppch') ensurePpch();
   if (which === 'deals') ensureDeals();
   if (which === 'sales') ensureSales();
+  if (which === 'yoy') ensureYoy();
   if (which === 'profit') ensureProfit();
   if (which === 'sa') ensureSa();
   if (which === 'plaudit') ensurePlaudit();

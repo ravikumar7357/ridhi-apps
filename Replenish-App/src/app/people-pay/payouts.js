@@ -50,10 +50,10 @@ function payRows(empType, period, yr, mo) {
   if (period === 3) {
     const merged = {};
     [1, 2].forEach(p => payRows(empType, p, yr, mo).forEach(x => {
-      const key = empType === PAY_TYPES.cc
+      const key = (x.adj ? 'adj|' + x.adj + '|' : '') + (empType === PAY_TYPES.cc
         ? `${x.empName}|${x.articleType}|${x.subtype}|${x.size}`
-        : `${x.articleType}|${x.subtype}|${x.size}`;
-      if (!merged[key]) merged[key] = { empName: x.empName, articleType: x.articleType, subtype: x.subtype, size: x.size, recvPcs: 0, amount: 0, rate: x.rate, _mixed: false };
+        : `${x.articleType}|${x.subtype}|${x.size}`);
+      if (!merged[key]) merged[key] = { empName: x.empName, articleType: x.articleType, subtype: x.subtype, size: x.size, recvPcs: 0, amount: 0, rate: x.rate, _mixed: false, ...(x.adj ? { adj: x.adj, note: x.note } : {}) };
       merged[key].recvPcs += x.recvPcs;
       /* The AMOUNTS are added, not re-multiplied. Re-pricing the merged pieces at one rate threw the
        * frozen half's figure away and paid it at today's rate — which defeats the whole point of
@@ -86,7 +86,22 @@ function payRows(empType, period, yr, mo) {
     if (!g[key]) g[key] = { empName: r.empName, articleType: r.articleType, subtype: r.articleSubtype, size: r.size, recvPcs: 0, rate };
     g[key].recvPcs += ptNum(r.receivedPieces);
   });
-  return Object.values(g).map(x => Object.assign({}, x, { amount: x.recvPcs * x.rate }));
+  return Object.values(g).map(x => Object.assign({}, x, { amount: x.recvPcs * x.rate })).concat(payAdjRows(empType, yr, mo, ds, de));
+}
+
+/* PAY PUT RIGHT BY A CLOSED CORRECTION (19 Nov): a line of its own in the fortnight it was closed — minus pieces, minus money — saying
+ * why, so the bill shows "paid more earlier" rather than a smaller number nobody can explain. A frozen fortnight keeps it like any line. */
+function payAdjRows(empType, yr, mo, ds, de) {
+  return (HR.jwAdj || []).filter(q => q.debit.empType === empType).filter(q => {
+    const d = new Date(q.closedAt || q.answeredAt || 0);
+    return d.getFullYear() === yr && d.getMonth() + 1 === mo && d.getDate() >= ds && d.getDate() <= de;
+  }).map(q => {
+    const x = q.debit, minus = x.amount < 0;
+    return { adj: q.id, empName: x.empName, articleType: minus ? 'Debit — paid more earlier' : 'Credit — paid less earlier',
+      subtype: `${x.sku} · received ${x.oldRecv} → ${x.newRecv}`, size: x.size, recvPcs: x.pcs, rate: x.rate, amount: x.amount,
+      note: `${x.sku} (${x.subtype || x.articleType} ${x.size || ''}) was entered as ${x.oldRecv} received but ${x.newRecv} was right — `
+        + (minus ? `paid ${Math.abs(x.pcs)} piece(s) more earlier, so ${rs(Math.abs(x.amount))} is taken off.` : `paid ${x.pcs} piece(s) less earlier, so ${rs(x.amount)} is added.`) };
+  });
 }
 
 /** Advances recorded for one person in one month (YYYY-MM). */
@@ -158,9 +173,9 @@ function renderPayout(kind) {
     : ['Article', 'Subtype', 'Size', 'Pieces', 'Rate', 'Amount'];
   const numFrom = kind === 'cc' ? 4 : 3;
   const head = '<thead><tr>' + cols.map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= numFrom ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
-  const body = rows.map(r => `<tr data-pay-group="${encodeURIComponent(JSON.stringify({
+  const body = rows.map(r => (r.adj ? `<tr title="${esc(r.note || '')}" style="background:#FFF4E5">` : `<tr data-pay-group="${encodeURIComponent(JSON.stringify({
       empName: r.empName || '', articleType: r.articleType || '', subtype: r.subtype || '', size: r.size || '' }))}"`
-    + ' style="cursor:pointer" title="Click to see which entries make up this line, and which were left out.">'
+    + ' style="cursor:pointer" title="Click to see which entries make up this line, and which were left out.">')
     + (kind === 'cc' ? `<td class="frz" style="text-align:left">${esc(r.empName)}</td><td>${esc(r.articleType)}</td>`
                      : `<td class="frz" style="text-align:left">${esc(r.articleType)}</td>`)
     + `<td>${esc(r.subtype)}</td><td>${esc(r.size)}</td>`

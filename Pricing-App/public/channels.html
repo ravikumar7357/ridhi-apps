@@ -1,0 +1,339 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Sales by Channel</title>
+<style>
+/* Sales by Channel — a standalone page beside live.html (Ravi, 2026-11-20: "make it more pleasable, formal and simple; Shopify in
+   Shopify colours, Amazon in Amazon colours; in Shopify compare last year as 0, the store opened in January").
+   It reads the same published snapshot as live.html (Pricing-API/SalesLive.gs liveSnapshotJob, every 15 minutes) and changes
+   nothing anywhere: no sign-in, read-only. Every day is Amazon.com's day, Pacific time; Shopify is counted on the same day. */
+:root {
+  --bg: #F4F5F7; --panel: #FFFFFF; --ink: #111827; --ink2: #4B5563; --muted: #6B7280; --rule: #E5E7EB; --soft: #F9FAFB;
+  --amz: #FF9900; --amz-ink: #B45309; --amz-bg: #FFF7EB; --amz-navy: #232F3E;
+  --shop: #5E8E3E; --shop-lt: #95BF47; --shop-ink: #3F6B26; --shop-bg: #F3F8EE;
+  --all: #1F3A5F; --all-bg: #EEF2F7;
+  --up: #15803D; --up-bg: #E8F5EC; --dn: #B91C1C; --dn-bg: #FDECEC; --ly: #9CA3AF;
+  --f: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0F1217; --panel: #171B22; --ink: #F3F4F6; --ink2: #C3C8D0; --muted: #8B93A0; --rule: #2A303A; --soft: #1C212A;
+  --amz-ink: #FFB547; --amz-bg: #2A2014; --shop-ink: #A9D17A; --shop-bg: #1A2416; --all: #9DB6D9; --all-bg: #18202B;
+  --up: #4ADE80; --up-bg: #12301E; --dn: #F87171; --dn-bg: #3A1717; --ly: #6B7280; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0F1217; --panel: #171B22; --ink: #F3F4F6; --ink2: #C3C8D0; --muted: #8B93A0; --rule: #2A303A; --soft: #1C212A;
+  --amz-ink: #FFB547; --amz-bg: #2A2014; --shop-ink: #A9D17A; --shop-bg: #1A2416; --all: #9DB6D9; --all-bg: #18202B;
+  --up: #4ADE80; --up-bg: #12301E; --dn: #F87171; --dn-bg: #3A1717; --ly: #6B7280; color-scheme: dark }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1320px; margin: 0 auto; padding: 24px 16px 56px; display: flex; flex-direction: column; gap: 20px; }
+
+/* ---- top bar ---- */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+.top h1 { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 750; letter-spacing: -.01em; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.tools { margin-left: auto; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.seg { display: inline-flex; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 3px; }
+.seg button { font: 600 13px var(--f); color: var(--ink2); background: none; border: 0; border-radius: 7px; padding: 7px 12px; cursor: pointer; min-height: 34px; display: inline-flex; align-items: center; gap: 7px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.seg button:focus-visible, .btn:focus-visible { outline: 2px solid var(--all); outline-offset: 2px; }
+.seg i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.asof { font-size: 12.5px; color: var(--ink2); }
+.btn { font: 600 13px var(--f); color: #fff; background: var(--all); border: 0; border-radius: 10px; padding: 8px 16px; cursor: pointer; min-height: 36px; }
+.btn[disabled] { opacity: .6; cursor: progress; }
+.note { border: 1px solid var(--rule); background: var(--panel); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; color: var(--ink2); }
+
+/* ---- sections ---- */
+.ch { background: var(--panel); border: 1px solid var(--rule); border-radius: 16px; overflow: hidden; }
+.ch-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 14px 20px; border-bottom: 1px solid var(--rule); background: var(--tint); box-shadow: inset 4px 0 0 var(--c); }
+.ch-head h2 { margin: 0; font-size: 18px; font-weight: 750; letter-spacing: -.005em; color: var(--cink); }
+.ch-head .tag { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--cink); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); border-radius: 999px; padding: 2px 9px; }
+.ch-head .src { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+.ch-body { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+.ch-amz { --c: var(--amz); --tint: var(--amz-bg); --cink: var(--amz-ink); }
+.ch-shop { --c: var(--shop); --tint: var(--shop-bg); --cink: var(--shop-ink); }
+.ch-all { --c: var(--all); --tint: var(--all-bg); --cink: var(--all); }
+h3.grp { margin: 2px 0 -4px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+/* ---- number cards: they stretch to fill the row, so a row never ends in a gap ---- */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.kpi { border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px; background: var(--soft); min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.kpi .k { font-size: 12.5px; font-weight: 600; color: var(--ink2); display: flex; align-items: center; gap: 8px; }
+.kpi .v { font-size: 26px; line-height: 1.15; font-weight: 750; letter-spacing: -.015em; font-variant-numeric: tabular-nums; }
+.kpi .s { font-size: 12.5px; color: var(--muted); }
+.kpi.lead { background: var(--panel); border-color: color-mix(in srgb, var(--c) 55%, var(--rule)); box-shadow: inset 0 3px 0 var(--c); }
+.kpi.lead .v { font-size: 30px; }
+.pill { display: inline-block; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 1px 8px; font-variant-numeric: tabular-nums; }
+.pill.up { color: var(--up); background: var(--up-bg); } .pill.dn { color: var(--dn); background: var(--dn-bg); } .pill.nil { color: var(--muted); background: var(--rule); }
+.v.up { color: var(--up); } .v.dn { color: var(--dn); }
+
+/* ---- overview: the total, and how it splits ---- */
+.total { display: grid; grid-template-columns: minmax(240px, 1.2fr) 2fr; gap: 16px; align-items: stretch; }
+.total .big { font-size: 40px; font-weight: 800; letter-spacing: -.02em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.split { display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+.bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; background: var(--rule); }
+.bar span { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink2); }
+.legend b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+/* ---- by-hour chart ---- */
+.chart svg { display: block; width: 100%; height: auto; }
+.chart text { fill: var(--muted); font: 11px var(--f); }
+.chart .g { stroke: var(--rule); }
+.ckey { display: flex; gap: 16px; font-size: 12.5px; color: var(--ink2); }
+.ckey i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+details > summary { cursor: pointer; font-size: 13px; color: var(--ink2); }
+details > summary:focus-visible { outline: 2px solid var(--all); outline-offset: 2px; }
+
+/* ---- the channel toggle hides sections; nothing is worked out again ---- */
+body[data-view="amz"] [data-chan="shop"], body[data-view="amz"] [data-chan="all"],
+body[data-view="shop"] [data-chan="amz"], body[data-view="shop"] [data-chan="all"] { display: none; }
+.foot { font-size: 12.5px; color: var(--muted); }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--bg); font: 12px/1.4 var(--f); padding: 6px 9px; border-radius: 6px; z-index: 5; }
+@media (max-width: 760px) {
+  .tools { margin-left: 0; } .total { grid-template-columns: 1fr; } .total .big { font-size: 32px; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .kpi .v { font-size: 22px; } .kpi.lead .v { font-size: 24px; }
+  .ch-head .src { margin-left: 0; width: 100%; }
+}
+</style></head><body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <div class="eyebrow">Today · Pacific time · updates every 15 minutes</div>
+      <h1>Sales by Channel</h1>
+    </div>
+    <div class="tools">
+      <div class="seg" id="chan" role="group" aria-label="Channel">
+        <button type="button" data-v="both" aria-pressed="true">All channels</button>
+        <button type="button" data-v="amz" aria-pressed="false"><i style="background:var(--amz)"></i>Amazon</button>
+        <button type="button" data-v="shop" aria-pressed="false"><i style="background:var(--shop)"></i>Shopify</button>
+      </div>
+      <div class="seg" id="brand" role="group" aria-label="Brand">
+        <button type="button" data-v="ALL" aria-pressed="true">Ridhi + CPC</button>
+        <button type="button" data-v="SP" aria-pressed="false">Ridhi</button>
+        <button type="button" data-v="CPC" aria-pressed="false">CPC</button>
+      </div>
+      <span class="asof" id="asof">Loading…</span>
+      <button type="button" class="btn" id="refresh">Refresh</button>
+    </div>
+  </div>
+  <div class="note" id="note" hidden></div>
+
+  <section class="ch ch-all" data-chan="all" aria-labelledby="h-all">
+    <div class="ch-head"><h2 id="h-all">All channels</h2><span class="tag">Amazon + Shopify</span><span class="src">Sales from both · ad spend from Amazon ads and Meta</span></div>
+    <div class="ch-body">
+      <div class="total">
+        <div class="kpi lead"><div class="k">Total sales today</div><div class="big" id="allTotal">—</div><div class="s" id="allTotalSub"></div></div>
+        <div class="split">
+          <div class="bar" id="allBar" role="img" aria-label="Share of sales by channel"></div>
+          <div class="legend" id="allLegend"></div>
+        </div>
+      </div>
+      <div class="grid" id="allGrid"></div>
+    </div>
+  </section>
+
+  <section class="ch ch-amz" data-chan="amz" aria-labelledby="h-amz">
+    <div class="ch-head"><h2 id="h-amz">Amazon</h2><span class="tag">Amazon.com</span><span class="src" id="amzSrc"></span></div>
+    <div class="ch-body">
+      <h3 class="grp">Sales</h3><div class="grid" id="amzSales"></div>
+      <h3 class="grp">Advertising</h3><div class="grid" id="amzAds"></div>
+      <details><summary>Today by hour</summary><div class="ckey" id="amzKey"></div><div class="chart" id="amzChart"></div></details>
+    </div>
+  </section>
+
+  <section class="ch ch-shop" data-chan="shop" aria-labelledby="h-shop">
+    <div class="ch-head"><h2 id="h-shop">Shopify</h2><span class="tag">Own store</span><span class="src" id="shopSrc"></span></div>
+    <div class="ch-body">
+      <h3 class="grp">Sales</h3><div class="grid" id="shopSales"></div>
+      <h3 class="grp">Meta ads</h3><div class="grid" id="shopAds"></div>
+      <details><summary>Today by hour</summary><div class="ckey" id="shopKey"></div><div class="chart" id="shopChart"></div></details>
+    </div>
+  </section>
+
+  <p class="foot">Amazon: Sales API order metrics (every order placed, pending included) and the Ads API (Sponsored Products, Brands and Display; ad figures run behind the sales). Shopify: line-item sales of each brand's own store, no shipping or tax, counted on the Pacific day. "Same time" means by this minute of the day. The Shopify stores opened in January 2026, so last year counts as $0.</p>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+/* The snapshot liveSnapshotJob writes (Pricing-API/SalesLive.gs → LIVE_SHEET_ID), published as CSV — the one live.html reads. */
+const CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTAoVfl2a82IAF3yOi9yOhWTbk7EmRc2BUMtGG5QpFRQh03ccBiku-a46YL3BfM7Yoa73Bhxk-SWLmm/pub?gid=0&single=true&output=csv';
+const BRANDS = { SP: 'Ridhi', CPC: 'CPC' };
+let DATA = null, BRAND = 'ALL', CHAN = 'both';
+
+const $ = id => document.getElementById(id);
+const usd = v => '$' + Math.round(v || 0).toLocaleString('en-US');
+const usd2 = v => '$' + (v || 0).toFixed(2);
+const int = v => Math.round(v || 0).toLocaleString('en-US');
+const pc = (a, b) => (b > 0 ? (a / b * 100).toFixed(1) + '%' : '—');
+const Z = () => ({ orders: 0, units: 0, sales: 0 });
+const add = (a, b) => ({ orders: a.orders + (b ? b.orders || 0 : 0), units: a.units + (b ? b.units || 0 : 0), sales: a.sales + (b ? b.sales || 0 : 0) });
+const scale = (r, f) => ({ orders: r.orders * f, units: r.units * f, sales: r.sales * f });
+const dname = (iso, yr) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short', year: yr ? 'numeric' : undefined });
+const ptHM = iso => new Date(iso).toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' });
+const hourLabel = h => (h % 12 || 12) + (h < 12 ? 'a' : 'p');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* A change against a comparison: a pill (+12% green, −5% red). Against $0 it is the amount gained, not a percentage. */
+function change(a, b) {
+  if (b > 0) { const p = Math.round((a / b - 1) * 100); return { text: (p > 0 ? '+' : '') + p + '%', cls: p >= 0 ? 'up' : 'dn' }; }
+  if (a > 0) return { text: '+' + usd(a), cls: 'up' };
+  return { text: '—', cls: 'nil' };
+}
+function kpi(label, value, sub, o) {
+  o = o || {};
+  return `<div class="kpi${o.lead ? ' lead' : ''}"${o.title ? ` title="${esc(o.title)}"` : ''}><div class="k">${label}${o.pill ? ` <span class="pill ${o.pill.cls}">${o.pill.text}</span>` : ''}</div>`
+    + `<div class="v${o.cls ? ' ' + o.cls : ''}">${value}</div><div class="s">${sub || ''}</div></div>`;
+}
+
+/* ---------- the brands on view, added up ---------- */
+function keys() { return (BRAND === 'ALL' ? Object.keys(BRANDS) : [BRAND]).filter(k => DATA.brands[k] && DATA.brands[k].yoy && DATA.brands[k].yoy.ok); }
+function mergeRows(lists) { const n = Math.max(0, ...lists.map(l => l.length)); return [...Array(n).keys()].map(i => lists.reduce((t, l) => add(t, l[i]), Z())); }
+function view() {
+  const ks = keys(), Y = ks.map(k => DATA.brands[k].yoy);
+  const shops = Y.map(y => y.shop).filter(s => s && s.now);
+  const sumDays = (list, d, fields) => { let t = null; list.forEach(x => { const r = x && x.days && x.days[d]; if (r) { t = t || Object.fromEntries(fields.map(f => [f, 0])); fields.forEach(f => { t[f] += Number(r[f]) || 0; }); } }); return t; };
+  const ads = Y.map(y => y.ads).filter(a => a && a.days), metas = Y.map(y => y.meta).filter(Boolean);
+  return {
+    ks, amz: { now: mergeRows(Y.map(y => y.now || [])), last: mergeRows(Y.map(y => y.last || [])), lw: mergeRows(Y.map(y => y.lastWeek || [])) },
+    shop: shops.length ? { now: mergeRows(shops.map(s => s.now || [])), last: mergeRows(shops.map(s => s.last || [])), lw: mergeRows(shops.map(s => s.lastWeek || [])),
+      m4: mergeRows(shops.map(s => s.fourWk || [])), m4Day: shops.map(s => s.fourWkDay).filter(Boolean)[0] } : null,
+    shopErr: Y.map(y => y.shop && y.shop.err).filter(Boolean)[0] || '',
+    ad: sumDays(ads, DATA.day, ['spend', 'sales', 'orders', 'clicks', 'impressions']), adAt: ads.map(a => a.at).filter(Boolean).sort()[0] || '',
+    adTypes: [...new Set(ads.flatMap(a => a.types || []))], adErr: Y.map(y => y.ads && y.ads.err).filter(Boolean)[0] || '',
+    meta: sumDays(metas.filter(m => m.configured), DATA.day, ['spend', 'clicks', 'impressions', 'purchases', 'value']),
+    metaOff: metas.length && metas.every(m => m.configured === false), metaErr: metas.map(m => m.err).filter(Boolean)[0] || '',
+  };
+}
+
+/* ---------- a small by-hour chart: today against one comparison day ---------- */
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent, text) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; if (parent) parent.appendChild(e); return e; }
+function hourChart(host, today, other, cToday, cOther, nameOther, part) {
+  const W = 960, H = 220, L = 50, R = 10, T = 10, B = 26;
+  const vals = today.concat(other).filter(v => v != null), mx = Math.max(1, ...vals);
+  const p = Math.pow(10, Math.floor(Math.log10(mx))), max = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map(m => m * p).find(m => m >= mx);
+  host.innerHTML = '';
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Sales by hour' }, host);
+  const y = v => T + (H - T - B) * (1 - v / max), slot = (W - L - R) / 24, bw = Math.min(14, slot * 0.38);
+  for (let i = 0; i <= 3; i++) { const v = max * i / 3; el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), class: 'g' }, svg); el('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end' }, svg, v >= 1000 ? '$' + (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k' : '$' + Math.round(v)); }
+  const tip = $('tip');
+  const bar = (x, v, fill, op, text) => { const r = el('rect', { x, y: y(v), width: bw, height: Math.max(0, y(0) - y(v)), rx: 2, fill, opacity: op }, svg);
+    r.addEventListener('mousemove', e => { tip.hidden = false; tip.textContent = text; tip.style.left = Math.min(e.clientX + 12, innerWidth - 240) + 'px'; tip.style.top = (e.clientY - 32) + 'px'; });
+    r.addEventListener('mouseleave', () => { tip.hidden = true; }); };
+  for (let h = 0; h < 24; h++) {
+    const cx = L + slot * h + slot / 2, span = hourLabel(h) + '–' + hourLabel((h + 1) % 24);
+    if (other[h] != null) bar(cx - bw - 1, other[h], cOther, 1, `${nameOther} ${span}: ${usd(other[h])}`);
+    if (today[h] != null) bar(cx + 1, today[h], cToday, h === part ? 0.55 : 1, `Today ${span}: ${usd(today[h])}${h === part ? ' (so far)' : ''}`);
+    if (h % 2 === 0) el('text', { x: cx, y: H - 8, 'text-anchor': 'middle' }, svg, hourLabel(h));
+  }
+}
+
+/* ---------- painting ---------- */
+function render() {
+  if (!DATA) return;
+  const V = view();
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' }), live = DATA.day === today;
+  $('asof').textContent = 'Data to ' + ptHM(DATA.asOf) + ' PT';
+  const pt = new Date(new Date(DATA.asOf).toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+  const frac = live ? Math.max(0.02, (pt.getMinutes() + pt.getSeconds() / 60) / 60) : 1;
+  // A comparison day "by the same time": its hours before the current one, plus the same share of the current hour.
+  const sameTime = (rows, n) => { if (!live) return rows.reduce(add, Z()); let t = Z(); rows.forEach((r, i) => { if (i < n - 1) t = add(t, r); else if (i === n - 1) t = add(t, scale(r, frac)); }); return t; };
+  const by = live ? ' by ' + ptHM(DATA.asOf) : '';
+  const notes = [];
+  if (V.adErr) notes.push('Amazon ads: ' + V.adErr);
+  if (V.shopErr) notes.push('Shopify: ' + V.shopErr);
+  $('note').hidden = !notes.length; $('note').textContent = notes.join(' · ');
+
+  // --- Amazon (the same figures as Live vs Last Year) ---
+  const A = V.amz, an = A.now.length, aT = A.now.reduce(add, Z()), aLy = sameTime(A.last, an), aLw = sameTime(A.lw, an), aLyDay = A.last.reduce(add, Z());
+  const aPace = live && aLy.sales > 0 ? aT.sales * aLyDay.sales / aLy.sales : null;
+  const cLy = change(aT.sales, aLy.sales), cLw = change(aT.sales, aLw.sales);
+  $('amzSrc').textContent = 'Sales API to ' + ptHM(DATA.asOf) + ' PT' + (V.adAt ? ' · ads report ' + ptHM(V.adAt) + ' PT' : '');
+  $('amzSales').innerHTML =
+    kpi(live ? 'Today so far' : dname(DATA.day), usd(aT.sales), `${int(aT.orders)} orders · ${int(aT.units)} units`, { lead: true })
+    + kpi('vs last year, same time', cLy.text, `${dname(DATA.ly, true)}${by}: ${usd(aLy.sales)}`, { cls: cLy.cls })
+    + kpi('vs last week, same time', cLw.text, `${dname(DATA.lw)}${by}: ${usd(aLw.sales)}`, { cls: cLw.cls })
+    + kpi('Pace for the day', aPace != null ? usd(aPace) : (live ? '—' : usd(aT.sales)), aPace != null ? `if today follows ${dname(DATA.ly)}’s shape · that day ${usd(aLyDay.sales)}` : 'last year’s whole day ' + usd(aLyDay.sales), { title: 'Today so far, scaled by how much of last year’s day was still to come at this hour.' })
+    + kpi('Average order', aT.orders ? usd2(aT.sales / aT.orders) : '—', [aT.orders ? (aT.units / aT.orders).toFixed(2) + ' units an order' : 'no orders yet today', aLy.orders ? 'last year ' + usd2(aLy.sales / aLy.orders) : ''].filter(Boolean).join(' · '));
+  const ad = V.ad;
+  $('amzAds').innerHTML = ad
+    ? kpi('Ad spend', usd(ad.spend), 'Sponsored ' + (V.adTypes.join(' + ') || 'ads'), { lead: true, title: 'Amazon ad reports run behind the sales figures.' })
+      + kpi('TACoS', pc(ad.spend, aT.sales), 'ad spend ÷ all Amazon sales')
+      + kpi('ACoS', pc(ad.spend, ad.sales), ad.spend ? 'ROAS ' + (ad.sales / ad.spend).toFixed(2) : '')
+      + kpi('Ad sales', usd(ad.sales), `${int(ad.orders)} ad orders · ${pc(ad.sales, aT.sales)} of sales`)
+      + kpi('Clicks', int(ad.clicks), `CPC ${ad.clicks ? usd2(ad.spend / ad.clicks) : '—'} · CTR ${pc(ad.clicks, ad.impressions)}`)
+    : kpi('Ad spend', '—', 'waiting for Amazon’s ad report', { lead: true });
+  $('amzKey').innerHTML = `<span><i style="background:var(--amz)"></i>Today</span><span><i style="background:var(--ly)"></i>${dname(DATA.ly, true)} (last year)</span>`;
+  hourChart($('amzChart'), [...Array(24).keys()].map(h => (A.now[h] ? A.now[h].sales : null)), [...Array(24).keys()].map(h => (A.last[h] ? A.last[h].sales : 0)), 'var(--amz)', 'var(--ly)', dname(DATA.ly, true), live ? an - 1 : -1);
+
+  // --- Shopify: this year against last year as $0 (the stores opened in January 2026), last week and four weeks ago ---
+  const S = V.shop, M = V.meta;
+  let sT = Z(), sLw = Z(), s4 = Z(), sLwDay = Z();
+  if (S) {
+    const sn = S.now.length; sT = S.now.reduce(add, Z()); sLw = sameTime(S.lw, sn); s4 = sameTime(S.m4, sn); sLwDay = S.lw.reduce(add, Z());
+    const sPace = live && sLw.sales > 0 ? sT.sales * sLwDay.sales / sLw.sales : null;
+    const vLy = change(sT.sales, 0), vLw = change(sT.sales, sLw.sales), v4 = change(sT.sales, s4.sales);
+    $('shopSrc').textContent = 'Shopify Admin API to ' + ptHM(DATA.asOf) + ' PT';
+    $('shopSales').innerHTML =
+      kpi(live ? 'Today so far' : dname(DATA.day), usd(sT.sales), `${int(sT.orders)} orders · ${int(sT.units)} units`, { lead: true })
+      + kpi('vs last year, same time', vLy.text, `${dname(DATA.ly, true)}: $0 · the store opened in Jan 2026`, { cls: vLy.cls, title: 'The Shopify stores opened in January 2026, so last year counts as $0: the whole of today is growth.' })
+      + kpi('vs last week, same time', vLw.text, `${dname(DATA.lw)}${by}: ${usd(sLw.sales)}`, { cls: vLw.cls })
+      + kpi('vs 4 weeks ago, same time', S.m4Day ? v4.text : '—', S.m4Day ? `${dname(S.m4Day)}${by}: ${usd(s4.sales)}` : '', { cls: S.m4Day ? v4.cls : '' })
+      + kpi('Pace for the day', sPace != null ? usd(sPace) : (live ? '—' : usd(sT.sales)), sPace != null ? `if today follows ${dname(DATA.lw)}’s shape` : '', { title: 'Today so far, scaled by how much of last week’s same day was still to come at this hour.' })
+      + kpi('Average order', sT.orders ? usd2(sT.sales / sT.orders) : '—', [sT.orders ? (sT.units / sT.orders).toFixed(2) + ' units an order' : 'no orders yet today', sLw.orders ? 'last week ' + usd2(sLw.sales / sLw.orders) : ''].filter(Boolean).join(' · '));
+    $('shopKey').innerHTML = `<span><i style="background:var(--shop)"></i>Today</span><span><i style="background:var(--shop-lt);opacity:.55"></i>${dname(DATA.lw)} (last week)</span>`;
+    hourChart($('shopChart'), [...Array(24).keys()].map(h => (S.now[h] ? S.now[h].sales : null)), [...Array(24).keys()].map(h => (S.lw[h] ? S.lw[h].sales : 0)), 'var(--shop)', 'color-mix(in srgb, var(--shop-lt) 55%, transparent)', dname(DATA.lw), live ? sn - 1 : -1);
+  } else {
+    $('shopSrc').textContent = '';
+    $('shopSales').innerHTML = kpi('Today so far', '—', V.shopErr ? 'could not read Shopify' : 'waiting for the next update', { lead: true });
+    $('shopChart').innerHTML = ''; $('shopKey').innerHTML = '';
+  }
+  $('shopAds').innerHTML = M
+    ? kpi('Meta ad spend', usd(M.spend), `${int(M.clicks)} clicks · CPC ${M.clicks ? usd2(M.spend / M.clicks) : '—'}`, { lead: true, title: 'Facebook + Instagram, in the ad account’s own day; about 15 minutes behind.' })
+      + kpi('Meta ROAS', M.spend ? (sT.sales / M.spend).toFixed(2) : '—', 'Shopify sales ÷ Meta spend')
+      + kpi('Shopify TACoS', pc(M.spend, sT.sales), 'Meta spend ÷ Shopify sales')
+      + kpi('Meta purchases', int(M.purchases), 'as Meta counts them · ' + usd(M.value))
+    : kpi('Meta ad spend', '—', V.metaErr ? 'Meta: ' + V.metaErr : V.metaOff ? 'Not connected yet: add META_TOKEN and META_AD_ACCOUNT in the backend’s Script Properties' : 'waiting for Meta', { lead: true });
+
+  // --- all channels together ---
+  const tot = aT.sales + sT.sales, totLy = aLy.sales + 0, totLw = aLw.sales + sLw.sales, spend = (ad ? ad.spend : 0) + (M ? M.spend : 0);
+  const tLy = change(tot, totLy), tLw = change(tot, totLw);
+  $('allTotal').textContent = usd(tot);
+  $('allTotalSub').textContent = `${int(aT.orders + sT.orders)} orders · ${int(aT.units + sT.units)} units${live ? ' · to ' + ptHM(DATA.asOf) + ' PT' : ''}`;
+  const ap = tot ? aT.sales / tot * 100 : 0;
+  $('allBar').innerHTML = `<span style="width:${ap}%;background:var(--amz)"></span><span style="width:${100 - ap}%;background:var(--shop)"></span>`;
+  $('allLegend').innerHTML = `<span><i style="background:var(--amz)"></i>Amazon <b>${usd(aT.sales)}</b> · ${ap.toFixed(1)}%</span><span><i style="background:var(--shop)"></i>Shopify <b>${usd(sT.sales)}</b> · ${(tot ? 100 - ap : 0).toFixed(1)}%</span>`;
+  $('allGrid').innerHTML =
+    kpi('vs last year, same time', tLy.text, `${dname(DATA.ly, true)}${by}: ${usd(totLy)} (Shopify $0)`, { cls: tLy.cls })
+    + kpi('vs last week, same time', tLw.text, `${dname(DATA.lw)}${by}: ${usd(totLw)}`, { cls: tLw.cls })
+    + kpi('Total ad spend', ad || M ? usd(spend) : '—', [ad ? 'Amazon ' + usd(ad.spend) : 'Amazon pending', M ? 'Meta ' + usd(M.spend) : 'Meta not connected'].join(' · '))
+    + kpi('Overall TACoS', ad || M ? pc(spend, tot) : '—', ad && M ? 'all ad spend ÷ all sales' : 'without ' + (ad ? 'Meta' : 'Amazon ads') + ' for now', { title: 'All ad spend (Amazon + Meta) ÷ all sales (Amazon + Shopify). Lower is better.' });
+}
+
+/* ---------- controls: the channel and the brand, both remembered per browser ---------- */
+function press(groupId, v) { $(groupId).querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); }
+function setChan(v) { CHAN = v; document.body.dataset.view = v; press('chan', v); }
+function setBrand(v) { BRAND = v; press('brand', v); render(); }
+$('chan').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { setChan(b.dataset.v); try { localStorage.setItem('ch-chan', b.dataset.v); } catch (e) { /* no storage */ } }));
+$('brand').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { setBrand(b.dataset.v); try { localStorage.setItem('ch-brand', b.dataset.v); } catch (e) { /* no storage */ } }));
+try { const c = localStorage.getItem('ch-chan'); setChan(['both', 'amz', 'shop'].includes(c) ? c : 'both'); } catch (e) { setChan('both'); }
+try { const b = localStorage.getItem('ch-brand'); if (['ALL', 'SP', 'CPC'].includes(b)) { BRAND = b; press('brand', b); } } catch (e) { /* no storage */ }
+
+/* ---------- live: read the snapshot on open, on Refresh and every 5 minutes while the page is visible ---------- */
+(function () {
+  const btn = $('refresh');
+  async function load(manual) {
+    if (manual) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
+    try {
+      const r = await fetch(CSV + '&t=' + Date.now(), { cache: 'no-store' });
+      const rows = (await r.text()).split(/\r?\n/).slice(1).filter(Boolean);
+      const next = JSON.parse(rows.map(l => l.replace(/^"|"$/g, '').replace(/""/g, '"')).join(''));
+      if (next && next.asOf && next.brands && (!DATA || next.asOf >= DATA.asOf)) { DATA = next; render(); }
+    } catch (e) { if (!DATA) $('asof').textContent = 'Could not load'; }
+    if (manual) { btn.disabled = false; btn.textContent = 'Refresh'; }
+  }
+  btn.addEventListener('click', () => load(true));
+  load(false);
+  setInterval(() => { if (document.visibilityState === 'visible') load(false); }, 5 * 60 * 1000);
+})();
+</script>
+</body></html>

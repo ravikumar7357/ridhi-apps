@@ -82,6 +82,14 @@ console.log('\n== a printer from a link (the printer delay mail) ==');
   ok('teeth: a copy without the printer check lets <b> through', loose !== NAV && linkRules('#vend?printer=%3Cb%3E', loose).navHashPrinter().code === '<b>');
 }
 
+console.log('\n== the link\'s screen, not My work today ==');
+{
+  ok('a link to an order or a printer stops My work today opening on top', /if \(\(linkOrder \|\| linkPrinter\) && typeof FR !== 'undefined'\) FR\.touched = true;/.test(AUTH));
+  const FRIENDLY = rd(path.join(APP, 'core', 'friendly.js'));
+  ok('My work today still opens on top only when nobody went anywhere (FR.touched)', /if \(!FR\.touched\) frHomeShow\(\);/.test(FRIENDLY));
+  ok('the link is read before My work today decides', AUTH.indexOf('FR.touched = true') > AUTH.indexOf('navHashPrinter()') && AUTH.indexOf('FR.touched = true') < AUTH.indexOf('Somebody who approves requests'));
+}
+
 console.log('\n== teeth ==');
 {
   const loose = NAV.replace(/return \/\^\[A-Za-z0-9#\]\[A-Za-z0-9#_\\-\]\{0,59\}\$\/\.test\(no\) \? no : '';/, "return no;");

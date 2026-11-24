@@ -610,6 +610,7 @@
   /* Editable monthly projection */
   .projcell{cursor:pointer;display:inline-block;min-width:34px;border-bottom:1px dashed #cbd5e1}
   .projcell:hover{background:#eef2ff;border-bottom-color:#6366f1}
+  .seatag{font-size:10.5px;line-height:1.2;color:#1d4ed8;white-space:nowrap}
   /* No projection-edit right → the cells read as plain numbers, with no invitation to click. */
   body.noproj .projcell{cursor:default;border-bottom:none}
   body.noproj .projcell:hover{background:transparent}

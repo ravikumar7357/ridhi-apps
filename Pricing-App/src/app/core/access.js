@@ -94,8 +94,9 @@ async function loadMyPerms(user) {
 // Build the menu from ME: show the granted tab buttons, trim the ad brand pickers, drop menu groups with
 // nothing left in them, and open the first tab allowed — or the "no access" notice when there is none.
 function applyPerms() {
-  // May this account open tab t? An admin may; so may anyone granted it, or granted the tab it comes with.
-  const allowedOwn = t => ME.admin || ME.tabs.includes(t) || (!!TAB_INHERIT[t] && ME.tabs.includes(TAB_INHERIT[t]));
+  // May this account open tab t? An admin may; so may anyone granted it, or granted the tab it comes with
+  // (TAB_INHERIT names one tab, or a list of tabs any one of which brings it).
+  const allowedOwn = t => ME.admin || ME.tabs.includes(t) || [].concat(TAB_INHERIT[t] || []).some(p => ME.tabs.includes(p));
   // The Dashboard (core/dashboard.js, 20 Nov 2026) comes with any screen: each of its cards shows only what that screen may show.
   const allowed = t => (t === 'dash' ? TABS.some(x => x !== 'dash' && !HIDDEN_TABS.includes(x) && allowedOwn(x)) : allowedOwn(t));
   // --- tab buttons ---

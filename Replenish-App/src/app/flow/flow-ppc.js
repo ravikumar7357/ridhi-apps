@@ -405,8 +405,8 @@ function flowPpcOpen(orderNo, onlySku, keys) {
             ${d.dirs.length > 1 ? fld('Print direction', `<select data-fp="${i}" data-k="print.dir"><option value="">— pick —</option>${d.dirs.map(x => `<option${x === d.cur ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>`) : ''}
             ${fld('Printer', `<select data-fp="${i}" data-k="printer.code"><option value="">— PPC decides —</option>${flowPrinterOpts((p.printer || {}).code)}</select>`
               + `<small class="fpc-why">${esc((p.printer || {}).why || '')}</small>`, 'w2')}
-            ${(p.extra || []).some(x => /^Ruffle — /.test(String(x.what || ''))) ? fld('Ruffle printer', `<select data-fp="${i}" data-k="rufflePrinter.code"><option value="">— same as the printer —</option>${flowPrinterOpts((flowRufflePrinter(p) || {}).code)}</select>`
-              + '<small class="fpc-why">the ruffle cloth can go to another printer — its own print order and challan</small>', 'w2') : ''}
+            ${(p.extra || []).some(x => /^Ruffle — /.test(String(x.what || ''))) ? fld('Ruffle printer', `<select data-fp="${i}" data-k="rufflePrinter.code"><option value="">— same as the printer —</option><option value="NOPRINT"${p.ruffleNoPrint ? ' selected' : ''}>— no printing (plain ruffle cloth) —</option>${flowPrinterOpts(p.ruffleNoPrint ? '' : (flowRufflePrinter(p) || {}).code)}</select>`
+              + '<small class="fpc-why">the ruffle cloth can go to another printer — its own print order and challan — or not be printed at all</small>', 'w2') : ''}
             ${fld('Embroidery by', `<select data-fp="${i}" data-k="emb.code">${flowEmbOpts((p.emb || {}).code)}</select>`
               + '<small class="fpc-why">our department: cut first, then issued to the embroidery karigar on Job Work, then QC · a vendor: the printed cloth goes on an embroidery challan in metres, back as pieces, then cutting, then QC</small>', 'w2" data-embrow="' + i)}
             ${fld('Outsource vendor', inp(i, 'outVendor', p.outVendor || '', '', ' placeholder="who makes it"') + '<small class="fpc-why">no fabric or accessories are raised for it</small>', 'w2" data-outrow="' + i)}
@@ -463,7 +463,10 @@ function flowPpcOpen(orderNo, onlySku, keys) {
         /* The printer is kept by code and name; a line not printed has none. */
         const v = flowPrinted(p.route) && p.printer && p.printer.code ? flowChVendors().find(x => String(x.code) === String(p.printer.code)) : null;
         p.printer = v ? { code: v.code, name: v.desc || v.name || v.code, why: p.printer.why || '' } : null;
-        const rv = flowPrinted(p.route) && p.rufflePrinter && p.rufflePrinter.code ? flowChVendors().find(x => String(x.code) === String(p.rufflePrinter.code)) : null;
+        /* THE RUFFLE MAY BE LEFT UNPRINTED (Ravi, 22 Nov: "ruffle ka printing optional rkho"): its cloth goes to no printer — no print
+         * order, no challan — and is cut plain from the store (flow-challan.js flowPrintExtras). */
+        p.ruffleNoPrint = !!(flowPrinted(p.route) && p.rufflePrinter && p.rufflePrinter.code === 'NOPRINT');
+        const rv = !p.ruffleNoPrint && flowPrinted(p.route) && p.rufflePrinter && p.rufflePrinter.code ? flowChVendors().find(x => String(x.code) === String(p.rufflePrinter.code)) : null;
         p.rufflePrinter = rv && (!p.printer || String(rv.code) !== String(p.printer.code)) ? { code: rv.code, name: rv.desc || rv.name || rv.code } : null; });
       /* A printed line on a fabric made both ways must say which way — the printer cannot print "either". */
       /* The print order goes to the printer now — so a printed line has to say which printer. */
@@ -473,7 +476,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
          * for — the same rule as the print order itself (flowPrintsSomething). */
         if (!flowPrintsSomething(rows[i].r, Object.assign({}, p, { fabric: Object.assign({}, p.fabric, { fromPrinted: 0, metres: m }) }))) return which ? '' : false;
         const bodyLeft = c.unit === 'pcs' ? qty - (c.fab || 0) : m - (c.fab || 0);
-        const rufLeft = (p.extra || []).some((x, j) => /^Ruffle — /.test(String(x.what || '')) && (+x.qty || 0) - ((c.extra || {})[j] || 0) > 0.01);
+        const rufLeft = !p.ruffleNoPrint && (p.extra || []).some((x, j) => /^Ruffle — /.test(String(x.what || '')) && (+x.qty || 0) - ((c.extra || {})[j] || 0) > 0.01);
         if (which) return bodyLeft > 0.01 ? 'body' : rufLeft ? 'ruffle' : '';   // only the ruffle prints → the ruffle printer is enough
         return bodyLeft > 0.01 || rufLeft; };
       /* Which way it is printed — asked only where something still goes to the printer (17 Oct: cloth all in the store
@@ -525,7 +528,7 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const said = [];
       rows.forEach((x, i) => { if (!x.s.plan) return;
         const nu = patch['pt_ppc/' + x.s.key];
-        if (locked) ['fabric', 'route', 'printer', 'print'].forEach(k => { nu[k] = x.s.plan[k]; });
+        if (locked) { ['fabric', 'route', 'printer', 'print'].forEach(k => { nu[k] = x.s.plan[k]; }); nu.ruffleNoPrint = !!x.s.plan.ruffleNoPrint; }   // cloth already sent: printed or not stays
         if (locked && flowChIndex()[x.s.key + FLOW_RUF]) nu.rufflePrinter = x.s.plan.rufflePrinter || null;   // its ruffle is on a challan too
         const side = flowReplanSide(x.s.plan, nu, x.s); Object.assign(patch, side.patch); said.push(...side.said); });
       /* ACCESSORIES RESERVED BY THEMSELVES (Ravi, 10 Oct: "zip available ho to us order ke liye auto reserve ho"). Each
@@ -692,10 +695,11 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       if (w) { try { const curC = Object.assign({}, cur, { fabric: Object.assign({}, cur.fabric, { fromPrinted: cover[i].fab }),
           extra: (p.extra || []).map((x, j) => Object.assign({}, x, { fromPrinted: cover[i].extra[j] || 0 })) });
         const pcV = val(i, 'printer.code') ?? (p.printer && p.printer.code) ?? '', rcV = val(i, 'rufflePrinter.code') ?? (p.rufflePrinter && p.rufflePrinter.code) ?? '';
-        Object.assign(curC, { printer: pcV ? { code: pcV } : null, rufflePrinter: rcV ? { code: rcV } : null });
+        const rNo = rcV === 'NOPRINT' || (val(i, 'rufflePrinter.code') == null && !!p.ruffleNoPrint);
+        Object.assign(curC, { printer: pcV ? { code: pcV } : null, rufflePrinter: rcV && !rNo ? { code: rcV } : null, ruffleNoPrint: rNo });
         flowPoParts(r, curC, remX).forEach(x => combo.push(Object.assign({}, x.item, { printer: (x.printer && x.printer.code) || '' }))); } catch (e) { /* the line's own box still shows it */ } }
       const allPrinted = w && (cover[i].unit === 'pcs' ? cover[i].fab >= (+p.qty || 0) : cover[i].fab >= metres - 0.01)
-        && (p.extra || []).every((x, j) => !/^Ruffle — /.test(String(x.what || '')) || (cover[i].extra[j] || 0) >= (+x.qty || 0) * rem - 0.01);
+        && (p.extra || []).every((x, j) => !/^Ruffle — /.test(String(x.what || '')) || (val(i, 'rufflePrinter.code') ?? (p.ruffleNoPrint ? 'NOPRINT' : '')) === 'NOPRINT' || (cover[i].extra[j] || 0) >= (+x.qty || 0) * rem - 0.01);
       if (pg && allPrinted) pg.innerHTML = `<div style="color:#166534;font-weight:600">✓ All already printed, in the store — nothing goes to the printer. The line goes straight to Cutting.</div>`
         + `<div style="font-size:11.5px">${flowPrintTxt(w)}${Object.values(cover[i].extra).some(v => v > 0) ? ' · ruffle ' + nf(Object.values(cover[i].extra).reduce((a, v) => a + v, 0)) + ' m' : ''}</div>`;
       else if (pg && w && (cover[i].fab > 0 || Object.values(cover[i].extra).some(v => v > 0))) {
@@ -768,7 +772,7 @@ function flowPpcXlRows(rows) {
     const chk = [].concat(d.dirs.length > 1 ? ['direction: ' + d.dirs.join(' / ')] : [], (p.gaps || []), flowPpcHasDraft(x.s.key) ? ['draft kept'] : []).join(' · ');
     return [x.s.key, x.r.orderNo, ptIsoDate(x.r.orderDate) || '', obUC(x.r.sku), [x.r.articleSubtype || x.r.articleType, x.r.color, x.r.size].filter(Boolean).join(' · '),
       +x.r.qty || 0, (FLOW_ROUTES.find(r => r[0] === route) || [, , route])[2], (p.fabric && p.fabric.name) || '', per, flowR2(per * (+x.r.qty || 0)),
-      (p.print && p.print.dir) || d.cur || '', flowVenName(p.printer && p.printer.code), flowVenName(p.rufflePrinter && p.rufflePrinter.code),
+      (p.print && p.print.dir) || d.cur || '', flowVenName(p.printer && p.printer.code), p.ruffleNoPrint ? 'No printing' : flowVenName(p.rufflePrinter && p.rufflePrinter.code),
       route === 'emb' ? flowEmbWho(p.emb && p.emb.code).name : '', p.outVendor || '',
       p.fabric && p.fabric.noRfd ? 'yes' : '', (p.dates || {}).cut || '', (p.dates || {}).qc || '', (p.dates || {}).ready || '', p.note || '', '', chk];
   }));
@@ -807,7 +811,7 @@ function flowPpcXlRead(sheet) {
     const dir = c('Print direction'); if (dir) { const d = flowDirOpts(x.r, flowXlPlanOf(x)).dirs, hit = d.find(y => y.toLowerCase() === dir.toLowerCase() || y.toLowerCase()[0] === dir.toLowerCase()[0]);
       if (d.length > 1 && !hit) bad.push('print direction is ' + d.join(' or ')); else if (hit) v['print.dir'] = hit; }
     const pr = venOf(c('Printer')); if (pr === null) bad.push(`no printer called "${c('Printer')}"`); else v['printer.code'] = pr;
-    const rp = venOf(c('Ruffle printer')); if (rp === null) bad.push(`no printer called "${c('Ruffle printer')}"`); else if (rp) v['rufflePrinter.code'] = rp;
+    const rp = /^(no|none|no printing|plain)$/i.test(c('Ruffle printer')) ? 'NOPRINT' : venOf(c('Ruffle printer')); if (rp === null) bad.push(`no printer called "${c('Ruffle printer')}"`); else if (rp) v['rufflePrinter.code'] = rp;
     if (c('Outsource vendor')) v.outVendor = c('Outsource vendor');
     const nrTxt = c('Already printed — no RFD (yes/no)');
     /* who embroiders — our department or a vendor, by name or code; blank keeps what the plan has (our department) */

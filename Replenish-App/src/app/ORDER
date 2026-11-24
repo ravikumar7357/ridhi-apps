@@ -12,6 +12,8 @@ replenishment/minutes-of-meeting.js
 replenishment/priority.js
 replenishment/article-review.js
 replenishment/revenue-target.js
+replenishment/new-launch.js
+replenishment/colour-trend.js
 replenishment/purchase-orders.js
 replenishment/follow-ups.js
 replenishment/top-asin.js
@@ -62,6 +64,7 @@ shopify/bulk-entry.js
 orders/demand.js
 orders/tracking.js
 orders/shp-board.js
+orders/board-report.js
 orders/shopify-pipeline-team.js
 orders/orders-one-line.js
 orders/order-ticker.js
@@ -118,6 +121,7 @@ reports/last-week.js
 reports/charts.js
 reports/shopify-dispatch.js
 reports/meeting.js
+reports/meeting-slides.js
 inventory/fg-other-movements.js
 inventory/fg-receive-excel.js
 inventory/fg-change-remove.js

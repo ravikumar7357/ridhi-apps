@@ -121,6 +121,7 @@
     <div class="navsec" id="secPlan">
       <a id="tabRepl" class="nav" href="#repl">Replenishment</a>
       <a id="tabArticle" class="nav" href="#article">Article Review</a>
+      <a id="tabCtrend" class="nav" href="#ctrend">Colour Trend</a>
       <a id="tabTarget" class="nav" href="#target">Revenue Target</a>
       <a id="tabTop" class="nav" href="#top">Top ASIN Status</a>
       <a id="tabProd" class="nav" href="#prod">In Production</a>
@@ -265,6 +266,7 @@
             <option value="projman">✎ Manual projection</option>
           </select>
           <input id="rFilter" style="flex:1 1 150px;min-width:0" placeholder="Filter SKU / ASIN / product">
+          <button id="rNewLaunch" class="ghost" title="A size set for a new colour: what the same colour family sells, by size, in the launch months">New launch</button>
           <button id="rProj" class="ghost" title="Upload a month's projection from Excel (SKU + QTY)">Projection</button>
           <button id="rCsv" class="ghost">Export</button>
           <button id="rPo" class="ghost">Create PO from view</button>
@@ -296,6 +298,10 @@
             <option value="10">Forecast 10 months</option>
             <option value="11">Forecast 11 months</option>
             <option value="12">Forecast 12 months</option>
+          </select>
+          <select id="rSeason" style="flex:0 0 165px" title="With season: each month's Proj follows last year's pattern for that SKU (last year's same month against last year over the days today's Avg/day comes from). Flat: Avg/day × days, every month the same.">
+            <option value="1">Proj: with season</option>
+            <option value="0">Proj: flat</option>
           </select>
           <select id="rSupply" style="flex:0 0 190px" title="Show, inside every forecast month, where that month's shortfall comes from: India stock, a batch already in production, or fresh production. Adds three columns per month.">
             <option value="1" selected>Supply columns: on</option>
@@ -344,6 +350,9 @@
 
     <!-- ============ Follow-ups (ongoing POs) ============ -->
     <!-- ====== Article Review: one row per SKU, article by article, with a Remark you can write ====== -->
+    <div id="paneCtrend" class="hide">
+      <div class="card"><style>.ct-tbl{border-collapse:collapse;font-size:13px;width:100%}.ct-tbl th{font-size:11.5px;color:#5B6475;text-align:left;padding:5px 6px;border-bottom:2px solid #E4E7EC;white-space:nowrap;position:sticky;top:0;background:#fff}.ct-tbl td{padding:5px 6px;border-bottom:1px solid #F1F3F6;white-space:nowrap}</style><div id="ctBody"></div></div>
+    </div>
     <div id="paneArticle" class="hide">
       <div class="card">
         <div class="toolbar">

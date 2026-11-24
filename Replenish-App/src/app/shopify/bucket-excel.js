@@ -86,7 +86,7 @@ function shpSheetMatch(rows, storeWant) {
   const orders = new Map();
   (SO_ALL_ROWS || []).forEach(o => { if (o && o.id && shbStore(o) === store) orders.set(shpNameKey(o.no).toUpperCase(), o); });
   const byKey = new Map(shpBucketAll().map(x => [x.key, x]));
-  const opened = new Set((PTG.ob || []).filter(x => x && x.shopOrderId).map(x => String(x.shopOrderId) + '|' + obUC(x.sku)));
+  const opened = shpOpenedKeys();
   const used = new Set(), lines = [];
   let from = '';
   body.forEach(({ r, row }) => {

@@ -21,7 +21,11 @@ if (fs.existsSync(path.join(ROOT, 'src', 'index.html'))) {
     throw new Error('public/index.html is not what src/ makes — edit src/ and run node tests/assemble.js before building');
 }
 
-const src = fs.readFileSync(path.join(PUB, 'index.html'), 'utf8');
+let src = fs.readFileSync(path.join(PUB, 'index.html'), 'utf8');
+/* R-ONE ON ERP DATA (Supabase): shared/erp-data/mode.json says which database the deployed page uses. "supabase" → the
+ * deployed copy reads and saves ERP data (shared/erp-data/build.js); "firebase" → exactly as before. public/ is never edited. */
+const ERP_DATA = require('../../shared/erp-data/build.js');
+if (ERP_DATA.mode() === 'supabase') { src = ERP_DATA.erp(src); console.log('ERP data mode: supabase (' + (ERP_DATA.isLive() ? 'live' : 'preview') + ')'); }
 const stripMarkup = s => s.replace(/<!--[\s\S]*?-->/g, '');
 /* A script's own text must not be able to close the tag it sits in. */
 const safe = js => js.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--');

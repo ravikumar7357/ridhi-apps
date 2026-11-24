@@ -56,6 +56,7 @@ function rsCommit_(writes) {
     if (!batch.length) return;
     var r = invFetch_(rsBase_() + ':commit', { method: 'post', contentType: 'application/json', payload: JSON.stringify({ writes: batch }) });
     if (r.getResponseCode() >= 300) throw new Error('Replenish Firestore ' + r.getResponseCode() + ' writing: ' + r.getContentText().slice(0, 300));
+    if (typeof sbMirror_ === 'function') sbMirror_(batch);
     batch = []; bytes = 0;
   }
   writes.forEach(function (w) {
@@ -102,10 +103,15 @@ function rsProjShort_(immediate, ads, arrivals, target) {
 /** The year history per SKU from the stored orders — { sku: {flat, recon, months, lastMs} } — cached a day. */
 function rsHist_(b, force) {
   var cached = invGet_('work/replhist_' + b);
-  if (!force && cached && cached.at && Date.now() - cached.at < REPL_SNAP.histMaxMs && cached.map) return { map: cached.map, diag: cached.diag || {} };
+  if (!force && cached && cached.at && cached.v === 2 && Date.now() - cached.at < REPL_SNAP.histMaxMs && cached.map) return { map: cached.map, diag: cached.diag || {} };
   var summary = invGet_('idx/ord_' + b) || { months: {} }, yearAgo = Date.now() - 365 * 86400000;
-  var fromYM = Utilities.formatDate(new Date(yearAgo), 'UTC', 'yyyy-MM');
-  var total = {}, byMonth = {}, lastMs = {}, scanned = 0;
+  /* SEASON (22 Nov): also the 30 / 90 days that ended a year ago (lyw30 / lyw90), and units per calendar month over the last
+   * 12 complete months (lym[0..11] = Jan..Dec) — the Replenish app turns them into a season factor on each month's Proj. */
+  var win90From = yearAgo - 90 * 86400000, win30From = yearAgo - 30 * 86400000;
+  var curYM = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'yyyy-MM');
+  var lymFrom = (Number(curYM.slice(0, 4)) - 1) + curYM.slice(4);          // same month last year .. last month
+  var fromYM = Utilities.formatDate(new Date(win90From), 'UTC', 'yyyy-MM');
+  var total = {}, byMonth = {}, lastMs = {}, scanned = 0, lym = {}, lw30 = {}, lw90 = {};
   Object.keys(summary.months || {}).filter(function (ym) { return ym >= fromYM; }).sort().forEach(function (ym) {
     invReadSet_('ord', b + '_' + ym, 'ord_' + b + '_' + ym).rows.forEach(function (r) {
       scanned++;
@@ -114,7 +120,11 @@ function rsHist_(b, force) {
       if (String(r[7] || '').toLowerCase() === 'cancelled') return;
       var units = Number(r[5]) || 0; if (!units) return;
       var dMs = Date.parse(r[1]) || Date.parse(String(r[2] || '') + 'T12:00:00Z') || 0;
-      if (!dMs || dMs < yearAgo) return;
+      if (!dMs) return;
+      var ymS = String(r[2] || '').slice(0, 7) || Utilities.formatDate(new Date(dMs), 'Asia/Kolkata', 'yyyy-MM');
+      if (ymS >= lymFrom && ymS < curYM) { var L = lym[sku] = lym[sku] || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; L[Number(ymS.slice(5, 7)) - 1] += units; }
+      if (dMs >= win90From && dMs < yearAgo) { lw90[sku] = (lw90[sku] || 0) + units; if (dMs >= win30From) lw30[sku] = (lw30[sku] || 0) + units; }
+      if (dMs < yearAgo) return;
       total[sku] = (total[sku] || 0) + units;
       if (!lastMs[sku] || dMs > lastMs[sku]) lastMs[sku] = dMs;
       var mk = String(r[2] || '').slice(0, 7) || Utilities.formatDate(new Date(dMs), 'Asia/Kolkata', 'yyyy-MM');
@@ -125,9 +135,12 @@ function rsHist_(b, force) {
   Object.keys(total).forEach(function (s) {
     var months = Object.keys(byMonth[s] || {}).length;
     map[s] = { flat: total[s] / 365, recon: months > 0 ? total[s] / (months * 30.4) : 0, months: months, lastMs: lastMs[s] || 0 };
+    if (lym[s]) map[s].lym = lym[s];
+    if (lw90[s]) map[s].lw90 = lw90[s];
+    if (lw30[s]) map[s].lw30 = lw30[s];
   });
   var diag = { cached: false, builtAt: new Date().toISOString(), scanned: scanned, skus: Object.keys(map).length, ordersAt: summary.at || 0 };
-  try { invPut_('work/replhist_' + b, { at: Date.now(), map: map, diag: diag }); } catch (e) { /* the next run builds it again */ }
+  try { invPut_('work/replhist_' + b, { at: Date.now(), v: 2, map: map, diag: diag }); } catch (e) { /* the next run builds it again */ }
   return { map: map, diag: diag };
 }
 
@@ -160,7 +173,8 @@ function replSnapRows_(b, debugSku) {
       inbReceiving: rsNum_(get(row, ['inbound_receiving', 'inbound receiving'])),
       awdAvail: rsNum_(get(row, ['awd available'])), awdTransit: rsNum_(get(row, ['awd transit'])),
       rec: rec,
-      last7: rsNum_(get(row, ['last 7 days'])), last14: rsNum_(get(row, ['last 14 days'])),
+      last7: rsNum_(get(row, ['last 7 days'])), 
+      last14: rsNum_(get(row, ['last 14 days'])),
       last30: rsNum_(get(row, ['last 30 days'])), last90: rsNum_(get(row, ['last 90 days'])), l90amt: rsNum_(get(row, ['last 90 days $'])),
       airDos: rsNum_(get(row, ['air dos'])), airQty: rsNum_(get(row, ['air qty'])), airIndia: 0,
       seaDos: rsNum_(get(row, ['sea dos'])), seaQty: rsNum_(get(row, ['sea qty'])), seaIndia: 0,
@@ -190,6 +204,9 @@ function replSnapRows_(b, debugSku) {
     var price = (o.last90 || 0) > 0 ? (o.l90amt || 0) / o.last90 : 0;
     var monthlyAmt = Math.max((o.last30 || 0) * price, (o.l90amt || 0) / 3);
     var cat, a, H = hist[o.sku] || { flat: 0, recon: 0, months: 0 };
+    if (H.lym) o.lym = H.lym;
+    if (H.lw90) o.lyw90 = H.lw90;
+    if (H.lw30) o.lyw30 = H.lw30;
     o.avgHist = false; o.oosLong = false;
     if (ads30 <= 0 && ads90 <= 0) { cat = 'D'; a = Math.max(H.recon, H.flat); o.avgHist = true; }
     else if (monthlyAmt >= 3000) { cat = 'A'; a = Math.max(ads30, ads90); }
@@ -307,3 +324,5 @@ function replSnapDryRun() {
     Logger.log(JSON.stringify(d.rows.slice(0, 3)));
   });
 }
+/** Editor button: rebuild the Replenish snapshot now (SP + CPC), from the inventory already stored. */
+function replNow() { invRequest_(invStepsFor_('repl', 'all'), 'manual'); invTick(); }

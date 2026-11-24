@@ -187,12 +187,16 @@ function skcPlanNew(colour, code, brand) {
   /* THE MASTER'S OWN FORMAT (17 Nov: "jo formatting hamare masterdata me bahi rakhni h"): a new colour is written Title Case, as every
    * colour in the master database is (Sage Leaf Green), whatever case it was typed in. A colour already on the list keeps its spelling. */
   const colT = newColour ? col.toLowerCase().replace(/\s+/g, ' ').replace(/(^|[\s\-\/(])([a-z])/g, (m, a, b) => a + b.toUpperCase()) : (skcColours().find(c => c.toLowerCase() === col.toLowerCase()) || col);
-  const owner = skcCodeOwner(code, col);
-  if (owner) return { out, skip, err: `Code ${String(code).trim()} is already ${owner}'s — its SKUs carry it. Use another code.` };
+  /* ONLY THE SKUs STILL FREE (Ravi, 20 Nov: "sare sku bane hue nahi h but main code available h to is case me sirf bache hue sku hi data
+   * me add ho"). A code another colour already uses on SOME SKUs no longer stops the whole colour: every full code that already
+   * exists — in the master or on the Custom SKUs list — is left as it is and listed as not made, with whose it is; the rest are made. */
+  const custom = new Map(((typeof MDBX !== 'undefined' && MDBX.custom) || []).filter(m => m && m.sku).map(m => [obUC(m.sku), m]));
   const seen = new Set();
-  skcTable(col, code).forEach(({ r, full, state }) => {
-    if (state !== 'new') return;
+  skcTable(col, code).forEach(({ r, full, m, state }) => {
     const label = [r.article, r.subtype, r.size].filter(Boolean).join(' · ');
+    if (state === 'taken') { skip.push({ full, label, why: 'already ' + (String((m && m.color) || '').trim() || 'another colour') + ' — its SKU, left as it is' }); return; }
+    if (state !== 'new') return;
+    if (custom.has(full)) { skip.push({ full, label, why: 'already on the Custom SKUs list (' + (String(custom.get(full).color || '').trim() || 'no colour') + ')' }); return; }
     if (seen.has(full)) { skip.push({ full, label, why: 'two base rows give this same code' }); return; }
     seen.add(full);
     if (!String(r.article || '').trim() || !String(r.subtype || '').trim()) { skip.push({ full, label, why: 'the base row has no article or subtype' }); return; }
@@ -415,10 +419,11 @@ function skcDraw() {
   const owner = SKC.code ? skcCodeOwner(SKC.code, SKC.col) : '';
   const says = $('skcSays');
   if (says) {
-    says.className = owner ? 'err' : 'muted';
+    says.className = 'muted';
     says.textContent = !skcRows().length ? 'No base codes yet — add them with "+ Base code" or "Upload base codes".'
       : !SKC.code ? 'Pick a colour — an existing one brings its code — or type a new code.'
-        : owner ? `Code ${SKC.code} is already ${owner}'s. Two colours under one code would be two products under one SKU.`
+        : owner ? `Code ${SKC.code} is also used by ${owner} on ${nf(n('taken'))} SKU(s) — those stay as they are · ${nf(n('have'))} already in the master · ${nf(n('new'))} still free`
+          + (n('new') ? ' — "Create the new SKUs" makes only the free ones' : '')
           : `${nf(n('have'))} already in the master · ${nf(n('new'))} new` + (n('new') ? (SKC.brand ? ' — "Create the new SKUs" adds them under ' + SKC.brand : ' — type the brand, then "Create the new SKUs"') : '');
   }
   /* the code, checked as it is typed */
@@ -426,8 +431,8 @@ function skcDraw() {
   if (cs) {
     if (!ck) { cs.textContent = ''; }
     else if (ck.others.length) {
-      cs.style.color = 'var(--bad)';
-      cs.textContent = `✗ ${SKC.code} is taken — ${ck.others.slice(0, 2).map(o => o.colour + ' (' + nf(o.n) + ' SKU' + (o.n === 1 ? '' : 's') + ', e.g. ' + o.eg + ')').join(', ')}${ck.others.length > 2 ? ' +' + (ck.others.length - 2) + ' more' : ''}`;
+      cs.style.color = '#b45309';
+      cs.textContent = `⚠ ${SKC.code} is partly used — only the free SKUs are made · ${ck.others.slice(0, 2).map(o => o.colour + ' (' + nf(o.n) + ' SKU' + (o.n === 1 ? '' : 's') + ', e.g. ' + o.eg + ')').join(', ')}${ck.others.length > 2 ? ' +' + (ck.others.length - 2) + ' more' : ''}`;
     } else if (ck.mine) {
       cs.style.color = '#b45309';
       cs.textContent = `${SKC.col || 'This colour'}'s own code — ${nf(ck.have)} SKU(s) already made, only the missing ones are created`;

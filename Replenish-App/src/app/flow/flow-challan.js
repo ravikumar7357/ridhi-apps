@@ -142,10 +142,21 @@ const flowPrintTxt = w => w.kind === 'sku' ? `<b>${esc(w.code)}</b> · ${esc(w.l
 
 const flowChItem = r => [r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ');
 /** The next number for a month: RFD-YYYYMM-001, after every challan already saved that month. */
+/* THE NUMBERS THE SERVER HOLDS (Ravi, 18 Nov: "Could not get a free challan number"). A number was picked from this page's copy of the
+ * challans, and a page left open while others made challans was further behind than the 15 retries could walk. On the first number
+ * found taken, the challan numbers are read from the server (keys only) and counted from there. (from main, 24 Nov merge) */
+let FLOW_CH_SEEN = [];
+async function flowChSeenFresh() {
+  try {
+    const q = await ptAuthQuery();
+    const r = await fetch(`${PT_URL}/pt_flowChallans.json${q ? q + '&' : '?'}shallow=true`);
+    if (r.ok) FLOW_CH_SEEN = Object.keys((await r.json()) || {});
+  } catch (e) { /* the retries still walk on from this page's copy */ }
+}
 function flowChallanNo(date, test, taken) {
   /* A test order's challans count on their own (TRFD-…), so testing never uses up a real number. */
   const pre = (test ? 'TRFD-' : 'RFD-') + String(date || dToday()).slice(0, 7).replace('-', '') + '-';
-  const used = Object.keys(FLOW.ch || {}).concat(taken || []).filter(k => k.startsWith(pre)).map(k => +k.slice(-3) || 0);
+  const used = Object.keys(FLOW.ch || {}).concat(taken || [], FLOW_CH_SEEN).filter(k => k.startsWith(pre)).map(k => +k.slice(-3) || 0);
   return pre + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
 }
 const flowIsPrinter = v => String((v && v.category) || '').trim().toLowerCase() === 'printer';
@@ -480,6 +491,7 @@ async function flowChallanWrite(ch, v, how) {
   for (let k = 0, taken = []; ; k++) {
     let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
     if (!er) break;
+    if (k === 0) await flowChSeenFresh();   // the number was taken: read the numbers the server holds (18 Nov)
     if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
     taken.push(no); no = flowChallanNo(ch.date, how.isTest, taken); ch.no = no;
   }

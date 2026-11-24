@@ -395,10 +395,12 @@ function renderMtg() {
       <span class="kpiname" style="font-size:15px">Production meeting — ${esc(repWkRange(wk))}</span>
       <span class="muted" style="font-size:12px">read ${esc(MTG.at)}${MTG.err.length ? ' · <span style="color:var(--bad)">not read: ' + esc(MTG.err.join(' · ')) + '</span>' : ''}</span>
       <span style="flex:1"></span>
+      <button type="button" data-mtg="present" title="The meeting as slides — FBA, B2B, Shopify, people, machines, IT, action points (18 Nov)">Present</button>
       <button type="button" class="ghost" data-mtg="wa">Share on WhatsApp</button>
       <button type="button" class="ghost" data-mtg="copy">Copy summary</button>
       ${can ? `<button type="button" class="ghost" data-mtg="ftpl">Freight template</button><button type="button" class="ghost" data-mtg="fup">Upload freight sheet</button>
       <input type="file" id="mtgFreightFile" accept=".csv,.xlsx" style="display:none">
+      <button type="button" class="ghost" data-mtg="groups" title="Opens the slides at People — every karigar: press Group… on a row to say who works with whom">Karigar groups</button>
       <button type="button" data-mtg="freeze">${fz ? 'Freeze again' : 'Freeze this week'}</button>` : ''}
       <span id="mtgMsg" class="muted" style="flex-basis:100%;font-size:12.5px"></span></div>`
     + (fz ? `<div class="kpi" style="flex-basis:100%;background:#F0F9FF"><div class="kpihead"><span class="kpiname">As it stood in the meeting</span><span class="kpiwhen">frozen ${esc(fz.at || '')} · ${esc(fz.by || '')}</span></div>
@@ -446,9 +448,57 @@ async function mtgToggleAction(week, id) {
 async function mtgFreeze(wk) {
   if (!mtgCanWrite() || !MTG.last || MTG.last.wk !== wk) return 'Not allowed.';
   const rec = { at: ptStamp(), by: ME.email, text: mtgSummary(wk, MTG.last.S) };
+  /* the People slide's two lists as the meeting saw them (22 Nov: a later week, or an entry corrected later, does not move them) */
+  try {
+    if (typeof mtsSlides === 'function') {
+      await mtsRatesLoad();
+      const html = mtsSlides(wk).find(s => s.t === 'People Discussion');
+      const box = document.createElement('div'); box.innerHTML = html ? html.html : '';
+      const t = box.querySelectorAll('table.mts-cmp');
+      if (t.length) rec.people = { at: rec.at, top: t[0] ? t[0].outerHTML : '', bottom: t[1] ? t[1].outerHTML : '' };
+    }
+  } catch (e) { /* the summary text is still frozen */ }
   await ptPut('pt_meeting/' + wk + '/frozen', rec);
   MTG.meet = MTG.meet || {}; MTG.meet[wk] = MTG.meet[wk] || {}; MTG.meet[wk].frozen = rec;
   return '';
+}
+
+/* KARIGAR GROUPS (22 Nov): who works together. Stored in pt_meeting/_groups — the meeting's own store. */
+function mtgGroupsOpen() {
+  if (!mtgCanWrite()) return;
+  const since = Date.now() - 56 * 864e5, names = new Set();
+  (PT.base || []).forEach(r => { if (r && r.empName && /company contractor/i.test(r.empType || '') && ptDtMs(r.issueDate) >= since) names.add(String(r.empName).trim()); });
+  const groups = Object.entries(((MTG.meet || {})._groups) || {}).filter(([, g]) => g && Array.isArray(g.members));
+  const list = groups.length ? groups.map(([id, g]) => `<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)"><b>${esc(g.name || g.members.join(' + '))}</b>`
+    + `<span class="muted" style="flex:1">${esc(g.members.join(', '))}</span><button type="button" class="ghost" data-mtggdel="${esc(id)}" style="padding:2px 10px;font-size:12px;color:var(--bad)">Remove</button></div>`).join('')
+    : '<div class="muted">No groups yet.</div>';
+  ptOpenDialog({
+    title: 'Karigars who work together',
+    note: 'A group is ranked as one line on the People slide: its QC-passed work added up and divided by all its members\' active days, so two people whose work is entered under one name are not counted as one person doing double.',
+    html: `<div style="margin-bottom:10px">${list}</div>`,
+    fields: [
+      { key: 'name', label: 'Group name (optional — e.g. Hareram + Shriram)', span: true, value: '' },
+      { key: 'members', label: 'Members (pick 2 or more)', type: 'multi', span: true, options: [...names].sort((a, b) => a.localeCompare(b)), value: [] },
+    ],
+    saveLabel: 'Add group',
+    onSave: async v => {
+      const mem = (v.members || []).map(s => String(s).trim()).filter(Boolean);
+      if (mem.length < 2) return 'Pick at least two karigars.';
+      const taken = new Set(groups.flatMap(([, g]) => g.members.map(m => m.toLowerCase())));
+      const twice = mem.filter(m => taken.has(m.toLowerCase()));
+      if (twice.length) return twice.join(', ') + ' is already in a group — remove that group first.';
+      const id = 'g_' + Date.now().toString(36), rec = { name: String(v.name || '').trim() || mem.join(' + '), members: mem, at: new Date().toISOString(), by: ME.email };
+      try { await ptPut('pt_meeting/_groups/' + id, rec); } catch (e) { return 'Not saved: ' + (e.message || e); }
+      MTG.meet = MTG.meet || {}; (MTG.meet._groups = MTG.meet._groups || {})[id] = rec;
+      renderMtg(); return '';
+    },
+  });
+  $('ptDlgBody').querySelectorAll('[data-mtggdel]').forEach(b => { b.onclick = async () => {
+    const id = b.getAttribute('data-mtggdel');
+    try { await ptDelete('pt_meeting/_groups/' + id); } catch (e) { return ptDlgMsg('Not removed: ' + (e.message || e), true); }
+    if (MTG.meet && MTG.meet._groups) delete MTG.meet._groups[id];
+    ptDlgClose(); mtgGroupsOpen();
+  }; });
 }
 
 $('repKpis').addEventListener('change', async e => {
@@ -471,10 +521,12 @@ $('repKpis').addEventListener('click', async e => {
   const act = b.getAttribute('data-mtgact');
   if (act) { const [w, id] = act.split('|'); const err = await mtgToggleAction(w, id).catch(er => 'Not saved: ' + (er.message || er)); renderMtg(); return say(err || 'Saved.', !!err); }
   const k = b.getAttribute('data-mtg'), text = MTG.last ? mtgSummary(wk, MTG.last.S) : '';
+  if (k === 'present') { if (typeof mtsOpen === 'function') mtsOpen(); return; }
   if (k === 'wa') { window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank'); return; }
   if (k === 'copy') { try { await navigator.clipboard.writeText(text); say('Summary copied — paste it anywhere.'); } catch (er) { say('Could not copy — use Share on WhatsApp instead.', true); } return; }
   if (k === 'ftpl') return ptDownload('freight-sheet', [MTG_FREIGHT_COLS.map(csvCell).join(','), ['06-10-2026', 'FBA15XXXXXXX', 'Air', 'DHL', 4, 62, 180, 31500, 'INR', 'example — delete this row'].map(csvCell).join(',')]);
   if (k === 'fup') { const f = $('mtgFreightFile'); if (f) f.click(); return; }
+  if (k === 'groups') { if (typeof mtsOpenGroups === 'function') mtsOpenGroups(); return; }
   if (k === 'freeze') { const err = await mtgFreeze(wk).catch(er => 'Not saved: ' + (er.message || er)); renderMtg(); return say(err || 'Frozen — this is what the meeting saw.', !!err); }
   if (k === 'act') { const err = await mtgAddAction(wk, ($('mtgActWhat') || {}).value, ($('mtgActWho') || {}).value, ($('mtgActBy') || {}).value).catch(er => 'Not saved: ' + (er.message || er)); if (!err) renderMtg(); return say(err || 'Action point added.', !!err); }
 });

@@ -42,6 +42,44 @@ function mailPo_(p) {
   return { ok: true, sent: to.length + cc.length };
 }
 
+/* ===================== BOARD REPORT BY MAIL (23 Nov 2026) =====================
+ * The Order Console boards' Report bucket: what is pending at a step / with a printer, as a PDF the page made. Sent from this account with
+ * that PDF attached. Only for a signed-in person with rights (writerOf_ — the key alone is in every page's source), only a PDF, five
+ * addresses at most, MAILREP_DAILY a day; the subject and the words around the message are written here. */
+var MAILREP_DAILY = 80;
+function mailReport_(p, who) {
+  var list = function (s) { return String(s || '').split(/[,;\s]+/).map(function (x) { return x.trim(); }).filter(Boolean); };
+  var to = list(p.to), cc = list(p.cc);
+  var okMail = function (x) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x); };
+  if (!to.length) return { ok: false, error: 'No address to send it to.' };
+  var bad = to.concat(cc).filter(function (x) { return !okMail(x); });
+  if (bad.length) return { ok: false, error: '"' + bad[0] + '" is not an email address.' };
+  if (to.length + cc.length > 5) return { ok: false, error: 'Five addresses at most.' };
+  var title = String(p.title || '').replace(/[\r\n]/g, ' ').slice(0, 120).trim();
+  if (!title) return { ok: false, error: 'The report has no title.' };
+  var b64 = String(p.pdf || '');
+  if (!b64 || b64.length > 6000000) return { ok: false, error: 'The PDF is missing or too large.' };
+  var bytes = Utilities.base64Decode(b64);
+  if (bytes.length < 5 || String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]) !== '%PDF-') return { ok: false, error: 'That is not a PDF.' };
+  var day = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
+  var props = PropertiesService.getScriptProperties();
+  var used = parseInt(props.getProperty('MAILREP_' + day) || '0', 10) || 0;
+  if (used >= MAILREP_DAILY) return { ok: false, error: 'Daily limit of ' + MAILREP_DAILY + ' report mails reached. Try tomorrow.' };
+  var from = String(p.fromName || 'Ridhi Home & Living').replace(/[\r\n]/g, ' ').slice(0, 80);
+  var name = String(p.fileName || 'report.pdf').replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 120);
+  if (!/\.pdf$/i.test(name)) name += '.pdf';
+  var msg = String(p.message || '').slice(0, 1500), summary = String(p.summary || '').slice(0, 800);
+  MailApp.sendEmail({
+    to: to.join(','), cc: cc.join(','), name: from, replyTo: who.email,
+    subject: 'Pending report - ' + title,
+    body: 'Dear Sir/Madam,\n\nPlease find attached the pending list: ' + title + '.\n\n' + (summary ? summary + '\n\n' : '')
+      + (msg ? msg + '\n\n' : '') + 'Regards,\n' + from + '\n(sent by ' + who.email + ')',
+    attachments: [Utilities.newBlob(bytes, 'application/pdf', name)],
+  });
+  props.setProperty('MAILREP_' + day, String(used + 1));
+  return { ok: true, sent: to.length + cc.length };
+}
+
 /** Run once from the Apps Script editor so Google asks for permission to send mail. */
 function authorizeMail() {
   Logger.log('Mail quota left today: ' + MailApp.getRemainingDailyQuota());

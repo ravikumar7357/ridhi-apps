@@ -210,8 +210,9 @@ function mdbRenamePaths(from, to, upd) {
   touch('pt_fgiLedger', FGI.rows || []);
   touch('pt_customSkus', PTE.custom || []);
   touch('pt_accLedger', ACC.ledger || []);
+  /* the old code stays on the line (skuWas): a Shopify order still names it, and the bucket finds the line by it (20 Nov, RBP8268) */
   (PTG.ob || []).filter(r => obUC(r.sku) === from)
-    .forEach(r => { upd[`pt_orderBook/${r.id || r._key}/sku`] = to; });
+    .forEach(r => { upd[`pt_orderBook/${r.id || r._key}/sku`] = to; upd[`pt_orderBook/${r.id || r._key}/skuWas`] = from; });
   /* An order's lines are nested inside it, so each one is addressed by its own index. Firebase
    * stores an array as an object keyed 0, 1, 2… which is exactly what these paths need. */
   (SOX.rows || []).forEach(o => (Array.isArray(o.lines) ? o.lines : Object.values(o.lines || {}))

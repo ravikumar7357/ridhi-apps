@@ -413,7 +413,7 @@ $('verifyAgain').onclick = async () => {
 
 /* ---------- tabs ---------- */
 /** Every section, and the sidebar button that opens it. One map, used wherever buttons are shown. */
-const NAV_MAP = { repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow',
+const NAV_MAP = { repl: 'tabRepl', article: 'tabArticle', ctrend: 'tabCtrend', target: 'tabTarget', follow: 'tabFollow',
   top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack',
   pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc',
   ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx',
@@ -461,7 +461,7 @@ function showTab(which) {
   if (which === 'shopret') which = 'shop';   // the returns team's only screen, when it is the first one they hold
   if (which === 'shopbkt') which = 'shop';   // the production team's only screen, likewise
   if (which === 'shopprod') which = 'ord';
-  const panes = { access: 'paneAccess', dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj', flow: 'paneFlow', gdesk: 'paneGdesk' };
+  const panes = { access: 'paneAccess', dash: 'paneDash', repl: 'paneRepl', article: 'paneArticle', ctrend: 'paneCtrend', target: 'paneTarget', follow: 'paneFollow', top: 'paneTop', india: 'paneIndia', shopify: 'paneShopify', prod: 'paneProd', pack: 'panePack', att: 'paneAtt', pmdb: 'panePmdb', mst: 'paneMst', pbase: 'panePbase', pcut: 'panePcut', ppress: 'panePpress', qc: 'paneQc', ord: 'paneOrd', so: 'paneSo', vord: 'paneVord', vreq: 'paneVreq', rfd: 'paneRfd', vend: 'paneVend', vlog: 'paneVlog', cx: 'paneCx', palloc: 'panePalloc', fgi: 'paneFgi', fba: 'paneFba', fab: 'paneFab', acc: 'paneAcc', rep: 'paneRep', pa: 'panePa', ka: 'paneKa', hr: 'paneHr', shop: 'paneShop', adj: 'paneAdj', flow: 'paneFlow', gdesk: 'paneGdesk' };
   const navs = { access: 'tabAccess', dash: 'tabDash', repl: 'tabRepl', article: 'tabArticle', target: 'tabTarget', follow: 'tabFollow', top: 'tabTop', india: 'tabIndia', shopify: 'tabShopify', prod: 'tabProd', pack: 'tabPack', att: 'tabAtt', pmdb: 'tabPmdb', mst: 'tabMst', pbase: 'tabPbase', pcut: 'tabPcut', ppress: 'tabPpress', qc: 'tabQc', ord: 'tabOrd', so: 'tabSo', vord: 'tabVord', vreq: 'tabVreq', rfd: 'tabRfd', vend: 'tabVend', vlog: 'tabVlog', cx: 'tabCx', palloc: 'tabPalloc', fgi: 'tabFgi', fba: 'tabFba', fab: 'tabFab', acc: 'tabAcc', rep: 'tabRep', pa: 'tabPa', ka: 'tabKa', hr: 'tabHr', shop: 'tabShop', adj: 'tabAdj', flow: 'tabFlow', gdesk: 'tabGdesk' };
   /* Before anything is shown: hand back what the screen being left was holding. */
   if (TAB_NOW && TAB_NOW !== which) tabShed(TAB_NOW);
@@ -505,6 +505,7 @@ function showTab(which) {
    * "abhi bhi data blank hi show ho rha h". Each one asks here, and draws when it lands. */
   if (which === 'repl') ensureRepl();
   if (which === 'article') ensureReplData().then(renderArticle, renderArticle);
+  if (which === 'ctrend') ensureReplData().then(renderCtrend, renderCtrend);
   if (which === 'target') ensureTarget();
   if (which === 'follow') ensureFollow();
   /* Top and Shopify: what they need besides the snapshot is STARTED here, read while the snapshot is — each screen
@@ -553,6 +554,7 @@ function showTab(which) {
 $('tabDash').onclick = () => showTab('dash');
 $('tabRepl').onclick = () => showTab('repl');
 $('tabArticle').onclick = () => showTab('article');
+$('tabCtrend').onclick = () => showTab('ctrend');
 $('tabTarget').onclick = () => showTab('target');
 $('tabFollow').onclick = () => showTab('follow');
 $('tabTop').onclick = () => showTab('top');
