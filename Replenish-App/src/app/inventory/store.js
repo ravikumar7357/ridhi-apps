@@ -142,14 +142,30 @@ function stFlowMoves() {
   if (typeof FLOW_ON === 'undefined' || !FLOW_ON || typeof FLOW === 'undefined' || !FLOW) return out;
   const day = at => ptIsoDate(at) || String(at || '').slice(0, 10);
   const colOf = sku => { let m = {}; try { m = cutSkuOf(sku) || {}; } catch (e) { m = {}; } return String(m.color || '').trim(); };
-  /* IN — printed cloth received on a challan */
+  /* IN — printed cloth AND printed pieces received on a challan: "Store receive" (Ravi, 24 Nov: "receive krne ke bad vendor order yaha store me
+   * dikhne chahiye in out me … cut pcs ho chah running"). The pieces are the same ones "Raw cutting in store" in the flow counts, seen here too. */
+  const pcsIn = new Set();
   try {
     flowVlogRows().forEach(r => {
-      if (r.test || r.unit !== 'm' || !r.fabric || !(r.qty > 0) || String(r.at || '') < ST_AUTO_FROM) return;
-      out.push({ src: 'printer', id: r.key2, unit: 'm', sku: '', fabric: r.fabric, colour: r.colour || '', printer: r.vendor || '',
-        qty: r.qty, what: 'Received from ' + (r.vendor || 'the printer') + ' · ' + r.id, date: r.day || day(r.at), at: r.at, who: r.by || '', remark: r.orderNo || '' });
+      if (r.test || !(r.qty > 0) || String(r.at || '') < ST_AUTO_FROM) return;
+      const pcs = r.unit === 'pcs';
+      if (pcs ? !r.sku : (r.unit !== 'm' || !r.fabric)) return;
+      if (pcs) pcsIn.add(obUC(r.sku));
+      out.push({ src: 'printer', id: r.key2, unit: pcs ? 'pcs' : 'm', sku: pcs ? obUC(r.sku) : '', fabric: pcs ? '' : r.fabric, colour: r.colour || '', printer: r.vendor || '',
+        printerCode: r.vendorCode || '', challan: r.id || '', orderNo: r.ordNo || '',
+        qty: r.qty, what: 'Store receive · from ' + (r.vendor || 'the printer') + ' · ' + r.id, date: r.day || day(r.at), at: r.at, who: r.by || '', remark: r.orderNo || '' });
     });
   } catch (e) { /* the challans wait */ }
+  /* OUT — pieces given to a karigar, for the SKUs the printers delivered here. An issue takes only what these goods hold (stBalances),
+   * so a SKU never delivered through a challan is not pulled onto this shelf. */
+  (PT.base || []).forEach(r => {
+    const at = String(r.addedAt || '');
+    if (!at || at < ST_AUTO_FROM || !pcsIn.has(obUC(r.sku)) || /^TEST-/.test(String(r.orderNo || ''))) return;
+    const q = stNum(r.issuePieces);
+    if (!(q > 0)) return;
+    out.push({ src: 'jobwork', id: 'jw-' + r.id, unit: 'pcs', sku: r.sku, fabric: '', colour: '',
+      qty: -q, what: 'Issued to ' + (r.empName || 'a karigar'), date: ptIsoDate(r.issueDate) || day(at), at, who: r.addedBy || '', remark: r.orderNo || '' });
+  });
   /* OUT — what each PPC plan took from the store, and what it took per line (for the cutting below) */
   const took = {};
   Object.entries(FLOW.ppc || {}).forEach(([key, p]) => {
@@ -196,10 +212,13 @@ function stMoves() {
     if (!r) return;
     const q = stNum(r.qty);
     if (!q) return;
-    out.push({ src: 'typed', id: r.id || r._key, unit: r.unit === 'm' ? 'm' : 'pcs', sku: r.sku || '', fabric: r.fabric || '', colour: r.colour || '',
-      qty: r.kind === 'OUT' ? -Math.abs(q) : (r.kind === 'ADJUST' ? q : Math.abs(q)),
-      what: r.kind === 'OPENING' ? 'Opening stock' : r.kind === 'OUT' ? 'Taken out by hand' : r.kind === 'ADJUST' ? 'Correction' : 'Taken in by hand',
-      date: r.date || day(r.at), at: r.at || '', who: r.by || '', remark: r.remark || '' });
+    const ret = r.kind === 'RETURN';
+    out.push({ src: 'typed', kind: r.kind, id: r.id || r._key, unit: r.unit === 'm' ? 'm' : 'pcs', sku: r.sku || '', fabric: r.fabric || '', colour: r.colour || '',
+      qty: r.kind === 'OUT' || ret ? -Math.abs(q) : (r.kind === 'ADJUST' ? q : Math.abs(q)),
+      what: r.kind === 'OPENING' ? 'Opening stock' : ret ? 'Returned to ' + (r.printer || 'the printer') + (r.challan ? ' · ' + r.challan : '') : r.kind === 'OUT' ? 'Taken out by hand' : r.kind === 'ADJUST' ? 'Correction' : 'Taken in by hand',
+      date: r.date || day(r.at), at: r.at || '', who: r.by || '',
+      remark: ret ? [r.orderNo, r.reason].filter(Boolean).join(' · ') : (r.remark || ''),
+      printer: r.printer || '', orderNo: r.orderNo || '', ref: r.ref || '' });
   });
   /* BY HAND ONLY (Ravi, 14 Oct: "bas store stock balance rahega jo batayega ki mere pas printed fabric kitna pada h jise me
    * manually chadaunga"). The store is what is typed — opening, in, out, correction — and nothing else: the printers'
@@ -466,18 +485,69 @@ function stEntriesOpen(key) {
   if (!list.length) return;
   const can = ptCanEdit(), q = v => nf(Math.round(v * 100) / 100);
   const src = { typed: 'typed by hand', plan: 'PPC plan', cut: 'cutting', printer: 'challan', challan: 'challan', waste: 'cutting waste', jobwork: 'job work' };
+  /* THE HISTORY (Ravi, 24 Nov): what came in, what went out, what went back to a printer, and what is left — like the fabric stock history. */
+  const came = list.filter(mv => mv.qty > 0).reduce((a, mv) => a + mv.qty, 0), back = list.filter(mv => mv.kind === 'RETURN').reduce((a, mv) => a - mv.qty, 0);
+  const went = list.filter(mv => mv.qty < 0 && mv.kind !== 'RETURN').reduce((a, mv) => a - mv.qty, 0);
+  const tile = (l, v, c) => `<div style="flex:1 1 120px;border:1px solid var(--line);border-radius:10px;padding:7px 10px"><div class="muted" style="font-size:11px">${l}</div><div style="font-size:18px;font-weight:700${c ? ';color:' + c : ''}">${q(v)}</div></div>`;
+  const tiles = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">' + tile('Came in', came, '#166534') + tile('Went out', went, 'var(--bad)')
+    + (back > 0 ? tile('Returned to printers', back, '#b45309') : '') + tile('On the shelf', came - went - back) + '</div>';
+  const retLeft = mv => Math.max(0, mv.qty - list.filter(x => x.kind === 'RETURN' && x.ref === mv.id).reduce((a, x) => a - x.qty, 0));
   ptOpenDialog({
     title: 'Entries — ' + stName(list[0]),
     subtitle: nf(list.length) + ' entr' + (list.length === 1 ? 'y' : 'ies') + ' · newest first' + (can ? ' · an entry typed by hand can be deleted (it goes to the recycle bin)' : ''),
-    html: '<div style="max-height:60vh;overflow:auto"><table class="xl" style="font-size:12.5px"><thead><tr><th style="text-align:left">Date</th><th style="text-align:left">What</th>'
+    html: tiles + '<div style="max-height:60vh;overflow:auto"><table class="xl" style="font-size:12.5px"><thead><tr><th style="text-align:left">Date</th><th style="text-align:left">What</th>'
       + '<th class="num">Qty</th><th style="text-align:left">From</th><th style="text-align:left">By</th><th style="text-align:left">Remark</th><th></th></tr></thead><tbody>'
       + list.map(mv => '<tr>'
         + `<td style="white-space:nowrap">${esc(mv.date || '')}</td><td style="text-align:left">${esc(mv.what || '')}</td>`
         + `<td class="num" style="font-weight:700;color:${mv.qty < 0 ? 'var(--bad)' : '#166534'}">${mv.qty > 0 ? '+' : ''}${q(mv.qty)}</td>`
-        + `<td style="text-align:left" class="muted">${esc(src[mv.src] || mv.src || '')}</td>`
+        + `<td style="text-align:left" class="muted">${esc(mv.kind === 'RETURN' ? 'returned to printer' : (src[mv.src] || mv.src || ''))}</td>`
         + `<td style="text-align:left">${esc(String(mv.who || '').split('@')[0])}</td><td style="text-align:left">${esc(mv.remark || '')}</td>`
-        + `<td>${can && mv.src === 'typed' && mv.id ? `<button class="ghost" data-st-del="${esc(mv.id)}" data-st-key="${esc(key)}" style="padding:2px 10px;font-size:12px;color:var(--bad)">Delete</button>` : ''}</td></tr>`).join('')
+        + `<td>${can && mv.src === 'typed' && mv.id ? `<button class="ghost" data-st-del="${esc(mv.id)}" data-st-key="${esc(key)}" style="padding:2px 10px;font-size:12px;color:var(--bad)">Delete</button>` : ''}`
+        + `${can && mv.src === 'printer' && mv.printer && retLeft(mv) > 0 ? `<button class="ghost" data-st-ret="${esc(mv.id)}" title="${esc('Send back to ' + mv.printer + ' — ' + q(retLeft(mv)) + ' of this receipt can still be returned')}" style="padding:2px 10px;font-size:12px;color:#b45309">Return</button>` : ''}</td></tr>`).join('')
       + '</tbody></table></div>',
+  });
+}
+/* RETURN TO THE PRINTER (Ravi, 24 Nov: "baad me pata chalta h ki jo pcs aay the wo reject h to store return kare, jaha se aaya wahi wapas jana chahiye, same
+ * method me jisase order track rahe"). Taken from one receipt (the challan line it came in on), never more than is left of it. It is a typed OUT of
+ * the store — "Returned to <printer> · challan" with the order and the reason — and it follows the order into its journey. The order itself does NOT
+ * reopen: if more is needed, a new sales order is opened. */
+function stReturnLeft(mv) {
+  const done = (STORE.rows || []).filter(r => r && r.kind === 'RETURN' && r.ref === mv.id).reduce((a, r) => a + (+r.qty || 0), 0);
+  return Math.round(Math.max(0, mv.qty - done) * 100) / 100;
+}
+async function stReturnSave(mv, rec) {
+  if (!ptCanEdit()) return PT_NO_EDIT;
+  if (!mv || mv.src !== 'printer') return 'Only goods received from a printer can be returned to it.';
+  const qty = parseFloat(rec.qty), left = stReturnLeft(mv);
+  if (!isFinite(qty) || qty <= 0) return mv.unit === 'pcs' ? 'How many pieces go back?' : 'How many metres go back?';
+  if (mv.unit === 'pcs' && Math.round(qty) !== qty) return 'Pieces have to be a whole number.';
+  if (qty > left + 1e-9) return `Only ${nf(left)} ${mv.unit === 'pcs' ? 'pcs' : 'm'} of this receipt can still go back (the rest is returned already).`;
+  const reason = String(rec.reason || '').trim();
+  if (!reason) return 'Say why it goes back (rejected, wrong colour, damaged ...).';
+  const row = { id: 'st_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), kind: 'RETURN', unit: mv.unit, qty,
+    sku: mv.sku || '', fabric: mv.fabric || '', colour: mv.colour || '', printer: mv.printer || '', printerCode: mv.printerCode || '', challan: mv.challan || '',
+    orderNo: mv.orderNo || '', ref: mv.id, reason, date: String(rec.date || '').trim() || attToday(), remark: '', by: ME.email, at: new Date().toISOString() };
+  try { await ptPut('pt_storeLedger/' + row.id, row); }
+  catch (e) { return 'Not saved: ' + (e.message || e); }
+  STORE.rows = (STORE.rows || []).concat([Object.assign({ _key: row.id }, row)]);
+  return '';
+}
+function stReturnOpen(id) {
+  if (!ptCanEdit()) { alert(PT_NO_EDIT); return; }
+  const mv = stMoves().find(x => x.src === 'printer' && x.id === id);
+  if (!mv) { alert('That receipt is not on the list any more - press Refresh.'); return; }
+  const left = stReturnLeft(mv), u = mv.unit === 'pcs' ? 'pcs' : 'm';
+  ptOpenDialog({
+    title: 'Return to ' + mv.printer,
+    subtitle: stName(mv) + ' · ' + nf(mv.qty) + ' ' + u + ' came on ' + (mv.challan || 'a challan') + (mv.orderNo ? ' for ' + mv.orderNo : ''),
+    note: "It goes out of the store and is recorded against this printer, challan and order, so the order's journey shows it. The order does not reopen - if you need more, open a new sales order.",
+    fields: [
+      { key: 'qty', label: 'How many go back (up to ' + nf(left) + ' ' + u + ')', type: 'number', step: u === 'pcs' ? '1' : '0.01', value: left },
+      { key: 'reason', label: 'Why', value: '', span: true },
+      { key: 'date', label: 'Date', type: 'date', value: attToday() },
+    ],
+    saveLabel: 'Return to printer',
+    onSave: async v => { const err = await stReturnSave(mv, v); if (!err) renderFab(); return err; },
   });
 }
 async function stDelete(id) {
@@ -759,6 +829,8 @@ $('fbTable').addEventListener('click', async e => {
   /* TRACK: the item's own movements, newest first — printer, order, date, karigar. */
   const en = e.target.closest('[data-st-ent]');
   if (en) { e.preventDefault(); stEntriesOpen(en.getAttribute('data-st-ent')); return; }
+  const rt = e.target.closest('[data-st-ret]');
+  if (rt) { e.preventDefault(); stReturnOpen(rt.getAttribute('data-st-ret')); return; }
   const tr = e.target.closest('[data-st-track]');
   if (tr) { if ($('fbQ')) $('fbQ').value = tr.getAttribute('data-st-track'); $('fbView').value = 'storemov'; renderFab(); return; }
   const on = e.target.closest('[data-st-check]'), off = e.target.closest('[data-st-uncheck]');
