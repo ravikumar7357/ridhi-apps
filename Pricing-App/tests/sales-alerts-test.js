@@ -72,9 +72,9 @@ asin('O1', 'SP', 900, 30, d => (inn('2026-11-16', LAST)(d) ? { x: 0.4 } : null))
 asin('T1', 'SP', 300, 30, d => (d === TODAY ? { x: 0.05 } : null)); kid('PT', 'T1');
 // U — a dear size ($50) sold out beside a cheap one ($20): the parent's plain average price falls, but no price changed → out of stock only
 asin('U1', 'SP', 400, 50, d => (inn('2026-11-20', LAST)(d) ? { x: 0 } : null)); asin('U2', 'SP', 300, 20); kid('PU', 'U1', 'U2');
-// V — the real-data case (Pillow Cover, 24 Nov): 15% under its own normal weeks for the whole 14 days — inside "normal"; only a brand
+// V — the real-data case (Pillow Cover, 24 Nov): 12% under its own normal weeks for the whole 14 days — inside "normal"; only a brand
 //     season lift (×1.4) applied to it would call that "down 40% for 14 days"
-asin('V1', 'SP', 700, 35, d => (d >= '2026-11-10' && d <= LAST ? { x: 0.85 } : null)); kid('PV', 'V1');
+asin('V1', 'SP', 700, 35, d => (d >= '2026-11-10' && d <= LAST ? { x: 0.88 } : null)); kid('PV', 'V1');
 // W — irregular normal weeks (×⅓, ×1, ×1, ×3⅓ of $300): over 30% of its own normal days fall outside its range → not judged, even at −70%
 asin('W1', 'SP', 300, 10, d => (inn('2026-10-13', '2026-10-19')(d) ? { x: 1 / 3 } : inn('2026-11-03', '2026-11-09')(d) ? { x: 10 / 3 } : d >= '2026-11-17' && d <= LAST ? { x: 0.3 } : null)); kid('PW', 'W1');
 // X — the real-data Pillow Insert (THE WHIMSICAL CORNER, 24 Nov): normal weeks ×1.10, ×1.15, ×0.92, ×0.80 of $531/day (4,098 / 4,278 /
@@ -166,14 +166,14 @@ const A = find(R, 'PA');
 ok('a real drop → an alert (4 low days, about −50%)', A && A.list === 'alerts' && A.days === 4 && Math.round(A.drop) >= 45, A && JSON.stringify([A.list, A.days, A.drop]));
 const exp = A.run.reduce((s, d) => s + A.series.find(p => p.d === d).e, 0), act = A.run.reduce((s, d) => s + A.series.find(p => p.d === d).v, 0);
 ok('$ at risk = (expected − actual) per low day × 7', Math.abs(A.atRisk - (exp - act) / A.days * 7) < 0.01 && Math.abs(A.exp - exp) < 0.01, `${A.atRisk} vs ${(exp - act) / A.days * 7}`);
-ok('the hero total = the alerts\' $ at risk added up', Math.abs(R.atRisk - R.alerts.reduce((s, a) => s + a.atRisk, 0)) < 0.001);
+ok('the hero total = the alerts\' $ at risk added up (a big product\'s Watch is not in it)', Math.abs(R.atRisk - R.alerts.filter(a => !a.soft).reduce((s, a) => s + a.atRisk, 0)) < 0.001);
 ok('a small product (≈$280/week) never alerts, even −80%', !find(R, 'PB'));
 ok('only 2 low days → "Waiting for data", never an alert', find(R, 'PC', 'waiting') && !find(R, 'PC', 'alerts') && /2 low days so far/.test(find(R, 'PC', 'waiting').why), find(R, 'PC') && find(R, 'PC').why);
 ok('a fall today (a part day) never counts', !find(R, 'PT'));
 const late = run({ days: Object.assign({}, dailyAsin, { upTo: '2026-11-22' }) });
 ok('the nightly not in for yesterday: the last day is the last one held, and the page says so', late.last === '2026-11-22' && late.missing.join() === '2026-11-23');
 ok('…a product with 1 low day held waits "for the nightly days"; one with 3 held low days is an alert', /nightly days for 23 Nov are not in yet/.test((find(late, 'PC', 'waiting') || {}).why || '') && !!find(late, 'PA', 'alerts'), JSON.stringify(find(late, 'PC') && [find(late, 'PC').list, find(late, 'PC').why]));
-ok('the rows are ranked by $ at risk, biggest first', R.alerts.every((a, i) => !i || R.alerts[i - 1].atRisk >= a.atRisk));
+ok('the rows are ranked by $ at risk, biggest first (a big product\'s Watch after them)', R.alerts.every((a, i) => !i || (R.alerts[i - 1].soft ? a.soft && R.alerts[i - 1].atRisk >= a.atRisk : a.soft || R.alerts[i - 1].atRisk >= a.atRisk)));
 
 console.log('== season ==');
 const RC = run({}, 'CPC');
@@ -194,7 +194,7 @@ const lyUp = { SP: Object.assign({}, ly.SP), CPC: ly.CPC };
 for (let d = '2025-11-11'; d <= '2025-11-24'; d = alAdd(d, 1)) lyUp.SP[d] = [7000, 200, 180];
 const RU = run({ lyDaily: lyUp });
 const V = find(RU, 'PV');
-ok('a product 15% under its own normal weeks is no alert when the BRAND\'s last year rose ×1.4 (expected is never raised above its own weeks)', !V || V.list !== 'alerts', V && JSON.stringify([V.list, V.head, V.fDown]));
+ok('a product 12% under its own normal weeks is no alert when the BRAND\'s last year rose ×1.4 (expected is never raised above its own weeks)', !V || V.list !== 'alerts', V && JSON.stringify([V.list, V.head, V.fDown]));
 ok('…the brand factor is used ×1 for drops (never above), ×1.4 only against wins', RU.alerts.every(a => a.fDown === 1 && a.fUp === 1.4), JSON.stringify(RU.alerts.map(a => [a.parent, a.fDown, a.fUp])));
 ok('…and the real drops stay exactly the same alerts, the same days', RU.alerts.map(a => a.parent + a.days).sort().join() === R.alerts.map(a => a.parent + a.days).sort().join(), RU.alerts.map(a => a.parent + a.days).join());
 const lyDn = { SP: Object.assign({}, ly.SP), CPC: ly.CPC };
@@ -264,7 +264,7 @@ ok('…the same product with no brand move → ✅ Confirmed', (find(RC, 'PMOVER
 const UBc = find(R, 'PUB');
 ok('an uneven baseline (one normal week 65% over the average) → ⚠️ Needs a look: "baseline too uneven"', UBc && UBc.list === 'review' && UBc.check.failed.includes('steady') && /② baseline uneven: weeks /.test(UBc.check.proof), dbg(UBc));
 ok('Needs a look is never in the hero, the chips or the Dashboard numbers', R.review.length >= 1 && !R.alerts.some(a => R.review.includes(a))
-  && Math.abs(R.atRisk - R.alerts.reduce((s, a) => s + a.atRisk, 0)) < 0.01 && R.counts.critical + R.counts.important + R.counts.watch === R.alerts.length);
+  && Math.abs(R.atRisk - R.alerts.filter(a => !a.soft).reduce((s, a) => s + a.atRisk, 0)) < 0.01 && R.counts.critical + R.counts.important + R.counts.watch === R.alerts.length);
 const fake = { list: 'alerts', brand: 'SP', run: [], exp: 1200, rawExp: 1000 };
 const fev = { N: [7000, 7000, 7000, 7000], J1: 4000, J2: 4000, bN: [null], bJ1: null, bJ2: null, complete: true };
 ok('check ⑤: expected moved above its own normal weeks (season inflation) → fails "season"', X.alVerify(fake, fev, { S: X.AL_DEF, last: LAST }).failed.join() === 'season');
@@ -335,6 +335,41 @@ ok('Download full check (CSV): a header with the six weeks and one row per produ
   csv.length === R.checked + 1 && /Normal week 1 \(13 Oct–19 Oct\) \$/.test(csv[0]) && /Judged week 2 \(17 Nov–23 Nov\) \$/.test(csv[0])
   && csv.some(l => /^Ridhi,PX,.*Confirmed drop/.test(l)) && csv.some(l => /^Ridhi,PUB,.*Needs a look \(drop\)/.test(l)) && csv.some(l => /^Ridhi,PB,.*Small/.test(l)), csv[0]);
 
+console.log('== a big product\'s Watch (real data, 24 Nov: the Pillow Cover −30% then −19% — −24% in all — showed "no alert") ==');
+{
+  // the exact judged weeks 10,255 and 11,805 after normal weeks averaging $14.6k (15,250 / 14,300 / 14,600 / 14,250)
+  const W = [15250, 14300, 14600, 14250, 10255, 11805];
+  const build = (a, weeks, perDay) => { const d = {}; for (let wi = 0; wi < 6; wi++) for (let k = 0; k < 7; k++) { const day = alAdd('2026-10-13', wi * 7 + k), v = perDay ? perDay(wi, k) : weeks[wi] / 7; d[day] = [Math.max(1, Math.round(v / 20)), Math.round(v * 100) / 100]; } return d; };
+  const with1 = (asin, parent, byDay, brand) => { PARENT[asin] = parent; return Object.assign({}, dailyAsin, { d: Object.assign({}, D, { [asin]: byDay }), brand: Object.assign({}, BR, { [asin]: brand || 'SP' }) }); };
+  const days1 = with1('BPC1', 'BPCOVER', build('BPC1', W));
+  const RW = run({ days: days1, brandDaily: brandRun(1.35, 1) });
+  const B = find(RW, 'BPCOVER');
+  ok('the plain alert rule: −24% is under the 25% line → no alert (what the real page showed)', !find(run({ days: days1, brandDaily: brandRun(1.35, 1), settings: { bigWeek: 1e9 } }), 'BPCOVER'));
+  ok('now: 🟡 Watch — "recovering" (−30% then −19%), ✅ confirmed by the trust checks', B && B.list === 'alerts' && B.sev === 'watch' && B.soft && B.watchState === 'recovering' && B.check.ok && B.state === 'Watch · recovering', dbg(B));
+  ok('…its ① is the Watch one: each judged week 10%+ down, 15%+ together', B && /weekly \(Watch\).*−30% \/ −19%/.test(B.check.checks[0].t) && B.check.checks[0].ok, B && B.check.checks[0].t);
+  ok('…its headline says so', B && /sales down 2\d% over 14 days — recovering \(a big product: watch, under the 25% alert line\)/.test(B.head), B && B.head);
+  ok('…it counts in the Watch chip, never in $ at risk (hero, Dashboard)', RW.counts.watch >= 1 && Math.abs(RW.atRisk - RW.alerts.filter(a => !a.soft).reduce((s, a) => s + a.atRisk, 0)) < 0.01 && RW.watchUsd >= B.atRisk - 0.01);
+  const heroW = X.alHeroHtml(RW).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
+  ok('…the hero names it beside the real drops: "· 1 big product to watch"', heroW.includes(`${RW.alerts.filter(a => !a.soft).length} products need attention`) && heroW.includes('· 1 big product to watch'), heroW.slice(0, 140));
+  ok('…the card: "−$X / week · Watch — not in the total"', X.alCardHtml(B).replace(/<[^>]+>/g, ' ').includes('/ week · Watch — not in the total'));
+  // the other route: one judged week −22%, the other −12% — fewer than half the days below the range (no lasting-drop stretch)
+  const days2 = with1('BPC2', 'BPCOVER2', build('BPC2', null, (wi, k) => 2100 * (wi < 4 ? 1 : wi === 4 ? (k === 6 ? 1 : 0.74) : (k === 3 ? 0.3 : 0.98))));
+  const B2 = find(run({ days: days2 }), 'BPCOVER2');
+  ok('or one judged week 20%+ down and the other 10%+ down (fewer than half the days low) → 🟡 Watch', B2 && B2.list === 'alerts' && B2.sev === 'watch' && B2.soft && B2.check.ok, dbg(B2));
+  // a smaller product: −20% for 14 days, $1,400/week normal → never a Watch (and under the alert line)
+  const days3 = with1('SM1', 'SMALL', build('SM1', null, (wi) => 200 * (wi < 4 ? 1 : 0.8)));
+  ok('a product under $2,000/week, −20% for 14 days → no Watch', !find(run({ days: days3 }), 'SMALL'));
+  ok('the old ("in a row") rule never makes a Watch', !find(run({ days: days1, rule: 'run' }), 'BPCOVER') || find(run({ days: days1, rule: 'run' }), 'BPCOVER').sev !== 'watch');
+}
+console.log('== salesAlertsReport: the five checks for EVERY product ==');
+{
+  const T = run({ trace: '' });
+  ok('every product is traced with its five checks ✓ / ✗ (alerts, wins and "no alert" alike) and the engine\'s reading of its 14 days',
+    T.traced.length === T.checked && T.traced.every(t => t.checkLines && t.checkLines.length === 5 && t.checkLines.every(l => /^ {2}[✓✗] [①②③④⑤] /.test(l)) && t.judged && typeof t.judged.pct === 'number'), JSON.stringify(T.traced.find(t => !t.checkLines || t.checkLines.length !== 5)));
+  const steady = T.traced.find(t => t.parent === 'PT');
+  ok('…a product with no alert gets them run on its 14 judged days', steady && steady.own === true && steady.checkLines.length === 5, JSON.stringify(steady && steady.checkLines));
+}
+
 console.log('== the causes ==');
 const cause = p => (find(R, p, 'alerts') || { cause: {} }).cause;
 ok('out of stock: FBA 0 for 1 of 2 children, no sale since 20 Nov · High', cause('PA').k === 'oos' && cause('PA').conf === 'High' && /FBA 0 for 1 of 2 children/.test(cause('PA').ev) && /no sale since 20 Nov/.test(cause('PA').ev), JSON.stringify(cause('PA')));
@@ -359,7 +394,7 @@ const N = find(R, 'PN', 'alerts');
 ok('siblings grouped under the parent by their own cause: 1 out of stock, 1 price', N && N.groups.length === 2 && N.groups.find(g => g.k === 'oos').asins.join() === 'N1' && N.groups.find(g => g.k === 'price').asins.join() === 'N2', N && JSON.stringify(N.groups));
 const O = find(R, 'PO', 'alerts');
 ok('8 low days → Critical (7+ days), "Day 8"', O && O.sev === 'critical' && O.state === 'Day 8', O && JSON.stringify([O.sev, O.state, O.atRisk]));
-ok('severity by money: ≥ $2,000 Critical · ≥ $500 Important · else Watch', R.alerts.filter(a => a.cause.k !== 'season').every(a => a.sev === (a.atRisk >= 2000 || a.days >= 7 ? 'critical' : a.atRisk >= 500 ? 'important' : 'watch')));
+ok('severity by money: ≥ $2,000 Critical · ≥ $500 Important · else Watch', R.alerts.filter(a => a.cause.k !== 'season' && !a.soft).every(a => a.sev === (a.atRisk >= 2000 || a.days >= 7 ? 'critical' : a.atRisk >= 500 ? 'important' : 'watch')));
 ok('a 3rd low day today → "New"', run({ days: Object.assign({}, dailyAsin, { d: Object.assign({}, D, { Q1: Object.fromEntries(Object.entries(D.A2).map(([d, v]) => [d, d >= '2026-11-21' && d <= LAST ? [2, 60] : v])) }), brand: Object.assign({}, BR, { Q1: 'SP' }) }) }).alerts.find(a => a.parent === 'Q1').state === 'New');
 const L = find(R, 'PL');
 ok('recovery: back inside the range 2+ days → "Recovered", the alert closes itself', L && L.list === 'recovered' && L.back === 4 && !find(R, 'PL', 'alerts'), L && JSON.stringify([L.list, L.back]));
