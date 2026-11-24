@@ -14,8 +14,10 @@
  *   band       the normal range = baseline ± 1.5 × MAD (median absolute deviation of those 4 weeks) — but never narrower than
  *              ± AL_BAND_MIN (10 %) of the baseline: a steady product's 4 weeks are nearly equal (MAD ≈ 0), and a line instead of
  *              a range would call every ordinary day "low" — × the same season factor
- *   AN ALERT only when ALL hold (every threshold is a setting, AL_DEF): below the band on 3 finished days in a row (never today), the
- *   drop ≥ 25 % against expected, normal sales ≥ $500 a week (small products never alert). 1–2 low days, or the nightly not in yet for
+ *   AN ALERT only when ALL hold (every threshold is a setting, AL_DEF): a SUSTAINED drop — the longest stretch ending on the last finished
+ *   day (never today) in which MOST days are below the band (more than half, at least 3), its total ≥ 25 % under expected, and not
+ *   back inside the band on the last 2 days (24 Nov 2026: was "3 days in a row", which one normal day reset) — normal sales ≥ $500 a
+ *   week (small products never alert); a day without a sale is a $0 day. 1–2 low days, or the nightly not in yet for
  *   yesterday → "Waiting for data", never an alert. If the brand's same days LAST YEAR fell by a similar share → "Seasonal dip" (Watch).
  *   $ AT RISK = (expected − actual) per low day × 7 = $/week; it ranks everything. SEVERITY: Critical ≥ $2,000/week or 7+ low days,
  *   Important ≥ $500/week, Watch the rest. LIFE CYCLE from the data itself: New (3rd low day today) → Ongoing (day N) → Recovered (back
@@ -37,7 +39,7 @@ const AL_DEF = { days: 3, drop: 25, minWeek: 500, critUsd: 2000, critDays: 7, im
   oosCover: 3, price: 8, traffic: 20, conv: 20, adsCut: 40, adsUp: 30 };
 // The settings box: label and one line each (shown in "How we decide").
 const AL_SET = [
-  ['days', 'Low days in a row', 'finished days below the normal range before it is an alert'],
+  ['days', 'Low days (at least)', 'finished days below the normal range — and more than half the days of the drop'],
   ['drop', 'Drop at least (%)', 'against expected sales, over those days'],
   ['minWeek', 'Normal sales at least ($/week)', 'smaller products never alert'],
   ['critUsd', 'Critical from ($/week at risk)', 'or the low days below'],
@@ -122,7 +124,7 @@ function alCompute(o) {
     season[b] = lb && lw != null ? { f: Math.min(1.5, Math.max(0.7, lw / lb)), raw: lw / lb, lb } : { f: 1, raw: null, lb: null };
   });
   const ctx = { o, S, last, base, win, chart, W0, B0, weeks, season, lyMean, now: o.now || Date.now() };
-  if (o.trace) {                                   // salesAlertsReport: every number used, for the products asked about
+  if (o.trace != null) {                          // salesAlertsReport ('' = every product): every number used, for the products asked about
     const q = String(o.trace).toLowerCase();
     ctx.traced = [];
     ctx.trace = (g, t) => { if (!(g.name + ' ' + g.parent).toLowerCase().includes(q)) return; ctx.traced.push(alTraceOf(g, t, ctx)); };
@@ -224,20 +226,52 @@ function alEval(g, ctx) {
   if (baseG.baseOut > AL_BASE_OUT) return Object.assign(baseG, { list: 'skipped', sev: 'skipped', id: g.key + '|irregular', atRisk: 0, from: base[0], to: last, series: seriesOf(null),
     why: `${Math.round(baseG.baseOut * 100)}% of its own normal days fall outside its normal range (more than ${Math.round(AL_BASE_OUT * 100)}%) — too irregular to judge` });
   // --- a drop now ---
-  const run = trail(low);
-  if (run.length) {
+  // THE SUSTAINED DROP (24 Nov 2026, real data — a Pillow Insert low on 12 of the last 14 days showed "waiting: 1 low day so far",
+  // because the old rule wanted S.days low days IN A ROW ending on the last day, and one normal day reset it): the LONGEST stretch,
+  // ending on the list's last day and starting on a low day, in which MOST days are below the range (more than half, and at least
+  // S.days of them) and whose TOTAL is S.drop % or more under expected. A fresh drop still alerts on its S.days-th low day; a drop
+  // with a normal day in it keeps alerting, over all its days. Zero-sale days are $0 days (sales() sums what the day holds: nothing).
+  // o.rule === 'run' is the old rule — only for salesAlertsReport's "before → after".
+  const legacy = o.rule === 'run';
+  const sustained = list => {
+    if (legacy) {
+      let n = 0; for (let i = list.length - 1; i >= 0 && low(list[i]); i--) n++;
+      const part = list.slice(list.length - n), act = alSum(part, sales), ex = alSum(part, exp);
+      return n >= S.days && ex && (1 - act / ex) * 100 >= S.drop ? { days: part, lows: n, act, ex } : null;
+    }
+    for (let L = list.length; L >= S.days; L--) {
+      let i = list.length - L;
+      while (i < list.length && !low(list[i])) i++;
+      const part = list.slice(i);
+      if (part.length < S.days) continue;
+      const lows = part.filter(low).length;
+      if (lows < S.days || lows * 2 <= part.length) continue;
+      const act = alSum(part, sales), ex = alSum(part, exp);
+      if (ex && (1 - act / ex) * 100 >= S.drop) return { days: part, lows, act, ex };   // longest first (L counts down)
+    }
+    return null;
+  };
+  const back = trail(d => !low(d));                // the last days back inside the range: S.recover of them → recovering, not a drop now
+  const cur = back.length < S.recover ? sustained(win) : null;
+  if (!cur) {
+    // waiting: low on the last day(s), but not yet S.days low days — never an alert
+    const run = trail(low);
     const act = alSum(run, sales), ex = alSum(run, exp);
-    const drop = ex ? (1 - act / ex) * 100 : 0;
-    if (drop >= S.drop) {
-      const atRisk = (ex - act) / run.length * 7;
-      const item = Object.assign(baseG, { run, from: run[0], to: run[run.length - 1], days: run.length, drop, act, exp: ex, atRisk, series: seriesOf(run) });
-      if (run.length < S.days) {
-        const need = S.days - run.length;
-        item.why = ctx.o.days.upTo && ctx.o.days.upTo < alAdd(o.today, -1)
+    if (run.length && run.length < S.days && ex && (1 - act / ex) * 100 >= S.drop) {
+      const need = S.days - run.length;
+      return Object.assign(baseG, { run, from: run[0], to: run[run.length - 1], days: run.length, lows: run.length, drop: (1 - act / ex) * 100, act, exp: ex,
+        atRisk: (ex - act) / run.length * 7, series: seriesOf(run), list: 'waiting', sev: 'waiting', id: g.key + '|' + run[0],
+        why: ctx.o.days.upTo && ctx.o.days.upTo < alAdd(o.today, -1)
           ? `${run.length} low day${run.length === 1 ? '' : 's'} so far — the nightly days for ${alDay(alAdd(ctx.o.days.upTo, 1))} are not in yet`
-          : `${run.length} low day${run.length === 1 ? '' : 's'} so far — an alert needs ${S.days} finished days (${need} more)`;
-        return Object.assign(item, { list: 'waiting', sev: 'waiting', id: g.key + '|' + run[0] });
-      }
+          : `${run.length} low day${run.length === 1 ? '' : 's'} so far — an alert needs ${S.days} finished days (${need} more)` });
+    }
+  }
+  if (cur) {
+    const run = cur.days, act = cur.act, ex = cur.ex, lowDays = run.filter(low);
+    const drop = (1 - act / ex) * 100;
+    {
+      const atRisk = (ex - act) / run.length * 7;
+      const item = Object.assign(baseG, { run, lowDays, lows: cur.lows, from: run[0], to: run[run.length - 1], days: run.length, drop, act, exp: ex, atRisk, series: seriesOf(lowDays) });
       // seasonal? the brand's same days last year against its normal weeks last year
       const lyRun = season[g.brand].lb ? ctx.lyMean(g.brand, run) : null;
       const lyChange = lyRun != null ? (lyRun / season[g.brand].lb - 1) * 100 : null;
@@ -247,26 +281,24 @@ function alEval(g, ctx) {
       const causes = alCauses(g, item, shape, ctx);
       if (seasonal) causes.unshift({ k: 'season', conf: 'High', t: 'Seasonal dip', ev: `the same days last year fell ${alPctTxt(lyChange)} (${AL_BRAND_NAME[g.brand]} total)` });
       if (!causes.length) causes.push({ k: 'none', conf: '', t: 'No clear cause', ev: 'check listing / Buy Box' });
-      const sev = seasonal ? 'watch' : atRisk >= S.critUsd || run.length >= S.critDays ? 'critical' : atRisk >= S.impUsd ? 'important' : 'watch';
+      const sev = seasonal ? 'watch' : atRisk >= S.critUsd || cur.lows >= S.critDays ? 'critical' : atRisk >= S.impUsd ? 'important' : 'watch';
+      const fresh = !sustained(win.slice(0, -1));   // the last day made it an alert
+      const span = cur.lows === run.length ? `for ${run.length} days` : `over ${run.length} days (${cur.lows} below normal)`;
       return Object.assign(item, { list: 'alerts', sev, causes, cause: causes[0], groups: alKidGroups(g, item, shape, ctx, causes[0]), rawExp: rawEx,
-        state: run.length === S.days ? 'New' : `Day ${run.length}`, id: g.key + '|' + run[0], lyChange,
-        head: `${alShort(g.name)} sales down ${Math.round(drop)}% for ${run.length} days — ${AL_HEAD[causes[0].k]}`, next: alNext(causes[0], item) });
+        state: fresh ? 'New' : `Day ${run.length}`, id: g.key + '|' + run[0], lyChange,
+        head: `${alShort(g.name)} sales down ${Math.round(drop)}% ${span} — ${AL_HEAD[causes[0].k]}`, next: alNext(causes[0], item) });
     }
   }
-  // --- recovered this week: an earlier drop (that would have been an alert), now back inside the range S.recover days or more ---
-  const tail = trail(d => !low(d));
+  // --- recovered this week: an earlier drop (the same sustained rule), now back inside the range S.recover days or more ---
+  const tail = back;
   if (tail.length >= S.recover && tail.length < win.length) {
     const end = alAdd(tail[0], -1);
-    const before = win.filter(d => d <= end);
-    let k = before.length;
-    while (k > 0 && low(before[k - 1])) k--;
-    const was = before.slice(k);
+    const was = sustained(win.filter(d => d <= end));
     const recAt = alAdd(end, S.recover);
-    if (was.length >= S.days && recAt >= alAdd(last, -6)) {
-      const act = alSum(was, sales), ex = alSum(was, exp);
-      const drop = ex ? (1 - act / ex) * 100 : 0;
-      if (drop >= S.drop) return Object.assign(baseG, { list: 'recovered', sev: 'recovered', from: was[0], to: end, days: was.length, drop, back: tail.length, recAt,
-        atRisk: 0, series: seriesOf(was), head: `${alShort(g.name)} is back to normal — ${tail.length} days inside its range after ${was.length} low days`, id: g.key + '|' + was[0] });
+    if (was && recAt >= alAdd(last, -6)) {
+      const drop = (1 - was.act / was.ex) * 100;
+      return Object.assign(baseG, { list: 'recovered', sev: 'recovered', from: was.days[0], to: end, days: was.days.length, lows: was.lows, drop, back: tail.length, recAt,
+        atRisk: 0, series: seriesOf(was.days.filter(low)), head: `${alShort(g.name)} is back to normal — ${tail.length} days inside its range after ${was.lows} low days`, id: g.key + '|' + was.days[0] });
     }
   }
   // --- a win: above the range S.days days in a row, by S.drop % or more (against expUp: the season never makes a win) ---
@@ -616,7 +648,7 @@ function alHowHtml(r) {
   const by = AL.store.setBy ? ` Last changed by ${alEsc(AL.store.setBy)} on ${alDay(new Date(AL.store.setAt).toISOString().slice(0, 10))}.` : '';
   return `<details class="al-how"><summary>ⓘ How we decide</summary><div class="al-how-b">`
     + `<p><b>Expected sales</b> = what this product usually sells on the same weekday: the middle value (median) of the last ${r.base.weeks} normal weeks, so one big day never moves it — the season can only make it calmer: when the brand's own last year fell on these days, expected is lowered to match; it is never raised above the product's own normal weeks (Sellora holds no per-product last year${r.seasonHeld ? '' : '; the brand\'s last year is not held for these days either'}). Each alert shows both: <i>Normal (own weeks)</i> and <i>Expected used</i>. A product whose own normal weeks are too irregular (more than ${Math.round(AL_BASE_OUT * 100)}% of its days outside its range) is not judged. The normal range is that ± 1.5 × the usual spread, and never narrower than ± ${Math.round(AL_BAND_MIN * 100)}%.</p>`
-    + `<p><b>An alert</b> only after ${S.days} finished days in a row below the normal range, a drop of ${S.drop}% or more, on a product that normally sells ${alMoney(S.minWeek)}/week or more, with complete data — never today. If the same days last year fell as much, it is a <b>seasonal dip</b> (Watch), not a problem. <b>$ at risk</b> = the missing sales a day × 7.</p>`
+    + `<p><b>An alert</b> only for a lasting drop: most of the recent days below the normal range (at least ${S.days} finished days, more than half of them — one normal day in between does not hide it), together ${S.drop}% or more under expected, and not back to normal on the last ${S.recover} days; on a product that normally sells ${alMoney(S.minWeek)}/week or more, with complete data — never today. If the same days last year fell as much, it is a <b>seasonal dip</b> (Watch), not a problem. <b>$ at risk</b> = the missing sales a day × 7.</p>`
     + `<p><b>Severity</b>: Critical from ${alMoney(S.critUsd)}/week or ${S.critDays}+ days · Important from ${alMoney(S.impUsd)}/week · Watch the rest. <b>Causes</b> come only from Sellora's own data: stock, Deal Calendar, price (sales ÷ units), ad spend, sessions and conversion (finished weeks).</p>`
     + `<div class="al-sets">${rows}</div><div class="al-btns"><button type="button" class="al-btn is-main" data-al-act="save-set">Save settings</button><button type="button" class="al-btn" data-al-act="reset-set">Back to defaults</button></div>`
     + `<p class="al-asof">Settings are shared with everyone who opens Sales Alerts.${by}${AL.storeNote ? ' ' + alEsc(AL.storeNote) : ''}</p></div></details>`;
@@ -796,16 +828,22 @@ async function alDashLoad() { await alLoad(); }
 /* ----- the console: salesAlertsReport('pillow') — every number used for the products whose name or parent ASIN matches ----- */
 async function salesAlertsReport(query, brand) {
   await alLoad();
-  const out = [];
+  const out = [], moved = [];
+  const verdictOf = (r, t) => {
+    const a = [].concat(r.alerts, r.waiting, r.recovered, r.wins, r.hidden, r.skipped).find(x => x.parent === t.parent && x.brand === t.brand);
+    return { list: a ? a.list : 'none', text: a ? (a.list === 'alerts' ? `ALERT ${a.sev}: ${a.head} · −$${Math.round(a.atRisk)}/wk` : a.list + (a.why ? ': ' + a.why : a.head ? ': ' + a.head : '')) : 'no alert (inside its range)' };
+  };
   (brand ? [brand] : ['SP', 'CPC']).forEach(b => {
-    const r = alCompute({ days: VI.data.days, today: sdToday(), brand: b, parentOf: typeof wParentOf === 'function' ? a => wParentOf(a) : null,
+    const opt = rule => ({ days: VI.data.days, today: sdToday(), brand: b, parentOf: typeof wParentOf === 'function' ? a => wParentOf(a) : null,
       nameOf: typeof viNameOf === 'function' ? viNameOf : null, stock: VI.data.stock, weekly: VI.data.weekly, adsDay: AL.data.adsDay, plan: AL.data.plan,
-      lyDaily: SD && SD.d && typeof sdDays === 'function' ? { SP: sdDays('SP'), CPC: sdDays('CPC') } : null, settings: AL.store.settings, marks: AL.store.marks, now: Date.now(), trace: query || '' });
+      lyDaily: SD && SD.d && typeof sdDays === 'function' ? { SP: sdDays('SP'), CPC: sdDays('CPC') } : null, settings: AL.store.settings, marks: AL.store.marks, now: Date.now(), trace: query == null ? '' : String(query), rule });
+    const r = alCompute(opt('')), was = alCompute(opt('run'));       // now · before (the old "S.days low days in a row" rule)
     if (!r.ok) { console.warn(r.why); return; }
     (r.traced || []).forEach(t => {
-      const a = [].concat(r.alerts, r.waiting, r.recovered, r.wins, r.hidden, r.skipped).find(x => x.parent === t.parent && x.brand === t.brand);
-      t.verdict = a ? (a.list === 'alerts' ? `ALERT ${a.sev}: ${a.head} · −$${Math.round(a.atRisk)}/wk` : a.list + (a.why ? ': ' + a.why : '')) : 'no alert (inside its range)';
-      console.log(`%c${t.product} (${t.parent}, ${AL_BRAND_NAME[t.brand]})`, 'font-weight:bold', '\n' + t.verdict,
+      const now = verdictOf(r, t), before = verdictOf(was, t);
+      t.verdict = now.text; t.before = before.text;
+      if ((now.list === 'alerts') !== (before.list === 'alerts')) moved.push({ product: t.product, brand: AL_BRAND_NAME[t.brand], before: before.text, now: now.text });
+      console.log(`%c${t.product} (${t.parent}, ${AL_BRAND_NAME[t.brand]})`, 'font-weight:bold', '\nnow:    ' + t.verdict, '\nbefore: ' + t.before,
         `\nnormal (own weeks) $${t.normalPerDay}/day · expected used $${t.expectedUsedPerDay}/day · brand last year ×${t.brandSeason} → used for drops ×${t.seasonUsedForDrops}, for wins ×${t.seasonUsedForWins}`
         + ` · own last year ${t.ownLastYear == null ? 'not held' : '×' + t.ownLastYear} · own normal days outside its range ${t.baselineDaysOutsideRange}`);
       console.table(t.weeks);
@@ -813,6 +851,11 @@ async function salesAlertsReport(query, brand) {
     });
   });
   if (!out.length) console.log('No product matches "' + query + '".');
+  else {
+    console.log(`%cBefore → after: ${moved.length} change${moved.length === 1 ? '' : 's'} (alerts that appear or disappear with the sustained-drop rule)`, 'font-weight:bold');
+    if (moved.length) console.table(moved);
+  }
+  out.changes = moved;
   return out;
 }
 if (typeof window !== 'undefined') window.salesAlertsReport = salesAlertsReport;

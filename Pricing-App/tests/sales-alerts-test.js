@@ -77,6 +77,28 @@ asin('U1', 'SP', 400, 50, d => (inn('2026-11-20', LAST)(d) ? { x: 0 } : null)); 
 asin('V1', 'SP', 700, 35, d => (d >= '2026-11-10' && d <= LAST ? { x: 0.85 } : null)); kid('PV', 'V1');
 // W — irregular normal weeks (×⅓, ×1, ×1, ×3⅓ of $300): over 30% of its own normal days fall outside its range → not judged, even at −70%
 asin('W1', 'SP', 300, 10, d => (inn('2026-10-13', '2026-10-19')(d) ? { x: 1 / 3 } : inn('2026-11-03', '2026-11-09')(d) ? { x: 10 / 3 } : d >= '2026-11-17' && d <= LAST ? { x: 0.3 } : null)); kid('PW', 'W1');
+// X — the real-data Pillow Insert (THE WHIMSICAL CORNER, 24 Nov): normal weeks ×1.10, ×1.15, ×0.92, ×0.80 of $531/day (4,098 / 4,278 /
+//     3,402 / 2,964), then −68% one week and −45% the next — with ONE normal day (22 Nov) just before the last day. The old rule
+//     ("3 low days in a row ending yesterday") said "waiting: 1 low day so far".
+asin('X1', 'SP', 531, 10, d => (inn('2026-10-13', '2026-10-19')(d) ? { x: 1.10 } : inn('2026-10-20', '2026-10-26')(d) ? { x: 1.15 } : inn('2026-10-27', '2026-11-02')(d) ? { x: 0.915 }
+  : inn('2026-11-03', '2026-11-09')(d) ? { x: 0.80 } : inn('2026-11-10', '2026-11-16')(d) ? { x: 0.32 } : d === '2026-11-22' ? { x: 1 } : inn('2026-11-17', LAST)(d) ? { x: 0.55 } : null)); kid('PX', 'X1');
+// Y — low 10 days, then back inside its range the last 2 days → recovered (not an alert)
+asin('Y1', 'SP', 330, 11, d => (inn('2026-11-12', '2026-11-21')(d) ? { x: 0.5 } : null)); kid('PY', 'Y1');
+// Z — only 2 low days among the last 5, scattered → no alert (not most days)
+asin('Z1', 'SP', 350, 10, d => (d === '2026-11-19' || d === '2026-11-21' ? { x: 0.5 } : null)); kid('PZ', 'Z1');
+// R0..R7 — down 40–60% on MOST of the last 14 days, normal days mixed in at random (never the last two together) → every one must alert
+let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const QLOW = {};
+for (let q = 0; q < 8; q++) {
+  const lowSet = new Set();
+  const judged = []; for (let d = '2026-11-10'; d <= LAST; d = alAdd(d, 1)) judged.push(d);
+  const nLow = 8 + Math.floor(rnd() * 6);                         // 8–13 of the 14 days low
+  while (lowSet.size < nLow) lowSet.add(judged[Math.floor(rnd() * 14)]);
+  if (!lowSet.has(LAST) && !lowSet.has(judged[12])) lowSet.add(LAST);
+  QLOW['R' + q] = lowSet;
+  const f = 0.4 + rnd() * 0.2;
+  asin('R' + q, 'SP', 250 + q * 40, 10, d => (lowSet.has(d) ? { x: f } : null)); kid('PR' + q, 'R' + q);
+}
 // S — CPC: down 50% for 4 days, and the brand's same days last year fell 45% → seasonal dip (Watch)
 asin('S1', 'CPC', 400, 40, d => (inn('2026-11-20', LAST)(d) ? { x: 0.5 } : null)); kid('PS', 'S1');
 
@@ -172,6 +194,23 @@ ok('…and when the season lowered it, both numbers and why', /Normal \(own 4 we
 const TR = run({ trace: 'Round Tablecloth' }).traced;
 ok('salesAlertsReport: the product\'s own weekly sales (Sun–Sat), its normal and expected per day, the season used and the self-check',
   TR.length === 1 && TR[0].weeks.length >= 5 && TR[0].weeks.every(w => typeof w.sales === 'number') && TR[0].seasonUsedForDrops === 1 && TR[0].baselineDaysOutsideRange === '0%' && TR[0].normalPerDay > 0, JSON.stringify(TR[0]).slice(0, 300));
+
+console.log('== a sustained drop (real data, 24 Nov: the Pillow Insert low 13 of 14 days showed "waiting: 1 low day so far") ==');
+const Xnew = find(R, 'PX'), Xold = find(run({ rule: 'run' }), 'PX');
+ok('the old rule ("in a row") reproduces the real page: "waiting — 1 low day so far"', Xold && Xold.list === 'waiting' && /^1 low day so far/.test(Xold.why), Xold && JSON.stringify([Xold.list, Xold.why]));
+ok('now: an alert over the 14 days, 13 below normal, about −54%', Xnew && Xnew.list === 'alerts' && Xnew.days === 14 && Xnew.lows === 13 && Math.round(Xnew.drop) >= 50
+  && /sales down \d+% over 14 days \(13 below normal\)/.test(Xnew.head), Xnew && JSON.stringify([Xnew.list, Xnew.days, Xnew.lows, Xnew.drop, Xnew.head]));
+ok('…its $ at risk counts all 14 days (the normal day too) — (expected − actual) ÷ 14 × 7', Xnew && Math.abs(Xnew.atRisk - (Xnew.exp - Xnew.act) / 14 * 7) < 0.01);
+ok('…Critical: 13 low days (7+)', Xnew && Xnew.sev === 'critical');
+ok('a day without a sale is a $0 day: the sold-out child has no entry on its low days, and they count', A.run.every(d => !(d in D.A1)) && Math.abs(A.act - A.run.reduce((s, d) => s + D.A2[d][1], 0)) < 0.01);
+const Yr = find(R, 'PY');
+ok('back inside the range the last 2 days → "Recovered", not an alert', Yr && Yr.list === 'recovered' && Yr.back === 2 && Yr.lows === 10, Yr && JSON.stringify([Yr.list, Yr.back, Yr.lows]));
+ok('2 scattered low days among 5 → no alert (not most days)', !find(R, 'PZ'));
+const Qs = Object.keys(QLOW).map(k => find(R, 'P' + k));
+ok('every product low on MOST of the last 14 days (8–13 of them, normal days at random) alerts', Qs.every(q => q && q.list === 'alerts'),
+  JSON.stringify(Qs.map((q, i) => [i, q && q.list, q && q.lows, QLOW['R' + i].size])));
+ok('…and its low days are the days it was low', Qs.every((q, i) => q && q.lowDays.every(d => QLOW['R' + i].has(d))));
+ok('a fresh drop still alerts on its 3rd low day, as "New"', find(run({ days: Object.assign({}, dailyAsin, { d: Object.assign({}, D, { Q9: Object.fromEntries(Object.entries(D.A2).map(([d, v]) => [d, d >= '2026-11-21' && d <= LAST ? [2, 60] : v])) }), brand: Object.assign({}, BR, { Q9: 'SP' }) }) }), 'Q9', 'alerts').state === 'New');
 
 console.log('== the causes ==');
 const cause = p => (find(R, p, 'alerts') || { cause: {} }).cause;
