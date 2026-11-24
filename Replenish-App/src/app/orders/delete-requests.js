@@ -133,6 +133,7 @@ async function odrAskSave(keys) {
 /* ---- answering, from Sales Orders ---- */
 function odrListOpen() {
   if (!odrCanAnswer()) return;
+  if (!soPopupAllowed('so.dlg.delReqs')) return;
   const rows = odrPending().slice().sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
   ODR.pick = new Set([...ODR.pick].filter(id => rows.some(r => r.id === id)));
   ptOpenDialog({
@@ -283,6 +284,7 @@ $('sxQtyTpl').onclick = soQtyTemplate;
 $('sxQtyImp').onclick = () => $('sxQtyFile').click();
 $('sxQtyFile').onchange = async e => {
   const file = e.target.files[0]; e.target.value = ''; if (!file) return;
+  if (!soPopupAllowed('so.dlg.qtyConfirm')) return;   // the sheet is only ever read to be confirmed in that pop-up
   try {
     const rows = /\.xlsx$/i.test(file.name) ? await pkReadXlsx(new Uint8Array(await file.arrayBuffer())) : parseCsv(await file.text());
     const read = soQtySheetRead(rows);

@@ -120,7 +120,9 @@ onAuthStateChanged(auth, async user => {
        * its own — pay, rates and slips stay shut unless Finance & HR is granted as well. */
       ME.empEdit = d.empEdit === true;
       /* …and: may SEE the Access page (who can open what) and change nothing (core/access-host.js). */
-      ME.accessView = d.accessView === true; }
+      ME.accessView = d.accessView === true;
+      /* The role this person is given in the Access page, which decides the parts of a page they see (core/page-parts.js). */
+      ME.accessRole = String(d.accessRole || ''); }
   } catch (e) { /* no perms = no access */ }
   if (typeof accessShadow === 'function') accessShadow(user, ASH_DOC, ASH_MS);   // test ERP only (core/access-shadow.js): never waits, never throws
   /* A perms read that fails leaves ME.tabs empty, which is the correct answer — but the cover still
@@ -318,6 +320,8 @@ onAuthStateChanged(auth, async user => {
   }
 
   if (slim) await slim;
+  /* Which parts of a page this person sees (core/page-parts.js): read before the first screen shows; never throws, falls back to everything shown. */
+  if (typeof apxLoad === 'function') await apxLoad();
   /* The screen the address names, when this account may open it — a tab opened from a menu link, or a
    * reload. showTab itself sends anything else to the first screen this account has. A report link to one order
    * ("#ord?q=…") is read first, because showTab rewrites the address to the bare screen. */
