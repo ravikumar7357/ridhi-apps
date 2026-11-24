@@ -2802,6 +2802,23 @@ function ctsSizeText(s) { return ctsN(+s.w) + ' ' + CTS_X + ' ' + ctsN(+s.l); }
 function ctsSizeKey(s) { return ctsN(+s.w) + CTS_X + ctsN(+s.l); }
 /** The RFD width of a fabric from Master data, in inches; 0 when nobody has written it. */
 function ctsRfdWidth(rfd) { var m = mstOf(rfd); return m ? parseFloat(m.rfdWidth) || 0 : 0; }
+/* THE SIZES WE MAKE, NOT TYPED (Ravi, 24 Nov: "change it to a dropdown … those fabrics which we use in production and has size
+ * variants available"). The sizes are the products' own: every Master database row whose fabric is this RFD fabric and whose
+ * size reads as two numbers. Width is the side that fits the cloth (the first, else the second). A fabric with no such
+ * products keeps the typed boxes. [{ key, w, l, n (products), fits }] largest first. */
+function ctsSizesOf(rfd) {
+  var F = String(rfd || '').trim().toUpperCase(), rw = ctsRfdWidth(rfd), by = {};
+  var rows = typeof PTG !== 'undefined' && PTG && Array.isArray(PTG.mdb) ? PTG.mdb : [];
+  rows.forEach(function (m) {
+    if (!m || m.active === false || String(m.fabric || '').trim().toUpperCase() !== F) return;
+    var p = ctsParseSize(m.size); if (!p || !(p[0] > 0) || !(p[1] > 0)) return;
+    var w = p[0], l = p[1]; if (rw > 0 && w > rw && l <= rw) { w = p[1]; l = p[0]; }
+    var k = ctsSizeKey({ w: w, l: l }), alt = ctsSizeKey({ w: l, l: w }); if (by[alt] && !by[k]) k = alt;
+    (by[k] || (by[k] = { key: k, w: w, l: l, n: 0, fits: !(rw > 0) || w <= rw })).n++;
+  });
+  return Object.keys(by).map(function (k) { return by[k]; })
+    .sort(function (a, b) { return (b.fits - a.fits) || (b.w * b.l - a.w * a.l) || a.key.localeCompare(b.key); });
+}
 /** What asking for this cut would mean: { err, warn, metres }. spec = { rfd, lot, w, l, pcs, date }. err is '' when the cut can be asked. */
 function ctsCheck(spec) {
   var out = { err: '', warn: '', metres: ctsMetres(spec.pcs, spec.l) }, rw = ctsRfdWidth(spec.rfd);
@@ -2831,9 +2848,16 @@ function ctsDraw(g, rfd) {
   var rw = ctsRfdWidth(rfd), box = function (id, key, label) {
     return '<div><label for="' + id + '">' + label + '</label><input id="' + id + '" type="text" inputmode="decimal" autocomplete="off" data-num="7" data-ctsbox="' + key + '" value="' + esc(CUT[key]) + '"></div>';
   };
+  var sizes = ctsSizesOf(rfd), pick = sizes.length
+    ? '<div style="grid-column:span 2"><label for="ctsS">Size (W × L inches) *</label><select id="ctsS" data-ctssize="1"><option value="">Choose a size</option>'
+      + sizes.map(function (z) {
+        return '<option value="' + esc(z.w + '|' + z.l) + '"' + (z.fits ? '' : ' disabled') + (CUT.sz === z.w + '|' + z.l ? ' selected' : '') + '>'
+          + esc(ctsSizeText(z)) + ' · ' + plural(z.n, 'product') + (z.fits ? '' : ' — wider than the cloth') + '</option>';
+      }).join('') + '</select></div>'
+    : box('ctsW', 'w', 'Width (") *') + box('ctsL', 'l', 'Length (") *');
   $('cutBody').innerHTML = '<div class="dl"><div class="dl-top"><div><b class="mono">' + esc(CUT.lot) + '</b> · RFD <b>' + esc(rfd) + '</b>'
     + '<div class="sub"><b>' + nf(g.rfdLeft) + ' m on the shelf</b>' + (rw ? ' · ' + ctsN(rw) + '" wide' : ' · no RFD width in Master data') + '</div></div></div></div>'
-    + '<div class="lm-fields">' + box('ctsW', 'w', 'Width (") *') + box('ctsL', 'l', 'Length (") *') + box('ctsP', 'p', 'Pieces *')
+    + '<div class="lm-fields">' + pick + box('ctsP', 'p', 'Pieces *')
     + '<div><label for="ctsM">Metres (worked out)</label><input id="ctsM" readonly title="Pieces × length × 0.0254"></div></div>'
     + '<div id="ctsInfo"></div>'
     + '<div class="lm-why">The metres come off the shelf only when the production head or accounts head approves.</div>';
@@ -4461,10 +4485,10 @@ function renderLedger() {
   return LED_CSS + '<div class="row" style="margin-bottom:10px;align-items:center">'
     + '<span class="muted" style="font-size:12px;align-self:center">Add a movement:</span>'
     + (canLedgerEdit() ? '' : '<span class="pill pill-mute">View only · ' + esc(meUser().name) + '</span>')
-    + kinds.filter(function (k) { return canLedgerEdit() && k !== 'RECEIVE_GREIGE' && k !== 'ISSUE_TO_RFD' && k !== 'RECEIVE_RFD'; }).map(function (k) {
+    + kinds.filter(function (k) { return canLedgerEdit() && k !== 'RECEIVE_GREIGE' && k !== 'ISSUE_TO_RFD' && k !== 'RECEIVE_RFD' && k !== 'ISSUE_TO_CUTTING' && k !== 'CUT_TO_PRINTER'; }).map(function (k) {
       return '<button type="button" class="ghost" data-act="' + k + '" style="padding:6px 12px;font-size:12.5px">'
         + esc(FAB_LABEL[k]) + '</button>';
-    }).join('') + '<span class="muted" style="font-size:12px;align-self:center">Greige received, sent to RFD and RFD received back are done from each PO on Greige POs.</span></div>'
+    }).join('') + '<span class="muted" style="font-size:12px;align-self:center">Greige received, sent to RFD and RFD received back are done from each PO on Greige POs; to cutting from the RFD lot on Inventory.</span></div>'
     + tiles + filters
     + '<div class="card"><div class="ff-cap">' + count + ', newest first · '
     + '<b style="color:var(--ok-ink)">' + nf(inM) + ' m</b> in · <b style="color:var(--bad)">' + nf(outM) + ' m</b> out. '
@@ -5098,11 +5122,18 @@ var EN_SHORT = {
   OPENING_RFD: 'RFD opening stock', ISSUE_TO_RFD: 'Send for RFD', ISSUE_TO_CUTTING: 'To cutting',
   DAMAGE: 'Damaged'
 };
+/* ONLY WHAT HAS NO SCREEN OF ITS OWN (Ravi, 24 Nov: "remove these buttons … that are in our process in different ways like
+ * the cutting one"). Greige received is the PO's receive drawer, RFD back is Receive RFD on the PO, To cutting is Send to
+ * cutting on the RFD lot in Inventory. A new entry here is RFD bought, RFD opening stock or Damaged; correcting an old row
+ * still shows its own movement. */
+var EN_ELSEWHERE = { RECEIVE_GREIGE: 1, RECEIVE_RFD: 1, ISSUE_TO_CUTTING: 1 };
 function enChips() {
   var on = $('enKind').value;
   $('enChips').innerHTML = EN_GROUPS.map(function (grp) {
+    var kinds = grp.kinds.filter(function (k) { return EN_ID ? k === on : !EN_ELSEWHERE[k]; });
+    if (!kinds.length) return '';
     return '<div class="en-group"><span class="en-gname">' + esc(grp.name) + '</span>'
-      + grp.kinds.map(function (k) {
+      + kinds.map(function (k) {
         return '<button type="button" class="en-chip' + (k === on ? ' on' : '') + '" data-enkind="' + k + '">'
           + '<span class="en-dot" style="background:' + EN_DOT[k] + '"></span>' + esc(EN_SHORT[k]) + '</button>';
       }).join('') + '</div>';
@@ -5228,6 +5259,7 @@ function entryOpen(kind, row) {
   if (!row && kind === 'RECEIVE_GREIGE') { entryClose(); openDrawer(''); return; }
   if (!row && kind === 'ISSUE_TO_RFD') { entryClose(); UI.tab = 'po'; render(); lmSay('warn', 'Greige goes to RFD from its PO: press Issue to RFD on the PO.'); return; }
   if (!row && kind === 'RECEIVE_RFD') { entryClose(); UI.tab = 'po'; render(); lmSay('warn', 'RFD comes back on its PO: press Receive RFD on the PO.'); return; }
+  if (!row && kind === 'ISSUE_TO_CUTTING') { entryClose(); UI.tab = 'inv'; render(); lmSay('warn', 'RFD goes to cutting from Inventory: open RFD on shelf and press Send to cutting on the lot.'); return; }
   if (!canLedgerEdit()) { lmSay('warn', meUser().name + ' may only view the fabric ledger.'); return; }
   EN_AUTO = {};
   EN_ID = row ? row.id : null;
@@ -5515,6 +5547,7 @@ function wireUsersRfd() {
   document.addEventListener('input', function (ev) {
     var el = ev.target;
     if (CUT && el.getAttribute && el.getAttribute('data-cutqty')) { CUT.qty = el.value; $('cutErr').classList.add('hide'); $('cutTot').innerHTML = cutTotHtml(parseFloat(el.value) || 0, ''); return; }   // a new figure: the last refusal may no longer be true
+    if (CUT && el.getAttribute && el.getAttribute('data-ctssize')) { var wl = String(el.value || '').split('|'); CUT.sz = el.value; CUT.w = wl[0] || ''; CUT.l = wl[1] || ''; $('cutErr').classList.add('hide'); ctsInfoDraw(); return; }
     if (CUT && el.getAttribute && el.getAttribute('data-ctsbox')) { CUT[el.getAttribute('data-ctsbox')] = el.value; $('cutErr').classList.add('hide'); ctsInfoDraw(); return; }
     var lot = el.getAttribute && el.getAttribute('data-rrlot'); if (!lot || !RR) return;
     RR.thans[lot][+el.getAttribute('data-pi')][el.getAttribute('data-f')] = el.value; rrSums();

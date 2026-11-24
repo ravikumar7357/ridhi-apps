@@ -28,7 +28,7 @@ function desk() {
   if (code.split(rootLine).length !== 2 || code.split(anchor).length !== 2) throw new Error('greige-desk.js: the GD_ROOT line or the closing "return { open" line moved; update this test');
   const names = ['ctsCheck', 'ctsMetres', 'ctsSave', 'ctsDecide', 'ctsOf', 'ctsParseSize', 'ctsSizeMatches', 'ctsSendPlan', 'ctsSendWrite', 'ctsInfoDraw', 'ctsWaiting',
     'ctsLotsLeft', 'ctsDetailRows', 'ctsApprovalsHtml', 'invAll', 'invCutCell', 'invDetail', 'renderLedger', 'dashAlerts', 'rrPending',
-    'fabFlowRows', 'fabLots', 'fabShelfLedger', 'fabEntryCheck', 'fabCounts', 'fabLineOf', 'gdRfdShelf', 'canCutApprove', 'cutDraw', 'cutOpen', 'rrDecide', 'lmSaveDb'];
+    'fabFlowRows', 'fabLots', 'fabShelfLedger', 'fabEntryCheck', 'fabCounts', 'fabLineOf', 'gdRfdShelf', 'canCutApprove', 'cutDraw', 'cutOpen', 'rrDecide', 'lmSaveDb', 'ctsSizesOf', 'enChips', 'entryOpen'];
   const opened = code.replace(rootLine, '  var GD_ROOT = globalThis.__ROOT;').replace(anchor, '  globalThis.__GDT = { ' + names.map(n => n + ': ' + n).join(', ')
     + ', setDB: function (v) { DB = v; GD_STATE = "ok"; GD_SNAP = gdSnap(); }, setCUT: function (v) { CUT = v; }, getCUT: function () { return CUT; }, getDB: function () { return DB; }, FAB_LABEL: FAB_LABEL, FAB_SIGN: FAB_SIGN, ui: UI };\n' + anchor);
   const ctx = { console, window: { document: {} }, __ROOT: root, ptPatch: async p => { wrote.push(p); }, ptPut: async () => {}, setTimeout: () => 0, clearTimeout: () => {} };
@@ -213,6 +213,28 @@ const before = JSON.stringify(G.fabFlowRows(G.getDB().fab)), lotsBefore = JSON.s
   const files = ['access-design.js', 'access-host.js', 'auth.js', 'setup.js', 'friendly.js'].map(f => [f, fs.readFileSync(path.join(CORE, f), 'utf8')]);
   files.forEach(([f, c]) => ok(f + ' knows the right gdcut', /gdcut/.test(c)));
   ok('Sellora\'s Access list says what it is', /\['gdcut', 'Approve cutting to size \(production head, accounts head\)'\]/.test(files[0][1]));
+
+  console.log('== the size is chosen from the products made of this fabric (Ravi, 24 Nov) ==');
+  {
+    deskWith([], 72);
+    ctx.PTG = { mdb: [
+      { sku: 'A1', fabric: 'Sheeting 72', size: '60x90' }, { sku: 'A2', fabric: 'SHEETING 72', size: '90 X 60' },
+      { sku: 'A3', fabric: 'Sheeting 72', size: '16x16' }, { sku: 'A4', fabric: 'Sheeting 72', size: '100x108' },
+      { sku: 'A5', fabric: 'Sheeting 72', size: 'Free size' }, { sku: 'A6', fabric: 'Poplin 58', size: '20x30' },
+      { sku: 'A7', fabric: 'Sheeting 72', size: '40x40', active: false } ] };
+    const z = G.ctsSizesOf('Sheeting 72'), keys = z.map(x => x.key);
+    ok('sizes of this fabric only, each once (60x90 and 90x60 are one), unreadable and inactive left out', keys.length === 3 && keys.includes('60×90') && keys.includes('16×16') && !keys.some(k => /20|40/.test(k)), JSON.stringify(keys));
+    ok('…60×90 counts both products', (z.find(x => x.key === '60×90') || {}).n === 2);
+    ok('…a size wider than the cloth both ways is listed but cannot be chosen', z.some(x => x.key === '100×108' && !x.fits) && z[z.length - 1].key === '100×108');
+    ok('a fabric with no products keeps the typed width and length', G.ctsSizesOf('Duck 64').length === 0);
+    delete ctx.PTG;
+  }
+  console.log('== Fabric entry offers only what has no screen of its own (Ravi, 24 Nov) ==');
+  {
+    els.enKind = Object.assign(stub(), { value: 'OPENING_RFD' }); G.enChips(); const h = els.enChips.innerHTML;
+    ok('RFD bought, RFD opening stock and Damaged are there', /data-enkind="PURCHASE_RFD"/.test(h) && /data-enkind="OPENING_RFD"/.test(h) && /data-enkind="DAMAGE"/.test(h));
+    ok('Greige received, RFD back and To cutting are not', !/RECEIVE_GREIGE|RECEIVE_RFD|ISSUE_TO_CUTTING/.test(h), h);
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
