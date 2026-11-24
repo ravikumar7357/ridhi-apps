@@ -1,21 +1,30 @@
 /* Reimbursement (src/app/reimb/): the engine (reimb-core.js) over small hand-made accounts and over the sample (reimb-sample.js),
- * and the wiring around the Overview page (the pane's ids, ORDER, the tab, the Access card, the Firestore rule).
+ * and the wiring around the Overview and To Claim pages (the panes' ids, the shared dialogs, ORDER, the tabs, the Access card,
+ * the Firestore rule).
  *   node tests/reimb-test.js
  * Covers: the status at every edge (14 / 15 days after delivery, the deadline day, the day after, not closed); Owed now leaves
  * out wait / in a case / expired / archived; the 14-day boundary of Expiring; Recovered split by case ID with the arrow against
  * the period before; Lost to deadlines in the period; the value with a sourcing cost, a landed cost only and no cost (never in
  * the $); underpaid on the sourcing cost only; a reversal with and without a 'found' near it; the duplicate guard (in a case,
  * paid, archived); the order of the action list; the brand; the chart's month sums against Recovered for the same months; the
- * sample's own story; the CSV; the case text; and that the engine and the sample never read the clock. */
+ * sample's own story; the CSV; the case text; and that the engine and the sample never read the clock.
+ * To Claim (24 Nov 2026): received from the ledger's Receipts; the start date's fallbacks; inbound payouts netted oldest first;
+ * the wait / claim / expired edges of inbound and warehouse items (days 14/15, 29/30, 59/60/61); lost − found − paid, oldest
+ * first; Amazon's Unreconciled Quantity wins; damaged and destroyed paid; the value order sourcing → landed → Amazon's rate
+ * (SKU, then ASIN; reversals and payouts over 12 months old skipped) → none, and Underpaid never on Amazon's rate; the
+ * needs-proof rule; the invoice link (http / https only); a case's rules (≤ 10, one brand, one type); rbclaim comes with
+ * reimb and the local menu rule covers it; Overview's totals include Lost and Damaged. */
 const fs = require('fs'), path = require('path');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? ' — ' + extra : '')); } };
 const APP = path.join(__dirname, '..', 'src', 'app');
 const read = p => fs.readFileSync(path.join(APP, p), 'utf8');
 const CORE = read('reimb/reimb-core.js'), SAMPLE = read('reimb/reimb-sample.js'), DATA = read('reimb/reimb-data.js'), PAGE = read('reimb/reimb-overview.js');
+const CLAIM = read('reimb/reimb-claim.js');
 const C = new Function(CORE + '\n' + SAMPLE + '\nreturn { RB, RB_DAY, RB_LINKS, rbDay, rbIso, rbValue, rbDaysLeft, rbItems, rbStatus, rbDupCheck, rbPeriod, rbOverview,'
   + ' rbWeekList, rbChart, rbMostLost, rbCaseText, rbDaysPill, rbPctClass, rbCsvLines, rbKey, rbSampleData, RB_SAMPLE_TODAY,'
-  + ' rbFmt, rbParseReport, rbParseTable, rbParseDate, rbMerge, rbRowKey, rbHead, rbBelowLanded, rbHasSourcing };')();
+  + ' rbFmt, rbParseReport, rbParseTable, rbParseDate, rbMerge, rbRowKey, rbHead, rbBelowLanded, rbHasSourcing,'
+  + ' rbRates, rbProofOf, rbProofMissing, rbNeedsProof, rbLinkOk, rbBatchCheck, rbTrackList };')();
 const D = C.RB_DAY, TODAY = '2026-11-24', t0 = C.rbDay(TODAY);
 const ago = n => C.rbIso(t0 - n * D);
 
@@ -162,12 +171,12 @@ console.log('== the sample ==');
   const today = C.rbDay(S.asOf);
   const it = C.rbItems(S, recs, today);
   const inb = it.filter(i => i.type === 'inbound'), st = s => inb.filter(i => i.status === s);
-  ok('12 inbound shipments: 3 Wait, 7 Claim now, 1 in a case, 1 expired', S.inbound.length === 12 && inb.length === 12 && st('wait').length === 3 && st('claim').length === 7
+  ok('14 inbound shipments: 3 Wait, 9 Claim now, 1 in a case, 1 expired', S.inbound.length === 14 && inb.length === 14 && st('wait').length === 3 && st('claim').length === 9
     && st('in_case').length === 1 && st('expired').length === 1, ['wait', 'claim', 'in_case', 'expired'].map(s => s + ' ' + st(s).length).join(', '));
   ok('…Claim now with 3 / 9 / 20 / 40 / 45 days left among them', [3, 9, 20, 40, 45].every(n => st('claim').some(i => i.daysLeft === n)));
   ok('…one with no cost on one SKU, one with a landed cost only, one SKU already paid by Amazon itself', inb.some(i => i.noCostUnits > 0 && i.value > 0) && inb.some(i => i.approx) && inb.some(i => i.partPaid));
   const pos = S.payouts.filter(p => p.amount > 0);
-  ok('45 payouts over 12 months, about 70% with no case ID; 1 reversal', pos.length === 45 && Math.round(pos.filter(p => !p.caseId).length / 45 * 100) === 71
+  ok('46 payouts over 12 months, about 70% with no case ID; 1 reversal', pos.length === 46 && Math.round(pos.filter(p => !p.caseId).length / 46 * 100) === 72
     && S.payouts.filter(p => p.amount < 0).length === 1 && pos.every(p => C.rbDay(p.date) > today - 365 * D));
   const und = it.filter(i => i.type === 'underpaid');
   ok('3 underpaid payouts, one of them archived (too small to claim)', und.length === 3 && und.filter(i => i.status === 'archived').length === 1 && und.filter(i => i.status === 'claim').length === 2);
@@ -192,8 +201,8 @@ console.log('== the sample ==');
     && ch.months.some(m => m.rev < 0) && ch.months.length === 12 && ch.months[11].key === '2026-11');
   ok('the brand: the two brands\' charts add up to both', ch.months.every((m, i) => Math.abs(C.rbChart(S, today, 'SP').months[i].auto + C.rbChart(S, today, 'CPC').months[i].auto - m.auto) < 0.005));
   const oS = C.rbOverview(it, S, recs, C.rbPeriod('30', today), today, 'ALL');
-  ok('the sample\'s boxes: something owed, expiring, underpaid, 1 open case and money lost to a deadline in the 30 days', oS.owed.v > 0 && oS.expiring.n >= 2 && oS.underpaid.n === 2
-    && oS.open.n === 1 && oS.lost.n === 1, JSON.stringify({ owed: oS.owed, exp: oS.expiring, under: oS.underpaid, open: oS.open.n, lost: oS.lost.n }));
+  ok('the sample\'s boxes: something owed, expiring, underpaid, 1 open case and money lost to a deadline in the 30 days (a shipment and a lost event)', oS.owed.v > 0 && oS.expiring.n >= 2 && oS.underpaid.n === 2
+    && oS.open.n === 1 && oS.lost.n === 2, JSON.stringify({ owed: oS.owed, exp: oS.expiring, under: oS.underpaid, open: oS.open.n, lost: oS.lost.n }));
   const t1 = C.rbCaseText(st('claim').find(i => i.itemKey === 'FBA19SAMPLE01'));
   ok('the inbound case text: the shipment, each SKU shipped / received / missing, polite', /inbound shipment FBA19SAMPLE01/.test(t1) && /RH-TC-6084-NVY \(FNSKU X0SAMPLE01, ASIN B0SAMPLE01\): shipped 120, received 112, missing 8/.test(t1)
     && /Thank you/.test(t1) && !/RH-RN-1472-SAG/.test(t1));
@@ -210,7 +219,7 @@ console.log('== the sample ==');
   ok('every element the page reaches for is in src/index.html (or drawn by the page itself, inside a dialog)', ids.length > 30 && !missing.length, missing.join(', '));
   const iInv = html.indexOf('id="grpInv"'), iR = html.indexOf('id="grpReimb"'), iSoc = html.indexOf('id="grpSocial"');
   ok('the menu group after Inventory and before Social, its Overview button, the pane in the sta-scope look',
-    iInv > 0 && iR > iInv && iSoc > iR && /data-grp="reimb" data-tabs="reimb"/.test(html) && /<button id="tabReimb" class="nav">Overview<\/button>/.test(html)
+    iInv > 0 && iR > iInv && iSoc > iR && /data-grp="reimb" data-tabs="reimb,rbclaim"/.test(html) && /<button id="tabReimb" class="nav">Overview<\/button>/.test(html)
     && /<div id="paneReimb" class="hide sta-scope rb-scope">/.test(html) && /data-accg="reimb"/.test(html));
   const order = read('ORDER').split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
   const oi = f => order.indexOf(f);
@@ -219,14 +228,15 @@ console.log('== the sample ==');
     && four.every((f, i) => !i || oi(four[i - 1]) < oi(f)));
   const nav = read('core/nav.js');
   ok('nav: \'reimb\' after \'age\', its title, its loader, and not inherited', /'age', 'reimb'/.test(nav) && /reimb: 'Reimbursement · Overview'/.test(nav)
-    && /if \(which === 'reimb'\) ensureReimb\(\);/.test(nav) && !/TAB_INHERIT = \{[^}]*reimb/.test(nav));
+    && /if \(which === 'reimb'\) ensureReimb\(\);/.test(nav) && !/TAB_INHERIT = \{[^}]*[{ ,]reimb:/.test(nav));
   ok('the Access page: a Reimbursement card holding the reimb box', /\{ key: 'reimb', sellora: \['reimb'\] \}/.test(read('core/admin-access.js')));
   const rules = fs.readFileSync(path.join(__dirname, '..', 'firestore.rules'), 'utf8');
   ok('firestore.rules: reimbCases written like adsActions (read, create, update with the right; never delete)',
     /match \/reimbCases\/\{id\} \{\s*allow read, create, update: if can\('reimb'\) \|\| can\('audit'\);\s*allow delete: if false;\s*\}/.test(rules));
   ok('firestore.rules: reimbData (the uploads) read and written with the right', /match \/reimbData\/\{id\} \{\s*allow read, write: if can\('reimb'\) \|\| can\('audit'\);\s*\}/.test(rules));
   ok('the Seller Central links live in one constant', Object.keys(C.RB_LINKS).length >= 3 && Object.values(C.RB_LINKS).every(u => /^https:\/\/sellercentral\.amazon\.com\//.test(u)));
-  ok('not counted yet, from the types: lost & damaged, removals, disposals, returns, fee errors', C.RB.LATER.join(', ') === 'lost & damaged, removals, disposals, returns, fee errors', C.RB.LATER.join(', '));
+  ok('not counted yet, from the types: removals, disposals, returns, fee errors (lost and damaged are live now)', C.RB.LATER.join(', ') === 'removals, disposals, returns, fee errors'
+    && ['inbound', 'lost', 'damaged', 'underpaid', 'reversal'].every(t => C.RB.LIVE_TYPES.includes(t)), C.RB.LATER.join(', '));
 
   console.log('== reading Amazon\'s reports (the upload) ==');
   {
@@ -273,6 +283,7 @@ console.log('== the sample ==');
       && kind('R3') === 'damaged' && kind('R4') === 'damaged' && kind('R5') === 'destroyed' && kind('R8') === 'receipt');
     ok('…a code not in the map is kept as "other" and counted, never dropped', kind('R7') === 'other' && l.other === 1 && JSON.stringify(l.otherCodes) === '{"Q":1}');
     ok('…units as a count, the quantity kept with its sign', l.rows.find(x => x.txnId === 'R1').units === 2 && l.rows.find(x => x.txnId === 'R1').qty === -2);
+    ok('…"Unreconciled Quantity" kept (null when blank)', l.rows.find(x => x.txnId === 'R1').unrec === -2 && l.rows.find(x => x.txnId === 'R2').unrec === 0 && l.rows.find(x => x.txnId === 'R3').unrec === null);
     ok('…re-uploaded: keyed by date + FNSKU + event + reference + quantity + reason, never twice', C.rbMerge('ledger', l.rows, l.rows).rows.length === 8);
     ok('RB.REASON_MAP: the codes asked for', ['M', '5'].every(c => C.RB.REASON_MAP[c] === 'lost') && C.RB.REASON_MAP.F === 'found' && C.RB.REASON_MAP.D === 'destroyed'
       && ['6', '7', 'E', 'H', 'K', 'U'].every(c => C.RB.REASON_MAP[c] === 'damaged'));
@@ -373,10 +384,10 @@ console.log('== the sample ==');
     ok('the local-host rule and applyPerms found in access.js', from > 0 && at > from && end > 0);
     const slice = acc.slice(from, at + end) + '\n}\n';
     const TABS_T = ['dash', 'age', 'reimb', 'health', 'st', 'ngram', 'plc', 'sales', 'reimbpaid'];
-    const run = (host, me, groups) => {
+    const run = (host, me, groups, tabs, inherit) => {
       const out = {};
       const f = new Function('location', 'ME', 'NAV_GROUPS', 'out', `
-        const TABS = ${JSON.stringify(TABS_T)}, HIDDEN_TABS = [], TAB_INHERIT = { ngram: 'st' };
+        const TABS = ${JSON.stringify(tabs || TABS_T)}, HIDDEN_TABS = [], TAB_INHERIT = ${JSON.stringify(inherit || { ngram: 'st' })};
         const el = () => ({ classList: { toggle() {}, add() {}, remove() {} }, textContent: '' });
         const $ = () => el(), capId = s => s, applyBrandPicker = () => {}, tabFromHash = () => '', LH_LISTING_TABS = [];
         const syncNavGroups = a => { out.allowed = a; }, showTab = t => { out.opened = t; };
@@ -406,6 +417,209 @@ console.log('== the sample ==');
       && run('localhost', {}, [{ key: 'reimb', tabs: ['reimb', 'reimbpaid'] }, { key: 'inv', tabs: ['age'] }]).allowed('age') === false);
     ok('an admin: everything, on any host (unchanged)', ['localhost', 'sellora-dev.web.app'].every(h => TABS_T.every(t => run(h, { admin: true }).allowed(t))));
     ok('the data still follows firestore.rules: the rule is not loosened for a local host', !/localhost/.test(fs.readFileSync(path.join(__dirname, '..', 'firestore.rules'), 'utf8')));
+    // To Claim: the real menu group (src/index.html) and the real TAB_INHERIT (core/nav.js).
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
+    const grp = { key: 'reimb', tabs: (/data-grp="reimb" data-tabs="([^"]+)"/.exec(html) || [])[1].split(',') };
+    const nav = read('core/nav.js');
+    const inherit = new Function('return ' + /const TAB_INHERIT = (\{[^}]*\});/.exec(nav)[1])();
+    const T2 = TABS_T.concat('rbclaim');
+    ok('To Claim is in the Reimbursement menu group read off the menu', grp.tabs.join() === 'reimb,rbclaim');
+    ok('localhost, no rights: To Claim is allowed by the local menu rule, and nothing else is', run('localhost', {}, [grp], T2, inherit).allowed('rbclaim') === true
+      && others.every(t => run('localhost', {}, [grp], T2, inherit).allowed(t) === false));
+    ok('another host: To Claim comes with the Reimbursement right (TAB_INHERIT rbclaim: reimb), and not without it',
+      inherit.rbclaim === 'reimb' && run('sellora-dev.web.app', { tabs: ['reimb'] }, [grp], T2, inherit).allowed('rbclaim') === true
+      && run('sellora-dev.web.app', { tabs: ['st'] }, [grp], T2, inherit).allowed('rbclaim') === false);
+    ok('…so the Access page shows no box of its own for it (inherited tabs are left out there)', /!TAB_INHERIT\[t\]/.test(read('core/admin-access.js')));
+  }
+
+
+  console.log('== To Claim: inbound ==');
+  {
+    // Shipments with received missing from the cache: the ledger's Receipts (Reference ID = the shipment ID) give them.
+    const rc = (id, a, n, d) => ({ brand: 'SP', date: ago(d), fnsku: fn(a), sku: sku(a), asin: a, title: 'Title ' + a, kind: 'receipt', units: n, qty: n, txnId: id });
+    const s1 = ship('LR', 'SP', 'CLOSED', 30, [['A1', 10, null], ['A4', 5, null], ['A2', 4, null]]);
+    const d = acct({ inbound: [s1], ledger: [rc('LR', 'A1', 6, 29), rc('LR', 'A1', 1, 28), rc('LR', 'A4', 5, 29), rc('OTHER', 'A2', 4, 29)] });
+    const it = C.rbItems(d, null, TODAY)[0];
+    const k = a => it.allSkus.find(x => x.asin === a);
+    ok('received from the ledger\'s Receipts, summed per FNSKU (6 + 1 of 10: 3 missing)', k('A1').received === 7 && k('A1').recvFrom === 'ledger' && k('A1').missing === 3 && it.units === 3);
+    ok('…a SKU fully received there is not short; a Receipt of another shipment is not this one\'s: that SKU is not judged (never read as 0)',
+      k('A4').missing === 0 && k('A2').received === null && it.unknown.length === 1 && it.skus.length === 1);
+    ok('…the cache\'s own received wins when it has one', C.rbItems(acct({ inbound: [ship('OWN', 'SP', 'CLOSED', 30, [['A1', 10, 9]])], ledger: [rc('OWN', 'A1', 2, 29)] }), null, TODAY)[0].units === 1);
+    const noDel = Object.assign(ship('CL', 'SP', 'CLOSED', 30, [['A1', 10, 8]]), { deliveredAt: null, closedAt: ago(25) });
+    const none = Object.assign(ship('CI', 'SP', 'CLOSED', 30, [['A1', 10, null]]), { deliveredAt: null, closedAt: null });
+    const st2 = C.rbItems(acct({ inbound: [noDel, none, Object.assign(ship('ND', 'SP', 'CLOSED', 30, [['A1', 10, 8]]), { deliveredAt: null, closedAt: null })], ledger: [rc('CI', 'A1', 8, 33), rc('CI', 'A1', 1, 31)] }), null, TODAY);
+    ok('the start: no delivery date → the close date; neither → the first check-in in the ledger', byKey(st2, 'CL').startFrom === 'closed' && byKey(st2, 'CL').event === C.rbDay(ago(25))
+      && byKey(st2, 'CI').startFrom === 'checkin' && byKey(st2, 'CI').event === C.rbDay(ago(33)) && byKey(st2, 'CI').units === 1);
+    ok('…no date at all and no Receipt: not judged (it cannot be dated)', !byKey(st2, 'ND'));
+    // Inbound payouts netted: the FNSKU's shipments oldest first, each payout only on or after a shipment's start.
+    const pp = C.rbItems(acct({ inbound: [ship('OLD', 'SP', 'CLOSED', 50, [['A1', 10, 7]]), ship('NEW', 'SP', 'CLOSED', 30, [['A1', 10, 6]]), ship('LATE', 'SP', 'CLOSED', 20, [['A1', 5, 4]])],
+      payouts: [pay('IN1', 'SP', 25, 'A1', 'Lost_Inbound', 5, 25), pay('IN2', 'SP', 40, 'A1', 'Lost_Inbound', 1, 5), pay('LW', 'SP', 10, 'A1', 'Lost_Warehouse', 9, 45)] }), null, TODAY);
+    ok('payouts netted oldest first: OLD (3 missing) takes 1 + 2 → Paid; NEW (4 missing) takes the other 3 → 1 left, part paid',
+      byKey(pp, 'OLD').status === 'paid' && byKey(pp, 'OLD').paidUnits === 3 && byKey(pp, 'NEW').units === 1 && byKey(pp, 'NEW').paidUnits === 3 && byKey(pp, 'NEW').partPaid,
+      ['OLD', 'NEW', 'LATE'].map(x => `${x} ${byKey(pp, x).units}/${byKey(pp, x).paidUnits} ${byKey(pp, x).status}`).join(', '));
+    ok('…a payout from before a shipment\'s start never pays it, and a warehouse payout never pays a shipment', byKey(pp, 'LATE').units === 1 && byKey(pp, 'LATE').paidUnits === 0);
+    // The edges: day 14 wait, 15 claim (from any start); status unknown → no waiting for "closed".
+    const e = C.rbItems(acct({ inbound: [Object.assign(ship('U20', 'SP', '', 20, [['A1', 2, 1]]), { status: undefined }), ship('R20', 'SP', 'RECEIVING', 20, [['A1', 2, 1]]),
+      Object.assign(ship('C14', 'SP', 'CLOSED', 14, [['A1', 2, 1]]), { deliveredAt: null, closedAt: ago(14) }), Object.assign(ship('C15', 'SP', 'CLOSED', 15, [['A1', 2, 1]]), { deliveredAt: null, closedAt: ago(15) })] }), null, TODAY);
+    ok('inbound: the status not known → no waiting for "closed" (day 20: Claim now); RECEIVING → Wait', byKey(e, 'U20').status === 'claim' && byKey(e, 'R20').status === 'wait');
+    ok('…from the close date too: day 14 Wait (opens in 1), day 15 Claim now with 45 days left', byKey(e, 'C14').status === 'wait' && byKey(e, 'C14').opensIn === 1
+      && byKey(e, 'C15').status === 'claim' && byKey(e, 'C15').daysLeft === 45);
+  }
+
+  console.log('== To Claim: lost, damaged, destroyed ==');
+  {
+    const ev = (id, d, a, kind, units, unrec, brand) => ({ brand: brand || 'SP', date: ago(d), fnsku: fn(a), sku: sku(a), asin: a, title: 'Title ' + a, kind, units, qty: kind === 'found' ? units : -units,
+      txnId: id, reason: { lost: 'M', found: 'F', damaged: 'E', destroyed: 'D' }[kind], unrec: unrec == null ? null : unrec });
+    const at = days => C.rbItems(acct({ ledger: [ev('E' + days, days, 'A1', 'lost', 2)] }), null, TODAY)[0];
+    ok('warehouse edges: day 29 Wait (opens in 1 day), day 30 Claim now', at(29).status === 'wait' && at(29).opensIn === 1 && at(30).status === 'claim' && at(30).daysLeft === 30);
+    ok('…day 59 Claim now (1 day left), day 60 the last day (0 left), day 61 Expired', at(59).status === 'claim' && at(59).daysLeft === 1 && at(60).status === 'claim' && at(60).daysLeft === 0
+      && C.rbDaysPill(at(60)).t === 'last day' && at(61).status === 'expired');
+    // lost − found − paid, the oldest event first; each found / paid unit only an event on or before its own date.
+    const L = C.rbItems(acct({ ledger: [ev('L50', 50, 'A1', 'lost', 3), ev('L40', 40, 'A1', 'lost', 2), ev('F45', 45, 'A1', 'found', 1)],
+      payouts: [pay('W35', 'SP', 35, 'A1', 'Lost_Warehouse', 2, 10), pay('D35', 'SP', 35, 'A1', 'Damaged_Warehouse', 5, 25)] }), null, TODAY);
+    ok('lost − found − paid, oldest first: L50 (3) = 1 found + 2 paid → Paid; L40 (2): the unit found before it cannot cover it → 2 still owed',
+      byKey(L, 'L50').status === 'paid' && byKey(L, 'L50').found === 1 && byKey(L, 'L50').paid === 2 && byKey(L, 'L40').units === 2 && byKey(L, 'L40').status === 'claim',
+      ['L50', 'L40'].map(x => `${x} f${byKey(L, x).found} p${byKey(L, x).paid} open ${byKey(L, x).units}`).join(', '));
+    ok('…a damaged payout never pays a lost unit; "Paid" says which payout', /Already paid on .*W35/.test(byKey(L, 'L50').block));
+    ok('…every unit found again (nothing paid): not an item at all', !C.rbItems(acct({ ledger: [ev('LF', 50, 'A1', 'lost', 3), ev('FF', 45, 'A1', 'found', 3)] }), null, TODAY).length);
+    const U = C.rbItems(acct({ ledger: [ev('U1', 40, 'A1', 'lost', 5, 2), ev('U2', 45, 'A4', 'lost', 4, 0), ev('U3', 45, 'A2', 'lost', 3, 0), ev('U4', 40, 'A1', 'lost', 2, -1)],
+      payouts: [pay('P4', 'SP', 30, 'A4', 'Lost_Warehouse', 4, 40), pay('P1', 'SP', 30, 'A1', 'Lost_Warehouse', 9, 45)] }), null, TODAY);
+    ok('Unreconciled Quantity wins: 5 lost, Amazon says 2 still open → 2 owed, even with 9 units paid for the FNSKU', byKey(U, 'U1').units === 2 && byKey(U, 'U1').unrec === 2);
+    ok('…0 unreconciled with a payout: Paid; 0 with nothing paid: not an item; a negative count read as units', byKey(U, 'U2').status === 'paid' && !byKey(U, 'U3') && byKey(U, 'U4').units === 1);
+    const DD = C.rbItems(acct({ ledger: [ev('D1', 40, 'A1', 'damaged', 2), ev('X1', 40, 'A4', 'destroyed', 3), ev('X2', 40, 'A2', 'destroyed', 1)],
+      payouts: [pay('PD', 'SP', 20, 'A1', 'Damaged_Warehouse', 2, 10), pay('PX', 'SP', 20, 'A4', 'Destroyed_Warehouse', 3, 30), pay('PW', 'SP', 20, 'A2', 'Damaged_Warehouse', 1, 8)] }), null, TODAY);
+    ok('damaged paid by a damaged payout, destroyed by a destroyed one: both Paid', byKey(DD, 'D1').status === 'paid' && byKey(DD, 'X1').status === 'paid'
+      && byKey(DD, 'D1').type === 'damaged' && byKey(DD, 'X1').type === 'damaged' && byKey(DD, 'X1').kind === 'destroyed');
+    ok('…a destroyed unit is not paid by a damaged payout (RB.PAY_REASON.destroyed)', byKey(DD, 'X2').status === 'claim' && byKey(DD, 'X2').units === 1);
+    const one = [ev('B1', 40, 'A1', 'lost', 2)];
+    ok('no ledger, or no payouts of that brand: no lost / damaged item (what Amazon paid would be unknown)',
+      !C.rbItems(acct({ ledger: one, have: { ledger: false, payouts: true, inbound: false } }), null, TODAY).length
+      && !C.rbItems(acct({ ledger: one, have: { ledger: true, payouts: true, payoutBrands: ['CPC'], inbound: false } }), null, TODAY).length
+      && C.rbItems(acct({ ledger: one, have: { ledger: true, ledgerBrands: ['SP'], payouts: true, payoutBrands: ['SP'], inbound: false } }), null, TODAY).length === 1);
+    ok('RB.PAY_REASON: Lost_Inbound inbound, Lost_Warehouse / Misplaced lost, Damaged_Warehouse damaged, Destroyed destroyed',
+      C.RB.PAY_REASON.inbound.test('Lost_Inbound') && C.RB.PAY_REASON.lost.test('Lost_Warehouse') && C.RB.PAY_REASON.lost.test('Misplaced') && !C.RB.PAY_REASON.lost.test('Lost_Inbound')
+      && !C.RB.PAY_REASON.lost.test('Removal_Order_Lost') && C.RB.PAY_REASON.damaged.test('Damaged_Warehouse') && C.RB.PAY_REASON.destroyed.test('Destroyed_Warehouse')
+      && /RB\.PAY_REASON|PAY_REASON:/.test(CORE) && /check them against the first real upload/.test(CORE));
+    ok('the warehouse wait and deadline: 30 and 60 days, not confirmed, in the legend with "check in Seller Central"', C.RB.WAIT.warehouse === 30 && C.RB.DEADLINE.warehouse.days === 60
+      && C.RB.DEADLINE.warehouse.confirmed === false && C.RB.DEADLINE.inbound.confirmed === false && /check in Seller Central/.test(PAGE) && /dl\('warehouse'\)/.test(PAGE));
+    const txt = C.rbCaseText([byKey(L, 'L40'), at(40)]);
+    ok('a lost case of several items: each FNSKU with its units and date in one text', /FNSKU FA1 \(S-A1, ASIN A1\): 2 units lost on/.test(txt) && (txt.match(/^- FNSKU/gm) || []).length === 2);
+    ok('…a damaged one names each transaction ID', /Transaction ID X2: FNSKU FA2/.test(C.rbCaseText([byKey(DD, 'X2')])) && /destroyed on/.test(C.rbCaseText([byKey(DD, 'X2')])));
+  }
+
+  console.log('== the value: sourcing → landed → Amazon\'s rate → none ==');
+  {
+    const R = C.rbRates([pay('S1', 'SP', 100, 'A3', 'Lost_Warehouse', 2, 8), pay('S2', 'SP', 20, 'A3', 'Lost_Warehouse', 2, 10), pay('S3', 'SP', 5, 'A3', 'Reimbursement_Reversal', -2, -10),
+      pay('S4', 'SP', 400, 'A9', 'Lost_Warehouse', 1, 9), pay('S5', 'SP', 3, 'A3', 'Lost_Warehouse', 0, 6), pay('S6', 'CPC', 2, 'A3', 'Lost_Warehouse', 1, 50)], TODAY);
+    ok('Amazon\'s rate: the latest payout for the SKU in 12 months ($10 / 2), not a reversal, not one with no cash units, not the other brand\'s',
+      R('SP', 'S-A3', 'A3').per === 5 && R('SP', 'S-A3', 'A3').by === 'sku' && R('SP', 'S-A3', 'A3').payout.reimbId === 'S2');
+    ok('…else the same ASIN (another SKU of it); none older than 12 months', R('SP', 'OTHER-SKU', 'A3').by === 'asin' && R('SP', 'OTHER-SKU', 'A3').per === 5 && R('SP', 'S-A9', 'A9') === null);
+    ok('rbValue in that order: sourcing, else landed, else Amazon\'s rate, else no cost', C.rbValue(2, { sourcing: 3, landed: 4 }, { per: 9 }).basis === 'sourcing'
+      && C.rbValue(2, { landed: 4 }, { per: 9 }).basis === 'landed' && C.rbValue(2, {}, { per: 4.5, by: 'asin' }).v === 9 && C.rbValue(2, {}, { per: 4.5 }).basis === 'amazon'
+      && C.rbValue(2, {}, null).noCost === true);
+    const d = acct({ ledger: [{ brand: 'SP', date: ago(40), fnsku: fn('A3'), sku: sku('A3'), asin: 'A3', title: 'T', kind: 'lost', units: 3, txnId: 'LR3' }],
+      inbound: [ship('RT', 'SP', 'CLOSED', 30, [['A3', 6, 4]])],
+      payouts: [pay('RA', 'SP', 60, 'A3', 'Lost_Warehouse', 2, 12)] });
+    const it = C.rbItems(d, null, TODAY);
+    ok('no cost at all, one payout for the product: lost and inbound valued at Amazon\'s rate ($6 a unit), counted in the $', byKey(it, 'LR3').value === 18 && byKey(it, 'LR3').rate
+      && byKey(it, 'RT').value === 12 && byKey(it, 'RT').rate && !byKey(it, 'RT').noCostUnits);
+    const o = C.rbOverview(it, d, null, C.rbPeriod('30', TODAY), TODAY, 'ALL');
+    ok('…and the box says how many items use it', o.owed.v === 30 && o.owed.rate === 2 && o.owed.noCost === 0, JSON.stringify(o.owed));
+    const und = C.rbItems(acct({ costs: { A3: { sourcing: null, landed: null } }, payouts: [pay('UA', 'SP', 10, 'A3', 'Lost_Warehouse', 2, 2), pay('UB', 'SP', 50, 'A3', 'Lost_Warehouse', 2, 20)] }), null, TODAY);
+    ok('Underpaid never uses Amazon\'s rate (a payout far below Amazon\'s own earlier rate is not "underpaid")', !und.some(i => i.type === 'underpaid'));
+    ok('the CSV names the basis', /Amazon's rate \(approx\.\)/.test(C.rbCsvLines([byKey(it, 'LR3')])[1]));
+  }
+
+  console.log('== proof, the invoice link, one case ==');
+  {
+    const d = acct({ inbound: [ship('P1', 'SP', 'CLOSED', 30, [['A1', 5, 3]]), Object.assign(ship('P2', 'SP', 'CLOSED', 30, [['A1', 5, 3]]), { carrier: 'UPS', tracking: ['1Z1'] }),
+      ship('P3', 'SP', 'CLOSED', 5, [['A1', 5, 3]])] });
+    const it = recs => C.rbItems(d, recs, TODAY);
+    const rk = (id, proof) => ({ [C.rbKey('SP', 'inbound', id)]: { status: 'draft', proof } });
+    ok('needs proof: a Claim-now shipment with no invoice and no tracking', byKey(it(null), 'P1').needsProof === true);
+    ok('…an invoice number but no tracking or proof of delivery: still needs it', byKey(it(rk('P1', { invoiceNo: 'INV-1' })), 'P1').needsProof === true
+      && /tracking or a proof of delivery/.test(C.rbProofMissing(byKey(it(null), 'P1'), { proof: { invoiceNo: 'INV-1' } }).join()));
+    ok('…an invoice link and the proof of delivery ticked: complete', byKey(it(rk('P1', { invoiceLink: 'https://x.example/i.pdf', podAttached: true })), 'P1').needsProof === false);
+    ok('…an invoice number and the tracking the shipment carries (prefilled): complete', byKey(it(rk('P2', { invoiceNo: 'INV-2' })), 'P2').needsProof === false
+      && C.rbProofOf(byKey(it(null), 'P2'), null).carrier === 'UPS' && C.rbProofOf(byKey(it(null), 'P2'), null).fromShipment);
+    ok('…a Wait shipment never "needs proof" yet', byKey(it(null), 'P3').status === 'wait' && byKey(it(null), 'P3').needsProof === false);
+    ok('the invoice link: http / https only', C.rbLinkOk('https://drive.example.com/a.pdf').ok && C.rbLinkOk('http://x.example').ok && C.rbLinkOk('').ok
+      && C.rbLinkOk('  https://x.example/a  ').url === 'https://x.example/a'
+      && ['javascript:alert(1)', 'data:text/html,x', 'ftp://x.example/a', 'www.x.example', 'file:///C:/inv.pdf', 'https://'].every(s => !C.rbLinkOk(s).ok));
+    ok('…a bad link saved before is never shown as a link', C.rbProofOf(byKey(it(null), 'P1'), { proof: { invoiceLink: 'javascript:alert(1)' } }).invoiceLink === '');
+    ok('tracking typed with commas, spaces or new lines: each once', C.rbTrackList('1Z1, 1Z2\n1Z1  1Z3').join() === '1Z1,1Z2,1Z3');
+    // One case: ≤ 10, one brand, one type; one shipment; one reversal.
+    const lostOf = (n, brand) => Array.from({ length: n }, (_, i) => ({ brand: brand || 'SP', date: ago(40), fnsku: 'FL' + i, sku: 'SL' + i, asin: 'AL' + i, title: 'T', kind: 'lost', units: 1, txnId: 'TL' + i + (brand || '') }));
+    const B = C.rbItems(acct({ ledger: lostOf(11).concat(lostOf(1, 'CPC'), [{ brand: 'SP', date: ago(40), fnsku: 'FD', sku: 'SD', asin: 'AD', title: 'T', kind: 'damaged', units: 1, txnId: 'TD' },
+      { brand: 'SP', date: ago(10), fnsku: 'FW', sku: 'SW', asin: 'AW', title: 'T', kind: 'lost', units: 1, txnId: 'TW' }]),
+      inbound: [ship('I1', 'SP', 'CLOSED', 30, [['A1', 5, 3]]), ship('I2', 'SP', 'CLOSED', 30, [['A1', 5, 3]])] }), null, TODAY);
+    const sp = B.filter(i => i.type === 'lost' && i.brand === 'SP' && i.status === 'claim');
+    ok('a case of 10 lost items of one brand: allowed', sp.length === 11 && C.rbBatchCheck(sp.slice(0, 10)) === '');
+    ok('…an 11th: refused, "at most 10"', /at most 10 items/.test(C.rbBatchCheck(sp)));
+    ok('…another brand\'s item: refused, one brand per case', /One brand per case/.test(C.rbBatchCheck([sp[0], B.find(i => i.brand === 'CPC')])));
+    ok('…lost and damaged together: refused, separate cases', /separate cases/.test(C.rbBatchCheck([sp[0], byKey(B, 'TD')])));
+    ok('…two shipments: one shipment per case; a Wait item: not open to claim', /One shipment per case/.test(C.rbBatchCheck([byKey(B, 'I1'), byKey(B, 'I2')]))
+      && /not open to claim \(Wait\)/.test(C.rbBatchCheck([sp[0], byKey(B, 'TW')])));
+    const inCase = C.rbItems(acct({ ledger: lostOf(2) }), { [C.rbKey('SP', 'lost', 'TL0')]: { status: 'in_case', caseId: '77' } }, TODAY);
+    ok('…an item already in a case: refused with the duplicate guard\'s words', /Already in case 77/.test(C.rbBatchCheck(inCase)));
+    const rv = C.rbItems(acct({ payouts: [pay('V1', 'SP', 20, 'A1', 'Reimbursement_Reversal', -1, -6), pay('V2', 'SP', 20, 'A4', 'Reimbursement_Reversal', -1, -9)] }), null, TODAY);
+    ok('…two reversals: one reversal per case', /One reversal per case/.test(C.rbBatchCheck(rv)) && C.rbBatchCheck(rv.slice(0, 1)) === '');
+  }
+
+  console.log('== Overview includes Lost and Damaged; the sample\'s warehouse story ==');
+  {
+    const d = acct({ inbound: [ship('OI', 'SP', 'CLOSED', 30, [['A1', 4, 2]])],
+      ledger: [{ brand: 'SP', date: ago(40), fnsku: fn('A1'), sku: sku('A1'), asin: 'A1', title: 'T', kind: 'lost', units: 3, txnId: 'OL' },
+        { brand: 'SP', date: ago(50), fnsku: fn('A4'), sku: sku('A4'), asin: 'A4', title: 'T', kind: 'damaged', units: 1, txnId: 'OD' }] });
+    const it = C.rbItems(d, null, TODAY), o = C.rbOverview(it, d, null, C.rbPeriod('30', TODAY), TODAY, 'ALL');
+    ok('Owed now: inbound $10 + lost 3 × $5 + damaged 1 × $10 = $35, 3 items', o.owed.v === 35 && o.owed.n === 3, JSON.stringify(o.owed));
+    ok('…and the action list holds them (type chips from RB.LIVE_TYPES)', C.rbWeekList(it, { brand: 'ALL' }).map(i => i.type).sort().join() === 'damaged,inbound,lost');
+    const S = C.rbSampleData(), recs = new Map(S.sampleCases.map(r => [r.id, r])), today = C.rbDay(S.asOf);
+    const all = C.rbItems(S, recs, today), w = all.filter(i => i.type === 'lost' || i.type === 'damaged');
+    const of = s => w.filter(i => i.status === s).length;
+    ok('the sample\'s warehouse items: one expired, some paid, two waiting, the rest to claim', of('expired') === 1 && of('paid') >= 1 && of('wait') === 2 && of('claim') >= 8,
+      ['claim', 'wait', 'paid', 'expired'].map(s => s + ' ' + of(s)).join(', '));
+    ok('…found later (2 of 3), Amazon\'s own unreconciled count, destroyed, part paid, and one at Amazon\'s rate', w.some(i => i.found === 2 && i.units === 1) && w.some(i => i.unrec === 1 && i.units === 1)
+      && w.some(i => i.kind === 'destroyed') && w.some(i => i.paid > 0 && i.units > 0) && w.some(i => i.rate && i.value > 0));
+    const inb = all.filter(i => i.type === 'inbound'), sh = id => inb.find(i => i.itemKey === id);
+    ok('the sample\'s inbound: received from the ledger (13), the first check-in (14), part paid (02), carrier and tracking (03)', sh('FBA19SAMPLE13').recvFrom.join() === 'ledger'
+      && sh('FBA19SAMPLE13').units === 4 && sh('FBA19SAMPLE14').startFrom === 'checkin' && sh('FBA19SAMPLE02').partPaid && C.rbProofOf(sh('FBA19SAMPLE03'), null).tracking.length === 1);
+    ok('…proof filled on 01 (not needed), the invoice without tracking on 04 (needs proof)', sh('FBA19SAMPLE01').needsProof === false && sh('FBA19SAMPLE04').needsProof === true
+      && /tracking/.test(C.rbProofMissing(sh('FBA19SAMPLE04'), recs.get(sh('FBA19SAMPLE04').key)).join()));
+    const t1 = C.rbCaseText(sh('FBA19SAMPLE01'), C.rbProofOf(sh('FBA19SAMPLE01'), recs.get(sh('FBA19SAMPLE01').key)));
+    ok('…its case text names the invoice and the tracking', /supplier invoice INV-SAMPLE-1042 from Sample Mills/.test(t1) && /UPS tracking 1ZSAMPLE0000000001/.test(t1) && /the proof of delivery/.test(t1));
+  }
+
+  console.log('== To Claim: the wiring ==');
+  {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
+    ok('the To Claim button after Overview, the pane in the same look', /<button id="tabReimb" class="nav">Overview<\/button>\s*<button id="tabRbclaim" class="nav">To Claim<\/button>/.test(html)
+      && /<div id="paneRbclaim" class="hide sta-scope rb-scope">/.test(html) && /<!-- =+ Reimbursement · To Claim/.test(html));
+    const ip = html.indexOf('<!-- /paneReimb -->'), ic = html.indexOf('<!-- /paneRbclaim -->'), iD = html.indexOf('<div id="rbDialogs"'), iDe = html.indexOf('<!-- /rbDialogs -->');
+    const dlgs = ['rbUpDlg', 'rbDlg', 'rbAsk', 'rbArchDlg', 'rbCasesDlg', 'rbFixDlg', 'rbLegend'];
+    ok('the shared dialogs sit outside both panes (#rbDialogs), each id once', ip > 0 && ic > ip && iD > ic && iDe > iD
+      && dlgs.every(id => (html.match(new RegExp(`id="${id}"`, 'g')) || []).length === 1 && html.indexOf(`id="${id}"`) > iD && html.indexOf(`id="${id}"`) < iDe));
+    const ids = [...new Set([...CLAIM.matchAll(/\$\('([A-Za-z0-9]+)'\)/g)].map(m => m[1]))];
+    const missing = ids.filter(id => !html.includes(`id="${id}"`) && !CLAIM.includes(`id="${id}"`) && !PAGE.includes(`id="${id}"`));
+    ok('every element To Claim reaches for is in src/index.html', ids.length > 15 && !missing.length, missing.join(', '));
+    const pids = [...new Set([...PAGE.matchAll(/\$\('([A-Za-z0-9]+)'\)/g)].map(m => m[1]))];
+    ok('…and every element the case dialog reaches for (the proof fields are drawn by it)', !pids.filter(id => !html.includes(`id="${id}"`) && !PAGE.includes(`id="${id}"`)).length
+      && ['rbPfInv', 'rbPfSup', 'rbPfLink', 'rbPfCar', 'rbPfTrk', 'rbPfDel', 'rbPfPod', 'rbPfMsg'].every(id => PAGE.includes(`id="${id}"`)));
+    const order = read('ORDER').split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+    ok('ORDER: reimb-claim.js right after reimb-overview.js, once', order.filter(x => x === 'reimb/reimb-claim.js').length === 1
+      && order.indexOf('reimb/reimb-claim.js') === order.indexOf('reimb/reimb-overview.js') + 1);
+    const nav = read('core/nav.js');
+    ok('nav: \'rbclaim\' after \'reimb\', its title, inherited from reimb, its loader', /'reimb', 'rbclaim'/.test(nav) && /rbclaim: 'Reimbursement · To Claim'/.test(nav)
+      && /TAB_INHERIT = \{[^}]*rbclaim: 'reimb'/.test(nav) && /if \(which === 'rbclaim'\) ensureRbclaim\(\);/.test(nav));
+    ok('the Access page has no To Claim box (only the reimb card), and firestore.rules is unchanged for it', /\{ key: 'reimb', sellora: \['reimb'\] \}/.test(read('core/admin-access.js'))
+      && !/rbclaim/.test(fs.readFileSync(path.join(__dirname, '..', 'firestore.rules'), 'utf8')));
+    ok('To Claim reuses Overview\'s dialog, archive, upload and legend (no copies)', /rbOpen\(/.test(CLAIM) && /rbArchOpen\(/.test(CLAIM) && /rbUpOpen\(/.test(CLAIM) && /rbLegendHtml\(\)/.test(CLAIM)
+      && !/function rbOpen|function rbLegendHtml|function rbUpOpen/.test(CLAIM));
+    ok('Overview: "See all in To Claim →", and Owed now / Expiring open To Claim with the same filter', /See all in To Claim →/.test(PAGE) && /rbqGo\(\{ brand: RBS\.brand, focus: k === 'exp' \? 'exp' : '' \}\)/.test(PAGE));
+    ok('the page remembers brand and chips in try / catch, and never reads the clock outside rbToday', /localStorage\.setItem\(RBQ_PREFS/.test(CLAIM) && !/Date\.now\(/.test(CLAIM));
+    const code = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    ok('nothing on To Claim calls Amazon (no fetch, no baCall)', !/\bfetch\(|baCall\(/.test(code(CLAIM)));
+    ok('LF line endings in the new file', !/\r/.test(CLAIM));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

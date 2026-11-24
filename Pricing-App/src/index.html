@@ -145,11 +145,13 @@
       <button id="tabAge" class="nav">Inventory Age</button>
     </div></div>
 
-    <!-- Reimbursement (24 Nov 2026): its own group and its own right ('reimb'). Overview now; Paid, To Claim, Cases, Fee Check later. -->
-    <div class="navwrap"><button class="navgrp" id="grpReimb" type="button" aria-controls="secReimb" data-grp="reimb" data-tabs="reimb">
+    <!-- Reimbursement (24 Nov 2026): its own group and its own right ('reimb'). Overview and To Claim (it comes with the
+         same right: TAB_INHERIT in core/nav.js); Paid, Cases, Fee Check later. -->
+    <div class="navwrap"><button class="navgrp" id="grpReimb" type="button" aria-controls="secReimb" data-grp="reimb" data-tabs="reimb,rbclaim">
       <span class="caret">&#9656;</span> Reimbursement</button>
     <div class="navsec" id="secReimb">
       <button id="tabReimb" class="nav">Overview</button>
+      <button id="tabRbclaim" class="nav">To Claim</button>
     </div></div>
 
     <div class="navwrap"><button class="navgrp" id="grpSocial" type="button" aria-controls="secSocial" data-grp="social" data-tabs="tiktok,carousel">
@@ -1378,6 +1380,7 @@
       <div class="sta-actbar" id="rbChips" role="group" aria-label="Show rows by type"></div>
       <div id="rbWeekBody"><div class="sta-wrap"><table id="rbTable" class="xl"></table></div></div>
       <div id="rbFoot" class="sta-more"></div>
+      <div id="rbWeekGo" class="sta-more rb-weekgo"></div>
     </div>
 
     <div class="card rb-chartcard" id="rbChartCard">
@@ -1397,6 +1400,56 @@
     </div>
     </div><!-- /rbMain -->
 
+  </div><!-- /paneReimb -->
+
+  <!-- ============ Reimbursement · To Claim: every claim we can still make, its proof, and the case text (reimb/reimb-claim.js) ============
+       Overview's engine, statuses, pills, case dialog, archive, trail, upload dialog and legend (in #rbDialogs below, shared
+       by both pages); the sta-scope look, rb- for what it lacks, rbq- for this page's own cells (styles.css: REIMBURSEMENT).
+       Inbound, Lost, Damaged and Reversals; Removals, Disposals and Returns greyed "coming soon". Real data only (rbLoad);
+       the sample only with ?sample=1. Changes nothing at Amazon. -->
+  <div id="paneRbclaim" class="hide sta-scope rb-scope">
+    <div class="card sta-barcard">
+      <div class="toolbar sta-top">
+        <div class="sta-fld"><span class="sta-lab">Brand</span>
+          <select id="rbqBrand" class="sta-brandsel" aria-label="Brand">
+            <option value="ALL">Both brands</option><option value="SP">Ridhi</option><option value="CPC">Cotton Print Club</option>
+          </select></div>
+        <div class="sta-fld"><span class="sta-lab" title="Each type is its own table: what Amazon owes, and how to claim it. The counts follow the status and the search.">Type</span>
+          <div class="sta-chips rbq-chips" id="rbqTypes" role="group" aria-label="Claim type"></div></div>
+        <div class="sta-acts" id="rbqBarInfo">
+          <span id="rbqAsOf" class="rb-asof"></span>
+          <span id="rbqSampleBadge" class="rb-sample hide" title="Opened with ?sample=1: every number on this page is made up">Sample data</span>
+          <button id="rbqUpBtn" class="ghost" type="button" aria-haspopup="dialog" title="Amazon's Reimbursements report and Inventory Ledger, downloaded from Seller Central">Upload Amazon reports</button>
+          <button id="rbqLegendBtn" class="ghost" type="button" aria-haspopup="dialog">How Sellora counts</button>
+          <button id="rbqCsv" class="ghost" type="button" title="Every row of the table under its choices (not only the first 50), as a CSV">Export</button>
+        </div>
+      </div>
+      <div class="toolbar sta-row2">
+        <div class="sta-fld"><span class="sta-lab" title="Claim now: open to claim today. Wait: Amazon may still pay or count it by itself. Expired and archived rows are added to the list when shown.">Status</span>
+          <div class="sta-chips rbq-chips" id="rbqSt" role="group" aria-label="Status"></div></div>
+        <label class="sta-fld sta-grow"><span class="sta-lab">Search</span>
+          <input id="rbqQ" type="search" placeholder="Shipment, SKU, ASIN, FNSKU or title" aria-label="Search the claims" autocomplete="off"></label>
+      </div>
+      <div id="rbqSampleNote" class="rb-banner rb-banner-rev hide" role="note"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+        <div><b>Sample data</b> — Amazon's reimbursement reports aren't connected yet. The numbers are made up to show the page.</div></div>
+      <div id="rbqMsg" class="sta-msg"></div>
+    </div>
+    <div id="rbqBoxes" class="rb-boxes rbq-boxes"></div>
+    <p id="rbqLater" class="rb-later"></p>
+    <div class="card sta-tcard" id="rbqCard">
+      <div class="sta-thead">
+        <div class="tt"><b><span id="rbqTitle">To claim</span> <span class="rb-count" id="rbqN"></span></b><small id="rbqSub"></small></div>
+        <div class="sta-tools" id="rbqFocus"></div>
+      </div>
+      <div id="rbqBody"><div class="sta-wrap"><table id="rbqTable" class="xl"></table></div></div>
+      <div id="rbqFoot" class="sta-more"></div>
+    </div>
+    <div id="rbqSel" class="sta-selbar rbq-selbar hide" role="region" aria-label="Ticked items" aria-live="polite"></div>
+  </div><!-- /paneRbclaim -->
+
+  <!-- Reimbursement's dialogs, shared by Overview and To Claim (reimb/reimb-overview.js opens and fills them). Outside both
+       panes, so either page can open them while the other is hidden; sta-scope / rb-scope give them the same look. -->
+  <div id="rbDialogs" class="sta-scope rb-scope">
     <!-- Upload Amazon reports: the brand first, then each report read in this browser, checked, and saved on "Save" (rbUpDraw). -->
     <div id="rbUpDlg" class="modal sta-modal rb-updlg hide" role="dialog" aria-modal="true" aria-labelledby="rbUpTitle"><div class="modalbox">
       <div class="sta-mh"><div><b id="rbUpTitle">Upload Amazon reports</b><small>Download each report in Seller Central, then choose it here. Uploading again replaces the rows it shares, never doubles them.</small></div><button id="rbUpX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
@@ -1435,7 +1488,7 @@
       <div class="sta-mh"><div><b>How Sellora counts</b><small>Every rule on this page, with its numbers. Nothing here changes anything at Amazon.</small></div><button id="rbLegendX" class="sta-x" type="button" title="Close" aria-label="Close">✕</button></div>
       <div id="rbLegendBody" class="sta-mb sta-legend"></div>
     </div></div>
-  </div><!-- /paneReimb -->
+  </div><!-- /rbDialogs -->
 
   <!-- ============ Ad Console: whole-account KPIs, chart, and metrics × periods ============ -->
   <div id="paneTrends" class="hide">

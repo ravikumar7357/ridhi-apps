@@ -21,6 +21,7 @@ reimb/reimb-core.js
 reimb/reimb-sample.js
 reimb/reimb-data.js
 reimb/reimb-overview.js
+reimb/reimb-claim.js
 listing/listing-health.js
 listing/listing-rules.js
 listing/listing-match.js

@@ -6,7 +6,9 @@
  *   3. nothing: source 'none', and the page shows "Connect Amazon's data" with the upload buttons instead of empty boxes.
  * The sample (reimb-sample.js) only with ?sample=1 in the address — and then always with the yellow banner.
  * INBOUND SHORTAGES need the units SHIPPED per shipment, which no report a person can download holds: until reimbInbound exists
- * there are no inbound rows, and the page says so under its boxes.
+ * there are no inbound rows, and the pages say so (there is no manual upload for it). When the cache has no received count,
+ * the uploaded ledger's Receipts give it (rbItems). LOST AND DAMAGED need both the ledger and the Reimbursements report of
+ * the brand (have.ledgerBrands / payoutBrands): without the payouts Sellora cannot tell what Amazon already paid.
  *
  * THE UPLOADS are kept in Firestore reimbData/{brand}_{report}_{n}, chunked like the Deal Calendar's import: chunk 0 also holds
  * how many there are (of), when (uploadedAt) and who uploaded it (trail, PPC History's step). An upload REPLACES the rows it
@@ -46,7 +48,8 @@ async function rbLoad() {
     out[k] = ups.flatMap(u => u.rows || []);
     out.have[k] = true;
     out.from[k] = 'upload';
-    if (k === 'ledger') out.have.ledgerBrands = ups.map(u => u.brand);   // a reversal of a brand with no ledger is not judged
+    if (k === 'ledger') out.have.ledgerBrands = ups.map(u => u.brand);   // a reversal, lost or damaged item of a brand with no ledger is not judged
+    if (k === 'payouts') out.have.payoutBrands = ups.map(u => u.brand);  // nor a lost or damaged one without its payouts (what Amazon already paid)
   });
   out.source = Object.values(out.from).some(v => /^backend/.test(v)) ? 'backend' : Object.keys(out.from).length ? 'upload' : 'none';
   // The data's day: the newest row of what was read.

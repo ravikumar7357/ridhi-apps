@@ -10,15 +10,16 @@
 // Every tab by key. Button id = 'tab' + capId(key), pane id = 'pane' + capId(key). The order matters only
 // for which tab opens first: the first one the account is allowed.
 // 'dash' (20 Nov 2026) is the Dashboard (core/dashboard.js): first, so it is the screen that opens after sign-in.
-// 'reimb' (24 Nov 2026): Reimbursement › Overview (reimb/reimb-overview.js), its own menu group and its own right.
-const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'salert', 'shop', 'adj', 'kw', 'ba', 'age', 'reimb', 'health',
+// 'reimb' (24 Nov 2026): Reimbursement › Overview (reimb/reimb-overview.js), its own menu group and its own right;
+// 'rbclaim': Reimbursement › To Claim (reimb/reimb-claim.js), with the same right (TAB_INHERIT).
+const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'salert', 'shop', 'adj', 'kw', 'ba', 'age', 'reimb', 'rbclaim', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'ngram', 'plc', 'ppch', 'deals', 'tiktok', 'carousel', 'opt', 'img',
   'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg', 'create'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
 const capId = t => t[0].toUpperCase() + t.slice(1);
 // The title shown at the top of the page for each tab.
 const TAB_TITLE = { dash: 'Dashboard', link: 'By Amazon Link', new: 'New Product', pr: 'Product Research', kw: 'Keywords', ba: 'Analytics',
-  age: 'Inventory Age', reimb: 'Reimbursement · Overview', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
+  age: 'Inventory Age', reimb: 'Reimbursement · Overview', rbclaim: 'Reimbursement · To Claim', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
   trends: 'Overview', st: 'Search Term Analysis', ngram: 'N-Gram Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard',
   profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', ncheck: 'Numbers Check', salert: 'Sales Alerts', shop: 'Shopify Orders',
@@ -38,7 +39,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ngram: 'st', ncheck: 'sales', salert: 'sales' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js); Numbers Check and Sales Alerts: with the Sales Dashboard (sales/sales-check.js, sales/sales-alerts.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ngram: 'st', ncheck: 'sales', salert: 'sales', rbclaim: 'reimb' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js); Numbers Check and Sales Alerts: with the Sales Dashboard (sales/sales-check.js, sales/sales-alerts.js); Reimbursement › To Claim: with Reimbursement › Overview (reimb/reimb-claim.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -199,7 +200,8 @@ function showTab(which) {
   if (which === 'dash') ensureDash();     // the Dashboard: what the other screens already hold, no Amazon call
   if (which === 'kw') loadNiches();       // lazy-load the niche list the first time
   if (which === 'age') ensureAge();       // show the cached snapshot without hitting Amazon
-  if (which === 'reimb') ensureReimb();   // Reimbursement › Overview: sample data until Amazon's reports are connected, no backend call
+  if (which === 'reimb') ensureReimb();   // Reimbursement › Overview: the backend caches, else the uploaded reports (the sample only with ?sample=1)
+  if (which === 'rbclaim') ensureRbclaim();   // Reimbursement › To Claim: the same data and case records as Overview
   if (which === 'health') ensureHealth();
   if (which === 'lrules') ensureLrules();
   if (which === 'audit') ensureAudit();

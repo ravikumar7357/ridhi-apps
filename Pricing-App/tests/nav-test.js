@@ -63,6 +63,16 @@ function page(hash) {
   run.showTab('st');
   ok('…and another screen does not', opened === 1);
 }
+{
+  // Reimbursement › To Claim (24 Nov 2026): its own tab and loader, the same data as Overview.
+  const { run, known } = page('#rbclaim');
+  const seen = [];
+  known.TABS = ['reimb', 'rbclaim'];
+  known.ensureReimb = () => seen.push('reimb');
+  known.ensureRbclaim = () => seen.push('rbclaim');
+  run.showTab('rbclaim');
+  ok('opening Reimbursement › To Claim calls its loader (ensureRbclaim), and not Overview\'s', seen.join() === 'rbclaim' && known.TAB_NOW === 'rbclaim');
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

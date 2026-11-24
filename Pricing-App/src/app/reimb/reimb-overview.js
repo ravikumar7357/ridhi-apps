@@ -23,14 +23,18 @@
  *                below zero. The Ad Console's chart look (adx-plot, adx-tip, adx-legend).
  *   most-lost    the products that lost most in the last 12 months, and how much of it Amazon paid back.
  * Each card draws inside its own try: one failing never blanks the page.
+ * SHARED WITH TO CLAIM (reimb-claim.js): the data (RBD, rbLoadAll), the case records (RBC, rbCaseSave), the case dialog
+ * (rbOpen: one item, or a case of several lost / damaged items), Archive / Restore, Upload Amazon reports and How Sellora
+ * counts. Their dialogs sit in #rbDialogs, outside both panes, so either page can open them; after a change every page of
+ * the module redraws (rbRedrawAll, RB_PAGES). Owed now and Expiring open To Claim with the same filter (rbqGo).
  *
  * SAVING. One record per item in Firestore reimbCases/{brand_type_itemKey}: { brand, type, itemKey, status, caseId, estimate,
  * checks, note, reason, trail }. Every change appends one trail step, the same as PPC History's (ppchEvent: who, which
  * device, when). Never deleted. Until the rule is deployed (firestore.rules) a read is refused, and the records are kept in
  * this browser with the same note as Search Term Analysis's review list. With the SAMPLE data the records always stay in this
  * browser (reimbCasesSample): sample shipments must never reach the shared list.
- * Main functions: ensureReimb, renderReimb, rbCasesLoad, rbCaseSave, rbOpen, rbDlgHtml, rbArchOpen, rbCasesOpen, rbFixOpen,
- * rbLegendHtml, rbChartPlot, rbCsv. */
+ * Main functions: ensureReimb, renderReimb, rbRedrawAll, rbCasesLoad, rbCaseSave, rbOpen, rbDlgHtml, rbProofSave, rbArchOpen,
+ * rbCasesOpen, rbFixOpen, rbLegendHtml, rbChartPlot, rbCsv. */
 
 // The screen's choices: brand, period (and the custom days), the type chip, the box that filters the list, Expired, Show
 // archived, Show all, the chart's view and the parts its legend switched off.
@@ -44,6 +48,13 @@ const RBC = { recs: new Map(), where: '', err: '' };
 const RB_LOCAL = 'reimbCases', RB_LOCAL_SAMPLE = 'reimbCasesSample';
 const RB_ASOF = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const RB_BRANDS = { ALL: 'Both brands', SP: 'Ridhi', CPC: 'Cotton Print Club' };
+// Every page of the module redraws after a change (a case made, an item archived, an upload): Overview, and each page that
+// adds its own draw here (To Claim: renderRbclaim). Each draws only while its pane is on screen.
+const RB_PAGES = [];
+function rbRedrawAll() {
+  renderReimb();
+  RB_PAGES.forEach(f => { try { f(); } catch (e) { try { console.error(e); } catch (x) { /* no console */ } } });
+}
 
 /* ---------- this device's choices ---------- */
 (function rbPrefsLoad() {
@@ -146,9 +157,12 @@ const rbM2 = v => rbFmt(v);
 const rbTypePill = t => `<span class="rb-type" style="--d:var(${RB.TYPES[t].c})">${rbEsc(RB.TYPES[t].short)}</span>`;
 const rbStatusPill = s => `<span class="rb-st rb-st-${RB.STATUS[s].cls}">${rbEsc(RB.STATUS[s].t)}</span>`;
 const rbDaysHtml = it => { const p = rbDaysPill(it); return `<span class="rb-days rb-d-${p.cls}">${rbEsc(p.t)}</span>`; };
-// A value with its tags: "≈ landed" (landed cost only), "N no cost" (units with no cost, left out of the $).
-function rbValHtml(v, approx, noCostUnits) {
+// A value with its tags: "≈ landed" (landed cost only), "≈ Amazon's rate" (no cost at all: what Amazon last paid per unit),
+// "N no cost" (units with no cost, left out of the $).
+const RB_RATE_TIP = 'No unit cost in Profit & Margin — valued at what Amazon last paid per unit for this product';
+function rbValHtml(v, approx, noCostUnits, rate) {
   const tags = (approx ? '<span class="rb-tag" title="Only the landed cost is known: it includes freight, which Amazon\'s sourcing cost does not">≈ landed</span>' : '')
+    + (rate ? `<span class="rb-tag rb-tag-rate" title="${rbEsc(RB_RATE_TIP)}">≈ Amazon's rate</span>` : '')
     + (noCostUnits ? `<span class="rb-tag" title="No cost for these units: left out of every $ total">${staInt(noCostUnits)} no cost</span>` : '');
   return `${v == null ? '<span class="sta-dash">—</span>' : rbM2(v)}${tags ? '<div class="rb-tags">' + tags + '</div>' : ''}`;
 }
@@ -188,13 +202,15 @@ function renderReimb() {
   rbCard('rbLater', () => {
     const H = RBD.have || {}, extra = [];
     if (!H.inbound) extra.push('inbound shortages — needs Amazon\'s shipment data from the backend');
-    if (!H.ledger) extra.push('reversal checks and most-lost products — need the Inventory Ledger (Upload Amazon reports)');
+    if (!H.ledger) extra.push('lost and damaged in the warehouse, reversal checks and most-lost products — need the Inventory Ledger (Upload Amazon reports)');
+    else if (!H.payouts) extra.push('lost and damaged in the warehouse — need the Reimbursements report too (what Amazon already paid)');
     $('rbLater').textContent = 'Not counted yet: ' + extra.concat(RB.LATER.join(', ')).join(' · ') + '.';
   });
   rbCard('rbFix', () => rbDrawFix(items));
   rbCard('rbWeekBody', () => rbDrawWeek(items));
   rbCard('rbChartBody', () => rbDrawChart(today));
   rbCard('rbLostBody', () => rbDrawLost(today));
+  rbCard('rbWeekGo', () => { $('rbWeekGo').innerHTML = `<button type="button" class="sta-linkbtn rb-golink" data-rbgo="1">See all in To Claim →</button>`; });
 }
 // The bar: the chosen brand and period, the data's day, Sample data.
 function rbDrawBar() {
@@ -225,6 +241,8 @@ const RB_IC = {
   cases: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/>',
   lost: '<circle cx="12" cy="12" r="9"/><path d="M8 12h8"/>',
 };
+// " · 2 at Amazon's rate": how many of a box's items are valued at what Amazon last paid (they count in its $).
+const rbRateNote = n => (n ? ` · <span title="${rbEsc(RB_RATE_TIP)}">${staInt(n)} at Amazon's rate</span>` : '');
 function rbDrawBoxes(o, P) {
   const per = P.key === 'custom' ? `${rbDate(P.from)} – ${rbDate(P.to)}` : P.key === '365' ? 'the last 12 months' : `the last ${P.days} days`;
   const box = (k, c, label, tip, big, q, go, extra) => `
@@ -237,9 +255,9 @@ function rbDrawBoxes(o, P) {
   const r = o.recovered;
   $('rbBoxes').innerHTML =
     box('owed', '--brand', 'Owed now', 'Items you can claim today (status Claim now), at our cost. Items with no cost show their units and are left out of the $.',
-      rbM0(o.owed.v), `${staInt(o.owed.n)} item${o.owed.n === 1 ? '' : 's'} to claim today${o.owed.noCost ? ` · ${staInt(o.owed.noCost)} ${o.owed.noCost === 1 ? 'has' : 'have'} no cost (units only)` : ''}`, o.owed.n ? 'Show them' : '')
+      rbM0(o.owed.v), `${staInt(o.owed.n)} item${o.owed.n === 1 ? '' : 's'} to claim today${rbRateNote(o.owed.rate)}${o.owed.noCost ? ` · ${staInt(o.owed.noCost)} ${o.owed.noCost === 1 ? 'has' : 'have'} no cost (units only)` : ''}`, o.owed.n ? 'Open in To Claim' : '')
     + box('exp', '--bad', `Expiring in ${RB.EXPIRING} days`, `Claim-now items with ${RB.EXPIRING} days or fewer left before the deadline.`,
-      rbM0(o.expiring.v), `${staInt(o.expiring.n)} item${o.expiring.n === 1 ? '' : 's'} with ${RB.EXPIRING} days or fewer left`, o.expiring.n ? 'Show them' : '')
+      rbM0(o.expiring.v), `${staInt(o.expiring.n)} item${o.expiring.n === 1 ? '' : 's'} with ${RB.EXPIRING} days or fewer left${rbRateNote(o.expiring.rate)}`, o.expiring.n ? 'Open in To Claim' : '')
     + box('rec', '--accent', 'Recovered', `What Amazon paid in ${per}, in two parts: through our cases (payouts with a case ID) and paid by Amazon itself (no case ID); each against the period before, the same length.`,
       rbM0(r.all), `<span class="rb-part"><span>Through our cases</span><span><b>${rbM0(r.viaCase)}</b> ${rbArrow(r.dCase, true)}</span></span>`
         + `<span class="rb-part"><span>Paid by Amazon itself</span><span><b>${rbM0(r.auto)}</b> ${rbArrow(r.dAuto, true)}</span></span>`, 'See by month')
@@ -271,7 +289,10 @@ function rbDrawFix(items) {
 }
 
 /* ---------- Do this week ---------- */
-const RB_VERB = { inbound: 'Make case', underpaid: 'Re-check', reversal: 'Dispute' };
+const RB_VERB = { inbound: 'Make case', lost: 'Make case', damaged: 'Make case', underpaid: 'Re-check', reversal: 'Dispute' };
+// Why a Wait item is not open yet, in the row.
+const rbWaitWhy = it => (it.type === 'inbound' ? (it.closed ? 'Amazon is still counting' : 'Not closed yet')
+  : `Amazon usually pays these itself within ${RB.WAIT.warehouse} days`);
 function rbWeekRows(items) {
   return rbWeekList(items, { brand: RBS.brand, type: RBS.type, focus: RBS.focus, expired: RBS.expired, archived: RBS.arch });
 }
@@ -301,20 +322,20 @@ function rbDrawWeek(items) {
     if (it.status === 'archived') return `<div class="rb-why is-bad">${rbEsc(it.block)}</div><button type="button" class="sta-btn dim" data-rbrestore="${rbEsc(it.key)}">Restore</button>`;
     if (it.block) return `<div class="rb-why is-bad">${rbEsc(it.block)}</div>`;
     if (it.status === 'claim') return `<div class="rb-acts"><button type="button" class="rb-go" data-rbopen="${rbEsc(it.key)}">${RB_VERB[it.type]}</button>${more}</div>`;
-    if (it.status === 'wait') return `<div class="rb-acts"><span class="rb-why" title="Amazon may still be counting the shipment">${it.closed ? 'Amazon is still counting' : 'Not closed yet'}</span>${more}</div>`;
+    if (it.status === 'wait') return `<div class="rb-acts"><span class="rb-why">${rbEsc(rbWaitWhy(it))}</span>${more}</div>`;
     return `<div class="rb-acts"><span class="rb-why is-bad">Past the deadline</span>${more}</div>`;
   };
   const body = shown.map(it => {
     const isIn = it.type === 'inbound';
     const sub = isIn ? (it.skus.length === 1 ? `${it.skus[0].asin} · ${it.skus[0].fnsku}` : it.skus.map(x => x.sku).join(', ')) : `${it.asin} · ${it.fnsku}`;
     const title = isIn ? (it.skus.length === 1 ? it.skus[0].title : `${it.skus.length} SKUs · ${it.skus[0].title}…`) : it.title;
-    const part = it.partPaid ? '<span class="rb-tag" title="Amazon already paid for some SKUs by itself: they are left out of this claim">part paid</span>' : '';
+    const part = it.partPaid || (it.paid > 0 && it.units > 0) ? '<span class="rb-tag" title="Amazon already paid for some units by itself: they are left out of this claim">part paid</span>' : '';
     return `<tr class="rb-row is-${it.status}">
       <td>${rbTypePill(it.type)}</td>
       <td class="rb-item"><div class="sta-term">${rbEsc(isIn ? it.itemKey : it.sku)}${RBS.brand === 'ALL' ? ` ${staBadge(RB_BRANDS[it.brand], 'brand-' + it.brand)}` : ''}</div>
-        <div class="rb-ttl" title="${rbEsc(title)}">${rbEsc(title)}</div><small class="sta-s">${rbEsc(isIn ? sub : (it.type === 'underpaid' ? 'Payout ' : 'Reversal ') + it.itemKey + ' · ' + sub)}</small></td>
+        <div class="rb-ttl" title="${rbEsc(title)}">${rbEsc(title)}</div><small class="sta-s">${rbEsc(isIn ? sub : (it.type === 'underpaid' ? 'Payout ' : it.type === 'reversal' ? 'Reversal ' : RB.KIND[it.kind].t + ' · ') + it.itemKey + ' · ' + sub)}</small></td>
       <td class="num">${staInt(it.units)}</td>
-      <td class="num">${rbValHtml(it.value, it.approx, it.noCostUnits)}${part ? '<div class="rb-tags">' + part + '</div>' : ''}</td>
+      <td class="num">${rbValHtml(it.value, it.approx, it.noCostUnits, it.rate)}${part ? '<div class="rb-tags">' + part + '</div>' : ''}</td>
       <td>${rbDaysHtml(it)}</td>
       <td>${rbStatusPill(it.status)}</td>
       <td class="rb-actcell">${action(it)}</td></tr>`;
@@ -323,7 +344,7 @@ function rbDrawWeek(items) {
     ? 'Nothing here with these choices.'
     : '<span class="rb-tick" aria-hidden="true">✓</span><b>No claims right now.</b> Nothing Amazon owes us is waiting for a case.'}</td></tr>` : '';
   $('rbTable').innerHTML = '<thead><tr><th title="What kind of claim">Type</th><th title="The shipment, or the SKU of a payout; the product; its ASIN and FNSKU">Item</th>'
-    + '<th class="num" title="Units missing, underpaid or taken back">Units</th><th class="num" title="At our sourcing cost (≈ landed when only the landed cost is known); for an underpaid payout the gap, for a reversal the amount taken back">Value</th>'
+    + '<th class="num" title="Units missing, lost, damaged, underpaid or taken back (still owed)">Units</th><th class="num" title="At our sourcing cost, else ≈ landed, else ≈ Amazon\'s rate (what Amazon last paid per unit); for an underpaid payout the gap, for a reversal the amount taken back">Value</th>'
     + `<th title="Days to the deadline (not confirmed yet: check it in Seller Central). Red 7 or fewer, orange 8–14, yellow 15–30">Days left</th><th title="Claim now, Wait (Amazon still counting), Expired or Archived">Status</th><th>Action</th></tr></thead>`
     + `<tbody>${body}${empty}</tbody>`;
   $('rbFoot').innerHTML = rows.length > RB_SHOWN
@@ -419,7 +440,7 @@ function rbDrawLost(today) {
     + '<th class="num" title="Lost and damaged units at our sourcing cost (≈ landed when only that is known)">Value</th><th class="num" title="Lost and damaged payouts for this product in the same 12 months">Paid back</th>'
     + '<th class="num" title="Paid back ÷ value: green 90%+, yellow 50–89%, red under 50%">% paid back</th></tr></thead><tbody>'
     + (rows.map(r => `<tr><td class="rb-item"><div class="rb-ttl"><b>${rbEsc(r.title)}</b>${RBS.brand === 'ALL' ? ' ' + staBadge(RB_BRANDS[r.brand], 'brand-' + r.brand) : ''}</div><small class="sta-s">${rbEsc(r.sku)} · ${rbEsc(r.asin)}</small></td>`
-      + `<td class="num">${staInt(r.lostNet)}</td><td class="num">${staInt(r.damaged)}</td><td class="num">${rbValHtml(r.value, r.approx, r.noCost ? r.units : 0)}</td>`
+      + `<td class="num">${staInt(r.lostNet)}</td><td class="num">${staInt(r.damaged)}</td><td class="num">${rbValHtml(r.value, r.approx, r.noCost ? r.units : 0, r.rate)}</td>`
       + `<td class="num">${rbM2(r.paid)}</td><td class="num">${pct(r)}</td></tr>`).join('')
       || (RBD.have && !RBD.have.ledger
         ? '<tr><td colspan="6" class="rb-empty"><b>Needs the Inventory Ledger.</b> Upload it with "Upload Amazon reports" (Detailed view, CSV).</td></tr>'
@@ -447,8 +468,10 @@ function rbDrawConnect() {
 /* ---------- Upload Amazon reports ---------- */
 // The dialog: the brand first, then each report — read in this browser, checked, summed up, and saved only on "Save".
 const RB_UP = { brand: '', res: {} };
-function rbUpOpen() {
-  if (!RB_UP.brand && RBS.brand !== 'ALL') RB_UP.brand = RBS.brand;
+// brand: the brand of the page it was opened from ('ALL' leaves the choice to the person).
+function rbUpOpen(brand) {
+  const b = typeof brand === 'string' ? brand : RBS.brand;
+  if (!RB_UP.brand && b !== 'ALL') RB_UP.brand = b;
   RB_UP.res = {};
   rbUpDraw();
   $('rbUpDlg').classList.remove('hide');
@@ -503,50 +526,101 @@ async function rbUpSave(k) {
   RBD = null;
   try { await rbLoadAll(); } catch (e) { RB_ERR = String((e && e.message) || e); }
   rbUpDraw();
-  renderReimb();
+  rbRedrawAll();
 }
 
 /* ---------- the case dialog: Make case / Re-check / Dispute ---------- */
+// One item, or a case of several lost (or damaged) items of one brand (rbBatchCheck says when they may go together).
 const rbItemNow = key => rbItems(RBD, RBC.recs, rbToday()).find(i => i.key === key) || null;
-function rbOpen(key) {
-  const it = rbItemNow(key);
-  if (!it) return;
-  RB_DLG = { key, copied: false };
+const rbDlgItems = () => {
+  if (!RB_DLG) return [];
+  const all = new Map(rbItems(RBD, RBC.recs, rbToday()).map(i => [i.key, i]));
+  return RB_DLG.keys.map(k => all.get(k)).filter(Boolean);
+};
+// keys: one item's key, or a list of them. A list that may not be one case is refused, saying why (the page's own note).
+function rbOpen(keys) {
+  const all = new Map(rbItems(RBD, RBC.recs, rbToday()).map(i => [i.key, i]));
+  const list = [].concat(keys).map(k => all.get(k)).filter(Boolean);
+  if (!list.length) return '';
+  const why = list.length > 1 ? rbBatchCheck(list) : '';
+  if (why) return why;
+  const it = list[0], many = list.length > 1;
+  RB_DLG = { key: it.key, keys: list.map(i => i.key), copied: false };
   const rec = rbRecOf(it);
-  $('rbDlgTitle').textContent = `${RB_VERB[it.type]} · ${it.type === 'inbound' ? it.itemKey : it.sku}`;
-  const dl = RB.DEADLINE[it.type === 'inbound' ? 'inbound' : it.type === 'underpaid' ? 'recheck' : 'reversal'];
-  $('rbDlgSub').innerHTML = `${rbEsc(RB_BRANDS[it.brand])} · ${rbEsc(RB.TYPES[it.type].t)} · ${it.type === 'inbound' ? 'delivered' : 'dated'} ${rbDate(it.event)}`
-    + ` · deadline <b>${rbDate(it.deadline)}</b> (${it.daysLeft === 0 ? 'the last day' : staInt(it.daysLeft) + ' days left'})`;
-  $('rbDlgBody').innerHTML = rbDlgHtml(it, rec, dl);
+  const first = list.reduce((a, i) => (i.deadline < a.deadline ? i : a), it);
+  $('rbDlgTitle').textContent = `${RB_VERB[it.type]} · ${many ? `${list.length} ${RB.TYPES[it.type].short.toLowerCase()} items` : it.type === 'inbound' ? it.itemKey : it.sku}`;
+  const dl = rbDeadlineOf(it.type);
+  const when = it.type === 'inbound' ? ({ delivered: 'delivered', closed: 'closed', checkin: 'first checked in' }[it.startFrom] || 'delivered') : it.type === 'lost' || it.type === 'damaged' ? 'event' : 'dated';
+  $('rbDlgSub').innerHTML = `${rbEsc(RB_BRANDS[it.brand])} · ${rbEsc(RB.TYPES[it.type].t)} · ${many ? 'the earliest' : when} ${rbDate(first.event)}`
+    + ` · deadline <b>${rbDate(first.deadline)}</b> (${first.daysLeft === 0 ? 'the last day' : staInt(first.daysLeft) + ' days left'})`;
+  $('rbDlgBody').innerHTML = rbDlgHtml(list, rec, dl);
   $('rbDlgNote').innerHTML = RBC.where === 'fs' ? 'Saved to the shared case list, with who and when.' : RBC.where === 'sample' ? 'Sample data: kept in this browser only.' : 'Kept in this browser only until the shared case list is switched on.';
   $('rbDlg').classList.remove('hide');
   setTimeout(() => { try { $('rbCaseId').focus(); } catch (e) { /* not on screen */ } }, 0);
+  return '';
 }
-function rbDlgHtml(it, rec, dl) {
+// The proof section of an inbound case: the fields saved on its record (rbProofOf prefills the carrier, the tracking and the
+// delivery day from the shipment), and what is still missing.
+function rbProofHtml(it, rec) {
+  const p = rbProofOf(it, rec), miss = rbProofMissing(it, rec);
+  return `<section class="rb-proof"><h4 class="rb-h4">Proof <small>saved on the case record, with who and when</small></h4>`
+    + (miss.length ? `<div class="rb-note is-act"><b>Needs proof:</b> ${rbEsc(miss.join(' and '))}.</div>` : '<div class="rb-note is-ok"><b>Proof complete:</b> the invoice, and the tracking or proof of delivery.</div>')
+    + '<div class="rb-pfgrid">'
+    + `<label class="sta-f rb-pf" for="rbPfInv"><span class="rb-lab">Invoice number</span><input id="rbPfInv" maxlength="60" autocomplete="off" value="${rbEsc(p.invoiceNo)}"></label>`
+    + `<label class="sta-f rb-pf" for="rbPfSup"><span class="rb-lab">Supplier</span><input id="rbPfSup" maxlength="80" autocomplete="off" value="${rbEsc(p.supplier)}"></label>`
+    + `<label class="sta-f rb-pf rb-pf-wide" for="rbPfLink"><span class="rb-lab">Invoice link <small>http:// or https:// only</small></span><span class="rb-pfrow"><input id="rbPfLink" maxlength="500" autocomplete="off" inputmode="url" placeholder="https://…" value="${rbEsc(p.invoiceLink)}">`
+      + (p.invoiceLink ? `<a class="sta-btn dim rb-link" id="rbPfOpen" href="${rbEsc(p.invoiceLink)}" target="_blank" rel="noopener noreferrer">Open ↗</a>` : '') + '</span></label>'
+    + `<label class="sta-f rb-pf" for="rbPfCar"><span class="rb-lab">Carrier</span><input id="rbPfCar" maxlength="40" autocomplete="off" value="${rbEsc(p.carrier)}"></label>`
+    + `<label class="sta-f rb-pf" for="rbPfTrk"><span class="rb-lab">Tracking <small>${p.fromShipment ? 'from the shipment' : 'commas between them'}</small></span><input id="rbPfTrk" maxlength="600" autocomplete="off" value="${rbEsc(p.tracking.join(', '))}"></label>`
+    + `<label class="sta-f rb-pf" for="rbPfDel"><span class="rb-lab">Delivered on</span><input id="rbPfDel" type="date" value="${rbEsc(p.deliveredOn)}"></label>`
+    + `<label class="rb-check rb-pfpod"><input type="checkbox" class="sta-cb" id="rbPfPod"${p.podAttached ? ' checked' : ''}> <span>Proof of delivery / bill of lading (POD, BOL) attached</span></label>`
+    + '</div>'
+    + `<div class="rb-row2"><button type="button" class="sta-btn" id="rbPfSave" data-rbproof="1">Save the proof</button><small id="rbPfMsg" class="rb-pfmsg"></small></div></section>`;
+}
+function rbDlgHtml(list, rec, dl) {
+  list = [].concat(list);
+  const it = list[0];
   const fig = (l, v) => `<div><small>${l}</small><b>${v}</b></div>`;
   const open = RBC.recs.size ? [...RBC.recs.values()].filter(r => r.status === 'in_case').length : 0;
   const warn = [];
-  if (!dl.confirmed) warn.push(`<div class="rb-note">Deadline: ${rbEsc(dl.t)}. <b>Not confirmed yet</b> — check the deadline on the ${it.type === 'inbound' ? 'shipment' : 'reimbursement'} in Seller Central.</div>`);
+  const where = it.type === 'inbound' ? 'shipment' : it.type === 'lost' || it.type === 'damaged' ? 'claim form' : 'reimbursement';
+  if (!dl.confirmed) warn.push(`<div class="rb-note">Deadline: ${rbEsc(dl.t)}. <b>Not confirmed yet</b> — check the deadline on the ${where} in Seller Central.</div>`);
   if (open >= RB.MAX_OPEN) warn.push(`<div class="rb-note is-act">You have ${staInt(open)} open cases; Amazon advises under ${RB.MAX_OPEN} at a time. You can still go on.</div>`);
-  let figs = '', table = '';
+  const sumL = f => list.reduce((t, i) => t + f(i), 0);
+  const valOf = sumL(i => i.value || 0);
+  let figs = '', table = '', proof = '', listBtn = '';
   if (it.type === 'inbound') {
-    const skus = it.skus, open2 = skus.filter(x => !x.paidBy);
+    const skus = it.allSkus || it.skus, open2 = it.skus.filter(x => x.missing > 0);
     if (open2.length > RB.MAX_ITEMS) warn.push(`<div class="rb-note is-act">${staInt(open2.length)} SKUs: Amazon takes at most ${RB.MAX_ITEMS} items in one case — split them over two cases.</div>`);
-    const sum = f => open2.reduce((t, x) => t + f(x), 0);
-    figs = fig('Shipment', rbEsc(it.itemKey)) + fig('Shipped', staInt(sum(x => x.shipped))) + fig('Received', staInt(sum(x => x.received)))
-      + fig('Missing', staInt(it.units)) + fig('Value', it.value == null ? '—' : (it.approx ? '≈ ' : '') + rbM2(it.value)) + fig('Days left', staInt(it.daysLeft));
-    table = '<table class="xl"><thead><tr><th>SKU</th><th>FNSKU · ASIN</th><th class="num">Shipped</th><th class="num">Received</th><th class="num">Missing</th><th class="num">Value</th></tr></thead><tbody>'
-      + skus.map(x => `<tr${x.paidBy ? ' class="is-off"' : ''}><td><div class="sta-dcn">${rbEsc(x.sku)}</div><small>${rbEsc(x.title)}</small></td><td>${rbEsc(x.fnsku)}<small>${rbEsc(x.asin)}</small></td>`
-        + `<td class="num">${staInt(x.shipped)}</td><td class="num">${staInt(x.received)}</td><td class="num"><b>${staInt(x.missing)}</b></td>`
-        + `<td class="num">${x.paidBy ? `<small>paid by Amazon ${rbDate(rbDay(x.paidBy.date))}</small>` : rbValHtml(x.val.v, x.val.approx, x.val.noCost ? x.missing : 0)}</td></tr>`).join('')
+    figs = fig('Shipment', rbEsc(it.itemKey)) + fig('Shipped', staInt(it.shipped)) + fig('Received', staInt(it.received))
+      + (it.paidUnits ? fig('Paid by Amazon', staInt(it.paidUnits)) : '')
+      + fig('Missing', staInt(it.units)) + fig('Value', it.value == null ? '—' : (it.approx || it.rate ? '≈ ' : '') + rbM2(it.value)) + fig('Days left', staInt(it.daysLeft));
+    table = '<table class="xl"><thead><tr><th>SKU</th><th>FNSKU · ASIN</th><th class="num">Shipped</th><th class="num">Received</th><th class="num">Paid by Amazon</th><th class="num">Missing</th><th class="num">Value</th></tr></thead><tbody>'
+      + skus.map(x => `<tr${!(x.missing > 0) ? ' class="is-off"' : ''}><td><div class="sta-dcn">${rbEsc(x.sku)}</div><small>${rbEsc(x.title)}</small></td><td>${rbEsc(x.fnsku)}<small>${rbEsc(x.asin)}</small></td>`
+        + `<td class="num">${staInt(x.shipped)}</td><td class="num" title="${rbEsc(rbRecvTip(x))}">${x.received == null ? '<span class="sta-dash">not known</span>' : staInt(x.received)}</td>`
+        + `<td class="num">${x.paid ? staInt(x.paid) : '<span class="sta-dash">—</span>'}</td><td class="num"><b>${staInt(x.missing || 0)}</b></td>`
+        + `<td class="num">${x.missing > 0 ? rbValHtml(x.val.v, x.val.approx, x.val.noCost ? x.missing : 0, x.val.basis === 'amazon') : x.paid ? '<small>paid by Amazon</small>' : '<span class="sta-dash">—</span>'}</td></tr>`).join('')
       + '</tbody></table>';
+    proof = rbProofHtml(it, rec);
+  } else if (it.type === 'lost' || it.type === 'damaged') {
+    const lost = it.type === 'lost';
+    figs = fig('Items', staInt(list.length)) + fig(lost ? 'Units lost' : 'Units damaged', staInt(sumL(i => i.eventUnits)))
+      + fig(lost ? 'Found / paid' : 'Paid', staInt(sumL(i => i.found + i.paid))) + fig('Still owed', staInt(sumL(i => i.units)))
+      + fig('Value', list.some(i => i.value != null) ? (list.some(i => i.approx || i.rate) ? '≈ ' : '') + rbM2(valOf) : '—') + fig('Days left', staInt(Math.min(...list.map(i => i.daysLeft))));
+    // The list Amazon's form takes: FNSKU | units | date (lost), transaction ID | FNSKU | units | date (damaged).
+    table = `<table class="xl"><thead><tr>${lost ? '' : '<th>Transaction ID</th>'}<th>FNSKU</th><th class="num">Units</th><th>Date</th><th>Product</th>${lost ? '<th>Transaction ID</th>' : '<th>Event</th>'}</tr></thead><tbody>`
+      + list.map(i => `<tr>${lost ? '' : `<td><div class="sta-dcn">${rbEsc(i.txnId || '—')}</div></td>`}<td><div class="sta-dcn">${rbEsc(i.fnsku)}</div></td><td class="num"><b>${staInt(i.units)}</b></td>`
+        + `<td>${rbDate(i.event)}</td><td><small>${rbEsc(i.sku)} · ${rbEsc(i.title)}</small></td><td>${lost ? `<small>${rbEsc(i.txnId || '—')}</small>` : rbKindTag(i.kind)}</td></tr>`).join('')
+      + '</tbody></table>';
+    listBtn = `<button type="button" class="sta-btn dim" data-rbcopylist="1" title="${lost ? 'FNSKU, units and date' : 'Transaction ID, FNSKU, units and date'}, one row each, tab-separated">Copy the list</button>`;
+    if (list.some(i => i.unrec != null)) warn.push('<div class="rb-note">Units marked by Amazon as still unreconciled (its own "Unreconciled Quantity" in the ledger) are counted as Amazon says.</div>');
   } else if (it.type === 'underpaid') {
     const p = it.payout;
     figs = fig('Units', staInt(it.units)) + fig('Paid per unit', rbM2(it.per)) + fig('Our sourcing cost', rbM2(it.cost)) + fig('Gap', rbM2(it.value)) + fig('Paid', rbM2(Number(p.amount))) + fig('Days left', staInt(it.daysLeft));
     table = '<table class="xl"><thead><tr><th>Reimbursement ID</th><th>Date</th><th>Reason</th><th class="num">Units</th><th class="num">Paid / unit</th><th class="num">Our cost</th><th class="num">Gap</th></tr></thead><tbody>'
       + `<tr><td><div class="sta-dcn">${rbEsc(p.reimbId)}</div><small>${rbEsc(p.sku)} · ${rbEsc(p.fnsku)}</small></td><td>${rbDate(rbDay(p.date))}</td><td>${rbEsc(p.reason)}</td>`
       + `<td class="num">${staInt(it.units)}</td><td class="num">${rbM2(it.per)}</td><td class="num">${rbM2(it.cost)}</td><td class="num"><b>${rbM2(it.value)}</b></td></tr></tbody></table>`
-      + '<div class="rb-note">Our sourcing cost only (never the landed cost): it excludes shipping, handling and duties.</div>';
+      + '<div class="rb-note">Our sourcing cost only (never the landed cost, never Amazon\'s own rate): it excludes shipping, handling and duties.</div>';
   } else {
     const p = it.payout, o = it.original;
     figs = fig('Units', staInt(it.units)) + fig('Taken back', rbM2(Number(p.amount))) + fig('Original payout', o ? rbM2(Number(o.amount)) : '—') + fig('Days left', staInt(it.daysLeft));
@@ -556,17 +630,30 @@ function rbDlgHtml(it, rec, dl) {
       + `<div class="sta-checks"><div class="ck-ok"><i>✓</i><span>The ledger check: no unit of ${rbEsc(p.fnsku)} found between ${rbDate(it.checkFrom)} and ${rbDate(it.checkTo)} (${RB.FOUND_DAYS} days either side).</span></div></div>`;
   }
   const steps = '<ol class="rb-steps">' + RB.STEPS[it.type].map(s => `<li>${rbEsc(s)}</li>`).join('') + '</ol>';
-  const proof = RB.PROOF[it.type].map(([k, t]) => `<label class="rb-check"><input type="checkbox" class="sta-cb" data-rbcheck="${k}"${rec.checks && rec.checks[k] ? ' checked' : ''}> <span>${rbEsc(t)}</span></label>`).join('');
+  const ticks = (RB.PROOF[it.type] || []).map(([k, t]) => `<label class="rb-check"><input type="checkbox" class="sta-cb" data-rbcheck="${k}"${rec.checks && rec.checks[k] ? ' checked' : ''}> <span>${rbEsc(t)}</span></label>`).join('');
   const link = it.type === 'inbound' ? RB_LINKS.shipments : RB_LINKS.support;
+  const text = it.type === 'lost' || it.type === 'damaged' ? rbCaseText(list) : rbCaseText(it, it.type === 'inbound' ? rbProofOf(it, rec) : null);
   return warn.join('') + `<div class="sta-figs rb-figs">${figs}</div>`
     + `<div class="sta-dcp rb-dtable">${table}</div>`
-    + `<div class="rb-cols"><section><h4 class="rb-h4">In Seller Central</h4>${steps}</section>`
-    + `<section><h4 class="rb-h4">Proof to attach <small>ticks are saved</small></h4><div class="rb-checks">${proof}</div></section></div>`
+    + (listBtn ? `<div class="rb-row2">${listBtn}</div>` : '')
+    + `<div class="rb-cols${ticks ? '' : ' rb-cols-1'}"><section><h4 class="rb-h4">In Seller Central</h4>${steps}</section>`
+    + (ticks ? `<section><h4 class="rb-h4">Proof to attach <small>ticks are saved</small></h4><div class="rb-checks">${ticks}</div></section>` : '') + '</div>'
+    + proof
     + `<h4 class="rb-h4">The case text <small>edit it if you like, then copy</small></h4>`
-    + `<textarea id="rbText" class="rb-text" rows="11" spellcheck="true" aria-label="The case text">${rbEsc(rbCaseText(it))}</textarea>`
+    + `<textarea id="rbText" class="rb-text" rows="11" spellcheck="true" aria-label="The case text">${rbEsc(text)}</textarea>`
     + `<div class="rb-row2"><button type="button" class="sta-btn" data-rbcopy="1">Copy the text</button><a class="sta-btn dim rb-link" href="${rbEsc(link)}" target="_blank" rel="noopener">Open Seller Central ↗</a></div>`
     + `<div class="rb-caseid"><label class="sta-f" for="rbCaseId"><span class="rb-lab">Case ID</span><input id="rbCaseId" maxlength="40" autocomplete="off" placeholder="The case ID Amazon gave" value="${rbEsc(rec.caseId || '')}"></label>`
-    + `<button type="button" data-rbdone="1">I've created the case</button></div>`;
+    + `<button type="button" data-rbdone="1">I've created the case${list.length > 1 ? ` (${list.length} items)` : ''}</button></div>`;
+}
+// Where an inbound SKU's received count came from (the row's tooltip).
+const rbRecvTip = x => (x.recvFrom === 'ledger' ? 'Received: from the Inventory Ledger\'s Receipts for this shipment (the shipment data has no received count)'
+  : x.recvFrom === 'amazon' ? 'Received: from Amazon\'s shipment data' : 'Received: not in the shipment data, and no ledger Receipts for it — this SKU is not judged');
+// The event tag of a lost / damaged item: Lost / Damaged / Destroyed with its dot.
+const rbKindTag = k => `<span class="rb-type" style="--d:var(${RB.KIND[k].c})">${rbEsc(RB.KIND[k].t)}</span>`;
+// The list for Amazon's form, tab-separated (what "Copy the list" copies).
+function rbFormList(list) {
+  const lost = list[0].type === 'lost';
+  return [lost ? 'FNSKU\tUnits\tDate' : 'Transaction ID\tFNSKU\tUnits\tDate'].concat(list.map(i => (lost ? [i.fnsku, i.units, rbIso(i.event)] : [i.txnId, i.fnsku, i.units, rbIso(i.event)]).join('\t'))).join('\n');
 }
 // Closing the dialog: after Copy and with no case ID, ask whether the case was made.
 function rbDlgTryClose() {
@@ -579,23 +666,49 @@ function rbDlgClose() {
   $('rbAsk').classList.add('hide');
   $('rbDlg').classList.add('hide');
 }
+// "I've created the case": every item of the dialog goes in that case (one record each, the same case ID; a batch names
+// all its items), so none of them is ever suggested again.
 async function rbCaseDone() {
-  const it = RB_DLG && rbItemNow(RB_DLG.key);
+  const list = rbDlgItems();
   const id = String($('rbCaseId').value || '').trim().replace(/\s+/g, ' ').slice(0, 40);
-  if (!it) return;
+  if (!list.length) return;
   if (!id) { $('rbDlgNote').innerHTML = '<span class="sta-bad">Put the case ID Amazon gave, so Sellora never suggests a second claim for it.</span>'; $('rbCaseId').focus(); return; }
+  const batch = list.length > 1 ? list.map(i => i.key) : null;
   try {
-    await rbCaseSave(rbRecOf(it), { status: 'in_case', caseId: id, estimate: Math.round((it.value || 0) * 100) / 100 }, 'case-created', { caseId: id });
+    for (const it of list) {
+      await rbCaseSave(rbRecOf(it), Object.assign({ status: 'in_case', caseId: id, estimate: Math.round((it.value || 0) * 100) / 100 }, batch ? { batch } : {}),
+        'case-created', Object.assign({ caseId: id }, batch ? { items: batch.length } : {}));
+    }
   } catch (e) { $('rbDlgNote').innerHTML = `<span class="sta-bad">Not saved: ${rbEsc(e.message || e)}</span>`; return; }
   rbDlgClose();
-  RB_NOTE = `Saved: ${rbEsc(it.itemKey)} is in case ${rbEsc(id)}.`;
-  renderReimb();
+  RB_NOTE = list.length > 1 ? `Saved: ${list.length} items are in case ${rbEsc(id)}.` : `Saved: ${rbEsc(list[0].itemKey)} is in case ${rbEsc(id)}.`;
+  if (typeof rbqCaseMade === 'function') rbqCaseMade(list.map(i => i.key));
+  rbRedrawAll();
 }
 async function rbCheck(k, on) {
-  const it = RB_DLG && rbItemNow(RB_DLG.key);
-  if (!it) return;
-  try { await rbCaseSave(rbRecOf(it), { checks: { [k]: on } }, on ? 'proof-ticked' : 'proof-unticked', { check: k }); }
+  const list = rbDlgItems();
+  if (!list.length) return;
+  try { for (const it of list) await rbCaseSave(rbRecOf(it), { checks: { [k]: on } }, on ? 'proof-ticked' : 'proof-unticked', { check: k }); }
   catch (e) { $('rbDlgNote').innerHTML = `<span class="sta-bad">The tick was not saved: ${rbEsc(e.message || e)}</span>`; }
+}
+// Save the inbound proof (the fields of rbProofHtml) on the item's record, with one trail step; the case text follows it.
+async function rbProofSave() {
+  const it = rbDlgItems()[0];
+  if (!it || it.type !== 'inbound') return;
+  const v = id => String($(id).value || '').trim();
+  const link = rbLinkOk(v('rbPfLink'));
+  if (!link.ok) { $('rbPfMsg').innerHTML = `<span class="sta-bad">Not saved: ${rbEsc(link.err)}.</span>`; $('rbPfLink').focus(); return; }
+  const proof = { invoiceNo: v('rbPfInv').slice(0, 60), supplier: v('rbPfSup').slice(0, 80), invoiceLink: link.url, carrier: v('rbPfCar').slice(0, 40),
+    tracking: rbTrackList(v('rbPfTrk')), deliveredOn: /^\d{4}-\d{2}-\d{2}$/.test(v('rbPfDel')) ? v('rbPfDel') : '', podAttached: !!$('rbPfPod').checked };
+  try { await rbCaseSave(rbRecOf(it), { proof }, 'proof-saved', { fields: Object.keys(proof).filter(k => (Array.isArray(proof[k]) ? proof[k].length : proof[k])) }); }
+  catch (e) { $('rbPfMsg').innerHTML = `<span class="sta-bad">Not saved: ${rbEsc(e.message || e)}</span>`; return; }
+  // Redraw the dialog with the saved proof (the case text names it), keeping the case ID typed so far.
+  const typed = $('rbCaseId').value, copied = RB_DLG.copied;
+  rbOpen(it.key);
+  RB_DLG.copied = copied;
+  $('rbCaseId').value = typed;
+  $('rbPfMsg').innerHTML = '<span class="rb-saved">Saved ✓</span>';
+  rbRedrawAll();
 }
 
 /* ---------- Archive, Restore ---------- */
@@ -621,15 +734,15 @@ async function rbArchDo() {
   $('rbArchDlg').classList.add('hide');
   RB_ARCH = null;
   RB_NOTE = `Archived: ${rbEsc(it.itemKey)} (${rbEsc(why)}). "Show archived" lists it, with Restore.`;
-  renderReimb();
+  rbRedrawAll();
 }
 async function rbRestore(key) {
   const it = rbItemNow(key);
   if (!it) return;
   try { await rbCaseSave(rbRecOf(it), { status: 'draft', reason: '', note: '' }, 'restored'); }
-  catch (e) { RB_NOTE = `<span class="sta-bad">Not restored: ${rbEsc(e.message || e)}</span>`; renderReimb(); return; }
+  catch (e) { RB_NOTE = `<span class="sta-bad">Not restored: ${rbEsc(e.message || e)}</span>`; rbRedrawAll(); return; }
   RB_NOTE = `Restored: ${rbEsc(it.itemKey)} is back on the list.`;
-  renderReimb();
+  rbRedrawAll();
 }
 
 /* ---------- the small dialogs: open cases, how to fix, how Sellora counts ---------- */
@@ -660,20 +773,26 @@ function rbFixOpen() {
   $('rbFixDlg').classList.remove('hide');
 }
 function rbLegendHtml() {
-  const dl = k => `${RB.DEADLINE[k].t} <span class="rb-tag">not confirmed yet</span>`;
+  const dl = k => `${RB.DEADLINE[k].t} <span class="rb-tag">not confirmed yet — check in Seller Central</span>`;
   return '<h4>What is counted</h4><ul>'
-    + `<li><b>Inbound shortage</b>: per SKU, missing = shipped − received, only when above 0. One shipment is one case. <b>Wait</b> until Amazon closes the shipment and ${RB.WAIT_DAYS} days have passed since delivery (it may still be counting); then <b>Claim now</b>. Deadline: ${dl('inbound')} — check it on the shipment in Seller Central. A SKU Amazon already paid for by itself is left out.</li>`
-    + `<li><b>Underpaid</b>: a payout below our <b>sourcing</b> cost per unit (never the landed cost). Gap = (cost − paid per unit) × units. Re-check window: ${dl('recheck')}.</li>`
+    + `<li><b>Inbound shortage</b> (shipped comes only from Amazon's shipment data, read by the backend: <i>reimbInbound</i>). Per SKU, missing = shipped − received − the units Amazon already paid for it by itself (Inbound payouts of that FNSKU dated on or after the start, given to its shipments oldest first). Received: Amazon's shipment data; without it, the Inventory Ledger's Receipts for that shipment (the row's tooltip says which); without either, the SKU is not judged. The start: the delivery date, else the close date, else the first check-in in the ledger. One shipment is one case. <b>Wait</b> while the shipment is not closed and until ${RB.WAIT.inbound} days after the start (Amazon may still be counting); then <b>Claim now</b>. Deadline: ${dl('inbound')}.</li>`
+    + `<li><b>Lost in the warehouse</b>: one item per ledger event (its transaction ID), units = |quantity|. Still owed per FNSKU = lost − found again − units Amazon paid as lost in the warehouse, those covering the oldest event first (each only an event on or before its own date). When the ledger row has Amazon's own <b>Unreconciled Quantity</b>, that is what is still owed. <b>Wait</b> ${RB.WAIT.warehouse} days after the event (Amazon usually pays these itself), then <b>Claim now</b>. Deadline: ${dl('warehouse')}.</li>`
+    + `<li><b>Damaged / destroyed in the warehouse</b>: the same, covered by Amazon's damaged (or destroyed) payouts of that FNSKU, with the same wait and deadline.</li>`
+    + `<li><b>Underpaid</b>: a payout below our <b>sourcing</b> cost per unit (never the landed cost, never Amazon's own rate). Gap = (cost − paid per unit) × units. Re-check window: ${dl('recheck')}. Re-checked from Overview.</li>`
     + `<li><b>Reversal</b>: Amazon took money back saying the unit was found. Disputable only when the inventory ledger shows no unit of that FNSKU found within ${RB.FOUND_DAYS} days before or after it. Window: ${dl('reversal')}.</li>`
-    + `<li><b>Not counted yet</b>: ${rbEsc(RB.LATER.join(', '))}. They come once Amazon's other reports are connected.</li></ul>`
-    + '<h4>The value</h4><ul><li>Units × our <b>sourcing</b> cost.</li><li>Only a landed cost known: that, tagged <span class="rb-tag">≈ landed</span> — landed includes freight, Amazon\'s sourcing cost does not.</li>'
-    + '<li>No cost at all: the units, tagged <span class="rb-tag">no cost</span>, and left out of every $ total.</li></ul>'
+    + `<li><b>Not counted yet</b>: ${rbEsc(RB.LATER.join(', '))}. They come once Amazon's other reports are connected.</li>`
+    + '<li>Which payout pays for what is read from its reason (Lost_Inbound, Lost_Warehouse, Damaged_Warehouse…): <span class="rb-tag">to check against the first real Reimbursements file</span></li></ul>'
+    + '<h4>The value, in this order</h4><ul><li>Units × our <b>sourcing</b> cost.</li><li>Else the landed cost, tagged <span class="rb-tag">≈ landed</span> — landed includes freight, Amazon\'s sourcing cost does not.</li>'
+    + `<li>Else <b>Amazon's rate</b>, tagged <span class="rb-tag">≈ Amazon's rate</span>: what Amazon paid per unit in its latest payout for the same SKU (else the same ASIN) in the last 12 months, reversals left out. It counts in the $ totals; the boxes say how many items use it.</li>`
+    + '<li>Else the units, tagged <span class="rb-tag">no cost</span>, and left out of every $ total.</li></ul>'
     + '<h4>The status, in this order</h4><ul><li><b>Archived</b>, <b>Paid</b> and <b>In a case</b> (from the case records) win.</li><li>Else <b>Expired</b>: past the deadline (the deadline day itself is still open).</li>'
     + '<li>Else <b>Wait</b>; else <b>Claim now</b>.</li></ul>'
+    + '<h4>Proof (inbound)</h4><ul><li>Kept on the case record: invoice number, supplier, invoice link (http or https only), carrier, tracking, delivered on, and the proof of delivery tick. The carrier and tracking come from Amazon\'s shipment data when it has them.</li>'
+    + '<li><b>Needs proof</b>: a Claim-now shipment without (an invoice number or link) or without (tracking or a proof of delivery).</li></ul>'
     + '<h4>Never a duplicate</h4><ul><li>Amazon treats a second claim for the same thing as abuse: an item already in a case, already paid, or archived never gets "Make case" — the row says why, in red.</li>'
-    + `<li>At most ${RB.MAX_ITEMS} items per case, and Amazon advises under ${RB.MAX_OPEN} open cases: Sellora warns, it does not block.</li></ul>`
-    + '<h4>The boxes</h4><ul><li>Owed now, Expiring, Underpaid and Open cases are <b>today</b>. Recovered and Lost to deadlines follow the period, with the change against the period before (the same length).</li>'
-    + '<li>Recovered: through our cases = payouts with a case ID; paid by Amazon itself = without one.</li></ul>'
+    + `<li>One case: one shipment; one reversal; or up to ${RB.MAX_ITEMS} lost (or damaged) items of one brand, ticked together. Anything else is refused, saying why. Amazon advises under ${RB.MAX_OPEN} open cases: Sellora warns, it does not block.</li></ul>`
+    + '<h4>The boxes</h4><ul><li>Overview: Owed now, Expiring, Underpaid and Open cases are <b>today</b>. Recovered and Lost to deadlines follow the period, with the change against the period before (the same length). Recovered: through our cases = payouts with a case ID; paid by Amazon itself = without one.</li>'
+    + `<li>To Claim: Can claim now, Expiring in ${RB.EXPIRING} days, Waiting on Amazon and Needs proof, today, for the brand picked, over every type; a click shows those rows.</li></ul>`
     + (RBD && RBD.sample ? '<p class="rb-note">These numbers are sample data: Amazon\'s reimbursement reports are not connected yet.</p>' : '');
 }
 
@@ -715,6 +834,8 @@ $('rbBoxes').addEventListener('click', e => {
   if (!b || !RBD) return;
   const k = b.dataset.box;
   if (b.classList.contains('rb-box-na')) return;   // Underpaid without sourcing costs: nothing to list
+  // Owed now and Expiring: To Claim, with the same filter (underpaid payouts are re-checks: they stay on this page).
+  if ((k === 'owed' || k === 'exp') && typeof rbqGo === 'function') { rbqGo({ brand: RBS.brand, focus: k === 'exp' ? 'exp' : '' }); return; }
   if (k === 'owed' || k === 'exp' || k === 'under') {
     RBS.focus = RBS.focus === k ? '' : k;
     RBS.type = '';
@@ -736,9 +857,10 @@ $('rbChips').addEventListener('click', e => {
 });
 $('rbArch').addEventListener('change', () => { RBS.arch = $('rbArch').checked; rbRedraw(); });
 $('rbFoot').addEventListener('click', e => { if (e.target.closest('[data-rball]')) { RBS.all = !RBS.all; rbRedraw(); } });
+$('rbWeekGo').addEventListener('click', e => { if (e.target.closest('[data-rbgo]') && typeof rbqGo === 'function') rbqGo({ brand: RBS.brand, focus: '' }); });
 $('rbTable').addEventListener('click', e => {
   const o = e.target.closest('[data-rbopen]'), a = e.target.closest('[data-rbarch]'), r = e.target.closest('[data-rbrestore]');
-  if (o) rbOpen(o.dataset.rbopen);
+  if (o) { const why = rbOpen(o.dataset.rbopen); if (why) { RB_NOTE = `<span class="sta-bad">${rbEsc(why)}</span>`; renderReimb(); } }
   else if (a) { const d = a.closest('details'); if (d) d.open = false; rbArchOpen(a.dataset.rbarch); }
   else if (r) rbRestore(r.dataset.rbrestore);
 });
@@ -779,9 +901,19 @@ $('rbDlg').addEventListener('click', async e => {
   if (e.target === $('rbDlg')) { rbDlgTryClose(); return; }
   const c = e.target.closest('[data-rbcopy]');
   if (c) { await staCopyText($('rbText').value, c); if (RB_DLG) RB_DLG.copied = true; c.textContent = 'Copied ✓'; setTimeout(() => { c.textContent = 'Copy the text'; }, 1600); return; }
+  const l = e.target.closest('[data-rbcopylist]');
+  if (l) { await staCopyText(rbFormList(rbDlgItems()), l); l.textContent = 'Copied ✓'; setTimeout(() => { l.textContent = 'Copy the list'; }, 1600); return; }
+  if (e.target.closest('[data-rbproof]')) { rbProofSave(); return; }
   if (e.target.closest('[data-rbdone]')) rbCaseDone();
 });
 $('rbDlg').addEventListener('change', e => { const k = e.target.closest('[data-rbcheck]'); if (k) rbCheck(k.dataset.rbcheck, k.checked); });
+// The invoice link: refused as it is typed when it is not http / https (it is only saved by "Save the proof").
+$('rbDlg').addEventListener('input', e => {
+  if (e.target.id !== 'rbPfLink') return;
+  const r = rbLinkOk(e.target.value);
+  e.target.classList.toggle('rb-bad', !r.ok);
+  $('rbPfMsg').innerHTML = r.ok ? '' : `<span class="sta-bad">${rbEsc(r.err)}.</span>`;
+});
 $('rbDlg').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); rbDlgTryClose(); } else if (e.key === 'Enter' && e.target.id === 'rbCaseId') rbCaseDone(); });
 $('rbDlgX').addEventListener('click', rbDlgTryClose);
 $('rbDlgClose').addEventListener('click', rbDlgTryClose);
@@ -795,8 +927,8 @@ $('rbAsk').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPr
   $(m).addEventListener('keydown', e => { if (e.key === 'Escape') $(m).classList.add('hide'); });
 });
 // Upload Amazon reports: from the bar and from "Connect Amazon's data".
-$('rbUpBtn').addEventListener('click', rbUpOpen);
-$('rbConnect').addEventListener('click', e => { if (e.target.closest('[data-rbup]')) rbUpOpen(); });
+$('rbUpBtn').addEventListener('click', () => rbUpOpen(RBS.brand));
+$('rbConnect').addEventListener('click', e => { if (e.target.closest('[data-rbup]')) rbUpOpen(RBS.brand); });
 $('rbUpBrand').addEventListener('click', e => {
   const b = e.target.closest('[data-b]');
   if (!b || b.dataset.b === RB_UP.brand) return;
