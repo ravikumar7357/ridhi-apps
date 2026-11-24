@@ -850,29 +850,34 @@
   :root[data-theme="dark"] #paneSales .sdx-glow { opacity: .22; }
   #paneSales #sdxDots { position: absolute; inset: 0; width: 100%; height: 100%; }
 
-  /* the slim sticky bar, under the app's own top bar */
-  #paneSales .sdx-bar { position: sticky; top: var(--sdx-top, 60px); z-index: 20; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 52px;
-    margin: 0 -20px; padding: 10px max(20px, calc((100% - 1160px) / 2));
+  /* the slim sticky bar, under the app's own top bar: ONE row — the brand on the left, the message (when there is one) beside it,
+     Numbers checked · Refresh today · Story / Compact on the right; every control 36px high, 8px apart; it wraps on a phone.
+     Motion and light / dark are the app's own ✨ and 🌙 in the menu bar. #sdMsg is styled by id: sdMsg() sets its className. */
+  #paneSales .sdx-bar { position: sticky; top: var(--sdx-top, 60px); z-index: 20; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 52px;
+    margin: 0 -20px; padding: 8px max(20px, calc((100% - 1160px) / 2));
     background: color-mix(in srgb, var(--sx-page) 78%, transparent); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
     border-bottom: 1px solid color-mix(in srgb, var(--sx-line) 70%, transparent); }
-  #paneSales .sdx-bar-t { font-weight: 600; font-size: 15px; letter-spacing: -.01em; margin-right: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
-  #paneSales .sdx-bar-t #sdMsg { font-weight: 400; font-size: 13px; }
-  #paneSales .sdx-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--sx-chip); gap: 2px; }
-  #paneSales .sdx-seg button { border: 0; background: transparent; padding: 5px 13px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--sx-muted); cursor: pointer; line-height: 1.4; }
+  #paneSales #sdMsg { flex: 1 1 160px; min-width: 0; font-size: 13px; line-height: 1.35; }
+  #paneSales #sdMsg:empty { display: none; }
+  #paneSales .sdx-bar-r { margin-left: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+  #paneSales .sdx-seg { display: inline-flex; align-items: stretch; height: 36px; padding: 3px; border-radius: 999px; background: var(--sx-chip); gap: 2px; flex: none; }
+  #paneSales .sdx-seg button { border: 0; background: transparent; padding: 0 13px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--sx-muted); cursor: pointer; line-height: 1; min-height: 0; margin: 0; }
   #paneSales .sdx-seg button[aria-pressed="true"] { background: var(--sx-card); color: var(--sx-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
   #paneSales .sdx-seg button:disabled { opacity: .4; cursor: not-allowed; }
-  #paneSales .sdx-seg button:focus-visible, #paneSales .sdx-link:focus-visible, #paneSales .sdx-ibtn:focus-visible, #paneSales .sdx-btn:focus-visible { outline: 2px solid var(--sx-blue); outline-offset: 2px; }
-  #paneSales #ncChipSd { display: inline-flex; align-items: center; gap: 6px; border: 0; font-size: 13px; font-weight: 600; padding: 5px 11px; border-radius: 999px; }
+  #paneSales .sdx-seg button:focus-visible, #paneSales .sdx-link:focus-visible, #paneSales .sdx-btn:focus-visible, #paneSales #ncChipSd:focus-visible { outline: 2px solid var(--sx-blue); outline-offset: 2px; }
+  #paneSales #ncChipSd { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 36px; margin: 0; border: 0; font-size: 13px; font-weight: 600; padding: 0 13px; border-radius: 999px; line-height: 1; }
   #paneSales #ncChipSd[hidden] { display: none; }
-  #paneSales .sdx-btn { border: 0; background: var(--sx-chip); color: var(--sx-ink); font-size: 13px; font-weight: 500; padding: 6px 13px; border-radius: 999px; cursor: pointer; }
+  #paneSales .sdx-btn { display: inline-flex; align-items: center; flex: none; height: 36px; min-height: 0; margin: 0; border: 0; background: var(--sx-chip); color: var(--sx-ink); font-size: 13px; font-weight: 500; padding: 0 14px; border-radius: 999px; cursor: pointer; line-height: 1; white-space: nowrap; }
   #paneSales .sdx-btn:disabled { opacity: .6; cursor: default; }
-  #paneSales .sdx-ibtn { border: 0; background: var(--sx-chip); width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: inline-grid; place-items: center; font-size: 15px; color: var(--sx-ink); }
-  #paneSales .sdx-ibtn[aria-pressed="false"] { opacity: .55; }
 
   /* the chapters */
   #paneSales .sdx-main { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 0 120px; }
   #paneSales .sdx-ch { position: relative; padding-top: 120px; }
-  #paneSales .sdx-lines { position: absolute; left: -10vw; top: 40px; height: 420px; width: 120vw; pointer-events: none; z-index: 0; overflow: visible; }
+  /* the trend lines bleed to the page's edges, never past them: their box is the visible page width (--sdx-l = the chapter's left
+     edge on the page, --sdx-vw = the page width, both set by sales-charts.js sdcApplyState) and clips them. Until those are known the
+     box is the chapter itself. */
+  #paneSales .sdx-lines-box { position: absolute; top: -40px; height: 560px; left: calc(-1 * var(--sdx-l, 0px)); width: var(--sdx-vw, 100%); overflow: hidden; pointer-events: none; z-index: 0; }
+  #paneSales .sdx-lines { position: absolute; left: calc(var(--sdx-l, 0px) - 10vw); top: 80px; height: 420px; width: 120vw; pointer-events: none; overflow: visible; }
   #paneSales .sdx-lines path { fill: none; stroke: var(--sx-line-art); stroke-width: 2; stroke-linecap: round; }
   #paneSales .sdx-h { position: relative; z-index: 1; margin: 0 0 14px; font-size: clamp(32px, 4.6vw, 56px); line-height: 1.07; font-weight: 700; letter-spacing: -.028em; color: var(--sx-ink); }
   #paneSales .sdx-h .sdx-w { display: inline-block; }
@@ -976,10 +981,11 @@
     #paneSales .sdx-kpi-v { font-size: 28px; }
     #paneSales .sdx-chart { height: 300px; } #paneSales .sdx-chart.tall { height: 320px; }
     #paneSales .sdx-lines, #paneSales #sdxDots { display: none; }
-    #paneSales .sdx-bar { padding: 8px 14px; gap: 8px; margin: 0 -14px; }
-    #paneSales .sdx-bar-t { width: 100%; }
+    #paneSales .sdx-bar-r { margin-left: 0; }
     #paneSales .sdx-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
+  /* the app's own gutter is 16px from 860px down: the bar bleeds exactly that far, never wider than the page */
+  @media (max-width: 860px) { #paneSales .sdx-bar { margin: 0 -16px; padding: 8px 16px; } }
   @media (prefers-reduced-motion: reduce) { #paneSales .sdx-lines, #paneSales #sdxDots { display: none; } #paneSales .sdx-glow { transition: none; } }
   .sd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
   @media (max-width:900px){ .sd-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
@@ -5812,8 +5818,9 @@
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
       </button>
-      <!-- The Dashboard's animation on / off (app/core/dashboard.js keeps aria-pressed = on). Touches the Dashboard only. -->
-      <button id="fxBtn" class="themesw dashfx" type="button" aria-label="Dashboard animation" aria-pressed="true" title="Dashboard animation: on">
+      <!-- The animation on / off for the Dashboard and the Sales Dashboard (app/core/dashboard.js keeps aria-pressed = on and the
+           choice, localStorage selloraDashFx; sales/sales-charts.js follows it). The only ✨ in the app. -->
+      <button id="fxBtn" class="themesw dashfx" type="button" aria-label="Animation" aria-pressed="true" title="Animation: on">
         <span aria-hidden="true">&#10024;</span>
       </button>
       <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
@@ -7051,26 +7058,28 @@
          the motion and the background; sales/sales-insight.js fills "This week, explained". Styles: #paneSales only (styles.css "sdx"). -->
     <div class="sdx-bg" aria-hidden="true"><div class="sdx-glow" id="sdxGlow"></div><canvas id="sdxDots"></canvas></div>
 
+    <!-- One row: the brand on the left; Numbers checked, Refresh today and Story / Compact on the right. Motion and light / dark are
+         the app's own ✨ and 🌙 in the menu bar (#fxBtn, #themeBtn) — one place, the same switches on every screen. -->
     <header class="sdx-bar">
-      <div class="sdx-bar-t">Sales <span id="sdMsg" class="muted"></span></div>
       <div class="sdx-seg" id="sdBrand" role="group" aria-label="Brand">
         <button type="button" data-ch="SP" class="on" aria-pressed="true">Ridhi</button><button type="button" data-ch="CPC" aria-pressed="false">CPC</button><button type="button" data-ch="SHOP" aria-pressed="false">Shopify</button><button type="button" data-ch="ALL" aria-pressed="false">All</button>
       </div>
-      <!-- the Numbers Check chip (sales/sales-check.js ncChipPaint): hidden until a check has run -->
-      <button id="ncChipSd" class="nc-chip" type="button" hidden></button>
-      <button id="sdRefresh" type="button" class="sdx-btn"
-        title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>
-      <div class="sdx-seg" id="sdxMode" role="group" aria-label="Layout">
-        <button type="button" data-m="story" aria-pressed="true">Story</button><button type="button" data-m="compact" aria-pressed="false">Compact</button>
+      <span id="sdMsg" class="muted"></span>
+      <div class="sdx-bar-r">
+        <!-- the Numbers Check chip (sales/sales-check.js ncChipPaint): hidden until a check has run -->
+        <button id="ncChipSd" class="nc-chip" type="button" hidden></button>
+        <button id="sdRefresh" type="button" class="sdx-btn"
+          title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>
+        <div class="sdx-seg" id="sdxMode" role="group" aria-label="Layout">
+          <button type="button" data-m="story" aria-pressed="true">Story</button><button type="button" data-m="compact" aria-pressed="false">Compact</button>
+        </div>
       </div>
-      <button type="button" class="sdx-ibtn" id="sdxFx" aria-pressed="true" title="Motion on / off">✨</button>
-      <button type="button" class="sdx-ibtn" id="sdxTheme" title="Light / dark" aria-label="Light or dark">◐</button>
     </header>
 
     <div class="sdx-main">
       <!-- 1 -->
       <section class="sdx-ch" data-glow="#4d8dff">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">Sales today.</h2>
         <p class="sdx-sub">Where the day, the week, the month and the year stand — each against the same days last year.</p>
         <div class="sdx-card"><div class="sdx-kpis">
@@ -7087,7 +7096,7 @@
 
       <!-- 2 -->
       <section class="sdx-ch" data-glow="#8b5cf6">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">This week, explained.</h2>
         <p class="sdx-sub">Last finished week against the week before — the products that moved it, and why.</p>
         <!-- "This week in plain English" (sales/sales-insight.js viDraw) -->
@@ -7096,7 +7105,7 @@
 
       <!-- 3 -->
       <section class="sdx-ch" data-glow="#14b8a6">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">Every day vs last year.</h2>
         <p class="sdx-sub">This year in blue, the same weekday last year in grey. Hover any day for the gap.</p>
         <div class="sdx-card">
@@ -7114,7 +7123,7 @@
 
       <!-- 4 -->
       <section class="sdx-ch" data-glow="#f59e0b">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">Your busiest days.</h2>
         <p class="sdx-sub">The last thirteen weeks, day by day — and the products carrying this month.</p>
         <div class="sdx-split even">
@@ -7125,7 +7134,7 @@
 
       <!-- 5 -->
       <section class="sdx-ch" data-glow="#22c3ee">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">Your weekly rhythm.</h2>
         <p class="sdx-sub">Which weekdays sell — and where this month's sales come from.</p>
         <div class="sdx-split even">
@@ -7136,7 +7145,7 @@
 
       <!-- 6 -->
       <section class="sdx-ch" data-glow="#22c55e">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">Month by month.</h2>
         <p class="sdx-sub">Every month this year beside the same month last year.</p>
         <div class="sdx-card">
@@ -62239,8 +62248,9 @@ function viDashOf(view) {
  * Screens: the Sales Dashboard (pane paneSales), built EXACTLY like the approved preview Pricing-App/design/sales-dashboard/ — seven
  *          chapters: Sales today (the six numbers + sparklines) · This week, explained (sales/sales-insight.js) · Every day vs last year ·
  *          Your busiest days (calendar heatmap + top products this month) · Your weekly rhythm (weekday polar + channel donut) ·
- *          Month by month · The details (the tables and the Custom Range, folded). A slim sticky bar: brand, Numbers checked, Refresh
- *          today, Story / Compact, ✨ and light / dark.
+ *          Month by month · The details (the tables and the Custom Range, folded). A slim sticky bar, one row: brand on the left;
+ *          Numbers checked, Refresh today, Story / Compact on the right. Motion and light / dark are the app's own ✨ (#fxBtn, the
+ *          Dashboard's switch: localStorage selloraDashFx) and 🌙 (#themeBtn) in the menu bar — this page follows them.
  * Does: DRAWS ONLY. Every number on the page is still written by renderSales (sales/sales-dashboard.js) into the same ids; the charts
  *   read the Sales Dashboard's own sums — nothing is worked out a second way:
  *     sales / units per day   sdDays(channel) — the nightly history with Seller Central's totals laid over (All = Ridhi + CPC + Shopify)
@@ -62258,7 +62268,9 @@ function viDashOf(view) {
  *   MOTION: chapter headings word by word, cards rise and scale in, each chart made when its card comes into view (its own animation),
  *   the numbers count up, faint trend lines draw in, the glow takes each chapter's colour, ~30 data dots rise (canvas, paused when
  *   hidden). ✨ off, reduced motion → all shown at once; phone or Compact → a still background. Story / Compact and ✨ switch at once
- *   (no reload) and are remembered (localStorage sdxMode, sdxFx). Leaving the page stops Lenis, the triggers and the dots.
+ *   (no reload) and are remembered (localStorage sdxMode; ✨ = selloraDashFx). Leaving the page stops Lenis, the triggers and the dots.
+ *   NEVER HIDDEN: an entrance on screen that has not started within 1 s (or not finished 3 s later) is shown at once, and a chart on
+ *   screen is made; if the motion libraries fail or throw, the page is drawn as with ✨ off (sdcWatch, sdcShowNow, sdcStill).
  * Main functions: sdcRender (from renderSales), sdcSetup / sdcTeardown, sdcMake (the charts), sdcValueOf, sdcNotes, sdcSparks. Every name
  *   starts with sdc / SDC. Tests: tests/sales-charts-test.js. */
 
@@ -62269,8 +62281,11 @@ const SDC_CDN = {
   lenis: 'https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js',
 };
 const sdcLs = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* this visit only */ } } };
-const SDC = { metric: 'sales', range: '90', mode: sdcLs.get('sdxMode') === 'compact' ? 'compact' : 'story', fx: sdcLs.get('sdxFx') !== '0',
-  charts: {}, made: {}, last: null, started: false, up: false, st: [], tw: [], lenis: null, tick: null, dotsRaf: 0, dots: null, lines: false, ech: null, mot: null, gen: 0 };
+// ✨ is the app's one switch (#fxBtn in the menu bar, core/dashboard.js): '0' = off
+const sdcFxSaved = () => sdcLs.get('selloraDashFx') !== '0';
+const SDC = { metric: 'sales', range: '90', mode: sdcLs.get('sdxMode') === 'compact' ? 'compact' : 'story', fx: sdcFxSaved(),
+  charts: {}, made: {}, last: null, started: false, up: false, st: [], tw: [], lenis: null, tick: null, dotsRaf: 0, dots: null, lines: false, ech: null, mot: null, gen: 0,
+  rev: [], io: null, refT: 0 };
 const SDC_TABLES_LS = 'sdTablesOpen';
 const SDC_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const SDC_DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -62581,12 +62596,14 @@ function sdcMake(key) {
     if (SDC.charts[key]) { SDC.charts[key].dispose(); delete SDC.charts[key]; }
     el.innerHTML = `<div class="sdx-chart-fail">${sdcEsc(opt.empty)}</div>`;
     SDC.made[key] = true;
+    sdcRefresh();
     return;
   }
   if (SDC.charts[key] && SDC.charts[key].getDom() !== el) { SDC.charts[key].dispose(); delete SDC.charts[key]; }
   if (!SDC.charts[key]) { el.innerHTML = ''; SDC.charts[key] = window.echarts.init(el, null, { renderer: 'svg' }); }
   SDC.charts[key].setOption(opt, true);
   SDC.made[key] = true;
+  sdcRefresh();
 }
 const sdcRemakeMade = () => Object.keys(SDC.made).forEach(sdcMake);
 const sdcMakeAll = () => document.querySelectorAll('#paneSales [data-chart]').forEach(el => sdcMake(el.dataset.chart));
@@ -62686,9 +62703,86 @@ function sdcCountUp() {
     setTimeout(() => { if (el._sdxCount === tw) sdcCountEnd(el, true); }, (1.4 + i * 0.08) * 1000 + 1500);
   });
 }
+/* ----- NEVER HIDDEN: the safety net under the motion ----- */
+// What the motion leaves on an element; cleared by hand (never through GSAP: on a hidden pane GSAP lifts an element out to measure it).
+const SDC_MOVED = ['transform', 'translate', 'rotate', 'scale', 'opacity', 'visibility', 'stroke-dasharray', 'stroke-dashoffset'];
+const sdcUnstyle = els => els.forEach(el => { if (!el || !el.style) return; SDC_MOVED.forEach(p => el.style.removeProperty(p)); if (el._gsap) el._gsap.uncache = 1; });
+// One entrance (a heading's words, its line, a card), kept with the element whose scroll starts it.
+const sdcReveal = (tw, at, els) => {
+  if (tw && at) { SDC.rev.push({ tw, at, els: Array.from(els && els.length != null ? els : [els]), done: false }); if (SDC.io) SDC.io.observe(at); }
+  return sdcTween(tw);
+};
+/** Show one entrance now, as with ✨ off: its trigger and tween go, and the element is left as drawn. */
+function sdcShowNow(r) {
+  if (r.done) return;
+  r.done = true;
+  try { if (r.tw.scrollTrigger) r.tw.scrollTrigger.kill(); } catch (e) { /* gone */ }
+  try { r.tw.kill(); } catch (e) { /* gone */ }
+  sdcUnstyle(r.els);
+}
+const sdcProg = tw => { try { return tw.progress(); } catch (e) { return 0; } };
+// An element has been on screen for 1 s: an entrance that has not started is shown now (a paused clock, a trigger measured before
+// the page settled, anything), and one still not finished 3 s later too; a chart not made yet is made.
+function sdcNetCheck(el) {
+  if (!SDC.up) return;
+  const mine = SDC.rev.filter(r => r.at === el && !r.done);
+  const stuck = window.gsap && window.gsap.globalTimeline && window.gsap.globalTimeline.paused();
+  mine.forEach(r => { if (stuck || sdcProg(r.tw) === 0) sdcShowNow(r); });
+  if (el.dataset && el.dataset.chart && !SDC.made[el.dataset.chart]) sdcLoadCharts().then(() => { if (SDC.up && !SDC.made[el.dataset.chart]) sdcMake(el.dataset.chart); });
+  const gen = SDC.gen;
+  if (mine.some(r => !r.done)) setTimeout(() => { if (SDC.up && gen === SDC.gen) mine.forEach(r => { if (sdcProg(r.tw) < 1) sdcShowNow(r); }); }, 3000);
+}
+/** Watch every element that starts an entrance or holds a chart, anywhere on screen — also a card peeking in at the bottom, below
+ *  where its ScrollTrigger starts (top 85–90%), which would otherwise sit there invisible. */
+function sdcWatch() {
+  if (typeof IntersectionObserver !== 'function') return false;
+  SDC.io = new IntersectionObserver(list => list.forEach(e => {
+    const el = e.target;
+    if (!e.isIntersecting) { clearTimeout(el._sdxNet); el._sdxNet = 0; return; }
+    if (!el._sdxNet) el._sdxNet = setTimeout(() => { el._sdxNet = 0; if (SDC.io) SDC.io.unobserve(el); sdcNetCheck(el); }, 1000);
+  }), { rootMargin: '0px 0px -16px 0px' });
+  new Set(SDC.rev.map(r => r.at)).forEach(el => SDC.io.observe(el));
+  document.querySelectorAll('#paneSales [data-chart]').forEach(el => { if (!SDC.made[el.dataset.chart]) SDC.io.observe(el); });
+  return true;
+}
+/** Everything that moves stops, and every element is left as drawn (teardown, and a motion that failed). */
+function sdcUnmove() {
+  // a number caught mid count-up shows its own text again
+  document.querySelectorAll('#paneSales .sdx-kpi-v').forEach(el => sdcCountEnd(el, true));
+  if (SDC.io) { try { SDC.io.disconnect(); } catch (e) { /* gone */ } SDC.io = null; }
+  SDC.rev.forEach(r => { clearTimeout(r.at._sdxNet); r.at._sdxNet = 0; });
+  document.querySelectorAll('#paneSales [data-chart]').forEach(el => { clearTimeout(el._sdxNet); el._sdxNet = 0; });
+  SDC.rev = [];
+  clearTimeout(SDC.refT);
+  SDC.st.forEach(t => { try { t.kill(); } catch (e) { /* gone */ } });
+  SDC.tw.forEach(t => { try { t.kill(); } catch (e) { /* gone */ } });
+  SDC.st = []; SDC.tw = [];
+  if (SDC.lenis) {
+    try { window.gsap.ticker.remove(SDC.tick); window.gsap.ticker.lagSmoothing(500, 33); SDC.lenis.destroy(); } catch (e) { /* gone */ }
+    SDC.lenis = null; SDC.tick = null;
+  }
+  if (SDC.dotsRaf) { cancelAnimationFrame(SDC.dotsRaf); SDC.dotsRaf = 0; }
+  sdcUnstyle(document.querySelectorAll('#paneSales .sdx-card, #paneSales .sdx-card > *, #paneSales .sdx-h .sdx-w, #paneSales .sdx-sub, #paneSales .sdx-lines, #paneSales .sdx-lines path, #viBox .sdx-mv-bar i'));
+}
+/** The motion failed (a library missing, or it threw): the page as with ✨ off — every element shown, every chart made. */
+function sdcStill(gen) {
+  sdcUnmove();
+  const p = sdcPane();
+  if (p) p.classList.add('sdx-still');
+  sdcLoadCharts().then(() => { if (SDC.up && gen === SDC.gen) sdcMakeAll(); });
+}
+/** Content above changed height (a chart, "This week, explained", another brand, fonts): ScrollTrigger measures again. */
+function sdcRefresh() {
+  if (!SDC.up || !SDC.st.length || typeof window === 'undefined' || !window.ScrollTrigger) return;
+  clearTimeout(SDC.refT);
+  SDC.refT = setTimeout(() => { try { if (SDC.up && SDC.st.length) window.ScrollTrigger.refresh(); } catch (e) { /* the safety net still shows it */ } }, 150);
+}
+
 function sdcAnimate() {
   const gsap = window.gsap, ST = window.ScrollTrigger;
   const story = SDC.mode === 'story';
+  // GSAP's clock is shared with the Dashboard: if anything left it paused, every entrance would stay at its first frame
+  if (gsap.globalTimeline.paused()) gsap.globalTimeline.resume();
   if (window.Lenis && !sdcPhone() && !SDC.lenis) {
     try {
       SDC.lenis = new window.Lenis({ lerp: 0.11, smoothWheel: true });
@@ -62701,12 +62795,13 @@ function sdcAnimate() {
   document.querySelectorAll('#paneSales .sdx-ch').forEach(ch => {
     const h = ch.querySelector('.sdx-h'), sub = ch.querySelector('.sdx-sub'), cards = ch.querySelectorAll('.sdx-card');
     if (story) {
-      sdcTween(gsap.from(sdcWords(h), { yPercent: 110, opacity: 0, duration: 0.9, stagger: 0.07, ease: 'power4.out', scrollTrigger: { trigger: h, start: 'top 88%' } }));
-      if (sub) sdcTween(gsap.from(sub, { y: 24, opacity: 0, duration: 0.9, delay: 0.15, ease: 'power3.out', scrollTrigger: { trigger: h, start: 'top 88%' } }));
+      const words = sdcWords(h);
+      sdcReveal(gsap.from(words, { yPercent: 110, opacity: 0, duration: 0.9, stagger: 0.07, ease: 'power4.out', scrollTrigger: { trigger: h, start: 'top 88%' } }), h, words);
+      if (sub) sdcReveal(gsap.from(sub, { y: 24, opacity: 0, duration: 0.9, delay: 0.15, ease: 'power3.out', scrollTrigger: { trigger: h, start: 'top 88%' } }), h, sub);
     }
     cards.forEach((card, i) => {
-      sdcTween(gsap.from(card, { y: story ? 60 : 16, scale: story ? 0.96 : 1, opacity: 0, duration: story ? 1.1 : 0.5, delay: 0.12 + i * 0.1, ease: 'power3.out',
-        scrollTrigger: { trigger: card, start: 'top 90%' } }));
+      sdcReveal(gsap.from(card, { y: story ? 60 : 16, scale: story ? 0.96 : 1, opacity: 0, duration: story ? 1.1 : 0.5, delay: 0.12 + i * 0.1, ease: 'power3.out',
+        scrollTrigger: { trigger: card, start: 'top 90%' } }), card, card);
       if (story && !sdcPhone() && card.firstElementChild) sdcTween(gsap.fromTo(card.firstElementChild, { y: 14 }, { y: -14, ease: 'none', scrollTrigger: { trigger: card, start: 'top bottom', end: 'bottom top', scrub: true } }));
     });
     const lines = ch.querySelectorAll('.sdx-lines path');
@@ -62720,7 +62815,7 @@ function sdcAnimate() {
   sdcTrig(ST.create({ trigger: '#paneSales .sdx-kpis', start: 'top 85%', once: true, onEnter: sdcCountUp }));
   sdcTrig(ST.create({ trigger: '#viBox', start: 'top 80%', once: true, onEnter: () => {
     const bars = document.querySelectorAll('#viBox .sdx-mv-bar i');
-    if (bars.length) sdcTween(gsap.from(bars, { scaleX: 0, duration: 0.9, stagger: 0.06, ease: 'power3.out' }));
+    if (bars.length) sdcReveal(gsap.from(bars, { scaleX: 0, duration: 0.9, stagger: 0.06, ease: 'power3.out' }), document.getElementById('viBox'), bars);
   } }));
   // each chart is made as its card comes into view, so its own animation plays there
   document.querySelectorAll('#paneSales [data-chart]').forEach(el => {
@@ -62728,6 +62823,8 @@ function sdcAnimate() {
     sdcTrig(ST.create({ trigger: el, start: 'top 85%', once: true, onEnter: () => sdcLoadCharts().then(() => { if (SDC.up) sdcMake(el.dataset.chart); }) }));
   });
   ST.refresh();
+  // fonts arriving late move everything below them: measure again
+  try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(sdcRefresh); } catch (e) { /* measured once */ }
 }
 function sdcApplyState() {
   const p = sdcPane();
@@ -62735,11 +62832,21 @@ function sdcApplyState() {
   p.dataset.mode = SDC.mode;
   p.classList.toggle('sdx-still', !sdcBgMotion());
   document.querySelectorAll('#sdxMode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === SDC.mode)));
-  const fx = document.getElementById('sdxFx');
-  if (fx) fx.setAttribute('aria-pressed', String(SDC.fx));
   const side = document.querySelector('.side');
   const top = side && getComputedStyle(side).position === 'sticky' ? side.offsetHeight : 0;
   p.style.setProperty('--sdx-top', top + 'px');
+  sdcEdges();
+}
+// The trend lines' box (styles.css .sdx-lines-box): the page's visible width, from the chapters' left edge — so they bleed to the
+// page's edges and never past them (no sideways scroll). Measured when the page shows and whenever its width changes.
+function sdcEdges() {
+  const p = sdcPane();
+  if (!p || !sdcShown() || !p.querySelector) return;
+  const ch = p.querySelector('.sdx-ch'), root = document.documentElement;
+  if (!ch || !root) return;
+  const l = Math.round(ch.getBoundingClientRect().left), vw = root.clientWidth;
+  if (p.style.getPropertyValue('--sdx-l') !== l + 'px') p.style.setProperty('--sdx-l', l + 'px');
+  if (p.style.getPropertyValue('--sdx-vw') !== vw + 'px') p.style.setProperty('--sdx-vw', vw + 'px');
 }
 /** The page is on screen: the background, the charts and (with motion) the scroll story. */
 async function sdcSetup() {
@@ -62748,30 +62855,19 @@ async function sdcSetup() {
   const gen = ++SDC.gen;                             // a set-up overtaken by a newer one (two quick switches) stops
   sdcApplyState();
   sdcTrendLines();
-  const animate = sdcMotion() && await sdcLoadMotion();
+  let animate = false;
+  try { animate = sdcMotion() && typeof IntersectionObserver === 'function' && await sdcLoadMotion(); } catch (e) { animate = false; }
   if (!SDC.up || gen !== SDC.gen) return;           // left again, or switched again, while loading
-  if (animate) { sdcAnimate(); if (sdcBgMotion()) sdcDotsStart(); }
-  else { await sdcLoadCharts(); if (SDC.up && gen === SDC.gen) sdcMakeAll(); }
+  if (animate) {
+    try { sdcAnimate(); sdcWatch(); if (sdcBgMotion()) sdcDotsStart(); }
+    catch (e) { sdcStill(gen); }                    // the motion threw: everything shown, as with ✨ off
+  } else { await sdcLoadCharts(); if (SDC.up && gen === SDC.gen) sdcMakeAll(); }
 }
 /** The page went away, or Story / Compact / ✨ changed: everything that moves stops, and every element is left as drawn. */
 function sdcTeardown() {
   SDC.up = false;
   SDC.gen++;
-  // a number caught mid count-up shows its own text again
-  document.querySelectorAll('#paneSales .sdx-kpi-v').forEach(el => sdcCountEnd(el, true));
-  SDC.st.forEach(t => { try { t.kill(); } catch (e) { /* gone */ } });
-  SDC.tw.forEach(t => { try { t.kill(); } catch (e) { /* gone */ } });
-  SDC.st = []; SDC.tw = [];
-  if (SDC.lenis) {
-    try { window.gsap.ticker.remove(SDC.tick); window.gsap.ticker.lagSmoothing(500, 33); SDC.lenis.destroy(); } catch (e) { /* gone */ }
-    SDC.lenis = null; SDC.tick = null;
-  }
-  if (SDC.dotsRaf) { cancelAnimationFrame(SDC.dotsRaf); SDC.dotsRaf = 0; }
-  // what the motion left on the elements goes — by hand, not through GSAP: on a page already hidden (display: none) GSAP lifts an
-  // element out of the page to measure it, and puts a heading's word back on the wrong side of its space
-  const MOVED = ['transform', 'translate', 'rotate', 'scale', 'opacity', 'visibility', 'stroke-dasharray', 'stroke-dashoffset'];
-  document.querySelectorAll('#paneSales .sdx-card, #paneSales .sdx-card > *, #paneSales .sdx-h .sdx-w, #paneSales .sdx-sub, #paneSales .sdx-lines, #paneSales .sdx-lines path, #viBox .sdx-mv-bar i')
-    .forEach(el => { MOVED.forEach(p => el.style.removeProperty(p)); if (el._gsap) el._gsap.uncache = 1; });
+  sdcUnmove();
 }
 const sdcRestart = () => { sdcTeardown(); sdcApplyState(); sdcSetup(); };
 
@@ -62794,24 +62890,19 @@ function sdcStart() {
   SDC.started = true;
   sdcTablesSet(sdcLs.get(SDC_TABLES_LS) === '1');
   document.addEventListener('click', e => {
-    const t = e.target && e.target.closest ? e.target.closest('#sdcMetric [data-m], #sdcRange [data-r], #sdTablesBtn, #sdxMode [data-m], #sdxFx, #sdxTheme') : null;
+    const t = e.target && e.target.closest ? e.target.closest('#sdcMetric [data-m], #sdcRange [data-r], #sdTablesBtn, #sdxMode [data-m], #fxBtn') : null;
     if (!t || t.disabled) return;
+    // the app's ✨ (core/dashboard.js has already saved the new choice on the button itself): this page follows at once
+    if (t.id === 'fxBtn') { const on = sdcFxSaved(); if (on !== SDC.fx) { SDC.fx = on; sdcRestart(); } return; }
     if (t.id === 'sdTablesBtn') {
       const open = document.getElementById('sdTables').hidden;
       sdcLs.set(SDC_TABLES_LS, open ? '1' : '0');
       sdcTablesSet(open);
-      if (window.ScrollTrigger && SDC.up) window.ScrollTrigger.refresh();
+      sdcRefresh();
       return;
     }
     if (t.closest('#sdxMode')) {
       if (SDC.mode !== t.dataset.m) { SDC.mode = t.dataset.m; sdcLs.set('sdxMode', SDC.mode); sdcRestart(); setTimeout(() => Object.values(SDC.charts).forEach(c => c.resize()), 60); }
-      return;
-    }
-    if (t.id === 'sdxFx') { SDC.fx = !SDC.fx; sdcLs.set('sdxFx', SDC.fx ? '1' : '0'); sdcRestart(); return; }
-    if (t.id === 'sdxTheme') {
-      const b = document.getElementById('themeBtn');
-      if (b) b.click();
-      else { const r = document.documentElement; r.dataset.theme = (r.dataset.theme || 'light') === 'dark' ? 'light' : 'dark'; }
       return;
     }
     if (t.dataset.m) { SDC.metric = t.dataset.m; sdcSeg('sdcMetric', 'm', SDC.metric); }
@@ -62820,7 +62911,9 @@ function sdcStart() {
   });
   // the page shown / hidden (core/nav.js showTab toggles .hide): set up or tear down
   if (typeof MutationObserver === 'function') new MutationObserver(() => { if (sdcShown()) sdcSetup(); else sdcTeardown(); }).observe(sdcPane(), { attributes: true, attributeFilter: ['class'] });
-  // light / dark: the charts take the new colours
+  // the page's width changed (a window resize, a scrollbar coming or going): the trend lines' box follows
+  if (typeof ResizeObserver === 'function') new ResizeObserver(() => sdcEdges()).observe(sdcPane());
+  // light / dark (the app's 🌙, #themeBtn): the charts take the new colours
   const recolour = () => { if (Object.keys(SDC.charts).length) setTimeout(sdcRemakeMade, 30); };
   if (typeof MutationObserver === 'function') new MutationObserver(recolour).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolour); } catch (e) { /* an old browser */ }
@@ -62840,12 +62933,13 @@ function sdcRender(today, yr, lyr) {
   sdcSeg('sdcRange', 'r', SDC.range);
   sdcSparks(today);
   if (typeof window !== 'undefined' && window.echarts) sdcRemakeMade();
-  if (sdcShown()) sdcSetup();
+  if (sdcShown()) { if (SDC.up) sdcRefresh(); sdcSetup(); }
 }
 /** The per-product days arrived (sales/sales-insight.js viLoad): the top products and the event labels take them. */
 function sdcAfterVi() {
   if (SDC.made.top) sdcMake('top');
   if (SDC.made.daily) sdcMake('daily');
+  sdcRefresh();                                      // "This week, explained" has its new height
 }
 
 /* ####################################################################################################
@@ -62854,8 +62948,8 @@ function sdcAfterVi() {
 /* ============================== FILE: src/app/core/dashboard.js ============================== */
 /* ================= CORE · DASHBOARD: the first screen after sign-in (20–21 Nov 2026) =================
  * Screens: Dashboard (tab 'dash', #paneDash; core/nav.js calls ensureDash when it opens), the Sellora logo in the top bar (opens
- *          it) and the ✨ button beside the theme switch (#fxBtn: the Dashboard's animation on / off — nothing on any other
- *          screen moves or stops with it).
+ *          it) and the ✨ button beside the theme switch (#fxBtn: the animation on / off for the Dashboard and the Sales Dashboard —
+ *          sales/sales-charts.js reads the same choice, selloraDashFx; nothing on any other screen moves or stops with it).
  * Does: shows, for Both / Ridhi / CPC (remembered in this browser), the numbers the other screens work out — never one of its own.
  *   NEVER EMPTY: every card first shows the number it showed last time (this browser's copy, selloraDash.v3, amber "as of <time>"),
  *   then counts over to the fresh number when that lands. The very first time, a shimmer stands in, and morphs into the number.
@@ -64084,12 +64178,23 @@ function dashParty() {
   };
   requestAnimationFrame(frame);
 }
-// Run or stop every loop: GSAP's timeline, the dots, the clock, the CSS loops — only while the Dashboard is on screen in a shown tab.
+// The Dashboard's OWN animations (every one is kept in DASH.tw) stop and go again with the page. Never GSAP's whole clock
+// (gsap.globalTimeline): the Sales Dashboard runs on the same GSAP, and pausing the clock froze every Sales entrance at its first
+// frame — the page stayed empty with ✨ on when Sales was opened from the Dashboard (24 Nov 2026). Only what was running is held,
+// so an entrance still waiting for its scroll is left to ScrollTrigger; a second stop adds to the held list, never empties it.
+function dashHold(on) {
+  if (on) { (DASH.held || []).forEach(t => { try { t.resume(); } catch (e) { /* killed meanwhile */ } }); DASH.held = []; return; }
+  const run = Object.values(DASH.tw).flat().filter(t => t && typeof t.paused === 'function' && !t.paused());
+  run.forEach(t => { try { t.pause(); } catch (e) { /* gone */ } });
+  DASH.held = (DASH.held || []).concat(run);
+}
+// Run or stop every loop: the Dashboard's GSAP animations, the dots, the clock, the CSS loops — only while the Dashboard is on
+// screen in a shown tab.
 function dashLoops() {
   const on = dashLive();
   const pane = $('paneDash');
   if (pane) pane.classList.toggle('dash-paused', !on);
-  if (window.gsap && DASH.gs === true) { if (on) window.gsap.globalTimeline.resume(); else window.gsap.globalTimeline.pause(); }
+  if (window.gsap && DASH.gs === true) dashHold(on);
   if (DASH.dots) { if (on) DASH.dots.go(); }
   clearInterval(DASH.clockT);
   DASH.clockT = 0;
@@ -64155,7 +64260,7 @@ async function ensureDash() {
     if (!btn) return;
     const on = dashFxSaved();
     btn.setAttribute('aria-pressed', String(on));
-    btn.title = 'Dashboard animation: ' + (on ? (dashReduce() ? 'on, but your computer asks for reduced motion' : 'on') : 'off');
+    btn.title = 'Animation (Dashboard and Sales): ' + (on ? (dashReduce() ? 'on, but your computer asks for reduced motion' : 'on') : 'off');
   };
   if (btn) btn.addEventListener('click', async () => {
     dashSet(DASH_LS.fx, dashFxSaved() ? '0' : '1');

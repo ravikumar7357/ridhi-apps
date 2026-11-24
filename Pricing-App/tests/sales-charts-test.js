@@ -54,8 +54,10 @@ const sdDays = ch => DAYS[ch] || {};
     const X = load({ sdDays });
     ok('money on the axis: $12k / $1.5k / $900; units as counts', X.sdcFmt('sales', 12000, true) === '$12k' && X.sdcFmt('sales', 1500, true) === '$1.5k' && X.sdcFmt('sales', 900, true) === '$900' && X.sdcFmt('units', 1234) === '1,234');
     ok('Story and ✨ on by default (a first visit)', X.SDC.mode === 'story' && X.SDC.fx === true);
-    const Y = load({ sdDays, localStorage: { getItem: k => ({ sdxMode: 'compact', sdxFx: '0' }[k] || null), setItem() {} } });
-    ok('the choices are remembered: Compact and ✨ off come back', Y.SDC.mode === 'compact' && Y.SDC.fx === false);
+    const Y = load({ sdDays, localStorage: { getItem: k => ({ sdxMode: 'compact', selloraDashFx: '0' }[k] || null), setItem() {} } });
+    ok('the choices are remembered: Compact and ✨ off come back (✨ = the app\'s one switch, selloraDashFx)', Y.SDC.mode === 'compact' && Y.SDC.fx === false);
+    const Z = load({ sdDays, localStorage: { getItem: k => ({ sdxFx: '0' }[k] || null), setItem() {} } });
+    ok('the old page-only ✨ choice (sdxFx) no longer counts: the menu bar\'s ✨ decides', Z.SDC.fx === true);
     ok('the libraries: ECharts 5.5.1, and the Dashboard\'s own GSAP 3.12.5 + ScrollTrigger (one GSAP on the page), Lenis 1.1.13 — all jsDelivr, exact versions',
       /echarts@5\.5\.1/.test(X.SDC_CDN.echarts) && /gsap@3\.12\.5\/dist\/gsap\.min\.js/.test(X.SDC_CDN.gsap) && /gsap@3\.12\.5\/dist\/ScrollTrigger/.test(X.SDC_CDN.st)
       && /lenis@1\.1\.13/.test(X.SDC_CDN.lenis) && Object.values(X.SDC_CDN).every(u => u.startsWith('https://cdn.jsdelivr.net/npm/')));

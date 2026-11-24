@@ -1,7 +1,7 @@
 /* ================= CORE · DASHBOARD: the first screen after sign-in (20–21 Nov 2026) =================
  * Screens: Dashboard (tab 'dash', #paneDash; core/nav.js calls ensureDash when it opens), the Sellora logo in the top bar (opens
- *          it) and the ✨ button beside the theme switch (#fxBtn: the Dashboard's animation on / off — nothing on any other
- *          screen moves or stops with it).
+ *          it) and the ✨ button beside the theme switch (#fxBtn: the animation on / off for the Dashboard and the Sales Dashboard —
+ *          sales/sales-charts.js reads the same choice, selloraDashFx; nothing on any other screen moves or stops with it).
  * Does: shows, for Both / Ridhi / CPC (remembered in this browser), the numbers the other screens work out — never one of its own.
  *   NEVER EMPTY: every card first shows the number it showed last time (this browser's copy, selloraDash.v3, amber "as of <time>"),
  *   then counts over to the fresh number when that lands. The very first time, a shimmer stands in, and morphs into the number.
@@ -1230,12 +1230,23 @@ function dashParty() {
   };
   requestAnimationFrame(frame);
 }
-// Run or stop every loop: GSAP's timeline, the dots, the clock, the CSS loops — only while the Dashboard is on screen in a shown tab.
+// The Dashboard's OWN animations (every one is kept in DASH.tw) stop and go again with the page. Never GSAP's whole clock
+// (gsap.globalTimeline): the Sales Dashboard runs on the same GSAP, and pausing the clock froze every Sales entrance at its first
+// frame — the page stayed empty with ✨ on when Sales was opened from the Dashboard (24 Nov 2026). Only what was running is held,
+// so an entrance still waiting for its scroll is left to ScrollTrigger; a second stop adds to the held list, never empties it.
+function dashHold(on) {
+  if (on) { (DASH.held || []).forEach(t => { try { t.resume(); } catch (e) { /* killed meanwhile */ } }); DASH.held = []; return; }
+  const run = Object.values(DASH.tw).flat().filter(t => t && typeof t.paused === 'function' && !t.paused());
+  run.forEach(t => { try { t.pause(); } catch (e) { /* gone */ } });
+  DASH.held = (DASH.held || []).concat(run);
+}
+// Run or stop every loop: the Dashboard's GSAP animations, the dots, the clock, the CSS loops — only while the Dashboard is on
+// screen in a shown tab.
 function dashLoops() {
   const on = dashLive();
   const pane = $('paneDash');
   if (pane) pane.classList.toggle('dash-paused', !on);
-  if (window.gsap && DASH.gs === true) { if (on) window.gsap.globalTimeline.resume(); else window.gsap.globalTimeline.pause(); }
+  if (window.gsap && DASH.gs === true) dashHold(on);
   if (DASH.dots) { if (on) DASH.dots.go(); }
   clearInterval(DASH.clockT);
   DASH.clockT = 0;
@@ -1301,7 +1312,7 @@ async function ensureDash() {
     if (!btn) return;
     const on = dashFxSaved();
     btn.setAttribute('aria-pressed', String(on));
-    btn.title = 'Dashboard animation: ' + (on ? (dashReduce() ? 'on, but your computer asks for reduced motion' : 'on') : 'off');
+    btn.title = 'Animation (Dashboard and Sales): ' + (on ? (dashReduce() ? 'on, but your computer asks for reduced motion' : 'on') : 'off');
   };
   if (btn) btn.addEventListener('click', async () => {
     dashSet(DASH_LS.fx, dashFxSaved() ? '0' : '1');

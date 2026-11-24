@@ -161,8 +161,9 @@
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
       </button>
-      <!-- The Dashboard's animation on / off (app/core/dashboard.js keeps aria-pressed = on). Touches the Dashboard only. -->
-      <button id="fxBtn" class="themesw dashfx" type="button" aria-label="Dashboard animation" aria-pressed="true" title="Dashboard animation: on">
+      <!-- The animation on / off for the Dashboard and the Sales Dashboard (app/core/dashboard.js keeps aria-pressed = on and the
+           choice, localStorage selloraDashFx; sales/sales-charts.js follows it). The only ✨ in the app. -->
+      <button id="fxBtn" class="themesw dashfx" type="button" aria-label="Animation" aria-pressed="true" title="Animation: on">
         <span aria-hidden="true">&#10024;</span>
       </button>
       <!-- THE GUIDE, on every screen: opens /guide/ at the part about the screen you are on. -->
@@ -1400,26 +1401,28 @@
          the motion and the background; sales/sales-insight.js fills "This week, explained". Styles: #paneSales only (styles.css "sdx"). -->
     <div class="sdx-bg" aria-hidden="true"><div class="sdx-glow" id="sdxGlow"></div><canvas id="sdxDots"></canvas></div>
 
+    <!-- One row: the brand on the left; Numbers checked, Refresh today and Story / Compact on the right. Motion and light / dark are
+         the app's own ✨ and 🌙 in the menu bar (#fxBtn, #themeBtn) — one place, the same switches on every screen. -->
     <header class="sdx-bar">
-      <div class="sdx-bar-t">Sales <span id="sdMsg" class="muted"></span></div>
       <div class="sdx-seg" id="sdBrand" role="group" aria-label="Brand">
         <button type="button" data-ch="SP" class="on" aria-pressed="true">Ridhi</button><button type="button" data-ch="CPC" aria-pressed="false">CPC</button><button type="button" data-ch="SHOP" aria-pressed="false">Shopify</button><button type="button" data-ch="ALL" aria-pressed="false">All</button>
       </div>
-      <!-- the Numbers Check chip (sales/sales-check.js ncChipPaint): hidden until a check has run -->
-      <button id="ncChipSd" class="nc-chip" type="button" hidden></button>
-      <button id="sdRefresh" type="button" class="sdx-btn"
-        title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>
-      <div class="sdx-seg" id="sdxMode" role="group" aria-label="Layout">
-        <button type="button" data-m="story" aria-pressed="true">Story</button><button type="button" data-m="compact" aria-pressed="false">Compact</button>
+      <span id="sdMsg" class="muted"></span>
+      <div class="sdx-bar-r">
+        <!-- the Numbers Check chip (sales/sales-check.js ncChipPaint): hidden until a check has run -->
+        <button id="ncChipSd" class="nc-chip" type="button" hidden></button>
+        <button id="sdRefresh" type="button" class="sdx-btn"
+          title="Re-read the last few days from the Orders sheets and Shopify. The rest of the history comes from the nightly run.">Refresh today</button>
+        <div class="sdx-seg" id="sdxMode" role="group" aria-label="Layout">
+          <button type="button" data-m="story" aria-pressed="true">Story</button><button type="button" data-m="compact" aria-pressed="false">Compact</button>
+        </div>
       </div>
-      <button type="button" class="sdx-ibtn" id="sdxFx" aria-pressed="true" title="Motion on / off">✨</button>
-      <button type="button" class="sdx-ibtn" id="sdxTheme" title="Light / dark" aria-label="Light or dark">◐</button>
     </header>
 
     <div class="sdx-main">
       <!-- 1 -->
       <section class="sdx-ch" data-glow="#4d8dff">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">Sales today.</h2>
         <p class="sdx-sub">Where the day, the week, the month and the year stand — each against the same days last year.</p>
         <div class="sdx-card"><div class="sdx-kpis">
@@ -1436,7 +1439,7 @@
 
       <!-- 2 -->
       <section class="sdx-ch" data-glow="#8b5cf6">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">This week, explained.</h2>
         <p class="sdx-sub">Last finished week against the week before — the products that moved it, and why.</p>
         <!-- "This week in plain English" (sales/sales-insight.js viDraw) -->
@@ -1445,7 +1448,7 @@
 
       <!-- 3 -->
       <section class="sdx-ch" data-glow="#14b8a6">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">Every day vs last year.</h2>
         <p class="sdx-sub">This year in blue, the same weekday last year in grey. Hover any day for the gap.</p>
         <div class="sdx-card">
@@ -1463,7 +1466,7 @@
 
       <!-- 4 -->
       <section class="sdx-ch" data-glow="#f59e0b">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">Your busiest days.</h2>
         <p class="sdx-sub">The last thirteen weeks, day by day — and the products carrying this month.</p>
         <div class="sdx-split even">
@@ -1474,7 +1477,7 @@
 
       <!-- 5 -->
       <section class="sdx-ch" data-glow="#22c3ee">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">Your weekly rhythm.</h2>
         <p class="sdx-sub">Which weekdays sell — and where this month's sales come from.</p>
         <div class="sdx-split even">
@@ -1485,7 +1488,7 @@
 
       <!-- 6 -->
       <section class="sdx-ch" data-glow="#22c55e">
-        <svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="sdx-lines-box" aria-hidden="true"><svg class="sdx-lines" viewBox="0 0 1200 420" preserveAspectRatio="none"></svg></div>
         <h2 class="sdx-h">Month by month.</h2>
         <p class="sdx-sub">Every month this year beside the same month last year.</p>
         <div class="sdx-card">
