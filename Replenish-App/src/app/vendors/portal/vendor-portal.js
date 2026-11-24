@@ -76,8 +76,12 @@ const vpLineIsDone = (o, l) => !!(l && (l.cancelled || ['Received', 'Cancelled']
   || (vpQty(o, l) > 0 && vpQty(o, l) - vpDone(l) <= 0) || (!vpIsCustom(o) && vpRecvAll(o, l))));
 /* SENT BY THE PRINTER (Ravi, 14 Nov: "vendor apni qty enter vendor sent me to uske bad wo order vendor ko pending order list me show
  * nahi hona chahiye — wo vendor sent me show hona chahiye"): a line the printer has said is sent in full (Vendor sent ≥ ordered) and
- * that is not done yet leaves Bulk / Custom orders for its own tab, "Vendor sent", until it is received. Part-sent stays pending. */
-const vpLineIsVs = (o, l) => !!(l && !vpLineIsDone(o, l) && !vpLineIsHist(o, l) && vpQty(o, l) > 0 && vpSentKept(o, l) >= vpOrdOf(o, l));
+ * that is not done yet leaves Bulk / Custom orders for its own tab, "Vendor sent", until it is received. Part-sent stays pending.
+ * PART-SENT TOO (Ravi, 24 Nov: "jese bagru se mal bheja to ye bulk orders me nhi dikhna chahiye — vendor sent me jo item receive nhi hue
+ * abhi receive ke liye pending h top me dikhne chahiye"): ANY line with goods sent that we have not taken in yet (sent − received > 0) is in
+ * Vendor sent, not Bulk — 8 of 10 sent: the line sits in Vendor sent until the 8 are received, then goes back to Bulk for the 2 still owed. */
+const vpPendingRecv = (o, l) => vpVsRound(Math.max(0, vpSentKept(o, l) - vpRecvOf(l, o).qty));
+const vpLineIsVs = (o, l) => !!(l && !vpLineIsDone(o, l) && !vpLineIsHist(o, l) && vpQty(o, l) > 0 && vpPendingRecv(o, l) > 0.01);
 /* 'hist' (16 Nov): Custom orders → History, every line received in full (vpLineIsHist). */
 const vpPartOk = (o, l) => !VP_PART || (VP_PART === 'done' ? vpLineIsDone(o, l)
   : VP_PART === 'vsent' ? vpLineIsVs(o, l) : VP_PART === 'hist' ? vpLineIsHist(o, l)
@@ -775,6 +779,11 @@ function vpSheetLines(rows, f) {
     items.push({ o, l, i, due: voDueOf(o, l) });
   }));
   const dueIso = x => (x.due && x.due.due) || voWant(x.l) || '9999';
+  /* VENDOR SENT: every line there is waiting to be received — the one sent longest ago first */
+  if (VP_PART === 'vsent') {
+    const sentAt = x => vpVsOf(x.o, x.l).filter(vpVsCounts).map(b => String(b.at || '')).filter(Boolean).sort()[0] || '9999';
+    return items.sort((a, b) => sentAt(a).localeCompare(sentAt(b)) || dueIso(a).localeCompare(dueIso(b)) || String(a.o.orderNo || a.o.id).localeCompare(String(b.o.orderNo || b.o.id)));
+  }
   return items.sort((a, b) => dueIso(a).localeCompare(dueIso(b)) || String(a.o.orderNo || a.o.id).localeCompare(String(b.o.orderNo || b.o.id)));
 }
 /** The eight cells of the sketch for one line; note goes under the order number (where a save on that order is answered). */

@@ -15,7 +15,7 @@ const cut = (src, name) => { const i = src.indexOf('function ' + name + '('); if
 const vsBlock = s => { const i = s.indexOf('const vpVsRound ='); return s.slice(i, s.indexOf(String.fromCharCode(10) + '/** Only the printer', i) + 1); };
 const line = (src, head) => { const i = src.indexOf(head); if (i < 0) throw new Error(head + ' not found'); return src.slice(i, src.indexOf('\n', i)) + '\n'; };
 const PARTS = [line(VO, 'const voLines ='), line(VO, 'const voParts ='), line(VP, 'const vpQty ='), vsBlock(VP), line(VP, 'const VP_RECV_CNT ='), line(VP, 'const vpRecvKey ='),
-  cut(VP, 'vpRecvCnt'), cut(VP, 'vpRecvOf'), line(VP, 'const vpRecvAll ='), cut(VP, 'vpVsHtml'), cut(VP, 'vpRejNote'),
+  cut(VP, 'vpRecvCnt'), cut(VP, 'vpRecvOf'), line(VP, 'const vpRecvAll ='), line(VP, 'const vpPendingRecv ='), line(VP, 'const vpLineIsVs ='), cut(VP, 'vpVsHtml'), cut(VP, 'vpRejNote'),
   line(FR, 'const flowChUnit ='), line(FR, 'const flowChSent ='), line(FR, 'let FLOW_CHX ='), line(FR, 'const flowChMoved ='), cut(FR, 'flowChIndex'), cut(FR, 'flowChRecv')].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
@@ -24,10 +24,10 @@ function load(flowCh) {
   const ctx = {
     FLOW: { ch: flowCh }, FLOW_RUF: '~ruffle', flowR2: n => Math.round((+n || 0) * 100) / 100,
     voDone: l => +(l && l.dispatchedQty) || 0, esc: s => String(s == null ? '' : s), nf: n => String(n), ME: { email: 'p@x' },
-    vpVsOf: () => [], vpVsCan: () => true, vpVsWhen: () => '',
+    vpVsOf: (o, l) => (l && l.__vs) || [], vpVsCan: () => true, vpVsWhen: () => '', vpLineIsDone: () => false, vpLineIsHist: () => false,
   };
   const names = Object.keys(ctx);
-  return new Function(...names, PARTS + '\nreturn { vpRecvOf, vpRecvAll, vpVsHtml };')(...names.map(k => ctx[k]));
+  return new Function(...names, PARTS + '\nreturn { vpRecvOf, vpRecvAll, vpVsHtml, vpPendingRecv, vpLineIsVs };')(...names.map(k => ctx[k]));
 }
 
 /* ---- the printer's own sign-in: no challans, the office's copy on the order ---- */
@@ -61,6 +61,17 @@ ok('office: Received = what came back on the challan', O.vpRecvOf(x1).qty === 11
 const combO = { orderType: 'running', lines: comb.lines };
 ok('office: a combined line counts every SKU (was only the first)', O.vpRecvOf(combO.lines[0], combO).qty === 3, JSON.stringify(O.vpRecvOf(combO.lines[0], combO)));
 ok('office: a line moved to another printer is left out (RFD-3 not counted)', !/RFD-3/.test(O.vpRecvOf(combO.lines[0], combO).how));
+
+/* ---- PART-SENT LINES WAIT IN "VENDOR SENT" (Ravi, 24 Nov: "jese bagru se mal bheja to ye bulk orders me nhi dikhna chahiye") ---- */
+const part = (sent, got) => ({ o: { orderType: 'cut', flowProg: { items: { 'K-8': { back: got } } } },
+  l: { flowKey: 'K-8', flowPart: 'K-8|sku', qty: 10, __vs: sent ? [{ qty: sent, unit: 'pcs', at: '2026-11-24T10:00:00Z' }] : [] } });
+const T = (sent, got) => { const x = part(sent, got); return { vs: P.vpLineIsVs(x.o, x.l), pend: P.vpPendingRecv(x.o, x.l) }; };
+ok('8 of 10 sent, none received: in Vendor sent, 8 pending', T(8, 0).vs === true && T(8, 0).pend === 8, JSON.stringify(T(8, 0)));
+ok('...5 of the 8 received: still in Vendor sent, 3 pending', T(8, 5).vs === true && T(8, 5).pend === 3, JSON.stringify(T(8, 5)));
+ok('...all 8 received: back to Bulk (the 2 still owed), nothing pending', T(8, 8).vs === false && T(8, 8).pend === 0, JSON.stringify(T(8, 8)));
+ok('10 of 10 sent, none received: in Vendor sent (as before)', T(10, 0).vs === true);
+ok('nothing sent by the printer: stays in Bulk', T(0, 0).vs === false && T(0, 0).pend === 0);
+ok('...even when we took some in on a challan without the printer entering anything: Bulk', T(0, 4).vs === false);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
