@@ -121,6 +121,14 @@ async function gateTests() {
   ok('View as printer: the full line, with what was given so far in its note', a1.qty === 400 && /Given so far: 100 pcs of 400 pcs/.test(a1.notes));
   const H = load({ ls: { printerHold: '1' } });
   const held = sync(H, printOrder([[K1, item('S1', 'RB1-H', 10)]]));
+  /* the amber box on top of the order: full quantity, what came, colour for all of it at once */
+  { const vp = read('vendors/portal/vendor-portal.js'), fn = vp.slice(vp.indexOf('function vpPartNotice'), vp.indexOf('function vpProgHtml'));
+    const N = new Function('voLines', 'vpRawCtx', 'vpLineRaw', 'esc', 'nf', fn + '\n;return vpPartNotice;')(o => o.lines, () => ({}), (o, l) => ({ raw: l.lineId === '1' ? 100 : 120 }), x => String(x), v => String(v));
+    const html = N({ lines: [by('1'), by('2'), by('4')] });
+    ok('the printer is told: full order 400 pcs, pieces for 100 given — make the colour for all of it in one go', /full order <b>400 pcs<\/b>/.test(html) && /for <b>100 pcs<\/b> given so far/.test(html) && /Make the colour for the FULL order in one go/.test(html), html);
+    ok('…not for a line given in full, nor an old line', !/120 m/.test(html) && !/30 pcs/.test(html));
+    ok('the box sits on top of the order in both portal layouts', (vp.match(/\$\{vpPartNotice\(o\)\}\$\{vpProgHtml\(o\)\}/g) || []).length === 2);
+    ok('View as printer sees the same box (full line, nothing capped)', /full order <b>400 pcs<\/b>/.test(N({ lines: [a1] }))); }
   ok('a newly held line carries the gate for good', runningLines(held)[0].awaitRfd === true && runningLines(held)[0].rfdGate === true);
 }
 
