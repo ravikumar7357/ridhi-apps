@@ -6447,9 +6447,9 @@ onAuthStateChanged(auth, async user => {
         /* ...and the Finished Goods light-open switch (inventory/finished-goods.js), also from the next page load. */
         if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(!!d && (d.fgLite === true || d.fgLite === 1 || d.fgLite === '1' || d.fgLite === 'on'));
         /* ...and the printer's hold switch (flow/flow-printorder.js: a new plan's Vendor Order waits for its RFD challan), also from the next page load. */
-        if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(!!d && (d.printerHold === true || d.printerHold === 1 || d.printerHold === '1' || d.printerHold === 'on'));
+        if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(!(d && (d.printerHold === false || d.printerHold === 0 || d.printerHold === '0' || d.printerHold === 'off')));   // on unless switched off (24 Nov)
       })
-        .catch(() => { dmSaveFlag(false, dmKind); if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(false); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
+        .catch(() => { dmSaveFlag(false, dmKind); if (typeof flowHoldSaveFlag === 'function') flowHoldSaveFlag(true); if (typeof fgLiteSaveFlag === 'function') fgLiteSaveFlag(false); if (typeof pbSaveFlag === 'function') pbSaveFlag(false); if (typeof otkSaveFlag === 'function') otkSaveFlag(false); if (typeof prSaveFlag === 'function') prSaveFlag(false); if (typeof oalSaveFlag === 'function') oalSaveFlag(false); if (typeof otkListSaveFlag === 'function') otkListSaveFlag(false); if (typeof saSaveFlag === 'function') saSaveFlag(false); if (typeof deltaSaveFlag === 'function') deltaSaveFlag(false); });
     }
     if (typeof dmStart === 'function') dmStart();
   } catch (e) { console.warn('[data meter]', e); }
@@ -36197,7 +36197,9 @@ function flowPoPrint(no) {
  * order it is for (forOrders) and its flow line (flowKey/flowPart) so a re-plan finds it again. A test order never makes
  * one. A vendor order the printer has started delivering is never rewritten from here. */
 function flowChannelOf(r, m) {
-  const s = String((r && r.src) || String((r && r.orderNo) || '').split('-')[0]).toUpperCase();
+  /* the order number first: a Sales Order's lines all carry src 'SO' (24 Nov: an AMZ order's Vendor Order said no channel) */
+  const pre = String((r && r.orderNo) || '').split('-')[0].toUpperCase(), src = String((r && r.src) || '').toUpperCase();
+  const s = /^(AMZ|B2B|SHP|ONL)$/.test(pre) ? pre : (src && src !== 'SO' ? src : pre);
   if (s === 'AMZ') return 'Amazon'; if (s === 'B2B') return 'B2B';
   if (/SHP|ONL/.test(s)) return /CPC/i.test(String((m && m.brand) || '')) ? 'CPC Shopify' : 'Shopify';
   return '';
@@ -36223,16 +36225,19 @@ function flowSwatchOf(productSku, fabSku) {
  * no RFD challan yet, is marked awaitRfd. The printer's portal leaves such lines out (flow-vendor.js flowVpAfterLoad); the
  * office sees them as before. The mark is lifted, field by field, when the challan is made (flowVoRelease). Orders already
  * placed carry no mark and stay visible. Hiding is on screen only: nothing is deleted or changed in the order. */
+/* ON BY DEFAULT (Ravi, 24 Nov: "jese hi rfd wala us vendor ko rfd cut pcs ya fabric bhej de to ye order printer ko vendor portal par show
+ * ho jay … uske alawa unko order hi nahi dikhe"): config/flags.printerHold = false (or 0 / 'off') turns it off for everyone;
+ * localStorage printerHold '0' / '1' still decides on one device. */
 function flowHoldOn() {
   try {
     const s = localStorage.getItem('printerHold');
     if (s === '0') return false;
     if (s === '1') return true;
-    return localStorage.getItem('printerHoldLast') === '1';
-  } catch (e) { return false; }
+    return localStorage.getItem('printerHoldLast') !== '0';
+  } catch (e) { return true; }
 }
 function flowHoldSaveFlag(on) {
-  try { if (on) localStorage.setItem('printerHoldLast', '1'); else localStorage.removeItem('printerHoldLast'); } catch (e) { /* no storage: stays off */ }
+  try { localStorage.setItem('printerHoldLast', on ? '1' : '0'); } catch (e) { /* no storage: stays on */ }
 }
 /** The challan-index key of a Vendor Order part ("<line key>|<what>"); a ruffle part is kept under the line key + ruffle. */
 function flowVoPartKey(part) {
@@ -36254,7 +36259,9 @@ function flowVoPartsOf(order) {
 /** The vendor-order lines a flow print order stands for: { running: [...], cut: [...], channel }. */
 function flowVoLines(o, planOf, prevParts) {
   const out = { running: [], cut: [], channel: '' };
-  const hold = part => (flowVoHeld(part, prevParts) ? { awaitRfd: true } : {});
+  /* rfdGate stays on the line for good (flowVoRelease lifts only awaitRfd): the printer is shown only what the RFD challans gave
+   * (flow-vendor.js flowVpHoldApply) — 400 ordered, 100 given → 100 (Ravi, 24 Nov). */
+  const hold = part => (flowVoHeld(part, prevParts) ? { awaitRfd: true, rfdGate: true } : {});
   Object.entries(o.items || {}).forEach(([key, it]) => {
     if (!it) return;
     const lk0 = key.endsWith(FLOW_RUF) ? key.slice(0, -FLOW_RUF.length) : key;
@@ -36501,10 +36508,28 @@ let FLOW_VP_AS = null;   // { code, name } while an admin looks as a printer
 const flowVpMayLook = () => !!(ME.admin || ME.vpView || ME.vpRecv);
 /** THE PRINTER'S HOLD in the portal (flow-printorder.js flowHoldOn): a real printer sign-in does not see lines marked awaitRfd, nor
  *  an order left with none; an admin "View as printer" sees them, marked in the line's note. Old orders carry no mark: untouched. */
+/* ONLY WHAT WAS GIVEN (Ravi, 24 Nov: "mera order 400 pcs ka h but abhi rfd wale ne 100 pcs diye h to vendor ko bhi 100 pcs dikhne chahiye"):
+ * a gated line (rfdGate, put on when it was held) shows the printer the metres / pieces its RFD challans gave so far (flowProg, the
+ * portal's own Raw figure), never more than was ordered; nothing given yet → the line is held as before. The office sees the full
+ * line with a note. */
+function flowVpGate(o, lines, asAdmin) {
+  if (!lines.some(l => l && l.rfdGate) || typeof vpRawCtx !== 'function' || typeof vpLineRaw !== 'function') return lines;
+  const ctx = vpRawCtx(o);
+  return lines.map(l => {
+    if (!l || !l.rfdGate || l.awaitRfd) return l;
+    const f = l.meters != null && l.qty == null ? 'meters' : 'qty', full = +l[f] || 0, given = +((vpLineRaw(o, l, ctx) || {}).raw || 0);
+    if (given >= full - 0.01) return l;
+    const u = f === 'meters' ? ' m' : ' pcs', note = `Given so far: ${nf(given)}${u} of ${nf(full)}${u} ordered — the rest comes with the next RFD challan. `;
+    if (asAdmin) return Object.assign({}, l, { notes: note + (l.notes || '') });
+    if (!(given > 0)) return Object.assign({}, l, { awaitRfd: true });
+    return Object.assign({}, l, { [f]: f === 'meters' ? Math.round(given * 100) / 100 : Math.floor(given), orderedTotal: full, notes: note + (l.notes || '') });
+  });
+}
 function flowVpHoldApply(rows, asAdmin) {
   const isHeld = l => !!(l && l.awaitRfd);
-  return (rows || []).map(o => {
-    const lines = o && o.lines ? voLines(o) : [];
+  return (rows || []).map(o0 => {
+    const lines0 = o0 && o0.lines ? voLines(o0) : [];
+    const gated = flowVpGate(o0, lines0, asAdmin), o = gated === lines0 ? o0 : Object.assign({}, o0, { lines: gated }), lines = gated;
     if (!lines.some(isHeld)) return o;
     if (asAdmin) return Object.assign({}, o, { lines: lines.map(l => (isHeld(l) ? Object.assign({}, l, { notes: 'Waiting for RFD challan — the printer does not see this line yet. ' + (l.notes || '') }) : l)) });
     const open = lines.filter(l => !isHeld(l));
@@ -56433,6 +56458,26 @@ const vpBuyerOf = l => (/^B2B-/.test(obUC(l && l.shopOrderNo)) && String((l && l
 
 /** What Ridhi Home & Living gave the printer for this order and what came back — the office's entries, written onto the
  * order as flowProg (flow-printorder.js). Nothing for an order the flow did not make. */
+/* THE WHOLE ORDER, WHILE PART OF THE CLOTH HAS COME (Ravi, 24 Nov: "printer ko ek notify ho jay ki total 400 pcs ka order h but abhi 100
+ * ka fabric mila h jisase printer 1 bar me color bana lega"). A line shown only for what the RFD challans gave so far (flow-vendor.js
+ * flowVpGate: rfdGate) is named here, on top of the order, in amber: the full quantity, what came so far, and to make the colour for
+ * all of it in one go. The office's "View as printer" sees the same box. */
+function vpPartNotice(o) {
+  const ls = voLines(o).filter(l => l && l.rfdGate && !l.awaitRfd);
+  if (!ls.length) return '';
+  const ctx = vpRawCtx(o), out = [];
+  ls.forEach(l => {
+    const f = l.meters != null && l.qty == null ? 'meters' : 'qty', u = f === 'meters' ? 'm' : 'pcs';
+    const full = +(l.orderedTotal != null ? l.orderedTotal : l[f]) || 0, given = +((vpLineRaw(o, l, ctx) || {}).raw || 0);
+    if (!(full > 0) || given >= full - 0.01) return;
+    const what = [l.sku, l.fabricType, l.color].filter(Boolean).join(' · ') || 'this line';
+    out.push(`<li><b>${esc(what)}</b>: full order <b>${nf(Math.round(full * 100) / 100)} ${u}</b> — ${u === 'm' ? 'fabric' : 'pieces'} for <b>${nf(Math.round(given * 100) / 100)} ${u}</b> given so far</li>`);
+  });
+  if (!out.length) return '';
+  return `<div style="margin-top:8px;padding:9px 12px;border-radius:10px;background:#FFF4E0;border:1px solid #F5C77E;color:#7A3A0C;font-size:13px;white-space:normal">`
+    + `<b>Part of the fabric has come.</b> Make the colour for the FULL order in one go — the rest of the fabric comes with the next challan.`
+    + `<ul style="margin:6px 0 0 18px;padding:0">${out.join('')}</ul></div>`;
+}
 function vpProgHtml(o) {
   const p = o && o.flowProg; if (!p) return '';
   const u = p.unit === 'pcs' ? 'pcs' : 'm', q = n => nf(Math.round((+n || 0) * 100) / 100) + ' ' + u;
@@ -56749,7 +56794,7 @@ function vpTable(rows, f) {
           <span class="pill ${cls}">${esc(st)}</span>
         </div>
         ${o.notes ? `<div class="ptnote" style="margin-top:7px">From the buyer: ${esc(o.notes)}</div>` : ''}
-        ${vpProgHtml(o)}
+        ${vpPartNotice(o)}${vpProgHtml(o)}
         ${flow ? `<div style="margin-top:7px">
           <button data-vpflow="${esc(o.id)}">${flow === 'Acknowledged' ? 'Acknowledge this order' : 'Start production'}</button>
         </div>` : ''}
@@ -56860,7 +56905,7 @@ function vpCard(o, f) {
       <span style="flex:1"></span><span class="pill ${cls}">${esc(st)}</span>
     </div>
     ${o.notes ? `<div class="ptnote" style="margin-top:8px">From the buyer: ${esc(o.notes)}</div>` : ''}
-    ${vpProgHtml(o)}
+    ${vpPartNotice(o)}${vpProgHtml(o)}
     <div class="xlwrap" style="border:1px solid var(--line);border-radius:10px;margin-top:8px">
       <table class="xl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
     ${on && keep.length < all.length ? `<div class="muted" style="font-size:12px;margin-top:6px">${
@@ -94527,6 +94572,16 @@ function p1Events() {
   return out;
 }
 
+/** Pieces of a printing line still waiting at the RFD store: its cloth or cut pieces not yet put on a challan (a part sent
+ *  leaves the rest here). Cloth in metres is turned into pieces by the share of the line's metres still owed. */
+function p1RfdLeft(x) {
+  const s = x.s, q = +x.r.qty || 0;
+  if (!q || s.route === 'stitch' || typeof flowInView !== 'function' || !flowInView('drfd', s)) return 0;
+  let o = null; try { o = flowFabOwed(x.r, s); } catch (e) { o = null; }
+  if (!o) return 0;
+  if (o.unit === 'pcs') return Math.max(0, Math.round(+o.left || 0));
+  return o.need > 0 ? Math.max(0, Math.min(q, Math.round(q * (+o.left || 0) / o.need))) : 0;
+}
 /** Every piece in production right now: { stage, sku, orderNo, pcs, unit, who, since, ref }. */
 let P1_WIPC = { key: null, out: [] }, P1_INVC = { key: null, out: [] };
 /** What both lists are worked out from: when none of it changes, neither does the answer. */
@@ -94544,6 +94599,8 @@ function p1WipBuild() {
     (c.lines || []).forEach(l => { if (l.ruffleOnly || flowChMoved(c, l)) return; const left = flowR2(flowChSent(l) - (recv[l.key] || 0));
       if (left > 0.01) out.push({ stage: 'Printer', sku: obUC(l.sku), orderNo: obUC(l.orderNo || c.orderNo), pcs: left, unit: flowChUnit(l), who: (c.vendor && c.vendor.name) || '—', since: p1Iso(c.at || c.date), ref: 'Challan ' + c.no }); }); });
   rows.forEach(x => { const s = x.s, r = x.r, q = +r.qty || 0, o = obUC(r.orderNo), k = obUC(r.sku);
+    const rl = p1RfdLeft(x);
+    if (rl > 0) { const p = lastOf('PLAN', o, k); out.push({ stage: 'RFD store', sku: k, orderNo: o, pcs: rl, unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'cloth to send' }); }
     if (s.bucket === 'vendor') { const p = lastOf('PLAN', o, k); out.push({ stage: 'Printer', sku: k, orderNo: o, pcs: q, unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'print order to give' }); }
     if (s.bucket === 'emb') out.push({ stage: 'Embroidery', sku: k, orderNo: o, pcs: Math.max(0, q - (s.embOk || 0)), unit: 'pcs', who: s.embTo || (s.plan && s.plan.emb && s.plan.emb.name) || 'Embroidery', since: '', ref: '' });
     if (s.canCut > 0 && (s.bucket === 'cut' || s.bucket === 'fabric')) { const p = lastOf('PRN', o, k); out.push({ stage: 'Cutting', sku: k, orderNo: o, pcs: s.canCut, unit: 'pcs', who: 'Cutting department', since: p ? p.day : '', ref: 'to cut' }); }
@@ -94721,16 +94778,22 @@ function p1InvBuild() {
  * not go that way. Then where the lot is and its ready date (late in red), and ONE button: the step that is due.
  * On top: the stage buckets (lots and pieces waiting, how many late), the filters, and Pending / Late / Stuck / Complete.
  * A click on the lot number opens its HISTORY: every step, by whom and when. */
-const P1_COLS = [['prn', 'At printer'], ['cut', 'To cut'], ['iss', 'To issue'], ['kar', 'With karigar'], ['qc', 'In QC'], ['rdy', 'Into FG']];
+/* AT RFD STORE (Ravi, 24 Nov: "printer ko jane se pahle ye greige store me rfd wale ke pas jayega ki ye printing order is vendor ko dena h"):
+ * a printing lot first waits at the RFD store, with the printer it is for; the pieces whose cloth (or cut pieces) has gone are At printer.
+ * A part-sent line is in both: what is still to send at the store, what went at the printer. */
+const P1_COLS = [['rfd', 'At RFD store'], ['prn', 'At printer'], ['cut', 'To cut'], ['iss', 'To issue'], ['kar', 'With karigar'], ['qc', 'In QC'], ['rdy', 'Into FG']];
 const P1_BUCKETS = [['plan', 'To plan']].concat(P1_COLS);
-const P1_COL_OF = { Printer: 'prn', Embroidery: 'prn', Cutting: 'cut', 'Raw cutting in store': 'iss', 'With karigar': 'kar', QC: 'qc', 'Finished Goods to accept': 'rdy', 'To hand to shipping': 'rdy' };
-const P1_NOW = { plan: 'Not planned', prn: 'At printer', cut: 'To cut', iss: 'Cut, in store', kar: 'With karigar', qc: 'In QC', rdy: 'Ready for FG' };
+const P1_COL_OF = { 'RFD store': 'rfd', Printer: 'prn', Embroidery: 'prn', Cutting: 'cut', 'Raw cutting in store': 'iss', 'With karigar': 'kar', QC: 'qc', 'Finished Goods to accept': 'rdy', 'To hand to shipping': 'rdy' };
+const P1_NOW = { plan: 'Not planned', rfd: 'At RFD store', prn: 'At printer', cut: 'To cut', iss: 'Cut, in store', kar: 'With karigar', qc: 'In QC', rdy: 'Ready for FG' };
 /** The steps of each stage's button, in the order they come (Ravi, 26 Oct: a line's step is its own stage's, never an earlier one). */
-const P1_STAGE_STEPS = { plan: ['PLAN'], prn: ['RFD', 'PRN'], cut: ['CUT'], iss: ['ISS'], kar: ['REC'], qc: ['QC'], rdy: ['FG', 'SHIP'] };
+const P1_STAGE_STEPS = { plan: ['PLAN'], rfd: ['RFD'], prn: ['PRN'], cut: ['CUT'], iss: ['ISS'], kar: ['REC'], qc: ['QC'], rdy: ['FG', 'SHIP'] };
 const P1_LABEL = { PLAN: 'Plan', RFD: 'Make challan', PRN: 'Receive printed', CUT: 'Enter cutting', ISS: 'Give to karigar', REC: 'Receive', QC: 'Check in QC', FG: 'Accept in FG', SHIP: 'Hand to shipping' };
 const P1_STUCK = 7;   // days at one place before a lot is stuck
 const P1_CHAN = { SHP: 'Shopify', SO: 'B2B', B2B: 'B2B', AMZ: 'Amazon', ETSY: 'Etsy', ONL: 'Online' };
-const p1Chan = r => P1_CHAN[obUC(r.src)] || (/^AMZ/i.test(String(r.orderNo || '')) ? 'Amazon' : /^SHP/i.test(String(r.orderNo || '')) ? 'Shopify' : obUC(r.src) || 'Other');
+/* THE ORDER NUMBER SAYS THE CHANNEL (Ravi, 24 Nov: AMZ-24112026-01-AIR showed "B2B"): every line put on the book from a Sales Order
+ * carries src 'SO', whatever its channel, so the number's first part (AMZ / SHP / B2B / ETSY / ONL …) is read first; src only after. */
+const p1Chan = r => { const pre = obUC(String(r.orderNo || '').split('-')[0]), src = obUC(r.src);
+  return (pre !== 'SO' && P1_CHAN[pre]) || (src !== 'SO' && P1_CHAN[src]) || P1_CHAN[pre] || P1_CHAN[src] || src || 'Other'; };
 /** The next step of a lot (or of one line): the first that is waiting, in the order the work goes — [movement, label, lines]. */
 function p1NextOf(r, stage) {
   const n = k => { const a = P1_ADD.find(x => x[0] === k); return a && p1MayTab(a[2]) ? r.lines.filter(x => a[3](x)) : []; };
@@ -94746,7 +94809,8 @@ function p1LineStages(x, w) {
   const cuts = planned && !['jobwork', 'outsource'].includes(rt), made = planned && rt !== 'outsource';
   const g = (w0, m0, done, use) => ({ w: use ? w0 : 0, m: use ? m0 : 0, done: use && done && !w0 && !m0, na: !use });
   return { planned, q, plan: { w: planned ? 0 : q, m: 0, done: planned, na: false },
-    prn: g(w.grg + w.prn + w.emb, w.m, (+s.back || 0) + (+s.embOk || 0) >= q || (+s.cut || 0) >= q || (+s.issuedNet || 0) >= q, printed),
+    rfd: g(w.grg, 0, (+s.fabSent || 0) > 0 || (+s.given || 0) > 0 || (+s.back || 0) > 0 || (+s.cut || 0) >= q || (+s.issuedNet || 0) >= q, printed),
+    prn: g(w.prn + w.emb, w.m, (+s.back || 0) + (+s.embOk || 0) >= q || (+s.cut || 0) >= q || (+s.issuedNet || 0) >= q, printed),
     cut: g(w.cut, 0, (+s.cut || 0) >= q || (+s.issuedNet || 0) >= q, cuts),
     iss: g(w.raw, 0, (+s.issuedNet || 0) >= q || (+s.received || 0) >= q, made),
     kar: g(w.kar, 0, (+s.received || 0) >= q || (+s.qc || 0) >= q, made),
@@ -94761,9 +94825,9 @@ function p1SumStages(ls) {
 }
 /** The days the oldest pieces have waited at each stage, and who has them (printer, karigars). */
 function p1HoldDays(holds) {
-  const D = {}; (holds || []).forEach(h => { const k = P1_COL_OF[h.stage]; if (!k) return; const d = p1Days(h.since), e = D[k] || (D[k] = { days: null, who: [] });
+  const D = {}; (holds || []).forEach(h => { const k = h.stage === 'Printer' && h.ref === 'print order to give' ? 'rfd' : P1_COL_OF[h.stage]; if (!k) return; const d = p1Days(h.since), e = D[k] || (D[k] = { days: null, who: [] });
     if (d != null && (e.days == null || d > e.days)) e.days = d;
-    if ((k === 'prn' || k === 'kar') && h.who && !e.who.includes(h.who)) e.who.push(h.who); });
+    if ((k === 'rfd' || k === 'prn' || k === 'kar') && h.who && !e.who.includes(h.who)) e.who.push(h.who); });
   return D;
 }
 /** The stage a lot (or line) is held at now: the one with the oldest pieces past 7 days, else the one with the most pieces. */
@@ -94822,7 +94886,7 @@ function p1DrawInv() {
       + `<span class="bk-s">lots · ${p1N(pcs)} pcs${m ? ' + ' + p1N(m) + ' m' : ''}${lt ? ` <i>· ${p1N(lt)} late</i>` : ''}</span></button>`; };
   const tab = (v, t, n) => `<button type="button" class="${P1.tab === v ? 'on' : ''}" data-p1tab="${v}">${esc(t)} · ${p1N(n)}</button>`;
   /* ONE STAGE CELL: pieces waiting and their days, ✓ done, · not reached, — not this way */
-  const cell = (c, d) => { if (!c || c.na) return '<td class="sg snone">—</td>'; if (c.w || c.m) return `<td class="sg"><b class="wt">${c.w ? p1N(c.w) : ''}${c.m ? `${c.w ? ' + ' : ''}${p1N(c.m)} m` : ''}</b>${d && d.days != null ? `<span class="dy${d.days > P1_STUCK ? ' red' : ''}">${d.days} d</span>` : ''}</td>`;
+  const cell = (c, d, k) => { if (!c || c.na) return '<td class="sg snone">—</td>'; if (c.w || c.m) return `<td class="sg"><b class="wt">${c.w ? p1N(c.w) : ''}${c.m ? `${c.w ? ' + ' : ''}${p1N(c.m)} m` : ''}</b>${k === 'rfd' && d && d.who && d.who.length ? `<span class="dy">for ${esc(d.who.join(', '))}</span>` : ''}${d && d.days != null ? `<span class="dy${d.days > P1_STUCK ? ' red' : ''}">${d.days} d</span>` : ''}</td>`;
     return c.done ? '<td class="sg sdone">✓</td>' : '<td class="sg snone">·</td>'; };
   const btn = (nx, at, st, gk, line, main) => { if (!nx) return ''; const pcs = at && st[at] ? st[at].w : 0;
     return `<button type="button" class="${main ? 'p1-go' : 'p1-go2'}" data-p1step="${esc(gk)}" data-p1line="${line == null ? '' : line}" data-p1at="${esc(at || '')}">${esc(nx[1])}${pcs && nx[0] !== 'RFD' ? ' ' + p1N(pcs) : ''}</button>`; };
@@ -94834,11 +94898,11 @@ function p1DrawInv() {
   const lotRow = r => { const open = P1.inv === r.gk, main = r.over > 0 || r.stuck > P1_STUCK;
     let h = `<tr class="p1r lot${open ? ' open' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
       <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div></td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
-      ${P1_COLS.map(([k]) => cell(r.stg[k], r.D[k])).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${btn(r.next, r.at, r.stg, r.gk, null, main)}</td></tr>`;
+      ${P1_COLS.map(([k]) => cell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${btn(r.next, r.at, r.stg, r.gk, null, main)}</td></tr>`;
     if (open) h += r.ln.map((l, i) => { const nx = p1NextOf({ lines: [l.x] }, l.at) || p1NextOf({ lines: [l.x] }), od = l.due && l.due < today ? p1Days(l.due) : 0;
       return `<tr class="p1l"><td class="lc"><a class="p1-ord" data-p1hist="${esc(r.gk)}" data-p1ho="${esc(l.x.r.orderNo)}" title="This order's history">${esc(l.x.r.shopOrderNo || l.x.r.orderNo)}</a><span class="ch">${esc(l.chan)}</span></td>
         <td class="it muted sm">${esc(p1Day(p1Iso(l.x.r.orderDate) || l.x.r.openIso || ''))}</td><td class="num">${p1N(l.st.q)}</td><td class="pr">${l.printer ? esc(l.printer) : l.st.planned ? '<span class="muted">—</span>' : '<b class="np">not planned</b>'}</td>
-        ${P1_COLS.map(([k]) => cell(l.st[k], l.D[k])).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${btn(nx, l.at, l.st, r.gk, i, false)}</td></tr>`; }).join('');
+        ${P1_COLS.map(([k]) => cell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${btn(nx, l.at, l.st, r.gk, i, false)}</td></tr>`; }).join('');
     return h; };
   const shown = rows.slice(0, P1.lim), R0 = gk => all.find(r => r.gk === gk);
   el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<span class="p1-read">${P1.err ? `<b style="color:var(--bad)">Could not read everything: ${esc(P1.err)}</b> · ` : ''}${P1.more ? 'Reading the rest… · ' : ''}${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
@@ -94895,7 +94959,7 @@ function p1HistEvents(r) {
 function p1History(r) {
   const ev = p1HistEvents(r), lastOf = k => { for (let i = ev.length - 1; i >= 0; i--) if (ev[i].k === k) return ev[i]; return null; };
   const sum = ks => ev.filter(e => ks.includes(e.k) && e.unit !== 'm').reduce((t, e) => t + e.pcs, 0);
-  const steps = [['Planned', r.stg.plan, 'PLAN', 'plan'], ['Printed', r.stg.prn, 'PRN', 'prn'], ['Cut', r.stg.cut, 'CUT', 'cut'], ['Issued', r.stg.iss, 'ISS', 'iss'], ['Received', r.stg.kar, 'REC', 'kar'], ['QC passed', r.stg.qc, 'QC', 'qc'], ['Into FG', r.stg.rdy, 'FG', 'rdy']];
+  const steps = [['Planned', r.stg.plan, 'PLAN', 'plan'], ['Cloth to printer', r.stg.rfd, 'RFD', 'rfd'], ['Printed', r.stg.prn, 'PRN', 'prn'], ['Cut', r.stg.cut, 'CUT', 'cut'], ['Issued', r.stg.iss, 'ISS', 'iss'], ['Received', r.stg.kar, 'REC', 'kar'], ['QC passed', r.stg.qc, 'QC', 'qc'], ['Into FG', r.stg.rdy, 'FG', 'rdy']];
   const strip = steps.filter(s => s[1] && !s[1].na).map(([t, c, k, col]) => { const l = lastOf(k), d = (r.D[col] || {}).days;
     if (c.w || c.m) return `<span class="hs now">${esc(P1_NOW[col])} · ${p1N(c.w)}${c.m ? ' + ' + p1N(c.m) + ' m' : ''}${d != null ? ' · ' + d + ' d' : ''}</span>`;
     if (c.done) return `<span class="hs hok">✓ ${esc(t)}${l ? ' ' + p1Day(l.day) : ''}</span>`;
@@ -94925,12 +94989,11 @@ function p1HistoryDownload(r) {
 /* ---------- WHERE A LOT IS — Ravi's WIP sheet (WIP.xlsx, 28 Oct): the order, what is done, the balance, then every place
  * the pieces are, the total in process and what is not started yet; one row per order line of the lot. ---------- */
 const P1_WCOLS = [['grg', 'Greige / to print'], ['prn', 'At printer'], ['emb', 'Embroidery'], ['cut', 'To cut'], ['raw', 'Cut, in store'], ['kar', 'With karigar'], ['qc', 'QC'], ['rdy', 'Ready']];
-const P1_WOF = { Embroidery: 'emb', Cutting: 'cut', 'Raw cutting in store': 'raw', 'With karigar': 'kar', QC: 'qc', 'Finished Goods to accept': 'rdy', 'To hand to shipping': 'rdy' };
+const P1_WOF = { 'RFD store': 'grg', Embroidery: 'emb', Cutting: 'cut', 'Raw cutting in store': 'raw', 'With karigar': 'kar', QC: 'qc', 'Finished Goods to accept': 'rdy', 'To hand to shipping': 'rdy' };
 function p1WipLine(x, wipOf) {
   const r = x.r, s = x.s, q = +r.qty || 0, o = obUC(r.orderNo), k = obUC(r.sku);
   const w = { orderNo: o, sku: k, q, done: Math.min(q, s.bucket === 'done' ? q : (+s.india || 0)), m: 0, who: [], planned: !(s.bucket === 'ppc' || s.bucket === 'back') };
   P1_WCOLS.forEach(c => { w[c[0]] = 0; });
-  if (s.bucket === 'demand') w.grg = q;
   (wipOf.get(o + '|' + k) || []).forEach(h => {
     if (h.stage === 'Printer') { if (h.ref === 'print order to give') w.grg += h.pcs; else { if (h.unit === 'm') w.m += h.pcs; else w.prn += h.pcs; w.who.push(h.who); } return; }
     const c = P1_WOF[h.stage]; if (c) w[c] += h.pcs; if (h.stage === 'With karigar') w.who.push(h.who); });

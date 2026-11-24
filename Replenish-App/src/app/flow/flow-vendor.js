@@ -63,10 +63,28 @@ let FLOW_VP_AS = null;   // { code, name } while an admin looks as a printer
 const flowVpMayLook = () => !!(ME.admin || ME.vpView || ME.vpRecv);
 /** THE PRINTER'S HOLD in the portal (flow-printorder.js flowHoldOn): a real printer sign-in does not see lines marked awaitRfd, nor
  *  an order left with none; an admin "View as printer" sees them, marked in the line's note. Old orders carry no mark: untouched. */
+/* ONLY WHAT WAS GIVEN (Ravi, 24 Nov: "mera order 400 pcs ka h but abhi rfd wale ne 100 pcs diye h to vendor ko bhi 100 pcs dikhne chahiye"):
+ * a gated line (rfdGate, put on when it was held) shows the printer the metres / pieces its RFD challans gave so far (flowProg, the
+ * portal's own Raw figure), never more than was ordered; nothing given yet → the line is held as before. The office sees the full
+ * line with a note. */
+function flowVpGate(o, lines, asAdmin) {
+  if (!lines.some(l => l && l.rfdGate) || typeof vpRawCtx !== 'function' || typeof vpLineRaw !== 'function') return lines;
+  const ctx = vpRawCtx(o);
+  return lines.map(l => {
+    if (!l || !l.rfdGate || l.awaitRfd) return l;
+    const f = l.meters != null && l.qty == null ? 'meters' : 'qty', full = +l[f] || 0, given = +((vpLineRaw(o, l, ctx) || {}).raw || 0);
+    if (given >= full - 0.01) return l;
+    const u = f === 'meters' ? ' m' : ' pcs', note = `Given so far: ${nf(given)}${u} of ${nf(full)}${u} ordered — the rest comes with the next RFD challan. `;
+    if (asAdmin) return Object.assign({}, l, { notes: note + (l.notes || '') });
+    if (!(given > 0)) return Object.assign({}, l, { awaitRfd: true });
+    return Object.assign({}, l, { [f]: f === 'meters' ? Math.round(given * 100) / 100 : Math.floor(given), orderedTotal: full, notes: note + (l.notes || '') });
+  });
+}
 function flowVpHoldApply(rows, asAdmin) {
   const isHeld = l => !!(l && l.awaitRfd);
-  return (rows || []).map(o => {
-    const lines = o && o.lines ? voLines(o) : [];
+  return (rows || []).map(o0 => {
+    const lines0 = o0 && o0.lines ? voLines(o0) : [];
+    const gated = flowVpGate(o0, lines0, asAdmin), o = gated === lines0 ? o0 : Object.assign({}, o0, { lines: gated }), lines = gated;
     if (!lines.some(isHeld)) return o;
     if (asAdmin) return Object.assign({}, o, { lines: lines.map(l => (isHeld(l) ? Object.assign({}, l, { notes: 'Waiting for RFD challan — the printer does not see this line yet. ' + (l.notes || '') }) : l)) });
     const open = lines.filter(l => !isHeld(l));
