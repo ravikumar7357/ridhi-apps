@@ -181,13 +181,13 @@ function vprSheet(rows, f) {
 /* ---- taking it in ---- */
 /** Take in q on one portal line, shared over its flow lines; '' when saved, else what is wrong (nothing is saved then). One save at a time:
  * a redraw during a save draws a fresh button, and a second press must not take the same goods in twice. */
-async function vprReceive(id, q) {
+async function vprReceive(id, q, rows) {
   if (VPR.saving) return 'Still saving the last receive — wait a moment.';
   VPR.saving = id;
-  try { return await vprReceiveLine(id, q); } finally { VPR.saving = ''; }
+  try { return await vprReceiveLine(id, q, rows); } finally { VPR.saving = ''; }
 }
-async function vprReceiveLine(id, q) {
-  const [oid, i] = String(id).split('|'), o = (VP.rows || []).find(r => r && r.id === oid), l = o && voLines(o)[+i];
+async function vprReceiveLine(id, q, rows) {
+  const [oid, i] = String(id).split('|'), o = (rows || VP.rows || []).find(r => r && r.id === oid), l = o && voLines(o)[+i];
   if (!l) return 'That line is not on screen any more — press Refresh.';
   const v = vprOffer(o, l), what = `${o.orderNo || o.id} ${l.sku || ''}`.trim();
   if (!v.t.length) return `${what}: nothing is still to come on this line.`;
@@ -201,6 +201,34 @@ async function vprReceiveLine(id, q) {
   VPR.less = '';
   VPR.said = flowDueRecvSave.said + " The printer's portal shows it in a few seconds.";
   return '';
+}
+/* FROM THE STORE (Ravi, 24 Nov: "yaha par bhi ye phle receive ke liye show ho, jese vendor sent me hota h"): every line any printer has sent that we have not
+ * taken in, each with what Receive offers — the same figures and the same receive as the portal's Receive button. The offer is worked out per printer
+ * (VP.code is that printer's for the moment, and put back at once). Null while the figures are not read. Oldest batch first. */
+function vprPendingAll() {
+  if (!vprReady()) return null;
+  const keep = VP.code, out = [];
+  try {
+    (VO.rows || []).forEach(o => {
+      if (!o || o.status === 'Cancelled' || !o.vendorCode || /^TEST/i.test(String(o.orderNo || ''))) return;
+      VP.code = o.vendorCode;
+      voLines(o).forEach((l, i) => {
+        if (!l || l.cancelled) return;
+        const sent = vpSentKept(o, l), got = vpRecvOf(l, o).qty;
+        if (!(sent - got > 0.01)) return;
+        const at = vpVsOf(o, l).filter(vpVsCounts).map(b => String(b.at || '')).filter(Boolean).sort()[0] || '9999';
+        out.push({ id: o.id + '|' + i, o, l, v: vprOffer(o, l), sent, got, at, printer: o.vendorName || voName(o.vendorCode), code: o.vendorCode });
+      });
+    });
+  } finally { VP.code = keep; }
+  return out.sort((a, b) => a.at.localeCompare(b.at) || String(a.o.orderNo || '').localeCompare(String(b.o.orderNo || '')));
+}
+/** Take in q on one line of any printer's order (the Store's Receive button). */
+async function vprReceiveFor(id, q) {
+  const oid = String(id).split('|')[0], o = (VO.rows || []).find(r => r && r.id === oid);
+  if (!o) return 'That order is not on the list any more — press Refresh.';
+  const keep = VP.code; VP.code = o.vendorCode;
+  try { return await vprReceive(id, q, VO.rows); } finally { VP.code = keep; }
 }
 function vprSay(er) {
   const m = $('vpMsg'); if (!m) return;

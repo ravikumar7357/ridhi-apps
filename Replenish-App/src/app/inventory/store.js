@@ -270,14 +270,14 @@ function stBalances(moves) {
     if (!e) { e = { key: k, unit: mv.unit, sku: mv.sku, fabric: mv.fabric, colour: mv.colour, name: stName(mv), inQty: 0, outQty: 0, qty: 0, n: 0, last: '',
       fromPrinter: 0, cutIn: 0, cutOut: 0, issued: 0, typed: 0, beyond: 0, printers: new Set() }; by.set(k, e); }
     e.n++;
-    if (mv.qty >= 0) e.inQty += mv.qty; else e.outQty += -mv.qty;
+    if (mv.qty >= 0) e.inQty += mv.qty; else if (mv.src !== 'jobwork' && mv.src !== 'cut') e.outQty += -mv.qty;
     /* AN ISSUE TAKES ONLY WHAT THE PRINTERS' GOODS HOLD. Pieces given to a karigar beyond that came from somewhere
      * else — older stock, or the same SKU cut and stitched from white in-house — and are counted as "beyond", never
      * as a shelf below zero. Movements arrive oldest first, so an issue before the first delivery is all beyond. A
      * figure somebody typed (opening, out by hand, correction) goes exactly where it was typed. */
     if (mv.qty < 0 && (mv.src === 'jobwork' || mv.src === 'cut')) {
       const take = Math.min(-mv.qty, Math.max(0, e.qty));
-      e.qty -= take; e.beyond += (-mv.qty - take);
+      e.qty -= take; e.outQty += take; e.beyond += (-mv.qty - take);   /* Out is what really left the shelf; the rest was never on it */
     } else e.qty += mv.qty;
     if (mv.src === 'printer') { e.fromPrinter += mv.qty; if (mv.printer) e.printers.add(mv.printer); }
     else if (mv.src === 'cut') { if (mv.qty >= 0) e.cutIn += mv.qty; else e.cutOut += -mv.qty; }
@@ -427,6 +427,44 @@ async function stSheetRun(list) {
   return '';
 }
 
+/* WAITING TO BE RECEIVED (Ravi, 24 Nov: "yaha par bhi ye phle receive ke liye show ho, jese vendor sent me hota h"): above the store, every line a printer has sent
+ * that has not been taken in yet, oldest first, with the same Receive as the Vendor Orders screen (printer-receive.js). Taken in, it drops out of here and comes
+ * into the store below as "Store receive". The search box filters it too. */
+function stPendHtml() {
+  if (typeof vprPendingAll !== 'function' || typeof FLOW_ON === 'undefined' || !FLOW_ON) return '';
+  const list = vprPendingAll();
+  if (list === null) return '<div class="card" style="margin-top:10px;padding:10px 12px"><span class="muted">Reading what the printers have sent…</span></div>';
+  const f = fabFilters(), may = typeof flowMay === 'function' && flowMay('flchl');
+  const rows = list.filter(x => !f.q || [x.printer, x.o.orderNo, x.o.id, x.l.sku, x.l.fabricType, x.l.fabric, x.l.color].join(' ').toLowerCase().includes(f.q));
+  if (!rows.length) return '';
+  const q = (n, u) => nf(Math.round(n * 100) / 100) + ' ' + u, whole = rows.slice(0, 60);
+  const body = whole.map(x => {
+    const u = x.v.unit, n = x.v.n > 0 ? x.v.n : 0, run = x.o.orderType === 'running';
+    const item = esc(run ? [x.l.fabricType, x.l.sku].filter(Boolean).join(' · ') : (x.l.sku || '')) + (x.l.color ? ' <span class="muted">· ' + esc(x.l.color) + '</span>' : '');
+    const act = !may ? '<span class="muted">needs the Printed fabric in right</span>'
+      : n > 0 ? `<span style="display:inline-flex;gap:4px;align-items:center"><input data-stg-box="${esc(x.id)}" type="number" min="${u === 'pcs' ? 1 : 0.01}" max="${esc(String(n))}" step="${u === 'pcs' ? 1 : 0.01}" value="${esc(String(n))}" style="width:84px">`
+        + `<button type="button" data-stg-go="${esc(x.id)}" style="width:auto;padding:4px 12px;font-size:12.5px;background:#166534;border-color:#166534">Receive</button></span>`
+      : '<span class="muted" style="font-size:11.5px">' + (x.v.t.length ? 'nothing can be taken in yet' : 'not on a challan to this printer') + '</span>';
+    return `<tr><td style="text-align:left">${esc(x.printer)}</td><td style="text-align:left">${esc(x.o.orderNo || x.o.id)}</td><td style="text-align:left">${item}</td>`
+      + `<td class="num">${q(x.sent, u)}</td><td class="num">${x.got > 0 ? q(x.got, u) : '<span class="muted">—</span>'}</td>`
+      + `<td class="num" style="font-weight:700;color:#b45309">${q(x.sent - x.got, u)}</td><td style="text-align:right">${act}</td></tr>`;
+  }).join('');
+  return `<div class="card" style="margin-top:10px;padding:0;border-left:4px solid #b45309">`
+    + `<div style="padding:10px 12px"><b>Sent by printers — waiting to be received</b> <span class="muted">· ${nf(rows.length)} line(s), oldest first · once taken in it comes into the store below as "Store receive"</span></div>`
+    + `<div class="xlwrap" style="max-height:38vh"><table class="xl" style="font-size:12.5px"><thead><tr><th style="text-align:left">Printer</th><th style="text-align:left">Order</th><th style="text-align:left">Item</th>`
+    + `<th class="num">Sent</th><th class="num">Received</th><th class="num">To receive</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`
+    + (rows.length > whole.length ? `<div class="muted" style="padding:6px 12px;font-size:12px">+${nf(rows.length - whole.length)} more — narrow the search to see them</div>` : '') + '</div>';
+}
+document.addEventListener('click', async e => {
+  const go = e.target.closest('[data-stg-go]'); if (!go || go.disabled) return;
+  e.preventDefault(); go.disabled = true;
+  const id = go.getAttribute('data-stg-go'), box = document.querySelector(`input[data-stg-box="${CSS.escape(id)}"]`);
+  const er = await vprReceiveFor(id, Math.round((parseFloat(box ? box.value : 0) || 0) * 100) / 100);
+  if (!er && typeof flowVoProgSync === 'function') flowVoProgSync();
+  renderFab();
+  const m = $('fbMsg'); if (m) { m.className = er ? 'err' : 'muted'; m.textContent = er || ((typeof flowDueRecvSave === 'function' && flowDueRecvSave.said) || 'Received.') + ' It is in the store now.'; }
+});
+
 /* ---- the screens ---- */
 /* THE STORE, TYPED BY HAND (Ravi, 14 Oct). One line per printed cloth (fabric + colour, in metres) or printed piece (SKU):
  * what was typed in, typed out, and what is left. "+ Store entry" adds opening stock, In, Out or a correction. */
@@ -444,7 +482,7 @@ function renderStoreHand() {
       <div class="metric"><div class="v"${sum(met, 'qty') < 0 ? ' style="color:var(--bad)"' : ''}>${nf(sum(met, 'qty'))}</div><div class="l">Printed cloth in store (m)</div><div class="l muted">${nf(met.length)} fabric &amp; colour</div></div>
       <div class="metric"><div class="v"${sum(pcs, 'qty') < 0 ? ' style="color:var(--bad)"' : ''}>${nf(sum(pcs, 'qty'))}</div><div class="l">Printed pieces in store</div><div class="l muted">${nf(pcs.length)} SKU(s)</div></div>
       <div class="metric"><div class="v">${nf(moves.length)}</div><div class="l">Entries</div></div>
-    </div></div>`;
+    </div></div>` + stPendHtml();
   FAB.shown = bal;
   $('fbMsg').className = STORE.err ? 'err' : 'muted';
   $('fbMsg').title = 'The balance is the sum of what was typed by hand and, since 16 Oct, what the production flow moved: printed cloth received on a challan (in), PPC plans and cutting entries that take it (out). Never a stored figure.';
