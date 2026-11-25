@@ -40866,6 +40866,7 @@ function wireShell() {
       ev.target.classList.add('hide');
     }
   });
+  document.addEventListener('keydown', gdTabFillKey);
   document.addEventListener('keydown', function (ev) {
     if (ev.key !== 'Escape') return;
     $('lmPo').classList.add('hide'); $('lmDoc').classList.add('hide');
@@ -41913,7 +41914,7 @@ function poOpen(editNo) {
   $('poMill').removeAttribute('list');   // the desk's own search list instead of the browser's
   PO_MILL_HI = 0; poMillListClose();
   /* the last PO's supplier as grey sample text, a reminder only — the supplier is still picked (Vishesh, 23 Nov) */
-  $('poMill').placeholder = gpoLastMill() || 'Pick a supplier from the list';
+  gdSample($('poMill'), gpoLastMill(), gpoLastMill() || 'Pick a supplier from the list');   // Tab in the empty box takes the last supplier
   $('lmPoErr').classList.add('hide');
   var co = DB.co || {}, miss = !String(co.addr || '').trim() && !String(co.gstin || '').trim();
   $('poCoNote').classList.toggle('hide', !miss);
@@ -41996,6 +41997,29 @@ function poMillKey(key) {
 function poMillKept(name) {
   var was = PO_DRAFT && PO_DRAFT.editId ? (DB.gpo || []).filter(function (p) { return p.id === PO_DRAFT.editId; })[0] : null;
   return !!was && String(was.mill || '').trim().toLowerCase() === String(name || '').trim().toLowerCase();
+}
+/* TAB TAKES THE GREY SAMPLE (Ravi, 25 Nov: "when it is showing something in grey I want you to auto fill when I click tab … for
+ * all the boxes with similar feature"). A box whose grey text is a real value the app worked out -- the last supplier, the last
+ * rate, the metres still due on a PO -- carries it in data-tabfill; Tab in the EMPTY box writes it in and moves on as Tab does.
+ * Grey text that is only an example or a limit ("Optional", "As printed on the challan", "up to 300") carries nothing and is left
+ * alone. A box somebody typed in is never touched. The box is told with input and change events, so whatever follows typing
+ * (the supplier's note, the row's amount) follows this too. */
+function gdSample(el, value, shown) {
+  if (!el) return;
+  var v = value == null ? '' : String(value);
+  if (shown != null) el.placeholder = shown; else if (v) el.placeholder = v;
+  if (el.setAttribute && el.removeAttribute) { if (v) el.setAttribute('data-tabfill', v); else el.removeAttribute('data-tabfill'); }
+}
+/** The value Tab would write into this box now: its sample when the box is empty, else ''. */
+function gdTabFillOf(el) {
+  if (!el || !el.getAttribute || el.readOnly || el.disabled || String(el.value || '') !== '') return '';
+  return el.getAttribute('data-tabfill') || '';
+}
+function gdTabFillKey(ev) {
+  if (ev.key !== 'Tab' || ev.shiftKey) return;
+  var el = ev.target, v = gdTabFillOf(el); if (!v) return;
+  el.value = v;
+  ['input', 'change'].forEach(function (t) { try { el.dispatchEvent(new Event(t, { bubbles: true })); } catch (e) { /* the value is in the box all the same */ } });
 }
 /* THE LAST RATE AS A SAMPLE (Vishesh, 23 Nov): an empty rate box shows, in grey, the rate that greige was last bought at on a PO
  * here (invRate), or 0 when it never was. It is a reference only — a rate must still be put in — but Tab in the empty box takes it. */
@@ -43132,12 +43156,13 @@ function poDocBody(po) {
   var fill = Math.max(40, 300 - lines.length * 24);
   /* THE TERMS GO IN THE TERMS BOX (Ravi, 25 Nov: the box beside the consignee stood empty and the conditions were printed in a
    * box of their own under the total). What the PO window's Terms & conditions holds is printed there, line breaks kept. */
+  var hasOther = !!String(po.other || '').trim();
   var terms = [po.terms, po.tc].map(function (x) { return String(x || '').trim(); }).filter(Boolean).join(String.fromCharCode(10));
 
   return '<div class="pod"><style>' + POD_CSS + '</style>'
     + '<h1>PURCHASE ORDER</h1>'
     + '<table class="hd"><colgroup><col style="width:50%"><col style="width:25%"><col style="width:25%"></colgroup>'
-    + '<tr><td rowspan="5">' + me + '</td>'
+    + '<tr><td rowspan="' + (hasOther ? 5 : 4) + '">' + me + '</td>'
     + '<td class="r">' + cell('Voucher No.', po.poNo) + '</td><td class="r">' + cell('Dated', fmtD(po.date)) + '</td></tr>'
     /* THE ORDER VALUE, IN FIGURES AND IN WORDS, IN ONE BOX (Ravi, 25 Nov: the box under the voucher number was blank; then
      * "put [the amount in words] beside the order value or expand its box"). The box runs the width of the voucher panel; the
@@ -43146,7 +43171,7 @@ function poDocBody(po) {
     + '<div class="val">' + RUPEE + ' ' + money(t.amount) + '</div><div class="words" style="margin:1px 0 2px">' + esc(inrWords(t.amount)) + '</div></td></tr>'
     + '<tr><td class="r">' + cell('Reference No. & Date.', po.poNo) + '</td><td class="r">' + cell('Mode/Terms of Payment', po.pay) + '</td></tr>'
     + '<tr><td class="r">' + cell('Dispatched through', po.disp) + '</td><td class="r">' + cell('Destination', po.dest) + '</td></tr>'
-    + '<tr><td class="r" colspan="2">' + cell('Other References', po.other) + '</td></tr>'
+    + (hasOther ? '<tr><td class="r" colspan="2">' + cell('Other References', po.other) + '</td></tr>' : '')   // no empty box (Ravi, 25 Nov)
     + '<tr><td>' + shipTo + '</td><td colspan="2" rowspan="2">' + '<div class="lab">Terms &amp; Conditions</div><div class="val" style="font-weight:400;white-space:pre-line">' + esc(terms) + '</div></td></tr>'
     + '<tr><td>' + supplier + '</td></tr>'
     + '</table>'
@@ -44888,7 +44913,7 @@ var EN_OPENS = { RECEIVE_GREIGE: 1, OPENING_RFD: 1, PURCHASE_RFD: 1 };
 function enFromLot() {
   if (EN_ID) return;
   var kind = $('enKind').value, g = fabLot($('enLot').value);
-  $('enQty').placeholder = '1200';
+  gdSample($('enQty'), '', '1200');
   if (!g) return;
   var rfdName = g.rfdFabric || fabRfdOfGreige(g.fabricType) || g.fabricType;
   if (kind === 'ISSUE_TO_RFD') {
@@ -44921,7 +44946,7 @@ function enFromPo() {
   var open = gpoProgress(po).lines.filter(function (l) { return l.pending > 0.05; });
   if (open.length === 1) {
     enFill('enFab', open[0].greige);
-    $('enQty').placeholder = nf(open[0].pending) + ' still due';
+    gdSample($('enQty'), r2(open[0].pending), nf(open[0].pending) + ' still due');   // Tab takes what is still due
   }
   entrySpec();
 }
@@ -45054,7 +45079,7 @@ function entrySync(row) {
   var kind = $('enKind').value;
   enChips();
   enBillRule(kind, EN_ID ? (DB.fab || []).filter(function (x) { return x.id === EN_ID; })[0] : null);
-  $('enQty').placeholder = '1200';
+  gdSample($('enQty'), '', '1200');
   if (!EN_ID) {
     /* What the app filled for the last movement does not belong to this one. What a person typed
      * stays where they put it. */
