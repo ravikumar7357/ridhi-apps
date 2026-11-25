@@ -14,7 +14,7 @@ const ok = (name, cond, info) => { if (cond) { pass++; console.log('  PASS ' + n
 const code = fs.readFileSync(SRC, 'utf8');
 const anchor = '  return { open: open,';
 if (code.split(anchor).length !== 2) throw new Error('greige-desk.js: the closing "return { open" line moved; update this test');
-const names = ['gpoLineMoney', 'gpoTotals', 'gpoDiscPct', 'poDocBody', 'poMailText', 'poWaText'];
+const names = ['gpoLineMoney', 'gpoTotals', 'gpoDiscPct', 'poDocBody', 'poMailText', 'poWaText', 'gdSample', 'gdTabFillOf', 'gdTabFillKey'];
 const ctx = { console, window: { document: {} }, GPO: { settings: { terms: 'Payment in 30 days.\nGoods as per sample.' } } };
 vm.createContext(ctx);
 vm.runInContext(code.replace(anchor, '  globalThis.__GDT = { ' + names.map(n => n + ': ' + n).join(', ') + ', setDB: function (v) { DB = v; } };\n' + anchor), ctx);
@@ -60,6 +60,29 @@ ok('every row has the same number of cells (8)', (paper.match(/<colgroup>[\s\S]*
 ok('the terms are in the terms box beside the consignee, not in a box of their own under the total (Ravi, 25 Nov)', (paper.match(/Terms &amp; Conditions/g) || []).length === 1 && paper.indexOf('Terms &amp; Conditions') < paper.indexOf('Description of Goods') && !/Terms of Delivery/.test(paper));
 ok('the Order Value box carries the amount in figures and in words; the words are not printed again under the total', /Order Value<\/span>[\s\S]*?42,900\.00[\s\S]*?Forty Two Thousand Nine Hundred/i.test(paper) && paper.indexOf('Forty Two Thousand') < paper.indexOf('Description of Goods') && !/Amount Chargeable/.test(paper) && (paper.match(/Forty Two Thousand/gi) || []).length === 1);
 ok('no terms typed: the terms box is there, empty', /Terms &amp; Conditions<\/div><div class="val"[^>]*><\/div>/.test(G.poDocBody(po([line(10, 5, '')], ''))));
+
+ok('Other References left empty: no empty box on the paper', !/Other References/.test(paper));
+ok('…filled in, it is printed', /Other References<\/div><div class="val"[^>]*>Ref 55</.test(G.poDocBody(Object.assign(po([line(10, 5, '')], ''), { other: 'Ref 55' }))));
+
+console.log('== Tab takes the grey sample (Ravi, 25 Nov) ==');
+{
+  const box = v => { const at = {}; return { value: v || '', placeholder: '', getAttribute: k => (k in at ? at[k] : null), setAttribute: (k, x) => { at[k] = String(x); }, removeAttribute: k => { delete at[k]; }, dispatchEvent: e => { box.seen = (box.seen || []).concat(e.type); } }; };
+  ctx.Event = function (t) { this.type = t; };   // the page's own Event, as far as this needs it
+  const sup = box(''); G.gdSample(sup, 'Suresh Textiles', 'Suresh Textiles');
+  ok('the supplier box shows the last supplier in grey and Tab would take it', sup.placeholder === 'Suresh Textiles' && G.gdTabFillOf(sup) === 'Suresh Textiles');
+  G.gdTabFillKey({ key: 'Tab', shiftKey: false, target: sup });
+  ok('Tab in the empty box writes it in, and tells the box (input, change)', sup.value === 'Suresh Textiles' && String(box.seen) === 'input,change', sup.value + ' ' + box.seen);
+  const typed = box('Patch'); G.gdSample(typed, 'Suresh Textiles'); G.gdTabFillKey({ key: 'Tab', shiftKey: false, target: typed });
+  ok('a box somebody typed in is never touched', typed.value === 'Patch');
+  const back = box(''); G.gdSample(back, 'Suresh Textiles'); G.gdTabFillKey({ key: 'Tab', shiftKey: true, target: back });
+  ok('Shift + Tab (going back) fills nothing', back.value === '');
+  const eg = box(''); G.gdSample(eg, '', '1200'); G.gdTabFillKey({ key: 'Tab', shiftKey: false, target: eg });
+  ok('grey text that is only an example ("1200") is not filled', eg.value === '' && eg.placeholder === '1200');
+  const due = box(''); G.gdSample(due, 728, '728 still due'); G.gdTabFillKey({ key: 'Tab', shiftKey: false, target: due });
+  ok('"728 still due" fills 728', due.value === '728');
+  const ro = box(''); ro.readOnly = true; G.gdSample(ro, 'x'); G.gdTabFillKey({ key: 'Tab', shiftKey: false, target: ro });
+  ok('a read-only box is left alone', ro.value === '');
+}
 
 console.log('== the mail and WhatsApp ==');
 const mail = G.poMailText(po([line(1000, 44, '2.5')], 'Payment in 30 days.')).body;
