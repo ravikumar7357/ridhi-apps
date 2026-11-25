@@ -836,6 +836,102 @@ function p1Report() {
   const days = new Map(); ev.forEach(e => { if (!['PLAN', 'CUT', 'ISS', 'REC', 'QC', 'FG'].includes(e.k) || e.unit === 'm') return; const d = days.get(e.day) || days.set(e.day, { day: e.day }).get(e.day); d[e.k] = (d[e.k] || 0) + e.pcs; });
   return { from, to, n: ev.length, tiles, rows, people: [...people.values()].sort((a, b) => b.n - a.n), KS, days: [...days.values()].sort((a, b) => b.day.localeCompare(a.day)) };
 }
+/* ---------- THE LINES REPORT ON THE PAGE (Ravi, 25 Nov, with his ppc-report-2026-11-19-to-2026-11-25.xlsx: "I want the ppc report
+ * page to be in this pattern and also I want it to be acurate in its report and also make it work in such a way its really
+ * impressive and show really good way of data") ----------
+ * On top of PPC → Report, for the lines PLANNED in the period (first plan save; "Report on" switches to came-in or still waiting):
+ * the headline figures, a bar of where every piece is, when the open lines fall due week by week, each channel and category;
+ * then the file's two sheets — Lines (his columns, the groups in his colours) and Summary by SKU. Every figure comes from
+ * flowRepLines / flowRepDash (flow-report.js), the same as the Excel, which the Download button writes. The sections that were
+ * here before stay below it. Figures only: nothing here writes. */
+const P1_PLACE_TONE = { plan: '#A3ACB9', rfd: '#4A6A92', prn: '#7C5CD6', emb: '#B04A8F', prnStore: '#A78BDE', toCut: '#D98A1F', cutStore: '#E7B46A',
+  kar: '#C8621B', recv: '#2E8A78', qc: '#5FB3A1', press: '#7FA35A', out: '#8C7B6B', done: '#3B7A2A' };
+let P1_REPC = { key: null, out: null };
+/** The report's lines for the chosen days, worked out again only when the registers, the days or the due dates change. */
+function p1RepLines() {
+  const [from, to] = p1RangeDates(), on = P1.ron || 'planned', so = typeof SOX !== 'undefined' ? SOX.rows : null;
+  const key = p1SrcKey().concat([from, to, on, so, typeof PTG !== 'undefined' ? PTG.press : null]);
+  if (P1_REPC.out && p1Same(P1_REPC.key, key)) return P1_REPC.out;
+  const lines = flowRepLines({ from: from || '0000-00-00', to: to || '9999-12-31', on, kind: 'ppc', soDue: flowRepSoDue() });
+  P1_REPC = { key, out: { lines, from, to, on } }; return P1_REPC.out;
+}
+const p1Pct = (n, of) => of > 0 ? Math.max(0, Math.min(100, n / of * 100)) : 0;
+/** The headline figures. */
+function p1RepKpis(D) {
+  const pend = D.ordered - D.completed, k = (v, l, sub, tone) => `<div class="rk${tone ? ' ' + tone : ''}"><span>${esc(l)}</span><b>${v}</b><i>${sub}</i></div>`;
+  return `<div class="rk-row">${k(p1N(D.ordered), 'Ordered', `${p1N(D.lines)} lines · ${p1N(D.orders)} orders · ${p1N(D.skus)} SKUs`)}
+    ${k(p1N(D.completed), 'Completed', `<span class="rk-bar"><em style="width:${p1Pct(D.completed, D.ordered).toFixed(1)}%"></em></span>${p1Pct(D.completed, D.ordered).toFixed(0)}% in Finished Goods / handed over`, 'ok')}
+    ${k(p1N(pend), 'Pending', 'pieces still in production', '')}
+    ${k(p1N(D.late), 'Late lines', `${p1N(D.latePcs)} pcs past their due date`, D.late ? 'bad' : '')}
+    ${k(p1N(D.plannedLate), 'Planned after due', 'lines whose ready date is after the due date', D.plannedLate ? 'warn' : '')}
+    ${k(p1N(D.noDue), 'No due date', 'open lines with no date to keep', '')}</div>`;
+}
+/** Where every piece is: one bar for all of them, and a key that filters the lines to that process. */
+function p1RepPipe(D) {
+  if (!D.ordered) return '';
+  return `<div class="card rp2"><div class="rp-cap"><b>Where all ${p1N(D.ordered)} pieces are now</b><span class="muted"> · click a place to see its lines</span></div>
+    <div class="rp-pipe">${D.places.map(e => `<span style="width:${p1Pct(e.pcs, D.ordered).toFixed(2)}%;background:${P1_PLACE_TONE[e.k]}" title="${esc(e.label)}: ${p1N(e.pcs)} pcs"></span>`).join('')}</div>
+    <div class="rp-keys">${D.places.map(e => `<button type="button" class="rp-key${P1.rproc === e.proc ? ' on' : ''}" data-p1rproc="${esc(e.proc)}"><i style="background:${P1_PLACE_TONE[e.k]}"></i><b>${p1N(e.pcs)}</b><span>${esc(e.label)}</span><small>${p1Pct(e.pcs, D.ordered).toFixed(0)}%</small></button>`).join('')}</div></div>`;
+}
+/** When the open lines fall due, week by week (late weeks red), and how each channel and category stands. */
+function p1RepCharts(D, today) {
+  const wk = D.weeks, top = Math.max(1, ...wk.map(w => w.pcs)), thisWeek = typeof flowRepWeekOf === 'function' ? flowRepWeekOf(today) : '';
+  const due = `<div class="card rp2"><div class="rp-cap"><b>When the open lines are due</b><span class="muted"> · pending pieces by week</span></div>
+    ${wk.length ? `<div class="rp-cols">${wk.map(w => `<div class="rp-col${w.late ? ' late' : ''}${w.week === thisWeek ? ' now' : ''}" title="${w.week ? 'Week of ' + p1Day(w.week) : 'No due date'}: ${p1N(w.lines)} line${w.lines === 1 ? '' : 's'}, ${p1N(w.pcs)} pcs">
+      <small>${p1N(w.pcs)}</small><span style="height:${Math.max(3, p1Pct(w.pcs, top)).toFixed(1)}%"></span><b>${w.week ? p1Day(w.week) : 'no date'}</b><i>${p1N(w.lines)} line${w.lines === 1 ? '' : 's'}</i></div>`).join('')}</div>
+      <div class="rp-legend"><span><i class="late"></i>past due</span><span><i></i>due ahead</span><span><i class="now"></i>this week</span></div>` : '<div class="empty">Every line is completed.</div>'}</div>`;
+  const bars = (title, list) => { const big = Math.max(1, ...list.map(e => e.ordered)), shown = list.slice(0, 8);
+    return `<div class="card rp2"><div class="rp-cap"><b>${esc(title)}</b><span class="muted"> · completed of ordered</span></div><div class="rp-hb">${shown.map(e => `<div class="rp-hrow" title="${esc(e.name)}: ${p1N(e.completed)} of ${p1N(e.ordered)} completed · ${p1N(e.lines)} lines · ${p1N(e.late)} late">
+      <span class="nm">${esc(e.name)}</span><span class="tr"><span class="or" style="width:${p1Pct(e.ordered, big).toFixed(1)}%"><em style="width:${p1Pct(e.completed, e.ordered).toFixed(1)}%"></em></span></span>
+      <span class="fg"><b>${p1N(e.ordered)}</b> · ${p1Pct(e.completed, e.ordered).toFixed(0)}%${e.late ? ` · <i>${p1N(e.late)} late</i>` : ''}</span></div>`).join('')}${list.length > 8 ? `<div class="muted sm">and ${p1N(list.length - 8)} more</div>` : ''}</div></div>`; };
+  return `<div class="rp-three">${due}${bars('By channel', D.channels)}${bars('By category', D.categories)}</div>`;
+}
+/** The Lines sheet on the page: his columns under his coloured groups; late lines tinted; filtered by process, late, search. */
+function p1RepTable(lines) {
+  const cols = FLOW_REP_COLS, groups = []; cols.forEach(c => { const l = groups[groups.length - 1]; if (l && l[0] === c[0]) l[1]++; else groups.push([c[0], 1]); });
+  const tone = n => FLOW_REP_GRP[n] || ['F1EFE8', '444441'], lim = P1.rlim || 200;
+  const cell = (c, x) => { const v = c[2](x), k = c[3];
+    if (k === 'date') return `<td class="dt">${v ? esc(p1Day(v)) : ''}</td>`;
+    if (k === 'num' || k === 'qty') return `<td class="num">${+v > 0 ? `<b>${p1N(v)}</b>` : ''}</td>`;
+    if (k === 'late') return `<td class="num">${typeof v === 'string' ? (v ? `<span class="rp-done">${esc(v)}</span>` : '') : +v > 0 ? `<b class="late">${p1N(v)} d</b>` : ''}</td>`;
+    if (c[1] === 'Process') return `<td><span class="rp-proc" style="--c:${P1_PLACE_TONE[(FLOW_REP_PLACES.find(e => e[2] === v) || [])[0]] || '#A3ACB9'}">${esc(v)}</span></td>`;
+    return `<td${k === 'sku' ? ' class="sku"' : ''}>${esc(v == null ? '' : v)}</td>`; };
+  return `<div class="ff-grid rp-lines"><table class="xl"><thead><tr>${groups.map(([n, k]) => `<th colspan="${k}" class="grp" style="background:#${tone(n)[0]};color:#${tone(n)[1]}">${esc(n)}</th>`).join('')}</tr>
+    <tr>${cols.map(c => `<th class="${['num', 'qty', 'late'].includes(c[3]) ? 'num' : ''}" style="background:#${tone(c[0])[0]};color:#${tone(c[0])[1]}">${esc(c[1])}</th>`).join('')}</tr>
+    <tr class="tot">${cols.map((c, i) => i === 0 ? '<td><b>Total (shown lines)</b></td>' : c[3] === 'num' || c[3] === 'qty' ? `<td class="num"><b>${p1N(lines.reduce((t, x) => t + (+c[2](x) || 0), 0))}</b></td>` : '<td></td>').join('')}</tr></thead>
+    <tbody>${lines.slice(0, lim).map(x => `<tr${x.late > 0 ? ' class="lt"' : ''}>${cols.map(c => cell(c, x)).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty">No lines here.</td></tr>`}</tbody></table></div>
+    ${lines.length > lim ? `<button type="button" class="lg-more" data-p1rlim>Show all ${p1N(lines.length)} lines</button>` : ''}`;
+}
+/** Summary by SKU, as his pivot: ordered, completed, pending, lines, late lines — the most pending first. */
+function p1RepSummary(lines) {
+  const sk = flowRepSkus(lines).sort((a, b) => b.pending - a.pending || a.sku.localeCompare(b.sku)), lim = P1.rslim || 60;
+  const t = k => sk.reduce((s, e) => s + e[k], 0);
+  return `<div class="card rp2" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Summary by SKU</b><span class="muted"> · ${p1N(sk.length)} SKUs, the most pending first</span></div>
+    <div class="ff-grid" style="max-height:520px"><table class="xl rp-sum"><thead><tr><th class="frz" style="text-align:left">SKU</th><th class="num">Ordered</th><th class="num">Completed</th><th>Done</th><th class="num">Pending</th><th class="num">Lines</th><th class="num">Late lines</th></tr></thead><tbody>
+    ${sk.slice(0, lim).map(e => `<tr><td class="frz sku" style="text-align:left">${esc(e.sku)}</td><td class="num">${p1N(e.pcs)}</td><td class="num">${p1N(e.completed)}</td>
+      <td><span class="rk-bar"><em style="width:${p1Pct(e.completed, e.pcs).toFixed(1)}%"></em></span> <small class="muted">${p1Pct(e.completed, e.pcs).toFixed(0)}%</small></td>
+      <td class="num"><b>${p1N(e.pending)}</b></td><td class="num">${p1N(e.lines)}</td><td class="num">${e.late ? `<b class="late">${p1N(e.late)}</b>` : '<span class="muted">—</span>'}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No lines here.</td></tr>'}
+    ${sk.length ? `<tr class="tot"><td class="frz" style="text-align:left"><b>Grand Total</b></td><td class="num"><b>${p1N(t('pcs'))}</b></td><td class="num"><b>${p1N(t('completed'))}</b></td><td></td><td class="num"><b>${p1N(t('pending'))}</b></td><td class="num"><b>${p1N(t('lines'))}</b></td><td class="num"><b>${p1N(t('late'))}</b></td></tr>` : ''}
+    </tbody></table></div>${sk.length > lim ? `<button type="button" class="lg-more" data-p1rslim>Show all ${p1N(sk.length)} SKUs</button>` : ''}</div>`;
+}
+/** The whole new part: figures, bar, charts, then the two sheets for the lines picked by process / late / search. */
+function p1RepPart() {
+  let R; try { R = p1RepLines(); } catch (e) { return `<div class="card"><div class="empty" style="color:var(--bad)">Could not work out the report's lines: ${esc(e.message || e)}</div></div>`; }
+  const today = p1Local(), D = flowRepDash(R.lines, today), q = P1.q.trim().toUpperCase();
+  const shown = R.lines.filter(x => (!P1.rproc || x.process === P1.rproc) && (!P1.rlate || x.late > 0)
+    && (!q || (x.orderNo + ' ' + x.sku + ' ' + x.category + ' ' + x.printedBy + ' ' + x.channel).toUpperCase().includes(q)));
+  const procs = [...new Set(R.lines.map(x => x.process))].filter(Boolean), cnt = p => R.lines.filter(x => x.process === p).length;
+  const on = (FLOW_REP_ON.find(o => o[0] === R.on) || FLOW_REP_ON[0])[1];
+  return `<div class="rp-head2"><label class="muted">Report on <select data-p1ron>${FLOW_REP_ON.map(([k, l]) => `<option value="${k}"${k === R.on ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <span style="flex:1"></span>${flowRepAllowed() ? `<button type="button" class="p1-go" data-p1rxl${R.lines.length ? '' : ' disabled'}>Download Excel (Lines, Summary)</button>` : ''}</div>
+    ${FLOW_REP.soErr ? `<div class="hwarn">${esc(FLOW_REP.soErr)}</div>` : ''}
+    ${R.lines.length ? p1RepKpis(D) + p1RepPipe(D) + p1RepCharts(D, today) : `<div class="card"><div class="empty">No lines for "${esc(on)}" in these days.</div></div>`}
+    ${R.lines.length ? `<div class="card rp2" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Lines</b><span class="muted"> · ${p1N(shown.length)} of ${p1N(R.lines.length)} · each row's stages and Completed add up to its order</span><span style="flex:1"></span>
+      <button type="button" class="rp-chip${P1.rlate ? ' on' : ''}" data-p1rlate>Late only · ${p1N(D.late)}</button></div>
+      <div class="rp-chips"><button type="button" class="rp-chip${P1.rproc ? '' : ' on'}" data-p1rproc="">All · ${p1N(R.lines.length)}</button>${procs.map(p => `<button type="button" class="rp-chip${P1.rproc === p ? ' on' : ''}" data-p1rproc="${esc(p)}"><i style="background:${P1_PLACE_TONE[(FLOW_REP_PLACES.find(e => e[2] === p) || [])[0]] || '#A3ACB9'}"></i>${esc(p)} · ${p1N(cnt(p))}</button>`).join('')}</div>
+      ${p1RepTable(shown)}</div>${p1RepSummary(shown)}` : ''}
+    <div class="rp-old">Movements, work in progress and work given out in the same days</div>`;
+}
 function p1DrawReport() {
   const el = $('p1Home');
   let R; try { R = p1Report(); } catch (e) { el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}</div><div class="card"><div class="empty" style="color:var(--bad)">Could not read the registers: ${esc(e.message || e)}</div></div>`; return; }
@@ -846,7 +942,8 @@ function p1DrawReport() {
   el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<input type="search" class="p1-q" id="p1Q" placeholder="Search a lot, printer, karigar or SKU…" value="${esc(P1.q)}"></div>
     <div class="p1-segrow" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="seg">${P1_RANGES.map(r => `<button type="button" class="segbtn${(P1.rr || '7') === r[0] ? ' on' : ''}" data-p1rr="${r[0]}">${r[1]}</button>`).join('')}</div>
       ${(P1.rr || '7') === 'custom' ? `<label class="rp-date">From <input type="date" data-p1rd="rf" value="${esc(P1.rf || '')}"></label><label class="rp-date">To <input type="date" data-p1rd="rt" value="${esc(P1.rt || '')}"></label>` : ''}
-      <span class="muted" style="font-size:12.5px">${esc(per)} · ${p1N(R.n)} movements</span><span style="flex:1"></span><button type="button" class="ghost" data-p1csv>Download (CSV)</button></div>
+      <span class="muted" style="font-size:12.5px">${esc(per)} · ${p1N(R.n)} movements</span><span style="flex:1"></span><button type="button" class="ghost" data-p1csv>Download movements (CSV)</button></div>
+    ${p1RepPart()}
     <div class="rp-tiles">${R.tiles.map(t => `<div><b>${t[3] && !t[2] ? p1N(t[3]) + '<small> m</small>' : p1N(t[2]) + (t[3] ? `<small> pcs · ${p1N(t[3])} m</small>` : '')}</b><span>${esc(t[1])}</span></div>`).join('')}</div>
     ${p1WipCard()}
     <div class="card" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Work given out — and what came back</b><span class="muted"> · given and back in the period; still out is today</span>
@@ -877,6 +974,15 @@ function p1DrawReport() {
   on('[data-p1csv]', () => p1ReportCsv(R));
   on('[data-p1wxl]', () => p1WipExcel());
   on('[data-p1wpage]', () => p1WipPage());
+  /* the lines report on top (25 Nov) */
+  on('[data-p1ron]', b => { P1.ron = b.value; P1.rproc = ''; P1.rlim = 0; p1Draw(); }, 'onchange');
+  on('[data-p1rproc]', b => { P1.rproc = P1.rproc === b.dataset.p1rproc ? '' : b.dataset.p1rproc; P1.rlim = 0; p1Draw(); });
+  on('[data-p1rlate]', () => { P1.rlate = !P1.rlate; P1.rlim = 0; p1Draw(); });
+  on('[data-p1rlim]', () => { P1.rlim = Infinity; p1Draw(); });
+  on('[data-p1rslim]', () => { P1.rslim = Infinity; p1Draw(); });
+  on('[data-p1rxl]', () => { const R = p1RepLines(); if (R.lines.length) flowRepDownload(R.lines, { kind: 'ppc', on: R.on, from: R.from, to: R.to }); });
+  /* the sales orders' due dates, read once for the report (as its dialog does); drawn again when they come */
+  if (typeof flowRepSoLoad === 'function' && !P1.soAsked) { P1.soAsked = true; flowRepSoLoad().then(read => { if (read && P1.shown && P1.view === 'report') p1Draw(); }); }
   const qi = el.querySelector('#p1Q'); if (qi) qi.oninput = () => { P1.q = qi.value; clearTimeout(P1.qt); P1.qt = setTimeout(() => { p1Draw(); const n = $('p1Q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); };
 }
 /** The report as a CSV file: the work given out, then who entered what, then day by day. */

@@ -2306,6 +2306,74 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .rp-date{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin:0;font-weight:600;text-transform:none;letter-spacing:0}
 #p1Home .rp-date input{height:32px;width:auto;border:1px solid var(--line);border-radius:9px;padding:0 8px;background:#fff;color:var(--ink)}
 @media (max-width:1100px){#p1Home .rp-two{grid-template-columns:1fr}}
+/* the lines report on top of PPC → Report (25 Nov): headline figures, where every piece is, due weeks, channels and categories, the two sheets */
+#p1Home .rp-head2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 12px}
+#p1Home .rp-head2 select{height:32px;width:auto;border:1px solid var(--line);border-radius:8px;padding:0 8px;font:inherit;font-size:12.5px;margin-left:6px}
+#p1Home .hwarn{margin:0 0 10px;font-size:12px;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:6px 10px}
+#p1Home .rk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}
+#p1Home .rk{background:#fff;border-radius:14px;box-shadow:var(--sh-1);padding:12px 16px;display:flex;flex-direction:column;gap:3px;border-top:3px solid #C9D2DE}
+#p1Home .rk span{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#p1Home .rk b{font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+#p1Home .rk i{font-style:normal;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+#p1Home .rk.ok{border-top-color:#3B7A2A} #p1Home .rk.ok b{color:#2F6B22}
+#p1Home .rk.bad{border-top-color:var(--bad)} #p1Home .rk.bad b{color:var(--bad)}
+#p1Home .rk.warn{border-top-color:#D98A1F} #p1Home .rk.warn b{color:#9A5B0C}
+#p1Home .rk-bar{display:inline-block;width:70px;height:6px;border-radius:999px;background:#EEF1F5;overflow:hidden;vertical-align:middle}
+#p1Home .rk-bar em{display:block;height:100%;background:#3B7A2A;border-radius:999px}
+#p1Home .rp2{margin-bottom:14px}
+#p1Home .rp2 .empty{padding:16px}
+#p1Home .rp-pipe{display:flex;height:22px;margin:14px 16px 10px;border-radius:999px;overflow:hidden;background:#EEF1F5}
+#p1Home .rp-pipe span{display:block;height:100%;min-width:3px;border-right:2px solid #fff}
+#p1Home .rp-keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:6px;padding:0 16px 14px}
+#p1Home .rp-key{display:flex;align-items:baseline;gap:7px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 10px;text-align:left;cursor:pointer;color:var(--ink);font-weight:400;box-shadow:none}
+#p1Home .rp-key:hover{border-color:#C9D2DE;background:var(--soft,#F7F9FB)}
+#p1Home .rp-key.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+#p1Home .rp-key i{width:10px;height:10px;border-radius:3px;flex:none;align-self:center}
+#p1Home .rp-key b{font-size:15px;font-variant-numeric:tabular-nums}
+#p1Home .rp-key span{font-size:12px;flex:1}
+#p1Home .rp-key small{color:var(--muted);font-size:11px}
+#p1Home .rp-three{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:14px}
+@media (max-width:1150px){#p1Home .rp-three{grid-template-columns:1fr}}
+#p1Home .rp-cols{display:flex;align-items:flex-end;gap:6px;height:190px;padding:14px 16px 4px;overflow-x:auto}
+#p1Home .rp-col{flex:1 0 44px;max-width:70px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px}
+#p1Home .rp-col span{display:block;width:70%;background:#7C9CC4;border-radius:6px 6px 2px 2px}
+#p1Home .rp-col.late span{background:#C0392B}
+#p1Home .rp-col.now span{background:#D98A1F}
+#p1Home .rp-col small{font-size:10.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+#p1Home .rp-col b{font-size:10.5px;font-weight:700;white-space:nowrap;color:var(--ink)}
+#p1Home .rp-col i{font-style:normal;font-size:10px;color:var(--muted);white-space:nowrap}
+#p1Home .rp-legend{display:flex;gap:14px;padding:4px 16px 12px;font-size:11px;color:var(--muted)}
+#p1Home .rp-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;background:#7C9CC4;margin-right:4px;vertical-align:middle}
+#p1Home .rp-legend i.late{background:#C0392B} #p1Home .rp-legend i.now{background:#D98A1F}
+#p1Home .rp-hb{padding:12px 16px 14px;display:flex;flex-direction:column;gap:9px}
+#p1Home .rp-hrow{display:grid;grid-template-columns:minmax(80px,120px) 1fr auto;gap:8px;align-items:center;font-size:12px}
+#p1Home .rp-hrow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+#p1Home .rp-hrow .tr{height:12px;background:transparent}
+#p1Home .rp-hrow .or{display:block;height:100%;background:#E3E8EF;border-radius:4px;overflow:hidden;min-width:4px}
+#p1Home .rp-hrow .or em{display:block;height:100%;background:#3B7A2A}
+#p1Home .rp-hrow .fg{font-size:11.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+#p1Home .rp-hrow .fg b{color:var(--ink)} #p1Home .rp-hrow .fg i{font-style:normal;color:var(--bad);font-weight:700}
+#p1Home .rp-chips{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line)}
+#p1Home .rp-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:12px;font-weight:600;box-shadow:none;cursor:pointer}
+#p1Home .rp-chip:hover{background:var(--soft,#F7F9FB)}
+#p1Home .rp-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+#p1Home .rp-chip i{width:9px;height:9px;border-radius:2px}
+#p1Home .rp-lines{max-height:620px;overflow:auto}
+#p1Home .rp-lines table.xl th,#p1Home .rp-lines table.xl td{font-size:12px;padding:6px 9px;text-align:left;white-space:nowrap}
+#p1Home .rp-lines table.xl th.num,#p1Home .rp-lines table.xl td.num{text-align:right}
+#p1Home .rp-lines table.xl th.grp{text-align:center;letter-spacing:.05em}
+#p1Home .rp-lines thead tr:nth-child(2) th{top:31px}
+#p1Home .rp-lines thead tr.tot td{position:sticky;top:62px;z-index:2;background:#F7F5EF;border-bottom:2px solid #D3D1C7}
+#p1Home .rp-lines td.sku,#p1Home .rp-sum td.sku{font-weight:700;font-family:ui-monospace,Consolas,monospace;font-size:11.5px}
+#p1Home .rp-lines tr.lt td{background:#FCEBEB}
+#p1Home .rp-lines .late,#p1Home .rp-sum .late{color:#A32D2D}
+#p1Home .rp-done{color:#2F6B22;font-weight:700}
+#p1Home .rp-proc{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+#p1Home .rp-proc::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
+#p1Home .rp-sum th,#p1Home .rp-sum td{text-align:left;font-size:12.5px}
+#p1Home .rp-sum th.num,#p1Home .rp-sum td.num{text-align:right}
+#p1Home .rp-sum tr.tot td{background:#DDEBF7}
+#p1Home .rp-old{margin:26px 0 12px;padding-top:14px;border-top:2px dashed var(--line);font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 /* The old PPC link is off the menu: this page is "PPC" now (its screen and code stay — the Demand buttons open it). */
 #tabFlow{display:none!important}
 /* Production lots and the WIP sheet (Ravi, 28 Oct) */
