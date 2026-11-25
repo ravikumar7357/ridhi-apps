@@ -133,3 +133,67 @@ choices, 3 now answered right. The gate checks against this record while MEERA_V
   - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? cutting entry save ka
   - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? cutting entry save ka
 
+## 2026-11-25 07:01 — Record re-made after main was merged into dev on 16 Nov, which had left it out of step: dev's answer bank now runs with main's 'language told right' (10 Nov) and My work today / karigar WhatsApp answers (14 Nov). 13 of the 20 answers are what main already recorded; 7 are small differences from the mix (other 'did you mean' choices, the joke in English). One misspelt question, 'nit shift extra hours 22:00 to 02:00', is no longer offered its answer (207 to 206) - to be put right as its own job. Agreed in chat, 25 Nov.
+
+- score: spelling-mistake questions: right 102→102, offered 105→104, wrong 6→6, not sure 25→26
+- answer `eval|shop|it says too many tries and wont let me log in`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? too many attempts aa 
+  - after: - · I'm not fully sure what you mean. Is it one of these? too many attempts wrong email or pas
+- answer `eval|shop|admin just gave me the cutting screen but i still dont see it`
+  - before: gn-right-just-given · Kripya Sign out karke dobara login kijiye — nayi permission ya nayi screen agli baar login
+  - after: gn-right-just-given · Please Sign out and sign in again — a new right or a new screen takes effect from your nex
+- answer `eval|shop|my colleague entered stock 2 min ago but its not on my screen`
+  - before: - · I'm not fully sure what you mean. Is it one of these? cant see what my colleague just ente
+  - after: - · I'm not fully sure what you mean. Is it one of these? cant see what my colleague just ente
+- answer `eval|shop|whatsapp didnt open after issue, says no number`
+  - before: pr-jw-wa-auto · This is on Job Work Register , not on this screen. WhatsApp does not open by itself after 
+  - after: pr-jw-wa-auto · This is on Job Work Register , not on this screen. WhatsApp opens by itself on the karigar
+- answer `eval|shop|date ke aage 8d laal kyu dikh rha`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? low aur out ka matlab
+- answer `eval|shop|सिकुड़न 5% से ज़्यादा है, अप्रूव कैसे करें`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? सब एक साथ अप्रूव कैसे करें करेक्
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? सब एक साथ अप्रूव कैसे करें · My 
+- answer `eval|shop|goods came in, how to close the po as received`
+  - before: - · I'm not fully sure what you mean. Is it one of these? close greige po how to receive stock
+  - after: - · I'm not fully sure what you mean. Is it one of these? close greige po Close the PO how to 
+- answer `eval|shop|रनिंग और कट में से कौन सा चुनूं`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? रनिंग और कट में क्या फ़र्क है To
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? रनिंग और कट में क्या फ़र्क है प्
+- answer `eval|shop|zip yes kiya to chain length maang rha`
+  - before: vm-pmdb-zip-ruffle · This is on Master Database , not on this screen. When Zip, Ruffle, Piping dori or Filler f
+  - after: vm-pmdb-zip-ruffle · Ye Master Database par hai, is screen par nahi. Jab Zip, Ruffle, Piping dori ya Filler fab
+- answer `eval|shop|tell me a joke meera`
+  - before: - · Tablecloth kabhi khota kyun nahi? Kyunki us par hamesha uska SKU laga rehta hai. 😄 Ab bat
+  - after: - · Why did the tablecloth never get lost? Because it always had its SKU on it. 😄 Now — what 
+- answer `eval2|shop|reject wale piece kise bolte h`
+  - before: - · I'm not fully sure what you mean. Is it one of these? what is reject how to receive pieces
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? reject ka matlab kari
+- answer `eval2|shop|fba bolte h wo kaunsa godown h`
+  - before: - · I'm not fully sure what you mean. Is it one of these? what is fba what is fba dispatch pic
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? fba kya hai fba dispa
+- answer `eval2|shop|printer gave me a paper slip with the goods, is that a challan? what do i do with it`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? challan kya hai print
+  - after: - · I'm not fully sure what you mean. Is it one of these? what is challan print the print orde
+- answer `eval2|shop|the column just says cover, what does that number tell me`
+  - before: dl-repl-cannotcover · Ye Replenishment par hai, is screen par nahi. Cannot cover un mahino ki kul kam units hai 
+  - after: dl-repl-cannotcover · This is on Replenishment , not on this screen. Cannot cover is the total of units short in
+- answer `eval2|shop|custom order wala tick kab lagate h`
+  - before: - · I'm not fully sure what you mean. Is it one of these? what is custom order tick how to mak
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? custom order tick kya
+- answer `eval2|shop|तारीख वाले खाने में पिछले महीने की तारीख कैसे डालूँ`
+  - before: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? पुराने शॉपिफाई ऑर्डर कैसे देखें 
+  - after: - · मैं पक्का नहीं समझ पाई। क्या आप इनमें से कुछ पूछ रहे हैं? पुराने शॉपिफाई ऑर्डर कैसे देखें 
+- answer `eval2|shop|it won't let me type 10.5 pieces`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? box me akshar nahi ja
+  - after: - · I'm not fully sure what you mean. Is it one of these? box not accepting letters Pieces · Q
+- answer `eval2|shop|pressed went up but To make didn't drop at all, why`
+  - before: - · I'm not fully sure what you mean. Is it one of these? why did stock change when i deleted 
+  - after: - · I'm not fully sure what you mean. Is it one of these? why did stock change when i deleted 
+- answer `eval2|shop|register me 240 piece hai par payout me 210 hi, baaki kaha gaye`
+  - before: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? payout kahan 
+  - after: - · Aapka sawaal ek se zyada jawaabon se milta hai. Aap kaunsa poochh rahe hain? payout me pie
+- answer `eval2|shop|karigar ko maal de diya par cutting chadhayi hi nahi thi, ab system rok raha`
+  - before: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? kata hua jo abhi issu
+  - after: - · Main pakka nahi samajh paayi. Kya aap inme se kuch poochh rahe hain? used partly unused ka
+
