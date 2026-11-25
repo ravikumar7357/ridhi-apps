@@ -42158,7 +42158,11 @@ function issOpen(no, onlyLot) {
   lots.forEach(function (g) { ISS.pick[g.lot] = {}; ISS.qty[g.lot] = ''; });
   $('issTitle').textContent = 'Issue to RFD · ' + po.poNo;
   $('issProc').innerHTML = '<option value="">Choose the RFD processor…</option>' + lmProcessors().map(function (p) { return '<option>' + esc(p) + '</option>'; }).join('');
-  $('issDate').value = lmToday(); $('issNo').value = rfdChNewNo(); $('issRem').value = ''; $('issLr').value = '';
+  $('issDate').value = lmToday(); $('issNo').value = rfdChNewNo(); $('issRem').value = '';
+  /* THE LR NUMBER COMES WITH THE GREIGE (Ravi, 25 Nov: "auto filled from the greige order lr that was filled while receiving"):
+   * the LR typed on the supplier's challan when these lots were received, each once. It can still be changed. */
+  $('issLr').value = uniq((DB.fab || []).filter(function (r) { return r.txnType === 'RECEIVE_GREIGE' && ISS.pick[r.lot] && String(r.lr || '').trim(); })
+    .map(function (r) { return String(r.lr).trim(); })).join(', ');
   $('issErr').classList.add('hide');
   issDraw();
   $('lmIss').classList.remove('hide');
@@ -43128,13 +43132,16 @@ function poDocBody(po) {
   return '<div class="pod"><style>' + css + '</style>'
     + '<h1>PURCHASE ORDER</h1>'
     + '<table class="hd"><colgroup><col style="width:50%"><col style="width:25%"><col style="width:25%"></colgroup>'
-    + '<tr><td rowspan="4">' + me + '</td>'
+    + '<tr><td rowspan="5">' + me + '</td>'
     + '<td class="r">' + cell('Voucher No.', po.poNo) + '</td><td class="r">' + cell('Dated', fmtD(po.date)) + '</td></tr>'
-    /* the box under the voucher number was blank: it carries the order's value (Ravi, 25 Nov) */
-    + '<tr><td class="r">' + cell('Order Value', RUPEE + ' ' + money(t.amount)) + '</td><td class="r">' + cell('Mode/Terms of Payment', po.pay) + '</td></tr>'
-    + '<tr><td class="r">' + cell('Reference No. & Date.', po.poNo) + '</td>'
-    + '<td class="r">' + cell('Other References', po.other) + '</td></tr>'
+    /* THE ORDER VALUE, IN FIGURES AND IN WORDS, IN ONE BOX (Ravi, 25 Nov: the box under the voucher number was blank; then
+     * "put [the amount in words] beside the order value or expand its box"). The box runs the width of the voucher panel; the
+     * words are no longer printed again under the total. */
+    + '<tr><td class="r" colspan="2" style="height:auto"><div style="display:flex;justify-content:space-between"><span class="lab">Order Value</span><i class="lab">E. &amp; O.E</i></div>'
+    + '<div class="val">' + RUPEE + ' ' + money(t.amount) + '</div><div class="words" style="margin:1px 0 2px">' + esc(inrWords(t.amount)) + '</div></td></tr>'
+    + '<tr><td class="r">' + cell('Reference No. & Date.', po.poNo) + '</td><td class="r">' + cell('Mode/Terms of Payment', po.pay) + '</td></tr>'
     + '<tr><td class="r">' + cell('Dispatched through', po.disp) + '</td><td class="r">' + cell('Destination', po.dest) + '</td></tr>'
+    + '<tr><td class="r" colspan="2">' + cell('Other References', po.other) + '</td></tr>'
     + '<tr><td>' + shipTo + '</td><td colspan="2" rowspan="2">' + '<div class="lab">Terms &amp; Conditions</div><div class="val" style="font-weight:400;white-space:pre-line">' + esc(terms) + '</div></td></tr>'
     + '<tr><td>' + supplier + '</td></tr>'
     + '</table>'
@@ -43148,9 +43155,6 @@ function poDocBody(po) {
     + '<td class="n b">' + money(t.metres) + ' Mtr</td><td></td><td></td><td></td>'
     + '<td class="n b">' + RUPEE + ' ' + money(t.amount) + '</td></tr>'
     + '</tbody></table>'
-    + '<div class="box"><div style="display:flex;justify-content:space-between">'
-    + '<span>Amount Chargeable (in words)</span><i>E. &amp; O.E</i></div>'
-    + '<div class="words">' + esc(inrWords(t.amount)) + '</div></div>'
     + '<div class="foot"><div class="l">'
     + (co.pan ? '<div>Company\u2019s PAN <span style="display:inline-block;width:40px"></span>: <b>' + esc(co.pan) + '</b></div>' : '')
     + '</div><div class="r"><b>for ' + esc(co.name || '') + '</b><span>Authorised Signatory</span></div></div>'

@@ -53,6 +53,16 @@ console.log('== part of a bale goes to RFD; the rest stays in the greige store =
   ok('ticked with nothing typed: all that is left of each bale goes (100 + 900 m)', out.length === 2 && out[1].qty === 1000 && out[1].baleM['7582'] === 100 && out[1].baleM['7581'] === 900);
   ok('…a bale all gone is not offered again; 7580 is, whole', G.lotBales('LOT-016').map(x => x.than + ':' + x.m).join() === '7580:800');
 }
+console.log('== the LR number is filled from the greige receipt ==');
+{
+  const G = desk(ADMIN), d = db(); d.fab[0].lr = 'LR-7788'; G.setDB(d);
+  G.issOpen('PO/1');
+  ok('the LR typed when the greige was received is already in the box', els.issLr.value === 'LR-7788', els.issLr.value);
+  G.getISS().pick['LOT-016']['7582'] = true; els.issProc.value = 'R.K. Bleaching'; G.issSave();
+  ok('…and is saved on the issue', G.getDB().fab.filter(r => r.txnType === 'ISSUE_TO_RFD')[0].lr === 'LR-7788');
+  const G2 = desk(ADMIN); G2.setDB(db()); G2.issOpen('PO/1');
+  ok('no LR on the receipt: the box is empty', els.issLr.value === '');
+}
 console.log('== an older issue that named only the bales took them whole ==');
 {
   const G = desk(ADMIN), d = db();
