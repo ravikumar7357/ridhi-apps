@@ -548,31 +548,40 @@ function p1HistEvents(r) {
   const keys = new Set(r.lines.map(x => x.s.key)), o = P1.hist === r.gk ? P1.histOrd : '';
   return p1Events().filter(e => keys.has(flowKey(e.orderNo, e.sku)) && (!o || e.orderNo === obUC(o)));
 }
-/* EASY TO READ (Ravi, 24 Nov: "the 2nd image is not even understandable"; asked first for "where the pieces are now"). The
- * card now opens on one sentence and a row of steps; each step says how many of the ordered pieces have got through it, from
- * the same line figures as the Production list (each capped at the line's order, so they never pass what was ordered), and
- * where pieces wait, how many, since how long and with whom. The entries follow, in plain words; a total in the entries that
- * runs past the order is said under them, never shown as if it were the count. A lot with no number says "No lot" unless
- * something of it still waits for a plan — "To plan" sat on top of a line that was cut, issued and in QC. */
-const P1_HSTEPS = [['plan', 'Planned', ['PLAN']], ['rfd', 'Cloth to printer', ['RFD']], ['prn', 'Printed', ['PRN']], ['cut', 'Cut', ['CUT']], ['iss', 'Given to karigar', ['ISS']],
-  ['kar', 'Back from karigar', ['REC']], ['qc', 'QC passed', ['QC']], ['rdy', 'In Finished Goods', ['FG', 'SHIP']]];
-/** How many of a line's pieces have got through each step — the line's own figures, capped at its order. */
-function p1LineDone(x, st) {
-  const s = x.s, q = st.q, c = v => Math.max(0, Math.min(q, +v || 0));
-  return { plan: st.planned ? q : 0, rfd: c(s.given), prn: c(s.back), cut: c(s.cut), iss: c(s.issuedNet), kar: c(s.received), qc: c(s.qc), rdy: c(s.india) };
+/* WHICH PIECE IS WHERE, AND WHEN EACH STEP HAPPENED (Ravi, 25 Nov, of the step cards: "its not even understandable make it
+ * like I can actually know which peice is where and also how manuy peices passed which stage and when"). Two parts, then
+ * the entries:
+ *  1. WHERE THE PIECES ARE NOW: every ordered piece in one place, from the same per-line figures as the WIP report
+ *     (p1WipLine): in Finished Goods, passed QC, in QC, with a karigar, cut in store, to cut, at embroidery, at the printer,
+ *     at the RFD store, not started. A bar and a list that add up to the order; what no register places is said as "not
+ *     traced", never left out.
+ *  2. WHAT PASSED EACH STEP, AND WHEN: the entries of each step added up, with the day of each (12 Nov · 1, 18 Nov · 3), set
+ *     against the order; past the order in red. Read from the same movements as the ledger; nothing new is kept.
+ * A lot with no number says "No lot" unless something of it still waits for a plan (24 Nov). */
+const P1_HPLACES = [['done', 'In Finished Goods', 'fg'], ['rdy', 'Passed QC, for Finished Goods to accept', 'fg'], ['qc', 'In QC', 'qc'], ['kar', 'With karigar', 'mk'],
+  ['raw', 'Cut, in store, to give a karigar', 'mk'], ['cut', 'To cut', 'mk'], ['emb', 'At embroidery', 'pr'], ['prn', 'At printer', 'pr'],
+  ['grg', 'At RFD store, not sent to the printer yet', 'st'], ['todo', 'Not started', 'no']];
+/** Each place's key in p1HoldDays: who has the pieces there, and since how many days. */
+const P1_HPLACE_D = { rdy: 'rdy', qc: 'qc', kar: 'kar', raw: 'iss', cut: 'cut', emb: 'prn', prn: 'prn', grg: 'rfd' };
+/** Where the pieces of some order lines are: one row per place that holds any, and the rest of the order as cloth at the
+ *  printer (metres are not pieces yet) or "not traced". `over`: pieces the registers place beyond the order. */
+function p1HistPlaces(wl, ordered, D) {
+  const tot = p1WipTotal(wl), rows = P1_HPLACES.filter(([f]) => tot[f] > 0).map(([f, label, tone]) => { const d = (D || {})[P1_HPLACE_D[f]] || {};
+    return { f, label, tone, pcs: tot[f], who: d.who || [], days: d.days == null ? null : d.days }; });
+  const placed = rows.reduce((t, x) => t + x.pcs, 0), rest = ordered - placed, d = (D || {}).prn || {};
+  if (rest > 0) rows.push(tot.m > 0 ? { f: 'm', label: `At printer, as cloth (${p1N(tot.m)} m)`, tone: 'pr', pcs: rest, who: d.who || [], days: d.days == null ? null : d.days }
+    : { f: 'none', label: 'Not traced: no register says where', tone: 'no', pcs: rest, who: [], days: null });
+  return { rows, over: Math.max(0, -rest) };
 }
-/** The steps of a lot's lines (or one order's): done, waiting (pieces, metres, days, who), or not this way. */
-function p1HistSteps(r, ln) {
-  const S = p1SumStages(ln.map(l => l.st)), D = p1HoldDays(ln.reduce((a, l) => a.concat((r.holds || []).filter(h => flowKey(h.orderNo, h.sku) === l.x.s.key)), []));
-  return P1_HSTEPS.map(([k, title, kinds]) => { const goes = ln.filter(l => !l.st[k].na);
-    return { k, title, kinds, na: S[k].na, done: S[k].done, w: S[k].w, m: S[k].m, days: (D[k] || {}).days, who: (D[k] || {}).who || [],
-      got: goes.reduce((t, l) => t + p1LineDone(l.x, l.st)[k], 0), of: goes.reduce((t, l) => t + l.st.q, 0) }; });
-}
-/** The one sentence on top: where the pieces are. */
-function p1HistSay(steps, ordered) {
-  const at = steps.filter(s => !s.na && (s.w || s.m));
-  if (!at.length) { const fg = steps.find(s => s.k === 'rdy'); return fg && fg.done ? `All ${p1N(ordered)} pieces are in Finished Goods.` : steps[0] && steps[0].done ? 'Nothing is waiting anywhere right now.' : 'Not planned yet.'; }
-  return at.map(s => `<b>${s.w ? p1N(s.w) + ' pcs' : ''}${s.m ? (s.w ? ' + ' : '') + p1N(s.m) + ' m' : ''}</b> ${s.who.length && s.k === 'kar' ? 'with ' + esc(s.who.join(', ')) : esc(P1_NOW[s.k].charAt(0).toLowerCase() + P1_NOW[s.k].slice(1)) + (s.who.length ? (s.k === 'rfd' ? ', for ' : ' (') + esc(s.who.join(', ')) + (s.k === 'rfd' ? '' : ')') : '')}${s.days != null ? ` — <span class="${s.days > P1_STUCK ? 'late' : ''}">${s.days} day${s.days === 1 ? '' : 's'}</span>` : ''}`).join(' · ');
+/** The steps the movements record, in the order the work goes, each with the stage it belongs to (p1SumStages). */
+const P1_HPASS = [['RFD', 'Cloth sent to printer', 'rfd'], ['PRN', 'Printed, back from printer', 'prn'], ['CUT', 'Cut', 'cut'], ['ISS', 'Given to karigar', 'iss'],
+  ['REC', 'Back from karigar', 'kar'], ['QC', 'Passed QC', 'qc'], ['REJ', 'Rejected at QC', ''], ['FG', 'Into Finished Goods', 'rdy'], ['SHIP', 'Handed to shipping', '']];
+/** What passed each step: its pieces (or metres of cloth) and the days they passed on, oldest first. A step on the lot's
+ *  way with no entry yet is listed as "none yet"; a step off its way only when something is on record. */
+function p1HistPassed(ev, S) {
+  return P1_HPASS.map(([k, label, col]) => { const es = ev.filter(e => e.k === k), unit = es.length && es.every(e => e.unit === 'm') ? 'm' : 'pcs';
+    const days = []; es.forEach(e => { const last = days[days.length - 1]; if (last && last.day === e.day) last.n += e.pcs; else days.push({ day: e.day, n: e.pcs }); });
+    return { k, label, unit, n: es.reduce((t, e) => t + e.pcs, 0), days, show: es.length > 0 || (!!col && !!S[col] && !S[col].na) }; }).filter(x => x.show);
 }
 /** What an entry says beyond its step: the generic words of the register dropped, the voucher once. */
 const P1_HPLAIN = new Set(['Finished Goods', 'Job Work · issue', 'Job Work · receipt', 'Cutting Data', 'QC check', 'Press', 'Order book']);
@@ -582,35 +591,40 @@ function p1HistNote(e) {
 }
 function p1History(r) {
   const ev = p1HistEvents(r), ords = [...r.orders], o = P1.hist === r.gk ? obUC(P1.histOrd) : '';
-  const ln = (r.ln || []).filter(l => !o || obUC(l.x.r.orderNo) === o), ordered = ln.reduce((t, l) => t + l.st.q, 0);
-  const lastDay = kinds => { for (let i = ev.length - 1; i >= 0; i--) if (kinds.includes(ev[i].k)) return ev[i].day; return ''; };
-  const steps = p1HistSteps(r, ln).filter(s => !s.na);
-  const card = s => { const now = s.w || s.m, d = lastDay(s.kinds);
-    const state = now ? `<div class="hc-now"><b>${s.w ? p1N(s.w) : ''}${s.m ? (s.w ? ' + ' : '') + p1N(s.m) + ' m' : ''}</b> ${s.k === 'kar' ? 'still with karigar' : 'waiting'}${s.days != null ? ` · <span class="${s.days > P1_STUCK ? 'late' : ''}">${s.days} d</span>` : ''}</div>${s.who.length ? `<div class="hc-who">${esc(s.who.join(', '))}</div>` : ''}`
-      : s.done ? `<div class="hc-ok">✓ Done${d ? ' · ' + p1Day(d) : ''}</div>` : '<div class="hc-ah">Not yet</div>';
-    /* done with no entry of its own (a line issued without a Cutting Data row): say so, not "0 of 497" */
-    const got = s.done && s.got < s.of && s.k !== 'plan' ? '<span class="muted">no entry of its own</span>' : `<b>${p1N(s.got)}</b> of ${p1N(s.of)}`;
-    return `<div class="hc ${now ? 'now' : s.done ? 'ok' : 'ah'}"><div class="hc-t">${esc(s.title)}</div>${state}<div class="hc-n">${got}</div></div>`; };
-  /* the entries: newest first, a day at a time */
+  const idx = (r.lines || []).map((x, i) => i).filter(i => !o || obUC(r.lines[i].r.orderNo) === o);
+  const ln = idx.map(i => (r.ln || [])[i]).filter(Boolean), wl = idx.map(i => (r.wl || [])[i]).filter(Boolean);
+  const ordered = idx.reduce((t, i) => t + (+r.lines[i].r.qty || 0), 0), keys = new Set(idx.map(i => r.lines[i].s.key));
+  const D = p1HoldDays((r.holds || []).filter(h => keys.has(flowKey(h.orderNo, h.sku)))), S = ln.length ? p1SumStages(ln.map(l => l.st)) : {};
+  /* 1. where the pieces are now */
+  const pl = p1HistPlaces(wl, ordered, D), pct = n => ordered > 0 ? Math.max(0, Math.min(100, n / ordered * 100)) : 0;
+  const since = x => x.days == null ? '' : `<span class="hp-d${x.days > P1_STUCK && x.f !== 'done' ? ' late' : ''}">${x.days} day${x.days === 1 ? '' : 's'}</span>`;
+  const who = x => x.who.length ? `<span class="hp-w">${x.f === 'grg' ? 'for ' : ''}${esc(x.who.join(', '))}</span>` : '';
+  const where = `<div class="hbar">${pl.rows.map(x => `<span class="hb ${x.tone}" style="width:${pct(x.pcs).toFixed(2)}%" title="${esc(x.label)}: ${p1N(x.pcs)} pcs"></span>`).join('')}</div>
+    <div class="hplaces">${pl.rows.map(x => `<div class="hp"><i class="hdot ${x.tone}"></i><b>${p1N(x.pcs)}</b><span class="hp-l">${esc(x.label)}</span>${who(x)}${since(x)}</div>`).join('') || '<div class="muted">Nothing is ordered on this line.</div>'}</div>
+    ${pl.over ? `<div class="hwarn">The registers place <b>${p1N(pl.over)}</b> more pieces than the ${p1N(ordered)} ordered.</div>` : ''}`;
+  /* 2. what passed each step, and when */
+  const passed = p1HistPassed(ev, S).map(x => { const big = x.unit === 'pcs' && ordered > 0 && x.n > ordered;
+    return `<tr><td><b>${esc(x.label)}</b></td><td class="num"><b${big ? ' class="late"' : ''}>${x.n ? p1N(x.n) + (x.unit === 'm' ? ' m' : '') : '—'}</b></td>`
+      + `<td>${x.unit === 'pcs' ? `<span class="hpb"><i style="width:${pct(x.n).toFixed(2)}%"></i></span><span class="muted">${big ? `<span class="late">more than the ${p1N(ordered)} ordered</span>` : `of ${p1N(ordered)}`}</span>` : '<span class="muted">cloth, in metres</span>'}</td>`
+      + `<td class="hdays">${x.days.map(d => `<span class="hday">${d.day ? p1Day(d.day) : 'no date'} · <b>${p1N(d.n)}${x.unit === 'm' ? ' m' : ''}</b></span>`).join('') || '<span class="muted">none yet</span>'}</td></tr>`; }).join('');
+  /* 3. the entries: newest first, a day at a time */
   let prev = '', body = '';
   const many = ords.length > 1 && !o, cols = many ? 7 : 6;
   for (let i = ev.length - 1; i >= 0; i--) { const e = ev[i];
     if (e.day !== prev) { body += `<tr class="hd"><td colspan="${cols}">${e.day ? p1Day(e.day) : 'no date'}</td></tr>`; prev = e.day; }
     body += `<tr><td class="muted">${e.t ? new Date(e.ms).toTimeString().slice(0, 5) : ''}</td><td>${p1Mv(e)}</td><td class="num"><b>${e.k === 'REPLAN' ? '' : p1N(e.pcs) + (e.unit === 'm' ? ' m' : '')}</b></td>`
       + `<td>${esc(e.party || '')}</td>${many ? `<td class="muted">${esc(e.orderNo)}</td>` : ''}<td class="muted">${esc(e.by || '')}</td><td class="hnote">${p1HistNote(e)}</td></tr>`; }
-  /* an entry total past the order is said, not counted (Ravi's CPC-01: 621 into Finished Goods on an order of 497) */
-  const over = P1_HSTEPS.map(([, t, kinds]) => [t, ev.filter(e => kinds.includes(e.k) && e.unit !== 'm').reduce((a, e) => a + e.pcs, 0)]).filter(([, n]) => n > ordered && ordered > 0);
   const lotTag = r.lot ? esc(p1LotTxt(r.lot)) : r.notPlanned ? 'To plan' : 'No lot', parts = p1LotParts(r.lot, r.lines);
   return `<div class="p1-hist"><div class="hh"><b class="p1-lotno${r.lot ? '' : r.notPlanned ? ' new' : ' none'}" title="${r.lot ? 'Production lot' : r.notPlanned ? 'Waiting for a plan' : 'Made without a PPC plan, or planned before lot numbers began'}">${lotTag}</b>
       <div class="hh-t"><b>${esc(r.sku)}</b><span>${esc(r.what)}</span><span class="muted">${p1N(r.ordered)} pcs ordered · ${ords.length} order${ords.length > 1 ? 's' : ''}${r.lot ? ` · planned ${p1Day(r.lot.day)}${r.lot.by ? ' by ' + esc(r.lot.by) : ''}` : ''}</span></div>
       <span class="hh-r">${ords.length > 1 ? `<label class="muted">Order <select data-p1hord><option value="">All orders</option>${ords.map(x => `<option${x === P1.histOrd ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></label>` : ''}<button type="button" class="ghost" data-p1hdl>Download</button><button type="button" class="ghost hx" data-p1close aria-label="Close">×</button></span></div>
     ${parts.length ? `<div class="p1-parts">${parts.map(x => `<span><i>${esc(x[0])}</i>${esc(x[1])}</span>`).join('')}</div>` : ''}
     <div class="hsec">Where the ${p1N(ordered)} pieces are now</div>
-    <div class="hsay">${p1HistSay(steps, ordered)}</div>
-    <div class="hcards">${steps.map(card).join('<span class="hc-ar">›</span>')}</div>
+    ${where}
+    <div class="hsec">What passed each step, and when</div>
+    <div class="ff-grid hpass"><table class="xl"><thead><tr><th>Step</th><th class="num">Pieces</th><th>Against the order</th><th>When</th></tr></thead><tbody>${passed || '<tr><td colspan="4" class="empty">Nothing has passed a step yet.</td></tr>'}</tbody></table></div>
     <div class="hsec">Every entry on record <span class="muted">· ${p1N(ev.length)}, newest first</span></div>
-    <div class="ff-grid hgrid"><table class="xl"><thead><tr><th>Time</th><th>What happened</th><th class="num">Pcs</th><th>With / from</th>${many ? '<th>Order</th>' : ''}<th>Entered by</th><th>Details</th></tr></thead><tbody>${body || `<tr><td colspan="${cols}" class="empty">Nothing on record yet.</td></tr>`}</tbody></table></div>
-    ${over.length ? `<div class="hwarn">The entries add up to more than the ${p1N(ordered)} ordered — ${over.map(([t, n]) => `${esc(t.toLowerCase())} <b>${p1N(n)}</b>`).join(', ')}. The steps above count each order line only up to its order.</div>` : ''}</div>`;
+    <div class="ff-grid hgrid"><table class="xl"><thead><tr><th>Time</th><th>What happened</th><th class="num">Pcs</th><th>With / from</th>${many ? '<th>Order</th>' : ''}<th>Entered by</th><th>Details</th></tr></thead><tbody>${body || `<tr><td colspan="${cols}" class="empty">Nothing on record yet.</td></tr>`}</tbody></table></div></div>`;
 }
 function p1HistoryDownload(r) {
   const ev = p1HistEvents(r).slice().reverse();
@@ -822,6 +836,102 @@ function p1Report() {
   const days = new Map(); ev.forEach(e => { if (!['PLAN', 'CUT', 'ISS', 'REC', 'QC', 'FG'].includes(e.k) || e.unit === 'm') return; const d = days.get(e.day) || days.set(e.day, { day: e.day }).get(e.day); d[e.k] = (d[e.k] || 0) + e.pcs; });
   return { from, to, n: ev.length, tiles, rows, people: [...people.values()].sort((a, b) => b.n - a.n), KS, days: [...days.values()].sort((a, b) => b.day.localeCompare(a.day)) };
 }
+/* ---------- THE LINES REPORT ON THE PAGE (Ravi, 25 Nov, with his ppc-report-2026-11-19-to-2026-11-25.xlsx: "I want the ppc report
+ * page to be in this pattern and also I want it to be acurate in its report and also make it work in such a way its really
+ * impressive and show really good way of data") ----------
+ * On top of PPC → Report, for the lines PLANNED in the period (first plan save; "Report on" switches to came-in or still waiting):
+ * the headline figures, a bar of where every piece is, when the open lines fall due week by week, each channel and category;
+ * then the file's two sheets — Lines (his columns, the groups in his colours) and Summary by SKU. Every figure comes from
+ * flowRepLines / flowRepDash (flow-report.js), the same as the Excel, which the Download button writes. The sections that were
+ * here before stay below it. Figures only: nothing here writes. */
+const P1_PLACE_TONE = { plan: '#A3ACB9', rfd: '#4A6A92', prn: '#7C5CD6', emb: '#B04A8F', prnStore: '#A78BDE', toCut: '#D98A1F', cutStore: '#E7B46A',
+  kar: '#C8621B', recv: '#2E8A78', qc: '#5FB3A1', press: '#7FA35A', out: '#8C7B6B', done: '#3B7A2A' };
+let P1_REPC = { key: null, out: null };
+/** The report's lines for the chosen days, worked out again only when the registers, the days or the due dates change. */
+function p1RepLines() {
+  const [from, to] = p1RangeDates(), on = P1.ron || 'planned', so = typeof SOX !== 'undefined' ? SOX.rows : null;
+  const key = p1SrcKey().concat([from, to, on, so, typeof PTG !== 'undefined' ? PTG.press : null]);
+  if (P1_REPC.out && p1Same(P1_REPC.key, key)) return P1_REPC.out;
+  const lines = flowRepLines({ from: from || '0000-00-00', to: to || '9999-12-31', on, kind: 'ppc', soDue: flowRepSoDue() });
+  P1_REPC = { key, out: { lines, from, to, on } }; return P1_REPC.out;
+}
+const p1Pct = (n, of) => of > 0 ? Math.max(0, Math.min(100, n / of * 100)) : 0;
+/** The headline figures. */
+function p1RepKpis(D) {
+  const pend = D.ordered - D.completed, k = (v, l, sub, tone) => `<div class="rk${tone ? ' ' + tone : ''}"><span>${esc(l)}</span><b>${v}</b><i>${sub}</i></div>`;
+  return `<div class="rk-row">${k(p1N(D.ordered), 'Ordered', `${p1N(D.lines)} lines · ${p1N(D.orders)} orders · ${p1N(D.skus)} SKUs`)}
+    ${k(p1N(D.completed), 'Completed', `<span class="rk-bar"><em style="width:${p1Pct(D.completed, D.ordered).toFixed(1)}%"></em></span>${p1Pct(D.completed, D.ordered).toFixed(0)}% in Finished Goods / handed over`, 'ok')}
+    ${k(p1N(pend), 'Pending', 'pieces still in production', '')}
+    ${k(p1N(D.late), 'Late lines', `${p1N(D.latePcs)} pcs past their due date`, D.late ? 'bad' : '')}
+    ${k(p1N(D.plannedLate), 'Planned after due', 'lines whose ready date is after the due date', D.plannedLate ? 'warn' : '')}
+    ${k(p1N(D.noDue), 'No due date', 'open lines with no date to keep', '')}</div>`;
+}
+/** Where every piece is: one bar for all of them, and a key that filters the lines to that process. */
+function p1RepPipe(D) {
+  if (!D.ordered) return '';
+  return `<div class="card rp2"><div class="rp-cap"><b>Where all ${p1N(D.ordered)} pieces are now</b><span class="muted"> · click a place to see its lines</span></div>
+    <div class="rp-pipe">${D.places.map(e => `<span style="width:${p1Pct(e.pcs, D.ordered).toFixed(2)}%;background:${P1_PLACE_TONE[e.k]}" title="${esc(e.label)}: ${p1N(e.pcs)} pcs"></span>`).join('')}</div>
+    <div class="rp-keys">${D.places.map(e => `<button type="button" class="rp-key${P1.rproc === e.proc ? ' on' : ''}" data-p1rproc="${esc(e.proc)}"><i style="background:${P1_PLACE_TONE[e.k]}"></i><b>${p1N(e.pcs)}</b><span>${esc(e.label)}</span><small>${p1Pct(e.pcs, D.ordered).toFixed(0)}%</small></button>`).join('')}</div></div>`;
+}
+/** When the open lines fall due, week by week (late weeks red), and how each channel and category stands. */
+function p1RepCharts(D, today) {
+  const wk = D.weeks, top = Math.max(1, ...wk.map(w => w.pcs)), thisWeek = typeof flowRepWeekOf === 'function' ? flowRepWeekOf(today) : '';
+  const due = `<div class="card rp2"><div class="rp-cap"><b>When the open lines are due</b><span class="muted"> · pending pieces by week</span></div>
+    ${wk.length ? `<div class="rp-cols">${wk.map(w => `<div class="rp-col${w.late ? ' late' : ''}${w.week === thisWeek ? ' now' : ''}" title="${w.week ? 'Week of ' + p1Day(w.week) : 'No due date'}: ${p1N(w.lines)} line${w.lines === 1 ? '' : 's'}, ${p1N(w.pcs)} pcs">
+      <small>${p1N(w.pcs)}</small><span style="height:${Math.max(3, p1Pct(w.pcs, top)).toFixed(1)}%"></span><b>${w.week ? p1Day(w.week) : 'no date'}</b><i>${p1N(w.lines)} line${w.lines === 1 ? '' : 's'}</i></div>`).join('')}</div>
+      <div class="rp-legend"><span><i class="late"></i>past due</span><span><i></i>due ahead</span><span><i class="now"></i>this week</span></div>` : '<div class="empty">Every line is completed.</div>'}</div>`;
+  const bars = (title, list) => { const big = Math.max(1, ...list.map(e => e.ordered)), shown = list.slice(0, 8);
+    return `<div class="card rp2"><div class="rp-cap"><b>${esc(title)}</b><span class="muted"> · completed of ordered</span></div><div class="rp-hb">${shown.map(e => `<div class="rp-hrow" title="${esc(e.name)}: ${p1N(e.completed)} of ${p1N(e.ordered)} completed · ${p1N(e.lines)} lines · ${p1N(e.late)} late">
+      <span class="nm">${esc(e.name)}</span><span class="tr"><span class="or" style="width:${p1Pct(e.ordered, big).toFixed(1)}%"><em style="width:${p1Pct(e.completed, e.ordered).toFixed(1)}%"></em></span></span>
+      <span class="fg"><b>${p1N(e.ordered)}</b> · ${p1Pct(e.completed, e.ordered).toFixed(0)}%${e.late ? ` · <i>${p1N(e.late)} late</i>` : ''}</span></div>`).join('')}${list.length > 8 ? `<div class="muted sm">and ${p1N(list.length - 8)} more</div>` : ''}</div></div>`; };
+  return `<div class="rp-three">${due}${bars('By channel', D.channels)}${bars('By category', D.categories)}</div>`;
+}
+/** The Lines sheet on the page: his columns under his coloured groups; late lines tinted; filtered by process, late, search. */
+function p1RepTable(lines) {
+  const cols = FLOW_REP_COLS, groups = []; cols.forEach(c => { const l = groups[groups.length - 1]; if (l && l[0] === c[0]) l[1]++; else groups.push([c[0], 1]); });
+  const tone = n => FLOW_REP_GRP[n] || ['F1EFE8', '444441'], lim = P1.rlim || 200;
+  const cell = (c, x) => { const v = c[2](x), k = c[3];
+    if (k === 'date') return `<td class="dt">${v ? esc(p1Day(v)) : ''}</td>`;
+    if (k === 'num' || k === 'qty') return `<td class="num">${+v > 0 ? `<b>${p1N(v)}</b>` : ''}</td>`;
+    if (k === 'late') return `<td class="num">${typeof v === 'string' ? (v ? `<span class="rp-done">${esc(v)}</span>` : '') : +v > 0 ? `<b class="late">${p1N(v)} d</b>` : ''}</td>`;
+    if (c[1] === 'Process') return `<td><span class="rp-proc" style="--c:${P1_PLACE_TONE[(FLOW_REP_PLACES.find(e => e[2] === v) || [])[0]] || '#A3ACB9'}">${esc(v)}</span></td>`;
+    return `<td${k === 'sku' ? ' class="sku"' : ''}>${esc(v == null ? '' : v)}</td>`; };
+  return `<div class="ff-grid rp-lines"><table class="xl"><thead><tr>${groups.map(([n, k]) => `<th colspan="${k}" class="grp" style="background:#${tone(n)[0]};color:#${tone(n)[1]}">${esc(n)}</th>`).join('')}</tr>
+    <tr>${cols.map(c => `<th class="${['num', 'qty', 'late'].includes(c[3]) ? 'num' : ''}" style="background:#${tone(c[0])[0]};color:#${tone(c[0])[1]}">${esc(c[1])}</th>`).join('')}</tr>
+    <tr class="tot">${cols.map((c, i) => i === 0 ? '<td><b>Total (shown lines)</b></td>' : c[3] === 'num' || c[3] === 'qty' ? `<td class="num"><b>${p1N(lines.reduce((t, x) => t + (+c[2](x) || 0), 0))}</b></td>` : '<td></td>').join('')}</tr></thead>
+    <tbody>${lines.slice(0, lim).map(x => `<tr${x.late > 0 ? ' class="lt"' : ''}>${cols.map(c => cell(c, x)).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="empty">No lines here.</td></tr>`}</tbody></table></div>
+    ${lines.length > lim ? `<button type="button" class="lg-more" data-p1rlim>Show all ${p1N(lines.length)} lines</button>` : ''}`;
+}
+/** Summary by SKU, as his pivot: ordered, completed, pending, lines, late lines — the most pending first. */
+function p1RepSummary(lines) {
+  const sk = flowRepSkus(lines).sort((a, b) => b.pending - a.pending || a.sku.localeCompare(b.sku)), lim = P1.rslim || 60;
+  const t = k => sk.reduce((s, e) => s + e[k], 0);
+  return `<div class="card rp2" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Summary by SKU</b><span class="muted"> · ${p1N(sk.length)} SKUs, the most pending first</span></div>
+    <div class="ff-grid" style="max-height:520px"><table class="xl rp-sum"><thead><tr><th class="frz" style="text-align:left">SKU</th><th class="num">Ordered</th><th class="num">Completed</th><th>Done</th><th class="num">Pending</th><th class="num">Lines</th><th class="num">Late lines</th></tr></thead><tbody>
+    ${sk.slice(0, lim).map(e => `<tr><td class="frz sku" style="text-align:left">${esc(e.sku)}</td><td class="num">${p1N(e.pcs)}</td><td class="num">${p1N(e.completed)}</td>
+      <td><span class="rk-bar"><em style="width:${p1Pct(e.completed, e.pcs).toFixed(1)}%"></em></span> <small class="muted">${p1Pct(e.completed, e.pcs).toFixed(0)}%</small></td>
+      <td class="num"><b>${p1N(e.pending)}</b></td><td class="num">${p1N(e.lines)}</td><td class="num">${e.late ? `<b class="late">${p1N(e.late)}</b>` : '<span class="muted">—</span>'}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">No lines here.</td></tr>'}
+    ${sk.length ? `<tr class="tot"><td class="frz" style="text-align:left"><b>Grand Total</b></td><td class="num"><b>${p1N(t('pcs'))}</b></td><td class="num"><b>${p1N(t('completed'))}</b></td><td></td><td class="num"><b>${p1N(t('pending'))}</b></td><td class="num"><b>${p1N(t('lines'))}</b></td><td class="num"><b>${p1N(t('late'))}</b></td></tr>` : ''}
+    </tbody></table></div>${sk.length > lim ? `<button type="button" class="lg-more" data-p1rslim>Show all ${p1N(sk.length)} SKUs</button>` : ''}</div>`;
+}
+/** The whole new part: figures, bar, charts, then the two sheets for the lines picked by process / late / search. */
+function p1RepPart() {
+  let R; try { R = p1RepLines(); } catch (e) { return `<div class="card"><div class="empty" style="color:var(--bad)">Could not work out the report's lines: ${esc(e.message || e)}</div></div>`; }
+  const today = p1Local(), D = flowRepDash(R.lines, today), q = P1.q.trim().toUpperCase();
+  const shown = R.lines.filter(x => (!P1.rproc || x.process === P1.rproc) && (!P1.rlate || x.late > 0)
+    && (!q || (x.orderNo + ' ' + x.sku + ' ' + x.category + ' ' + x.printedBy + ' ' + x.channel).toUpperCase().includes(q)));
+  const procs = [...new Set(R.lines.map(x => x.process))].filter(Boolean), cnt = p => R.lines.filter(x => x.process === p).length;
+  const on = (FLOW_REP_ON.find(o => o[0] === R.on) || FLOW_REP_ON[0])[1];
+  return `<div class="rp-head2"><label class="muted">Report on <select data-p1ron>${FLOW_REP_ON.map(([k, l]) => `<option value="${k}"${k === R.on ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
+      <span style="flex:1"></span>${flowRepAllowed() ? `<button type="button" class="p1-go" data-p1rxl${R.lines.length ? '' : ' disabled'}>Download Excel (Lines, Summary)</button>` : ''}</div>
+    ${FLOW_REP.soErr ? `<div class="hwarn">${esc(FLOW_REP.soErr)}</div>` : ''}
+    ${R.lines.length ? p1RepKpis(D) + p1RepPipe(D) + p1RepCharts(D, today) : `<div class="card"><div class="empty">No lines for "${esc(on)}" in these days.</div></div>`}
+    ${R.lines.length ? `<div class="card rp2" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Lines</b><span class="muted"> · ${p1N(shown.length)} of ${p1N(R.lines.length)} · each row's stages and Completed add up to its order</span><span style="flex:1"></span>
+      <button type="button" class="rp-chip${P1.rlate ? ' on' : ''}" data-p1rlate>Late only · ${p1N(D.late)}</button></div>
+      <div class="rp-chips"><button type="button" class="rp-chip${P1.rproc ? '' : ' on'}" data-p1rproc="">All · ${p1N(R.lines.length)}</button>${procs.map(p => `<button type="button" class="rp-chip${P1.rproc === p ? ' on' : ''}" data-p1rproc="${esc(p)}"><i style="background:${P1_PLACE_TONE[(FLOW_REP_PLACES.find(e => e[2] === p) || [])[0]] || '#A3ACB9'}"></i>${esc(p)} · ${p1N(cnt(p))}</button>`).join('')}</div>
+      ${p1RepTable(shown)}</div>${p1RepSummary(shown)}` : ''}
+    <div class="rp-old">Movements, work in progress and work given out in the same days</div>`;
+}
 function p1DrawReport() {
   const el = $('p1Home');
   let R; try { R = p1Report(); } catch (e) { el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}</div><div class="card"><div class="empty" style="color:var(--bad)">Could not read the registers: ${esc(e.message || e)}</div></div>`; return; }
@@ -832,7 +942,8 @@ function p1DrawReport() {
   el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<input type="search" class="p1-q" id="p1Q" placeholder="Search a lot, printer, karigar or SKU…" value="${esc(P1.q)}"></div>
     <div class="p1-segrow" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="seg">${P1_RANGES.map(r => `<button type="button" class="segbtn${(P1.rr || '7') === r[0] ? ' on' : ''}" data-p1rr="${r[0]}">${r[1]}</button>`).join('')}</div>
       ${(P1.rr || '7') === 'custom' ? `<label class="rp-date">From <input type="date" data-p1rd="rf" value="${esc(P1.rf || '')}"></label><label class="rp-date">To <input type="date" data-p1rd="rt" value="${esc(P1.rt || '')}"></label>` : ''}
-      <span class="muted" style="font-size:12.5px">${esc(per)} · ${p1N(R.n)} movements</span><span style="flex:1"></span><button type="button" class="ghost" data-p1csv>Download (CSV)</button></div>
+      <span class="muted" style="font-size:12.5px">${esc(per)} · ${p1N(R.n)} movements</span><span style="flex:1"></span><button type="button" class="ghost" data-p1csv>Download movements (CSV)</button></div>
+    ${p1RepPart()}
     <div class="rp-tiles">${R.tiles.map(t => `<div><b>${t[3] && !t[2] ? p1N(t[3]) + '<small> m</small>' : p1N(t[2]) + (t[3] ? `<small> pcs · ${p1N(t[3])} m</small>` : '')}</b><span>${esc(t[1])}</span></div>`).join('')}</div>
     ${p1WipCard()}
     <div class="card" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Work given out — and what came back</b><span class="muted"> · given and back in the period; still out is today</span>
@@ -863,6 +974,15 @@ function p1DrawReport() {
   on('[data-p1csv]', () => p1ReportCsv(R));
   on('[data-p1wxl]', () => p1WipExcel());
   on('[data-p1wpage]', () => p1WipPage());
+  /* the lines report on top (25 Nov) */
+  on('[data-p1ron]', b => { P1.ron = b.value; P1.rproc = ''; P1.rlim = 0; p1Draw(); }, 'onchange');
+  on('[data-p1rproc]', b => { P1.rproc = P1.rproc === b.dataset.p1rproc ? '' : b.dataset.p1rproc; P1.rlim = 0; p1Draw(); });
+  on('[data-p1rlate]', () => { P1.rlate = !P1.rlate; P1.rlim = 0; p1Draw(); });
+  on('[data-p1rlim]', () => { P1.rlim = Infinity; p1Draw(); });
+  on('[data-p1rslim]', () => { P1.rslim = Infinity; p1Draw(); });
+  on('[data-p1rxl]', () => { const R = p1RepLines(); if (R.lines.length) flowRepDownload(R.lines, { kind: 'ppc', on: R.on, from: R.from, to: R.to }); });
+  /* the sales orders' due dates, read once for the report (as its dialog does); drawn again when they come */
+  if (typeof flowRepSoLoad === 'function' && !P1.soAsked) { P1.soAsked = true; flowRepSoLoad().then(read => { if (read && P1.shown && P1.view === 'report') p1Draw(); }); }
   const qi = el.querySelector('#p1Q'); if (qi) qi.oninput = () => { P1.q = qi.value; clearTimeout(P1.qt); P1.qt = setTimeout(() => { p1Draw(); const n = $('p1Q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); };
 }
 /** The report as a CSV file: the work given out, then who entered what, then day by day. */
