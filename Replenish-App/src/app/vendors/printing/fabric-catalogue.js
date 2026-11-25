@@ -303,7 +303,9 @@ function renderPcut() {
       })()}
     </div></div>`;
 
-  const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by', 'Edit']
+  /* CUT BY (Ravi, 25 Nov: "add who cut it ... auto fills it with its id", not to be changed): the person signed in when the
+   * cutting was entered is the one who cut it, so the entry's own "entered by" is shown under that name — nothing new is stored. */
+  const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Cut by', 'Edit']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([9, 11, 12, 13, 14].indexOf(i) >= 0 ? ' class="num"' : '')}${i === 10 ? ' title="Has this cutting gone to a karigar? The order\'s issues fill its cutting oldest first."' : ''}>${h}</th>`).join('') + '</tr></thead>';
   const useCell = r => {
     const u = pcutUseOf(r);
@@ -615,7 +617,7 @@ $('pcExport').onclick = () => {
   }
   const rows = PT._pcutRows || []; if (!rows.length) return;
   const lines = [['Cut Date', 'Order No', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Issued pcs',
-    'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by'].map(csvCell).join(',')];
+    'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Cut by'].map(csvCell).join(',')];
   rows.forEach(r => {
     /* Blank where nobody measured, so a spreadsheet cannot average a missing figure as a nought. */
     const u = ptNum(r.fabricUsed), w = ptNum(r.fabricWaste);

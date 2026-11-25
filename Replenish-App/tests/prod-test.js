@@ -20558,7 +20558,7 @@ console.log('\n== Cutting: how wide the leftover is ==');
   ok('the table has a Waste width column, after Waste (m)', heads.indexOf('Waste width (in)') === heads.indexOf('Waste (m)') + 1 && heads.indexOf('Waste (m)') > 0, heads.join(' | '));
   ok('…and the row shows it in inches', /<td class="num">22"<\/td>/.test(html));
   const src = fs.readFileSync(APP, 'utf8');
-  ok('the export carries it too', src.includes("'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by'"));
+  ok('the export carries it too', src.includes("'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Cut by'"));
   ok('an entry can be corrected with it', src.includes("{ key: 'fabricWasteWidth', label: 'Waste width (in)'"));
   /* THE PLATFORM FILTER (Ravi, 16 Oct: "cutting entry me kis platform ka order h wo filter bhi add kardo"). */
   const cutRow = (id, orderNo) => ({ id, _key: id, sku: 'RX-' + id, cutDate: '16/10/2026, 10:00', pieces: 5, fabricWidth: 'Sheeting 62', orderNo, addedBy: 'a@x' });

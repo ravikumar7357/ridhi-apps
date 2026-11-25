@@ -315,6 +315,7 @@ function renderCutForm() {
   const sku = skuBox.value.trim();
   const m = cutSkuOf(sku);
 
+  if ($('cwBy')) $('cwBy').value = 'Cut by: ' + whoShort(ME.email);   // the person signed in is the one cutting (Ravi, 25 Nov)
   $('cwWho').textContent = m
     ? `${m.articleType || '—'} · ${m.subtype || '—'} · ${m.color || '—'} · ${m.size || '—'}`
       + (m.brand ? '  ·  ' + m.brand : '')
