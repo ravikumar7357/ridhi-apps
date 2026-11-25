@@ -834,7 +834,8 @@ function alDetailHtml(a, big) {
     + `<div class="al-btns"><a class="al-btn" href="https://www.amazon.com/dp/${alEsc(top)}" target="_blank" rel="noopener">Open product ↗</a>`
     + `<button type="button" class="al-btn" data-al-act="snooze" data-al-id="${alEsc(a.id)}">Snooze ${AL_SNOOZE_DAYS} days</button>`
     + `<button type="button" class="al-btn" data-al-act="dismiss" data-al-id="${alEsc(a.id)}">Dismiss</button>`
-    + `<button type="button" class="al-btn" disabled title="Coming soon — with the Action Tracker">Create task</button></div>`
+    + (typeof tkBtnHtml === 'function' ? tkBtnHtml({ src: 'alert', brand: a.brand, key: a.key, parent: a.parent, name: a.name, problem: `Sales −${alPctL(a.drop, false)} vs expected${a.days ? ' · ' + a.days + ' days' : ''}`,
+      kind: 'drop', ref: a.id, pick: a.cause && { oos: 'stock', price: 'price', adsCut: 'ads', adsUp: 'ads', traffic: 'listing', conv: 'listing' }[a.cause.k] || '' }, 'al-btn', '+ Task') : '') + '</div>'
     + alProofHtml(a)
     + alNormHtml(a)
     + `<p class="al-asof">Sales ${alDay(a.from)}–${alDay(a.to)} · expected ${alMoney(a.exp)}, actual ${alMoney(a.act)} · normal ${alMoney(a.normalWeek)}/week</p>`;

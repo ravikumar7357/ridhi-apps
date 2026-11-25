@@ -77,7 +77,7 @@
       <button id="tabKw" class="nav">Keywords</button>
     </div></div>
 
-    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,ncheck,salert,fcast,shop,adj,ba">
+    <div class="navwrap"><button class="navgrp" id="grpSales" type="button" aria-controls="secSales" data-grp="sales" data-tabs="sales,profit,sa,plaudit,ncheck,salert,fcast,atrack,shop,adj,ba">
       <span class="caret">&#9656;</span> Sales</button>
     <div class="navsec" id="secSales">
       <!-- THE SALES DROP-DOWN (21 Nov 2026): the Listing menu's columns (styles.css "THE LISTING DROP-DOWN"), four groups.
@@ -91,7 +91,8 @@
       <div class="navcol"><div class="navcol-h num">Check &amp; alerts</div>
       <button id="tabNcheck" class="nav">Numbers Check</button>
       <button id="tabSalert" class="nav">Sales Alerts</button>
-      <button id="tabFcast" class="nav">Forecast</button></div>
+      <button id="tabFcast" class="nav">Forecast</button>
+      <button id="tabAtrack" class="nav">Action Tracker</button></div>
       <div class="navcol"><div class="navcol-h num">Analyse</div>
       <button id="tabProfit" class="nav">Profit &amp; Margin</button>
       <button id="tabSa" class="nav">Sales Analysis</button>
@@ -177,7 +178,8 @@
       <button id="fxBtn" class="themesw dashfx" type="button" aria-label="Animation" aria-pressed="true" title="Animation: on">
         <span aria-hidden="true">&#10024;</span>
       </button>
-      <!-- 🔔 Fix status (app/listing/fix-status.js): Listing users only — fixes Amazon still shows 24 h later, new errors after a fix. -->
+      <!-- 🔔 Fix status (app/listing/fix-status.js): Listing users — fixes Amazon still shows 24 h later, new errors after a fix; and "My tasks"
+           (app/sales/tasks.js) for anyone with tasks: new, overdue, verdicts on tasks they made. -->
       <button id="fsBell" class="themesw fs-bell" type="button" aria-label="Fix status" aria-haspopup="dialog" aria-expanded="false" aria-controls="fsPanel" hidden>
         <span aria-hidden="true">&#128276;</span><span class="fs-badge" hidden></span>
       </button>
@@ -1595,6 +1597,8 @@
   <div id="paneSalert" class="hide"><div id="alPane"></div></div>
   <!-- ============ Forecast (sales/forecast.js draws all of it into #foPane, and its drawer #foDr beside it; styles: styles.css "FORECAST") ============ -->
   <div id="paneFcast" class="hide"><div id="foPane"></div></div>
+  <!-- ============ Action Tracker (sales/tasks.js draws the board into #tkPane, its drawer #tkDr beside it; the + Task form #tkF on the page; styles: styles.css "ACTION TRACKER") ============ -->
+  <div id="paneAtrack" class="hide"><div id="tkPane"></div></div>
 
   <div id="paneSales" class="hide" data-mode="story">
     <!-- THE SALES DASHBOARD AS CHAPTERS (23 Nov 2026 — the approved preview Pricing-App/design/sales-dashboard/, with Sellora's own numbers).

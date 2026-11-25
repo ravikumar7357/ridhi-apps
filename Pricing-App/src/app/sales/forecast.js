@@ -439,6 +439,14 @@ function foFamStatus(f, rule) {
   if (c != null && c < rule.lead + rule.soon) return 'amber';
   return 'green';
 }
+/** "+ Task" for a ⛔ / 🔴 family or SKU (sales/tasks.js): pre-filled with what the Forecast says. */
+function foTaskBtn(x, fam, cls, label) {
+  if (typeof tkBtnHtml !== 'function' || !['oos', 'oosin', 'red'].includes(x.status)) return '';
+  const kid = x !== fam;
+  const c = x.cover;
+  const problem = foOut(x.status) ? `${foStLabel(x)} — losing ~${foN(x.weekLoss)} units/week` : `Runs out ~${c && c.outHigh ? alDay(c.outHigh) : '?'} (${c && c.high != null ? foN(c.high) : '?'} days of stock vs ${fam.lead}-day lead time)`;
+  return tkBtnHtml({ src: 'forecast', brand: fam.brand, key: fam.key, parent: fam.parent, sku: kid ? x.label : '', asin: kid ? x.asin : '', name: kid ? `${x.label} (${fam.name})` : fam.name, problem, kind: 'stock', ref: x.key, pick: 'stock' }, cls, label);
+}
 /** The size badges on a family: ⛔ sizes out · 🔴 sizes to reorder · sizes with no stock data — each opens the family on those sizes. */
 function foBadgesHtml(f) {
   if (f.kids.length < 2) return '';
@@ -631,7 +639,7 @@ function foActHtml(r, shown) {
       : `${foN(c.high)} days of stock vs ${f.lead}-day lead time${f.oosKids.length && f.kids.length > 1 ? ` · ${foN(f.oosKids.length)} of ${foN(f.sizes)} sizes out` : ''}`;
     return `<article class="fo-card st-${f.status}"><div class="fo-card-h"><span class="fo-sev st-${f.status}">${FO_ST[f.status].i} ${f.status === 'oosin' ? 'Out of stock — on the way' : FO_ST[f.status].t}</span><span class="muted">${FO_BRAND[f.brand]}</span></div>`
       + `<h4 class="fo-card-n">${alEsc(alShort(f.name))}</h4><div class="fo-card-big">${line}</div><p class="fo-card-s">${sub}</p>`
-      + `<div class="fo-card-f">${f.m ? foSparkSvg(f, 140, 36) : ''}<button type="button" class="fo-btn" data-fo-view="${alEsc(f.key)}" aria-label="View ${alEsc(f.name)}">View</button></div></article>`;
+      + `<div class="fo-card-f">${f.m ? foSparkSvg(f, 140, 36) : ''}<span class="fo-card-btns">${foTaskBtn(f, f, 'fo-btn')}<button type="button" class="fo-btn" data-fo-view="${alEsc(f.key)}" aria-label="View ${alEsc(f.name)}">View</button></span></div></article>`;
   };
   return `<section class="fo-sec fo-act"><div class="fo-sec-h"><h3>Act first</h3><span class="muted">soonest to run out</span></div><div class="fo-cards">${top.map(card).join('')}</div></section>`;
 }
@@ -651,7 +659,7 @@ function foRowHtml(x, isKid, fam) {
   const vk = isKid ? [] : foVisibleKids(x);
   const nameCell = isKid
     ? `<span class="fo-nm" title="${alEsc(x.label + (x.title ? ' — ' + x.title : ''))}">${alEsc(x.label)}</span><small>${alEsc(x.asin)}${x.skus.length > 1 ? ' · +' + (x.skus.length - 1) + ' SKU' : ''}${x.title ? ' · ' + alEsc(alShort(x.title)) : ''}</small>`
-    : `<span class="fo-nm" title="${alEsc(x.name)}">${alEsc(x.name)}</span><small>${alEsc(x.parent)} · ${x.kids.length === 1 ? alEsc(x.kids[0].label) : x.kids.length + ' SKUs'}${FO.brand === 'ALL' ? ' · ' + FO_BRAND[x.brand] : ''}</small>${foBadgesHtml(x)}`;
+    : `<span class="fo-nm" title="${alEsc(x.name)}">${alEsc(x.name)}</span><small>${alEsc(x.parent)} · ${x.kids.length === 1 ? alEsc(x.kids[0].label) : x.kids.length + ' SKUs'}${FO.brand === 'ALL' ? ' · ' + FO_BRAND[x.brand] : ''}</small>${foBadgesHtml(x)}${foTaskBtn(x, x, 'fo-badge fo-tk')}`;
   const nohist = !has && !foOut(st) && st !== 'notsell' && st !== 'inactive';
   const mid = has ? `<td class="fo-c-r" data-l="Next 30 days">${foRangeHtml(x, 30)}</td><td class="num" data-l="7 days">${foN(x.r[7].mid)}<small>${foRng(x.r[7].lo, x.r[7].hi)}</small></td><td class="num" data-l="90 days">${foN(x.r[90].mid)}<small>${foRng(x.r[90].lo, x.r[90].hi)}</small></td>`
     : `<td class="fo-c-r fo-why" data-l="Next 30 days" colspan="3">${st === 'oosin' ? `${foStLabel(x)} · losing ~${foN(x.weekLoss)} units/week until it arrives` : st === 'oos' ? `Out of stock — losing ~${foN(x.weekLoss)} units/week` : st === 'notsell' ? 'Not selling — stock but almost no sales in 8 weeks' : st === 'inactive' ? 'Inactive — no stock, no sale in 8 weeks' : alEsc(foWhyNot(x))}</td>`;
@@ -860,7 +868,7 @@ function foDrawerHtml(h) {
     + `<button type="button" class="fo-x-close" data-fo-act="close" aria-label="Close">×</button></header>`
     + `<div class="fo-dr-b">${x.r ? `<div class="fo-dr-chart" id="foChart" role="img" aria-label="Units a week: the last 26 weeks, the next 13 forecast with its range${fam.m && fam.m.seasonOk ? ', and last year\'s pattern' : ''}"></div>`
       + `<label class="fo-tog fo-ly"><input type="checkbox" data-fo-ly${FO.drLy ? ' checked' : ''}${fam.m && fam.m.seasonOk ? '' : ' disabled'}> Last year's pattern (brand)</label>` : ''}`
-    + `<p class="fo-story">${alEsc(foStory(x, fam))}</p>`
+    + `<p class="fo-story">${alEsc(foStory(x, fam))}</p>${foTaskBtn(x, fam, 'fo-btn fo-dr-tk', '+ Task: ' + (foOut(x.status) ? 'reorder now' : 'reorder'))}`
     + `<div class="fo-tiles">${tiles}${stockT}${coverT}${outT}</div>${inbNote}`
     + (c && c.high != null && c.likely !== c.high ? `<p class="fo-note">Stock lasts ${foN(c.high)}–${c.likely == null ? '180+' : foN(c.likely)} days (${foN(c.high)} if sales are high) · lead time ${fam.lead} days${fam.soon ? `, “soon” ${fam.soon} days after` : ''}.</p>` : '')
     + `<section class="fo-dr-sec"><h4>Why this confidence</h4>${why}</section>${kids}${alLink}</div>`;
@@ -996,6 +1004,7 @@ function foStart() {
   const inPane = e => e.target && e.target.closest && e.target.closest('#paneFcast');
   document.addEventListener('click', async e => {
     if (!inPane(e)) return;
+    if (e.target.closest('[data-tk-new]')) return;                // "+ Task" (sales/tasks.js) opens its form, not the row
     const t = e.target.closest('[data-fo-brand], [data-fo-chip], [data-fo-act], [data-fo-sort], [data-fo-exp], [data-fo-sizes], [data-fo-view], [data-fo-row]');
     if (!t || t.disabled) return;
     if (t.dataset.foBrand) { FO.brand = t.dataset.foBrand; FO.shown = FO_PAGE; FO.open = {}; FO.sx = 0; try { localStorage.setItem('foBrand', FO.brand); } catch (err) { /* this visit */ } foDrawerClose(); foRender(); return; }

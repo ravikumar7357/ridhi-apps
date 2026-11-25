@@ -375,8 +375,8 @@ console.log('== 13. the CSV and forecastCheck ==');
 console.log('== 14. the wiring: tab, menu, pane, ORDER, styles only for this page ==');
 {
   const nav = SRC('app/core/nav.js'), html = SRC('index.html'), order = SRC('app/ORDER'), css = SRC('styles.css');
-  ok('TABS has fcast after salert, its title, it comes with the Sales Dashboard, showTab opens it', /'salert', 'fcast', 'shop'/.test(nav) && /fcast: 'Forecast'/.test(nav) && /TAB_INHERIT = \{[^}]*fcast: 'sales'/.test(nav) && /if \(which === 'fcast'\) ensureFcast\(\);/.test(nav));
-  ok('the Sales menu: "Forecast" in Check & alerts, after Sales Alerts', /<div class="navcol-h num">Check &amp; alerts<\/div>\s*<button id="tabNcheck" class="nav">Numbers Check<\/button>\s*<button id="tabSalert" class="nav">Sales Alerts<\/button>\s*<button id="tabFcast" class="nav">Forecast<\/button><\/div>/.test(html)
+  ok('TABS has fcast after salert, its title, it comes with the Sales Dashboard, showTab opens it', /'salert', 'fcast', ('atrack', )?'shop'/.test(nav) && /fcast: 'Forecast'/.test(nav) && /TAB_INHERIT = \{[^}]*fcast: 'sales'/.test(nav) && /if \(which === 'fcast'\) ensureFcast\(\);/.test(nav));
+  ok('the Sales menu: "Forecast" in Check & alerts, after Sales Alerts', /<div class="navcol-h num">Check &amp; alerts<\/div>\s*<button id="tabNcheck" class="nav">Numbers Check<\/button>\s*<button id="tabSalert" class="nav">Sales Alerts<\/button>\s*<button id="tabFcast" class="nav">Forecast<\/button>(\s*<button id="tabAtrack" class="nav">Action Tracker<\/button>)?<\/div>/.test(html)
     && /data-tabs="sales,profit,sa,plaudit,ncheck,salert,fcast,/.test(html));
   ok('its pane, and not on the Dashboard', /<div id="paneFcast" class="hide"><div id="foPane"><\/div><\/div>/.test(html) && !/forecast|foDash|fcast/i.test(SRC('app/core/dashboard.js')));
   ok('ORDER: forecast.js right after sales-alerts.js (it uses its helpers)', /sales\/sales-alerts\.js\r?\nsales\/forecast\.js\r?\n/.test(order));

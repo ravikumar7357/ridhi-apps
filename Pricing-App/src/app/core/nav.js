@@ -12,7 +12,7 @@
 // 'dash' (20 Nov 2026) is the Dashboard (core/dashboard.js): first, so it is the screen that opens after sign-in.
 // 'reimb' (24 Nov 2026): Reimbursement › Overview (reimb/reimb-overview.js), its own menu group and its own right;
 // 'rbclaim': Reimbursement › To Claim (reimb/reimb-claim.js), with the same right (TAB_INHERIT).
-const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'salert', 'fcast', 'shop', 'adj', 'kw', 'ba', 'age', 'reimb', 'rbclaim', 'health',
+const TABS = ['dash', 'link', 'new', 'pr', 'sales', 'profit', 'sa', 'plaudit', 'ncheck', 'salert', 'fcast', 'atrack', 'shop', 'adj', 'kw', 'ba', 'age', 'reimb', 'rbclaim', 'health',
   'lrules', 'audit', 'bsr', 'weekly', 'ppcn', 'trends', 'st', 'ngram', 'plc', 'ppch', 'deals', 'tiktok', 'carousel', 'opt', 'img',
   'lerr', 'basket', 'lhist', 'fam', 'aplus', 'ipg', 'create'];
 // 'health' → 'Health': a tab key as it appears inside element ids.
@@ -22,7 +22,7 @@ const TAB_TITLE = { dash: 'Dashboard', link: 'By Amazon Link', new: 'New Product
   age: 'Inventory Age', reimb: 'Reimbursement · Overview', rbclaim: 'Reimbursement · To Claim', health: 'Listing Health', lrules: 'Listing Rules', audit: 'Listing Audit', bsr: 'BSR Audit',
   weekly: 'PPC & Organic (old view)', ppcn: 'Product Performance',
   trends: 'Overview', st: 'Search Term Analysis', ngram: 'N-Gram Analysis', plc: 'Placement', ppch: 'PPC History', deals: 'Deal Calendar', sales: 'Sales Dashboard',
-  profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', ncheck: 'Numbers Check', salert: 'Sales Alerts', fcast: 'Forecast', shop: 'Shopify Orders',
+  profit: 'Profit & Margin', sa: 'Sales Analysis', plaudit: 'Parent Listing Review', ncheck: 'Numbers Check', salert: 'Sales Alerts', fcast: 'Forecast', atrack: 'Action Tracker', shop: 'Shopify Orders',
   adj: 'Adjustments', tiktok: 'TikTok Toolkit', carousel: 'Carousel Builder', opt: 'Listing Optimiser',
   img: 'Image Manager', lerr: 'Listing Errors', basket: 'Bought Together', lhist: 'Listing History',
   fam: 'Family & Category Check', aplus: 'A+ Content', ipg: 'IP & Trademark Guard', create: 'Create Listing' };
@@ -39,7 +39,7 @@ HIDDEN_TABS.forEach(t => $('tab' + capId(t)).classList.add('hide'));
 // Tabs nobody is granted on their own: they come with another tab. Product Performance reads exactly
 // the documents PPC & Organic reads, and the Firestore rules gate those on `weekly` — so granting the
 // new tab by itself would only ever open an empty screen. Kept out of the Access form for that reason.
-const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ngram: 'st', ncheck: 'sales', salert: 'sales', fcast: 'sales', rbclaim: 'reimb' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js); Numbers Check, Sales Alerts and Forecast: with the Sales Dashboard (sales/sales-check.js, sales/sales-alerts.js, sales/forecast.js); Reimbursement › To Claim: with Reimbursement › Overview (reimb/reimb-claim.js)
+const TAB_INHERIT = { ppcn: 'weekly', lhist: 'health', fam: 'health', aplus: 'health', ipg: 'health', create: 'health', ppch: 'st', ngram: 'st', ncheck: 'sales', salert: 'sales', fcast: 'sales', atrack: 'sales', rbclaim: 'reimb' };   // Listing History: with Listing Health (Image Manager, Listing Errors, Listing Rules: listing/listing-history.js); Family & Category Check: with Listing Health (listing/family-check.js); A+ Content: with Listing Health (listing/aplus-audit.js); PPC History and N-Gram Analysis: with Search Term Analysis (ads/ppc-history.js, ads/ngram.js); Numbers Check, Sales Alerts, Forecast and Action Tracker: with the Sales Dashboard (sales/sales-check.js, sales/sales-alerts.js, sales/forecast.js, sales/tasks.js); Reimbursement › To Claim: with Reimbursement › Overview (reimb/reimb-claim.js)
 
 /* ---------- sidebar: collapsible groups + the 3-line menu button ---------- */
 // Read straight off the markup, so adding a group is an HTML edit and nothing here changes.
@@ -221,6 +221,7 @@ function showTab(which) {
   if (which === 'ncheck') ensureNcheck();   // Numbers Check (sales/sales-check.js): only what is already loaded or cached, read-only
   if (which === 'salert') ensureSalert();   // Sales Alerts (sales/sales-alerts.js): cache reads only; writes only Dismiss / Snooze / settings
   if (which === 'fcast') ensureFcast();     // Forecast (sales/forecast.js): cache reads only; writes only the lead-time settings
+  if (which === 'atrack') ensureAtrack();   // Action Tracker (sales/tasks.js): writes only task records, the names list and seen marks
   if (which === 'opt') ensureOpt();
   if (which === 'img') ensureImg();
   if (which === 'lerr') ensureLerr();

@@ -437,7 +437,9 @@ function viBoxHtml(res, sum, brand, open) {
     const tip = `${m.name}: ${viMoney(m.was)} → ${viMoney(m.now)} (${viPct(m.pct, 0)})${res.brand === 'ALL' ? ' · ' + (VI_BRAND_NAME[m.brand] || m.brand) : ''} · ${m.driver.t}${m.driver.also ? ' · ' + m.driver.also : ''}`;
     return `<div class="sdx-mv ${m.d < 0 ? 'down' : 'up'}" title="${viEsc(tip)}"><span class="sdx-mv-n">${viEsc(m.name)}</span><span class="sdx-mv-amt">${viMoney(m.d, true)}</span>`
       + `<span class="sdx-mv-bar" aria-hidden="true"><i style="width:${Math.max(3, Math.round(Math.abs(m.d) / max * 100))}%"></i></span>`
-      + `<span class="sdx-pills">${viPill(m.driver)}${m.driver.k !== 'none' ? viPill(m.driver.more) : ''}</span></div>`;
+      + `<span class="sdx-pills">${viPill(m.driver)}${m.driver.k !== 'none' ? viPill(m.driver.more) : ''}`
+      + (m.d < 0 && typeof tkBtnHtml === 'function' ? tkBtnHtml({ src: 'insight', brand: m.brand, key: m.key, parent: m.parent, name: m.name, problem: `Sales ${viPct(m.pct, 0)} in ${viDash(res.labels.L)} (${viMoney(m.d, true)} against ${viDash(res.labels.P)})`, kind: 'week', ref: res.wk.L, pick: m.driver && { oos: 'stock', price: 'price', ads: 'ads', traffic: 'listing', conv: 'listing' }[m.driver.k] || '' }, 'vi-tk') : '')
+      + '</span></div>';
   };
   const gains = res.movers.filter(m => m.d > 0).sort((a, b) => b.d - a.d), drops = res.movers.filter(m => m.d < 0).sort((a, b) => a.d - b.d);
   const col = (cls, title, list, none) => `<div><h3 class="sdx-mv-h ${cls}">${title}</h3>${list.length ? list.map(row).join('') : `<p class="sdx-none">${none}</p>`}</div>`;
