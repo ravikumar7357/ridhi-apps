@@ -503,5 +503,8 @@ function viDashOf(view) {
   const first = (text.match(/^.*?[.!?](?=\s|$)/) || [text])[0];
   const t = res.total;
   return { head: t.d ? `Revenue ${viFell(t.d)} ${viMoney(Math.abs(t.d))} last week` : 'Revenue held level last week',
-    pct: t.pct == null ? null : Math.round(t.pct * 10) / 10, up: t.d >= 0, text: first, when: `${res.labels.L} · sales as at ${res.asOf.sales || '—'}` };
+    pct: t.pct == null ? null : Math.round(t.pct * 10) / 10, up: t.d >= 0, text: first, when: `${res.labels.L} · sales as at ${res.asOf.sales || '—'}`,
+    // the Dashboard card's sentence and two bars (26 Nov 2026): the same two week totals, in cents, with their labels and the brand on view
+    d: t.d, amount: viMoney(Math.abs(t.d)), brand: VI_BRAND_NAME[res.brand] || res.brand, asAt: res.asOf.sales || '',
+    weeks: [{ label: viDash(res.labels.P), cents: t.was }, { label: viDash(res.labels.L), cents: t.now }] };
 }

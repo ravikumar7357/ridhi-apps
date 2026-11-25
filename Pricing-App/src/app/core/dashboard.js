@@ -455,15 +455,33 @@ const DASH_PAINT = {
         : '<div class="dash-plot is-none"><p>No daily sales to draw yet.</p></div>')
       + dashAsOf(d) + '</article>';
   },
+  // 26 Nov 2026: one sentence ("Revenue rose $98,853 (▲ +29.4%) in Nov 15–21 against Nov 8–14.") and the two weeks as bars — the same
+  // two totals the Sales Dashboard's "This week, explained" works from (viDashOf), for the brand on view (Both = Ridhi + CPC together).
   cVi: () => {
     const d = dashData('vi');
     if (d.state === 'deny') return '';
-    const ok = dashOk(d);
-    const head = ok && d.v.head ? `<b class="dash-vi-h">${dashEsc(d.v.head)}${d.v.pct != null ? ` <span class="dash-chg ${d.v.up ? 'is-up' : 'is-dn'}"><span aria-hidden="true">${d.v.up ? '▲' : '▼'}</span> ${Math.abs(d.v.pct).toFixed(1)}%</span>` : ''}</b>` : '';
-    const body = ok ? head + `<span class="dash-vi-t">${dashEsc(d.v.text)}</span>` : d.state === 'fresh' && d.v && d.v.why ? `<span class="dash-muted">${dashEsc(d.v.why)}</span>`
-      : d.state === 'loading' ? `${dashSk('70%', '18px')}${dashSk('95%', '14px')}${dashSk('80%', '14px')}` : '<span class="dash-muted">—</span>';
-    return `<article class="dash-card dash-small"><div class="dash-small-h"><h3 class="dash-h3">This week, explained</h3>${dashOpenBtn('sales', 'Open the Sales Dashboard')}</div>`
-      + `<p class="dash-vi">${body}</p>${dashAsOf(d)}</article>`;
+    const v = d.v || {};
+    const head = `<div class="dash-small-h"><h3 class="dash-h3">This week, explained</h3>${dashOpenBtn('sales', 'Open the Sales Dashboard')}</div>`;
+    const w = v.weeks;
+    const has = dashOk(d) && Array.isArray(w) && w.length === 2 && w.every(x => Number(x.cents) > 0);
+    // a copy kept from before this card had its bars, while the fresh one is on its way: the card's shape, not "no data"
+    const old = d.state === 'cached' && !v.empty && !Array.isArray(w);
+    let body;
+    if (has) {
+      const up = v.d > 0, dn = v.d < 0;
+      const pct = v.pct == null ? '' : ` <span class="dash-chg ${up ? 'is-up' : 'is-dn'}">(<span aria-hidden="true">${up ? '▲' : '▼'}</span> ${up ? '+' : '−'}${Math.abs(v.pct).toFixed(1)}%)</span>`;
+      const s = up || dn ? `Revenue ${up ? 'rose' : 'fell'} <b class="dash-vi-amt">${dashEsc(v.amount)}</b>${pct} in ${dashEsc(w[1].label)} against ${dashEsc(w[0].label)}.`
+        : `Revenue held level in ${dashEsc(w[1].label)} against ${dashEsc(w[0].label)}.`;
+      const max = Math.max(w[0].cents, w[1].cents);
+      const row = (x, cls) => `<span class="dash-wk-l">${dashEsc(x.label)}</span><span class="dash-wk-t"><span class="dash-wk-f ${cls}" style="--w:${(x.cents / max * 100).toFixed(1)}%"></span></span>`
+        + `<b class="dash-wk-v" title="${dashEsc(DASH_FMT.money(x.cents / 100))}">${dashK(x.cents / 100)}</b>`;
+      body = `<p class="dash-vi-s">${s}</p><div class="dash-wk" role="img" aria-label="Revenue: ${dashEsc(w[0].label)} ${dashEsc(DASH_FMT.money(w[0].cents / 100))}; ${dashEsc(w[1].label)} ${dashEsc(DASH_FMT.money(w[1].cents / 100))}">`
+        + row(w[0], 'is-was') + row(w[1], 'is-now') + '</div>';
+    } else if (d.state === 'loading' || (old && /updating/.test(d.note || ''))) {
+      body = `<div class="dash-vi-s">${dashSk('92%', '16px')}${dashSk('60%', '16px')}</div><div class="dash-wk">${dashSk('100%', '12px')}${dashSk('100%', '12px')}</div>`;
+    } else body = `<p class="dash-vi-none"${v.why ? ` title="${dashEsc(v.why)}"` : ''}>Not enough data for this week yet</p>`;
+    const foot = has && d.state === 'fresh' ? `<div class="dash-asof" title="${dashEsc(v.brand + ' · sales as at ' + (v.asAt || '—'))}">${dashEsc(v.brand)} · sales as at ${dashEsc(v.asAt || '—')}</div>` : dashAsOf(d);
+    return `<article class="dash-card dash-small dash-vi-card">${head}${body}${foot}</article>`;
   },
   cNew: () => {
     const d = dashData('nl');
@@ -502,6 +520,8 @@ const DASH_PAINT = {
   },
 };
 // The new-listings bars: one per week, the last 8 (the running week last).
+// "$336k": thousands of dollars, whole (under $1,000: the dollars; from $1M: one decimal "M").
+const dashK = v => (v >= 999500 ? '$' + (Math.round(v / 1e5) / 10) + 'M' : v >= 1000 ? '$' + Math.round(v / 1000) + 'k' : '$' + Math.round(v));
 function dashBars(bars) {
   if (!bars || !bars.length) return '';
   const max = Math.max(1, ...bars.map(b => b.n));
@@ -721,6 +741,8 @@ function dashAnim(id, el, mode, eng, was) {
   el.querySelectorAll('svg.dash-spark, .dash-svg').forEach(p => dashTw(id, g.fromTo(p, { clipPath: 'inset(0% 100% 0% 0%)' },
     { clipPath: 'inset(0% 0% 0% 0%)', duration: p.classList.contains('dash-svg') ? 1.3 : 0.9, ease: 'power2.inOut', delay: delay + 0.15, clearProps: 'clipPath' })));
   el.querySelectorAll('.dash-area, .dash-ly, .dash-today').forEach(p => dashTw(id, g.fromTo(p, { opacity: 0 }, { opacity: 1, duration: 0.8, ease: 'power1.out', delay: delay + 0.5, clearProps: 'opacity' })));
+  const wk = el.querySelectorAll('.dash-wk-f');                    // This week, explained: the two week bars grow from the left
+  if (wk.length) dashTw(id, g.fromTo(wk, { scaleX: 0 }, { scaleX: 1, transformOrigin: '0% 50%', duration: 0.7, ease: 'power2.out', stagger: 0.08, delay: delay + 0.15, clearProps: 'transform' }));
   const bars = el.querySelectorAll('.dash-bar');
   if (bars.length) dashTw(id, g.fromTo(bars, { scaleY: 0 }, { scaleY: 1, transformOrigin: '50% 100%', duration: 0.6, ease: 'power2.out', stagger: 0.04, delay: delay + 0.1, clearProps: 'transform' }));
 }
