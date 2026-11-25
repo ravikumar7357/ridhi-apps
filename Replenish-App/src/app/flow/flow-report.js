@@ -6,24 +6,24 @@
  *
  *   Plan date     the day the plan was FIRST saved (plan.firstAt, kept from 28 Oct). A plan saved before then has only its
  *                 last save (plan.at).
- *   Stages        RFD (Send to printer once its RFD challan is made, else On RFD — a drop-down), then where the pieces are
- *                 NOW: with the printer (its name), printed in store, to cut, cut in store, with the karigars, received (to
- *                 QC), passed (to press), pressed (to finish) — blank once they have moved on (flowRepStages).
+ *   Stages        where every piece of the line is NOW, adding up to its order (flowRepWhere, 25 Nov): at RFD (with Send to
+ *                 printer / On RFD beside it), at the printer, at embroidery, printed in store, to cut, cut in store, with the
+ *                 karigars, received (to QC), passed (to press), pressed (to Finished Goods) — blank once they have moved on.
+ *   Completed     in Finished Goods or handed to shipping (25 Nov; it was "pressed").
  *   Sheets        Lines — row 1 adds the counts with SUBTOTAL (a filter re-adds them), row 2 names the groups, row 3 has
  *                 the filters — and Summary, a pivot by SKU: ordered, completed, pending, lines, late lines, Grand Total.
  *   Last moved    the last thing that happened to the line, its day and its step (flowRepLastMoved).
  *   Exp. completion  the plan's Ready date — PPC must give one to save a plan (28 Oct).
  *   Due date      the sales order's delivery date; for a Shopify / online line, 5 working days from when it opened (the
  *                 made-to-order rule of Production to Shipping); for the rest (Amazon), the Ready date — Amazon gives none.
- *   Delay         today against the due date, for a line not yet made; a made line says "made".
+ *   Delay         today against the due date, for a line not yet completed; a completed line says "Completed".
+ *   Page          PPC → Report shows the same lines, made by flowRepLines, as a dashboard and the two sheets (ppc-one.js).
  *   SHP report    the same sheet for the Shopify orders the SHP board owns, read from the board (flowRepShpFill) — the toolbar's
  *                 PPC report button is a drop-down: PPC report · SHP board report; each Shopify line is in one of the two, never both.
  *   Who           admins, and whoever holds the Reports right.
  * ================================================================ */
 const FLOW_REP = { from: '', to: '', on: 'planned', kind: 'ppc', soErr: '' };
 const flowRepAllowed = () => !!(ME.admin || (ME.tabs || []).includes('rep'));
-/* Made — passed QC: nothing left to be late on. */
-const FLOW_REP_MADE = ['ship', 'fgin', 'done'];
 const flowRepPad = n => String(n).padStart(2, '0');
 /** A saved time (ISO, UTC) as the calendar day it was here. */
 const flowRepDay = at => { if (!at) return ''; const d = new Date(at); return isNaN(d) ? String(at).slice(0, 10) : d.getFullYear() + '-' + flowRepPad(d.getMonth() + 1) + '-' + flowRepPad(d.getDate()); };
@@ -57,50 +57,82 @@ function flowRepDelay(due, made, today) {
   if (d === 0) return { txt: 'due today', late: 0 };
   return { txt: `${-d} day${d < -1 ? 's' : ''} left`, late: 0 };
 }
-/* WHERE THE PIECES ARE NOW (Ravi, 29 Oct: "if they are fulfilled or moved to the next stage they should show blank, and the
- * cell which is filled should be where they actually are"): each stage holds only the pieces sitting at it today — blank once
- * they have moved on, so a finished line is blank across, and the totals row adds the work waiting at each stage.
- *   Printing           the printer's name, while cloth is with them (not all printed and back)
- *   Printing in store  printed and back, not cut yet (not given yet, where the line is not cut)
- *   Cutting            cloth ready, not cut yet (a line not printed)        Cut, in store  cut, not given to a karigar yet
- *   Karigar            with the karigars, not back yet                      Received       back from them, not checked at QC yet
- *   QC                 passed QC, not pressed yet                           Press          pressed, not in India stock / handed over yet */
-function flowRepStages(r, s, p) {
-  const qty = +r.qty || 0, cap = n => Math.max(0, Math.min(qty, Math.floor((+n || 0) + 1e-9)));
-  const outside = s.route === 'outsource';
-  const pressed = cap(r.pressed), passed = cap(s.qc), done = cap(s.india);
-  const stitched = Math.max(cap(s.receivedAll), passed, pressed), cutC = Math.max(cap(s.cut), cap(s.issuedNet || 0), stitched);
-  const printOn = !!p && flowPrinted(s.route) && !s.fromStock, ch = s.challan || null;
-  /* WITH THE PRINTER (Ravi, 29 Oct): cloth has gone to them — a challan, metres sent, or the printer's own count of what was
-   * given — and not all of it is printed and back. A print order alone is not cloth with them. */
-  const withPrinter = printOn && Math.max(cap(s.back), cutC) < qty && (!!ch || +s.fabSent > 0 || (!s.po && cap(s.given) > 0));
-  const clothReady = !!(s.demand && s.demand.fabricReady) || cap(s.cut) > 0;
-  const given = Math.max(0, +s.issuedAll || 0), received = Math.max(0, +s.receivedAll || 0), rejected = Math.max(0, +s.qcRej || 0);
-  return {
-    print: { printer: withPrinter ? ((p.printer && (p.printer.name || p.printer.code)) || (ch && ch.vendor) || 'Printer') : '',
-      store: printOn ? Math.max(0, cap(s.back) - cutC) : 0 },
-    cut: { toCut: !printOn && s.cutReq && !outside && clothReady ? Math.max(0, qty - cutC) : 0,
-      store: s.cutReq ? Math.max(0, cap(s.cut) - Math.max(0, +s.issuedNet || 0)) : 0 },
-    stitch: { withKarigar: Math.max(0, given - received), toQc: Math.max(0, received - passed - rejected) },
-    qc: { toPress: Math.max(0, passed - pressed) }, press: { toFinish: Math.max(0, pressed - done) },
-    /* completed = made: passed QC and pressed (or, for a line made outside, received finished) */
-    completed: outside ? done : Math.max(pressed, Math.min(passed, cap(s.made))),
-  };
+/* WHERE EVERY PIECE OF A LINE IS (Ravi, 25 Nov, of the report file: "I want it to be acurate in its report"). The 29 Oct columns
+ * were each worked out on their own, so they could disagree: 35 lines said Completed while their pieces still sat at Press, 15
+ * named a stage whose column was blank, and a line's columns did not add up to its order. Now one count, from the furthest step
+ * back — a piece in Finished Goods was pressed, a pressed one passed QC, a passed one came back from a karigar, and so on — so a
+ * step with no entry of its own (issued with no Cutting Data row) is not left holding pieces that went on. Each place is the
+ * difference of two steps, so the places of a line ALWAYS add up to its order:
+ *   To plan · At RFD (cloth not sent yet) · At printer · At embroidery (a vendor's) · Printed, in store · To cut · Cut, in store
+ *   (to give a karigar) · With karigar · Received, to QC · Passed QC, to press · Pressed, to Finished Goods · With the outside
+ *   maker · Completed.
+ * COMPLETED = in Finished Goods (India stock) or handed to shipping (Ravi, 25 Nov — it was "pressed", 29 Oct): a pressed piece
+ * not yet counted in waits at Press. The page (PPC → Report) and the Excel are made from these same figures. */
+const FLOW_REP_PLACES = [['plan', 'To plan', 'PPC'], ['rfd', 'At RFD', 'RFD'], ['prn', 'At printer', 'Printing'], ['emb', 'At embroidery', 'Embroidery'],
+  ['prnStore', 'Printed, in store', 'Printed, in store'], ['toCut', 'To cut', 'Cutting'], ['cutStore', 'Cut, in store', 'Cut, in store'], ['kar', 'With karigar', 'Karigar'],
+  ['recv', 'Received, to QC', 'QC'], ['qc', 'Passed QC, to press', 'Press'], ['press', 'Pressed, to Finished Goods', 'To Finished Goods'],
+  ['out', 'With the outside maker', 'Outside maker'], ['done', 'Completed', 'Completed']];
+/** A line's pieces by place (FLOW_REP_PLACES keys); they add up to the line's quantity. */
+function flowRepWhere(r, s, p) {
+  const qty = +r.qty || 0, cap = n => Math.max(0, Math.min(qty, Math.floor((+n || 0) + 1e-9))), w = {};
+  FLOW_REP_PLACES.forEach(([k]) => { w[k] = 0; });
+  if (!qty) return w;
+  const done = (r.handedAt || r.shopDoneAt) ? qty : cap(s.india);
+  w.done = done;
+  if (!p) { w.plan = qty - done; return w; }
+  const route = flowRouteOf(p);
+  if (route === 'outsource') { w.out = qty - done; return w; }
+  /* the steps every made line goes through, the furthest first */
+  const pressed = Math.max(cap(r.pressed), done), passed = Math.max(cap(s.qc), pressed);
+  const issued = Math.max(cap(s.issuedNet), passed), back = Math.min(issued, Math.max(cap(s.received), passed));
+  const cut = s.cutReq ? Math.max(cap(s.cut), issued) : issued;
+  w.press = pressed - done; w.qc = passed - pressed; w.recv = back - passed; w.kar = issued - back;
+  if (s.cutReq) w.cutStore = cut - issued;
+  const printOn = flowPrinted(route) && !s.fromStock && !flowInHand(p);
+  if (!printOn) {
+    /* no printer: printed cloth already in the store (from stock, or in hand), cloth to cut, or straight to the karigars */
+    const rest = qty - cut, ready = !!(s.demand && s.demand.fabricReady) || cut > 0;
+    if (route === 'jobwork' || !s.cutReq) w.cutStore += rest;
+    else if (flowPrinted(route)) w.prnStore = rest;
+    else if (ready) w.toCut = rest; else w.rfd = rest;
+    return w;
+  }
+  /* printed by a printer: what went to them (the challans, or the printer's own count where no print order stands), what came back */
+  const embVendor = route === 'emb' && !s.embDept, after = s.cutReq ? cut : issued;
+  const embDone = embVendor ? Math.max(cap(s.embOk), after) : 0, printed = Math.max(cap(s.back), after, embDone);
+  /* sent: the cloth the challans took, as a share of the line (a challan line counts as "given" whole, so its metres decide);
+   * the printer's own count only where neither a print order nor a challan stands */
+  let left = null;
+  try { const o = flowFabOwed(r, s); if (o) left = o.unit === 'pcs' ? Math.round(+o.left || 0) : o.need > 0 ? Math.round(qty * (+o.left || 0) / o.need) : 0; } catch (e) { left = null; }
+  const sent = Math.max(left == null ? 0 : qty - Math.min(qty, Math.max(0, left)), s.po || s.challan ? 0 : cap(s.given), printed);
+  w.rfd = qty - sent; w.prn = sent - printed;
+  /* a vendor's embroidery: printed cloth not back embroidered is at embroidery (or about to go); back embroidered, it is to cut */
+  if (embVendor) { w.emb = printed - embDone; w.toCut = embDone - after; } else w.prnStore = printed - after;
+  return w;
 }
-/* The last thing that happened to the line, in the floor's words. */
+/** The line's process: the earliest place still holding pieces (where it is held up); Completed once every piece is. */
+function flowRepProcess(w, qty, mto) {
+  if (qty > 0 && w.done >= qty) return 'Completed';
+  const at = FLOW_REP_PLACES.find(([k]) => k !== 'done' && w[k] > 0);
+  return at ? (at[0] === 'press' && mto ? 'To shipping' : at[2]) : '';
+}
+/* The last thing that happened to the line, in the floor's words — every register, pressing and Finished Goods included (25 Nov:
+ * a line pressed after its plan still said "Planned"). The plan counts on the day it was FIRST saved: saving it again is not work. */
 const FLOW_REP_STEP = { plan: 'Planned', 'print order': 'Print order', 'RFD challan': 'RFD challan', 'printed back': 'Back from printer', cut: 'Cut',
-  'karigar issue': 'Given to karigar', 'karigar back': 'Received from karigar', QC: 'QC', handed: 'Completed' };
+  'karigar issue': 'Given to karigar', 'karigar back': 'Received from karigar', QC: 'QC', press: 'Pressed', fg: 'Into Finished Goods', handed: 'Completed' };
 function flowRepLastMoved(r, s, p) {
   let best = { day: '', what: '' };
   const see = (d, what) => { const day = String(ptIsoDate(d) || '').slice(0, 10); if (/^\d{4}-\d\d-\d\d$/.test(day) && day >= best.day) best = { day, what }; };
   const mine = x => x && obUC(x.orderNo) === obUC(r.orderNo) && obUC(x.sku) === obUC(r.sku);
-  if (p) see(flowRepDay(p.at), 'plan');
+  if (p) see(flowRepDay(p.firstAt || p.at), 'plan');
   Object.values(FLOW.po || {}).forEach(o => { if (o && !o.cancelled && o.items && o.items[s.key]) see(o.date, 'print order'); });
   Object.values(FLOW.ch || {}).forEach(c => { if (!c || c.cancelled || !(c.lines || []).some(l => l && l.key === s.key)) return;
     see(c.date, 'RFD challan'); Object.values(c.receipts || {}).forEach(rc => { if (rc && rc.items && +rc.items[s.key] > 0) see(rc.date, 'printed back'); }); });
   (PT.cut || []).forEach(x => { if (mine(x)) see(x.cutDate, 'cut'); });
   (PT.base || []).forEach(x => { if (!mine(x)) return; see(x.issueDate, 'karigar issue'); if (+x.receivedPieces > 0) see(x.receivingDate, 'karigar back'); });
   ((typeof QC !== 'undefined' && QC.checks) || []).forEach(x => { if (mine(x)) see(x.date, 'QC'); });
+  ((typeof PTG !== 'undefined' && PTG.press) || []).forEach(x => { if (mine(x) && +x.pieces > 0) see(x.entryDate || x.addedAt, 'press'); });
+  ((typeof FGI !== 'undefined' && FGI.rows) || []).forEach(x => { if (mine(x) && !x.test && x.txnType === 'RECEIVE') see(x.createdAt || x.date, 'fg'); });
   if (r.handedAt) see(r.handedAt, 'handed');
   return { day: best.day, step: FLOW_REP_STEP[best.what] || best.what };
 }
@@ -109,51 +141,25 @@ function flowRepLastMoved(r, s, p) {
  * else the one its RFD challan went to — at whatever stage the line is; blank when no printer is assigned. */
 const flowRepPrintedBy = (s, p) => String((p && p.printer && (p.printer.name || p.printer.code)) || (s.challan && s.challan.vendor) || '').trim();
 /** RFD (Ravi, 29 Oct: "RFD — Send to printer and On RFD, a drop-down column; when the RFD challan is made it turns to Send to
- * printer by itself, otherwise On RFD"): for a line whose cloth goes from RFD to a printer. Blank where no RFD goes out —
- * job work, outsourced, cloth already in hand, all from printed stock. */
+ * printer by itself, otherwise On RFD"), shown only while cloth of the line is still at RFD. */
 const FLOW_REP_RFD = ['Send to printer', 'On RFD'];
-/* …and only while the cloth is AT RFD (Ravi, 29 Oct: "in RFD show only when they are actually at it"): some of it still to go to
- * the printer and the line not printed and back. Once all of it has gone, the line is with the printer — RFD is blank. */
-function flowRepRfd(r, s, p) {
-  if (!p || !flowPrinted(flowRouteOf(p)) || s.fromStock || flowInHand(p)) return '';
-  const qty = +r.qty || 0, owed = flowFabOwed(r, s).left;
-  if (!(owed > 0.01) || Math.max(+s.back || 0, +s.cut || 0, +s.issuedNet || 0) >= qty) return '';
-  return s.challan ? FLOW_REP_RFD[0] : FLOW_REP_RFD[1];
-}
-/** PROCESS (Ravi, 29 Oct: "it should show at what process it actually is, and if it has passed all stages and passed from press it
- * should show Completed"): the first stage still holding pieces — where the line is held up — read from the same counts as the
- * stage columns; Completed once every piece is pressed (or the line is made). */
-const FLOW_REP_AT = { ppc: 'PPC', back: 'Sales team', demand: 'RFD', vendor: 'Print order', fabric: 'Printing', emb: 'Embroidery', cut: 'Cutting',
-  raw: 'Cut, in store', wip: 'Karigar', qcb: 'QC', out: 'Outside maker', ship: 'Completed', fgin: 'Completed', done: 'Completed' };
-function flowRepAt(x, r, s) {
-  const qty = +r.qty || 0;
-  if (x.made || (qty > 0 && Math.min(qty, +r.pressed || 0) >= qty) || (s.route === 'outsource' && (+s.india || 0) >= qty)) return 'Completed';
-  if (s.bucket === 'ppc' || s.bucket === 'back') return FLOW_REP_AT[s.bucket];
-  return x.rfd ? 'RFD' : x.print.printer ? 'Printing' : x.print.store ? 'Printed, in store' : x.cut.toCut ? 'Cutting' : x.cut.store ? 'Cut, in store'
-    : x.stitch.withKarigar ? 'Karigar' : x.stitch.toQc ? 'QC' : x.qc.toPress ? 'Press' : (FLOW_REP_AT[s.bucket] || '');
-}
 /** THE SHP REPORT (Ravi, 30 Oct: "a drop-down in the PPC report button where we can switch to the SHP report — the report of the SHP
- * board in the same format"). The Shopify orders the SHP board owns (dated from FLOW_BOARD_FROM) are worked there, often with no PPC
- * plan, so they are read from the board's own stage figures (shpbStages) — what waits at each stage — into the same columns:
- *   printer receive → Printing (the printer) · printed back, to cut → Printed, in store · to cut → Cutting · cut, to issue → Cut, in
- *   store · issued, not back → Karigar · back, to pass → QC · passed, to press → Press · pressed, shipping to accept → (Press)
- * Completed = pressed or taken from ready stock; Exp. completion = the board's ready date; a line with nothing moving shows the
- * board's own status (In production, OOS, Need from printer, Planned). */
+ * board in the same format"). The Shopify orders the SHP board owns are read from the board's own stage figures (shpbStages) into
+ * the same places: printer receive → At printer · printed back, to cut → Printed, in store · to cut → To cut · cut, to issue → Cut,
+ * in store · issued, not back → With karigar · back, to pass → Received · passed, to press → Passed QC · pressed, shipping to accept
+ * → Press. Completed = what shipping has accepted (25 Nov, as the PPC lines: handed over, not just pressed). Exp. completion = the
+ * board's ready date; a line with nothing moving shows the board's own status (In production, OOS, Need from printer, Planned). */
 function flowRepShpFill(x, st, o) {
   o = o || {};
-  const q0 = +x.pcs || 0, printerLine = st.prcA > 0;
+  const q0 = +x.pcs || 0, printerLine = st.prcA > 0, w = {};
+  FLOW_REP_PLACES.forEach(([k]) => { w[k] = 0; });
   x.printedBy = String(o.printer || x.printedBy || '').trim();
-  x.print = { printer: st.prcW > 0 ? (x.printedBy || 'Printer') : '', store: printerLine ? st.cutW : 0 };
-  x.cut = { toCut: printerLine ? 0 : st.cutW, store: st.cutA > 0 || st.cutD > 0 ? st.issW : 0 };
-  x.stitch = { withKarigar: st.recW, toQc: st.qcW };
-  x.qc = { toPress: st.prsW };
-  x.press = { toFinish: st.handW };
-  x.completed = Math.min(q0, st.prsD + st.stk);
-  x.made = q0 > 0 && x.completed >= q0;
+  Object.assign(w, { plan: st.planW, prn: st.prcW, prnStore: printerLine ? st.cutW : 0, toCut: printerLine ? 0 : st.cutW, cutStore: st.issW,
+    kar: st.recW, recv: st.qcW, qc: st.prsW, press: st.handW, done: Math.min(q0, st.handD) });
+  x.at = w; x.completed = w.done; x.made = q0 > 0 && w.done >= q0;
   if (o.ready) x.completion = String(o.ready).slice(0, 10);
-  x.process = x.made ? 'Completed' : x.rfd ? 'RFD' : st.planW > 0 ? 'To plan' : x.print.printer ? 'Printing' : x.print.store ? 'Printed, in store'
-    : x.cut.toCut ? 'Cutting' : x.cut.store ? 'Cut, in store' : x.stitch.withKarigar ? 'Karigar' : x.stitch.toQc ? 'QC' : x.qc.toPress ? 'Press'
-    : (o.status || 'In production');
+  const pr = flowRepProcess(w, q0, true);
+  x.process = pr === 'PPC' ? 'To plan' : pr || o.status || 'In production';
   return x;
 }
 /** The report's lines: o = { from, to, on: planned|came|waiting, today, soDue }. Real orders only — never a TEST line. */
@@ -175,32 +181,32 @@ function flowRepLines(o) {
       : o.on === 'came' ? inRange(ptIsoDate(r.orderDate))
       : !!p && inRange(first);
     if (!keep) return;
-    const m = mdb.get(obUC(r.sku)) || cutSkuOf(r.sku) || {};
-    const due = flowRepDue(r, p, soDue), made = FLOW_REP_MADE.includes(s.bucket), dl = flowRepDelay(due.due, made, today);
-    const mv = flowRepLastMoved(r, s, p);
-    const x = Object.assign({
+    const m = mdb.get(obUC(r.sku)) || cutSkuOf(r.sku) || {}, qty = +r.qty || 0, mto = typeof flowIsMto === 'function' && flowIsMto(r);
+    const w = flowRepWhere(r, s, p), made = qty > 0 && w.done >= qty;
+    const due = flowRepDue(r, p, soDue), dl = flowRepDelay(due.due, made, today);
+    const x = {
       key: s.key, planned: first, plannedKnown: !!(p && p.firstAt), orderNo: String(r.orderNo || ''), orderDate: ptIsoDate(r.orderDate) || '',
       channel: flowRepChannel(r), sku: obUC(r.sku),
       category: String(m.articleType || r.articleType || ''), subCategory: String(m.subtype || m.articleSubtype || r.articleSubtype || ''),
       parent: String(m.parentAsin || ''), colour: String(m.color || r.color || ''), size: String(m.size || r.size || ''),
-      fabric: String((p && p.fabric && p.fabric.name) || m.fabric || ''), pcs: +r.qty || 0,
-      printedBy: flowRepPrintedBy(s, p), rfd: flowRepRfd(r, s, p), completion: p && p.dates && p.dates.ready ? String(p.dates.ready).slice(0, 10) : '',
-      due: due.due, dueFrom: due.from, delay: dl.txt, late: dl.late, made, moved: mv,
+      fabric: String((p && p.fabric && p.fabric.name) || m.fabric || ''), pcs: qty,
+      printedBy: flowRepPrintedBy(s, p), completion: p && p.dates && p.dates.ready ? String(p.dates.ready).slice(0, 10) : '',
+      due: due.due, dueFrom: due.from, delay: dl.txt, late: dl.late, made, at: w, completed: w.done, moved: flowRepLastMoved(r, s, p),
       waitDays: s.bucket === 'ppc' && r.orderDate ? Math.max(0, flowRepDaysBetween(ptIsoDate(r.orderDate), today)) : 0,
-    }, flowRepStages(r, s, p), made ? { completed: +r.qty || 0 } : {});
-    x.process = flowRepAt(x, r, s);
+      process: flowRepProcess(w, qty, mto) };
     if (shp) {
-      x.rfd = flowRepRfd(r, s, p);
       const st = typeof shpbStages === 'function' ? shpbStages([r]) : o.shpStages && o.shpStages(r);
       if (st) flowRepShpFill(x, st, { printer: typeof shpbPrinterOf === 'function' ? shpbPrinterOf(r) : '', ready: typeof shpbReadyOf === 'function' ? shpbReadyOf(r).date : '',
         status: typeof shpbStatusInfo === 'function' ? shpbStatusInfo(r, st).label : '' });
       const d2 = flowRepDelay(x.due, x.made, today); x.delay = d2.txt; x.late = d2.late;
       if (o.on === 'waiting' && x.process === 'Completed') return;   // still open: what is not completed yet
     }
-    /* RFD fills only while the PROCESS is RFD (Ravi, 29 Oct): Send to printer once Sultan's RFD challan is made, else On RFD. */
+    /* RFD (29 Oct): Send to printer once its RFD challan is made, else On RFD — only while cloth of it is still at RFD */
+    x.rfd = x.at.rfd > 0 && p && flowPrinted(flowRouteOf(p)) ? FLOW_REP_RFD[s.challan ? 0 : 1] : '';
+    /* planned to finish after it is due (25 Nov: 218 lines of the 19–25 Nov file, said nowhere) */
+    x.plannedLate = !made && x.completion && x.due && x.completion > x.due ? flowRepDaysBetween(x.due, x.completion) : 0;
     /* a completed line's last step says Completed (Ravi, 29 Oct), whatever its last register entry was */
     if (x.process === 'Completed' && x.moved && x.moved.day) x.moved = { day: x.moved.day, step: 'Completed' };
-    if (x.process !== 'RFD') x.rfd = '';
     out.push(x);
   });
   return out.sort((a, b) => (a.planned || a.orderDate).localeCompare(b.planned || b.orderDate) || a.orderNo.localeCompare(b.orderNo) || a.sku.localeCompare(b.sku));
@@ -211,18 +217,19 @@ function flowRepLines(o) {
 const FLOW_REP_GRP = { Order: ['E6F1FB', '0C447C'], Product: ['F1EFE8', '444441'], Qty: ['EEEDFE', '3C3489'], Pieces: ['EEEDFE', '3C3489'],
   RFD: ['E6F1FB', '0C447C'], Printing: ['FBEAF0', '72243E'], Cutting: ['FAEEDA', '633806'], Karigar: ['E1F5EE', '085041'], QC: ['EAF3DE', '27500A'], Press: ['EEEDFE', '3C3489'], Dates: ['FAECE7', '712B13'] };
 /* Lines sheet: [group, heading, value, kind, width, list]; kind: date · num (a count, blank when 0) · qty · late · sku · list (a drop-down
- * of the values in the sixth place) */
+ * of the values in the sixth place). Each stage column is a place of flowRepWhere, so a line's stage columns and Completed add up to
+ * Ordered (25 Nov). */
 const FLOW_REP_COLS = [
   ['Order', 'Plan date', x => x.planned, 'date', 13.5], ['Order', 'Order no', x => x.orderNo, '', 13], ['Order', 'Order date', x => x.orderDate, 'date', 13.5], ['Order', 'Channel', x => x.channel, '', 12],
   ['Product', 'SKU', x => x.sku, 'sku', 14], ['Product', 'Category', x => x.category, '', 16], ['Product', 'Sub-category', x => x.subCategory, '', 15], ['Product', 'Parent ASIN', x => x.parent, '', 14],
-  ['Product', 'Colour', x => x.colour, '', 15], ['Product', 'Size', x => x.size, '', 12], ['Product', 'Fabric', x => x.fabric, '', 12], ['Product', 'Process', x => x.process, '', 12], ['Product', 'Printed by', x => x.printedBy, '', 18],
-  ['Qty', 'Ordered', x => x.pcs, 'qty', 12],
-  ['RFD', 'RFD', x => x.rfd, 'list', 15, FLOW_REP_RFD],
-  ['Printing', 'Printing in store', x => x.print.store, 'num', 13],
-  ['Cutting', 'Cutting', x => x.cut.toCut, 'num', 12], ['Cutting', 'Cut, in store', x => x.cut.store, 'num', 13.4],
+  ['Product', 'Colour', x => x.colour, '', 15], ['Product', 'Size', x => x.size, '', 12], ['Product', 'Fabric', x => x.fabric, '', 12], ['Product', 'Process', x => x.process, '', 14], ['Product', 'Printed by', x => x.printedBy, '', 18],
+  ['Qty', 'Ordered', x => x.pcs, 'qty', 11], ['Qty', 'Completed', x => x.completed, 'num', 11.5],
+  ['RFD', 'RFD', x => x.rfd, 'list', 15, FLOW_REP_RFD], ['RFD', 'At RFD', x => x.at.rfd, 'num', 10],
+  ['Printing', 'At printer', x => x.at.prn, 'num', 11], ['Printing', 'Embroidery', x => x.at.emb, 'num', 12], ['Printing', 'Printing in store', x => x.at.prnStore, 'num', 13],
+  ['Cutting', 'Cutting', x => x.at.toCut, 'num', 12], ['Cutting', 'Cut, in store', x => x.at.cutStore, 'num', 13.4],
   /* "Stitching" is called Karigar (Ravi, 29 Oct) — the pieces with the karigars now */
-  ['Karigar', 'Karigar', x => x.stitch.withKarigar, 'num', 12], ['Karigar', 'Received', x => x.stitch.toQc, 'num', 12],
-  ['QC', 'QC', x => x.qc.toPress, 'num', 12], ['Press', 'Press', x => x.press.toFinish, 'num', 12],
+  ['Karigar', 'Karigar', x => x.at.kar, 'num', 12], ['Karigar', 'Received', x => x.at.recv, 'num', 12],
+  ['QC', 'QC', x => x.at.qc, 'num', 12], ['Press', 'Press', x => x.at.press, 'num', 12],
   ['Dates', 'Due', x => x.due, 'date', 13.5], ['Dates', 'Exp. completion', x => x.completion, 'date', 13.5], ['Dates', 'Days late', x => x.process === 'Completed' ? 'Completed' : (x.late || ''), 'late', 12],
   ['Dates', 'Last moved', x => x.moved && x.moved.day, 'date', 13.5], ['Dates', 'Last step', x => x.moved && x.moved.step, '', 24]];
 /** The Summary sheet's rows: one a SKU — how many ordered, how many completed, how many still pending (Ravi, 28 Oct: "what SKU,
@@ -232,6 +239,28 @@ function flowRepSkus(lines) {
   lines.forEach(x => { const e = m.get(x.sku) || m.set(x.sku, { sku: x.sku, lines: 0, pcs: 0, completed: 0, late: 0 }).get(x.sku);
     e.lines++; e.pcs += +x.pcs || 0; e.completed += +x.completed || 0; if (x.late > 0) e.late++; });
   return [...m.values()].sort((a, b) => a.sku.localeCompare(b.sku)).map(e => Object.assign(e, { pending: Math.max(0, e.pcs - e.completed) }));
+}
+/* THE REPORT PAGE'S FIGURES (Ravi, 25 Nov: "make it work in such a way its really impressive and show really good way of data"):
+ * the headline counts, where all the pieces are, when the open lines fall due (week by week, the late ones first), and how each
+ * channel and category is doing — every figure added up from the same lines as the two sheets, so page, sheets and Excel agree. */
+const flowRepWeekOf = iso => { const q = String(iso).split('-').map(Number), d = new Date(q[0], q[1] - 1, q[2]); return flowRepAdd(iso, -((d.getDay() + 6) % 7)); };
+function flowRepDash(lines, today) {
+  const add = (xs, f) => xs.reduce((t, x) => t + (+f(x) || 0), 0), open = lines.filter(x => !x.made), late = open.filter(x => x.late > 0);
+  const places = FLOW_REP_PLACES.map(([k, label, proc]) => ({ k, label, proc, pcs: add(lines, x => x.at && x.at[k]) })).filter(e => e.pcs > 0);
+  /* open lines by the week they fall due: the past weeks are late; no date set kept apart */
+  const thisWeek = flowRepWeekOf(today), wk = new Map();
+  open.forEach(x => { const k = x.due ? flowRepWeekOf(x.due) : ''; const e = wk.get(k) || wk.set(k, { week: k, lines: 0, pcs: 0, late: !!k && k < thisWeek }).get(k);
+    e.lines++; e.pcs += Math.max(0, x.pcs - x.completed); if (x.late > 0) e.late = true; });
+  const weeks = [...wk.values()].sort((a, b) => (a.week || '9').localeCompare(b.week || '9'));
+  const group = f => { const m = new Map(); lines.forEach(x => { const k = f(x) || 'Other';
+      const e = m.get(k) || m.set(k, { name: k, lines: 0, ordered: 0, completed: 0, late: 0 }).get(k);
+      e.lines++; e.ordered += x.pcs; e.completed += x.completed; if (x.late > 0) e.late++; });
+    return [...m.values()].sort((a, b) => b.ordered - a.ordered); };
+  const proc = new Map(); lines.forEach(x => { const k = x.process || '—', e = proc.get(k) || proc.set(k, { name: k, lines: 0, pcs: 0 }).get(k); e.lines++; e.pcs += x.pcs; });
+  return { lines: lines.length, orders: new Set(lines.map(x => x.orderNo)).size, skus: new Set(lines.map(x => x.sku)).size,
+    ordered: add(lines, x => x.pcs), completed: add(lines, x => x.completed), late: late.length, latePcs: add(late, x => x.pcs - x.completed),
+    plannedLate: open.filter(x => x.plannedLate > 0).length, noDue: open.filter(x => !x.due).length, places, weeks,
+    channels: group(x => x.channel), categories: group(x => x.category), processes: [...proc.values()] };
 }
 /** The Summary as the first report had it — a pivot: Row Labels, the sums beside them, Grand Total at the foot. */
 function flowRepPivot(lines) {
@@ -374,11 +403,7 @@ async function flowRepOpen(kind) {
     onSave: async () => {
       const lines = flowRepNow();
       if (!lines.length) return 'Nothing to download for these days.';
-      const bytes = flowRepXlsx(flowRepSheets(lines));
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-      a.download = (FLOW_REP.kind === 'shp' ? 'shp-report-' : 'ppc-report-') + (FLOW_REP.on === 'waiting' ? 'waiting-' + dToday() : FLOW_REP.from + '-to-' + FLOW_REP.to) + '.xlsx';
-      a.click(); URL.revokeObjectURL(a.href);
+      flowRepDownload(lines, FLOW_REP);
       return '';
     },
   });
@@ -390,12 +415,23 @@ async function flowRepOpen(kind) {
   document.querySelectorAll('[data-flrepq]').forEach(b => { b.onclick = () => { const r = flowRepRanges()[+b.dataset.flrepq];
     FLOW_REP.from = r[1]; FLOW_REP.to = r[2]; $('flRepFrom').value = r[1]; $('flRepTo').value = r[2]; flowRepPaint(); }; });
   flowRepPaint();
-  /* The sales orders' delivery dates: read once, only here, and only when no other screen has read them already. */
-  if (typeof SOX !== 'undefined' && SOX.rows == null) {
-    try { SOX.rows = ptList(await ptGet('pt_salesOrders')); FLOW_REP.soErr = ''; }
-    catch (e) { FLOW_REP.soErr = 'Could not read the sales orders, so their due dates are missing here (' + (e.message || e) + ').'; }
-    flowRepPaint();
-  }
+  if (await flowRepSoLoad()) flowRepPaint();
+}
+/** The Excel of some lines (Lines and Summary), named for the report and its days: o = { kind, on, from, to }. The dialog and
+ *  the PPC → Report page both download through here, so the file is the same from either. */
+function flowRepDownload(lines, o) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([flowRepXlsx(flowRepSheets(lines))], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = (o.kind === 'shp' ? 'shp-report-' : 'ppc-report-') + (o.on === 'waiting' ? 'waiting-' + dToday() : (o.from || 'start') + '-to-' + (o.to || dToday())) + '.xlsx';
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+}
+/** The sales orders' delivery dates: read once, only for a report, and only when no other screen has read them already. Says
+ *  true when it read (so the caller draws again); a failed read leaves the due dates out and says why in FLOW_REP.soErr. */
+async function flowRepSoLoad() {
+  if (typeof SOX === 'undefined' || SOX.rows != null) return false;
+  try { SOX.rows = ptList(await ptGet('pt_salesOrders')); FLOW_REP.soErr = ''; }
+  catch (e) { FLOW_REP.soErr = 'Could not read the sales orders, so their due dates are missing here (' + (e.message || e) + ').'; }
+  return true;
 }
 /** The toolbar button — a drop-down (Ravi, 30 Oct: "I want the dropdown where I encircled"): PPC report · SHP board report.
  *  On the Production flow screen, for admins and the Reports right. */
