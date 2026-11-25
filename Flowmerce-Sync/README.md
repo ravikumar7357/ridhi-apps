@@ -40,6 +40,12 @@ Webhook address: `https://asia-south1-price-research-48ff3.cloudfunctions.net/fl
 - The raw copy is saved only when the order really changed.
 - Shopify's limits are respected: the page size shrinks if a query is too big, and it waits when the request budget runs low.
 
+## Nightly trim (database, not Firebase)
+pg_cron job `flowmerce-trim-old-data` (every 5 min, 02:30–03:25 IST) calls `flowmerce.trim_old_data()` (`sql/16`):
+orders are kept forever; for parcels delivered 30+ days ago the in-between IN_TRANSIT scans are deleted (first and last
+in-transit scan and every other step are kept); raw Shopify answers go after 30 days, processed webhook messages after 14.
+At most 10,000 rows per table per call, so the ERP's WAL stays calm.
+
 ## Files
 
 | File | Job |
