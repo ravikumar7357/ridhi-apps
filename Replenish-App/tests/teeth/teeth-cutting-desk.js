@@ -30,6 +30,10 @@ const breaks = {
   'Cut by can be typed over': s => s.replace("{ key: 'cutBy', label: 'Cut by', value: cdkCutBy(), readonly: true }", "{ key: 'cutBy', label: 'Cut by', value: cdkCutBy() }"),
   'Cut by shows the whole email': s => s.replace('const cdkCutBy = () => whoShort(ME.email);', 'const cdkCutBy = () => ME.email;'),
   'Cut by is left off the card': s => s.replace("      { key: 'cutBy', label: 'Cut by', value: cdkCutBy(), readonly: true },\n", ''),
+  'the page does not open on To cut': s => s.replace("if (!FLOW_EMB.pcut) { FLOW_EMB.pcut = 'cut'; flowEmbedRender('pcut'); }", ''),
+  'the page is sent back to To cut every time it opens': s => s.replace('  CDK.opened = true;\n', ''),
+  'the page opens on To cut with the desk off': s => s.replace("if (CDK.opened || !cdkSwitchOn() || !flowEmbedViews('pcut').includes('cut')) return;", "if (CDK.opened || !flowEmbedViews('pcut').includes('cut')) return;"),
+  'somebody without the right is sent to To cut': s => s.replace("if (CDK.opened || !cdkSwitchOn() || !flowEmbedViews('pcut').includes('cut')) return;", 'if (CDK.opened || !cdkSwitchOn()) return;'),
   'no pieces reaches the form': s => s.replace("if (!(pcs > 0)) return 'Type how many pieces were cut.';", ''),
   'earlier entries of other orders are listed': s => s.replace('obUC(c.orderNo) === obUC(r.orderNo) && ', ''),
 };

@@ -16810,7 +16810,10 @@ function renderMdbFabric() {
 
 /* ---------------- Cutting Data ---------------- */
 
-async function ensurePcut() { if (PT.cut === null) await ptLoad('cut', 'pt_cuttingData', renderPcut); else renderPcut(); }
+async function ensurePcut() {
+  if (typeof cdkOpenFirst === 'function') cdkOpenFirst();   // where the Cutting Desk is on, the page opens on the lines waiting to be cut
+  if (PT.cut === null) await ptLoad('cut', 'pt_cuttingData', renderPcut); else renderPcut();
+}
 
 /* THE PLATFORM (Ravi, 16 Oct: "cutting entry me kis platform ka order h wo filter bhi add kardo"), read from the order
  * number the way the rest of the app reads it: AMZ- Amazon, SHP- Shopify, ONL- Online, B2B- B2B. Another prefix is shown as
@@ -37601,7 +37604,8 @@ const flowCutNow = (r, s) => (s.route === 'emb' && !s.embDept ? (s.canCut || 0) 
 async function flowCutEntry(r, s) {
   if (!flowMay('pcut')) return flowSay('Cutting Data is not open to this account — ask for the Cutting right.', true);
   try {
-    flowEmbedOff('pcut'); showTab('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
+    /* The page first, then its own form: opening Cutting can land on To cut (the Cutting Desk, 25 Nov), which sets the form aside. */
+    showTab('pcut'); flowEmbedOff('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
     $('cwSku').value = obUC(r.sku); cutSkuTyped(); renderCutForm();
     $('cwOrd').value = r.orderNo; renderCutForm();
     $('cwPcs').value = flowCutNow(r, s);
@@ -39125,7 +39129,11 @@ async function flowEmbedRender(tab) {
   const label = k => (desk(k) ? CDK_NAME : (FLOW_BUCKETS.find(b => b[0] === k) || [, k])[1]);
   const count = k => { try { if (!FLOW.ppc) return ''; const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
     return String(flowRows().filter(x => (!only || x.r.__t) && flowInView(k, x.s)).length); } catch (e) { return ''; } };
-  seg.innerHTML = [['', cfg.own]].concat(views.map(k => [k, label(k)])).map(([k, l]) => { const c = k ? count(k) : '';
+  /* ONE PAGE WITH A SWITCH (Ravi, 25 Nov: "I don't want the cutting data to be at separate page than the cutting desk" — one list
+   * with a switch, the lines waiting to be cut first): where the desk is on, Cutting's two buttons are "To cut" and "Cut entries". */
+  const onePage = tab === 'pcut' && desk('cut') && views.includes('cut');
+  const tabs = onePage ? [['cut', 'To cut'], ['', 'Cut entries']] : [['', cfg.own]].concat(views.map(k => [k, label(k)]));
+  seg.innerHTML = tabs.map(([k, l]) => { const c = k ? count(k) : '';
     return `<button type="button" data-flemb="${k}" class="${k === v ? '' : 'ghost'}" style="width:auto;padding:6px 16px;font-size:13.5px">${esc(l)}${c !== '' ? ` <b style="margin-left:4px">${c}</b>` : ''}</button>`; }).join('')
     + '';
   [...pane.children].forEach(ch => { if (ch !== seg && ch !== box && ch.classList) ch.classList.toggle('fl-embhide', !!v); });
@@ -39191,7 +39199,7 @@ const CDK_DEFAULT = false;
 const CDK_NAME = 'Cutting Desk';
 const CDK_PAGE = 50;
 const CDK_PICKS = [['', 'All'], ['none', 'Not started'], ['part', 'Part cut']];
-const CDK = { pick: '', page: 0 };
+const CDK = { pick: '', page: 0, opened: false };
 /* the boxes of Cutting Data's form the pop-up fills in; the SKU first, because the order list follows it */
 const CDK_FORM = ['cwSku', 'cwOrd', 'cwPcs', 'cwFabric', 'cwDate', 'cwUsed', 'cwWaste', 'cwWasteW', 'cwRemarks'];
 
@@ -39202,6 +39210,15 @@ function cdkSwitchOn() {
   const testLink = typeof window !== 'undefined' && (!!window.__TEST_ERP || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname));
   const branchLink = typeof baseOnPreview === 'function' && baseOnPreview();
   return CDK_DEFAULT || testLink || branchLink;
+}
+
+/** OPENS ON THE LINES WAITING TO BE CUT (Ravi, 25 Nov: one page with a switch, "lines waiting to be cut" first). The first time
+ *  the Cutting page is opened after sign-in it shows To cut; after that it stays on whichever list was picked. Called when the
+ *  page is opened, never at sign-in, so the production flow is read only by somebody who opens Cutting. */
+function cdkOpenFirst() {
+  if (CDK.opened || !cdkSwitchOn() || !flowEmbedViews('pcut').includes('cut')) return;
+  CDK.opened = true;
+  if (!FLOW_EMB.pcut) { FLOW_EMB.pcut = 'cut'; flowEmbedRender('pcut'); }
 }
 
 /* ---- the figures of one line ---- */

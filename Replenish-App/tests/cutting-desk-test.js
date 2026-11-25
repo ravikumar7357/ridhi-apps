@@ -32,7 +32,7 @@ function load(o) {
     PT: { cut: o.cut || [] }, flowRows: () => o.rows || [], flowMay: () => o.may !== false, flowTestCutOpen: (no, sku) => { ctx.__testCut = no + '|' + sku; },
     flowCutNow: (r, s) => Math.max(0, (+r.qty || 0) - (+s.cut || 0)), flowCutFabricOf: () => ({ code: o.printed || '' }), cutFabrics: () => ['Cambric 90', 'Sheeting 82'],
     ptOpenDialog: cfg => { ctx.__dlg = cfg; }, cutFormMsg: t => { el('cwMsg').textContent = t; }, ensureCutForm: async () => {}, renderCutPick() {}, renderCutForm() {},
-    flowEmbedRender: tab => { ctx.__redraws = (ctx.__redraws || 0) + 1; }, flowEmbedRefresh: () => { ctx.__refreshed = (ctx.__refreshed || 0) + 1; },
+    flowEmbedRender: tab => { ctx.__redraws = (ctx.__redraws || 0) + 1; }, FLOW_EMB: { pcut: o.emb || '' }, flowEmbedViews: () => (o.noCutTab ? [] : ['cut']), flowEmbedRefresh: () => { ctx.__refreshed = (ctx.__refreshed || 0) + 1; },
     __driveErr: o.driveErr || '', __driveThrows: !!o.driveThrows,
   };
   /* the form's own Save, stood in for: it notes what it was handed and whether the line's own fabric was allowed at that moment */
@@ -41,7 +41,7 @@ function load(o) {
     + ' if (__driveThrows) throw new Error("offline"); return __driveErr; }\n';
   const keys = Object.keys(ctx).concat('__drives');
   const fn = new Function(...keys, pre + SRC + '\n;return { cdkSwitchOn, cdkLeft, cdkStage, cdkTiles, cdkFilter, cdkPageOf, cdkTableHtml, cdkTopHtml, cdkPagerHtml, cdkRender, cdkClick, cdkPrint,'
-    + ' cdkCutOpen, cdkCutSave, cdkEarlier, CDK, CDK_NAME, CDK_PAGE, ownOk: () => CUT_OWN_OK };');
+    + ' cdkOpenFirst, cdkCutOpen, cdkCutSave, cdkEarlier, CDK, CDK_NAME, CDK_PAGE, ownOk: () => CUT_OWN_OK };');
   return Object.assign(fn(...keys.map(k => (k === '__drives' ? drives : ctx[k]))), { els, ctx, drives, warns });
 }
 /* a line with no fabric anywhere: no plan, and its SKU not in the master */
@@ -59,6 +59,18 @@ const click = (S, name, val) => S.cdkClick({ target: { closest: sel => (sel === 
     ok('turned off on the test link', load({ ls: '0', testLink: true }).cdkSwitchOn() === false);
     const B = load({ lsBlocked: true });
     ok('saved settings blocked: the old list stays, and the console says why', B.cdkSwitchOn() === false && B.warns.length === 1);
+  }
+
+  console.log('== one page with a switch: it opens on the lines waiting to be cut ==');
+  {
+    const S = load({ testLink: true }); S.cdkOpenFirst();
+    ok('the first time the Cutting page opens, it shows To cut', S.ctx.FLOW_EMB.pcut === 'cut' && S.ctx.__redraws === 1);
+    S.ctx.FLOW_EMB.pcut = ''; S.cdkOpenFirst();
+    ok('after that it stays on the list somebody picked', S.ctx.FLOW_EMB.pcut === '' && S.ctx.__redraws === 1);
+    const O = load(); O.cdkOpenFirst();
+    ok('with the Cutting Desk off, the page opens as it always did', O.ctx.FLOW_EMB.pcut === '' && !O.ctx.__redraws);
+    const N = load({ testLink: true, noCutTab: true }); N.cdkOpenFirst();
+    ok('somebody without the To cut right is not sent there', N.ctx.FLOW_EMB.pcut === '' && !N.ctx.__redraws);
   }
 
   console.log('== what is left to cut ==');

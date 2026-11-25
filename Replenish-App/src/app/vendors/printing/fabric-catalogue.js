@@ -208,7 +208,10 @@ function renderMdbFabric() {
 
 /* ---------------- Cutting Data ---------------- */
 
-async function ensurePcut() { if (PT.cut === null) await ptLoad('cut', 'pt_cuttingData', renderPcut); else renderPcut(); }
+async function ensurePcut() {
+  if (typeof cdkOpenFirst === 'function') cdkOpenFirst();   // where the Cutting Desk is on, the page opens on the lines waiting to be cut
+  if (PT.cut === null) await ptLoad('cut', 'pt_cuttingData', renderPcut); else renderPcut();
+}
 
 /* THE PLATFORM (Ravi, 16 Oct: "cutting entry me kis platform ka order h wo filter bhi add kardo"), read from the order
  * number the way the rest of the app reads it: AMZ- Amazon, SHP- Shopify, ONL- Online, B2B- B2B. Another prefix is shown as
