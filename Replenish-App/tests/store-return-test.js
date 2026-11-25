@@ -4,7 +4,9 @@
  * Loads src/app/inventory/store.js alone with its neighbours stubbed. What must hold: a receipt on a challan comes into the store as "Store receive",
  * whether it is running cloth (m) or cut pieces (pcs); pieces given to a karigar go out only for SKUs a printer delivered here; a Return takes at most what is
  * left of one receipt, needs a reason, is a store OUT "Returned to <printer>", and carries the order; the entries list shows the history tiles and a Return
- * button for a receipt that has something left; and a store Return shows in the order's journey. */
+ * button for a receipt that has something left; and a store Return shows in the order's journey.
+ * THE PAGE (25 Nov): the list of what printers sent is gone from this screen (receiving is on Vendor Orders); the store list comes 50 items at a time, with
+ * quick filters and a Returned column; and the Return button, which sits in the entries dialog, is heard wherever it is on the page. */
 const fs = require('fs'), path = require('path');
 const rd = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n');
 const SRC = rd('src/app/inventory/store.js'), VH = rd('src/app/orders/vendor-holdings.js');
@@ -13,11 +15,11 @@ const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + 
 
 function load(o) {
   o = o || {};
-  const els = {}, puts = [];
+  const els = {}, puts = [], pageClicks = [];
   const el = id => els[id] || (els[id] = { id, value: '', innerHTML: '', textContent: '', className: '', title: '', style: {}, dataset: {},
     classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, addEventListener() {}, onclick: null, onchange: null });
   const ctx = {
-    $: el, localStorage: { getItem: () => null, setItem() {} }, document: { addEventListener() {}, querySelectorAll: () => [], querySelector: () => null },
+    $: el, localStorage: { getItem: () => null, setItem() {} }, document: { addEventListener: (type, fn) => { if (type === 'click') pageClicks.push(fn); }, querySelectorAll: () => [], querySelector: () => null },
     esc: s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])),
     nf: v => String(v), ptIsoDate: v => String(v || '').slice(0, 10), attToday: () => '2026-11-24', ptCanEdit: () => true, PT_NO_EDIT: 'no', ME: { email: 'ravi@x' },
     ptCi: (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase(), alert() {},
@@ -27,14 +29,14 @@ function load(o) {
     flowPrintWhat: () => ({ kind: 'fabric', code: '' }),
     flowVlogRows: () => o.vlog || [],
     PT: { cut: [], base: o.base || [] }, vprPendingAll: () => (o.pend === undefined ? [] : o.pend), flowMay: () => o.may !== false, CSS: { escape: s => s },
-    ptEmpty() {}, ptImgSpan: () => '', ptImgFill() {}, ptIfTab: (t, f) => f, ptImgPatch() {},
+    ptEmpty: (id, text) => { el(id).innerHTML = ''; el(id).emptyText = text; }, ptImgSpan: () => '', ptImgFill() {}, ptIfTab: (t, f) => f, ptImgPatch() {},
     ptOpenDialog: cfg => { ctx.__dlg = cfg; }, cutFabrics: () => [], ptDownload() {}, csvCell: v => String(v), renderFab() {},
     fabKey: v => String(v || '').trim().toUpperCase(), obUC: v => String(v == null ? '' : v).trim().toUpperCase(), ptCutPerPiece: () => 0, ptPrintIssueAs: () => 'running', ensureStore() {},
     ptPut: async (p, v) => { if (o.putFails) throw new Error('offline'); puts.push([p, v]); }, ptDelete: async () => {}, ptList: v => Object.keys(v || {}).map(k => v[k]),
   };
   const keys = Object.keys(ctx);
-  const fn = new Function(...keys, SRC + '\n;Object.assign(STORE, __STORE);return { stMoves, stBalances, stReturnSave, stReturnLeft, stReturnOpen, stEntriesOpen, stKey, stPendHtml };');
-  return Object.assign(fn(...keys.map(k => ctx[k])), { els, ctx, puts });
+  const fn = new Function(...keys, SRC + '\n;Object.assign(STORE, __STORE);return { stMoves, stBalances, stReturnSave, stReturnLeft, stReturnOpen, stEntriesOpen, stKey, stPageOf, stPickHas, renderStoreHand, STORE };');
+  return Object.assign(fn(...keys.map(k => ctx[k])), { els, ctx, puts, pageClicks });
 }
 
 /* a receipt row, as flowVlogRows gives it */
@@ -63,22 +65,35 @@ console.log('== pieces given to a karigar go out only for SKUs a printer deliver
   const pcs = S.stBalances(mv).find(b => b.unit === 'pcs');
   ok('the shelf of those pieces = 10 received - 4 issued = 6', pcs && pcs.qty === 6, pcs && pcs.qty);
 }
-console.log('== waiting to be received: shown on top of the Store, with Receive ==');
+console.log('== the store page: no list of what printers sent, 50 items a page, quick filters ==');
 {
-  const line = (over) => Object.assign({ id: 'o1|0', printer: 'RBP-Bagru', o: { orderNo: 'VPO-261124-IB6', id: 'o1', orderType: 'cut' }, l: { sku: 'RTC327-6060', color: 'Light Steel Blue' },
-    v: { unit: 'pcs', n: 8, t: [1] }, sent: 8, got: 0 }, over || {});
-  const S = load({ pend: [line()] });
-  const h = S.stPendHtml();
-  ok('a sent line that is not in yet is listed: printer, order, item, sent 8, to receive 8', /Sent by printers/.test(h) && /RBP-Bagru/.test(h) && /VPO-261124-IB6/.test(h) && /RTC327-6060/.test(h) && />8 pcs</.test(h), h.slice(0, 400));
-  ok('…with a Receive button for the 8 (a box up to 8)', /data-stg-go="o1\|0"/.test(h) && /data-stg-box="o1\|0"[^>]*max="8"[^>]*value="8"/.test(h), h);
-  ok('…and it says it comes into the store as "Store receive" once taken in', /Store receive/.test(h));
-  ok('without the Printed fabric in right: listed, but no button', !/data-stg-go/.test(load({ pend: [line()], may: false }).stPendHtml()) && /needs the Printed fabric in right/.test(load({ pend: [line()], may: false }).stPendHtml()));
-  ok('nothing waiting: nothing drawn', load({ pend: [] }).stPendHtml() === '');
-  ok('the figures not read yet: says it is reading', /Reading what the printers have sent/.test(load({ pend: null }).stPendHtml()));
-  const two = load({ pend: [line(), line({ id: 'o2|0', printer: 'Other', o: { orderNo: 'VPO-2', id: 'o2' }, l: { sku: 'ZZ-1' } })] });
-  two.ctx.fabFilters = undefined;
-  ok('part-received: the 3 still to come is shown', /3 pcs/.test(load({ pend: [line({ got: 5, sent: 8, v: { unit: 'pcs', n: 3, t: [1] } })] }).stPendHtml()));
-  const m = load({ pend: [line()], vlog: VL }), mv = m.stMoves();
+  ok('the list of what printers sent is gone from the store code (receiving is on Vendor Orders)', !/stPendHtml|data-stg-go|waiting to be received/.test(SRC));
+  /* 60 cloth lines and one SKU, typed in */
+  const rows = [];
+  for (let i = 0; i < 60; i++) rows.push({ id: 'c' + i, kind: 'OPENING', unit: 'm', fabric: 'Cambric', colour: 'Shade ' + String(i).padStart(2, '0'), qty: 5, at: '2026-10-14T09:00:00Z', date: '2026-10-14' });
+  rows.push({ id: 'p1', kind: 'OPENING', unit: 'pcs', sku: 'ZZ-1', qty: 4, at: '2026-10-14T09:00:00Z', date: '2026-10-14' });
+  rows.push({ id: 'p2', kind: 'OUT', unit: 'pcs', sku: 'ZZ-1', qty: 6, at: '2026-10-15T09:00:00Z', date: '2026-10-15' });
+  const S = load({ rows, vlog: VL });
+  const draw = () => { S.renderStoreHand(); return { k: S.els.fbKpis.innerHTML, t: S.els.fbTable.innerHTML }; };
+  const lines = h => (h.match(/data-st-ent=/g) || []).length;
+  let d = draw();
+  ok('nothing about receiving is drawn on the store', !/Sent by printers|Receive<\/button>/.test(d.k + d.t));
+  ok('63 items: the first 50 are drawn, and the foot says 1–50 of 63 with Previous off and Next on', lines(d.t) === 50 && /Showing 1–50 of 63 item/.test(d.t)
+    && /data-st-page="-1" disabled/.test(d.t) && /data-st-page="1" style/.test(d.t), d.t.slice(-600));
+  S.STORE.page = 1; d = draw();
+  ok('the second page has the other 13, and Next is off', lines(d.t) === 13 && /Showing 51–63 of 63/.test(d.t) && /data-st-page="1" disabled/.test(d.t));
+  S.STORE.page = 9; d = draw();
+  ok('a page past the end falls back to the last page', S.STORE.page === 1 && lines(d.t) === 13);
+  ok('the filters carry their counts: All 63, Cloth 61, Pieces 2, Below zero 1, Returned 0', /data-st-pick="all">All <span class="muted">63</.test(d.k) && /data-st-pick="m">[^<]*<span class="muted">61</.test(d.k)
+    && /data-st-pick="pcs">[^<]*<span class="muted">2</.test(d.k) && /data-st-pick="neg">[^<]*<span class="muted">1</.test(d.k) && /data-st-pick="ret">[^<]*<span class="muted">0</.test(d.k), d.k.slice(-700));
+  S.STORE.pick = 'neg'; d = draw();
+  ok('Below zero shows only the SKU taken out beyond its stock, from page one, with no foot', lines(d.t) === 1 && /ZZ-1/.test(d.t) && S.STORE.page === 0 && !/data-st-page/.test(d.t) && /data-st-pick="neg"/.test(d.k) && /segbtn on" data-st-pick="neg"/.test(d.k));
+  S.STORE.pick = 'ret'; d = draw();
+  ok('Returned with nothing returned: says so and points back to All', lines(d.t) === 0 && /No item under this filter/.test(S.els.fbMsg.textContent) && /press "All"/.test(S.els.fbTable.emptyText));
+  ok('the page arithmetic: 0 items → one empty page; 50 → one page; 51 → two', S.stPageOf(0, 3).page === 0 && S.stPageOf(0, 0).to === 0 && S.stPageOf(50, 1).last === 0 && S.stPageOf(51, 1).from === 50 && S.stPageOf(51, 1).to === 51);
+}
+console.log('== Out is what really left the shelf ==');
+{
   ok('Out counts only what really left the shelf: 4 issued of the 10 received shows Out 4, and 9 issued of a SKU never delivered is not an Out', (() => {
     const S2 = load({ vlog: VL, base: [{ id: 'b1', sku: 'RTC327-6060', issuePieces: 4, addedAt: '2026-11-24T12:00:00Z', issueDate: '2026-11-24' }] });
     const b = S2.stBalances(S2.stMoves()).find(x => x.unit === 'pcs'); return b && b.inQty === 10 && b.outQty === 4 && b.qty === 6;
@@ -115,9 +130,24 @@ console.log('== Return to the printer ==');
     ok('the entries list has the history tiles: Came in 10, Returned to printers 3, On the shelf 7', /Came in/.test(h) && /Returned to printers/.test(h) && /On the shelf/.test(h) && />10<\/div>/.test(h) && />3<\/div>/.test(h) && />7<\/div>/.test(h), h.slice(0, 500));
     ok('…and a Return button on the receipt (7 left), none on the typed return itself', (h.match(/data-st-ret=/g) || []).length === 1);
     ok('…the returned row is labelled "returned to printer"', /returned to printer/.test(h));
+    ok('…a receipt partly returned says how much can still go back', /7 pcs of this receipt can still go back/.test(h));
+    ok('…and the return itself can be undone (it was entered by mistake)', /data-st-del="[^"]+"[^>]*>Undo return</.test(h));
+    S.STORE.pick = 'ret'; S.renderStoreHand();
+    ok('the store list has a Returned column (3) apart from Out (0), and the total says 3 pcs went back', /<th class="num">Returned<\/th>/.test(S.els.fbTable.innerHTML)
+      && /Sent back to the printer it came from">3<\/td>/.test(S.els.fbTable.innerHTML) && /3 pcs<\/div><div class="l">Returned to printers/.test(S.els.fbKpis.innerHTML), S.els.fbTable.innerHTML.slice(0, 900));
+    const b3 = S.stBalances(S.stMoves()).find(x => x.unit === 'pcs');
+    ok('…the balance row carries returned 3 inside Out 3', b3 && b3.returned === 3 && b3.outQty === 3, JSON.stringify(b3));
+    /* the Return button is in the dialog, not in the store table: a click anywhere on the page must open the return */
+    S.ctx.__dlg = null;
+    const click = sel => ({ preventDefault() {}, target: { closest: s => (s === sel ? { getAttribute: () => 'flow/RFD-1/r1/A', disabled: false } : null) } });
+    for (const fn of S.pageClicks) await fn(click('[data-st-ret]'));
+    ok('pressing Return in the entries dialog opens "Return to RBP-Bagru", asking how many (up to 7) and why', S.ctx.__dlg && S.ctx.__dlg.title === 'Return to RBP-Bagru'
+      && S.ctx.__dlg.fields.some(f => f.key === 'qty' && f.value === 7 && /up to 7 pcs/.test(f.label)) && S.ctx.__dlg.fields.some(f => f.key === 'reason'), JSON.stringify(S.ctx.__dlg && S.ctx.__dlg.title));
+    const ret = S.ctx.__dlg; ret.onCancel();
+    ok('…Cancel goes back to the entries of the item', S.ctx.__dlg && /^Entries — RTC327-6060/.test(S.ctx.__dlg.title));
     const e2 = await S.stReturnSave(mv(), { qty: 7, reason: 'rest too' });
     S.stEntriesOpen(S.stKey({ unit: 'pcs', sku: 'RTC327-6060' }));
-    ok('all returned: no Return button is left', e2 === '' && !/data-st-ret=/.test(S.ctx.__dlg.html));
+    ok('all returned: no Return button is left, and the receipt says all of it went back', e2 === '' && !/data-st-ret=/.test(S.ctx.__dlg.html) && /all of this receipt went back/.test(S.ctx.__dlg.html));
     const F = load({ vlog: VL, putFails: true });
     ok('a failed save says so and keeps nothing', /Not saved/.test(await F.stReturnSave(F.stMoves().find(m => m.src === 'printer'), { qty: 1, reason: 'x' })) && F.stMoves().every(m => m.kind !== 'RETURN'));
     const M = load({ vlog: VL });

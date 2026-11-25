@@ -288,6 +288,7 @@ function stBalances(moves) {
       const take = Math.min(-mv.qty, Math.max(0, e.qty));
       e.qty -= take; e.outQty += take; e.beyond += (-mv.qty - take);   /* Out is what really left the shelf; the rest was never on it */
     } else e.qty += mv.qty;
+    if (mv.kind === 'RETURN') e.returned = (e.returned || 0) - mv.qty;   /* sent back to a printer — part of Out, shown on its own */
     if (mv.src === 'printer') { e.fromPrinter += mv.qty; if (mv.printer) e.printers.add(mv.printer); }
     else if (mv.src === 'cut') { if (mv.qty >= 0) e.cutIn += mv.qty; else e.cutOut += -mv.qty; }
     else if (mv.src === 'waste') e.cutIn += mv.qty;
@@ -299,7 +300,7 @@ function stBalances(moves) {
   });
   const r2 = v => Math.round(v * 100) / 100;
   return [...by.values()].map(e => Object.assign(e, { qty: r2(e.qty), inQty: r2(e.inQty), outQty: r2(e.outQty),
-      fromPrinter: r2(e.fromPrinter), cutIn: r2(e.cutIn), cutOut: r2(e.cutOut), issued: r2(e.issued), typed: r2(e.typed), beyond: r2(e.beyond), printers: [...e.printers] }))
+      returned: r2(e.returned || 0), fromPrinter: r2(e.fromPrinter), cutIn: r2(e.cutIn), cutOut: r2(e.cutOut), issued: r2(e.issued), typed: r2(e.typed), beyond: r2(e.beyond), printers: [...e.printers] }))
     .sort((a, b) => a.unit.localeCompare(b.unit) || a.name.localeCompare(b.name));
 }
 /**
@@ -436,81 +437,72 @@ async function stSheetRun(list) {
   return '';
 }
 
-/* WAITING TO BE RECEIVED (Ravi, 24 Nov: "yaha par bhi ye phle receive ke liye show ho, jese vendor sent me hota h"): above the store, every line a printer has sent
- * that has not been taken in yet, oldest first, with the same Receive as the Vendor Orders screen (printer-receive.js). Taken in, it drops out of here and comes
- * into the store below as "Store receive". The search box filters it too. */
-function stPendHtml() {
-  if (typeof vprPendingAll !== 'function' || typeof FLOW_ON === 'undefined' || !FLOW_ON) return '';
-  const list = vprPendingAll();
-  if (list === null) return '<div class="card" style="margin-top:10px;padding:10px 12px"><span class="muted">Reading what the printers have sent…</span></div>';
-  const f = fabFilters(), may = typeof flowMay === 'function' && flowMay('flchl');
-  const rows = list.filter(x => !f.q || [x.printer, x.o.orderNo, x.o.id, x.l.sku, x.l.fabricType, x.l.fabric, x.l.color].join(' ').toLowerCase().includes(f.q));
-  if (!rows.length) return '';
-  const q = (n, u) => nf(Math.round(n * 100) / 100) + ' ' + u, whole = rows.slice(0, 60);
-  const body = whole.map(x => {
-    const u = x.v.unit, n = x.v.n > 0 ? x.v.n : 0, run = x.o.orderType === 'running';
-    const item = esc(run ? [x.l.fabricType, x.l.sku].filter(Boolean).join(' · ') : (x.l.sku || '')) + (x.l.color ? ' <span class="muted">· ' + esc(x.l.color) + '</span>' : '');
-    const act = !may ? '<span class="muted">needs the Printed fabric in right</span>'
-      : n > 0 ? `<span style="display:inline-flex;gap:4px;align-items:center"><input data-stg-box="${esc(x.id)}" type="number" min="${u === 'pcs' ? 1 : 0.01}" max="${esc(String(n))}" step="${u === 'pcs' ? 1 : 0.01}" value="${esc(String(n))}" style="width:84px">`
-        + `<button type="button" data-stg-go="${esc(x.id)}" style="width:auto;padding:4px 12px;font-size:12.5px;background:#166534;border-color:#166534">Receive</button></span>`
-      : '<span class="muted" style="font-size:11.5px">' + (x.v.t.length ? 'nothing can be taken in yet' : 'not on a challan to this printer') + '</span>';
-    return `<tr><td style="text-align:left">${esc(x.printer)}</td><td style="text-align:left">${esc(x.o.orderNo || x.o.id)}</td><td style="text-align:left">${item}</td>`
-      + `<td class="num">${q(x.sent, u)}</td><td class="num">${x.got > 0 ? q(x.got, u) : '<span class="muted">—</span>'}</td>`
-      + `<td class="num" style="font-weight:700;color:#b45309">${q(x.sent - x.got, u)}</td><td style="text-align:right">${act}</td></tr>`;
-  }).join('');
-  return `<div class="card" style="margin-top:10px;padding:0;border-left:4px solid #b45309">`
-    + `<div style="padding:10px 12px"><b>Sent by printers — waiting to be received</b> <span class="muted">· ${nf(rows.length)} line(s), oldest first · once taken in it comes into the store below as "Store receive"</span></div>`
-    + `<div class="xlwrap" style="max-height:38vh"><table class="xl" style="font-size:12.5px"><thead><tr><th style="text-align:left">Printer</th><th style="text-align:left">Order</th><th style="text-align:left">Item</th>`
-    + `<th class="num">Sent</th><th class="num">Received</th><th class="num">To receive</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`
-    + (rows.length > whole.length ? `<div class="muted" style="padding:6px 12px;font-size:12px">+${nf(rows.length - whole.length)} more — narrow the search to see them</div>` : '') + '</div>';
-}
-document.addEventListener('click', async e => {
-  const go = e.target.closest('[data-stg-go]'); if (!go || go.disabled) return;
-  e.preventDefault(); go.disabled = true;
-  const id = go.getAttribute('data-stg-go'), box = document.querySelector(`input[data-stg-box="${CSS.escape(id)}"]`);
-  const er = await vprReceiveFor(id, Math.round((parseFloat(box ? box.value : 0) || 0) * 100) / 100);
-  if (!er && typeof flowVoProgSync === 'function') flowVoProgSync();
-  renderFab();
-  const m = $('fbMsg'); if (m) { m.className = er ? 'err' : 'muted'; m.textContent = er || ((typeof flowDueRecvSave === 'function' && flowDueRecvSave.said) || 'Received.') + ' It is in the store now.'; }
-});
-
 /* ---- the screens ---- */
 /* THE STORE, TYPED BY HAND (Ravi, 14 Oct). One line per printed cloth (fabric + colour, in metres) or printed piece (SKU):
- * what was typed in, typed out, and what is left. "+ Store entry" adds opening stock, In, Out or a correction. */
+ * what was typed in, typed out, and what is left. "+ Store entry" adds opening stock, In, Out or a correction.
+ * THE PAGE (25 Nov): the totals, then quick filters (cloth, pieces, below zero, returned), then the list a page at a time —
+ * 50 items, so the screen and its pictures load only what is on show. What went back to a printer has its own column and total.
+ * Receiving what a printer sent is done on the Vendor Orders screen only; the list that stood here is gone (25 Nov). */
+const ST_PAGE = 50;
+const ST_PICKS = [['all', 'All'], ['m', 'Cloth (m)'], ['pcs', 'Pieces'], ['neg', 'Below zero'], ['ret', 'Returned']];
+const stPickHas = (b, pick) => (pick === 'm' || pick === 'pcs' ? b.unit === pick : pick === 'neg' ? b.qty < 0 : pick === 'ret' ? b.returned > 0 : true);
+/** Which items of a list of n are on show: never past the last page. */
+function stPageOf(n, page) {
+  const last = Math.max(0, Math.ceil(n / ST_PAGE) - 1), p = Math.min(Math.max(0, parseInt(page, 10) || 0), last);
+  return { page: p, last, from: p * ST_PAGE, to: Math.min(n, (p + 1) * ST_PAGE) };
+}
 function renderStoreHand() {
   const f = fabFilters();
   const moves = stMoves().filter(mv => (!f.q || [stName(mv), mv.what, mv.remark, mv.who].join(' ').toLowerCase().includes(f.q))
     && (!f.d1 || String(mv.date || '') >= f.d1) && (!f.d2 || String(mv.date || '') <= f.d2));
-  const bal = stBalances(moves).slice().sort((a, b) => (a.unit === b.unit ? 0 : a.unit === 'm' ? -1 : 1) || String(a.name).localeCompare(String(b.name)));
-  const met = bal.filter(b => b.unit === 'm'), pcs = bal.filter(b => b.unit === 'pcs');
+  const all = stBalances(moves).slice().sort((a, b) => (a.unit === b.unit ? 0 : a.unit === 'm' ? -1 : 1) || String(a.name).localeCompare(String(b.name)));
+  const pick = ST_PICKS.some(p => p[0] === STORE.pick) ? STORE.pick : 'all';
+  const bal = all.filter(b => stPickHas(b, pick));
+  const met = all.filter(b => b.unit === 'm'), pcs = all.filter(b => b.unit === 'pcs');
   const sum = (l, k) => Math.round(l.reduce((a, b) => a + b[k], 0) * 10) / 10;
+  const backM = sum(met, 'returned'), backP = sum(pcs, 'returned');
+  const back = [backM ? nf(backM) + ' m' : '', backP ? nf(backP) + ' pcs' : ''].filter(Boolean).join(' · ');
   $('fbKpis').innerHTML = `<div class="kpi" style="flex-basis:100%">
     <div class="kpihead"><span class="kpiname">Printed fabric in store — by hand, and from the production flow since 16 Oct</span>
       <span class="kpiwhen">read live${STORE.at ? ' · ' + esc(STORE.at) : ''}</span></div>
     <div class="metrics">
       <div class="metric"><div class="v"${sum(met, 'qty') < 0 ? ' style="color:var(--bad)"' : ''}>${nf(sum(met, 'qty'))}</div><div class="l">Printed cloth in store (m)</div><div class="l muted">${nf(met.length)} fabric &amp; colour</div></div>
       <div class="metric"><div class="v"${sum(pcs, 'qty') < 0 ? ' style="color:var(--bad)"' : ''}>${nf(sum(pcs, 'qty'))}</div><div class="l">Printed pieces in store</div><div class="l muted">${nf(pcs.length)} SKU(s)</div></div>
+      <div class="metric"><div class="v"${back ? ' style="color:#b45309"' : ''}>${back || '—'}</div><div class="l">Returned to printers</div></div>
       <div class="metric"><div class="v">${nf(moves.length)}</div><div class="l">Entries</div></div>
-    </div></div>` + stPendHtml();
+    </div>
+    <div class="seg" style="margin-top:10px;flex-wrap:wrap" role="group" aria-label="Show which items">${ST_PICKS.map(p =>
+      `<button type="button" class="segbtn${p[0] === pick ? ' on' : ''}" data-st-pick="${p[0]}">${p[1]} <span class="muted">${nf(all.filter(b => stPickHas(b, p[0])).length)}</span></button>`).join('')}</div></div>`;
   FAB.shown = bal;
+  /* A new search, date or filter starts at the first page; Previous / Next keep the same list. */
+  const listOf = [f.q, f.d1, f.d2, pick].join('|');
+  if (STORE.pageFor !== listOf) { STORE.pageFor = listOf; STORE.page = 0; }
+  const pg = stPageOf(bal.length, STORE.page);
+  STORE.page = pg.page;
   $('fbMsg').className = STORE.err ? 'err' : 'muted';
   $('fbMsg').title = 'The balance is the sum of what was typed by hand and, since 16 Oct, what the production flow moved: printed cloth received on a challan (in), PPC plans and cutting entries that take it (out). Never a stored figure.';
-  $('fbMsg').textContent = (bal.length ? `${nf(bal.length)} item(s)` : 'Nothing entered yet')
+  $('fbMsg').textContent = (bal.length ? `${nf(bal.length)} item(s)` : all.length ? 'No item under this filter' : 'Nothing entered yet')
     + ' · typed by hand, plus since 16 Oct by itself: in when printed cloth is received on a challan, out when a PPC plan or a cutting entry takes it'
     + (STORE.err ? ' · ' + STORE.err : '');
-  if (!bal.length) { ptEmpty('fbTable', 'Nothing in the store yet — press "+ Store entry" to add the printed fabric you have.'); return; }
-  const head = '<thead><tr>' + ['Item', 'Kind', 'In', 'Out', 'Balance', 'Last entry', 'Entries']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([2, 3, 4, 6].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
-  const drawn = bal.slice(0, ST_MAX_ROWS);
+  if (!all.length) { ptEmpty('fbTable', 'Nothing in the store yet — press "+ Store entry" to add the printed fabric you have.'); return; }
+  if (!bal.length) { ptEmpty('fbTable', 'No item under this filter — press "All" to see every item.'); return; }
+  const cols = ['Item', 'Kind', 'In', 'Out', 'Returned', 'On the shelf', 'Last entry', 'Entries'];
+  const head = '<thead><tr>' + cols.map((h, i) => `<th${i === 0 ? ' class="frz"' : ([2, 3, 4, 5].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const drawn = bal.slice(pg.from, pg.to);
   const z = v => (v ? nf(Math.round(v * 100) / 100) : '<span class="muted">—</span>');
-  $('fbTable').innerHTML = head + '<tbody>' + drawn.map(b => '<tr>'
+  const pager = pg.last === 0 ? '' : `<tfoot><tr><td colspan="${cols.length}" style="text-align:left;padding:8px 10px">`
+    + `<span class="muted">Showing ${nf(pg.from + 1)}–${nf(pg.to)} of ${nf(bal.length)} item(s)</span> `
+    + `<button type="button" class="ghost" data-st-page="-1"${pg.page === 0 ? ' disabled' : ''} style="width:auto;padding:3px 12px;font-size:12px;margin-left:10px">Previous</button> `
+    + `<button type="button" class="ghost" data-st-page="1"${pg.page === pg.last ? ' disabled' : ''} style="width:auto;padding:3px 12px;font-size:12px">Next</button></td></tr></tfoot>`;
+  $('fbTable').innerHTML = head + '<tbody>' + drawn.map(b => { const out = b.outQty - b.returned; return '<tr>'
     + `<td class="frz" style="text-align:left">${b.unit === 'pcs' ? ptImgSpan(b.sku, 28) + ' ' : ''}${esc(b.name)}</td>`
     + `<td>${b.unit === 'pcs' ? 'Pieces' : 'Cloth (m)'}</td>`
     + `<td class="num" style="color:#166534" title="${esc('typed in: ' + nf(Math.max(0, b.inQty - (b.fromPrinter || 0))) + ' · received on challans: ' + nf(b.fromPrinter || 0))}">${z(b.inQty)}</td>`
-    + `<td class="num" style="color:var(--bad)" title="${esc('PPC plans: ' + nf(b.planOut || 0) + ' · cutting: ' + nf(b.cutOut || 0) + ' · typed out: ' + nf(Math.max(0, b.outQty - (b.planOut || 0) - (b.cutOut || 0))))}">${z(b.outQty)}</td>`
+    + `<td class="num" style="color:var(--bad)" title="${esc('PPC plans: ' + nf(b.planOut || 0) + ' · cutting: ' + nf(b.cutOut || 0) + ' · typed out: ' + nf(Math.max(0, out - (b.planOut || 0) - (b.cutOut || 0))))}">${z(out)}</td>`
+    + `<td class="num" style="color:#b45309" title="Sent back to the printer it came from">${z(b.returned)}</td>`
     + `<td class="num" style="font-weight:700${b.qty < 0 ? ';color:var(--bad)' : ''}">${nf(Math.round(b.qty * 100) / 100)}</td>`
     + `<td style="font-size:12px">${esc(ptIsoDate(b.last) || '')}</td>`
-    + `<td class="num"><a href="#" data-st-ent="${esc(b.key)}" title="Every entry of this item — one typed by hand can be deleted here">${nf(b.n)}</a></td></tr>`).join('') + '</tbody>';
+    + `<td><button type="button" class="ghost" data-st-ent="${esc(b.key)}" title="Every entry of this item — return goods to the printer, or delete one typed by hand" style="width:auto;padding:3px 12px;font-size:12px">View ${nf(b.n)}</button></td></tr>`; }).join('') + '</tbody>' + pager;
   ptImgFill(drawn.filter(b => b.unit === 'pcs').map(b => b.sku).filter(Boolean), false, ptIfTab('fab', ptImgPatch));
 }
 
@@ -521,27 +513,39 @@ function renderStoreHand() {
 function stEntriesOpen(key) {
   const list = stMoves().filter(mv => stKey(mv) === key).sort((a, b) => String(b.at).localeCompare(String(a.at)));
   if (!list.length) return;
-  const can = ptCanEdit(), q = v => nf(Math.round(v * 100) / 100);
+  const can = ptCanEdit(), q = v => nf(Math.round(v * 100) / 100), u = list[0].unit === 'pcs' ? 'pcs' : 'm';
   const src = { typed: 'typed by hand', plan: 'PPC plan', cut: 'cutting', printer: 'challan', challan: 'challan', waste: 'cutting waste', jobwork: 'job work' };
   /* THE HISTORY (Ravi, 24 Nov): what came in, what went out, what went back to a printer, and what is left — like the fabric stock history. */
   const came = list.filter(mv => mv.qty > 0).reduce((a, mv) => a + mv.qty, 0), back = list.filter(mv => mv.kind === 'RETURN').reduce((a, mv) => a - mv.qty, 0);
   const went = list.filter(mv => mv.qty < 0 && mv.kind !== 'RETURN').reduce((a, mv) => a - mv.qty, 0);
   const tile = (l, v, c) => `<div style="flex:1 1 120px;border:1px solid var(--line);border-radius:10px;padding:7px 10px"><div class="muted" style="font-size:11px">${l}</div><div style="font-size:18px;font-weight:700${c ? ';color:' + c : ''}">${q(v)}</div></div>`;
   const tiles = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">' + tile('Came in', came, '#166534') + tile('Went out', went, 'var(--bad)')
-    + (back > 0 ? tile('Returned to printers', back, '#b45309') : '') + tile('On the shelf', came - went - back) + '</div>';
-  const retLeft = mv => Math.max(0, mv.qty - list.filter(x => x.kind === 'RETURN' && x.ref === mv.id).reduce((a, x) => a - x.qty, 0));
+    + tile('Returned to printers', back, back > 0 ? '#b45309' : '') + tile('On the shelf', came - went - back) + '</div>';
+  /* One word in front of each entry says what it is, so the eye finds the receipts (the only lines that can go back). */
+  const tag = mv => (mv.kind === 'RETURN' ? '<span class="pill pill-low">Returned</span>' : mv.src === 'printer' ? '<span class="pill pill-ok">Received</span>'
+    : mv.qty < 0 ? '<span class="pill pill-out">Out</span>' : '<span class="pill pill-ok">In</span>');
+  const act = mv => {
+    if (!can) return '';
+    if (mv.src === 'typed' && mv.id && mv.kind !== 'RETURN') return `<button class="ghost" data-st-del="${esc(mv.id)}" data-st-key="${esc(key)}" style="width:auto;padding:2px 10px;font-size:12px;color:var(--bad)">Delete</button>`;
+    if (mv.kind === 'RETURN' && mv.id) return `<button class="ghost" data-st-del="${esc(mv.id)}" data-st-key="${esc(key)}" title="Entered by mistake? Take this return back — the goods count on the shelf again" style="width:auto;padding:2px 10px;font-size:12px;color:var(--bad)">Undo return</button>`;
+    const left = mv.src === 'printer' && mv.printer ? stReturnLeft(mv) : 0;
+    return left > 0 ? `<button class="ghost" data-st-ret="${esc(mv.id)}" title="${esc('Send back to ' + mv.printer + ' — you choose how much, up to ' + q(left) + ' ' + u)}" style="width:auto;padding:2px 10px;font-size:12px;color:#b45309">Return</button>` : '';
+  };
+  /* Under a receipt: how much of it can still go back, or that all of it has. */
+  const still = mv => { if (mv.src !== 'printer' || !mv.printer) return ''; const left = stReturnLeft(mv);
+    return `<div class="muted" style="font-size:11px">${left > 0 ? (left < mv.qty ? q(left) + ' ' + u + ' of this receipt can still go back' : '') : 'all of this receipt went back'}</div>`; };
   ptOpenDialog({
     title: 'Entries — ' + stName(list[0]),
-    subtitle: nf(list.length) + ' entr' + (list.length === 1 ? 'y' : 'ies') + ' · newest first' + (can ? ' · an entry typed by hand can be deleted (it goes to the recycle bin)' : ''),
+    subtitle: nf(list.length) + ' entr' + (list.length === 1 ? 'y' : 'ies') + ' · newest first' + (can ? ' · Return sends goods back to the printer they came from · an entry typed by hand can be deleted (it goes to the recycle bin)' : ''),
+    wide: true,
     html: tiles + '<div style="max-height:60vh;overflow:auto"><table class="xl" style="font-size:12.5px"><thead><tr><th style="text-align:left">Date</th><th style="text-align:left">What</th>'
       + '<th class="num">Qty</th><th style="text-align:left">From</th><th style="text-align:left">By</th><th style="text-align:left">Remark</th><th></th></tr></thead><tbody>'
       + list.map(mv => '<tr>'
-        + `<td style="white-space:nowrap">${esc(mv.date || '')}</td><td style="text-align:left">${esc(mv.what || '')}</td>`
-        + `<td class="num" style="font-weight:700;color:${mv.qty < 0 ? 'var(--bad)' : '#166534'}">${mv.qty > 0 ? '+' : ''}${q(mv.qty)}</td>`
+        + `<td style="white-space:nowrap">${esc(mv.date || '')}</td><td style="text-align:left">${tag(mv)} ${esc(mv.what || '')}${still(mv)}</td>`
+        + `<td class="num" style="font-weight:700;color:${mv.kind === 'RETURN' ? '#b45309' : mv.qty < 0 ? 'var(--bad)' : '#166534'}">${mv.qty > 0 ? '+' : ''}${q(mv.qty)}</td>`
         + `<td style="text-align:left" class="muted">${esc(mv.kind === 'RETURN' ? 'returned to printer' : (src[mv.src] || mv.src || ''))}</td>`
         + `<td style="text-align:left">${esc(String(mv.who || '').split('@')[0])}</td><td style="text-align:left">${esc(mv.remark || '')}</td>`
-        + `<td>${can && mv.src === 'typed' && mv.id ? `<button class="ghost" data-st-del="${esc(mv.id)}" data-st-key="${esc(key)}" style="padding:2px 10px;font-size:12px;color:var(--bad)">Delete</button>` : ''}`
-        + `${can && mv.src === 'printer' && mv.printer && retLeft(mv) > 0 ? `<button class="ghost" data-st-ret="${esc(mv.id)}" title="${esc('Send back to ' + mv.printer + ' — ' + q(retLeft(mv)) + ' of this receipt can still be returned')}" style="padding:2px 10px;font-size:12px;color:#b45309">Return</button>` : ''}</td></tr>`).join('')
+        + `<td style="white-space:nowrap">${act(mv)}</td></tr>`).join('')
       + '</tbody></table></div>',
   });
 }
@@ -575,17 +579,20 @@ function stReturnOpen(id) {
   const mv = stMoves().find(x => x.src === 'printer' && x.id === id);
   if (!mv) { alert('That receipt is not on the list any more - press Refresh.'); return; }
   const left = stReturnLeft(mv), u = mv.unit === 'pcs' ? 'pcs' : 'm';
+  /* Saved or cancelled, the item's entries come back in front, so the return (or nothing) is seen where it was started. */
+  const backToEntries = () => stEntriesOpen(stKey(mv));
   ptOpenDialog({
     title: 'Return to ' + mv.printer,
     subtitle: stName(mv) + ' · ' + nf(mv.qty) + ' ' + u + ' came on ' + (mv.challan || 'a challan') + (mv.orderNo ? ' for ' + mv.orderNo : ''),
     note: "It goes out of the store and is recorded against this printer, challan and order, so the order's journey shows it. The order does not reopen - if you need more, open a new sales order.",
     fields: [
-      { key: 'qty', label: 'How many go back (up to ' + nf(left) + ' ' + u + ')', type: 'number', step: u === 'pcs' ? '1' : '0.01', value: left },
+      { key: 'qty', label: 'How many go back (up to ' + nf(left) + ' ' + u + ')', type: 'number', min: u === 'pcs' ? 1 : 0.01, step: u === 'pcs' ? '1' : '0.01', value: left },
       { key: 'reason', label: 'Why', value: '', span: true },
       { key: 'date', label: 'Date', type: 'date', value: attToday() },
     ],
     saveLabel: 'Return to printer',
-    onSave: async v => { const err = await stReturnSave(mv, v); if (!err) renderFab(); return err; },
+    onSave: async v => { const err = await stReturnSave(mv, v); if (!err) { renderFab(); setTimeout(backToEntries, 0); } return err; },
+    onCancel: backToEntries,
   });
 }
 async function stDelete(id) {
@@ -597,6 +604,10 @@ async function stDelete(id) {
   return '';
 }
 document.addEventListener('click', async e => {
+  /* Return sits in the entries dialog, which is not inside the store table — so it is listened for on the whole page (25 Nov:
+   * it was listened for on the table only, and the button did nothing). */
+  const rt = e.target.closest('[data-st-ret]');
+  if (rt) { e.preventDefault(); stReturnOpen(rt.getAttribute('data-st-ret')); return; }
   const d = e.target.closest('[data-st-del]');
   if (!d) return;
   e.preventDefault();
@@ -867,8 +878,8 @@ $('fbTable').addEventListener('click', async e => {
   /* TRACK: the item's own movements, newest first — printer, order, date, karigar. */
   const en = e.target.closest('[data-st-ent]');
   if (en) { e.preventDefault(); stEntriesOpen(en.getAttribute('data-st-ent')); return; }
-  const rt = e.target.closest('[data-st-ret]');
-  if (rt) { e.preventDefault(); stReturnOpen(rt.getAttribute('data-st-ret')); return; }
+  const pg = e.target.closest('[data-st-page]');
+  if (pg) { STORE.page = (STORE.page || 0) + (parseInt(pg.getAttribute('data-st-page'), 10) || 0); renderFab(); return; }
   const tr = e.target.closest('[data-st-track]');
   if (tr) { if ($('fbQ')) $('fbQ').value = tr.getAttribute('data-st-track'); $('fbView').value = 'storemov'; renderFab(); return; }
   const on = e.target.closest('[data-st-check]'), off = e.target.closest('[data-st-uncheck]');
@@ -876,6 +887,13 @@ $('fbTable').addEventListener('click', async e => {
   const key = (on || off).getAttribute(on ? 'data-st-check' : 'data-st-uncheck');
   const err = await stCheckSet(key, !!on);
   if (err) { $('fbMsg').className = 'err'; $('fbMsg').textContent = err; return; }
+  renderFab();
+});
+/* The quick filters above the store list. */
+$('fbKpis').addEventListener('click', e => {
+  const p = e.target.closest('[data-st-pick]');
+  if (!p) return;
+  STORE.pick = p.getAttribute('data-st-pick');
   renderFab();
 });
 $('fbMsg').addEventListener('click', e => {
