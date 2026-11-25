@@ -548,31 +548,40 @@ function p1HistEvents(r) {
   const keys = new Set(r.lines.map(x => x.s.key)), o = P1.hist === r.gk ? P1.histOrd : '';
   return p1Events().filter(e => keys.has(flowKey(e.orderNo, e.sku)) && (!o || e.orderNo === obUC(o)));
 }
-/* EASY TO READ (Ravi, 24 Nov: "the 2nd image is not even understandable"; asked first for "where the pieces are now"). The
- * card now opens on one sentence and a row of steps; each step says how many of the ordered pieces have got through it, from
- * the same line figures as the Production list (each capped at the line's order, so they never pass what was ordered), and
- * where pieces wait, how many, since how long and with whom. The entries follow, in plain words; a total in the entries that
- * runs past the order is said under them, never shown as if it were the count. A lot with no number says "No lot" unless
- * something of it still waits for a plan — "To plan" sat on top of a line that was cut, issued and in QC. */
-const P1_HSTEPS = [['plan', 'Planned', ['PLAN']], ['rfd', 'Cloth to printer', ['RFD']], ['prn', 'Printed', ['PRN']], ['cut', 'Cut', ['CUT']], ['iss', 'Given to karigar', ['ISS']],
-  ['kar', 'Back from karigar', ['REC']], ['qc', 'QC passed', ['QC']], ['rdy', 'In Finished Goods', ['FG', 'SHIP']]];
-/** How many of a line's pieces have got through each step — the line's own figures, capped at its order. */
-function p1LineDone(x, st) {
-  const s = x.s, q = st.q, c = v => Math.max(0, Math.min(q, +v || 0));
-  return { plan: st.planned ? q : 0, rfd: c(s.given), prn: c(s.back), cut: c(s.cut), iss: c(s.issuedNet), kar: c(s.received), qc: c(s.qc), rdy: c(s.india) };
+/* WHICH PIECE IS WHERE, AND WHEN EACH STEP HAPPENED (Ravi, 25 Nov, of the step cards: "its not even understandable make it
+ * like I can actually know which peice is where and also how manuy peices passed which stage and when"). Two parts, then
+ * the entries:
+ *  1. WHERE THE PIECES ARE NOW: every ordered piece in one place, from the same per-line figures as the WIP report
+ *     (p1WipLine): in Finished Goods, passed QC, in QC, with a karigar, cut in store, to cut, at embroidery, at the printer,
+ *     at the RFD store, not started. A bar and a list that add up to the order; what no register places is said as "not
+ *     traced", never left out.
+ *  2. WHAT PASSED EACH STEP, AND WHEN: the entries of each step added up, with the day of each (12 Nov · 1, 18 Nov · 3), set
+ *     against the order; past the order in red. Read from the same movements as the ledger; nothing new is kept.
+ * A lot with no number says "No lot" unless something of it still waits for a plan (24 Nov). */
+const P1_HPLACES = [['done', 'In Finished Goods', 'fg'], ['rdy', 'Passed QC, for Finished Goods to accept', 'fg'], ['qc', 'In QC', 'qc'], ['kar', 'With karigar', 'mk'],
+  ['raw', 'Cut, in store, to give a karigar', 'mk'], ['cut', 'To cut', 'mk'], ['emb', 'At embroidery', 'pr'], ['prn', 'At printer', 'pr'],
+  ['grg', 'At RFD store, not sent to the printer yet', 'st'], ['todo', 'Not started', 'no']];
+/** Each place's key in p1HoldDays: who has the pieces there, and since how many days. */
+const P1_HPLACE_D = { rdy: 'rdy', qc: 'qc', kar: 'kar', raw: 'iss', cut: 'cut', emb: 'prn', prn: 'prn', grg: 'rfd' };
+/** Where the pieces of some order lines are: one row per place that holds any, and the rest of the order as cloth at the
+ *  printer (metres are not pieces yet) or "not traced". `over`: pieces the registers place beyond the order. */
+function p1HistPlaces(wl, ordered, D) {
+  const tot = p1WipTotal(wl), rows = P1_HPLACES.filter(([f]) => tot[f] > 0).map(([f, label, tone]) => { const d = (D || {})[P1_HPLACE_D[f]] || {};
+    return { f, label, tone, pcs: tot[f], who: d.who || [], days: d.days == null ? null : d.days }; });
+  const placed = rows.reduce((t, x) => t + x.pcs, 0), rest = ordered - placed, d = (D || {}).prn || {};
+  if (rest > 0) rows.push(tot.m > 0 ? { f: 'm', label: `At printer, as cloth (${p1N(tot.m)} m)`, tone: 'pr', pcs: rest, who: d.who || [], days: d.days == null ? null : d.days }
+    : { f: 'none', label: 'Not traced: no register says where', tone: 'no', pcs: rest, who: [], days: null });
+  return { rows, over: Math.max(0, -rest) };
 }
-/** The steps of a lot's lines (or one order's): done, waiting (pieces, metres, days, who), or not this way. */
-function p1HistSteps(r, ln) {
-  const S = p1SumStages(ln.map(l => l.st)), D = p1HoldDays(ln.reduce((a, l) => a.concat((r.holds || []).filter(h => flowKey(h.orderNo, h.sku) === l.x.s.key)), []));
-  return P1_HSTEPS.map(([k, title, kinds]) => { const goes = ln.filter(l => !l.st[k].na);
-    return { k, title, kinds, na: S[k].na, done: S[k].done, w: S[k].w, m: S[k].m, days: (D[k] || {}).days, who: (D[k] || {}).who || [],
-      got: goes.reduce((t, l) => t + p1LineDone(l.x, l.st)[k], 0), of: goes.reduce((t, l) => t + l.st.q, 0) }; });
-}
-/** The one sentence on top: where the pieces are. */
-function p1HistSay(steps, ordered) {
-  const at = steps.filter(s => !s.na && (s.w || s.m));
-  if (!at.length) { const fg = steps.find(s => s.k === 'rdy'); return fg && fg.done ? `All ${p1N(ordered)} pieces are in Finished Goods.` : steps[0] && steps[0].done ? 'Nothing is waiting anywhere right now.' : 'Not planned yet.'; }
-  return at.map(s => `<b>${s.w ? p1N(s.w) + ' pcs' : ''}${s.m ? (s.w ? ' + ' : '') + p1N(s.m) + ' m' : ''}</b> ${s.who.length && s.k === 'kar' ? 'with ' + esc(s.who.join(', ')) : esc(P1_NOW[s.k].charAt(0).toLowerCase() + P1_NOW[s.k].slice(1)) + (s.who.length ? (s.k === 'rfd' ? ', for ' : ' (') + esc(s.who.join(', ')) + (s.k === 'rfd' ? '' : ')') : '')}${s.days != null ? ` — <span class="${s.days > P1_STUCK ? 'late' : ''}">${s.days} day${s.days === 1 ? '' : 's'}</span>` : ''}`).join(' · ');
+/** The steps the movements record, in the order the work goes, each with the stage it belongs to (p1SumStages). */
+const P1_HPASS = [['RFD', 'Cloth sent to printer', 'rfd'], ['PRN', 'Printed, back from printer', 'prn'], ['CUT', 'Cut', 'cut'], ['ISS', 'Given to karigar', 'iss'],
+  ['REC', 'Back from karigar', 'kar'], ['QC', 'Passed QC', 'qc'], ['REJ', 'Rejected at QC', ''], ['FG', 'Into Finished Goods', 'rdy'], ['SHIP', 'Handed to shipping', '']];
+/** What passed each step: its pieces (or metres of cloth) and the days they passed on, oldest first. A step on the lot's
+ *  way with no entry yet is listed as "none yet"; a step off its way only when something is on record. */
+function p1HistPassed(ev, S) {
+  return P1_HPASS.map(([k, label, col]) => { const es = ev.filter(e => e.k === k), unit = es.length && es.every(e => e.unit === 'm') ? 'm' : 'pcs';
+    const days = []; es.forEach(e => { const last = days[days.length - 1]; if (last && last.day === e.day) last.n += e.pcs; else days.push({ day: e.day, n: e.pcs }); });
+    return { k, label, unit, n: es.reduce((t, e) => t + e.pcs, 0), days, show: es.length > 0 || (!!col && !!S[col] && !S[col].na) }; }).filter(x => x.show);
 }
 /** What an entry says beyond its step: the generic words of the register dropped, the voucher once. */
 const P1_HPLAIN = new Set(['Finished Goods', 'Job Work · issue', 'Job Work · receipt', 'Cutting Data', 'QC check', 'Press', 'Order book']);
@@ -582,35 +591,40 @@ function p1HistNote(e) {
 }
 function p1History(r) {
   const ev = p1HistEvents(r), ords = [...r.orders], o = P1.hist === r.gk ? obUC(P1.histOrd) : '';
-  const ln = (r.ln || []).filter(l => !o || obUC(l.x.r.orderNo) === o), ordered = ln.reduce((t, l) => t + l.st.q, 0);
-  const lastDay = kinds => { for (let i = ev.length - 1; i >= 0; i--) if (kinds.includes(ev[i].k)) return ev[i].day; return ''; };
-  const steps = p1HistSteps(r, ln).filter(s => !s.na);
-  const card = s => { const now = s.w || s.m, d = lastDay(s.kinds);
-    const state = now ? `<div class="hc-now"><b>${s.w ? p1N(s.w) : ''}${s.m ? (s.w ? ' + ' : '') + p1N(s.m) + ' m' : ''}</b> ${s.k === 'kar' ? 'still with karigar' : 'waiting'}${s.days != null ? ` · <span class="${s.days > P1_STUCK ? 'late' : ''}">${s.days} d</span>` : ''}</div>${s.who.length ? `<div class="hc-who">${esc(s.who.join(', '))}</div>` : ''}`
-      : s.done ? `<div class="hc-ok">✓ Done${d ? ' · ' + p1Day(d) : ''}</div>` : '<div class="hc-ah">Not yet</div>';
-    /* done with no entry of its own (a line issued without a Cutting Data row): say so, not "0 of 497" */
-    const got = s.done && s.got < s.of && s.k !== 'plan' ? '<span class="muted">no entry of its own</span>' : `<b>${p1N(s.got)}</b> of ${p1N(s.of)}`;
-    return `<div class="hc ${now ? 'now' : s.done ? 'ok' : 'ah'}"><div class="hc-t">${esc(s.title)}</div>${state}<div class="hc-n">${got}</div></div>`; };
-  /* the entries: newest first, a day at a time */
+  const idx = (r.lines || []).map((x, i) => i).filter(i => !o || obUC(r.lines[i].r.orderNo) === o);
+  const ln = idx.map(i => (r.ln || [])[i]).filter(Boolean), wl = idx.map(i => (r.wl || [])[i]).filter(Boolean);
+  const ordered = idx.reduce((t, i) => t + (+r.lines[i].r.qty || 0), 0), keys = new Set(idx.map(i => r.lines[i].s.key));
+  const D = p1HoldDays((r.holds || []).filter(h => keys.has(flowKey(h.orderNo, h.sku)))), S = ln.length ? p1SumStages(ln.map(l => l.st)) : {};
+  /* 1. where the pieces are now */
+  const pl = p1HistPlaces(wl, ordered, D), pct = n => ordered > 0 ? Math.max(0, Math.min(100, n / ordered * 100)) : 0;
+  const since = x => x.days == null ? '' : `<span class="hp-d${x.days > P1_STUCK && x.f !== 'done' ? ' late' : ''}">${x.days} day${x.days === 1 ? '' : 's'}</span>`;
+  const who = x => x.who.length ? `<span class="hp-w">${x.f === 'grg' ? 'for ' : ''}${esc(x.who.join(', '))}</span>` : '';
+  const where = `<div class="hbar">${pl.rows.map(x => `<span class="hb ${x.tone}" style="width:${pct(x.pcs).toFixed(2)}%" title="${esc(x.label)}: ${p1N(x.pcs)} pcs"></span>`).join('')}</div>
+    <div class="hplaces">${pl.rows.map(x => `<div class="hp"><i class="hdot ${x.tone}"></i><b>${p1N(x.pcs)}</b><span class="hp-l">${esc(x.label)}</span>${who(x)}${since(x)}</div>`).join('') || '<div class="muted">Nothing is ordered on this line.</div>'}</div>
+    ${pl.over ? `<div class="hwarn">The registers place <b>${p1N(pl.over)}</b> more pieces than the ${p1N(ordered)} ordered.</div>` : ''}`;
+  /* 2. what passed each step, and when */
+  const passed = p1HistPassed(ev, S).map(x => { const big = x.unit === 'pcs' && ordered > 0 && x.n > ordered;
+    return `<tr><td><b>${esc(x.label)}</b></td><td class="num"><b${big ? ' class="late"' : ''}>${x.n ? p1N(x.n) + (x.unit === 'm' ? ' m' : '') : '—'}</b></td>`
+      + `<td>${x.unit === 'pcs' ? `<span class="hpb"><i style="width:${pct(x.n).toFixed(2)}%"></i></span><span class="muted">${big ? `<span class="late">more than the ${p1N(ordered)} ordered</span>` : `of ${p1N(ordered)}`}</span>` : '<span class="muted">cloth, in metres</span>'}</td>`
+      + `<td class="hdays">${x.days.map(d => `<span class="hday">${d.day ? p1Day(d.day) : 'no date'} · <b>${p1N(d.n)}${x.unit === 'm' ? ' m' : ''}</b></span>`).join('') || '<span class="muted">none yet</span>'}</td></tr>`; }).join('');
+  /* 3. the entries: newest first, a day at a time */
   let prev = '', body = '';
   const many = ords.length > 1 && !o, cols = many ? 7 : 6;
   for (let i = ev.length - 1; i >= 0; i--) { const e = ev[i];
     if (e.day !== prev) { body += `<tr class="hd"><td colspan="${cols}">${e.day ? p1Day(e.day) : 'no date'}</td></tr>`; prev = e.day; }
     body += `<tr><td class="muted">${e.t ? new Date(e.ms).toTimeString().slice(0, 5) : ''}</td><td>${p1Mv(e)}</td><td class="num"><b>${e.k === 'REPLAN' ? '' : p1N(e.pcs) + (e.unit === 'm' ? ' m' : '')}</b></td>`
       + `<td>${esc(e.party || '')}</td>${many ? `<td class="muted">${esc(e.orderNo)}</td>` : ''}<td class="muted">${esc(e.by || '')}</td><td class="hnote">${p1HistNote(e)}</td></tr>`; }
-  /* an entry total past the order is said, not counted (Ravi's CPC-01: 621 into Finished Goods on an order of 497) */
-  const over = P1_HSTEPS.map(([, t, kinds]) => [t, ev.filter(e => kinds.includes(e.k) && e.unit !== 'm').reduce((a, e) => a + e.pcs, 0)]).filter(([, n]) => n > ordered && ordered > 0);
   const lotTag = r.lot ? esc(p1LotTxt(r.lot)) : r.notPlanned ? 'To plan' : 'No lot', parts = p1LotParts(r.lot, r.lines);
   return `<div class="p1-hist"><div class="hh"><b class="p1-lotno${r.lot ? '' : r.notPlanned ? ' new' : ' none'}" title="${r.lot ? 'Production lot' : r.notPlanned ? 'Waiting for a plan' : 'Made without a PPC plan, or planned before lot numbers began'}">${lotTag}</b>
       <div class="hh-t"><b>${esc(r.sku)}</b><span>${esc(r.what)}</span><span class="muted">${p1N(r.ordered)} pcs ordered · ${ords.length} order${ords.length > 1 ? 's' : ''}${r.lot ? ` · planned ${p1Day(r.lot.day)}${r.lot.by ? ' by ' + esc(r.lot.by) : ''}` : ''}</span></div>
       <span class="hh-r">${ords.length > 1 ? `<label class="muted">Order <select data-p1hord><option value="">All orders</option>${ords.map(x => `<option${x === P1.histOrd ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></label>` : ''}<button type="button" class="ghost" data-p1hdl>Download</button><button type="button" class="ghost hx" data-p1close aria-label="Close">×</button></span></div>
     ${parts.length ? `<div class="p1-parts">${parts.map(x => `<span><i>${esc(x[0])}</i>${esc(x[1])}</span>`).join('')}</div>` : ''}
     <div class="hsec">Where the ${p1N(ordered)} pieces are now</div>
-    <div class="hsay">${p1HistSay(steps, ordered)}</div>
-    <div class="hcards">${steps.map(card).join('<span class="hc-ar">›</span>')}</div>
+    ${where}
+    <div class="hsec">What passed each step, and when</div>
+    <div class="ff-grid hpass"><table class="xl"><thead><tr><th>Step</th><th class="num">Pieces</th><th>Against the order</th><th>When</th></tr></thead><tbody>${passed || '<tr><td colspan="4" class="empty">Nothing has passed a step yet.</td></tr>'}</tbody></table></div>
     <div class="hsec">Every entry on record <span class="muted">· ${p1N(ev.length)}, newest first</span></div>
-    <div class="ff-grid hgrid"><table class="xl"><thead><tr><th>Time</th><th>What happened</th><th class="num">Pcs</th><th>With / from</th>${many ? '<th>Order</th>' : ''}<th>Entered by</th><th>Details</th></tr></thead><tbody>${body || `<tr><td colspan="${cols}" class="empty">Nothing on record yet.</td></tr>`}</tbody></table></div>
-    ${over.length ? `<div class="hwarn">The entries add up to more than the ${p1N(ordered)} ordered — ${over.map(([t, n]) => `${esc(t.toLowerCase())} <b>${p1N(n)}</b>`).join(', ')}. The steps above count each order line only up to its order.</div>` : ''}</div>`;
+    <div class="ff-grid hgrid"><table class="xl"><thead><tr><th>Time</th><th>What happened</th><th class="num">Pcs</th><th>With / from</th>${many ? '<th>Order</th>' : ''}<th>Entered by</th><th>Details</th></tr></thead><tbody>${body || `<tr><td colspan="${cols}" class="empty">Nothing on record yet.</td></tr>`}</tbody></table></div></div>`;
 }
 function p1HistoryDownload(r) {
   const ev = p1HistEvents(r).slice().reverse();
