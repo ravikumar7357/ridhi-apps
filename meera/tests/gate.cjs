@@ -102,7 +102,9 @@ async function main() {
   if (acc >= 0) {
     const why = String(args[acc + 1] || '').trim();
     if (!why || why.startsWith('--')) { console.log('Say why, in quotes: node meera/tests/gate.cjs --accept "what changed and why"'); process.exit(2); }
-    if (bundle) { console.log('Accept with Meera in the page (without --bundle); meera.js must then match it.'); process.exit(2); }
+    /* Refused only when --bundle was typed. With her new features on she is checked as meera.js whatever is typed (above), and that
+     * had left no way to record a meant change at all (found 25 Nov, after the 16 Nov merge of main into dev). */
+    if (args.includes('--bundle')) { console.log('Accept with Meera in the page (without --bundle); meera.js must then match it.'); process.exit(2); }
     writeBaseline(now);
     const lines = [`## ${new Date().toISOString().slice(0, 16).replace('T', ' ')} — ${why}`, ''];
     fails.forEach(x => lines.push(`- score: ${x.line}`));

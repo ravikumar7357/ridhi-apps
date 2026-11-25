@@ -1,5 +1,5 @@
 {
- "made": "2026-11-12",
+ "made": "2026-11-25",
  "scores": {
   "eval": {
    "right": 115,
@@ -31,9 +31,9 @@
   "held": {
    "count": 447,
    "right": 190,
-   "offered": 163,
+   "offered": 162,
    "wrong": 13,
-   "none": 81
+   "none": 82
   },
   "hindi": {
    "count": 114,
@@ -41,12 +41,19 @@
    "offered": 40,
    "wrong": 0,
    "none": 24
+  },
+  "everyday": {
+   "count": 531,
+   "right": 135,
+   "offered": 69,
+   "wrong": 183,
+   "none": 144
   }
  },
  "sizes": {
   "meera-bank.json": {
-   "raw": 8275325,
-   "gzip": 2050506
+   "raw": 8343724,
+   "gzip": 2067044
   },
   "meera-words.bin": {
    "raw": 1591833,
@@ -57,13 +64,13 @@
    "gzip": 118316
   },
   "code in the page": {
-   "raw": 452476,
-   "gzip": 192253,
-   "files": 10
+   "raw": 479244,
+   "gzip": 202412,
+   "files": 11
   }
  },
  "timing": {
-  "loadMs": 1553,
-  "msPerAnswer": 42.7
+  "loadMs": 4796,
+  "msPerAnswer": 171.6
  }
 }
