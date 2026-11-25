@@ -332,10 +332,10 @@ $('fbExport').onclick = () => {
   }
   if (v === 'store' || v === 'storemov') {
     const rows = FAB.shown || []; if (!rows.length) return;
-    const head = v === 'store' ? ['Item', 'Kind', 'SKU', 'Fabric', 'Colour', 'In', 'Out', 'Balance', 'Movements', 'Last']
+    const head = v === 'store' ? ['Item', 'Kind', 'SKU', 'Fabric', 'Colour', 'In', 'Out', 'Returned to printers', 'Balance', 'Movements', 'Last']
       : ['Date', 'What', 'Item', 'Kind', 'SKU', 'Fabric', 'Colour', 'In', 'Out', 'Who', 'Cross-checked', 'Remark'];
     const body = v === 'store'
-      ? rows.map(b => [b.name, ST_UNITS[b.unit], b.sku, b.fabric, b.colour, b.inQty, b.outQty, b.qty, b.n, ptIsoDate(b.last) || ''])
+      ? rows.map(b => [b.name, ST_UNITS[b.unit], b.sku, b.fabric, b.colour, b.inQty, Math.round((b.outQty - (b.returned || 0)) * 100) / 100, b.returned || 0, b.qty, b.n, ptIsoDate(b.last) || ''])
       : rows.slice().reverse().map(mv => [mv.date, mv.what, stName(mv), ST_UNITS[mv.unit], mv.sku, mv.fabric, mv.colour,
         mv.qty > 0 ? Math.round(mv.qty * 100) / 100 : '', mv.qty < 0 ? Math.round(-mv.qty * 100) / 100 : '', mv.who,
         mv.src === 'printer' ? (stChecked(mv.checkKey) ? 'Yes' : 'No') : '', mv.remark]);
