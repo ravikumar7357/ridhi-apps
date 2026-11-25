@@ -62,6 +62,15 @@ const combO = { orderType: 'running', lines: comb.lines };
 ok('office: a combined line counts every SKU (was only the first)', O.vpRecvOf(combO.lines[0], combO).qty === 3, JSON.stringify(O.vpRecvOf(combO.lines[0], combO)));
 ok('office: a line moved to another printer is left out (RFD-3 not counted)', !/RFD-3/.test(O.vpRecvOf(combO.lines[0], combO).how));
 
+/* ---- A LINE GIVEN ONLY PART OF ITS FABRIC IS DONE ONLY WHEN THE WHOLE ORDER IS IN (Ravi, 25 Nov) ---- */
+{
+  const g = (total, got) => ({ o: { orderType: 'cut', flowProg: { items: { 'K-G': { back: got } } } }, l: { flowKey: 'K-G', flowPart: 'K-G|sku', qty: 10, ...(total ? { orderedTotal: total } : {}) } });
+  const R = (total, got) => { const x = g(total, got); return P.vpRecvAll(x.o, x.l); };
+  ok('a plain 10-piece line with 10 in is all in', R(0, 10) === true);
+  ok('a line given 10 of a 100 order: the 10 in does NOT finish it', R(100, 10) === false);
+  ok('...90 in is not all in either', R(100, 90) === false);
+  ok('...all 100 in: all in', R(100, 100) === true);
+}
 /* ---- PART-SENT LINES WAIT IN "VENDOR SENT" (Ravi, 24 Nov: "jese bagru se mal bheja to ye bulk orders me nhi dikhna chahiye") ---- */
 const part = (sent, got) => ({ o: { orderType: 'cut', flowProg: { items: { 'K-8': { back: got } } } },
   l: { flowKey: 'K-8', flowPart: 'K-8|sku', qty: 10, __vs: sent ? [{ qty: sent, unit: 'pcs', at: '2026-11-24T10:00:00Z' }] : [] } });

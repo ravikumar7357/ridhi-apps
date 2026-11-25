@@ -73,7 +73,10 @@ const vpIsCustom = o => vpIsShop(o) || vpIsPpcShop(o);
  * entered what it sent. A custom line received in full goes to Custom → History instead (vpLineIsHist), as before. */
 let VP_PART = '';
 const vpLineIsDone = (o, l) => !!(l && (l.cancelled || ['Received', 'Cancelled'].indexOf((o && o.status) || '') >= 0
-  || (vpQty(o, l) > 0 && vpQty(o, l) - vpDone(l) <= 0) || (!vpIsCustom(o) && vpRecvAll(o, l))));
+  || (vpQty(o, l) > 0 && vpFullOf(o, l) - vpDone(l) <= 0) || (!vpIsCustom(o) && vpRecvAll(o, l))));
+/** THE WHOLE ORDER, NOT THE FABRIC GIVEN SO FAR (Ravi, 25 Nov: completed only when all 100 are in): a line shown only for what the RFD challans gave (rfdGate) carries the full
+ * quantity as orderedTotal. Done means that whole quantity — the 10 given and received do not finish a 100 order. */
+const vpFullOf = (o, l) => Math.max(vpQty(o, l), +(l && l.orderedTotal) || 0);
 /* SENT BY THE PRINTER (Ravi, 14 Nov: "vendor apni qty enter vendor sent me to uske bad wo order vendor ko pending order list me show
  * nahi hona chahiye — wo vendor sent me show hona chahiye"): a line the printer has said is sent in full (Vendor sent ≥ ordered) and
  * that is not done yet leaves Bulk / Custom orders for its own tab, "Vendor sent", until it is received. Part-sent stays pending.
@@ -680,7 +683,7 @@ function vpRecvOf(l, o) {
   return { qty: vo, how: vo ? 'on the vendor order' : '' };
 }
 /** Everything ordered on the line has reached us — nothing is left for the printer to say it sent. */
-const vpRecvAll = (o, l) => { const ord = vpOrdOf(o, l); return ord > 0 && vpRecvOf(l, o).qty >= ord - 0.01; };
+const vpRecvAll = (o, l) => { const ord = Math.max(vpOrdOf(o, l), +(l && l.orderedTotal) || 0); return ord > 0 && vpRecvOf(l, o).qty >= ord - 0.01; };
 /* HISTORY (Ravi, 16 Nov: "when all the orders show all received add a button named History which shows all the orders the vendor has
  * completed and are all received"). A line is history once everything ordered has reached us, the printer has recorded all of it as
  * sent, and no extra waits for approval. Until the printer has recorded it, the line stays with its Send box (Ravi, 14 Nov: the printer
