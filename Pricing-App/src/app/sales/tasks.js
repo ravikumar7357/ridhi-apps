@@ -21,6 +21,10 @@
  *              Weeks missing (Amazon is 1–2 days late) → "Not enough data yet". The final verdict is kept on the task once worked out.
  *   bell       the 🔔 (listing/fix-status.js) gains "My tasks": new tasks given to me, my overdue tasks, verdicts on tasks I made; seen per
  *              person (history/taskseen_<id>). It shows for ANY signed-in Sellora user with tasks; Listing users see all three sections.
+ * ROADMAP CARD (25 Nov 2026): every task has "Open listing" (Listing Health, that SKU or family) and "Amazon ↗"; its history also shows,
+ *   automatically and READ ONLY, what Sellora recorded for its SKUs after it was made — Listing History sends ("Price changed $24.99 →
+ *   $27.99 (Sellora, by Vishesh)") and Fix status changes; "What worked" (top of the board): per action type, the tasks done in the last
+ *   30 / 90 days · ✅ · ➖ · ❌ · the average change; the creator may set the review window per task: 7 or 14 days (14 unless chosen).
  * WRITES only task records, the names document and the person's own "seen" marks — never on the test site (tasks are kept in this
  *   visit only there). No sales / listing / stock data is changed; no Amazon call.
  * Main functions: tkVerdict (pure), tkLoad, tkCreate, tkUpdate, tkRender, tkFormOpen, tkBtnHtml, tkBellItems, taskCheck (console).
@@ -32,7 +36,8 @@ const TK_PICKS = [['ads', 'Restart / raise ads'], ['listing', 'Fix listing'], ['
 const TK_V = { worked: ['✅', 'Worked'], nochange: ['➖', 'No change'], didnt: ['❌', 'Didn\'t work'] };
 const TK_SRC = { alert: 'Sales Alerts', forecast: 'Forecast', insight: 'This week, explained' };
 const TK_M = { baseWeeks: 4, early: 7, final: 14, up: 0.15, down: -0.15, dueDays: 3, undoMs: 60000, bellMs: 5 * 60000 };
-const TK = { tasks: {}, loaded: false, busy: null, dir: { users: {}, extra: {} }, msg: '', brand: 'ALL', who: 'me', q: '', chip: '', tab: 'todo', dr: null, drFrom: null,
+const TK_WIN = [7, 14];                                  // the review window a creator may choose (days after Done)
+const TK = { ww: { days: 30, open: true }, lh: null, lhBusy: null, tasks: {}, loaded: false, busy: null, dir: { users: {}, extra: {} }, msg: '', brand: 'ALL', who: 'me', q: '', chip: '', tab: 'todo', dr: null, drFrom: null,
   seen: new Set(), bell: false, bellTimer: 0, form: null, started: false, undo: {}, err: '' };
 
 /* ----- small helpers ----- */
@@ -145,7 +150,7 @@ function tkNewRecord(o, me, now) {
   const id = 'task_' + tkIstDay(now).replace(/-/g, '') + '_' + Math.random().toString(36).slice(2, 8);
   return { kind: 'task', id, v: 1, brand: o.brand, key: o.key, parent: o.parent || '', sku: o.sku || '', asin: o.asin || '', name: o.name || o.key, problem: o.problem || '',
     src: o.src, kind2: o.kind || '', ref: o.ref || '', action: o.action || '', pick: o.pick || '', to: o.to || { email: me }, due: o.due || '', note: o.note || '',
-    status: 'todo', by: me, at: now, upd: now, doneAt: 0, doneBy: '', hist: [{ a: 'created', by: me, at: now }], comments: [], base: o.base || null, verdict: null, del: null };
+    win: TK_WIN.includes(Number(o.win)) ? Number(o.win) : TK_M.final, status: 'todo', by: me, at: now, upd: now, doneAt: 0, doneBy: '', hist: [{ a: 'created', by: me, at: now }], comments: [], base: o.base || null, verdict: null, del: null };
 }
 // The task's own kind (drop / stock / week) is kept in kind2: `kind` is always 'task' (the query reads it).
 const tkKind = t => t.kind2 || '';
@@ -196,6 +201,13 @@ async function tkMove(id, to) {
   catch (e) { TK.msg = 'Not moved: ' + ((e && e.message) || e); }
   tkRepaint();
 }
+async function tkSetWin(id, win) {
+  const me = tkMe(), now = Date.now(), n = Number(win);
+  if (!TK_WIN.includes(n)) return;
+  try { const r = await tkUpdate(id, x => (x.by !== me || tkWin(x) === n || (x.verdict && x.verdict.v) ? null : Object.assign(x, { win: n, upd: now, hist: (x.hist || []).concat([{ a: 'window', to: String(n), by: me, at: now }]) }))); if (!r) TK.msg = 'Only who made it can change when it is checked (before the verdict).'; }
+  catch (e) { TK.msg = 'Not changed: ' + ((e && e.message) || e); }
+  TK_VMEMO.clear(); tkRepaint();
+}
 async function tkComment(id, text) {
   const t = String(text || '').trim().slice(0, 500);
   if (!t) return;
@@ -219,6 +231,8 @@ async function tkDelete(id, undo) {
 }
 
 /* ----- "did it work?" (pure) ----- */
+/** The task's review window: the days after Done the verdict waits for (7 or 14; 14 unless the creator chose 7). */
+const tkWin = t => (TK_WIN.includes(Number(t && t.win)) ? Number(t.win) : TK_M.final);
 /** ctx = { fam: { s: [{wk, u, r, skip}], asins: [..], status } | null, days: { d: asin→day→[units, sales], from, upTo } | null,
  *          weekly: asin→{ weeks: wk→{u, rev} } | null, alertOn: bool | null (Sales Alerts still flags it), now }.
  *  → { stage: 'open' | 'wait' | 'early' | 'final', v, pct, base, after, line }. */
@@ -262,9 +276,10 @@ function tkVerdict(t, ctx) {
   }
   const base = tkBase(t, ctx);
   if (!base) return { stage: 'wait', line: 'Not enough data yet — fewer than 2 normal weeks before the task' };
-  const fin = tkAfter(t, ctx, TK_M.final), early = fin ? null : tkAfter(t, ctx, TK_M.early);
+  const win = tkWin(t);
+  const fin = tkAfter(t, ctx, win), early = fin || win <= TK_M.early ? null : tkAfter(t, ctx, TK_M.early);
   const a = fin || early;
-  if (!a) return { stage: 'wait', base, line: `Not enough data yet — the first ${TK_M.early} days after ${tkDay(tkPt(t.doneAt))} are not in (Amazon is 1–2 days late)` };
+  if (!a) return { stage: 'wait', base, line: `Not enough data yet — the first ${Math.min(win, TK_M.early)} days after ${tkDay(tkPt(t.doneAt))} are not in (Amazon is 1–2 days late)` };
   const pct = base.u > 0 ? a.u / base.u - 1 : a.u > 0 ? 1 : 0;
   const words = `Sales ${tkN(base.u)} → ${tkN(a.u)}/week (${tkPctTxt(pct)})`;
   if (!fin) return { stage: 'early', base, after: a, pct, line: `Early check: ${tkPctTxt(pct)} — ${words}` };
@@ -308,6 +323,104 @@ function tkVerdictOf(t) {
 }
 TK.saving = {};
 
+/* ----- "Open listing" (Listing Health: the SKU, or the family by its parent ASIN) and "Amazon ↗" ----- */
+const tkMayListing = () => (typeof TAB_OK === 'function' ? !!TAB_OK('health') : false);
+function tkLinksHtml(t, cls) {
+  const asin = t.asin || t.parent || '';
+  const open = tkMayListing() ? `<button type="button" class="tk-lnk" data-tk-listing="${tkEsc(t.id)}">Open listing</button>` : '';
+  const amz = /^B0[0-9A-Z]{8}$/i.test(asin) ? `<a class="tk-lnk" href="https://www.amazon.com/dp/${tkEsc(asin)}" target="_blank" rel="noopener" title="The product page on Amazon">Amazon ↗</a>` : '';
+  return open || amz ? `<span class="tk-links ${cls || ''}">${open}${amz}</span>` : '';
+}
+function tkOpenListing(t) {
+  if (!t || typeof showTab !== 'function') return;
+  if (TK.dr) tkDrawerClose();
+  if (t.sku && typeof fsOpenListing === 'function') return fsOpenListing(t.brand, t.sku);
+  // a family: Listing Health on the parents, searched to its parent ASIN
+  if ($('hBrandView')) $('hBrandView').value = t.brand;
+  if ($('hIssueView')) $('hIssueView').value = 'ALL';
+  if ($('hFilter')) $('hFilter').value = t.parent || String(t.key || '').split('|')[1] || '';
+  if (typeof H_VIEW !== 'undefined') { try { H_VIEW = 'parent'; } catch (e) { /* the page's own */ } }
+  showTab('health');
+  setTimeout(() => { try { if (typeof renderHealth === 'function' && typeof H_LOADED !== 'undefined' && H_LOADED) renderHealth(); } catch (e) { /* the search shows it */ } }, 300);
+}
+
+/* ----- the task's own history, plus what Sellora recorded for its SKUs since (READ ONLY: Listing History, Fix status) ----- */
+/** The SKUs and ASINs a task covers: its SKU, else its family's (the Forecast's family, Listing Health's rows of the parent). */
+function tkSkusOf(t) {
+  const skus = new Set(), asins = new Set();
+  if (t.sku) skus.add(t.sku);
+  if (t.asin) asins.add(t.asin);
+  if (!t.sku) {
+    try {
+      const r = typeof foFor === 'function' ? foFor(t.brand) : null;
+      const f = r && r.ok ? r.fams.find(x => x.key === t.key) : null;
+      if (f) f.kids.forEach(k => { asins.add(k.asin); (k.skus || []).forEach(s => skus.add(s)); });
+    } catch (e) { /* Listing Health's rows below */ }
+    const rows = (typeof HEALTH !== 'undefined' && HEALTH[t.brand] && HEALTH[t.brand].rows) || [];
+    rows.forEach(r => { if (r && r.parent && r.parent === t.parent) { skus.add(r.sku); if (r.asin) asins.add(r.asin); } });
+    if (t.parent) asins.add(t.parent);
+  }
+  return { skus, asins };
+}
+const TK_WD = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short' });
+const tkCut = (v, n) => { const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+/** The auto entries (pure): rows = Listing History rows, fixes = Fix status records; only this task's SKUs, after it was made. */
+function tkAutoLog(t, rows, fixes, cover) {
+  const { skus, asins } = cover || tkSkusOf(t);
+  const mine = r => r && r.brand === t.brand && (skus.has(r.sku) || (r.asin && asins.has(r.asin))) && Number(r.at) >= Number(t.at);
+  const out = [];
+  (rows || []).filter(mine).forEach(r => {
+    const what = String(r.field || 'Listing').replace(/^./, c => c.toUpperCase());
+    const change = r.pic ? 'changed' : r.old != null || r.new != null ? `changed ${tkCut(r.old, 40) || '(empty)'} → ${tkCut(r.new, 40) || '(empty)'}` : 'changed';
+    const res = { accepted: ' · ✅ accepted', rejected: ' · ❌ rejected', working: ' · ⏳ Amazon working', sent: ' · ⏳ Amazon working' }[r.result] || '';
+    out.push({ auto: 'lh', at: Number(r.at), sku: r.sku, text: `${what} ${change}${skus.size > 1 ? ' · ' + r.sku : ''} (Sellora, by ${r.name || tkNameOf(r.by)})${res}` });
+  });
+  (fixes || []).filter(r => mine(Object.assign({}, r, { at: r.confirmedAt || r.at }))).forEach(r => {
+    const st = (typeof FS_STATES !== 'undefined' && FS_STATES[r.state]) || r.state;
+    out.push({ auto: 'fs', at: Number(r.confirmedAt || r.at), sku: r.sku, text: `Fix status: ${st} — ${tkCut(r.issue || r.field || '', 70)}${skus.size > 1 ? ' · ' + r.sku : ''}` });
+  });
+  return out.sort((a, b) => a.at - b.at);
+}
+/** Listing History's rows (its own reader — read only), once per visit; the drawer draws again when they arrive. */
+function tkLhRows() {
+  if (typeof LH !== 'undefined' && Array.isArray(LH.rows) && !LH.loading && !LH.err) return LH.rows;
+  if (TK.lh) return TK.lh;
+  if (!TK.lhBusy && typeof nlLoadLh === 'function') {
+    TK.lhBusy = Promise.resolve(nlLoadLh()).then(r => { TK.lh = Array.isArray(r) ? r : []; if (TK.dr) tkDrawerPaint(); }).catch(() => { TK.lh = []; });
+  }
+  return [];
+}
+const tkFixRecs = () => (typeof FS !== 'undefined' && Array.isArray(FS.recs) ? FS.recs : []);
+
+/* ----- "What worked": per action type, the tasks done in the last 30 / 90 days ----- */
+const tkPickOf = t => t.pick || (TK_PICKS.find(([, label]) => String(t.action || '').trim().toLowerCase() === label.toLowerCase()) || ['other'])[0];
+/** rows: [{ pick, label, done, worked, nochange, didnt, waiting, avg }] — the tasks of the brand on view Done in the window. */
+function tkWorked(tasks, brand, days, now, verdictOf) {
+  const from = now - days * 864e5;
+  const by = {};
+  Object.values(tasks || {}).filter(t => tkLive(t) && t.status === 'done' && t.doneAt >= from && (brand === 'ALL' || t.brand === brand)).forEach(t => {
+    const k = tkPickOf(t), v = verdictOf(t);
+    const r = by[k] || (by[k] = { pick: k, label: (TK_PICKS.find(p => p[0] === k) || [k, 'Other'])[1], done: 0, worked: 0, nochange: 0, didnt: 0, waiting: 0, pcts: [] });
+    r.done++;
+    if (v.stage === 'final' && v.v) { r[v.v]++; if (v.pct != null && isFinite(v.pct)) r.pcts.push(v.pct); } else r.waiting++;
+  });
+  return Object.values(by).map(r => Object.assign(r, { avg: r.pcts.length ? r.pcts.reduce((s, p) => s + p, 0) / r.pcts.length : null }))
+    .sort((a, b) => b.done - a.done || a.label.localeCompare(b.label));
+}
+function tkWorkedHtml() {
+  const rows = tkWorked(TK.tasks, TK.brand, TK.ww.days, Date.now(), tkVerdictOf);
+  const seg = `<span class="tk-seg tk-wwseg" role="group" aria-label="Done in the last">${[30, 90].map(n => `<button type="button" data-tk-ww="${n}" aria-pressed="${TK.ww.days === n}">${n} days</button>`).join('')}</span>`;
+  const line = r => `${r.label}: ${r.done} done · ${r.worked} worked${r.avg != null ? ' · avg ' + tkPctTxt(r.avg) : ''}`;
+  // the action that worked most often (then the higher share, then the higher average)
+  const best = rows.filter(r => r.worked).sort((a, b) => b.worked - a.worked || b.worked / b.done - a.worked / a.done || (b.avg || 0) - (a.avg || 0))[0];
+  const body = rows.length ? `<table class="tk-ww-t"><thead><tr><th scope="col">Action</th><th scope="col" class="num">Done</th><th scope="col" class="num">✅ Worked</th><th scope="col" class="num">➖ No change</th><th scope="col" class="num">❌ Didn't work</th><th scope="col" class="num">⏳ Waiting</th><th scope="col" class="num">Avg change</th></tr></thead>`
+      + `<tbody>${rows.map(r => `<tr title="${tkEsc(line(r))}"><th scope="row">${tkEsc(r.label)}</th><td class="num">${r.done}</td><td class="num">${r.worked}</td><td class="num">${r.nochange}</td><td class="num">${r.didnt}</td><td class="num">${r.waiting}</td>`
+      + `<td class="num${r.avg > 0 ? ' is-up' : r.avg < 0 ? ' is-dn' : ''}">${r.avg == null ? '—' : tkPctTxt(r.avg)}</td></tr>`).join('')}</tbody></table>`
+    : `<p class="tk-empty">No task was marked Done in the last ${TK.ww.days} days${TK.brand === 'ALL' ? '' : ' for ' + tkBrandName(TK.brand)}.</p>`;
+  return `<details class="tk-ww"${TK.ww.open ? ' open' : ''} data-tk-wwbox><summary><b>What worked</b><span class="muted">${best ? 'Best: ' + tkEsc(line(best)) : 'per action type · done tasks and their verdicts'}</span></summary>`
+    + `<div class="tk-ww-b"><div class="tk-ww-h"><span class="muted">${tkBrandName(TK.brand)} · tasks marked Done in the last ${TK.ww.days} days · avg change = the verdict's sales change (reorder tasks have none)</span>${seg}</div>${body}</div></details>`;
+}
+
 /* ----- the board ----- */
 const tkOverdue = (t, today) => tkOpen(t) && t.due && t.due < (today || tkIstDay(Date.now()));
 function tkShown() {
@@ -349,7 +462,7 @@ function tkCardHtml(t, today) {
   const may = tkMayMove(t);
   return `<article class="tk-card${late ? ' is-late' : ''}" data-tk-card="${tkEsc(t.id)}" tabindex="0" draggable="${may}" aria-label="${tkEsc(t.name + ': ' + t.problem)}">`
     + `<div class="tk-card-h"><b class="tk-card-n" title="${tkEsc(t.name)}">${tkEsc(t.name)}</b>${badge}</div>`
-    + `<div class="tk-card-p">${tkEsc(t.problem)}</div>${t.action ? `<div class="tk-card-a">→ ${tkEsc(t.action)}</div>` : ''}`
+    + `<div class="tk-card-p">${tkEsc(t.problem)}</div>${t.action ? `<div class="tk-card-a">→ ${tkEsc(t.action)}</div>` : ''}${tkLinksHtml(t, 'is-card')}`
     + `<div class="tk-card-f"><span class="tk-av${w.ext ? ' is-ext' : ''}" title="${tkEsc(w.name + (w.ext ? ' (not on Sellora)' : ''))}">${tkEsc(tkInitials(w.name))}</span>`
     + `<span class="tk-due${late ? ' is-late' : ''}">${t.due ? (late ? 'Late · ' : 'Due ') + tkDay(t.due) : 'No due date'}</span><span class="tk-src">${tkEsc(TK_SRC[t.src] || t.src)} · ${tkBrandName(t.brand)}</span>`
     + (next && may ? `<button type="button" class="tk-mini" data-tk-move="${tkEsc(t.id)}|${next[0]}">${next[1]} →</button>` : '') + '</div></article>';
@@ -372,12 +485,12 @@ function tkRender() {
         + (cards.length ? cards.map(t => tkCardHtml(t, today)).join('') : `<p class="tk-empty">${s === 'todo' ? 'Nothing to do.' : s === 'doing' ? 'Nothing in progress.' : 'Nothing done yet.'}</p>`) + '</section>';
     };
     body = (tkTest() ? '<p class="tk-note">Test site — tasks made here are kept in this visit only, never saved.</p>' : '') + (TK.err ? `<p class="tk-note is-err">${tkEsc(TK.err)}</p>` : '')
-      + `<section class="tk-sum"><h2 class="tk-hl">${tkEsc(tkSummary(list, today))}</h2></section>`
+      + `<section class="tk-sum"><h2 class="tk-hl">${tkEsc(tkSummary(list, today))}</h2></section>${tkWorkedHtml()}`
       + `<div class="tk-chips" role="group" aria-label="Filter">${chip('todo', 'To do')}${chip('doing', 'In progress')}${chip('done', 'Done')}${chip('overdue', 'Overdue 🔴')}`
       + `<span class="tk-chips-sep" aria-hidden="true"></span>${chip('worked', '✅ Worked')}${chip('nochange', '➖ No change')}${chip('didnt', '❌ Didn\'t work')}</div>`
       + `<div class="tk-tabs" role="tablist">${Object.keys(TK_ST).map(s => `<button type="button" role="tab" data-tk-tab="${s}" aria-selected="${TK.tab === s}">${TK_ST[s]} <b>${shown.filter(t => t.status === s).length}</b></button>`).join('')}</div>`
       + `<div class="tk-cols">${col('todo')}${col('doing')}${col('done')}</div>`
-      + `<p class="tk-how">Tasks come from the "+ Task" buttons on Sales Alerts, the Forecast and "This week, explained". After Done, Sellora checks the product's sales: an early check from day ${TK_M.early}, the verdict from day ${TK_M.final} — against its 4 normal weeks before the task (out-of-stock weeks skipped). Sales weeks are US Pacific; times are IST. <code>taskCheck('name')</code> in the console shows every number.</p>`;
+      + `<p class="tk-how">Tasks come from the "+ Task" buttons on Sales Alerts, the Forecast and "This week, explained". After Done, Sellora checks the product's sales: an early check from day ${TK_M.early}, the verdict from day ${TK_M.final} (or day ${TK_M.early} when the task's maker chose 7) — against its 4 normal weeks before the task (out-of-stock weeks skipped). Sales weeks are US Pacific; times are IST. <code>taskCheck('name')</code> in the console shows every number.</p>`;
   }
   root.innerHTML = `<div class="tk">${tkBarHtml()}${body}</div>`;
   try {                                                                  // the bar sticks under the app's menu bar when that one is sticky
@@ -426,7 +539,7 @@ function tkChartSvg(t, v) {
     + `<path d="${line}" class="tk-cl"/>${skip}${mark(tkPt(t.at), 'tk-cm', 'task')}${t.doneAt ? mark(tkPt(t.doneAt), 'tk-cd', 'done') : ''}`
     + `<text x="${l}" y="${H - 6}" class="tk-cx">${tkDay(pts[0].wk)}</text><text x="${W - r}" y="${H - 6}" text-anchor="end" class="tk-cx">${tkDay(pts[pts.length - 1].wk)}</text></svg>`;
 }
-const TK_HIST = { created: 'made it', moved: 'moved it to', done: 'marked it done', reopened: 'reopened it to', deleted: 'deleted it', restored: 'brought it back' };
+const TK_HIST = { window: 'set the check to', created: 'made it', moved: 'moved it to', done: 'marked it done', reopened: 'reopened it to', deleted: 'deleted it', restored: 'brought it back' };
 function tkDrawerHtml(t) {
   const w = tkWho(t), v = tkVerdictOf(t), may = tkMayMove(t), today = tkIstDay(Date.now());
   const btn = (to, label) => `<button type="button" class="tk-btn${to === 'done' ? ' is-main' : ''}" data-tk-move="${tkEsc(t.id)}|${to}"${may ? '' : ' disabled title="Only the person it is for, or who made it, can move it"'}>${label}</button>`;
@@ -436,13 +549,17 @@ function tkDrawerHtml(t) {
   const src = t.src === 'alert' ? `<button type="button" class="tk-btn" data-tk-go="salert|${tkEsc(t.brand)}">Open in Sales Alerts →</button>`
     : t.src === 'forecast' ? `<button type="button" class="tk-btn" data-tk-go="fcast|${tkEsc(t.key + (t.asin ? '#' + t.asin : ''))}|${tkEsc(t.brand)}">Open in Forecast →</button>`
       : `<button type="button" class="tk-btn" data-tk-go="sales|${tkEsc(t.brand)}">Open the Sales Dashboard →</button>`;
-  const hist = (t.hist || []).slice().reverse().map(h => `<li><b>${tkEsc(tkNameOf(h.by))}</b> ${TK_HIST[h.a] || h.a}${h.to && h.a !== 'done' ? ' ' + TK_ST[h.to] : ''} <span class="muted">· ${tkWhen(h.at)}</span></li>`).join('');
+  // its own history, and — automatically, read only — what Sellora recorded for its SKUs since (Listing History sends, Fix status)
+  const own = (t.hist || []).map(h => ({ at: h.at, html: `<b>${tkEsc(tkNameOf(h.by))}</b> ${TK_HIST[h.a] || h.a}${h.a === 'window' ? ` ${h.to} days` : h.to && h.a !== 'done' ? ' ' + TK_ST[h.to] : ''} <span class="muted">· ${tkWhen(h.at)}</span>` }));
+  const auto = tkAutoLog(t, tkLhRows(), tkFixRecs()).map(a => ({ at: a.at, auto: true, html: `<span class="tk-auto" title="Recorded by Sellora — added here automatically">${a.auto === 'fs' ? '🔧' : '🔄'}</span> <b>${tkEsc(TK_WD.format(new Date(a.at)).replace(',', ''))}</b> · ${tkEsc(a.text)}` }));
+  const hist = own.concat(auto).sort((a, b) => b.at - a.at).map(h => `<li${h.auto ? ' class="is-auto"' : ''}>${h.html}</li>`).join('');
   const com = (t.comments || []).map(c => `<li><b>${tkEsc(tkNameOf(c.by))}</b> <span class="muted">· ${tkWhen(c.at)}</span><p>${tkEsc(c.t)}</p></li>`).join('');
   return `<div class="tk-dr-grip" aria-hidden="true"></div><header class="tk-dr-h"><div class="tk-dr-t"><h3 id="tkDrTitle">${tkEsc(t.name)}</h3>`
-    + `<p class="muted">${tkBrandName(t.brand)} · ${tkEsc(t.sku || t.parent || t.key)} · from ${tkEsc(TK_SRC[t.src] || t.src)}</p></div><button type="button" class="tk-x" data-tk-act="close" aria-label="Close">×</button></header>`
+    + `<p class="muted">${tkBrandName(t.brand)} · ${tkEsc(t.sku || t.parent || t.key)} · from ${tkEsc(TK_SRC[t.src] || t.src)}</p>${tkLinksHtml(t)}</div><button type="button" class="tk-x" data-tk-act="close" aria-label="Close">×</button></header>`
     + `<div class="tk-dr-b"><p class="tk-prob">${tkEsc(t.problem)}</p>`
     + `<dl class="tk-dl"><dt>What to do</dt><dd>${tkEsc(t.action || '—')}</dd><dt>Assigned to</dt><dd>${tkEsc(w.name)}${w.ext ? ' <span class="muted">(not on Sellora)</span>' : w.linked ? ' <span class="muted">(linked by name)</span>' : ''}</dd>`
     + `<dt>Due</dt><dd${tkOverdue(t, today) ? ' class="is-late"' : ''}>${t.due ? tkDay(t.due) + (tkOverdue(t, today) ? ' — overdue' : '') : '—'}</dd><dt>Status</dt><dd>${TK_ST[t.status]}${t.doneAt ? ' · ' + tkWhen(t.doneAt) : ''}</dd>`
+    + `<dt>Checked</dt><dd>${tkMayDelete(t) && !(t.verdict && t.verdict.v) ? `<span class="tk-winseg" role="group" aria-label="Review window">${TK_WIN.map(n => `<button type="button" data-tk-setwin="${tkEsc(t.id)}|${n}" aria-pressed="${tkWin(t) === n}">${n} days</button>`).join('')}</span> after Done` : `${tkWin(t)} days after Done`}</dd>`
     + `<dt>Made by</dt><dd>${tkEsc(tkNameOf(t.by))} · ${tkWhen(t.at)}</dd>${t.note ? `<dt>Note</dt><dd>${tkEsc(t.note)}</dd>` : ''}</dl>`
     + `<div class="tk-btns">${moves}${tkMayDelete(t) ? `<button type="button" class="tk-btn is-del" data-tk-del="${tkEsc(t.id)}">Delete</button>` : ''}</div>`
     + `<section class="tk-dr-sec"><h4>Did it work?</h4>${verdict}${tkChartSvg(t, v)}</section>`
@@ -509,6 +626,7 @@ function tkFormHtml(f) {
     + `<div class="tk-picks" role="group" aria-label="Quick picks">${picks}</div>`
     + `<div class="tk-fl">Assign to${tkPickerHtml(f)}</div>`
     + `<label class="tk-fl">Due date<input type="date" data-tk-v="due" value="${tkEsc(f.due)}"></label>`
+    + `<div class="tk-fl">Check if it worked<span class="tk-winseg" role="group" aria-label="Review window">${TK_WIN.map(n => `<button type="button" data-tk-win="${n}" aria-pressed="${f.win === n}">${n} days after Done</button>`).join('')}</span></div>`
     + `<label class="tk-fl">Note<textarea rows="2" maxlength="500" data-tk-v="note" placeholder="Optional">${tkEsc(f.note)}</textarea></label>`
     + `${f.err ? `<p class="tk-ferr" role="alert">${tkEsc(f.err)}</p>` : ''}${tkTest() ? '<p class="tk-note">Test site — this task stays in this visit only.</p>' : ''}`
     + `<footer class="tk-f-f"><button type="button" class="tk-btn" data-tk-f="close">Cancel</button><button type="submit" class="tk-btn is-main">Create task</button></footer></form>`;
@@ -532,7 +650,7 @@ function tkPickerHtml(f) {
 function tkFormOpen(o) {
   const pick = o.pick || (tkKind(o) === 'stock' || o.kind === 'stock' ? 'stock' : '');
   const pickText = (TK_PICKS.find(p => p[0] === pick) || [])[1] || '';
-  TK.form = { o, pick, action: pick && pick !== 'other' ? pickText : '', to: { email: tkMe() }, due: tkAdd(tkIstDay(Date.now()), TK_M.dueDays), note: '', popen: false, pq: '', adding: false, newname: '', err: '', from: document.activeElement };
+  TK.form = { o, pick, action: pick && pick !== 'other' ? pickText : '', to: { email: tkMe() }, due: tkAdd(tkIstDay(Date.now()), TK_M.dueDays), win: TK_M.final, note: '', popen: false, pq: '', adding: false, newname: '', err: '', from: document.activeElement };
   let bg = document.getElementById('tkFBg'), box = document.getElementById('tkF');
   if (!box) {
     bg = document.createElement('div'); bg.id = 'tkFBg'; bg.className = 'tk-fbg'; bg.setAttribute('data-tk-f', 'close');
@@ -567,7 +685,7 @@ async function tkFormSubmit() {
   ['action', 'due', 'note'].forEach(k => { const el = box && box.querySelector(`[data-tk-v="${k}"]`); if (el) f[k] = el.value; });
   if (!String(f.action).trim()) { f.err = 'Say what to do (or pick one above).'; tkFormDraw('[data-tk-v="action"]'); return; }
   if (!f.to.email && !f.to.name) { f.err = 'Choose who it is for.'; tkFormDraw(); return; }
-  const o = Object.assign({}, f.o, { action: String(f.action).trim(), pick: f.pick, to: f.to.email ? { email: f.to.email } : { name: f.to.name, x: f.to.x }, due: f.due, note: String(f.note || '').trim(), base: tkBaseNow(f.o) });
+  const o = Object.assign({}, f.o, { action: String(f.action).trim(), pick: f.pick, to: f.to.email ? { email: f.to.email } : { name: f.to.name, x: f.to.x }, due: f.due, win: f.win, note: String(f.note || '').trim(), base: tkBaseNow(f.o) });
   const r = await tkCreate(o);
   if (r.err) { f.err = r.err; tkFormDraw(); return; }
   if (r.dup) { tkFormDraw(); return; }
@@ -638,7 +756,8 @@ async function tkBellStart() {
 function tkStart() {
   if (TK.started || typeof document === 'undefined' || !document.addEventListener) return;
   TK.started = true;
-  try { const b = localStorage.getItem('tkBrand'); if (b === 'SP' || b === 'CPC' || b === 'ALL') TK.brand = b; } catch (e) { /* Both */ }
+  try { const b = localStorage.getItem('tkBrand'); if (b === 'SP' || b === 'CPC' || b === 'ALL') TK.brand = b; const w = JSON.parse(localStorage.getItem('tkWw') || 'null'); if (w && (w.days === 30 || w.days === 90)) TK.ww = { days: w.days, open: w.open !== false }; } catch (e) { /* Both, 30 days */ }
+  document.addEventListener('toggle', e => { const d = e.target; if (d && d.matches && d.matches('#paneAtrack [data-tk-wwbox]')) { TK.ww.open = d.open; try { localStorage.setItem('tkWw', JSON.stringify(TK.ww)); } catch (err) { /* this visit */ } } }, true);
 }
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('click', async e => {
@@ -673,6 +792,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
       if (p !== 'other' && (!f.action || f.action === was)) f.action = (TK_PICKS.find(x => x[0] === p) || [])[1];
       return tkFormDraw('[data-tk-v="action"]');
     }
+    if (f && on('#tkF [data-tk-win]')) { const box = document.getElementById('tkF'); ['action', 'due', 'note'].forEach(k => { const el = box.querySelector(`[data-tk-v="${k}"]`); if (el) f[k] = el.value; }); f.win = Number(on('#tkF [data-tk-win]').dataset.tkWin); return tkFormDraw(); }
     if (f && on('#tkF [data-tk-to]')) { f.to = { email: on('#tkF [data-tk-to]').dataset.tkTo }; f.popen = false; return tkFormDraw(); }
     if (f && on('#tkF [data-tk-tox]')) { const x = TK.dir.extra[on('#tkF [data-tk-tox]').dataset.tkTox]; if (x) f.to = { name: x.name, x: on('#tkF [data-tk-tox]').dataset.tkTox }; f.popen = false; return tkFormDraw(); }
     if (f && on('#tkF [data-tk-rmx]')) { const id = on('#tkF [data-tk-rmx]').dataset.tkRmx; const x = TK.dir.extra[id]; if (x && x.by === tkMe()) await tkNamesSave({ extra: { [id]: Object.assign({}, x, { del: Date.now() }) } }); return tkFormDraw(); }
@@ -684,9 +804,14 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (seen) { e.stopPropagation(); return tkMarkSeen(seen.dataset.tkSeen); }
     // the board
     if (!on('#paneAtrack')) return undefined;
-    const t = on('[data-tk-brand], [data-tk-chip], [data-tk-tab], [data-tk-act], [data-tk-move], [data-tk-del], [data-tk-go], [data-tk-card]');
+    const lk = on('#paneAtrack [data-tk-listing]');
+    if (lk) { e.stopPropagation(); return tkOpenListing(TK.tasks[lk.dataset.tkListing]); }
+    if (on('#paneAtrack a.tk-lnk')) { e.stopPropagation(); return undefined; }
+    const t = on('[data-tk-brand], [data-tk-chip], [data-tk-tab], [data-tk-act], [data-tk-move], [data-tk-del], [data-tk-go], [data-tk-ww], [data-tk-setwin], [data-tk-card]');
     if (!t || t.disabled) return undefined;
     if (t.dataset.tkBrand) { TK.brand = t.dataset.tkBrand; try { localStorage.setItem('tkBrand', TK.brand); } catch (err) { /* this visit */ } return tkRender(); }
+    if (t.dataset.tkWw) { TK.ww.days = Number(t.dataset.tkWw); try { localStorage.setItem('tkWw', JSON.stringify(TK.ww)); } catch (err) { /* this visit */ } return tkRender(); }
+    if (t.dataset.tkSetwin) { const [id, n] = t.dataset.tkSetwin.split('|'); return tkSetWin(id, n); }
     if (t.dataset.tkChip != null) { TK.chip = TK.chip === t.dataset.tkChip ? '' : t.dataset.tkChip; return tkRender(); }
     if (t.dataset.tkTab) { TK.tab = t.dataset.tkTab; return tkRender(); }
     if (t.dataset.tkMove) { const [id, to] = t.dataset.tkMove.split('|'); return tkMove(id, to); }
@@ -759,11 +884,11 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 /* ----- ⬇ CSV ----- */
 function tkCsvText(list) {
   const q = v => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const head = ['Task', 'Brand', 'Product', 'SKU', 'Problem', 'What to do', 'Assigned to', 'Not on Sellora', 'Made by', 'Made (IST)', 'Due', 'Status', 'Done (IST)', 'Source', 'Baseline units/week', 'After units/week', 'Change %', 'Verdict', 'Verdict line'];
+  const head = ['Task', 'Brand', 'Product', 'SKU', 'Problem', 'What to do', 'Assigned to', 'Not on Sellora', 'Made by', 'Made (IST)', 'Due', 'Status', 'Done (IST)', 'Source', 'Checked after (days)', 'Baseline units/week', 'After units/week', 'Change %', 'Verdict', 'Verdict line'];
   const lines = [head.map(q).join(',')];
   list.forEach(t => {
     const w = tkWho(t), v = tkVerdictOf(t);
-    lines.push([t.id, tkBrandName(t.brand), t.name, t.sku, t.problem, t.action, w.name, w.ext ? 'yes' : '', tkNameOf(t.by), tkWhen(t.at), t.due, TK_ST[t.status], t.doneAt ? tkWhen(t.doneAt) : '', TK_SRC[t.src] || t.src,
+    lines.push([t.id, tkBrandName(t.brand), t.name, t.sku, t.problem, t.action, w.name, w.ext ? 'yes' : '', tkNameOf(t.by), tkWhen(t.at), t.due, TK_ST[t.status], t.doneAt ? tkWhen(t.doneAt) : '', TK_SRC[t.src] || t.src, tkWin(t),
       v.base ? Math.round(v.base.u * 10) / 10 : '', v.after ? Math.round(v.after.u * 10) / 10 : '', v.pct == null ? '' : Math.round(v.pct * 1000) / 10, v.v ? TK_V[v.v][1] : v.stage === 'early' ? 'Early check' : '', v.line || ''].map(q).join(','));
   });
   return lines.join('\r\n');

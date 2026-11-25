@@ -53,7 +53,7 @@ function makeWorld(opt) {
   vm.runInContext(FILES.map(f => SRC(f)).join('\n;\n') + `
 ;this.__x = { TK, TK_M, tkCreate, tkUpdate, tkMove, tkMoveFn, tkMayMove, tkMayDelete, tkDelete, tkComment, tkDup, tkWho, tkPeople, tkPickerHtml, tkFormHtml, tkFormOpen, tkBtnHtml,
   tkVerdict, tkBase, tkBellItems, tkBellUnseen, tkBellSecHtml, tkOverdue, tkSummary, tkLoad, tkNamesLoad, tkNamesSave, tkExtraList, tkRender, tkCsvText, tkHash, tkPt, taskCheck,
-  foTaskBtn, alDetailHtml: typeof alDetailHtml === 'function' ? alDetailHtml : null, fsPanelHtml, fsBellDraw, fsMay, FS };`, ctx);
+  tkLinksHtml, tkAutoLog, tkWorked, tkWorkedHtml, tkSetWin, foTaskBtn, alDetailHtml: typeof alDetailHtml === 'function' ? alDetailHtml : null, fsPanelHtml, fsBellDraw, fsMay, FS };`, ctx);
   return Object.assign(ctx.__x, { ctx, store, writes, els });
 }
 const PEOPLE = { users: {} };
@@ -258,7 +258,7 @@ const fresh = opt => { const W = makeWorld(Object.assign({ store: { 'history/tas
       && (h.match(/data-tk-col="/g) || []).length === 3);
     ok('a card: product, problem, action, who (initials, the name on hover), due in red when late, the source', /<b class="tk-card-n" title="The Whimsical Corner Pillow Insert">/.test(h) && /→ Reorder stock/.test(h) && /<span class="tk-av" title="Asha Kapoor">AK<\/span>/.test(h) && /tk-due is-late">Late · 20 Nov/.test(h) && /Forecast · CPC/.test(h));
     ok('phone: the columns as tabs', /<div class="tk-tabs" role="tablist">/.test(h));
-    ok('CSV: one line per task, the verdict columns', /^Task,Brand,Product,SKU,Problem,What to do,Assigned to,Not on Sellora,Made by,Made \(IST\),Due,Status,Done \(IST\),Source,Baseline units\/week,After units\/week,Change %,Verdict,Verdict line/.test(W.tkCsvText(Object.values(W.TK.tasks))) && W.tkCsvText(Object.values(W.TK.tasks)).split('\r\n').length === 2);
+    ok('CSV: one line per task, the verdict columns', /^Task,Brand,Product,SKU,Problem,What to do,Assigned to,Not on Sellora,Made by,Made \(IST\),Due,Status,Done \(IST\),Source,Checked after \(days\),Baseline units\/week,After units\/week,Change %,Verdict,Verdict line/.test(W.tkCsvText(Object.values(W.TK.tasks))) && W.tkCsvText(Object.values(W.TK.tasks)).split('\r\n').length === 2);
     const tc = await W.taskCheck('whimsical');
     ok('taskCheck(\'whimsical\') finds it and reports every number', tc.length === 1 && tc[0].product === 'The Whimsical Corner Pillow Insert' && 'baseline' in tc[0] && 'stage' in tc[0]);
     const nav = SRC('app/core/nav.js'), html = SRC('index.html'), css = SRC('styles.css'), order = SRC('app/ORDER');
@@ -268,6 +268,75 @@ const fresh = opt => { const W = makeWorld(Object.assign({ store: { 'history/tas
     ok('the page is as wide as Sales Alerts; light + dark tokens; the phone tabs and bottom sheet', /#paneAtrack \.tk \{ max-width: 1160px; margin: 0 auto;/.test(css) && /:root\[data-theme="dark"\] :is\(#paneAtrack, \.tk-dlg, \.tk-toast\)/.test(css) && /#paneAtrack \.tk-col\.is-tab \{ display: block; \}/.test(css));
     ok('writes only task records, the names list and seen marks — no sales / listing / stock document, no Amazon call', !/baCall\(|saveStockDoc|saveHealthCache|adsPost|setDoc\(doc\(db, '(stock|health|age|perms)'/.test(SRC('app/sales/tasks.js')));
     ok('the verdict rule is in docs/sales-metrics.md and the Numbers Check list', /### Task verdict \("did it work\?"\)/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sales-metrics.md'), 'utf8')) && /name: 'Task verdict \("did it work\?"\)'/.test(SRC('app/sales/sales-check.js')));
+  }
+
+  console.log('== 8. the roadmap card: Open listing / Amazon, the auto history, "What worked", the 7 / 14-day window ==');
+  {
+    const W = fresh({ tabs: ['sales', 'salert', 'fcast', 'atrack', 'health'] });
+    await W.tkLoad();
+    const at = Date.parse('2026-11-10T06:00:00Z');
+    const fam = (await W.tkCreate({ src: 'alert', brand: 'SP', key: 'SP|B0PARENT01', parent: 'B0PARENT01', name: 'Block Print Napkins', problem: 'Sales −40% vs expected', kind: 'drop', action: 'Change price', pick: 'price', to: { email: 'asha@ridhihome.com' } })).t;
+    const sku = (await W.tkCreate({ src: 'forecast', brand: 'SP', key: 'SP|B0PARENT01', parent: 'B0PARENT01', sku: 'RNP-18-RED', asin: 'B0CHILD001', name: 'RNP-18-RED (Block Print Napkins)', problem: 'Out of stock', kind: 'stock', action: 'Reorder stock', to: { email: 'asha@ridhihome.com' } })).t;
+    W.ctx.TK_TASKS = W.TK.tasks;
+    W.TK.tasks[fam.id].at = at; W.TK.tasks[sku.id].at = at;
+    W.tkRender();
+    const h = W.els.tkPane.innerHTML;
+    ok('every card: "Open listing" (Listing Health) and "Amazon ↗" (the product page by ASIN)', new RegExp(`data-tk-listing="${sku.id}">Open listing`).test(h) && /href="https:\/\/www\.amazon\.com\/dp\/B0CHILD001" target="_blank" rel="noopener"[^>]*>Amazon ↗/.test(h)
+      && /href="https:\/\/www\.amazon\.com\/dp\/B0PARENT01"/.test(h));
+    const N = fresh({ tabs: ['sales', 'atrack'] }); await N.tkLoad();
+    ok('…"Open listing" only for someone who can open Listing Health; the Amazon link for everyone', !/Open listing/.test(N.tkLinksHtml(sku)) && /Amazon ↗/.test(N.tkLinksHtml(sku)));
+    // the auto history: Listing History rows and Fix status records for the task's SKUs, after it was made
+    W.ctx.HEALTH = { SP: { rows: [{ sku: 'RNP-18-RED', asin: 'B0CHILD001', parent: 'B0PARENT01' }, { sku: 'RNP-18-BLU', asin: 'B0CHILD002', parent: 'B0PARENT01' }, { sku: 'OTHER', asin: 'B0OTHER001', parent: 'B0OTHERPAR' }] }, CPC: { rows: [] } };
+    const rows = [
+      { kind: 'listing', at: Date.parse('2026-11-11T09:00:00Z'), brand: 'SP', sku: 'RNP-18-RED', asin: 'B0CHILD001', field: 'Price', old: '$24.99', new: '$27.99', name: 'Vishesh G', by: 'vishesh.g@ridhihome.com', result: 'accepted' },
+      { kind: 'listing', at: Date.parse('2026-11-12T09:00:00Z'), brand: 'SP', sku: 'RNP-18-BLU', asin: 'B0CHILD002', field: 'Title', old: 'Old title', new: 'New title with Christmas', name: 'Asha K', by: 'asha@ridhihome.com', result: 'working' },
+      { kind: 'listing', at: Date.parse('2026-11-01T09:00:00Z'), brand: 'SP', sku: 'RNP-18-RED', field: 'Title', old: 'a', new: 'b', name: 'Asha K' },          // before the task: not shown
+      { kind: 'listing', at: Date.parse('2026-11-11T09:00:00Z'), brand: 'SP', sku: 'OTHER', field: 'Price', old: '$1', new: '$2', name: 'Asha K' },             // another product: not shown
+    ];
+    const fixes = [{ brand: 'SP', sku: 'RNP-18-RED', state: 'fixed', at: Date.parse('2026-11-11T10:00:00Z'), confirmedAt: Date.parse('2026-11-12T10:00:00Z'), issue: 'Missing colour' }];
+    const a1 = W.tkAutoLog(W.TK.tasks[sku.id], rows, fixes);
+    ok('a SKU task: its Listing History sends after it was made — "Price changed $24.99 → $27.99 (Sellora, by Vishesh G) · ✅ accepted"', a1.length === 2 && a1[0].text === 'Price changed $24.99 → $27.99 (Sellora, by Vishesh G) · ✅ accepted', JSON.stringify(a1));
+    ok('…and its Fix status changes', a1[1].auto === 'fs' && /^Fix status: .*Missing colour$/.test(a1[1].text), a1[1] && a1[1].text);
+    const a2 = W.tkAutoLog(W.TK.tasks[fam.id], rows, fixes);
+    ok('a family task: every SKU of the family (named), not other products, nothing from before', a2.length === 3 && a2.filter(x => x.auto === 'lh').map(x => x.sku).join() === 'RNP-18-RED,RNP-18-BLU' && /· RNP-18-BLU \(Sellora, by Asha K\) · ⏳ Amazon working$/.test(a2[1].text), a2.map(x => x.text).join(' | '));
+    W.TK.lh = rows; W.FS.recs = fixes;
+    W.TK.dr = sku.id; W.tkDrawerOpen = W.ctx.tkDrawerOpen; W.ctx.tkDrawerOpen(sku.id);
+    const d = W.els.tkDr.innerHTML;
+    ok('the drawer\'s history shows them, marked as added automatically, with the day', /<li class="is-auto"><span class="tk-auto" title="Recorded by Sellora — added here automatically">🔄<\/span> <b>Wed 11 Nov<\/b> · Price changed \$24\.99 → \$27\.99 \(Sellora, by Vishesh G\)/.test(d) && /🔧<\/span> <b>Thu 12 Nov<\/b> · Fix status:/.test(d), (d.match(/<ul class="tk-hist">[\s\S]*?<\/ul>/) || [''])[0].slice(0, 400));
+    ok('…read only: nothing written for it', !W.writes.some(p => /listing_|fixwatch|fixsc/.test(p)) && !/setDoc\([^)]*'listing_/.test(SRC('app/sales/tasks.js')));
+    // "What worked"
+    const now = Date.parse('2026-11-25T06:00:00Z');
+    const mk = (pick, v, pct, daysAgo, brand) => ({ id: 'w' + Math.random(), kind: 'task', status: 'done', brand: brand || 'SP', pick, doneAt: now - daysAgo * 864e5, verdict: v ? { v, pct, line: '' } : null });
+    const T = {}; [mk('price', 'worked', 0.4, 5), mk('price', 'worked', 0.3, 10), mk('price', 'worked', 0.2, 20), mk('price', 'worked', 0.34, 25), mk('price', 'nochange', 0.05, 28),
+      mk('ads', 'didnt', -0.3, 12), mk('ads', null, null, 3), mk('stock', 'worked', null, 8), mk('price', 'worked', 0.5, 60), mk('listing', 'worked', 0.2, 6, 'CPC')].forEach(t => { T[t.id] = t; });
+    const vOf = t => (t.verdict ? Object.assign({ stage: 'final' }, t.verdict) : { stage: 'wait' });
+    const r30 = W.tkWorked(T, 'SP', 30, now, vOf);
+    const price = r30.find(r => r.pick === 'price');
+    ok('"Change price: 5 done · 4 worked · avg +26%" (the last 30 days, Ridhi)', price.done === 5 && price.worked === 4 && price.nochange === 1 && Math.round(price.avg * 100) === 26, JSON.stringify(price));
+    ok('…ads: 1 ❌, 1 still waiting; reorder: worked with no % (no sales change)', (a => a.didnt === 1 && a.waiting === 1 && a.done === 2)(r30.find(r => r.pick === 'ads')) && r30.find(r => r.pick === 'stock').avg === null);
+    ok('…90 days takes the older one too; CPC only its own', W.tkWorked(T, 'SP', 90, now, vOf).find(r => r.pick === 'price').done === 6 && W.tkWorked(T, 'CPC', 30, now, vOf).map(r => r.pick).join() === 'listing' && W.tkWorked(T, 'ALL', 30, now, vOf).length === 4);
+    W.TK.tasks = Object.assign({}, W.TK.tasks, T); W.TK.ww = { days: 30, open: true }; W.TK.brand = 'SP';
+    W.ctx.tkVerdictOf = vOf;
+    const ww = W.tkWorkedHtml();
+    ok('the panel: collapsible, 30 / 90 days, a row per action with Done · ✅ · ➖ · ❌ · ⏳ · avg', /<details class="tk-ww" open data-tk-wwbox><summary><b>What worked<\/b>/.test(ww) && /data-tk-ww="30" aria-pressed="true">30 days/.test(ww) && /data-tk-ww="90"/.test(ww)
+      && /<th scope="row">Change price<\/th><td class="num">5<\/td><td class="num">4<\/td><td class="num">1<\/td><td class="num">0<\/td><td class="num">0<\/td><td class="num is-up">\+26%<\/td>/.test(ww), ww.slice(0, 600));
+    // the review window
+    const base = { s: [['2026-10-11', 40], ['2026-10-18', 40], ['2026-10-25', 40], ['2026-11-01', 40]].map(([wk, u]) => ({ wk, u, r: u, skip: '' })), asins: ['A1'] };
+    const days = n => { const o = { A1: {} }; for (let i = 0; i < n; i++) o.A1[new Date(Date.parse('2026-11-13T00:00:00Z') + i * 864e5).toISOString().slice(0, 10)] = [8, 160]; return o; };
+    const t7 = { status: 'done', at: Date.parse('2026-11-10T20:00:00Z'), doneAt: Date.parse('2026-11-12T20:00:00Z'), src: 'alert', kind2: 'drop', win: 7 };
+    const v7 = W.tkVerdict(t7, { fam: base, days: { d: days(8), from: '2026-10-01', upTo: '2026-11-20' } });
+    ok('a 7-day window: the verdict on day 7 (56/week, +40% → ✅)', v7.stage === 'final' && v7.v === 'worked' && /Sales 40 → 56\/week \(\+40%\) — ✅ Worked/.test(v7.line), v7.line);
+    const v14 = W.tkVerdict(Object.assign({}, t7, { win: undefined }), { fam: base, days: { d: days(8), from: '2026-10-01', upTo: '2026-11-20' } });
+    ok('…the default stays 14 days: the same 8 days are only an early check', v14.stage === 'early');
+    ok('a new task: 14 days unless the creator picks 7', fam.win === 14 && (await W.tkCreate({ src: 'alert', brand: 'SP', key: 'SP|Z', name: 'Z', problem: 'z', kind: 'drop', action: 'x', win: 7 })).t.win === 7);
+    W.tkFormOpen({ src: 'alert', brand: 'SP', key: 'SP|Y', name: 'Y', problem: 'y', kind: 'drop' });
+    ok('…the form offers it (14 chosen)', /data-tk-win="7" aria-pressed="false">7 days after Done/.test(W.els.tkF.innerHTML) && /data-tk-win="14" aria-pressed="true">14 days after Done/.test(W.els.tkF.innerHTML));
+    W.ctx.ME.email = 'bharat@ridhihome.com';
+    await W.tkSetWin(fam.id, 7);
+    ok('…only the creator changes it on the task', W.TK.tasks[fam.id].win === 14);
+    W.ctx.ME.email = 'asha@ridhihome.com';
+    await W.tkSetWin(fam.id, 7);
+    ok('…the creator does, and it is in the history', W.TK.tasks[fam.id].win === 7 && W.TK.tasks[fam.id].hist.some(x => x.a === 'window' && x.to === '7'));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
