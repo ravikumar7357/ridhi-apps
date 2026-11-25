@@ -29,7 +29,7 @@ const PARTS = [line(VO, 'const voLines ='), line(VO, 'const voParts ='), line(VP
   line(PR, 'const VPR ='), line(PR, 'const VPR_RETRY_MS ='), cut(PR, 'vprEnsure'), line(PR, 'const vprOn ='), line(PR, 'const vprMay ='), line(PR, 'const vprReady ='), (src => { const i = src.indexOf('const vprKeys ='); return src.slice(i, src.indexOf('};\n', i) + 3); })(PR),
   line(PR, 'let VPR_IX ='), cut(PR, 'vprDueIndex'), cut(PR, 'vprTargets'), cut(PR, 'vprOffer'), cut(PR, 'vprKeysPending'), cut(PR, 'vprReceiveLine'), cut(PR, 'vprSplit'), cut(PR, 'vprShareOut'),
   cut(PR, 'vprWholePieces'), cut(PR, 'vprRoundMetres'), line(PR, 'const vprOnlyGiven ='), cut(PR, 'vprRecvCell'), cut(PR, 'vprPendingAll'), cut(PR, 'vprReceiveFor'),
-  line(VP, 'const VP_SHEET_COLS ='), line(VP, 'const VP_SHEET_NUM ='), line(VP, 'const VP_SHEET_EMPTY ='), cut(VP, 'vpSheetLines'), cut(VP, 'vpSheetCells'), cut(VP, 'vpOrderLabel'), cut(VP, 'vpToReceiveCell'), line(VP, 'const vpToReceive ='), line(VP, 'const vpOnTheWay ='), cut(VP, 'vpSheetTable'),
+  line(VP, 'const VP_SHEET_COLS ='), line(VP, 'const VP_SHEET_NUM ='), line(VP, 'const VP_SHEET_EMPTY ='), cut(VP, 'vpSheetLines'), cut(VP, 'vpSheetCells'), cut(VP, 'vpOrderLabel'), cut(VP, 'vpTotalNote'), cut(VP, 'vpToReceiveCell'), line(VP, 'const vpToReceive ='), line(VP, 'const vpOnTheWay ='), cut(VP, 'vpSheetTable'),
   cut(PR, 'vprSplitHint'), cut(PR, 'vprSheet'), cut(PR, 'vprReceive'), cut(PR, 'vprBarSync'), cut(PR, 'vprTabSync'), line(PR, 'const VPR_HIST ='), line(PR, 'const vprHistRows ='), cut(PR, 'vprHistTotals'), cut(PR, 'vprHistHtml'), (src => { const i = src.indexOf('const VP_DUE_ONLY ='); return src.slice(i, src.indexOf('\n};', i) + 3); })(VP), cut(VP, 'vpDueOnlyOk'), cut(VP, 'vpDueChip'), cut(VP, 'vpRejNote'), line(PR, 'const VPR_REJ_REASONS ='), line(PR, 'const VPR_REJ ='), cut(PR, 'vprReject'), line(PR, 'const vprRejLink ='), cut(PR, 'vprFabricOf'), cut(PR, 'vprHistRejects'), line(PR, 'const vprIsoOfDmy ='), line(PR, 'const vprSkuFabric ='), cut(PR, 'vprHistOld'), (src => { const i = src.indexOf('const vprHistAll ='); return src.slice(i, src.indexOf('\nfunction', i) + 1); })(PR), cut(PR, 'vprRejSeen'), line(PR, 'const vprHistId ='), (src => { const i = src.indexOf('const vprHistEditLink ='); return src.slice(i, src.indexOf('function vprHistEditForm', i)); })(PR), cut(PR, 'vprRejectReceived'), line(PR, 'const vprRejPending ='), (src => { const i = src.indexOf('const flowMixTxt ='); return src.slice(i, src.indexOf("'0'; };", i) + 7); })(FR)].join('\n');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS ' + n); } else { fail++; console.log('  FAIL ' + n + (d ? ' — ' + d : '')); } };
@@ -200,6 +200,10 @@ const L = { lineId: 'a', sku: 'X', qty: 4 };
     const withSo = cloth({ k: mb(5) }, { a: 4 }); withSo.lines[0].forOrders = [{ orderNo: 'AMZ-24112026-AIR', qty: 100 }];
     const shSo = at(withSo, { master: {} }).vprSheet([withSo], {});
     ok('the order number on the sheet is the real order (AMZ-24112026-AIR), the VPO small under it', /AMZ-24112026-AIR[^<]*<div[^>]*>VPO-9<\/div>/.test(shSo), shSo.slice(shSo.indexOf('<tbody>'), shSo.indexOf('<tbody>') + 500));
+    const gated = cloth({ k: mb(5) }, { a: 4 }); gated.lines[0].orderedTotal = 100;
+    const shG = at(gated, { master: {} }).vprSheet([gated], {});
+    ok('a line shown for the fabric given so far says the whole order under Ordered: 10 m, "of 100 m total"', />10 <span[^>]*>m<\/span><div[^>]*>of 100 m total<\/div>/.test(shG), shG.slice(shG.indexOf('<tbody>'), shG.indexOf('<tbody>') + 700));
+    ok('…a line that is the whole order says nothing extra', !/total<\/div>/.test(sheet));
     ok('…a line that names no sales order keeps the VPO', /<td[^>]*>VPO-9</.test(sheet));
     ok('…and the printer own sheet calls the to-receive figure "Pending with you"', /'Pending with you'/.test(VP));
     ok('…a Shopify reference is kept as it was', /vpIsShop\(o\) && \(l\.shopRef/.test(VP));

@@ -802,10 +802,16 @@ function vpSheetCells(o, l, note) {
     + pic
     + `<td style="text-align:left;font-weight:700;font-size:12.5px">${vpOrderLabel(o, l)}${note || ''}${typeof pclLineHtml === 'function' ? pclLineHtml(o, l) : ''}</td>`
     + `<td style="text-align:left;font-size:12.5px;line-height:1.35">${esc(what) || '<span class="muted">—</span>'}${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</td>`
-    + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span>${extra > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${nf(extra)} approved</div>` : ''}</td>`
+    + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span>${extra > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${nf(extra)} approved</div>` : ''}${vpTotalNote(l, ord, unit)}</td>`
     + (sent => `<td class="num">${nf(sent)}${sent > rc.qty + 0.01 && rc.qty > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">${nf(vpOnTheWay(sent, rc.qty))} on the way</div>` : ''}</td>`)(vpSentKept(o, l))
     + vpToReceiveCell(ord, rc, unit)
     + `<td style="text-align:left;font-size:12px;white-space:nowrap">${voDueHtml(due, voWant(l))}</td>`;
+}
+/** THE WHOLE ORDER UNDER WHAT IS ORDERED SO FAR (Ravi, 25 Nov: "ordered ke 10 ke neeche 100 show ho meaning total order"): a line shown only for the fabric given so far
+ * (rfdGate, flowVpGate) carries the full quantity as orderedTotal; the sheet says it under the figure, so 10 pcs reads "of 100 pcs total". */
+function vpTotalNote(l, ord, unit) {
+  const full = l && +l.orderedTotal;
+  return full > ord + 0.01 ? `<div title="The whole order is ${nf(Math.round(full * 100) / 100)} ${unit}; the fabric for ${nf(ord)} ${unit} has come so far" style="font-size:10.5px;font-weight:700;color:#B45309;margin-top:2px;white-space:nowrap">of ${nf(Math.round(full * 100) / 100)} ${unit} total</div>` : '';
 }
 /** THE REAL ORDER FIRST (Ravi, 25 Nov: "vendor portal par real order show hona chahiye like AMZ-24112026-AIR not VPO-261124-IB6"): a line placed from PPC names
  * the sales orders it is for (forOrders); those are the order number on the sheet and the VPO is the small line under it. A Shopify line keeps its own reference. */
