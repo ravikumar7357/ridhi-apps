@@ -523,8 +523,8 @@ LOW–HIGH around the most likely, and how much to trust it.
 How long the stock lasts, worst case first.
 
 - **Screens:** Forecast (Cover, Runs out, Act first cards, drawer "Stock lasts A–B days")
-- **Data source:** FBA units now (stock/{brand}, as Sales Alerts reads it) — else the Inventory Age snapshot; missing = "No stock data", never guessed.
-- **Formula:** From the stock's date, day by day: cumulative likely ≥ stock → likely cover; cumulative likely × (1 + error at that horizon) ≥ stock → HIGH-demand cover (the smaller). Days counted from today; beyond about half a year = "180+". Runs out = today + cover. A family shows the child that runs out first.
+- **Data source:** FBA units now (stock/{brand}, as Sales Alerts reads it) — else the Inventory Age snapshot; missing = "No stock data", never guessed. On the way: the same stock data's inbound (stock/{brand}.in, working + shipped + receiving per SKU); not carried = "Inbound: unknown" (today's documents carry none).
+- **Formula:** Supply = available + on the way (available only when inbound is unknown; a SKU at 0 stays out until it arrives). From the stock's date, day by day: cumulative likely ≥ supply → likely cover; cumulative likely × (1 + error at that horizon) ≥ supply → HIGH-demand cover (the smaller). Days counted from today; beyond about half a year = "180+". Runs out = today + cover. A family shows the child that runs out first.
 - **Day cut-off:** PT days.
 - **Included / excluded:** FBA available units (inbound not counted).
 - **Brands:** Per child; family = its first to run out.
@@ -537,7 +537,7 @@ How long the stock lasts, worst case first.
 
 - **Screens:** Forecast (chips, table, cards, drawer)
 - **Data source:** Days of cover, the lead time (⚙ Settings: Ridhi / CPC, 60 days unless changed; "soon" window 30 — history/forecast, shared).
-- **Formula:** ⛔ stock 0 and sold in the last 8 weeks (losing ~this week's forecast); Not selling: stock > 0 and ≤ 2 units in 8 weeks; ⚪ under the gate; No stock data; 🔴 HIGH-demand cover < lead time; 🟡 < lead time + soon; 🟢 otherwise. Hidden (inactive): stock 0 and no sale in 8 weeks. A family wears its worst active child's status.
+- **Formula:** ⛔ stock 0 and sold in the last 8 weeks (losing ~this week's forecast) — with units on the way "Out of stock — N on the way", amber, still first; Not selling: stock > 0 and ≤ 2 units in 8 weeks; ⚪ under the gate; No stock data; 🔴 HIGH-demand cover < lead time; 🟡 < lead time + soon; 🟢 otherwise. Hidden (inactive): stock 0 and no sale in 8 weeks. A family wears its worst active child's status.
 - **Day cut-off:** Today (PT).
 - **Included / excluded:** Active children (stock > 0 or sold in 8 weeks); "Stock > 0 only" shows only stocked ones.
 - **Brands:** Each brand its own lead time.

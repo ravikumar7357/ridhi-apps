@@ -343,7 +343,8 @@ function viLoad(force) {
           const s = snap.data();
           const skuOf = {};
           ((HEALTH[b] && HEALTH[b].rows) || []).forEach(r => { const a = String(r.asin || '').toUpperCase(); if (a && r.sku) (skuOf[a] || (skuOf[a] = [])).push(r.sku); });
-          data.stock[b] = { m: s.m || {}, at: s.at && s.at.toDate ? s.at.toDate().toISOString() : '', skuOf };
+          // in: units on the way per SKU when the document carries them (the Forecast adds them to the cover; absent = unknown)
+          data.stock[b] = { m: s.m || {}, in: s.in && typeof s.in === 'object' ? s.in : null, at: s.at && s.at.toDate ? s.at.toDate().toISOString() : '', skuOf };
         } catch (e) { /* no stock: "out of stock" is never claimed */ }
       }));
     }

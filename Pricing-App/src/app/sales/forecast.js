@@ -23,7 +23,10 @@
  *             ≤ 20 % (30-day error), Medium ≤ 40 %, Low above. A child with too few sales of its own takes its family's error (Low).
  *   children  add up to the family: each child's own forecast (or its usual rate in its family's shape), scaled week by week to the family's.
  *   reorder   stock = FBA units now (stock/{brand}, as Sales Alerts reads it; else the Inventory Age snapshot), missing = "No stock
- *             data", never a guess. Used up day by day from the stock's date at the HIGH end of the range (worst case: it sells fast);
+ *             data", never a guess. ON THE WAY (25 Nov 2026): inbound units (working + shipped + receiving) from the same stock data —
+ *             stock/{brand}.in = { sku: [working, shipped, receiving] or a number }, a SKU not in it = 0 — are added to the stock for the
+ *             cover; when the stock data carries no inbound (today's documents do not) it is "Inbound: unknown", never guessed, and the
+ *             cover counts the available units only. ⛔ with units on the way = "Out of stock — N on the way" (still first, amber). Used up day by day from the stock's date at the HIGH end of the range (worst case: it sells fast);
  *             days of cover counted from today. ⛔ stock 0 and sold in the last 8 weeks · 🔴 cover < lead time · 🟡 < lead time + 30 ·
  *             🟢 OK · "Not selling" stock > 0 and ≤ 2 units in 8 weeks · hidden: stock 0 and no sale in 8 weeks (inactive). Lead time per
  *             brand, 60 days unless changed in ⚙ Settings (history/forecast, shared). A family wears its worst child's status, and its
@@ -51,6 +54,7 @@ const FO_BRAND = { SP: 'Ridhi', CPC: 'CPC', ALL: 'Both' };
 // The statuses, most urgent first (rank = the order). Only these carry red / amber / green.
 const FO_ST = {
   oos: { r: 0, i: '⛔', t: 'Out of stock — reorder now', c: 'Out of stock' },
+  oosin: { r: 0.5, i: '⛔', t: 'Out of stock — on the way', c: 'Out of stock' },          // stock 0, units on the way: still first, amber
   red: { r: 1, i: '🔴', t: 'Reorder now', c: 'Reorder now' },
   amber: { r: 2, i: '🟡', t: 'Reorder soon', c: 'Reorder soon' },
   green: { r: 3, i: '🟢', t: 'OK', c: 'OK' },
@@ -150,11 +154,23 @@ function foStockOf(asin, b, o) {
   const s = o.stock && o.stock[b];
   if (s && s.m && s.skuOf && (s.skuOf[asin] || []).some(k => k in s.m)) {
     let n = 0; (s.skuOf[asin] || []).forEach(k => { if (k in s.m) n += Number(s.m[k]) || 0; });
-    return { n, at: String(s.at || '').slice(0, 10), src: 'FBA stock' };
+    // on the way: only when the stock data carries inbound at all (s.in); a SKU it does not list has none
+    let inb = null, parts = null;
+    if (s.in && typeof s.in === 'object') {
+      inb = 0; parts = [0, 0, 0];
+      (s.skuOf[asin] || []).forEach(k => {
+        if (!(k in s.m)) return;
+        const v = s.in[k];
+        const p = Array.isArray(v) ? [0, 1, 2].map(j => Number(v[j]) || 0) : [0, Number(v) || 0, 0];
+        p.forEach((x, j) => { parts[j] += x; }); inb += p[0] + p[1] + p[2];
+      });
+      if (!s.in || !Object.values(s.in).some(v => Array.isArray(v))) parts = null;   // a total only: no working / shipped / receiving split
+    }
+    return { n, at: String(s.at || '').slice(0, 10), src: 'FBA stock', inb, parts };
   }
   const a = o.age && o.age[b];
   const rows = a && a.rows ? a.rows.filter(r => String(r.asin || '').toUpperCase() === asin) : [];
-  if (rows.length) return { n: rows.reduce((t, r) => t + (Number(r.available) || 0), 0), at: a.at ? String(a.at).slice(0, 10) : '', src: 'Inventory Age' };
+  if (rows.length) return { n: rows.reduce((t, r) => t + (Number(r.available) || 0), 0), at: a.at ? String(a.at).slice(0, 10) : '', src: 'Inventory Age', inb: null, parts: null };
   return null;
 }
 function foKid(asin, b, o, ctx) {
@@ -178,7 +194,7 @@ function foKid(asin, b, o, ctx) {
   let after = 0;
   if (byDay) for (let d = alAdd(weeks[weeks.length - 1], 7); d <= ctx.last; d = alAdd(d, 1)) after += dU(d);
   const u8 = s.slice(-8).reduce((t, x) => t + x.u, 0) + after;
-  const k = { asin, brand: b, s, first, hist, u8, after, stock: st ? st.n : null, stockAt: st ? st.at : '', stockSrc: st ? st.src : '', skus, title: info.title || '' };
+  const k = { asin, brand: b, s, first, hist, u8, after, stock: st ? st.n : null, stockAt: st ? st.at : '', stockSrc: st ? st.src : '', inbound: st ? st.inb : null, inbParts: st ? st.parts : null, skus, title: info.title || '' };
   if (first < 0) { s.forEach(x => { x.skip = 'pre'; }); return k; }
   const medAll = alMedian(s.slice(first).filter(x => ctx.held(b, x.wk)).map(x => x.u));
   const lam = alMedian(s.slice(Math.max(first, s.length - FO_M.back)).map(x => x.u)) / 7;
@@ -363,12 +379,13 @@ function foFamily(g, o, ctx, sIdx, rule) {
   kids.forEach(k => {
     k.key = g.key + '#' + k.asin;
     k.label = k.skus[0] || k.asin;
-    k.active = (k.stock != null && k.stock > 0) || k.u8 > 0;
+    k.active = (k.stock != null && k.stock > 0) || k.u8 > 0 || k.inbound > 0;
+    k.supply = k.stock == null ? null : k.stock === 0 ? 0 : k.stock + (k.inbound || 0);   // stock 0: out now, whatever is on the way
     if (k.out) {
       const own = k.fit.ok && k.fit.bt;
       const rg = foRanges(k.out, ctx.L, ctx.today, own ? k.fit.bt : null, own ? null : f.eRaw);
       k.r = rg.r; k.e = rg.e; k.eRaw = rg.raw; k.conf = own ? foConf(rg.e[30]) : 'Low'; k.fromFam = !own;
-      k.cover = foCover(k.stock, k.stockAt, k.out, ctx.L, ctx.today, k.e);
+      k.cover = foCover(k.supply, k.stockAt, k.out, ctx.L, ctx.today, k.e);
     }
     k.weekLoss = k.out ? k.out[0].u : k.usual || 0;
     k.status = foStatusOf(k, rule);
@@ -380,24 +397,42 @@ function foFamily(g, o, ctx, sIdx, rule) {
   f.stock = known.length ? known.reduce((t, k) => t + k.stock, 0) : null;
   f.stockAt = known.map(k => k.stockAt).filter(Boolean).sort()[0] || '';
   f.stockPart = known.length && known.length < kids.length;
+  const inbKnown = known.filter(k => k.inbound != null);
+  f.inbound = inbKnown.length ? inbKnown.reduce((t, k) => t + k.inbound, 0) : null;
+  f.inbPart = inbKnown.length > 0 && inbKnown.length < known.length;
+  f.inbParts = inbKnown.length && inbKnown.every(k => k.inbParts) ? [0, 1, 2].map(j => inbKnown.reduce((t, k) => t + k.inbParts[j], 0)) : null;
   const pool = act.length ? act : kids;
   const worst = pool.slice().sort((a, b) => FO_ST[a.status].r - FO_ST[b.status].r || foCovKey(a) - foCovKey(b))[0];
   f.status = f.active ? worst.status : 'inactive';
   if (f.status === 'nohist' && !fit.ok && fit.why === 'units' && f.stock > 0 && kids.every(k => k.u8 <= FO_M.notSelling)) f.status = 'notsell';
-  f.first = ['red', 'amber', 'green', 'oos'].includes(worst.status) ? worst : null;
-  f.cover = f.first && f.first.cover ? f.first.cover : f.first && f.first.status === 'oos' ? { likely: 0, high: 0, outHigh: ctx.today, outLikely: ctx.today } : null;
-  f.oosKids = act.filter(k => k.status === 'oos');
+  f.first = ['red', 'amber', 'green', 'oos', 'oosin'].includes(worst.status) ? worst : null;
+  f.cover = f.first && f.first.cover ? f.first.cover : f.first && foOut(f.first.status) ? { likely: 0, high: 0, outHigh: ctx.today, outLikely: ctx.today } : null;
+  f.oosKids = act.filter(k => foOut(k.status));
+  f.oosInbound = f.oosKids.reduce((t, k) => t + (k.inbound || 0), 0);
   f.weekLoss = f.oosKids.reduce((t, k) => t + k.weekLoss, 0);
   f.counts = {};
   act.forEach(k => { f.counts[k.status] = (f.counts[k.status] || 0) + 1; });
   return f;
 }
 const foCovKey = k => (k.cover && k.cover.high != null ? k.cover.high : 1e9);
+const foOut = st => st === 'oos' || st === 'oosin';
+/** The status words, with what is on the way for ⛔ "Out of stock — 500 on the way". */
+const foStLabel = x => (x.status === 'oosin' ? `Out of stock — ${foN(x.kids ? x.oosInbound : x.inbound)} on the way` : FO_ST[x.status].c);
+const foStTitle = x => (x.status === 'oosin' ? foStLabel(x) : FO_ST[x.status].t);
+/** "on the way" words for one family or SKU: { short, tip } — "Inbound: unknown" when the stock data carries none. */
+function foInb(x) {
+  if (x.stock == null) return null;
+  const n = x.inbound, p = x.inbParts;
+  const split = p ? ` (working ${foN(p[0])} · shipped ${foN(p[1])} · receiving ${foN(p[2])})` : '';
+  if (n == null) return { short: 'Inbound: unknown', unknown: true, tip: `${foN(x.stock)} available at Amazon. Inbound is not in the stock data Sellora reads, so nothing on the way is counted — the cover is the available units only.` };
+  return { short: n > 0 ? `+ ${foN(n)} on the way${x.inbPart ? ' (some SKUs unknown)' : ''}` : 'nothing on the way', n,
+    tip: `${foN(x.stock)} available at Amazon + ${foN(n)} on the way${split}${x.inbPart ? '; some SKUs have no inbound figure' : ''}. Days of cover count both (an out-of-stock SKU stays out until it arrives).` };
+}
 /** One child's status: ⛔ / 🔴 / 🟡 / 🟢 / No stock data / Not enough history / Not selling / inactive. */
 function foStatusOf(k, rule) {
   if (!k.active) return 'inactive';
-  if (k.stock === 0) return 'oos';
-  if (k.stock != null && k.u8 <= FO_M.notSelling) return 'notsell';
+  if (k.stock === 0) return k.inbound > 0 ? 'oosin' : 'oos';
+  if (k.stock > 0 && k.u8 <= FO_M.notSelling) return 'notsell';
   if (k.hist < FO_M.gateWeeks || !k.out) return 'nohist';
   if (k.stock == null) return 'nostock';
   const c = k.cover && k.cover.high;
@@ -497,7 +532,7 @@ function foShownFams(r) {
 }
 // sort keys (bigger = later); status: rank, then the soonest run-out
 const FO_SORT = {
-  status: x => FO_ST[x.status].r * 1e6 + (x.cover && x.cover.high != null ? x.cover.high : 9e5) - (x.status === 'oos' ? Math.min(9e5, x.weekLoss || 0) : 0),
+  status: x => FO_ST[x.status].r * 1e6 + (x.cover && x.cover.high != null ? x.cover.high : 9e5) - (foOut(x.status) ? Math.min(9e5, x.weekLoss || 0) : 0),
   name: x => String(x.name || x.label || '').toLowerCase(),
   f30: x => (x.r ? -x.r[30].mid : 1), f7: x => (x.r ? -x.r[7].mid : 1), f90: x => (x.r ? -x.r[90].mid : 1),
   stock: x => (x.stock == null ? 1 : -x.stock), cover: x => (x.cover && x.cover.high != null ? x.cover.high : 9e5),
@@ -532,7 +567,7 @@ function foHeroHtml(r) {
 }
 const foDot = st => `<i class="fo-dot st-${st}" aria-hidden="true"></i>`;
 function foChipsHtml(r, shown) {
-  const n = {}; shown.forEach(f => { n[f.status] = (n[f.status] || 0) + 1; });
+  const n = {}; shown.forEach(f => { const k = f.status === 'oosin' ? 'oos' : f.status; n[k] = (n[k] || 0) + 1; });
   return `<div class="fo-chips" role="group" aria-label="Filter by status">${FO_CHIPS.filter(k => k !== 'nostock' || n.nostock).map(k => `<button type="button" class="fo-chip st-${k}" data-fo-chip="${k}" aria-pressed="${FO.chip === k}">`
     + `${FO_ST[k].i ? `<span aria-hidden="true">${FO_ST[k].i}</span>` : foDot(k)} ${FO_ST[k].c} <b class="num">${AL_NF.format(n[k] || 0)}</b></button>`).join('')}</div>`;
 }
@@ -546,15 +581,15 @@ function foSparkSvg(x, w, h) {
     + (fut.length ? `<path class="fo-sp-f" d="${line([past[past.length - 1]].concat(fut), past.length - 1)}"/>` : '') + '</svg>';
 }
 function foActHtml(r, shown) {
-  const top = foSorted(shown.filter(f => f.status === 'oos' || f.status === 'red')).slice(0, 3);
+  const top = foSorted(shown.filter(f => foOut(f.status) || f.status === 'red')).slice(0, 3);
   if (!top.length) return `<section class="fo-sec fo-act"><p class="fo-allok">✅ Nothing needs reordering now</p></section>`;
   const card = f => {
     const c = f.cover;
-    const line = f.status === 'oos' ? 'Out of stock now'
+    const line = f.status === 'oosin' ? 'Out of stock' : f.status === 'oos' ? 'Out of stock now'
       : `Runs out ~${alDay(c.outHigh)}`;
-    const sub = f.status === 'oos' ? `${f.oosKids.length > 1 ? f.oosKids.length + ' SKUs' : f.oosKids[0] ? alEsc(f.oosKids[0].label) : ''} · losing ~${foN(f.weekLoss)} units/week · new stock takes ${f.lead} days`
+    const sub = foOut(f.status) ? `${f.status === 'oosin' ? `<b>${foN(f.oosInbound)} on the way</b> · ` : ''}${f.oosKids.length > 1 ? f.oosKids.length + ' SKUs' : f.oosKids[0] ? alEsc(f.oosKids[0].label) : ''} · losing ~${foN(f.weekLoss)} units/week ${f.status === 'oosin' ? 'until it arrives' : `· new stock takes ${f.lead} days`}`
       : `${foN(c.high)} days of stock vs ${f.lead}-day lead time${f.first && f.kids.length > 1 ? ` · first: ${alEsc(f.first.label)}` : ''}`;
-    return `<article class="fo-card st-${f.status}"><div class="fo-card-h"><span class="fo-sev st-${f.status}">${FO_ST[f.status].i} ${FO_ST[f.status].t}</span><span class="muted">${FO_BRAND[f.brand]}</span></div>`
+    return `<article class="fo-card st-${f.status}"><div class="fo-card-h"><span class="fo-sev st-${f.status}">${FO_ST[f.status].i} ${f.status === 'oosin' ? 'Out of stock — on the way' : FO_ST[f.status].t}</span><span class="muted">${FO_BRAND[f.brand]}</span></div>`
       + `<h4 class="fo-card-n">${alEsc(alShort(f.name))}</h4><div class="fo-card-big">${line}</div><p class="fo-card-s">${sub}</p>`
       + `<div class="fo-card-f">${f.m ? foSparkSvg(f, 140, 36) : ''}<button type="button" class="fo-btn" data-fo-view="${alEsc(f.key)}" aria-label="View ${alEsc(f.name)}">View</button></div></article>`;
   };
@@ -576,23 +611,25 @@ function foRowHtml(x, isKid, fam) {
   const vk = isKid ? [] : foVisibleKids(x);
   const nameCell = isKid
     ? `<span class="fo-nm">${alEsc(x.label)}</span><small>${alEsc(x.asin)}${x.skus.length > 1 ? ' · +' + (x.skus.length - 1) + ' SKU' : ''}${x.title ? ' · ' + alEsc(alShort(x.title)) : ''}</small>`
-    : `<span class="fo-nm">${alEsc(alShort(x.name))}</span><small>${alEsc(x.parent)} · ${x.kids.length === 1 ? alEsc(x.kids[0].label) : x.kids.length + ' SKUs'}${x.first && x.kids.length > 1 && ['oos', 'red', 'amber'].includes(st) ? ` · ${st === 'oos' ? 'out' : 'first'}: ` + alEsc(st === 'oos' && x.oosKids.length > 1 ? x.oosKids.length + ' SKUs' : x.first.label) : ''}${FO.brand === 'ALL' ? ' · ' + FO_BRAND[x.brand] : ''}</small>`;
-  const nohist = !has && st !== 'oos' && st !== 'notsell' && st !== 'inactive';
+    : `<span class="fo-nm">${alEsc(alShort(x.name))}</span><small>${alEsc(x.parent)} · ${x.kids.length === 1 ? alEsc(x.kids[0].label) : x.kids.length + ' SKUs'}${x.first && x.kids.length > 1 && ['oos', 'oosin', 'red', 'amber'].includes(st) ? ` · ${foOut(st) ? 'out' : 'first'}: ` + alEsc(foOut(st) && x.oosKids.length > 1 ? x.oosKids.length + ' SKUs' : x.first.label) : ''}${FO.brand === 'ALL' ? ' · ' + FO_BRAND[x.brand] : ''}</small>`;
+  const nohist = !has && !foOut(st) && st !== 'notsell' && st !== 'inactive';
   const mid = has ? `<td class="fo-c-r" data-l="Next 30 days">${foRangeHtml(x, 30)}</td><td class="num" data-l="7 days">${foN(x.r[7].mid)}<small>${foRng(x.r[7].lo, x.r[7].hi)}</small></td><td class="num" data-l="90 days">${foN(x.r[90].mid)}<small>${foRng(x.r[90].lo, x.r[90].hi)}</small></td>`
-    : `<td class="fo-c-r fo-why" data-l="Next 30 days" colspan="3">${st === 'oos' ? `Out of stock — losing ~${foN(x.weekLoss)} units/week` : st === 'notsell' ? 'Not selling — stock but almost no sales in 8 weeks' : st === 'inactive' ? 'Inactive — no stock, no sale in 8 weeks' : alEsc(foWhyNot(x))}</td>`;
+    : `<td class="fo-c-r fo-why" data-l="Next 30 days" colspan="3">${st === 'oosin' ? `${foStLabel(x)} · losing ~${foN(x.weekLoss)} units/week until it arrives` : st === 'oos' ? `Out of stock — losing ~${foN(x.weekLoss)} units/week` : st === 'notsell' ? 'Not selling — stock but almost no sales in 8 weeks' : st === 'inactive' ? 'Inactive — no stock, no sale in 8 weeks' : alEsc(foWhyNot(x))}</td>`;
   const cov = x.cover;
-  const stock = x.stock == null ? '<span class="muted">No stock data</span>' : foN(x.stock) + (x.stockPart ? '<small>some SKUs unknown</small>' : '');
+  const inb = foInb(x);
+  const stock = x.stock == null ? '<span class="muted">No stock data</span>'
+    : `<span title="${alEsc(inb.tip)}">${foN(x.stock)}<small class="fo-inb${inb.unknown ? ' is-unknown' : ''}">${alEsc(inb.short)}</small>${x.stockPart ? '<small>some SKUs: no stock data</small>' : ''}</span>`;
   return `<tr class="fo-r ${isKid ? 'is-kid' : 'is-fam'} st-${st}${nohist ? ' is-grey' : ''}${has && x.conf === 'Low' ? ' is-low' : ''}" data-fo-row="${alEsc(key)}" tabindex="0"${isKid ? '' : ` aria-expanded="${open}"`}>`
     + `<td class="fo-c-x">${!isKid && vk.length > 1 ? `<button type="button" class="fo-x" data-fo-exp="${alEsc(x.key)}" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} ${vk.length} SKU${vk.length === 1 ? '' : 's'}">${open ? '▾' : '▸'}</button>` : ''}</td>`
     + `<td class="fo-c-n" data-l="">${nameCell}</td>${mid}`
-    + `<td class="num" data-l="Stock">${stock}</td><td class="num" data-l="Cover (days)"${cov && cov.high != null ? ` title="Stock lasts ${foN(cov.high)}–${cov.likely == null ? '180+' : foN(cov.likely)} days (${foN(cov.high)} if sales are high)"` : ''}>${has || st === 'oos' ? foCoverTxt(cov) : '—'}</td>`
-    + `<td data-l="Runs out"${cov && cov.outLikely && cov.outLikely !== cov.outHigh ? ` title="~${alDay(cov.outHigh)} if sales are high, ~${alDay(cov.outLikely)} most likely"` : ''}>${cov && cov.outHigh ? (st === 'oos' ? 'Now' : '~' + alDay(cov.outHigh)) : cov && cov.high == null ? 'after ' + alDay(alAdd(sdTodaySafe(), 180)) : '—'}</td>`
-    + `<td class="fo-c-s" data-l="Status">${foDot(st)}<span>${alEsc(FO_ST[st].c)}</span></td>`
+    + `<td class="num" data-l="Stock">${stock}</td><td class="num" data-l="Cover (days)"${cov && cov.high != null ? ` title="Stock lasts ${foN(cov.high)}–${cov.likely == null ? '180+' : foN(cov.likely)} days (${foN(cov.high)} if sales are high)"` : ''}>${has || foOut(st) ? foCoverTxt(cov) : '—'}</td>`
+    + `<td data-l="Runs out"${cov && cov.outLikely && cov.outLikely !== cov.outHigh ? ` title="~${alDay(cov.outHigh)} if sales are high, ~${alDay(cov.outLikely)} most likely"` : ''}>${cov && cov.outHigh ? (foOut(st) ? 'Now' : '~' + alDay(cov.outHigh)) : cov && cov.high == null ? 'after ' + alDay(alAdd(sdTodaySafe(), 180)) : '—'}</td>`
+    + `<td class="fo-c-s" data-l="Status">${foDot(st)}<span>${alEsc(foStLabel(x))}</span></td>`
     + `<td data-l="Confidence">${has ? `<span class="fo-pill is-${x.conf}">${x.conf}${x.conf === 'Low' ? ' confidence' : ''}</span>${isKid && x.fromFam ? '<small>from family</small>' : ''}` : '—'}</td></tr>`;
 }
 const sdTodaySafe = () => (typeof sdToday === 'function' ? sdToday() : new Date().toISOString().slice(0, 10));
 function foTableHtml(r, shown) {
-  const list = foSorted(FO.chip ? shown.filter(f => f.status === FO.chip) : shown);
+  const list = foSorted(FO.chip ? shown.filter(f => f.status === FO.chip || (FO.chip === 'oos' && f.status === 'oosin')) : shown);
   const cols = [['', '', ''], ['name', 'Family', ''], ['f30', 'Next 30 days', ''], ['f7', '7 days', 'num'], ['f90', '90 days', 'num'], ['stock', 'Stock', 'num'], ['cover', 'Cover (days)', 'num'], ['out', 'Runs out', ''], ['status', 'Status', ''], ['conf', 'Confidence', '']];
   const th = ([k, t, c]) => (!k ? '<th class="fo-c-x" scope="col"><span class="fo-sr">Expand</span></th>'
     : `<th scope="col" class="${c}" aria-sort="${FO.sort.k === k ? (FO.sort.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button type="button" data-fo-sort="${k}">${t}${FO.sort.k === k ? (FO.sort.dir > 0 ? ' ↑' : ' ↓') : ''}</button></th>`);
@@ -610,7 +647,7 @@ function foTrustHtml(r) {
   return `<footer class="fo-trust"><h3>How this forecast works</h3><ol>`
     + `<li>Each family's usual week = its last 8 weeks, the newest counting most — weeks it was out of stock or suppressed are skipped, so a stock-out never reads as low demand.</li>`
     + `<li>Last year's same weeks for the brand lift or lower it (never more than 2× or under ½×), plus a small, damped trend; every product is first tested blind on its last 8 weeks, and that test sets how wide its range is.</li>`
-    + `<li>Stock is used up at the HIGH end of the range: 🔴 when it lasts less than the lead time (Ridhi ${Number(r.settings.leadSP)} days, CPC ${Number(r.settings.leadCPC)} days), 🟡 within ${Number(r.settings.soon)} days after.</li></ol>`
+    + `<li>Stock (available + on the way, when the stock data has it) is used up at the HIGH end of the range: 🔴 when it lasts less than the lead time (Ridhi ${Number(r.settings.leadSP)} days, CPC ${Number(r.settings.leadCPC)} days), 🟡 within ${Number(r.settings.soon)} days after.</li></ol>`
     + `<p class="fo-acc">Accuracy last 8 weeks: <b class="num">${r.acc == null ? '—' : foPct(r.acc)}</b> <span class="muted">(a family's 30-day total against what it really sold, tested blind)${r.head.blocks ? ` · whole ${FO_BRAND[r.brand]} ${foPct(r.head.e)}` : ''}</span></p>`
     + `<p class="fo-asof">Sales up to ${alDay(r.last)} · weekly history ${alDay(r.weeks[0])}–${alDay(alAdd(r.L, 6))}${r.seasonHeld ? '' : ' · last year not held: no season'} · Shopify is not in the forecast · forecastCheck('name') in the console shows every number</p></footer>`;
 }
@@ -688,8 +725,9 @@ function foStory(x, fam) {
     if (Math.abs(m.g) >= 0.01) out.push(`Recent weeks lean ${m.g > 0 ? 'up' : 'down'} (${m.g > 0 ? '+' : '−'}${Math.round(Math.abs(m.g) * 100)}%/week, fading).`);
   }
   const c = x.cover;
-  if (x.status === 'oos') out.push(`Out of stock now — losing ~${foN(x.weekLoss)} units/week; new stock takes ${fam.lead} days → reorder now.`);
-  else if (c && c.high != null) out.push(`${x === fam && fam.kids.length > 1 && x.first ? `${x.first.label} runs out first: its stock` : 'Stock'} lasts ~${foN(c.high)} days, ${x.status === 'green' ? 'and' : 'but'} new stock takes ${fam.lead} → ${x.status === 'red' ? 'reorder now' : x.status === 'amber' ? 'reorder soon' : 'fine for now'}.`);
+  if (x.status === 'oosin') out.push(`${foStLabel(x)} — losing ~${foN(x.weekLoss)} units/week until it arrives.`);
+  else if (x.status === 'oos') out.push(`Out of stock now — losing ~${foN(x.weekLoss)} units/week; new stock takes ${fam.lead} days → reorder now.`);
+  else if (c && c.high != null) out.push(`${x === fam && fam.kids.length > 1 && x.first ? `${x.first.label} runs out first: its stock` : x.inbound > 0 ? `Stock (${foN(x.stock)} + ${foN(x.inbound)} on the way)` : 'Stock'} lasts ~${foN(c.high)} days, ${x.status === 'green' ? 'and' : 'but'} new stock takes ${fam.lead} → ${x.status === 'red' ? 'reorder now' : x.status === 'amber' ? 'reorder soon' : 'fine for now'}.`);
   else if (c) out.push(`Stock lasts beyond half a year at this pace — fine for now.`);
   else if (x.stock == null) out.push('No stock data for it — Sellora does not guess.');
   return out.join(' ');
@@ -709,9 +747,12 @@ function foDrawerHtml(h) {
   const pill = x.r ? `<span class="fo-pill is-${x.conf}">${x.conf} confidence</span>` : '';
   const c = x.cover;
   const tiles = x.r ? [7, 30, 90].map(n => foTile(`${n} days`, foN(x.r[n].mid), foRng(x.r[n].lo, x.r[n].hi))).join('') : '';
-  const coverT = x.status === 'oos' ? foTile('Cover', '0 days', isKid ? 'out of stock now' : `${alEsc(x.oosKids.length > 1 ? x.oosKids.length + ' SKUs' : (x.first || {}).label || '')} out of stock`) : c ? (c.high == null ? foTile('Cover', '180+ days', 'more than half a year') : foTile('Cover', `${foN(c.high)}–${c.likely == null ? '180+' : foN(c.likely)} days`, `${foN(c.high)} if sales are high`)) : foTile('Cover', '—', x.stock == null ? 'no stock data' : '');
-  const outT = c && c.outHigh ? foTile('Runs out', x.status === 'oos' ? 'Now' : '~' + alDay(c.outHigh), c.outLikely && c.outLikely !== c.outHigh ? `~${alDay(c.outLikely)} most likely` : '') : foTile('Runs out', c ? 'after ' + alDay(alAdd(sdTodaySafe(), 180)) : '—', '');
-  const stockT = foTile('Stock', x.stock == null ? 'No data' : foN(x.stock), x.stock == null ? 'never guessed' : `${alEsc(isKid ? x.stockSrc : 'all SKUs')}${x.stockAt ? ' · ' + alDay(x.stockAt) : ''}`);
+  const coverT = foOut(x.status) ? foTile('Cover', '0 days', isKid ? 'out of stock now' : `${alEsc(x.oosKids.length > 1 ? x.oosKids.length + ' SKUs' : (x.first || {}).label || '')} out of stock`) : c ? (c.high == null ? foTile('Cover', '180+ days', 'more than half a year') : foTile('Cover', `${foN(c.high)}–${c.likely == null ? '180+' : foN(c.likely)} days`, `${foN(c.high)} if sales are high`)) : foTile('Cover', '—', x.stock == null ? 'no stock data' : '');
+  const outT = c && c.outHigh ? foTile('Runs out', foOut(x.status) ? 'Now' : '~' + alDay(c.outHigh), c.outLikely && c.outLikely !== c.outHigh ? `~${alDay(c.outLikely)} most likely` : '') : foTile('Runs out', c ? 'after ' + alDay(alAdd(sdTodaySafe(), 180)) : '—', '');
+  const inb = foInb(x);
+  const stockT = foTile('Stock', x.stock == null ? 'No data' : inb.n > 0 ? `${foN(x.stock)} + ${foN(inb.n)}` : foN(x.stock),
+    x.stock == null ? 'never guessed' : `${inb.n > 0 ? 'on the way · ' : inb.unknown ? 'Inbound: unknown · ' : ''}${alEsc(isKid ? x.stockSrc : 'all SKUs')}${x.stockAt ? ' · ' + alDay(x.stockAt) : ''}`);
+  const inbNote = inb ? `<p class="fo-note fo-inb-n${inb.unknown ? ' is-unknown' : ''}">${inb.n > 0 ? `Stock ${foN(x.stock)} + ${foN(inb.n)} on the way` : inb.unknown ? 'Inbound: unknown' : `Stock ${foN(x.stock)} · nothing on the way`} — ${alEsc(inb.tip)}</p>` : '';
   const bt = isKid ? (x.fit && x.fit.bt) : fam.bt;
   const skipped = isKid ? x.s.slice(-16).filter(w => w.skip === 'oos' || w.dead).length : fam.skippedWeeks;
   const why = x.r ? `<ul class="fo-why-l"><li>History: <b>${x.hist >= FO_M.hist ? FO_M.hist + '+' : x.hist} weeks</b> since the first sale (${FO_M.gateWeeks} needed)</li>`
@@ -720,18 +761,18 @@ function foDrawerHtml(h) {
     + `<li>Range used: ${foPct(x.e[7])} (7 d) · ${foPct(x.e[30])} (30 d) · ${foPct(x.e[90])} (90 d) — never under ${Math.round(FO_M.floor * 100)}% nor the counting noise of small numbers</li>`
     + `<li>Stock-out or suppressed weeks skipped (last 16 weeks): <b>${skipped}</b></li>`
     + `<li>Season: ${fam.m && fam.m.seasonOk ? 'used (the brand\'s last year)' : fam.fit.tried ? 'not used — it made the blind test worse' : 'not held'} · trend ${fam.m ? (fam.m.g >= 0 ? '+' : '−') + (Math.round(Math.abs((isKid && x.fit.ok ? x.fit.m.g : fam.m.g)) * 1000) / 10) + '%/week, damped' : '—'}</li></ul>`
-    : `<p class="fo-note">${alEsc(x.status === 'oos' ? `Out of stock — losing ~${foN(x.weekLoss)} units/week` : foWhyNot(x))}. A forecast needs ${FO_M.gateWeeks} weeks since the first sale and ${FO_M.gateUnits}+ units a week.</p>`;
-  const kids = !isKid ? `<section class="fo-dr-sec"><h4>SKUs <span class="muted">${fam.kids.length}</span></h4><ul class="fo-kids">${foSorted(fam.kids.filter(k => FO.inactive || k.active).map(k => Object.assign(k, { name: k.label }))).map(k => `<li><button type="button" data-fo-view="${alEsc(k.key)}">${foDot(k.status)}<span class="fo-kn">${alEsc(k.label)}<small>${alEsc(FO_ST[k.status].c)}${k.cover && k.cover.outHigh && k.status !== 'oos' ? ' · runs out ~' + alDay(k.cover.outHigh) : ''}</small></span><span class="num">${k.r ? foN(k.r[30].mid) + '<small>30 d</small>' : '—'}</span></button></li>`).join('')}</ul></section>` : '';
+    : `<p class="fo-note">${alEsc(foOut(x.status) ? `${foStLabel(x)} — losing ~${foN(x.weekLoss)} units/week` : foWhyNot(x))}. A forecast needs ${FO_M.gateWeeks} weeks since the first sale and ${FO_M.gateUnits}+ units a week.</p>`;
+  const kids = !isKid ? `<section class="fo-dr-sec"><h4>SKUs <span class="muted">${fam.kids.length}</span></h4><ul class="fo-kids">${foSorted(fam.kids.filter(k => FO.inactive || k.active).map(k => Object.assign(k, { name: k.label }))).map(k => `<li><button type="button" data-fo-view="${alEsc(k.key)}">${foDot(k.status)}<span class="fo-kn">${alEsc(k.label)}<small>${alEsc(foStLabel(k))}${k.cover && k.cover.outHigh && !foOut(k.status) ? ' · runs out ~' + alDay(k.cover.outHigh) : ''}</small></span><span class="num">${k.r ? foN(k.r[30].mid) + '<small>30 d</small>' : '—'}</span></button></li>`).join('')}</ul></section>` : '';
   const al = foAlertOf(fam);
   const alLink = al ? `<p class="fo-al">Sales Alerts flags it too: <b>${alEsc(al.head || '')}</b> <button type="button" class="fo-btn" data-fo-act="salert" data-fo-b="${fam.brand}">Open in Sales Alerts →</button></p>` : '';
   const back = isKid ? `<button type="button" class="fo-btn fo-back" data-fo-view="${alEsc(fam.key)}">← ${alEsc(alShort(fam.name))}</button>` : '';
   return `<div class="fo-dr-grip" aria-hidden="true"></div><header class="fo-dr-h">${back}<div class="fo-dr-t"><h3 id="foDrTitle">${alEsc(name)}</h3>`
-    + `<p class="muted">${isKid ? alEsc(x.asin) + ' · ' : ''}${FO_BRAND[fam.brand]} · ${alEsc(fam.parent)}</p><div class="fo-dr-pills"><span class="fo-sev st-${x.status}">${FO_ST[x.status].i ? FO_ST[x.status].i + ' ' : foDot(x.status)}${FO_ST[x.status].t}</span>${pill}</div></div>`
+    + `<p class="muted">${isKid ? alEsc(x.asin) + ' · ' : ''}${FO_BRAND[fam.brand]} · ${alEsc(fam.parent)}</p><div class="fo-dr-pills"><span class="fo-sev st-${x.status}">${FO_ST[x.status].i ? FO_ST[x.status].i + ' ' : foDot(x.status)}${alEsc(foStTitle(x))}</span>${pill}</div></div>`
     + `<button type="button" class="fo-x-close" data-fo-act="close" aria-label="Close">×</button></header>`
     + `<div class="fo-dr-b">${x.r ? `<div class="fo-dr-chart" id="foChart" role="img" aria-label="Units a week: the last 26 weeks, the next 13 forecast with its range${fam.m && fam.m.seasonOk ? ', and last year\'s pattern' : ''}"></div>`
       + `<label class="fo-tog fo-ly"><input type="checkbox" data-fo-ly${FO.drLy ? ' checked' : ''}${fam.m && fam.m.seasonOk ? '' : ' disabled'}> Last year's pattern (brand)</label>` : ''}`
     + `<p class="fo-story">${alEsc(foStory(x, fam))}</p>`
-    + `<div class="fo-tiles">${tiles}${stockT}${coverT}${outT}</div>`
+    + `<div class="fo-tiles">${tiles}${stockT}${coverT}${outT}</div>${inbNote}`
     + (c && c.high != null && c.likely !== c.high ? `<p class="fo-note">Stock lasts ${foN(c.high)}–${c.likely == null ? '180+' : foN(c.likely)} days (${foN(c.high)} if sales are high) · lead time ${fam.lead} days${fam.soon ? `, “soon” ${fam.soon} days after` : ''}.</p>` : '')
     + `<section class="fo-dr-sec"><h4>Why this confidence</h4>${why}</section>${kids}${alLink}</div>`;
 }
@@ -801,7 +842,7 @@ function foChartData(h) {
   }
   const skip = past.map(p => !!(p.skip === 'oos' || p.dead || p.kidsSkipped || p.kidsPart)).concat(ahead.map(() => false));
   const c = x.cover;
-  const outIx = c && c.outHigh && x.status !== 'oos' ? wks.findIndex(wk => c.outHigh >= wk && c.outHigh <= alAdd(wk, 6)) : -1;
+  const outIx = c && c.outHigh && !foOut(x.status) ? wks.findIndex(wk => c.outHigh >= wk && c.outHigh <= alAdd(wk, 6)) : -1;
   return { wks, act, mid, lo, hi, ly, skip, today: n, outIx, out: c && c.outHigh };
 }
 function foChartDraw(box, h) {
@@ -954,14 +995,14 @@ function foCsvText(r) {
   const q = v => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const R = v => (v == null || !isFinite(v) ? '' : Math.round(v));
   const head = ['Brand', 'Family', 'Parent ASIN', 'Level', 'SKU', 'ASIN', 'Status', 'Confidence', 'Next 7 days low', 'Next 7 days likely', 'Next 7 days high',
-    'Next 30 days low', 'Next 30 days likely', 'Next 30 days high', 'Next 90 days low', 'Next 90 days likely', 'Next 90 days high', 'Usual units/week', 'Stock', 'Stock as of',
+    'Next 30 days low', 'Next 30 days likely', 'Next 30 days high', 'Next 90 days low', 'Next 90 days likely', 'Next 90 days high', 'Usual units/week', 'Stock', 'On the way', 'On the way: working / shipped / receiving', 'Stock as of',
     'Cover days (sales high)', 'Cover days (likely)', 'Runs out (sales high)', 'Runs out (likely)', 'Lead time days', 'Blind test 30-day error %', 'History weeks', 'Stock-out weeks skipped (16 wk)', 'Season used', 'Trend %/week', 'Units last 8 weeks'];
   const lines = [head.map(q).join(',')];
   const line = (f, x, kid) => {
     const r3 = n => (x.r ? [R(x.r[n].lo), R(x.r[n].mid), R(x.r[n].hi)] : ['', '', '']);
     const bt = kid ? x.fit && x.fit.bt : f.bt, m = kid ? x.fit && x.fit.ok && x.fit.m : f.m;
-    lines.push([FO_BRAND[f.brand], f.name, f.parent, kid ? 'SKU' : 'Family', kid ? x.skus.join(' ') : '', kid ? x.asin : '', FO_ST[x.status].c, x.conf || '']
-      .concat(r3(7), r3(30), r3(90), [x.r ? Math.round((m ? m.level : x.r[30].mid / 30 * 7) * 10) / 10 : '', x.stock, x.stockAt || '', x.cover ? x.cover.high : '', x.cover ? x.cover.likely : '',
+    lines.push([FO_BRAND[f.brand], f.name, f.parent, kid ? 'SKU' : 'Family', kid ? x.skus.join(' ') : '', kid ? x.asin : '', foStLabel(x), x.conf || '']
+      .concat(r3(7), r3(30), r3(90), [x.r ? Math.round((m ? m.level : x.r[30].mid / 30 * 7) * 10) / 10 : '', x.stock, x.stock == null ? '' : x.inbound == null ? 'unknown' : x.inbound, x.inbParts ? x.inbParts.join(' / ') : '', x.stockAt || '', x.cover ? x.cover.high : '', x.cover ? x.cover.likely : '',
         x.cover ? x.cover.outHigh : '', x.cover ? x.cover.outLikely : '', f.lead, bt ? Math.round(bt.e30 * 100) : '', x.hist, kid ? x.s.slice(-16).filter(w => w.skip === 'oos' || w.dead).length : f.skippedWeeks,
         f.m ? (f.m.seasonOk ? 'yes' : 'no') : '', m ? Math.round(m.g * 1000) / 10 : '', x.u8]).map(q).join(','));
   };
@@ -990,7 +1031,7 @@ function foTrace(x, fam, r) {
   const idx = typeof SD !== 'undefined' && SD && SD.d && typeof sdDays === 'function' ? foLyIndex(sdDays(fam.brand)) : null;
   return {
     what: kid ? `${x.label} (${x.asin}) in ${fam.name}` : `${fam.name} (${fam.parent}, ${x.kids.length} SKU${x.kids.length === 1 ? '' : 's'})`, brand: FO_BRAND[fam.brand],
-    status: FO_ST[x.status].t, confidence: x.conf || null, history: x.hist, unitsLast8Weeks: x.u8,
+    status: foStTitle(x), confidence: x.conf || null, history: x.hist, unitsLast8Weeks: x.u8,
     usualPerWeek: m ? Math.round(m.level * 10) / 10 : null, spikeCap: m ? Math.round(m.med * FO_M.spike * 10) / 10 : null,
     season: m ? (m.seasonOk ? `used — last year's base ${Math.round(m.sBase)} brand units/week` : fit.tried ? 'not used: it made the blind test worse' : 'not held') : null,
     trendPerWeek: m ? `${Math.round(m.g * 1000) / 10}% (raw ${Math.round(m.gRaw * 1000) / 10}%, halved, capped ±${FO_M.trendCap * 100}%, × ${FO_M.damp} a week)` : null,
@@ -1000,7 +1041,7 @@ function foTrace(x, fam, r) {
       rows: bt.rows.map(t => ({ week: t.wk, forecast: Math.round(t.f * 10) / 10, actual: t.a == null ? null : Math.round(t.a * 10) / 10, skipped: t.skip })) } : null,
     ahead: (m ? m.out : x.out || []).slice(0, FO_M.chartAhead).map(o => ({ week: o.wk, units: Math.round(o.u * 10) / 10, season: o.f != null ? Math.round(o.f * 100) / 100 : null, trend: o.tr != null ? Math.round(o.tr * 1000) / 1000 : null })),
     next: x.r ? { '7': `${foN(x.r[7].mid)} (${foRng(x.r[7].lo, x.r[7].hi)}, ${foPct(x.e[7])})`, '30': `${foN(x.r[30].mid)} (${foRng(x.r[30].lo, x.r[30].hi)}, ${foPct(x.e[30])})`, '90': `${foN(x.r[90].mid)} (${foRng(x.r[90].lo, x.r[90].hi)}, ${foPct(x.e[90])})` } : null,
-    stock: x.stock, stockAt: x.stockAt || null, cover: x.cover ? { salesHigh: x.cover.high, likely: x.cover.likely, runsOutHigh: x.cover.outHigh, runsOutLikely: x.cover.outLikely, sku: kid ? x.label : x.first ? x.first.label : null } : null,
+    stock: x.stock, onTheWay: x.stock == null ? null : x.inbound == null ? 'unknown' : x.inbound, onTheWaySplit: x.inbParts ? { working: x.inbParts[0], shipped: x.inbParts[1], receiving: x.inbParts[2] } : null, stockAt: x.stockAt || null, cover: x.cover ? { salesHigh: x.cover.high, likely: x.cover.likely, runsOutHigh: x.cover.outHigh, runsOutLikely: x.cover.outLikely, sku: kid ? x.label : x.first ? x.first.label : null } : null,
     leadTime: fam.lead, story: foStory(x, fam), why: x.r ? null : foWhyNot(x),
   };
 }
@@ -1020,7 +1061,7 @@ async function forecastCheck(query, brand) {
         console.log(`%c${t.what} · ${t.brand}`, 'font-weight:bold', `\n${t.status}${t.confidence ? ' · ' + t.confidence + ' confidence' : ''}`
           + (t.next ? `\nnext 7 / 30 / 90 days: ${t.next['7']} · ${t.next['30']} · ${t.next['90']}` : `\n${t.why}`)
           + `\nusual ${t.usualPerWeek == null ? '—' : t.usualPerWeek}/week (spikes capped at ${t.spikeCap == null ? '—' : t.spikeCap}) · season ${t.season || '—'} · trend ${t.trendPerWeek || '—'}`
-          + `\nstock ${t.stock == null ? 'no data' : t.stock}${t.stockAt ? ' (as of ' + t.stockAt + ')' : ''} · cover ${t.cover ? `${t.cover.salesHigh == null ? '180+' : t.cover.salesHigh} days if sales are high, ${t.cover.likely == null ? '180+' : t.cover.likely} likely · runs out ${t.cover.runsOutHigh || 'after half a year'}` : '—'} · lead time ${t.leadTime} days`
+          + `\nstock ${t.stock == null ? 'no data' : t.stock}${t.stock == null ? '' : t.onTheWay === 'unknown' ? ' · inbound: unknown' : ' + ' + t.onTheWay + ' on the way'}${t.stockAt ? ' (as of ' + t.stockAt + ')' : ''} · cover ${t.cover ? `${t.cover.salesHigh == null ? '180+' : t.cover.salesHigh} days if sales are high, ${t.cover.likely == null ? '180+' : t.cover.likely} likely · runs out ${t.cover.runsOutHigh || 'after half a year'}` : '—'} · lead time ${t.leadTime} days`
           + (t.blindTest ? `\nblind test ${t.blindTest.weeks} weeks from ${t.blindTest.from}: 30-day error ${t.blindTest.error30}, weekly ${t.blindTest.error7}, total ${t.blindTest.errorAll} (bias ${t.blindTest.bias})` : '')
           + `\n${t.story}`);
         console.table(t.weeks);

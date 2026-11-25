@@ -385,5 +385,49 @@ console.log('== 14. the wiring: tab, menu, pane, ORDER, styles only for this pag
   ok('docs/sales-metrics.md has the forecast rules', ['### Forecast — weeks used', '### Forecast — base', '### Forecast — season', '### Forecast — trend', '### Forecast — range and confidence', '### Days of cover and runs out', '### Reorder status'].every(s => fs.readFileSync(path.join(__dirname, '..', 'docs', 'sales-metrics.md'), 'utf8').includes(s)));
 }
 
+console.log('== 15. stock on the way (inbound) ==');
+{
+  // the stock data with inbound: stock/{brand}.in = { sku: [working, shipped, receiving] }; a SKU not listed has none
+  const withIn = (b, inMap) => { const st = JSON.parse(JSON.stringify(W.stock)); st[b].in = inMap; return st; };
+  const rIn = X.foCompute(W.input('CPC', { stock: withIn('CPC', { 'C1-SKU': [1000, 1500, 500] }) }));
+  const red = fam(rCPC, 'PC1'), now = fam(rIn, 'PC1');
+  ok('300 available alone is 🔴; + 3,000 on the way → 🟢', red.status === 'red' && now.status === 'green' && now.inbound === 3000 && now.kids[0].supply === 3300, red.status + ' → ' + now.status);
+  ok('the cover counts available + on the way', red.cover.high === 27 && (now.cover.high === null || now.cover.high > 180), JSON.stringify(now.cover));
+  const rSome = X.foCompute(W.input('CPC', { stock: withIn('CPC', { 'C1-SKU': 450 }) }));
+  ok('+ 450 on the way (a total, no split) → 750 → 🟡, like 800 available', fam(rSome, 'PC1').status === 'amber' && fam(rSome, 'PC1').inbound === 450 && fam(rSome, 'PC1').inbParts === null);
+  ok('a SKU the inbound list does not name has nothing on the way (known 0, not unknown)', fam(rIn, 'PC2').inbound === 0 && fam(rIn, 'PC2').status === 'amber');
+  const html = X.foTableHtml(rIn, X.foShownFams(rIn));
+  ok('table: "300 + 3,000 on the way", the tooltip splits working / shipped / receiving', /data-fo-row="CPC\|PC1"[\s\S]*?title="300 available at Amazon \+ 3,000 on the way \(working 1,000 · shipped 1,500 · receiving 500\)\. Days of cover count both[^"]*">300<small class="fo-inb">\+ 3,000 on the way<\/small>/.test(html));
+  ok('table: "nothing on the way" when the list has none for it', /data-fo-row="CPC\|PC2"[\s\S]*?<small class="fo-inb">nothing on the way<\/small>/.test(html));
+  const plain = X.foTableHtml(rCPC, X.foShownFams(rCPC));
+  ok('no inbound in the stock data → "Inbound: unknown", never guessed (and the cover is the available units only)', fam(rCPC, 'PC1').inbound === null && /data-fo-row="CPC\|PC1"[\s\S]*?<small class="fo-inb is-unknown">Inbound: unknown<\/small>/.test(plain)
+    && /Inbound is not in the stock data Sellora reads/.test(plain));
+  const age = X.foCompute(W.input('CPC', { age: { CPC: { rows: [{ sku: 'Q1-SKU', asin: 'Q1', available: 120 }], at: '2026-11-23T00:00:00Z' } } }));
+  ok('stock from the Inventory Age snapshot: inbound unknown too', fam(age, 'PQ1').stock === 120 && fam(age, 'PQ1').inbound === null);
+  // ⛔ with units on the way: still first, amber, "Out of stock — 500 on the way"
+  const rO = X.foCompute(W.input('SP', { stock: withIn('SP', { 'O1-SKU': [0, 500, 0] }) }));
+  const o = fam(rO, 'PO1');
+  ok('⛔ stock 0 + 500 on the way → "Out of stock — 500 on the way"', o.status === 'oosin' && o.kids[0].status === 'oosin' && /Out of stock — 500 on the way/.test(X.foTableHtml(rO, X.foShownFams(rO))));
+  X.FO.sort = { k: 'status', dir: 1 };
+  const order = (h => (h.match(/<tr class="fo-r is-fam [^"]*" data-fo-row="([^"]+)"/g) || []).map(t => t.match(/data-fo-row="([^"]+)"/)[1]))(X.foTableHtml(rO, X.foShownFams(rO)));
+  ok('…still on top: above 🔴', order.indexOf('SP|PO1') >= 0 && order.indexOf('SP|PO1') < order.indexOf('SP|PK'), order.join(' '));
+  ok('…amber, not red (its own status class, amber in the CSS)', /<tr class="fo-r is-fam st-oosin/.test(X.foTableHtml(rO, X.foShownFams(rO))) && /#paneFcast \.st-amber, #paneFcast \.st-oosin \{ --st: var\(--fo-amber\)/.test(SRC('styles.css')));
+  ok('…counted in the ⛔ chip, and the chip filter keeps it', /data-fo-chip="oos"[^>]*>[\s\S]*?<b class="num">1<\/b>/.test(X.foChipsHtml(rO, X.foShownFams(rO))) && (X.FO.chip = 'oos', /SP\|PO1/.test(X.foTableHtml(rO, X.foShownFams(rO)))));
+  X.FO.chip = '';
+  ok('…Act first: "Out of stock — 500 on the way", losing sales until it arrives', /Out of stock<\/div><p class="fo-card-s"><b>500 on the way<\/b> · /.test(X.foActHtml(rO, X.foShownFams(rO))) && /until it arrives/.test(X.foActHtml(rO, X.foShownFams(rO))));
+  // the drawer
+  const P = page({ fx: false });
+  P.ctx.VI.data.stock = withIn('CPC', { 'C1-SKU': [1000, 1500, 500] }); P.ctx.VI.v = 2; P.FO.brand = 'CPC';
+  P.foRender(); P.foDrawerOpen('CPC|PC1');
+  const d = P.dom.els.foDr.innerHTML;
+  ok('drawer: Stock tile "300 + 3,000", "Stock 300 + 3,000 on the way" with the split', /<span>Stock<\/span><b class="num">300 \+ 3,000<\/b><small>on the way · /.test(d) && /Stock 300 \+ 3,000 on the way — 300 available at Amazon \+ 3,000 on the way \(working 1,000 · shipped 1,500 · receiving 500\)/.test(d));
+  ok('drawer story counts it', /Stock \(300 \+ 3,000 on the way\) lasts|lasts beyond half a year/.test(d));
+  P.ctx.VI.data.stock = W.stock; P.ctx.VI.v = 3; P.foRender(); P.foDrawerOpen('CPC|PC1');
+  ok('drawer without inbound data: "Inbound: unknown"', /Inbound: unknown · all SKUs/.test(P.dom.els.foDr.innerHTML) && /<p class="fo-note fo-inb-n is-unknown">Inbound: unknown — /.test(P.dom.els.foDr.innerHTML));
+  ok('CSV: on the way, its split, or "unknown"', /,Stock,On the way,On the way: working \/ shipped \/ receiving,/.test(X.foCsvText(rIn).split('\r\n')[0]) && X.foCsvText(rIn).split('\r\n').some(l => /,300,3000,1000 \/ 1500 \/ 500,/.test(l)) && X.foCsvText(rCPC).split('\r\n').some(l => /,300,unknown,,/.test(l)));
+  ok('forecastCheck shows it', X.foTrace(now, now, rIn).onTheWay === 3000 && X.foTrace(now, now, rIn).onTheWaySplit.shipped === 1500 && X.foTrace(red, red, rCPC).onTheWay === 'unknown');
+  ok('viLoad keeps the stock document\'s inbound (read only)', /data\.stock\[b\] = \{ m: s\.m \|\| \{\}, in: s\.in && typeof s\.in === 'object' \? s\.in : null,/.test(SRC('app/sales/sales-insight.js')));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

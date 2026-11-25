@@ -1151,7 +1151,10 @@
   /* the status colours: one variable per status, read by dots, chips, cards and pills */
   #paneFcast .st-oos { --st: var(--fo-oos); --st-bg: var(--fo-oos-bg); }
   #paneFcast .st-red { --st: var(--fo-red); --st-bg: var(--fo-red-bg); }
-  #paneFcast .st-amber { --st: var(--fo-amber); --st-bg: var(--fo-amber-bg); }
+  #paneFcast .st-amber, #paneFcast .st-oosin { --st: var(--fo-amber); --st-bg: var(--fo-amber-bg); }
+  #paneFcast .fo-r.st-oosin .fo-c-s span { font-weight: 600; color: var(--st); }
+  #paneFcast .fo-inb { white-space: nowrap; }
+  #paneFcast .fo-inb.is-unknown, #paneFcast .fo-inb-n.is-unknown { font-style: italic; }
   #paneFcast .st-green { --st: var(--fo-green); --st-bg: var(--fo-green-bg); }
   #paneFcast :is(.st-nohist, .st-notsell, .st-nostock, .st-inactive) { --st: var(--fo-none); --st-bg: var(--fo-grey); }
   #paneFcast .fo-dot { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--st, var(--fo-none)); }
@@ -1242,7 +1245,7 @@
   #paneFcast .fo-r.is-kid .fo-nm { font-weight: 500; }
   #paneFcast .fo-r.is-grey td { color: var(--fo-muted); }
   #paneFcast .fo-why { color: var(--fo-muted); font-size: 13px; }
-  #paneFcast .fo-c-s { white-space: nowrap; }
+  #paneFcast .fo-c-s { min-width: 118px; max-width: 170px; }
   #paneFcast .fo-tbl td[data-l="Runs out"] { white-space: nowrap; }
   #paneFcast .fo-c-s span { margin-left: 6px; font-size: 13px; }
   #paneFcast .fo-r.st-oos .fo-c-s span, #paneFcast .fo-r.st-red .fo-c-s span { font-weight: 600; color: var(--st); }
@@ -1347,6 +1350,7 @@
     #paneFcast .fo-c-n small { max-width: none; }
     #paneFcast .fo-tbl tr.fo-r.is-kid { margin-left: 16px; box-shadow: inset 3px 0 0 var(--fo-line), var(--fo-shadow); }
     #paneFcast .fo-r.is-kid .fo-c-n { padding-left: 0; }
+    #paneFcast .fo-c-s, #paneFcast .fo-inb { white-space: normal; }
   }
   @media (max-width: 760px) {
     #paneFcast .fo-bar { margin: 0 -16px 22px; padding: 8px 16px; }
