@@ -83,6 +83,9 @@ onAuthStateChanged(auth, async user => {
       /* THE BOARD'S OWN BUTTONS (Ravi, 4 Nov: "jisko jis cheej ka access du wo hi kar pay — cut, issue, receive, qc, press"): one right
        * per step of the SHP / AMZ / B2B / SPY boards (orders/shp-board.js shpbMay). */
       (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).forEach(k => { ME[k] = d[k] === true; });
+      /* THE BOARDS' REPORT (Ravi, 25 Nov: "ye report har kisi ko show n ho, me jisko access du usi ko dikhe or report bhej sake"): its own right,
+       * apart from the step buttons above — ticking it does not narrow what steps a person may do (orders/board-report.js brMay). */
+      ME.bdReport = d.bdReport === true;
       /* …and another: may make a proposed VENDOR RATE count. A rate prices every order line it
        * matches, so proposing one and approving one are separate rights. */
       ME.rateApprove = d.rateApprove === true;
@@ -123,6 +126,7 @@ onAuthStateChanged(auth, async user => {
   if (ME.empEdit && !ME.tabs.includes('hr')) { ME.tabs = ME.tabs.concat('hr'); ME.hrEmpOnly = true; }
   if (ME.email === 'ravi@thefabricrush.com') ME.admin = true;
   if (ME.admin) (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).forEach(k => { ME[k] = true; });
+  if (ME.admin) ME.bdReport = true;
   if (ME.admin) { ME.tabs = REPL_TABS.slice(); ME.projEdit = true; ME.prodEdit = true; ME.rateApprove = true; ME.shopAssign = true; ME.b2bAssign = true;
     ME.accEntry = true; ME.accEdit = true; ME.vlogAccept = true; ME.soApprove = true; ME.mdbEdit = true; ME.attendMark = true; ME.vreqApprove = true; ME.rfdApprove = true; ME.rfdSend = true; ME.fgiEdit = true; ME.fgiEntry = true; ME.empEdit = true; ME.hrEmpOnly = false; }
   /* COLOUR TREND (22 Nov): part of Replenishment — whoever has Replenishment has it; it reads nothing more. */

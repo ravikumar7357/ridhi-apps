@@ -5832,6 +5832,9 @@ onAuthStateChanged(auth, async user => {
       /* THE BOARD'S OWN BUTTONS (Ravi, 4 Nov: "jisko jis cheej ka access du wo hi kar pay — cut, issue, receive, qc, press"): one right
        * per step of the SHP / AMZ / B2B / SPY boards (orders/shp-board.js shpbMay). */
       (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).forEach(k => { ME[k] = d[k] === true; });
+      /* THE BOARDS' REPORT (Ravi, 25 Nov: "ye report har kisi ko show n ho, me jisko access du usi ko dikhe or report bhej sake"): its own right,
+       * apart from the step buttons above — ticking it does not narrow what steps a person may do (orders/board-report.js brMay). */
+      ME.bdReport = d.bdReport === true;
       /* …and another: may make a proposed VENDOR RATE count. A rate prices every order line it
        * matches, so proposing one and approving one are separate rights. */
       ME.rateApprove = d.rateApprove === true;
@@ -5872,6 +5875,7 @@ onAuthStateChanged(auth, async user => {
   if (ME.empEdit && !ME.tabs.includes('hr')) { ME.tabs = ME.tabs.concat('hr'); ME.hrEmpOnly = true; }
   if (ME.email === 'ravi@thefabricrush.com') ME.admin = true;
   if (ME.admin) (typeof SHPB_BD_RIGHTS !== 'undefined' ? SHPB_BD_RIGHTS : []).forEach(k => { ME[k] = true; });
+  if (ME.admin) ME.bdReport = true;
   if (ME.admin) { ME.tabs = REPL_TABS.slice(); ME.projEdit = true; ME.prodEdit = true; ME.rateApprove = true; ME.shopAssign = true; ME.b2bAssign = true;
     ME.accEntry = true; ME.accEdit = true; ME.vlogAccept = true; ME.soApprove = true; ME.mdbEdit = true; ME.attendMark = true; ME.vreqApprove = true; ME.rfdApprove = true; ME.rfdSend = true; ME.fgiEdit = true; ME.fgiEntry = true; ME.empEdit = true; ME.hrEmpOnly = false; }
   /* COLOUR TREND (22 Nov): part of Replenishment — whoever has Replenishment has it; it reads nothing more. */
@@ -29612,7 +29616,7 @@ function renderShpBoard() {
         return `<button type="button" data-shpb-late="1" title="Pending lines past the date planned for the stage they are at — or, with no date, nothing done for 7 days" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
           + (on ? 'background:#b91c1c;color:#fff;border:1px solid #b91c1c' : 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca') + `">Late · ${nf(n)}</button>`; })()
     /* THE REPORT BUCKET (23 Nov, orders/board-report.js): what is pending at each step and printer, as a PDF to send on WhatsApp */
-    + (typeof renderShpBoardReport === 'function' ? `<button type="button" data-shpb-report="1" title="What is pending at each step — each printer on its own — as a PDF to send on WhatsApp" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+    + (typeof renderShpBoardReport === 'function' && brMay() ? `<button type="button" data-shpb-report="1" title="What is pending at each step — each printer on its own — as a PDF to send on WhatsApp" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
       + (SHPB.report ? 'background:#1D4ED8;color:#fff;border:1px solid #1D4ED8' : 'background:#eef3fe;color:#1D4ED8;border:1px solid #c7d6fb') + `">Report</button>` : '')
     /* GROUP BY SKU (Ravi, 23 Nov: "same sku me multiple orders h to unko combine krke dekhne ka option … sku grouping yaha karni h report me nahi") */
     + `<button type="button" data-shpb-group="1" title="Lines of the same SKU together, with the SKU's total pieces and orders above them" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
@@ -29630,7 +29634,7 @@ function renderShpBoard() {
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || '';
 
-  if (SHPB.report && typeof renderShpBoardReport === 'function') return renderShpBoardReport(pend, done);
+  if (SHPB.report && typeof renderShpBoardReport === 'function' && brMay()) return renderShpBoardReport(pend, done);
   if (tab === 'done') return renderShpBoardDone(list);
   if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No ' + ({ shp: 'Shopify', amz: 'Amazon', b2b: 'B2B', spy: 'SPY' }[shpbKind()]) + ' order is pending.'); return; }
   SHPB_FILLCOL = list.some(shpbIsQuilt);   // the Filler vendor column only when a quilt is on the list
@@ -30215,6 +30219,10 @@ let BR_LAST = [];
 /* the icons (Ravi, 23 Nov: "bas whatsapp ka icon laga do … mail ka bhi icon aay") */
 const BR_WA_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="#fff"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91A9.85 9.85 0 0 0 12.04 2Zm5.79 14.06c-.24.68-1.42 1.3-1.95 1.34-.5.05-.97.24-3.27-.68-2.77-1.09-4.52-3.92-4.66-4.1-.13-.18-1.11-1.48-1.11-2.82 0-1.34.7-2 .95-2.28.25-.27.54-.34.72-.34h.52c.17 0 .39-.06.61.47.24.56.8 1.94.87 2.08.07.14.12.3.02.48-.09.18-.14.3-.27.46-.14.16-.29.36-.41.48-.14.13-.28.28-.12.55.16.27.71 1.17 1.52 1.9 1.05.93 1.93 1.22 2.2 1.36.27.13.43.11.59-.07.16-.18.68-.79.86-1.06.18-.27.36-.23.61-.14.25.09 1.59.75 1.86.89.27.13.45.2.52.31.07.11.07.66-.17 1.34Z"/></svg>';
 const BR_MAIL_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
+/* ONLY FOR WHOEVER IS GIVEN IT (Ravi, 25 Nov: "ye report har kisi ko show n ho, me jisko access du usi ko dikhe or report bhej sake"): the Access box
+ * "Board — Report (see and send)" (perms.bdReport), or an admin. Without it the board has no Report button, the report screen is not drawn, and no PDF is
+ * made, shared or mailed from here. */
+const brMay = () => !!(typeof ME !== 'undefined' && ME && (ME.admin || ME.bdReport));
 function renderShpBoardReport(pend, done) {
   const secs = brSections(pend, done); BR_LAST = secs;
   const btn = 'height:32px;padding:0 12px;border-radius:8px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:none;transform:none;width:auto;';
@@ -30326,6 +30334,7 @@ function brMail(i) {
   });
 }
 if ($('odTable') && $('odTable').addEventListener) $('odTable').addEventListener('click', e => {
+  if (!brMay()) return;
   const md = e.target.closest && e.target.closest('[data-br-mode]'); if (md) { SHPB.brMode = md.getAttribute('data-br-mode'); renderShpBoard(); return; }
   const ml = e.target.closest && e.target.closest('[data-br-mail]'); if (ml) { brMail(+ml.getAttribute('data-br-mail')); return; }
   const b = e.target.closest && e.target.closest('[data-br-pdf],[data-br-wa]'); if (!b) return;
@@ -84201,6 +84210,8 @@ const RIGHTS = [
   ['accessView', 'See the Access page (view only)'],
   /* THE BOARDS' BUTTONS (4 Nov): given any of these, a person does exactly these steps on the SHP / AMZ / B2B / SPY boards */
   ['bdCut', 'Board — Cut'], ['bdIssue', 'Board — Issue'], ['bdRecv', 'Board — Receive'], ['bdQc', 'Board — QC pass'], ['bdPress', 'Board — Press'], ['bdFill', 'Board — Filler vendor (quilts)'],
+  /* THE BOARDS' REPORT (25 Nov): the Report button — what is pending per step and printer, as a PDF to WhatsApp or mail — only for whoever is given it */
+  ['bdReport', 'Board — Report (see and send)'],
 ];
 
 /* TWO PAGES, ONE CODE (Ravi, 4 Nov: "sellora access ko replenish app me shift — sellora me sirf amazon ke access rahe"). This file is the same

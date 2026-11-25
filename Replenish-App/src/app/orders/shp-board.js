@@ -458,7 +458,7 @@ function renderShpBoard() {
         return `<button type="button" data-shpb-late="1" title="Pending lines past the date planned for the stage they are at — or, with no date, nothing done for 7 days" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
           + (on ? 'background:#b91c1c;color:#fff;border:1px solid #b91c1c' : 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca') + `">Late · ${nf(n)}</button>`; })()
     /* THE REPORT BUCKET (23 Nov, orders/board-report.js): what is pending at each step and printer, as a PDF to send on WhatsApp */
-    + (typeof renderShpBoardReport === 'function' ? `<button type="button" data-shpb-report="1" title="What is pending at each step — each printer on its own — as a PDF to send on WhatsApp" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
+    + (typeof renderShpBoardReport === 'function' && brMay() ? `<button type="button" data-shpb-report="1" title="What is pending at each step — each printer on its own — as a PDF to send on WhatsApp" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
       + (SHPB.report ? 'background:#1D4ED8;color:#fff;border:1px solid #1D4ED8' : 'background:#eef3fe;color:#1D4ED8;border:1px solid #c7d6fb') + `">Report</button>` : '')
     /* GROUP BY SKU (Ravi, 23 Nov: "same sku me multiple orders h to unko combine krke dekhne ka option … sku grouping yaha karni h report me nahi") */
     + `<button type="button" data-shpb-group="1" title="Lines of the same SKU together, with the SKU's total pieces and orders above them" style="height:36px;padding:0 14px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
@@ -476,7 +476,7 @@ function renderShpBoard() {
   $('odMsg').className = SHPB.err ? 'err' : 'muted';
   $('odMsg').textContent = SHPB.err || '';
 
-  if (SHPB.report && typeof renderShpBoardReport === 'function') return renderShpBoardReport(pend, done);
+  if (SHPB.report && typeof renderShpBoardReport === 'function' && brMay()) return renderShpBoardReport(pend, done);
   if (tab === 'done') return renderShpBoardDone(list);
   if (!list.length) { ptEmpty('odTable', SHPB.stage ? 'No line is waiting at that stage.' : 'No ' + ({ shp: 'Shopify', amz: 'Amazon', b2b: 'B2B', spy: 'SPY' }[shpbKind()]) + ' order is pending.'); return; }
   SHPB_FILLCOL = list.some(shpbIsQuilt);   // the Filler vendor column only when a quilt is on the list

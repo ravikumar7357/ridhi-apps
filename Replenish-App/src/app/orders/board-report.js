@@ -123,6 +123,10 @@ let BR_LAST = [];
 /* the icons (Ravi, 23 Nov: "bas whatsapp ka icon laga do … mail ka bhi icon aay") */
 const BR_WA_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="#fff"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91A9.85 9.85 0 0 0 12.04 2Zm5.79 14.06c-.24.68-1.42 1.3-1.95 1.34-.5.05-.97.24-3.27-.68-2.77-1.09-4.52-3.92-4.66-4.1-.13-.18-1.11-1.48-1.11-2.82 0-1.34.7-2 .95-2.28.25-.27.54-.34.72-.34h.52c.17 0 .39-.06.61.47.24.56.8 1.94.87 2.08.07.14.12.3.02.48-.09.18-.14.3-.27.46-.14.16-.29.36-.41.48-.14.13-.28.28-.12.55.16.27.71 1.17 1.52 1.9 1.05.93 1.93 1.22 2.2 1.36.27.13.43.11.59-.07.16-.18.68-.79.86-1.06.18-.27.36-.23.61-.14.25.09 1.59.75 1.86.89.27.13.45.2.52.31.07.11.07.66-.17 1.34Z"/></svg>';
 const BR_MAIL_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>';
+/* ONLY FOR WHOEVER IS GIVEN IT (Ravi, 25 Nov: "ye report har kisi ko show n ho, me jisko access du usi ko dikhe or report bhej sake"): the Access box
+ * "Board — Report (see and send)" (perms.bdReport), or an admin. Without it the board has no Report button, the report screen is not drawn, and no PDF is
+ * made, shared or mailed from here. */
+const brMay = () => !!(typeof ME !== 'undefined' && ME && (ME.admin || ME.bdReport));
 function renderShpBoardReport(pend, done) {
   const secs = brSections(pend, done); BR_LAST = secs;
   const btn = 'height:32px;padding:0 12px;border-radius:8px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:none;transform:none;width:auto;';
@@ -234,6 +238,7 @@ function brMail(i) {
   });
 }
 if ($('odTable') && $('odTable').addEventListener) $('odTable').addEventListener('click', e => {
+  if (!brMay()) return;
   const md = e.target.closest && e.target.closest('[data-br-mode]'); if (md) { SHPB.brMode = md.getAttribute('data-br-mode'); renderShpBoard(); return; }
   const ml = e.target.closest && e.target.closest('[data-br-mail]'); if (ml) { brMail(+ml.getAttribute('data-br-mail')); return; }
   const b = e.target.closest && e.target.closest('[data-br-pdf],[data-br-wa]'); if (!b) return;

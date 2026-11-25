@@ -881,6 +881,8 @@ const RIGHTS = [
   ['accessView', 'See the Access page (view only)'],
   /* THE BOARDS' BUTTONS (4 Nov): given any of these, a person does exactly these steps on the SHP / AMZ / B2B / SPY boards */
   ['bdCut', 'Board — Cut'], ['bdIssue', 'Board — Issue'], ['bdRecv', 'Board — Receive'], ['bdQc', 'Board — QC pass'], ['bdPress', 'Board — Press'], ['bdFill', 'Board — Filler vendor (quilts)'],
+  /* THE BOARDS' REPORT (25 Nov): the Report button — what is pending per step and printer, as a PDF to WhatsApp or mail — only for whoever is given it */
+  ['bdReport', 'Board — Report (see and send)'],
 ];
 
 /* TWO PAGES, ONE CODE (Ravi, 4 Nov: "sellora access ko replenish app me shift — sellora me sirf amazon ke access rahe"). This file is the same
