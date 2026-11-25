@@ -2597,9 +2597,11 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
             <option value="11">Forecast 11 months</option>
             <option value="12">Forecast 12 months</option>
           </select>
-          <select id="rSeason" style="flex:0 0 165px" title="With season: each month's Proj follows last year's pattern for that SKU (last year's same month against last year over the days today's Avg/day comes from). Flat: Avg/day × days, every month the same.">
-            <option value="1">Proj: with season</option>
-            <option value="0">Proj: flat</option>
+          <select id="rSeason" style="flex:0 0 250px" title="Which projection to look at. Typed by hand: a Proj somebody typed wins, the rest is calculated. Hand-typed hidden: every Proj is calculated, the typed numbers are kept but not used on this screen. With season: each month's Proj follows last year's pattern for that SKU (last year's same month against last year over the days today's Avg/day comes from). Flat: Avg/day × days, every month the same.">
+            <option value="1">Proj: typed by hand, else season</option>
+            <option value="0">Proj: typed by hand, else flat</option>
+            <option value="s">Proj: season only (hand-typed hidden)</option>
+            <option value="f">Proj: flat only (hand-typed hidden)</option>
           </select>
           <select id="rSupply" style="flex:0 0 190px" title="Show, inside every forecast month, where that month's shortfall comes from: India stock, a batch already in production, or fresh production. Adds three columns per month.">
             <option value="1" selected>Supply columns: on</option>
@@ -7242,12 +7244,17 @@ loadLead();
 // Forecast horizon — remembered per browser so it survives a reload.
 try { const h = localStorage.getItem('repl_horizon'); if (h) $('rHorizon').value = h; } catch (e) {}
 // Season on the Proj columns (22 Nov) — remembered per browser. Declared HERE: this file runs before core/multi-select-filter.js.
-var FC_SEASON = true;
-try { FC_SEASON = localStorage.getItem('repl_season') !== '0'; } catch (e) { /* default on */ }
-$('rSeason').value = FC_SEASON ? '1' : '0';
+/* WHICH PROJECTION TO LOOK AT (Ravi, 25 Nov: "hath se dale hue projection me 1 option de do — jo hath se add kiya h usko dekhna chahta hu ya nahi, ya only
+ * season ke according, ya flat"). One select, four views: '1' typed by hand else season (as before), '0' typed by hand else flat, 's' season only, 'f' flat
+ * only. FC_HAND off = the typed numbers are NOT used (they stay saved, nothing is deleted); every screen that reads the forecast follows. */
+var FC_SEASON = true, FC_HAND = true;
+const fcViewSet = v => { FC_SEASON = v !== '0' && v !== 'f'; FC_HAND = v !== 's' && v !== 'f'; };
+const fcViewOf = () => (FC_HAND ? (FC_SEASON ? '1' : '0') : (FC_SEASON ? 's' : 'f'));
+try { fcViewSet(localStorage.getItem('repl_season') || '1'); } catch (e) { /* default: typed by hand, else season */ }
+$('rSeason').value = fcViewOf();
 $('rSeason').addEventListener('change', () => {
-  FC_SEASON = $('rSeason').value !== '0';
-  try { localStorage.setItem('repl_season', FC_SEASON ? '1' : '0'); } catch (e) {}
+  fcViewSet($('rSeason').value);
+  try { localStorage.setItem('repl_season', fcViewOf()); } catch (e) {}
   renderRepl();
 });
 $('rHorizon').addEventListener('change', () => {
@@ -7303,6 +7310,8 @@ async function saveProjOvr(inp) {
 $('rTable').addEventListener('click', e => {
   const cell = e.target.closest('.projcell'); if (!cell) return;
   if (!ME.projEdit) { rMsg('You do not have permission to change projections — ask an admin for “Edit projections”.', true); return; }
+  /* typed numbers are hidden in this view: one typed now would be saved and not shown */
+  if (!FC_HAND) { rMsg('Hand-typed projections are hidden in this view — pick “Proj: typed by hand…” to type one.', true); return; }
   const td = cell.closest('td'); if (!td || td.querySelector('.projin')) return;
   const key = String(cell.dataset.sku).trim().toUpperCase() + '|' + cell.dataset.mk;
   const cur = PROJ_OVR[key];
@@ -7811,7 +7820,7 @@ function replForecast(r, plan) {
     const oh = Math.max(0, carry) + inc;             // a shortage does not carry a negative forward
     // A manual Proj wins over the calculated one — and because Excess and every later month are
     // carried from it, one override re-flows the whole rest of the forecast for that SKU.
-    const ovr = projOvrOf(r.sku, p.key);
+    const ovr = FC_HAND ? projOvrOf(r.sku, p.key) : null;   // "hand-typed hidden" (25 Nov): the typed number is not used
     const sea = ads ? fcSeasonOf(r, p, i, sBase) : null, flat = Math.round(ads * p.days);
     const own = sea ? Math.round(ads * p.days * sea.f) : flat;
     /* A NEW SKU (replenishment/colour-trend.js nlAutoOf): what the same article + size + colour family sold in this month last
@@ -8946,7 +8955,7 @@ function renderRepl() {
   FC_PLAN = buildFcPlan([...new Set(brands.flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
   // Drop the forecast cache only when something it actually depends on changed: the horizon, a manual
   // projection, or the snapshot itself (row count + its timestamp identify a refresh).
-  const fcSig = fcMonths() + '|' + PROJ_VER + '|' + (FC_SEASON ? 's' : 'f') + (typeof NL_TPL !== 'undefined' && NL_TPL ? 't' : '') + '|' + brands.map(b =>
+  const fcSig = fcMonths() + '|' + PROJ_VER + '|' + (FC_SEASON ? 's' : 'f') + (FC_HAND ? 'h' : 'n') + (typeof NL_TPL !== 'undefined' && NL_TPL ? 't' : '') + '|' + brands.map(b =>
     b + ':' + ((REPL[b].rows || []).length) + ':' + (REPL[b].at ? REPL[b].at.getTime() : 0) + ':' + (REPL[b].mode || 'full')).join(',');
   if (fcSig !== FC_CACHE_SIG) { FC_CACHE = new Map(); FC_CACHE_SIG = fcSig; }
   // Must come AFTER FC_PLAN — its month need-by timestamps are derived from it.

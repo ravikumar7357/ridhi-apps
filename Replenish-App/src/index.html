@@ -299,9 +299,11 @@
             <option value="11">Forecast 11 months</option>
             <option value="12">Forecast 12 months</option>
           </select>
-          <select id="rSeason" style="flex:0 0 165px" title="With season: each month's Proj follows last year's pattern for that SKU (last year's same month against last year over the days today's Avg/day comes from). Flat: Avg/day × days, every month the same.">
-            <option value="1">Proj: with season</option>
-            <option value="0">Proj: flat</option>
+          <select id="rSeason" style="flex:0 0 250px" title="Which projection to look at. Typed by hand: a Proj somebody typed wins, the rest is calculated. Hand-typed hidden: every Proj is calculated, the typed numbers are kept but not used on this screen. With season: each month's Proj follows last year's pattern for that SKU (last year's same month against last year over the days today's Avg/day comes from). Flat: Avg/day × days, every month the same.">
+            <option value="1">Proj: typed by hand, else season</option>
+            <option value="0">Proj: typed by hand, else flat</option>
+            <option value="s">Proj: season only (hand-typed hidden)</option>
+            <option value="f">Proj: flat only (hand-typed hidden)</option>
           </select>
           <select id="rSupply" style="flex:0 0 190px" title="Show, inside every forecast month, where that month's shortfall comes from: India stock, a batch already in production, or fresh production. Adds three columns per month.">
             <option value="1" selected>Supply columns: on</option>
