@@ -4637,6 +4637,9 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
             <input id="cwWasteW" type="number" min="0" step="0.25" placeholder="Waste width (in)" style="flex:0 0 150px"
                    title="How wide the leftover piece is, in inches. Leave it blank if nobody measured.">
             <input id="cwDate" type="date" style="flex:0 0 160px" title="Cutting date">
+            <!-- CUT BY (Ravi, 25 Nov): the person signed in, filled in by itself and not to be changed. -->
+            <input id="cwBy" readonly placeholder="Cut by" style="flex:0 0 150px;background:var(--hover,#f1f5f9);color:var(--muted)"
+                   title="Cut by — the person signed in. It is saved with the entry and cannot be changed here.">
             <input id="cwRemarks" placeholder="Remarks (optional)" style="flex:1 1 160px;min-width:0">
             <button id="cwSave" style="flex:0 0 120px">Save entry</button>
           </div>
@@ -16821,7 +16824,9 @@ function renderPcut() {
       })()}
     </div></div>`;
 
-  const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by', 'Edit']
+  /* CUT BY (Ravi, 25 Nov: "add who cut it ... auto fills it with its id", not to be changed): the person signed in when the
+   * cutting was entered is the one who cut it, so the entry's own "entered by" is shown under that name — nothing new is stored. */
+  const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Cut by', 'Edit']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([9, 11, 12, 13, 14].indexOf(i) >= 0 ? ' class="num"' : '')}${i === 10 ? ' title="Has this cutting gone to a karigar? The order\'s issues fill its cutting oldest first."' : ''}>${h}</th>`).join('') + '</tr></thead>';
   const useCell = r => {
     const u = pcutUseOf(r);
@@ -17133,7 +17138,7 @@ $('pcExport').onclick = () => {
   }
   const rows = PT._pcutRows || []; if (!rows.length) return;
   const lines = [['Cut Date', 'Order No', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Issued pcs',
-    'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by'].map(csvCell).join(',')];
+    'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Cut by'].map(csvCell).join(',')];
   rows.forEach(r => {
     /* Blank where nobody measured, so a spreadsheet cannot average a missing figure as a nought. */
     const u = ptNum(r.fabricUsed), w = ptNum(r.fabricWaste);
@@ -19522,6 +19527,7 @@ function renderCutForm() {
   const sku = skuBox.value.trim();
   const m = cutSkuOf(sku);
 
+  if ($('cwBy')) $('cwBy').value = 'Cut by: ' + whoShort(ME.email);   // the person signed in is the one cutting (Ravi, 25 Nov)
   $('cwWho').textContent = m
     ? `${m.articleType || '—'} · ${m.subtype || '—'} · ${m.color || '—'} · ${m.size || '—'}`
       + (m.brand ? '  ·  ' + m.brand : '')
@@ -39105,6 +39111,8 @@ function cdkPerPiece(sku) {
   const m = typeof cutSkuOf === 'function' ? cutSkuOf(sku) : null, p = m && typeof ptConsPlan === 'function' ? ptConsPlan(m) : null;
   return p && !p.why && +p.metres > 0 ? +p.metres : 0;
 }
+/** Who is cutting: the login id of the person signed in, the way Cutting Data's list shows a person. */
+const cdkCutBy = () => whoShort(ME.email);
 function cdkCutOpen(key) {
   const x = flowRows().find(y => y.s.key === key); if (!x) return;
   if (x.r.__t) return flowTestCutOpen(x.r.orderNo, x.r.sku);   // a test line has no register entry: its own stand-in form
@@ -39120,6 +39128,9 @@ function cdkCutOpen(key) {
        * is put right by an admin in Cutting Data, as before. */
       { key: 'date', label: 'Cutting date', type: 'date', value: dToday(), readonly: true },
       fabField,
+      /* CUT BY (Ravi, 25 Nov: "add who cut it ... auto fills it with its id", not to be changed): the person signed in. It is
+       * what Cutting Data saves as the entry's own "entered by" and lists as Cut by, so the card only shows it. */
+      { key: 'cutBy', label: 'Cut by', value: cdkCutBy(), readonly: true },
       { key: 'used', label: per ? `Cloth used (m) — blank takes ${per} m a piece` : 'Cloth used (m)', type: 'number', min: 0, step: 0.01, value: '' },
       { key: 'waste', label: 'Waste back (m)', type: 'number', min: 0, step: 0.01, value: '' },
       { key: 'wasteW', label: 'Waste width (in)', type: 'number', min: 0, step: 0.25, value: '' },

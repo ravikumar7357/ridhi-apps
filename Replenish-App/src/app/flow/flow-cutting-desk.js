@@ -159,6 +159,8 @@ function cdkPerPiece(sku) {
   const m = typeof cutSkuOf === 'function' ? cutSkuOf(sku) : null, p = m && typeof ptConsPlan === 'function' ? ptConsPlan(m) : null;
   return p && !p.why && +p.metres > 0 ? +p.metres : 0;
 }
+/** Who is cutting: the login id of the person signed in, the way Cutting Data's list shows a person. */
+const cdkCutBy = () => whoShort(ME.email);
 function cdkCutOpen(key) {
   const x = flowRows().find(y => y.s.key === key); if (!x) return;
   if (x.r.__t) return flowTestCutOpen(x.r.orderNo, x.r.sku);   // a test line has no register entry: its own stand-in form
@@ -174,6 +176,9 @@ function cdkCutOpen(key) {
        * is put right by an admin in Cutting Data, as before. */
       { key: 'date', label: 'Cutting date', type: 'date', value: dToday(), readonly: true },
       fabField,
+      /* CUT BY (Ravi, 25 Nov: "add who cut it ... auto fills it with its id", not to be changed): the person signed in. It is
+       * what Cutting Data saves as the entry's own "entered by" and lists as Cut by, so the card only shows it. */
+      { key: 'cutBy', label: 'Cut by', value: cdkCutBy(), readonly: true },
       { key: 'used', label: per ? `Cloth used (m) — blank takes ${per} m a piece` : 'Cloth used (m)', type: 'number', min: 0, step: 0.01, value: '' },
       { key: 'waste', label: 'Waste back (m)', type: 'number', min: 0, step: 0.01, value: '' },
       { key: 'wasteW', label: 'Waste width (in)', type: 'number', min: 0, step: 0.25, value: '' },

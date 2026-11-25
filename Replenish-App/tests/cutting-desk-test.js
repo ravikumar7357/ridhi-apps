@@ -26,6 +26,7 @@ function load(o) {
     document: { createElement: () => ({ value: '', textContent: '' }) },
     esc: s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])), nf: v => String(v),
     obUC: v => String(v == null ? '' : v).trim().toUpperCase(), dToday: () => '2026-11-25',
+    ME: { email: o.me || 'cutter.one@example.com' }, whoShort: e => String(e || '').split('@')[0] || '',
     cutSkuOf: sku => (o.mdb || {})[sku] || null, ptConsPlan: m => (m && m.cons ? { metres: m.cons } : { why: 'no cloth per piece' }),
     ptImgSpan: (sku, px) => `<span data-img="${ctx.esc(sku)}" data-imgpx="${px}"></span>`, ptImgFill: skus => { ctx.__imgs = skus; }, ptIfTab: (t, f) => f, ptImgPatch() {},
     PT: { cut: o.cut || [] }, flowRows: () => o.rows || [], flowMay: () => o.may !== false, flowTestCutOpen: (no, sku) => { ctx.__testCut = no + '|' + sku; },
@@ -132,7 +133,10 @@ const click = (S, name, val) => S.cdkClick({ target: { closest: sel => (sel === 
     click(S, 'cdkcut', x.s.key);
     const d = S.ctx.__dlg, f = k => d.fields.find(z => z.key === k);
     ok('opens a card for that line', d && d.title === 'Cutting entry' && d.saveLabel === 'Save cutting' && d.subtitle.includes('PO-2'));
-    ok('fields: pieces, date, fabric, cloth used, waste, waste width, remarks', d.fields.map(z => z.key).join() === 'pcs,date,fabric,used,waste,wasteW,remarks');
+    ok('fields: pieces, date, fabric, cloth used, waste, waste width, remarks', d.fields.map(z => z.key).join() === 'pcs,date,fabric,cutBy,used,waste,wasteW,remarks');
+    ok('Cut by is filled with the login id of the person signed in, and cannot be changed', f('cutBy').value === 'cutter.one' && f('cutBy').readonly === true && f('cutBy').label === 'Cut by');
+    { const O = load({ rows: ROWS, me: 'other.person@example.com' }); click(O, 'cdkcut', x.s.key);
+      ok('…another person signed in sees their own id', O.ctx.__dlg.fields.find(z => z.key === 'cutBy').value === 'other.person'); }
     ok('the pieces come filled with what is left to cut, the date with today', f('pcs').value === 150 && f('date').value === '2026-11-25');
     ok('the cutting date is fixed: shown read-only', f('date').readonly === true);
     ok('the fabric is the line\'s own and fixed: shown read-only, with no list to pick another from', f('fabric').value === 'Sheeting 82' && f('fabric').readonly === true && !f('fabric').options && f('fabric').type !== 'select');
@@ -194,6 +198,17 @@ const click = (S, name, val) => S.cdkClick({ target: { closest: sel => (sel === 
     const SP = load({ rows: ROWS }), caps = line('PO-8', 'B', 10, 0, { s: { plan: { fabric: { name: 'SHEETING 82' } } } });
     await SP.cdkCutSave(caps, Object.assign({}, V, { fabric: 'Sheeting 82' }));
     ok('a plan that spells the fabric its own way still shows and saves the master\'s spelling, as the line\'s own', SP.cdkTableHtml([caps]).includes('Sheeting 82') && !SP.cdkTableHtml([caps]).includes('SHEETING') && SP.drives[0].set.cwFabric === 'Sheeting 82' && SP.drives[0].ownOk === 'Sheeting 82');
+  }
+
+  console.log('== Cut by in Cutting Data: its own form, its list and its Excel ==');
+  {
+    const rd = f => fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8').replace(/\r\n/g, '\n');
+    const page = rd('index.html'), form = rd('app/core/look-alike-skus.js'), list = rd('app/vendors/printing/fabric-catalogue.js');
+    ok('the form has a Cut by box that cannot be typed in', /<input id="cwBy" readonly/.test(page));
+    ok('…filled with the person signed in whenever the form is drawn', form.includes("$('cwBy').value = 'Cut by: ' + whoShort(ME.email)"));
+    ok('…and the entry still carries who entered it, which is what Cut by shows', form.includes('addedBy: ME.email'));
+    ok('the list has a Cut by column, before Edit', list.includes("'Remarks', 'Cut by', 'Edit']"));
+    ok('the Excel has a Cut by column', list.includes("'Waste %', 'Remarks', 'Cut by'].map(csvCell)"));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
