@@ -23,7 +23,8 @@ const flowCutNow = (r, s) => (s.route === 'emb' && !s.embDept ? (s.canCut || 0) 
 async function flowCutEntry(r, s) {
   if (!flowMay('pcut')) return flowSay('Cutting Data is not open to this account — ask for the Cutting right.', true);
   try {
-    flowEmbedOff('pcut'); showTab('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
+    /* The page first, then its own form: opening Cutting can land on To cut (the Cutting Desk, 25 Nov), which sets the form aside. */
+    showTab('pcut'); flowEmbedOff('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
     $('cwSku').value = obUC(r.sku); cutSkuTyped(); renderCutForm();
     $('cwOrd').value = r.orderNo; renderCutForm();
     $('cwPcs').value = flowCutNow(r, s);

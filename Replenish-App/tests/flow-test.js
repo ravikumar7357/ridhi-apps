@@ -41,7 +41,7 @@ function load(opts) {
     ptGet: async node => (opts.db || {})[node] || null,
     ptOpenDialog: cfg => { ctx.__dlg = cfg; }, ptFillSelect: (id, pairs) => { (ctx.__fills = ctx.__fills || {})[id] = pairs; }, ptImgOf: () => '', ptImgSrc: u => u, showTab: () => {},
     ptLoadGates: async () => {},
-    showTab: t => { (ctx.__tabs = ctx.__tabs || []).push(t); }, ensureCutForm: async () => {}, cutSkuTyped: () => {}, renderCutForm: () => {}, renderCutFab: () => {},
+    showTab: t => { (ctx.__tabs = ctx.__tabs || []).push(t); if (ctx.__onShowTab) ctx.__onShowTab(t); }, ensureCutForm: async () => {}, cutSkuTyped: () => {}, renderCutForm: () => {}, renderCutFab: () => {},
     ensureBdForm: async () => {}, bdSkuTyped: () => {}, renderBdForm: () => {}, bdMatFill: () => {}, qcSkuTyped: () => {}, renderQcCheckForm: () => {},
     jwRecvOpen: id => { ctx.__recv = id; },
     ptStampDate: d => String(d || ''), ptNow: () => '2026-10-13T10:00:00Z', qcParts: sku => ({ brand: 'Ridhi', at: 'Pillow Cover', sub: 'x', col: 'c', size: 's' }), QC: { checks: opts.qcChecks || [] }, voDayOf: d => String(d || ''), voDayKey: d => String(d || ''), ...(opts.cas ? { ptCas: async (path, expect, next) => { const db = ctx.__casDb || (ctx.__casDb = Object.assign({}, opts.casDb || {}));
@@ -2027,9 +2027,15 @@ const K = 'AMZ-1__S1';
     const deskOpts = { me: { admin: true }, ppc: { [K]: plan({ print: { need: false } }) }, dem: { [K]: { fabricReady: { at: 'x' } } }, lines: [L({ cutReq: true })] };
     const DK = load(Object.assign({ desk: { keep: 0 } }, deskOpts)); DK.ctx.$('panePcut').children = []; DK.ctx.$('flSeg_pcut'); DK.ctx.$('flEmb_pcut'); DK.FLOW_EMB().pcut = 'cut';
     await DK.flowEmbedRender('pcut');
-    ok('Cutting Desk on: the tab and the line count carry its name, and the desk draws the list', /data-flemb="cut" class=""[^>]*>Cutting Desk <b/.test(DK.els.flSeg_pcut.innerHTML) && /^Cutting Desk: 0 of 1 line/.test(DK.els.flEmbMsg_pcut.textContent)
+    ok('Cutting Desk on: one page with a switch — "To cut" first, then "Cut entries" — the line count carries the desk\'s name, and the desk draws the list', /^<button[^>]*data-flemb="cut" class=""[^>]*>To cut <b[^]*data-flemb="" class="ghost"[^>]*>Cut entries<\/button>$/.test(DK.els.flSeg_pcut.innerHTML) && /^Cutting Desk: 0 of 1 line/.test(DK.els.flEmbMsg_pcut.textContent)
       && DK.ctx.__desk && DK.ctx.__desk.tab === 'pcut' && DK.ctx.__desk.rows.length === 1 && DK.els.flEmbT_pcut.innerHTML === '', DK.els.flSeg_pcut.innerHTML.slice(0, 300) + ' | ' + DK.els.flEmbMsg_pcut.textContent.slice(0, 80));
     ok('…and Excel takes the lines the desk keeps', DK.FLOW_EMB_SHOWN().pcut.rows.length === 0);
+    /* The Cut button of the Production flow opens Cutting Data's own form. Opening the Cutting page can land on To cut (the desk's
+     * "opens on the lines waiting to be cut"), which sets that form aside — so the form is brought forward after the page is opened. */
+    const DF = load(Object.assign({ desk: { keep: 0 } }, deskOpts)); DF.ctx.$('panePcut').children = []; DF.ctx.$('flSeg_pcut'); DF.ctx.$('flEmb_pcut');
+    DF.ctx.__onShowTab = t => { if (t === 'pcut') DF.FLOW_EMB().pcut = 'cut'; };
+    const dfx = DF.flowRows()[0]; await DF.flowCutEntry(dfx.r, dfx.s);
+    ok('the Cut button of the Production flow ends on the cutting form, not under the desk', (DF.ctx.__tabs || []).includes('pcut') && DF.FLOW_EMB().pcut === '');
     const DO = load(deskOpts); DO.ctx.$('panePcut').children = []; DO.ctx.$('flSeg_pcut'); DO.ctx.$('flEmb_pcut'); DO.FLOW_EMB().pcut = 'cut';
     await DO.flowEmbedRender('pcut');
     ok('Cutting Desk off: the tab is "To cut · Production flow" with the old list', /data-flemb="cut" class=""[^>]*>To cut · Production flow <b/.test(DO.els.flSeg_pcut.innerHTML) && /Pending to cut/.test(DO.els.flEmbT_pcut.innerHTML) && DO.FLOW_EMB_SHOWN().pcut.rows.length === 1);

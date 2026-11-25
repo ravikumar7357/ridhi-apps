@@ -24,7 +24,7 @@ const CDK_DEFAULT = false;
 const CDK_NAME = 'Cutting Desk';
 const CDK_PAGE = 50;
 const CDK_PICKS = [['', 'All'], ['none', 'Not started'], ['part', 'Part cut']];
-const CDK = { pick: '', page: 0 };
+const CDK = { pick: '', page: 0, opened: false };
 /* the boxes of Cutting Data's form the pop-up fills in; the SKU first, because the order list follows it */
 const CDK_FORM = ['cwSku', 'cwOrd', 'cwPcs', 'cwFabric', 'cwDate', 'cwUsed', 'cwWaste', 'cwWasteW', 'cwRemarks'];
 
@@ -35,6 +35,15 @@ function cdkSwitchOn() {
   const testLink = typeof window !== 'undefined' && (!!window.__TEST_ERP || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname));
   const branchLink = typeof baseOnPreview === 'function' && baseOnPreview();
   return CDK_DEFAULT || testLink || branchLink;
+}
+
+/** OPENS ON THE LINES WAITING TO BE CUT (Ravi, 25 Nov: one page with a switch, "lines waiting to be cut" first). The first time
+ *  the Cutting page is opened after sign-in it shows To cut; after that it stays on whichever list was picked. Called when the
+ *  page is opened, never at sign-in, so the production flow is read only by somebody who opens Cutting. */
+function cdkOpenFirst() {
+  if (CDK.opened || !cdkSwitchOn() || !flowEmbedViews('pcut').includes('cut')) return;
+  CDK.opened = true;
+  if (!FLOW_EMB.pcut) { FLOW_EMB.pcut = 'cut'; flowEmbedRender('pcut'); }
 }
 
 /* ---- the figures of one line ---- */

@@ -33,6 +33,7 @@ masters/master-database.js
 production/job-work.js
 production/attendance.js
 vendors/printing/fabric-catalogue.js
+vendors/printing/cutting-data-look.js
 core/database-auth.js
 core/history.js
 core/mirror.js

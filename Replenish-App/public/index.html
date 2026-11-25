@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 190 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 191 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -2604,6 +2604,11 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 /* Search points at the part it found (14 Nov): a ring for a few seconds */
 .fr-spot{outline:3px solid #E07A1F!important;outline-offset:3px;border-radius:6px;animation:frSpot 1s ease-in-out 3}
 @keyframes frSpot{50%{outline-color:rgba(224,122,31,.25)}}
+
+/* Production flow: a screen's own content is set aside while one of its flow tabs is open (Cutting Desk in Cutting Data; Raw cutting and
+ * WIP in the Job Work Register). The rule was lost with the phone layout on 16 Oct, so both lists showed, one under the other
+ * (Ravi, 25 Nov: "why is cutting entries showing below cutting desk"). */
+.fl-embhide{display:none!important}
 /* ================= THE GUIDE CHARACTER (guide.js, 2026-10-21) =================
    Above everything, the scanner included (9999): the dim, the lit box, the arrow, Master ji and his bubble. */
 #gdRoot{position:fixed;inset:0;z-index:10050;pointer-events:none}
@@ -16805,7 +16810,10 @@ function renderMdbFabric() {
 
 /* ---------------- Cutting Data ---------------- */
 
-async function ensurePcut() { if (PT.cut === null) await ptLoad('cut', 'pt_cuttingData', renderPcut); else renderPcut(); }
+async function ensurePcut() {
+  if (typeof cdkOpenFirst === 'function') cdkOpenFirst();   // where the Cutting Desk is on, the page opens on the lines waiting to be cut
+  if (PT.cut === null) await ptLoad('cut', 'pt_cuttingData', renderPcut); else renderPcut();
+}
 
 /* THE PLATFORM (Ravi, 16 Oct: "cutting entry me kis platform ka order h wo filter bhi add kardo"), read from the order
  * number the way the rest of the app reads it: AMZ- Amazon, SHP- Shopify, ONL- Online, B2B- B2B. Another prefix is shown as
@@ -16840,8 +16848,19 @@ function pcutApply(rows, f, skip) {
   });
 }
 
+/** Has this cutting gone to a karigar: the Used / Partly / Unused mark, or '' until the Job Work Register is read. */
+function pcutUsePill(r) {
+  const u = pcutUseOf(r);
+  if (!u) return '';
+  const k = pcutUseKind(u);
+  return k === 'used' ? '<span class="pill pill-ok">Used</span>'
+    : k === 'part' ? `<span class="pill pill-low" title="${nf(u.used)} of ${nf(u.net)} issued">Partly · ${nf(u.used)} of ${nf(u.net)}</span>`
+    : `<span class="pill pill-out" title="none of these ${nf(u.net)} has gone to a karigar">Unused</span>`;
+}
+
 function renderPcut() {
   $('pcMore').innerHTML = '';
+  if ($('pcdPager')) $('pcdPager').innerHTML = '';   // the new look's pages (cutting-data-look.js), cleared like the old "show more"
   if (PT.busy.cut) { $('pcMsg').className = 'muted'; $('pcMsg').textContent = 'Reading the production database…'; ptEmpty('pcTable', 'Loading…'); return; }
   if (PT.err.cut) {
     $('pcMsg').className = 'err'; $('pcMsg').textContent = 'Could not read it: ' + PT.err.cut;
@@ -16868,8 +16887,11 @@ function renderPcut() {
   if (PT.base === null && !PT.busy.base) ptLoad('base', 'pt_baseData', renderPcut);
   const useSel = ($('pcUse') || {}).value || '';
   const useMap = pcutUseMap();
+  const beforeUse = rows;   // before the Unused / Partly / Used pick: the new look counts each kind on its buttons
   if (useSel && useMap) rows = rows.filter(r => pcutUseKind(pcutUseOf(r)) === useSel);
   PT._pcutRows = rows;
+  /* THE CUTTING DESK'S LOOK (Ravi, 25 Nov, cutting-data-look.js): where its switch is on, the same entries are drawn there. */
+  if (typeof pcdOn === 'function' && pcdOn()) return pcdRender(rows, beforeUse, all.length);
 
   const pieces = rows.reduce((s, r) => s + ptNum(r.pieces), 0);
   /* ISSUED AND STILL TO ISSUE, over the entries on screen (2026-10-05, Ravi: "partially used me dikhe ki itna pending h and
@@ -16904,14 +16926,7 @@ function renderPcut() {
    * cutting was entered is the one who cut it, so the entry's own "entered by" is shown under that name — nothing new is stored. */
   const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Cut by', 'Edit']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([9, 11, 12, 13, 14].indexOf(i) >= 0 ? ' class="num"' : '')}${i === 10 ? ' title="Has this cutting gone to a karigar? The order\'s issues fill its cutting oldest first."' : ''}>${h}</th>`).join('') + '</tr></thead>';
-  const useCell = r => {
-    const u = pcutUseOf(r);
-    if (!u) return `<td class="muted">${PT.busy.base ? '…' : '—'}</td>`;
-    const k = pcutUseKind(u);
-    return k === 'used' ? '<td><span class="pill pill-ok">Used</span></td>'
-      : k === 'part' ? `<td><span class="pill pill-low" title="${nf(u.used)} of ${nf(u.net)} issued">Partly · ${nf(u.used)} of ${nf(u.net)}</span></td>`
-      : `<td><span class="pill pill-out" title="none of these ${nf(u.net)} has gone to a karigar">Unused</span></td>`;
-  };
+  const useCell = r => { const pill = pcutUsePill(r); return pill ? `<td>${pill}</td>` : `<td class="muted">${PT.busy.base ? '…' : '—'}</td>`; };
   const shown = rows.slice(0, PC_CAP);
   const body = shown.map(r => '<tr>'
     + `<td class="frz" style="text-align:left">${esc(r.cutDate)}</td>`
@@ -17227,6 +17242,133 @@ $('pcExport').onclick = () => {
   ptDownload('cutting-data', lines);
 };
 
+/* ============================== FILE: src/app/vendors/printing/cutting-data-look.js ============================== */
+/* ================= CUTTING DATA, IN THE CUTTING DESK'S LOOK =================
+ * Ravi, 25 Nov: "refine the cutting data page according to the cutting desk page", and "yes, build it" on the picture.
+ *
+ * WHAT IT IS: the same cutting entries, with the same filters, the same Edit and the same Excel, laid out like the Cutting
+ * Desk: four tiles (pieces cut, still to issue, cloth used, waste), All / Unused / Partly used / Used as buttons with their
+ * counts, and a list of 7 columns in place of 18 — picture, SKU, article,
+ * colour, size and fabric in one Item cell; cloth used, waste, its width and its share in one cell — 50 entries a page.
+ * The "Cut, not yet issued" view, the "+ New cutting entry" form and the Filters button with its pick-lists are as they were.
+ *
+ * NOTHING IS STORED OR READ DIFFERENTLY. renderPcut still reads, filters and sorts the entries; this only draws them.
+ *
+ * WHEN SOMETHING GOES WRONG: nothing here saves, so nothing fails loudly. The switch falls back quietly to the old list
+ * and leaves a console line saying why.
+ *
+ * BEHIND THE CUTTING DESK'S SWITCH (cdkSwitchOn, flow-cutting-desk.js): off for everybody, on for a branch's test link, the
+ * TEST ERP and localhost. The way back is localStorage cuttingDesk = '0' on one PC. */
+const PCD_PAGE = 50;
+const PCD_USES = [['', 'All'], ['unused', 'Unused'], ['part', 'Partly used'], ['used', 'Used']];
+const PCD = { page: 0, picked: '', ready: false };
+
+/** Is the new look on for this PC? It follows the Cutting Desk's switch; if that cannot be asked, the old list stays. */
+function pcdOn() {
+  try { return typeof cdkSwitchOn === 'function' && cdkSwitchOn(); }
+  catch (e) { console.warn('Cutting Data: the Cutting Desk switch could not be read, so the old list is shown.', e); return false; }
+}
+
+/* ---- the figures ---- */
+/** The four tiles, over the entries the filters leave. issued and left are null until the Job Work Register is read.
+ *  Cloth and waste are counted over the entries that carry a measured figure, as the old cards did. */
+function pcdTotals(rows, useOf) {
+  const t = { entries: rows.length, pieces: 0, issued: null, left: null, measured: 0, used: 0, waste: 0, pct: 0 };
+  rows.forEach(r => {
+    t.pieces += ptNum(r.pieces);
+    const u = useOf ? useOf(r) : null;
+    if (u) { t.issued = (t.issued || 0) + u.used; t.left = (t.left || 0) + Math.max(0, u.net - u.used); }
+    if (ptNum(r.fabricUsed) > 0) { t.measured++; t.used += ptNum(r.fabricUsed); t.waste += ptNum(r.fabricWaste); }
+  });
+  t.pct = t.used > 0 ? (t.waste / t.used) * 100 : 0;
+  return t;
+}
+/** How many entries are unused, partly used and used; null until the Job Work Register is read. */
+function pcdUseCounts(rows, kindOf) {
+  if (!kindOf) return null;
+  const n = { '': rows.length, unused: 0, part: 0, used: 0 };
+  rows.forEach(r => { const k = kindOf(r); if (k) n[k]++; });
+  return n;
+}
+/** One page of the list; a page past the end falls back to the last one. */
+function pcdPageOf(rows, page) {
+  const pages = Math.max(1, Math.ceil(rows.length / PCD_PAGE)), at = Math.min(Math.max(0, page | 0), pages - 1);
+  return { at, pages, from: at * PCD_PAGE, rows: rows.slice(at * PCD_PAGE, (at + 1) * PCD_PAGE) };
+}
+
+/* ---- the page ---- */
+function pcdTopHtml(t, counts, picked) {
+  const tile = (name, big, small, red) => `<div class="card" style="flex:1 1 180px;padding:10px 14px;margin:0"><div class="muted" style="font-size:12px">${name}</div>`
+    + `<div style="font-size:22px;font-weight:700${red ? ';color:var(--bad)' : ''}">${big}</div><div class="muted" style="font-size:12px">${small}</div></div>`;
+  return `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;width:100%">`
+    + tile('Pieces cut', nf(t.pieces), 'in ' + nf(t.entries) + ' entr' + (t.entries === 1 ? 'y' : 'ies'))
+    + tile('Still to issue', t.left == null ? '—' : nf(t.left) + ' pcs', t.issued == null ? 'reading the Job Work Register…' : nf(t.issued) + ' issued')
+    + tile('Cloth used', t.used ? nf(Math.round(t.used)) + ' m' : '—', nf(t.measured) + ' of ' + nf(t.entries) + ' measured')
+    + tile('Waste', t.waste ? nf(Math.round(t.waste * 10) / 10) + ' m' : '—', t.used ? t.pct.toFixed(1) + '% of cloth used' : 'nothing measured', t.pct > 10) + '</div>'
+    + `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:12px;width:100%">`
+    + PCD_USES.map(([k, l]) => `<button type="button" data-pcduse="${k}" class="${k === picked ? '' : 'ghost'}" style="width:auto;padding:5px 14px;font-size:13px">${l}`
+      + (counts ? ` <b style="margin-left:4px">${nf(counts[k])}</b>` : '') + '</button>').join('') + '</div>';
+}
+/** Picture, SKU, then article · colour · size, the fabric, and the remarks where there are any — in one cell. */
+function pcdItemHtml(r) {
+  const under = [[r.articleSubtype || r.articleType, r.color, r.size].filter(Boolean).join(' · '), r.fabricWidth].filter(Boolean);
+  return `<div style="display:flex;gap:10px;align-items:center">${typeof ptImgSpan === 'function' ? ptImgSpan(r.sku, 40) : ''}<div style="line-height:1.5;white-space:normal">`
+    + `<b style="font-family:ui-monospace,monospace">${esc(r.sku)}</b>${under.map(t => `<div class="muted" style="font-size:12px">${esc(t)}</div>`).join('')}`
+    + (r.remarks ? `<div style="font-size:12px;font-style:italic">${esc(r.remarks)}</div>` : '') + '</div></div>';
+}
+/** Cloth used, and under it the waste, its width and its share. An entry nobody measured says so; it is never a nought. */
+function pcdClothHtml(r) {
+  const used = ptNum(r.fabricUsed), waste = ptNum(r.fabricWaste), wide = ptNum(r.fabricWasteWidth);
+  if (!(used > 0) && !(waste > 0)) return '<span class="muted">not measured</span>';
+  const share = used > 0 && waste > 0 ? waste / used : 0;
+  const second = waste > 0 ? [nf(waste) + ' m waste', wide > 0 ? nf(wide) + '"' : '', share ? (share * 100).toFixed(1) + '%' : ''].filter(Boolean).join(' · ') : 'no waste entered';
+  return (used > 0 ? nf(used) + ' m used' : '<span class="muted">cloth not measured</span>')
+    + `<div style="font-size:12px${share > 0.1 ? ';color:var(--bad)' : ''}" class="${share > 0.1 ? '' : 'muted'}">${second}</div>`;
+}
+function pcdTableHtml(rows, pillOf, mayEdit) {
+  const head = '<thead><tr>' + ['Cut date', 'Item', 'Pieces', 'Issued', 'Cloth and waste', 'Cut by', ''].map((h, i) => `<th${i === 2 ? ' class="num"' : ' style="text-align:left"'}>${h}</th>`).join('') + '</tr></thead>';
+  if (!rows.length) return head + '<tbody><tr><td colspan="7" class="muted" style="padding:16px">No cutting entry fits these filters.</td></tr></tbody>';
+  return head + '<tbody>' + rows.map(r => `<tr><td style="text-align:left">${esc(String(r.cutDate || '').split(',')[0])}`
+    + `<div class="muted" style="font-size:12px">${esc(r.orderNo) || 'no order'}</div></td>`
+    + `<td style="text-align:left">${pcdItemHtml(r)}</td><td class="num" style="font-weight:700">${nf(ptNum(r.pieces))}</td>`
+    + `<td style="text-align:left">${pillOf(r) || '<span class="muted">—</span>'}</td><td style="text-align:left">${pcdClothHtml(r)}</td>${whoCell(r)}`
+    + `<td>${mayEdit ? `<button class="ghost" data-cut-edit="${esc(r.id)}" style="padding:3px 10px;font-size:12px">Edit</button>` : ''}</td></tr>`).join('') + '</tbody>';
+}
+function pcdPagerHtml(pg, total) {
+  const shown = total ? `Showing ${nf(pg.from + 1)} to ${nf(pg.from + pg.rows.length)} of ${nf(total)}, newest first · Export covers all of them` : '';
+  const btn = (step, label, off) => `<button type="button" class="ghost" data-pcdpage="${step}" style="width:auto;padding:5px 14px;font-size:13px"${off ? ' disabled' : ''}>${label}</button>`;
+  return `<div style="display:flex;gap:8px;align-items:center;margin-top:10px"><span class="muted" style="font-size:12.5px">${shown}</span><span style="flex:1"></span>`
+    + (pg.pages > 1 ? btn(-1, 'Previous', pg.at === 0) + btn(1, 'Next', pg.at >= pg.pages - 1) : '') + '</div>';
+}
+
+/** Once, the first time the list is drawn: the place for the pages, and the clicks. */
+function pcdSetup() {
+  if (PCD.ready) return;
+  PCD.ready = true;
+  $('pcUse').style.display = 'none';   // its four choices are the buttons under the tiles
+  $('pcTable').parentElement.insertAdjacentHTML('afterend', '<div id="pcdPager"></div>');
+  /* If the Cutting Desk tab is already open, the list is set aside (fl-embhide): the pages go with it, not under the desk. */
+  $('pcdPager').classList.toggle('fl-embhide', $('pcTable').parentElement.classList.contains('fl-embhide'));
+  $('pcKpis').addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-pcduse]'); if (!b) return; $('pcUse').value = b.dataset.pcduse; renderPcut(); });
+  $('pcdPager').addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-pcdpage]'); if (!b) return; PCD.page += +b.dataset.pcdpage; renderPcut(); });
+}
+
+/** Draws Cutting Data's entries in the new look. rows: what every filter leaves; beforeUse: the same before the
+ *  Unused / Partly / Used pick, for the counts on its buttons; total: every entry read. */
+function pcdRender(rows, beforeUse, total) {
+  pcdSetup();
+  const useOn = !!pcutUseMap(), useSel = $('pcUse').value || '';
+  const picked = JSON.stringify([pcutFilters(), useSel]);
+  if (picked !== PCD.picked) { PCD.picked = picked; PCD.page = 0; }   // a changed filter starts again from the first page
+  const pg = pcdPageOf(rows, PCD.page);
+  PCD.page = pg.at;
+  $('pcKpis').innerHTML = pcdTopHtml(pcdTotals(rows, useOn ? pcutUseOf : null), pcdUseCounts(beforeUse, useOn ? r => pcutUseKind(pcutUseOf(r)) : null), useSel);
+  $('pcTable').innerHTML = pcdTableHtml(pg.rows, pcutUsePill, ptCanEdit());
+  $('pcdPager').innerHTML = pcdPagerHtml(pg, rows.length);
+  $('pcMsg').className = 'muted';
+  $('pcMsg').textContent = `${nf(rows.length)} of ${nf(total)} cut entr${total === 1 ? 'y' : 'ies'}`;
+  ptImgFill(pg.rows.map(r => r.sku), false, ptIfTab('pcut', ptImgPatch));
+}
 
 /* ####################################################################################################
  * GROUP: src/app/core/
@@ -37462,7 +37604,8 @@ const flowCutNow = (r, s) => (s.route === 'emb' && !s.embDept ? (s.canCut || 0) 
 async function flowCutEntry(r, s) {
   if (!flowMay('pcut')) return flowSay('Cutting Data is not open to this account — ask for the Cutting right.', true);
   try {
-    flowEmbedOff('pcut'); showTab('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
+    /* The page first, then its own form: opening Cutting can land on To cut (the Cutting Desk, 25 Nov), which sets the form aside. */
+    showTab('pcut'); flowEmbedOff('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
     $('cwSku').value = obUC(r.sku); cutSkuTyped(); renderCutForm();
     $('cwOrd').value = r.orderNo; renderCutForm();
     $('cwPcs').value = flowCutNow(r, s);
@@ -38986,7 +39129,11 @@ async function flowEmbedRender(tab) {
   const label = k => (desk(k) ? CDK_NAME : (FLOW_BUCKETS.find(b => b[0] === k) || [, k])[1]);
   const count = k => { try { if (!FLOW.ppc) return ''; const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
     return String(flowRows().filter(x => (!only || x.r.__t) && flowInView(k, x.s)).length); } catch (e) { return ''; } };
-  seg.innerHTML = [['', cfg.own]].concat(views.map(k => [k, label(k)])).map(([k, l]) => { const c = k ? count(k) : '';
+  /* ONE PAGE WITH A SWITCH (Ravi, 25 Nov: "I don't want the cutting data to be at separate page than the cutting desk" — one list
+   * with a switch, the lines waiting to be cut first): where the desk is on, Cutting's two buttons are "To cut" and "Cut entries". */
+  const onePage = tab === 'pcut' && desk('cut') && views.includes('cut');
+  const tabs = onePage ? [['cut', 'To cut'], ['', 'Cut entries']] : [['', cfg.own]].concat(views.map(k => [k, label(k)]));
+  seg.innerHTML = tabs.map(([k, l]) => { const c = k ? count(k) : '';
     return `<button type="button" data-flemb="${k}" class="${k === v ? '' : 'ghost'}" style="width:auto;padding:6px 16px;font-size:13.5px">${esc(l)}${c !== '' ? ` <b style="margin-left:4px">${c}</b>` : ''}</button>`; }).join('')
     + '';
   [...pane.children].forEach(ch => { if (ch !== seg && ch !== box && ch.classList) ch.classList.toggle('fl-embhide', !!v); });
@@ -39052,7 +39199,7 @@ const CDK_DEFAULT = false;
 const CDK_NAME = 'Cutting Desk';
 const CDK_PAGE = 50;
 const CDK_PICKS = [['', 'All'], ['none', 'Not started'], ['part', 'Part cut']];
-const CDK = { pick: '', page: 0 };
+const CDK = { pick: '', page: 0, opened: false };
 /* the boxes of Cutting Data's form the pop-up fills in; the SKU first, because the order list follows it */
 const CDK_FORM = ['cwSku', 'cwOrd', 'cwPcs', 'cwFabric', 'cwDate', 'cwUsed', 'cwWaste', 'cwWasteW', 'cwRemarks'];
 
@@ -39063,6 +39210,15 @@ function cdkSwitchOn() {
   const testLink = typeof window !== 'undefined' && (!!window.__TEST_ERP || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname));
   const branchLink = typeof baseOnPreview === 'function' && baseOnPreview();
   return CDK_DEFAULT || testLink || branchLink;
+}
+
+/** OPENS ON THE LINES WAITING TO BE CUT (Ravi, 25 Nov: one page with a switch, "lines waiting to be cut" first). The first time
+ *  the Cutting page is opened after sign-in it shows To cut; after that it stays on whichever list was picked. Called when the
+ *  page is opened, never at sign-in, so the production flow is read only by somebody who opens Cutting. */
+function cdkOpenFirst() {
+  if (CDK.opened || !cdkSwitchOn() || !flowEmbedViews('pcut').includes('cut')) return;
+  CDK.opened = true;
+  if (!FLOW_EMB.pcut) { FLOW_EMB.pcut = 'cut'; flowEmbedRender('pcut'); }
 }
 
 /* ---- the figures of one line ---- */

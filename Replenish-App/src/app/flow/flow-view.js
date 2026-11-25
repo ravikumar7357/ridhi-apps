@@ -1012,7 +1012,11 @@ async function flowEmbedRender(tab) {
   const label = k => (desk(k) ? CDK_NAME : (FLOW_BUCKETS.find(b => b[0] === k) || [, k])[1]);
   const count = k => { try { if (!FLOW.ppc) return ''; const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
     return String(flowRows().filter(x => (!only || x.r.__t) && flowInView(k, x.s)).length); } catch (e) { return ''; } };
-  seg.innerHTML = [['', cfg.own]].concat(views.map(k => [k, label(k)])).map(([k, l]) => { const c = k ? count(k) : '';
+  /* ONE PAGE WITH A SWITCH (Ravi, 25 Nov: "I don't want the cutting data to be at separate page than the cutting desk" — one list
+   * with a switch, the lines waiting to be cut first): where the desk is on, Cutting's two buttons are "To cut" and "Cut entries". */
+  const onePage = tab === 'pcut' && desk('cut') && views.includes('cut');
+  const tabs = onePage ? [['cut', 'To cut'], ['', 'Cut entries']] : [['', cfg.own]].concat(views.map(k => [k, label(k)]));
+  seg.innerHTML = tabs.map(([k, l]) => { const c = k ? count(k) : '';
     return `<button type="button" data-flemb="${k}" class="${k === v ? '' : 'ghost'}" style="width:auto;padding:6px 16px;font-size:13.5px">${esc(l)}${c !== '' ? ` <b style="margin-left:4px">${c}</b>` : ''}</button>`; }).join('')
     + '';
   [...pane.children].forEach(ch => { if (ch !== seg && ch !== box && ch.classList) ch.classList.toggle('fl-embhide', !!v); });

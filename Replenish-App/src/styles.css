@@ -2549,3 +2549,8 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 /* Search points at the part it found (14 Nov): a ring for a few seconds */
 .fr-spot{outline:3px solid #E07A1F!important;outline-offset:3px;border-radius:6px;animation:frSpot 1s ease-in-out 3}
 @keyframes frSpot{50%{outline-color:rgba(224,122,31,.25)}}
+
+/* Production flow: a screen's own content is set aside while one of its flow tabs is open (Cutting Desk in Cutting Data; Raw cutting and
+ * WIP in the Job Work Register). The rule was lost with the phone layout on 16 Oct, so both lists showed, one under the other
+ * (Ravi, 25 Nov: "why is cutting entries showing below cutting desk"). */
+.fl-embhide{display:none!important}
