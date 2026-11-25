@@ -127,6 +127,11 @@ W.add('W1', 'SP', 'PW1', () => 1 / 7, 30, { name: 'Slow Bag' });
 W.add('P1', 'CPC', 'PP1', (day, i) => (i === 24 ? 400 / 7 : 10), 3000, { name: 'Spike Runner' });
 // TREND (CPC): +10 % a week for the last 10 weeks → the trend is capped and damped
 W.add('T1', 'CPC', 'PT1', (day, i) => (i < 16 ? 10 : 10 * Math.pow(1.1, i - 15)), 6000, { name: 'Growing Mat' });
+// RED (Ridhi): one size, 200 units at 10 a day → the family itself is 🔴
+W.add('F1', 'SP', 'PF', () => 10, 200, { name: 'Faded Red Runner' });
+// BIG FAMILY (Ridhi): 7 sizes at 5 a day — four with 2,000 each, two at 0 (the stock data says 0), one missing from the stock data
+['B1', 'B2', 'B3', 'B4'].forEach(a => W.add(a, 'SP', 'PB', () => 5, 2000, { name: 'Big Block Print Tablecloth' }));
+W.add('B5', 'SP', 'PB', () => 5, 0); W.add('B6', 'SP', 'PB', () => 5, 0); W.add('B7', 'SP', 'PB', () => 5, null);
 
 const rCPC = X.foCompute(W.input('CPC')), rSP = X.foCompute(W.input('SP')), rALL = X.foCompute(W.input('ALL'));
 const fam = (r, p) => r.fams.find(f => f.parent === p);
@@ -242,7 +247,8 @@ console.log('== 8. families: the Sales Alerts grouping, children add up, the wor
   const sum = f.kids.reduce((t, k) => t + k.r[30].mid, 0);
   ok('the children\'s next 30 days add up to the family\'s', near(sum, f.r[30].mid, 0.005), sum + ' vs ' + f.r[30].mid);
   const k1 = f.kids.find(k => k.asin === 'K1'), k3 = f.kids.find(k => k.asin === 'K3');
-  ok('K1 (100 units, 10 a day) is 🔴 — the family wears it, with K1\'s cover and run-out', k1.status === 'red' && f.status === 'red' && f.first === k1 && f.cover === k1.cover, f.status);
+  ok('K1 (100 units, 10 a day) is 🔴 itself — the FAMILY is judged on its total (4,600 units) → 🟢, with a "🔴 1 size needs reorder" badge', k1.status === 'red' && f.status === 'green' && f.cover !== k1.cover && f.redKids.length === 1
+    && /data-fo-sizes="SP\|PK\|red"[^>]*>🔴 1 size needs reorder</.test(X.foTableHtml(rSP, X.foShownFams(rSP))), f.status);
   ok('the family\'s stock is all its SKUs', f.stock === 4600);
   ok('K3 (2 a week) has no blind test of its own → the family\'s error, "Low" confidence, numbers still shown', k3.r && k3.fromFam && k3.conf === 'Low' && !k3.fit.ok);
   ok('the same keys as alGroupAdd gives (one shared grouping)', /alGroupAdd\(G, a, b, o\)/.test(FO_SRC) && /alGroupAdd\(G, asin, b, o\)\.kids\[asin\]/.test(AL_SRC));
@@ -331,12 +337,13 @@ console.log('== 12. the drawer opens and closes ==');
   const dr = P.dom.els.foDr, bg = P.dom.els.foDrBg;
   ok('a row opens the drawer: shown, with its backdrop, as a dialog', P.FO.dr === 'SP|PK' && dr && !dr.hidden && bg && !bg.hidden && dr.attrs.role === 'dialog' && dr.attrs['aria-modal'] === 'true');
   const h = dr.innerHTML;
-  ok('title, brand, status and confidence', /<h3 id="foDrTitle">Whimsical Corner Pillow Insert<\/h3>/.test(h) && /Ridhi · PK/.test(h) && /Reorder now/.test(h) && /confidence<\/span>/.test(h));
+  ok('title, brand, status and confidence', /<h3 id="foDrTitle">Whimsical Corner Pillow Insert<\/h3>/.test(h) && /Ridhi · PK/.test(h) && /fo-sev st-green">🟢 OK</.test(h) && /confidence<\/span>/.test(h) && /🔴 1 size needs reorder/.test(h));
   ok('the chart box, the last-year toggle, the story, the tiles', /id="foChart"/.test(h) && /data-fo-ly/.test(h) && /class="fo-story">Usually sells ~/.test(h) && (h.match(/class="fo-tile"/g) || []).length === 6);
-  ok('"Stock lasts A–B days (A if sales are high)"', /Stock lasts \d+–\d+ days \(\d+ if sales are high\)/.test(h));
   ok('why this confidence: history, blind test, skipped weeks, season', /Why this confidence/.test(h) && /History: <b>26\+ weeks/.test(h) && /Blind test \(8 weeks from 27 Sep\)/.test(h) && /Stock-out or suppressed weeks skipped/.test(h) && /Season: used/.test(h));
   ok('its SKU list, each with its own status', (h.match(/<li><button type="button" data-fo-view="SP\|PK#K\d"/g) || []).length === 3);
-  ok('the story names the season and the reorder', /Christmas usually lifts Ridhi ~2\.0×/.test(h) && /new stock takes 60 → reorder now/.test(h), (h.match(/class="fo-story">[^<]*/) || [''])[0]);
+  ok('the story: the season, the family total, then the size that needs reorder', /Christmas usually lifts Ridhi ~2\.0×/.test(h) && /Family has 4,600 in stock \(over half a year\)\./.test(h) && /1 size needs reorder: K1-SKU \(~\d+ (Nov|Dec)\)/.test(h), (h.match(/class="fo-story">[^<]*/) || [''])[0]);
+  P.foDrawerOpen('SP|PF');
+  ok('a 🔴 family: "Stock lasts A–B days (A if sales are high)" and "new stock takes 60 → reorder now"', /Stock lasts \d+–\d+ days \(\d+ if sales are high\)/.test(dr.innerHTML) && /new stock takes 60 → reorder now/.test(dr.innerHTML) && /fo-sev st-red/.test(dr.innerHTML));
   P.foDrawerOpen('SP|PK#K3');
   ok('a SKU opens its own drawer, with a way back to the family', /<h3 id="foDrTitle">K3-SKU<\/h3>/.test(dr.innerHTML) && /data-fo-view="SP\|PK"/.test(dr.innerHTML) && /the family's error is used/.test(dr.innerHTML));
   P.foDrawerClose();
@@ -358,7 +365,7 @@ console.log('== 13. the CSV and forecastCheck ==');
   const f = fam(rSP, 'PK');
   const t = X.foTrace(f, f, rSP);
   ok('forecastCheck\'s trace: 26 weeks with what was used and its weight', t.weeks.length === 26 && t.weeks.filter(w => w.baseWeight).length === 8 && t.weeks[25].baseWeight === 8 && t.weeks[18].baseWeight === 1);
-  ok('…the blind test week by week, the 13 weeks ahead with their season and trend, the story', t.blindTest && t.blindTest.rows.length === 8 && t.ahead.length === 13 && t.ahead.some(a => a.season === 2) && /reorder now/.test(t.story));
+  ok('…the blind test week by week, the 13 weeks ahead with their season and trend, the story', t.blindTest && t.blindTest.rows.length === 8 && t.ahead.length === 13 && t.ahead.some(a => a.season === 2) && /1 size needs reorder/.test(t.story));
   const s = fam(rCPC, 'PS1');
   const ts = X.foTrace(s, s, rCPC);
   ok('…and says which weeks were skipped and why', ts.weeks.filter(w => w.skipped === 'stock-out / suppressed').length >= 3 && ts.weeks.some(w => /stock-out days taken out/.test(w.skipped)), ts.weeks.map(w => w.skipped).filter(Boolean).join(' | '));
@@ -427,6 +434,33 @@ console.log('== 15. stock on the way (inbound) ==');
   ok('CSV: on the way, its split, or "unknown"', /,Stock,On the way,On the way: working \/ shipped \/ receiving,/.test(X.foCsvText(rIn).split('\r\n')[0]) && X.foCsvText(rIn).split('\r\n').some(l => /,300,3000,1000 \/ 1500 \/ 500,/.test(l)) && X.foCsvText(rCPC).split('\r\n').some(l => /,300,unknown,,/.test(l)));
   ok('forecastCheck shows it', X.foTrace(now, now, rIn).onTheWay === 3000 && X.foTrace(now, now, rIn).onTheWaySplit.shipped === 1500 && X.foTrace(red, red, rCPC).onTheWay === 'unknown');
   ok('viLoad keeps the stock document\'s inbound (read only)', /data\.stock\[b\] = \{ m: s\.m \|\| \{\}, in: s\.in && typeof s\.in === 'object' \? s\.in : null,/.test(SRC('app/sales/sales-insight.js')));
+}
+
+console.log('== 16. the family total, sizes out, no stock data, the "on the way" note ==');
+{
+  const b = fam(rSP, 'PB');
+  const by = a => b.kids.find(k => k.asin === a);
+  ok('big family, 2 sizes at 0: the family status comes from its total (8,000 units), not from the sizes at 0', b.status === 'green' && b.stock === 8000 && b.cover && (b.cover.high === null || b.cover.high >= 90), b.status + ' ' + JSON.stringify(b.cover));
+  ok('…the sizes at 0 are ⛔ themselves', by('B5').status === 'oos' && by('B6').status === 'oos');
+  const html = X.foTableHtml(rSP, X.foShownFams(rSP));
+  ok('…badge "⛔ 2 of 7 sizes out of stock", and "1 size: no stock data"', /data-fo-sizes="SP\|PB\|oos"[^>]*>⛔ 2 of 7 sizes out of stock</.test(html) && /data-fo-sizes="SP\|PB\|nostock"[^>]*>1 size: no stock data</.test(html));
+  ok('a size missing from the stock data is "No stock data" — stock null, not 0, not ⛔', by('B7').stock === null && by('B7').status === 'nostock' && by('B7').stockSrc === '');
+  ok('…and left out of the family cover on both sides (stock 8,000 from 6 sizes; demand of those 6)', b.supply === 8000 && near(b.outKnown[0].u, b.m.out[0].u * 6 / 7, 0.02), b.outKnown[0].u + ' vs ' + b.m.out[0].u);
+  ok('the status chips count FAMILIES by family status; the sizes line counts sizes', /Families above · Sizes: ⛔ <b class="num">\d+<\/b> out · 🔴 <b class="num">\d+<\/b> reorder · <b class="num">1<\/b> no stock data/.test(X.foChipsHtml(rSP, X.foShownFams(rSP))));
+  X.FO.open['SP|PB'] = true; X.FO.kidF['SP|PB'] = 'oos';
+  const h2 = X.foTableHtml(rSP, X.foShownFams(rSP));
+  ok('the ⛔ badge opens the family on its out-of-stock sizes only, with "Show all sizes"', (h2.match(/data-fo-row="SP\|PB#B\d"/g) || []).join() === 'data-fo-row="SP|PB#B5",data-fo-row="SP|PB#B6"' && /Showing 2 sizes out of stock of 7 · <button[^>]*data-fo-sizes="SP\|PB\|">Show all sizes/.test(h2), (h2.match(/data-fo-row="SP\|PB#B\d"/g) || []).join());
+  X.FO.kidF['SP|PB'] = ''; X.FO.open = {};
+  const tb = X.foTrace(b, b, rSP);
+  ok('forecastCheck: every size with its stock source (FBA / missing)', tb.sizes.length === 7 && tb.sizes.find(z => z.asin === 'B7').stockSource === 'missing' && tb.sizes.find(z => z.asin === 'B1').stockSource === 'FBA' && tb.sizes.find(z => z.asin === 'B5').stock === 0 && tb.sizeBadges.out === 2);
+  const ag = X.foCompute(W.input('CPC', { age: { CPC: { rows: [{ sku: 'Q1-SKU', asin: 'Q1', available: 120 }], at: '2026-11-23T00:00:00Z' } } }));
+  ok('…Inventory Age when the stock came from it', X.foTrace(fam(ag, 'PQ1').kids[0], fam(ag, 'PQ1'), ag).stockSource === 'Inventory Age');
+  ok('the drawer story: family total, then the sizes out with their best sellers', /Family has 8,000 in stock[^.]*\. But 2 sizes are out — best sellers among them: B\d-SKU \(~\d+\/week\), B\d-SKU \(~\d+\/week\)\. 1 size has no stock data/.test(X.foStory(b, b)), X.foStory(b, b));
+  ok('no inbound anywhere → the amber note under the headline', rSP.inbUnknown === true && /<p class="fo-warn" role="note">Stock on the way isn't counted yet — check shipments in Seller Central before reordering\.<\/p>/.test(X.foHeroHtml(rSP)));
+  const st = JSON.parse(JSON.stringify(W.stock)); st.SP.in = { 'K1-SKU': [0, 50, 0] };
+  const rI = X.foCompute(W.input('SP', { stock: st }));
+  ok('inbound data present → the note is gone', rI.inbUnknown === false && !/fo-warn/.test(X.foHeroHtml(rI)));
+  ok('the page uses the full width; the table scrolls sideways with Family kept left only when it must', /#paneFcast \.fo \{ padding-bottom: 64px; min-width: 0; \}/.test(SRC('styles.css')) && /\.fo-tw\.is-scroll :is\(th, td\)\.fo-c-n \{ position: sticky; left: 32px;/.test(SRC('styles.css')) && /Scroll sideways for more columns →/.test(html));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
