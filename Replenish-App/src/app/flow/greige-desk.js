@@ -4189,17 +4189,31 @@ function invHistMount() {
 /* THE CHALLANS TO PRINTERS IN THE HISTORY (Ravi, 24 Nov): the register, plus one "RFD to printer" row per RFD challan of this
  * fabric since the desk began counting it -- the same challans, by the same rule, that the Inventory page takes off RFD on the
  * shelf -- so the history closes on the Inventory figure. Nothing is written; the flow not read → the register alone. */
-function invHistRows(fabric) {
-  var rows = (DB.fab || []).slice(), opened = gdRfdOpened(fabric);
+function invHistRows(fabric) { return (DB.fab || []).concat(gdChallanRows(fabric)); }
+/** The RFD challans to printers of one fabric since the desk began counting it, as rows shaped like the register's own
+ *  (flow: true -- never saved, never edited). [] when the fabric was never counted or the flow is not read. */
+function gdChallanRows(fabric) {
+  var rows = [], opened = gdRfdOpened(fabric);
   if (!opened || typeof flowRfdChallanMoves !== 'function' || typeof FLOW === 'undefined' || !FLOW || !FLOW.ch) return rows;
   try {
     flowRfdChallanMoves(fabric, opened).forEach(function (m) {
-      rows.push({ id: 'ch:' + m.no + ':' + (m.metres < 0 ? 'back' : 'out'), date: m.date, lot: '', fabricType: fabric,
+      rows.push({ id: 'ch:' + m.no + ':' + fabric + ':' + (m.metres < 0 ? 'back' : 'out'), date: m.date, lot: '', fabricType: fabric, state: 'RFD', flow: true, done: true,
         txnType: m.metres < 0 ? 'RFD_BACK_FROM_PRINTER' : 'RFD_TO_PRINTER', qty: Math.abs(m.metres), party: m.vendor, bill: m.no, orderNo: '' });
     });
-  } catch (e) { console.warn('Stock history for ' + fabric + ': challans to printers not listed (' + ((e && e.message) || e) + ').'); }
+  } catch (e) { console.warn('Challans to printers for ' + fabric + ': not listed (' + ((e && e.message) || e) + ').'); }
   return rows;
 }
+/* EVERY MOVEMENT ON THE FABRIC LEDGER (Ravi, 25 Nov: "all entries to be filled in ledger including the transition of the fabric
+ * from the inventory"). The register holds greige in, sent for RFD, RFD back, to cutting, cut pieces to printer and damage; the
+ * RFD that leaves the shelf on a challan to a printer is the flow's record, so it is added here as read-only rows -- the same
+ * challans, by the same rule, that Inventory takes off RFD on the shelf. One row per challan per fabric. */
+function ledChallanRows() {
+  var out = [];
+  uniq(fabFlowRows(DB.fab || []).map(function (e) { return e.fabricType; })).forEach(function (f) { out = out.concat(gdChallanRows(f)); });
+  return out;
+}
+/** +1 in, −1 out, for a register row or a challan row. */
+function ledSign(r) { return r.flow ? (r.txnType === 'RFD_BACK_FROM_PRINTER' ? 1 : -1) : (FAB_SIGN[r.txnType] || 0); }
 /** Open every date, or close them all when all are already open. */
 function invHistOpenAll() {
   var H = INV_HIST, days = histDays(fabShelfLedger(invHistRows(H.fabric), H.fabric, H.shelf, H.from, H.to).lines);
@@ -4421,7 +4435,7 @@ var LED_CSS = '<style>'
   + 'tr.gdx-wait>td{background:var(--warn-bg)!important}tr.gdx-wait>td:first-child{box-shadow:inset 4px 0 0 var(--warn-ink)}'
   + '</style>';
 function renderLedger() {
-  var all = (DB.fab || []).slice().sort(function (a, b) {
+  var all = (DB.fab || []).concat(ledChallanRows()).sort(function (a, b) {
     return String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id));
   });
   /* The PO and the challan are searchable too -- they are what a question about a delivery
@@ -4438,9 +4452,10 @@ function renderLedger() {
   var parties = uniq(all.map(function (r) { return r.party; })).sort();
   var pos = uniq(all.map(function (r) { return r.orderNo; })).sort();
   var kinds = Object.keys(FAB_SIGN);
+  var lfKinds = kinds.concat(all.some(function (r) { return r.flow; }) ? ['RFD_TO_PRINTER', 'RFD_BACK_FROM_PRINTER'] : []);   // the filter only; nobody adds these by hand
 
-  var inM = rows.reduce(function (a, r) { return a + (FAB_SIGN[r.txnType] > 0 ? fabQty(r) : 0); }, 0);
-  var outM = rows.reduce(function (a, r) { return a + (FAB_SIGN[r.txnType] < 0 ? fabQty(r) : 0); }, 0);
+  var inM = rows.reduce(function (a, r) { return a + (ledSign(r) > 0 ? fabQty(r) : 0); }, 0);
+  var outM = rows.reduce(function (a, r) { return a + (ledSign(r) < 0 ? fabQty(r) : 0); }, 0);
 
   /* the tiles count what the dates, fabric, party and PO let through -- not the tile's own filter, so they never read 0 once pressed */
   var base = all.filter(function (r) { return lfKeep(r, { done: true, kind: LF.kind === 'DAMAGE' }); });
@@ -4467,7 +4482,7 @@ function renderLedger() {
     + '<label style="margin:0;display:flex;align-items:center;gap:6px;font-size:12px">To'
     + '<input type="date" data-lf="to" value="' + esc(LF.to) + '" style="height:32px;width:auto;font-size:12.5px"></label></div>'
     + '<div class="toolbar" style="gap:10px;margin-top:8px">'
-    + lfSelect('kind', 'Movement', kinds, kinds.map(function (k) { return FAB_LABEL[k]; }))
+    + lfSelect('kind', 'Movement', lfKinds, lfKinds.map(function (k) { return FAB_LABEL[k]; }))
     + lfSelect('fabric', 'Fabric', fabrics)
     + lfSelect('party', 'Party', parties)
     + lfSelect('po', 'PO', pos)
@@ -4483,7 +4498,7 @@ function renderLedger() {
 
   /* one header a day: the day, how many movements, the metres in and out */
   var days = {}; rows.forEach(function (r) { var d = String(r.date || ''); var e = days[d] || (days[d] = { n: 0, i: 0, o: 0 }); e.n++;
-    if (FAB_SIGN[r.txnType] > 0) e.i += fabQty(r); else if (FAB_SIGN[r.txnType] < 0) e.o += fabQty(r); });
+    if (ledSign(r) > 0) e.i += fabQty(r); else if (ledSign(r) < 0) e.o += fabQty(r); });
   var lastDay = null;
 
   return LED_CSS + '<div class="row" style="margin-bottom:10px;align-items:center">'
@@ -4503,7 +4518,7 @@ function renderLedger() {
      * the first one. */
     + th(['Date', 'PO', 'Fabric', 'Challan', 'Party', 'Lot', 'Movement', 'State', 'Metres', ''], [8])
     + '<tbody>' + (rows.map(function (r) {
-      var sign = FAB_SIGN[r.txnType] || 0, d = String(r.date || ''), dd = days[d], head = '';
+      var sign = ledSign(r), d = String(r.date || ''), dd = days[d], head = '';
       if (d !== lastDay) { lastDay = d;
         head = '<tr class="gdx-day"><td colspan="10"><b>' + esc(d ? fmtD(d) : 'No date') + '</b><span class="muted">' + plural(dd.n, 'movement') + '</span>'
           + (dd.i ? ' · <span style="color:var(--ok-ink);font-weight:700">+' + nf(dd.i) + ' m</span>' : '') + (dd.o ? ' · <span style="color:var(--bad);font-weight:700">−' + nf(dd.o) + ' m</span>' : '') + '</td></tr>'; }
@@ -4513,9 +4528,9 @@ function renderLedger() {
         + '<td style="text-align:left">' + esc(r.fabricType) + '</td>'
         /* The bill or challan sits with the cloth it came on: the two are read together off the
          * paper in your hand, so they are read together here. */
-        + '<td>' + (r.bill ? '<span class="mono">' + esc(r.bill) + '</span><div class="sub">' + ({ ISSUE_TO_RFD: 'our RFD challan', RECEIVE_RFD: 'processor’s', RECEIVE_GREIGE: 'supplier’s', PURCHASE_RFD: 'supplier’s' }[r.txnType] || '') + '</div>' : '<span class="muted">—</span>') + '</td>'
+        + '<td>' + (r.bill ? '<span class="mono">' + esc(r.bill) + '</span><div class="sub">' + ({ ISSUE_TO_RFD: 'our RFD challan', RECEIVE_RFD: 'processor’s', RECEIVE_GREIGE: 'supplier’s', PURCHASE_RFD: 'supplier’s', RFD_TO_PRINTER: 'our RFD challan to the printer', RFD_BACK_FROM_PRINTER: 'our RFD challan to the printer' }[r.txnType] || '') + '</div>' : '<span class="muted">—</span>') + '</td>'
         + '<td style="text-align:left">' + (r.party ? esc(r.party) : '<span class="muted">—</span>') + '</td>'
-        + '<td style="text-align:left"><b>' + esc(r.lot) + '</b></td>'
+        + '<td style="text-align:left">' + (r.lot ? '<b>' + esc(r.lot) + '</b>' : '<span class="muted">—</span>') + '</td>'
         + '<td style="text-align:left"><span class="gdx-mv ' + mv + '">' + esc(FAB_LABEL[r.txnType] || r.txnType) + '</span>'
         + (r.approval && r.approval.status !== 'approved' ? '<div><span class="pill ' + (r.approval.status === 'pending' ? 'pill-low' : 'pill-out') + '">' + (r.approval.status === 'pending' ? 'Waiting for approval' : r.cutToSize ? 'Refused' : 'Rejected') + ' · ' + ctsApprovalWhy(r) + '</span></div>' : '')
         + (r.approval && r.approval.status === 'approved' ? '<div class="sub">approved by ' + esc(r.approval.by || '') + (r.cutToSize ? '' : ' · ' + r.approval.pct + '%') + '</div>' : '')
@@ -4536,7 +4551,7 @@ function renderLedger() {
         + (r.remark && r.txnType !== 'DAMAGE'
           ? '<div class="muted" style="font-size:10.5px;font-weight:400">' + esc(r.remark) + '</div>' : '')
         + '</td>'
-        + '<td style="white-space:nowrap">' + (waits ? lfDecideHtml(r) : '')
+        + (r.flow ? '<td style="white-space:nowrap"><span class="muted" style="font-size:11.5px" title="Made with Send to printer. Change or cancel it on the challan itself.">from the RFD challan</span></td></tr>' : '<td style="white-space:nowrap">' + (waits ? lfDecideHtml(r) : '')
         + (!canLedgerEdit() ? '<span class="muted" title="' + esc(fulfilledBy(r)) + '">' + (r.done ? '✓ Fulfilled' : '') + '</span>' : '')
         + (!canLedgerEdit() || ctsLedgerLocked(r) ? '' : '<button type="button" class="jw-btn jw-primary" data-edit="' + esc(r.id) + '">Edit</button> ')
         + (!canLedgerEdit() || waits ? '' : r.done
@@ -4544,7 +4559,7 @@ function renderLedger() {
             + 'title="' + esc(fulfilledBy(r)) + '. Click to put it back on the list.">✓ Fulfilled</button>'
           : '<button type="button" class="jw-btn" data-done="' + esc(r.id) + '" '
             + 'title="Mark this movement as dealt with">Mark fulfilled</button>')
-        + '</td></tr>';
+        + '</td></tr>');
     }).join('') || emptyRow(10, lfOn() || UI.q ? 'No movement matches the filter.' : 'The register is empty.'))
     + '</tbody></table></div></div>';
 }
