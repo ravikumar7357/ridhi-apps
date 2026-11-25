@@ -77,7 +77,8 @@ console.log('== a checked bale is not changed again ==');
   ok('the checked bale (7580) is read-only for the store', /id="chk-a-0"[^>]*readonly/.test(h), (h.match(/<input id="chk-a-0"[^>]*>/) || [''])[0]);
   ok('…a bale not yet checked can still be typed', !/id="chk-a-1"[^>]*readonly/.test(h));
   const GA = desk(ADMIN); GA.setDB(db());
-  ok('an Admin can still correct a checked bale', !/id="chk-a-0"[^>]*readonly/.test(GA.piecesHtml(GA.chList()[0])));
+  ok('…and for an Admin too: nobody changes a checked bale', /id="chk-a-0"[^>]*readonly/.test(GA.piecesHtml(GA.chList()[0])));
+  ok('the box locks as soon as the cursor leaves it with a figure in it', /addEventListener\('change'[\s\S]{0,260}data-chk[\s\S]{0,200}el\.readOnly = true/.test(fs.readFileSync(SRC, 'utf8')));
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

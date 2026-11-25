@@ -41377,12 +41377,13 @@ function piecesHtml(c) {
         + (Math.abs(sum - c.rows.filter(function (x) { return x.lot === r.lot; }).reduce(function (s, x) { return s + fabQty(x); }, 0)) > 0.05 ? ' <span class="pill pill-out">ledger says ' + m1(fabQty(r)) + ' m</span>' : '') + '</div>'
         + '<div class="pgrid">' + ps.map(function (p, pi) {
           var key = r.id + '|' + pi, id = 'pc-' + r.id + '-' + pi, short = p.chk != null && p.chk - p.m <= -0.05;
-          /* A CHECKED BALE IS NOT CHANGED AGAIN (Ravi, 25 Nov). Once measured it is read-only the next time the page is drawn;
-           * an Admin can still correct a wrong figure. */
-          var lock = p.chk != null && !isAdmin();
+          /* A CHECKED BALE IS NOT CHANGED AGAIN, BY ANYONE (Ravi, 25 Nov; then "you didn't remove editing": the first cut left it
+           * open to Admins). The box locks when the cursor leaves it with a figure in it (the change event below), and is drawn
+           * locked from then on. */
+          var lock = p.chk != null;
           return '<div class="pc' + (short ? ' short' : '') + '" id="' + id + '"><div class="pc-top"><span>Bale ' + esc(p.than) + '</span><span id="pd-' + r.id + '-' + pi + '">' + diffSpan(p) + '</span></div>'
             + '<div class="pc-m">' + m1(p.m) + ' m</div>'
-            + '<label class="pc-lab" for="chk-' + r.id + '-' + pi + '">measured</label><input id="chk-' + r.id + '-' + pi + '" type="text" inputmode="decimal" autocomplete="off" data-num="7" data-chk="' + esc(key) + '" value="' + (p.chk == null ? '' : p.chk) + '" placeholder="m"' + (lock ? ' readonly title="Checked. Only an Admin can change a checked bale."' : '') + '></div>';
+            + '<label class="pc-lab" for="chk-' + r.id + '-' + pi + '">measured</label><input id="chk-' + r.id + '-' + pi + '" type="text" inputmode="decimal" autocomplete="off" data-num="7" data-chk="' + esc(key) + '" value="' + (p.chk == null ? '' : p.chk) + '" placeholder="m"' + (lock ? ' readonly title="Checked. A checked bale cannot be changed."' : '') + '></div>';
         }).join('') + '</div></div>';
     }).join('') + '</div>';
 }
@@ -43264,6 +43265,12 @@ function wirePurchaseOrders() {
       else if (act === 'dopaste') rdPaste(li);
       else if (act === 'save') rdSave();
     }
+  });
+  /* the measured figure is final once the cursor leaves its box */
+  document.addEventListener('change', function (ev) {
+    var el = ev.target;
+    if (!el.getAttribute || !el.getAttribute('data-chk') || el.readOnly) return;
+    if (el.value !== '' && !isNaN(parseFloat(el.value))) { el.readOnly = true; el.title = 'Checked. A checked bale cannot be changed.'; }
   });
   /* MEASURED METRES change the tile and the challan's pill in place, so typing never loses the box. */
   document.addEventListener('input', function (ev) {
