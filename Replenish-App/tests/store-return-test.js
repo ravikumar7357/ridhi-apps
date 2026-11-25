@@ -5,7 +5,7 @@
  * whether it is running cloth (m) or cut pieces (pcs); pieces given to a karigar go out only for SKUs a printer delivered here; a Return takes at most what is
  * left of one receipt, needs a reason, is a store OUT "Returned to <printer>", and carries the order; the entries list shows the history tiles and a Return
  * button for a receipt that has something left; and a store Return shows in the order's journey.
- * THE PAGE (25 Nov): the list of what printers sent is gone from this screen (receiving is on Vendor Orders); the store list comes 50 items at a time, with
+ * THE PAGE (25 Nov): the list of what printers sent is gone from this screen (receiving is on Vendor Orders); the store list comes whole (no pages), with
  * quick filters and a Returned column; and the Return button, which sits in the entries dialog, is heard wherever it is on the page. */
 const fs = require('fs'), path = require('path');
 const rd = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8').replace(/\r\n/g, '\n');
@@ -35,7 +35,7 @@ function load(o) {
     ptPut: async (p, v) => { if (o.putFails) throw new Error('offline'); puts.push([p, v]); }, ptDelete: async () => {}, ptList: v => Object.keys(v || {}).map(k => v[k]),
   };
   const keys = Object.keys(ctx);
-  const fn = new Function(...keys, SRC + '\n;Object.assign(STORE, __STORE);return { stMoves, stBalances, stReturnSave, stReturnLeft, stReturnOpen, stEntriesOpen, stKey, stPageOf, stPickHas, renderStoreHand, STORE };');
+  const fn = new Function(...keys, SRC + '\n;Object.assign(STORE, __STORE);return { stMoves, stBalances, stReturnSave, stReturnLeft, stReturnOpen, stEntriesOpen, stKey, stPickHas, renderStoreHand, STORE };');
   return Object.assign(fn(...keys.map(k => ctx[k])), { els, ctx, puts, pageClicks });
 }
 
@@ -65,7 +65,7 @@ console.log('== pieces given to a karigar go out only for SKUs a printer deliver
   const pcs = S.stBalances(mv).find(b => b.unit === 'pcs');
   ok('the shelf of those pieces = 10 received - 4 issued = 6', pcs && pcs.qty === 6, pcs && pcs.qty);
 }
-console.log('== the store page: no list of what printers sent, 50 items a page, quick filters ==');
+console.log('== the store page: no list of what printers sent, the whole list, quick filters ==');
 {
   ok('the list of what printers sent is gone from the store code (receiving is on Vendor Orders)', !/stPendHtml|data-stg-go|waiting to be received/.test(SRC));
   /* 60 cloth lines and one SKU, typed in */
@@ -78,19 +78,14 @@ console.log('== the store page: no list of what printers sent, 50 items a page, 
   const lines = h => (h.match(/data-st-ent=/g) || []).length;
   let d = draw();
   ok('nothing about receiving is drawn on the store', !/Sent by printers|Receive<\/button>/.test(d.k + d.t));
-  ok('63 items: the first 50 are drawn, and the foot says 1–50 of 63 with Previous off and Next on', lines(d.t) === 50 && /Showing 1–50 of 63 item/.test(d.t)
-    && /data-st-page="-1" disabled/.test(d.t) && /data-st-page="1" style/.test(d.t), d.t.slice(-600));
-  S.STORE.page = 1; d = draw();
-  ok('the second page has the other 13, and Next is off', lines(d.t) === 13 && /Showing 51–63 of 63/.test(d.t) && /data-st-page="1" disabled/.test(d.t));
-  S.STORE.page = 9; d = draw();
-  ok('a page past the end falls back to the last page', S.STORE.page === 1 && lines(d.t) === 13);
+  ok('63 items: all 63 are drawn in one go, with no Previous / Next', lines(d.t) === 63 && !/data-st-page|Showing/.test(d.t), String(lines(d.t)));
+  ok('…and the paging is gone from the store code', !/stPageOf|ST_PAGE|data-st-page/.test(SRC));
   ok('the filters carry their counts: All 63, Cloth 61, Pieces 2, Below zero 1, Returned 0', /data-st-pick="all">All <span class="muted">63</.test(d.k) && /data-st-pick="m">[^<]*<span class="muted">61</.test(d.k)
     && /data-st-pick="pcs">[^<]*<span class="muted">2</.test(d.k) && /data-st-pick="neg">[^<]*<span class="muted">1</.test(d.k) && /data-st-pick="ret">[^<]*<span class="muted">0</.test(d.k), d.k.slice(-700));
   S.STORE.pick = 'neg'; d = draw();
-  ok('Below zero shows only the SKU taken out beyond its stock, from page one, with no foot', lines(d.t) === 1 && /ZZ-1/.test(d.t) && S.STORE.page === 0 && !/data-st-page/.test(d.t) && /data-st-pick="neg"/.test(d.k) && /segbtn on" data-st-pick="neg"/.test(d.k));
+  ok('Below zero shows only the SKU taken out beyond its stock, ', lines(d.t) === 1 && /ZZ-1/.test(d.t) && /data-st-pick="neg"/.test(d.k) && /segbtn on" data-st-pick="neg"/.test(d.k));
   S.STORE.pick = 'ret'; d = draw();
   ok('Returned with nothing returned: says so and points back to All', lines(d.t) === 0 && /No item under this filter/.test(S.els.fbMsg.textContent) && /press "All"/.test(S.els.fbTable.emptyText));
-  ok('the page arithmetic: 0 items → one empty page; 50 → one page; 51 → two', S.stPageOf(0, 3).page === 0 && S.stPageOf(0, 0).to === 0 && S.stPageOf(50, 1).last === 0 && S.stPageOf(51, 1).from === 50 && S.stPageOf(51, 1).to === 51);
 }
 console.log('== Out is what really left the shelf ==');
 {

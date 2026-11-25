@@ -431,17 +431,11 @@ async function stSheetRun(list) {
 /* ---- the screens ---- */
 /* THE STORE, TYPED BY HAND (Ravi, 14 Oct). One line per printed cloth (fabric + colour, in metres) or printed piece (SKU):
  * what was typed in, typed out, and what is left. "+ Store entry" adds opening stock, In, Out or a correction.
- * THE PAGE (25 Nov): the totals, then quick filters (cloth, pieces, below zero, returned), then the list a page at a time —
- * 50 items, so the screen and its pictures load only what is on show. What went back to a printer has its own column and total.
+ * THE PAGE (25 Nov): the totals, then quick filters (cloth, pieces, below zero, returned), then the whole list in one go — it was
+ * 50 items a page for an hour, and the store asked for the complete list back (25 Nov). What went back to a printer has its own column and total.
  * Receiving what a printer sent is done on the Vendor Orders screen only; the list that stood here is gone (25 Nov). */
-const ST_PAGE = 50;
 const ST_PICKS = [['all', 'All'], ['m', 'Cloth (m)'], ['pcs', 'Pieces'], ['neg', 'Below zero'], ['ret', 'Returned']];
 const stPickHas = (b, pick) => (pick === 'm' || pick === 'pcs' ? b.unit === pick : pick === 'neg' ? b.qty < 0 : pick === 'ret' ? b.returned > 0 : true);
-/** Which items of a list of n are on show: never past the last page. */
-function stPageOf(n, page) {
-  const last = Math.max(0, Math.ceil(n / ST_PAGE) - 1), p = Math.min(Math.max(0, parseInt(page, 10) || 0), last);
-  return { page: p, last, from: p * ST_PAGE, to: Math.min(n, (p + 1) * ST_PAGE) };
-}
 function renderStoreHand() {
   const f = fabFilters();
   const moves = stMoves().filter(mv => (!f.q || [stName(mv), mv.what, mv.remark, mv.who].join(' ').toLowerCase().includes(f.q))
@@ -465,11 +459,6 @@ function renderStoreHand() {
     <div class="seg" style="margin-top:10px;flex-wrap:wrap" role="group" aria-label="Show which items">${ST_PICKS.map(p =>
       `<button type="button" class="segbtn${p[0] === pick ? ' on' : ''}" data-st-pick="${p[0]}">${p[1]} <span class="muted">${nf(all.filter(b => stPickHas(b, p[0])).length)}</span></button>`).join('')}</div></div>`;
   FAB.shown = bal;
-  /* A new search, date or filter starts at the first page; Previous / Next keep the same list. */
-  const listOf = [f.q, f.d1, f.d2, pick].join('|');
-  if (STORE.pageFor !== listOf) { STORE.pageFor = listOf; STORE.page = 0; }
-  const pg = stPageOf(bal.length, STORE.page);
-  STORE.page = pg.page;
   $('fbMsg').className = STORE.err ? 'err' : 'muted';
   $('fbMsg').title = 'The balance is the sum of what was typed by hand and, since 16 Oct, what the production flow moved: printed cloth received on a challan (in), PPC plans and cutting entries that take it (out). Never a stored figure.';
   $('fbMsg').textContent = (bal.length ? `${nf(bal.length)} item(s)` : all.length ? 'No item under this filter' : 'Nothing entered yet')
@@ -479,12 +468,8 @@ function renderStoreHand() {
   if (!bal.length) { ptEmpty('fbTable', 'No item under this filter — press "All" to see every item.'); return; }
   const cols = ['Item', 'Kind', 'In', 'Out', 'Returned', 'On the shelf', 'Last entry', 'Entries'];
   const head = '<thead><tr>' + cols.map((h, i) => `<th${i === 0 ? ' class="frz"' : ([2, 3, 4, 5].indexOf(i) >= 0 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
-  const drawn = bal.slice(pg.from, pg.to);
+  const drawn = bal;
   const z = v => (v ? nf(Math.round(v * 100) / 100) : '<span class="muted">—</span>');
-  const pager = pg.last === 0 ? '' : `<tfoot><tr><td colspan="${cols.length}" style="text-align:left;padding:8px 10px">`
-    + `<span class="muted">Showing ${nf(pg.from + 1)}–${nf(pg.to)} of ${nf(bal.length)} item(s)</span> `
-    + `<button type="button" class="ghost" data-st-page="-1"${pg.page === 0 ? ' disabled' : ''} style="width:auto;padding:3px 12px;font-size:12px;margin-left:10px">Previous</button> `
-    + `<button type="button" class="ghost" data-st-page="1"${pg.page === pg.last ? ' disabled' : ''} style="width:auto;padding:3px 12px;font-size:12px">Next</button></td></tr></tfoot>`;
   $('fbTable').innerHTML = head + '<tbody>' + drawn.map(b => { const out = b.outQty - b.returned; return '<tr>'
     + `<td class="frz" style="text-align:left">${b.unit === 'pcs' ? ptImgSpan(b.sku, 28) + ' ' : ''}${esc(b.name)}</td>`
     + `<td>${b.unit === 'pcs' ? 'Pieces' : 'Cloth (m)'}</td>`
@@ -493,7 +478,7 @@ function renderStoreHand() {
     + `<td class="num" style="color:#b45309" title="Sent back to the printer it came from">${z(b.returned)}</td>`
     + `<td class="num" style="font-weight:700${b.qty < 0 ? ';color:var(--bad)' : ''}">${nf(Math.round(b.qty * 100) / 100)}</td>`
     + `<td style="font-size:12px">${esc(ptIsoDate(b.last) || '')}</td>`
-    + `<td><button type="button" class="ghost" data-st-ent="${esc(b.key)}" title="Every entry of this item — return goods to the printer, or delete one typed by hand" style="width:auto;padding:3px 12px;font-size:12px">View ${nf(b.n)}</button></td></tr>`; }).join('') + '</tbody>' + pager;
+    + `<td><button type="button" class="ghost" data-st-ent="${esc(b.key)}" title="Every entry of this item — return goods to the printer, or delete one typed by hand" style="width:auto;padding:3px 12px;font-size:12px">View ${nf(b.n)}</button></td></tr>`; }).join('') + '</tbody>';
   ptImgFill(drawn.filter(b => b.unit === 'pcs').map(b => b.sku).filter(Boolean), false, ptIfTab('fab', ptImgPatch));
 }
 
@@ -869,8 +854,6 @@ $('fbTable').addEventListener('click', async e => {
   /* TRACK: the item's own movements, newest first — printer, order, date, karigar. */
   const en = e.target.closest('[data-st-ent]');
   if (en) { e.preventDefault(); stEntriesOpen(en.getAttribute('data-st-ent')); return; }
-  const pg = e.target.closest('[data-st-page]');
-  if (pg) { STORE.page = (STORE.page || 0) + (parseInt(pg.getAttribute('data-st-page'), 10) || 0); renderFab(); return; }
   const tr = e.target.closest('[data-st-track]');
   if (tr) { if ($('fbQ')) $('fbQ').value = tr.getAttribute('data-st-track'); $('fbView').value = 'storemov'; renderFab(); return; }
   const on = e.target.closest('[data-st-check]'), off = e.target.closest('[data-st-uncheck]');
