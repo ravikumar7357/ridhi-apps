@@ -122,13 +122,32 @@ async function gateTests() {
   const H = load({ ls: { printerHold: '1' } });
   const held = sync(H, printOrder([[K1, item('S1', 'RB1-H', 10)]]));
   /* the amber box on top of the order: full quantity, what came, colour for all of it at once */
-  { const vp = read('vendors/portal/vendor-portal.js'), fn = vp.slice(vp.indexOf('function vpPartNotice'), vp.indexOf('function vpProgHtml'));
-    const N = new Function('voLines', 'vpRawCtx', 'vpLineRaw', 'esc', 'nf', fn + '\n;return vpPartNotice;')(o => o.lines, () => ({}), (o, l) => ({ raw: l.lineId === '1' ? 100 : 120 }), x => String(x), v => String(v));
+  { const vp = read('vendors/portal/vendor-portal.js'), fn = vp.slice(vp.indexOf('function vpPartItems'), vp.indexOf('function vpProgHtml'));
+    const N = new Function('voLines', 'vpRawCtx', 'vpLineRaw', 'esc', 'nf', 'vpForOrders', fn + '\n;return vpPartNotice;')(o => o.lines, () => ({}), (o, l) => ({ raw: l.lineId === '1' ? 100 : 120 }), x => String(x), v => String(v), l => (l.forOrders || []).map(x => x.orderNo));
     const html = N({ lines: [by('1'), by('2'), by('4')] });
     ok('the printer is told: full order 400 pcs, pieces for 100 given — make the colour for all of it in one go', /full order <b>400 pcs<\/b>/.test(html) && /for <b>100 pcs<\/b> given so far/.test(html) && /Make the colour for the FULL order in one go/.test(html), html);
     ok('…not for a line given in full, nor an old line', !/120 m/.test(html) && !/30 pcs/.test(html));
     ok('the box sits on top of the order in both portal layouts', (vp.match(/\$\{vpPartNotice\(o\)\}\$\{vpProgHtml\(o\)\}/g) || []).length === 2);
-    ok('View as printer sees the same box (full line, nothing capped)', /full order <b>400 pcs<\/b>/.test(N({ lines: [a1] }))); }
+    ok('View as printer sees the same box (full line, nothing capped)', /full order <b>400 pcs<\/b>/.test(N({ lines: [a1] })));
+    /* 25 Nov: the real order number on the box, the box above the order sheet, and a pop-up once */
+    const so = l => Object.assign({ forOrders: [{ orderNo: 'AMZ-24112026-AIR', qty: 400 }] }, l);
+    const T = (opened, store, onv) => new Function('voLines', 'vpRawCtx', 'vpLineRaw', 'esc', 'nf', 'vpForOrders', 'ptOpenDialog', 'localStorage', 'vprOn', 'setTimeout', fn + '\n;return { vpPartBox, vpPartPop };')(
+      o => o.lines, () => ({}), (o, l) => ({ raw: 100 }), x => String(x), v => String(v), l => (l.forOrders || []).map(x => x.orderNo), c => opened.push(c),
+      { getItem: k => store[k] || null, setItem: (k, v) => { store[k] = v; } }, () => !!onv, f => f());
+    const ord = { id: 'o1', orderNo: 'VPO-261124-IB6', lines: [so(by('1'))] };
+    const box = T([], {}).vpPartBox([ord]);
+    ok('the box above the order sheet names the real order, not the VPO, with the full 400', /AMZ-24112026-AIR/.test(box) && !/VPO-261124-IB6/.test(box) && /full order <b>400 pcs<\/b>/.test(box), box);
+    const opened = [], store = {}, P = T(opened, store);
+    P.vpPartPop([ord]);
+    ok('the printer is told with a pop-up: the full order is 400 pcs and 100 of fabric is here, make the colour in one go', opened.length === 1 && /AMZ-24112026-AIR/.test(opened[0].html) && /400 pcs/.test(opened[0].html) && /in one go/.test(opened[0].subtitle), JSON.stringify(opened));
+    P.vpPartPop([ord]);
+    ok('…once: opening the portal again does not pop it up again', opened.length === 1);
+    const again = []; T(again, store).vpPartPop([ord]);
+    ok('…not even after a reload (it is remembered on that computer)', again.length === 0);
+    const seeing = []; T(seeing, {}, true).vpPartPop([ord]);
+    ok('the office looking as the printer is not interrupted (it has the box)', seeing.length === 0);
+    const none = []; T(none, {}).vpPartPop([{ id: 'o2', orderNo: 'VPO-2', lines: [by('4')] }]);
+    ok('a line given in full: no pop-up', none.length === 0); }
   ok('a newly held line carries the gate for good', runningLines(held)[0].awaitRfd === true && runningLines(held)[0].rfdGate === true);
 }
 
