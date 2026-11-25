@@ -81,6 +81,7 @@ flow/flow-entries.js
 flow/flow-qcfg.js
 flow/flow-emb.js
 flow/flow-view.js
+flow/flow-cutting-desk.js
 flow/flow-report.js
 flow/greige-desk.js
 dashboard/management-dashboard.js

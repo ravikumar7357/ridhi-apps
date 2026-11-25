@@ -189,7 +189,7 @@ const breaks = {
     'an emptied print order stays open': s => s.replace("if (!Object.values(local[no].items).some(Boolean)) {", "if (false) {"),
   },
   'flow-entries.js': {
-    'cutting entry not filled with the pieces left': s => s.replace("$('cwPcs').value = Math.max(0, Math.min(+r.qty || 0, s.printed ? (s.back || 0) : (+r.qty || 0)) - (s.cut || 0));", "$('cwPcs').value = +r.qty || 0;"),
+    'cutting entry not filled with the pieces left': s => s.replace(": Math.max(0, Math.min(+r.qty || 0, s.printed ? (s.back || 0) : (+r.qty || 0)) - (s.cut || 0)));", ": (+r.qty || 0));"),
     'issue offers more than is cut': s => s.replace("const flowIssuable = (r, s) => Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));", "const flowIssuable = (r, s) => +r.qty || 0;"),
     'QC rejections not offered to issue again': s => s.replace("- (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));", "- (s.issued || 0));"),
     'receive opens the wrong row': s => s.replace("obUC(b.orderNo) === obUC(r.orderNo) &&", ''),

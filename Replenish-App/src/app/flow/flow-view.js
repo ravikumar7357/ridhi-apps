@@ -1007,7 +1007,9 @@ async function flowEmbedRender(tab) {
   if (!pane || !seg || !box || !pane.children) return;
   const views = flowEmbedViews(tab), v = views.includes(FLOW_EMB[tab]) ? FLOW_EMB[tab] : '';
   FLOW_EMB[tab] = v;
-  const label = k => (FLOW_BUCKETS.find(b => b[0] === k) || [, k])[1];
+  /* THE CUTTING DESK (Ravi, 25 Nov, flow-cutting-desk.js): where its switch is on, the To cut tab carries its name and its own list. */
+  const desk = k => k === 'cut' && typeof cdkSwitchOn === 'function' && cdkSwitchOn();
+  const label = k => (desk(k) ? CDK_NAME : (FLOW_BUCKETS.find(b => b[0] === k) || [, k])[1]);
   const count = k => { try { if (!FLOW.ppc) return ''; const only = FLOW.testOnly != null ? FLOW.testOnly : flowTestOnly();
     return String(flowRows().filter(x => (!only || x.r.__t) && flowInView(k, x.s)).length); } catch (e) { return ''; } };
   seg.innerHTML = [['', cfg.own]].concat(views.map(k => [k, label(k)])).map(([k, l]) => { const c = k ? count(k) : '';
@@ -1037,10 +1039,11 @@ async function flowEmbedRender(tab) {
   const rows = inView.filter(x => pass(x)
       && (!q || [x.r.orderNo, x.r.sku, x.r.color, x.r.size, x.r.articleSubtype, x.r.articleType, x.r.shopOrderNo].join(' ').toLowerCase().includes(q)))
     .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
-  tbl.innerHTML = flowTable(v, rows.slice(0, 800));
-  FLOW_EMB_SHOWN[tab] = { view: v, rows };
+  const shown = desk(v) ? cdkRender(tab, rows) : rows;   // the desk draws its own list and answers the lines its quick filter keeps
+  if (!desk(v)) tbl.innerHTML = flowTable(v, rows.slice(0, 800));
+  FLOW_EMB_SHOWN[tab] = { view: v, rows: shown };
   const b = FLOW_BUCKETS.find(x => x[0] === v) || [];
-  msg.textContent = `${b[1]}: ${rows.length < inView.length ? `${nf(rows.length)} of ${nf(inView.length)}` : nf(rows.length)} line(s)${src ? ' · ' + src : ''}${q ? ` · search “${q}”` : ''} — ${b[3]}${only ? ' · SHOWING TEST ORDERS ONLY (switch on the Production flow screen)' : ''} · ${flowPhaseTxt()}`;
+  msg.textContent = `${label(v)}: ${shown.length < inView.length ? `${nf(shown.length)} of ${nf(inView.length)}` : nf(shown.length)} line(s)${src ? ' · ' + src : ''}${q ? ` · search “${q}”` : ''} — ${b[3]}${only ? ' · SHOWING TEST ORDERS ONLY (switch on the Production flow screen)' : ''} · ${flowPhaseTxt()}`;
 }
 /** Finished Goods → From QC — to accept. */
 async function flowFgOpen() {
