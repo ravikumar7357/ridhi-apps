@@ -18,7 +18,7 @@ function desk(flow) {
   const rootLine = '  var GD_ROOT = null;', anchor = '  return { open: open,';
   if (code.split(rootLine).length !== 2 || code.split(anchor).length !== 2) throw new Error('greige-desk.js: an anchor this test needs moved; update the test');
   const opened = code.replace(rootLine, '  var GD_ROOT = globalThis.__ROOT;').replace(anchor, '  globalThis.__GDT = { invAll: invAll, invDetail: invDetail, gdRfdShelf: gdRfdShelf,'
-    + ' invHistRows: invHistRows, fabShelfLedger: fabShelfLedger, invTodoHtml: invTodoHtml, invLotsLeft: invLotsLeft,'
+    + ' invHistRows: invHistRows, renderLedger: renderLedger, ledChallanRows: ledChallanRows, fabShelfLedger: fabShelfLedger, invTodoHtml: invTodoHtml, invLotsLeft: invLotsLeft,'
     + ' setDB: function (v) { DB = v; GD_STATE = "ok"; GD_SNAP = gdSnap(); } };\n' + anchor);
   const ctx = Object.assign({ console, window: { document: {} }, __ROOT: root, ptPatch: async () => {}, ptPut: async () => {}, setTimeout: () => 0, clearTimeout: () => {},
     ME: { admin: true, email: 'test@example.test', tabs: [] } }, flow || {});
@@ -60,6 +60,16 @@ console.log('== RFD on shelf goes down when cloth goes to a printer on an RFD ch
   ok('the flow not in the page (or not read yet): the shelf shows the desk\'s own count, nothing invented', r.inStoreRfd === 1149 && !r.rfdToPrinters && !/went to printers/.test(G.invDetail(r, 'rfd')));
 }
 
+console.log('== the Fabric ledger lists the challans to printers too (Ravi, 25 Nov) ==');
+{
+  const G = desk(flowWith(273)); G.setDB(JSON.parse(JSON.stringify(db)));
+  const rows = G.ledChallanRows(), h = G.renderLedger();
+  ok('one read-only row: RFD to printer, 273 m, Printer A, challan RFD-1', rows.length === 1 && rows[0].txnType === 'RFD_TO_PRINTER' && rows[0].qty === 273 && rows[0].party === 'Printer A' && rows[0].bill === 'RFD-1' && rows[0].flow === true, JSON.stringify(rows));
+  ok('…shown on the ledger page as an out of 273 m, with no Edit button of its own', /RFD to printer/.test(h) && /−273/.test(h) && /from the RFD challan/.test(h) && !/data-edit="ch:/.test(h) && !/data-done="ch:/.test(h));
+  ok('…and the page says 2 movements, 273 m out', /2 movements/.test(h) && /273 m<\/b> out/.test(h), (h.match(/ff-cap">[^<]*/) || [''])[0]);
+  const G0 = desk({}); G0.setDB(JSON.parse(JSON.stringify(db)));
+  ok('the flow not read: the register alone, nothing invented', G0.ledChallanRows().length === 0 && !/RFD to printer<\/span>/.test(G0.renderLedger()));
+}
 console.log('== two lots: the challans come off the oldest lot first, and the lots add up to the shelf ==');
 {
   const two = JSON.parse(JSON.stringify(db));
