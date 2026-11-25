@@ -57,7 +57,9 @@ ok('the line shows 2.50 % and the amount after it', /2\.50 %/.test(paper) && /42
 ok('the total in words is after the discount', /Forty Two Thousand Nine Hundred/i.test(text(paper)));
 ok('the terms & conditions are printed, line breaks kept', /Terms &amp; Conditions/.test(paper) && /white-space:pre-line">Payment in 30 days\.\nGoods as per sample\./.test(paper));
 ok('every row has the same number of cells (8)', (paper.match(/<colgroup>[\s\S]*?<\/colgroup>/g) || [])[1].split('<col ').length - 1 === 8);
-ok('no terms typed: no empty terms block', !/Terms &amp; Conditions/.test(G.poDocBody(po([line(10, 5, '')], ''))));
+ok('the terms are in the terms box beside the consignee, not in a box of their own under the total (Ravi, 25 Nov)', (paper.match(/Terms &amp; Conditions/g) || []).length === 1 && paper.indexOf('Terms &amp; Conditions') < paper.indexOf('Description of Goods') && !/Terms of Delivery/.test(paper));
+ok('the box under the voucher number carries the order value', /Order Value<\/div><div class="val"[^>]*>[^<]*42,900\.00/.test(paper));
+ok('no terms typed: the terms box is there, empty', /Terms &amp; Conditions<\/div><div class="val"[^>]*><\/div>/.test(G.poDocBody(po([line(10, 5, '')], ''))));
 
 console.log('== the mail and WhatsApp ==');
 const mail = G.poMailText(po([line(1000, 44, '2.5')], 'Payment in 30 days.')).body;

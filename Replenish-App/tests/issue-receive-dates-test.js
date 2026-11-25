@@ -125,10 +125,11 @@ ok('the Add vendor window has no Work done box and does not save one', !/Work do
   const sentRow = bales => row('b', 'ISSUE_TO_RFD', yesterday, Object.assign({ qty: 500 }, bales ? { bales } : {}));
   const rfdDesk = bales => G.setDB({ gpo: [{ id: 'g1', poNo: 'PO/1', date: dayBefore(yesterday), mill: 'Test Mills', sent: { at: dayBefore(yesterday) }, lines: [{ rfd: 'Sheeting 72', greige: 'Greige Sheeting 80', metres: 500, rate: 50 }] }],
     fab: [row('a', 'RECEIVE_GREIGE', dayBefore(yesterday), { chId: 'c1' }), sentRow(bales)], mst, ven: [], co: {}, users: [], me: '' });
-  const receiveRfd = (typed, metres, no) => {
+  const receiveRfd = (typed, metres, no, last) => {
     asStore(); G.ctx.__writes = [];
     try { G.rrOpen('PO/1'); } catch (e) { /* the fake page may stop the drawing */ }
     G.getRR().thans['LOT-001'] = metres.map((m, i) => ({ than: String(i + 1), m: String(m) }));
+    if (last) G.getRR().last['LOT-001'] = true;
     els.rrNo.value = no || 'PC-1'; els.rrDate.value = typed;
     G.rrSave();
     return fabOf('RECEIVE_RFD');
@@ -147,29 +148,27 @@ ok('the Add vendor window has no Work done box and does not save one', !/Work do
   asAccounts();
   ok('a refused RFD date stays on today', await G.gdDateDecide(rows[0].id, false, 'wrong day') === '' && rows[0].date === today && rows[0].dateAsk.status === 'refused');
 
-  console.log('== Receive RFD: the lot closes by itself (no tick) ==');
+  console.log('== Receive RFD: back in parts, on different days; the lot closes on metres or on the tick (Ravi, 25 Nov) ==');
   const lotClosed = () => !!G.fabLot('LOT-001').closed;
   const code = fs.readFileSync(SRC, 'utf8');
-  ok('the "this closes the lot" tick is gone from the dialog, the note says the lot closes by itself', !/data-rrfin/.test(code) && !/whole lot back \(close it\)/.test(code) && /The lot closes by itself when all its thans are back/.test(code));
-  rfdDesk(['1', '2', '3', '4']); receiveRfd(today, [125, 125, 125], 'P1');
-  ok('thans listed: 3 of the 4 thans sent are back, the lot stays open and the receipt is not final', !lotClosed() && fabOf('RECEIVE_RFD')[0].final === false && G.fabLot('LOT-001').withProcessor === 125);
-  receiveRfd(today, [110], 'P2');
-  ok('…the 4th than makes all 4 back: the lot closes by itself', lotClosed() && fabOf('RECEIVE_RFD')[1].final === true);
-  rfdDesk(['1', '2', '3', '4']); receiveRfd(today, [250, 245], 'P1');
-  ok('thans listed: 490 of 500 m is over 95% but only 2 of 4 thans are back, so the lot stays open (thans decide, not metres)', !lotClosed());
-  rfdDesk(null); receiveRfd(today, [200, 270], 'P1');
-  ok('no thans listed: 470 of 500 m is under 95%, the lot stays open', !lotClosed() && fabOf('RECEIVE_RFD')[0].final === false);
-  receiveRfd(today, [10], 'P2');
-  ok('…then 480 of 500 m is back (96%): the lot closes by itself', lotClosed() && fabOf('RECEIVE_RFD')[1].final === true);
+  ok('the dialog has the "Nothing more to come on this lot" tick and says RFD can come back in parts', /data-rrlast/.test(code) && /RFD can come back in parts, on different days/.test(code));
+  rfdDesk(['1', '2', '3', '4']); receiveRfd(today, [35, 35], 'P1');
+  ok('70 of 500 m back in 2 thans: the lot stays open, no approval is asked, 430 m still at the processor', !lotClosed() && fabOf('RECEIVE_RFD')[0].final === false && !fabOf('RECEIVE_RFD')[0].approval && G.fabLot('LOT-001').withProcessor === 430);
+  receiveRfd(today, [100, 100, 100, 100], 'P2');
+  ok('…4 more thans another day (470 m, under 95%): still open, however many thans came (metres decide, not thans)', !lotClosed() && !fabOf('RECEIVE_RFD')[1].approval);
+  receiveRfd(today, [10], 'P3');
+  ok('…then 480 of 500 m is back (96%): the lot closes by itself, within 5% so straight into stock', lotClosed() && fabOf('RECEIVE_RFD')[2].final === true && !fabOf('RECEIVE_RFD')[2].approval);
   rfdDesk(null); receiveRfd(today, [475], 'P1');
-  ok('no thans listed: exactly 95% closes it', lotClosed());
+  ok('exactly 95% closes it', lotClosed());
   rfdDesk(['1', '2', '3', '4']); receiveRfd(today, [110, 110, 110, 110], 'P1');
-  ok('all 4 thans back with 440 of 500 m (12% loss): the receipt is the closing one', fabOf('RECEIVE_RFD')[0].final === true);
-  ok('…more than 5% on a lot that closes still waits for the shrinkage approval, as before: not counted, cloth still at the processor', fabOf('RECEIVE_RFD')[0].approval && fabOf('RECEIVE_RFD')[0].approval.status === 'pending' && fabOf('RECEIVE_RFD')[0].approval.pct === 12 && G.rrApprovalsHtml().includes('RFD receipts waiting for approval') && G.fabLot('LOT-001').withProcessor === 500, JSON.stringify(fabOf('RECEIVE_RFD')[0].approval));
-  rfdDesk(['1', '2', '3', '4']); receiveRfd(today, [120, 120, 120, 120], 'P1');
-  ok('…and within 5% (96%) it goes straight into stock', lotClosed() && !fabOf('RECEIVE_RFD')[0].approval);
-  rfdDesk(['1', '2', '3', '4']); receiveRfd(today, [100, 100, 100], 'P1');
-  ok('a lot left open carries no shrinkage ask, however little came', !fabOf('RECEIVE_RFD')[0].approval);
+  ok('440 of 500 m and nothing said: the lot stays open, no approval', !lotClosed() && !fabOf('RECEIVE_RFD')[0].approval);
+  rfdDesk(['1', '2', '3', '4']); receiveRfd(today, [110, 110, 110, 110], 'P1', true);
+  ok('440 of 500 m with "Nothing more to come" ticked: the receipt is the closing one', fabOf('RECEIVE_RFD')[0].final === true);
+  ok('…12% is over the limit, so it waits for the shrinkage approval: not counted, cloth still at the processor, listed on Greige POs', fabOf('RECEIVE_RFD')[0].approval && fabOf('RECEIVE_RFD')[0].approval.status === 'pending' && fabOf('RECEIVE_RFD')[0].approval.pct === 12 && G.rrApprovalsHtml().includes('RFD receipts waiting') && G.fabLot('LOT-001').withProcessor === 500);
+  try { G.rrOpen('PO/1'); } catch (e) { /* the fake page */ }
+  ok('…and the Receive RFD card says where the approval is, with Approve and Reject for an approver', /top of Greige POs/.test(els.rrLots.innerHTML) && /data-appr="[^"]+\|ok"/.test(els.rrLots.innerHTML));
+  rfdDesk(['1', '2', '3', '4']); receiveRfd(today, [600], 'P1');
+  ok('more than is out (600 of 500 m) is refused: nothing saved', fabOf('RECEIVE_RFD').length === 0);
 
   /* the bell: approvers only, all three kinds */
   console.log('== the bell: My work today lists the dates waiting, for approvers only ==');
