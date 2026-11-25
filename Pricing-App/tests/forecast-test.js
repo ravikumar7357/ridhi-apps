@@ -248,7 +248,7 @@ console.log('== 8. families: the Sales Alerts grouping, children add up, the wor
   ok('the children\'s next 30 days add up to the family\'s', near(sum, f.r[30].mid, 0.005), sum + ' vs ' + f.r[30].mid);
   const k1 = f.kids.find(k => k.asin === 'K1'), k3 = f.kids.find(k => k.asin === 'K3');
   ok('K1 (100 units, 10 a day) is 🔴 itself — the FAMILY is judged on its total (4,600 units) → 🟢, with a "🔴 1 size needs reorder" badge', k1.status === 'red' && f.status === 'green' && f.cover !== k1.cover && f.redKids.length === 1
-    && /data-fo-sizes="SP\|PK\|red"[^>]*>🔴 1 size needs reorder</.test(X.foTableHtml(rSP, X.foShownFams(rSP))), f.status);
+    && /data-fo-sizes="SP\|PK\|red" title="1 size needs reorder — show these sizes"[^>]*>🔴 1 reorder</.test(X.foTableHtml(rSP, X.foShownFams(rSP))), f.status);
   ok('the family\'s stock is all its SKUs', f.stock === 4600);
   ok('K3 (2 a week) has no blind test of its own → the family\'s error, "Low" confidence, numbers still shown', k3.r && k3.fromFam && k3.conf === 'Low' && !k3.fit.ok);
   ok('the same keys as alGroupAdd gives (one shared grouping)', /alGroupAdd\(G, a, b, o\)/.test(FO_SRC) && /alGroupAdd\(G, asin, b, o\)\.kids\[asin\]/.test(AL_SRC));
@@ -283,7 +283,7 @@ console.log('== 10. the page: every part there, chips filter, toggles ==');
   const P = page({ fx: false });
   P.foRender();
   const html = P.dom.els.foPane.innerHTML;
-  ok('✨ off: the whole page is drawn, with no motion class', /class="fo"/.test(html) && !/fo-mo/.test(html) && /class="fo-bar"/.test(html) && /class="fo-hl"/.test(html) && /class="fo-chips"/.test(html) && /Act first/.test(html) && /<table class="fo-tbl">/.test(html) && /How this forecast works/.test(html) && /Accuracy last 8 weeks/.test(html));
+  ok('✨ off: the whole page is drawn, with no motion class', /class="fo"/.test(html) && !/fo-mo/.test(html) && /class="fo-bar"/.test(html) && /class="fo-hl"/.test(html) && /class="fo-chips"/.test(html) && /Act first/.test(html) && /<table class="fo-tbl fo-tbl-b"/.test(html) && /How this forecast works/.test(html) && /Accuracy last 8 weeks/.test(html));
   ok('the headline shows its final number at once (never "0" first)', /Next 30 days: <span class="fo-cu" data-to="(\d+)">~[1-9][\d,]*<\/span> units <span class="fo-hl-r">\([\d,]+–[\d,]+\)<\/span>/.test(html), (html.match(/Next 30 days:[^<]*<span[^>]*>[^<]*/) || [''])[0]);
   ok('"updated … IST · Amazon data is 1–2 days late"', /updated 25 Nov 05:42 IST · Amazon data is 1–2 days late/.test(html));
   ok('the bar: Forecast, Ridhi | CPC | Both, Stock > 0 only, search, ⚙ Settings, ⬇ CSV', /<h2 class="fo-title">Forecast<\/h2>/.test(html) && /data-fo-brand="SP"[^>]*>Ridhi/.test(html) && /data-fo-brand="ALL"[^>]*>Both/.test(html)
@@ -319,7 +319,7 @@ console.log('== 11. motion: ✨ on adds it once; reduced motion never ==');
   ok('…only the first time this data is drawn (a chip click does not replay it)', !/fo-mo/.test(P.dom.els.foPane.innerHTML));
   const R = page({ fx: true, reduce: true });
   R.foRender();
-  ok('reduced motion: no motion class, everything shown', !/fo-mo/.test(R.dom.els.foPane.innerHTML) && /<table class="fo-tbl">/.test(R.dom.els.foPane.innerHTML));
+  ok('reduced motion: no motion class, everything shown', !/fo-mo/.test(R.dom.els.foPane.innerHTML) && /<table class="fo-tbl fo-tbl-b"/.test(R.dom.els.foPane.innerHTML));
   const css = SRC('styles.css');
   ok('the CSS stops every animation under reduced motion', /@media \(prefers-reduced-motion: reduce\) \{ #paneFcast \.fo-mo \*, #paneFcast \.fo-dr\.fo-mo \{ animation: none !important; \} \}/.test(css));
   const S = page({ fx: false });
@@ -337,7 +337,7 @@ console.log('== 12. the drawer opens and closes ==');
   const dr = P.dom.els.foDr, bg = P.dom.els.foDrBg;
   ok('a row opens the drawer: shown, with its backdrop, as a dialog', P.FO.dr === 'SP|PK' && dr && !dr.hidden && bg && !bg.hidden && dr.attrs.role === 'dialog' && dr.attrs['aria-modal'] === 'true');
   const h = dr.innerHTML;
-  ok('title, brand, status and confidence', /<h3 id="foDrTitle">Whimsical Corner Pillow Insert<\/h3>/.test(h) && /Ridhi · PK/.test(h) && /fo-sev st-green">🟢 OK</.test(h) && /confidence<\/span>/.test(h) && /🔴 1 size needs reorder/.test(h));
+  ok('title, brand, status and confidence', /<h3 id="foDrTitle">Whimsical Corner Pillow Insert<\/h3>/.test(h) && /Ridhi · PK/.test(h) && /fo-sev st-green">🟢 OK</.test(h) && /confidence<\/span>/.test(h) && /title="1 size needs reorder — show these sizes"[^>]*>🔴 1 reorder</.test(h));
   ok('the chart box, the last-year toggle, the story, the tiles', /id="foChart"/.test(h) && /data-fo-ly/.test(h) && /class="fo-story">Usually sells ~/.test(h) && (h.match(/class="fo-tile"/g) || []).length === 6);
   ok('why this confidence: history, blind test, skipped weeks, season', /Why this confidence/.test(h) && /History: <b>26\+ weeks/.test(h) && /Blind test \(8 weeks from 27 Sep\)/.test(h) && /Stock-out or suppressed weeks skipped/.test(h) && /Season: used/.test(h));
   ok('its SKU list, each with its own status', (h.match(/<li><button type="button" data-fo-view="SP\|PK#K\d"/g) || []).length === 3);
@@ -407,7 +407,7 @@ console.log('== 15. stock on the way (inbound) ==');
   ok('table: "300 + 3,000 on the way", the tooltip splits working / shipped / receiving', /data-fo-row="CPC\|PC1"[\s\S]*?title="300 available at Amazon \+ 3,000 on the way \(working 1,000 · shipped 1,500 · receiving 500\)\. Days of cover count both[^"]*">300<small class="fo-inb">\+ 3,000 on the way<\/small>/.test(html));
   ok('table: "nothing on the way" when the list has none for it', /data-fo-row="CPC\|PC2"[\s\S]*?<small class="fo-inb">nothing on the way<\/small>/.test(html));
   const plain = X.foTableHtml(rCPC, X.foShownFams(rCPC));
-  ok('no inbound in the stock data → "Inbound: unknown", never guessed (and the cover is the available units only)', fam(rCPC, 'PC1').inbound === null && /data-fo-row="CPC\|PC1"[\s\S]*?<small class="fo-inb is-unknown">Inbound: unknown<\/small>/.test(plain)
+  ok('no inbound in the stock data → "Inbound: unknown", never guessed (and the cover is the available units only)', fam(rCPC, 'PC1').inbound === null && /data-fo-row="CPC\|PC1"[\s\S]*?<span title="300 available at Amazon\. Inbound is not in the stock data Sellora reads[^"]*">300<\/span>/.test(plain) && !/Inbound: unknown<\/small>/.test(plain)
     && /Inbound is not in the stock data Sellora reads/.test(plain));
   const age = X.foCompute(W.input('CPC', { age: { CPC: { rows: [{ sku: 'Q1-SKU', asin: 'Q1', available: 120 }], at: '2026-11-23T00:00:00Z' } } }));
   ok('stock from the Inventory Age snapshot: inbound unknown too', fam(age, 'PQ1').stock === 120 && fam(age, 'PQ1').inbound === null);
@@ -443,7 +443,7 @@ console.log('== 16. the family total, sizes out, no stock data, the "on the way"
   ok('big family, 2 sizes at 0: the family status comes from its total (8,000 units), not from the sizes at 0', b.status === 'green' && b.stock === 8000 && b.cover && (b.cover.high === null || b.cover.high >= 90), b.status + ' ' + JSON.stringify(b.cover));
   ok('…the sizes at 0 are ⛔ themselves', by('B5').status === 'oos' && by('B6').status === 'oos');
   const html = X.foTableHtml(rSP, X.foShownFams(rSP));
-  ok('…badge "⛔ 2 of 7 sizes out of stock", and "1 size: no stock data"', /data-fo-sizes="SP\|PB\|oos"[^>]*>⛔ 2 of 7 sizes out of stock</.test(html) && /data-fo-sizes="SP\|PB\|nostock"[^>]*>1 size: no stock data</.test(html));
+  ok('…badges "⛔ 2 of 7 out" and "1 no data" (short, one line), the full sentence in their tooltip', /data-fo-sizes="SP\|PB\|oos" title="2 of 7 sizes out of stock — show these sizes"[^>]*>⛔ 2 of 7 out</.test(html) && /data-fo-sizes="SP\|PB\|nostock" title="1 size: no stock data — show these sizes"[^>]*>1 no data</.test(html));
   ok('a size missing from the stock data is "No stock data" — stock null, not 0, not ⛔', by('B7').stock === null && by('B7').status === 'nostock' && by('B7').stockSrc === '');
   ok('…and left out of the family cover on both sides (stock 8,000 from 6 sizes; demand of those 6)', b.supply === 8000 && near(b.outKnown[0].u, b.m.out[0].u * 6 / 7, 0.02), b.outKnown[0].u + ' vs ' + b.m.out[0].u);
   ok('the status chips count FAMILIES by family status; the sizes line counts sizes', /Families above · Sizes: ⛔ <b class="num">\d+<\/b> out · 🔴 <b class="num">\d+<\/b> reorder · <b class="num">1<\/b> no stock data/.test(X.foChipsHtml(rSP, X.foShownFams(rSP))));
@@ -460,7 +460,15 @@ console.log('== 16. the family total, sizes out, no stock data, the "on the way"
   const st = JSON.parse(JSON.stringify(W.stock)); st.SP.in = { 'K1-SKU': [0, 50, 0] };
   const rI = X.foCompute(W.input('SP', { stock: st }));
   ok('inbound data present → the note is gone', rI.inbUnknown === false && !/fo-warn/.test(X.foHeroHtml(rI)));
-  ok('the page uses the full width; the table scrolls sideways with Family kept left only when it must', /#paneFcast \.fo \{ padding-bottom: 64px; min-width: 0; \}/.test(SRC('styles.css')) && /\.fo-tw\.is-scroll :is\(th, td\)\.fo-c-n \{ position: sticky; left: 32px;/.test(SRC('styles.css')) && /Scroll sideways for more columns →/.test(html));
+  const css = SRC('styles.css');
+  ok('the page is as wide as Sales Alerts (1160px); the table scrolls sideways inside its card', /#paneFcast \.fo \{ max-width: 1160px; margin: 0 auto;/.test(css) && /#paneSalert \.al \{ max-width: 1160px;/.test(css) && /#paneFcast \.fo-sx \{ overflow-x: auto;/.test(css)
+    && /<div class="fo-tw"><div class="fo-hd"><table class="fo-tbl fo-tbl-h"><colgroup>/.test(html) && /<div class="fo-sx"><table class="fo-tbl fo-tbl-b"[^>]*><colgroup>/.test(html) && /<div class="fo-sb" aria-hidden="true"><div class="fo-sb-in"><\/div><\/div><span class="fo-fade"/.test(html));
+  ok('…the slim bar sticks to the bottom of the screen, ▸ + Family pinned left with a shadow edge once moved, a fade until the end', /#paneFcast \.fo-sb \{ position: sticky; bottom: 0;/.test(css) && /\.fo-tbl :is\(th, td\)\.fo-c-n \{ position: sticky; left: 34px;/.test(css)
+    && /\.fo-tw\.is-scrolled \.fo-tbl :is\(th, td\)\.fo-c-n \{ box-shadow:/.test(css) && /\.fo-tw\.can-scroll:not\(\.at-end\) \.fo-fade \{ opacity: 1; \}/.test(css));
+  ok('…the headings and the rows share one set of column widths (fixed layout)', (html.match(/<colgroup>/g) || []).length === 2 && /\.fo-tbl-h, #paneFcast \.fo-tbl-b \{ table-layout: fixed;/.test(css));
+  ok('rows: status short words with the long ones in the tooltip; one size of confidence pill; full name in the tooltip', /<td class="fo-c-s" data-l="Status" title="Out of stock">/.test(html) && /<span class="fo-pill is-High" title="High confidence">High<\/span>/.test(html)
+    && /<span class="fo-nm" title="Big Block Print Tablecloth">Big Block Print Tablecloth<\/span>/.test(html) && /#paneFcast \.fo-pill \{ display: inline-block; box-sizing: border-box; min-width: 66px;/.test(css));
+  ok('"some SKUs: no stock data" is a grey ⓘ beside the number', /<i class="fo-i" title="Some SKUs: no stock data" aria-label="Some SKUs: no stock data">ⓘ<\/i>8,000/.test(html));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -442,12 +442,12 @@ function foFamStatus(f, rule) {
 /** The size badges on a family: ⛔ sizes out · 🔴 sizes to reorder · sizes with no stock data — each opens the family on those sizes. */
 function foBadgesHtml(f) {
   if (f.kids.length < 2) return '';
-  const b = (k, cls, text) => `<button type="button" class="fo-badge st-${cls}" data-fo-sizes="${alEsc(f.key)}|${k}" title="Show these sizes">${text}</button>`;
+  const b = (k, cls, text, full) => `<button type="button" class="fo-badge st-${cls}" data-fo-sizes="${alEsc(f.key)}|${k}" title="${full} — show these sizes" aria-label="${full} — show these sizes">${text}</button>`;
   const pl = (n, one, many) => (n === 1 ? one : many);
   const out = [];
-  if (f.oosKids.length) out.push(b('oos', 'oos', `⛔ ${foN(f.oosKids.length)} of ${foN(f.sizes)} sizes out of stock`));
-  if (f.redKids.length) out.push(b('red', 'red', `🔴 ${foN(f.redKids.length)} ${pl(f.redKids.length, 'size needs', 'sizes need')} reorder`));
-  if (f.noDataKids.length) out.push(b('nostock', 'nostock', `${foN(f.noDataKids.length)} ${pl(f.noDataKids.length, 'size', 'sizes')}: no stock data`));
+  if (f.oosKids.length) out.push(b('oos', 'oos', `⛔ ${foN(f.oosKids.length)} of ${foN(f.sizes)} out`, `${foN(f.oosKids.length)} of ${foN(f.sizes)} sizes out of stock`));
+  if (f.redKids.length) out.push(b('red', 'red', `🔴 ${foN(f.redKids.length)} reorder`, `${foN(f.redKids.length)} ${pl(f.redKids.length, 'size needs', 'sizes need')} reorder`));
+  if (f.noDataKids.length) out.push(b('nostock', 'nostock', `${foN(f.noDataKids.length)} no data`, `${foN(f.noDataKids.length)} ${pl(f.noDataKids.length, 'size', 'sizes')}: no stock data`));
   return out.length ? `<span class="fo-badges">${out.join('')}</span>` : '';
 }
 const FO_KF = { oos: 'out of stock', red: 'needing reorder', nostock: 'with no stock data' };
@@ -650,29 +650,31 @@ function foRowHtml(x, isKid, fam) {
   const open = !isKid && !!FO.open[x.key];
   const vk = isKid ? [] : foVisibleKids(x);
   const nameCell = isKid
-    ? `<span class="fo-nm">${alEsc(x.label)}</span><small>${alEsc(x.asin)}${x.skus.length > 1 ? ' · +' + (x.skus.length - 1) + ' SKU' : ''}${x.title ? ' · ' + alEsc(alShort(x.title)) : ''}</small>`
-    : `<span class="fo-nm">${alEsc(alShort(x.name))}</span><small>${alEsc(x.parent)} · ${x.kids.length === 1 ? alEsc(x.kids[0].label) : x.kids.length + ' SKUs'}${FO.brand === 'ALL' ? ' · ' + FO_BRAND[x.brand] : ''}</small>${foBadgesHtml(x)}`;
+    ? `<span class="fo-nm" title="${alEsc(x.label + (x.title ? ' — ' + x.title : ''))}">${alEsc(x.label)}</span><small>${alEsc(x.asin)}${x.skus.length > 1 ? ' · +' + (x.skus.length - 1) + ' SKU' : ''}${x.title ? ' · ' + alEsc(alShort(x.title)) : ''}</small>`
+    : `<span class="fo-nm" title="${alEsc(x.name)}">${alEsc(x.name)}</span><small>${alEsc(x.parent)} · ${x.kids.length === 1 ? alEsc(x.kids[0].label) : x.kids.length + ' SKUs'}${FO.brand === 'ALL' ? ' · ' + FO_BRAND[x.brand] : ''}</small>${foBadgesHtml(x)}`;
   const nohist = !has && !foOut(st) && st !== 'notsell' && st !== 'inactive';
   const mid = has ? `<td class="fo-c-r" data-l="Next 30 days">${foRangeHtml(x, 30)}</td><td class="num" data-l="7 days">${foN(x.r[7].mid)}<small>${foRng(x.r[7].lo, x.r[7].hi)}</small></td><td class="num" data-l="90 days">${foN(x.r[90].mid)}<small>${foRng(x.r[90].lo, x.r[90].hi)}</small></td>`
     : `<td class="fo-c-r fo-why" data-l="Next 30 days" colspan="3">${st === 'oosin' ? `${foStLabel(x)} · losing ~${foN(x.weekLoss)} units/week until it arrives` : st === 'oos' ? `Out of stock — losing ~${foN(x.weekLoss)} units/week` : st === 'notsell' ? 'Not selling — stock but almost no sales in 8 weeks' : st === 'inactive' ? 'Inactive — no stock, no sale in 8 weeks' : alEsc(foWhyNot(x))}</td>`;
   const cov = x.cover;
   const inb = foInb(x);
   const stock = x.stock == null ? '<span class="muted">No stock data</span>'
-    : `<span title="${alEsc(inb.tip)}">${foN(x.stock)}<small class="fo-inb${inb.unknown ? ' is-unknown' : ''}">${alEsc(inb.short)}</small>${x.stockPart ? '<small>some SKUs: no stock data</small>' : ''}</span>`;
-  return `<tr class="fo-r ${isKid ? 'is-kid' : 'is-fam'} st-${st}${nohist ? ' is-grey' : ''}${has && x.conf === 'Low' ? ' is-low' : ''}" data-fo-row="${alEsc(key)}" tabindex="0"${isKid ? '' : ` aria-expanded="${open}"`}>`
+    : `<span title="${alEsc(inb.tip)}">${x.stockPart ? '<i class="fo-i" title="Some SKUs: no stock data" aria-label="Some SKUs: no stock data">ⓘ</i>' : ''}${foN(x.stock)}${inb.unknown ? '' : `<small class="fo-inb">${alEsc(inb.short)}</small>`}</span>`;
+  return `<tr class="fo-r ${isKid ? 'is-kid' : 'is-fam'} st-${st}${nohist ? ' is-grey' : ''}${has && x.conf === 'Low' ? ' is-low' : ''}${FO.dr === key ? ' is-sel' : ''}" data-fo-row="${alEsc(key)}" tabindex="0"${isKid ? '' : ` aria-expanded="${open}"`}>`
     + `<td class="fo-c-x">${!isKid && vk.length > 1 ? `<button type="button" class="fo-x" data-fo-exp="${alEsc(x.key)}" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} ${vk.length} SKU${vk.length === 1 ? '' : 's'}">${open ? '▾' : '▸'}</button>` : ''}</td>`
     + `<td class="fo-c-n" data-l="">${nameCell}</td>${mid}`
     + `<td class="num" data-l="Stock">${stock}</td><td class="num" data-l="Cover (days)"${cov && cov.high != null ? ` title="Stock lasts ${foN(cov.high)}–${cov.likely == null ? '180+' : foN(cov.likely)} days (${foN(cov.high)} if sales are high)"` : ''}>${has || foOut(st) ? foCoverTxt(cov) : '—'}</td>`
     + `<td data-l="Runs out"${cov && cov.outLikely && cov.outLikely !== cov.outHigh ? ` title="~${alDay(cov.outHigh)} if sales are high, ~${alDay(cov.outLikely)} most likely"` : ''}>${cov && cov.outHigh ? (foOut(st) ? 'Now' : '~' + alDay(cov.outHigh)) : cov && cov.high == null ? 'after ' + alDay(alAdd(sdTodaySafe(), 180)) : '—'}</td>`
-    + `<td class="fo-c-s" data-l="Status">${foDot(st)}<span>${alEsc(foStLabel(x))}</span></td>`
-    + `<td data-l="Confidence">${has ? `<span class="fo-pill is-${x.conf}">${x.conf}${x.conf === 'Low' ? ' confidence' : ''}</span>${isKid && x.fromFam ? '<small>from family</small>' : ''}` : '—'}</td></tr>`;
+    + `<td class="fo-c-s" data-l="Status" title="${alEsc(foStLabel(x))}">${foDot(st)}<span>${alEsc(FO_ST[st].c)}</span></td>`
+    + `<td data-l="Confidence">${has ? `<span class="fo-pill is-${x.conf}" title="${x.conf} confidence">${x.conf}</span>${isKid && x.fromFam ? '<small>from family</small>' : ''}` : '—'}</td></tr>`;
 }
+// The column widths, shared by the heading copy and the body (table-layout: fixed keeps them aligned; Family takes the rest).
+const FO_COLS = '<colgroup><col class="c-x"><col class="c-n"><col class="c-r"><col class="c-7"><col class="c-90"><col class="c-st"><col class="c-cv"><col class="c-out"><col class="c-s"><col class="c-cf"></colgroup>';
 const sdTodaySafe = () => (typeof sdToday === 'function' ? sdToday() : new Date().toISOString().slice(0, 10));
 function foTableHtml(r, shown) {
   const list = foSorted(FO.chip ? shown.filter(f => f.status === FO.chip || (FO.chip === 'oos' && f.status === 'oosin')) : shown);
   const cols = [['', '', ''], ['name', 'Family', ''], ['f30', 'Next 30 days', ''], ['f7', '7 days', 'num'], ['f90', '90 days', 'num'], ['stock', 'Stock', 'num'], ['cover', 'Cover (days)', 'num'], ['out', 'Runs out', ''], ['status', 'Status', ''], ['conf', 'Confidence', '']];
   const th = ([k, t, c]) => (!k ? '<th class="fo-c-x" scope="col"><span class="fo-sr">Expand</span></th>'
-    : `<th scope="col" class="${c}" aria-sort="${FO.sort.k === k ? (FO.sort.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button type="button" data-fo-sort="${k}">${t}${FO.sort.k === k ? (FO.sort.dir > 0 ? ' ↑' : ' ↓') : ''}</button></th>`);
+    : `<th scope="col" class="${c}${k === 'name' ? ' fo-c-n' : k === 'status' ? ' fo-c-s' : ''}" aria-sort="${FO.sort.k === k ? (FO.sort.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button type="button" data-fo-sort="${k}">${t}${FO.sort.k === k ? (FO.sort.dir > 0 ? ' ↑' : ' ↓') : ''}</button></th>`);
   const kf = f => { const k = FO.kidF[f.key]; if (!k || !FO.open[f.key]) return ''; const n = foVisibleKids(f).length;
     return `<tr class="fo-kf"><td colspan="10">Showing ${foN(n)} size${n === 1 ? '' : 's'} ${FO_KF[k]} of ${foN(f.sizes)} · <button type="button" class="fo-link" data-fo-sizes="${alEsc(f.key)}|">Show all sizes</button></td></tr>`; };
   const rows = list.slice(0, FO.shown).map(f => foRowHtml(f, false) + kf(f) + (FO.open[f.key] ? foSorted(foVisibleKids(f).map(k => Object.assign(k, { name: k.label }))).map(k => foRowHtml(k, true, f)).join('') : '')).join('');
@@ -681,7 +683,9 @@ function foTableHtml(r, shown) {
   const title = FO.chip ? `${FO_ST[FO.chip].c}` : 'All families';
   return `<section class="fo-sec" id="foList"><div class="fo-sec-h"><h3>${alEsc(title)} <span class="muted num">${AL_NF.format(list.length)}</span></h3>`
     + `<div class="fo-filters">${FO.chip ? '<button type="button" class="fo-btn" data-fo-chip="">Show all</button>' : ''}${hidden ? `<button type="button" class="fo-link" data-fo-act="inactive" aria-pressed="${FO.inactive}">${FO.inactive ? 'Hide' : 'Hidden:'} ${AL_NF.format(hidden)} inactive</button>` : ''}</div></div>`
-    + (list.length ? `<p class="fo-hint" aria-hidden="true">Scroll sideways for more columns →</p><div class="fo-tw"><table class="fo-tbl"><thead><tr>${cols.map(th).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`
+    + (list.length ? `<div class="fo-tw"><div class="fo-hd"><table class="fo-tbl fo-tbl-h">${FO_COLS}<thead><tr>${cols.map(th).join('')}</tr></thead></table></div>`
+      + `<div class="fo-sx"><table class="fo-tbl fo-tbl-b" aria-label="Families: ${cols.slice(1).map(c => c[1]).join(', ')}">${FO_COLS}<tbody>${rows}</tbody></table></div>`
+      + '<div class="fo-sb" aria-hidden="true"><div class="fo-sb-in"></div></div><span class="fo-fade" aria-hidden="true"></span></div>'
       : `<p class="muted fo-empty">${FO.q ? `No family matches “${alEsc(FO.q)}”.` : FO.chip ? `No family is “${FO_ST[FO.chip].c}”.` : 'No families to show.'}</p>`)
     + (more ? `<div class="fo-more">${more}</div>` : '') + '</section>';
 }
@@ -727,8 +731,40 @@ function foStick() {
   const top = side && getComputedStyle(side).position === 'sticky' ? side.offsetHeight : 0;
   pane.style.setProperty('--fo-top', top + 'px');
   if (bar && bar.offsetHeight) pane.style.setProperty('--fo-bar', bar.offsetHeight + 'px');
-  const tw = pane.querySelector('.fo-tw'), tbl = tw && tw.querySelector('.fo-tbl');
-  if (tw && tbl && tw.classList) { tw.classList.remove('is-scroll'); tw.classList.toggle('is-scroll', tbl.offsetWidth > tw.clientWidth + 1); }
+  foSx(pane);
+}
+/** The table card's sideways scroll: the body (.fo-sx) scrolls; the heading copy (.fo-hd) and the slim bar (.fo-sb, sticky at the bottom
+ *  of the screen while the card is on it) follow; shift + wheel or a sideways swipe over any of them scrolls it. Classes on the card:
+ *  can-scroll (wider than the card), is-scrolled (moved: the pinned Family edge shows its shadow), at-end (the right fade goes). */
+function foSx(pane) {
+  const tw = pane.querySelector('.fo-tw');
+  if (!tw || !tw.classList) return;
+  const sx = tw.querySelector('.fo-sx'), hd = tw.querySelector('.fo-hd'), sb = tw.querySelector('.fo-sb'), inner = tw.querySelector('.fo-sb-in'), tb = sx && sx.querySelector('table');
+  if (!sx || !hd || !sb || !inner || !tb) return;
+  const paint = () => {
+    const max = sx.scrollWidth - sx.clientWidth;
+    tw.classList.toggle('can-scroll', max > 1);
+    tw.classList.toggle('is-scrolled', sx.scrollLeft > 1);
+    tw.classList.toggle('at-end', sx.scrollLeft >= max - 1);
+  };
+  inner.style.width = tb.offsetWidth + 'px';
+  if (!tw._foSx) {
+    tw._foSx = true;
+    const follow = (from, ...to) => () => { to.forEach(el => { if (Math.abs(el.scrollLeft - from.scrollLeft) > 0.5) el.scrollLeft = from.scrollLeft; }); };
+    sx.addEventListener('scroll', () => { follow(sx, hd, sb)(); FO.sx = sx.scrollLeft; paint(); }, { passive: true });
+    sb.addEventListener('scroll', follow(sb, sx), { passive: true });
+    const wheel = e => { const dx = e.deltaX || (e.shiftKey ? e.deltaY : 0); if (!dx || sx.scrollWidth <= sx.clientWidth) return; e.preventDefault(); sx.scrollLeft += dx; };
+    hd.addEventListener('wheel', wheel, { passive: false });
+    sb.addEventListener('wheel', wheel, { passive: false });
+  }
+  if (FO.sx && Math.abs(sx.scrollLeft - FO.sx) > 0.5) sx.scrollLeft = FO.sx;
+  hd.scrollLeft = sb.scrollLeft = sx.scrollLeft;
+  paint();
+}
+/** The row whose drawer is open is shown selected. */
+function foSelRow(key) {
+  document.querySelectorAll('#foPane tr.is-sel').forEach(tr => tr.classList.remove('is-sel'));
+  if (key) { const tr = document.querySelector(`#foPane tr[data-fo-row="${CSS.escape(key)}"]`); if (tr) tr.classList.add('is-sel'); }
 }
 // The headline counts up once per data version (✨ on, no reduced motion); the final number is always set (1.5 s safety net).
 function foCountUp(root, motion) {
@@ -859,6 +895,7 @@ function foDrawerPaint() {
   if (FO.chart) { try { FO.chart.dispose(); } catch (e) { /* gone */ } FO.chart = null; }
   el.innerHTML = foDrawerHtml(h);
   el.hidden = false; document.getElementById('foDrBg').hidden = false;
+  foSelRow(FO.dr);
   el.style.removeProperty('transform');
   el.classList.toggle('fo-mo', foMotion());
   const box = el.querySelector('#foChart');
@@ -868,6 +905,7 @@ function foDrawerClose() {
   const el = document.getElementById('foDr'), bg = document.getElementById('foDrBg');
   if (FO.chart) { try { FO.chart.dispose(); } catch (e) { /* gone */ } FO.chart = null; }
   FO.dr = null;
+  foSelRow(null);
   if (el) { el.hidden = true; el.innerHTML = ''; el.style.removeProperty('transform'); }
   if (bg) bg.hidden = true;
   const back = FO.drFrom; FO.drFrom = null;
@@ -960,7 +998,7 @@ function foStart() {
     if (!inPane(e)) return;
     const t = e.target.closest('[data-fo-brand], [data-fo-chip], [data-fo-act], [data-fo-sort], [data-fo-exp], [data-fo-sizes], [data-fo-view], [data-fo-row]');
     if (!t || t.disabled) return;
-    if (t.dataset.foBrand) { FO.brand = t.dataset.foBrand; FO.shown = FO_PAGE; FO.open = {}; try { localStorage.setItem('foBrand', FO.brand); } catch (err) { /* this visit */ } foDrawerClose(); foRender(); return; }
+    if (t.dataset.foBrand) { FO.brand = t.dataset.foBrand; FO.shown = FO_PAGE; FO.open = {}; FO.sx = 0; try { localStorage.setItem('foBrand', FO.brand); } catch (err) { /* this visit */ } foDrawerClose(); foRender(); return; }
     if (t.dataset.foChip != null) { FO.chip = FO.chip === t.dataset.foChip ? '' : t.dataset.foChip; FO.shown = FO_PAGE; foRender(); const b = document.querySelector(`#foPane [data-fo-chip="${FO.chip}"]`); if (b && FO.chip) b.focus(); return; }
     if (t.dataset.foSort) { const k = t.dataset.foSort; FO.sort = FO.sort.k === k ? { k, dir: -FO.sort.dir } : { k, dir: 1 }; foRender(); const b = document.querySelector(`#foPane [data-fo-sort="${k}"]`); if (b) b.focus(); return; }
     if (t.dataset.foExp) { foToggle(t.dataset.foExp); return; }
