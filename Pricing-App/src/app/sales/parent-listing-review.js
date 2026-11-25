@@ -769,7 +769,7 @@ $('plRefresh').onclick = async () => {
       // the name on screen turns "why is it 13 when Seller Central says 7" into something readable
       // instead of something to be investigated. (2026-09-01)
       if (report.availCol) usedCol.add(report.availCol);
-      await saveStockDoc(brand, map);
+      await saveStockDoc(brand, map, stockInMap(report.rows));
       // Straight into the rows this tab reads, so the grid updates without a reload. A SKU missing
       // from the report is left alone rather than zeroed — absent from a report is not "sold out".
       ((HEALTH[brand] || {}).rows || []).forEach(row => {
