@@ -88,5 +88,6 @@ sales/sales-check.js
 sales/sales-insight.js
 sales/sales-charts.js
 sales/sales-alerts.js
+sales/forecast.js
 core/dashboard.js
 core/version-check.js

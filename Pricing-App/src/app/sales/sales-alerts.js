@@ -91,6 +91,17 @@ function alMedian(a) { if (!a.length) return 0; const s = a.slice().sort((x, y) 
 const alMad = (a, m) => alMedian(a.map(x => Math.abs(x - m)));
 const alSum = (days, f) => days.reduce((s, d) => s + (f(d) || 0), 0);
 
+/* ----- THE FAMILIES: one per parent, its children inside — the ONE grouping Sales Alerts and the Forecast (sales/forecast.js) share ----- */
+/** The family of one ASIN in G (made on first use): key 'brand|parent', parent = o.parentOf(asin, b) or the ASIN itself, name = the first
+ *  name o.nameOf gives. The caller puts the child's own figures in g.kids[asin]. */
+function alGroupAdd(G, asin, b, o) {
+  const parent = (o.parentOf && o.parentOf(asin, b)) || asin;
+  const key = b + '|' + parent;
+  const g = G[key] || (G[key] = { key, brand: b, parent, kids: {}, name: '' });
+  if (!g.name && o.nameOf) g.name = o.nameOf(parent, asin, b) || '';
+  return g;
+}
+
 /* ----- THE ENGINE (pure: everything comes in through o) ----- */
 /** o = { days: {d: asin→day→[units, sales], brand: asin→'SP'|'CPC', from, upTo, at}, today (PT), brand 'SP'|'CPC'|'ALL', parentOf(asin, b),
  *        nameOf(parent, asin, b), stock: {b: {m: sku→units, at, skuOf: asin→[sku]}}, weekly: {rows: asin→{brand, weeks: wk→{u, sessions}}, at},
@@ -115,11 +126,7 @@ function alCompute(o) {
   Object.entries(days.d).forEach(([asin, byDay]) => {
     const b = (days.brand && days.brand[asin]) || '';
     if (!brands.includes(b)) return;
-    const parent = (o.parentOf && o.parentOf(asin, b)) || asin;
-    const key = b + '|' + parent;
-    const g = G[key] || (G[key] = { key, brand: b, parent, kids: {}, name: '' });
-    g.kids[asin] = byDay || {};
-    if (!g.name && o.nameOf) g.name = o.nameOf(parent, asin, b) || '';
+    alGroupAdd(G, asin, b, o).kids[asin] = byDay || {};
   });
   // --- the season, per brand: last year's same days against last year's normal weeks (whole brand) ---
   const lyMean = (b, list) => {
@@ -721,6 +728,13 @@ async function alStoreSave(patch) {
   catch (e) { AL.storeNote = 'Saved in this browser only — the shared copy could not be written (' + ((e && e.code) || 'no access') + ').'; }
 }
 const alWho = () => (typeof ME !== 'undefined' && ME && ME.email) || 'this browser';
+/** The Sales Dashboard's history — last year for the season (as Numbers Check reads it): in memory, else this browser's copy, else ONE read
+ *  of the nightly cache. Shared with the Forecast (sales/forecast.js). */
+async function alSdLoad() {
+  if (typeof SD_BUSY !== 'undefined' && SD_BUSY) { try { await SD_BUSY; } catch (e) { /* the saved copy stays */ } }
+  if (!SD.at && !sdLoadLocal()) { await alApiReady(); const r = await baCall({ cache: 'daily' }); if (!SD.at && r && r.data && r.data.at) SD = { at: r.data.at, d: r.data.d || {} }; }
+  if (typeof tMatchEnsure === 'function') await tMatchEnsure();
+}
 /** Load once per visit (force: Refresh). */
 function alLoad(force) {
   if (AL.busy) return AL.busy;
@@ -729,11 +743,7 @@ function alLoad(force) {
     const data = { adsDay: null, plan: null, err: '' };
     const jobs = [];
     jobs.push((async () => { if (typeof viLoad === 'function') await viLoad(force); })().catch(e => { data.err = String((e && e.message) || e); }));
-    jobs.push((async () => {                         // the Sales Dashboard's history: last year for the season (as Numbers Check reads it)
-      if (typeof SD_BUSY !== 'undefined' && SD_BUSY) { try { await SD_BUSY; } catch (e) { /* the saved copy stays */ } }
-      if (!SD.at && !sdLoadLocal()) { await alApiReady(); const r = await baCall({ cache: 'daily' }); if (!SD.at && r && r.data && r.data.at) SD = { at: r.data.at, d: r.data.d || {} }; }
-      if (typeof tMatchEnsure === 'function') await tMatchEnsure();
-    })().catch(() => {}));
+    jobs.push(alSdLoad().catch(() => {}));
     jobs.push((async () => {                         // ad spend per ASIN per day, as the nightly cached it
       await alApiReady();
       const r = await baCall({ cache: 'adsAsinDay' });
