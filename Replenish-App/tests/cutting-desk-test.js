@@ -43,6 +43,8 @@ function load(o) {
     + ' cdkCutOpen, cdkCutSave, cdkEarlier, CDK, CDK_NAME, CDK_PAGE, ownOk: () => CUT_OWN_OK };');
   return Object.assign(fn(...keys.map(k => (k === '__drives' ? drives : ctx[k]))), { els, ctx, drives, warns });
 }
+/* a line with no fabric anywhere: no plan, and its SKU not in the master */
+const NOFAB = line('PO-7', 'NF', 5, 0, { s: { plan: null } });
 const click = (S, name, val) => S.cdkClick({ target: { closest: sel => (sel === '[data-' + name + ']' ? { dataset: { [name]: val } } : null) } });
 
 (async () => {
@@ -132,7 +134,11 @@ const click = (S, name, val) => S.cdkClick({ target: { closest: sel => (sel === 
     ok('opens a card for that line', d && d.title === 'Cutting entry' && d.saveLabel === 'Save cutting' && d.subtitle.includes('PO-2'));
     ok('fields: pieces, date, fabric, cloth used, waste, waste width, remarks', d.fields.map(z => z.key).join() === 'pcs,date,fabric,used,waste,wasteW,remarks');
     ok('the pieces come filled with what is left to cut, the date with today', f('pcs').value === 150 && f('date').value === '2026-11-25');
-    ok('the fabric is the line\'s own, first in the list and not offered twice', f('fabric').value === 'Sheeting 82' && f('fabric').options[0][0] === 'Sheeting 82' && f('fabric').options.filter(p => p[0] === 'Sheeting 82').length === 1);
+    ok('the cutting date is fixed: shown read-only', f('date').readonly === true);
+    ok('the fabric is the line\'s own and fixed: shown read-only, with no list to pick another from', f('fabric').value === 'Sheeting 82' && f('fabric').readonly === true && !f('fabric').options && f('fabric').type !== 'select');
+    const NFS = load({ rows: [NOFAB] }); click(NFS, 'cdkcut', NOFAB.s.key);
+    const nfab = NFS.ctx.__dlg.fields.find(z => z.key === 'fabric');
+    ok('a line with no fabric at all (no plan, no master row) is given the list to pick from, starting blank', nfab.type === 'select' && nfab.value === '' && nfab.options.map(p => p[0]).join() === ',Cambric 90,Sheeting 82' && !nfab.readonly);
     ok('the cloth box says what a blank takes', /blank takes 0\.9 m a piece/.test(f('used').label) && f('used').value === '');
     ok('the remarks carry the printed fabric', f('remarks').value === 'Printed fabric PF-77');
     ok('the card shows the item, what is left and the earlier entries of this line only', d.html.includes('150 of 400') && d.html.includes('20/11/2026 cut 150 · 22/11/2026 cut 100') && !d.html.includes('cut 7'));
@@ -148,11 +154,12 @@ const click = (S, name, val) => S.cdkClick({ target: { closest: sel => (sel === 
     const x = ROWS[1], V = { pcs: '120', date: '2026-11-24', fabric: 'Sheeting 82', used: '', waste: '4', wasteW: '20', remarks: ' second lot ' };
     const S = load({ rows: ROWS, mdb: { B: { cons: 0.9 } } });
     ok('no pieces is refused before the form is touched', (await S.cdkCutSave(x, Object.assign({}, V, { pcs: '0' }))) === 'Type how many pieces were cut.' && !S.drives.length);
-    ok('no fabric is refused', /Pick the fabric/.test(await S.cdkCutSave(x, Object.assign({}, V, { fabric: '' }))) && !S.drives.length);
+    ok('a line with no fabric of its own and none picked is refused', /Pick the fabric/.test(await S.cdkCutSave(NOFAB, Object.assign({}, V, { fabric: '' }))) && !S.drives.length);
     const err = await S.cdkCutSave(x, V), d = S.drives[0];
     ok('saved through Cutting Data\'s own Save button', err === '' && d && d.saveId === 'cwSave' && d.msgId === 'cwMsg');
     ok('…against this order and SKU', d.set.cwOrd === 'PO-2' && d.sku === 'B');
-    ok('…with the pieces, date, fabric, waste, width and remarks typed', d.set.cwPcs === '120' && d.set.cwDate === '2026-11-24' && d.set.cwFabric === 'Sheeting 82' && d.set.cwWaste === '4' && d.set.cwWasteW === '20' && d.set.cwRemarks === 'second lot');
+    ok('the date saved is today, not another date handed to the save (24 Nov was handed, 25 Nov is today)', d.set.cwDate === '2026-11-25', d.set.cwDate);
+    ok('…with the pieces, fabric, waste, width and remarks typed', d.set.cwPcs === '120' &&d.set.cwFabric === 'Sheeting 82' && d.set.cwWaste === '4' && d.set.cwWasteW === '20' && d.set.cwRemarks === 'second lot');
     ok('a blank cloth box takes the planned metres for the pieces cut, rounded once', d.set.cwUsed === '108', d.set.cwUsed);
     ok('…and the form is told to keep those metres', d.typed === '1');
     ok('the line\'s own fabric is allowed while saving, and not after', d.ownOk === 'Sheeting 82' && S.ownOk() === '');
@@ -161,11 +168,14 @@ const click = (S, name, val) => S.cdkClick({ target: { closest: sel => (sel === 
     const S2 = load({ rows: ROWS, mdb: { B: { cons: 0.9 } } });
     await S2.cdkCutSave(x, Object.assign({}, V, { used: '111.5', fabric: 'Cambric 90' }));
     ok('cloth typed by hand is kept as typed', S2.drives[0].set.cwUsed === '111.5');
-    ok('another fabric of the master is not passed off as the line\'s own', S2.drives[0].ownOk === '');
+    ok('another fabric handed to the save is not taken: the line\'s own fabric is what is saved', S2.drives[0].set.cwFabric === 'Sheeting 82' && S2.drives[0].ownOk === 'Sheeting 82');
+    const S4 = load({ rows: [NOFAB] });
+    await S4.cdkCutSave(NOFAB, Object.assign({}, V, { fabric: 'Cambric 90' }));
+    ok('on a line with no fabric of its own the picked one is saved, and is not passed off as the line\'s own', S4.drives[0].set.cwFabric === 'Cambric 90' && S4.drives[0].ownOk === '');
     const S3 = load({ rows: ROWS });
     await S3.cdkCutSave(x, Object.assign({}, V, { pcs: '7' }));
     ok('where the master has no cloth per piece, a blank stays blank', S3.drives[0].set.cwUsed === '');
-    await S3.cdkCutSave(x, Object.assign({}, V, { fabric: 'Linen 60' }));
+    await S3.cdkCutSave(NOFAB, Object.assign({}, V, { fabric: 'Linen 60' }));
     ok('a fabric the form\'s list lacks is added to it, so the pick is not lost', S3.els.cwFabric.options.some(o => o.value === 'Linen 60'));
 
     const R = load({ rows: ROWS, driveErr: 'PO-2 allows only 150 more piece(s).' });

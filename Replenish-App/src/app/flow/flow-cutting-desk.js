@@ -163,12 +163,17 @@ function cdkCutOpen(key) {
   const x = flowRows().find(y => y.s.key === key); if (!x) return;
   if (x.r.__t) return flowTestCutOpen(x.r.orderNo, x.r.sku);   // a test line has no register entry: its own stand-in form
   if (!flowMay('pcut')) { const m = $('flEmbMsg_pcut'); if (m) m.textContent = 'Cutting Data is not open to this account — ask for the Cutting right.'; return; }
-  const own = cdkFabric(x), fabs = (typeof cutFabrics === 'function' ? cutFabrics() : []).filter(f => String(f).toLowerCase() !== own.toLowerCase());
-  const per = cdkPerPiece(x.r.sku), pf = flowCutFabricOf(x.r, x.s.plan);
+  const own = cdkFabric(x), per = cdkPerPiece(x.r.sku), pf = flowCutFabricOf(x.r, x.s.plan);
+  /* THE FABRIC IS THE LINE'S OWN, AND FIXED (25 Nov: "the fabric cannot be changed here"). A list to pick from is offered only where
+   * the line has no fabric at all (no plan and no master row), because a cutting entry cannot be saved without one. */
+  const fabField = own ? { key: 'fabric', label: 'Fabric', value: own, readonly: true }
+    : { key: 'fabric', label: 'Fabric', type: 'select', options: [['', '— pick —']].concat((typeof cutFabrics === 'function' ? cutFabrics() : []).map(f => [f, f])), value: '' };
   ptOpenDialog({ title: 'Cutting entry', subtitle: x.r.orderNo + ' · saved in Cutting Data, against this order.', html: cdkCardHtml(x),
     fields: [{ key: 'pcs', label: 'Pieces cut', type: 'number', min: 1, step: 1, value: flowCutNow(x.r, x.s) || '' },
-      { key: 'date', label: 'Cutting date', type: 'date', value: dToday() },
-      { key: 'fabric', label: 'Fabric', type: 'select', options: (own ? [[own, own + ' — this line\'s fabric']] : [['', '— pick —']]).concat(fabs.map(f => [f, f])), value: own },
+      /* THE DATE IS TODAY, AND FIXED (25 Nov: "also lock the cutting date"): cutting is entered the day it is done. A wrong date
+       * is put right by an admin in Cutting Data, as before. */
+      { key: 'date', label: 'Cutting date', type: 'date', value: dToday(), readonly: true },
+      fabField,
       { key: 'used', label: per ? `Cloth used (m) — blank takes ${per} m a piece` : 'Cloth used (m)', type: 'number', min: 0, step: 0.01, value: '' },
       { key: 'waste', label: 'Waste back (m)', type: 'number', min: 0, step: 0.01, value: '' },
       { key: 'wasteW', label: 'Waste width (in)', type: 'number', min: 0, step: 0.25, value: '' },
@@ -179,7 +184,8 @@ function cdkCutOpen(key) {
 async function cdkCutSave(x, v) {
   const pcs = parseInt(v.pcs, 10), r = x.r;
   if (!(pcs > 0)) return 'Type how many pieces were cut.';
-  if (!v.fabric) return 'Pick the fabric this was cut from.';
+  const own = cdkFabric(x), fabric = own || v.fabric;   // the line's own fabric is what is saved, whatever the box was made to say
+  if (!fabric) return 'Pick the fabric this was cut from.';
   const per = cdkPerPiece(r.sku), typed = String(v.used == null ? '' : v.used).trim();
   const used = typed !== '' ? typed : (per ? String(Math.round(per * pcs * 100) / 100) : '');   // rounded once, here, as the form does
   await ensureCutForm();
@@ -188,11 +194,11 @@ async function cdkCutSave(x, v) {
   $('cwSku').value = r.sku; $('cwSku').dataset.typed = '1'; renderCutPick(); renderCutForm();
   $('cwUsed').dataset.typed = '1';   // the form must keep the metres put in below, not work them out again
   const sel = $('cwFabric');   // the form's list may not carry the line's own fabric yet: add it, so the pick is not lost
-  if (sel && sel.options && ![...sel.options].some(o => o.value === v.fabric)) { const o = document.createElement('option'); o.value = o.textContent = v.fabric; sel.appendChild(o); }
-  CUT_OWN_OK = v.fabric === cdkFabric(x) ? v.fabric : '';   // the line's own fabric is allowed even where the master does not list it
+  if (sel && sel.options && ![...sel.options].some(o => o.value === fabric)) { const o = document.createElement('option'); o.value = o.textContent = fabric; sel.appendChild(o); }
+  CUT_OWN_OK = own;   // the line's own fabric is allowed even where the master does not list it; one picked for a line with none is not
   let err = '';
   try {
-    err = await shpbDrive({ cwOrd: r.orderNo, cwPcs: String(pcs), cwFabric: v.fabric, cwDate: v.date || dToday(), cwUsed: used,
+    err = await shpbDrive({ cwOrd: r.orderNo, cwPcs: String(pcs), cwFabric: fabric, cwDate: dToday(), cwUsed: used,   // today, whatever the date box was made to say
       cwWaste: String(v.waste == null ? '' : v.waste).trim(), cwWasteW: String(v.wasteW == null ? '' : v.wasteW).trim(), cwRemarks: String(v.remarks || '').trim() }, 'cwSave', 'cwMsg');
   } finally {
     CUT_OWN_OK = '';
