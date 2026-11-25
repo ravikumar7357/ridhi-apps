@@ -810,7 +810,7 @@ function alHeroHtml(r) {
     + `${['critical', 'important', 'watch'].includes(k) && toCheck(k) ? ` <small class="al-tocheck">(+${toCheck(k)} to check)</small>` : ''}</button>`;
   const lookDrops = r.review.filter(a => a.kind === 'alerts'), lookWins = r.review.length - lookDrops.length;
   const lookUsd = lookDrops.reduce((s, a) => s + (a.soft ? 0 : a.atRisk || 0), 0);   // a big product's Watch is never in $ at risk
-  return `<section class="al-hero"><h2 class="al-hl">${sent}</h2><div class="al-chips" role="group" aria-label="Filter">${['critical', 'important', 'watch', 'waiting', 'recovered'].map(chip).join('')}</div>`
+  return `<section class="al-hero"><h2 class="al-hl">${sent}</h2><div class="al-chips" role="group" aria-label="Filter">${['critical', 'important', 'watch', 'waiting', 'recovered'].map(chip).join('')}${typeof rsChipHtml === 'function' ? rsChipHtml(r.brand) : ''}</div>`
     + `<p class="al-sub">${AL_BRAND_NAME[r.brand]} · finished days up to <b>${alDay(r.last)}</b> (US Pacific) against the normal ${r.base.weeks} weeks ${alDay(r.base.from)}–${alDay(r.base.to)}`
     + `${r.missing.length ? ` · the nightly days for ${alDay(r.missing[r.missing.length - 1])} are not in yet` : ''}</p>`
     + `<p class="al-sum">Sellora checked <b>${AL_NF.format(r.checked)}</b> products · <b>${r.alerts.length}</b> confirmed drop${r.alerts.length === 1 ? '' : 's'} · <b>${r.wins.length}</b> confirmed win${r.wins.length === 1 ? '' : 's'}`
@@ -913,7 +913,7 @@ function alFootHtml(r) {
 }
 function alBarHtml() {
   const b = (v, t) => `<button type="button" data-al-brand="${v}" aria-pressed="${AL.brand === v}">${t}</button>`;
-  return `<header class="al-bar"><div class="al-seg" role="group" aria-label="Brand">${b('SP', 'Ridhi')}${b('CPC', 'CPC')}${b('ALL', 'All')}</div>`
+  return `<header class="al-bar"><div class="al-seg" role="group" aria-label="Brand">${b('SP', 'Ridhi')}${b('CPC', 'CPC')}${b('ALL', 'All')}</div>${typeof rsBarBtn === 'function' ? rsBarBtn() : ''}`
     + `<span id="alMsg" class="muted">${alEsc(AL.msg)}</span><button type="button" class="al-btn" data-al-act="refresh"${AL.busy ? ' disabled' : ''}>${AL.busy ? 'Reading…' : 'Refresh'}</button></header>`;
 }
 /** Draw the page. */
@@ -928,9 +928,11 @@ function alRender() {
   if (!r) { root.innerHTML = `<div class="al">${alBarHtml()}<section class="al-hero"><h2 class="al-hl">${AL.busy ? 'Reading the per-product days…' : 'Not read yet.'}</h2></section></div>`; return; }
   if (!r.ok) { root.innerHTML = `<div class="al">${alBarHtml()}<section class="al-hero"><h2 class="al-hl">${alEsc(r.why)}</h2></section></div>`; return; }
   const top = AL.filter ? [] : r.alerts.slice(0, 3);
+  // ↩ Return spikes (sales/returns.js): their own section after "Fix these first"; the chip shows them alone
+  const rs = typeof rsSectionHtml === 'function' ? rsSectionHtml(AL.brand, AL.filter === 'returns') : '';
   root.innerHTML = `<div class="al">${alBarHtml()}${alHeroHtml(r)}`
     + (top.length ? `<section class="al-sec"><div class="al-sec-h"><h3>Fix these first</h3><span class="muted">biggest money first</span></div><div class="al-top">${top.map(alCardHtml).join('')}</div></section>` : '')
-    + alListHtml(r) + (AL.filter ? '' : alWinsHtml(r)) + alHowHtml(r) + alFootHtml(r) + '</div>';
+    + (AL.filter === 'returns' ? rs : rs + alListHtml(r) + (AL.filter ? '' : alWinsHtml(r))) + alHowHtml(r) + alFootHtml(r) + '</div>';
   alAnimate(root, r);
 }
 
@@ -1055,8 +1057,10 @@ function alRepaintElsewhere() {
 /** The tab opened (core/nav.js showTab). */
 async function ensureSalert() {
   alRender();
+  const rs = typeof rsLoad === 'function' ? rsLoad().then(() => { if (alShown()) alRender(); }).catch(() => {}) : null;
   await alLoad();
   if (alShown()) alRender();
+  void rs;
   alRepaintElsewhere();
 }
 

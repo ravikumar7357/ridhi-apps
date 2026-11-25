@@ -267,6 +267,13 @@ function tkAfter(t, ctx, n) {
 function tkVerdict(t, ctx) {
   if (t.status !== 'done' || !t.doneAt) return { stage: 'open', line: '' };
   if (t.verdict && t.verdict.v) return Object.assign({ stage: 'final', kept: true }, t.verdict);
+  // a return spike (sales/returns.js): worked once the family is no longer a return spike; still one at the end of the window → ❌
+  if (tkKind(t) === 'returns') {
+    if (ctx.returnOn == null) return { stage: 'wait', line: 'Not enough data yet — the returns are not read (Sales Alerts → ↩ Returns data)' };
+    if (ctx.returnOn === false) return { stage: 'final', v: 'worked', line: 'Returns are back to normal — no longer a return spike in Sales Alerts — ✅ Worked' };
+    const days = Math.floor(((ctx.now || Date.now()) - t.doneAt) / 864e5);
+    return days >= tkWin(t) ? { stage: 'final', v: 'didnt', line: `Still a return spike ${days} days after Done — ❌ Didn't work` } : { stage: 'wait', line: `Still a return spike — checked again until day ${tkWin(t)}` };
+  }
   // a reorder from the Forecast: worked as soon as the family is no longer ⛔ / 🔴
   if (tkKind(t) === 'stock') {
     const st = ctx.fam && ctx.fam.status;
@@ -291,7 +298,7 @@ function tkVerdict(t, ctx) {
 
 /* ----- the data the verdict reads (the Forecast's families: its weeks with stock-outs skipped, Sales Alerts' result) ----- */
 function tkCtx(t) {
-  const ctx = { fam: null, days: null, weekly: null, alertOn: null, now: Date.now() };
+  const ctx = { fam: null, days: null, weekly: null, alertOn: null, returnOn: null, now: Date.now() };
   try {
     if (typeof VI !== 'undefined' && VI.data) { ctx.days = VI.data.days || null; ctx.weekly = (VI.data.weekly && VI.data.weekly.rows) || null; }
     const r = typeof foFor === 'function' ? foFor(t.brand) : null;
@@ -300,6 +307,7 @@ function tkCtx(t) {
       const k = t.asin ? f.kids.find(x => x.asin === t.asin) : null;
       ctx.fam = k ? { s: k.s, asins: [k.asin], status: k.status } : { s: f.s, asins: f.kids.map(x => x.asin), status: f.status };
     }
+    if (typeof rsSpikeOn === 'function') ctx.returnOn = rsSpikeOn(t.brand, t.key);
     if (typeof alFor === 'function' && typeof AL !== 'undefined' && AL.data) {
       const ar = alFor(t.brand);
       if (ar && ar.ok) ctx.alertOn = [].concat(ar.alerts, ar.review, ar.waiting).some(a => a.key === t.key);

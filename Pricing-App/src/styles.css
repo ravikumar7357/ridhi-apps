@@ -1114,6 +1114,44 @@
   #paneSales .al-strip-go { height: 36px; min-height: 0; margin: 0; padding: 0 14px; border: 0; border-radius: 999px; background: var(--sx-chip); color: var(--sx-ink); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
   #paneSales[data-mode="compact"] .al-strip { margin-bottom: 0; }
   @media (max-width: 760px) { #paneSales .al-strip { margin-bottom: -40px; } }
+  /* ↩ RETURN SPIKES (25 Nov 2026, sales/returns.js) — inside Sales Alerts: the same cards and rows as the drops, the upload panel, the
+     no-data note; its chart and the reasons' bars in the page's own tokens (light / dark), stacked on a phone */
+  #paneSalert .al-chip.is-returns b { color: var(--al-red); }
+  #paneSalert .rs-up { margin: 0 0 28px; padding: 16px 18px; border-radius: 20px; background: var(--al-card); box-shadow: var(--al-shadow); }
+  #paneSalert .rs-up-h { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; font-size: 13px; }
+  #paneSalert .rs-up-h b { font-size: 15px; }
+  #paneSalert .rs-up-r { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+  #paneSalert .rs-file { position: relative; }
+  #paneSalert .rs-msg { margin: 10px 0 0; padding: 8px 12px; border-radius: 12px; background: var(--al-grey-bg); font-size: 13px; }
+  #paneSalert .rs-none { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 36px; padding: 12px 16px; border-radius: 16px; background: var(--al-grey-bg); font-size: 14px; color: var(--al-muted); }
+  #paneSalert .rs-sec .al-sec-h > .muted { font-size: 12.5px; }
+  #paneSalert .rs-card { cursor: pointer; }
+  #paneSalert .rs-det { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 22px; margin: 4px 0 8px; }
+  #paneSalert .rs-col h5 { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--al-muted); }
+  #paneSalert .rs-chart { display: block; width: 100%; height: auto; }
+  #paneSalert .rs-cl { fill: none; stroke: var(--al-red); stroke-width: 2; }
+  #paneSalert .rs-cp { fill: var(--al-card); stroke: var(--al-red); stroke-width: 1.5; }
+  #paneSalert .rs-cn { fill: var(--al-red); }
+  #paneSalert .rs-cb { stroke: var(--al-muted); stroke-width: 1.2; stroke-dasharray: 4 3; }
+  #paneSalert .rs-cg { stroke: var(--al-line); }
+  #paneSalert .rs-cx { fill: var(--al-muted); font-size: 10px; }
+  #paneSalert .rs-rs { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+  #paneSalert .rs-rs li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(60px, 40%) 28px; align-items: center; gap: 8px; padding: 3px 0; }
+  #paneSalert .rs-bar { display: block; height: 8px; border-radius: 4px; background: var(--al-grey-bg); }
+  #paneSalert .rs-bar i { display: block; height: 100%; border-radius: 4px; background: color-mix(in srgb, var(--al-red) 70%, transparent); }
+  #paneSalert .rs-rs b { text-align: right; font-variant-numeric: tabular-nums; }
+  #paneSalert .rs-com { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+  #paneSalert .rs-com li { padding: 5px 0; border-top: 1px solid var(--al-line); }
+  #paneSalert .rs-com li:first-child { border-top: 0; }
+  #paneSalert .rs-com q { display: block; color: var(--al-ink); }
+  #paneSalert .rs-com small { color: var(--al-muted); }
+  #paneSalert .rs-kids { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #paneSalert .rs-kids th, #paneSalert .rs-kids td { padding: 5px 6px; border-top: 1px solid var(--al-line); text-align: left; }
+  #paneSalert .rs-kids thead th { border-top: 0; font-size: 11px; font-weight: 600; color: var(--al-muted); }
+  #paneSalert .rs-kids .num { text-align: right; font-variant-numeric: tabular-nums; }
+  #paneSalert .rs-kids tr.is-spike td { font-weight: 600; }
+  #paneSalert .rs-flag { display: inline-block; padding: 0 6px; border-radius: 999px; background: var(--al-red-bg); color: var(--al-red); font-size: 11px; font-weight: 700; }
+  @media (max-width: 760px) { #paneSalert .rs-det { grid-template-columns: minmax(0, 1fr); } }
   /* ================= FORECAST (25 Nov 2026, sales/forecast.js) — the Sales Alerts look: calm cards, tabular numbers, every number right-aligned.
      ONLY the status wears colour (⛔ deep red, 🔴 red, 🟡 amber, 🟢 green; the rest grey); bars, lines and buttons are neutral. Scoped to
      #paneFcast (and the page behind it while it is open). Motion only under .fo-mo (✨ on, no reduced motion): chips / cards rise once,

@@ -9,7 +9,7 @@ each formula are in that test.
 (one per brand) the backend reads. *Seller Central totals* = Amazon's Business Report day totals (matchBiz cache) and ad
 totals (matchAds cache). *Ridhi* = brand key SP. *Both* / *All*: see each rule — they do not mean the same everywhere.
 
-## The rules (42 numbers)
+## The rules (44 numbers)
 
 ### Sales
 
@@ -556,6 +556,32 @@ Whether a sales task (Action Tracker) changed the product's sales.
 - **Brands:** The task's own brand.
 - **Rounding:** Units/week whole; % whole.
 - **How fresh:** Nightly.
+
+### Return rate
+
+How many of what sold came back, per family and per SKU, per week.
+
+- **Screens:** Sales Alerts (↩ Return spikes: cards, rows, chart, returnsCheck)
+- **Data source:** Amazon's FBA Customer Returns report — the nightly cache "returns" once Pricing-API/Returns.gs runs, else the reports uploaded on Sales Alerts (history/returns_<brand>_<n>; a re-upload replaces rows with the same order, SKU, licence plate, date, quantity and reason). Units sold: the Forecast's weeks (PPC & Organic's weekly store + the nightly per-product days, the Sales Alerts families).
+- **Formula:** Rate(week) = units returned that week ÷ units sold a week, averaged over that week and the week before ((sold this week + sold last week) ÷ 2) — returns come after the sale. A SKU's return is counted on its ASIN (the report's, else the SKU's in Sellora). Only weeks the returns data covers whole.
+- **Day cut-off:** The return date on the US Pacific day (a timestamp is turned into PT); Sunday–Saturday weeks.
+- **Included / excluded:** Amazon FBA customer returns (every disposition). Shopify not in.
+- **Brands:** Ridhi · CPC · All (each family its own brand).
+- **Rounding:** Whole % (one decimal under 1 %).
+- **How fresh:** As the last upload / the nightly cache ("returns data up to <date>").
+
+### Return spike
+
+A family whose returns jumped in the last week the data covers.
+
+- **Screens:** Sales Alerts (↩ Return spikes chip, cards, rows; the Action Tracker's return tasks)
+- **Data source:** Return rate.
+- **Formula:** Baseline = the 8 weeks before, pooled (Σ returned ÷ Σ sold a week), at least 4 covered weeks. Spike = rate ≥ 2 × baseline AND ≥ baseline + 3 points AND ≥ 5 units returned. 🔴 Critical when ≥ 3 × baseline or ≥ 15 %; else 🟡 Watch. "Returns 3% → 11% in 15–21 Nov (9 units) · top reason: Not as described (6)". No returns data: a note, never a number.
+- **Day cut-off:** US Pacific weeks.
+- **Included / excluded:** As Return rate.
+- **Brands:** As Return rate.
+- **Rounding:** Whole %; points whole.
+- **How fresh:** As Return rate.
 
 ## Worked out in more than one place
 
