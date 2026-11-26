@@ -105,12 +105,14 @@ function p1Events() {
       const txt = [['ready', 'ready', v => p1Day(v)], ['route', 'route', v => ((FLOW_ROUTES.find(r => r[0] === v) || [])[2] || v)], ['printer', 'printer', v => v], ['fabric', 'fabric', v => v]]
         .filter(([f]) => Array.isArray(c[f])).map(([f, t, fm]) => `${t} ${c[f][1] ? fm(c[f][1]) : '—'} (was ${c[f][0] ? fm(c[f][0]) : '—'})`).join(' · ');
       add('REPLAN', c.at, l, l.qty, c.by, '', txt || 'Plan saved again'); }); });
-  /* fabric to the printer and printed back — the flow challans */
+  /* fabric to the printer and printed back — the flow challans. Each challan line is the order line its KEY names (25 Nov: a challan for
+   * several orders carries them all as its order number, so the cloth landed on no line); dated by the challan's own date. */
+  const chLine = (c, l) => lineOf.get(l.key) || { orderNo: l.orderNo || String(l.key || '').split('__')[0] || c.orderNo, sku: l.sku };
   Object.values(FLOW.ch || {}).forEach(c => { if (!c || c.cancelled) return;
-    (c.lines || []).forEach(l => { if (l.ruffleOnly) return; const u = flowChUnit(l);
-      add('RFD', c.at || c.date, { orderNo: l.orderNo || c.orderNo, sku: l.sku }, flowChSent(l), c.by, c.vendor && c.vendor.name, 'Challan ' + c.no + (u === 'm' && l.fabric ? ' · ' + l.fabric : ''), u, c.no); });
-    Object.values(c.receipts || {}).forEach(rc => Object.entries((rc && rc.items) || {}).forEach(([key, q]) => { const l = (c.lines || []).find(x => x.key === key); if (!l || l.ruffleOnly) return;
-      add('PRN', rc.at || rc.date, { orderNo: l.orderNo || c.orderNo, sku: l.sku }, q, rc.by, c.vendor && c.vendor.name, 'Challan ' + c.no + (rc.note ? ' · ' + rc.note : ''), flowChUnit(l), c.no); })); });
+    (c.lines || []).forEach(l => { if (!l || l.ruffleOnly) return; const u = flowChUnit(l);
+      add('RFD', c.date || c.at, chLine(c, l), flowChSent(l), c.by, c.vendor && c.vendor.name, 'Challan ' + c.no + (u === 'm' && l.fabric ? ' · ' + l.fabric : ''), u, c.no); });
+    Object.values(c.receipts || {}).forEach(rc => Object.entries((rc && rc.items) || {}).forEach(([key, q]) => { const l = (c.lines || []).find(x => x && x.key === key); if (!l || l.ruffleOnly) return;
+      add('PRN', rc.at || rc.date, chLine(c, l), q, rc.by, c.vendor && c.vendor.name, 'Challan ' + c.no + (rc.note ? ' · ' + rc.note : ''), flowChUnit(l), c.no); })); });
   /* cutting, job work, press */
   (PT.cut || []).forEach(r => { if (!r) return; add('CUT', r.cutDate || r.addedAt, r, (parseInt(r.pieces, 10) || 0) - (r.rejected === true ? parseInt(r.rejPieces, 10) || 0 : 0), r.addedBy, 'Cutting', 'Cutting Data', '', p1Vr(r)); });
   (PT.base || []).forEach(r => { if (!r) return;
@@ -168,10 +170,113 @@ function p1FgWaits(x) {
   if (s.bucket === 'fgin') return Math.max(0, (s.made || 0) - (s.india || 0));
   return typeof flowFgWaiting === 'function' ? flowFgWaiting(x) : 0;
 }
+/* ---------- FABRIC WITH THE PRINTERS (Ravi, 25 Nov: "in ppc page the report column is showing wrong data especially for the data
+ * of the fabric with work given"; then, of what is still out: "it should only show that data that the printer has not sent … the
+ * printer has sent but not recived by us is not counted in that data also the orders that are against that data are to be accurate").
+ * Read straight from the RFD challans, the way the Greige Desk reads them (flowRfdChallanMoves):
+ *   - each challan line is the order line its key names. A challan for several orders carries them all as its order number
+ *     ("AMZ-27102026-01-SEA, AMZ-27102026-06-AIR"), and matching on that put the cloth on no line at all — RFD-202610-091 sent 3,174 m
+ *     for RPC72-2020 and its history said "Cloth sent: none yet", Production "Nothing waiting".
+ *   - GIVEN in the days: the cloth on the challans dated in them (the challan's own date), ruffle cloth too. A challan made from cloth
+ *     already standing with the printer gave nothing new (it was counted when it first went).
+ *   - BACK in the days: printed cloth received on the challans, and standing cloth the printer sent back to the store unprinted.
+ *   - STILL WITH THE PRINTER now, per order line: what the challans sent, less the more of what we received and what the printer has
+ *     entered as sent on its portal (vpSentKept: its batches, less what we turned away). A challan closed short is not waited for.
+ *     Cloth moved off its line and not settled is still with them ("standing").
+ *   - SENT BY THE PRINTER, NOT RECEIVED YET: said beside it, never counted as with them.
+ *   - FINISHED ON THE VENDOR ORDER (Ravi, 26 Nov): when every vendor order line this printer has for the order line is marked
+ *     Received or has reached us in full, none of its cloth is with them. What the challan still shows with no receipt
+ *     is said apart as NOT BOOKED ON THE CHALLAN — so is a part delivery on the vendor order that no challan receipt covers.
+ * The portal's figures come with the vendor orders, read behind the page (flowEnsureData); until then the challans alone are used,
+ * and the page says so. Nothing stored is changed. */
+/** What part of a vendor order line's figure belongs to each order line it stands for: in proportion to the cloth on this
+ *  printer's challans for each (a fabric line shared by two sizes carries different metres for each), equally when none has any. */
+function p1Shares(ids, onChallans) {
+  const sent = ids.map(id => (onChallans.get(id) || {}).sent || 0), total = sent.reduce((a, q) => a + q, 0);
+  return sent.map(q => (total > 0 ? q / total : 1 / ids.length));
+}
+/** The vendor-order side of each order line, by printer, challan key and unit: { said, got, done }. said — what the printer has
+ *  entered as sent (not for ruffle cloth); got — delivered on the vendor order; done — every line for it is marked Received, or
+ *  has reached us in full (its own deliveries, or this printer's challan receipts — never another printer's). */
+function p1VendorSide(onChallans) {
+  const side = new Map();
+  if (typeof VO === 'undefined' || !VO.rows || typeof vpRecvCnt !== 'function') return side;
+  VO.rows.forEach(o => {
+    if (!o || o.cancelled || /cancel/i.test(String(o.status || ''))) return;
+    const u = voUnit(o), idOf = k => String(o.vendorCode || '') + '|' + k + '|' + u;
+    voLines(o).forEach(l => {
+      if (!l || l.cancelled) return;
+      const keys = [...new Set((voParts(l).length ? voParts(l) : (l.flowKey ? [l.flowKey] : [])).map(vpRecvKey))]; if (!keys.length) return;
+      const ids = keys.map(idOf), printed = vprKeys(l).map(idOf), cnt = vpRecvCnt(o, l), ord = voQty(o, l), got = voDone(l);
+      const onOurChallans = keys.reduce((t, k, i) => t + ((onChallans.get(ids[i]) || {}).recv || 0) / (cnt[k] || 1), 0);
+      const done = o.status === 'Received' || (ord > 0 && Math.max(got, onOurChallans) >= ord - 0.01);
+      const at = id => side.get(id) || side.set(id, { said: 0, got: 0, done: true }).get(id);
+      p1Shares(ids, onChallans).forEach((part, i) => { const v = at(ids[i]); v.got += got * part; v.done = v.done && done; });
+      if (printed.length) { const said = vpSentKept(o, l); p1Shares(printed, onChallans).forEach((part, i) => { at(printed[i]).said += said * part; }); }
+    });
+  });
+  return side;
+}
+/** What the open challans sent and we have no receipt for, in its three places: with the printer (left), sent by them and not
+ *  received (transit), and finished or delivered on the vendor order but not booked on the challan (unbooked). earlier — what
+ *  was received on challans since closed: the vendor order's figures cover that cloth too, so it is taken off them first. */
+function p1ClothSplit(sent, recv, v, earlier) {
+  const open = Math.max(0, sent - recv);
+  if (v && v.done) return { left: 0, transit: 0, unbooked: flowR2(open) };
+  const onOpen = q => Math.min(sent, Math.max(0, q - earlier)), got = onOpen(v ? v.got : 0), said = onOpen(v ? v.said : 0);
+  const unbooked = Math.max(0, got - recv), transit = Math.max(0, said - Math.max(recv, got));
+  return { left: flowR2(open - unbooked - transit), transit: flowR2(transit), unbooked: flowR2(unbooked) };
+}
+function p1PrinterWork(from, to) {
+  const inP = d => !!d && (!from || d >= from) && (!to || d <= to), day = (d, at) => String(d || p1Iso(at) || '').slice(0, 10);
+  const lineOf = new Map(); try { ordLines().forEach(r => lineOf.set(flowKey(r.orderNo, r.sku), r)); } catch (e) { /* no order book yet */ }
+  const P = new Map(), party = (code, name) => { const k = String(code || name || '—');
+    return P.get(k) || P.set(k, { kind: 'Printer', code: String(code || ''), name: String(name || code || '—'), given: 0, gm: 0, back: 0, bm: 0, skus: new Set(), transit: 0, tm: 0, unbooked: 0, um: 0 }).get(k); };
+  const inMetres = { given: 'gm', back: 'bm', transit: 'tm', unbooked: 'um' };
+  const put = (e, unit, q, f) => { if (q > 0) e[unit === 'm' ? inMetres[f] : f] += q; };
+  /* lines — what open challans still account for; onChallans — everything each order line was ever sent and has had received */
+  const lines = new Map(), onChallans = new Map();
+  Object.values(FLOW.ch || {}).forEach(c => {
+    if (!c || c.cancelled) return;
+    const v = c.vendor || {}, e = party(v.code, v.name), d = day(c.date, c.at), recv = flowChRecv(c), seen = new Set();
+    (c.lines || []).forEach(l => {
+      if (!l) return;
+      const u = flowChUnit(l), q = flowChSent(l);
+      if (!c.standing && inP(d)) { put(e, u, q, 'given'); if (q > 0) e.skus.add(obUC(l.sku)); }
+      if (flowChMoved(c, l)) return;
+      const id = String(v.code || '') + '|' + l.key + (l.ruffleOnly ? FLOW_RUF : '') + '|' + u;
+      const got = seen.has(l.key + u) ? 0 : +recv[l.key] || 0; seen.add(l.key + u);   // a challan's receipts name the line once
+      const all = onChallans.get(id) || onChallans.set(id, { sent: 0, recv: 0, earlier: 0 }).get(id);
+      all.sent += q; all.recv += got;
+      if (c.closed) { all.earlier += got; return; }
+      const k = id + '|' + (v.code || v.name);
+      const b = lines.get(k) || lines.set(k, { e, id, key: l.key, sku: obUC(l.sku), unit: u, ruffle: !!l.ruffleOnly, sent: 0, recv: 0, since: '', nos: [] }).get(k);
+      b.sent += q; b.recv += got;
+      if (d && (!b.since || d < b.since)) b.since = d; if (!b.nos.includes(c.no)) b.nos.push(c.no); });
+    Object.values(c.receipts || {}).forEach(rc => { if (!rc || !inP(day(rc.date, rc.at))) return;
+      Object.entries(rc.items || {}).forEach(([key, q]) => { const l = (c.lines || []).find(x => x && x.key === key); put(e, l ? flowChUnit(l) : 'm', +q || 0, 'back'); }); });
+    Object.values(c.moved || {}).forEach(m => Object.values((m && m.settles) || {}).forEach(x => {
+      if (x && x.how === 'store' && inP(day('', x.at))) put(e, m.unit === 'pcs' ? 'pcs' : 'm', +x.qty || 0, 'back'); }));
+  });
+  const side = p1VendorSide(onChallans), holds = [], unbooked = [];
+  lines.forEach(b => {
+    const x = p1ClothSplit(flowR2(b.sent), b.recv, side.get(b.id), onChallans.get(b.id).earlier);
+    put(b.e, b.unit, x.transit, 'transit'); put(b.e, b.unit, x.unbooked, 'unbooked');
+    const r = lineOf.get(b.key), row = qty => ({ stage: 'Printer', sku: r ? obUC(r.sku) : b.sku, orderNo: r ? obUC(r.orderNo) : obUC(String(b.key).split('__')[0]), pcs: qty,
+      unit: b.unit, who: b.e.name, since: b.since, ref: (b.ruffle ? 'ruffle · ' : '') + 'Challan ' + b.nos.join(', '), key: b.key });
+    if (x.left > 0.01) holds.push(row(x.left));
+    if (x.unbooked > 0.01) unbooked.push(row(x.unbooked));
+  });
+  /* standing: moved off its line and not settled — still with the printer, against the order it was given for */
+  try { flowStanding().forEach(x => { if (!(x.qty > 0.01)) return;
+    holds.push({ stage: 'Printer', sku: obUC(x.sku), orderNo: obUC(x.orderNo), pcs: x.qty, unit: x.unit, who: x.printer || x.code, since: x.at, ref: 'standing (moved off this order) · Challan ' + x.no, key: x.key }); }); }
+  catch (e) { console.warn('PPC: standing cloth not counted (' + ((e && e.message) || e) + ').'); }
+  return { parties: [...P.values()], holds, unbooked, vendorRead: typeof VO !== 'undefined' && !!VO.rows && !VO.err };
+}
 /** Every piece in production right now: { stage, sku, orderNo, pcs, unit, who, since, ref }. */
 let P1_WIPC = { key: null, out: [] }, P1_INVC = { key: null, out: [] };
 /** What both lists are worked out from: when none of it changes, neither does the answer. */
-const p1SrcKey = () => [flowRows(), p1Events(), PT.base, (PT.base || []).length, typeof QC !== 'undefined' ? QC.checks : null, typeof FGI !== 'undefined' ? FGI.rows : null, FLOW.ch];
+const p1SrcKey = () => [flowRows(), p1Events(), PT.base, (PT.base || []).length, typeof QC !== 'undefined' ? QC.checks : null, typeof FGI !== 'undefined' ? FGI.rows : null, FLOW.ch, typeof VO !== 'undefined' ? VO.rows : null];
 const p1Same = (a, b) => !!a && a.length === b.length && a.every((x, i) => x === b[i]);
 function p1Wip() {
   const key = p1SrcKey(); if (p1Same(P1_WIPC.key, key)) return P1_WIPC.out;
@@ -180,10 +285,8 @@ function p1Wip() {
 function p1WipBuild() {
   const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done' && x.s.bucket !== 'board'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
   p1Events(); const lastOf = (k, o, s) => P1_EV.last.get(k + '|' + o + '|' + s) || null;
-  /* with the printer: what each open challan has sent and not had back */
-  Object.values(FLOW.ch || {}).forEach(c => { if (!c || c.cancelled || c.closed) return; const recv = flowChRecv(c);
-    (c.lines || []).forEach(l => { if (l.ruffleOnly || flowChMoved(c, l)) return; const left = flowR2(flowChSent(l) - (recv[l.key] || 0));
-      if (left > 0.01) out.push({ stage: 'Printer', sku: obUC(l.sku), orderNo: obUC(l.orderNo || c.orderNo), pcs: left, unit: flowChUnit(l), who: (c.vendor && c.vendor.name) || '—', since: p1Iso(c.at || c.date), ref: 'Challan ' + c.no }); }); });
+  /* with the printer: what the challans sent and the printer has not sent back yet, on the order line it is for (p1PrinterWork, 25 Nov) */
+  p1PrinterWork('', '').holds.forEach(h => { if (!h.ref.startsWith('ruffle')) out.push(h); });
   rows.forEach(x => { const s = x.s, r = x.r, q = +r.qty || 0, o = obUC(r.orderNo), k = obUC(r.sku);
     const rl = p1RfdLeft(x);
     if (rl > 0) { const p = lastOf('PLAN', o, k); out.push({ stage: 'RFD store', sku: k, orderNo: o, pcs: rl, unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'cloth to send' }); }
@@ -820,34 +923,39 @@ function p1RangeDates() {
 /** The report's figures for the period: tiles, parties, people, days. */
 function p1Report() {
   const [from, to] = p1RangeDates(), ev = p1Events().filter(e => (!from || e.day >= from) && (!to || e.day <= to));
-  const pcs = k => ev.filter(e => e.k === k && e.unit !== 'm').reduce((t, e) => t + e.pcs, 0), mtr = k => ev.filter(e => e.k === k && e.unit === 'm').reduce((t, e) => t + e.pcs, 0);
-  const tiles = [['IN', 'Orders in', pcs('IN')], ['PLAN', 'Planned', pcs('PLAN')], ['RFD', 'Fabric to printers', pcs('RFD'), mtr('RFD')], ['PRN', 'Printed back', pcs('PRN'), mtr('PRN')],
+  const pcs = k => ev.filter(e => e.k === k && e.unit !== 'm').reduce((t, e) => t + e.pcs, 0);
+  /* THE PRINTERS from the challans themselves (p1PrinterWork, 25 Nov): given and back in the days, still with them now and what they
+   * sent that is not received yet — the Fabric tiles add up the same figures, so tiles and rows agree. */
+  const pw = p1PrinterWork(from, to), sumP = f => pw.parties.reduce((t, p) => t + p[f], 0);
+  const tiles = [['IN', 'Orders in', pcs('IN')], ['PLAN', 'Planned', pcs('PLAN')], ['RFD', 'Fabric to printers', sumP('given'), sumP('gm')], ['PRN', 'Printed back', sumP('back'), sumP('bm')],
     ['CUT', 'Cut', pcs('CUT')], ['ISS', 'Given to karigars', pcs('ISS')], ['REC', 'Back from karigars', pcs('REC')], ['QC', 'QC passed', pcs('QC')], ['REJ', 'QC rejected', pcs('REJ')],
     ['FG', 'Into Finished Goods', pcs('FG')], ['SHIP', 'Handed to shipping', pcs('SHIP')], ['FBA', 'Dispatched to FBA', pcs('FBA')]];
-  /* the parties: printers (fabric out → printed back), karigars (issued → received), cutting */
-  const parties = new Map(), P = (kind, name) => { const k = kind + '|' + (name || '—'); return parties.get(k) || parties.set(k, { kind, name: name || '—', given: 0, back: 0, gm: 0, bm: 0, lines: new Set(), skus: new Set() }).get(k); };
+  /* the parties: printers (fabric out → back), karigars (issued → received). No Cutting row (Ravi, 25 Nov: "Remove Cutting row") —
+   * cutting is our own department, not work given out. */
+  const parties = new Map(), P = (kind, name) => { const k = kind + '|' + (name || '—');
+    return parties.get(k) || parties.set(k, { kind, name: name || '—', given: 0, back: 0, gm: 0, bm: 0, transit: 0, tm: 0, unbooked: 0, um: 0, skus: new Set() }).get(k); };
+  pw.parties.forEach(p => { if (p.given || p.gm || p.back || p.bm || p.transit || p.tm || p.unbooked || p.um) parties.set('Printer|' + p.name, p); });
   ev.forEach(e => {
-    if (e.k === 'RFD') { const p = P('Printer', e.party); if (e.unit === 'm') p.gm += e.pcs; else p.given += e.pcs; p.lines.add(e.orderNo + '|' + e.sku); p.skus.add(e.sku); }
-    else if (e.k === 'PRN') { const p = P('Printer', e.party); if (e.unit === 'm') p.bm += e.pcs; else p.back += e.pcs; }
-    else if (e.k === 'ISS') { const p = P('Karigar', e.party); p.given += e.pcs; p.lines.add(e.orderNo + '|' + e.sku); p.skus.add(e.sku); }
+    if (e.k === 'ISS') { const p = P('Karigar', e.party); p.given += e.pcs; p.skus.add(e.sku); }
     else if (e.k === 'REC') { const p = P('Karigar', e.party); p.back += e.pcs; }
-    else if (e.k === 'CUT') { const p = P('Cutting', 'Cutting department'); p.given += e.pcs; p.lines.add(e.orderNo + '|' + e.sku); p.skus.add(e.sku); }
   });
-  /* still out now (whatever the period): from where the pieces are today */
-  const out = new Map();
-  /* metres and pieces are kept apart (review, 26 Oct: they were added together); a print order not yet given is not with anyone */
-  p1Wip().forEach(w => { const kind = w.stage === 'Printer' ? 'Printer' : w.stage === 'With karigar' ? 'Karigar' : null; if (!kind || w.ref === 'print order to give') return;
-    const k = kind + '|' + (w.who || '—'), o = out.get(k) || out.set(k, { pcs: 0, m: 0, oldest: '', items: [] }).get(k);
+  /* still out now (whatever the days): the cloth the printers have not sent, and every Job Work issue not received or rejected —
+   * a karigar's pieces count while they are with him, whether or not their order line is still open (25 Nov) */
+  const out = new Map(), hold = (kind, w) => { const k = kind + '|' + (w.who || '—'), o = out.get(k) || out.set(k, { pcs: 0, m: 0, oldest: '', items: [] }).get(k);
     if (w.unit === 'm') o.m += w.pcs; else o.pcs += w.pcs; o.items.push(w); if (w.since && (!o.oldest || w.since < o.oldest)) o.oldest = w.since;
-    if (!parties.has(k)) P(kind, w.who); });
-  const rows = [...parties.values()].map(p => Object.assign(p, { out: out.get(p.kind + '|' + p.name) || { pcs: 0, m: 0, oldest: '', items: [] } }))
-    .sort((a, b) => ['Printer', 'Karigar', 'Cutting'].indexOf(a.kind) - ['Printer', 'Karigar', 'Cutting'].indexOf(b.kind) || (b.out.pcs + b.out.m - a.out.pcs - a.out.m) || (b.given + b.gm - a.given - a.gm));
+    if (!parties.has(k)) P(kind, w.who); };
+  pw.holds.forEach(w => hold('Printer', w));
+  (PT.base || []).forEach(b => { if (!b || b.frozen) return; const left = ptNum(b.issuePieces) - ptNum(b.receivedPieces) - ptNum(b.rejectionPieces);
+    if (left > 0) hold('Karigar', { stage: 'With karigar', sku: obUC(b.sku), orderNo: obUC(b.orderNo), pcs: left, unit: 'pcs', who: b.empName || '—', since: p1Iso(b.issueDate || b.addedAt), ref: 'issued by ' + p1Who(b.addedBy) }); });
+  const rows = [...parties.values()].map(p => Object.assign(p, { out: out.get(p.kind + '|' + p.name) || { pcs: 0, m: 0, oldest: '', items: [] },
+    unbookedItems: p.kind === 'Printer' ? pw.unbooked.filter(w => w.who === p.name) : [] }))
+    .sort((a, b) => ['Printer', 'Karigar'].indexOf(a.kind) - ['Printer', 'Karigar'].indexOf(b.kind) || (b.out.pcs + b.out.m - a.out.pcs - a.out.m) || (b.given + b.gm - a.given - a.gm));
   /* who entered what */
   const people = new Map(), KS = ['PLAN', 'RFD', 'PRN', 'CUT', 'ISS', 'REC', 'QC', 'FG'];
   ev.forEach(e => { if (!e.by || !KS.includes(e.k)) return; const p = people.get(e.by) || people.set(e.by, { by: e.by, n: 0 }).get(e.by); p[e.k] = (p[e.k] || 0) + 1; p.n++; });
   /* day by day */
   const days = new Map(); ev.forEach(e => { if (!['PLAN', 'CUT', 'ISS', 'REC', 'QC', 'FG'].includes(e.k) || e.unit === 'm') return; const d = days.get(e.day) || days.set(e.day, { day: e.day }).get(e.day); d[e.k] = (d[e.k] || 0) + e.pcs; });
-  return { from, to, n: ev.length, tiles, rows, people: [...people.values()].sort((a, b) => b.n - a.n), KS, days: [...days.values()].sort((a, b) => b.day.localeCompare(a.day)) };
+  return { from, to, n: ev.length, tiles, rows, vendorRead: pw.vendorRead, people: [...people.values()].sort((a, b) => b.n - a.n), KS, days: [...days.values()].sort((a, b) => b.day.localeCompare(a.day)) };
 }
 /* ---------- THE LINES REPORT ON THE PAGE (Ravi, 25 Nov, with his ppc-report-2026-11-19-to-2026-11-25.xlsx: "I want the ppc report
  * page to be in this pattern and also I want it to be acurate in its report and also make it work in such a way its really
@@ -945,12 +1053,20 @@ function p1RepPart() {
       ${p1RepTable(shown)}</div>${p1RepSummary(shown)}` : ''}
     <div class="rp-old">Movements, work in progress and work given out in the same days</div>`;
 }
+/** One list under a party's row: what is still out with them, or what is not booked on the challan, oldest first. */
+function p1OutList(title, items) {
+  const line = w => { const d = p1Days(w.since); return `<tr><td class="b">${esc(w.sku)}</td><td>${p1Ords(w.orderNo)}</td><td class="num b">${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</td><td>${p1Day(w.since)}</td><td class="num"${d > 7 ? ' style="color:var(--bad);font-weight:700"' : ''}>${d == null ? '—' : d}</td><td class="muted">${esc(w.ref || '')}</td></tr>`; };
+  return `<div class="sect">${esc(title)}</div><div class="box scroll"><table class="ct li"><thead><tr><th>SKU</th><th>Order</th><th class="num">Qty</th><th>Since</th><th class="num">Days</th><th>Reference</th></tr></thead><tbody>
+    ${[...items].sort((a, b) => String(a.since || '9').localeCompare(String(b.since || '9'))).map(line).join('')}
+    </tbody></table></div>`;
+}
 function p1DrawReport() {
   const el = $('p1Home');
   let R; try { R = p1Report(); } catch (e) { el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}</div><div class="card"><div class="empty" style="color:var(--bad)">Could not read the registers: ${esc(e.message || e)}</div></div>`; return; }
-  const q = P1.q.trim().toUpperCase(), kinds = ['Printer', 'Karigar', 'Cutting'];
+  const q = P1.q.trim().toUpperCase(), kinds = ['Printer', 'Karigar'];
   const rows = R.rows.filter(p => (!P1.rk || p.kind === P1.rk) && (!q || p.name.toUpperCase().includes(q) || [...p.skus].some(s => s.includes(q))));
-  const qm = (n, m) => n || m ? [n ? p1N(n) + (m ? ' pcs' : '') : '', m ? p1N(m) + ' m' : ''].filter(Boolean).join(' · ') : '—';   // pieces and metres side by side, never added
+  /* pieces and metres side by side, never added; a printer's figures always say their unit (25 Nov: Bhavya Ethinic's "246" said neither) */
+  const qm = (n, m, pr) => n || m ? [n ? p1N(n) + (m || pr ? ' pcs' : '') : '', m ? p1N(m) + ' m' : ''].filter(Boolean).join(' · ') : '—';
   const per = R.from || R.to ? `${R.from ? p1Day(R.from) : 'the start'} – ${R.to ? p1Day(R.to) : 'today'}` : 'all time';
   el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<input type="search" class="p1-q" id="p1Q" placeholder="Search a lot, printer, karigar or SKU…" value="${esc(P1.q)}"></div>
     <div class="p1-segrow" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="seg">${P1_RANGES.map(r => `<button type="button" class="segbtn${(P1.rr || '7') === r[0] ? ' on' : ''}" data-p1rr="${r[0]}">${r[1]}</button>`).join('')}</div>
@@ -959,19 +1075,18 @@ function p1DrawReport() {
     ${p1RepPart()}
     <div class="rp-tiles">${R.tiles.map(t => `<div><b>${t[3] && !t[2] ? p1N(t[3]) + '<small> m</small>' : p1N(t[2]) + (t[3] ? `<small> pcs · ${p1N(t[3])} m</small>` : '')}</b><span>${esc(t[1])}</span></div>`).join('')}</div>
     ${p1WipCard()}
-    <div class="card" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Work given out — and what came back</b><span class="muted"> · given and back in the period; still out is today</span>
-      <span style="flex:1"></span><div class="seg">${[['', 'All'], ['Printer', 'Printers'], ['Karigar', 'Karigars'], ['Cutting', 'Cutting']].map(k => `<button type="button" class="segbtn${(P1.rk || '') === k[0] ? ' on' : ''}" data-p1rk="${k[0]}">${k[1]} <span class="n">${R.rows.filter(p => !k[0] || p.kind === k[0]).length}</span></button>`).join('')}</div></div>
-    <div class="ff-grid" style="max-height:none"><table class="xl"><thead><tr><th class="frz" style="text-align:left">Given to</th><th>Type</th><th>Given</th><th>Back</th><th>Still out now</th><th>Oldest out</th><th>SKUs</th><th></th></tr></thead><tbody>
-    ${rows.map((p, i) => { const open = P1.rexp === p.kind + '|' + p.name, d = p1Days(p.out.oldest);
+    <div class="card" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Work given out — and what came back</b><span class="muted"> · given and back in the period; still out is today: what the printer has not sent, or the karigar not returned</span>
+      <span style="flex:1"></span><div class="seg">${[['', 'All'], ['Printer', 'Printers'], ['Karigar', 'Karigars']].map(k => `<button type="button" class="segbtn${(P1.rk || '') === k[0] ? ' on' : ''}" data-p1rk="${k[0]}">${k[1]} <span class="n">${R.rows.filter(p => !k[0] || p.kind === k[0]).length}</span></button>`).join('')}</div></div>
+    <div class="ff-grid" style="max-height:none"><table class="xl"><thead><tr><th class="frz" style="text-align:left">Given to</th><th>Type</th><th>Given</th><th>Back</th><th>Still out now</th><th title="The printer has entered it as sent; we have not received it yet. Not counted as with them.">Sent by printer, not received</th><th title="Finished or delivered on the vendor order, but the challan has no receipt for it. Not counted as with the printer — receive it on the challan.">Not booked on the challan</th><th>Oldest out</th><th>SKUs</th><th></th></tr></thead><tbody>
+    ${rows.map(p => { const open = P1.rexp === p.kind + '|' + p.name, d = p1Days(p.out.oldest);
+      const lists = [['Still out with ' + p.name, p.out.items], ['Not booked on the challan', p.unbookedItems]].filter(l => l[1].length);
       return `<tr><td class="frz" style="text-align:left"><b>${esc(p.name)}</b></td><td><span class="pl ${p.kind === 'Printer' ? 'mv-mat' : p.kind === 'Karigar' ? 'mv-make' : 'mv-plan'}">${p.kind}</span></td>
-        <td class="num">${qm(p.given, p.gm)}</td><td class="num">${qm(p.back, p.bm)}</td>
-        <td class="num"><b${p.out.pcs || p.out.m ? ' style="color:var(--bad)"' : ''}>${qm(p.out.pcs, p.out.m)}</b></td>
+        <td class="num">${qm(p.given, p.gm, p.kind === 'Printer')}</td><td class="num">${qm(p.back, p.bm, p.kind === 'Printer')}</td>
+        <td class="num"><b${p.out.pcs || p.out.m ? ' style="color:var(--bad)"' : ''}>${qm(p.out.pcs, p.out.m, p.kind === 'Printer')}</b></td><td class="num">${p.kind === 'Printer' ? qm(p.transit, p.tm, true) : '<span class="muted">—</span>'}</td><td class="num">${p.kind === 'Printer' ? qm(p.unbooked, p.um, true) : '<span class="muted">—</span>'}</td>
         <td class="num">${p.out.oldest ? `${p1Day(p.out.oldest)} · <b${d > 7 ? ' style="color:var(--bad)"' : ''}>${d} d</b>` : '—'}</td><td class="num">${p.skus.size || p.out.items.length ? p1N(new Set([...p.skus, ...p.out.items.map(w => w.sku)]).size) : '—'}</td>
-        <td>${p.out.items.length ? `<button type="button" class="cellbtn${open ? ' on' : ''}" data-p1rexp="${esc(p.kind + '|' + p.name)}">${open ? 'Hide' : 'What is out'} <span class="caret">${open ? '▴' : '▾'}</span></button>` : ''}</td></tr>
-        ${open ? `<tr class="invdet"><td colspan="8"><div class="invdrop"><div class="sect">Still out with ${esc(p.name)}</div><div class="box scroll"><table class="ct li"><thead><tr><th>SKU</th><th>Order</th><th class="num">Pcs</th><th>Since</th><th class="num">Days</th><th>Reference</th></tr></thead><tbody>
-          ${p.out.items.sort((a, b) => String(a.since || '9').localeCompare(String(b.since || '9'))).map(w => { const dd = p1Days(w.since); return `<tr><td class="b">${esc(w.sku)}</td><td>${p1Ords(w.orderNo)}</td><td class="num b">${p1N(w.pcs)}${w.unit === 'm' ? ' m' : ''}</td><td>${p1Day(w.since)}</td><td class="num"${dd > 7 ? ' style="color:var(--bad);font-weight:700"' : ''}>${dd == null ? '—' : dd}</td><td class="muted">${esc(w.ref || '')}</td></tr>`; }).join('')}
-          </tbody></table></div></div></td></tr>` : ''}`; }).join('') || '<tr><td colspan="8" class="empty">No work given out in this period.</td></tr>'}
-    </tbody></table></div></div>
+        <td>${lists.length ? `<button type="button" class="cellbtn${open ? ' on' : ''}" data-p1rexp="${esc(p.kind + '|' + p.name)}">${open ? 'Hide' : 'What is out'} <span class="caret">${open ? '▴' : '▾'}</span></button>` : ''}</td></tr>
+        ${open ? `<tr class="invdet"><td colspan="10"><div class="invdrop">${lists.map(l => p1OutList(l[0], l[1])).join('')}</div></td></tr>` : ''}`; }).join('') || '<tr><td colspan="10" class="empty">No work given out in this period.</td></tr>'}
+    </tbody></table></div>${R.vendorRead ? '' : '<div class="muted" style="font-size:12px;padding:8px 16px">The vendor orders are still being read — until they come, still out counts only what we have received.</div>'}</div>
     <div class="rp-two"><div class="card" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Who entered what</b><span class="muted"> · entries in the period</span></div>
       <div class="ff-grid" style="max-height:420px"><table class="xl"><thead><tr><th class="frz" style="text-align:left">Person</th>${R.KS.map(k => `<th>${esc(P1_MV[k][0])}</th>`).join('')}<th>Total</th></tr></thead><tbody>
       ${R.people.map(p => `<tr><td class="frz" style="text-align:left"><b>${esc(p.by)}</b></td>${R.KS.map(k => `<td class="num">${p[k] ? p1N(p[k]) : '<span class="muted">—</span>'}</td>`).join('')}<td class="num"><b>${p1N(p.n)}</b></td></tr>`).join('') || `<tr><td colspan="${R.KS.length + 2}" class="empty">Nobody entered anything in this period.</td></tr>`}</tbody></table></div></div>
@@ -1002,8 +1117,8 @@ function p1DrawReport() {
 function p1ReportCsv(R) {
   const c = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }, L = [];
   L.push(['PPC report', R.from || 'start', R.to || 'today'].map(c).join(','), '');
-  L.push(['Given to', 'Type', 'Given (pcs)', 'Given (m)', 'Back (pcs)', 'Back (m)', 'Still out (pcs)', 'Still out (m)', 'Oldest out', 'Days', 'SKUs'].map(c).join(','));
-  R.rows.forEach(p => L.push([p.name, p.kind, p.given, p.gm, p.back, p.bm, p.out.pcs, p.out.m, p.out.oldest, p1Days(p.out.oldest) ?? '', new Set([...p.skus, ...p.out.items.map(w => w.sku)]).size].map(c).join(',')));
+  L.push(['Given to', 'Type', 'Given (pcs)', 'Given (m)', 'Back (pcs)', 'Back (m)', 'Still out (pcs)', 'Still out (m)', 'Sent by printer, not received (pcs)', 'Sent by printer, not received (m)', 'Not booked on the challan (pcs)', 'Not booked on the challan (m)', 'Oldest out', 'Days', 'SKUs'].map(c).join(','));
+  R.rows.forEach(p => L.push([p.name, p.kind, p.given, p.gm, p.back, p.bm, p.out.pcs, p.out.m, p.transit || 0, p.tm || 0, p.unbooked || 0, p.um || 0, p.out.oldest, p1Days(p.out.oldest) ?? '', new Set([...p.skus, ...p.out.items.map(w => w.sku)]).size].map(c).join(',')));
   L.push('', ['Person'].concat(R.KS.map(k => P1_MV[k][0]), ['Total']).map(c).join(','));
   R.people.forEach(p => L.push([p.by].concat(R.KS.map(k => p[k] || 0), [p.n]).map(c).join(',')));
   L.push('', ['Day', 'Planned', 'Cut', 'To karigars', 'Back', 'QC passed', 'Into FG'].map(c).join(','));
