@@ -1054,6 +1054,12 @@
   #gateWait{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
     background:var(--bg);z-index:80;color:var(--muted);font-size:13px;letter-spacing:.02em}
   body.gating #gateWait{display:flex}
+  /* The block-printing loading picture (26 Nov 2026): on a browser refresh, in a table still reading, and over the
+   * screen while a Refresh button works. The cover takes no clicks: the button under it is already off. */
+  .ptLoading{display:flex;flex-direction:column;align-items:center;gap:6px;margin:6px auto;color:var(--muted);font-size:13px;text-align:center}
+  .ptLoading img{display:block;max-width:100%;height:auto}
+  #ptBusyCover{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.55);z-index:70;pointer-events:none}
+  body.ptBusy #ptBusyCover{display:flex}
   .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
   .modalbox{background:var(--card);border-radius:14px;padding:20px;width:min(680px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
   .tbl{width:100%;border-collapse:collapse;font-size:13px}
