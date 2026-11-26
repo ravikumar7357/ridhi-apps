@@ -16,6 +16,7 @@ function world(js) {
   const timers = new Map();
   let id = 0;
   const clock = {
+    now: () => now,
     setTimeout: (fn, ms) => { timers.set(++id, { at: now + ms, fn }); return id; },
     clearTimeout: t => timers.delete(t),
     advance: ms => {
@@ -30,15 +31,27 @@ function world(js) {
   };
   const classes = new Set();
   const words = { textContent: '' };
-  const document = { body: { classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) } }, getElementById: id => (id === 'ptStuckWords' ? words : null) };
+  const screen = { showsLoading: false };
+  const heard = {};
+  const listen = (type, fn) => { heard[type] = fn; };
+  const document = {
+    addEventListener: listen,
+    body: { classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) } },
+    getElementById: id => (id === 'ptStuckWords' ? words : null),
+    querySelectorAll: sel => (sel === '.main .ptLoading' && screen.showsLoading ? [{ offsetParent: {} }] : [{ offsetParent: null }]),
+  };
   const pending = [];
   const window = {
+    addEventListener: listen,
     fetch: url => new Promise((resolve, reject) => pending.push({ url: String(url), resolve, reject })),
   };
   const warns = [];
-  new Function('window', 'document', 'setTimeout', 'clearTimeout', 'PT_URL', 'API', 'PRAPI', 'console', js)(
-    window, document, clock.setTimeout, clock.clearTimeout, DB, { url: SCRIPT }, { url: PRICING }, { warn: (...a) => warns.push(a) });
-  return { window, clock, classes, words, pending, warns, shown: () => classes.has('ptStuck') };
+  new Function('window', 'document', 'setTimeout', 'clearTimeout', 'Date', 'PT_URL', 'API', 'PRAPI', 'console', js)(
+    window, document, clock.setTimeout, clock.clearTimeout, { now: () => clock.now() }, DB, { url: SCRIPT }, { url: PRICING }, { warn: (...a) => warns.push(a) });
+  /* staff do something (a click, by default), then the screen asks for data */
+  const act = (type = 'click') => heard[type] && heard[type]();
+  const ask = url => { act(); return window.fetch(url); };
+  return { window, clock, classes, words, pending, warns, screen, act, ask, shown: () => classes.has('ptStuck') };
 }
 const settle = () => new Promise(r => setImmediate(r));
 
@@ -49,7 +62,7 @@ async function suite(S, loud) {
 
   {
     const w = world(S.js);
-    const call = w.window.fetch(DB + '/pt_orders.json');
+    const call = w.ask(DB + '/pt_orders.json');
     w.clock.advance(1400);
     ok('a read under 1.5 seconds shows nothing', !w.shown());
     w.clock.advance(200);
@@ -64,7 +77,7 @@ async function suite(S, loud) {
   }
   {
     const w = world(S.js);
-    const call = w.window.fetch(SCRIPT + '?action=x');
+    const call = w.ask(SCRIPT + '?action=x');
     w.clock.advance(1600);
     ok('a slow Apps Script call counts too', w.shown());
     w.pending[0].reject(new Error('backend down'));
@@ -76,19 +89,47 @@ async function suite(S, loud) {
   }
   {
     const w = world(S.js);
-    w.window.fetch(PRICING + '?cache=shopSku');
+    w.ask(PRICING + '?cache=shopSku');
     w.clock.advance(1600);
     ok('a slow read of the Shopify figures (pricing backend) counts too', w.shown());
   }
   {
     const w = world(S.js);
-    w.window.fetch('https://cdn.example/picture.png');
+    w.screen.showsLoading = true;                 // Finished Goods: the table already shows the block printing
+    w.ask(DB + '/pt_fgi.json');
+    w.clock.advance(1600);
+    ok('no second picture over a screen that already shows its own', !w.shown());
+    w.clock.advance(28500);
+    ok('…but after 30 seconds the cover still says what to do', w.shown() && /Check the internet/.test(w.words.textContent));
+  }
+  {
+    const w = world(S.js);
+    w.window.fetch(DB + '/pt_orderAlerts.json');   // a background check: nobody clicked
+    w.clock.advance(31000);
+    ok('a slow background check never brings the cover up', !w.shown());
+  }
+  {
+    const w = world(S.js);
+    w.act(); w.clock.advance(3000);
+    w.window.fetch(DB + '/pt_ticker.json');         // started 3 s after the click: not what staff wait for
+    w.clock.advance(5000);
+    ok('a read long after the last click does not count', !w.shown());
+  }
+  {
+    const w = world(S.js);
+    w.act('hashchange'); w.window.fetch(DB + '/pt_fgi.json');
+    w.clock.advance(1600);
+    ok('opening a tab counts as staff waiting', w.shown());
+  }
+  {
+    const w = world(S.js);
+    w.ask('https://cdn.example/picture.png');
     w.clock.advance(60000);
     ok('outside services never show the cover', !w.shown());
   }
   {
     const w = world(S.js);
-    const a = w.window.fetch(DB + '/a.json'); const b = w.window.fetch(DB + '/b.json');
+    const a = w.ask(DB + '/a.json'); const b = w.ask(DB + '/b.json');
     w.clock.advance(1600);
     w.pending[0].resolve(1); await a; await settle();
     ok('two slow reads: the cover stays until both end', w.shown());
@@ -97,7 +138,7 @@ async function suite(S, loud) {
   }
   {
     const w = world(S.js);
-    const quick = w.window.fetch(DB + '/q.json');
+    const quick = w.ask(DB + '/q.json');
     w.pending[0].resolve(1); await quick; await settle();
     w.clock.advance(60000);
     ok('a quick read leaves no timer behind', !w.shown());
@@ -119,11 +160,15 @@ async function suite(S, loud) {
   const breaks = [
     ['shows at once, not after 1.5 seconds', 'js', 'afterMs: 1500', 'afterMs: 0'],
     ['waits 3 seconds again', 'js', 'afterMs: 1500', 'afterMs: 3000'],
-    ['never shows', 'js', "document.body.classList.toggle('ptStuck', !!level);", ''],
+    ['draws a second picture over the screen\'s own', 'js', "(level === 'slow' && !ptStuckScreenShowsLoading())", "level === 'slow'"],
+    ['hides the 30-second words too', 'js', "level === 'verySlow' || ", ''],
+    ['background checks show the cover again', 'js', 'return ptStuckStaffWaiting() && ptStuckIsDataCall(input)', 'return ptStuckIsDataCall(input)'],
+    ['opening a tab does not count', 'js', "  window.addEventListener('hashchange', acted);\n", ''],
+    ['never shows', 'js', "document.body.classList.toggle('ptStuck', show);", ''],
     ['never says what to do', 'js', "PT_STUCK.verySlow > 0 ? 'verySlow' :", ''],
     ['never lifts', 'js', 'passed.forEach(level => { PT_STUCK[level]--; });', ''],
     ['quick calls leave timers behind', 'js', 'timers.forEach(clearTimeout);', ''],
-    ['counts every request', 'js', 'return ptStuckIsDataCall(input) ? ptStuckWatch(call) : call;', 'return ptStuckWatch(call);'],
+    ['counts every request', 'js', 'return ptStuckStaffWaiting() && ptStuckIsDataCall(input) ? ptStuckWatch(call) : call;', 'return ptStuckWatch(call);'],
     ['forgets the backend', 'js', "(typeof API !== 'undefined' && ours(API)) || ", ''],
     ['forgets the pricing backend', 'js', " || (typeof PRAPI !== 'undefined' && ours(PRAPI))", ''],
     ['the cover swallows clicks', 'css', 'z-index:70;pointer-events:none}\n  body.ptStuck', 'z-index:70}\n  body.ptStuck'],
