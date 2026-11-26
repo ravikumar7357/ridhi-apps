@@ -45,4 +45,17 @@ async function lineHoldRun(line, save) {
   if (busy) return busy;
   try { return await save(); } finally { await lineHoldLetGo(path, line.form); }
 }
+/* ONE ENTRY PER SET OF FIGURES (26 Nov, switch lineHold): Save pressed again for the same figures gets the same id, so a
+ * save that reached the database but was reported as failed is not entered twice. `drafts` is the screen's own Map; a set is
+ * remembered until it is saved, and for 10 minutes at most: a retry comes within minutes, while the same figures later in the
+ * day are a real second entry. Switch off: a new id every time, as before. */
+const LINE_HOLD_DRAFT_MS = 10 * 60 * 1000;
+function lineHoldDraftId(drafts, prefix, fields) {
+  const sig = JSON.stringify(Object.assign({}, fields, { addedAt: '' })), now = Date.now();
+  drafts.forEach((d, k) => { if (now - d.at > LINE_HOLD_DRAFT_MS) drafts.delete(k); });
+  if (!lineHoldOn() || !drafts.has(sig)) drafts.set(sig, { id: prefix + now + '_' + Math.random().toString(36).slice(2, 8), at: now });
+  return drafts.get(sig).id;
+}
+/** The entry is saved: its figures are new again. */
+function lineHoldDraftDone(drafts, id) { drafts.forEach((d, k) => { if (d.id === id) drafts.delete(k); }); }
 /* ==== END LINE HOLD ==== */
