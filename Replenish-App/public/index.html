@@ -42904,7 +42904,9 @@ function poSave(after) {
     });
   }
   if (err) { $('lmPoErr').textContent = err; $('lmPoErr').classList.remove('hide'); return; }
+  if (gdPpcAskPending(after)) return;
   var po = JSON.parse(JSON.stringify(PO_DRAFT));
+  delete po.ppcAsk;
   po.lines.forEach(function (l) { delete l.descAuto; delete l._rec; if (!(parseFloat(l.disc) > 0)) delete l.disc; });
   delete po.editId;
   if (PO_DRAFT.editId) {
@@ -46353,8 +46355,53 @@ function gdPoFor(rfd, metres) {
   poOpen();
   var greige = fabGreigeOf(rfd);
   PO_DRAFT.lines = [{ rfd: rfd, greige: greige, desc: 'RFD ready: ' + rfd, descAuto: true, due: PO_DRAFT.date, metres: String(metres), rate: '', _rec: 0 }];
+  PO_DRAFT.ppcAsk = { rfd: rfd, greige: greige, metres: metres };   // what PPC was short of when this PO was opened (gdPpcStillShort)
   poDraw();
   lmSay('ok', nf(metres) + ' m of ' + greige + ' for PPC is on the PO. Pick the supplier and the rate.');
+}
+/* RAISE PO FOR PPC, CHECKED AGAIN AT SAVE (Ravi, 26 Nov: two people raised a PO for one shortage). Behind the switch lineHold.
+ * Raise PO fills the PO with what PPC was short of when the button was pressed. Before that PO is saved, the desk's POs are read
+ * again from the database; if somebody else has put greige on order for that fabric since, the person is asked whether they still
+ * want this one. It is asked, not refused: a second PO can be meant. Fails loudly: if the POs cannot be read, nothing is raised
+ * and the form says so. */
+/** '' when PPC is still as short as when the PO was opened, else the question to ask. Other people's new POs join the desk. */
+async function gdPpcStillShort(ask) {
+  var fresh = await ptGetFresh(GD_NODE + '/gpo'), known = {};
+  DB.gpo.forEach(function (p) { known[p.id] = true; });
+  Object.keys(fresh || {}).forEach(function (k) {
+    var p = fresh[k]; if (!p || known[p.id || k]) return;
+    if (!p.id) p.id = k;
+    DB.gpo.push(p); GD_SNAP.gpo[p.id] = JSON.stringify(p);   // already in the database: not written again
+  });
+  var map = gdPpcMap();
+  if (!map || map.__loading) { console.warn('[line hold] PPC figures not loaded — PO raised without the still-short check'); return ''; }
+  var p = map[String(ask.rfd).toUpperCase()], now = p ? p.greigeM : 0;
+  if (now >= ask.metres) return '';
+  return 'Since this PO was opened, ' + nf(ask.metres - now) + ' m of ' + ask.greige + ' has been put on order by another PO. '
+    + 'PPC is now short ' + (now > 0 ? nf(now) + ' m' : 'nothing') + '.\n\nRaise this PO anyway?';
+}
+/** true while the check runs (poSave is pressed again for the person once it has answered); false = go on saving.
+ *  Save pressed again while the check runs does nothing, and an answer is dropped if this PO form has been closed or
+ *  replaced by another meanwhile: only the PO that was asked about is ever saved. */
+function gdPpcAskPending(after) {
+  var draft = PO_DRAFT, ask = draft.ppcAsk;
+  if (!ask || draft.editId || !lineHoldOn()) return false;
+  if (ask.busy) return true;
+  ask.busy = true;
+  var gone = function () { return PO_DRAFT !== draft || $('lmPo').classList.contains('hide'); };
+  gdPpcStillShort(ask).then(function (q) {
+    if (gone()) return;
+    draft.ppcAsk = null;
+    if (q && !confirm(q)) { lmSay('ok', 'Not raised. The PO is still open to change or close.'); poDraw(); return; }
+    poSave(after);
+  }, function (e) {
+    ask.busy = false;
+    if (gone()) return;
+    console.warn('[line hold] could not read the greige POs before raising one:', e);
+    $('lmPoErr').textContent = 'Not raised — what is already on order could not be checked (' + ((e && e.message) || e) + '). Check the connection and press Save again.';
+    $('lmPoErr').classList.remove('hide');
+  });
+  return true;
 }
 /** Over to the production flow, at one of its Demand tabs. */
 function gdToFlow(view, find) {
