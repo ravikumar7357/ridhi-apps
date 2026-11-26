@@ -571,6 +571,7 @@ function jwRecvOpen(id) {
       { key: 'recv', label: 'Pieces received now (added)', type: 'number', min: 0, value: '' },
       { key: 'rej', label: 'Rejected on this row (total)', type: 'number', min: 0, value: rej || '' },
     ],
+    memory: 'jobWorkReceive',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Save',
     onSave: async v => {
       const addRecv = String(v.recv || '').trim(), newRej = String(v.rej || '').trim();

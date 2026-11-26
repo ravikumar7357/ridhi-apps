@@ -350,6 +350,7 @@ function bdFormMsg(t, bad) { const m = $('bwMsg'); m.textContent = t || ''; m.cl
 
 /** The whole form redrawn from its own state — order → article → subtype → colour → size → SKU. */
 function renderBdForm() {
+  frmWire('jobWorkIssue', $('bwBox'));   // my previous issue in grey, Tab fills (core/form-memory.js)
   const custom = bdIsCustom();
   $('bwOrdWrap').classList.toggle('hide', custom);
   // In Custom mode colour and size are typed, not chosen — that is the point of the mode.
@@ -750,6 +751,7 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
   try {
     const why = await bdWrite(entry);
     if (why) { waPreClose(waWin); bdFormMsg(why, true); $('bwSave').disabled = false; return; }
+    frmRemember('jobWorkIssue', $('bwBox'));
     const waNote = await waAfterIssue(waWin, entry);
     // A zip SKU spends zippers. Posting it here keeps the accessory ledger honest without a second step.
     let zipNote = '', rufNote = '';

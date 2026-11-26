@@ -72,7 +72,7 @@ function screen(db, o) {
     PT: { base: [{ id: 'b1', sku: SKU, orderNo: 'OC-1', receivedPieces: 4, empName: 'Made-up Karigar' }] },
     QC: { checks: o.behind ? [] : null, issue: o.behind ? [] : null },
     cutSkuOf: () => ({}), prOn: () => false, qcOrdersFor: () => [], qcOrderAvail: () => 0,
-    renderQcCheckForm: nothing, renderQc: nothing, renderQcIssueForm: nothing, ptEmpsOfType: () => [['', 'Made-up Tailor']],
+    frmRemember: nothing, renderQcCheckForm: nothing, renderQc: nothing, renderQcIssueForm: nothing, ptEmpsOfType: () => [['', 'Made-up Tailor']],
   };
   vm.createContext(ctx);
   vm.runInContext(CODE, ctx);

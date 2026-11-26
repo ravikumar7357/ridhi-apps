@@ -146,6 +146,45 @@ is('a shared fabric line shares what was sent by each size\'s cloth: all 2.88 m 
 is('…and what was delivered the same way: all 2.88 m not booked', shared({ deliveries: [{ qty: 2.88 }] }), [0, 0, 2.88]);
 ok('vendor orders read, none naming a line: read all the same', load({ ch: {}, vo: [] }).p1PrinterWork('', '').vendorRead === true);
 ok('a failed read of the vendor orders is not "read"', load({ ch: {}, vo: [], voErr: 'offline' }).p1PrinterWork('', '').vendorRead === false);
+/* pieces on the challan, metres on the vendor order: 325 pieces on 100 m of cloth */
+const KB2 = flowKey('SHP-1', 'RPC-B');
+const pcsLine = (key, pcs, metres) => ({ key, sku: key.split('__')[1], print: { kind: 'sku' }, pcs, metres });
+const byPcs = (voRows, x) => {
+  x = x || {};
+  const challan = (no, lines, more) => Object.assign({ no, date: '2026-10-22', vendor: { code: 'RBP', name: 'RBP-Bagru' }, lines }, more);
+  const ch3 = { P: challan('P', x.lines || [pcsLine(KA, 325, 100)]) };
+  if (x.metreChallan) ch3.M = challan('M', [{ key: KA, sku: 'RPC-A', metres: 100 }]);
+  if (x.metreFirst) ch3.G = challan('G', [{ key: KA, sku: 'RPC-A', metres: 6 }], { closed: { at: 'x' }, receipts: { r: { date: '2026-10-24', items: { [KA]: 6 } } } });
+  if (x.first) ch3.F = challan('F', [pcsLine(KA, 325, 100)], { closed: { at: 'x' }, receipts: { r: { date: '2026-10-25', items: { [KA]: 325 } } } });
+  const w = load({ ch: ch3, vo: voRows }).p1PrinterWork('', ''), p = w.parties[0];
+  return { got: [w.holds.filter(h => h.unit === 'pcs').reduce((a, h) => a + h.pcs, 0), p.transit, p.unbooked], m: [w.holds.filter(h => h.unit === 'm').reduce((a, h) => a + h.pcs, 0), p.tm] };
+};
+const cloth = (line, head) => order(Object.assign({ meters: 100 }, line), head);
+is('pieces challan, metre order, all 100 m entered: all 325 pieces sent not received', byPcs([cloth({ sent: 100 })]), [0, 325, 0]);
+is('…half the metres entered: half the pieces, whole ones only (162 of 325)', byPcs([cloth({ sent: 50 })]), [163, 162, 0]);
+is('…nothing entered: all still out', byPcs([cloth({})]), [325, 0, 0]);
+is('…more entered than the challan carries: no more than its pieces', byPcs([cloth({ sent: 140 })]), [0, 325, 0]);
+is('…all delivered on the vendor order: finished, not booked', byPcs([cloth({ deliveries: [{ qty: 100 }] })]), [0, 0, 325]);
+is('…half delivered: half not booked, half out', byPcs([cloth({ meters: 200, deliveries: [{ qty: 50 }] })]), [163, 0, 162]);
+is('…an order marked Received: nothing out', byPcs([cloth({}, { status: 'Received' })]), [0, 0, 325]);
+is('a vendor line in pieces for it is the one that counts', byPcs([cloth({ sent: 100 }), order({ qty: 325, sent: 25 }, { orderType: 'cut' })]), [300, 25, 0]);
+is('a first lot received on a closed piece challan comes off what was entered', byPcs([cloth({ meters: 200, sent: 100 })], { first: true }), [325, 0, 0]);
+const both = byPcs([cloth({ sent: 100 })], { metreChallan: true });
+ok('with a metre challan for the same line too, the metres go to it first: nothing left for the pieces', String(both.got) === '325,0,0' && String(both.m) === '0,100', JSON.stringify(both));
+/* a 6 m metre challan received and closed, then 1 piece on 2.65 m: one vendor line of 8.65 m for both */
+const after = said => byPcs([cloth({ meters: 8.65, sent: said })], { lines: [pcsLine(KA, 1, 2.65)], metreFirst: true });
+is('after a closed metre lot, all 8.65 m entered: the piece is sent not received', after(8.65), [0, 1, 0]);
+is('…only the 6 m of that lot entered: the piece is still out', after(6), [1, 0, 0]);
+is('a metre lot that came back in full fills the order: the pieces sent after it are still out', byPcs([cloth({ meters: 6 })], { lines: [pcsLine(KA, 1, 2.65)], metreFirst: true }), [1, 0, 0]);
+is('…unless the order is marked Received', byPcs([cloth({ meters: 6 }, { status: 'Received' })], { lines: [pcsLine(KA, 1, 2.65)], metreFirst: true }), [0, 0, 1]);
+const mixed = byPcs([cloth({ meters: 11, sent: 11 })], { lines: [{ key: KA, sku: 'RPC-A', metres: 6 }, pcsLine(KA, 2, 5)] });
+ok('metres and pieces on one challan, all 11 m entered: 6 m and 2 pieces sent not received', String(mixed.got) === '0,2,0' && String(mixed.m) === '0,6', JSON.stringify(mixed));
+/* one vendor line for a size sent as metres and pieces (6 + 5 m) and another sent as 11 m: half entered is half of each size */
+const weighed = byPcs([cloth({ parts: [KA, KB2], meters: 22, sent: 11 })], { lines: [{ key: KA, sku: 'RPC-A', metres: 6 }, pcsLine(KA, 10, 5), { key: KB2, sku: 'RPC-B', metres: 11 }] });
+ok('a shared line weighs a size by all its cloth, metres and pieces together (11 m each, 5.5 m entered to each)', String(weighed.got) === '10,0,0' && String(weighed.m) === '6,11', JSON.stringify(weighed));
+is('one cloth line for two sizes, all of it entered: both sizes\' pieces sent not received', byPcs([cloth({ parts: [KA, KB2], meters: 90, sent: 90 })], { lines: [pcsLine(KA, 100, 30), pcsLine(KB2, 100, 60)] }), [0, 200, 0]);
+is('…two thirds entered: two thirds of each size', byPcs([cloth({ parts: [KA, KB2], meters: 90, sent: 60 })], { lines: [pcsLine(KA, 90, 30), pcsLine(KB2, 90, 60)] }), [60, 120, 0]);
+is('the other way round is left alone: a metre challan is not cleared by an order in pieces', one([order({ qty: 1, sent: 1 }, { orderType: 'cut' })]), [6, 0, 0]);
 is('standing cloth stays out though the vendor order is Received', st1, [70, 0, 6]);
 const done = one([order({}, { status: 'Received' })]), L = done.list[0] || {};
 ok('the not-booked line names the SKU, order and challan to receive it on', L.sku === 'RPC-A' && L.orderNo === 'SHP-1' && L.ref === 'Challan RFD-1' && L.pcs === 6, JSON.stringify(L));

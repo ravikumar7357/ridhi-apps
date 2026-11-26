@@ -67,7 +67,7 @@ function screen(db, o) {
     },
     PT: { base: o.behind ? [] : null, cut: [] }, ptNum: v => Number(v) || 0, obKeyOf: (a, b) => up(a) + '|' + up(b),
     prOn: () => false, obIsLegacy: () => false, obOrderedQty: () => 4, obCutQty: () => o.cut || 4, obPressQty: () => 0, cutSkuOf: () => ({ articleType: 'Cover' }),
-    bdIsCustom: () => false, ptEmpsOfType: () => [['', 'Made-up Karigar']], bdIssueDay: () => '2026-11-26', mdbOf: () => ({}), ptCustomOf: () => null,
+    frmRemember: () => {}, bdIsCustom: () => false, ptEmpsOfType: () => [['', 'Made-up Karigar']], bdIssueDay: () => '2026-11-26', mdbOf: () => ({}), ptCustomOf: () => null,
     stPrinterSku: () => false, validateAgainstMasters: () => [], ptZipCheck: () => '', bdZipTyped: () => '', bdMatEntry: () => ({}), ptStampDate: d => d,
     waPreOpen: () => null, waPreClose: nothing, waAfterIssue: async () => { sent.wa++; return ''; },
     ptCanEdit: () => true, ordLines: () => [{ orderNo: 'OC-1', sku: SKU }], dToday: () => '2026-11-26', SP_QUIET: true, SP_WA_NOTE: '', MDBX: { custom: [] },

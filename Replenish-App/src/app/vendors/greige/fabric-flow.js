@@ -655,6 +655,7 @@ function fabEntryOpen(pre) {
       <label style="grid-column:span 2">Remarks <input id="fbeRemarks" placeholder="Optional"></label>
     </div>`,
     saveLabel: 'Save entry',
+    memory: 'fabricEntry',
     onSave: async () => {
       const v = {};
       ['fbeKind', 'fbeDate', 'fbeFab', 'fbeQty', 'fbeLot', 'fbeCp', 'fbeCol', 'fbeChallan', 'fbeRate', 'fbeRemarks', 'fbeOrd', 'fbeSize', 'fbePcs']
