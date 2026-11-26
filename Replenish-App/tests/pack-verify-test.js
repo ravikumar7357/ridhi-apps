@@ -39,7 +39,7 @@ function load(o) {
     fgiOutOrders: sku => lines.filter(l => l.sku === up(sku)).map(l => ({ orderNo: l.orderNo, store: store[l.orderNo + '|' + l.sku] || 0 })),
     fgiOf: sku => ({ current: (o.stock || { RTC136060: 3, 'RQL34-Q': 1 })[up(sku)] || 0 }),
     fgiOutCheck: (sku, qty) => qty > ctx.fgiOf(sku).current ? `You don't have enough stock — ${up(sku)}` : '',
-    fgiOutAlloc: (sku, n) => ({ orders: [{ orderNo: 'AUTO', qty: n }], loose: 0 }), fgiNewId: p => p + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(),
+    fgiOutAlloc: (sku, n) => ({ orders: [{ orderNo: 'AUTO', qty: n }], loose: 0 }), fgiNewId: p => p + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(), fgiStockReread: async () => '',
     ptPatch: async patch => { if (o.patchFails) throw new Error('offline'); patches.push(patch); }, fbaBadge: () => {}, fgiOverBadge: () => {}, lstAlertFor: async () => '',
     fbaState: r => ({ st: r.fbaShippedAt ? 'shipped' : 'waiting' }),
   };

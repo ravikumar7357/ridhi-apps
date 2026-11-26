@@ -203,6 +203,7 @@ async function cxFromIndia(id) {
   const l = (CX.rows || []).find(x => (x.id || x._key) === id); if (!l) return 'That line is gone.';
   if ((l.status || 'Open') !== 'Open') return 'That line has already been decided.';
   const q0 = parseInt(l.qty, 10) || 0;
+  const unread = await fgiStockReread(); if (unread) return unread;
   const have = cxIndia(l.sku);
   if (have < q0) return `You don't have enough stock — ${obUC(l.sku)} has ${nf(have)} piece(s) in the India Store`
     + ` and this line needs ${nf(q0)}.`;

@@ -330,6 +330,8 @@ async function fgiEntrySave() {
   let out = null;
   if (k.dir < 0) {
     /* Read again at save: the figure on screen could be minutes old, and the store cannot go short. */
+    const unread = await fgiStockReread();
+    if (unread) return unread;
     const short = fgiOutCheck(sku, qty, type);
     if (short) return short;
     out = fgiOutOrderCheck({ sku, qty, type, order: ($('fgmOutOrd') || {}).value, why: ($('fgmOutWhy') || {}).value,

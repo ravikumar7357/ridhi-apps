@@ -30,7 +30,7 @@ function load(opts) {
     fgiOutOrders: sku => (opts.lines || []).filter(l => l.sku === sku).map(l => ({ orderNo: l.orderNo, store: (opts.store || {})[l.orderNo + '|' + sku] || 0 })),
     fgiOf: sku => ({ current: (opts.stock || {})[sku] || 0 }), fgiOutCheck: (sku, qty) => qty > ((opts.stock || {})[sku] || 0) ? 'You don\'t have enough stock — ' + sku : '',
     fgiOutAlloc: (sku, n) => ({ orders: [{ orderNo: 'AUTO', qty: n }], loose: 0 }), fgiCanEntry: () => opts.right !== false, FGI_NO_ENTRY: 'no right', FGI_FBA_ACCOUNTS: ['Ridhi FBA', 'CPC FBA'],
-    fgiNewId: p => p + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(), ptPatch: async patch => { patches.push(patch); }, fbaBadge: () => {}, fgiOverBadge: () => {}, lstAlertFor: async () => '',
+    fgiNewId: p => p + '-' + Math.random().toString(36).slice(2, 7).toUpperCase(), ptPatch: async patch => { patches.push(patch); }, fgiStockReread: async () => '', fbaBadge: () => {}, fgiOverBadge: () => {}, lstAlertFor: async () => '',
     renderPack: () => {}, renderFgi: () => {},
   };
   const api = new Function(...Object.keys(ctx), SRC + '\n;return { PKS, pksAimed, pksResolve, pksFrame, pksCount, pksUndo, pksNextBox, pksSaveNow, pksImg, pksHit, pksDone, pksFinishAsk, packScanNew };')(...Object.values(ctx));

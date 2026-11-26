@@ -109,6 +109,20 @@ async function fgiLoadRun(quiet) {
 
 const fgiNum = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
 
+/** TWO SCREENS, ONE SHELF (Ravi, 26 Nov): a stock-out save checked "enough stock?" against the ledger as this screen read it
+ *  earlier, so two PCs could send out the same pieces. Every stock-out save asks here first. Switch "lineHold" off: nothing
+ *  changes. On: the ledger is read again (from the live copy, so normally nothing is downloaded). This is stock, so it fails
+ *  loudly: when the ledger cannot be read, the sentence returned is shown and nothing is saved. '' = go ahead.
+ *  Two saves in the same instant can still both pass; only a hold on the pieces closes that. */
+async function fgiStockReread() {
+  if (!lineHoldOn()) return '';
+  try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); return ''; }
+  catch (e) {
+    console.warn('[line hold] could not read the India store just before a stock-out save:', e);
+    return 'Nothing was saved — the India store could not be read just now (' + (e.message || e) + '). Check the connection and save again.';
+  }
+}
+
 /** Every SKU the ledger has ever touched, and what it adds up to. */
 function fgiStock() {
   const by = new Map();
