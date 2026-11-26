@@ -82424,6 +82424,16 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     if (up) SHUB_URL = SHUB_LOCAL;
     return up;
   }
+  /* RELOAD THAT ALWAYS WORKS (Ravi, 26 Nov 2026: "the reloading is not working properly"). Nothing the hub waited for
+   * had a time limit, so one read that never answered left the hub on "Loading…" and blocked every later Reload. Now
+   * the hub's settings give up after 20 s and the ERP stock after 3 min, and a Reload during a running read is kept
+   * and read straight after. Errors: shown on the hub's status line; the hub's own page says when it cannot open. */
+  const SHUB_SETTINGS_MS = 20000, SHUB_INFO_MS = 180000;
+  function shubWithin(work, ms, what) {
+    let timer;
+    const limit = new Promise((_, no) => { timer = setTimeout(() => no(new Error(what + ' gave no answer in ' + Math.round(ms / 1000) + ' s')), ms); });
+    return Promise.race([work, limit]).finally(() => clearTimeout(timer));
+  }
   let shubShown = '', shubDb = '';
   async function shubLoad(force) {
     const up = await shubCheck();
@@ -82431,9 +82441,10 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     $('shubFrame').classList.toggle('hide', !up);
     $('shubName').textContent = 'Shopify hub';
     let db = 'kept in this browser only';
-    try { const c = await shosConfig(); db = 'shared database (' + c.from + ')'; } catch (e) { db = e.message; }
+    try { const c = await shubWithin(shosConfig(), SHUB_SETTINGS_MS, 'the hub settings'); db = 'shared database (' + c.from + ')'; } catch (e) { db = e.message; }
     shubDb = db;
-    $('shubState').textContent = !up ? 'Hub not found' : (SHUB_URL === SHUB_WEB ? 'Ready' : 'Hub on this computer') + ' · ' + db;
+    const ready = (SHUB_URL === SHUB_WEB ? 'Ready' : 'Hub on this computer') + ' · ' + db;
+    $('shubState').textContent = !up ? 'Hub not found' : shubBusy ? 'Reloading · the Shopify read still running will be read again' : ready;
     /* Loaded once and kept: coming back to the page does not load the hub (or Shopify) again — Reload does. */
     if (up && (force || shubShown !== SHUB_PAGE)) { shubShown = SHUB_PAGE; $('shubFrame').src = SHUB_URL + '?embed=1#orders'; }
   }
@@ -82445,13 +82456,15 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
    * ERP can do this, and the orders are sent once; after that the hub's "Fetch orders" asks for them again. Messages go
    * only to, and are taken only from, the hub. */
   const shubOrigin = () => new URL(SHUB_URL).origin;
-  let shubBusy = false;
+  let shubBusy = false, shubAgain = null;
   /* `want` = { Ridhi: [order ids], CPC: [...] }: the orders the hub is still working on. They are read again by id (any
    * status), so a cancellation, refund, edit or a shipment made outside the hub reaches the hub even after the order has
    * left the 14-day window or is marked shipped — the window alone only brings orders still to ship. Read only. */
   async function shubSendOrders(want) {
     const fr = $('shubFrame');
-    if (shubBusy || !fr.contentWindow) return;
+    if (!fr.contentWindow) return;
+    /* Asked again while a read is running (Reload, or the hub's "Fetch orders"): kept, and read when this one ends. */
+    if (shubBusy) { shubAgain = want || {}; return; }
     shubBusy = true; $('shubState').textContent = 'Reading Shopify through the Pricing API…';
     const day = ms => new Date(ms).toISOString().slice(0, 10);
     const win = { start: day(Date.now() - 14 * 86400000), end: day(Date.now()), open: '1', nophoto: '1' };
@@ -82471,12 +82484,15 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     try {
       const [Ridhi, CPC] = await Promise.all([one('', 'Ridhi'), one('CPC', 'CPC')]);
       let info = null;
-      try { $('shubState').textContent = 'Reading stock from the ERP…'; info = await shubInfo({ Ridhi, CPC }); } catch (e) { info = { error: e.message || String(e) }; }
+      try { $('shubState').textContent = 'Reading stock from the ERP…'; info = await shubWithin(shubInfo({ Ridhi, CPC }), SHUB_INFO_MS, 'the ERP stock'); } catch (e) { info = { error: e.message || String(e) }; }
       fr.contentWindow.postMessage({ type: 'shub-orders', got: { Ridhi, CPC, info } }, shubOrigin());
       const n = x => x.error ? 'not read' : x.orders.length + ' open';
       /* Where the hub keeps its work stays on the line (Ravi, 3 Nov: it was hidden once the orders came in). */
       $('shubState').textContent = `Shopify via Pricing API · Ridhi ${n(Ridhi)} · CPC ${n(CPC)} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${shubDb ? ' · ' + shubDb : ''}`;
-    } finally { shubBusy = false; }
+    } finally {
+      shubBusy = false;
+      if (shubAgain) { const again = shubAgain; shubAgain = null; shubSendOrders(again); }
+    }
   }
   /* THE ERP'S OWN FIGURES FOR EACH ITEM (Ravi, 26 Oct: "I don't know MCF has how many and India inventory has how
    * many"), sent with the orders. READ ONLY — the same reads the Shopify Orders tab makes, done only if that tab has not
