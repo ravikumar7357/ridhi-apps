@@ -1,5 +1,5 @@
 /* STUCK SCREENS (Ravi, 26 Nov 2026: "I want it to be shown also when the screen is stuck"). A read or save to our
- * database or the Apps Script backend that has waited 3 s shows the block-printing cover with "Still working…"; at
+ * database or the Apps Script backend that has waited 1.5 s shows the block-printing cover with "Still working…"; at
  * 30 s the words say what to do; it lifts when the last slow call ends; quick calls and outside services never show
  * it; answers and errors reach the screen untouched. The real file is run with a fake page and a fake clock.
  *   node tests/stuck-screen-test.js
@@ -50,12 +50,12 @@ async function suite(S, loud) {
   {
     const w = world(S.js);
     const call = w.window.fetch(DB + '/pt_orders.json');
-    w.clock.advance(2900);
-    ok('a read under 3 seconds shows nothing', !w.shown());
+    w.clock.advance(1400);
+    ok('a read under 1.5 seconds shows nothing', !w.shown());
     w.clock.advance(200);
-    ok('a read waiting 3 seconds shows the block printing', w.shown());
+    ok('a read waiting 1.5 seconds shows the block printing', w.shown());
     ok('…saying "Still working…"', w.words.textContent === 'Still working…');
-    w.clock.advance(27000);
+    w.clock.advance(28500);
     ok('after 30 seconds the words say what to do', /Check the internet, then press Refresh/.test(w.words.textContent));
     w.pending[0].resolve('the orders');
     ok('the screen still gets its answer', (await call) === 'the orders');
@@ -65,7 +65,7 @@ async function suite(S, loud) {
   {
     const w = world(S.js);
     const call = w.window.fetch(SCRIPT + '?action=x');
-    w.clock.advance(3100);
+    w.clock.advance(1600);
     ok('a slow Apps Script call counts too', w.shown());
     w.pending[0].reject(new Error('backend down'));
     let err = null;
@@ -77,7 +77,7 @@ async function suite(S, loud) {
   {
     const w = world(S.js);
     w.window.fetch(PRICING + '?cache=shopSku');
-    w.clock.advance(3100);
+    w.clock.advance(1600);
     ok('a slow read of the Shopify figures (pricing backend) counts too', w.shown());
   }
   {
@@ -89,7 +89,7 @@ async function suite(S, loud) {
   {
     const w = world(S.js);
     const a = w.window.fetch(DB + '/a.json'); const b = w.window.fetch(DB + '/b.json');
-    w.clock.advance(3100);
+    w.clock.advance(1600);
     w.pending[0].resolve(1); await a; await settle();
     ok('two slow reads: the cover stays until both end', w.shown());
     w.pending[1].resolve(2); await b; await settle();
@@ -117,7 +117,8 @@ async function suite(S, loud) {
   if ((await suite(ORIGINAL, true)).length) process.exit(1);
   /* TEETH: each part undone must be caught. */
   const breaks = [
-    ['shows at once, not after 3 seconds', 'js', 'afterMs: 3000', 'afterMs: 0'],
+    ['shows at once, not after 1.5 seconds', 'js', 'afterMs: 1500', 'afterMs: 0'],
+    ['waits 3 seconds again', 'js', 'afterMs: 1500', 'afterMs: 3000'],
     ['never shows', 'js', "document.body.classList.toggle('ptStuck', !!level);", ''],
     ['never says what to do', 'js', "PT_STUCK.verySlow > 0 ? 'verySlow' :", ''],
     ['never lifts', 'js', 'passed.forEach(level => { PT_STUCK[level]--; });', ''],

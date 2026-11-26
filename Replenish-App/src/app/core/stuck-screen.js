@@ -1,7 +1,7 @@
 /* ================= STUCK SCREENS (26 Nov 2026) =================
  *
  * Ravi: "I want it to be shown also when the screen is stuck". When a read or a save to our own database or to the
- * Apps Script backend has been waiting 3 seconds, the block-printing picture (core/database-read.js, ptLoadingArt)
+ * Apps Script backend has been waiting 1.5 seconds (3 at first; Ravi made it 1.5 the same day), the block-printing picture (core/database-read.js, ptLoadingArt)
  * covers the screen with "Still working…". After 30 seconds the words say what to do. The cover lifts the moment the
  * last slow call ends, and it takes no clicks.
  *
@@ -11,7 +11,7 @@
  *
  * Errors: quiet by design. The watcher only counts and shows the picture; every request, its answer and its error go
  * back to the screen untouched, exactly as before. If the cover cannot be found it leaves a console line and skips. */
-const PT_STUCK = { afterMs: 3000, longMs: 30000, slow: 0, verySlow: 0 };
+const PT_STUCK = { afterMs: 1500, longMs: 30000, slow: 0, verySlow: 0 };
 const PT_STUCK_WORDS = {
   slow: 'Still working…',
   verySlow: 'Still waiting for data. Check the internet, then press Refresh.',
@@ -26,7 +26,7 @@ function ptStuckIsDataCall(input) {
   return (typeof API !== 'undefined' && ours(API)) || (typeof PRAPI !== 'undefined' && ours(PRAPI));
 }
 
-/** Counts one request as slow after 3 s and very slow after 30 s, for as long as it is still waiting. */
+/** Counts one request as slow after 1.5 s and very slow after 30 s, for as long as it is still waiting. */
 function ptStuckWatch(call) {
   const passed = [];
   const after = (level, ms) => setTimeout(() => { passed.push(level); PT_STUCK[level]++; ptStuckShow(); }, ms);
