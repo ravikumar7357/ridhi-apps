@@ -629,6 +629,7 @@ function flowDueRecvOpen(key, only) {
       </tbody></table></div>
       <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="fldrDed" type="checkbox" checked style="width:auto"> Where no RFD challan was made, take that cloth off RFD stock (it left the store without one)</label>
       <label style="display:block;margin-top:8px">Note (lot, vehicle, quality…)<input id="fldrNote"></label>`,
+    memory: 'flowReceive',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Received',
     onSave: async () => {
       const got = {}; rows.forEach((x, i) => { const v = +((document.querySelector(`[data-fldq="${i}"]`) || {}).value || 0); if (v > 0) got[x.l.key] = v; });

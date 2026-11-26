@@ -418,6 +418,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
           <div id="flcTot" style="margin-bottom:8px;font-size:12.5px;font-weight:600"></div>
           <div id="flcSize"></div>
           <label style="display:block;margin-top:10px">Note (vehicle, who carried it…)<input id="flcNote"></label></div></div>`,
+    memory: 'karigarChallan',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Make the challan',
     onSave: async () => {
       const code = $('flcVen').value, v = vens.find(x => String(x.code) === String(code));

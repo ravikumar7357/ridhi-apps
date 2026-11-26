@@ -377,6 +377,7 @@ function soFormOpen(id) {
     titleExtra: '<span id="sof_id" class="sof-no none">—</span>',
     footLeft: '<span id="sof_tot" class="sof-tot"></span>',
     altPrimary: true,
+    memory: editing ? '' : 'salesOrder',  // my previous entry in grey (core/form-memory.js)
     saveLabel: canEdit ? 'Save draft' : '',
     /* Only what is true of THIS order. The standing sentence about drafts and approval is gone. */
     subtitle: editing

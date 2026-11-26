@@ -380,6 +380,7 @@ function stEntryOpen(pre) {
       { key: 'date', label: 'Date', type: 'date', value: attToday() },
       { key: 'remark', label: 'Remark', value: '', span: true },
     ],
+    memory: 'storeEntry',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Save entry',
     onSave: async v => { const err = await stSave(v); if (!err) renderFab(); return err; },
   });
