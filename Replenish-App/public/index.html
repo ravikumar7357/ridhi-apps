@@ -33266,12 +33266,29 @@ function flowDirAsked(r) {
   return /tablecloth/i.test(what) && /piping|ruffle/i.test(what);
 }
 const flowDirAuto = dirs => (dirs || []).find(d => /^vert/i.test(d)) || (dirs || [])[0] || '';
+/* A LINE KEEPS THE UNIT IT WAS GIVEN TO THE PRINTER IN (Ravi, 26 Nov: "ye order mere portal me dikha rha h ki printer se pcs me aayega jabki ye running me
+ * aayega" — AMZ-17102026-02-SEA lampshades, 500 pcs = 175 m of printed Cambric, all 175 m received, shown as "175 pcs of 500, 325 pcs still to come"). The
+ * print order was made as running cloth; later the master's "Cutting required" on those SKUs went back to No, and every screen worked the unit out again
+ * from the master — so metres already sent and received were read as pieces. The print order's own item says what the printer was given
+ * (print.kind: 'fabric' = running cloth, 'sku' = cut pieces); a line that is on one keeps that, whatever the master says today. '' when it is on none. */
+function flowPrintKept(r) {
+  try {
+    if (typeof FLOW === 'undefined' || !FLOW || !FLOW.po || !r) return '';
+    const k = flowKey(r.orderNo, r.sku), no = flowPoIndex()[k], it = no && FLOW.po[no] && FLOW.po[no].items && FLOW.po[no].items[k];
+    const kind = it && it.print && it.print.kind;
+    return kind === 'sku' || kind === 'fabric' ? kind : '';
+  } catch (e) { return ''; }
+}
 function flowPrintWhat(r, plan) {
   const m = cutSkuOf(r.sku) || {};
   /* EMBROIDERY IS DONE ON THE RUNNING CLOTH (Ravi, 21 Oct): a line on Printing + Embroidery is printed as fabric, whatever the
    * master says about cutting — the pieces are cut out after the embroidery. */
   const emb = !!plan && flowRouteOf(plan) === 'emb';
-  if (m.cuttingRequired === false && !emb)
+  /* WHO DECIDES: the unit the line's own print order was made in (flowPrintKept); for a line on no print order yet, the master row, as before
+   * (Ravi, 10 Oct: the master row beats the print rule) - Cutting required = No -> cut pieces. */
+  const kept = flowPrintKept(r);
+  const asPcs = kept ? kept === 'sku' : m.cuttingRequired === false;
+  if (asPcs && !emb)
     return { kind: 'sku', code: obUC(r.sku), mode: 'Cut pieces', label: 'printed on the SKU itself (no cutting)', unit: 'pcs' };
   const fab = String((plan && plan.fabric && plan.fabric.name) || m.fabric || '').trim();
   const colour = String(m.color || r.color || '').trim(), cc = ordColCodeOf(r.sku);
