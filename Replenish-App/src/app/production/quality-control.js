@@ -300,6 +300,7 @@ function qcRetMsg(t, bad) { const m = $('qcrMsg'); if (m) { m.textContent = t ||
 
 /** What is still out, as a list somebody can pick from — oldest first, with what is pending on it. */
 function renderQcRetForm() {
+  frmWire('qcReturn', $('qcrBox'));   // my previous alteration receipt in grey, Tab fills (core/form-memory.js)
   const cur = $('qcrPick').value;
   const out = qcOutstanding();
   $('qcrPick').innerHTML = '<option value="">— What is coming back —</option>'
@@ -359,6 +360,7 @@ async function qcSaveReturn() {
     addedBy: ME.email, addedAt: new Date().toISOString() };
   try { await ptPut('pt_qcReturns/' + row.id, row); }
   catch (e) { return qcRetMsg('Not saved: ' + (e.message || e), true); }
+  frmRemember('qcReturn', $('qcrBox'));
   QC.ret = (QC.ret || []).concat([Object.assign({ _key: row.id }, row)]);
   ['qcrPcs', 'qcrOk', 'qcrRej', 'qcrRemarks'].forEach(id => { if ($(id)) $(id).value = ''; });
   renderQc(); renderQcRetForm();
@@ -383,6 +385,7 @@ function qcCheckMsg(t, bad) { const m = $('qcwMsg'); m.textContent = t || ''; m.
 
 function renderQcCheckForm() {
   if (!QC_IX) return qcWithIx(renderQcCheckForm);
+  frmWire('qcCheck', $('qcwBox'));   // my previous check in grey, Tab fills (core/form-memory.js)
   const any = $('qcwSrc').value === 'any';
   const pool = any ? (PTG.mdb || []).map(r => qcNorm(r.sku)).filter(Boolean).slice(0, 6000) : qcCheckable();
   /* LIKE THE JOB WORK REGISTER. Ravi: "quality control ki entry 2 tarah se — SKU wise or article wise",
@@ -535,6 +538,7 @@ $('qcwSave').onclick = async () => {
   qcCheckMsg('Saving…');
   try {
     await ptPut('pt_qcChecks/' + rec.id, rec);
+    frmRemember('qcCheck', $('qcwBox'));
     QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
     ['qcwChecked', 'qcwAlt', 'qcwRej', 'qcwRemarks', 'qcwOrd'].forEach(id => { $(id).value = ''; });
     $('qcwSku').value = ''; $('qcwSz').value = ''; $('qcwSku').dataset.typed = '';
@@ -550,6 +554,7 @@ function qcIssueMsg(t, bad) { const m = $('qciMsg'); m.textContent = t || ''; m.
 
 function renderQcIssueForm() {
   if (!QC_IX) return qcWithIx(renderQcIssueForm);
+  frmWire('qcIssue', $('qciBox'));   // my previous alteration issue in grey, Tab fills (core/form-memory.js)
   const cur = $('qciSku').value;
   $('qciSku').innerHTML = '<option value="">— Select a flagged article —</option>'
     + qcIssuable().map(s => `<option value="${esc(s)}">${esc(s)} — ${nf(qcAvailToIssue(s))} to issue</option>`).join('');
@@ -595,6 +600,7 @@ $('qciSave').onclick = async () => {
   qcIssueMsg('Saving…');
   try {
     await ptPut('pt_qcIssuance/' + rec.id, rec);
+    frmRemember('qcIssue', $('qciBox'));
     QC.issue = (QC.issue || []).concat(Object.assign({ _key: rec.id }, rec));
     ['qciPcs', 'qciRemarks'].forEach(id => { $(id).value = ''; });
     $('qciSku').value = '';

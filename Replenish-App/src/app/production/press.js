@@ -147,6 +147,7 @@ function pressScope() {
 }
 
 function renderPressForm() {
+  frmWire('pressEntry', $('pwBox'));   // my previous press entry in grey, Tab fills (core/form-memory.js)
   const cur = $('pwOrd').value;
   $('pwOrd').innerHTML = '<option value="">— Select Order ID —</option>'
     + pressOpenOrders().map(o => `<option value="${esc(o.orderNo)}">${esc(o.orderNo)} — ${nf(o.bal)} pcs open</option>`).join('');
@@ -251,6 +252,7 @@ $('pwSave').onclick = async () => {
   pressFormMsg('Saving…');
   try {
     await ptPut('pt_pressInventory/' + entry.id, entry);
+    frmRemember('pressEntry', $('pwBox'));
     PTG.press = (PTG.press || []).concat(Object.assign({ _key: entry.id }, entry));
     pressClearForm();
     renderPpress();

@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 192 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 193 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -2526,10 +2526,6 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home table.p1g td.stc .rb{font-size:11.5px;color:var(--muted)}
 #p1Home table.p1g td.stc .rb.late{color:var(--bad);font-weight:700}
 #p1Home table.p1g td.nx,#p1Home table.p1g th.nx{text-align:right;white-space:nowrap}
-#p1Home table.p1g .p1-go{height:30px;padding:0 12px;font-size:12px;border-radius:8px}
-#p1Home table.p1g .p1-go2{height:30px;padding:0 12px;font-size:12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);font-weight:700}
-#p1Home table.p1g .p1-go2:hover{background:var(--soft)}
-#p1Home table.p1g tr.p1l .p1-go2{height:26px;font-size:11.5px}
 #p1Home .p1-hist{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:4px 0 8px;width:0;min-width:100%;box-sizing:border-box}
 #p1Home .p1-hist .hh{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:13px;margin-bottom:12px}
 #p1Home .p1-hist .hh .p1-lotno{font-size:17px}
@@ -7381,6 +7377,100 @@ function csvDownload(name, cols, rows) {
 const colIdx = (head, names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
 const cellAt = (row, i) => (i >= 0 && row[i] != null ? String(row[i]).trim() : '');
 
+/* ============================== FILE: src/app/core/form-memory.js ============================== */
+/* ==== FORM MEMORY: MY PREVIOUS ENTRY IN GREY ====
+ *
+ * Ravi, 26 Nov 2026: on every entry form, each box shows in grey what I typed in it on my previous entry of that form;
+ * Tab in an empty box fills it and moves on, and Enter moves to the next box. The form itself looks as it did.
+ * Remembered on this PC only (Ravi's choice): a different PC or browser starts with no grey values.
+ *
+ * Each form names itself and calls frmWire when it opens and frmRemember after a save that worked. Dates are never
+ * remembered (a new entry is dated today), and a box somebody typed in is never changed.
+ *
+ * Error handling: this only helps typing. It never throws and never stops a save. When the browser's storage cannot
+ * be read or written (private window, storage full) the form works as before and a console line says why. */
+
+const FRM_STORE = 'formMemory:';
+
+/** The boxes of a form that can be remembered: typed or picked, visible or not, never a date or a button. */
+function frmBoxes(root) {
+  if (!root || !root.querySelectorAll) return [];
+  return [...root.querySelectorAll('input,select,textarea')].filter(el => el.id
+    && !/^(date|datetime-local|time|month|file|checkbox|radio|hidden|button|submit|password)$/i.test(el.type || ''));
+}
+
+/** What I typed in each box on my previous saved entry of this form, as { boxId: value }. */
+function frmRead(form) {
+  try { return JSON.parse(localStorage.getItem(FRM_STORE + form) || '{}') || {}; }
+  catch (e) { console.info('Form memory: could not read ' + form + ' (' + (e.message || e) + '), no grey values.'); return {}; }
+}
+
+/** After a save that worked: keep what was in each box, for the next entry. Empty boxes are kept empty. */
+function frmRemember(form, root) {
+  const vals = {};
+  frmBoxes(root).forEach(el => { vals[el.id] = String(el.value == null ? '' : el.value).trim(); });
+  try { localStorage.setItem(FRM_STORE + form, JSON.stringify(vals)); }
+  catch (e) { console.info('Form memory: could not keep ' + form + ' (' + (e.message || e) + '), next entry has no grey values.'); }
+}
+
+/**
+ * Show the previous entry in grey in each empty box, and get Tab and Enter going. Call each time the form opens.
+ * A shared box (the app's dialog) is wired with '' for a form that does not take part: Tab and Enter then do what they did.
+ */
+function frmWire(form, root) {
+  if (!root) return;
+  root.dataset.frmForm = form || '';
+  if (!form) return;
+  const prev = frmRead(form);
+  frmBoxes(root).forEach(el => {
+    const v = prev[el.id];
+    /* a form that stays on the page keeps its own example text aside, for a box the newest entry left empty */
+    if (el.dataset.frmExample == null) el.dataset.frmExample = el.placeholder || '';
+    if (!v) {
+      if (el.getAttribute('data-frm') != null) { el.removeAttribute('data-frm'); if (el.tagName !== 'SELECT') el.placeholder = el.dataset.frmExample; }
+      return;
+    }
+    el.setAttribute('data-frm', v);
+    /* a list box has no grey text; Tab still picks the previous choice */
+    if (el.tagName !== 'SELECT') el.placeholder = v;
+  });
+  if (root.dataset.frmWired) return;            // a form that stays on the page is opened many times
+  root.dataset.frmWired = '1';
+  root.addEventListener('keydown', ev => frmKey(ev, root));
+}
+
+/** The value Tab would put in this box now: the previous entry's, when the box is empty, else ''. */
+function frmFillOf(el) {
+  if (!el || !el.getAttribute || el.readOnly || el.disabled || String(el.value || '') !== '') return '';
+  const v = el.getAttribute('data-frm') || '';
+  if (v && el.tagName === 'SELECT' && ![...(el.options || [])].some(o => o.value === v)) return '';   // that choice is gone
+  return v;
+}
+
+/** The box after this one that can be typed in now (hidden ones skipped), or null after the last. */
+function frmNextBox(boxes, from) {
+  const open = (boxes || []).filter(b => !b.disabled && !b.readOnly && !(b.closest && b.closest('.hide,[hidden]')) && b.offsetParent !== null);
+  const i = open.indexOf(from);
+  return i >= 0 && i < open.length - 1 ? open[i + 1] : null;
+}
+
+function frmKey(ev, root) {
+  if (!root.dataset.frmForm) return;
+  const el = ev.target;
+  if (ev.key === 'Tab' && !ev.shiftKey) {
+    const v = frmFillOf(el);
+    /* the value goes in and Tab still moves on; input and change tell whatever follows the box (lists, totals) */
+    if (v) { el.value = v; ['input', 'change'].forEach(t => el.dispatchEvent(new Event(t, { bubbles: true }))); }
+    return;
+  }
+  if (ev.key !== 'Enter' || !/^(INPUT|SELECT)$/.test(el.tagName || '')) return;
+  const next = frmNextBox([...root.querySelectorAll('input,select,textarea')], el);
+  if (!next) return;                           // the last box: Enter does what it always did
+  /* A box with the browser's own list uses Enter to pick from it: let the pick happen, then move on. */
+  if (el.getAttribute && el.getAttribute('list')) { setTimeout(() => next.focus(), 0); return; }
+  ev.preventDefault();
+  next.focus();
+}
 /* ============================== FILE: src/app/core/page-parts.js ============================== */
 /* ================= PAGE PARTS · WHICH PARTS OF A PAGE A PERSON SEES (Ravi, 24 Nov 2026) =================
  *
@@ -20515,6 +20605,7 @@ function bdFormMsg(t, bad) { const m = $('bwMsg'); m.textContent = t || ''; m.cl
 
 /** The whole form redrawn from its own state — order → article → subtype → colour → size → SKU. */
 function renderBdForm() {
+  frmWire('jobWorkIssue', $('bwBox'));   // my previous issue in grey, Tab fills (core/form-memory.js)
   const custom = bdIsCustom();
   $('bwOrdWrap').classList.toggle('hide', custom);
   // In Custom mode colour and size are typed, not chosen — that is the point of the mode.
@@ -20915,6 +21006,7 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
   try {
     const why = await bdWrite(entry);
     if (why) { waPreClose(waWin); bdFormMsg(why, true); $('bwSave').disabled = false; return; }
+    frmRemember('jobWorkIssue', $('bwBox'));
     const waNote = await waAfterIssue(waWin, entry);
     // A zip SKU spends zippers. Posting it here keeps the accessory ledger honest without a second step.
     let zipNote = '', rufNote = '';
@@ -21508,6 +21600,7 @@ function jwRecvOpen(id) {
       { key: 'recv', label: 'Pieces received now (added)', type: 'number', min: 0, value: '' },
       { key: 'rej', label: 'Rejected on this row (total)', type: 'number', min: 0, value: rej || '' },
     ],
+    memory: 'jobWorkReceive',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Save',
     onSave: async v => {
       const addRecv = String(v.recv || '').trim(), newRej = String(v.rej || '').trim();
@@ -22293,6 +22386,7 @@ function pressScope() {
 }
 
 function renderPressForm() {
+  frmWire('pressEntry', $('pwBox'));   // my previous press entry in grey, Tab fills (core/form-memory.js)
   const cur = $('pwOrd').value;
   $('pwOrd').innerHTML = '<option value="">— Select Order ID —</option>'
     + pressOpenOrders().map(o => `<option value="${esc(o.orderNo)}">${esc(o.orderNo)} — ${nf(o.bal)} pcs open</option>`).join('');
@@ -22397,6 +22491,7 @@ $('pwSave').onclick = async () => {
   pressFormMsg('Saving…');
   try {
     await ptPut('pt_pressInventory/' + entry.id, entry);
+    frmRemember('pressEntry', $('pwBox'));
     PTG.press = (PTG.press || []).concat(Object.assign({ _key: entry.id }, entry));
     pressClearForm();
     renderPpress();
@@ -22442,6 +22537,7 @@ $('ppExport').onclick = () => {
  *     fields: [{ key, label, type, value, options, readonly, admin, span }],
  *     onSave(values) -> string|falsy          // a returned string is shown as the refusal
  *     onDelete(), deleteWhat                  // both optional; delete is admin-only
+ *     memory: 'formName'                      // optional: my previous entry in grey, Tab fills (core/form-memory.js)
  *   })
  */
 let PTD = null;      // the open dialog's config
@@ -22535,6 +22631,8 @@ function ptOpenDialog(cfg) {
   $('ptDlgSave').style.order = altMain ? '1' : '';
   $('ptDlgAlt').style.order = altMain ? '2' : '';
   ptDlgMsg(cfg.msg || '');
+  /* MY PREVIOUS ENTRY IN GREY (core/form-memory.js): only a form that names itself in cfg.memory; every other dialog as before */
+  frmWire(cfg.memory || '', $('ptDlgBody'));
   $('ptDlg').classList.remove('hide');
 }
 
@@ -22562,7 +22660,8 @@ $('ptDlgSave').onclick = async () => {
   ptDlgMsg('Saving…');
   try {
     const err = await PTD.onSave(ptDlgValues());
-    if (err) ptDlgMsg(err, true); else ptDlgClose();
+    if (err) ptDlgMsg(err, true);
+    else { if (PTD.memory) frmRemember(PTD.memory, $('ptDlgBody')); ptDlgClose(); }
   } catch (e) {
     ptDlgMsg('Not saved: ' + (e.message || e), true);
   }
@@ -23039,6 +23138,7 @@ function qcRetMsg(t, bad) { const m = $('qcrMsg'); if (m) { m.textContent = t ||
 
 /** What is still out, as a list somebody can pick from — oldest first, with what is pending on it. */
 function renderQcRetForm() {
+  frmWire('qcReturn', $('qcrBox'));   // my previous alteration receipt in grey, Tab fills (core/form-memory.js)
   const cur = $('qcrPick').value;
   const out = qcOutstanding();
   $('qcrPick').innerHTML = '<option value="">— What is coming back —</option>'
@@ -23098,6 +23198,7 @@ async function qcSaveReturn() {
     addedBy: ME.email, addedAt: new Date().toISOString() };
   try { await ptPut('pt_qcReturns/' + row.id, row); }
   catch (e) { return qcRetMsg('Not saved: ' + (e.message || e), true); }
+  frmRemember('qcReturn', $('qcrBox'));
   QC.ret = (QC.ret || []).concat([Object.assign({ _key: row.id }, row)]);
   ['qcrPcs', 'qcrOk', 'qcrRej', 'qcrRemarks'].forEach(id => { if ($(id)) $(id).value = ''; });
   renderQc(); renderQcRetForm();
@@ -23122,6 +23223,7 @@ function qcCheckMsg(t, bad) { const m = $('qcwMsg'); m.textContent = t || ''; m.
 
 function renderQcCheckForm() {
   if (!QC_IX) return qcWithIx(renderQcCheckForm);
+  frmWire('qcCheck', $('qcwBox'));   // my previous check in grey, Tab fills (core/form-memory.js)
   const any = $('qcwSrc').value === 'any';
   const pool = any ? (PTG.mdb || []).map(r => qcNorm(r.sku)).filter(Boolean).slice(0, 6000) : qcCheckable();
   /* LIKE THE JOB WORK REGISTER. Ravi: "quality control ki entry 2 tarah se — SKU wise or article wise",
@@ -23274,6 +23376,7 @@ $('qcwSave').onclick = async () => {
   qcCheckMsg('Saving…');
   try {
     await ptPut('pt_qcChecks/' + rec.id, rec);
+    frmRemember('qcCheck', $('qcwBox'));
     QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
     ['qcwChecked', 'qcwAlt', 'qcwRej', 'qcwRemarks', 'qcwOrd'].forEach(id => { $(id).value = ''; });
     $('qcwSku').value = ''; $('qcwSz').value = ''; $('qcwSku').dataset.typed = '';
@@ -23289,6 +23392,7 @@ function qcIssueMsg(t, bad) { const m = $('qciMsg'); m.textContent = t || ''; m.
 
 function renderQcIssueForm() {
   if (!QC_IX) return qcWithIx(renderQcIssueForm);
+  frmWire('qcIssue', $('qciBox'));   // my previous alteration issue in grey, Tab fills (core/form-memory.js)
   const cur = $('qciSku').value;
   $('qciSku').innerHTML = '<option value="">— Select a flagged article —</option>'
     + qcIssuable().map(s => `<option value="${esc(s)}">${esc(s)} — ${nf(qcAvailToIssue(s))} to issue</option>`).join('');
@@ -23334,6 +23438,7 @@ $('qciSave').onclick = async () => {
   qcIssueMsg('Saving…');
   try {
     await ptPut('pt_qcIssuance/' + rec.id, rec);
+    frmRemember('qcIssue', $('qciBox'));
     QC.issue = (QC.issue || []).concat(Object.assign({ _key: rec.id }, rec));
     ['qciPcs', 'qciRemarks'].forEach(id => { $(id).value = ''; });
     $('qciSku').value = '';
@@ -34651,6 +34756,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
           <div id="flcTot" style="margin-bottom:8px;font-size:12.5px;font-weight:600"></div>
           <div id="flcSize"></div>
           <label style="display:block;margin-top:10px">Note (vehicle, who carried it…)<input id="flcNote"></label></div></div>`,
+    memory: 'karigarChallan',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Make the challan',
     onSave: async () => {
       const code = $('flcVen').value, v = vens.find(x => String(x.code) === String(code));
@@ -36398,6 +36504,7 @@ function flowDueRecvOpen(key, only) {
       </tbody></table></div>
       <label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input id="fldrDed" type="checkbox" checked style="width:auto"> Where no RFD challan was made, take that cloth off RFD stock (it left the store without one)</label>
       <label style="display:block;margin-top:8px">Note (lot, vehicle, quality…)<input id="fldrNote"></label>`,
+    memory: 'flowReceive',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Received',
     onSave: async () => {
       const got = {}; rows.forEach((x, i) => { const v = +((document.querySelector(`[data-fldq="${i}"]`) || {}).value || 0); if (v > 0) got[x.l.key] = v; });
@@ -37935,6 +38042,7 @@ function flowFgAcceptOpen(key) {
     title: `Accept into Finished Goods — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`,
     subtitle: `${nf(can)} passed QC and are not in India stock yet.${x.r.__t ? ' TEST order: it goes into the India store as a TEST entry, and "delete test" takes it out again.' : ''}`,
     html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces counted in<input id="flfP" type="number" min="1" value="${can}"></label><label>Note<input id="flfN"></label></div>`,
+    memory: 'fgAccept',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Accept',
     onSave: async () => {
       const n = Math.round(+$('flfP').value || 0);
@@ -37978,6 +38086,7 @@ function flowFgRejectOpen(key) {
   ptOpenDialog({
     title: `Reject — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`, subtitle: `${nf(can)} waiting. Rejected pieces go back to Quality Control (Waiting for QC) to be checked again.`,
     html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces<input id="flfrP" type="number" min="1" value="${can}"></label><label>Why (stain, wrong size, stitching, packing…)<input id="flfrW"></label></div>`,
+    memory: 'fgReject',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Reject',
     onSave: async () => {
       const n = Math.round(+$('flfrP').value || 0), why = $('flfrW').value.trim();
@@ -45874,13 +45983,13 @@ function gdSeedMasters() {
   return { mst: mst, ven: ven, co: { name: gdCoName(), addr: '', email: '', gstin: '', iec: '', pan: '', jurisdiction: 'Jaipur',
     poPrefix: 'RIDHI/PO/GREIG/', poNext: 1, rfdPrefix: 'RIDHI/RFD/' } };
 }
-function gdSaveAll() {
-  if (GD_STATE && GD_STATE !== 'ok') return Promise.resolve();
-  var store = { gpo: {}, fab: {}, mst: DB.mst || [], ven: DB.ven || [], co: DB.co || {} };
-  (DB.gpo || []).forEach(function (x) { store.gpo[x.id] = x; });
-  (DB.fab || []).forEach(function (x) { store.fab[x.id] = x; });
-  GD_SNAP = gdSnap();
-  return Promise.resolve(ptPut(GD_NODE, JSON.parse(JSON.stringify(store)))).catch(function (e) { lmSay('err', 'Not saved: ' + (e && e.message || e)); });
+/** THE STARTING LISTS FOR AN EMPTY DESK (fabric pairs, suppliers and processors, company). The store holds the real greige POs
+ *  and movements, so it is never written whole (Ravi, 26 Nov: one screen's copy could replace what another PC had saved): the
+ *  lists are written only if the store is still empty at that moment, checked and written in one step. Answers what was
+ *  written, or null when another screen got there first. */
+async function gdSeed() {
+  var m = gdSeedMasters(), store = { mst: m.mst, ven: m.ven, co: m.co };
+  return (await ptCas(GD_NODE, null, store)) ? null : store;
 }
 function gdLoad() {
   if (GD_READY) return GD_READY;
@@ -45894,16 +46003,21 @@ function gdLoad() {
     var v = null, failed = '';
     try { v = await ptGet(GD_NODE); } catch (e) { failed = String((e && e.message) || e || 'read failed'); }
     if (failed) { DB = null; GD_STATE = 'err: ' + failed; GD_READY = null; return; }
-    if (v && (v.mst || v.gpo || v.fab)) { DB = gdFromStore(v); lmMigrate(); GD_SNAP = gdSnap(); }
-    else { var m = gdSeedMasters(); DB = { gpo: [], fab: [], mst: m.mst, ven: m.ven, co: m.co, users: [], me: '' }; lmMigrate(); await gdSaveAll(); }
+    if (v == null) {
+      try { v = (await gdSeed()) || await ptGet(GD_NODE); }   // another screen seeded it first: theirs is read
+      catch (e) { DB = null; GD_STATE = 'err: ' + String((e && e.message) || e); GD_READY = null; return; }
+      if (v == null) { DB = null; GD_STATE = 'err: another screen was setting up the desk at the same moment — open it again'; GD_READY = null; return; }
+    }
+    /* Something there that is not a desk (not a record) is never replaced by one: nothing is written, and the screen says so.
+     * A desk whose lists are still empty holds only its company details, and is a desk. */
+    if (!(v && typeof v === 'object' && !Array.isArray(v))) { DB = null; GD_STATE = 'err: the greige store holds something this desk cannot read — nothing was written'; GD_READY = null; return; }
+    DB = gdFromStore(v); lmMigrate(); GD_SNAP = gdSnap();
     GD_STATE = 'ok';
   })();
   return GD_READY;
 }
 function lmLoad() { if (!DB) DB = { gpo: [], fab: [], mst: [], ven: [], co: {}, users: [], me: '' }; lmMigrate(); }
 /* The model's sample (no button for it in the app since 15 Oct), the company's own name on it. */
-function lmResetSample() { var s = lmSample(); s.co.name = gdCoName(); s.users = []; s.me = ''; DB = s; lmMigrate(); gdSaveAll(); }
-function gdClearAll() { DB.gpo = []; DB.fab = []; gdSaveAll(); }
 
 /* ---- WHO IS WORKING: the person signed in to the app, and the rights they hold ---- *
  * gdesk opens the desk; gdled shows the fabric ledger; gdledit lets them add and correct it; gdappr approves an RFD
@@ -49908,6 +50022,7 @@ function fabEntryOpen(pre) {
       <label style="grid-column:span 2">Remarks <input id="fbeRemarks" placeholder="Optional"></label>
     </div>`,
     saveLabel: 'Save entry',
+    memory: 'fabricEntry',
     onSave: async () => {
       const v = {};
       ['fbeKind', 'fbeDate', 'fbeFab', 'fbeQty', 'fbeLot', 'fbeCp', 'fbeCol', 'fbeChallan', 'fbeRate', 'fbeRemarks', 'fbeOrd', 'fbeSize', 'fbePcs']
@@ -54479,6 +54594,7 @@ function soFormOpen(id) {
     titleExtra: '<span id="sof_id" class="sof-no none">—</span>',
     footLeft: '<span id="sof_tot" class="sof-tot"></span>',
     altPrimary: true,
+    memory: editing ? '' : 'salesOrder',  // my previous entry in grey (core/form-memory.js)
     saveLabel: canEdit ? 'Save draft' : '',
     /* Only what is true of THIS order. The standing sentence about drafts and approval is gone. */
     subtitle: editing
@@ -55445,6 +55561,7 @@ async function voFormOpen(mode) {
         <input id="vof_why" type="text" placeholder="e.g. Amazon order, 400 pcs due 30 Sep"></label>` : ''}`,
     footLeft: '<span id="vof_tot" class="vo-tot"></span>',
     onSave: () => voPlace(),
+    memory: 'vendorOrder',  // my previous entry in grey (core/form-memory.js)
     saveLabel: asking ? 'Send for approval' : 'Place order',
   });
   $('vof_kr').onclick = () => voSetKind('running');
@@ -61167,6 +61284,7 @@ async function fgiTransferOpen() {
       <div id="fgtTot" class="muted" style="margin-top:8px;font-size:12.5px"></div>
       <label style="display:block;margin-top:8px">Remarks<input id="fgtRemarks" type="text" placeholder="optional"></label>`,
     onSave: fgiTransferSave,
+    memory: 'fgTransfer',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Send to the store',
   });
   ptDebounce('fgtQ', () => fgiTransferRows(rows));
@@ -61251,6 +61369,7 @@ function fgiReceiveOpen(id) {
         <label style="grid-column:1/-1">Remarks<input id="fgrRemarks" type="text" placeholder="optional"></label>
       </div>`,
     onSave: () => fgiReceiveSave(id),
+    memory: 'fgReceive',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Count it in',
     alt: { label: 'Send it back to press', run: () => fgiReturnSave(id) },
   });
@@ -61330,6 +61449,7 @@ function fgiOpeningOpen() {
       <label style="display:block;margin-top:8px">Remarks<input id="fgoRemarks" type="text" placeholder="what this count was"></label>
       <div id="fgoPrev" class="muted" style="margin-top:8px;font-size:12.5px"></div>`,
     onSave: fgiOpeningSave,
+    memory: 'fgOpening',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Add to the ledger',
   });
   ptDebounce('fgoText', fgiOpeningPreview);
@@ -64614,6 +64734,7 @@ function fgiEntryOpen(type, sku) {
       </div>
       <div id="fgmInfo" class="muted" style="margin-top:8px;font-size:12.5px"></div>`,
     onSave: () => fgiEntrySave(),
+    memory: 'fgMovement:' + type,  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Save the entry',
   });
   const info = () => {
@@ -74423,6 +74544,7 @@ function stEntryOpen(pre) {
       { key: 'date', label: 'Date', type: 'date', value: attToday() },
       { key: 'remark', label: 'Remark', value: '', span: true },
     ],
+    memory: 'storeEntry',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Save entry',
     onSave: async v => { const err = await stSave(v); if (!err) renderFab(); return err; },
   });
@@ -81823,6 +81945,7 @@ function srNewOpen(orderId, id) {
       <label class="srRet">Return stage<select id="srSt">${Object.entries(SR_STATUS).map(([k, v]) => `<option value="${k}"${(prev.status || 'started') === k ? ' selected' : ''}>${v[0]}</option>`).join('')}</select></label>
       <label style="grid-column:1/-1">Remarks<input id="srNote" value="${esc(prev.note || '')}" placeholder="anything the warehouse should know"></label>
     </div>`,
+    memory: id ? '' : 'shopifyReturn',  // my previous entry in grey (core/form-memory.js)
     saveLabel: id ? 'Save' : 'Save the case', onCancel: srOpen,
     onSave: async () => {
       const no = ($('srOrd') || {}).value || '';
@@ -96485,17 +96608,23 @@ function p1FgWaits(x) {
  *   - FINISHED ON THE VENDOR ORDER (Ravi, 26 Nov): when every vendor order line this printer has for the order line is marked
  *     Received or has reached us in full, none of its cloth is with them. What the challan still shows with no receipt
  *     is said apart as NOT BOOKED ON THE CHALLAN — so is a part delivery on the vendor order that no challan receipt covers.
+ *   - PIECES ON THE CHALLAN, METRES ON THE VENDOR ORDER (Ravi, 26 Nov: cloth printed on the SKU, ordered from the printer as
+ *     running cloth; SHP-8018, all 2.65 m entered, still showed 1 piece out): see p1SideOf. The other way round is left as it
+ *     is — a metre challan against an order in pieces is for someone to check.
  * The portal's figures come with the vendor orders, read behind the page (flowEnsureData); until then the challans alone are used,
  * and the page says so. Nothing stored is changed. */
 /** What part of a vendor order line's figure belongs to each order line it stands for: in proportion to the cloth on this
  *  printer's challans for each (a fabric line shared by two sizes carries different metres for each), equally when none has any. */
 function p1Shares(ids, onChallans) {
-  const sent = ids.map(id => (onChallans.get(id) || {}).sent || 0), total = sent.reduce((a, q) => a + q, 0);
+  /* an order line's cloth in metres: its metre challans, and the metres its piece challans carry */
+  const metresOf = id => ((onChallans.get(id) || {}).sent || 0) + ((id.endsWith('|m') && (onChallans.get(id.slice(0, -1) + 'pcs') || {}).cloth) || 0);
+  const sent = ids.map(metresOf), total = sent.reduce((a, q) => a + q, 0);
   return sent.map(q => (total > 0 ? q / total : 1 / ids.length));
 }
-/** The vendor-order side of each order line, by printer, challan key and unit: { said, got, done }. said — what the printer has
+/** The vendor-order side of each order line, by printer, challan key and unit: { said, got, done, marked }. said — what the printer has
  *  entered as sent (not for ruffle cloth); got — delivered on the vendor order; done — every line for it is marked Received, or
- *  has reached us in full (its own deliveries, or this printer's challan receipts — never another printer's). */
+ *  has reached us in full (its own deliveries, or this printer's challan receipts — never another printer's); marked — every
+ *  line for it is marked Received. */
 function p1VendorSide(onChallans) {
   const side = new Map();
   if (typeof VO === 'undefined' || !VO.rows || typeof vpRecvCnt !== 'function') return side;
@@ -96508,12 +96637,25 @@ function p1VendorSide(onChallans) {
       const ids = keys.map(idOf), printed = vprKeys(l).map(idOf), cnt = vpRecvCnt(o, l), ord = voQty(o, l), got = voDone(l);
       const onOurChallans = keys.reduce((t, k, i) => t + ((onChallans.get(ids[i]) || {}).recv || 0) / (cnt[k] || 1), 0);
       const done = o.status === 'Received' || (ord > 0 && Math.max(got, onOurChallans) >= ord - 0.01);
-      const at = id => side.get(id) || side.set(id, { said: 0, got: 0, done: true }).get(id);
-      p1Shares(ids, onChallans).forEach((part, i) => { const v = at(ids[i]); v.got += got * part; v.done = v.done && done; });
+      const at = id => side.get(id) || side.set(id, { said: 0, got: 0, done: true, marked: true }).get(id);
+      p1Shares(ids, onChallans).forEach((part, i) => { const v = at(ids[i]); v.got += got * part; v.done = v.done && done; v.marked = v.marked && o.status === 'Received'; });
       if (printed.length) { const said = vpSentKept(o, l); p1Shares(printed, onChallans).forEach((part, i) => { at(printed[i]).said += said * part; }); }
     });
   });
   return side;
+}
+/** The vendor-order side of one printer's challan cloth. A challan counted in pieces whose vendor order lines are all in running
+ *  metres takes, of its pieces, the share of its cloth the printer has entered as sent (or delivered): whole pieces, rounded
+ *  down. Metre challans for the same order line take the metres first; the pieces get what is left over, and an order filled by
+ *  those challans' receipts says nothing about the pieces — only one marked Received does (SS Hand Block, 26 Nov: 325 pieces
+ *  sent after their order's metres had all come back). */
+function p1SideOf(side, onChallans, id) {
+  const own = side.get(id); if (own || !id.endsWith('|pcs')) return own;
+  const metreId = id.slice(0, -3) + 'm', m = side.get(metreId), c = onChallans.get(id);
+  if (!m || !(c.cloth > 0)) return undefined;
+  const onMetre = (onChallans.get(metreId) || {}).sent || 0;
+  const pieces = metres => Math.floor(c.sent * Math.min(1, Math.max(0, metres - onMetre) / c.cloth) + 1e-6);
+  return { said: pieces(m.said), got: pieces(m.got), done: onMetre > 0 ? m.marked : m.done };
 }
 /** What the open challans sent and we have no receipt for, in its three places: with the printer (left), sent by them and not
  *  received (transit), and finished or delivered on the vendor order but not booked on the challan (unbooked). earlier — what
@@ -96544,8 +96686,8 @@ function p1PrinterWork(from, to) {
       if (flowChMoved(c, l)) return;
       const id = String(v.code || '') + '|' + l.key + (l.ruffleOnly ? FLOW_RUF : '') + '|' + u;
       const got = seen.has(l.key + u) ? 0 : +recv[l.key] || 0; seen.add(l.key + u);   // a challan's receipts name the line once
-      const all = onChallans.get(id) || onChallans.set(id, { sent: 0, recv: 0, earlier: 0 }).get(id);
-      all.sent += q; all.recv += got;
+      const all = onChallans.get(id) || onChallans.set(id, { sent: 0, cloth: 0, recv: 0, earlier: 0 }).get(id);
+      all.sent += q; all.cloth += +l.metres || 0; all.recv += got;
       if (c.closed) { all.earlier += got; return; }
       const k = id + '|' + (v.code || v.name);
       const b = lines.get(k) || lines.set(k, { e, id, key: l.key, sku: obUC(l.sku), unit: u, ruffle: !!l.ruffleOnly, sent: 0, recv: 0, since: '', nos: [] }).get(k);
@@ -96558,7 +96700,7 @@ function p1PrinterWork(from, to) {
   });
   const side = p1VendorSide(onChallans), holds = [], unbooked = [];
   lines.forEach(b => {
-    const x = p1ClothSplit(flowR2(b.sent), b.recv, side.get(b.id), onChallans.get(b.id).earlier);
+    const x = p1ClothSplit(flowR2(b.sent), b.recv, p1SideOf(side, onChallans, b.id), onChallans.get(b.id).earlier);
     put(b.e, b.unit, x.transit, 'transit'); put(b.e, b.unit, x.unbooked, 'unbooked');
     const r = lineOf.get(b.key), row = qty => ({ stage: 'Printer', sku: r ? obUC(r.sku) : b.sku, orderNo: r ? obUC(r.orderNo) : obUC(String(b.key).split('__')[0]), pcs: qty,
       unit: b.unit, who: b.e.name, since: b.since, ref: (b.ruffle ? 'ruffle · ' : '') + 'Challan ' + b.nos.join(', '), key: b.key });
@@ -96675,8 +96817,6 @@ function p1Do(k, xs) {
   else if (k === 'PRN') leave(() => { FLOW_VIEW = 'dhist'; showTab('flow'); });
   else if (k === 'SHIP') leave(() => showTab('ord'));   // the Order Console's Production to shipping, where the shipping team takes it
 }
-/** The ledger's list of what waits for one step of one SKU — every line, each with its own button. */
-function p1WaitFor(k, sku) { P1.view = 'ledger'; P1.act = k; P1.f = Object.assign({}, P1.f, { kind: k, sku }); P1.lim = 300; P1.openAt = ''; p1Draw(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 /** What is waiting for the chosen step, on the page itself. */
 function p1WaitCard(k) {
   const a = P1_ADD.find(x => x[0] === k), q = P1.q.trim().toUpperCase();
@@ -96773,23 +96913,12 @@ const P1_COLS = [['rfd', 'At RFD store'], ['prn', 'At printer'], ['cut', 'To cut
 const P1_BUCKETS = [['plan', 'To plan']].concat(P1_COLS);
 const P1_COL_OF = { 'RFD store': 'rfd', Printer: 'prn', Embroidery: 'prn', Cutting: 'cut', 'Raw cutting in store': 'iss', 'With karigar': 'kar', QC: 'qc', 'Finished Goods to accept': 'rdy', 'To hand to shipping': 'rdy' };
 const P1_NOW = { plan: 'Not planned', rfd: 'At RFD store', prn: 'At printer', cut: 'To cut', iss: 'Cut, in store', kar: 'With karigar', qc: 'In QC', rdy: 'Ready for FG' };
-/** The steps of each stage's button, in the order they come (Ravi, 26 Oct: a line's step is its own stage's, never an earlier one). */
-const P1_STAGE_STEPS = { plan: ['PLAN'], rfd: ['RFD'], prn: ['PRN'], cut: ['CUT'], iss: ['ISS'], kar: ['REC'], qc: ['QC'], rdy: ['FG', 'SHIP'] };
-const P1_LABEL = { PLAN: 'Plan', RFD: 'Make challan', PRN: 'Receive printed', CUT: 'Enter cutting', ISS: 'Give to karigar', REC: 'Receive', QC: 'Check in QC', FG: 'Accept in FG', SHIP: 'Hand to shipping' };
 const P1_STUCK = 7;   // days at one place before a lot is stuck
 const P1_CHAN = { SHP: 'Shopify', SO: 'B2B', B2B: 'B2B', AMZ: 'Amazon', ETSY: 'Etsy', ONL: 'Online' };
 /* THE ORDER NUMBER SAYS THE CHANNEL (Ravi, 24 Nov: AMZ-24112026-01-AIR showed "B2B"): every line put on the book from a Sales Order
  * carries src 'SO', whatever its channel, so the number's first part (AMZ / SHP / B2B / ETSY / ONL …) is read first; src only after. */
 const p1Chan = r => { const pre = obUC(String(r.orderNo || '').split('-')[0]), src = obUC(r.src);
   return (pre !== 'SO' && P1_CHAN[pre]) || (src !== 'SO' && P1_CHAN[src]) || P1_CHAN[pre] || P1_CHAN[src] || src || 'Other'; };
-/** The next step of a lot (or of one line): the first that is waiting, in the order the work goes — [movement, label, lines]. */
-function p1NextOf(r, stage) {
-  const n = k => { const a = P1_ADD.find(x => x[0] === k); return a && p1MayTab(a[2]) ? r.lines.filter(x => a[3](x)) : []; };
-  for (const k of stage && P1_STAGE_STEPS[stage] ? P1_STAGE_STEPS[stage] : ['PLAN', 'RFD', 'PRN', 'CUT', 'ISS', 'REC', 'QC', 'FG', 'SHIP']) {
-    const ls = n(k); if (ls.length) return [k, P1_LABEL[k], ls];
-  }
-  return null;
-}
 /** Where one order line's pieces are: for each stage w = waiting, m = metres at the printer, done, na (not this line's way). */
 function p1LineStages(x, w) {
   const s = x.s, q = +x.r.qty || 0, rt = s.plan ? flowRouteOf(s.plan) : '', planned = !(s.bucket === 'ppc' || s.bucket === 'back');
@@ -96841,7 +96970,7 @@ function p1Board() {
     r.over = r.due && r.due < today ? p1Days(r.due) : 0;
     r.stuck = Math.max(0, ...Object.entries(r.D).map(([k, d]) => r.stg[k] && (r.stg[k].w || r.stg[k].m) ? d.days || 0 : 0));
     r.chans = [...new Set(r.ln.map(l => l.chan))]; r.printers = [...new Set(r.ln.map(l => l.printer).filter(Boolean))];
-    r.kars = (r.D.kar || { who: [] }).who; r.next = p1NextOf(r, r.at) || p1NextOf(r);
+    r.kars = (r.D.kar || { who: [] }).who;
     r.find = ((r.lot ? r.lot.no + ' ' + r.lot.id + ' ' : '') + r.sku + ' ' + r.what + ' ' + [...r.orders].join(' ') + ' ' + r.holds.map(w => w.who).join(' ') + ' ' + r.printers.join(' ')).toUpperCase(); });
   P1_BOARDC = { key, out: all }; return all;
 }
@@ -96894,21 +97023,19 @@ function p1DrawInv() {
       + `<span class="bk-n">${!pcs && m ? `${p1N(m)}<small> m</small>` : `${p1N(pcs)}<small> pcs${m ? ' + ' + p1N(m) + ' m' : ''}</small>`}</span>`
       + `<span class="bk-s">${p1N(ls.length)} lot${ls.length === 1 ? '' : 's'}${lt ? ` · <i>${p1N(lt)} late</i>` : ''}</span></button>`; };
   const tab = (v, t, n) => `<button type="button" class="${P1.tab === v ? 'on' : ''}" data-p1tab="${v}">${esc(t)} · ${p1N(n)}</button>`;
-  const btn = (nx, at, st, gk, line, main) => { if (!nx) return ''; const pcs = at && st[at] ? st[at].w : 0;
-    return `<button type="button" class="${main ? 'p1-go' : 'p1-go2'}" data-p1step="${esc(gk)}" data-p1line="${line == null ? '' : line}" data-p1at="${esc(at || '')}">${esc(nx[1])}${pcs && nx[0] !== 'RFD' ? ' ' + p1N(pcs) : ''}</button>`; };
   const status = (at, due, over) => `<b>${esc(at ? P1_NOW[at] : 'Nothing waiting')}</b><span class="rb${over ? ' late' : ''}">${due ? p1Day(due) : 'no date'}${over ? ` · ${over} d late` : ''}</span>`;
   /* no lot: "To plan" only while something of it waits for a plan; a line already in production without a PPC plan (issued
    * from Job Work, or planned before lot numbers began) says "No lot" */
   const lotNo = r => `<a class="p1-lotno${r.lot ? '' : r.notPlanned ? ' new' : ' none'}" data-p1hist="${esc(r.gk)}" title="This lot's history">${r.lot ? esc(p1LotTxt(r.lot)) : r.notPlanned ? 'To plan' : 'No lot'}</a>`;
   const prnCell = r => r.notPlanned && r.notPlanned >= r.ordered ? '<b class="np">not planned</b>' : r.printers.length ? esc(r.printers.join(', ')) : '<span class="muted">no printer</span>';
-  const lotRow = r => { const open = P1.inv === r.gk, main = p1Urgent(r);
-    let h = `<tr class="p1r lot${open ? ' open' : ''}${main ? ' urgent' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
+  const lotRow = r => { const open = P1.inv === r.gk;
+    let h = `<tr class="p1r lot${open ? ' open' : ''}${p1Urgent(r) ? ' urgent' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
       <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div></td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
-      ${P1_COLS.map(([k]) => p1StageCell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${btn(r.next, r.at, r.stg, r.gk, null, main)}</td></tr>`;
-    if (open) h += r.ln.map((l, i) => { const nx = p1NextOf({ lines: [l.x] }, l.at) || p1NextOf({ lines: [l.x] }), od = l.due && l.due < today ? p1Days(l.due) : 0;
+      ${P1_COLS.map(([k]) => p1StageCell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button></td></tr>`;
+    if (open) h += r.ln.map(l => { const od = l.due && l.due < today ? p1Days(l.due) : 0;
       return `<tr class="p1l"><td class="lc"><a class="p1-ord" data-p1hist="${esc(r.gk)}" data-p1ho="${esc(l.x.r.orderNo)}" title="This order's history">${esc(l.x.r.shopOrderNo || l.x.r.orderNo)}</a><span class="ch">${esc(l.chan)}</span></td>
         <td class="it muted sm">${esc(p1Day(p1Iso(l.x.r.orderDate) || l.x.r.openIso || ''))}</td><td class="num">${p1N(l.st.q)}</td><td class="pr">${l.printer ? esc(l.printer) : l.st.planned ? '<span class="muted">—</span>' : '<b class="np">not planned</b>'}</td>
-        ${P1_COLS.map(([k]) => p1StageCell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${btn(nx, l.at, l.st, r.gk, i, false)}</td></tr>`; }).join('');
+        ${P1_COLS.map(([k]) => p1StageCell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx"></td></tr>`; }).join('');
     return h; };
   const shown = rows.slice(0, P1.lim), R0 = gk => all.find(r => r.gk === gk);
   el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<span class="p1-read">${P1.err ? `<b style="color:var(--bad)">Could not read everything: ${esc(P1.err)}</b> · ` : ''}${P1.more ? 'Reading the rest… · ' : ''}${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
@@ -96919,7 +97046,7 @@ function p1DrawInv() {
       <select data-p1fl="kar">${opts(all.reduce((a, r) => a.concat(r.kars), []), P1.kar, 'All karigars')}</select>
       <select data-p1fl="due">${[['', 'Any due date'], ['over', 'Past due'], ['week', 'Due in 7 days'], ['2w', 'Due in 15 days'], ['none', 'No due date']].map(o => `<option value="${o[0]}"${P1.due === o[0] ? ' selected' : ''}>${o[1]}</option>`).join('')}</select>
       <div class="p1-tabs">${tab('', 'Pending', base.length)}${tab('late', 'Late', late.length)}${tab('stuck', 'Stuck ' + P1_STUCK + '+ d', stuck.length)}${tab('done', 'Complete', P1.tab === 'done' ? done.length : P1.doneN || 0)}</div></div>
-    <div class="card p1-list"><table class="p1t p1g"><thead><tr><th>Lot / order</th><th>Item</th><th class="num">Pcs</th><th>Printer</th>${P1_COLS.map(([k, t]) => `<th class="sg${P1.stage === k ? ' on' : ''}">${esc(t)}</th>`).join('')}<th>Status · ready by</th><th class="nx">Next step</th></tr></thead><tbody>
+    <div class="card p1-list"><table class="p1t p1g"><thead><tr><th>Lot / order</th><th>Item</th><th class="num">Pcs</th><th>Printer</th>${P1_COLS.map(([k, t]) => `<th class="sg${P1.stage === k ? ' on' : ''}">${esc(t)}</th>`).join('')}<th>Status · ready by</th><th class="nx"></th></tr></thead><tbody>
     ${P1.tab === 'done' ? done.slice(0, P1.lim).map(r => `<tr class="p1r lot done"><td class="lc"><span class="p1-lotno${r.lot ? '' : ' new'}">${r.lot ? esc(p1LotTxt(r.lot)) : '—'}</span><div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div></td>
         <td class="it"><b>${esc(r.sku)}</b><div class="muted sm">${esc(r.what)}</div></td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${esc(r.printer) || '<span class="muted">—</span>'}</td>
         ${P1_COLS.map(() => p1StageCell({ done: true })).join('')}<td class="stc"><b>Complete</b><span class="rb">${r.day ? p1Day(r.day) : ''}</span></td><td></td></tr>`).join('') || `<tr><td colspan="${P1_COLS.length + 6}" class="empty">No lot has left production yet.</td></tr>`
@@ -96939,10 +97066,6 @@ function p1DrawInv() {
   /* the card closes with ×, a click outside it, or Esc */
   on('[data-p1modal]', (b, e) => { if (e.target === b) { P1.hist = ''; p1Draw(); } });
   if (!P1.escOn) { P1.escOn = true; document.addEventListener('keydown', e => { if (e.key === 'Escape' && P1.hist && P1.shown) { P1.hist = ''; p1Draw(); } }); }
-  on('[data-p1step]', b => { const r = R(b.dataset.p1step); if (!r) return; const li = b.dataset.p1line, at = b.dataset.p1at || '';
-    const src = li === '' ? r : { lines: [r.lines[+li]] }, nx = p1NextOf(src, at) || p1NextOf(src); if (!nx) return;
-    if (nx[0] === 'PLAN' || nx[0] === 'RFD' || nx[2].length === 1 || ['QC', 'FG', 'PRN', 'SHIP'].includes(nx[0])) return p1Do(nx[0], nx[2]);
-    p1WaitFor(nx[0], r.sku); });                                     // several lines for one step: every one of them, each with its button
   /* the history's own controls */
   on('[data-p1hord]', b => { P1.histOrd = b.value; p1Draw(); }, 'onchange');
   on('[data-p1hdl]', () => { const r = R(P1.hist); if (r) p1HistoryDownload(r); });
@@ -97517,7 +97640,6 @@ if (typeof GUIDE_TOURS !== 'undefined') {
     { sel: '#p1Home tr.p1r.lot', en: 'A grey line is one <b>lot</b> — 001, 002… from the 1st of each month; the ending says where it starts: <b>GR</b> greige, <b>CT</b> cutting, <b>JW</b> Job Work, <b>OS</b> outsourced. Click the line to see its orders under it.', hi: 'स्लेटी लाइन एक <b>लॉट</b> है — हर महीने की 1 तारीख़ से 001, 002…; आख़िर के अक्षर बताते हैं कहाँ से शुरू: <b>GR</b> ग्रेज, <b>CT</b> कटिंग, <b>JW</b> जॉब वर्क, <b>OS</b> बाहर से। लाइन पर क्लिक करें तो उसके ऑर्डर नीचे दिखेंगे।' },
     { sel: '#p1Home tr.p1r.lot td.sg', en: 'Where the pieces are: an orange number is pieces waiting there, with the days they have waited (red after 7). <b>✓</b> the stage is done, <b>·</b> the work has not got there yet, <b>—</b> the lot does not go that way.', hi: 'पीस कहाँ हैं: नारंगी नंबर मतलब वहाँ रुके पीस, नीचे कितने दिन से (7 के बाद लाल)। <b>✓</b> स्टेज पूरा, <b>·</b> काम अभी वहाँ नहीं पहुँचा, <b>—</b> लॉट उस रास्ते नहीं जाता।' },
     { sel: '#p1Home tr.p1r.lot td.st', en: 'Where the lot is held now, and its ready date — red with the days late when it is past.', hi: 'लॉट अभी कहाँ रुका है, और उसकी तैयार होने की तारीख़ — लेट हो तो लाल, कितने दिन लेट के साथ।' },
-    { sel: '#p1Home tr.p1r.lot td.nx button', en: 'One button — the step that is due: Plan, Make challan, Receive printed, Enter cutting, Give to karigar, Receive, Check in QC or Accept in FG. Green when the lot is late or stuck. It opens the real form, filled in.', hi: 'एक बटन — जो काम बाकी है: Plan, Make challan, Receive printed, Enter cutting, Give to karigar, Receive, Check in QC या Accept in FG। लॉट लेट या रुका हो तो हरा। यह असली फ़ॉर्म भरकर खोलता है।' },
     { sel: '#p1Home .p1-hbtn', en: '<b>History</b> opens the lot’s card: where it has been, where it is now, and every step — by whom and when — with a download. Clicking the lot number or an order does the same.', hi: '<b>History</b> से लॉट का कार्ड खुलता है: कहाँ से गुज़रा, अभी कहाँ है, और हर कदम — किसने और कब — डाउनलोड के साथ। लॉट नंबर या ऑर्डर पर क्लिक करने से भी यही खुलता है।' },
     { sel: '#p1Home .p1-views', en: '<b>PPC ledger</b> shows every step of every SKU — who did what, and when. Ask me anything about this page with my round button.', hi: '<b>PPC ledger</b> में हर SKU का हर कदम है — किसने क्या किया, कब। इस पेज के बारे में कुछ भी पूछना हो तो मेरे गोल बटन से पूछें।' }];
   GUIDE_TOURS.ppcreport = [

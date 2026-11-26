@@ -12,6 +12,7 @@
  *     fields: [{ key, label, type, value, options, readonly, admin, span }],
  *     onSave(values) -> string|falsy          // a returned string is shown as the refusal
  *     onDelete(), deleteWhat                  // both optional; delete is admin-only
+ *     memory: 'formName'                      // optional: my previous entry in grey, Tab fills (core/form-memory.js)
  *   })
  */
 let PTD = null;      // the open dialog's config
@@ -105,6 +106,8 @@ function ptOpenDialog(cfg) {
   $('ptDlgSave').style.order = altMain ? '1' : '';
   $('ptDlgAlt').style.order = altMain ? '2' : '';
   ptDlgMsg(cfg.msg || '');
+  /* MY PREVIOUS ENTRY IN GREY (core/form-memory.js): only a form that names itself in cfg.memory; every other dialog as before */
+  frmWire(cfg.memory || '', $('ptDlgBody'));
   $('ptDlg').classList.remove('hide');
 }
 
@@ -132,7 +135,8 @@ $('ptDlgSave').onclick = async () => {
   ptDlgMsg('Saving…');
   try {
     const err = await PTD.onSave(ptDlgValues());
-    if (err) ptDlgMsg(err, true); else ptDlgClose();
+    if (err) ptDlgMsg(err, true);
+    else { if (PTD.memory) frmRemember(PTD.memory, $('ptDlgBody')); ptDlgClose(); }
   } catch (e) {
     ptDlgMsg('Not saved: ' + (e.message || e), true);
   }
