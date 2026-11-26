@@ -6,6 +6,7 @@ core/auth.js
 core/nav.js
 core/backend.js
 core/helpers.js
+core/form-memory.js
 core/page-parts.js
 replenishment/replenishment.js
 core/multi-select-filter.js

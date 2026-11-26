@@ -350,6 +350,7 @@ function bdFormMsg(t, bad) { const m = $('bwMsg'); m.textContent = t || ''; m.cl
 
 /** The whole form redrawn from its own state — order → article → subtype → colour → size → SKU. */
 function renderBdForm() {
+  frmWire('jobWorkIssue', $('bwBox'));   // my previous issue in grey, Tab fills (core/form-memory.js)
   const custom = bdIsCustom();
   $('bwOrdWrap').classList.toggle('hide', custom);
   // In Custom mode colour and size are typed, not chosen — that is the point of the mode.
@@ -741,6 +742,7 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
     /* A custom issue has no order line to hold; its id alone keeps a repeated Save to one entry. */
     const why = orderNo && lineHoldOn() ? await bdSaveHeld(entry) : await ptPut('pt_baseData/' + entry.id, entry).then(() => '');
     if (why) { waPreClose(waWin); bdFormMsg(why, true); $('bwSave').disabled = false; return; }
+    frmRemember('jobWorkIssue', $('bwBox'));
     lineHoldDraftDone(BD_DRAFTS, entry.id);
     PT.base = (PT.base || []).filter(r => !(r && r.id === entry.id)).concat(Object.assign({ _key: entry.id }, entry));
     const waNote = await waAfterIssue(waWin, entry);

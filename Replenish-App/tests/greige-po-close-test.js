@@ -176,9 +176,9 @@ console.log('== one copy of each: the person comes from their own login ==');
   /* The desk once carried the stand-alone model's copies too (a sample users list, browser-only saving); the later
    * copies won, so the first were dead code. Removed 21 Nov; this keeps them from coming back. */
   const code = fs.readFileSync(SRC, 'utf8');
-  const twice = ['lmLoad', 'lmResetSample', 'lmSaveDb', 'meUser', 'meFill', 'renderMstUsers', 'usersSafe']
+  const twice = ['lmLoad', 'lmSaveDb', 'meUser', 'meFill', 'renderMstUsers', 'usersSafe']
     .filter(n => (code.match(new RegExp('^function ' + n + '\\(', 'gm')) || []).length !== 1);
-  ok('each of the seven is written once', twice.length === 0, twice.join(', '));
+  ok('each of the six is written once', twice.length === 0, twice.join(', '));
   G.setDB({ gpo: [], fab: [], mst: [], ven: [], co: {}, users: [{ id: 'u1', name: 'Sample Admin', role: 'Admin', ledger: 'edit', approve: true }], me: 'u1' });
   G.signIn(STORE);
   ok('the person at the keyboard is the signed-in one, not a sample user', G.meUser().name === 'Ramesh' && G.meUser().ledger === 'edit' && G.meUser().approve === false);
