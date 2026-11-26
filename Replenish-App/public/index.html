@@ -2914,11 +2914,11 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
 <div id="appView" class="shell hide">
   <!-- Shown only while the perms read is in flight. Every account sees this, briefly; nobody sees a
        sidebar full of sections they do not have. -->
-  <div id="gateWait"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="154" height="157"><span>Checking your access…</span></div></div>
+  <div id="gateWait"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="132" height="134"><span>Checking your access…</span></div></div>
   <!-- Over the screen while a Refresh button works (ptBusy, 26 Nov 2026). -->
-  <div id="ptBusyCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="126" height="129"><span>Refreshing…</span></div></div>
+  <div id="ptBusyCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="108" height="110"><span>Refreshing…</span></div></div>
   <!-- When a read or save has waited 3 seconds (core/stuck-screen.js, 26 Nov 2026). -->
-  <div id="ptStuckCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="126" height="129"><span id="ptStuckWords">Still working…</span></div></div>
+  <div id="ptStuckCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="108" height="110"><span id="ptStuckWords">Still working…</span></div></div>
   <aside class="side">
     <div class="brand">
       <span class="brandname r1-brand"><img src="/r-one-wordmark.png" alt="R-one"></span>
@@ -9489,15 +9489,16 @@ function tgPlan(brands, pick, mk) {
 }
 
 async function ensureTarget() {
-  $('tgMsg').textContent = 'Loading…';
-  await ensureReplData();
-  if (!PROD_LOADED) await loadProd();            // status overrides decide which SKUs are stopped
-  await loadRevTgt();
-  if (!FC_PLAN.length) FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+  const read = await ptLoadingWhile('tgMsg', async () => {
+    await ensureReplData();
+    if (!PROD_LOADED) await loadProd();            // status overrides decide which SKUs are stopped
+    await loadRevTgt();
+    if (!FC_PLAN.length) FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+  });
+  if (!read) return;
   const sel = $('tgMonth'), cur = sel.value;
   sel.innerHTML = FC_PLAN.map(p => `<option value="${p.key}">${esc(p.label)}</option>`).join('');
   if (cur && FC_PLAN.some(p => p.key === cur)) sel.value = cur;
-  $('tgMsg').textContent = '';
   renderTarget();
 }
 
@@ -10569,7 +10570,7 @@ function updateFollowBadge() {
 }
 
 async function ensureFollow() {
-  if (!PO_LOADED) { $('fuMsg').textContent = 'Loading…'; await loadPo(); PO_LOADED = true; $('fuMsg').textContent = ''; }
+  if (!PO_LOADED) { if (!await ptLoadingWhile('fuMsg', loadPo)) return; PO_LOADED = true; }
   await ensureReplData();   // FBA stock column needs the Replenishment snapshot
   buildFbaMap(); CATALOG_SET = catalogSet();
   renderFollow(); updateFollowBadge();
@@ -10887,7 +10888,7 @@ async function fetchProd() {
 const prodLatest = sku => { const log = PROD[String(sku).toUpperCase()] || []; return log.length ? log[0] : null; };
 const isDisc = sku => !!DISC[String(sku).trim().toUpperCase()];
 async function ensureTop() {
-  if (!PROD_LOADED) { $('topMsg').textContent = 'Loading…'; await loadProd(); $('topMsg').textContent = ''; }
+  if (!PROD_LOADED && !await ptLoadingWhile('topMsg', loadProd)) return;
   if (!INDIA_LOADED) await loadIndiaStock();
   renderTop();
 }
@@ -11216,7 +11217,7 @@ async function ensureShopify() {
 }
 async function loadShopify() {
   const store = shStore();
-  shMsg('Loading…');
+  ptLoadingLine('shMsg');
   try {
     const r = await prGet({ cache: store === 'CPC' ? 'shopSkuCPC' : 'shopSku' });
     const d = r.data || {};
@@ -11439,16 +11440,17 @@ $('shCsv').onclick = () => {
 // column across every tab — the old pillow-tracker read was removed.
 const IN_COLS = ['SKU', 'India Stock'];
 async function ensureIndia() {
-  $('inMsg').textContent = 'Loading…';
   // The projection needs the same three things the In Production tab needs: the status overrides
   // (which SKUs are stopped), what is being made, and the forecast horizon. Read together — none waits on another.
-  await Promise.all([ensureReplData(), loadIndiaStock(), loadInProdOnce()]);
-  if (!PROD_LOADED) await loadProd();
-  if (!FC_PLAN.length) {
-    FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
-    FC_CACHE = new Map();
-  }
-  $('inMsg').textContent = '';
+  const read = await ptLoadingWhile('inMsg', async () => {
+    await Promise.all([ensureReplData(), loadIndiaStock(), loadInProdOnce()]);
+    if (!PROD_LOADED) await loadProd();
+    if (!FC_PLAN.length) {
+      FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+      FC_CACHE = new Map();
+    }
+  });
+  if (!read) return;
   // The list render also fills the Sub-Category / Colour dropdowns, so it runs either way.
   renderIndia();
   if (IN_MODE === 'proj') renderIndiaProj();
@@ -11801,18 +11803,18 @@ function loadInProdOnce() {
 /* ALL AT ONCE: the snapshot, the POs, India stock and what is being made need nothing from each other. Only the
  * FBA map, the catalogue and the forecast plan need the snapshot, and they are worked out after it is in. */
 async function ensureProd() {
-  $('pdMsg').textContent = 'Loading…';
-  await Promise.all([
-    ensureReplData(),
-    PO_LOADED ? null : loadPo().then(() => { PO_LOADED = true; }),
-    loadIndiaStock(),
-    loadInProdOnce(),
-  ]);
-  buildFbaMap(); CATALOG_SET = catalogSet();
-  if (!PROD_LOADED) await loadProd();          // status overrides decide which SKUs are stopped (read with the snapshot)
-  if (!FC_PLAN.length) { FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]); FC_CACHE = new Map(); }
-  $('pdMsg').textContent = '';
-  renderProd();
+  const read = await ptLoadingWhile('pdMsg', async () => {
+    await Promise.all([
+      ensureReplData(),
+      PO_LOADED ? null : loadPo().then(() => { PO_LOADED = true; }),
+      loadIndiaStock(),
+      loadInProdOnce(),
+    ]);
+    buildFbaMap(); CATALOG_SET = catalogSet();
+    if (!PROD_LOADED) await loadProd();          // status overrides decide which SKUs are stopped (read with the snapshot)
+    if (!FC_PLAN.length) { FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]); FC_CACHE = new Map(); }
+  });
+  if (read) renderProd();
 }
 // Units of a SKU currently being made, plus its dates/supplier. A SKU can appear on several uploaded
 // rows (two factories, two batches) — quantities add up, the window spans earliest start → latest ready.
@@ -15711,7 +15713,28 @@ async function ptRefreshButton(btn, work) {
  *  happening. */
 const PT_LOADING_ART = '/loading-print.svg';
 function ptLoadingArt(words) {
-  return `<div class="ptLoading"><img src="${PT_LOADING_ART}" alt="" width="105" height="107"><span>${words}</span></div>`;
+  return `<div class="ptLoading"><img src="${PT_LOADING_ART}" alt="" width="90" height="92"><span>${words}</span></div>`;
+}
+
+/** A screen whose own message line says it is loading (Shopify Stock, India Stock …) shows the block printing there
+ *  too (Ravi, 26 Nov 2026: "its loading but our loading button is not visible"). */
+function ptLoadingLine(msgId) { $(msgId).innerHTML = ptLoadingArt('Loading…'); }
+
+/** Loads a report screen behind its loading line. A read that fails must not leave the picture moving for good
+ *  (review of the loading picture, 26 Nov 2026): the line then says what could not be read and what to do, and the
+ *  screen is not drawn from half its data. Errors: shown on the screen, and the cause goes to the console.
+ *  Returns true when everything was read. */
+async function ptLoadingWhile(msgId, work) {
+  ptLoadingLine(msgId);
+  try {
+    await work();
+    $(msgId).textContent = '';
+    return true;
+  } catch (e) {
+    console.warn('[loading] ' + msgId + ':', e);
+    $(msgId).textContent = 'Could not read the data (' + ((e && e.message) || e) + '). Check the internet, then open this tab again.';
+    return false;
+  }
 }
 
 /** The cover shown while Refresh buttons work. A count, not an on/off: two screens refreshing at once must not
@@ -18346,11 +18369,13 @@ const PT_STUCK_WORDS = {
   verySlow: 'Still waiting for data. Check the internet, then press Refresh.',
 };
 
-/** Only our own data: the database and the Apps Script backend. Pictures, Meera and outside services do not count. */
+/** Only our own data: the database and the two Apps Script backends (the ERP's, and the pricing one that Shopify
+ *  Stock reads, added 26 Nov 2026). Pictures, Meera and outside services do not count. */
 function ptStuckIsDataCall(input) {
   const url = String((input && input.url) || input || '');
   if (typeof PT_URL === 'string' && url.startsWith(PT_URL)) return true;
-  return !!(typeof API !== 'undefined' && API && API.url && url.startsWith(API.url));
+  const ours = backend => !!(backend && backend.url && url.startsWith(backend.url));
+  return (typeof API !== 'undefined' && ours(API)) || (typeof PRAPI !== 'undefined' && ours(PRAPI));
 }
 
 /** Counts one request as slow after 3 s and very slow after 30 s, for as long as it is still waiting. */
