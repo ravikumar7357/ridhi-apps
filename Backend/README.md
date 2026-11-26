@@ -33,6 +33,21 @@ Node 24+ runs the TypeScript directly, so the tests need nothing installed and n
 node --test "test/*.test.ts"
 ```
 
+## Running it as one Node process (this PC, or a plain server such as DigitalOcean)
+
+`src/standalone.ts` runs the same routes, jobs and rules without Google: a plain web server, timers and an
+in-memory queue, and Firebase sign-in checked against Google's public keys (no Firebase packages needed).
+
+1. Copy `.env.example` to `.env` in this folder and fill in the values (never commit `.env`; git ignores it).
+   Only `SUPABASE_SERVICE_KEY` is needed to start; add `API_KEY` to call routes.
+2. Start: `npm run local` (same as `node --env-file=.env src/standalone.ts`). On a server: `npm start`, with the
+   settings given as environment variables and `HOST=0.0.0.0`.
+3. Check: `http://127.0.0.1:8080/health` (no key), then `http://127.0.0.1:8080/?weekly=keys&key=<API_KEY>`.
+   In Supabase: `select * from backend.last_runs;` shows a `heartbeat` row once a run is logged.
+
+It listens on this computer only unless `HOST` says otherwise, and every Amazon dataset stays owned by Apps Script
+until a switch in `backend.controls` changes, so nothing is fetched from Amazon.
+
 Compare a route on real data, once deployed (settings in your shell, never in a file):
 
 ```

@@ -7,6 +7,8 @@
   "engines": { "node": "24" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "start": "node src/standalone.ts",
+    "local": "node --env-file=.env src/standalone.ts",
     "test": "node --test \"test/*.test.ts\"",
     "parity": "node tools/parity.ts"
   },
