@@ -7,13 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
 <style>
-/* R-one backend roadmap, a standalone Sellora page (like live.html). Reads sellora.roadmap_get with the Sellora
-   sign-in; admins edit through sellora.roadmap_save. Light only, matching the weekly review. */
+/* R-one backend roadmap, a standalone Sellora page (like live.html). The data is the ROADMAP block in this file:
+   to update progress, change it and push (Claude does this as modules move). Light only, matching the weekly review. */
 :root{
   --bg:#f3f7fa; --card:#ffffff; --ink:#1e3a4c; --text:#3d5566; --mute:#6b8090; --line:#e2eaf0; --soft:#f5f9fb;
   --accent:#0d8a80; --accent-2:#2cc4b4; --accent-soft:#e3f6f3;
   --amber:#b56a0c; --amber-2:#e3a43a; --amber-soft:#fff3e0; --grey:#b7c5cf; --grey-soft:#eef2f5;
-  --good:#1b8a55; --good-soft:#e5f6ec; --bad:#b3261e; --bad-soft:#fbe4e2;
+  --good:#1b8a55; --good-soft:#e5f6ec;
   --shadow:0 1px 2px rgba(30,58,76,.05),0 10px 26px rgba(30,58,76,.08);
   --f-head:"Manrope","Segoe UI",system-ui,sans-serif; --f-body:"Inter","Segoe UI",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
   color-scheme:light;
@@ -28,9 +28,6 @@ p{margin:0}
 .kick{font:700 12px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
 h1{font-size:clamp(26px,4vw,36px);font-weight:800;letter-spacing:-.02em;margin-top:8px}
 .upd{font:500 12.5px/1.4 var(--f-mono);color:var(--mute)}
-.who{font-size:13px;color:var(--mute);text-align:right}
-.who b{color:var(--ink)}
-.badge{display:inline-block;margin-left:6px;font:700 11px/1 var(--f-body);padding:4px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:22px 24px;min-width:0}
 .hero{display:grid;gap:14px}
 .hero .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
@@ -53,9 +50,9 @@ h1{font-size:clamp(26px,4vw,36px);font-weight:800;letter-spacing:-.02em;margin-t
 .next h2,.mods h2{font-size:19px;font-weight:800}
 .nl{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
 .nl li{display:flex;gap:10px;align-items:flex-start}
-.nl input{margin-top:3px;width:18px;height:18px;accent-color:var(--accent)}
-.nl .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);margin-top:8px;flex:none}
-.nl .done{color:var(--mute);text-decoration:line-through}
+.nl .dot{width:18px;height:18px;border-radius:6px;border:2px solid var(--line);flex:none;margin-top:2px;display:grid;place-items:center;font:800 11px/1 var(--f-body);color:#fff}
+.nl .is-done .dot{background:var(--good);border-color:var(--good)}
+.nl .is-done span:last-child{color:var(--mute);text-decoration:line-through}
 .mods{display:grid;gap:12px}
 .mods .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
 .mod{display:grid;grid-template-columns:120px minmax(0,1fr) 150px;gap:16px;align-items:center;padding:16px 18px;border-radius:16px;background:var(--card);border:1px solid var(--line);position:relative;overflow:hidden}
@@ -76,26 +73,11 @@ h1{font-size:clamp(26px,4vw,36px);font-weight:800;letter-spacing:-.02em;margin-t
 .pill{font:700 11.5px/1 var(--f-body);padding:6px 10px;border-radius:999px;white-space:nowrap;background:var(--grey-soft);color:var(--mute)}
 .pill.done{background:var(--good-soft);color:var(--good)} .pill.active{background:var(--amber-soft);color:var(--amber)} .pill.next{background:var(--accent-soft);color:var(--accent)}
 .amt{font:600 12.5px/1.3 var(--f-mono);color:var(--mute)}
-.btn{font:600 13px/1 var(--f-body);border:1px solid var(--line);background:#fff;color:var(--accent);border-radius:9px;padding:7px 11px;cursor:pointer}
-.btn:hover{background:var(--accent-soft)}
-.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.edit{grid-column:1 / -1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end;padding-top:12px;border-top:1px dashed var(--line)}
-.edit label{display:grid;gap:4px;font-size:12.5px;color:var(--mute)}
-.edit input,.edit select,.edit textarea{font:14px var(--f-body);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fff;width:100%}
-.edit .wide{grid-column:1 / -1}
-.edit .acts{grid-column:1 / -1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.msg{font-size:13px}
-.msg.err{color:var(--bad)} .msg.ok{color:var(--good)}
-.empty{text-align:center;padding:36px 20px;color:var(--mute)}
-.empty b{display:block;font:800 17px var(--f-head);color:var(--ink);margin-bottom:6px}
-.empty a{color:var(--accent);font-weight:600}
 .foot{font-size:12.5px;color:var(--mute)}
 @media (max-width:720px){
   .stats{grid-template-columns:1fr}
   .mod{grid-template-columns:1fr;gap:10px}
   .right{justify-items:start;text-align:left;grid-auto-flow:column;justify-content:start;align-items:center;gap:10px}
-  .edit{grid-template-columns:1fr 1fr}
 }
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}.bar i::after{animation:none}}
 </style>
@@ -104,7 +86,7 @@ h1{font-size:clamp(26px,4vw,36px);font-weight:800;letter-spacing:-.02em;margin-t
 <div class="wrap">
   <div class="top">
     <div><p class="kick">R-one · Backend migration</p><h1>Backend Roadmap</h1></div>
-    <div><p class="who" id="who">Checking your sign-in…</p><p class="upd" id="upd"></p></div>
+    <p class="upd" id="upd"></p>
   </div>
 
   <section class="card hero" aria-label="Overall progress">
@@ -121,173 +103,100 @@ h1{font-size:clamp(26px,4vw,36px);font-weight:800;letter-spacing:-.02em;margin-t
   <section class="card next" aria-label="Next up">
     <h2>Next up</h2>
     <ul class="nl" id="nextlist"></ul>
-    <p class="msg" id="nextmsg" role="status"></p>
   </section>
 
   <section class="mods" aria-label="Every module">
     <div class="head"><h2>Every module, in order</h2><span class="upd">bar = done / total for that module</span></div>
-    <div id="mods" style="display:grid;gap:12px"><div class="card empty"><b>Loading the roadmap…</b>The modules and their progress appear here.</div></div>
+    <div id="mods" style="display:grid;gap:12px"></div>
   </section>
 
-  <p class="foot">Lines = lines of Apps Script code (Pricing-API) a module replaces; setup, saves and switch-off count in steps. Admins can update a module with its Edit button; Claude updates it as modules move.</p>
+  <p class="foot">Lines = lines of Apps Script code (Pricing-API) a module replaces; setup, saves and switch-off count in steps. Updated as each module moves.</p>
 </div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+<script>
+/* ============ ROADMAP: the data. Change these numbers to update the page. ============
+ * status: done | active | next | later      unit: lines | steps | scripts      done / total: how far along */
+const ROADMAP = {
+  updated: '26 Nov 2026',
+  next: [
+    { text: "Check that last night's backup (03:20) read from Supabase", done: false },
+    { text: 'Run the 3 parity checks', done: false },
+    { text: 'Server: exact cost first, then buy DigitalOcean App Platform', done: false },
+    { text: 'Put the backend on the server and stop the copy on this PC', done: false },
+    { text: 'Pause clasp push on the office PC', done: false },
+    { text: 'List every Apps Script route and timer with how often it is used', done: false },
+  ],
+  modules: [
+    { code: 'M0', name: 'Foundation and front door', files: 'Code.gs, SpApi.gs → router, Amazon gateway, switches, job log, queue, server', unit: 'lines', total: 485, done: 485, status: 'done', week: 'Done · 26 Nov', note: '95 tests pass. Running on this PC; heartbeat logged in Supabase.' },
+    { code: '—', name: 'Live sales', files: 'SalesLive.gs', unit: 'lines', total: 764, done: 764, status: 'done', week: 'Done · 21 Nov', note: "Replaced by Sellora's backend. Its Apps Script timer is switched off later." },
+    { code: '—', name: 'Old setup script', files: 'Setup.gs', unit: 'lines', total: 40, done: 40, status: 'done', week: 'Not needed', note: 'Deleted with Apps Script at switch-off.' },
+    { code: 'M1', name: 'Setup', files: 'Supabase tables, secrets, server, budget alert', unit: 'steps', total: 7, done: 4, status: 'active', week: 'This week', stat: true, note: 'Done: SQL files, backend schema, API_KEY secret, running on this PC. Left: server, budget alert, pause clasp push.' },
+    { code: 'M2a', name: 'Orders, shipments, stock', files: 'InvSync.gs, ReplSnap.gs', unit: 'lines', total: 1208, done: 0, status: 'next', week: 'Week of 3 Dec', note: 'First real piece: run beside Apps Script, compare 3–5 days, switch.' },
+    { code: 'M4', name: 'ERP save rules', files: 'core.rt_save in Supabase: month lock + change log', unit: 'steps', total: 6, done: 1, status: 'active', week: 'From 10 Dec', stat: true, note: 'Done: every ERP save listed (~375). Next: extra hours, then pay, stock ledgers, big registers, masters.' },
+    { code: 'M2b', name: 'Ads and PPC', files: 'AdsApi.gs, WeeklyPpc.gs', unit: 'lines', total: 1036, done: 0, status: 'later', week: 'Week of 10 Dec', note: 'Ads profiles and PPC week keys already rebuilt. Live ads reports get one owner.' },
+    { code: 'M2c', name: 'Nightly caches and sales', files: 'Nightly.gs, SalesAnalysis.gs', unit: 'lines', total: 1129, done: 0, status: 'later', week: 'Week of 17 Dec' },
+    { code: 'M3', name: 'Shopify', files: 'Shopify.gs, ShopifyCache.gs, ShopifySkuSales.gs', unit: 'lines', total: 874, done: 0, status: 'later', week: 'Week of 17 Dec', note: 'Builds on the webhooks Flowmerce-Sync already registers.' },
+    { code: 'M2d', name: 'Research, search terms, listing health and the rest', files: 'Research, SearchTerms, OrderAudits, ListingHealth, BrandAnalytics, MarketBasket, ListingFix, SkuPictures, InventoryAge, FriBooks, Lookups', unit: 'lines', total: 3052, done: 0, status: 'later', week: '24 Dec – 7 Jan', note: 'Brand Analytics periods already rebuilt.' },
+    { code: 'M6', name: 'Amazon writes', files: 'Mcf.gs, ListingImages.gs', unit: 'lines', total: 816, done: 0, status: 'later', week: 'January' },
+    { code: 'M7', name: 'Mail and notices', files: 'MailPo.gs, Notifications.gs', unit: 'lines', total: 175, done: 0, status: 'later', week: 'January' },
+    { code: 'M8', name: 'AI and creators', files: 'ListingOptimiser.gs, CreatorOrders.gs', unit: 'lines', total: 1601, done: 0, status: 'later', week: 'January' },
+    { code: 'M9–M10', name: 'Inventory app and housekeeping', files: 'Backup, report mails, checker, FabriCrush Inventory app', unit: 'scripts', total: 4, done: 0, status: 'later', week: 'End of January', note: 'The nightly backup already reads from Supabase.' },
+    { code: 'M11', name: 'Switch-off', files: 'Apps Script deleted, pushBack off, bridge functions removed, Firebase database retired', unit: 'steps', total: 5, done: 0, status: 'later', week: 'End of January' },
+  ],
+};
 
-// Sellora's Firebase project (same as src/app/core/setup.js). A web app's config is not a secret.
-const app = initializeApp({
-  apiKey: "AIzaSyCBHVKB0bXdawmz2dpAncrWonDZjfRjgqM",
-  authDomain: "price-research-48ff3.firebaseapp.com",
-  projectId: "price-research-48ff3",
-  storageBucket: "price-research-48ff3.firebasestorage.app",
-  messagingSenderId: "998139754721",
-  appId: "1:998139754721:web:83bc28cd1f7548ab055fa0"
-});
-const auth = getAuth(app);
-// Supabase (ERP data). The publishable key only lets a page call functions; roadmap_get / roadmap_save check the sign-in.
-const SB = 'https://xkpktnsdmpkwaingvdbd.supabase.co/rest/v1/rpc/';
-const KEY = 'sb_publishable_niq2DDjeCaqJl3_ccv0vtQ_BS8bqQ2Q';
+(function () {
+  const $ = id => document.getElementById(id);
+  const fmt = n => Number(n || 0).toLocaleString('en-IN');
+  const STATUS = { done: 'Done', active: 'In progress', next: 'Next', later: 'Later' };
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const bar = (frac, label) => {
+    const b = el('div', 'bar'); b.setAttribute('role', 'progressbar'); b.setAttribute('aria-label', label);
+    b.setAttribute('aria-valuemin', '0'); b.setAttribute('aria-valuemax', '100'); b.setAttribute('aria-valuenow', String(Math.round(frac * 100)));
+    const i = el('i'); b.appendChild(i);
+    requestAnimationFrame(() => requestAnimationFrame(() => { i.style.width = (frac * 100).toFixed(1) + '%'; }));
+    return b;
+  };
 
-const $ = id => document.getElementById(id);
-const fmt = n => Number(n || 0).toLocaleString('en-IN');
-const STATUS = { done: 'Done', active: 'In progress', next: 'Next', later: 'Later' };
-let rows = [], canEdit = false, openId = null;
-
-function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
-function bar(frac, label) {
-  const b = el('div', 'bar'); b.setAttribute('role', 'progressbar'); b.setAttribute('aria-label', label);
-  b.setAttribute('aria-valuemin', '0'); b.setAttribute('aria-valuemax', '100'); b.setAttribute('aria-valuenow', String(Math.round(frac * 100)));
-  const i = el('i'); b.appendChild(i);
-  requestAnimationFrame(() => requestAnimationFrame(() => { i.style.width = (frac * 100).toFixed(1) + '%'; }));
-  return b;
-}
-async function rpc(fn, body) {
-  const tok = await auth.currentUser.getIdToken();
-  const r = await fetch(SB + fn, {
-    method: 'POST', cache: 'no-store',
-    headers: { apikey: KEY, Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json', 'Content-Profile': 'sellora', 'Accept-Profile': 'sellora' },
-    body: JSON.stringify(body || {}),
-  });
-  const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch (e) { /* below */ }
-  if (!r.ok || !j) throw new Error(r.status === 404 ? 'The roadmap is not set up in the database yet.' : 'The roadmap could not be loaded (' + r.status + ').');
-  return j;
-}
-function showEmpty(title, text, link) {
-  const box = $('mods'); box.innerHTML = '';
-  const e = el('div', 'card empty'); e.append(el('b', null, title), text);
-  if (link) { e.append(' '); const a = el('a', null, link.text); a.href = link.href; e.append(a); }
-  box.appendChild(e);
-}
-
-function render() {
-  const meta = rows.find(r => r.id === '_meta') || {};
-  const mods = rows.filter(r => r.id !== '_meta').sort((a, b) => (+a.ord || 0) - (+b.ord || 0));
+  const mods = ROADMAP.modules;
   const lines = mods.filter(m => m.unit === 'lines');
-  const total = lines.reduce((s, m) => s + (+m.total || 0), 0);
-  const done = lines.reduce((s, m) => s + Math.min(+m.done || 0, +m.total || 0), 0);
+  const total = lines.reduce((s, m) => s + m.total, 0);
+  const done = lines.reduce((s, m) => s + Math.min(m.done, m.total), 0);
   const frac = total ? done / total : 0, p = Math.round(frac * 100);
   $('pct').textContent = ''; $('pct').append(String(p), el('small', null, '%'));
   $('lbl').textContent = ''; $('lbl').append(el('b', null, fmt(done)), ' of ', el('b', null, fmt(total)), ' lines of Apps Script replaced');
   $('bigbar').setAttribute('aria-valuenow', String(p));
   requestAnimationFrame(() => requestAnimationFrame(() => { $('bigfill').style.width = (frac * 100).toFixed(1) + '%'; }));
-  const latest = rows.map(r => r.updatedAt).filter(Boolean).sort().pop();
-  $('upd').textContent = latest ? 'Updated ' + new Date(latest).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  $('upd').textContent = 'Updated ' + ROADMAP.updated;
 
-  // counters
-  const stats = $('stats'); stats.innerHTML = '';
   const doneMods = mods.filter(m => m.status === 'done').length;
-  const cards = [{ v: doneMods, of: mods.length, t: 'modules done', f: mods.length ? doneMods / mods.length : 0 }];
-  mods.filter(m => m.unit !== 'lines' && m.showStat).forEach(m => cards.push({ v: +m.done || 0, of: +m.total || 0, t: m.name + ' (' + (m.unit || 'steps') + ')', f: m.total ? Math.min(1, (+m.done || 0) / m.total) : 0 }));
+  const cards = [{ v: doneMods, of: mods.length, t: 'modules done', f: doneMods / mods.length }];
+  mods.filter(m => m.stat).forEach(m => cards.push({ v: m.done, of: m.total, t: m.name + ' (' + m.unit + ')', f: m.total ? m.done / m.total : 0 }));
   cards.slice(0, 3).forEach(c => {
     const s = el('div', 'card stat'); const v = el('p', 'v num'); v.append(String(c.v), el('small', null, '/ ' + c.of));
-    s.append(v, el('p', 't', c.t), bar(c.f, c.t)); stats.appendChild(s);
+    s.append(v, el('p', 't', c.t), bar(c.f, c.t)); $('stats').appendChild(s);
   });
 
-  // next up (admins tick items)
-  const nl = $('nextlist'); nl.innerHTML = '';
-  const items = Array.isArray(meta.next) ? meta.next : [];
-  if (!items.length) nl.appendChild(el('li', null, 'Nothing listed.'));
-  items.forEach((it, idx) => {
-    const text = typeof it === 'string' ? it : String(it.text || ''); const isDone = !!(it && it.done);
-    const li = el('li');
-    if (canEdit) {
-      const cb = el('input'); cb.type = 'checkbox'; cb.id = 'next-' + idx; cb.checked = isDone;
-      const lab = el('label', isDone ? 'done' : '', text); lab.htmlFor = cb.id;
-      cb.addEventListener('change', () => saveNext(idx, cb.checked));
-      li.append(cb, lab);
-    } else { li.append(el('span', 'dot'), el('span', isDone ? 'done' : '', text)); }
-    nl.appendChild(li);
+  ROADMAP.next.forEach(it => {
+    const li = el('li', it.done ? 'is-done' : ''); li.append(el('span', 'dot', it.done ? '✓' : ''), el('span', null, it.text));
+    $('nextlist').appendChild(li);
   });
 
-  // modules
-  const box = $('mods'); box.innerHTML = '';
   mods.forEach(m => {
     const st = STATUS[m.status] ? m.status : 'later';
     const r = el('div', 'mod ' + st);
-    r.appendChild(el('p', 'when', String(m.week || '')));
-    const mid = el('div', 'mid'); const nm = el('div', 'nm'); nm.append(el('b', null, String(m.name || '')), el('span', 'code', String(m.code || '')));
+    r.appendChild(el('p', 'when', m.week || ''));
+    const mid = el('div', 'mid'); const nm = el('div', 'nm'); nm.append(el('b', null, m.name), el('span', 'code', m.code));
     mid.appendChild(nm);
-    if (m.files) mid.appendChild(el('p', 'files', String(m.files)));
-    if (m.note) mid.appendChild(el('p', 'note', String(m.note)));
-    const tot = +m.total || 0, dn = Math.min(+m.done || 0, tot);
-    mid.appendChild(bar(tot ? dn / tot : (st === 'done' ? 1 : 0), (m.name || 'module') + ' progress'));
+    if (m.files) mid.appendChild(el('p', 'files', m.files));
+    if (m.note) mid.appendChild(el('p', 'note', m.note));
+    mid.appendChild(bar(m.total ? Math.min(m.done, m.total) / m.total : 0, m.name + ' progress'));
     r.appendChild(mid);
-    const right = el('div', 'right'); right.append(el('span', 'pill ' + st, STATUS[st]));
-    right.appendChild(el('span', 'amt num', fmt(dn) + ' / ' + fmt(tot) + ' ' + (m.unit || 'steps')));
-    if (canEdit) { const b = el('button', 'btn', openId === m.id ? 'Close' : 'Edit'); b.type = 'button'; b.addEventListener('click', () => { openId = openId === m.id ? null : m.id; render(); }); right.appendChild(b); }
+    const right = el('div', 'right'); right.append(el('span', 'pill ' + st, STATUS[st]), el('span', 'amt num', fmt(Math.min(m.done, m.total)) + ' / ' + fmt(m.total) + ' ' + m.unit));
     r.appendChild(right);
-    if (canEdit && openId === m.id) r.appendChild(editor(m));
-    box.appendChild(r);
+    $('mods').appendChild(r);
   });
-}
-
-function editor(m) {
-  const f = el('form', 'edit'); const id = 'e-' + m.id;
-  const lab = (text, input) => { const l = el('label', null, text); input.id = id + '-' + text.toLowerCase().replace(/\W+/g, '-'); l.htmlFor = input.id; l.appendChild(input); return l; };
-  const sel = el('select'); Object.entries(STATUS).forEach(([k, v]) => { const o = el('option', null, v); o.value = k; if (k === m.status) o.selected = true; sel.appendChild(o); });
-  const dn = el('input'); dn.type = 'number'; dn.min = '0'; dn.max = String(+m.total || 0); dn.step = '1'; dn.value = String(+m.done || 0);
-  const wk = el('input'); wk.type = 'text'; wk.maxLength = 60; wk.value = String(m.week || '');
-  const note = el('textarea'); note.rows = 2; note.maxLength = 400; note.value = String(m.note || '');
-  const nlab = lab('Note', note); nlab.classList.add('wide');
-  const acts = el('div', 'acts'); const save = el('button', 'btn primary', 'Save'); save.type = 'submit';
-  const msg = el('span', 'msg'); msg.setAttribute('role', 'status'); acts.append(save, msg);
-  f.append(lab('Status', sel), lab('Done (of ' + fmt(m.total) + ' ' + (m.unit || 'steps') + ')', dn), lab('Week', wk), el('span'), nlab, acts);
-  f.addEventListener('submit', async (e) => {
-    e.preventDefault(); save.disabled = true; msg.className = 'msg'; msg.textContent = 'Saving…';
-    try {
-      const j = await rpc('roadmap_save', { p_id: m.id, p_patch: { status: sel.value, done: Math.round(Number(dn.value) || 0), week: wk.value.trim(), note: note.value.trim() } });
-      if (!j.ok) throw new Error(j.message || 'Not saved.');
-      openId = null; await load();
-    } catch (err) { msg.className = 'msg err'; msg.textContent = err.message; save.disabled = false; }
-  });
-  return f;
-}
-
-async function saveNext(idx, checked) {
-  const meta = rows.find(r => r.id === '_meta') || {}; const items = (Array.isArray(meta.next) ? meta.next : []).map(x => typeof x === 'string' ? { text: x, done: false } : { text: String(x.text || ''), done: !!x.done });
-  if (!items[idx]) return; items[idx].done = checked; $('nextmsg').className = 'msg'; $('nextmsg').textContent = 'Saving…';
-  try { const j = await rpc('roadmap_save', { p_id: '_meta', p_patch: { next: items } }); if (!j.ok) throw new Error(j.message || 'Not saved.'); $('nextmsg').textContent = ''; await load(); }
-  catch (err) { $('nextmsg').className = 'msg err'; $('nextmsg').textContent = err.message; }
-}
-
-async function load() {
-  try {
-    const j = await rpc('roadmap_get');
-    if (!j.ok) { showEmpty('Not available', j.message || 'The roadmap could not be loaded.'); return; }
-    canEdit = !!j.canEdit; rows = Array.isArray(j.rows) ? j.rows : [];
-    const who = $('who'); who.textContent = ''; who.append('Signed in as ', el('b', null, auth.currentUser.email || ''));
-    if (canEdit) who.appendChild(el('span', 'badge', 'can edit'));
-    if (!rows.length) { showEmpty('No modules yet', 'The roadmap table is empty.'); return; }
-    render();
-  } catch (err) { showEmpty('Could not load the roadmap', err.message); }
-}
-
-onAuthStateChanged(auth, user => {
-  if (!user) { $('who').textContent = 'Not signed in'; showEmpty('Sign in first', 'This page uses your Sellora sign-in.', { text: 'Open Sellora and sign in', href: '/' }); return; }
-  load();
-});
+})();
 </script>
 </body>
 </html>
