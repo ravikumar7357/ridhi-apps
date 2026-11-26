@@ -346,6 +346,18 @@
         ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()"
       }
     },
+    "pt_lineHold": {
+      ".read": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()",
+      "$register": {
+        "$line": {
+          ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists() && (!data.exists() || data.child('at').val() < now - 300000 || (newData.exists() ? data.child('by').val() === auth.token.email && newData.child('form').val() === data.child('form').val() : data.child('by').val() === auth.token.email))",
+          ".validate": "newData.hasChildren(['by', 'form', 'at']) && newData.child('by').val() === auth.token.email && newData.child('at').val() === now",
+          "$other": {
+            ".validate": "$other === 'by' || $other === 'form' || $other === 'at'"
+          }
+        }
+      }
+    },
     "$other": {
       ".read": "auth != null && ((auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).child('admin').val() === true))",
       ".write": "auth != null && (auth.token.email.toLowerCase() === 'ravi@thefabricrush.com' || root.child('pt_perms').child(auth.token.email.toLowerCase().replace('.', ',')).exists()) && !root.child('pt_vendorByEmail').child(auth.token.email.replace('.', ',')).exists()"

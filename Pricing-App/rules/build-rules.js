@@ -68,6 +68,21 @@ const lockedIndexed = (node, ix) => (ix ? { '.write': writeExpr(node), '.indexOn
 /* ADD-ONLY: a new line may be written; an existing one can be neither changed nor deleted, by anybody. */
 const ADD_ONLY = `${STAFF} && !data.exists()`;
 
+/* THE LINE HOLD (Ravi, 26 Nov: two screens saved the same pieces and both were told "saved"). Before a screen saves pieces
+ * of a line it writes pt_lineHold/<register>/<line> = { by, form, at }. The database, not the app, refuses a second screen:
+ * a hold is free when there is none or it is over 5 minutes old; until then only the same form of the same person may renew
+ * it (a repeated Save), and only that person may let it go. "at" is the database's own clock, so a PC with a wrong clock
+ * changes nothing. "form" tells two PCs on one shared login apart. */
+const LINE_HOLD_MS = 5 * 60 * 1000;
+const HOLD_OVER = `data.child('at').val() < now - ${LINE_HOLD_MS}`;
+const HOLD_MINE = "data.child('by').val() === auth.token.email";
+const HOLD_SAME_FORM = `${HOLD_MINE} && newData.child('form').val() === data.child('form').val()`;
+const LINE_HOLD = {
+  '.write': `${STAFF} && (!data.exists() || ${HOLD_OVER} || (newData.exists() ? ${HOLD_SAME_FORM} : ${HOLD_MINE}))`,
+  '.validate': "newData.hasChildren(['by', 'form', 'at']) && newData.child('by').val() === auth.token.email && newData.child('at').val() === now",
+  $other: { '.validate': "$other === 'by' || $other === 'form' || $other === 'at'" },
+};
+
 const rules = {
 
   pt_perms: { '.write': any(ADMIN) },
@@ -155,6 +170,8 @@ const rules = {
   pt_sync: Object.assign(
     Object.fromEntries(SYNC_NODES.map(n => [n, { '.read': readExpr(n), '.write': STAFF, '.indexOn': ['.value'] }])),
     { _reset: { '.read': STAFF, '.write': STAFF } }),
+
+  pt_lineHold: { '.read': STAFF, $register: { $line: LINE_HOLD } },
 
   $other: { '.read': any(ADMIN), '.write': STAFF },
 };
