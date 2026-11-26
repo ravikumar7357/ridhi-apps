@@ -558,8 +558,7 @@ async function spCutReal(orderNo, sku, pcs, date, fabric, remarks, extraReason) 
   const extra = String(extraReason || '').trim();
   const gErr = cutGuard(obUC(orderNo), obUC(sku), q, undefined, !!extra);
   if (gErr) return gErr;
-  const entry = {
-    id: 'cut_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+  const fields = {
     sku: obUC(sku), articleType: line.articleType || '', articleSubtype: line.articleSubtype || '',
     color: line.color || '', size: line.size || '',
     pieces: q, cutDate: ptStampDate(d), fabricWidth: String(fabric || '').trim(),
@@ -568,9 +567,9 @@ async function spCutReal(orderNo, sku, pcs, date, fabric, remarks, extraReason) 
     ...(typeof flowPlanQcDirect === 'function' && flowPlanQcDirect(orderNo, sku) ? { qcDirect: true } : {}),   // embroidered: straight to QC
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
-  try { await ptPut('pt_cuttingData/' + entry.id, entry); }
+  const entry = Object.assign({ id: cutEntryId(fields) }, fields);
+  try { const why = await cutWrite(entry); if (why) return why; }
   catch (e) { return 'Not saved: ' + (e.message || e); }
-  PT.cut = (PT.cut || []).concat([Object.assign({ _key: entry.id }, entry)]);
   if (!SP_QUIET) renderOrd();
   return '';
 }
