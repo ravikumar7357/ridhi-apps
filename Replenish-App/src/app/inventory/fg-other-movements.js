@@ -104,6 +104,7 @@ function fgiEntryOpen(type, sku) {
       </div>
       <div id="fgmInfo" class="muted" style="margin-top:8px;font-size:12.5px"></div>`,
     onSave: () => fgiEntrySave(),
+    memory: 'fgMovement:' + type,  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Save the entry',
   });
   const info = () => {

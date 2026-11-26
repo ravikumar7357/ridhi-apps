@@ -485,6 +485,7 @@ async function fgiTransferOpen() {
       <div id="fgtTot" class="muted" style="margin-top:8px;font-size:12.5px"></div>
       <label style="display:block;margin-top:8px">Remarks<input id="fgtRemarks" type="text" placeholder="optional"></label>`,
     onSave: fgiTransferSave,
+    memory: 'fgTransfer',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Send to the store',
   });
   ptDebounce('fgtQ', () => fgiTransferRows(rows));
@@ -569,6 +570,7 @@ function fgiReceiveOpen(id) {
         <label style="grid-column:1/-1">Remarks<input id="fgrRemarks" type="text" placeholder="optional"></label>
       </div>`,
     onSave: () => fgiReceiveSave(id),
+    memory: 'fgReceive',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Count it in',
     alt: { label: 'Send it back to press', run: () => fgiReturnSave(id) },
   });
@@ -648,6 +650,7 @@ function fgiOpeningOpen() {
       <label style="display:block;margin-top:8px">Remarks<input id="fgoRemarks" type="text" placeholder="what this count was"></label>
       <div id="fgoPrev" class="muted" style="margin-top:8px;font-size:12.5px"></div>`,
     onSave: fgiOpeningSave,
+    memory: 'fgOpening',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Add to the ledger',
   });
   ptDebounce('fgoText', fgiOpeningPreview);
