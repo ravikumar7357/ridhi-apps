@@ -698,6 +698,8 @@ $('bwSave').onclick = async () => {
   if (!sku) return bdFormMsg('No SKU — pick the item, or type the SKU directly.', true);
   if (!pcs || pcs < 1) return bdFormMsg('Enter how many pieces are being issued.', true);
   if (!date) return bdFormMsg('Enter the issue date.', true);
+  /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): today or up to 60 days back, never ahead. */
+  if (lineHoldOn()) { const dateErr = ptDateErr(date, 'Issue date', 'done'); if (dateErr) return bdFormMsg(dateErr, true); }
   /* A PRINTER'S PIECES ARE ALWAYS ISSUED AGAINST AN ORDER (2026-10-03, Ravi: "order number base banao") — even on a path
    * that otherwise lets an order be left out — so the store by order number can account for every one of them. */
   if (!orderNo && stPrinterSku(sku)) return bdFormMsg(`${obUC(sku)} comes from a printer — pick the Order ID it is for.`, true);

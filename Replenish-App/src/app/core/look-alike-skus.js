@@ -473,6 +473,8 @@ $('cwSave').onclick = async () => {
   if (!CUT_FROM && !(CUT_OWN_OK && fabric === CUT_OWN_OK) && cutFabrics().indexOf(fabric) < 0)
     return cutFormMsg(`"${fabric}" is not in the Fabric Type master. Add it there first.`, true);
   if (!date) return cutFormMsg('Enter the cutting date.', true);
+  /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): today or up to 60 days back, never ahead. */
+  if (lineHoldOn()) { const dateErr = ptDateErr(date, 'Cutting date', 'done'); if (dateErr) return cutFormMsg(dateErr, true); }
 
   const at = m.articleType || '', sub = m.subtype || '', col = m.color || '', sz = m.size || '';
   const mErr = m._custom ? [] : validateAgainstMasters(at, sub, col, sz);
