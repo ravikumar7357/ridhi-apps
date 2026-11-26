@@ -119,7 +119,7 @@ ok(/if \(err\) ptDlgMsg\(err, true\);\s*else \{ if \(PTD\.memory\) frmRemember\(
   ['production/whatsapp.js', "'jobWorkReceive'"]]
   .forEach(([f, name]) => ok(read(f).includes('memory: ' + name + ','), f + ' takes part as ' + name));
 /* the forms that stay on the page: shown when drawn, remembered right after the write and before the boxes are cleared */
-[['production/job-work-entry.js', 'jobWorkIssue', 'bwBox', "await ptPut('pt_baseData/"],
+[['production/job-work-entry.js', 'jobWorkIssue', 'bwBox', "const why = await bdWrite(entry);"],
   ['production/press.js', 'pressEntry', 'pwBox', "await ptPut('pt_pressInventory/"],
   ['production/quality-control.js', 'qcCheck', 'qcwBox', "await ptPut('pt_qcChecks/"],
   ['production/quality-control.js', 'qcIssue', 'qciBox', "await ptPut('pt_qcIssuance/"],

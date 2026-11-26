@@ -17964,6 +17964,19 @@ async function lineHoldRun(line, save) {
   if (busy) return busy;
   try { return await save(); } finally { await lineHoldLetGo(path, line.form); }
 }
+/* ONE ENTRY PER SET OF FIGURES (26 Nov, switch lineHold): Save pressed again for the same figures gets the same id, so a
+ * save that reached the database but was reported as failed is not entered twice. `drafts` is the screen's own Map; a set is
+ * remembered until it is saved, and for 10 minutes at most: a retry comes within minutes, while the same figures later in the
+ * day are a real second entry. Switch off: a new id every time, as before. */
+const LINE_HOLD_DRAFT_MS = 10 * 60 * 1000;
+function lineHoldDraftId(drafts, prefix, fields) {
+  const sig = JSON.stringify(Object.assign({}, fields, { addedAt: '' })), now = Date.now();
+  drafts.forEach((d, k) => { if (now - d.at > LINE_HOLD_DRAFT_MS) drafts.delete(k); });
+  if (!lineHoldOn() || !drafts.has(sig)) drafts.set(sig, { id: prefix + now + '_' + Math.random().toString(36).slice(2, 8), at: now });
+  return drafts.get(sig).id;
+}
+/** The entry is saved: its figures are new again. */
+function lineHoldDraftDone(drafts, id) { drafts.forEach((d, k) => { if (d.id === id) drafts.delete(k); }); }
 /* ==== END LINE HOLD ==== */
 /* ============================== FILE: src/app/core/mirror.js ============================== */
 /* ================= LIVE MIRROR · every save also goes to the new database (Ravi, 12 Nov 2026) =================
@@ -20882,6 +20895,38 @@ function bdTwinOf(entry) {
     && now - (Date.parse(r.addedAt || '') || 0) < 120000) || null;
 }
 
+const BD_DRAFTS = new Map();   // unsaved karigar issues from the issue form, Order Console and SHP board → the id each is written under (lineHoldDraftId)
+
+/** The karigar issue, saved while this screen holds the order line: the issues on this SKU are read from the database and the
+ *  order's limits checked on them, so two screens cannot issue the same cut pieces. '' when saved, else the sentence to show. */
+function bdSaveHeld(entry) {
+  return lineHoldRun({ register: 'issue', orderNo: entry.orderNo, sku: entry.sku, form: entry.id }, async () => {
+    /* Open issues live in pt_baseData; a completed one never gains pieces, so the screen's copy of those is enough. */
+    try {
+      const fresh = ptList(await ptGetFreshWhere('pt_baseData', 'sku', entry.sku)), ids = new Set(fresh.map(r => r.id));
+      PT.base = (PT.base || []).filter(r => !(r && ids.has(r.id))).concat(fresh);
+    } catch (e) {
+      console.warn('[line hold] could not read the issues of ' + entry.sku + ' before saving:', e);
+      return 'Nothing was saved — the pieces already issued on this order could not be checked (' + (e.message || e) + '). Check the connection and press Save again.';
+    }
+    if (PT.base.some(r => r && r.id === entry.id)) return '';   // an earlier press of Save reached the database
+    const full = bdGuard(entry.orderNo, entry.sku, entry.issuePieces, undefined, !!entry.extraReason);
+    if (full) { renderPbase(); return 'Not saved — ' + full; }
+    await ptPut('pt_baseData/' + entry.id, entry);
+    return '';
+  });
+}
+
+/** Writes one new karigar issue, for the issue form and the order screens alike: '' when saved, else the sentence to show.
+ *  A database write that fails throws. A custom issue has no order line to hold; its id alone keeps a repeated Save to one. */
+async function bdWrite(entry) {
+  const why = entry.orderNo && lineHoldOn() ? await bdSaveHeld(entry) : await ptPut('pt_baseData/' + entry.id, entry).then(() => '');
+  if (why) return why;
+  lineHoldDraftDone(BD_DRAFTS, entry.id);
+  PT.base = (PT.base || []).filter(r => !(r && r.id === entry.id)).concat(Object.assign({ _key: entry.id }, entry));
+  return '';
+}
+
 $('bwSave').onclick = async () => {
   const custom = bdIsCustom();
   const type = $('bwType').value.trim();
@@ -20929,8 +20974,7 @@ $('bwSave').onclick = async () => {
     if (zErr) return bdFormMsg(zErr, true);
   }
 
-  const entry = {
-    id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+  const fields = {
     empType: type, empName: emp[1], sku: obUC(sku),
     articleType: at, articleSubtype: sub, color: col, size: sz,
     orderNo,
@@ -20945,6 +20989,7 @@ $('bwSave').onclick = async () => {
     ...(custom ? { custOrder, custChannel: bdCustChannel(custOrder) } : {}),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
+  const entry = Object.assign({ id: lineHoldDraftId(BD_DRAFTS, 'bd_', fields) }, fields);
 
   /* THE SAME ISSUE, AGAIN, INSIDE TWO MINUTES. Eleven pairs like this are in the live register — same karigar,
    * SKU, order and pieces, 0 to 47 seconds apart, ten of them already paid in a frozen fortnight. A second
@@ -20961,9 +21006,9 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
   /* WhatsApp is opened now, while this is still the click — see waPreOpen. */
   const waWin = waPreOpen(entry);
   try {
-    await ptPut('pt_baseData/' + entry.id, entry);
+    const why = await bdWrite(entry);
+    if (why) { waPreClose(waWin); bdFormMsg(why, true); $('bwSave').disabled = false; return; }
     frmRemember('jobWorkIssue', $('bwBox'));
-    PT.base = (PT.base || []).concat(Object.assign({ _key: entry.id }, entry));
     const waNote = await waAfterIssue(waWin, entry);
     // A zip SKU spends zippers. Posting it here keeps the accessory ledger honest without a second step.
     let zipNote = '', rufNote = '';
@@ -28208,8 +28253,7 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
     try { await ptEnsureCustom(); } catch (e) { /* the line alone, as before */ }
     meta = (MDBX.custom || []).find(r => r && obUC(r.sku) === obUC(sku)) || {};
   }
-  const entry = {
-    id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+  const fields = {
     empType: t, empName: emp[1], sku: obUC(sku),
     articleType: line.articleType || meta.articleType || '', articleSubtype: line.articleSubtype || meta.subtype || '',
     color: line.color || meta.color || '', size: line.size || meta.size || '',
@@ -28223,9 +28267,9 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
     shopOrderNo: line.shopOrderNo || '', src: 'SHP',
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
-  try { await ptPut('pt_baseData/' + entry.id, entry); }
+  const entry = Object.assign({ id: lineHoldDraftId(BD_DRAFTS, 'bd_', fields) }, fields);
+  try { const why = await bdWrite(entry); if (why) { waPreClose(waWin); return why; } }
   catch (e) { waPreClose(waWin); return 'Not saved: ' + (e.message || e); }
-  PT.base = (PT.base || []).concat([Object.assign({ _key: entry.id }, entry)]);
   if (!SP_QUIET) SP_WA_NOTE = await waAfterIssue(waWin, entry);
   /* WHAT GOES WITH THE PIECES, as the form does it: the zippers, and a ruffle's fabric. Both are keyed
    * on this row, so they can never be taken twice, and deleting the issue gives them back. The issue
@@ -31091,14 +31135,13 @@ async function shpbIssueVendorSave(r, v) {
   if (typeof bdGuard === 'function') { const g = bdGuard(r.orderNo, r.sku, pcs); if (g) return g; }
   const m = (typeof cutSkuOf === 'function' ? cutSkuOf(r.sku) : null) || {};
   const day = v.date || shpbToday(), name = String(ven.desc || ven.name || ven.code);
-  const e = { id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), empType: SHPB_EMB_TYPE, empName: name, vendorCode: String(ven.code),
+  const fields = { empType: SHPB_EMB_TYPE, empName: name, vendorCode: String(ven.code),
     sku: obUC(r.sku), articleType: m.articleType || r.articleType || '', articleSubtype: m.subtype || r.articleSubtype || '', color: m.color || r.color || '',
     size: m.size || r.size || '', orderNo: r.orderNo, issuePieces: pcs, issueDate: typeof ptStampDate === 'function' ? ptStampDate(day) : day,
     receivedPieces: 0, rejectionPieces: 0, receivingDate: '', pendingPieces: pcs, remarks: 'Embroidery — outside vendor', frozen: false,
     addedBy: ME.email, addedAt: new Date().toISOString() };
-  try { await ptPut('pt_baseData/' + e.id, e); } catch (x) { return 'Not saved: ' + (x.message || x); }
-  PT.base = (PT.base || []).concat(Object.assign({ _key: e.id }, e));
-  return '';
+  const e = Object.assign({ id: lineHoldDraftId(BD_DRAFTS, 'bd_', fields) }, fields);
+  try { return await bdWrite(e); } catch (x) { return 'Not saved: ' + (x.message || x); }
 }
 async function shpbIssueSave(r, v) {
   if (v.to === 'vendor') return shpbIssueVendorSave(r, v);

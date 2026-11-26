@@ -469,8 +469,7 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
     try { await ptEnsureCustom(); } catch (e) { /* the line alone, as before */ }
     meta = (MDBX.custom || []).find(r => r && obUC(r.sku) === obUC(sku)) || {};
   }
-  const entry = {
-    id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+  const fields = {
     empType: t, empName: emp[1], sku: obUC(sku),
     articleType: line.articleType || meta.articleType || '', articleSubtype: line.articleSubtype || meta.subtype || '',
     color: line.color || meta.color || '', size: line.size || meta.size || '',
@@ -484,9 +483,9 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
     shopOrderNo: line.shopOrderNo || '', src: 'SHP',
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
-  try { await ptPut('pt_baseData/' + entry.id, entry); }
+  const entry = Object.assign({ id: lineHoldDraftId(BD_DRAFTS, 'bd_', fields) }, fields);
+  try { const why = await bdWrite(entry); if (why) { waPreClose(waWin); return why; } }
   catch (e) { waPreClose(waWin); return 'Not saved: ' + (e.message || e); }
-  PT.base = (PT.base || []).concat([Object.assign({ _key: entry.id }, entry)]);
   if (!SP_QUIET) SP_WA_NOTE = await waAfterIssue(waWin, entry);
   /* WHAT GOES WITH THE PIECES, as the form does it: the zippers, and a ruffle's fabric. Both are keyed
    * on this row, so they can never be taken twice, and deleting the issue gives them back. The issue
