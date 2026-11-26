@@ -36,6 +36,7 @@ vendors/printing/fabric-catalogue.js
 vendors/printing/cutting-data-look.js
 core/database-auth.js
 core/history.js
+core/line-hold.js
 core/mirror.js
 core/monitor.js
 core/gates.js
