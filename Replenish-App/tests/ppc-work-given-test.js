@@ -32,7 +32,8 @@ function load(o) {
     document: { querySelector: () => null, querySelectorAll: () => [], addEventListener() {} }, $: () => null, ME: { admin: true, tabs: [] },
     ptIsoDate: v => String(v || '').slice(0, 10), ptDtMs: v => Date.parse(v) || 0, ptNum: v => +v || 0,
     FLOW: { ppc: {}, res: {}, ch: o.ch || {} }, FLOW_ROUTES: [], flowRouteOf: () => 'inhouse', FLOW_RUF: '~ruffle',
-    PTG: { ob: [] }, PT: { cut: o.cut || [], base: o.base || [] }, flowRows: () => [], ordLines: () => o.lines || [],
+    PTG: { ob: [] }, PT: { cut: o.cut || [], base: o.base || [] }, flowRows: () => (o.onList || []).map(s => ({ s, r: { orderNo: 'x', sku: 'x' } })), ordLines: () => o.lines || [],
+    flowState: r => { if (o.stateFails) throw new Error('no registers'); return (o.states || {})[flowKey(r.orderNo, r.sku)]; },
     /* the challan helpers, as flow-receive.js has them */
     flowChUnit: l => (l && l.print && l.print.kind === 'sku' ? 'pcs' : 'm'),
     flowChSent: l => (l && l.print && l.print.kind === 'sku' ? (+l.pcs || 0) : (+l.metres || 0)),
@@ -185,6 +186,31 @@ ok('a shared line weighs a size by all its cloth, metres and pieces together (11
 is('one cloth line for two sizes, all of it entered: both sizes\' pieces sent not received', byPcs([cloth({ parts: [KA, KB2], meters: 90, sent: 90 })], { lines: [pcsLine(KA, 100, 30), pcsLine(KB2, 100, 60)] }), [0, 200, 0]);
 is('…two thirds entered: two thirds of each size', byPcs([cloth({ parts: [KA, KB2], meters: 90, sent: 60 })], { lines: [pcsLine(KA, 90, 30), pcsLine(KB2, 90, 60)] }), [60, 120, 0]);
 is('the other way round is left alone: a metre challan is not cleared by an order in pieces', one([order({ qty: 1, sent: 1 }, { orderType: 'cut' })]), [6, 0, 0]);
+/* ---- the order line has moved on (Ravi, 26 Nov) ---- 10 m sent, 4 m received, 25 pieces ordered */
+const moved = (state, x) => {
+  x = x || {};
+  const challan = { no: 'RFD-1', date: '2026-10-22', vendor: { code: 'RBP', name: 'RBP-Bagru' }, lines: [Object.assign({ key: KA, sku: 'RPC-A', metres: 10 }, x.line)], receipts: { r: { date: '2026-10-30', items: { [KA]: 4 } } } };
+  const t = load(Object.assign({ ch: { 'RFD-1': challan }, vo: x.vo || [order({})], lines: [{ orderNo: 'SHP-1', sku: 'RPC-A', qty: 25 }], states: { [KA]: state }, standing: x.standing }, x.more));
+  const w = t.p1PrinterWork('', ''), p = w.parties[0] || {};
+  return { got: [w.holds.reduce((a, h) => a + h.pcs, 0), p.tm, p.um] };
+};
+const st0 = o => Object.assign({ key: KA, bucket: 'fabric', cut: 0, issuedNet: 0, made: 0 }, o);
+is('nothing cut or made: the 6 m with no receipt is still out', moved(st0({})), [6, 0, 0]);
+is('the whole line cut (25 of 25): nothing out, the 6 m not booked', moved(st0({ cut: 25 })), [0, 0, 6]);
+is('…the whole line given to karigars (a line with no cutting)', moved(st0({ issuedNet: 25 })), [0, 0, 6]);
+is('…the whole line made', moved(st0({ made: 25 })), [0, 0, 6]);
+['fgin', 'ship', 'done'].forEach(bucket => is('…the line at "' + bucket + '": moved on', moved(st0({ bucket })), [0, 0, 6]));
+is('part of the line moved on (24 of 25): left as it is', moved(st0({ cut: 24, issuedNet: 20, made: 10 })), [6, 0, 0]);
+is('moved on, and the printer entered it as sent: not booked, no longer on the way', moved(st0({ cut: 25 }), { vo: [order({ sent: 10 })] }), [0, 0, 6]);
+is('moved on while the vendor orders are not read yet: still not booked', moved(st0({ cut: 25 }), { more: { vo: null } }), [0, 0, 6]);
+is('a line still on the PPC list is read from the list', moved(undefined, { more: { onList: [st0({ made: 25 })], stateFails: true } }), [0, 0, 6]);
+is('a line whose state cannot be read keeps its cloth out', moved(st0({ cut: 25 }), { more: { stateFails: true } }), [6, 0, 0]);
+is('a line not in the order book keeps its cloth out', moved(st0({ cut: 25 }), { more: { lines: [] } }), [6, 0, 0]);
+const ruffle = { line: { ruffleOnly: true } };
+is('ruffle cloth stays out though the whole line is cut and given to karigars', moved(st0({ cut: 25, issuedNet: 25 }), ruffle), [6, 0, 0]);
+is('…not booked once the whole line is made', moved(st0({ made: 25 }), ruffle), [0, 0, 6]);
+is('…or waiting for Finished Goods', moved(st0({ bucket: 'fgin' }), ruffle), [0, 0, 6]);
+is('standing cloth stays out though its line has moved on', moved(st0({ bucket: 'done' }), { standing: [{ code: 'RBP', printer: 'RBP-Bagru', qty: 70, unit: 'm', no: 'RFD-0', orderNo: 'SHP-1', sku: 'RPC-A', at: '2026-10-05' }] }), [70, 0, 6]);
 is('standing cloth stays out though the vendor order is Received', st1, [70, 0, 6]);
 const done = one([order({}, { status: 'Received' })]), L = done.list[0] || {};
 ok('the not-booked line names the SKU, order and challan to receive it on', L.sku === 'RPC-A' && L.orderNo === 'SHP-1' && L.ref === 'Challan RFD-1' && L.pcs === 6, JSON.stringify(L));
