@@ -25,6 +25,10 @@ const CODE = [src('core/line-hold.js'),
   cut(J, /^const BD_DRAFTS/m, ';'), cut(J, /^function bdSaveHeld\(/m), cut(J, /^async function bdWrite\(/m),
   cut('orders/order-console-table.js', /^async function spIssueReal\(/m), cut('orders/shp-board.js', /^async function shpbIssueVendorSave\(/m), cut(J, /^\$\('bwSave'\)\.onclick/m, '\n};')].join('\n');
 
+/* the one date rule the forms ask before saving (fix 7, 26 Nov) */
+const DATE_RULE = [cut('core/helpers.js', /^const dDiff = /m, ';'), cut('core/helpers.js', /^const PT_DATE_BACK_DAYS/m, ';'),
+  cut('core/helpers.js', /^const dTodayIndia = /m, ';'), cut('core/helpers.js', /^const ptDayWords = /m, ';'),
+  cut('core/helpers.js', /^function ptDateErr\(/m), cut('core/helpers.js', /^function ptDateOrderErr\(/m)].join('\n');
 const MIN = 60 * 1000, SKU = 'MADE-UP', HOLD = 'pt_lineHold/issue/OC-1__MADE-UP';
 function database() {
   const db = { at: {}, refuse: {} };
@@ -77,7 +81,7 @@ function screen(db, o) {
     ptConsumeZippers: async () => { sent.zip++; return ''; }, ptConsumeRuffle: async () => '', bdCustomMaster: async () => '', bdClearForm: nothing, renderPbase: nothing,
   };
   vm.createContext(ctx);
-  vm.runInContext(CODE, ctx);
+  vm.runInContext(DATE_RULE + '\n' + CODE, ctx);
   if (!o.behind) ctx.PT.base = ctx.ptList(db.get('pt_baseData'));
   const fill = pcs => Object.entries({ bwType: 'Karigar', bwEmp: 'Made-up Karigar', bwSku: SKU, bwOrd: 'OC-1', bwPcs: String(pcs), bwAt: 'Cover', bwSub: 'Plain', bwCol: 'Red', bwSz: '16x16', bwRemarks: '' })
     .forEach(([id, v]) => { box(id).value = v; });

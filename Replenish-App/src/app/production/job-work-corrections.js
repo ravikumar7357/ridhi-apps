@@ -36,6 +36,13 @@ function jwCorrPlan(r, change) {
   const recv = has('receivedPieces') ? parseInt(c.receivedPieces, 10) : ptNum(r.receivedPieces);
   const rej = has('rejectionPieces') ? parseInt(c.rejectionPieces, 10) : ptNum(r.rejectionPieces);
   const sku = has('sku') ? obUC(c.sku) : obUC(r.sku || '');
+  /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): a corrected date is never ahead of today, and receiving never before issue. */
+  if (lineHoldOn()) {
+    const iss = has('issueDate') ? String(c.issueDate).trim() : ptIsoDate(r.issueDate), rcv = has('receivingDate') ? String(c.receivingDate).trim() : ptIsoDate(r.receivingDate);
+    const dateErr = (has('issueDate') ? ptDateErr(iss, 'Issue date', 'fixed') : '') || (has('receivingDate') ? ptDateErr(rcv, 'Receiving date', 'fixed') : '')
+      || ((has('issueDate') || has('receivingDate')) ? ptDateOrderErr([['Issue', iss], ['Receiving', rcv]]) : '');
+    if (dateErr) return { err: dateErr };
+  }
   if (!name) return { err: 'Enter the karigar\'s name.' };
   /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): a changed figure is whole pieces, never cut down to a whole number. */
   if (lineHoldOn()) {
@@ -306,6 +313,14 @@ $('bdmSave').onclick = async () => {
   });
   if (admin) {
     if ($('bdmIssueDate').value) next.issueDate = ptStampFrom(r.issueDate, $('bdmIssueDate').value);
+    /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): an admin's correction may go back any distance, never ahead, and the
+     * receiving date is never before the issue date. A date left as it was is not checked. */
+    if (lineHoldOn()) {
+      const iss = $('bdmIssueDate').value || ptIsoDate(r.issueDate), rcv = $('bdmRecvDate').value;
+      const dateErr = ptDateErr(iss, 'Issue date', 'fixed', ptIsoDate(r.issueDate)) || ptDateErr(rcv, 'Receiving date', 'fixed', ptIsoDate(r.receivingDate))
+        || ptDateOrderErr([['Issue', iss], ['Receiving', rcv]]);
+      if (dateErr) return bdModalMsg(dateErr, true);
+    }
     next.receivingDate = $('bdmRecvDate').value ? ptStampFrom(r.receivingDate, $('bdmRecvDate').value) : '';
   }
   // Completing the row here still has to stamp a receiving date, or a finished row has no date at all.

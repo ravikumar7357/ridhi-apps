@@ -167,6 +167,14 @@ async function gpoSave(v) {
   const big = lineHoldOn() ? plan.po.lines.map(l => ptNumBig(l.metres, l.greige, 'm')).find(Boolean) : '';
   if (big && !confirm(big)) return 'Not saved — change the metres, then save the PO.';
   const prev = (GPO.rows || []).find(r => r.id === plan.po.id);
+  /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): the PO date is today or up to 60 days back, delivery from today to a year
+   * ahead and not before the PO date. Dates an edited PO already had are left alone. */
+  if (lineHoldOn()) {
+    const was = prev || {};
+    const dateErr = ptDateErr(plan.po.date, 'PO date', 'done', was.date) || ptDateErr(plan.po.deliveryDate, 'Delivery date', 'plan', was.deliveryDate)
+      || ptDateOrderErr([['PO', plan.po.date], ['Delivery', plan.po.deliveryDate]]);
+    if (dateErr) return dateErr;
+  }
   if (prev && prev.status === 'cancelled') return 'That PO was cancelled.';
   try {
     /* An edit of a PO that exists is saved only if nobody changed it meanwhile (switch lineHold); a new PO is a new record. */

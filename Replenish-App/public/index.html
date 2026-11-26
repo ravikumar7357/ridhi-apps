@@ -7380,6 +7380,42 @@ const dAdd = (ds, n) => { const d = new Date(ds + 'T00:00:00'); d.setDate(d.getD
 const dDiff = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);   // b − a in days
 const dValid = ds => !!ds && !isNaN(new Date(String(ds) + 'T00:00:00').getTime());   // guards NaN from a non-ISO date
 
+/* ONE DATE RULE (Ravi, 26 Nov 2026, fix 7 of the PPC flow test: a plan went in Ready 03-11-0008 and a receive was dated 2099,
+ * and each form checked its dates its own way, or not at all). Two kinds of date:
+ *   'done' — when something happened (cut, issued, received, PO date): not after today, not more than 60 days back;
+ *   'fixed' — an admin's correction of a 'done' date: not after today, any day back;
+ *   'plan' — when something should happen (PPC cut / QC / ready, PO delivery): not before today, not more than a year ahead.
+ * "Today" is India's today, whatever the PC clock's zone. A date left as it was saved (`was`, on an edit) is not checked again,
+ * so an old plan can still be saved. Blank is the form's own business: '' here. Returns '' when fine, else what to fix. */
+const PT_DATE_BACK_DAYS = 60, PT_DATE_AHEAD_DAYS = 366;
+const dTodayIndia = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+const ptDayWords = ds => String(ds).slice(0, 10).split('-').reverse().join('-');   // 2026-11-03 → 03-11-2026, the way the floor reads it
+function ptDateErr(ds, label, kind, was) {
+  const t = String(ds == null ? '' : ds).trim().slice(0, 10);
+  if (!t) return '';
+  /* A real calendar day: 31 Feb is not one, though the browser would quietly read it as 3 March. */
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(t) ? new Date(t + 'T00:00:00Z') : null;
+  const real = !!d && !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === t;
+  if (!real) return `${label}: "${t}" is not a date.`;
+  if (was && t === String(was).trim().slice(0, 10)) return '';
+  const today = dTodayIndia();
+  if (kind === 'done' || kind === 'fixed') {
+    if (t > today) return `${label} ${ptDayWords(t)} is in the future — pick today or an earlier day.`;
+    if (kind === 'done' && dDiff(t, today) > PT_DATE_BACK_DAYS) return `${label} ${ptDayWords(t)} is more than ${PT_DATE_BACK_DAYS} days back — ask an admin to enter it.`;
+    return '';
+  }
+  if (t < today) return `${label} ${ptDayWords(t)} is before today — pick a date from today on.`;
+  if (dDiff(today, t) > PT_DATE_AHEAD_DAYS) return `${label} ${ptDayWords(t)} is more than a year ahead — check the year.`;
+  return '';
+}
+/** Dates that must come in this order, e.g. [['Cut', cut], ['QC', qc], ['Ready', ready]]; blanks are skipped. '' or what to fix. */
+function ptDateOrderErr(steps) {
+  const set = steps.filter(([, d]) => String(d || '').trim());
+  for (let i = 1; i < set.length; i++)
+    if (set[i][1] < set[i - 1][1]) return `${set[i][0]} date ${ptDayWords(set[i][1])} is before the ${set[i - 1][0]} date ${ptDayWords(set[i - 1][1])}.`;
+  return '';
+}
+
 function csvCell(v) { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
 function csvDownload(name, cols, rows) {
   const lines = [cols.map(csvCell).join(',')].concat(rows.map(r => r.map(csvCell).join(',')));
@@ -20280,6 +20316,8 @@ $('cwSave').onclick = async () => {
   if (!CUT_FROM && !(CUT_OWN_OK && fabric === CUT_OWN_OK) && cutFabrics().indexOf(fabric) < 0)
     return cutFormMsg(`"${fabric}" is not in the Fabric Type master. Add it there first.`, true);
   if (!date) return cutFormMsg('Enter the cutting date.', true);
+  /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): today or up to 60 days back, never ahead. */
+  if (lineHoldOn()) { const dateErr = ptDateErr(date, 'Cutting date', 'done'); if (dateErr) return cutFormMsg(dateErr, true); }
 
   const at = m.articleType || '', sub = m.subtype || '', col = m.color || '', sz = m.size || '';
   const mErr = m._custom ? [] : validateAgainstMasters(at, sub, col, sz);
@@ -21152,6 +21190,8 @@ $('bwSave').onclick = async () => {
     if (big && !confirm(big)) return bdFormMsg('Not saved — change the pieces, then issue.', true);
   }
   if (!date) return bdFormMsg('Enter the issue date.', true);
+  /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): today or up to 60 days back, never ahead. */
+  if (lineHoldOn()) { const dateErr = ptDateErr(date, 'Issue date', 'done'); if (dateErr) return bdFormMsg(dateErr, true); }
   /* A PRINTER'S PIECES ARE ALWAYS ISSUED AGAINST AN ORDER (2026-10-03, Ravi: "order number base banao") — even on a path
    * that otherwise lets an order be left out — so the store by order number can account for every one of them. */
   if (!orderNo && stPrinterSku(sku)) return bdFormMsg(`${obUC(sku)} comes from a printer — pick the Order ID it is for.`, true);
@@ -22015,6 +22055,13 @@ function jwCorrPlan(r, change) {
   const recv = has('receivedPieces') ? parseInt(c.receivedPieces, 10) : ptNum(r.receivedPieces);
   const rej = has('rejectionPieces') ? parseInt(c.rejectionPieces, 10) : ptNum(r.rejectionPieces);
   const sku = has('sku') ? obUC(c.sku) : obUC(r.sku || '');
+  /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): a corrected date is never ahead of today, and receiving never before issue. */
+  if (lineHoldOn()) {
+    const iss = has('issueDate') ? String(c.issueDate).trim() : ptIsoDate(r.issueDate), rcv = has('receivingDate') ? String(c.receivingDate).trim() : ptIsoDate(r.receivingDate);
+    const dateErr = (has('issueDate') ? ptDateErr(iss, 'Issue date', 'fixed') : '') || (has('receivingDate') ? ptDateErr(rcv, 'Receiving date', 'fixed') : '')
+      || ((has('issueDate') || has('receivingDate')) ? ptDateOrderErr([['Issue', iss], ['Receiving', rcv]]) : '');
+    if (dateErr) return { err: dateErr };
+  }
   if (!name) return { err: 'Enter the karigar\'s name.' };
   /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): a changed figure is whole pieces, never cut down to a whole number. */
   if (lineHoldOn()) {
@@ -22285,6 +22332,14 @@ $('bdmSave').onclick = async () => {
   });
   if (admin) {
     if ($('bdmIssueDate').value) next.issueDate = ptStampFrom(r.issueDate, $('bdmIssueDate').value);
+    /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): an admin's correction may go back any distance, never ahead, and the
+     * receiving date is never before the issue date. A date left as it was is not checked. */
+    if (lineHoldOn()) {
+      const iss = $('bdmIssueDate').value || ptIsoDate(r.issueDate), rcv = $('bdmRecvDate').value;
+      const dateErr = ptDateErr(iss, 'Issue date', 'fixed', ptIsoDate(r.issueDate)) || ptDateErr(rcv, 'Receiving date', 'fixed', ptIsoDate(r.receivingDate))
+        || ptDateOrderErr([['Issue', iss], ['Receiving', rcv]]);
+      if (dateErr) return bdModalMsg(dateErr, true);
+    }
     next.receivingDate = $('bdmRecvDate').value ? ptStampFrom(r.receivingDate, $('bdmRecvDate').value) : '';
   }
   // Completing the row here still has to stamp a receiving date, or a finished row has no date at all.
@@ -34089,6 +34144,19 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       /* READY DATE REQUIRED (28 Oct): the PPC report measures a line's delay against it — a plan without one could never be late. */
       const noReady = plans.filter((p, i) => pick(i) && !String((p.dates || {}).ready || '').trim()).map(p => p.sku);
       if (noReady.length) return `When is it ready? Pick the Ready date for ${noReady.join(', ')}.`;
+      /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): the test raised Ready 03-11-0008. Planned dates are from today to a year
+       * ahead and in order; a date an edited plan already had is left alone. */
+      if (lineHoldOn()) {
+        const dateErr = plans.map((p, i) => {
+          if (!pick(i)) return '';
+          const d = p.dates || {}, was = ((rows[i].s.plan || {}).dates) || {};
+          const each = [['cut', 'Cut'], ['qc', 'QC'], ['ready', 'Ready']].map(([k, label]) => ptDateErr(d[k], `${p.sku} · ${label} date`, 'plan', was[k])).find(Boolean);
+          if (each) return each;
+          const order = ptDateOrderErr([['Cut', d.cut], ['QC', d.qc], ['Ready', d.ready]]);
+          return order ? `${p.sku} · ${order}` : '';
+        }).find(Boolean);
+        if (dateErr) return dateErr;
+      }
       /* A big figure is asked about, not refused (Ravi, 26 Nov: above 3,000 m). Switch lineHold. */
       if (lineHoldOn()) { const big = plans.map((p, i) => pick(i) && !flowPpcNoCloth(p) ? ptNumBig(flowR2((+p.fabric.perPc || 0) * (+p.qty || 0)), p.sku + ' · fabric', 'm') : '').find(Boolean);
         if (big && !confirm(big)) return 'Not raised — change the metres a piece, then raise the plan.'; }
@@ -50701,6 +50769,14 @@ async function gpoSave(v) {
   const big = lineHoldOn() ? plan.po.lines.map(l => ptNumBig(l.metres, l.greige, 'm')).find(Boolean) : '';
   if (big && !confirm(big)) return 'Not saved — change the metres, then save the PO.';
   const prev = (GPO.rows || []).find(r => r.id === plan.po.id);
+  /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): the PO date is today or up to 60 days back, delivery from today to a year
+   * ahead and not before the PO date. Dates an edited PO already had are left alone. */
+  if (lineHoldOn()) {
+    const was = prev || {};
+    const dateErr = ptDateErr(plan.po.date, 'PO date', 'done', was.date) || ptDateErr(plan.po.deliveryDate, 'Delivery date', 'plan', was.deliveryDate)
+      || ptDateOrderErr([['PO', plan.po.date], ['Delivery', plan.po.deliveryDate]]);
+    if (dateErr) return dateErr;
+  }
   if (prev && prev.status === 'cancelled') return 'That PO was cancelled.';
   try {
     /* An edit of a PO that exists is saved only if nobody changed it meanwhile (switch lineHold); a new PO is a new record. */

@@ -527,6 +527,19 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       /* READY DATE REQUIRED (28 Oct): the PPC report measures a line's delay against it — a plan without one could never be late. */
       const noReady = plans.filter((p, i) => pick(i) && !String((p.dates || {}).ready || '').trim()).map(p => p.sku);
       if (noReady.length) return `When is it ready? Pick the Ready date for ${noReady.join(', ')}.`;
+      /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): the test raised Ready 03-11-0008. Planned dates are from today to a year
+       * ahead and in order; a date an edited plan already had is left alone. */
+      if (lineHoldOn()) {
+        const dateErr = plans.map((p, i) => {
+          if (!pick(i)) return '';
+          const d = p.dates || {}, was = ((rows[i].s.plan || {}).dates) || {};
+          const each = [['cut', 'Cut'], ['qc', 'QC'], ['ready', 'Ready']].map(([k, label]) => ptDateErr(d[k], `${p.sku} · ${label} date`, 'plan', was[k])).find(Boolean);
+          if (each) return each;
+          const order = ptDateOrderErr([['Cut', d.cut], ['QC', d.qc], ['Ready', d.ready]]);
+          return order ? `${p.sku} · ${order}` : '';
+        }).find(Boolean);
+        if (dateErr) return dateErr;
+      }
       /* A big figure is asked about, not refused (Ravi, 26 Nov: above 3,000 m). Switch lineHold. */
       if (lineHoldOn()) { const big = plans.map((p, i) => pick(i) && !flowPpcNoCloth(p) ? ptNumBig(flowR2((+p.fabric.perPc || 0) * (+p.qty || 0)), p.sku + ' · fabric', 'm') : '').find(Boolean);
         if (big && !confirm(big)) return 'Not raised — change the metres a piece, then raise the plan.'; }

@@ -7,6 +7,42 @@ const dAdd = (ds, n) => { const d = new Date(ds + 'T00:00:00'); d.setDate(d.getD
 const dDiff = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);   // b − a in days
 const dValid = ds => !!ds && !isNaN(new Date(String(ds) + 'T00:00:00').getTime());   // guards NaN from a non-ISO date
 
+/* ONE DATE RULE (Ravi, 26 Nov 2026, fix 7 of the PPC flow test: a plan went in Ready 03-11-0008 and a receive was dated 2099,
+ * and each form checked its dates its own way, or not at all). Two kinds of date:
+ *   'done' — when something happened (cut, issued, received, PO date): not after today, not more than 60 days back;
+ *   'fixed' — an admin's correction of a 'done' date: not after today, any day back;
+ *   'plan' — when something should happen (PPC cut / QC / ready, PO delivery): not before today, not more than a year ahead.
+ * "Today" is India's today, whatever the PC clock's zone. A date left as it was saved (`was`, on an edit) is not checked again,
+ * so an old plan can still be saved. Blank is the form's own business: '' here. Returns '' when fine, else what to fix. */
+const PT_DATE_BACK_DAYS = 60, PT_DATE_AHEAD_DAYS = 366;
+const dTodayIndia = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+const ptDayWords = ds => String(ds).slice(0, 10).split('-').reverse().join('-');   // 2026-11-03 → 03-11-2026, the way the floor reads it
+function ptDateErr(ds, label, kind, was) {
+  const t = String(ds == null ? '' : ds).trim().slice(0, 10);
+  if (!t) return '';
+  /* A real calendar day: 31 Feb is not one, though the browser would quietly read it as 3 March. */
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(t) ? new Date(t + 'T00:00:00Z') : null;
+  const real = !!d && !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === t;
+  if (!real) return `${label}: "${t}" is not a date.`;
+  if (was && t === String(was).trim().slice(0, 10)) return '';
+  const today = dTodayIndia();
+  if (kind === 'done' || kind === 'fixed') {
+    if (t > today) return `${label} ${ptDayWords(t)} is in the future — pick today or an earlier day.`;
+    if (kind === 'done' && dDiff(t, today) > PT_DATE_BACK_DAYS) return `${label} ${ptDayWords(t)} is more than ${PT_DATE_BACK_DAYS} days back — ask an admin to enter it.`;
+    return '';
+  }
+  if (t < today) return `${label} ${ptDayWords(t)} is before today — pick a date from today on.`;
+  if (dDiff(today, t) > PT_DATE_AHEAD_DAYS) return `${label} ${ptDayWords(t)} is more than a year ahead — check the year.`;
+  return '';
+}
+/** Dates that must come in this order, e.g. [['Cut', cut], ['QC', qc], ['Ready', ready]]; blanks are skipped. '' or what to fix. */
+function ptDateOrderErr(steps) {
+  const set = steps.filter(([, d]) => String(d || '').trim());
+  for (let i = 1; i < set.length; i++)
+    if (set[i][1] < set[i - 1][1]) return `${set[i][0]} date ${ptDayWords(set[i][1])} is before the ${set[i - 1][0]} date ${ptDayWords(set[i - 1][1])}.`;
+  return '';
+}
+
 function csvCell(v) { const s = String(v == null ? '' : v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
 function csvDownload(name, cols, rows) {
   const lines = [cols.map(csvCell).join(',')].concat(rows.map(r => r.map(csvCell).join(',')));

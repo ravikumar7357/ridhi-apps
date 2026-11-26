@@ -25,6 +25,10 @@ const CODE = [src('core/line-hold.js'),
   cut('core/look-alike-skus.js', /^function cutSaveHeld\(/m), cut('core/look-alike-skus.js', /^function cutFormMsg\(/m, '\n'),
   cut('core/look-alike-skus.js', /^\$\('cwSave'\)\.onclick/m, '\n};')].join('\n');
 
+/* the one date rule the forms ask before saving (fix 7, 26 Nov) */
+const DATE_RULE = [cut('core/helpers.js', /^const dDiff = /m, ';'), cut('core/helpers.js', /^const PT_DATE_BACK_DAYS/m, ';'),
+  cut('core/helpers.js', /^const dTodayIndia = /m, ';'), cut('core/helpers.js', /^const ptDayWords = /m, ';'),
+  cut('core/helpers.js', /^function ptDateErr\(/m), cut('core/helpers.js', /^function ptDateOrderErr\(/m)].join('\n');
 const MIN = 60 * 1000, HOLD = 'pt_lineHold/cutting/OC-1__MADE-UP';
 /** The pretend database: values by path, an ETag per value, and what it refuses. */
 function database() {
@@ -85,7 +89,7 @@ function screen(db, o) {
     cutMonthFrozen: () => false, ptStampDate: d => d, cutFabFields: () => ({}), renderPcut: nothing, renderCutPick: nothing, renderCutForm: nothing, frmRemember: nothing,
   };
   vm.createContext(ctx);
-  vm.runInContext(CODE, ctx);
+  vm.runInContext(DATE_RULE + '\n' + CODE, ctx);
   const fill = pcs => Object.entries({ cwSku: 'made-up', cwOrd: 'OC-1', cwPcs: String(pcs), cwFabric: 'Cotton', cwDate: '2026-11-26' }).forEach(([id, v]) => { box(id).value = v; });
   const order = (pcs, extra, no) => ctx.spCutReal(no || 'OC-1', 'made-up', String(pcs), '2026-11-26', 'Cotton', '', extra || '');
   return { ctx, log, box, fill, order, press: async () => { await box('cwSave').onclick(); return box('cwMsg').textContent; } };
