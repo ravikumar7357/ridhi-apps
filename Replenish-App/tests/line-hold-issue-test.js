@@ -25,7 +25,7 @@ const CODE = [src('core/line-hold.js'),
 
 /* the one date rule the forms ask before saving (fix 7, 26 Nov) */
 const DATE_RULE = [cut('core/helpers.js', /^const dDiff = /m, ';'), cut('core/helpers.js', /^const PT_DATE_BACK_DAYS/m, ';'),
-  cut('core/helpers.js', /^const dTodayIndia = /m, ';'), cut('core/helpers.js', /^const dShow = /m, ';'),
+  cut('core/helpers.js', /^const dTodayIndia = /m, ';'), cut('core/helpers.js', /^const ptDayWords = /m, ';'),
   cut('core/helpers.js', /^function ptDateErr\(/m), cut('core/helpers.js', /^function ptDateOrderErr\(/m)].join('\n');
 const MIN = 60 * 1000, SKU = 'MADE-UP', HOLD = 'pt_lineHold/issue/OC-1__MADE-UP';
 function database() {
