@@ -163,6 +163,9 @@ async function gpoSave(v) {
   if (!ptCanEdit()) return PT_NO_EDIT;
   const plan = gpoPlan(v);
   if (plan.err) return plan.err;
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): the boxes already take digits only; a big line is asked about (above 3,000 m). */
+  const big = lineHoldOn() ? plan.po.lines.map(l => ptNumBig(l.metres, l.greige, 'm')).find(Boolean) : '';
+  if (big && !confirm(big)) return 'Not saved — change the metres, then save the PO.';
   const prev = (GPO.rows || []).find(r => r.id === plan.po.id);
   /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): the PO date is today or up to 60 days back, delivery from today to a year
    * ahead and not before the PO date. Dates an edited PO already had are left alone. */

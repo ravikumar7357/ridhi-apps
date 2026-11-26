@@ -467,6 +467,13 @@ $('cwSave').onclick = async () => {
   if (!m) return cutFormMsg(sku ? `SKU ${sku} is not in the master database.`
     : ($('cwSkuNote').textContent ? 'That item fits more than one SKU — type the SKU.' : 'Pick the article, subtype, colour and size — or type the SKU.'), true);
   if (!pcs || pcs < 1) return cutFormMsg('Enter how many pieces were cut.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): 2.5 pieces was saved as 2 and a minus metre reading was dropped without a
+   * word. Both are now refused, so what is saved is what was typed. */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('cwPcs').value, 'Pieces cut', 'pcs')
+      || [['cwUsed', 'Fabric used'], ['cwWaste', 'Fabric waste'], ['cwWasteW', 'Waste width']].map(([id, label]) => $(id) ? ptNumErr($(id).value, label, 'm', true) : '').find(Boolean);
+    if (numErr) return cutFormMsg(numErr, true);
+  }
   if (!fabric) return cutFormMsg('Pick the fabric.', true);
   /* From the master and nowhere else — a spelling the master does not have is a new fabric nobody
    * has agreed exists. */

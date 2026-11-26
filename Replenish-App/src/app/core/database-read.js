@@ -1,4 +1,22 @@
 
+/* NO STEP WAITS FOR EVER (fix 9 of the PPC flow test, 26 Nov; switch lineHold: PPC stayed on "Reading…" until a page reload).
+ * The read itself already gives up after 45 seconds; the two steps before it had no limit — the sign-in token and starting the
+ * live copy. Each is now given PT_STEP_MS. A step that runs out of time rejects with an error marked ptLate. */
+const PT_STEP_MS = 20000;
+const ptStepLimitOn = () => typeof lineHoldOn === 'function' && lineHoldOn();
+function ptWithin(step, ms) {
+  let timer;
+  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(
+    new Error(`No answer for ${ms / 1000} seconds. Check the internet, then try again.`), { ptLate: true })), ms); });
+  return Promise.race([step, late]).finally(() => clearTimeout(timer));
+}
+/** Asked only with the step limit on: false when the live copy has not started in time, and the register is then read the
+ *  ordinary way, as when the live copy is not available. Kept here, outside the live-copies block, which stays as it was. */
+async function ptLiveStarted() {
+  try { await ptWithin(ptLiveDb(), PT_STEP_MS); return true; }
+  catch (e) { if (!e.ptLate) throw e; console.warn('[live copy] did not start, reading the ordinary way:', e.message); return false; }
+}
+
 /* A failed read and an empty node look identical if the error is swallowed, and only one of them is
  * something anyone can act on. So: a real timeout, one retry, and the reason kept and shown. */
 async function ptGet(node, raw) {
@@ -10,7 +28,7 @@ async function ptGet(node, raw) {
     if (rt) node = rt.path;
   }
   if (ptLiveable(node)) {
-    try { const v = await ptLiveRead(node); if (v !== PT_LIVE_NO) { try { if (typeof dmCount === 'function') dmCount(node, 0, 'from-copy'); } catch (e2) { console.warn('[data meter]', e2); } return v; } } catch (e) { /* the plain read below */ }
+    try { const v = typeof ptStepLimitOn === 'function' && ptStepLimitOn() && !(await ptLiveStarted()) ? PT_LIVE_NO : await ptLiveRead(node); if (v !== PT_LIVE_NO) { try { if (typeof dmCount === 'function') dmCount(node, 0, 'from-copy'); } catch (e2) { console.warn('[data meter]', e2); } return v; } } catch (e) { /* the plain read below */ }
   }
   /* The token goes on the READ as well as the write. Where the data sits now, nothing is readable
    * without one — the rules are "signed in, and not a vendor", and a vendor is refused at the root
