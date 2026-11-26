@@ -593,7 +593,10 @@ async function voSetStatus(key, status) {
   if (!ME.admin) return 'Only an admin can change a vendor order’s status.';
   const next = Object.assign({}, o, { status, staffUpdatedAt: new Date().toISOString() });
   delete next.vendorCode;
-  await ptPut('pt_vendorOrders/' + code + '/' + id, next);
+  /* Switch lineHold on: only the two fields this changes are written. The whole order used to be written back, which wiped what the
+   * printer entered on it (sent / received) since this screen read it. Off, as before. */
+  if (lineHoldOn()) { const base = 'pt_vendorOrders/' + code + '/' + id + '/'; await ptPatch({ [base + 'status']: next.status, [base + 'staffUpdatedAt']: next.staffUpdatedAt }); }
+  else await ptPut('pt_vendorOrders/' + code + '/' + id, next);
   VO.rows = (VO.rows || []).map(x => (x.id === id && x.vendorCode === code ? Object.assign({ vendorCode: code }, next) : x));
   renderVo();
   $('voMsg').className = 'muted';

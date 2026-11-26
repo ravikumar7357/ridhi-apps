@@ -165,7 +165,11 @@ async function gpoSave(v) {
   if (plan.err) return plan.err;
   const prev = (GPO.rows || []).find(r => r.id === plan.po.id);
   if (prev && prev.status === 'cancelled') return 'That PO was cancelled.';
-  try { await ptPut('pt_greigePOs/' + plan.po.id, plan.po); }
+  try {
+    /* An edit of a PO that exists is saved only if nobody changed it meanwhile (switch lineHold); a new PO is a new record. */
+    if (prev) { if (await ptSaveIfUnchanged('pt_greigePOs/' + plan.po.id, prev, plan.po)) return `${plan.po.poNo || 'This PO'} was changed by somebody else a moment ago — press Refresh and make your change again.`; }
+    else await ptPut('pt_greigePOs/' + plan.po.id, plan.po);
+  }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   GPO.rows = (GPO.rows || []).filter(r => r.id !== plan.po.id).concat([plan.po]);
   return '';
@@ -179,7 +183,7 @@ async function gpoCancel(id, reason) {
   if (gpoProgress(po).received > 0) return 'Cloth has already come in against this PO, so it cannot be cancelled.';
   const rec = Object.assign({}, po, { status: 'cancelled', cancelNote: String(reason).trim(),
     cancelledBy: ME.email, cancelledAt: new Date().toISOString() });
-  try { await ptPut('pt_greigePOs/' + id, rec); }
+  try { if (await ptSaveIfUnchanged('pt_greigePOs/' + id, po, rec)) return `${po.poNo || 'This PO'} was changed by somebody else a moment ago (cloth may have come in) — press Refresh and look again.`; }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   GPO.rows = GPO.rows.map(r => (r.id === id ? rec : r));
   return '';
