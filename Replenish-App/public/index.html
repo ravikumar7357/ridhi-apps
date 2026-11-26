@@ -22761,6 +22761,26 @@ function cutOrderOptions(r) {
     .forEach(o => out.push([o.orderNo, `${o.orderNo} — ${nf(o.left)} left to cut of ${nf(o.ordered)}`]));
   return out;
 }
+/** THE CUT NEVER DROPS BELOW WHAT KARIGARS WERE GIVEN (Ravi, 26 Nov, PPC test: a cutting entry could be lowered or deleted
+ *  after its pieces were issued, leaving more issued than cut). Behind the switch lineHold. '' when the order line keeps at
+ *  least what is already issued once this entry has `pcs` good pieces (0 = the entry leaves the line), else why not. A line that
+ *  issues without a cut (PPC's route straight to job work, a SKU needing no cutting) is not asked, as the issue form allows it. */
+function cutBelowIssued(orderNo, sku, exclId, pcs) {
+  if (!orderNo || !lineHoldOn()) return '';
+  const m = cutSkuOf(sku);
+  const jw = typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(orderNo, sku) === 'jobwork';
+  if (jw || (m && m.cuttingRequired === false)) return '';
+  const issued = obIssueUsed(orderNo, sku), press = obPressQty(orderNo, sku);
+  const cut = Math.max(obCutQty(orderNo, sku, exclId) + pcs, press), was = Math.max(obCutQty(orderNo, sku), press);
+  /* A legacy order with no cut on record is issued on its ordered quantity alone, as the issue form allows. A line that was
+   * already below (issued before its cut was entered) may still be put right, as long as the change does not lower it further. */
+  if (/^LEG-/.test(obUC(orderNo)) && cut <= 0) return '';
+  if (cut >= issued || cut >= was) return '';
+  return `${obUC(sku)} on ${orderNo}: ${nf(issued)} piece(s) are already issued to karigars, so the cut on this order cannot go down to ${nf(cut)}. `
+    + 'Take the issue back in Job Work first, or correct it there.';
+}
+/** Good pieces of a cutting entry with `pcs` cut: what was rejected after cutting is not cut the karigars can be given. */
+const cutGoodOf = (r, pcs) => Math.max(0, pcs - (r.rejected === true ? (parseInt(r.rejPieces, 10) || 0) : 0));
 function cutEdit(id) {
   const r = (PT.cut || []).find(x => x.id === id);
   if (!r) return;
@@ -22797,6 +22817,9 @@ function cutEdit(id) {
         const g = cutGuard(ord, r.sku, pcs, ord === r.orderNo ? r.id : undefined);
         if (g) return g;
       }
+      /* the order it is on keeps at least what was issued: with fewer pieces, or with none if the entry moves away */
+      const below = cutBelowIssued(r.orderNo, r.sku, r.id, ord === r.orderNo ? cutGoodOf(r, pcs) : 0);
+      if (below) return below;
       const date = v.cutDate || ptIsoDate(r.cutDate);
       if (cutMonthFrozen(date)) return `${ptMonthKey(date)} is frozen — cutting entries for that month are locked.`;
       const next = Object.assign({}, r, {
@@ -22823,6 +22846,8 @@ function cutEdit(id) {
       return '';
     },
     onDelete: async () => {
+      const below = cutBelowIssued(r.orderNo, r.sku, r.id, 0);
+      if (below) return 'Not deleted — ' + below;
       await ptDelete('pt_cuttingData/' + r.id);
       PT.cut = (PT.cut || []).filter(x => x.id !== r.id);
       renderPcut();
@@ -54390,6 +54415,16 @@ const soLinesOf = (o, sku) => soLines(o)
 /** What this order says it wants of one SKU today. */
 const soQtyOf = (o, sku) => soLinesOf(o, sku).reduce((a, x) => a + (parseFloat(x.l.qty) || 0), 0);
 
+/** AN APPROVED ORDER'S QUANTITIES MOVE ONLY WITH THE ORDER BOOK (Ravi, 26 Nov). Its lines are on the order book, where PPC and the
+ *  floor work to them; Save writes the sales order alone. '' when `lines` ask for the same SKUs in the same quantities as the
+ *  order already does, else the SKUs that differ. */
+function soQtyDrift(o, lines) {
+  const want = new Map();
+  lines.forEach(l => want.set(obUC(l.sku), (want.get(obUC(l.sku)) || 0) + (parseFloat(l.qty) || 0)));
+  const skus = new Set([...want.keys(), ...soLines(o).map(l => obUC(l.sku))]);
+  return [...skus].filter(k => Math.abs((want.get(k) || 0) - soQtyOf(o, k)) > 1e-9).join(', ');
+}
+
 /** The order-book row an approved sales order writes for one SKU — the id soApproveRun uses. */
 const soBookId = (orderNo, sku) => 'ob_so_' + obUC(orderNo) + '_' + obUC(sku);
 
@@ -55126,7 +55161,12 @@ async function soFormSave(place) {
   rec.lines = lines;
   rec.buyerEmail = existing ? existing.buyerEmail : ME.email;
   rec.buyerName = existing ? existing.buyerName : (ME.email || '').split('@')[0];
-  rec.status = place ? 'submitted' : 'draft';
+  /* A PLACED ORDER STAYS PLACED (Ravi, 26 Nov, PPC test: an admin's Save on an approved order turned it back into a Draft, silently,
+   * while PPC and the floor worked to it). Behind the switch lineHold. Save keeps its status; Return to buyer is the way back. */
+  const keepPlaced = !place && lineHoldOn() && existing && !['draft', 'returned'].includes(soStatus(existing));
+  const drift = keepPlaced && soStatus(existing) === 'approved' ? soQtyDrift(existing, lines) : '';
+  if (drift) return `${existing._id} is approved and on the order book — Save cannot change its quantities or SKUs (${drift}). Use Change quantity on the order, which moves the order book with it, or Return to buyer.`;
+  rec.status = place ? 'submitted' : (keepPlaced ? existing.status : 'draft');
   if (place) { rec.submittedAt = now; rec.saRemarks = ''; }
   rec.updatedAt = now;
 
@@ -55218,6 +55258,7 @@ async function soFormSave(place) {
   $('sxMsg').className = 'muted';
   $('sxMsg').textContent = place
     ? `${rec._id} placed — it is now waiting for approval, and nothing is in the order book until then.`
+    : keepPlaced ? `${rec._id} saved — it stays ${soStatus(rec)}, as it was.`
     : `${rec._id} saved as a draft. It is not in production until it is placed and approved.`;
   if (customAdded > 0) $('sxMsg').textContent += ` ${nf(customAdded)} new item(s) went on the Custom SKUs list${onl ? '' : ' with their brand'} — complete them in Master Database → Custom SKUs.`;
   if (customAdded < 0 || customUnread) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ' The new items could NOT be put on the Custom SKUs list — save again to retry.'; }

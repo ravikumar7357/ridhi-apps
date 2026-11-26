@@ -234,6 +234,26 @@ function cutOrderOptions(r) {
     .forEach(o => out.push([o.orderNo, `${o.orderNo} — ${nf(o.left)} left to cut of ${nf(o.ordered)}`]));
   return out;
 }
+/** THE CUT NEVER DROPS BELOW WHAT KARIGARS WERE GIVEN (Ravi, 26 Nov, PPC test: a cutting entry could be lowered or deleted
+ *  after its pieces were issued, leaving more issued than cut). Behind the switch lineHold. '' when the order line keeps at
+ *  least what is already issued once this entry has `pcs` good pieces (0 = the entry leaves the line), else why not. A line that
+ *  issues without a cut (PPC's route straight to job work, a SKU needing no cutting) is not asked, as the issue form allows it. */
+function cutBelowIssued(orderNo, sku, exclId, pcs) {
+  if (!orderNo || !lineHoldOn()) return '';
+  const m = cutSkuOf(sku);
+  const jw = typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(orderNo, sku) === 'jobwork';
+  if (jw || (m && m.cuttingRequired === false)) return '';
+  const issued = obIssueUsed(orderNo, sku), press = obPressQty(orderNo, sku);
+  const cut = Math.max(obCutQty(orderNo, sku, exclId) + pcs, press), was = Math.max(obCutQty(orderNo, sku), press);
+  /* A legacy order with no cut on record is issued on its ordered quantity alone, as the issue form allows. A line that was
+   * already below (issued before its cut was entered) may still be put right, as long as the change does not lower it further. */
+  if (/^LEG-/.test(obUC(orderNo)) && cut <= 0) return '';
+  if (cut >= issued || cut >= was) return '';
+  return `${obUC(sku)} on ${orderNo}: ${nf(issued)} piece(s) are already issued to karigars, so the cut on this order cannot go down to ${nf(cut)}. `
+    + 'Take the issue back in Job Work first, or correct it there.';
+}
+/** Good pieces of a cutting entry with `pcs` cut: what was rejected after cutting is not cut the karigars can be given. */
+const cutGoodOf = (r, pcs) => Math.max(0, pcs - (r.rejected === true ? (parseInt(r.rejPieces, 10) || 0) : 0));
 function cutEdit(id) {
   const r = (PT.cut || []).find(x => x.id === id);
   if (!r) return;
@@ -270,6 +290,9 @@ function cutEdit(id) {
         const g = cutGuard(ord, r.sku, pcs, ord === r.orderNo ? r.id : undefined);
         if (g) return g;
       }
+      /* the order it is on keeps at least what was issued: with fewer pieces, or with none if the entry moves away */
+      const below = cutBelowIssued(r.orderNo, r.sku, r.id, ord === r.orderNo ? cutGoodOf(r, pcs) : 0);
+      if (below) return below;
       const date = v.cutDate || ptIsoDate(r.cutDate);
       if (cutMonthFrozen(date)) return `${ptMonthKey(date)} is frozen — cutting entries for that month are locked.`;
       const next = Object.assign({}, r, {
@@ -296,6 +319,8 @@ function cutEdit(id) {
       return '';
     },
     onDelete: async () => {
+      const below = cutBelowIssued(r.orderNo, r.sku, r.id, 0);
+      if (below) return 'Not deleted — ' + below;
       await ptDelete('pt_cuttingData/' + r.id);
       PT.cut = (PT.cut || []).filter(x => x.id !== r.id);
       renderPcut();

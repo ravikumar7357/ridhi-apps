@@ -114,6 +114,16 @@ const soLinesOf = (o, sku) => soLines(o)
 /** What this order says it wants of one SKU today. */
 const soQtyOf = (o, sku) => soLinesOf(o, sku).reduce((a, x) => a + (parseFloat(x.l.qty) || 0), 0);
 
+/** AN APPROVED ORDER'S QUANTITIES MOVE ONLY WITH THE ORDER BOOK (Ravi, 26 Nov). Its lines are on the order book, where PPC and the
+ *  floor work to them; Save writes the sales order alone. '' when `lines` ask for the same SKUs in the same quantities as the
+ *  order already does, else the SKUs that differ. */
+function soQtyDrift(o, lines) {
+  const want = new Map();
+  lines.forEach(l => want.set(obUC(l.sku), (want.get(obUC(l.sku)) || 0) + (parseFloat(l.qty) || 0)));
+  const skus = new Set([...want.keys(), ...soLines(o).map(l => obUC(l.sku))]);
+  return [...skus].filter(k => Math.abs((want.get(k) || 0) - soQtyOf(o, k)) > 1e-9).join(', ');
+}
+
 /** The order-book row an approved sales order writes for one SKU — the id soApproveRun uses. */
 const soBookId = (orderNo, sku) => 'ob_so_' + obUC(orderNo) + '_' + obUC(sku);
 
@@ -850,7 +860,12 @@ async function soFormSave(place) {
   rec.lines = lines;
   rec.buyerEmail = existing ? existing.buyerEmail : ME.email;
   rec.buyerName = existing ? existing.buyerName : (ME.email || '').split('@')[0];
-  rec.status = place ? 'submitted' : 'draft';
+  /* A PLACED ORDER STAYS PLACED (Ravi, 26 Nov, PPC test: an admin's Save on an approved order turned it back into a Draft, silently,
+   * while PPC and the floor worked to it). Behind the switch lineHold. Save keeps its status; Return to buyer is the way back. */
+  const keepPlaced = !place && lineHoldOn() && existing && !['draft', 'returned'].includes(soStatus(existing));
+  const drift = keepPlaced && soStatus(existing) === 'approved' ? soQtyDrift(existing, lines) : '';
+  if (drift) return `${existing._id} is approved and on the order book — Save cannot change its quantities or SKUs (${drift}). Use Change quantity on the order, which moves the order book with it, or Return to buyer.`;
+  rec.status = place ? 'submitted' : (keepPlaced ? existing.status : 'draft');
   if (place) { rec.submittedAt = now; rec.saRemarks = ''; }
   rec.updatedAt = now;
 
@@ -942,6 +957,7 @@ async function soFormSave(place) {
   $('sxMsg').className = 'muted';
   $('sxMsg').textContent = place
     ? `${rec._id} placed — it is now waiting for approval, and nothing is in the order book until then.`
+    : keepPlaced ? `${rec._id} saved — it stays ${soStatus(rec)}, as it was.`
     : `${rec._id} saved as a draft. It is not in production until it is placed and approved.`;
   if (customAdded > 0) $('sxMsg').textContent += ` ${nf(customAdded)} new item(s) went on the Custom SKUs list${onl ? '' : ' with their brand'} — complete them in Master Database → Custom SKUs.`;
   if (customAdded < 0 || customUnread) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ' The new items could NOT be put on the Custom SKUs list — save again to retry.'; }
