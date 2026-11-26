@@ -22,7 +22,7 @@ function updateFollowBadge() {
 }
 
 async function ensureFollow() {
-  if (!PO_LOADED) { $('fuMsg').textContent = 'Loading…'; await loadPo(); PO_LOADED = true; $('fuMsg').textContent = ''; }
+  if (!PO_LOADED) { ptLoadingLine('fuMsg'); await loadPo(); PO_LOADED = true; $('fuMsg').textContent = ''; }
   await ensureReplData();   // FBA stock column needs the Replenishment snapshot
   buildFbaMap(); CATALOG_SET = catalogSet();
   renderFollow(); updateFollowBadge();

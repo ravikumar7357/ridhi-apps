@@ -3,7 +3,7 @@
 // column across every tab — the old pillow-tracker read was removed.
 const IN_COLS = ['SKU', 'India Stock'];
 async function ensureIndia() {
-  $('inMsg').textContent = 'Loading…';
+  ptLoadingLine('inMsg');
   // The projection needs the same three things the In Production tab needs: the status overrides
   // (which SKUs are stopped), what is being made, and the forecast horizon. Read together — none waits on another.
   await Promise.all([ensureReplData(), loadIndiaStock(), loadInProdOnce()]);

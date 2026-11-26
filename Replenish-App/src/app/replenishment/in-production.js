@@ -36,7 +36,7 @@ function loadInProdOnce() {
 /* ALL AT ONCE: the snapshot, the POs, India stock and what is being made need nothing from each other. Only the
  * FBA map, the catalogue and the forecast plan need the snapshot, and they are worked out after it is in. */
 async function ensureProd() {
-  $('pdMsg').textContent = 'Loading…';
+  ptLoadingLine('pdMsg');
   await Promise.all([
     ensureReplData(),
     PO_LOADED ? null : loadPo().then(() => { PO_LOADED = true; }),

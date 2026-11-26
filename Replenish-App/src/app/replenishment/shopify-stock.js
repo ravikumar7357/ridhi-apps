@@ -27,7 +27,7 @@ async function ensureShopify() {
 }
 async function loadShopify() {
   const store = shStore();
-  shMsg('Loading…');
+  ptLoadingLine('shMsg');
   try {
     const r = await prGet({ cache: store === 'CPC' ? 'shopSkuCPC' : 'shopSku' });
     const d = r.data || {};

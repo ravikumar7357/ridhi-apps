@@ -140,8 +140,12 @@ async function ptRefreshButton(btn, work) {
  *  happening. */
 const PT_LOADING_ART = '/loading-print.svg';
 function ptLoadingArt(words) {
-  return `<div class="ptLoading"><img src="${PT_LOADING_ART}" alt="" width="105" height="107"><span>${words}</span></div>`;
+  return `<div class="ptLoading"><img src="${PT_LOADING_ART}" alt="" width="90" height="92"><span>${words}</span></div>`;
 }
+
+/** A screen whose own message line says it is loading (Shopify Stock, India Stock …) shows the block printing there
+ *  too (Ravi, 26 Nov 2026: "its loading but our loading button is not visible"). */
+function ptLoadingLine(msgId) { $(msgId).innerHTML = ptLoadingArt('Loading…'); }
 
 /** The cover shown while Refresh buttons work. A count, not an on/off: two screens refreshing at once must not
  *  lift the cover when the first one finishes. */

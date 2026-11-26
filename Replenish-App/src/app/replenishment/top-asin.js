@@ -48,7 +48,7 @@ async function fetchProd() {
 const prodLatest = sku => { const log = PROD[String(sku).toUpperCase()] || []; return log.length ? log[0] : null; };
 const isDisc = sku => !!DISC[String(sku).trim().toUpperCase()];
 async function ensureTop() {
-  if (!PROD_LOADED) { $('topMsg').textContent = 'Loading…'; await loadProd(); $('topMsg').textContent = ''; }
+  if (!PROD_LOADED) { ptLoadingLine('topMsg'); await loadProd(); $('topMsg').textContent = ''; }
   if (!INDIA_LOADED) await loadIndiaStock();
   renderTop();
 }

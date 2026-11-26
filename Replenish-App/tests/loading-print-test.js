@@ -9,6 +9,8 @@ const ROOT = path.join(__dirname, '..');
 const rd = f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n');
 const ORIGINAL = {
   dbr: rd('src/app/core/database-read.js'), page: rd('src/index.html'), css: rd('src/styles.css'),
+  screens: ['follow-ups', 'in-production', 'india-stock', 'revenue-target', 'top-asin', 'shopify-stock']
+    .map(f => rd('src/app/replenishment/' + f + '.js')).join('\n'),
   art: rd('public/loading-print.svg'),
 };
 
@@ -37,6 +39,14 @@ function suite(S, loud) {
   ptEmpty('t3', 'Nothing to show.');
   ok('an empty table keeps plain words, no picture', !cells.t3.innerHTML.includes('<img') && cells.t3.innerHTML.includes('Nothing to show.'));
 
+  /* ---- a screen's own message line (26 Nov: Shopify Stock showed plain "Loading…") ---- */
+  const line = { innerHTML: '' };
+  const lineCode = cut(S.dbr, 'ptLoadingArt') + '\n' + cut(S.dbr, 'ptLoadingLine') + '\nreturn { ptLoadingLine };';
+  new Function('$', 'PT_LOADING_ART', lineCode)(() => line, artPath).ptLoadingLine('shMsg');
+  ok('a screen\'s loading line shows the block printing with "Loading…"', line.innerHTML.includes('loading-print.svg') && line.innerHTML.includes('Loading…'));
+  ok('the six screens with their own loading line use it', (S.screens.match(/ptLoadingLine\('(fuMsg|pdMsg|inMsg|tgMsg|topMsg|shMsg)'\)/g) || []).length === 6);
+  ok('…and none of them is left on plain "Loading…" words', !/(textContent = |shMsg\()'Loading…'/.test(S.screens));
+
   /* ---- the two covers ---- */
   const gate = (S.page.match(/<div id="gateWait">[\s\S]*?Checking your access…/) || [''])[0];
   ok('a browser refresh shows the block printing while access is checked', gate.includes('src="/loading-print.svg"'));
@@ -56,10 +66,12 @@ function suite(S, loud) {
 if (suite(ORIGINAL, true).length) process.exit(1);
 /* TEETH: each part undone must be caught. */
 const breaks = [
+  ['Shopify Stock goes back to plain words', 'screens', "ptLoadingLine('shMsg');", "shMsg('Loading…');"],
+  ['a loading line shows no picture', 'dbr', "$(msgId).innerHTML = ptLoadingArt('Loading…');", "$(msgId).textContent = 'Loading…';"],
   ['tables never show the picture', 'dbr', "words.endsWith('…') ? ptLoadingArt(words) : words", 'words'],
   ['every message shows the picture', 'dbr', "words.endsWith('…') ? ptLoadingArt(words) : words", 'ptLoadingArt(words)'],
   ['the picture loses its words', 'dbr', '<span>${words}</span>', ''],
-  ['the refresh cover is plain words again', 'page', '<div id="gateWait"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="154" height="157"><span>Checking your access…</span></div></div>', '<div id="gateWait">Checking your access…</div>'],
+  ['the refresh cover is plain words again', 'page', '<div id="gateWait"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="132" height="134"><span>Checking your access…</span></div></div>', '<div id="gateWait">Checking your access…</div>'],
   ['the Refresh cover is always on', 'css', '#ptBusyCover{position:fixed;inset:0;display:none;', '#ptBusyCover{position:fixed;inset:0;display:flex;'],
   ['the cover swallows clicks', 'css', 'z-index:70;pointer-events:none}', 'z-index:70}'],
   ['the picture stops after one round', 'art', 'animation: stamp var(--run) ease-in-out infinite', 'animation: stamp var(--run) ease-in-out forwards'],

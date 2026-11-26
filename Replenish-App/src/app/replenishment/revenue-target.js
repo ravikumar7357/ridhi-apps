@@ -117,7 +117,7 @@ function tgPlan(brands, pick, mk) {
 }
 
 async function ensureTarget() {
-  $('tgMsg').textContent = 'Loading…';
+  ptLoadingLine('tgMsg');
   await ensureReplData();
   if (!PROD_LOADED) await loadProd();            // status overrides decide which SKUs are stopped
   await loadRevTgt();
