@@ -308,6 +308,13 @@ async function ptCas(path, expect, next) {
   return '';
 }
 
+/** THE SWITCH FOR "TWO SCREENS, ONE SET OF PIECES" (Ravi, 26 Nov, after the PPC test run: two screens saved the same pieces and
+ *  both said saved). Off unless this device's storage says '1' (test link → Ravi's PC → everybody, then the switch is removed).
+ *  Off, every save behaves exactly as it did. Storage only, so it is safe to ask at any time. */
+function lineHoldOn() {
+  try { return localStorage.getItem('lineHold') === '1'; } catch (e) { return false; }
+}
+
 /** A single update touching many paths at once. RTDB applies it all or not at all. */
 async function ptPatch(updates, opts) {
   opts = opts || {};
