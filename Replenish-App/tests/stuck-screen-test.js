@@ -8,7 +8,7 @@ const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
 const rd = f => fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\r\n/g, '\n');
 const ORIGINAL = { js: rd('src/app/core/stuck-screen.js'), page: rd('src/index.html'), css: rd('src/styles.css'), order: rd('src/app/ORDER'), testSite: rd('tests/build-test-erp.js') };
-const DB = 'https://db.example/app', SCRIPT = 'https://script.example/exec';
+const DB = 'https://db.example/app', SCRIPT = 'https://script.example/exec', PRICING = 'https://pricing.example/exec';
 
 /** Runs the real file against a fake page, a fake clock and a fake network. */
 function world(js) {
@@ -36,8 +36,8 @@ function world(js) {
     fetch: url => new Promise((resolve, reject) => pending.push({ url: String(url), resolve, reject })),
   };
   const warns = [];
-  new Function('window', 'document', 'setTimeout', 'clearTimeout', 'PT_URL', 'API', 'console', js)(
-    window, document, clock.setTimeout, clock.clearTimeout, DB, { url: SCRIPT }, { warn: (...a) => warns.push(a) });
+  new Function('window', 'document', 'setTimeout', 'clearTimeout', 'PT_URL', 'API', 'PRAPI', 'console', js)(
+    window, document, clock.setTimeout, clock.clearTimeout, DB, { url: SCRIPT }, { url: PRICING }, { warn: (...a) => warns.push(a) });
   return { window, clock, classes, words, pending, warns, shown: () => classes.has('ptStuck') };
 }
 const settle = () => new Promise(r => setImmediate(r));
@@ -73,6 +73,12 @@ async function suite(S, loud) {
     ok('a failed call still fails for the screen, unchanged', err && err.message === 'backend down');
     await settle();
     ok('…and the cover lifts after a failure', !w.shown());
+  }
+  {
+    const w = world(S.js);
+    w.window.fetch(PRICING + '?cache=shopSku');
+    w.clock.advance(3100);
+    ok('a slow read of the Shopify figures (pricing backend) counts too', w.shown());
   }
   {
     const w = world(S.js);
@@ -117,7 +123,8 @@ async function suite(S, loud) {
     ['never lifts', 'js', 'passed.forEach(level => { PT_STUCK[level]--; });', ''],
     ['quick calls leave timers behind', 'js', 'timers.forEach(clearTimeout);', ''],
     ['counts every request', 'js', 'return ptStuckIsDataCall(input) ? ptStuckWatch(call) : call;', 'return ptStuckWatch(call);'],
-    ['forgets the backend', 'js', "return !!(typeof API !== 'undefined' && API && API.url && url.startsWith(API.url));", 'return false;'],
+    ['forgets the backend', 'js', "(typeof API !== 'undefined' && ours(API)) || ", ''],
+    ['forgets the pricing backend', 'js', " || (typeof PRAPI !== 'undefined' && ours(PRAPI))", ''],
     ['the cover swallows clicks', 'css', 'z-index:70;pointer-events:none}\n  body.ptStuck', 'z-index:70}\n  body.ptStuck'],
     ['the file is left out of the page', 'order', 'core/stuck-screen.js\n', ''],
     ['the test site picture is broken again', 'testSite', 'loading-print\\.svg|', ''],

@@ -17,11 +17,13 @@ const PT_STUCK_WORDS = {
   verySlow: 'Still waiting for data. Check the internet, then press Refresh.',
 };
 
-/** Only our own data: the database and the Apps Script backend. Pictures, Meera and outside services do not count. */
+/** Only our own data: the database and the two Apps Script backends (the ERP's, and the pricing one that Shopify
+ *  Stock reads, added 26 Nov 2026). Pictures, Meera and outside services do not count. */
 function ptStuckIsDataCall(input) {
   const url = String((input && input.url) || input || '');
   if (typeof PT_URL === 'string' && url.startsWith(PT_URL)) return true;
-  return !!(typeof API !== 'undefined' && API && API.url && url.startsWith(API.url));
+  const ours = backend => !!(backend && backend.url && url.startsWith(backend.url));
+  return (typeof API !== 'undefined' && ours(API)) || (typeof PRAPI !== 'undefined' && ours(PRAPI));
 }
 
 /** Counts one request as slow after 3 s and very slow after 30 s, for as long as it is still waiting. */
