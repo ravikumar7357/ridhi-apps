@@ -96426,17 +96426,23 @@ function p1FgWaits(x) {
  *   - FINISHED ON THE VENDOR ORDER (Ravi, 26 Nov): when every vendor order line this printer has for the order line is marked
  *     Received or has reached us in full, none of its cloth is with them. What the challan still shows with no receipt
  *     is said apart as NOT BOOKED ON THE CHALLAN — so is a part delivery on the vendor order that no challan receipt covers.
+ *   - PIECES ON THE CHALLAN, METRES ON THE VENDOR ORDER (Ravi, 26 Nov: cloth printed on the SKU, ordered from the printer as
+ *     running cloth; SHP-8018, all 2.65 m entered, still showed 1 piece out): see p1SideOf. The other way round is left as it
+ *     is — a metre challan against an order in pieces is for someone to check.
  * The portal's figures come with the vendor orders, read behind the page (flowEnsureData); until then the challans alone are used,
  * and the page says so. Nothing stored is changed. */
 /** What part of a vendor order line's figure belongs to each order line it stands for: in proportion to the cloth on this
  *  printer's challans for each (a fabric line shared by two sizes carries different metres for each), equally when none has any. */
 function p1Shares(ids, onChallans) {
-  const sent = ids.map(id => (onChallans.get(id) || {}).sent || 0), total = sent.reduce((a, q) => a + q, 0);
+  /* an order line's cloth in metres: its metre challans, and the metres its piece challans carry */
+  const metresOf = id => ((onChallans.get(id) || {}).sent || 0) + ((id.endsWith('|m') && (onChallans.get(id.slice(0, -1) + 'pcs') || {}).cloth) || 0);
+  const sent = ids.map(metresOf), total = sent.reduce((a, q) => a + q, 0);
   return sent.map(q => (total > 0 ? q / total : 1 / ids.length));
 }
-/** The vendor-order side of each order line, by printer, challan key and unit: { said, got, done }. said — what the printer has
+/** The vendor-order side of each order line, by printer, challan key and unit: { said, got, done, marked }. said — what the printer has
  *  entered as sent (not for ruffle cloth); got — delivered on the vendor order; done — every line for it is marked Received, or
- *  has reached us in full (its own deliveries, or this printer's challan receipts — never another printer's). */
+ *  has reached us in full (its own deliveries, or this printer's challan receipts — never another printer's); marked — every
+ *  line for it is marked Received. */
 function p1VendorSide(onChallans) {
   const side = new Map();
   if (typeof VO === 'undefined' || !VO.rows || typeof vpRecvCnt !== 'function') return side;
@@ -96449,12 +96455,25 @@ function p1VendorSide(onChallans) {
       const ids = keys.map(idOf), printed = vprKeys(l).map(idOf), cnt = vpRecvCnt(o, l), ord = voQty(o, l), got = voDone(l);
       const onOurChallans = keys.reduce((t, k, i) => t + ((onChallans.get(ids[i]) || {}).recv || 0) / (cnt[k] || 1), 0);
       const done = o.status === 'Received' || (ord > 0 && Math.max(got, onOurChallans) >= ord - 0.01);
-      const at = id => side.get(id) || side.set(id, { said: 0, got: 0, done: true }).get(id);
-      p1Shares(ids, onChallans).forEach((part, i) => { const v = at(ids[i]); v.got += got * part; v.done = v.done && done; });
+      const at = id => side.get(id) || side.set(id, { said: 0, got: 0, done: true, marked: true }).get(id);
+      p1Shares(ids, onChallans).forEach((part, i) => { const v = at(ids[i]); v.got += got * part; v.done = v.done && done; v.marked = v.marked && o.status === 'Received'; });
       if (printed.length) { const said = vpSentKept(o, l); p1Shares(printed, onChallans).forEach((part, i) => { at(printed[i]).said += said * part; }); }
     });
   });
   return side;
+}
+/** The vendor-order side of one printer's challan cloth. A challan counted in pieces whose vendor order lines are all in running
+ *  metres takes, of its pieces, the share of its cloth the printer has entered as sent (or delivered): whole pieces, rounded
+ *  down. Metre challans for the same order line take the metres first; the pieces get what is left over, and an order filled by
+ *  those challans' receipts says nothing about the pieces — only one marked Received does (SS Hand Block, 26 Nov: 325 pieces
+ *  sent after their order's metres had all come back). */
+function p1SideOf(side, onChallans, id) {
+  const own = side.get(id); if (own || !id.endsWith('|pcs')) return own;
+  const metreId = id.slice(0, -3) + 'm', m = side.get(metreId), c = onChallans.get(id);
+  if (!m || !(c.cloth > 0)) return undefined;
+  const onMetre = (onChallans.get(metreId) || {}).sent || 0;
+  const pieces = metres => Math.floor(c.sent * Math.min(1, Math.max(0, metres - onMetre) / c.cloth) + 1e-6);
+  return { said: pieces(m.said), got: pieces(m.got), done: onMetre > 0 ? m.marked : m.done };
 }
 /** What the open challans sent and we have no receipt for, in its three places: with the printer (left), sent by them and not
  *  received (transit), and finished or delivered on the vendor order but not booked on the challan (unbooked). earlier — what
@@ -96485,8 +96504,8 @@ function p1PrinterWork(from, to) {
       if (flowChMoved(c, l)) return;
       const id = String(v.code || '') + '|' + l.key + (l.ruffleOnly ? FLOW_RUF : '') + '|' + u;
       const got = seen.has(l.key + u) ? 0 : +recv[l.key] || 0; seen.add(l.key + u);   // a challan's receipts name the line once
-      const all = onChallans.get(id) || onChallans.set(id, { sent: 0, recv: 0, earlier: 0 }).get(id);
-      all.sent += q; all.recv += got;
+      const all = onChallans.get(id) || onChallans.set(id, { sent: 0, cloth: 0, recv: 0, earlier: 0 }).get(id);
+      all.sent += q; all.cloth += +l.metres || 0; all.recv += got;
       if (c.closed) { all.earlier += got; return; }
       const k = id + '|' + (v.code || v.name);
       const b = lines.get(k) || lines.set(k, { e, id, key: l.key, sku: obUC(l.sku), unit: u, ruffle: !!l.ruffleOnly, sent: 0, recv: 0, since: '', nos: [] }).get(k);
@@ -96499,7 +96518,7 @@ function p1PrinterWork(from, to) {
   });
   const side = p1VendorSide(onChallans), holds = [], unbooked = [];
   lines.forEach(b => {
-    const x = p1ClothSplit(flowR2(b.sent), b.recv, side.get(b.id), onChallans.get(b.id).earlier);
+    const x = p1ClothSplit(flowR2(b.sent), b.recv, p1SideOf(side, onChallans, b.id), onChallans.get(b.id).earlier);
     put(b.e, b.unit, x.transit, 'transit'); put(b.e, b.unit, x.unbooked, 'unbooked');
     const r = lineOf.get(b.key), row = qty => ({ stage: 'Printer', sku: r ? obUC(r.sku) : b.sku, orderNo: r ? obUC(r.orderNo) : obUC(String(b.key).split('__')[0]), pcs: qty,
       unit: b.unit, who: b.e.name, since: b.since, ref: (b.ruffle ? 'ruffle · ' : '') + 'Challan ' + b.nos.join(', '), key: b.key });
