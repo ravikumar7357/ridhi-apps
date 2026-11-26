@@ -13684,6 +13684,8 @@ async function packLedgerWrite(p, handoverTo) {
   if (FGI_FBA_ACCOUNTS.indexOf(p.account) < 0) return { err: `Pick the FBA account — ${FGI_FBA_ACCOUNTS.join(" or ")}.` };
   const why = await packDataReady();
   if (why) return { err: "Could not read the Finished Goods ledger: " + why };
+  const unread = await fgiStockReread();
+  if (unread) return { err: unread };
   if (handoverTo != null) p.scan.handoverTo = String(handoverTo || "").trim();
   const rows = PACK_CORE.ledgerRows(p, {
     newId: () => fgiNewId("FBA"),
@@ -28392,6 +28394,7 @@ async function ordStockSave(l, v) {
   if (!(pcs > 0)) return 'Type how many pieces come from stock.';
   const owed = ordStockOwed(l);
   if (pcs > owed) return `Only ${nf(owed)} piece(s) of this line are still owed.`;
+  const unread = await fgiStockReread(); if (unread) return unread;
   const short = fgiOutCheck(obUC(l.sku), pcs, 'ISSUE', 0); if (short) return short;
   const rows = ordStockRows(l.orderNo, l.sku), row = rows[0], key = row && (row.id || row._key);
   if (!key) return 'Its order-book row is gone — press Refresh.';
@@ -30824,6 +30827,7 @@ async function shpbStockSave(r, v) {
   if (typeof shpReceive !== 'function' || !shpCanReceive()) return 'Handing pieces to shipping needs the Shopify tab.';
   const need = Math.max(0, (+r.qty || 0) - s.stk - s.prsD);
   if (pcs > need) return `Only ${nf(need)} piece(s) of this line still need to be made.`;
+  const unread = await fgiStockReread(); if (unread) return unread;
   const short = fgiOutCheck(obUC(r.sku), pcs, 'ISSUE', 0); if (short) return short;
   const now = new Date().toISOString(), d = new Date(), p2 = x => String(x).padStart(2, '0');
   const issue = { _id: fgiNewId('ISS'), txnType: 'ISSUE', sku: obUC(r.sku), qty: pcs, date: p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + '/' + d.getFullYear(),
@@ -60637,6 +60641,20 @@ async function fgiLoadRun(quiet) {
 
 const fgiNum = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
 
+/** TWO SCREENS, ONE SHELF (Ravi, 26 Nov): a stock-out save checked "enough stock?" against the ledger as this screen read it
+ *  earlier, so two PCs could send out the same pieces. Every stock-out save asks here first. Switch "lineHold" off: nothing
+ *  changes. On: the ledger is read again (from the live copy, so normally nothing is downloaded). This is stock, so it fails
+ *  loudly: when the ledger cannot be read, the sentence returned is shown and nothing is saved. '' = go ahead.
+ *  Two saves in the same instant can still both pass; only a hold on the pieces closes that. */
+async function fgiStockReread() {
+  if (!lineHoldOn()) return '';
+  try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); return ''; }
+  catch (e) {
+    console.warn('[line hold] could not read the India store just before a stock-out save:', e);
+    return 'Nothing was saved — the India store could not be read just now (' + (e.message || e) + '). Check the connection and save again.';
+  }
+}
+
 /** Every SKU the ledger has ever touched, and what it adds up to. */
 function fgiStock() {
   const by = new Map();
@@ -64672,6 +64690,8 @@ async function fgiEntrySave() {
   let out = null;
   if (k.dir < 0) {
     /* Read again at save: the figure on screen could be minutes old, and the store cannot go short. */
+    const unread = await fgiStockReread();
+    if (unread) return unread;
     const short = fgiOutCheck(sku, qty, type);
     if (short) return short;
     out = fgiOutOrderCheck({ sku, qty, type, order: ($('fgmOutOrd') || {}).value, why: ($('fgmOutWhy') || {}).value,
@@ -64986,6 +65006,8 @@ async function fgiRecvXlSave() {
   if (!p.good.length) return p.kind === 'ISSUE' ? 'The sheet has no rows to issue.' : 'The sheet has no rows to receive.';
   /* The shelf is read again at save, as the form does: somebody may have issued from it since the preview. */
   if (p.kind === 'ISSUE') {
+    const unread = await fgiStockReread();
+    if (unread) return unread;
     const by = new Map(); p.good.forEach(x => by.set(x.rec.sku, (by.get(x.rec.sku) || 0) + x.rec.qty));
     for (const [sku, q] of by) { const short = fgiOutCheck(sku, q, 'ISSUE'); if (short) return short + ' Nothing has been saved — choose the sheet again.'; }
   }
@@ -67597,12 +67619,15 @@ function fgiScanHead() {
 async function fgiScanFlush(sku) {
   const r = FGS.rows.get(sku);
   if (!r) return '';
+  const h = fgiScanHead();
+  /* Read before the pieces are counted, so the wait cannot let a second entry count the same scans. */
+  const unread = !h.err && h.k.dir < 0 ? await fgiStockReread() : '';
   const n = fgiNum(r.qty) - fgiNum(r.saved);
   if (n <= 0) { r.why = ''; return ''; }
   const stop = why => { r.why = why; FGS.last = `${sku}: ${why}`; return why; };
   if (!fgiCanEntry()) return stop(FGI_NO_ENTRY);
-  const h = fgiScanHead();
   if (h.err) return stop(h.err);
+  if (unread) return stop(unread);
   if (!(PTG.mdb || []).some(x => x && obUC(x.sku) === sku)) return stop(`${sku} is not in the master database.`);
   let over = 0, ordered = 0;
   if (h.k.dir < 0) {
@@ -67762,7 +67787,12 @@ async function fgiScanSave() {
     const all = [...FGS.rows.values()];
     if (!rows.length && !all.some(r => r.id)) return 'Nothing is scanned yet.';
     for (const r of rows) {
-      const why = await fgiScanFlush(r.sku);
+      /* In the scans' own queue (26 Nov): beside it, Save all and a scan still being entered both counted the same pieces.
+       * A scan that failed earlier in the queue is only noted: its pieces are still waiting, and this enters them. */
+      const note = e => console.warn('[scan queue] a scan was not entered:', e);
+      const turn = Promise.resolve(FGS.q).catch(note).then(() => fgiScanFlush(r.sku));
+      FGS.q = turn.catch(note);
+      const why = await turn;
       if (why) { fgiScanRender(); return `${r.sku}: ${why}`; }
     }
     const total = all.reduce((sum, r) => sum + fgiNum(r.saved), 0);
@@ -67779,6 +67809,10 @@ async function fgiScanSave() {
   if (!rows.length) return 'Nothing is scanned yet.';
   const h = fgiScanHead();
   if (h.err) return h.err;
+  if (h.k.dir < 0) {
+    const unread = await fgiStockReread();
+    if (unread) return unread;
+  }
 
   const updates = {}, recs = [];
   for (const r of rows) {
@@ -69810,6 +69844,7 @@ async function cxFromIndia(id) {
   const l = (CX.rows || []).find(x => (x.id || x._key) === id); if (!l) return 'That line is gone.';
   if ((l.status || 'Open') !== 'Open') return 'That line has already been decided.';
   const q0 = parseInt(l.qty, 10) || 0;
+  const unread = await fgiStockReread(); if (unread) return unread;
   const have = cxIndia(l.sku);
   if (have < q0) return `You don't have enough stock — ${obUC(l.sku)} has ${nf(have)} piece(s) in the India Store`
     + ` and this line needs ${nf(q0)}.`;
