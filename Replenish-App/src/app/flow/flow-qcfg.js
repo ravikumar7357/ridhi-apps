@@ -64,9 +64,12 @@ async function flowQcEntry(r) {
 const flowFgOf = r => Object.values(FLOW.fg || {}).filter(h => h && obUC(h.orderNo) === obUC(r.orderNo) && obUC(h.sku) === obUC(r.sku));
 /** Passed QC and not in India stock yet. */
 const flowFgToAccept = (r, s) => Math.max(0, (s.made || 0) - (s.india || 0));
-/** The planned lines with something for the Finished Goods team to accept. A make-to-order line is handed to shipping
- * on the Order Console instead; an outsourced one is received from its vendor, as before. */
-const flowFgLines = () => flowRows().filter(x => x.s.plan && x.s.route !== 'outsource' && !flowIsMto(x.r) && flowFgToAccept(x.r, x.s) > 0);
+/** How many pieces of one line wait for the Finished Goods team: planned lines only. A make-to-order line is handed to
+ * shipping on the Order Console instead; an outsourced one is received from its vendor, as before — both answer 0.
+ * The PPC page asks the same question (p1FgWaits, 26 Nov), so the two screens cannot disagree about a line. */
+const flowFgWaiting = x => (x.s.plan && x.s.route !== 'outsource' && !flowIsMto(x.r)) ? flowFgToAccept(x.r, x.s) : 0;
+/** The lines with something for the Finished Goods team to accept. */
+const flowFgLines = () => flowRows().filter(x => flowFgWaiting(x) > 0);
 const flowFgSay = (t, bad) => { if ($('fgMsg')) { $('fgMsg').className = bad ? 'err' : 'muted'; $('fgMsg').textContent = t; } };
 const flowFgFind = key => flowRows().find(y => y.s.key === key);
 const flowFgLog = (x, rec) => { const id = 'fgs_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
