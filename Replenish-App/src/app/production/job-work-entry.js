@@ -697,6 +697,14 @@ $('bwSave').onclick = async () => {
   if (!sz) return bdFormMsg(custom ? 'Type the size.' : 'Select the size.', true);
   if (!sku) return bdFormMsg('No SKU — pick the item, or type the SKU directly.', true);
   if (!pcs || pcs < 1) return bdFormMsg('Enter how many pieces are being issued.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): 2.5 pieces was issued as 2. A Custom order issue has no order to cap it,
+   * so a big count is asked about (above 1,500 pcs). */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('bwPcs').value, 'Pieces issued', 'pcs');
+    if (numErr) return bdFormMsg(numErr, true);
+    const big = custom ? ptNumBig(pcs, 'Pieces issued', 'pcs') : '';
+    if (big && !confirm(big)) return bdFormMsg('Not saved — change the pieces, then issue.', true);
+  }
   if (!date) return bdFormMsg('Enter the issue date.', true);
   /* A PRINTER'S PIECES ARE ALWAYS ISSUED AGAINST AN ORDER (2026-10-03, Ravi: "order number base banao") — even on a path
    * that otherwise lets an order be left out — so the store by order number can account for every one of them. */

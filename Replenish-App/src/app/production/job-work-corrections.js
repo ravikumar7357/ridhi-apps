@@ -37,6 +37,12 @@ function jwCorrPlan(r, change) {
   const rej = has('rejectionPieces') ? parseInt(c.rejectionPieces, 10) : ptNum(r.rejectionPieces);
   const sku = has('sku') ? obUC(c.sku) : obUC(r.sku || '');
   if (!name) return { err: 'Enter the karigar\'s name.' };
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): a changed figure is whole pieces, never cut down to a whole number. */
+  if (lineHoldOn()) {
+    const numErr = [['issuePieces', 'Issued pieces', false], ['receivedPieces', 'Received pieces', true], ['rejectionPieces', 'Rejected pieces', true]]
+      .map(([k, label, zeroOk]) => has(k) ? ptNumErr(c[k], label, 'pcs', zeroOk) : '').find(Boolean);
+    if (numErr) return { err: numErr };
+  }
   if (!isFinite(issued) || issued < 1) return { err: 'Issued pieces must be at least 1.' };
   if (!isFinite(recv) || recv < 0) return { err: 'Received pieces cannot be negative.' };
   if (!isFinite(rej) || rej < 0) return { err: 'Rejected pieces cannot be negative.' };
@@ -248,6 +254,12 @@ $('bdmSave').onclick = async () => {
 
   if (!name) return bdModalMsg('Enter the employee name.', true);
   if (!type) return bdModalMsg('Select the employment type.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): 2.5 pieces was saved as 2. Issued is above 0; received and rejected may be 0. */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('bdmIssue').value, 'Issue pieces', 'pcs') || ptNumErr($('bdmRecv').value, 'Received pieces', 'pcs', true)
+      || ptNumErr($('bdmRej').value, 'Rejection pieces', 'pcs', true);
+    if (numErr) return bdModalMsg(numErr, true);
+  }
   if (!isFinite(issued) || issued < 1) return bdModalMsg('Issue pieces must be at least 1.', true);
   if (!isFinite(recv) || recv < 0) return bdModalMsg('Received pieces cannot be negative.', true);
   if (!isFinite(rej) || rej < 0) return bdModalMsg('Rejection pieces cannot be negative.', true);
