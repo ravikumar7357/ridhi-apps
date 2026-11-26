@@ -311,6 +311,7 @@ function cutSkuTyped() {
 }
 
 function renderCutForm() {
+  frmWire('cuttingEntry', $('cwBox'));   // my previous cutting entry in grey, Tab fills (core/form-memory.js)
   const skuBox = $('cwSku');
   const sku = skuBox.value.trim();
   const m = cutSkuOf(sku);
@@ -490,6 +491,7 @@ $('cwSave').onclick = async () => {
       const why = await cutSaveHeld(entry);
       if (why) { cutFormMsg(why, true); $('cwSave').disabled = false; return; }
     } else await ptPut('pt_cuttingData/' + entry.id, entry);
+    frmRemember('cuttingEntry', $('cwBox'));
     CUT_DRAFT = { sig: '', id: '' };
     PT.cut = (PT.cut || []).filter(r => r.id !== entry.id).concat(Object.assign({ _key: entry.id }, entry));
     renderPcut();
