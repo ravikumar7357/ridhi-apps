@@ -27,7 +27,10 @@ async function ptAuthQuery() {
   try {
     const u = auth.currentUser;
     if (!u) return '';
-    return '?auth=' + encodeURIComponent(await u.getIdToken());
-  } catch (e) { return ''; }
+    return '?auth=' + encodeURIComponent(await (ptStepLimitOn() ? ptWithin(u.getIdToken(), PT_STEP_MS) : u.getIdToken()));
+  } catch (e) {
+    if (e && e.ptLate) throw e;   // said out loud: without a token the read or save would only be refused
+    return '';
+  }
 }
 

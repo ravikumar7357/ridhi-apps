@@ -64,7 +64,7 @@ async function ensureFgi() {
  * a moment later rather than after a blank wait. Older than that, or filled by another screen (which reads the ledger
  * alone — no recipients, no settings), it is read before it is drawn, as it always was. */
 const FGI_FRESH_MS = 2 * 60 * 1000;
-let FGI_LOADED_MS = 0, FGI_P = null;
+let FGI_LOADED_MS = 0, FGI_P = null, FGI_LEDGER_IN = false;   // the ledger of the read in flight has landed
 function fgiOpen(tab) {
   const draw = tab === 'fba' ? ensureFba : ensureFgi;
   if (FGI.rows !== null && FGI_LOADED_MS && Date.now() - FGI_LOADED_MS < FGI_FRESH_MS) {
@@ -82,10 +82,17 @@ function fgiOpen(tab) {
  *  One read at a time — the Order Console, Flow and this tab can ask in the same second. quiet: the table stays on
  *  screen while it reads (the background read above). */
 function fgiLoad(quiet) {
-  return FGI_P || (FGI_P = fgiLoadRun(quiet).finally(() => { FGI_P = null; }));
+  if (FGI_P && !fgiNeedsNewRead()) return FGI_P;
+  const p = fgiLoadRun(quiet).finally(() => { if (FGI_P === p) FGI_P = null; });
+  return (FGI_P = p);
 }
+/** A STUCK "READING" SCREEN (fix 9 of the PPC flow test, 26 Nov; switch lineHold): a read still finishing its last small reads
+ *  has already cleared "reading". A screen opened again just then marked itself reading and was handed that old read, which
+ *  never clears the mark again — only a page reload did. Such a screen now gets a read of its own. */
+const fgiNeedsNewRead = () => typeof lineHoldOn === 'function' && lineHoldOn() && FGI_LEDGER_IN && (FGI.busy || FGI.rows === null);
 async function fgiLoadRun(quiet) {
   if (!quiet) FGI.busy = true;
+  FGI_LEDGER_IN = false;
   try {
     /* The ledger with the order book, not after it — nothing below needs the order book's answer. */
     const [, [led, rec, set]] = await Promise.all([ptNeed(PTG_ALL, { why: 'finished-goods', has: 'mdb' }),
@@ -96,7 +103,7 @@ async function fgiLoadRun(quiet) {
     FGI.err = '';
     FGI_LOADED_MS = Date.now();
   } catch (e) { FGI.err = e.message || String(e); FGI.rows = FGI.rows || []; FGI.recips = FGI.recips || []; FGI_LOADED_MS = 0; }
-  FGI.at = ptStamp(); FGI.busy = false;
+  FGI.at = ptStamp(); FGI.busy = false; FGI_LEDGER_IN = true;
   /* A tick on a row that has just been read again may point at nothing now. */
   FGI_PICK = { stock: new Set(), ledger: new Set() };
   fbaBadge();
@@ -176,7 +183,7 @@ const fgiPending = () => (FGI.rows || []).filter(r => r && r.txnType === 'TRANSF
 
 function renderFgi() {
   if (FGI.busy) { $('fgMsg').className = 'muted'; $('fgMsg').textContent = 'Reading the finished-goods ledger…'; ptEmpty('fgTable', 'Loading…'); return; }
-  if (FGI.err) { $('fgMsg').className = 'err'; $('fgMsg').textContent = 'Could not read it: ' + FGI.err; ptEmpty('fgTable', 'Nothing to show.'); $('fgKpis').innerHTML = ''; return; }
+  if (FGI.err) { $('fgMsg').className = 'err'; $('fgMsg').textContent = 'Could not read it: ' + FGI.err + (typeof lineHoldOn === 'function' && lineHoldOn() ? ' Press Refresh to try again.' : ''); ptEmpty('fgTable', 'Nothing to show.'); $('fgKpis').innerHTML = ''; return; }
 
   const stock = fgiStock();
   const all = [...stock.values()];
