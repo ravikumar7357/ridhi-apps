@@ -23,6 +23,7 @@ const lift = (file, names) => { const text = SRC(file); return names.map(n => {
   if (!m) throw new Error(n + ' not found in ' + file); return m[0]; }).join('\n'); };
 const HELPERS = [lift('vendors/orders/vendor-orders.js', ['voLines', 'voRunning', 'voUnit', 'voQty', 'voDels', 'voDone', 'voParts']),
   lift('vendors/orders/accept-delivery.js', ['vlOk', 'vlNo', 'vlQtyOf']), lift('vendors/portal/printer-receive.js', ['vprKeys']),
+  lift('reports/last-week.js', ['repRecvParts', 'repRecvDated']),
   'const VP_RECV_CNT = new WeakMap();', lift('vendors/portal/vendor-portal.js', ['vpRecvKey', 'vpRecvCnt'])].join('\n');
 
 function load(o) {
@@ -44,7 +45,7 @@ function load(o) {
     VO: { rows: o.vo === undefined ? [] : o.vo, err: o.voErr || '' }, vpSentKept: (v, l) => +l.sent || 0,
   };
   vm.createContext(ctx);
-  vm.runInContext(HELPERS + '\n' + fs.readFileSync(FILE, 'utf8') + '\n;this.__t = { P1, p1PrinterWork, p1Report, p1Events, p1OutList };', ctx);
+  vm.runInContext(HELPERS + '\n' + fs.readFileSync(FILE, 'utf8') + '\n;this.__t = { P1, p1PrinterWork, p1Report, p1Events, p1OutList, repRecvParts };', ctx);
   return ctx.__t;
 }
 const lines = [{ orderNo: 'AMZ-1-SEA', sku: 'RPC72-2020', qty: 2760 }, { orderNo: 'AMZ-6-AIR', sku: 'RPC72-1818', qty: 900 }, { orderNo: 'SHP-9', sku: 'RTC-R1', qty: 20 }];
@@ -218,6 +219,31 @@ const rep = done.t.p1Report(), row = rep.rows.find(p => p.name === 'RBP-Bagru') 
 ok('a printer with only not-booked cloth keeps its row and list, with nothing still out', row.um === 6 && row.out.m === 0 && (row.unbookedItems || []).length === 1, JSON.stringify(row));
 const html = done.t.p1OutList('Not booked on the challan', row.unbookedItems || []);
 ok('its list shows the title, SKU, 6 m and the challan', ['Not booked on the challan', 'RPC-A', '6 m', 'Challan RFD-1'].every(w => html.includes(w)), html);
+
+/* ---- karigars (Ravi, 26 Nov): Back is the register's Received; one karigar, one name ---- */
+const job = (empName, issue, received, o) => Object.assign({ orderNo: 'AMZ-1', sku: 'X1', empName, issuePieces: issue, receivedPieces: received, rejectionPieces: 0, issueDate: '2026-10-01' }, o);
+const rc = (day, qty) => ({ at: day, qty });
+const karigarReport = (rows, from, to) => { const t = load({ base: rows }); t.P1.rr = from ? 'custom' : 'all'; t.P1.rf = from; t.P1.rt = to; return t.p1Report(); };
+const backOf = (rows, from, to) => karigarReport(rows, from, to).rows.filter(p => p.kind === 'Karigar').reduce((a, p) => a + p.back, 0);
+const twice = [job('Kajal', 125, 120, { receipts: [rc('2026-10-05', 2), rc('2026-10-12', 120)], receivingDate: '2026-10-12' })];
+ok('a history holding more than was received counts the received figure (120, not 122)', backOf(twice) === 120, String(backOf(twice)));
+ok('…dated as the Reports date it: 2 on 5 Oct, the other 118 on 12 Oct', backOf(twice, '2026-10-05', '2026-10-05') === 2 && backOf(twice, '2026-10-12', '2026-10-12') === 118);
+const reportsSay = load({}).repRecvParts(twice[0]).filter(x => x.ms >= Date.parse('2026-10-12') && x.ms < Date.parse('2026-10-13')).reduce((a, x) => a + x.pcs, 0);
+ok('…the same day, the same figure as the Reports', reportsSay === backOf(twice, '2026-10-12', '2026-10-12'), String(reportsSay));
+ok('rejected pieces kept in the history do not come back (received 0)', backOf([job('Kajal', 29, 0, { rejectionPieces: 29, receipts: [rc('2026-10-16', 29)] })]) === 0);
+const short = [job('Kajal', 214, 214, { receipts: [rc('2026-10-07', 100)], receivingDate: '2026-10-09' })];
+ok('a history short of the received figure: the rest on the receiving date (214 in all, 114 on 9 Oct)', backOf(short) === 214 && backOf(short, '2026-10-09', '2026-10-09') === 114 && backOf(short, '2026-10-07', '2026-10-07') === 100);
+const undated = [job('Kajal', 50, 50, { receipts: [rc('2026-10-07', 20)] })];
+ok('…with no receiving date the rest has no date: 50 in all, only 20 on 7 Oct', backOf(undated) === 50 && backOf(undated, '2026-10-07', '2026-10-07') === 20 && backOf(undated, '2026-10-08', '2026-10-31') === 0);
+ok('an undated part makes no row of its own in day by day', karigarReport(undated).days.every(d => d.day));
+const split = [job('Kajal', 40, 40, { receipts: [rc('2026-10-05', 15), rc('2026-10-08', 25)] })];
+ok('a history that agrees keeps each receipt on its own day', backOf(split, '2026-10-05', '2026-10-05') === 15 && backOf(split, '2026-10-08', '2026-10-08') === 25);
+ok('a row from before receipts were kept: its received figure on its receiving date', backOf([job('Kajal', 10, 7, { receivingDate: '2026-10-03' })], '2026-10-03', '2026-10-03') === 7);
+const names = [job('Ikram Khan', 100, 60, { receivingDate: '2026-10-02' }), job('Ikram  khan', 10, 10, { receivingDate: '2026-10-02' }), job('IKRAM KHAN', 5, 0), job('Roopsingh', 3, 0), job('Roop Singh', 30, 0), job('Ramesh Singh', 4, 0)];
+const K = karigarReport(names).rows.filter(p => p.kind === 'Karigar'), ik = K.find(p => p.name === 'Ikram Khan') || { out: { items: [] } };
+ok('one karigar, one row, under the spelling most was issued to', K.map(p => p.name).sort().join(',') === 'Ikram Khan,Ramesh Singh,Roop Singh', K.map(p => p.name).join(','));
+ok('…with every spelling\'s given, back and still out together (115, 70, 45)', ik.given === 115 && ik.back === 70 && ik.out.pcs === 45 && ik.out.items.length === 2, JSON.stringify([ik.given, ik.back, ik.out.pcs]));
+ok('the stored rows keep their own spelling', names[1].empName === 'Ikram  khan');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

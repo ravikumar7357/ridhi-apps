@@ -62623,16 +62623,19 @@ function repLastFullWeek() { return repWkShift(repWkIso(repWeekStart(Date.now())
  * receivingDate as before — ms 0 when that is not there yet (part-received, undated). If a correction lowered
  * receivedPieces below what the receipts add up to, the latest receipts are trimmed to fit.
  */
-function repRecvParts(r) {
+function repRecvParts(r) { return repRecvDated(r).map(({ ms, pcs }) => ({ ms, pcs })); }
+/** The same parts, each with its date as the row has it (at, '' when undated) — for the PPC report, which lists them
+ *  (Ravi, 26 Nov: its karigar Back must be the register's Received, dated as the Reports date it). */
+function repRecvDated(r) {
   const got = ptNum(r && r.receivedPieces);
   if (!(got > 0)) return [];
   const list = (Array.isArray(r.receipts) ? r.receipts : Object.values(r.receipts || {}))
-    .map(x => ({ ms: x && x.at ? ptDtMs(x.at) : 0, pcs: ptNum(x && x.qty) })).filter(x => x.ms && x.pcs > 0)
+    .map(x => ({ ms: x && x.at ? ptDtMs(x.at) : 0, pcs: ptNum(x && x.qty), at: x && x.at })).filter(x => x.ms && x.pcs > 0)
     .sort((a, b) => a.ms - b.ms);
   const out = [];
   let left = got;
-  for (const x of list) { if (left <= 0) break; const p = Math.min(x.pcs, left); out.push({ ms: x.ms, pcs: p }); left -= p; }
-  if (left > 0) out.push({ ms: r.receivingDate ? ptDtMs(r.receivingDate) : 0, pcs: left });
+  for (const x of list) { if (left <= 0) break; const p = Math.min(x.pcs, left); out.push({ ms: x.ms, pcs: p, at: x.at }); left -= p; }
+  if (left > 0) out.push({ ms: r.receivingDate ? ptDtMs(r.receivingDate) : 0, pcs: left, at: r.receivingDate || '' });
   return out;
 }
 
@@ -96448,6 +96451,14 @@ const p1LotTxt = l => l ? (l.month === p1Local().slice(0, 7) ? l.no : l.mon + ' 
 const P1_PROC = { IN: 'Order', BACK: 'Order', PLAN: 'Planning', REPLAN: 'Planning', RFD: 'Printing', PRN: 'Printing', CUT: 'Cutting', ISS: 'Stitching', REC: 'Stitching', PRESS: 'Press', QC: 'QC', REJ: 'QC', FG: 'Finished Goods', FBA: 'Finished Goods', SHIP: 'Shipping' };
 const p1Vr = r => String((r && (r.vrNo || r.challanNo || r.slipNo || r.entryNo || r.id || r._id || r.key)) || '');
 
+/** One karigar, one name: the register holds some more than once, differing only in capitals or spaces ("Ikram Khan",
+ *  "Ikram  khan"; Ravi, 26 Nov). The report shows the spelling most pieces were issued under. Nothing stored is changed. */
+function p1KarigarNames() {
+  const key = n => String(n || '').toLowerCase().replace(/\s+/g, ''), issued = new Map(), best = new Map();
+  (PT.base || []).forEach(b => { if (b && b.empName) issued.set(b.empName, (issued.get(b.empName) || 0) + ptNum(b.issuePieces)); });
+  issued.forEach((q, name) => { const e = best.get(key(name)); if (!e || q > e.q) best.set(key(name), { name: name.trim(), q }); });
+  return name => (best.get(key(name)) || {}).name || name;
+}
 /** Every step on record, oldest first: { k, ms, day, orderNo, sku, pcs, unit, by, party, ref }. Cached on its sources. */
 let P1_EV = { key: null, list: [], last: new Map() };
 function p1Events() {
@@ -96485,10 +96496,10 @@ function p1Events() {
   (PT.cut || []).forEach(r => { if (!r) return; add('CUT', r.cutDate || r.addedAt, r, (parseInt(r.pieces, 10) || 0) - (r.rejected === true ? parseInt(r.rejPieces, 10) || 0 : 0), r.addedBy, 'Cutting', 'Cutting Data', '', p1Vr(r)); });
   (PT.base || []).forEach(r => { if (!r) return;
     add('ISS', r.issueDate || r.addedAt, r, ptNum(r.issuePieces), r.addedBy, r.empName, 'Job Work · issue', '', p1Vr(r));
-    /* every receipt on its own date (receipts[], whatsapp.js); a row from before receipts were kept: its receiving date */
-    const rc = (Array.isArray(r.receipts) ? r.receipts : Object.values(r.receipts || {})).filter(x => x && +x.qty > 0);
-    if (rc.length) rc.forEach(x => add('REC', x.at, r, x.qty, x.by || r.recvBy || '', r.empName, 'Job Work · receipt', '', p1Vr(r)));
-    else if (r.receivingDate) add('REC', r.receivingDate, r, ptNum(r.receivedPieces), r.recvBy || r.lastEditedBy || '', r.empName, 'Job Work · receipt' + (ptNum(r.rejectionPieces) ? ' · ' + p1N(r.rejectionPieces) + ' rejected' : ''), '', p1Vr(r)); });
+    /* what came back, as the Reports count it (repRecvDated): adding up to the row's Received, each part on its own date;
+     * a row from before receipts were kept says what it rejected */
+    const old = !Object.keys(r.receipts || {}).length;
+    repRecvDated(r).forEach(x => add('REC', x.at, r, x.pcs, r.recvBy || (old ? r.lastEditedBy : '') || '', r.empName, 'Job Work · receipt' + (old && ptNum(r.rejectionPieces) ? ' · ' + p1N(r.rejectionPieces) + ' rejected' : ''), '', p1Vr(r))); });
   (PTG.press || []).forEach(r => { if (r) add('PRESS', r.entryDate || r.addedAt, r, r.pieces, r.addedBy, 'Press', 'Press'); });
   /* QC */
   ((typeof QC !== 'undefined' && QC.checks) || PTG.qc || []).forEach(c => { if (!c || c.refId) return;
@@ -97327,9 +97338,10 @@ function p1Report() {
   const parties = new Map(), P = (kind, name) => { const k = kind + '|' + (name || '—');
     return parties.get(k) || parties.set(k, { kind, name: name || '—', given: 0, back: 0, gm: 0, bm: 0, transit: 0, tm: 0, unbooked: 0, um: 0, skus: new Set() }).get(k); };
   pw.parties.forEach(p => { if (p.given || p.gm || p.back || p.bm || p.transit || p.tm || p.unbooked || p.um) parties.set('Printer|' + p.name, p); });
+  const karigar = p1KarigarNames();
   ev.forEach(e => {
-    if (e.k === 'ISS') { const p = P('Karigar', e.party); p.given += e.pcs; p.skus.add(e.sku); }
-    else if (e.k === 'REC') { const p = P('Karigar', e.party); p.back += e.pcs; }
+    if (e.k === 'ISS') { const p = P('Karigar', karigar(e.party)); p.given += e.pcs; p.skus.add(e.sku); }
+    else if (e.k === 'REC') { const p = P('Karigar', karigar(e.party)); p.back += e.pcs; }
   });
   /* still out now (whatever the days): the cloth the printers have not sent, and every Job Work issue not received or rejected —
    * a karigar's pieces count while they are with him, whether or not their order line is still open (25 Nov) */
@@ -97338,7 +97350,7 @@ function p1Report() {
     if (!parties.has(k)) P(kind, w.who); };
   pw.holds.forEach(w => hold('Printer', w));
   (PT.base || []).forEach(b => { if (!b || b.frozen) return; const left = ptNum(b.issuePieces) - ptNum(b.receivedPieces) - ptNum(b.rejectionPieces);
-    if (left > 0) hold('Karigar', { stage: 'With karigar', sku: obUC(b.sku), orderNo: obUC(b.orderNo), pcs: left, unit: 'pcs', who: b.empName || '—', since: p1Iso(b.issueDate || b.addedAt), ref: 'issued by ' + p1Who(b.addedBy) }); });
+    if (left > 0) hold('Karigar', { stage: 'With karigar', sku: obUC(b.sku), orderNo: obUC(b.orderNo), pcs: left, unit: 'pcs', who: karigar(b.empName) || '—', since: p1Iso(b.issueDate || b.addedAt), ref: 'issued by ' + p1Who(b.addedBy) }); });
   const rows = [...parties.values()].map(p => Object.assign(p, { out: out.get(p.kind + '|' + p.name) || { pcs: 0, m: 0, oldest: '', items: [] },
     unbookedItems: p.kind === 'Printer' ? pw.unbooked.filter(w => w.who === p.name) : [] }))
     .sort((a, b) => ['Printer', 'Karigar'].indexOf(a.kind) - ['Printer', 'Karigar'].indexOf(b.kind) || (b.out.pcs + b.out.m - a.out.pcs - a.out.m) || (b.given + b.gm - a.given - a.gm));
@@ -97346,7 +97358,7 @@ function p1Report() {
   const people = new Map(), KS = ['PLAN', 'RFD', 'PRN', 'CUT', 'ISS', 'REC', 'QC', 'FG'];
   ev.forEach(e => { if (!e.by || !KS.includes(e.k)) return; const p = people.get(e.by) || people.set(e.by, { by: e.by, n: 0 }).get(e.by); p[e.k] = (p[e.k] || 0) + 1; p.n++; });
   /* day by day */
-  const days = new Map(); ev.forEach(e => { if (!['PLAN', 'CUT', 'ISS', 'REC', 'QC', 'FG'].includes(e.k) || e.unit === 'm') return; const d = days.get(e.day) || days.set(e.day, { day: e.day }).get(e.day); d[e.k] = (d[e.k] || 0) + e.pcs; });
+  const days = new Map(); ev.forEach(e => { if (!e.day || !['PLAN', 'CUT', 'ISS', 'REC', 'QC', 'FG'].includes(e.k) || e.unit === 'm') return; const d = days.get(e.day) || days.set(e.day, { day: e.day }).get(e.day); d[e.k] = (d[e.k] || 0) + e.pcs; });
   return { from, to, n: ev.length, tiles, rows, vendorRead: pw.vendorRead, people: [...people.values()].sort((a, b) => b.n - a.n), KS, days: [...days.values()].sort((a, b) => b.day.localeCompare(a.day)) };
 }
 /* ---------- THE LINES REPORT ON THE PAGE (Ravi, 25 Nov, with his ppc-report-2026-11-19-to-2026-11-25.xlsx: "I want the ppc report
