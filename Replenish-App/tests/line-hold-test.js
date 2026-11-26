@@ -80,7 +80,7 @@ function screen(db, o) {
     cutSkuOf: () => ({ articleType: 'Cover' }), validateAgainstMasters: () => [], cutFabrics: () => ['Cotton'], CUT_FROM: '', CUT_OWN_OK: '', CUT_OTHER_CLOTH: {},
     ptCanEdit: () => true, ordLines: () => [{ orderNo: 'OC-1', sku: 'MADE-UP' }, { orderNo: 'OC-2', sku: 'MADE-UP' }], dToday: () => '2026-11-26',
     ptMonthKey: d => d, SP_QUIET: true, renderOrd: nothing,
-    cutMonthFrozen: () => false, ptStampDate: d => d, cutFabFields: () => ({}), renderPcut: nothing, renderCutPick: nothing, renderCutForm: nothing,
+    cutMonthFrozen: () => false, ptStampDate: d => d, cutFabFields: () => ({}), renderPcut: nothing, renderCutPick: nothing, renderCutForm: nothing, frmRemember: nothing,
   };
   vm.createContext(ctx);
   vm.runInContext(CODE, ctx);

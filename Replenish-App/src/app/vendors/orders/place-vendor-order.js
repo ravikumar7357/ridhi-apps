@@ -233,6 +233,7 @@ async function voFormOpen(mode) {
         <input id="vof_why" type="text" placeholder="e.g. Amazon order, 400 pcs due 30 Sep"></label>` : ''}`,
     footLeft: '<span id="vof_tot" class="vo-tot"></span>',
     onSave: () => voPlace(),
+    memory: 'vendorOrder',  // my previous entry in grey (core/form-memory.js)
     saveLabel: asking ? 'Send for approval' : 'Place order',
   });
   $('vof_kr').onclick = () => voSetKind('running');
