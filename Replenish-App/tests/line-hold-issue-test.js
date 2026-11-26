@@ -1,5 +1,6 @@
 /* Two screens cannot issue the same cut pieces to karigars (Job Work's issue form, src/app/production/job-work-entry.js —
- * bdSaveHeld and the Save button; the hold in core/line-hold.js). Ravi, 26 Nov: two screens both saw cut pieces waiting, both
+ * bdSaveHeld, bdWrite and the Save button; the Order Console's issue, orders/order-console-table.js spIssueReal; the SHP
+ * board's issue to an embroidery vendor, orders/shp-board.js shpbIssueVendorSave; the hold in core/line-hold.js). Ravi, 26 Nov: two screens both saw cut pieces waiting, both
  * issued them. Switch "lineHold" on: the order line is held, this SKU's issues read from the database, the limits checked
  * again, and a repeated Save writes the same entry. Two pretend screens share one pretend database. Cases are made up.
  *   node tests/line-hold-issue-test.js      (HOLD_APP=<folder like src/app> tests another copy) */
@@ -19,7 +20,8 @@ const CODE = [src('core/line-hold.js'),
   cut('core/history.js', /^async function ptCas\(/m), cut('core/history.js', /^async function ptGetFreshWhere\(/m), cut('core/history.js', /^function lineHoldOn\(/m),
   cut('core/lookups.js', /^let BASE_IX/m, ';'), cut('core/lookups.js', /^function obBaseIndex\(/m),
   cut(J, /^function obIssueUsed\(/m), cut(J, /^function bdGuard\(/m), cut(J, /^function bdTwinOf\(/m), cut(J, /^function bdFormMsg\(/m, '\n'),
-  cut(J, /^const BD_DRAFTS/m, ';'), cut(J, /^function bdSaveHeld\(/m), cut(J, /^\$\('bwSave'\)\.onclick/m, '\n};')].join('\n');
+  cut(J, /^const BD_DRAFTS/m, ';'), cut(J, /^function bdSaveHeld\(/m), cut(J, /^async function bdWrite\(/m),
+  cut('orders/order-console-table.js', /^async function spIssueReal\(/m), cut('orders/shp-board.js', /^async function shpbIssueVendorSave\(/m), cut(J, /^\$\('bwSave'\)\.onclick/m, '\n};')].join('\n');
 
 const MIN = 60 * 1000, SKU = 'MADE-UP', HOLD = 'pt_lineHold/issue/OC-1__MADE-UP';
 function database() {
@@ -64,10 +66,12 @@ function screen(db, o) {
       db.at[p] = clone(v);
     },
     PT: { base: o.behind ? [] : null, cut: [] }, ptNum: v => Number(v) || 0, obKeyOf: (a, b) => up(a) + '|' + up(b),
-    prOn: () => false, obIsLegacy: () => false, obOrderedQty: () => 4, obCutQty: () => 4, obPressQty: () => 0, cutSkuOf: () => ({ articleType: 'Cover' }),
+    prOn: () => false, obIsLegacy: () => false, obOrderedQty: () => 4, obCutQty: () => o.cut || 4, obPressQty: () => 0, cutSkuOf: () => ({ articleType: 'Cover' }),
     bdIsCustom: () => false, ptEmpsOfType: () => [['', 'Made-up Karigar']], bdIssueDay: () => '2026-11-26', mdbOf: () => ({}), ptCustomOf: () => null,
     stPrinterSku: () => false, validateAgainstMasters: () => [], ptZipCheck: () => '', bdZipTyped: () => '', bdMatEntry: () => ({}), ptStampDate: d => d,
     waPreOpen: () => null, waPreClose: nothing, waAfterIssue: async () => { sent.wa++; return ''; },
+    ptCanEdit: () => true, ordLines: () => [{ orderNo: 'OC-1', sku: SKU }], dToday: () => '2026-11-26', SP_QUIET: true, SP_WA_NOTE: '', MDBX: { custom: [] },
+    shpbEmbVendors: () => [{ code: 'V1', desc: 'Made-up Embroidery' }], shpbEmbName: x => x.desc, shpbStages: () => ({ issW: 4 }), SHPB_EMB_TYPE: 'Embroidery vendor', shpbToday: () => '2026-11-26',
     ptConsumeZippers: async () => { sent.zip++; return ''; }, ptConsumeRuffle: async () => '', bdCustomMaster: async () => '', bdClearForm: nothing, renderPbase: nothing,
   };
   vm.createContext(ctx);
@@ -75,7 +79,9 @@ function screen(db, o) {
   if (!o.behind) ctx.PT.base = ctx.ptList(db.get('pt_baseData'));
   const fill = pcs => Object.entries({ bwType: 'Karigar', bwEmp: 'Made-up Karigar', bwSku: SKU, bwOrd: 'OC-1', bwPcs: String(pcs), bwAt: 'Cover', bwSub: 'Plain', bwCol: 'Red', bwSz: '16x16', bwRemarks: '' })
     .forEach(([id, v]) => { box(id).value = v; });
-  return { ctx, sent, box, fill, press: async () => { await box('bwSave').onclick(); return box('bwMsg').textContent; } };
+  const orderConsole = (pcs, extra) => ctx.spIssueReal('OC-1', SKU, 'Karigar', 'Made-up Karigar', String(pcs), '2026-11-26', '', extra || '');
+  const vendor = pcs => ctx.shpbIssueVendorSave({ orderNo: 'OC-1', sku: SKU }, { ven: 'Made-up Embroidery', pcs: String(pcs) });
+  return { ctx, sent, box, fill, orderConsole, vendor, press: async () => { await box('bwSave').onclick(); return box('bwMsg').textContent; } };
 }
 
 (async () => {
@@ -109,7 +115,30 @@ function screen(db, o) {
   { const db = database(), a = screen(db); a.fill(1); await a.press(); a.fill(1); await a.press();
     ok('the same figures again after a good save are a second issue', db.entries().length === 2); }
 
+  console.log('== the order screens: Order Console issue and SHP board issue to an embroidery vendor ==');
+  { const db = database(), a = screen(db), b = screen(db, { behind: true }), c = screen(db, { behind: true });
+    const first = await a.orderConsole(4), second = await b.orderConsole(1), third = await c.vendor(1);
+    ok('a second screen, not yet told of the first issue, is refused on what the database holds', first === '' && /already issued 4/.test(second) && /already issued 4/.test(third) && db.entries().length === 1, [first, second, third].join(' | ')); }
+  { const db = database(), a = screen(db, { slow: true }), b = screen(db);
+    a.fill(4); const [x, y] = await Promise.all([a.press(), b.vendor(4)]);
+    ok('the issue form and the SHP board at once: one issue', db.entries().length === 1, x + ' | ' + y); }
+  { const db = database(), a = screen(db, { lost: true, arrives: true });
+    const first = await a.orderConsole(4), again = await a.orderConsole(4);
+    ok('an Order Console issue retried after a lost answer: one issue, told saved', /Not saved/.test(first) && again === '' && db.entries().length === 1, db.entries().length + ' ' + first + ' | ' + again); }
+  { const db = database(), a = screen(db, { lost: true, arrives: true });
+    await a.vendor(2); const again = await a.vendor(2);
+    ok('an SHP board vendor issue retried after a lost answer: one issue', again === '' && db.entries().length === 1, String(db.entries().length)); }
+  { const db = database(), a = screen(db, { cut: 8 }); await a.orderConsole(4);   // 8 cut for an order of 4
+    const said = await a.orderConsole(1, 'damaged piece');
+    ok('an extra issue with its reason still passes the ordered quantity under the hold', said === '' && db.entries().length === 2, said); }
+  { const db = database(), a = screen(db); db.at[HOLD] = { by: 'x@test', form: 'other', at: Date.now() };
+    const said = await a.vendor(1);
+    ok('a held line: the SHP board says so and writes nothing', /somebody else/.test(said) && db.entries().length === 0, said); }
+
   console.log('== switch off ==');
+  { const db = database(), a = screen(db, { off: true, lost: true, arrives: true });
+    await a.orderConsole(1); await a.orderConsole(1); await a.vendor(1); await a.vendor(1);
+    ok('order screens: saved as they always were, a new entry each time', db.entries().length === 4, String(db.entries().length)); }
   { const db = database(), a = screen(db, { off: true, lost: true, arrives: true }); db.at[HOLD] = { by: 'x@test', form: 'other', at: Date.now() };
     a.fill(1); await a.press(); await a.press();
     ok('saved as it always was: no hold asked for, a new entry each press', db.entries().length === 2, String(db.entries().length)); }

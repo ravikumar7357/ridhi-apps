@@ -637,7 +637,7 @@ function bdTwinOf(entry) {
     && now - (Date.parse(r.addedAt || '') || 0) < 120000) || null;
 }
 
-const BD_DRAFTS = new Map();   // this form's unsaved figures → the id they are written under (lineHoldDraftId)
+const BD_DRAFTS = new Map();   // unsaved karigar issues from the issue form, Order Console and SHP board → the id each is written under (lineHoldDraftId)
 
 /** The karigar issue, saved while this screen holds the order line: the issues on this SKU are read from the database and the
  *  order's limits checked on them, so two screens cannot issue the same cut pieces. '' when saved, else the sentence to show. */
@@ -652,11 +652,21 @@ function bdSaveHeld(entry) {
       return 'Nothing was saved — the pieces already issued on this order could not be checked (' + (e.message || e) + '). Check the connection and press Save again.';
     }
     if (PT.base.some(r => r && r.id === entry.id)) return '';   // an earlier press of Save reached the database
-    const full = bdGuard(entry.orderNo, entry.sku, entry.issuePieces);
+    const full = bdGuard(entry.orderNo, entry.sku, entry.issuePieces, undefined, !!entry.extraReason);
     if (full) { renderPbase(); return 'Not saved — ' + full; }
     await ptPut('pt_baseData/' + entry.id, entry);
     return '';
   });
+}
+
+/** Writes one new karigar issue, for the issue form and the order screens alike: '' when saved, else the sentence to show.
+ *  A database write that fails throws. A custom issue has no order line to hold; its id alone keeps a repeated Save to one. */
+async function bdWrite(entry) {
+  const why = entry.orderNo && lineHoldOn() ? await bdSaveHeld(entry) : await ptPut('pt_baseData/' + entry.id, entry).then(() => '');
+  if (why) return why;
+  lineHoldDraftDone(BD_DRAFTS, entry.id);
+  PT.base = (PT.base || []).filter(r => !(r && r.id === entry.id)).concat(Object.assign({ _key: entry.id }, entry));
+  return '';
 }
 
 $('bwSave').onclick = async () => {
@@ -738,11 +748,8 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
   /* WhatsApp is opened now, while this is still the click — see waPreOpen. */
   const waWin = waPreOpen(entry);
   try {
-    /* A custom issue has no order line to hold; its id alone keeps a repeated Save to one entry. */
-    const why = orderNo && lineHoldOn() ? await bdSaveHeld(entry) : await ptPut('pt_baseData/' + entry.id, entry).then(() => '');
+    const why = await bdWrite(entry);
     if (why) { waPreClose(waWin); bdFormMsg(why, true); $('bwSave').disabled = false; return; }
-    lineHoldDraftDone(BD_DRAFTS, entry.id);
-    PT.base = (PT.base || []).filter(r => !(r && r.id === entry.id)).concat(Object.assign({ _key: entry.id }, entry));
     const waNote = await waAfterIssue(waWin, entry);
     // A zip SKU spends zippers. Posting it here keeps the accessory ledger honest without a second step.
     let zipNote = '', rufNote = '';
