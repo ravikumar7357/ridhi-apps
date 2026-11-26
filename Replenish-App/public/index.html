@@ -2330,7 +2330,8 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .p1-stages .st.on span{color:#D6E1EE}
 #p1Home .p1-read{margin-left:auto;align-self:center;font-size:12px;color:var(--faint)}
 #p1Home .p1-read a{color:var(--brand-ink);font-weight:600;cursor:pointer}
-#p1Home .p1-list{padding:0;overflow:hidden}
+/* The table slides sideways inside its box on a narrow screen or phone — the status columns were cut off (fix 9, 26 Nov) */
+#p1Home .p1-list{padding:0;overflow-x:auto}
 #p1Home table.p1t{width:100%;border-collapse:collapse;font-size:13.5px}
 #p1Home table.p1t > thead > tr > th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:14px 16px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:2}
 #p1Home table.p1t > tbody > tr.p1r > td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:middle;text-transform:none;letter-spacing:normal}
@@ -2914,11 +2915,11 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
 <div id="appView" class="shell hide">
   <!-- Shown only while the perms read is in flight. Every account sees this, briefly; nobody sees a
        sidebar full of sections they do not have. -->
-  <div id="gateWait"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="154" height="157"><span>Checking your access…</span></div></div>
+  <div id="gateWait"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="132" height="134"><span>Checking your access…</span></div></div>
   <!-- Over the screen while a Refresh button works (ptBusy, 26 Nov 2026). -->
-  <div id="ptBusyCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="126" height="129"><span>Refreshing…</span></div></div>
-  <!-- When a read or save has waited 3 seconds (core/stuck-screen.js, 26 Nov 2026). -->
-  <div id="ptStuckCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="126" height="129"><span id="ptStuckWords">Still working…</span></div></div>
+  <div id="ptBusyCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="108" height="110"><span>Refreshing…</span></div></div>
+  <!-- When a read or save has waited 1.5 seconds (core/stuck-screen.js, 26 Nov 2026). -->
+  <div id="ptStuckCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="108" height="110"><span id="ptStuckWords">Still working…</span></div></div>
   <aside class="side">
     <div class="brand">
       <span class="brandname r1-brand"><img src="/r-one-wordmark.png" alt="R-one"></span>
@@ -9512,15 +9513,16 @@ function tgPlan(brands, pick, mk) {
 }
 
 async function ensureTarget() {
-  $('tgMsg').textContent = 'Loading…';
-  await ensureReplData();
-  if (!PROD_LOADED) await loadProd();            // status overrides decide which SKUs are stopped
-  await loadRevTgt();
-  if (!FC_PLAN.length) FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+  const read = await ptLoadingWhile('tgMsg', async () => {
+    await ensureReplData();
+    if (!PROD_LOADED) await loadProd();            // status overrides decide which SKUs are stopped
+    await loadRevTgt();
+    if (!FC_PLAN.length) FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+  });
+  if (!read) return;
   const sel = $('tgMonth'), cur = sel.value;
   sel.innerHTML = FC_PLAN.map(p => `<option value="${p.key}">${esc(p.label)}</option>`).join('');
   if (cur && FC_PLAN.some(p => p.key === cur)) sel.value = cur;
-  $('tgMsg').textContent = '';
   renderTarget();
 }
 
@@ -10592,7 +10594,7 @@ function updateFollowBadge() {
 }
 
 async function ensureFollow() {
-  if (!PO_LOADED) { $('fuMsg').textContent = 'Loading…'; await loadPo(); PO_LOADED = true; $('fuMsg').textContent = ''; }
+  if (!PO_LOADED) { if (!await ptLoadingWhile('fuMsg', loadPo)) return; PO_LOADED = true; }
   await ensureReplData();   // FBA stock column needs the Replenishment snapshot
   buildFbaMap(); CATALOG_SET = catalogSet();
   renderFollow(); updateFollowBadge();
@@ -10910,7 +10912,7 @@ async function fetchProd() {
 const prodLatest = sku => { const log = PROD[String(sku).toUpperCase()] || []; return log.length ? log[0] : null; };
 const isDisc = sku => !!DISC[String(sku).trim().toUpperCase()];
 async function ensureTop() {
-  if (!PROD_LOADED) { $('topMsg').textContent = 'Loading…'; await loadProd(); $('topMsg').textContent = ''; }
+  if (!PROD_LOADED && !await ptLoadingWhile('topMsg', loadProd)) return;
   if (!INDIA_LOADED) await loadIndiaStock();
   renderTop();
 }
@@ -11239,7 +11241,7 @@ async function ensureShopify() {
 }
 async function loadShopify() {
   const store = shStore();
-  shMsg('Loading…');
+  ptLoadingLine('shMsg');
   try {
     const r = await prGet({ cache: store === 'CPC' ? 'shopSkuCPC' : 'shopSku' });
     const d = r.data || {};
@@ -11462,16 +11464,17 @@ $('shCsv').onclick = () => {
 // column across every tab — the old pillow-tracker read was removed.
 const IN_COLS = ['SKU', 'India Stock'];
 async function ensureIndia() {
-  $('inMsg').textContent = 'Loading…';
   // The projection needs the same three things the In Production tab needs: the status overrides
   // (which SKUs are stopped), what is being made, and the forecast horizon. Read together — none waits on another.
-  await Promise.all([ensureReplData(), loadIndiaStock(), loadInProdOnce()]);
-  if (!PROD_LOADED) await loadProd();
-  if (!FC_PLAN.length) {
-    FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
-    FC_CACHE = new Map();
-  }
-  $('inMsg').textContent = '';
+  const read = await ptLoadingWhile('inMsg', async () => {
+    await Promise.all([ensureReplData(), loadIndiaStock(), loadInProdOnce()]);
+    if (!PROD_LOADED) await loadProd();
+    if (!FC_PLAN.length) {
+      FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+      FC_CACHE = new Map();
+    }
+  });
+  if (!read) return;
   // The list render also fills the Sub-Category / Colour dropdowns, so it runs either way.
   renderIndia();
   if (IN_MODE === 'proj') renderIndiaProj();
@@ -11824,18 +11827,18 @@ function loadInProdOnce() {
 /* ALL AT ONCE: the snapshot, the POs, India stock and what is being made need nothing from each other. Only the
  * FBA map, the catalogue and the forecast plan need the snapshot, and they are worked out after it is in. */
 async function ensureProd() {
-  $('pdMsg').textContent = 'Loading…';
-  await Promise.all([
-    ensureReplData(),
-    PO_LOADED ? null : loadPo().then(() => { PO_LOADED = true; }),
-    loadIndiaStock(),
-    loadInProdOnce(),
-  ]);
-  buildFbaMap(); CATALOG_SET = catalogSet();
-  if (!PROD_LOADED) await loadProd();          // status overrides decide which SKUs are stopped (read with the snapshot)
-  if (!FC_PLAN.length) { FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]); FC_CACHE = new Map(); }
-  $('pdMsg').textContent = '';
-  renderProd();
+  const read = await ptLoadingWhile('pdMsg', async () => {
+    await Promise.all([
+      ensureReplData(),
+      PO_LOADED ? null : loadPo().then(() => { PO_LOADED = true; }),
+      loadIndiaStock(),
+      loadInProdOnce(),
+    ]);
+    buildFbaMap(); CATALOG_SET = catalogSet();
+    if (!PROD_LOADED) await loadProd();          // status overrides decide which SKUs are stopped (read with the snapshot)
+    if (!FC_PLAN.length) { FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]); FC_CACHE = new Map(); }
+  });
+  if (read) renderProd();
 }
 // Units of a SKU currently being made, plus its dates/supplier. A SKU can appear on several uploaded
 // rows (two factories, two batches) — quantities add up, the window spans earliest start → latest ready.
@@ -15593,6 +15596,24 @@ function ptLiveWrote(paths) {
 /* ==== END LIVE COPIES ==== */
 /* ============================== FILE: src/app/core/database-read.js ============================== */
 
+/* NO STEP WAITS FOR EVER (fix 9 of the PPC flow test, 26 Nov; switch lineHold: PPC stayed on "Reading…" until a page reload).
+ * The read itself already gives up after 45 seconds; the two steps before it had no limit — the sign-in token and starting the
+ * live copy. Each is now given PT_STEP_MS. A step that runs out of time rejects with an error marked ptLate. */
+const PT_STEP_MS = 20000;
+const ptStepLimitOn = () => typeof lineHoldOn === 'function' && lineHoldOn();
+function ptWithin(step, ms) {
+  let timer;
+  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(
+    new Error(`No answer for ${ms / 1000} seconds. Check the internet, then try again.`), { ptLate: true })), ms); });
+  return Promise.race([step, late]).finally(() => clearTimeout(timer));
+}
+/** Asked only with the step limit on: false when the live copy has not started in time, and the register is then read the
+ *  ordinary way, as when the live copy is not available. Kept here, outside the live-copies block, which stays as it was. */
+async function ptLiveStarted() {
+  try { await ptWithin(ptLiveDb(), PT_STEP_MS); return true; }
+  catch (e) { if (!e.ptLate) throw e; console.warn('[live copy] did not start, reading the ordinary way:', e.message); return false; }
+}
+
 /* A failed read and an empty node look identical if the error is swallowed, and only one of them is
  * something anyone can act on. So: a real timeout, one retry, and the reason kept and shown. */
 async function ptGet(node, raw) {
@@ -15604,7 +15625,7 @@ async function ptGet(node, raw) {
     if (rt) node = rt.path;
   }
   if (ptLiveable(node)) {
-    try { const v = await ptLiveRead(node); if (v !== PT_LIVE_NO) { try { if (typeof dmCount === 'function') dmCount(node, 0, 'from-copy'); } catch (e2) { console.warn('[data meter]', e2); } return v; } } catch (e) { /* the plain read below */ }
+    try { const v = typeof ptStepLimitOn === 'function' && ptStepLimitOn() && !(await ptLiveStarted()) ? PT_LIVE_NO : await ptLiveRead(node); if (v !== PT_LIVE_NO) { try { if (typeof dmCount === 'function') dmCount(node, 0, 'from-copy'); } catch (e2) { console.warn('[data meter]', e2); } return v; } } catch (e) { /* the plain read below */ }
   }
   /* The token goes on the READ as well as the write. Where the data sits now, nothing is readable
    * without one — the rules are "signed in, and not a vendor", and a vendor is refused at the root
@@ -15734,7 +15755,28 @@ async function ptRefreshButton(btn, work) {
  *  happening. */
 const PT_LOADING_ART = '/loading-print.svg';
 function ptLoadingArt(words) {
-  return `<div class="ptLoading"><img src="${PT_LOADING_ART}" alt="" width="105" height="107"><span>${words}</span></div>`;
+  return `<div class="ptLoading"><img src="${PT_LOADING_ART}" alt="" width="90" height="92"><span>${words}</span></div>`;
+}
+
+/** A screen whose own message line says it is loading (Shopify Stock, India Stock …) shows the block printing there
+ *  too (Ravi, 26 Nov 2026: "its loading but our loading button is not visible"). */
+function ptLoadingLine(msgId) { $(msgId).innerHTML = ptLoadingArt('Loading…'); }
+
+/** Loads a report screen behind its loading line. A read that fails must not leave the picture moving for good
+ *  (review of the loading picture, 26 Nov 2026): the line then says what could not be read and what to do, and the
+ *  screen is not drawn from half its data. Errors: shown on the screen, and the cause goes to the console.
+ *  Returns true when everything was read. */
+async function ptLoadingWhile(msgId, work) {
+  ptLoadingLine(msgId);
+  try {
+    await work();
+    $(msgId).textContent = '';
+    return true;
+  } catch (e) {
+    console.warn('[loading] ' + msgId + ':', e);
+    $(msgId).textContent = 'Could not read the data (' + ((e && e.message) || e) + '). Check the internet, then open this tab again.';
+    return false;
+  }
 }
 
 /** The cover shown while Refresh buttons work. A count, not an on/off: two screens refreshing at once must not
@@ -17554,8 +17596,11 @@ async function ptAuthQuery() {
   try {
     const u = auth.currentUser;
     if (!u) return '';
-    return '?auth=' + encodeURIComponent(await u.getIdToken());
-  } catch (e) { return ''; }
+    return '?auth=' + encodeURIComponent(await (ptStepLimitOn() ? ptWithin(u.getIdToken(), PT_STEP_MS) : u.getIdToken()));
+  } catch (e) {
+    if (e && e.ptLate) throw e;   // said out loud: without a token the read or save would only be refused
+    return '';
+  }
 }
 
 /* ============================== FILE: src/app/core/history.js ============================== */
@@ -18353,7 +18398,7 @@ monStart();
 /* ================= STUCK SCREENS (26 Nov 2026) =================
  *
  * Ravi: "I want it to be shown also when the screen is stuck". When a read or a save to our own database or to the
- * Apps Script backend has been waiting 3 seconds, the block-printing picture (core/database-read.js, ptLoadingArt)
+ * Apps Script backend has been waiting 1.5 seconds (3 at first; Ravi made it 1.5 the same day), the block-printing picture (core/database-read.js, ptLoadingArt)
  * covers the screen with "Still working…". After 30 seconds the words say what to do. The cover lifts the moment the
  * last slow call ends, and it takes no clicks.
  *
@@ -18363,20 +18408,22 @@ monStart();
  *
  * Errors: quiet by design. The watcher only counts and shows the picture; every request, its answer and its error go
  * back to the screen untouched, exactly as before. If the cover cannot be found it leaves a console line and skips. */
-const PT_STUCK = { afterMs: 3000, longMs: 30000, slow: 0, verySlow: 0 };
+const PT_STUCK = { afterMs: 1500, longMs: 30000, slow: 0, verySlow: 0, actedAt: -Infinity, actWindowMs: 2000 };
 const PT_STUCK_WORDS = {
   slow: 'Still working…',
   verySlow: 'Still waiting for data. Check the internet, then press Refresh.',
 };
 
-/** Only our own data: the database and the Apps Script backend. Pictures, Meera and outside services do not count. */
+/** Only our own data: the database and the two Apps Script backends (the ERP's, and the pricing one that Shopify
+ *  Stock reads, added 26 Nov 2026). Pictures, Meera and outside services do not count. */
 function ptStuckIsDataCall(input) {
   const url = String((input && input.url) || input || '');
   if (typeof PT_URL === 'string' && url.startsWith(PT_URL)) return true;
-  return !!(typeof API !== 'undefined' && API && API.url && url.startsWith(API.url));
+  const ours = backend => !!(backend && backend.url && url.startsWith(backend.url));
+  return (typeof API !== 'undefined' && ours(API)) || (typeof PRAPI !== 'undefined' && ours(PRAPI));
 }
 
-/** Counts one request as slow after 3 s and very slow after 30 s, for as long as it is still waiting. */
+/** Counts one request as slow after 1.5 s and very slow after 30 s, for as long as it is still waiting. */
 function ptStuckWatch(call) {
   const passed = [];
   const after = (level, ms) => setTimeout(() => { passed.push(level); PT_STUCK[level]++; ptStuckShow(); }, ms);
@@ -18388,21 +18435,37 @@ function ptStuckWatch(call) {
   });
 }
 
+/** ONE PICTURE AT A TIME (Ravi, 26 Nov 2026, Finished Goods: the cover sat on top of the table's own loading
+ *  picture). When the screen already shows the block printing in its table or message line, it already says it is
+ *  loading, so "Still working…" is not drawn over it. After 30 s the cover shows anyway: it says what to do. */
+function ptStuckScreenShowsLoading() {
+  return [...document.querySelectorAll('.main .ptLoading')].some(el => el.offsetParent !== null);
+}
+
 function ptStuckShow() {
   const level = PT_STUCK.verySlow > 0 ? 'verySlow' : PT_STUCK.slow > 0 ? 'slow' : '';
-  document.body.classList.toggle('ptStuck', !!level);
-  if (!level) return;
+  const show = level === 'verySlow' || (level === 'slow' && !ptStuckScreenShowsLoading());
+  document.body.classList.toggle('ptStuck', show);
+  if (!show) return;
   const words = document.getElementById('ptStuckWords');
   if (!words) { console.warn('[stuck screen] the cover is missing from the page; no picture shown'); return; }
   words.textContent = PT_STUCK_WORDS[level];
 }
 
+/** ONLY WHAT STAFF ARE WAITING FOR (Ravi, 26 Nov 2026, Finished Goods: the screen had loaded, yet "Still waiting for
+ *  data" covered it, because a background check was slow). A read counts only if it started within 2 s of a click, a
+ *  key press or a tab being opened; order alerts, the ticker and other background checks never bring the cover up. */
+function ptStuckStaffWaiting() { return Date.now() - PT_STUCK.actedAt <= PT_STUCK.actWindowMs; }
+
 function ptStuckStart() {
   const plain = window.fetch;
   if (typeof plain !== 'function' || plain.__stuck) return;
+  const acted = () => { PT_STUCK.actedAt = Date.now(); };
+  ['click', 'keydown'].forEach(type => document.addEventListener(type, acted, true));
+  window.addEventListener('hashchange', acted);
   const watched = function (input, init) {
     const call = plain.apply(this, arguments);
-    return ptStuckIsDataCall(input) ? ptStuckWatch(call) : call;
+    return ptStuckStaffWaiting() && ptStuckIsDataCall(input) ? ptStuckWatch(call) : call;
   };
   watched.__stuck = true;
   window.fetch = watched;
@@ -22907,6 +22970,26 @@ function cutOrderOptions(r) {
     .forEach(o => out.push([o.orderNo, `${o.orderNo} — ${nf(o.left)} left to cut of ${nf(o.ordered)}`]));
   return out;
 }
+/** THE CUT NEVER DROPS BELOW WHAT KARIGARS WERE GIVEN (Ravi, 26 Nov, PPC test: a cutting entry could be lowered or deleted
+ *  after its pieces were issued, leaving more issued than cut). Behind the switch lineHold. '' when the order line keeps at
+ *  least what is already issued once this entry has `pcs` good pieces (0 = the entry leaves the line), else why not. A line that
+ *  issues without a cut (PPC's route straight to job work, a SKU needing no cutting) is not asked, as the issue form allows it. */
+function cutBelowIssued(orderNo, sku, exclId, pcs) {
+  if (!orderNo || !lineHoldOn()) return '';
+  const m = cutSkuOf(sku);
+  const jw = typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(orderNo, sku) === 'jobwork';
+  if (jw || (m && m.cuttingRequired === false)) return '';
+  const issued = obIssueUsed(orderNo, sku), press = obPressQty(orderNo, sku);
+  const cut = Math.max(obCutQty(orderNo, sku, exclId) + pcs, press), was = Math.max(obCutQty(orderNo, sku), press);
+  /* A legacy order with no cut on record is issued on its ordered quantity alone, as the issue form allows. A line that was
+   * already below (issued before its cut was entered) may still be put right, as long as the change does not lower it further. */
+  if (/^LEG-/.test(obUC(orderNo)) && cut <= 0) return '';
+  if (cut >= issued || cut >= was) return '';
+  return `${obUC(sku)} on ${orderNo}: ${nf(issued)} piece(s) are already issued to karigars, so the cut on this order cannot go down to ${nf(cut)}. `
+    + 'Take the issue back in Job Work first, or correct it there.';
+}
+/** Good pieces of a cutting entry with `pcs` cut: what was rejected after cutting is not cut the karigars can be given. */
+const cutGoodOf = (r, pcs) => Math.max(0, pcs - (r.rejected === true ? (parseInt(r.rejPieces, 10) || 0) : 0));
 function cutEdit(id) {
   const r = (PT.cut || []).find(x => x.id === id);
   if (!r) return;
@@ -22943,6 +23026,9 @@ function cutEdit(id) {
         const g = cutGuard(ord, r.sku, pcs, ord === r.orderNo ? r.id : undefined);
         if (g) return g;
       }
+      /* the order it is on keeps at least what was issued: with fewer pieces, or with none if the entry moves away */
+      const below = cutBelowIssued(r.orderNo, r.sku, r.id, ord === r.orderNo ? cutGoodOf(r, pcs) : 0);
+      if (below) return below;
       const date = v.cutDate || ptIsoDate(r.cutDate);
       if (cutMonthFrozen(date)) return `${ptMonthKey(date)} is frozen — cutting entries for that month are locked.`;
       const next = Object.assign({}, r, {
@@ -22969,6 +23055,8 @@ function cutEdit(id) {
       return '';
     },
     onDelete: async () => {
+      const below = cutBelowIssued(r.orderNo, r.sku, r.id, 0);
+      if (below) return 'Not deleted — ' + below;
       await ptDelete('pt_cuttingData/' + r.id);
       PT.cut = (PT.cut || []).filter(x => x.id !== r.id);
       renderPcut();
@@ -32181,12 +32269,38 @@ function demBasketAdd(key, code, dir) {
   ORD.demBasket = ORD.demBasket || {};
   Object.keys(ORD.demBasket).forEach(c => { ORD.demBasket[c] = (ORD.demBasket[c] || []).filter(x => x.key !== key); });
   (ORD.demBasket[code] = ORD.demBasket[code] || []).push({ key, fabric: r.fabric, colour: r.colour, dir, m,
-    need: Math.round(r.need || 0), atM: Math.round(r.atM || 0),
+    need: Math.round(r.need || 0), atM: Math.round(r.atM || 0), atAll: demAtPrinters(key),
     /* The sizes it is for travel with the line, so the printer and the office both read "for Queen Quilt 90x96". */
     forWhat: (r.products || []).filter(p => !p.asPcs && p.pcs > 0).map(p => [p.what, p.size].filter(Boolean).join(' ') + ' (' + p.pcs + ')').join(', ') });
   ORD.demSaid = `${nf(m)} m of ${r.fabric} · ${r.colour} · ${dir} added to the order for ${voName(code)} — Place order on the bar above when it has everything.`;
   renderOrd();
   return '';
+}
+
+/* PLACE ORDER, CHECKED AGAIN (Ravi, 26 Nov: two people ordered the same cloth for one shortage). Behind the switch lineHold.
+ * The basket keeps what was already with printers when each line was added. Just before the order is placed the printer orders
+ * are read again; if more of a colour has been ordered since, the person is asked whether they still want this order. Asked,
+ * not refused: a second order can be meant. The basket skips the vendor order form's own "already ordered" question on purpose
+ * (one colour can need two running orders), so this is the check it has. Fails loudly: if the printer orders cannot be read,
+ * nothing is placed. */
+/** Metres of this colour (and direction) owed by printers on every open order — the whole figure, whatever the screen's filters.
+ *  null when the printer orders are not read (the line then cannot be checked again at Place order). */
+function demAtPrinters(key) {
+  const at = ordDemandAtPrintersCol();
+  return at ? Math.round((at.col.get(key) || { runM: 0 }).runM) : null;
+}
+/** '' when no line's colour gained printer orders since it was added, null when they could not be read, else the question. */
+async function demStillShort(ls) {
+  VO.rows = null;
+  await ensureVo();
+  ORD_DEM.voOk = !VO.err;   // a failed read shows At printers as unknown on Demand, never as nothing owed
+  if (!ls.some(x => x.atAll != null)) return '';   // no line was added with the printer orders read: nothing to check against
+  if (!ORD_DEM.voOk || !ordDemandAtPrintersCol()) { console.warn('[line hold] could not read the printer orders before placing the basket:', VO.err); return null; }
+  const more = ls.filter(x => x.atAll != null).map(x => ({ x, more: demAtPrinters(x.key) - x.atAll })).filter(e => e.more >= 1);
+  if (!more.length) return '';
+  return 'Since this order was put together, more of this cloth has been ordered from printers:\n'
+    + more.map(e => `${e.x.fabric} · ${e.x.colour} · ${e.x.dir}: ${nf(e.more)} m more (this order adds ${nf(e.x.m)} m)`).join('\n')
+    + '\n\nPlace this order anyway?';
 }
 
 /**
@@ -32213,6 +32327,11 @@ function demBasketPlace(code) {
     onSave: async v => {
       if (!v.deliv) return 'Put in the delivery date.';
       if (!/^P[1-4]$/.test(v.pri || '')) return 'Pick the priority.';
+      if (lineHoldOn()) {
+        const q = await demStillShort(ls);
+        if (q === null) return 'Not placed — the printer orders could not be read just now. Check the connection and press again.';
+        if (q && !confirm(q)) return 'Not placed. The lines are still in the basket.';
+      }
       if (VO.rows === null) await ensureVo();
       const lo = x => String(x || '').trim().toLowerCase();
       const cat = [...voFabricCatalogue().values()];
@@ -42903,7 +43022,9 @@ function poSave(after) {
     });
   }
   if (err) { $('lmPoErr').textContent = err; $('lmPoErr').classList.remove('hide'); return; }
+  if (gdPpcAskPending(after)) return;
   var po = JSON.parse(JSON.stringify(PO_DRAFT));
+  delete po.ppcAsk;
   po.lines.forEach(function (l) { delete l.descAuto; delete l._rec; if (!(parseFloat(l.disc) > 0)) delete l.disc; });
   delete po.editId;
   if (PO_DRAFT.editId) {
@@ -46352,8 +46473,53 @@ function gdPoFor(rfd, metres) {
   poOpen();
   var greige = fabGreigeOf(rfd);
   PO_DRAFT.lines = [{ rfd: rfd, greige: greige, desc: 'RFD ready: ' + rfd, descAuto: true, due: PO_DRAFT.date, metres: String(metres), rate: '', _rec: 0 }];
+  PO_DRAFT.ppcAsk = { rfd: rfd, greige: greige, metres: metres };   // what PPC was short of when this PO was opened (gdPpcStillShort)
   poDraw();
   lmSay('ok', nf(metres) + ' m of ' + greige + ' for PPC is on the PO. Pick the supplier and the rate.');
+}
+/* RAISE PO FOR PPC, CHECKED AGAIN AT SAVE (Ravi, 26 Nov: two people raised a PO for one shortage). Behind the switch lineHold.
+ * Raise PO fills the PO with what PPC was short of when the button was pressed. Before that PO is saved, the desk's POs are read
+ * again from the database; if somebody else has put greige on order for that fabric since, the person is asked whether they still
+ * want this one. It is asked, not refused: a second PO can be meant. Fails loudly: if the POs cannot be read, nothing is raised
+ * and the form says so. */
+/** '' when PPC is still as short as when the PO was opened, else the question to ask. Other people's new POs join the desk. */
+async function gdPpcStillShort(ask) {
+  var fresh = await ptGetFresh(GD_NODE + '/gpo'), known = {};
+  DB.gpo.forEach(function (p) { known[p.id] = true; });
+  Object.keys(fresh || {}).forEach(function (k) {
+    var p = fresh[k]; if (!p || known[p.id || k]) return;
+    if (!p.id) p.id = k;
+    DB.gpo.push(p); GD_SNAP.gpo[p.id] = JSON.stringify(p);   // already in the database: not written again
+  });
+  var map = gdPpcMap();
+  if (!map || map.__loading) { console.warn('[line hold] PPC figures not loaded — PO raised without the still-short check'); return ''; }
+  var p = map[String(ask.rfd).toUpperCase()], now = p ? p.greigeM : 0;
+  if (now >= ask.metres) return '';
+  return 'Since this PO was opened, ' + nf(ask.metres - now) + ' m of ' + ask.greige + ' has been put on order by another PO. '
+    + 'PPC is now short ' + (now > 0 ? nf(now) + ' m' : 'nothing') + '.\n\nRaise this PO anyway?';
+}
+/** true while the check runs (poSave is pressed again for the person once it has answered); false = go on saving.
+ *  Save pressed again while the check runs does nothing, and an answer is dropped if this PO form has been closed or
+ *  replaced by another meanwhile: only the PO that was asked about is ever saved. */
+function gdPpcAskPending(after) {
+  var draft = PO_DRAFT, ask = draft.ppcAsk;
+  if (!ask || draft.editId || !lineHoldOn()) return false;
+  if (ask.busy) return true;
+  ask.busy = true;
+  var gone = function () { return PO_DRAFT !== draft || $('lmPo').classList.contains('hide'); };
+  gdPpcStillShort(ask).then(function (q) {
+    if (gone()) return;
+    draft.ppcAsk = null;
+    if (q && !confirm(q)) { lmSay('ok', 'Not raised. The PO is still open to change or close.'); poDraw(); return; }
+    poSave(after);
+  }, function (e) {
+    ask.busy = false;
+    if (gone()) return;
+    console.warn('[line hold] could not read the greige POs before raising one:', e);
+    $('lmPoErr').textContent = 'Not raised — what is already on order could not be checked (' + ((e && e.message) || e) + '). Check the connection and press Save again.';
+    $('lmPoErr').classList.remove('hide');
+  });
+  return true;
 }
 /** Over to the production flow, at one of its Demand tabs. */
 function gdToFlow(view, find) {
@@ -54569,6 +54735,16 @@ const soLinesOf = (o, sku) => soLines(o)
 /** What this order says it wants of one SKU today. */
 const soQtyOf = (o, sku) => soLinesOf(o, sku).reduce((a, x) => a + (parseFloat(x.l.qty) || 0), 0);
 
+/** AN APPROVED ORDER'S QUANTITIES MOVE ONLY WITH THE ORDER BOOK (Ravi, 26 Nov). Its lines are on the order book, where PPC and the
+ *  floor work to them; Save writes the sales order alone. '' when `lines` ask for the same SKUs in the same quantities as the
+ *  order already does, else the SKUs that differ. */
+function soQtyDrift(o, lines) {
+  const want = new Map();
+  lines.forEach(l => want.set(obUC(l.sku), (want.get(obUC(l.sku)) || 0) + (parseFloat(l.qty) || 0)));
+  const skus = new Set([...want.keys(), ...soLines(o).map(l => obUC(l.sku))]);
+  return [...skus].filter(k => Math.abs((want.get(k) || 0) - soQtyOf(o, k)) > 1e-9).join(', ');
+}
+
 /** The order-book row an approved sales order writes for one SKU — the id soApproveRun uses. */
 const soBookId = (orderNo, sku) => 'ob_so_' + obUC(orderNo) + '_' + obUC(sku);
 
@@ -55305,7 +55481,12 @@ async function soFormSave(place) {
   rec.lines = lines;
   rec.buyerEmail = existing ? existing.buyerEmail : ME.email;
   rec.buyerName = existing ? existing.buyerName : (ME.email || '').split('@')[0];
-  rec.status = place ? 'submitted' : 'draft';
+  /* A PLACED ORDER STAYS PLACED (Ravi, 26 Nov, PPC test: an admin's Save on an approved order turned it back into a Draft, silently,
+   * while PPC and the floor worked to it). Behind the switch lineHold. Save keeps its status; Return to buyer is the way back. */
+  const keepPlaced = !place && lineHoldOn() && existing && !['draft', 'returned'].includes(soStatus(existing));
+  const drift = keepPlaced && soStatus(existing) === 'approved' ? soQtyDrift(existing, lines) : '';
+  if (drift) return `${existing._id} is approved and on the order book — Save cannot change its quantities or SKUs (${drift}). Use Change quantity on the order, which moves the order book with it, or Return to buyer.`;
+  rec.status = place ? 'submitted' : (keepPlaced ? existing.status : 'draft');
   if (place) { rec.submittedAt = now; rec.saRemarks = ''; }
   rec.updatedAt = now;
 
@@ -55397,6 +55578,7 @@ async function soFormSave(place) {
   $('sxMsg').className = 'muted';
   $('sxMsg').textContent = place
     ? `${rec._id} placed — it is now waiting for approval, and nothing is in the order book until then.`
+    : keepPlaced ? `${rec._id} saved — it stays ${soStatus(rec)}, as it was.`
     : `${rec._id} saved as a draft. It is not in production until it is placed and approved.`;
   if (customAdded > 0) $('sxMsg').textContent += ` ${nf(customAdded)} new item(s) went on the Custom SKUs list${onl ? '' : ' with their brand'} — complete them in Master Database → Custom SKUs.`;
   if (customAdded < 0 || customUnread) { $('sxMsg').className = 'err'; $('sxMsg').textContent += ' The new items could NOT be put on the Custom SKUs list — save again to retry.'; }
@@ -61101,7 +61283,7 @@ async function ensureFgi() {
  * a moment later rather than after a blank wait. Older than that, or filled by another screen (which reads the ledger
  * alone — no recipients, no settings), it is read before it is drawn, as it always was. */
 const FGI_FRESH_MS = 2 * 60 * 1000;
-let FGI_LOADED_MS = 0, FGI_P = null;
+let FGI_LOADED_MS = 0, FGI_P = null, FGI_LEDGER_IN = false;   // the ledger of the read in flight has landed
 function fgiOpen(tab) {
   const draw = tab === 'fba' ? ensureFba : ensureFgi;
   if (FGI.rows !== null && FGI_LOADED_MS && Date.now() - FGI_LOADED_MS < FGI_FRESH_MS) {
@@ -61119,10 +61301,17 @@ function fgiOpen(tab) {
  *  One read at a time — the Order Console, Flow and this tab can ask in the same second. quiet: the table stays on
  *  screen while it reads (the background read above). */
 function fgiLoad(quiet) {
-  return FGI_P || (FGI_P = fgiLoadRun(quiet).finally(() => { FGI_P = null; }));
+  if (FGI_P && !fgiNeedsNewRead()) return FGI_P;
+  const p = fgiLoadRun(quiet).finally(() => { if (FGI_P === p) FGI_P = null; });
+  return (FGI_P = p);
 }
+/** A STUCK "READING" SCREEN (fix 9 of the PPC flow test, 26 Nov; switch lineHold): a read still finishing its last small reads
+ *  has already cleared "reading". A screen opened again just then marked itself reading and was handed that old read, which
+ *  never clears the mark again — only a page reload did. Such a screen now gets a read of its own. */
+const fgiNeedsNewRead = () => typeof lineHoldOn === 'function' && lineHoldOn() && FGI_LEDGER_IN && (FGI.busy || FGI.rows === null);
 async function fgiLoadRun(quiet) {
   if (!quiet) FGI.busy = true;
+  FGI_LEDGER_IN = false;
   try {
     /* The ledger with the order book, not after it — nothing below needs the order book's answer. */
     const [, [led, rec, set]] = await Promise.all([ptNeed(PTG_ALL, { why: 'finished-goods', has: 'mdb' }),
@@ -61133,7 +61322,7 @@ async function fgiLoadRun(quiet) {
     FGI.err = '';
     FGI_LOADED_MS = Date.now();
   } catch (e) { FGI.err = e.message || String(e); FGI.rows = FGI.rows || []; FGI.recips = FGI.recips || []; FGI_LOADED_MS = 0; }
-  FGI.at = ptStamp(); FGI.busy = false;
+  FGI.at = ptStamp(); FGI.busy = false; FGI_LEDGER_IN = true;
   /* A tick on a row that has just been read again may point at nothing now. */
   FGI_PICK = { stock: new Set(), ledger: new Set() };
   fbaBadge();
@@ -61213,7 +61402,7 @@ const fgiPending = () => (FGI.rows || []).filter(r => r && r.txnType === 'TRANSF
 
 function renderFgi() {
   if (FGI.busy) { $('fgMsg').className = 'muted'; $('fgMsg').textContent = 'Reading the finished-goods ledger…'; ptEmpty('fgTable', 'Loading…'); return; }
-  if (FGI.err) { $('fgMsg').className = 'err'; $('fgMsg').textContent = 'Could not read it: ' + FGI.err; ptEmpty('fgTable', 'Nothing to show.'); $('fgKpis').innerHTML = ''; return; }
+  if (FGI.err) { $('fgMsg').className = 'err'; $('fgMsg').textContent = 'Could not read it: ' + FGI.err + (typeof lineHoldOn === 'function' && lineHoldOn() ? ' Press Refresh to try again.' : ''); ptEmpty('fgTable', 'Nothing to show.'); $('fgKpis').innerHTML = ''; return; }
 
   const stock = fgiStock();
   const all = [...stock.values()];
@@ -82482,6 +82671,16 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     if (up) SHUB_URL = SHUB_LOCAL;
     return up;
   }
+  /* RELOAD THAT ALWAYS WORKS (Ravi, 26 Nov 2026: "the reloading is not working properly"). Nothing the hub waited for
+   * had a time limit, so one read that never answered left the hub on "Loading…" and blocked every later Reload. Now
+   * the hub's settings give up after 20 s and the ERP stock after 3 min, and a Reload during a running read is kept
+   * and read straight after. Errors: shown on the hub's status line; the hub's own page says when it cannot open. */
+  const SHUB_SETTINGS_MS = 20000, SHUB_INFO_MS = 180000;
+  function shubWithin(work, ms, what) {
+    let timer;
+    const limit = new Promise((_, no) => { timer = setTimeout(() => no(new Error(what + ' gave no answer in ' + Math.round(ms / 1000) + ' s')), ms); });
+    return Promise.race([work, limit]).finally(() => clearTimeout(timer));
+  }
   let shubShown = '', shubDb = '';
   async function shubLoad(force) {
     const up = await shubCheck();
@@ -82489,9 +82688,10 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     $('shubFrame').classList.toggle('hide', !up);
     $('shubName').textContent = 'Shopify hub';
     let db = 'kept in this browser only';
-    try { const c = await shosConfig(); db = 'shared database (' + c.from + ')'; } catch (e) { db = e.message; }
+    try { const c = await shubWithin(shosConfig(), SHUB_SETTINGS_MS, 'the hub settings'); db = 'shared database (' + c.from + ')'; } catch (e) { db = e.message; }
     shubDb = db;
-    $('shubState').textContent = !up ? 'Hub not found' : (SHUB_URL === SHUB_WEB ? 'Ready' : 'Hub on this computer') + ' · ' + db;
+    const ready = (SHUB_URL === SHUB_WEB ? 'Ready' : 'Hub on this computer') + ' · ' + db;
+    $('shubState').textContent = !up ? 'Hub not found' : shubBusy ? 'Reloading · the Shopify read still running will be read again' : ready;
     /* Loaded once and kept: coming back to the page does not load the hub (or Shopify) again — Reload does. */
     if (up && (force || shubShown !== SHUB_PAGE)) { shubShown = SHUB_PAGE; $('shubFrame').src = SHUB_URL + '?embed=1#orders'; }
   }
@@ -82503,13 +82703,15 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
    * ERP can do this, and the orders are sent once; after that the hub's "Fetch orders" asks for them again. Messages go
    * only to, and are taken only from, the hub. */
   const shubOrigin = () => new URL(SHUB_URL).origin;
-  let shubBusy = false;
+  let shubBusy = false, shubAgain = null;
   /* `want` = { Ridhi: [order ids], CPC: [...] }: the orders the hub is still working on. They are read again by id (any
    * status), so a cancellation, refund, edit or a shipment made outside the hub reaches the hub even after the order has
    * left the 14-day window or is marked shipped — the window alone only brings orders still to ship. Read only. */
   async function shubSendOrders(want) {
     const fr = $('shubFrame');
-    if (shubBusy || !fr.contentWindow) return;
+    if (!fr.contentWindow) return;
+    /* Asked again while a read is running (Reload, or the hub's "Fetch orders"): kept, and read when this one ends. */
+    if (shubBusy) { shubAgain = want || {}; return; }
     shubBusy = true; $('shubState').textContent = 'Reading Shopify through the Pricing API…';
     const day = ms => new Date(ms).toISOString().slice(0, 10);
     const win = { start: day(Date.now() - 14 * 86400000), end: day(Date.now()), open: '1', nophoto: '1' };
@@ -82529,12 +82731,15 @@ if (SHUB_ON && $('secShopify') && $('paneShop')) {
     try {
       const [Ridhi, CPC] = await Promise.all([one('', 'Ridhi'), one('CPC', 'CPC')]);
       let info = null;
-      try { $('shubState').textContent = 'Reading stock from the ERP…'; info = await shubInfo({ Ridhi, CPC }); } catch (e) { info = { error: e.message || String(e) }; }
+      try { $('shubState').textContent = 'Reading stock from the ERP…'; info = await shubWithin(shubInfo({ Ridhi, CPC }), SHUB_INFO_MS, 'the ERP stock'); } catch (e) { info = { error: e.message || String(e) }; }
       fr.contentWindow.postMessage({ type: 'shub-orders', got: { Ridhi, CPC, info } }, shubOrigin());
       const n = x => x.error ? 'not read' : x.orders.length + ' open';
       /* Where the hub keeps its work stays on the line (Ravi, 3 Nov: it was hidden once the orders came in). */
       $('shubState').textContent = `Shopify via Pricing API · Ridhi ${n(Ridhi)} · CPC ${n(CPC)} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${shubDb ? ' · ' + shubDb : ''}`;
-    } finally { shubBusy = false; }
+    } finally {
+      shubBusy = false;
+      if (shubAgain) { const again = shubAgain; shubAgain = null; shubSendOrders(again); }
+    }
   }
   /* THE ERP'S OWN FIGURES FOR EACH ITEM (Ravi, 26 Oct: "I don't know MCF has how many and India inventory has how
    * many"), sent with the orders. READ ONLY — the same reads the Shopify Orders tab makes, done only if that tab has not
@@ -96999,20 +97204,49 @@ function p1Wip() {
   const key = p1SrcKey(); if (p1Same(P1_WIPC.key, key)) return P1_WIPC.out;
   const res = p1WipBuild(); P1_WIPC = { key, out: res }; return res;
 }
+/** How many of a line's pieces are past the printer: the furthest of cut, given to karigars, made and in stock. */
+const p1MovedOn = s => Math.max(+s.cut || 0, +s.issuedNet || 0, +s.made || 0, +s.india || 0);
+/** The challan cloth Production shows at the printer — with them or on the way. Cloth counted in pieces is cut down to what the
+ *  order line has not already moved on (cut, given to karigars, made or in stock): those pieces show at their later step, not
+ *  twice (Ravi, 26 Nov). A line with nothing moved on keeps every piece on its challans, extra ones too; once pieces have
+ *  moved, no more than the rest of the order shows. What is on the way is taken off first. Metres stay: they do not say how many pieces they are. Ruffle
+ *  cloth is left off, standing cloth stays. The report counts the challan cloth itself and is not changed. */
+function p1StillAtPrinter(pw) {
+  const room = new Map();
+  flowRows().forEach(x => { const moved = p1MovedOn(x.s); if (moved > 0) room.set(x.s.key, Math.max(0, (+x.r.qty || 0) - moved)); });
+  const out = [];
+  /* with the printer first, so that what has to go comes off the cloth on the way */
+  pw.holds.concat(pw.onWay).forEach(h => {
+    if (h.ref.startsWith('ruffle')) return;
+    if (h.unit === 'm' || h.ref.startsWith('standing') || !room.has(h.key)) { out.push(h); return; }
+    const pcs = Math.min(h.pcs, room.get(h.key)); room.set(h.key, room.get(h.key) - pcs);
+    if (pcs > 0) out.push(Object.assign({}, h, { pcs }));
+  });
+  return out;
+}
+/** Pieces of a line waiting to be given to a karigar. A line whose cut pieces are on record shows them even while its printed
+ *  cloth is still to be received in the system (Ravi, 26 Nov: such lines read "Nothing waiting"), never more than are still
+ *  to make. */
+function p1ToIssue(s, qty) {
+  if (!(s.canIssue > 0)) return 0;
+  if (['raw', 'cut', 'wip', 'qcb'].includes(s.bucket)) return s.canIssue;
+  if (!s.cutReq || !['fabric', 'demand', 'vendor'].includes(s.bucket)) return 0;
+  return Math.max(0, Math.min(s.canIssue, qty - Math.max(+s.made || 0, +s.india || 0)));
+}
 function p1WipBuild() {
   const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done' && x.s.bucket !== 'board'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
   p1Events(); const lastOf = (k, o, s) => P1_EV.last.get(k + '|' + o + '|' + s) || null;
   /* at the printer: what the challans sent and we have not had back, on the order line it is for (p1PrinterWork, 25 Nov) — with
    * them still, or on the way to us (onWay, 26 Nov) */
-  const pw = p1PrinterWork('', '');
-  pw.holds.concat(pw.onWay).forEach(h => { if (!h.ref.startsWith('ruffle')) out.push(h); });
+  p1StillAtPrinter(p1PrinterWork('', '')).forEach(h => out.push(h));
   rows.forEach(x => { const s = x.s, r = x.r, q = +r.qty || 0, o = obUC(r.orderNo), k = obUC(r.sku);
     const rl = p1RfdLeft(x);
     if (rl > 0) { const p = lastOf('PLAN', o, k); out.push({ stage: 'RFD store', sku: k, orderNo: o, pcs: rl, unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'cloth to send' }); }
-    if (s.bucket === 'vendor') { const p = lastOf('PLAN', o, k); out.push({ stage: 'Printer', sku: k, orderNo: o, pcs: q, unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'print order to give' }); }
+    if (s.bucket === 'vendor') { const p = lastOf('PLAN', o, k); out.push({ stage: 'Printer', sku: k, orderNo: o, pcs: Math.max(0, q - p1MovedOn(s)), unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'print order to give' }); }
     if (s.bucket === 'emb') out.push({ stage: 'Embroidery', sku: k, orderNo: o, pcs: Math.max(0, q - (s.embOk || 0)), unit: 'pcs', who: s.embTo || (s.plan && s.plan.emb && s.plan.emb.name) || 'Embroidery', since: '', ref: '' });
     if (s.canCut > 0 && (s.bucket === 'cut' || s.bucket === 'fabric')) { const p = lastOf('PRN', o, k); out.push({ stage: 'Cutting', sku: k, orderNo: o, pcs: s.canCut, unit: 'pcs', who: 'Cutting department', since: p ? p.day : '', ref: 'to cut' }); }
-    if (s.canIssue > 0 && ['raw', 'cut', 'wip', 'qcb'].includes(s.bucket)) { const p = lastOf('CUT', o, k); out.push({ stage: 'Raw cutting in store', sku: k, orderNo: o, pcs: s.canIssue, unit: 'pcs', who: 'Store — to give a karigar', since: p ? p.day : '', ref: '' }); }
+    const toIssue = p1ToIssue(s, q);
+    if (toIssue > 0) { const p = lastOf('CUT', o, k); out.push({ stage: 'Raw cutting in store', sku: k, orderNo: o, pcs: toIssue, unit: 'pcs', who: 'Store — to give a karigar', since: p ? p.day : '', ref: '' }); }
     let qcw = 0; try { qcw = flowQcWaiting(r, s) + flowQcLine(r).altOpen + flowQcLine(r).deptOpen; } catch (e) { qcw = 0; }
     if (qcw > 0) { const p = lastOf('REC', o, k); out.push({ stage: 'QC', sku: k, orderNo: o, pcs: qcw, unit: 'pcs', who: 'Quality Control', since: p ? p.day : '', ref: 'to check / alteration' }); }
     const fw = p1FgWaits(x);

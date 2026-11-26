@@ -117,15 +117,16 @@ function tgPlan(brands, pick, mk) {
 }
 
 async function ensureTarget() {
-  $('tgMsg').textContent = 'Loading…';
-  await ensureReplData();
-  if (!PROD_LOADED) await loadProd();            // status overrides decide which SKUs are stopped
-  await loadRevTgt();
-  if (!FC_PLAN.length) FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+  const read = await ptLoadingWhile('tgMsg', async () => {
+    await ensureReplData();
+    if (!PROD_LOADED) await loadProd();            // status overrides decide which SKUs are stopped
+    await loadRevTgt();
+    if (!FC_PLAN.length) FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+  });
+  if (!read) return;
   const sel = $('tgMonth'), cur = sel.value;
   sel.innerHTML = FC_PLAN.map(p => `<option value="${p.key}">${esc(p.label)}</option>`).join('');
   if (cur && FC_PLAN.some(p => p.key === cur)) sel.value = cur;
-  $('tgMsg').textContent = '';
   renderTarget();
 }
 

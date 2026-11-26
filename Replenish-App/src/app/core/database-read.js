@@ -1,4 +1,22 @@
 
+/* NO STEP WAITS FOR EVER (fix 9 of the PPC flow test, 26 Nov; switch lineHold: PPC stayed on "Reading…" until a page reload).
+ * The read itself already gives up after 45 seconds; the two steps before it had no limit — the sign-in token and starting the
+ * live copy. Each is now given PT_STEP_MS. A step that runs out of time rejects with an error marked ptLate. */
+const PT_STEP_MS = 20000;
+const ptStepLimitOn = () => typeof lineHoldOn === 'function' && lineHoldOn();
+function ptWithin(step, ms) {
+  let timer;
+  const late = new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(
+    new Error(`No answer for ${ms / 1000} seconds. Check the internet, then try again.`), { ptLate: true })), ms); });
+  return Promise.race([step, late]).finally(() => clearTimeout(timer));
+}
+/** Asked only with the step limit on: false when the live copy has not started in time, and the register is then read the
+ *  ordinary way, as when the live copy is not available. Kept here, outside the live-copies block, which stays as it was. */
+async function ptLiveStarted() {
+  try { await ptWithin(ptLiveDb(), PT_STEP_MS); return true; }
+  catch (e) { if (!e.ptLate) throw e; console.warn('[live copy] did not start, reading the ordinary way:', e.message); return false; }
+}
+
 /* A failed read and an empty node look identical if the error is swallowed, and only one of them is
  * something anyone can act on. So: a real timeout, one retry, and the reason kept and shown. */
 async function ptGet(node, raw) {
@@ -10,7 +28,7 @@ async function ptGet(node, raw) {
     if (rt) node = rt.path;
   }
   if (ptLiveable(node)) {
-    try { const v = await ptLiveRead(node); if (v !== PT_LIVE_NO) { try { if (typeof dmCount === 'function') dmCount(node, 0, 'from-copy'); } catch (e2) { console.warn('[data meter]', e2); } return v; } } catch (e) { /* the plain read below */ }
+    try { const v = typeof ptStepLimitOn === 'function' && ptStepLimitOn() && !(await ptLiveStarted()) ? PT_LIVE_NO : await ptLiveRead(node); if (v !== PT_LIVE_NO) { try { if (typeof dmCount === 'function') dmCount(node, 0, 'from-copy'); } catch (e2) { console.warn('[data meter]', e2); } return v; } } catch (e) { /* the plain read below */ }
   }
   /* The token goes on the READ as well as the write. Where the data sits now, nothing is readable
    * without one — the rules are "signed in, and not a vendor", and a vendor is refused at the root
@@ -140,7 +158,28 @@ async function ptRefreshButton(btn, work) {
  *  happening. */
 const PT_LOADING_ART = '/loading-print.svg';
 function ptLoadingArt(words) {
-  return `<div class="ptLoading"><img src="${PT_LOADING_ART}" alt="" width="105" height="107"><span>${words}</span></div>`;
+  return `<div class="ptLoading"><img src="${PT_LOADING_ART}" alt="" width="90" height="92"><span>${words}</span></div>`;
+}
+
+/** A screen whose own message line says it is loading (Shopify Stock, India Stock …) shows the block printing there
+ *  too (Ravi, 26 Nov 2026: "its loading but our loading button is not visible"). */
+function ptLoadingLine(msgId) { $(msgId).innerHTML = ptLoadingArt('Loading…'); }
+
+/** Loads a report screen behind its loading line. A read that fails must not leave the picture moving for good
+ *  (review of the loading picture, 26 Nov 2026): the line then says what could not be read and what to do, and the
+ *  screen is not drawn from half its data. Errors: shown on the screen, and the cause goes to the console.
+ *  Returns true when everything was read. */
+async function ptLoadingWhile(msgId, work) {
+  ptLoadingLine(msgId);
+  try {
+    await work();
+    $(msgId).textContent = '';
+    return true;
+  } catch (e) {
+    console.warn('[loading] ' + msgId + ':', e);
+    $(msgId).textContent = 'Could not read the data (' + ((e && e.message) || e) + '). Check the internet, then open this tab again.';
+    return false;
+  }
 }
 
 /** The cover shown while Refresh buttons work. A count, not an on/off: two screens refreshing at once must not

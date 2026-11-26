@@ -2275,7 +2275,8 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .p1-stages .st.on span{color:#D6E1EE}
 #p1Home .p1-read{margin-left:auto;align-self:center;font-size:12px;color:var(--faint)}
 #p1Home .p1-read a{color:var(--brand-ink);font-weight:600;cursor:pointer}
-#p1Home .p1-list{padding:0;overflow:hidden}
+/* The table slides sideways inside its box on a narrow screen or phone — the status columns were cut off (fix 9, 26 Nov) */
+#p1Home .p1-list{padding:0;overflow-x:auto}
 #p1Home table.p1t{width:100%;border-collapse:collapse;font-size:13.5px}
 #p1Home table.p1t > thead > tr > th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:14px 16px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:2}
 #p1Home table.p1t > tbody > tr.p1r > td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:middle;text-transform:none;letter-spacing:normal}
