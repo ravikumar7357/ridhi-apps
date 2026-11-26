@@ -272,7 +272,7 @@ function replForecast(r, plan) {
     const oh = Math.max(0, carry) + inc;             // a shortage does not carry a negative forward
     // A manual Proj wins over the calculated one — and because Excess and every later month are
     // carried from it, one override re-flows the whole rest of the forecast for that SKU.
-    const ovr = projOvrOf(r.sku, p.key);
+    const ovr = FC_HAND ? projOvrOf(r.sku, p.key) : null;   // "hand-typed hidden" (25 Nov): the typed number is not used
     const sea = ads ? fcSeasonOf(r, p, i, sBase) : null, flat = Math.round(ads * p.days);
     const own = sea ? Math.round(ads * p.days * sea.f) : flat;
     /* A NEW SKU (replenishment/colour-trend.js nlAutoOf): what the same article + size + colour family sold in this month last

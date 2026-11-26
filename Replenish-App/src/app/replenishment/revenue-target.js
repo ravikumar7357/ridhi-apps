@@ -408,7 +408,7 @@ function renderRepl() {
   FC_PLAN = buildFcPlan([...new Set(brands.flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
   // Drop the forecast cache only when something it actually depends on changed: the horizon, a manual
   // projection, or the snapshot itself (row count + its timestamp identify a refresh).
-  const fcSig = fcMonths() + '|' + PROJ_VER + '|' + (FC_SEASON ? 's' : 'f') + (typeof NL_TPL !== 'undefined' && NL_TPL ? 't' : '') + '|' + brands.map(b =>
+  const fcSig = fcMonths() + '|' + PROJ_VER + '|' + (FC_SEASON ? 's' : 'f') + (FC_HAND ? 'h' : 'n') + (typeof NL_TPL !== 'undefined' && NL_TPL ? 't' : '') + '|' + brands.map(b =>
     b + ':' + ((REPL[b].rows || []).length) + ':' + (REPL[b].at ? REPL[b].at.getTime() : 0) + ':' + (REPL[b].mode || 'full')).join(',');
   if (fcSig !== FC_CACHE_SIG) { FC_CACHE = new Map(); FC_CACHE_SIG = fcSig; }
   // Must come AFTER FC_PLAN — its month need-by timestamps are derived from it.

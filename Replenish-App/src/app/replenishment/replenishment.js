@@ -398,12 +398,17 @@ loadLead();
 // Forecast horizon — remembered per browser so it survives a reload.
 try { const h = localStorage.getItem('repl_horizon'); if (h) $('rHorizon').value = h; } catch (e) {}
 // Season on the Proj columns (22 Nov) — remembered per browser. Declared HERE: this file runs before core/multi-select-filter.js.
-var FC_SEASON = true;
-try { FC_SEASON = localStorage.getItem('repl_season') !== '0'; } catch (e) { /* default on */ }
-$('rSeason').value = FC_SEASON ? '1' : '0';
+/* WHICH PROJECTION TO LOOK AT (Ravi, 25 Nov: "hath se dale hue projection me 1 option de do — jo hath se add kiya h usko dekhna chahta hu ya nahi, ya only
+ * season ke according, ya flat"). One select, four views: '1' typed by hand else season (as before), '0' typed by hand else flat, 's' season only, 'f' flat
+ * only. FC_HAND off = the typed numbers are NOT used (they stay saved, nothing is deleted); every screen that reads the forecast follows. */
+var FC_SEASON = true, FC_HAND = true;
+const fcViewSet = v => { FC_SEASON = v !== '0' && v !== 'f'; FC_HAND = v !== 's' && v !== 'f'; };
+const fcViewOf = () => (FC_HAND ? (FC_SEASON ? '1' : '0') : (FC_SEASON ? 's' : 'f'));
+try { fcViewSet(localStorage.getItem('repl_season') || '1'); } catch (e) { /* default: typed by hand, else season */ }
+$('rSeason').value = fcViewOf();
 $('rSeason').addEventListener('change', () => {
-  FC_SEASON = $('rSeason').value !== '0';
-  try { localStorage.setItem('repl_season', FC_SEASON ? '1' : '0'); } catch (e) {}
+  fcViewSet($('rSeason').value);
+  try { localStorage.setItem('repl_season', fcViewOf()); } catch (e) {}
   renderRepl();
 });
 $('rHorizon').addEventListener('change', () => {
@@ -459,6 +464,8 @@ async function saveProjOvr(inp) {
 $('rTable').addEventListener('click', e => {
   const cell = e.target.closest('.projcell'); if (!cell) return;
   if (!ME.projEdit) { rMsg('You do not have permission to change projections — ask an admin for “Edit projections”.', true); return; }
+  /* typed numbers are hidden in this view: one typed now would be saved and not shown */
+  if (!FC_HAND) { rMsg('Hand-typed projections are hidden in this view — pick “Proj: typed by hand…” to type one.', true); return; }
   const td = cell.closest('td'); if (!td || td.querySelector('.projin')) return;
   const key = String(cell.dataset.sku).trim().toUpperCase() + '|' + cell.dataset.mk;
   const cur = PROJ_OVR[key];

@@ -36,7 +36,6 @@ h1 { font: 800 28px/1.15 var(--f-display); margin: 0; letter-spacing: -0.01em; t
 .tile.hl { border-color: var(--y26); box-shadow: inset 0 3px 0 var(--y26); }
 /* The two top rows (2026-11-20): six big cards each, full width — sales, then advertising. */
 /* The channel toggle (Ravi, 2026-11-20): shows or hides whole sections. */
-[data-chan="shop"], [data-chan="all"],             /* Amazon only since 24 Nov 2026 */
 body[data-view="amz"] [data-chan="shop"], body[data-view="amz"] [data-chan="all"],
 body[data-view="shop"] [data-chan="amz"], body[data-view="shop"] [data-chan="all"] { display: none; }
 /* Framed sections: a coloured top edge, a faint wash of it and a solid name tag — Amazon orange and navy, Shopify green,
@@ -74,6 +73,13 @@ body:not([data-period="day"]) .dayonly { display: none !important; }
 .seg.period { margin-left: 0; }
 .pick { font: 700 13px var(--f-display); color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 999px; padding: 7px 12px; min-height: 36px; }
 .box.trend { --sec: #6366f1; --tag: #4F46E5; }
+/* By product: the report takes the page, as Events does. */
+.prodwrap, .msiwrap { display: none; }
+body[data-period="msi"] .msiwrap { display: flex; flex-direction: column; gap: 20px; }
+body[data-period="msi"] .box:not(.msi) { display: none !important; }
+body[data-period="products"] .prodwrap { display: block; }
+body[data-period="products"] .box { display: none !important; }
+body[data-period="products"] #chan, body[data-period="products"] .brand { display: none; }   /* the report has its own brand picker; Amazon only */
 /* Events: the channel sections step aside and the event cards take the page. */
 .events { display: none; }
 body[data-period="events"] .events { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -206,9 +212,12 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
     <!-- The period (Ravi, 2026-11-20: "day, week, month, quarterly and year"). Day = today by the hour, as before; the
          others = that period to date against the same period last year, from the nightly history plus today. -->
     <div class="seg period" id="period" role="group" aria-label="Which period to show">
-      <button type="button" data-p="day" aria-pressed="true">Today</button><button type="button" data-p="yesterday" aria-pressed="false">Yesterday</button><button type="button" data-p="week" aria-pressed="false">Week</button><button type="button" data-p="month" aria-pressed="false">Month</button><button type="button" data-p="quarter" aria-pressed="false">Quarter</button><button type="button" data-p="year" aria-pressed="false">Year</button><button type="button" data-p="events" aria-pressed="false">Events</button>
+      <button type="button" data-p="day" aria-pressed="true">Today</button><button type="button" data-p="yesterday" aria-pressed="false">Yesterday</button><button type="button" data-p="week" aria-pressed="false">Week</button><button type="button" data-p="month" aria-pressed="false">Month</button><button type="button" data-p="quarter" aria-pressed="false">Quarter</button><button type="button" data-p="year" aria-pressed="false">Year</button><button type="button" data-p="events" aria-pressed="false">Events</button><button type="button" data-p="products" aria-pressed="false">By product</button><button type="button" data-p="msi" aria-pressed="false" title="Everything else Amazon gives: traffic, conversion, Buy Box, inventory, inventory age, search, bought together">MSI</button>
     </div>
     <select id="pick" class="pick" hidden aria-label="Which month or quarter"></select>
+    <div class="seg" id="chan" role="group" aria-label="Which channel to show">
+      <button type="button" data-v="both" aria-pressed="true">Amazon + Shopify</button><button type="button" data-v="amz" aria-pressed="false">Amazon</button><button type="button" data-v="shop" aria-pressed="false">Shopify</button>
+    </div>
     <label class="brand" for="brand">Brand <select id="brand"><option value="ALL">Ridhi + CPC</option><option value="SP">Ridhi</option><option value="CPC">CPC</option></select></label>
     <div class="asof" id="asof">Loading…</div>
     <button type="button" class="refresh" id="refresh" title="Load the latest numbers">Refresh</button>
@@ -219,7 +228,13 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
   <!-- Events (Ravi, 2026-11-20): one card per Amazon shopping event — what it is, and how we did against last year's event
        and against our own normal days before it. From the nightly history plus today. -->
   <div class="events" id="events"></div>
-  <!-- By product and MSI were removed from this page on 25 Nov 2026 (Ravi: "remove this whole section"). -->
+  <!-- By product (Ravi, 2026-11-20): month by month per ASIN / SKU since Jan 2025 — products.js draws it (shared with Sellora). -->
+  <!-- The requested report (Ravi, 24 Nov 2026: Ridhi Jan–May 2025, CPC Jan 2025–Mar 2026, month on month, ASIN/SKU wise) —
+       on this page only: both brands' months and a "Download Excel" button (monthly-report.js), above the By product report. -->
+  <!-- MSI (Ravi, 24 Nov 2026): everything else Amazon gives, per brand — msi.js. -->
+  <div class="msiwrap" id="msiHost"></div>
+  <div class="prodwrap" id="reqHost"></div>
+  <div class="prodwrap" id="prodHost"></div>
   <!-- Three framed sections (Ravi, 2026-11-20: "Shopify in Shopify colours, Amazon in Amazon's … formal and simple"):
        the Overview of both channels, then Amazon (cards and charts), then Shopify. Shopify opened in January 2026, so its
        last year is $0 and is shown as such. -->
@@ -302,9 +317,12 @@ body.anim .chart .draw { stroke-dasharray: 1000; animation: drawl .9s ease-out b
     </section>
   </div>
 
-  <p class="foot">Source: Amazon Sales API (order metrics) per brand — every order placed on Amazon.com, including pending ones, by Pacific hour. Sales are what buyers were charged for the items. Sellora's backend reads Amazon every 10 minutes into Supabase; this page re-reads every 5.</p>
+  <p class="foot">Source: Amazon Sales API (order metrics) per brand — every order placed on Amazon.com, including pending ones, by Pacific hour. Sales are what buyers were charged for the items. Sellora's backend reads Amazon, Shopify and Meta every 10 minutes into Supabase; this page re-reads every 5. Meta spend is in US dollars at the day's ECB rate.</p>
 </div>
 <div class="tip" id="tip" hidden></div>
+<script src="products.js?v=3"></script>
+<script src="monthly-report.js?v=1"></script>
+<script src="msi.js?v=3"></script>
 <script src="live-data.js?v=2"></script>
 
 <script>
@@ -682,6 +700,48 @@ function renderEvents(tot, lySame, lyDay) {
   $('pnote').innerHTML = `<b>Amazon shopping events ${Y}</b> · ${amzOn && shopOn ? 'Amazon + Shopify' : amzOn ? 'Amazon' : 'Shopify'}${key === 'ALL' ? ', Ridhi + CPC' : ', ' + BRANDS[key]}`
     + ` · today to ${ptHM(DATA.asOf)} PT · history to ${H.through ? dname(H.through, false) : '—'} · lift = sales a day during the event ÷ the 14 days before it`;
 }
+/* By product (Ravi, 2026-11-20): the "months" tab of the same published sheet (Pricing-API/SalesLive.gs liveMonthsPublish_;
+   its gid travels in the snapshot as monthsGid), read when the tab is opened and every 15 minutes after, and drawn by
+   products.js. Redrawn only when the data changed, so a search or scroll is not lost on the five-minute refresh. */
+let PROD_M = null, PROD_AT = 0, PROD_BUSY = false, PROD_DRAWN = '';
+/* The months tab, read once and then every 15 minutes — By product and MSI both draw from it (MSI's figures ride in it as .amz). */
+async function loadMonths(host) {
+  if (PROD_BUSY || (PROD_M && Date.now() - PROD_AT < 15 * 60 * 1000)) return;
+  PROD_BUSY = true; PROD_AT = Date.now();
+  if (!PROD_M) host.innerHTML = '<p class="pnote">Reading the report…</p>';
+  try {
+    const r = await fetch(CSV.replace(/gid=\d+/, 'gid=' + DATA.monthsGid) + '&t=' + Date.now(), { cache: 'no-store' });
+    const rows = (await r.text()).split(/\r?\n/).slice(1).filter(Boolean);
+    PROD_M = JSON.parse(rows.map(l => l.replace(/^"|"$/g, '').replace(/""/g, '"').replace(/^'/, '')).join(''));
+  } catch (e) { if (!PROD_M) host.innerHTML = '<p class="pnote">Could not read the report (' + e.message + ').</p>'; }
+  PROD_BUSY = false;
+}
+/* MSI (Ravi, 24 Nov 2026: "build the MSI section — everything Amazon gives — only in live.html"): msi.js draws it. */
+let MSI_DRAWN = '';
+async function renderMsi() {
+  $('pnote').innerHTML = '<b>MSI</b> · everything else Amazon gives: traffic & conversion (last 30 days against the same weekdays last year), inventory, inventory age, search (Brand Analytics) and products bought together';
+  if (!window.MSI) { $('msiHost').textContent = 'The MSI script did not load — refresh the page.'; return; }
+  if (!DATA.monthsGid) { $('msiHost').innerHTML = '<p class="pnote">MSI arrives with the next backend update.</p>'; return; }
+  await loadMonths($('msiHost'));
+  if (!PROD_M || PERIOD !== 'msi') return;
+  const key = $('brand').value, keys = key === 'ALL' ? ['SP', 'CPC'] : [key];
+  const stamp = ((PROD_M.amz || {}).at || '') + '|' + keys.join(',');
+  if (stamp === MSI_DRAWN && $('msiHost').firstElementChild) return;
+  MSI_DRAWN = stamp;
+  window.MSI.render($('msiHost'), PROD_M.amz, keys);
+}
+async function renderProducts() {
+  $('pnote').innerHTML = '<b>By product</b> · Amazon.com sales month by month per ASIN or SKU since January 2025 · pick the brand and months below';
+  if (!window.ProdReport) { $('prodHost').textContent = 'The report script did not load — refresh the page.'; return; }
+  if (!DATA.monthsGid) { $('prodHost').innerHTML = '<p class="pnote">The report arrives with the next backend update.</p>'; return; }
+  await loadMonths($('prodHost'));
+  if (!PROD_M || PERIOD !== 'products') return;
+  const stamp = PROD_M.at + '|' + PROD_M.adsAt + '|' + JSON.stringify(PROD_M.building);
+  if (stamp === PROD_DRAWN && $('prodHost').firstElementChild) return;
+  PROD_DRAWN = stamp;
+  if (window.MonthlyReport) window.MonthlyReport.render($('reqHost'), PROD_M);
+  window.ProdReport.render($('prodHost'), PROD_M, {});
+}
 /* Motion (2026-11-20): body.anim for a moment after the first paint or a picker change, so cards rise and bars grow then —
    not on every five-minute refresh. And a figure that moved since the last refresh glows once, so the eye finds it. */
 let ANIM_T = 0, SEEN = null;
@@ -734,6 +794,8 @@ function renderPeriod(tot, lySame, lyDay) {
   document.body.dataset.period = PERIOD;
   if (PERIOD === 'day' || !DATA) return;
   if (PERIOD === 'events') { renderEvents(tot, lySame, lyDay); return; }
+  if (PERIOD === 'products') { renderProducts(); return; }
+  if (PERIOD === 'msi') { renderMsi(); return; }
   const H = DATA.hist, key = $('brand').value, amzK = key === 'ALL' ? ['SP', 'CPC'] : [key];
   if (!H || !H.d) { $('pnote').textContent = 'The period figures arrive with the next backend update.'; ['pAll', 'pAmz', 'pShop'].forEach(id => { $(id).innerHTML = ''; }); return; }
   const sh = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
@@ -784,7 +846,7 @@ function renderPeriod(tot, lySame, lyDay) {
   $('pnote').innerHTML = `<b>${PR.label}</b> · ${range(start, end)} against ${range(lyOf(start), lyOf(end))}${PR.sameWeekday ? ' (same weekdays)' : ''}`
     + (live ? ` · today to ${ptHM(DATA.asOf)} PT, last year to the same time` : ' · whole days') + ` · history to ${H.through ? dname(H.through, false) : '—'}`
     + (first && lyOf(start) < first ? ` · <b>last year is only partly in the history</b> (it starts ${dname(first, true)})` : '')
-    + (document.body.dataset.view !== 'amz' && amzK.includes('CPC') && H.shopCpcFrom && H.shopCpcFrom > start ? ` · CPC Shopify history from ${dname(H.shopCpcFrom, false)} (still filling in)` : '');
+    + (amzK.includes('CPC') && H.shopCpcFrom && H.shopCpcFrom > start ? ` · CPC Shopify history from ${dname(H.shopCpcFrom, false)} (still filling in)` : '');
   const aov = r => (r.orders ? '$' + (r.sales / r.orders).toFixed(2) : '—');
   const vsZero = (a, b) => (b > 0 ? change(a, b) : ['+' + usd(a), a > 0 ? 'up' : '']);
   const adNote = adFrom && adFrom > start ? ` · ads from ${dname(adFrom, false)}` : '';
@@ -961,12 +1023,15 @@ function render() {
 }
 
 try { const s = localStorage.getItem('live-brand'); if (s) $('brand').value = s; } catch (e) { /* no storage */ }
+// The channel toggle: only shows or hides sections, so switching is instant. Remembered per browser.
 addEventListener('scroll', () => document.body.classList.toggle('scrolled', scrollY > 8), { passive: true });
-/* Amazon only (Ravi, 24 Nov 2026: "remove Shopify"): the channel toggle is gone and the page stays on the Amazon view, so the
-   Total (Amazon + Shopify) and Shopify sections are hidden and the periods, Trend and Events count Amazon alone. The Shopify
-   code is left in place, unused, so it can come back by setting the view to 'both'. */
-function setChan(v) { animate(); document.body.dataset.view = v; if (DATA) render(); }
-setChan('amz');
+function setChan(v) {
+  animate(); document.body.dataset.view = v;
+  if (DATA) render();                                // the event cards and the trend follow the channel picker
+  $('chan').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+}
+$('chan').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { setChan(b.dataset.v); try { localStorage.setItem('live-chan', b.dataset.v); } catch (e) { /* no storage */ } }));
+try { const c = localStorage.getItem('live-chan'); setChan(['both', 'amz', 'shop'].includes(c) ? c : 'both'); } catch (e) { setChan('both'); }
 // The period picker: Day redraws the hour-by-hour view, the others their period to date. Remembered per browser.
 function setPeriod(p) {
   animate(); PERIOD = p; document.body.dataset.period = p;
@@ -974,7 +1039,7 @@ function setPeriod(p) {
   if (DATA) render();
 }
 $('period').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { setPeriod(b.dataset.p); try { localStorage.setItem('live-period', b.dataset.p); } catch (e) { /* no storage */ } }));
-try { const p = localStorage.getItem('live-period'); setPeriod(['day', 'yesterday', 'week', 'month', 'quarter', 'year', 'events'].includes(p) ? p : 'day');
+try { const p = localStorage.getItem('live-period'); setPeriod(['day', 'yesterday', 'week', 'month', 'quarter', 'year', 'events', 'products', 'msi'].includes(p) ? p : 'day');
 $('pick').addEventListener('change', e => { PICK[PERIOD] = e.target.value; animate(); render(); }); } catch (e) { setPeriod('day'); }
 // The trend switch: day by day or week by week. Remembered per browser.
 function setTrend(t) {
