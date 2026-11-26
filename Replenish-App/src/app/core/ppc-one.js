@@ -156,6 +156,18 @@ function p1RfdLeft(x) {
   if (o.unit === 'pcs') return Math.max(0, Math.round(+o.left || 0));
   return o.need > 0 ? Math.max(0, Math.min(q, Math.round(q * (+o.left || 0) / o.need))) : 0;
 }
+/** PASSED QC, WAITING FOR FINISHED GOODS — on every line, not only a finished one (Ravi, 26 Nov, after the test run: 9 of a
+ *  50-piece line passed QC; the PPC line showed nothing of them and its history card called them "Not started", while the
+ *  Finished Goods screen listed the same 9 to accept. Real lot Oct 1215-JW said "Nothing waiting" with 38 pieces waiting there).
+ *  A line whose pieces are all made counts as it always did. A line still being made now counts what the Finished Goods
+ *  screen itself lists for it (flowFgWaiting, flow-qcfg.js), so the two screens answer alike — and that rule answers 0 for a
+ *  made-to-order line, which is handed to shipping, never accepted here. The page always has flow-qcfg.js; only a test that
+ *  loads this file on its own goes without it, and then finished lines alone count, as before. */
+function p1FgWaits(x) {
+  const s = x.s;
+  if (s.bucket === 'fgin') return Math.max(0, (s.made || 0) - (s.india || 0));
+  return typeof flowFgWaiting === 'function' ? flowFgWaiting(x) : 0;
+}
 /** Every piece in production right now: { stage, sku, orderNo, pcs, unit, who, since, ref }. */
 let P1_WIPC = { key: null, out: [] }, P1_INVC = { key: null, out: [] };
 /** What both lists are worked out from: when none of it changes, neither does the answer. */
@@ -181,7 +193,8 @@ function p1WipBuild() {
     if (s.canIssue > 0 && ['raw', 'cut', 'wip', 'qcb'].includes(s.bucket)) { const p = lastOf('CUT', o, k); out.push({ stage: 'Raw cutting in store', sku: k, orderNo: o, pcs: s.canIssue, unit: 'pcs', who: 'Store — to give a karigar', since: p ? p.day : '', ref: '' }); }
     let qcw = 0; try { qcw = flowQcWaiting(r, s) + flowQcLine(r).altOpen + flowQcLine(r).deptOpen; } catch (e) { qcw = 0; }
     if (qcw > 0) { const p = lastOf('REC', o, k); out.push({ stage: 'QC', sku: k, orderNo: o, pcs: qcw, unit: 'pcs', who: 'Quality Control', since: p ? p.day : '', ref: 'to check / alteration' }); }
-    if (s.bucket === 'fgin') { const p = lastOf('QC', o, k); out.push({ stage: 'Finished Goods to accept', sku: k, orderNo: o, pcs: Math.max(0, s.made - s.india), unit: 'pcs', who: 'Finished Goods team', since: p ? p.day : '', ref: 'passed QC' }); }
+    const fw = p1FgWaits(x);
+    if (fw > 0) { const p = lastOf('QC', o, k); out.push({ stage: 'Finished Goods to accept', sku: k, orderNo: o, pcs: fw, unit: 'pcs', who: 'Finished Goods team', since: p ? p.day : '', ref: 'passed QC' }); }
     if (s.bucket === 'ship') { const p = lastOf('QC', o, k); out.push({ stage: 'To hand to shipping', sku: k, orderNo: o, pcs: q, unit: 'pcs', who: 'Shipping team', since: p ? p.day : '', ref: 'made, to hand over' }); }
   });
   /* with each karigar: Job Work issues of open lines not yet fully received */
@@ -209,7 +222,7 @@ const P1_ADD = [
   ['ISS', 'Give to karigar', 'pbase', x => typeof flowIssuable === 'function' && flowIssuable(x.r, x.s) > 0 && !['ppc', 'back', 'demand', 'vendor'].includes(x.s.bucket)],
   ['REC', 'Back from karigar', 'pbase', x => p1OpenIss(x.r).length > 0],
   ['QC', 'QC check', 'qc', x => { try { return flowQcWaiting(x.r, x.s) > 0; } catch (e) { return false; } }],
-  ['FG', 'Into Finished Goods', 'fgi', x => x.s.bucket === 'fgin'],
+  ['FG', 'Into Finished Goods', 'fgi', x => p1FgWaits(x) > 0],
   ['SHIP', 'Hand to shipping', 'ord', x => x.s.bucket === 'ship']];
 /** The Job Work issues still out with a karigar, per order line — indexed once (flowOpenIssues walks the whole register
  *  for every line, which on the real register made the page crawl). */
@@ -240,7 +253,7 @@ function p1Pcs(k, x) {
   if (k === 'REC') return p1OpenIss(x.r).reduce((t, b) => t + ptNum(b.issuePieces) - ptNum(b.receivedPieces) - ptNum(b.rejectionPieces), 0);
   if (k === 'QC') { try { return flowQcWaiting(x.r, x.s); } catch (e) { return 0; } }
   if (k === 'PRN') return Math.max(0, (+x.r.qty || 0) - x.s.back);
-  if (k === 'FG') return Math.max(0, x.s.made - x.s.india);
+  if (k === 'FG') return p1FgWaits(x);
   if (k === 'SHIP') return +x.r.qty || 0;
   return +x.r.qty || 0;
 }
@@ -335,7 +348,7 @@ function p1InvBuild() {
     if (s.canCut > 0 && ['cut', 'fabric', 'emb'].includes(s.bucket)) e.cut += s.canCut;
     if (typeof flowIssuable === 'function' && !['ppc', 'back', 'demand', 'vendor'].includes(s.bucket)) e.raw += flowIssuable(x.r, s);
     try { e.qc += flowQcWaiting(x.r, s) + flowQcLine(x.r).altOpen + flowQcLine(x.r).deptOpen; } catch (err) { /* QC not read */ }
-    if (s.bucket === 'fgin') e.ready += Math.max(0, s.made - s.india); else if (s.bucket === 'ship') e.ready += q;
+    if (s.bucket === 'ship') e.ready += q; else e.ready += p1FgWaits(x);
     by.set(gk, e);
   });
   (PT.base || []).forEach(b => { if (!b || b.frozen) return; const e = lineG.get(flowKey(b.orderNo, b.sku)); if (!e) return;
