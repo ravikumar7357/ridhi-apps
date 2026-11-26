@@ -96916,20 +96916,49 @@ function p1Wip() {
   const key = p1SrcKey(); if (p1Same(P1_WIPC.key, key)) return P1_WIPC.out;
   const res = p1WipBuild(); P1_WIPC = { key, out: res }; return res;
 }
+/** How many of a line's pieces are past the printer: the furthest of cut, given to karigars, made and in stock. */
+const p1MovedOn = s => Math.max(+s.cut || 0, +s.issuedNet || 0, +s.made || 0, +s.india || 0);
+/** The challan cloth Production shows at the printer — with them or on the way. Cloth counted in pieces is cut down to what the
+ *  order line has not already moved on (cut, given to karigars, made or in stock): those pieces show at their later step, not
+ *  twice (Ravi, 26 Nov). A line with nothing moved on keeps every piece on its challans, extra ones too; once pieces have
+ *  moved, no more than the rest of the order shows. What is on the way is taken off first. Metres stay: they do not say how many pieces they are. Ruffle
+ *  cloth is left off, standing cloth stays. The report counts the challan cloth itself and is not changed. */
+function p1StillAtPrinter(pw) {
+  const room = new Map();
+  flowRows().forEach(x => { const moved = p1MovedOn(x.s); if (moved > 0) room.set(x.s.key, Math.max(0, (+x.r.qty || 0) - moved)); });
+  const out = [];
+  /* with the printer first, so that what has to go comes off the cloth on the way */
+  pw.holds.concat(pw.onWay).forEach(h => {
+    if (h.ref.startsWith('ruffle')) return;
+    if (h.unit === 'm' || h.ref.startsWith('standing') || !room.has(h.key)) { out.push(h); return; }
+    const pcs = Math.min(h.pcs, room.get(h.key)); room.set(h.key, room.get(h.key) - pcs);
+    if (pcs > 0) out.push(Object.assign({}, h, { pcs }));
+  });
+  return out;
+}
+/** Pieces of a line waiting to be given to a karigar. A line whose cut pieces are on record shows them even while its printed
+ *  cloth is still to be received in the system (Ravi, 26 Nov: such lines read "Nothing waiting"), never more than are still
+ *  to make. */
+function p1ToIssue(s, qty) {
+  if (!(s.canIssue > 0)) return 0;
+  if (['raw', 'cut', 'wip', 'qcb'].includes(s.bucket)) return s.canIssue;
+  if (!s.cutReq || !['fabric', 'demand', 'vendor'].includes(s.bucket)) return 0;
+  return Math.max(0, Math.min(s.canIssue, qty - Math.max(+s.made || 0, +s.india || 0)));
+}
 function p1WipBuild() {
   const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done' && x.s.bucket !== 'board'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
   p1Events(); const lastOf = (k, o, s) => P1_EV.last.get(k + '|' + o + '|' + s) || null;
   /* at the printer: what the challans sent and we have not had back, on the order line it is for (p1PrinterWork, 25 Nov) — with
    * them still, or on the way to us (onWay, 26 Nov) */
-  const pw = p1PrinterWork('', '');
-  pw.holds.concat(pw.onWay).forEach(h => { if (!h.ref.startsWith('ruffle')) out.push(h); });
+  p1StillAtPrinter(p1PrinterWork('', '')).forEach(h => out.push(h));
   rows.forEach(x => { const s = x.s, r = x.r, q = +r.qty || 0, o = obUC(r.orderNo), k = obUC(r.sku);
     const rl = p1RfdLeft(x);
     if (rl > 0) { const p = lastOf('PLAN', o, k); out.push({ stage: 'RFD store', sku: k, orderNo: o, pcs: rl, unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'cloth to send' }); }
-    if (s.bucket === 'vendor') { const p = lastOf('PLAN', o, k); out.push({ stage: 'Printer', sku: k, orderNo: o, pcs: q, unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'print order to give' }); }
+    if (s.bucket === 'vendor') { const p = lastOf('PLAN', o, k); out.push({ stage: 'Printer', sku: k, orderNo: o, pcs: Math.max(0, q - p1MovedOn(s)), unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'print order to give' }); }
     if (s.bucket === 'emb') out.push({ stage: 'Embroidery', sku: k, orderNo: o, pcs: Math.max(0, q - (s.embOk || 0)), unit: 'pcs', who: s.embTo || (s.plan && s.plan.emb && s.plan.emb.name) || 'Embroidery', since: '', ref: '' });
     if (s.canCut > 0 && (s.bucket === 'cut' || s.bucket === 'fabric')) { const p = lastOf('PRN', o, k); out.push({ stage: 'Cutting', sku: k, orderNo: o, pcs: s.canCut, unit: 'pcs', who: 'Cutting department', since: p ? p.day : '', ref: 'to cut' }); }
-    if (s.canIssue > 0 && ['raw', 'cut', 'wip', 'qcb'].includes(s.bucket)) { const p = lastOf('CUT', o, k); out.push({ stage: 'Raw cutting in store', sku: k, orderNo: o, pcs: s.canIssue, unit: 'pcs', who: 'Store — to give a karigar', since: p ? p.day : '', ref: '' }); }
+    const toIssue = p1ToIssue(s, q);
+    if (toIssue > 0) { const p = lastOf('CUT', o, k); out.push({ stage: 'Raw cutting in store', sku: k, orderNo: o, pcs: toIssue, unit: 'pcs', who: 'Store — to give a karigar', since: p ? p.day : '', ref: '' }); }
     let qcw = 0; try { qcw = flowQcWaiting(r, s) + flowQcLine(r).altOpen + flowQcLine(r).deptOpen; } catch (e) { qcw = 0; }
     if (qcw > 0) { const p = lastOf('REC', o, k); out.push({ stage: 'QC', sku: k, orderNo: o, pcs: qcw, unit: 'pcs', who: 'Quality Control', since: p ? p.day : '', ref: 'to check / alteration' }); }
     const fw = p1FgWaits(x);

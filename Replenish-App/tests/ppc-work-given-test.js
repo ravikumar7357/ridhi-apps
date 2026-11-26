@@ -33,7 +33,7 @@ function load(o) {
     document: { querySelector: () => null, querySelectorAll: () => [], addEventListener() {} }, $: () => null, ME: { admin: true, tabs: [] },
     ptIsoDate: v => String(v || '').slice(0, 10), ptDtMs: v => Date.parse(v) || 0, ptNum: v => +v || 0,
     FLOW: { ppc: {}, res: {}, ch: o.ch || {} }, FLOW_ROUTES: [], flowRouteOf: () => 'inhouse', FLOW_RUF: '~ruffle',
-    PTG: { ob: [] }, PT: { cut: o.cut || [], base: o.base || [] }, flowRows: () => (o.onList || []).map(s => ({ s, r: { orderNo: 'x', sku: 'x' } })), ordLines: () => o.lines || [],
+    PTG: { ob: [] }, PT: { cut: o.cut || [], base: o.base || [] }, flowRows: () => (o.onList || []).map(s => ({ s, r: { orderNo: (s.key || 'x__x').split('__')[0], sku: (s.key || 'x__x').split('__')[1], qty: s.qty } })), flowQcWaiting: () => 0, flowQcLine: () => ({ altOpen: 0, deptOpen: 0 }), ordLines: () => o.lines || [],
     flowState: r => { if (o.stateFails) throw new Error('no registers'); return (o.states || {})[flowKey(r.orderNo, r.sku)]; },
     /* the challan helpers, as flow-receive.js has them */
     flowChUnit: l => (l && l.print && l.print.kind === 'sku' ? 'pcs' : 'm'),
@@ -260,6 +260,39 @@ ok('…its cell reads 6 m, "6 m sent, to receive"', />6 m<\/b>/.test(cell) && /<
 ok('cloth only with the printer carries no mark', !/to receive/.test(way([order({})]).t.p1StageCell({ w: 0, m: 6 }, way([order({})]).t.p1HoldDays(way([order({})]).wip).prn, 'prn')));
 ok('cloth finished on the vendor order (not booked) is not on the way', way([order({}, { status: 'Received' })]).wip.length === 0);
 ok('ruffle cloth on the way is left off the Production page, as ruffle cloth is', way([order({ parts: [KA + '|ruffle'], deliveries: [] , sent: 8 })], { ruffleOnly: true }).wip.length === 0);
+
+/* ---- Production: moved-on pieces are not counted at the printer too; cut pieces show though the cloth is not booked (Ravi, 26 Nov) ---- */
+const lineAt = o => Object.assign({ key: KA, qty: 16, bucket: 'fabric', cut: 0, issuedNet: 0, made: 0, india: 0, canCut: 0, canIssue: 0, cutReq: true }, o);
+const page = (state, x) => {
+  x = x || {};
+  const challan = { no: 'RFD-1', date: '2026-10-22', vendor: { code: 'RBP', name: 'RBP-Bagru' }, lines: [Object.assign({ key: KA, sku: 'RPC-A' }, x.line || { print: { kind: 'sku' }, pcs: 16, metres: 8 })] };
+  const t = load({ ch: { 'RFD-1': challan }, vo: x.vo || [], onList: [state], standing: x.standing });
+  const wip = t.p1Wip(), sumOf = f => wip.filter(f).reduce((a, w) => a + w.pcs, 0);
+  return { t, prn: sumOf(w => w.stage === 'Printer'), onWay: sumOf(w => w.stage === 'Printer' && w.onWay), iss: sumOf(w => w.stage === 'Raw cutting in store') };
+};
+ok('nothing moved on: all 16 pieces at the printer', page(lineAt({})).prn === 16);
+ok('3 given to karigars: 13 at the printer, not 16', page(lineAt({ issuedNet: 3 })).prn === 13);
+ok('…cut, made and stock count the same way (the furthest of them)', page(lineAt({ cut: 5 })).prn === 11 && page(lineAt({ made: 6, cut: 5 })).prn === 10 && page(lineAt({ india: 7, made: 6 })).prn === 9);
+ok('all moved on: none at the printer', page(lineAt({ issuedNet: 16 })).prn === 0);
+const extra = { line: { print: { kind: 'sku' }, pcs: 18, metres: 9 } };
+ok('18 sent for 16 ordered, nothing moved on: all 18 at the printer', page(lineAt({}), extra).prn === 18);
+ok('…once 3 have moved on, no more than the 13 left of the order', page(lineAt({ issuedNet: 3 }), extra).prn === 13);
+/* 10 ordered, 5 cut before PPC planned it, no print order given yet */
+const notGiven = page(lineAt({ bucket: 'vendor', qty: 10, cut: 5, canIssue: 5 }), { line: { ruffleOnly: true, metres: 1 } });
+ok('print order not given, 5 of 10 already cut: 5 waiting for the print order and 5 to issue, not 15', notGiven.prn === 5 && notGiven.iss === 5, JSON.stringify([notGiven.prn, notGiven.iss]));
+const part = page(lineAt({ issuedNet: 10 }), { vo: [order({ qty: 16, sent: 12 }, { orderType: 'cut' })] });
+ok('what is on the way goes first: 4 with the printer, 12 on the way, 10 moved on leaves 4 with them and 2 on the way', part.prn === 6 && part.onWay === 2, JSON.stringify([part.prn, part.onWay]));
+ok('cloth in metres stays (it does not say how many pieces)', page(lineAt({ issuedNet: 3 }), { line: { metres: 80 } }).prn === 80);
+ok('the report still counts all 16 pieces of challan cloth', page(lineAt({ issuedNet: 3 })).t.p1Report().rows.find(p => p.name === 'RBP-Bagru').out.pcs === 16);
+const st2 = page(lineAt({ issuedNet: 16 }), { standing: [{ code: 'RBP', printer: 'RBP-Bagru', qty: 7, unit: 'pcs', key: KA, no: 'RFD-0', orderNo: 'SHP-1', sku: 'RPC-A', at: '2026-10-05' }] });
+ok('standing cloth stays with the printer', st2.prn === 7, String(st2.prn));
+const cutLine = o => lineAt(Object.assign({ qty: 10, cut: 10, canIssue: 10 }, o));
+['fabric', 'demand', 'vendor'].forEach(bucket => ok('10 cut, cloth not booked (line at "' + bucket + '"): 10 to issue', page(cutLine({ bucket })).iss === 10, String(page(cutLine({ bucket })).iss)));
+ok('…never more than are still to make (8 of 10 made: 2)', page(cutLine({ made: 8 })).iss === 2);
+ok('…all made: nothing to issue', page(cutLine({ made: 10 })).iss === 0);
+ok('a line that needs no cutting is left as it was while its cloth is awaited', page(cutLine({ cutReq: false })).iss === 0);
+ok('a line not planned yet shows nothing to issue', page(cutLine({ bucket: 'ppc' })).iss === 0);
+ok('a line already in the store shows its figure as before', page(cutLine({ bucket: 'raw', canIssue: 4, made: 9 })).iss === 4);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
