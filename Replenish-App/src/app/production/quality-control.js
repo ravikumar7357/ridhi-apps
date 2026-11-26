@@ -342,6 +342,12 @@ async function qcSaveReturn() {
   if (!r) return qcRetMsg('Pick what is coming back.', true);
   const by = String($('qcrBy').value || '').trim();
   if (!by) return qcRetMsg('Say who received them.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): part pieces were taken as they were typed. Whole pieces only. */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('qcrPcs').value, 'Pieces back', 'pcs') || ptNumErr($('qcrOk').value, 'Mended', 'pcs', true)
+      || ptNumErr($('qcrRej').value, 'Still wrong', 'pcs', true);
+    if (numErr) return qcRetMsg(numErr, true);
+  }
   const got = ptNum($('qcrPcs').value), ok = ptNum($('qcrOk').value), bad = ptNum($('qcrRej').value);
   if (!(got > 0)) return qcRetMsg('How many pieces came back?', true);
   const pend = qcPendingOf(r);
@@ -538,6 +544,12 @@ $('qcwSave').onclick = async () => {
   if (!sku) return qcCheckMsg('Choose the item, or type the SKU being inspected.', true);
   if (any && !cutSkuOf(sku)) return qcCheckMsg(`${sku} is not in the master database.`, true);
   if (!by) return qcCheckMsg('Select who performed the check.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): 2.5 pieces was saved as 2. Checked is above 0; alteration and rejected may be 0. */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('qcwChecked').value, 'Pieces checked', 'pcs') || ptNumErr($('qcwAlt').value, 'For alteration', 'pcs', true)
+      || ptNumErr($('qcwRej').value, 'Rejected', 'pcs', true);
+    if (numErr) return qcCheckMsg(numErr, true);
+  }
   if (!isFinite(checked) || checked <= 0) return qcCheckMsg('Enter how many pieces were checked.', true);
   if (alt < 0 || rej < 0) return qcCheckMsg('For alteration and rejected cannot be negative.', true);
   if (alt + rej > checked) return qcCheckMsg(`For alteration + rejected (${alt + rej}) is more than the ${checked} checked.`, true);

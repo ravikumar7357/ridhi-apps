@@ -163,6 +163,9 @@ async function gpoSave(v) {
   if (!ptCanEdit()) return PT_NO_EDIT;
   const plan = gpoPlan(v);
   if (plan.err) return plan.err;
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): the boxes already take digits only; a big line is asked about (above 3,000 m). */
+  const big = lineHoldOn() ? plan.po.lines.map(l => ptNumBig(l.metres, l.greige, 'm')).find(Boolean) : '';
+  if (big && !confirm(big)) return 'Not saved — change the metres, then save the PO.';
   const prev = (GPO.rows || []).find(r => r.id === plan.po.id);
   if (prev && prev.status === 'cancelled') return 'That PO was cancelled.';
   try {

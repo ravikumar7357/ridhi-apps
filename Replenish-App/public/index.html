@@ -7391,6 +7391,29 @@ function csvDownload(name, cols, rows) {
 const colIdx = (head, names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
 const cellAt = (row, i) => (i >= 0 && row[i] != null ? String(row[i]).trim() : '');
 
+
+/* ONE NUMBER RULE (Ravi, 26 Nov 2026, fix 6 of the PPC flow test: the plan form took -5 metres a piece and planned -250 m, and
+ * each form checked its numbers its own way, or not at all). Every typed pieces, metres or rupees box asks here, so every form
+ * refuses the same things in the same words. Pieces are whole and above 0; metres above 0; rupees 0 or more. zeroOk lets a box
+ * take 0 (or blank) where 0 is a real answer: 0 rejected, a rate of 0. Returns '' when the number is fine, else what to fix. */
+const PT_NUM_BIG = { pcs: 1500, m: 3000 };   // Ravi, 26 Nov: above these the form asks "is that right?" before saving
+function ptNumErr(raw, label, kind, zeroOk) {
+  const t = String(raw == null ? '' : raw).trim();
+  if (!t) return zeroOk ? '' : `${label}: type a number.`;
+  const n = Number(t);
+  if (!Number.isFinite(n)) return `${label}: "${t}" is not a number.`;
+  if (n < 0) return `${label} cannot be below 0 — you typed ${t}.`;
+  if (kind === 'pcs' && !Number.isInteger(n)) return `${label} must be whole pieces — you typed ${t}.`;
+  if (n === 0 && !zeroOk && kind !== 'rs') return `${label} must be more than 0.`;
+  return '';
+}
+/** The "is that right?" question for a big figure, or '' when it is not big. Rupees are never asked about. */
+function ptNumBig(n, label, kind) {
+  const cap = PT_NUM_BIG[kind];
+  if (!cap || !(Number(n) > cap)) return '';
+  const u = kind === 'pcs' ? 'pcs' : 'm';
+  return `${label}: ${Number(n).toLocaleString('en-IN')} ${u} is more than ${cap.toLocaleString('en-IN')} ${u}. Is that right?`;
+}
 /* ============================== FILE: src/app/core/form-memory.js ============================== */
 /* ==== FORM MEMORY: MY PREVIOUS ENTRY IN GREY ====
  *
@@ -20244,6 +20267,13 @@ $('cwSave').onclick = async () => {
   if (!m) return cutFormMsg(sku ? `SKU ${sku} is not in the master database.`
     : ($('cwSkuNote').textContent ? 'That item fits more than one SKU — type the SKU.' : 'Pick the article, subtype, colour and size — or type the SKU.'), true);
   if (!pcs || pcs < 1) return cutFormMsg('Enter how many pieces were cut.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): 2.5 pieces was saved as 2 and a minus metre reading was dropped without a
+   * word. Both are now refused, so what is saved is what was typed. */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('cwPcs').value, 'Pieces cut', 'pcs')
+      || [['cwUsed', 'Fabric used'], ['cwWaste', 'Fabric waste'], ['cwWasteW', 'Waste width']].map(([id, label]) => $(id) ? ptNumErr($(id).value, label, 'm', true) : '').find(Boolean);
+    if (numErr) return cutFormMsg(numErr, true);
+  }
   if (!fabric) return cutFormMsg('Pick the fabric.', true);
   /* From the master and nowhere else — a spelling the master does not have is a new fabric nobody
    * has agreed exists. */
@@ -21113,6 +21143,14 @@ $('bwSave').onclick = async () => {
   if (!sz) return bdFormMsg(custom ? 'Type the size.' : 'Select the size.', true);
   if (!sku) return bdFormMsg('No SKU — pick the item, or type the SKU directly.', true);
   if (!pcs || pcs < 1) return bdFormMsg('Enter how many pieces are being issued.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): 2.5 pieces was issued as 2. A Custom order issue has no order to cap it,
+   * so a big count is asked about (above 1,500 pcs). */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('bwPcs').value, 'Pieces issued', 'pcs');
+    if (numErr) return bdFormMsg(numErr, true);
+    const big = custom ? ptNumBig(pcs, 'Pieces issued', 'pcs') : '';
+    if (big && !confirm(big)) return bdFormMsg('Not saved — change the pieces, then issue.', true);
+  }
   if (!date) return bdFormMsg('Enter the issue date.', true);
   /* A PRINTER'S PIECES ARE ALWAYS ISSUED AGAINST AN ORDER (2026-10-03, Ravi: "order number base banao") — even on a path
    * that otherwise lets an order be left out — so the store by order number can account for every one of them. */
@@ -21978,6 +22016,12 @@ function jwCorrPlan(r, change) {
   const rej = has('rejectionPieces') ? parseInt(c.rejectionPieces, 10) : ptNum(r.rejectionPieces);
   const sku = has('sku') ? obUC(c.sku) : obUC(r.sku || '');
   if (!name) return { err: 'Enter the karigar\'s name.' };
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): a changed figure is whole pieces, never cut down to a whole number. */
+  if (lineHoldOn()) {
+    const numErr = [['issuePieces', 'Issued pieces', false], ['receivedPieces', 'Received pieces', true], ['rejectionPieces', 'Rejected pieces', true]]
+      .map(([k, label, zeroOk]) => has(k) ? ptNumErr(c[k], label, 'pcs', zeroOk) : '').find(Boolean);
+    if (numErr) return { err: numErr };
+  }
   if (!isFinite(issued) || issued < 1) return { err: 'Issued pieces must be at least 1.' };
   if (!isFinite(recv) || recv < 0) return { err: 'Received pieces cannot be negative.' };
   if (!isFinite(rej) || rej < 0) return { err: 'Rejected pieces cannot be negative.' };
@@ -22189,6 +22233,12 @@ $('bdmSave').onclick = async () => {
 
   if (!name) return bdModalMsg('Enter the employee name.', true);
   if (!type) return bdModalMsg('Select the employment type.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): 2.5 pieces was saved as 2. Issued is above 0; received and rejected may be 0. */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('bdmIssue').value, 'Issue pieces', 'pcs') || ptNumErr($('bdmRecv').value, 'Received pieces', 'pcs', true)
+      || ptNumErr($('bdmRej').value, 'Rejection pieces', 'pcs', true);
+    if (numErr) return bdModalMsg(numErr, true);
+  }
   if (!isFinite(issued) || issued < 1) return bdModalMsg('Issue pieces must be at least 1.', true);
   if (!isFinite(recv) || recv < 0) return bdModalMsg('Received pieces cannot be negative.', true);
   if (!isFinite(rej) || rej < 0) return bdModalMsg('Rejection pieces cannot be negative.', true);
@@ -23366,6 +23416,12 @@ async function qcSaveReturn() {
   if (!r) return qcRetMsg('Pick what is coming back.', true);
   const by = String($('qcrBy').value || '').trim();
   if (!by) return qcRetMsg('Say who received them.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): part pieces were taken as they were typed. Whole pieces only. */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('qcrPcs').value, 'Pieces back', 'pcs') || ptNumErr($('qcrOk').value, 'Mended', 'pcs', true)
+      || ptNumErr($('qcrRej').value, 'Still wrong', 'pcs', true);
+    if (numErr) return qcRetMsg(numErr, true);
+  }
   const got = ptNum($('qcrPcs').value), ok = ptNum($('qcrOk').value), bad = ptNum($('qcrRej').value);
   if (!(got > 0)) return qcRetMsg('How many pieces came back?', true);
   const pend = qcPendingOf(r);
@@ -23562,6 +23618,12 @@ $('qcwSave').onclick = async () => {
   if (!sku) return qcCheckMsg('Choose the item, or type the SKU being inspected.', true);
   if (any && !cutSkuOf(sku)) return qcCheckMsg(`${sku} is not in the master database.`, true);
   if (!by) return qcCheckMsg('Select who performed the check.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): 2.5 pieces was saved as 2. Checked is above 0; alteration and rejected may be 0. */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('qcwChecked').value, 'Pieces checked', 'pcs') || ptNumErr($('qcwAlt').value, 'For alteration', 'pcs', true)
+      || ptNumErr($('qcwRej').value, 'Rejected', 'pcs', true);
+    if (numErr) return qcCheckMsg(numErr, true);
+  }
   if (!isFinite(checked) || checked <= 0) return qcCheckMsg('Enter how many pieces were checked.', true);
   if (alt < 0 || rej < 0) return qcCheckMsg('For alteration and rejected cannot be negative.', true);
   if (alt + rej > checked) return qcCheckMsg(`For alteration + rejected (${alt + rej}) is more than the ${checked} checked.`, true);
@@ -33715,6 +33777,10 @@ const FLOW_PPC_CSS = `<style>
 .fpc-step-ar{color:var(--muted,#94a3b8)}
 </style>`;
 
+/** A plan line that raises no cloth: outsourced, straight to Job Work, or cloth already in hand. Its metres a piece may stay 0 and
+ *  its fabric is never a big figure (fix 6, 26 Nov: a Job Work line with 0 m a piece was refused). */
+const flowPpcNoCloth = p => ['outsource', 'jobwork'].includes(flowRouteOf(p)) || flowInHand(p);
+
 /* THE ORDER, COMBINED (Ravi, 11 Oct: "jitna store me pahle order me consume hone ke bad bacha fabric is order me use karne ke
  * bad jo printing se required rahega uska demand dono SKU ke order ka combine karke, jahan jahan demand generate ho"). Under
  * the lines of one PO: what goes to each printer once the store has given what it can, one row per printed fabric / SKU
@@ -33971,6 +34037,17 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const pick = i => { const el = document.querySelector(`[data-fpick="${i}"]`); return !el || !!el.checked; };
       if (rows.length > 1 && !rows.some((x, i) => pick(i))) return 'Tick at least one line to raise — or press Save as draft.';
       if (editing && $('flpUndo') && $('flpUndo').checked) { const er = await flowUnplan(rows[0].s); if (er) return er; flowPpcDraftDrop(rows.map(x => x.s.key)); renderFlow(); return ''; }
+      /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): a ticked line's metres a piece and accessory figures are checked
+       * before anything is kept — the test raised -5 m a piece, -250 m in all. A line that raises no cloth may keep 0 (flowPpcNoCloth). */
+      if (lineHoldOn()) {
+        const box = (i, k) => document.querySelector(`[data-fp="${i}"][data-k="${k}"]`) || {};
+        const numErr = [...document.querySelectorAll('[data-fp][type="number"]')].filter(inp => pick(+inp.dataset.fp) && !inp.disabled).map(inp => {
+          const i = +inp.dataset.fp, fab = inp.dataset.k === 'fabric.perPc';
+          const noCloth = flowPpcNoCloth({ route: box(i, 'route').value, fabric: { noRfd: !!box(i, 'fabric.noRfd').checked } });
+          return ptNumErr(inp.value, `${rows[i].r.sku} · ${fab ? 'Metres / piece' : 'accessory quantity'}`, 'm', !fab || noCloth);
+        }).find(Boolean);
+        if (numErr) return numErr;
+      }
       /* A box's value into the plan; a part the plan has lost (a refused save can leave printer null) is made again. */
       const set = (o, path, v) => { const ks = path.split('.'); let t = o; ks.slice(0, -1).forEach(k => { const kk = /^\d+$/.test(k) ? +k : k; if (t[kk] == null) t[kk] = {}; t = t[kk]; }); t[ks[ks.length - 1]] = v; };
       document.querySelectorAll('[data-fp]').forEach(inp => {
@@ -34012,6 +34089,9 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       /* READY DATE REQUIRED (28 Oct): the PPC report measures a line's delay against it — a plan without one could never be late. */
       const noReady = plans.filter((p, i) => pick(i) && !String((p.dates || {}).ready || '').trim()).map(p => p.sku);
       if (noReady.length) return `When is it ready? Pick the Ready date for ${noReady.join(', ')}.`;
+      /* A big figure is asked about, not refused (Ravi, 26 Nov: above 3,000 m). Switch lineHold. */
+      if (lineHoldOn()) { const big = plans.map((p, i) => pick(i) && !flowPpcNoCloth(p) ? ptNumBig(flowR2((+p.fabric.perPc || 0) * (+p.qty || 0)), p.sku + ' · fabric', 'm') : '').find(Boolean);
+        if (big && !confirm(big)) return 'Not raised — change the metres a piece, then raise the plan.'; }
       plans.forEach((p, i) => {
         if (!pick(i)) return;   // left in PPC for now
         p.fabric.metres = flowR2(p.fabric.perPc * p.qty); delete p.fabric.was;
@@ -50617,6 +50697,9 @@ async function gpoSave(v) {
   if (!ptCanEdit()) return PT_NO_EDIT;
   const plan = gpoPlan(v);
   if (plan.err) return plan.err;
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): the boxes already take digits only; a big line is asked about (above 3,000 m). */
+  const big = lineHoldOn() ? plan.po.lines.map(l => ptNumBig(l.metres, l.greige, 'm')).find(Boolean) : '';
+  if (big && !confirm(big)) return 'Not saved — change the metres, then save the PO.';
   const prev = (GPO.rows || []).find(r => r.id === plan.po.id);
   if (prev && prev.status === 'cancelled') return 'That PO was cancelled.';
   try {
