@@ -37,13 +37,16 @@ async function suite(S, loud) {
   {
     const btn = { id: 'qcGo', textContent: 'Refresh', disabled: false };
     const warns = [];
-    const { ptRefreshButton } = fn(['ptRefreshButton'], { console: { warn: (...a) => warns.push(a) } }, S.dbr);
+    const body = { on: false, classList: { toggle: (c, on) => { body.on = on; } } };
+    const { ptRefreshButton } = fn(['ptRefreshButton', 'ptBusy'], { console: { warn: (...a) => warns.push(a) }, document: { body }, ptBusyCount: 0 }, S.dbr);
     let during = null;
-    await ptRefreshButton(btn, async () => { during = { t: btn.textContent, d: btn.disabled }; });
+    await ptRefreshButton(btn, async () => { during = { t: btn.textContent, d: btn.disabled, cover: body.on }; });
     ok('the button says "Refreshing…" and is off while it works', during && during.t === 'Refreshing…' && during.d === true);
+    ok('the block-printing cover shows while it works (26 Nov)', during && during.cover === true);
     ok('…and comes back as it was', btn.textContent === 'Refresh' && btn.disabled === false);
     await ptRefreshButton(btn, async () => { throw new Error('read failed'); });
     ok('a failure brings the button back too (never stuck)', btn.textContent === 'Refresh' && btn.disabled === false);
+    ok('…and lifts the cover, even after a failure', body.on === false);
     ok('…and the failure goes to the console with the button named', warns.length === 1 && String(warns[0][0]).includes('qcGo'));
   }
 
@@ -180,7 +183,8 @@ async function suite(S, loud) {
     ['QC loads only when the checks are missing', 'qc', 'QC.checks === null || QC.issue === null || QC.ret === null ||', 'QC.checks === null ||'],
     ['QC Refresh forgets Job Work', 'qc', "try { await ptReadReg('base'); } catch (e) { console.warn('[quality-control] Job Work not read again:', e); }", ''],
     ['Order Console Refresh forgets vendor orders', 'be', 'VO.rows = null; SOX.rows = null; ODR.rows = null;', 'SOX.rows = null; ODR.rows = null;'],
-    ['the button is not brought back', 'dbr', "finally { btn.disabled = false; btn.textContent = label; }", 'finally { }'],
+    ['the button is not brought back', 'dbr', "finally { btn.disabled = false; btn.textContent = label; ptBusy(-1); }", 'finally { }'],
+    ['the cover is never shown', 'dbr', '  ptBusy(+1);\n', ''],
     ['the staff list stops the Order Console again', 'oc', "ptLoadEmpOrSkip('ord')", 'ptLoadEmp()'],
     ['Job Work blanks before reading', 'fc', "async function pbRefresh() {\n  try", "async function pbRefresh() {\n  renderPbase();\n  try"],
     ['Finished Goods forgets the press list', 'fg', "ptReadReg('press')", 'Promise.resolve()'],

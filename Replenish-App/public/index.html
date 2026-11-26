@@ -1109,6 +1109,12 @@
   #gateWait{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
     background:var(--bg);z-index:80;color:var(--muted);font-size:13px;letter-spacing:.02em}
   body.gating #gateWait{display:flex}
+  /* The block-printing loading picture (26 Nov 2026): on a browser refresh, in a table still reading, and over the
+   * screen while a Refresh button works. The cover takes no clicks: the button under it is already off. */
+  .ptLoading{display:flex;flex-direction:column;align-items:center;gap:6px;margin:6px auto;color:var(--muted);font-size:13px;text-align:center}
+  .ptLoading img{display:block;max-width:100%;height:auto}
+  #ptBusyCover{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.55);z-index:70;pointer-events:none}
+  body.ptBusy #ptBusyCover{display:flex}
   .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
   .modalbox{background:var(--card);border-radius:14px;padding:20px;width:min(680px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
   .tbl{width:100%;border-collapse:collapse;font-size:13px}
@@ -2905,7 +2911,9 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
 <div id="appView" class="shell hide">
   <!-- Shown only while the perms read is in flight. Every account sees this, briefly; nobody sees a
        sidebar full of sections they do not have. -->
-  <div id="gateWait">Checking your access…</div>
+  <div id="gateWait"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="154" height="157"><span>Checking your access…</span></div></div>
+  <!-- Over the screen while a Refresh button works (ptBusy, 26 Nov 2026). -->
+  <div id="ptBusyCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="126" height="129"><span>Refreshing…</span></div></div>
   <aside class="side">
     <div class="brand">
       <span class="brandname r1-brand"><img src="/r-one-wordmark.png" alt="R-one"></span>
@@ -15685,13 +15693,36 @@ async function ptLoad(which, node, after) {
 async function ptRefreshButton(btn, work) {
   const label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Refreshing…';
+  ptBusy(+1);
   try { await work(); }
   catch (e) { console.warn('[refresh] ' + (btn.id || 'button') + ':', e); }
-  finally { btn.disabled = false; btn.textContent = label; }
+  finally { btn.disabled = false; btn.textContent = label; ptBusy(-1); }
 }
 
+/** THE BLOCK-PRINTING LOADING PICTURE (Ravi, 26 Nov 2026: "whenever the data is loading when refreshed"). A wooden
+ *  block printing a five-colour flower shows on a browser refresh (#gateWait), in a table that is still reading, and
+ *  over the screen while a Refresh button works. The picture is public/loading-print.svg (made by
+ *  tools/loading-print/make.js); it is only a picture, so if it cannot load, the words beside it still say what is
+ *  happening. */
+const PT_LOADING_ART = '/loading-print.svg';
+function ptLoadingArt(words) {
+  return `<div class="ptLoading"><img src="${PT_LOADING_ART}" alt="" width="105" height="107"><span>${words}</span></div>`;
+}
+
+/** The cover shown while Refresh buttons work. A count, not an on/off: two screens refreshing at once must not
+ *  lift the cover when the first one finishes. */
+let ptBusyCount = 0;
+function ptBusy(change) {
+  ptBusyCount = Math.max(0, ptBusyCount + change);
+  document.body.classList.toggle('ptBusy', ptBusyCount > 0);
+}
+
+/** A message ending in "…" ("Loading…", "Reading…") means the table is still reading, so it shows the block
+ *  printing; any other message ("Nothing to show.") stays plain words. */
 function ptEmpty(tableId, msg) {
-  $(tableId).innerHTML = `<tbody><tr><td class="muted" style="padding:14px;text-align:left">${msg}</td></tr></tbody>`;
+  const words = String(msg);
+  const cell = words.endsWith('…') ? ptLoadingArt(words) : words;
+  $(tableId).innerHTML = `<tbody><tr><td class="muted" style="padding:14px;text-align:left">${cell}</td></tr></tbody>`;
 }
 
 /* ============================== FILE: src/app/core/job-work-split.js ============================== */
