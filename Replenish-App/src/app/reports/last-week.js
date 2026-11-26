@@ -44,16 +44,19 @@ function repLastFullWeek() { return repWkShift(repWkIso(repWeekStart(Date.now())
  * receivingDate as before — ms 0 when that is not there yet (part-received, undated). If a correction lowered
  * receivedPieces below what the receipts add up to, the latest receipts are trimmed to fit.
  */
-function repRecvParts(r) {
+function repRecvParts(r) { return repRecvDated(r).map(({ ms, pcs }) => ({ ms, pcs })); }
+/** The same parts, each with its date as the row has it (at, '' when undated) — for the PPC report, which lists them
+ *  (Ravi, 26 Nov: its karigar Back must be the register's Received, dated as the Reports date it). */
+function repRecvDated(r) {
   const got = ptNum(r && r.receivedPieces);
   if (!(got > 0)) return [];
   const list = (Array.isArray(r.receipts) ? r.receipts : Object.values(r.receipts || {}))
-    .map(x => ({ ms: x && x.at ? ptDtMs(x.at) : 0, pcs: ptNum(x && x.qty) })).filter(x => x.ms && x.pcs > 0)
+    .map(x => ({ ms: x && x.at ? ptDtMs(x.at) : 0, pcs: ptNum(x && x.qty), at: x && x.at })).filter(x => x.ms && x.pcs > 0)
     .sort((a, b) => a.ms - b.ms);
   const out = [];
   let left = got;
-  for (const x of list) { if (left <= 0) break; const p = Math.min(x.pcs, left); out.push({ ms: x.ms, pcs: p }); left -= p; }
-  if (left > 0) out.push({ ms: r.receivingDate ? ptDtMs(r.receivingDate) : 0, pcs: left });
+  for (const x of list) { if (left <= 0) break; const p = Math.min(x.pcs, left); out.push({ ms: x.ms, pcs: p, at: x.at }); left -= p; }
+  if (left > 0) out.push({ ms: r.receivingDate ? ptDtMs(r.receivingDate) : 0, pcs: left, at: r.receivingDate || '' });
   return out;
 }
 
