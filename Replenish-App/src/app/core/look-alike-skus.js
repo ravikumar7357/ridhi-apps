@@ -407,13 +407,30 @@ $('cwOrd').addEventListener('change', renderCutForm);
  * before it presses Save, and cleared again; the cutting form itself offers only the Fabric Type master. */
 const CUT_OTHER_CLOTH = { rejected: 'Rejected tablecloth', waste: 'Wastage fabric' };
 let CUT_FROM = '', CUT_OWN_OK = '';   // CUT_OWN_OK: the SKU's own fabric (from its master row / PPC plan) when the Fabric Type master does not list it
-/* ONE ENTRY PER FILLED FORM (26 Nov, switch lineHold): Save pressed again for the same figures writes under the same id, so
- * a save that reached the database but was reported as failed is not entered twice. A saved form starts afresh. */
-let CUT_DRAFT = { sig: '', id: '' };
+/* ONE ENTRY PER SET OF FIGURES (26 Nov, switch lineHold): Save pressed again for the same figures writes under the same id,
+ * so a save that reached the database but was reported as failed is not entered twice. Each unsaved set is remembered (an
+ * Excel upload from the order screens saves many lines in a row) until it is saved; after that the same figures are new.
+ * A set is remembered for 10 minutes only: a retry, or a re-run of an upload, comes within minutes, while the same figures
+ * later in the day are a real second cut and must not be taken for the first. */
+const CUT_DRAFT_LIFE_MS = 10 * 60 * 1000;
+const CUT_DRAFTS = new Map();   // the figures → { id: the id they are written under, at: when that id was given }
 function cutEntryId(fields) {
-  const sig = JSON.stringify(Object.assign({}, fields, { addedAt: '' }));
-  if (!lineHoldOn() || CUT_DRAFT.sig !== sig) CUT_DRAFT = { sig, id: 'cut_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) };
-  return CUT_DRAFT.id;
+  const sig = JSON.stringify(Object.assign({}, fields, { addedAt: '' })), now = Date.now();
+  CUT_DRAFTS.forEach((d, k) => { if (now - d.at > CUT_DRAFT_LIFE_MS) CUT_DRAFTS.delete(k); });
+  if (!lineHoldOn() || !CUT_DRAFTS.has(sig)) CUT_DRAFTS.set(sig, { id: 'cut_' + now + '_' + Math.random().toString(36).slice(2, 8), at: now });
+  return CUT_DRAFTS.get(sig).id;
+}
+
+/** Writes one new cutting entry, for the cutting form and the order screens alike: '' when saved, else the sentence to
+ *  show. A database write that fails throws. */
+async function cutWrite(entry) {
+  if (lineHoldOn()) {
+    const why = await cutSaveHeld(entry);
+    if (why) return why;
+  } else await ptPut('pt_cuttingData/' + entry.id, entry);
+  CUT_DRAFTS.forEach((d, sig) => { if (d.id === entry.id) CUT_DRAFTS.delete(sig); });
+  PT.cut = (PT.cut || []).filter(r => r.id !== entry.id).concat(Object.assign({ _key: entry.id }, entry));
+  return '';
 }
 
 /** The cutting entry, saved while this screen holds the order line: the register is read again and the ordered quantity
@@ -430,7 +447,7 @@ function cutSaveHeld(entry) {
       return 'Nothing was saved — the cuts already on this order could not be checked (' + (e.message || e) + '). Check the connection and press Save again.';
     }
     if (PT.cut.some(r => r && r.id === entry.id)) return '';   // an earlier press of Save reached the database
-    const full = cutGuard(entry.orderNo, entry.sku, entry.pieces);
+    const full = cutGuard(entry.orderNo, entry.sku, entry.pieces, undefined, !!entry.extraReason);
     if (full) { renderPcut(); return 'Not saved — ' + full; }
     await ptPut('pt_cuttingData/' + entry.id, entry);
     return '';
@@ -486,12 +503,8 @@ $('cwSave').onclick = async () => {
   $('cwSave').disabled = true;
   cutFormMsg('Saving…');
   try {
-    if (lineHoldOn()) {
-      const why = await cutSaveHeld(entry);
-      if (why) { cutFormMsg(why, true); $('cwSave').disabled = false; return; }
-    } else await ptPut('pt_cuttingData/' + entry.id, entry);
-    CUT_DRAFT = { sig: '', id: '' };
-    PT.cut = (PT.cut || []).filter(r => r.id !== entry.id).concat(Object.assign({ _key: entry.id }, entry));
+    const why = await cutWrite(entry);
+    if (why) { cutFormMsg(why, true); $('cwSave').disabled = false; return; }
     renderPcut();
     ['cwSku', 'cwPcs', 'cwFabric', 'cwRemarks', 'cwAt', 'cwSub', 'cwCol', 'cwSz', 'cwUsed', 'cwWaste', 'cwWasteW'].forEach(id => { $(id).value = ''; });
     $('cwSku').dataset.typed = '';
