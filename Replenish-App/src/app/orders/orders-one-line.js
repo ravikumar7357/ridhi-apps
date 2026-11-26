@@ -269,12 +269,38 @@ function demBasketAdd(key, code, dir) {
   ORD.demBasket = ORD.demBasket || {};
   Object.keys(ORD.demBasket).forEach(c => { ORD.demBasket[c] = (ORD.demBasket[c] || []).filter(x => x.key !== key); });
   (ORD.demBasket[code] = ORD.demBasket[code] || []).push({ key, fabric: r.fabric, colour: r.colour, dir, m,
-    need: Math.round(r.need || 0), atM: Math.round(r.atM || 0),
+    need: Math.round(r.need || 0), atM: Math.round(r.atM || 0), atAll: demAtPrinters(key),
     /* The sizes it is for travel with the line, so the printer and the office both read "for Queen Quilt 90x96". */
     forWhat: (r.products || []).filter(p => !p.asPcs && p.pcs > 0).map(p => [p.what, p.size].filter(Boolean).join(' ') + ' (' + p.pcs + ')').join(', ') });
   ORD.demSaid = `${nf(m)} m of ${r.fabric} · ${r.colour} · ${dir} added to the order for ${voName(code)} — Place order on the bar above when it has everything.`;
   renderOrd();
   return '';
+}
+
+/* PLACE ORDER, CHECKED AGAIN (Ravi, 26 Nov: two people ordered the same cloth for one shortage). Behind the switch lineHold.
+ * The basket keeps what was already with printers when each line was added. Just before the order is placed the printer orders
+ * are read again; if more of a colour has been ordered since, the person is asked whether they still want this order. Asked,
+ * not refused: a second order can be meant. The basket skips the vendor order form's own "already ordered" question on purpose
+ * (one colour can need two running orders), so this is the check it has. Fails loudly: if the printer orders cannot be read,
+ * nothing is placed. */
+/** Metres of this colour (and direction) owed by printers on every open order — the whole figure, whatever the screen's filters.
+ *  null when the printer orders are not read (the line then cannot be checked again at Place order). */
+function demAtPrinters(key) {
+  const at = ordDemandAtPrintersCol();
+  return at ? Math.round((at.col.get(key) || { runM: 0 }).runM) : null;
+}
+/** '' when no line's colour gained printer orders since it was added, null when they could not be read, else the question. */
+async function demStillShort(ls) {
+  VO.rows = null;
+  await ensureVo();
+  ORD_DEM.voOk = !VO.err;   // a failed read shows At printers as unknown on Demand, never as nothing owed
+  if (!ls.some(x => x.atAll != null)) return '';   // no line was added with the printer orders read: nothing to check against
+  if (!ORD_DEM.voOk || !ordDemandAtPrintersCol()) { console.warn('[line hold] could not read the printer orders before placing the basket:', VO.err); return null; }
+  const more = ls.filter(x => x.atAll != null).map(x => ({ x, more: demAtPrinters(x.key) - x.atAll })).filter(e => e.more >= 1);
+  if (!more.length) return '';
+  return 'Since this order was put together, more of this cloth has been ordered from printers:\n'
+    + more.map(e => `${e.x.fabric} · ${e.x.colour} · ${e.x.dir}: ${nf(e.more)} m more (this order adds ${nf(e.x.m)} m)`).join('\n')
+    + '\n\nPlace this order anyway?';
 }
 
 /**
@@ -301,6 +327,11 @@ function demBasketPlace(code) {
     onSave: async v => {
       if (!v.deliv) return 'Put in the delivery date.';
       if (!/^P[1-4]$/.test(v.pri || '')) return 'Pick the priority.';
+      if (lineHoldOn()) {
+        const q = await demStillShort(ls);
+        if (q === null) return 'Not placed — the printer orders could not be read just now. Check the connection and press again.';
+        if (q && !confirm(q)) return 'Not placed. The lines are still in the basket.';
+      }
       if (VO.rows === null) await ensureVo();
       const lo = x => String(x || '').trim().toLowerCase();
       const cat = [...voFabricCatalogue().values()];
