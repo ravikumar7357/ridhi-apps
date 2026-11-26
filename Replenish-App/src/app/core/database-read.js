@@ -147,6 +147,23 @@ function ptLoadingArt(words) {
  *  too (Ravi, 26 Nov 2026: "its loading but our loading button is not visible"). */
 function ptLoadingLine(msgId) { $(msgId).innerHTML = ptLoadingArt('Loading…'); }
 
+/** Loads a report screen behind its loading line. A read that fails must not leave the picture moving for good
+ *  (review of the loading picture, 26 Nov 2026): the line then says what could not be read and what to do, and the
+ *  screen is not drawn from half its data. Errors: shown on the screen, and the cause goes to the console.
+ *  Returns true when everything was read. */
+async function ptLoadingWhile(msgId, work) {
+  ptLoadingLine(msgId);
+  try {
+    await work();
+    $(msgId).textContent = '';
+    return true;
+  } catch (e) {
+    console.warn('[loading] ' + msgId + ':', e);
+    $(msgId).textContent = 'Could not read the data (' + ((e && e.message) || e) + '). Check the internet, then open this tab again.';
+    return false;
+  }
+}
+
 /** The cover shown while Refresh buttons work. A count, not an on/off: two screens refreshing at once must not
  *  lift the cover when the first one finishes. */
 let ptBusyCount = 0;

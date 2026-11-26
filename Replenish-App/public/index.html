@@ -9489,15 +9489,16 @@ function tgPlan(brands, pick, mk) {
 }
 
 async function ensureTarget() {
-  ptLoadingLine('tgMsg');
-  await ensureReplData();
-  if (!PROD_LOADED) await loadProd();            // status overrides decide which SKUs are stopped
-  await loadRevTgt();
-  if (!FC_PLAN.length) FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+  const read = await ptLoadingWhile('tgMsg', async () => {
+    await ensureReplData();
+    if (!PROD_LOADED) await loadProd();            // status overrides decide which SKUs are stopped
+    await loadRevTgt();
+    if (!FC_PLAN.length) FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+  });
+  if (!read) return;
   const sel = $('tgMonth'), cur = sel.value;
   sel.innerHTML = FC_PLAN.map(p => `<option value="${p.key}">${esc(p.label)}</option>`).join('');
   if (cur && FC_PLAN.some(p => p.key === cur)) sel.value = cur;
-  $('tgMsg').textContent = '';
   renderTarget();
 }
 
@@ -10569,7 +10570,7 @@ function updateFollowBadge() {
 }
 
 async function ensureFollow() {
-  if (!PO_LOADED) { ptLoadingLine('fuMsg'); await loadPo(); PO_LOADED = true; $('fuMsg').textContent = ''; }
+  if (!PO_LOADED) { if (!await ptLoadingWhile('fuMsg', loadPo)) return; PO_LOADED = true; }
   await ensureReplData();   // FBA stock column needs the Replenishment snapshot
   buildFbaMap(); CATALOG_SET = catalogSet();
   renderFollow(); updateFollowBadge();
@@ -10887,7 +10888,7 @@ async function fetchProd() {
 const prodLatest = sku => { const log = PROD[String(sku).toUpperCase()] || []; return log.length ? log[0] : null; };
 const isDisc = sku => !!DISC[String(sku).trim().toUpperCase()];
 async function ensureTop() {
-  if (!PROD_LOADED) { ptLoadingLine('topMsg'); await loadProd(); $('topMsg').textContent = ''; }
+  if (!PROD_LOADED && !await ptLoadingWhile('topMsg', loadProd)) return;
   if (!INDIA_LOADED) await loadIndiaStock();
   renderTop();
 }
@@ -11439,16 +11440,17 @@ $('shCsv').onclick = () => {
 // column across every tab — the old pillow-tracker read was removed.
 const IN_COLS = ['SKU', 'India Stock'];
 async function ensureIndia() {
-  ptLoadingLine('inMsg');
   // The projection needs the same three things the In Production tab needs: the status overrides
   // (which SKUs are stopped), what is being made, and the forecast horizon. Read together — none waits on another.
-  await Promise.all([ensureReplData(), loadIndiaStock(), loadInProdOnce()]);
-  if (!PROD_LOADED) await loadProd();
-  if (!FC_PLAN.length) {
-    FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
-    FC_CACHE = new Map();
-  }
-  $('inMsg').textContent = '';
+  const read = await ptLoadingWhile('inMsg', async () => {
+    await Promise.all([ensureReplData(), loadIndiaStock(), loadInProdOnce()]);
+    if (!PROD_LOADED) await loadProd();
+    if (!FC_PLAN.length) {
+      FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+      FC_CACHE = new Map();
+    }
+  });
+  if (!read) return;
   // The list render also fills the Sub-Category / Colour dropdowns, so it runs either way.
   renderIndia();
   if (IN_MODE === 'proj') renderIndiaProj();
@@ -11801,18 +11803,18 @@ function loadInProdOnce() {
 /* ALL AT ONCE: the snapshot, the POs, India stock and what is being made need nothing from each other. Only the
  * FBA map, the catalogue and the forecast plan need the snapshot, and they are worked out after it is in. */
 async function ensureProd() {
-  ptLoadingLine('pdMsg');
-  await Promise.all([
-    ensureReplData(),
-    PO_LOADED ? null : loadPo().then(() => { PO_LOADED = true; }),
-    loadIndiaStock(),
-    loadInProdOnce(),
-  ]);
-  buildFbaMap(); CATALOG_SET = catalogSet();
-  if (!PROD_LOADED) await loadProd();          // status overrides decide which SKUs are stopped (read with the snapshot)
-  if (!FC_PLAN.length) { FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]); FC_CACHE = new Map(); }
-  $('pdMsg').textContent = '';
-  renderProd();
+  const read = await ptLoadingWhile('pdMsg', async () => {
+    await Promise.all([
+      ensureReplData(),
+      PO_LOADED ? null : loadPo().then(() => { PO_LOADED = true; }),
+      loadIndiaStock(),
+      loadInProdOnce(),
+    ]);
+    buildFbaMap(); CATALOG_SET = catalogSet();
+    if (!PROD_LOADED) await loadProd();          // status overrides decide which SKUs are stopped (read with the snapshot)
+    if (!FC_PLAN.length) { FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]); FC_CACHE = new Map(); }
+  });
+  if (read) renderProd();
 }
 // Units of a SKU currently being made, plus its dates/supplier. A SKU can appear on several uploaded
 // rows (two factories, two batches) — quantities add up, the window spans earliest start → latest ready.
@@ -15717,6 +15719,23 @@ function ptLoadingArt(words) {
 /** A screen whose own message line says it is loading (Shopify Stock, India Stock …) shows the block printing there
  *  too (Ravi, 26 Nov 2026: "its loading but our loading button is not visible"). */
 function ptLoadingLine(msgId) { $(msgId).innerHTML = ptLoadingArt('Loading…'); }
+
+/** Loads a report screen behind its loading line. A read that fails must not leave the picture moving for good
+ *  (review of the loading picture, 26 Nov 2026): the line then says what could not be read and what to do, and the
+ *  screen is not drawn from half its data. Errors: shown on the screen, and the cause goes to the console.
+ *  Returns true when everything was read. */
+async function ptLoadingWhile(msgId, work) {
+  ptLoadingLine(msgId);
+  try {
+    await work();
+    $(msgId).textContent = '';
+    return true;
+  } catch (e) {
+    console.warn('[loading] ' + msgId + ':', e);
+    $(msgId).textContent = 'Could not read the data (' + ((e && e.message) || e) + '). Check the internet, then open this tab again.';
+    return false;
+  }
+}
 
 /** The cover shown while Refresh buttons work. A count, not an on/off: two screens refreshing at once must not
  *  lift the cover when the first one finishes. */

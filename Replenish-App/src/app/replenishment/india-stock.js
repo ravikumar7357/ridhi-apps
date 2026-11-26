@@ -3,16 +3,17 @@
 // column across every tab — the old pillow-tracker read was removed.
 const IN_COLS = ['SKU', 'India Stock'];
 async function ensureIndia() {
-  ptLoadingLine('inMsg');
   // The projection needs the same three things the In Production tab needs: the status overrides
   // (which SKUs are stopped), what is being made, and the forecast horizon. Read together — none waits on another.
-  await Promise.all([ensureReplData(), loadIndiaStock(), loadInProdOnce()]);
-  if (!PROD_LOADED) await loadProd();
-  if (!FC_PLAN.length) {
-    FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
-    FC_CACHE = new Map();
-  }
-  $('inMsg').textContent = '';
+  const read = await ptLoadingWhile('inMsg', async () => {
+    await Promise.all([ensureReplData(), loadIndiaStock(), loadInProdOnce()]);
+    if (!PROD_LOADED) await loadProd();
+    if (!FC_PLAN.length) {
+      FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]);
+      FC_CACHE = new Map();
+    }
+  });
+  if (!read) return;
   // The list render also fills the Sub-Category / Colour dropdowns, so it runs either way.
   renderIndia();
   if (IN_MODE === 'proj') renderIndiaProj();

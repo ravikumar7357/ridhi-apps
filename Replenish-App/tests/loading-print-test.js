@@ -15,12 +15,13 @@ const ORIGINAL = {
 };
 
 const cut = (src, name) => {
-  const i = src.indexOf('function ' + name + '(');
+  let i = src.indexOf('function ' + name + '(');
   if (i < 0) throw new Error(name + ' not found');
+  if (src.slice(i - 6, i) === 'async ') i -= 6;
   return src.slice(i, src.indexOf('\n}', i) + 2);
 };
 
-function suite(S, loud) {
+async function suite(S, loud) {
   const fails = [];
   let pass = 0;
   const ok = (name, cond) => { if (cond) { pass++; if (loud) console.log('  PASS ' + name); } else { fails.push(name); if (loud) console.log('  FAIL ' + name); } };
@@ -44,8 +45,24 @@ function suite(S, loud) {
   const lineCode = cut(S.dbr, 'ptLoadingArt') + '\n' + cut(S.dbr, 'ptLoadingLine') + '\nreturn { ptLoadingLine };';
   new Function('$', 'PT_LOADING_ART', lineCode)(() => line, artPath).ptLoadingLine('shMsg');
   ok('a screen\'s loading line shows the block printing with "Loading…"', line.innerHTML.includes('loading-print.svg') && line.innerHTML.includes('Loading…'));
-  ok('the six screens with their own loading line use it', (S.screens.match(/ptLoadingLine\('(fuMsg|pdMsg|inMsg|tgMsg|topMsg|shMsg)'\)/g) || []).length === 6);
+  ok('Shopify Stock uses it', /ptLoadingLine\('shMsg'\)/.test(S.screens));
+  ok('the five report screens load through ptLoadingWhile', (S.screens.match(/ptLoadingWhile\('(fuMsg|pdMsg|inMsg|tgMsg|topMsg)'/g) || []).length === 5);
   ok('…and none of them is left on plain "Loading…" words', !/(textContent = |shMsg\()'Loading…'/.test(S.screens));
+
+  /* ---- a failed read must not leave the picture moving for good (review, 26 Nov) ---- */
+  const whileCode = ['ptLoadingArt', 'ptLoadingLine', 'ptLoadingWhile'].map(n => cut(S.dbr, n)).join('\n') + '\nreturn { ptLoadingWhile };';
+  const lines = {};
+  const $line = id => (lines[id] = lines[id] || { innerHTML: '', set textContent(t) { this.innerHTML = t; } });
+  const warns = [];
+  const { ptLoadingWhile } = new Function('$', 'PT_LOADING_ART', 'console', whileCode)($line, artPath, { warn: (...a) => warns.push(a) });
+  let during = '';
+  const good = await ptLoadingWhile('pdMsg', async () => { during = lines.pdMsg.innerHTML; });
+  ok('while a screen reads, its line shows the block printing', during.includes('loading-print.svg'));
+  ok('a good read clears the line and lets the screen draw', good === true && lines.pdMsg.innerHTML === '');
+  const bad = await ptLoadingWhile('tgMsg', async () => { throw new Error('read refused'); });
+  ok('a failed read stops the picture and says what to do', bad === false && !lines.tgMsg.innerHTML.includes('<img') && /Could not read the data \(read refused\)\. Check the internet, then open this tab again\./.test(lines.tgMsg.innerHTML));
+  ok('…the screen is not drawn from half its data', S.screens.includes('if (read) renderProd();') && (S.screens.match(/if \(!read\) return;/g) || []).length === 2);
+  ok('…and the cause goes to the console', warns.length === 1 && String(warns[0][0]).includes('tgMsg'));
 
   /* ---- the two covers ---- */
   const gate = (S.page.match(/<div id="gateWait">[\s\S]*?Checking your access…/) || [''])[0];
@@ -63,9 +80,13 @@ function suite(S, loud) {
   return fails;
 }
 
-if (suite(ORIGINAL, true).length) process.exit(1);
+(async () => {
+if ((await suite(ORIGINAL, true)).length) process.exit(1);
 /* TEETH: each part undone must be caught. */
 const breaks = [
+  ['a failed read leaves the picture moving', 'dbr', "    $(msgId).textContent = 'Could not read the data (' + ((e && e.message) || e) + '). Check the internet, then open this tab again.';\n", ''],
+  ['a failed read draws the screen anyway', 'dbr', '    return false;\n  }', '    return true;\n  }'],
+  ['In Production draws from half its data', 'screens', 'if (read) renderProd();', 'renderProd();'],
   ['Shopify Stock goes back to plain words', 'screens', "ptLoadingLine('shMsg');", "shMsg('Loading…');"],
   ['a loading line shows no picture', 'dbr', "$(msgId).innerHTML = ptLoadingArt('Loading…');", "$(msgId).textContent = 'Loading…';"],
   ['tables never show the picture', 'dbr', "words.endsWith('…') ? ptLoadingArt(words) : words", 'words'],
@@ -82,9 +103,10 @@ for (const [name, file, from, to] of breaks) {
   if (!ORIGINAL[file].includes(from)) { console.log('  COULD NOT BREAK IT (anchor missing): ' + name); missed++; continue; }
   const S = Object.assign({}, ORIGINAL, { [file]: ORIGINAL[file].replace(from, to) });
   let caught;
-  try { caught = suite(S, false).length > 0; } catch (e) { caught = true; }
+  try { caught = (await suite(S, false)).length > 0; } catch (e) { caught = true; }
   console.log((caught ? '  BITES  ' : '  MISSED ') + name);
   if (!caught) missed++;
 }
 console.log(missed ? `\n${missed} break(s) not caught` : '\nevery break was caught');
 process.exit(missed ? 1 : 0);
+})();
