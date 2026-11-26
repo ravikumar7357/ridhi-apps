@@ -1,0 +1,72 @@
+# R-ONE BACKEND (Backend/): the new backend that replaces Apps Script, one route at a time.
+#
+#   every push / pull request touching Backend/   build + tests (no keys: every outside service is faked)
+#   Run workflow by hand on main                  then deployed to Firebase (price-research-48ff3, codebase "rone-backend"
+#                                                 only — sellora-live and rone-capture are never touched from here)
+#
+# Deploying is by hand until the first routes are proven with tools/parity.ts. Same deploy key as Sellora's backend
+# (FIREBASE_SERVICE_ACCOUNT, with the extra roles listed in sellora-backend.yml).
+name: R-one backend — test, deploy
+
+on:
+  push:
+    paths: ['Backend/**', '.github/workflows/rone-backend.yml']
+  pull_request:
+    paths: ['Backend/**', '.github/workflows/rone-backend.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: rone-backend-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Build (TypeScript → lib/)
+        run: npm run build
+      - name: Tests
+        run: npm test
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAS_KEY: ${{ (secrets.SELLORA_BACKEND_DEPLOY_KEY || secrets.FIREBASE_SERVICE_ACCOUNT) != '' }}
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: No deploy key
+        if: env.HAS_KEY != 'true'
+        run: echo "::warning::No deploy key (FIREBASE_SERVICE_ACCOUNT) — tests passed, nothing was deployed."
+      - name: Deploy to Firebase (codebase rone-backend only)
+        if: env.HAS_KEY == 'true'
+        env:
+          DEPLOY_KEY: ${{ secrets.SELLORA_BACKEND_DEPLOY_KEY || secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$DEPLOY_KEY" > "$RUNNER_TEMP/deploy-key.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/deploy-key.json"
+          npx --yes firebase-tools@14 deploy --only functions:rone-backend --project price-research-48ff3 --non-interactive --force
+          rm -f "$RUNNER_TEMP/deploy-key.json"

@@ -18,6 +18,8 @@
 !/Sellora-Backend/
 # Flowmerce's sync backend (Firebase Functions → Supabase schema flowmerce), Ravi 24 Nov 2026
 !/Flowmerce-Sync/
+# R-one's own backend, replacing Apps Script one job at a time (Firebase Functions → Supabase schema backend), 24 Nov 2026
+!/Backend/
 
 # Firebase's local deploy cache, and anything installed.
 .firebase/

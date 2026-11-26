@@ -1,0 +1,12 @@
+{
+  "//": "R-one's backend: its OWN codebase, so deploying it never touches sellora-live or the rone-capture functions.",
+  "functions": [
+    {
+      "source": ".",
+      "codebase": "rone-backend",
+      "runtime": "nodejs24",
+      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"],
+      "ignore": ["node_modules", "test", "tools", "sql", "src", "*.md", ".git", "firebase-debug.log"]
+    }
+  ]
+}

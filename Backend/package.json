@@ -1,0 +1,21 @@
+{
+  "name": "rone-backend",
+  "private": true,
+  "description": "R-one's own backend: answers the same routes as Apps Script (Pricing-API), one route at a time, with Supabase as the data. Replaces Apps Script.",
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": { "node": "24" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test \"test/*.test.ts\"",
+    "parity": "node tools/parity.ts"
+  },
+  "dependencies": {
+    "firebase-admin": "12.7.0",
+    "firebase-functions": "6.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
+  }
+}
