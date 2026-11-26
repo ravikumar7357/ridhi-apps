@@ -509,6 +509,7 @@ async function shpbStockSave(r, v) {
   if (typeof shpReceive !== 'function' || !shpCanReceive()) return 'Handing pieces to shipping needs the Shopify tab.';
   const need = Math.max(0, (+r.qty || 0) - s.stk - s.prsD);
   if (pcs > need) return `Only ${nf(need)} piece(s) of this line still need to be made.`;
+  const unread = await fgiStockReread(); if (unread) return unread;
   const short = fgiOutCheck(obUC(r.sku), pcs, 'ISSUE', 0); if (short) return short;
   const now = new Date().toISOString(), d = new Date(), p2 = x => String(x).padStart(2, '0');
   const issue = { _id: fgiNewId('ISS'), txnType: 'ISSUE', sku: obUC(r.sku), qty: pcs, date: p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + '/' + d.getFullYear(),

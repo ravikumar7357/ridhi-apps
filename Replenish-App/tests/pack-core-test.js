@@ -19,7 +19,7 @@ function load(o) {
     fgiOutCheck: (sku, qty) => qty > ctx.fgiOf(sku).current ? `You don't have enough stock — ${up(sku)} has ${ctx.fgiOf(sku).current} piece(s) in the India Store and this dispatch asks for ${qty}.` : '',
     fgiCanEntry: () => o.right !== false, FGI_NO_ENTRY: 'Only somebody with "Can add stock entries"…', FGI_FBA_ACCOUNTS: ['Ridhi FBA', 'CPC FBA'],
     fgiNewId: p => p + '-' + (patches.length + 1) + '-' + Math.random().toString(36).slice(2, 6).toUpperCase(),
-    ptPatch: async patch => { if (o.patchFails) throw new Error('offline'); patches.push(patch); },
+    ptPatch: async patch => { if (o.patchFails) throw new Error('offline'); patches.push(patch); }, fgiStockReread: async () => '',
     fbaBadge: () => {}, fgiOverBadge: () => {}, lstAlertFor: async (sku) => { alerts.push(sku); return ''; },
     mdbOf: sku => (o.mdb || {})[up(sku)] || null, PK_WT: o.wt || {},
   };

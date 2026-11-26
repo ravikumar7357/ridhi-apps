@@ -252,6 +252,8 @@ async function fgiRecvXlSave() {
   if (!p.good.length) return p.kind === 'ISSUE' ? 'The sheet has no rows to issue.' : 'The sheet has no rows to receive.';
   /* The shelf is read again at save, as the form does: somebody may have issued from it since the preview. */
   if (p.kind === 'ISSUE') {
+    const unread = await fgiStockReread();
+    if (unread) return unread;
     const by = new Map(); p.good.forEach(x => by.set(x.rec.sku, (by.get(x.rec.sku) || 0) + x.rec.qty));
     for (const [sku, q] of by) { const short = fgiOutCheck(sku, q, 'ISSUE'); if (short) return short + ' Nothing has been saved — choose the sheet again.'; }
   }
