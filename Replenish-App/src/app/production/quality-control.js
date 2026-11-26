@@ -483,6 +483,50 @@ function qcSkuTyped() {
 $('qcwSku').addEventListener('input', qcSkuTyped);
 ['qcwChecked', 'qcwAlt', 'qcwRej'].forEach(id => $(id).addEventListener('input', renderQcCheckForm));
 
+/* ==== QC: ONE SAVE AT A TIME PER SKU ====
+ * (Ravi, 26 Nov, after the PPC test run: two screens passed the same pieces.) Behind the switch lineHold. Every QC save that takes
+ * pieces — a check, a pass from Waiting for QC, an alteration issue, a return from spotting or touching — holds the SKU, reads
+ * this SKU's checks and alteration issues from the database, asks its own question again on them, then writes. The whole SKU
+ * is held, not one order, because what may still be checked or issued for alteration is counted across the SKU.
+ * Save pressed again for the same figures within 10 minutes writes the same records (core/line-hold.js lineHoldDraftId).
+ * Fails loudly: if the SKU cannot be held or read, nothing is saved and the screen says why. Switch off: as before. */
+const QC_DRAFTS = new Map();   // unsaved QC figures → the id they are written under
+/** The id for a new QC record: kept for the same figures while the switch is on, a new one as before while it is off. */
+const qcDraftId = (prefix, fields, make) => (lineHoldOn() ? lineHoldDraftId(QC_DRAFTS, prefix, Object.assign({}, fields, { date: '' })) : make());
+/** This SKU's checks and alteration issues, from the database, laid over the screen's copy. */
+async function qcFreshSku(sku) {
+  const [c, i] = await Promise.all([ptGetFreshWhere('pt_qcChecks', 'sku', sku), ptGetFreshWhere('pt_qcIssuance', 'sku', sku)]);
+  const swap = (rows, raw) => { const f = ptList(raw), ids = new Set(f.map(r => r.id)); return (rows || []).filter(r => !(r && ids.has(r.id))).concat(f); };
+  QC.checks = swap(QC.checks, c); QC.issue = swap(QC.issue, i);
+}
+/** o: { sku, draft: the id the figures were given, ids: the records' ids, saved: () => the list they land in,
+ *  recheck: () => '' or why not, on what the database holds, write: () => the save }. '' when saved, else the sentence. */
+async function qcSaveHeld(o) {
+  if (!lineHoldOn()) { await o.write(); return ''; }
+  const why = await lineHoldRun({ register: 'qc', orderNo: '', sku: o.sku, form: o.draft }, async () => {
+    try { await qcFreshSku(o.sku); } catch (e) {
+      console.warn('[line hold] could not read the QC of ' + o.sku + ' before saving:', e);
+      return 'Nothing was saved — the QC already recorded on ' + o.sku + ' could not be checked (' + (e.message || e) + '). Check the connection and save again.';
+    }
+    if (o.saved().some(r => r && o.ids.includes(r.id))) return '';   // an earlier press of Save reached the database
+    const left = o.recheck();
+    if (left) return 'Not saved — ' + left;
+    await o.write();
+    return '';
+  });
+  if (!why) lineHoldDraftDone(QC_DRAFTS, o.draft);
+  return why;
+}
+/** What a check may still take, asked again just before it is written. */
+function qcCheckLeft(sku, checked, any, ord) {
+  if (ord && checked > qcOrderAvail(ord, sku))
+    return `only ${nf(qcOrderAvail(ord, sku))} piece(s) of ${sku} on ${ord} are received and not checked yet — somebody else has just checked some.`;
+  if (!any && checked > qcAvailToCheck(sku))
+    return `only ${nf(Math.max(0, qcAvailToCheck(sku)))} piece(s) of ${sku} are waiting to be checked — somebody else has just checked some.`;
+  return '';
+}
+/* ==== END QC ONE SAVE AT A TIME ==== */
+
 $('qcwSave').onclick = async () => {
   const any = $('qcwSrc').value === 'any';
   const sku = qcNorm($('qcwSku').value);
@@ -525,8 +569,7 @@ $('qcwSave').onclick = async () => {
   }
 
   const p = qcParts(sku);
-  const rec = {
-    id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+  const fields = {
     date: ptNow(), checkedBy: by, brand: p.brand, articleType: p.at, subtype: p.sub, color: p.col, size: p.size,
     sku, checked, forAlteration: alt, rejected: rej, ok: checked - alt - rej,
     /* Blank survives only for a SKU that is on no order at all — there is nothing to name, and a
@@ -534,12 +577,15 @@ $('qcwSave').onclick = async () => {
     ...(obUC(($('qcwOrd') || {}).value) ? { orderNo: obUC($('qcwOrd').value) } : {}),
     remarks: $('qcwRemarks').value.trim(), addedBy: ME.email, addedAt: new Date().toISOString(),
   };
+  const rec = Object.assign({ id: qcDraftId('qc_', fields, qcNewCheckId) }, fields), ord = ordTyped && onOrders.length ? ordTyped : '';
   $('qcwSave').disabled = true;
   qcCheckMsg('Saving…');
   try {
-    await ptPut('pt_qcChecks/' + rec.id, rec);
+    const why = await qcSaveHeld({ sku, draft: rec.id, ids: [rec.id], saved: () => QC.checks,
+      recheck: () => qcCheckLeft(sku, checked, any, ord), write: () => ptPut('pt_qcChecks/' + rec.id, rec) });
+    if (why) { qcCheckMsg(why, true); $('qcwSave').disabled = false; return; }
     frmRemember('qcCheck', $('qcwBox'));
-    QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
+    QC.checks = (QC.checks || []).filter(r => !(r && r.id === rec.id)).concat(Object.assign({ _key: rec.id }, rec));
     ['qcwChecked', 'qcwAlt', 'qcwRej', 'qcwRemarks', 'qcwOrd'].forEach(id => { $(id).value = ''; });
     $('qcwSku').value = ''; $('qcwSz').value = ''; $('qcwSku').dataset.typed = '';
     renderQcCheckForm(); renderQc();
@@ -590,18 +636,21 @@ $('qciSave').onclick = async () => {
   if (pcs > avail) return qcIssueMsg(`Only ${nf(avail)} piece(s) available to issue for ${sku} — identified ${nf(alt)}, already issued ${nf(iss)}.`, true);
 
   const p = qcParts(sku);
-  const rec = {
-    id: 'qci_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+  const fields = {
     date: ptNow(), employee: emp[1], employmentType: type, brand: p.brand,
     articleType: p.at, subtype: p.sub, color: p.col, size: p.size, sku, pieces: pcs,
     remarks: $('qciRemarks').value.trim(), addedBy: ME.email, addedAt: new Date().toISOString(),
   };
+  const rec = Object.assign({ id: qcDraftId('qci_', fields, () => 'qci_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)) }, fields);
   $('qciSave').disabled = true;
   qcIssueMsg('Saving…');
   try {
-    await ptPut('pt_qcIssuance/' + rec.id, rec);
+    const why = await qcSaveHeld({ sku, draft: rec.id, ids: [rec.id], saved: () => QC.issue,
+      recheck: () => (pcs > qcAvailToIssue(sku) ? `only ${nf(Math.max(0, qcAvailToIssue(sku)))} piece(s) of ${sku} are left to issue for alteration — somebody else has just issued some.` : ''),
+      write: () => ptPut('pt_qcIssuance/' + rec.id, rec) });
+    if (why) { qcIssueMsg(why, true); $('qciSave').disabled = false; return; }
     frmRemember('qcIssue', $('qciBox'));
-    QC.issue = (QC.issue || []).concat(Object.assign({ _key: rec.id }, rec));
+    QC.issue = (QC.issue || []).filter(r => !(r && r.id === rec.id)).concat(Object.assign({ _key: rec.id }, rec));
     ['qciPcs', 'qciRemarks'].forEach(id => { $(id).value = ''; });
     $('qciSku').value = '';
     renderQcIssueForm(); renderQc();
@@ -1015,7 +1064,7 @@ function qcInboxRefusal(x, e) {
 }
 
 /** The records one QC Check window writes for a row: the check (passed, alteration, rejected) and a send per spotting/touching. */
-function qcCheckRecords(r, entry, date) {
+function qcCheckRecords(r, entry, date, id) {
   const p = qcParts(r.sku);
   const common = {
     date, checkedBy: String(entry.checkedBy || '').trim() || qcMyName(), brand: p.brand,
@@ -1026,9 +1075,9 @@ function qcCheckRecords(r, entry, date) {
   };
   const ok = qcPcs(entry.passed), al = qcPcs(entry.forAlteration), rj = qcPcs(entry.rejected), kept = ok + al + rj;
   const recs = [];
-  if (kept > 0) recs.push(Object.assign({ id: qcNewCheckId() }, common, { checked: kept, ok, forAlteration: al, rejected: rj,
+  if (kept > 0) recs.push(Object.assign({ id: id || qcNewCheckId() }, common, { checked: kept, ok, forAlteration: al, rejected: rj,
     remarks: String(entry.remarks || '').trim() || 'Accepted from Waiting for QC' }));
-  Object.keys(QC_DEPTS).filter(d => qcPcs(entry[d]) > 0).forEach(d => recs.push(Object.assign({ id: qcNewCheckId() + d[0] }, common, {
+  Object.keys(QC_DEPTS).filter(d => qcPcs(entry[d]) > 0).forEach(d => recs.push(Object.assign({ id: (id || qcNewCheckId()) + d[0] }, common, {
     checked: qcPcs(entry[d]), ok: 0, forAlteration: 0, rejected: 0, dept: d, [d]: qcPcs(entry[d]), remarks: qcSendRemark(d) })));
   return recs;
 }
@@ -1042,9 +1091,14 @@ async function qcInboxSave(baseId, entry) {
   if (!x) return 'That entry is no longer waiting — press Refresh.';
   const why = qcInboxRefusal(x, entry); if (why) return why;
   const now = ptNow();
-  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(now, entry.date) : now);
-  await ptPatch(Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c])));
-  QC.checks = (QC.checks || []).concat(recs.map(c => Object.assign({ _key: c.id }, c)));
+  const draft = qcDraftId('qc_', { baseId, entry }, qcNewCheckId);
+  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(now, entry.date) : now, lineHoldOn() ? draft : '');
+  const ids = recs.map(c => c.id);
+  const held = await qcSaveHeld({ sku: qcNorm(x.r.sku), draft, ids, saved: () => QC.checks,
+    recheck: () => { const y = qcInboxRows().find(e => e.r.id === baseId); return y ? qcInboxRefusal(y, entry) : 'that entry is no longer waiting — somebody else has just checked it.'; },
+    write: () => ptPatch(Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c]))) });
+  if (held) return held;
+  QC.checks = (QC.checks || []).filter(c => !(c && ids.includes(c.id))).concat(recs.map(c => Object.assign({ _key: c.id }, c)));
   return '';
 }
 
@@ -1220,8 +1274,7 @@ async function qcDeptBack(sendId, qty, reject) {
   if (!(q > 0)) return reject ? 'Type how many pieces are rejected.' : 'Type how many pieces came back.';
   if (q > x.left) return `Only ${nf(x.left)} piece(s) of this are still in ${x.dept}.`;
   const c = x.c;
-  const rec = {
-    id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+  const fields = {
     date: ptNow(), checkedBy: String(ME.email || '').split('@')[0], brand: c.brand || '',
     articleType: c.articleType || '', subtype: c.subtype || '', color: c.color || '', size: c.size || '',
     sku: c.sku, checked: 0, ok: reject ? 0 : q, forAlteration: 0, rejected: reject ? q : 0,
@@ -1229,8 +1282,12 @@ async function qcDeptBack(sendId, qty, reject) {
     refId: c.id, dept: x.dept, from: x.dept, baseId: c.baseId || '', karigar: c.karigar || '', ...(c.test ? { test: true } : {}),
     remarks: reject ? 'Rejected after ' + x.dept : 'Back from ' + x.dept + ' — passed by QC', addedBy: ME.email, addedAt: new Date().toISOString(),
   };
-  await ptPut('pt_qcChecks/' + rec.id, rec);
-  QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
+  const rec = Object.assign({ id: qcDraftId('qc_', fields, qcNewCheckId) }, fields);
+  const held = await qcSaveHeld({ sku: qcNorm(c.sku), draft: rec.id, ids: [rec.id], saved: () => QC.checks,
+    recheck: () => { const y = qcDeptRows().find(e => e.c.id === sendId); return y && q <= y.left ? '' : `only ${nf(y ? y.left : 0)} piece(s) of this are still in ${x.dept} — somebody else has just recorded some.`; },
+    write: () => ptPut('pt_qcChecks/' + rec.id, rec) });
+  if (held) return held;
+  QC.checks = (QC.checks || []).filter(r => !(r && r.id === rec.id)).concat(Object.assign({ _key: rec.id }, rec));
   return '';
 }
 function renderQcDept() {

@@ -10,6 +10,7 @@
  *   - Every read of the factory registers goes to live Firebase, as the real ERP reads it.
  *   - Every save made on this page is kept in THIS BROWSER ("your changes", IndexedDB uat-journal), one line per value
  *     changed, with its time (UTC), who was signed in and the screen — and laid on top of every later read.
+ *   - Every open tab of this browser sees them (Ravi, 26 Nov: the two-screen checks), as two PCs see one database.
  *   - Nothing is written to Firebase, Supabase, Apps Script, Shopify, mail or WhatsApp. The guard stops those.
  *   - Reset throws away all of your changes, or those after a date-time, or those after a named restore point; the
  *     screens then fall back to live.
@@ -212,7 +213,7 @@ if (typeof window !== 'undefined') (function () {
   /* The app's own fast copies are kept away from UAT: they would be filled with "live + your changes" and outlive a reset. */
   try { localStorage.setItem('deltaUse', '0'); localStorage.setItem('deltaShadowOff', '1'); } catch (e) { /* no storage: the app reads plainly anyway */ }
 
-  var U = window.__UAT = { on: ON, changes: [], points: [], seq: 0, lastTouch: 0, broken: '', watchers: [], tags: {}, tagN: 0 };
+  var U = window.__UAT = { on: ON, changes: [], points: [], lastTouch: 0, broken: '', watchers: [], tags: {}, tagN: 0 };
   /** UAT mode on or off: remembered in this browser, then the page reloads so every screen reads again in the new mode.
    *  Your changes are kept either way (off only hides them); the app's own copies are cleared, as on a reset. */
   U.setMode = function (on) {
@@ -243,14 +244,44 @@ if (typeof window !== 'undefined') (function () {
       tx.oncomplete = function () { ok(); }; tx.onerror = function () { bad(tx.error); }; tx.onabort = function () { bad(tx.error || new Error('the browser did not keep it')); };
     }); });
   }
-  U.ready = journal().then(function (db) { return Promise.all([readAll(db, 'changes'), readAll(db, 'points')]); }).then(function (r) {
-    U.changes = r[0].sort(function (a, b) { return a.n - b.n; });
-    U.seq = U.changes.length ? U.changes[U.changes.length - 1].n : 0;
-    U.points = r[1].sort(function (a, b) { return a.t < b.t ? -1 : 1; });
-  }).catch(function (e) {
-    U.broken = String((e && e.message) || e);
-    console.error('[UAT] this browser cannot keep test changes (' + U.broken + '); every save on this page will be refused.');
-  });
+  /* ONE LIST FOR EVERY OPEN TAB (26 Nov). Each save or reset puts a new mark in the browser's storage; a tab whose mark is
+   * old reads the kept changes again before it reads or saves, and as soon as the browser tells it. U.ready = "the list this
+   * tab holds is loaded and current". */
+  var MARK_KEY = 'uat:r1UatMark', seenMark;
+  function markNow() { try { return realGet.call(window.localStorage, MARK_KEY); } catch (e) { return null; /* no storage: markChanged says so */ } }
+  function markChanged() {
+    try { realSet.call(window.localStorage, MARK_KEY, Date.now().toString(36) + Math.random().toString(36).slice(2, 8)); }
+    catch (e) { console.warn('[UAT] other open tabs will not notice this change until they are reloaded', e); }
+  }
+  function rowId(r) { return r.n + ':' + r.g; }
+  /** The kept changes and restore points, read from the browser; screens that watch are told what came or went. */
+  function load() {
+    seenMark = markNow();   // taken first: a save made while this read runs is then read on the next turn
+    return journal().then(function (db) { return Promise.all([readAll(db, 'changes'), readAll(db, 'points')]); }).then(function (r) {
+      var had = {}, has = {};
+      U.changes.forEach(function (c) { had[rowId(c)] = 1; });
+      var now = r[0].sort(function (a, b) { return a.n - b.n; });
+      now.forEach(function (c) { has[rowId(c)] = 1; });
+      var moved = now.filter(function (c) { return !had[rowId(c)]; }).concat(U.changes.filter(function (c) { return !has[rowId(c)]; }));
+      U.changes = now;
+      U.points = r[1].sort(function (a, b) { return a.t < b.t ? -1 : 1; });
+      if (moved.length) U.watchers.forEach(function (w) { try { w(moved); } catch (e) { console.warn('[UAT] a screen could not redraw after a change', e); } });
+      drawBar();
+    }).catch(function (e) {
+      U.broken = String((e && e.message) || e);
+      console.error('[UAT] this browser cannot keep test changes (' + U.broken + '); every save on this page will be refused.');
+    });
+  }
+  function reload() { U.ready = U.ready.then(load); return U.ready; }
+  /** Resolves when this tab holds every change kept so far, its own and other tabs'. */
+  U.catchUp = function () {
+    var mark = markNow();
+    if (mark === seenMark) return U.ready;
+    seenMark = mark;   // one read for one new mark, however many ask while it runs
+    return reload();
+  };
+  window.addEventListener('storage', function (ev) { if (ev.key === MARK_KEY) U.catchUp(); });
+  U.ready = load();
 
   /** Who was signed in, read from the sign-in a request carries (the email only). */
   function whoOf(token) {
@@ -264,11 +295,19 @@ if (typeof window !== 'undefined') (function () {
     if (U.broken) return Promise.reject(new Error('UAT could not keep this change in this browser (' + U.broken + '). Nothing was saved.'));
     var t = new Date().toISOString(), g = 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     var auto = Date.now() - U.lastTouch > AUTO_AFTER_MS;
-    var rows = changes.map(function (c) { return { n: ++U.seq, g: g, k: c.k, p: c.p, v: c.v === undefined ? null : c.v, t: t, who: who || '', screen: screenNow(), what: what, auto: auto }; });
-    return write(function (cs) { rows.forEach(function (r) { cs.put(r); }); }).then(function () {
-      U.changes = U.changes.concat(rows);
-      U.watchers.forEach(function (w) { try { w(rows); } catch (e) { console.warn('[UAT] a screen could not redraw after a change', e); } });
-      drawBar();
+    var rows = [];
+    /* numbered inside the browser's own transaction, after the last one kept: two tabs can never use the same number */
+    return write(function (cs) {
+      var last = cs.openCursor(null, 'prev');
+      last.onsuccess = function () {
+        var n = last.result ? last.result.key : 0;
+        rows = changes.map(function (c) { return { n: ++n, g: g, k: c.k, p: c.p, v: c.v === undefined ? null : c.v, t: t, who: who || '', screen: screenNow(), what: what, auto: auto }; });
+        rows.forEach(function (r) { cs.put(r); });
+      };
+    }).then(function () {
+      markChanged();
+      return reload();   // this tab's own save, even where the mark could not be written
+    }).then(function () {
       if (!auto) said('Kept in UAT \u2014 on this PC only, not live');
       return rows;
     });
@@ -297,7 +336,7 @@ if (typeof window !== 'undefined') (function () {
   /** A read. Untouched by your changes: straight to live. Touched: the whole place from live, your changes on it, the
    *  question answered here. A read for compare-and-set gets this page's own tag, remembering what it showed. */
   U.read = function (url, init, origFetch) {
-    return U.ready.then(function () {
+    return U.catchUp().then(function () {
       var u = new URL(url), path = pathOf(u), wantsTag = header(init, 'X-Firebase-ETag');
       var mine = C.changesFor(path, U.changes);
       if (!mine.length && !wantsTag) return origFetch(url, init);
@@ -323,7 +362,7 @@ if (typeof window !== 'undefined') (function () {
   /** A save: kept in this browser as changes, answered the way Firebase answers. Never sent to live. */
   U.write = function (url, method, init, origFetch) {
     if (!U.on) { loud('Saving is off on the Test page — turn on UAT mode to try saves.'); return Promise.resolve(json({ error: 'Saving is off (UAT mode is off)' }, 403)); }
-    return U.ready.then(function () {
+    return U.catchUp().then(function () {
       var u = new URL(url), base = pathOf(u), who = whoOf(u.searchParams.get('auth'));
       var body;
       try { body = init && init.body != null && init.body !== '' ? JSON.parse(String(init.body)) : null; }
@@ -362,7 +401,7 @@ if (typeof window !== 'undefined') (function () {
     if (out) TIME_FIELDS.forEach(function (f) { if (typeof out[f] === 'string' && /^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(out[f])) out[f] = asTimestamp(out[f]); });
     return { id: ref.id, ref: ref, exists: function () { return out !== undefined; }, data: function () { return out; }, get: function (f) { return (out || {})[f]; } };
   }
-  U.fsKeep = function (changes, what, who) { return U.ready.then(function () { return U.keep(changes, what, who); }).catch(function (e) { loud(String((e && e.message) || e)); throw e; }); };
+  U.fsKeep = function (changes, what, who) { return U.catchUp().then(function () { return U.keep(changes, what, who); }).catch(function (e) { loud(String((e && e.message) || e)); throw e; }); };
   /** One document: live, with your changes on it. */
   U.fsDoc = function (ref, liveSnap) {
     if (!U.on) return liveSnap;
@@ -412,12 +451,17 @@ if (typeof window !== 'undefined') (function () {
   /** Undo every change made after `cutIso` (null = all of them), forget restore points after it, clear the app's own copies
    *  (they were filled with the changes) and reload, so every screen reads fresh. */
   U.undoAfter = function (cutIso) {
-    var keep = cutIso ? C.changesUpTo(U.changes, cutIso) : [];
-    var keepN = {}; keep.forEach(function (c) { keepN[c.n] = 1; });
-    var gone = U.changes.filter(function (c) { return !keepN[c.n]; });
-    var goneP = U.points.filter(function (p) { return !cutIso || p.t > cutIso; });
-    return write(function (cs, ps) { gone.forEach(function (c) { cs.delete(c.n); }); goneP.forEach(function (p) { ps.delete(p.id); }); })
-      .then(clearCopies).then(function () { location.reload(); });
+    /* chosen and deleted in one transaction, so a save another tab makes at this moment cannot slip past the reset */
+    function dropIfLater(ev) {
+      var at = ev.target.result; if (!at) return;
+      if (!C.changesUpTo([at.value], cutIso).length) at.delete();
+      at.continue();
+    }
+    return write(function (cs, ps) {
+      if (!cutIso) { cs.clear(); ps.clear(); return; }
+      cs.openCursor().onsuccess = dropIfLater;
+      ps.openCursor().onsuccess = dropIfLater;   // a restore point has its time too
+    }).then(markChanged).then(clearCopies).then(function () { location.reload(); });
   };
   function clearCopies() {
     if (!indexedDB.databases) return Promise.resolve();
@@ -430,10 +474,10 @@ if (typeof window !== 'undefined') (function () {
   }
   U.savePoint = function (name) {
     var p = { id: 'p' + Date.now().toString(36), name: String(name || '').trim().slice(0, 80) || 'Restore point', t: new Date().toISOString() };
-    return write(function (cs, ps) { ps.put(p); }).then(function () { U.points.push(p); drawPanel(); });
+    return write(function (cs, ps) { ps.put(p); }).then(function () { markChanged(); return reload(); });
   };
   U.forgetPoint = function (id) {
-    return write(function (cs, ps) { ps.delete(id); }).then(function () { U.points = U.points.filter(function (p) { return p.id !== id; }); drawPanel(); });
+    return write(function (cs, ps) { ps.delete(id); }).then(function () { markChanged(); return reload(); });
   };
 
   /* ---- 7. ON SCREEN: the UAT bar, the Reset button and its panel ---- */
@@ -561,6 +605,6 @@ if (typeof window !== 'undefined') (function () {
     var panel = document.createElement('div'); panel.id = 'uatPanel'; panel.hidden = true; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true'); panel.setAttribute('aria-labelledby', 'uatTitle');
     panel.innerHTML = '<div class="uat-box"><div class="uat-head"><h2 id="uatTitle">' + (U.on ? 'UAT mode \u2014 your test changes' : 'Test page') + '</h2><button type="button" class="uat-btn" id="uatClose">Close</button></div><div id="uatPanelBody"></div></div>';
     document.body.appendChild(panel);
-    U.ready.then(drawBar);
+    U.catchUp().then(drawBar);
   });
 })();

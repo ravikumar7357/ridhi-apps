@@ -559,14 +559,13 @@ async function shpbIssueVendorSave(r, v) {
   if (typeof bdGuard === 'function') { const g = bdGuard(r.orderNo, r.sku, pcs); if (g) return g; }
   const m = (typeof cutSkuOf === 'function' ? cutSkuOf(r.sku) : null) || {};
   const day = v.date || shpbToday(), name = String(ven.desc || ven.name || ven.code);
-  const e = { id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), empType: SHPB_EMB_TYPE, empName: name, vendorCode: String(ven.code),
+  const fields = { empType: SHPB_EMB_TYPE, empName: name, vendorCode: String(ven.code),
     sku: obUC(r.sku), articleType: m.articleType || r.articleType || '', articleSubtype: m.subtype || r.articleSubtype || '', color: m.color || r.color || '',
     size: m.size || r.size || '', orderNo: r.orderNo, issuePieces: pcs, issueDate: typeof ptStampDate === 'function' ? ptStampDate(day) : day,
     receivedPieces: 0, rejectionPieces: 0, receivingDate: '', pendingPieces: pcs, remarks: 'Embroidery — outside vendor', frozen: false,
     addedBy: ME.email, addedAt: new Date().toISOString() };
-  try { await ptPut('pt_baseData/' + e.id, e); } catch (x) { return 'Not saved: ' + (x.message || x); }
-  PT.base = (PT.base || []).concat(Object.assign({ _key: e.id }, e));
-  return '';
+  const e = Object.assign({ id: lineHoldDraftId(BD_DRAFTS, 'bd_', fields) }, fields);
+  try { return await bdWrite(e); } catch (x) { return 'Not saved: ' + (x.message || x); }
 }
 async function shpbIssueSave(r, v) {
   if (v.to === 'vendor') return shpbIssueVendorSave(r, v);

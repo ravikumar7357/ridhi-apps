@@ -868,13 +868,25 @@ var AI_PLAN = { fast: true, effort: 'low', schema: aiObj_({ moves: { type: 'arra
 var AI_PLAN_SYSTEM = [
   'You order an Amazon Sponsored Products to-do list for a seller of hand block print home textiles and clothing (brands Ridhi and CPC).',
   'FACTS.rows are the changes the seller\'s own rules already suggest (k = the row\'s key; what/type/next/kind = the change; c clicks,',
-  'sp spend $, o orders, s sales $, acos %, tgt the target ACoS %, cp the campaign, season, brandTerm = a search for our own brand).',
+  'sp spend $, o orders, s sales $, acos % (null = no sales yet), tgt the target ACoS %, be the break-even ACoS %, brandLimit the ACoS %',
+  'limit for our own brand terms, cp the campaign, season, brandTerm = a search for our own brand).',
+  'TARGETS: tgt and be are the ONLY target and break-even there are, and only for the row that carries them. A row with tgt null has no',
+  'target and a row with be null has no break-even: for such a row never mention a target ACoS, a break-even, or "under / over target",',
+  'and never assume or work one out (there is no default target). The same holds for every row of a brand listed in FACTS.noTarget.',
+  'When no row carries tgt or be, do not mention target ACoS or break-even anywhere in the answer.',
   'FACTS.rules is the seller\'s own plan, a hint. FACTS.want is what the person asked for, if anything.',
   'Answer with at most 7 moves, the most money first. Group rows by pattern (the same word, the same campaign, the season). Each move:',
   'title = a short plain name for it; why = ONE sentence in plain words with the numbers that matter; keys = the k of every row it covers.',
   'Use ONLY keys from FACTS.rows, never invent one, never a number that is not in FACTS. Never suggest pausing or negating our own brand',
   'terms (brandTerm). Answer ONLY with the JSON object.',
 ].join('\n');
+
+/** A % Sellora sent, or null when it sent none (null, '', not a number). A target or break-even of 0 or less is none too; an ACoS may be 0. */
+function aiPlanPct_(v, zeroOk) {
+  if (v == null || v === '') return null;
+  var n = Number(v);
+  return isFinite(n) && (n > 0 || (zeroOk && n === 0)) ? n : null;
+}
 
 /** Today's count of Plan my moves calls per brand (Script Property AI_PLAN_DAY: { day, n: { SP, CPC, ALL } }). add > 0 adds to it. */
 function aiPlanDay_(brand, day, add) {
@@ -908,10 +920,15 @@ function aiPlan_(p, who) {
       if (!k || k.length > 200 || keys[k]) return;
       keys[k] = 1;
       rows.push({ k: k, brand: aiCut_(r.brand, 4), what: aiCut_(r.what, 160), type: aiCut_(r.type, 40), next: aiCut_(r.next, 80), kind: aiCut_(r.kind, 40),
-        c: aiNum_(r.c), sp: aiNum_(r.sp), o: aiNum_(r.o), s: aiNum_(r.s), acos: aiNum_(r.acos), tgt: aiNum_(r.tgt),
+        c: aiNum_(r.c), sp: aiNum_(r.sp), o: aiNum_(r.o), s: aiNum_(r.s), acos: aiPlanPct_(r.acos, true),
+        // A4 (24 Nov 2026): a target / break-even only when Sellora really sent one. aiNum_(null) is 0, which read as "target 0%".
+        tgt: aiPlanPct_(r.tgt), be: aiPlanPct_(r.be), brandLimit: r.brandTerm ? aiPlanPct_(r.brandLimit) : null,
         cp: aiCut_(r.cp, 120), season: aiCut_(r.season, 40), brandTerm: !!r.brandTerm });
     });
     if (!rows.length) return { ok: false, error: 'No rows to plan' };
+    // the brands with no target at all (Sellora's noTarget): named to Claude so it never speaks of a target for them
+    var noTarget = (Array.isArray(p.noTarget) ? p.noTarget : []).map(function (b) { return String(b).toUpperCase(); })
+      .filter(function (b, i, a) { return (b === 'SP' || b === 'CPC') && a.indexOf(b) === i; });
     var rules = (Array.isArray(p.rules) ? p.rules : []).slice(0, 20).map(function (x) {
       x = x || {};
       return { id: aiCut_(x.id, 40), title: aiCut_(x.title, 160),
@@ -921,10 +938,10 @@ function aiPlan_(p, who) {
     if (month.usd >= month.limit) return { ok: false, error: 'Monthly AI limit reached', monthUsd: aiRound_(month.usd), limitUsd: month.limit };
     // Plan my moves has its own model setting (claude-sonnet-5-5 since 20 Nov), so the quick rewrite button stays on AI_MODEL_FAST
     var model = prop_('AI_MODEL_PLAN') || prop_('AI_MODEL_FAST') || 'claude-haiku-5-5';
-    var user = 'TASK: plan\nFACTS: ' + JSON.stringify({ brand: brand, day: day, rows: rows, rules: rules, want: aiCut_(p.want, 300) });
-    // the same rows the same day: the kept plan, free
+    var user = 'TASK: plan\nFACTS: ' + JSON.stringify({ brand: brand, day: day, rows: rows, rules: rules, noTarget: noTarget, want: aiCut_(p.want, 300) });
+    // the same rows the same day: the kept plan, free (aiplan2_: the prompt changed on 24 Nov, so a plan kept under aiplan1_ is not reused)
     var cache = CacheService.getScriptCache();
-    var ck = 'aiplan1_' + aiHash_([brand, day, model, user].join('\u0001'));
+    var ck = 'aiplan2_' + aiHash_([brand, day, model, user].join('\u0001'));
     var hit = cache.get(ck);
     if (hit) { var kept = JSON.parse(hit); return { ok: true, model: kept.model, moves: kept.moves, cached: true, costUsd: 0, monthUsd: aiRound_(month.usd), limitUsd: month.limit }; }
     var done = (aiPlanDay_(brand, today).n || {})[brand] || 0;

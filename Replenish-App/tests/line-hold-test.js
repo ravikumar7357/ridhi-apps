@@ -18,7 +18,8 @@ function cut(file, startRe, end) {
 const CODE = [src('core/line-hold.js'),
   cut('core/history.js', /^async function ptCas\(/m), cut('core/history.js', /^async function ptGetFreshWhere\(/m), cut('core/history.js', /^function lineHoldOn\(/m),
   cut('core/look-alike-skus.js', /^function cutGuard\(/m),
-  cut('core/look-alike-skus.js', /^let CUT_DRAFT/m, ';'), cut('core/look-alike-skus.js', /^function cutEntryId\(/m),
+  cut('core/look-alike-skus.js', /^const CUT_DRAFT_LIFE_MS/m, ';'), cut('core/look-alike-skus.js', /^const CUT_DRAFTS/m, ';'), cut('core/look-alike-skus.js', /^function cutEntryId\(/m),
+  cut('core/look-alike-skus.js', /^async function cutWrite\(/m), cut('orders/order-console-table.js', /^async function spCutReal\(/m),
   cut('core/look-alike-skus.js', /^function cutSaveHeld\(/m), cut('core/look-alike-skus.js', /^function cutFormMsg\(/m, '\n'),
   cut('core/look-alike-skus.js', /^\$\('cwSave'\)\.onclick/m, '\n};')].join('\n');
 
@@ -57,7 +58,7 @@ function screen(db, o) {
   o = o || {};
   const boxes = {}, log = { told: [], warned: [] };
   const skew = o.skew || 0;
-  class PcDate extends Date { static now() { return Date.now() + skew; } }
+  class PcDate extends Date { static now() { return Date.now() + skew + (o.later || 0); } }
   const box = id => boxes[id] || (boxes[id] = { value: '', textContent: '', className: '', disabled: false, dataset: {} });
   const nothing = () => {}, told = what => () => { log.told.push(what); };
   const up = s => String(s || '').trim().toUpperCase();
@@ -77,12 +78,15 @@ function screen(db, o) {
     PT: { cut: [] }, PTG: {}, prOn: () => false, obIsLegacy: () => false, obOrderedQty: () => 4,
     obCutQty: (no, sku) => ctx.PT.cut.filter(r => up(r.orderNo) === up(no) && up(r.sku) === up(sku)).reduce((t, r) => t + r.pieces, 0),
     cutSkuOf: () => ({ articleType: 'Cover' }), validateAgainstMasters: () => [], cutFabrics: () => ['Cotton'], CUT_FROM: '', CUT_OWN_OK: '', CUT_OTHER_CLOTH: {},
-    cutMonthFrozen: () => false, ptStampDate: d => d, cutFabFields: () => ({}), renderPcut: nothing, renderCutPick: nothing, renderCutForm: nothing,
+    ptCanEdit: () => true, ordLines: () => [{ orderNo: 'OC-1', sku: 'MADE-UP' }, { orderNo: 'OC-2', sku: 'MADE-UP' }], dToday: () => '2026-11-26',
+    ptMonthKey: d => d, SP_QUIET: true, renderOrd: nothing,
+    cutMonthFrozen: () => false, ptStampDate: d => d, cutFabFields: () => ({}), renderPcut: nothing, renderCutPick: nothing, renderCutForm: nothing, frmRemember: nothing,
   };
   vm.createContext(ctx);
   vm.runInContext(CODE, ctx);
   const fill = pcs => Object.entries({ cwSku: 'made-up', cwOrd: 'OC-1', cwPcs: String(pcs), cwFabric: 'Cotton', cwDate: '2026-11-26' }).forEach(([id, v]) => { box(id).value = v; });
-  return { ctx, log, box, fill, press: async () => { await box('cwSave').onclick(); return box('cwMsg').textContent; } };
+  const order = (pcs, extra, no) => ctx.spCutReal(no || 'OC-1', 'made-up', String(pcs), '2026-11-26', 'Cotton', '', extra || '');
+  return { ctx, log, box, fill, order, press: async () => { await box('cwSave').onclick(); return box('cwMsg').textContent; } };
 }
 
 (async () => {
@@ -159,7 +163,35 @@ function screen(db, o) {
     ok('different lines never share a key', new Set([key('A.1', 'S'), key('A~2e1', 'S'), key('A/1', 'S'), key('A1', 'S')]).size === 4);
     ok('the same line typed in other capitals is the same key', key('oc-1', 'made-up') === key('OC-1', 'MADE-UP')); }
 
+  console.log('== the order screens (a single cut and the Excel upload) ==');
+  { const db = database(), a = screen(db), b = screen(db, { behind: true });
+    const first = await a.order(4), second = await b.order(1);
+    ok('a second screen cannot cut what is already cut', first === '' && /already cut 4/.test(second) && db.entries().length === 1, first + ' | ' + second); }
+  { const db = database(), a = screen(db, { slow: true }), b = screen(db);
+    a.fill(4); const [x, y] = await Promise.all([a.press(), b.order(4)]);
+    ok('the cutting form and an order screen at once: one entry', db.entries().length === 1, x + ' | ' + y); }
+  { const db = database(), a = screen(db, { lost: true, arrives: true });
+    const first = await a.order(1), other = await a.order(2, '', 'OC-2'), again = await a.order(1);
+    ok('an upload run again after a lost answer: that line is not entered twice, though another was saved between', /Not saved/.test(first) && other === '' && again === '' && db.entries().length === 2, db.entries().length + ' ' + first + again); }
+  { const opts = { lost: true, arrives: true }, db = database(), a = screen(db, opts);
+    await a.order(1); opts.later = 9 * 60 * 1000; await a.order(1);
+    ok('the same cut 9 minutes after a lost answer is the retry: one entry', db.entries().length === 1, String(db.entries().length)); }
+  { const opts = { lost: true, arrives: true }, db = database(), a = screen(db, opts);
+    await a.order(1); opts.later = 11 * 60 * 1000; const said = await a.order(1);
+    ok('the same cut 11 minutes after a lost answer is a real second cut: two entries', said === '' && db.entries().length === 2, db.entries().length + ' ' + said); }
+  { const db = database(), a = screen(db); await a.order(4);
+    const said = await a.order(1, 'damaged piece');
+    ok('an extra cut with its reason still passes the ordered quantity', said === '' && db.entries().length === 2, said); }
+  { const db = database(), a = screen(db); await a.order(1); await a.order(1);
+    ok('the same cut again after a good save is a second cut', db.entries().length === 2); }
+  { const db = database(), a = screen(db); db.at['pt_lineHold/cutting/OC-1__MADE-UP'] = { by: 'x@test', form: 'other', at: Date.now() };
+    const said = await a.order(1);
+    ok('a held line: the order screen says so and writes nothing', /somebody else/.test(said) && db.entries().length === 0, said); }
+
   console.log('== switch off ==');
+  { const db = database(), a = screen(db, { off: true, lost: true, arrives: true });
+    await a.order(1); await a.order(1);
+    ok('order screen: saved as it always was, a new entry each time', db.entries().length === 2, String(db.entries().length)); }
   { const db = database(), a = screen(db, { off: true, lost: true, arrives: true }); db.at[HOLD] = { by: 'x@test', form: 'other', at: Date.now() };
     a.fill(1); await a.press(); await a.press();
     ok('saved as it always was: no hold asked for, a new entry each press', db.entries().length === 2 && db.at[HOLD].form === 'other', String(db.entries().length)); }

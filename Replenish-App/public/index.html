@@ -1109,6 +1109,12 @@
   #gateWait{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
     background:var(--bg);z-index:80;color:var(--muted);font-size:13px;letter-spacing:.02em}
   body.gating #gateWait{display:flex}
+  /* The block-printing loading picture (26 Nov 2026): on a browser refresh, in a table still reading, and over the
+   * screen while a Refresh button works. The cover takes no clicks: the button under it is already off. */
+  .ptLoading{display:flex;flex-direction:column;align-items:center;gap:6px;margin:6px auto;color:var(--muted);font-size:13px;text-align:center}
+  .ptLoading img{display:block;max-width:100%;height:auto}
+  #ptBusyCover{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.55);z-index:70;pointer-events:none}
+  body.ptBusy #ptBusyCover{display:flex}
   .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
   .modalbox{background:var(--card);border-radius:14px;padding:20px;width:min(680px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
   .tbl{width:100%;border-collapse:collapse;font-size:13px}
@@ -2905,7 +2911,9 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
 <div id="appView" class="shell hide">
   <!-- Shown only while the perms read is in flight. Every account sees this, briefly; nobody sees a
        sidebar full of sections they do not have. -->
-  <div id="gateWait">Checking your access…</div>
+  <div id="gateWait"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="154" height="157"><span>Checking your access…</span></div></div>
+  <!-- Over the screen while a Refresh button works (ptBusy, 26 Nov 2026). -->
+  <div id="ptBusyCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="126" height="129"><span>Refreshing…</span></div></div>
   <aside class="side">
     <div class="brand">
       <span class="brandname r1-brand"><img src="/r-one-wordmark.png" alt="R-one"></span>
@@ -15685,13 +15693,36 @@ async function ptLoad(which, node, after) {
 async function ptRefreshButton(btn, work) {
   const label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Refreshing…';
+  ptBusy(+1);
   try { await work(); }
   catch (e) { console.warn('[refresh] ' + (btn.id || 'button') + ':', e); }
-  finally { btn.disabled = false; btn.textContent = label; }
+  finally { btn.disabled = false; btn.textContent = label; ptBusy(-1); }
 }
 
+/** THE BLOCK-PRINTING LOADING PICTURE (Ravi, 26 Nov 2026: "whenever the data is loading when refreshed"). A wooden
+ *  block printing a five-colour flower shows on a browser refresh (#gateWait), in a table that is still reading, and
+ *  over the screen while a Refresh button works. The picture is public/loading-print.svg (made by
+ *  tools/loading-print/make.js); it is only a picture, so if it cannot load, the words beside it still say what is
+ *  happening. */
+const PT_LOADING_ART = '/loading-print.svg';
+function ptLoadingArt(words) {
+  return `<div class="ptLoading"><img src="${PT_LOADING_ART}" alt="" width="105" height="107"><span>${words}</span></div>`;
+}
+
+/** The cover shown while Refresh buttons work. A count, not an on/off: two screens refreshing at once must not
+ *  lift the cover when the first one finishes. */
+let ptBusyCount = 0;
+function ptBusy(change) {
+  ptBusyCount = Math.max(0, ptBusyCount + change);
+  document.body.classList.toggle('ptBusy', ptBusyCount > 0);
+}
+
+/** A message ending in "…" ("Loading…", "Reading…") means the table is still reading, so it shows the block
+ *  printing; any other message ("Nothing to show.") stays plain words. */
 function ptEmpty(tableId, msg) {
-  $(tableId).innerHTML = `<tbody><tr><td class="muted" style="padding:14px;text-align:left">${msg}</td></tr></tbody>`;
+  const words = String(msg);
+  const cell = words.endsWith('…') ? ptLoadingArt(words) : words;
+  $(tableId).innerHTML = `<tbody><tr><td class="muted" style="padding:14px;text-align:left">${cell}</td></tr></tbody>`;
 }
 
 /* ============================== FILE: src/app/core/job-work-split.js ============================== */
@@ -17964,6 +17995,19 @@ async function lineHoldRun(line, save) {
   if (busy) return busy;
   try { return await save(); } finally { await lineHoldLetGo(path, line.form); }
 }
+/* ONE ENTRY PER SET OF FIGURES (26 Nov, switch lineHold): Save pressed again for the same figures gets the same id, so a
+ * save that reached the database but was reported as failed is not entered twice. `drafts` is the screen's own Map; a set is
+ * remembered until it is saved, and for 10 minutes at most: a retry comes within minutes, while the same figures later in the
+ * day are a real second entry. Switch off: a new id every time, as before. */
+const LINE_HOLD_DRAFT_MS = 10 * 60 * 1000;
+function lineHoldDraftId(drafts, prefix, fields) {
+  const sig = JSON.stringify(Object.assign({}, fields, { addedAt: '' })), now = Date.now();
+  drafts.forEach((d, k) => { if (now - d.at > LINE_HOLD_DRAFT_MS) drafts.delete(k); });
+  if (!lineHoldOn() || !drafts.has(sig)) drafts.set(sig, { id: prefix + now + '_' + Math.random().toString(36).slice(2, 8), at: now });
+  return drafts.get(sig).id;
+}
+/** The entry is saved: its figures are new again. */
+function lineHoldDraftDone(drafts, id) { drafts.forEach((d, k) => { if (d.id === id) drafts.delete(k); }); }
 /* ==== END LINE HOLD ==== */
 /* ============================== FILE: src/app/core/mirror.js ============================== */
 /* ================= LIVE MIRROR · every save also goes to the new database (Ravi, 12 Nov 2026) =================
@@ -20013,13 +20057,30 @@ $('cwOrd').addEventListener('change', renderCutForm);
  * before it presses Save, and cleared again; the cutting form itself offers only the Fabric Type master. */
 const CUT_OTHER_CLOTH = { rejected: 'Rejected tablecloth', waste: 'Wastage fabric' };
 let CUT_FROM = '', CUT_OWN_OK = '';   // CUT_OWN_OK: the SKU's own fabric (from its master row / PPC plan) when the Fabric Type master does not list it
-/* ONE ENTRY PER FILLED FORM (26 Nov, switch lineHold): Save pressed again for the same figures writes under the same id, so
- * a save that reached the database but was reported as failed is not entered twice. A saved form starts afresh. */
-let CUT_DRAFT = { sig: '', id: '' };
+/* ONE ENTRY PER SET OF FIGURES (26 Nov, switch lineHold): Save pressed again for the same figures writes under the same id,
+ * so a save that reached the database but was reported as failed is not entered twice. Each unsaved set is remembered (an
+ * Excel upload from the order screens saves many lines in a row) until it is saved; after that the same figures are new.
+ * A set is remembered for 10 minutes only: a retry, or a re-run of an upload, comes within minutes, while the same figures
+ * later in the day are a real second cut and must not be taken for the first. */
+const CUT_DRAFT_LIFE_MS = 10 * 60 * 1000;
+const CUT_DRAFTS = new Map();   // the figures → { id: the id they are written under, at: when that id was given }
 function cutEntryId(fields) {
-  const sig = JSON.stringify(Object.assign({}, fields, { addedAt: '' }));
-  if (!lineHoldOn() || CUT_DRAFT.sig !== sig) CUT_DRAFT = { sig, id: 'cut_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) };
-  return CUT_DRAFT.id;
+  const sig = JSON.stringify(Object.assign({}, fields, { addedAt: '' })), now = Date.now();
+  CUT_DRAFTS.forEach((d, k) => { if (now - d.at > CUT_DRAFT_LIFE_MS) CUT_DRAFTS.delete(k); });
+  if (!lineHoldOn() || !CUT_DRAFTS.has(sig)) CUT_DRAFTS.set(sig, { id: 'cut_' + now + '_' + Math.random().toString(36).slice(2, 8), at: now });
+  return CUT_DRAFTS.get(sig).id;
+}
+
+/** Writes one new cutting entry, for the cutting form and the order screens alike: '' when saved, else the sentence to
+ *  show. A database write that fails throws. */
+async function cutWrite(entry) {
+  if (lineHoldOn()) {
+    const why = await cutSaveHeld(entry);
+    if (why) return why;
+  } else await ptPut('pt_cuttingData/' + entry.id, entry);
+  CUT_DRAFTS.forEach((d, sig) => { if (d.id === entry.id) CUT_DRAFTS.delete(sig); });
+  PT.cut = (PT.cut || []).filter(r => r.id !== entry.id).concat(Object.assign({ _key: entry.id }, entry));
+  return '';
 }
 
 /** The cutting entry, saved while this screen holds the order line: the register is read again and the ordered quantity
@@ -20036,7 +20097,7 @@ function cutSaveHeld(entry) {
       return 'Nothing was saved — the cuts already on this order could not be checked (' + (e.message || e) + '). Check the connection and press Save again.';
     }
     if (PT.cut.some(r => r && r.id === entry.id)) return '';   // an earlier press of Save reached the database
-    const full = cutGuard(entry.orderNo, entry.sku, entry.pieces);
+    const full = cutGuard(entry.orderNo, entry.sku, entry.pieces, undefined, !!entry.extraReason);
     if (full) { renderPcut(); return 'Not saved — ' + full; }
     await ptPut('pt_cuttingData/' + entry.id, entry);
     return '';
@@ -20092,13 +20153,9 @@ $('cwSave').onclick = async () => {
   $('cwSave').disabled = true;
   cutFormMsg('Saving…');
   try {
-    if (lineHoldOn()) {
-      const why = await cutSaveHeld(entry);
-      if (why) { cutFormMsg(why, true); $('cwSave').disabled = false; return; }
-    } else await ptPut('pt_cuttingData/' + entry.id, entry);
+    const why = await cutWrite(entry);
+    if (why) { cutFormMsg(why, true); $('cwSave').disabled = false; return; }
     frmRemember('cuttingEntry', $('cwBox'));
-    CUT_DRAFT = { sig: '', id: '' };
-    PT.cut = (PT.cut || []).filter(r => r.id !== entry.id).concat(Object.assign({ _key: entry.id }, entry));
     renderPcut();
     ['cwSku', 'cwPcs', 'cwFabric', 'cwRemarks', 'cwAt', 'cwSub', 'cwCol', 'cwSz', 'cwUsed', 'cwWaste', 'cwWasteW'].forEach(id => { $(id).value = ''; });
     $('cwSku').dataset.typed = '';
@@ -20869,6 +20926,38 @@ function bdTwinOf(entry) {
     && now - (Date.parse(r.addedAt || '') || 0) < 120000) || null;
 }
 
+const BD_DRAFTS = new Map();   // unsaved karigar issues from the issue form, Order Console and SHP board → the id each is written under (lineHoldDraftId)
+
+/** The karigar issue, saved while this screen holds the order line: the issues on this SKU are read from the database and the
+ *  order's limits checked on them, so two screens cannot issue the same cut pieces. '' when saved, else the sentence to show. */
+function bdSaveHeld(entry) {
+  return lineHoldRun({ register: 'issue', orderNo: entry.orderNo, sku: entry.sku, form: entry.id }, async () => {
+    /* Open issues live in pt_baseData; a completed one never gains pieces, so the screen's copy of those is enough. */
+    try {
+      const fresh = ptList(await ptGetFreshWhere('pt_baseData', 'sku', entry.sku)), ids = new Set(fresh.map(r => r.id));
+      PT.base = (PT.base || []).filter(r => !(r && ids.has(r.id))).concat(fresh);
+    } catch (e) {
+      console.warn('[line hold] could not read the issues of ' + entry.sku + ' before saving:', e);
+      return 'Nothing was saved — the pieces already issued on this order could not be checked (' + (e.message || e) + '). Check the connection and press Save again.';
+    }
+    if (PT.base.some(r => r && r.id === entry.id)) return '';   // an earlier press of Save reached the database
+    const full = bdGuard(entry.orderNo, entry.sku, entry.issuePieces, undefined, !!entry.extraReason);
+    if (full) { renderPbase(); return 'Not saved — ' + full; }
+    await ptPut('pt_baseData/' + entry.id, entry);
+    return '';
+  });
+}
+
+/** Writes one new karigar issue, for the issue form and the order screens alike: '' when saved, else the sentence to show.
+ *  A database write that fails throws. A custom issue has no order line to hold; its id alone keeps a repeated Save to one. */
+async function bdWrite(entry) {
+  const why = entry.orderNo && lineHoldOn() ? await bdSaveHeld(entry) : await ptPut('pt_baseData/' + entry.id, entry).then(() => '');
+  if (why) return why;
+  lineHoldDraftDone(BD_DRAFTS, entry.id);
+  PT.base = (PT.base || []).filter(r => !(r && r.id === entry.id)).concat(Object.assign({ _key: entry.id }, entry));
+  return '';
+}
+
 $('bwSave').onclick = async () => {
   const custom = bdIsCustom();
   const type = $('bwType').value.trim();
@@ -20916,8 +21005,7 @@ $('bwSave').onclick = async () => {
     if (zErr) return bdFormMsg(zErr, true);
   }
 
-  const entry = {
-    id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+  const fields = {
     empType: type, empName: emp[1], sku: obUC(sku),
     articleType: at, articleSubtype: sub, color: col, size: sz,
     orderNo,
@@ -20932,6 +21020,7 @@ $('bwSave').onclick = async () => {
     ...(custom ? { custOrder, custChannel: bdCustChannel(custOrder) } : {}),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
+  const entry = Object.assign({ id: lineHoldDraftId(BD_DRAFTS, 'bd_', fields) }, fields);
 
   /* THE SAME ISSUE, AGAIN, INSIDE TWO MINUTES. Eleven pairs like this are in the live register — same karigar,
    * SKU, order and pieces, 0 to 47 seconds apart, ten of them already paid in a frozen fortnight. A second
@@ -20948,9 +21037,9 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
   /* WhatsApp is opened now, while this is still the click — see waPreOpen. */
   const waWin = waPreOpen(entry);
   try {
-    await ptPut('pt_baseData/' + entry.id, entry);
+    const why = await bdWrite(entry);
+    if (why) { waPreClose(waWin); bdFormMsg(why, true); $('bwSave').disabled = false; return; }
     frmRemember('jobWorkIssue', $('bwBox'));
-    PT.base = (PT.base || []).concat(Object.assign({ _key: entry.id }, entry));
     const waNote = await waAfterIssue(waWin, entry);
     // A zip SKU spends zippers. Posting it here keeps the accessory ledger honest without a second step.
     let zipNote = '', rufNote = '';
@@ -23265,6 +23354,50 @@ function qcSkuTyped() {
 $('qcwSku').addEventListener('input', qcSkuTyped);
 ['qcwChecked', 'qcwAlt', 'qcwRej'].forEach(id => $(id).addEventListener('input', renderQcCheckForm));
 
+/* ==== QC: ONE SAVE AT A TIME PER SKU ====
+ * (Ravi, 26 Nov, after the PPC test run: two screens passed the same pieces.) Behind the switch lineHold. Every QC save that takes
+ * pieces — a check, a pass from Waiting for QC, an alteration issue, a return from spotting or touching — holds the SKU, reads
+ * this SKU's checks and alteration issues from the database, asks its own question again on them, then writes. The whole SKU
+ * is held, not one order, because what may still be checked or issued for alteration is counted across the SKU.
+ * Save pressed again for the same figures within 10 minutes writes the same records (core/line-hold.js lineHoldDraftId).
+ * Fails loudly: if the SKU cannot be held or read, nothing is saved and the screen says why. Switch off: as before. */
+const QC_DRAFTS = new Map();   // unsaved QC figures → the id they are written under
+/** The id for a new QC record: kept for the same figures while the switch is on, a new one as before while it is off. */
+const qcDraftId = (prefix, fields, make) => (lineHoldOn() ? lineHoldDraftId(QC_DRAFTS, prefix, Object.assign({}, fields, { date: '' })) : make());
+/** This SKU's checks and alteration issues, from the database, laid over the screen's copy. */
+async function qcFreshSku(sku) {
+  const [c, i] = await Promise.all([ptGetFreshWhere('pt_qcChecks', 'sku', sku), ptGetFreshWhere('pt_qcIssuance', 'sku', sku)]);
+  const swap = (rows, raw) => { const f = ptList(raw), ids = new Set(f.map(r => r.id)); return (rows || []).filter(r => !(r && ids.has(r.id))).concat(f); };
+  QC.checks = swap(QC.checks, c); QC.issue = swap(QC.issue, i);
+}
+/** o: { sku, draft: the id the figures were given, ids: the records' ids, saved: () => the list they land in,
+ *  recheck: () => '' or why not, on what the database holds, write: () => the save }. '' when saved, else the sentence. */
+async function qcSaveHeld(o) {
+  if (!lineHoldOn()) { await o.write(); return ''; }
+  const why = await lineHoldRun({ register: 'qc', orderNo: '', sku: o.sku, form: o.draft }, async () => {
+    try { await qcFreshSku(o.sku); } catch (e) {
+      console.warn('[line hold] could not read the QC of ' + o.sku + ' before saving:', e);
+      return 'Nothing was saved — the QC already recorded on ' + o.sku + ' could not be checked (' + (e.message || e) + '). Check the connection and save again.';
+    }
+    if (o.saved().some(r => r && o.ids.includes(r.id))) return '';   // an earlier press of Save reached the database
+    const left = o.recheck();
+    if (left) return 'Not saved — ' + left;
+    await o.write();
+    return '';
+  });
+  if (!why) lineHoldDraftDone(QC_DRAFTS, o.draft);
+  return why;
+}
+/** What a check may still take, asked again just before it is written. */
+function qcCheckLeft(sku, checked, any, ord) {
+  if (ord && checked > qcOrderAvail(ord, sku))
+    return `only ${nf(qcOrderAvail(ord, sku))} piece(s) of ${sku} on ${ord} are received and not checked yet — somebody else has just checked some.`;
+  if (!any && checked > qcAvailToCheck(sku))
+    return `only ${nf(Math.max(0, qcAvailToCheck(sku)))} piece(s) of ${sku} are waiting to be checked — somebody else has just checked some.`;
+  return '';
+}
+/* ==== END QC ONE SAVE AT A TIME ==== */
+
 $('qcwSave').onclick = async () => {
   const any = $('qcwSrc').value === 'any';
   const sku = qcNorm($('qcwSku').value);
@@ -23307,8 +23440,7 @@ $('qcwSave').onclick = async () => {
   }
 
   const p = qcParts(sku);
-  const rec = {
-    id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+  const fields = {
     date: ptNow(), checkedBy: by, brand: p.brand, articleType: p.at, subtype: p.sub, color: p.col, size: p.size,
     sku, checked, forAlteration: alt, rejected: rej, ok: checked - alt - rej,
     /* Blank survives only for a SKU that is on no order at all — there is nothing to name, and a
@@ -23316,12 +23448,15 @@ $('qcwSave').onclick = async () => {
     ...(obUC(($('qcwOrd') || {}).value) ? { orderNo: obUC($('qcwOrd').value) } : {}),
     remarks: $('qcwRemarks').value.trim(), addedBy: ME.email, addedAt: new Date().toISOString(),
   };
+  const rec = Object.assign({ id: qcDraftId('qc_', fields, qcNewCheckId) }, fields), ord = ordTyped && onOrders.length ? ordTyped : '';
   $('qcwSave').disabled = true;
   qcCheckMsg('Saving…');
   try {
-    await ptPut('pt_qcChecks/' + rec.id, rec);
+    const why = await qcSaveHeld({ sku, draft: rec.id, ids: [rec.id], saved: () => QC.checks,
+      recheck: () => qcCheckLeft(sku, checked, any, ord), write: () => ptPut('pt_qcChecks/' + rec.id, rec) });
+    if (why) { qcCheckMsg(why, true); $('qcwSave').disabled = false; return; }
     frmRemember('qcCheck', $('qcwBox'));
-    QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
+    QC.checks = (QC.checks || []).filter(r => !(r && r.id === rec.id)).concat(Object.assign({ _key: rec.id }, rec));
     ['qcwChecked', 'qcwAlt', 'qcwRej', 'qcwRemarks', 'qcwOrd'].forEach(id => { $(id).value = ''; });
     $('qcwSku').value = ''; $('qcwSz').value = ''; $('qcwSku').dataset.typed = '';
     renderQcCheckForm(); renderQc();
@@ -23372,18 +23507,21 @@ $('qciSave').onclick = async () => {
   if (pcs > avail) return qcIssueMsg(`Only ${nf(avail)} piece(s) available to issue for ${sku} — identified ${nf(alt)}, already issued ${nf(iss)}.`, true);
 
   const p = qcParts(sku);
-  const rec = {
-    id: 'qci_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+  const fields = {
     date: ptNow(), employee: emp[1], employmentType: type, brand: p.brand,
     articleType: p.at, subtype: p.sub, color: p.col, size: p.size, sku, pieces: pcs,
     remarks: $('qciRemarks').value.trim(), addedBy: ME.email, addedAt: new Date().toISOString(),
   };
+  const rec = Object.assign({ id: qcDraftId('qci_', fields, () => 'qci_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)) }, fields);
   $('qciSave').disabled = true;
   qcIssueMsg('Saving…');
   try {
-    await ptPut('pt_qcIssuance/' + rec.id, rec);
+    const why = await qcSaveHeld({ sku, draft: rec.id, ids: [rec.id], saved: () => QC.issue,
+      recheck: () => (pcs > qcAvailToIssue(sku) ? `only ${nf(Math.max(0, qcAvailToIssue(sku)))} piece(s) of ${sku} are left to issue for alteration — somebody else has just issued some.` : ''),
+      write: () => ptPut('pt_qcIssuance/' + rec.id, rec) });
+    if (why) { qcIssueMsg(why, true); $('qciSave').disabled = false; return; }
     frmRemember('qcIssue', $('qciBox'));
-    QC.issue = (QC.issue || []).concat(Object.assign({ _key: rec.id }, rec));
+    QC.issue = (QC.issue || []).filter(r => !(r && r.id === rec.id)).concat(Object.assign({ _key: rec.id }, rec));
     ['qciPcs', 'qciRemarks'].forEach(id => { $(id).value = ''; });
     $('qciSku').value = '';
     renderQcIssueForm(); renderQc();
@@ -23797,7 +23935,7 @@ function qcInboxRefusal(x, e) {
 }
 
 /** The records one QC Check window writes for a row: the check (passed, alteration, rejected) and a send per spotting/touching. */
-function qcCheckRecords(r, entry, date) {
+function qcCheckRecords(r, entry, date, id) {
   const p = qcParts(r.sku);
   const common = {
     date, checkedBy: String(entry.checkedBy || '').trim() || qcMyName(), brand: p.brand,
@@ -23808,9 +23946,9 @@ function qcCheckRecords(r, entry, date) {
   };
   const ok = qcPcs(entry.passed), al = qcPcs(entry.forAlteration), rj = qcPcs(entry.rejected), kept = ok + al + rj;
   const recs = [];
-  if (kept > 0) recs.push(Object.assign({ id: qcNewCheckId() }, common, { checked: kept, ok, forAlteration: al, rejected: rj,
+  if (kept > 0) recs.push(Object.assign({ id: id || qcNewCheckId() }, common, { checked: kept, ok, forAlteration: al, rejected: rj,
     remarks: String(entry.remarks || '').trim() || 'Accepted from Waiting for QC' }));
-  Object.keys(QC_DEPTS).filter(d => qcPcs(entry[d]) > 0).forEach(d => recs.push(Object.assign({ id: qcNewCheckId() + d[0] }, common, {
+  Object.keys(QC_DEPTS).filter(d => qcPcs(entry[d]) > 0).forEach(d => recs.push(Object.assign({ id: (id || qcNewCheckId()) + d[0] }, common, {
     checked: qcPcs(entry[d]), ok: 0, forAlteration: 0, rejected: 0, dept: d, [d]: qcPcs(entry[d]), remarks: qcSendRemark(d) })));
   return recs;
 }
@@ -23824,9 +23962,14 @@ async function qcInboxSave(baseId, entry) {
   if (!x) return 'That entry is no longer waiting — press Refresh.';
   const why = qcInboxRefusal(x, entry); if (why) return why;
   const now = ptNow();
-  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(now, entry.date) : now);
-  await ptPatch(Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c])));
-  QC.checks = (QC.checks || []).concat(recs.map(c => Object.assign({ _key: c.id }, c)));
+  const draft = qcDraftId('qc_', { baseId, entry }, qcNewCheckId);
+  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(now, entry.date) : now, lineHoldOn() ? draft : '');
+  const ids = recs.map(c => c.id);
+  const held = await qcSaveHeld({ sku: qcNorm(x.r.sku), draft, ids, saved: () => QC.checks,
+    recheck: () => { const y = qcInboxRows().find(e => e.r.id === baseId); return y ? qcInboxRefusal(y, entry) : 'that entry is no longer waiting — somebody else has just checked it.'; },
+    write: () => ptPatch(Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c]))) });
+  if (held) return held;
+  QC.checks = (QC.checks || []).filter(c => !(c && ids.includes(c.id))).concat(recs.map(c => Object.assign({ _key: c.id }, c)));
   return '';
 }
 
@@ -24002,8 +24145,7 @@ async function qcDeptBack(sendId, qty, reject) {
   if (!(q > 0)) return reject ? 'Type how many pieces are rejected.' : 'Type how many pieces came back.';
   if (q > x.left) return `Only ${nf(x.left)} piece(s) of this are still in ${x.dept}.`;
   const c = x.c;
-  const rec = {
-    id: 'qc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+  const fields = {
     date: ptNow(), checkedBy: String(ME.email || '').split('@')[0], brand: c.brand || '',
     articleType: c.articleType || '', subtype: c.subtype || '', color: c.color || '', size: c.size || '',
     sku: c.sku, checked: 0, ok: reject ? 0 : q, forAlteration: 0, rejected: reject ? q : 0,
@@ -24011,8 +24153,12 @@ async function qcDeptBack(sendId, qty, reject) {
     refId: c.id, dept: x.dept, from: x.dept, baseId: c.baseId || '', karigar: c.karigar || '', ...(c.test ? { test: true } : {}),
     remarks: reject ? 'Rejected after ' + x.dept : 'Back from ' + x.dept + ' — passed by QC', addedBy: ME.email, addedAt: new Date().toISOString(),
   };
-  await ptPut('pt_qcChecks/' + rec.id, rec);
-  QC.checks = (QC.checks || []).concat(Object.assign({ _key: rec.id }, rec));
+  const rec = Object.assign({ id: qcDraftId('qc_', fields, qcNewCheckId) }, fields);
+  const held = await qcSaveHeld({ sku: qcNorm(c.sku), draft: rec.id, ids: [rec.id], saved: () => QC.checks,
+    recheck: () => { const y = qcDeptRows().find(e => e.c.id === sendId); return y && q <= y.left ? '' : `only ${nf(y ? y.left : 0)} piece(s) of this are still in ${x.dept} — somebody else has just recorded some.`; },
+    write: () => ptPut('pt_qcChecks/' + rec.id, rec) });
+  if (held) return held;
+  QC.checks = (QC.checks || []).filter(r => !(r && r.id === rec.id)).concat(Object.assign({ _key: rec.id }, rec));
   return '';
 }
 function renderQcDept() {
@@ -28195,8 +28341,7 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
     try { await ptEnsureCustom(); } catch (e) { /* the line alone, as before */ }
     meta = (MDBX.custom || []).find(r => r && obUC(r.sku) === obUC(sku)) || {};
   }
-  const entry = {
-    id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+  const fields = {
     empType: t, empName: emp[1], sku: obUC(sku),
     articleType: line.articleType || meta.articleType || '', articleSubtype: line.articleSubtype || meta.subtype || '',
     color: line.color || meta.color || '', size: line.size || meta.size || '',
@@ -28210,9 +28355,9 @@ async function spIssueReal(orderNo, sku, type, name, pcs, date, remarks, extraRe
     shopOrderNo: line.shopOrderNo || '', src: 'SHP',
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
-  try { await ptPut('pt_baseData/' + entry.id, entry); }
+  const entry = Object.assign({ id: lineHoldDraftId(BD_DRAFTS, 'bd_', fields) }, fields);
+  try { const why = await bdWrite(entry); if (why) { waPreClose(waWin); return why; } }
   catch (e) { waPreClose(waWin); return 'Not saved: ' + (e.message || e); }
-  PT.base = (PT.base || []).concat([Object.assign({ _key: entry.id }, entry)]);
   if (!SP_QUIET) SP_WA_NOTE = await waAfterIssue(waWin, entry);
   /* WHAT GOES WITH THE PIECES, as the form does it: the zippers, and a ruffle's fabric. Both are keyed
    * on this row, so they can never be taken twice, and deleting the issue gives them back. The issue
@@ -28284,8 +28429,7 @@ async function spCutReal(orderNo, sku, pcs, date, fabric, remarks, extraReason) 
   const extra = String(extraReason || '').trim();
   const gErr = cutGuard(obUC(orderNo), obUC(sku), q, undefined, !!extra);
   if (gErr) return gErr;
-  const entry = {
-    id: 'cut_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+  const fields = {
     sku: obUC(sku), articleType: line.articleType || '', articleSubtype: line.articleSubtype || '',
     color: line.color || '', size: line.size || '',
     pieces: q, cutDate: ptStampDate(d), fabricWidth: String(fabric || '').trim(),
@@ -28294,9 +28438,9 @@ async function spCutReal(orderNo, sku, pcs, date, fabric, remarks, extraReason) 
     ...(typeof flowPlanQcDirect === 'function' && flowPlanQcDirect(orderNo, sku) ? { qcDirect: true } : {}),   // embroidered: straight to QC
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
-  try { await ptPut('pt_cuttingData/' + entry.id, entry); }
+  const entry = Object.assign({ id: cutEntryId(fields) }, fields);
+  try { const why = await cutWrite(entry); if (why) return why; }
   catch (e) { return 'Not saved: ' + (e.message || e); }
-  PT.cut = (PT.cut || []).concat([Object.assign({ _key: entry.id }, entry)]);
   if (!SP_QUIET) renderOrd();
   return '';
 }
@@ -31079,14 +31223,13 @@ async function shpbIssueVendorSave(r, v) {
   if (typeof bdGuard === 'function') { const g = bdGuard(r.orderNo, r.sku, pcs); if (g) return g; }
   const m = (typeof cutSkuOf === 'function' ? cutSkuOf(r.sku) : null) || {};
   const day = v.date || shpbToday(), name = String(ven.desc || ven.name || ven.code);
-  const e = { id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), empType: SHPB_EMB_TYPE, empName: name, vendorCode: String(ven.code),
+  const fields = { empType: SHPB_EMB_TYPE, empName: name, vendorCode: String(ven.code),
     sku: obUC(r.sku), articleType: m.articleType || r.articleType || '', articleSubtype: m.subtype || r.articleSubtype || '', color: m.color || r.color || '',
     size: m.size || r.size || '', orderNo: r.orderNo, issuePieces: pcs, issueDate: typeof ptStampDate === 'function' ? ptStampDate(day) : day,
     receivedPieces: 0, rejectionPieces: 0, receivingDate: '', pendingPieces: pcs, remarks: 'Embroidery — outside vendor', frozen: false,
     addedBy: ME.email, addedAt: new Date().toISOString() };
-  try { await ptPut('pt_baseData/' + e.id, e); } catch (x) { return 'Not saved: ' + (x.message || x); }
-  PT.base = (PT.base || []).concat(Object.assign({ _key: e.id }, e));
-  return '';
+  const e = Object.assign({ id: lineHoldDraftId(BD_DRAFTS, 'bd_', fields) }, fields);
+  try { return await bdWrite(e); } catch (x) { return 'Not saved: ' + (x.message || x); }
 }
 async function shpbIssueSave(r, v) {
   if (v.to === 'vendor') return shpbIssueVendorSave(r, v);
@@ -96574,6 +96717,9 @@ function p1FgWaits(x) {
  *     none of its challan cloth is with the printer or on the way — what has no receipt is NOT BOOKED ON THE CHALLAN. A line
  *     only partly past printing is left as it is. Ruffle cloth goes with finished pieces only (cutting does not wait for it).
  *     Standing cloth stays with the printer.
+ *   - THE PRODUCTION PAGE STILL SHOWS WHAT IS ON THE WAY (Ravi, 26 Nov: lines read "Nothing waiting" once the printer had
+ *     entered their cloth as sent): it stays under At printer, marked "sent, to receive" (onWay), until we receive it. The
+ *     report counts it in its own column, not as still out.
  * The portal's figures come with the vendor orders, read behind the page (flowEnsureData); until then the challans alone are used,
  * and the page says so. Nothing stored is changed. */
 /** What part of a vendor order line's figure belongs to each order line it stands for: in proportion to the cloth on this
@@ -96679,7 +96825,7 @@ function p1PrinterWork(from, to) {
     Object.values(c.moved || {}).forEach(m => Object.values((m && m.settles) || {}).forEach(x => {
       if (x && x.how === 'store' && inP(day('', x.at))) put(e, m.unit === 'pcs' ? 'pcs' : 'm', +x.qty || 0, 'back'); }));
   });
-  const side = p1VendorSide(onChallans), stateOf = p1LineStates(), holds = [], unbooked = [];
+  const side = p1VendorSide(onChallans), stateOf = p1LineStates(), holds = [], unbooked = [], onWay = [];
   lines.forEach(b => {
     const r = lineOf.get(b.key), movedOn = p1PastPrinting(r, stateOf(b.key, r), b.ruffle);
     const x = p1ClothSplit(flowR2(b.sent), b.recv, movedOn ? { done: true } : p1SideOf(side, onChallans, b.id), onChallans.get(b.id).earlier);
@@ -96687,13 +96833,14 @@ function p1PrinterWork(from, to) {
     const row = qty => ({ stage: 'Printer', sku: r ? obUC(r.sku) : b.sku, orderNo: r ? obUC(r.orderNo) : obUC(String(b.key).split('__')[0]), pcs: qty,
       unit: b.unit, who: b.e.name, since: b.since, ref: (b.ruffle ? 'ruffle · ' : '') + 'Challan ' + b.nos.join(', '), key: b.key });
     if (x.left > 0.01) holds.push(row(x.left));
+    if (x.transit > 0.01) onWay.push(Object.assign(row(x.transit), { onWay: true }));
     if (x.unbooked > 0.01) unbooked.push(row(x.unbooked));
   });
   /* standing: moved off its line and not settled — still with the printer, against the order it was given for */
   try { flowStanding().forEach(x => { if (!(x.qty > 0.01)) return;
     holds.push({ stage: 'Printer', sku: obUC(x.sku), orderNo: obUC(x.orderNo), pcs: x.qty, unit: x.unit, who: x.printer || x.code, since: x.at, ref: 'standing (moved off this order) · Challan ' + x.no, key: x.key }); }); }
   catch (e) { console.warn('PPC: standing cloth not counted (' + ((e && e.message) || e) + ').'); }
-  return { parties: [...P.values()], holds, unbooked, vendorRead: typeof VO !== 'undefined' && !!VO.rows && !VO.err };
+  return { parties: [...P.values()], holds, unbooked, onWay, vendorRead: typeof VO !== 'undefined' && !!VO.rows && !VO.err };
 }
 /** Every piece in production right now: { stage, sku, orderNo, pcs, unit, who, since, ref }. */
 let P1_WIPC = { key: null, out: [] }, P1_INVC = { key: null, out: [] };
@@ -96707,8 +96854,10 @@ function p1Wip() {
 function p1WipBuild() {
   const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done' && x.s.bucket !== 'board'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
   p1Events(); const lastOf = (k, o, s) => P1_EV.last.get(k + '|' + o + '|' + s) || null;
-  /* with the printer: what the challans sent and the printer has not sent back yet, on the order line it is for (p1PrinterWork, 25 Nov) */
-  p1PrinterWork('', '').holds.forEach(h => { if (!h.ref.startsWith('ruffle')) out.push(h); });
+  /* at the printer: what the challans sent and we have not had back, on the order line it is for (p1PrinterWork, 25 Nov) — with
+   * them still, or on the way to us (onWay, 26 Nov) */
+  const pw = p1PrinterWork('', '');
+  pw.holds.concat(pw.onWay).forEach(h => { if (!h.ref.startsWith('ruffle')) out.push(h); });
   rows.forEach(x => { const s = x.s, r = x.r, q = +r.qty || 0, o = obUC(r.orderNo), k = obUC(r.sku);
     const rl = p1RfdLeft(x);
     if (rl > 0) { const p = lastOf('PLAN', o, k); out.push({ stage: 'RFD store', sku: k, orderNo: o, pcs: rl, unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'cloth to send' }); }
@@ -96926,7 +97075,8 @@ function p1SumStages(ls) {
 function p1HoldDays(holds) {
   const D = {}; (holds || []).forEach(h => { const k = h.stage === 'Printer' && h.ref === 'print order to give' ? 'rfd' : P1_COL_OF[h.stage]; if (!k) return; const d = p1Days(h.since), e = D[k] || (D[k] = { days: null, who: [] });
     if (d != null && (e.days == null || d > e.days)) e.days = d;
-    if ((k === 'rfd' || k === 'prn' || k === 'kar') && h.who && !e.who.includes(h.who)) e.who.push(h.who); });
+    if ((k === 'rfd' || k === 'prn' || k === 'kar') && h.who && !e.who.includes(h.who)) e.who.push(h.who);
+    if (h.onWay) { const t = e.onWay || (e.onWay = { w: 0, m: 0 }); t[h.unit === 'm' ? 'm' : 'w'] += h.pcs; } });
   return D;
 }
 /** The stage a lot (or line) is held at now: the one with the oldest pieces past 7 days, else the one with the most pieces. */
@@ -96968,11 +97118,14 @@ function p1DoneLots() {
 /* CLEANER STAGE CELLS (Ravi, 24 Nov: "refine this page design too" — keep the columns, read them faster): pieces waiting as an
  * amber pill with their days (red past 7), done as a soft ✓, a stage not reached yet left blank, a stage the lot does not go
  * through a faint dash. */
+/** Pieces and metres side by side, never added: "48", "2 m", "48 + 2 m". */
+const p1QtyTxt = (w, m) => `${w ? p1N(w) : ''}${m ? `${w ? ' + ' : ''}${p1N(m)} m` : ''}`;
 function p1StageCell(c, d, k) {
   if (!c || c.na) return '<td class="sg sna">—</td>';
   if (c.w || c.m) { const late = d && d.days != null && d.days > P1_STUCK;
-    return `<td class="sg"><span class="wp${late ? ' late' : ''}"><b>${c.w ? p1N(c.w) : ''}${c.m ? `${c.w ? ' + ' : ''}${p1N(c.m)} m` : ''}</b>${d && d.days != null ? `<i>${d.days} d</i>` : ''}</span>`
-      + `${k === 'rfd' && d && d.who && d.who.length ? `<span class="for">for ${esc(d.who.join(', '))}</span>` : ''}</td>`; }   // the RFD store sees which printer it is for
+    return `<td class="sg"><span class="wp${late ? ' late' : ''}"><b>${p1QtyTxt(c.w, c.m)}</b>${d && d.days != null ? `<i>${d.days} d</i>` : ''}</span>`
+      + `${k === 'rfd' && d && d.who && d.who.length ? `<span class="for">for ${esc(d.who.join(', '))}</span>` : ''}`   // the RFD store sees which printer it is for
+      + `${k === 'prn' && d && d.onWay ? `<span class="for">${p1QtyTxt(d.onWay.w, d.onWay.m)} sent, to receive</span>` : ''}</td>`; }
   return c.done ? '<td class="sg sdone"><span class="dn">✓</span></td>' : '<td class="sg"></td>';
 }
 /** A lot that needs a look now: past its ready date, or stuck at one place past 7 days. */
