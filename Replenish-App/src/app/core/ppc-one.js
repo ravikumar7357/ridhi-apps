@@ -195,6 +195,9 @@ function p1FgWaits(x) {
  *     none of its challan cloth is with the printer or on the way — what has no receipt is NOT BOOKED ON THE CHALLAN. A line
  *     only partly past printing is left as it is. Ruffle cloth goes with finished pieces only (cutting does not wait for it).
  *     Standing cloth stays with the printer.
+ *   - THE PRODUCTION PAGE STILL SHOWS WHAT IS ON THE WAY (Ravi, 26 Nov: lines read "Nothing waiting" once the printer had
+ *     entered their cloth as sent): it stays under At printer, marked "sent, to receive" (onWay), until we receive it. The
+ *     report counts it in its own column, not as still out.
  * The portal's figures come with the vendor orders, read behind the page (flowEnsureData); until then the challans alone are used,
  * and the page says so. Nothing stored is changed. */
 /** What part of a vendor order line's figure belongs to each order line it stands for: in proportion to the cloth on this
@@ -300,7 +303,7 @@ function p1PrinterWork(from, to) {
     Object.values(c.moved || {}).forEach(m => Object.values((m && m.settles) || {}).forEach(x => {
       if (x && x.how === 'store' && inP(day('', x.at))) put(e, m.unit === 'pcs' ? 'pcs' : 'm', +x.qty || 0, 'back'); }));
   });
-  const side = p1VendorSide(onChallans), stateOf = p1LineStates(), holds = [], unbooked = [];
+  const side = p1VendorSide(onChallans), stateOf = p1LineStates(), holds = [], unbooked = [], onWay = [];
   lines.forEach(b => {
     const r = lineOf.get(b.key), movedOn = p1PastPrinting(r, stateOf(b.key, r), b.ruffle);
     const x = p1ClothSplit(flowR2(b.sent), b.recv, movedOn ? { done: true } : p1SideOf(side, onChallans, b.id), onChallans.get(b.id).earlier);
@@ -308,13 +311,14 @@ function p1PrinterWork(from, to) {
     const row = qty => ({ stage: 'Printer', sku: r ? obUC(r.sku) : b.sku, orderNo: r ? obUC(r.orderNo) : obUC(String(b.key).split('__')[0]), pcs: qty,
       unit: b.unit, who: b.e.name, since: b.since, ref: (b.ruffle ? 'ruffle · ' : '') + 'Challan ' + b.nos.join(', '), key: b.key });
     if (x.left > 0.01) holds.push(row(x.left));
+    if (x.transit > 0.01) onWay.push(Object.assign(row(x.transit), { onWay: true }));
     if (x.unbooked > 0.01) unbooked.push(row(x.unbooked));
   });
   /* standing: moved off its line and not settled — still with the printer, against the order it was given for */
   try { flowStanding().forEach(x => { if (!(x.qty > 0.01)) return;
     holds.push({ stage: 'Printer', sku: obUC(x.sku), orderNo: obUC(x.orderNo), pcs: x.qty, unit: x.unit, who: x.printer || x.code, since: x.at, ref: 'standing (moved off this order) · Challan ' + x.no, key: x.key }); }); }
   catch (e) { console.warn('PPC: standing cloth not counted (' + ((e && e.message) || e) + ').'); }
-  return { parties: [...P.values()], holds, unbooked, vendorRead: typeof VO !== 'undefined' && !!VO.rows && !VO.err };
+  return { parties: [...P.values()], holds, unbooked, onWay, vendorRead: typeof VO !== 'undefined' && !!VO.rows && !VO.err };
 }
 /** Every piece in production right now: { stage, sku, orderNo, pcs, unit, who, since, ref }. */
 let P1_WIPC = { key: null, out: [] }, P1_INVC = { key: null, out: [] };
@@ -328,8 +332,10 @@ function p1Wip() {
 function p1WipBuild() {
   const out = [], rows = flowRows().filter(x => !x.r.__t && x.s.bucket !== 'done' && x.s.bucket !== 'board'), open = new Set(rows.map(x => obUC(x.r.orderNo) + '|' + obUC(x.r.sku)));
   p1Events(); const lastOf = (k, o, s) => P1_EV.last.get(k + '|' + o + '|' + s) || null;
-  /* with the printer: what the challans sent and the printer has not sent back yet, on the order line it is for (p1PrinterWork, 25 Nov) */
-  p1PrinterWork('', '').holds.forEach(h => { if (!h.ref.startsWith('ruffle')) out.push(h); });
+  /* at the printer: what the challans sent and we have not had back, on the order line it is for (p1PrinterWork, 25 Nov) — with
+   * them still, or on the way to us (onWay, 26 Nov) */
+  const pw = p1PrinterWork('', '');
+  pw.holds.concat(pw.onWay).forEach(h => { if (!h.ref.startsWith('ruffle')) out.push(h); });
   rows.forEach(x => { const s = x.s, r = x.r, q = +r.qty || 0, o = obUC(r.orderNo), k = obUC(r.sku);
     const rl = p1RfdLeft(x);
     if (rl > 0) { const p = lastOf('PLAN', o, k); out.push({ stage: 'RFD store', sku: k, orderNo: o, pcs: rl, unit: 'pcs', who: p1Pr(s.plan && s.plan.printer) || 'printer not given yet', since: p ? p.day : '', ref: 'cloth to send' }); }
@@ -547,7 +553,8 @@ function p1SumStages(ls) {
 function p1HoldDays(holds) {
   const D = {}; (holds || []).forEach(h => { const k = h.stage === 'Printer' && h.ref === 'print order to give' ? 'rfd' : P1_COL_OF[h.stage]; if (!k) return; const d = p1Days(h.since), e = D[k] || (D[k] = { days: null, who: [] });
     if (d != null && (e.days == null || d > e.days)) e.days = d;
-    if ((k === 'rfd' || k === 'prn' || k === 'kar') && h.who && !e.who.includes(h.who)) e.who.push(h.who); });
+    if ((k === 'rfd' || k === 'prn' || k === 'kar') && h.who && !e.who.includes(h.who)) e.who.push(h.who);
+    if (h.onWay) { const t = e.onWay || (e.onWay = { w: 0, m: 0 }); t[h.unit === 'm' ? 'm' : 'w'] += h.pcs; } });
   return D;
 }
 /** The stage a lot (or line) is held at now: the one with the oldest pieces past 7 days, else the one with the most pieces. */
@@ -589,11 +596,14 @@ function p1DoneLots() {
 /* CLEANER STAGE CELLS (Ravi, 24 Nov: "refine this page design too" — keep the columns, read them faster): pieces waiting as an
  * amber pill with their days (red past 7), done as a soft ✓, a stage not reached yet left blank, a stage the lot does not go
  * through a faint dash. */
+/** Pieces and metres side by side, never added: "48", "2 m", "48 + 2 m". */
+const p1QtyTxt = (w, m) => `${w ? p1N(w) : ''}${m ? `${w ? ' + ' : ''}${p1N(m)} m` : ''}`;
 function p1StageCell(c, d, k) {
   if (!c || c.na) return '<td class="sg sna">—</td>';
   if (c.w || c.m) { const late = d && d.days != null && d.days > P1_STUCK;
-    return `<td class="sg"><span class="wp${late ? ' late' : ''}"><b>${c.w ? p1N(c.w) : ''}${c.m ? `${c.w ? ' + ' : ''}${p1N(c.m)} m` : ''}</b>${d && d.days != null ? `<i>${d.days} d</i>` : ''}</span>`
-      + `${k === 'rfd' && d && d.who && d.who.length ? `<span class="for">for ${esc(d.who.join(', '))}</span>` : ''}</td>`; }   // the RFD store sees which printer it is for
+    return `<td class="sg"><span class="wp${late ? ' late' : ''}"><b>${p1QtyTxt(c.w, c.m)}</b>${d && d.days != null ? `<i>${d.days} d</i>` : ''}</span>`
+      + `${k === 'rfd' && d && d.who && d.who.length ? `<span class="for">for ${esc(d.who.join(', '))}</span>` : ''}`   // the RFD store sees which printer it is for
+      + `${k === 'prn' && d && d.onWay ? `<span class="for">${p1QtyTxt(d.onWay.w, d.onWay.m)} sent, to receive</span>` : ''}</td>`; }
   return c.done ? '<td class="sg sdone"><span class="dn">✓</span></td>' : '<td class="sg"></td>';
 }
 /** A lot that needs a look now: past its ready date, or stuck at one place past 7 days. */

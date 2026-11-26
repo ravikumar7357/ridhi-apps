@@ -44,7 +44,7 @@ function load(o) {
     VO: { rows: o.vo === undefined ? [] : o.vo, err: o.voErr || '' }, vpSentKept: (v, l) => +l.sent || 0,
   };
   vm.createContext(ctx);
-  vm.runInContext(HELPERS + '\n' + fs.readFileSync(FILE, 'utf8') + '\n;this.__t = { P1, p1PrinterWork, p1Report, p1Events, p1OutList };', ctx);
+  vm.runInContext(HELPERS + '\n' + fs.readFileSync(FILE, 'utf8') + '\n;this.__t = { P1, p1PrinterWork, p1Report, p1Events, p1OutList, p1Wip, p1HoldDays, p1StageCell };', ctx);
   return ctx.__t;
 }
 const lines = [{ orderNo: 'AMZ-1-SEA', sku: 'RPC72-2020', qty: 2760 }, { orderNo: 'AMZ-6-AIR', sku: 'RPC72-1818', qty: 900 }, { orderNo: 'SHP-9', sku: 'RTC-R1', qty: 20 }];
@@ -218,6 +218,23 @@ const rep = done.t.p1Report(), row = rep.rows.find(p => p.name === 'RBP-Bagru') 
 ok('a printer with only not-booked cloth keeps its row and list, with nothing still out', row.um === 6 && row.out.m === 0 && (row.unbookedItems || []).length === 1, JSON.stringify(row));
 const html = done.t.p1OutList('Not booked on the challan', row.unbookedItems || []);
 ok('its list shows the title, SKU, 6 m and the challan', ['Not booked on the challan', 'RPC-A', '6 m', 'Challan RFD-1'].every(w => html.includes(w)), html);
+
+/* ---- the Production page still shows what is on the way (Ravi, 26 Nov) ---- 10 m sent, 4 m received, the printer says 8 sent */
+const way = (voRows, line) => {
+  const challan = { no: 'RFD-1', date: '2026-10-22', vendor: { code: 'RBP', name: 'RBP-Bagru' }, lines: [Object.assign({ key: KA, sku: 'RPC-A', metres: 10 }, line)], receipts: { r: { date: '2026-10-30', items: { [KA]: 4 } } } };
+  const t = load({ ch: { 'RFD-1': challan }, vo: voRows });
+  return { t, wip: t.p1Wip().filter(w => w.stage === 'Printer'), rep: t.p1Report().rows.find(p => p.name === 'RBP-Bagru') || { out: { m: 0 } } };
+};
+const W1 = way([order({ sent: 8 })]);
+ok('Production: all 6 m not received stays at the printer, 2 m with them and 4 m on the way', W1.wip.map(w => w.pcs + (w.onWay ? ' on the way' : ' with')).sort().join(', ') === '2 with, 4 on the way', JSON.stringify(W1.wip.map(w => [w.pcs, !!w.onWay])));
+ok('…the report counts it as before: 2 m still out, 4 m sent not received', W1.rep.out.m === 2 && W1.rep.tm === 4, JSON.stringify([W1.rep.out.m, W1.rep.tm]));
+const allSent = way([order({ sent: 10 })]);
+ok('everything entered as sent: the line still shows 6 m at the printer, nothing still out in the report', allSent.wip.length === 1 && allSent.wip[0].pcs === 6 && allSent.wip[0].onWay === true && allSent.rep.out.m === 0);
+const D1 = allSent.t.p1HoldDays(allSent.wip), cell = allSent.t.p1StageCell({ w: 0, m: 6 }, D1.prn, 'prn');
+ok('…its cell reads 6 m, "6 m sent, to receive"', />6 m<\/b>/.test(cell) && /<span class="for">6 m sent, to receive<\/span>/.test(cell), cell);
+ok('cloth only with the printer carries no mark', !/to receive/.test(way([order({})]).t.p1StageCell({ w: 0, m: 6 }, way([order({})]).t.p1HoldDays(way([order({})]).wip).prn, 'prn')));
+ok('cloth finished on the vendor order (not booked) is not on the way', way([order({}, { status: 'Received' })]).wip.length === 0);
+ok('ruffle cloth on the way is left off the Production page, as ruffle cloth is', way([order({ parts: [KA + '|ruffle'], deliveries: [] , sent: 8 })], { ruffleOnly: true }).wip.length === 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
