@@ -308,6 +308,28 @@ async function ptCas(path, expect, next) {
   return '';
 }
 
+/** THE SWITCH FOR "TWO SCREENS, ONE SET OF PIECES" (Ravi, 26 Nov, after the PPC test run: two screens saved the same pieces and
+ *  both said saved). Off unless this device's storage says '1' (test link → Ravi's PC → everybody, then the switch is removed).
+ *  Off, every save behaves exactly as it did. Storage only, so it is safe to ask at any time. */
+function lineHoldOn() {
+  try { return localStorage.getItem('lineHold') === '1'; } catch (e) { return false; }
+}
+
+/** SAVE A WHOLE RECORD ONLY IF NOBODY CHANGED IT SINCE THIS SCREEN READ IT (Ravi, 26 Nov: a whole-record save by a second person
+ *  wrote over the first). `seen` is the record as the screen holds it, `next` what is to be written. Switch off, or the read
+ *  fails: the plain write, as always (a read never blocks a save on its own). Switch on: the record is read from the database
+ *  itself; if it is not what the screen holds → 'changed', nothing written; else written by compare-and-set, 'changed' if somebody
+ *  got in during that instant. '' = written. The caller shows its own sentence and tells the person to press Refresh. */
+async function ptSaveIfUnchanged(path, seen, next) {
+  if (!lineHoldOn()) { await ptPut(path, next); return ''; }
+  let fresh = null;
+  try { fresh = await ptGetFresh(path); } catch (e) { console.warn('[line hold] could not read ' + path + ' just before saving it — saving the plain way:', e); }
+  if (!fresh || typeof fresh !== 'object') { await ptPut(path, next); return ''; }
+  const canon = v => (v && typeof v === 'object' ? (Array.isArray(v) ? v.map(canon) : Object.keys(v).sort().reduce((o, k) => { if (k !== '_key') o[k] = canon(v[k]); return o; }, {})) : v);
+  if (JSON.stringify(canon(fresh)) !== JSON.stringify(canon(seen))) return 'changed';
+  return (await ptCas(path, fresh, next)) ? 'changed' : '';
+}
+
 /** A single update touching many paths at once. RTDB applies it all or not at all. */
 async function ptPatch(updates, opts) {
   opts = opts || {};

@@ -17718,6 +17718,28 @@ async function ptCas(path, expect, next) {
   return '';
 }
 
+/** THE SWITCH FOR "TWO SCREENS, ONE SET OF PIECES" (Ravi, 26 Nov, after the PPC test run: two screens saved the same pieces and
+ *  both said saved). Off unless this device's storage says '1' (test link → Ravi's PC → everybody, then the switch is removed).
+ *  Off, every save behaves exactly as it did. Storage only, so it is safe to ask at any time. */
+function lineHoldOn() {
+  try { return localStorage.getItem('lineHold') === '1'; } catch (e) { return false; }
+}
+
+/** SAVE A WHOLE RECORD ONLY IF NOBODY CHANGED IT SINCE THIS SCREEN READ IT (Ravi, 26 Nov: a whole-record save by a second person
+ *  wrote over the first). `seen` is the record as the screen holds it, `next` what is to be written. Switch off, or the read
+ *  fails: the plain write, as always (a read never blocks a save on its own). Switch on: the record is read from the database
+ *  itself; if it is not what the screen holds → 'changed', nothing written; else written by compare-and-set, 'changed' if somebody
+ *  got in during that instant. '' = written. The caller shows its own sentence and tells the person to press Refresh. */
+async function ptSaveIfUnchanged(path, seen, next) {
+  if (!lineHoldOn()) { await ptPut(path, next); return ''; }
+  let fresh = null;
+  try { fresh = await ptGetFresh(path); } catch (e) { console.warn('[line hold] could not read ' + path + ' just before saving it — saving the plain way:', e); }
+  if (!fresh || typeof fresh !== 'object') { await ptPut(path, next); return ''; }
+  const canon = v => (v && typeof v === 'object' ? (Array.isArray(v) ? v.map(canon) : Object.keys(v).sort().reduce((o, k) => { if (k !== '_key') o[k] = canon(v[k]); return o; }, {})) : v);
+  if (JSON.stringify(canon(fresh)) !== JSON.stringify(canon(seen))) return 'changed';
+  return (await ptCas(path, fresh, next)) ? 'changed' : '';
+}
+
 /** A single update touching many paths at once. RTDB applies it all or not at all. */
 async function ptPatch(updates, opts) {
   opts = opts || {};
@@ -21059,16 +21081,31 @@ async function bdSaveRow(next) {
    * read it, nothing is written: the screen takes their version and says so, and the entry is made again on top
    * of it. A read that fails (or finds nothing) keeps the old behaviour — it never blocks a save on its own. */
   const was = (PT.base || []).find(r => r && r.id === next.id);
+  const path = 'pt_baseData/' + next.id;
+  /* A COMPLETED ROW LIVES APART (job-work-split.js) and is written with its month's version, so it keeps the plain path.
+   * Any other row, with the switch on, is read straight from the database (not the screen's live copy) and written only if
+   * it is still exactly as read — the same instant, not just "a moment ago". */
+  const apart = !!(BASE.on && baseRoutePath(path)), guarded = lineHoldOn() && !apart;
   let now = null;
-  try { now = await ptGet('pt_baseData/' + next.id); } catch (e) { now = null; }
-  if (was && now && typeof now === 'object' && Object.keys(now).length
-      && BD_COUNTED.some(k => String(now[k] == null ? '' : now[k]) !== String(was[k] == null ? '' : was[k]))) {
-    PT.base = (PT.base || []).map(r => (r.id === next.id ? Object.assign({ _key: next.id }, now) : r));
+  try { now = guarded ? await ptGetFresh(path) : await ptGet(path); } catch (e) { now = null; }
+  const takeTheirs = fresh => {
+    PT.base = (PT.base || []).map(r => (r.id === next.id ? Object.assign({ _key: next.id }, fresh) : r));
     if (!SP_QUIET) renderPbase();
-    throw new BdChangedError(`somebody else saved this row a moment ago (received is now ${nf(ptNum(now.receivedPieces))}, `
-      + `pending ${nf(ptNum(now.pendingPieces))}). The screen shows their figures — enter yours again on top of them.`);
+    throw new BdChangedError(`somebody else saved this row a moment ago (received is now ${nf(ptNum(fresh.receivedPieces))}, `
+      + `pending ${nf(ptNum(fresh.pendingPieces))}). The screen shows their figures — enter yours again on top of them.`);
+  };
+  const real = !!(now && typeof now === 'object' && Object.keys(now).length);
+  if (was && real && BD_COUNTED.some(k => String(now[k] == null ? '' : now[k]) !== String(was[k] == null ? '' : was[k]))) takeTheirs(now);
+  if (guarded && real) {
+    /* Written only if the row is still what was just read. 'changed' = somebody saved in the last instant: their row is
+     * read again and shown, and nothing of ours is written. A failed read above keeps the old plain write below. */
+    if (await ptCas(path, now, clean) === 'changed') {
+      let theirs = now; try { theirs = await ptGetFresh(path) || now; } catch (e) { console.warn('[line hold] could not read the row again after a clash:', e); }
+      takeTheirs(theirs);
+    }
+  } else {
+    await ptPut(path, clean);
   }
-  await ptPut('pt_baseData/' + next.id, clean);
   PT.base = (PT.base || []).map(r => (r.id === next.id ? Object.assign({ _key: next.id }, clean) : r));
   if (!SP_QUIET) renderPbase();
 }
@@ -49992,7 +50029,11 @@ async function gpoSave(v) {
   if (plan.err) return plan.err;
   const prev = (GPO.rows || []).find(r => r.id === plan.po.id);
   if (prev && prev.status === 'cancelled') return 'That PO was cancelled.';
-  try { await ptPut('pt_greigePOs/' + plan.po.id, plan.po); }
+  try {
+    /* An edit of a PO that exists is saved only if nobody changed it meanwhile (switch lineHold); a new PO is a new record. */
+    if (prev) { if (await ptSaveIfUnchanged('pt_greigePOs/' + plan.po.id, prev, plan.po)) return `${plan.po.poNo || 'This PO'} was changed by somebody else a moment ago — press Refresh and make your change again.`; }
+    else await ptPut('pt_greigePOs/' + plan.po.id, plan.po);
+  }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   GPO.rows = (GPO.rows || []).filter(r => r.id !== plan.po.id).concat([plan.po]);
   return '';
@@ -50006,7 +50047,7 @@ async function gpoCancel(id, reason) {
   if (gpoProgress(po).received > 0) return 'Cloth has already come in against this PO, so it cannot be cancelled.';
   const rec = Object.assign({}, po, { status: 'cancelled', cancelNote: String(reason).trim(),
     cancelledBy: ME.email, cancelledAt: new Date().toISOString() });
-  try { await ptPut('pt_greigePOs/' + id, rec); }
+  try { if (await ptSaveIfUnchanged('pt_greigePOs/' + id, po, rec)) return `${po.poNo || 'This PO'} was changed by somebody else a moment ago (cloth may have come in) — press Refresh and look again.`; }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   GPO.rows = GPO.rows.map(r => (r.id === id ? rec : r));
   return '';
@@ -56469,7 +56510,10 @@ async function voSetStatus(key, status) {
   if (!ME.admin) return 'Only an admin can change a vendor order’s status.';
   const next = Object.assign({}, o, { status, staffUpdatedAt: new Date().toISOString() });
   delete next.vendorCode;
-  await ptPut('pt_vendorOrders/' + code + '/' + id, next);
+  /* Switch lineHold on: only the two fields this changes are written. The whole order used to be written back, which wiped what the
+   * printer entered on it (sent / received) since this screen read it. Off, as before. */
+  if (lineHoldOn()) { const base = 'pt_vendorOrders/' + code + '/' + id + '/'; await ptPatch({ [base + 'status']: next.status, [base + 'staffUpdatedAt']: next.staffUpdatedAt }); }
+  else await ptPut('pt_vendorOrders/' + code + '/' + id, next);
   VO.rows = (VO.rows || []).map(x => (x.id === id && x.vendorCode === code ? Object.assign({ vendorCode: code }, next) : x));
   renderVo();
   $('voMsg').className = 'muted';
@@ -70091,6 +70135,12 @@ async function vrqApprove(id, opts) {
   const r = vrqOf(id);
   if (!r) return 'That request is gone — press Refresh.';
   if (r.status !== 'pending') return `${r.reqNo || id} is not waiting for approval any more (${r.status}).`;
+  /* Switch on: the request is looked at in the database itself before any printer order is made, so a request somebody has
+   * already rejected or withdrawn never reaches the printer's portal. */
+  if (lineHoldOn()) {
+    let f = null; try { f = await ptGetFresh('pt_vendorOrderReqs/' + id); } catch (e) { console.warn('[line hold] could not read the request before approving it:', e); }
+    if (f && typeof f === 'object' && f.status && f.status !== 'pending') return `${f.reqNo || id} was ${f.status} by somebody else a moment ago — press Refresh.`;
+  }
   const code = String((opts && opts.vendor) || r.vendorCode || '').trim();
   const vend = voAllVendors().find(v => String(v.code) === code);
   if (!vend) return 'That vendor is not active in the vendor master any more. Pick another one.';
@@ -70136,7 +70186,14 @@ async function vrqApprove(id, opts) {
   if (!have) { const fo = flowOwnedIn(order.lines); if (fo.length) return 'Not sent — ' + flowOwnsMsg(fo, 'PPC raises its printer order in PPC · Production flow. Reject this request with a note.'); }
   if (!have) {
     const put = Object.assign({}, order); delete put._key;
-    try { await ptPut('pt_vendorOrders/' + code + '/' + oid, put); }
+    /* TWO APPROVERS (Ravi, 26 Nov: "two users, one request" — the printer order was written under a new number each time, so
+     * the second approver's order replaced the first's). With the switch on, the order is written only where nothing is yet: the
+     * second approver is told it was sent and writes nothing. Off, as before. */
+    try {
+      if (lineHoldOn() && typeof flowClaim === 'function') {
+        if (await flowClaim('pt_vendorOrders/' + code + '/' + oid, put)) return `${r.reqNo || id} was approved and sent by somebody else a moment ago — press Refresh.`;
+      } else await ptPut('pt_vendorOrders/' + code + '/' + oid, put);
+    }
     catch (e) { return 'Not sent: ' + (e.message || e); }
     if (vend.email && VO.map) {
       try { await ptPut('pt_vendorMap/' + code, { email: String(vend.email).toLowerCase(), name: vend.name || code });
@@ -70154,7 +70211,7 @@ async function vrqApprove(id, opts) {
         + (moved ? ' (asked for ' + (r.vendorName || voName(r.vendorCode)) + ')' : '') + (note ? ' — ' + note : '') }]),
   });
   delete next._key;
-  try { await ptPut('pt_vendorOrderReqs/' + id, next); }
+  try { const clash = await vrqWrite(id, next); if (clash) return `${order.orderNo} is with ${vname}, but the request was answered meanwhile: ${clash}`; }
   catch (e) {
     return `${order.orderNo} is with ${vname}, but the request could not be marked approved (${e.message || e}). `
       + 'Press Approve again — it will not send the order twice.';
@@ -70163,6 +70220,19 @@ async function vrqApprove(id, opts) {
   renderVrq();
   if ($('vrqMsg')) { $('vrqMsg').className = 'muted';
     $('vrqMsg').textContent = `${r.reqNo} approved — ${order.orderNo} is on ${vname}'s portal now.`; }
+  return '';
+}
+
+/** Write a request's answer (approved, rejected, withdrawn). With the switch lineHold on, the request is read straight from the
+ *  database first and written only if it is still waiting and unchanged: two people answering one request at once cannot both
+ *  win. '' = written; otherwise the sentence to show. A failed read keeps the plain write — it never blocks a save on its own. */
+async function vrqWrite(id, next) {
+  const path = 'pt_vendorOrderReqs/' + id;
+  let fresh = null;
+  if (lineHoldOn()) { try { fresh = await ptGetFresh(path); } catch (e) { console.warn('[line hold] could not read the request just before saving it:', e); } }
+  if (!fresh || typeof fresh !== 'object') { await ptPut(path, next); return ''; }
+  if (fresh.status !== 'pending') return `${fresh.reqNo || id} was ${fresh.status} by somebody else a moment ago — press Refresh.`;
+  if (await ptCas(path, fresh, next) === 'changed') return `${fresh.reqNo || id} was changed by somebody else a moment ago — press Refresh.`;
   return '';
 }
 
@@ -70178,7 +70248,7 @@ async function vrqReject(id, reason) {
   const next = Object.assign({}, r, { status: 'rejected', rejectedBy: ME.email, rejectedAt: now, rejectReason: why,
     log: (Array.isArray(r.log) ? r.log : []).concat([{ at: now, by: ME.email, what: 'Rejected — ' + why }]) });
   delete next._key;
-  try { await ptPut('pt_vendorOrderReqs/' + id, next); } catch (e) { return 'Not saved: ' + (e.message || e); }
+  try { const clash = await vrqWrite(id, next); if (clash) return clash; } catch (e) { return 'Not saved: ' + (e.message || e); }
   VRQ.rows = (VRQ.rows || []).map(x => (x.id === id ? next : x));
   renderVrq();
   return '';
@@ -70196,7 +70266,7 @@ async function vrqWithdraw(id) {
   const next = Object.assign({}, r, { status: 'withdrawn', withdrawnBy: ME.email, withdrawnAt: now,
     log: (Array.isArray(r.log) ? r.log : []).concat([{ at: now, by: ME.email, what: 'Withdrawn' }]) });
   delete next._key;
-  try { await ptPut('pt_vendorOrderReqs/' + id, next); } catch (e) { return 'Not saved: ' + (e.message || e); }
+  try { const clash = await vrqWrite(id, next); if (clash) return clash; } catch (e) { return 'Not saved: ' + (e.message || e); }
   VRQ.rows = (VRQ.rows || []).map(x => (x.id === id ? next : x));
   renderVrq();
   return '';

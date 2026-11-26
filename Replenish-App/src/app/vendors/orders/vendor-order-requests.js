@@ -153,6 +153,12 @@ async function vrqApprove(id, opts) {
   const r = vrqOf(id);
   if (!r) return 'That request is gone — press Refresh.';
   if (r.status !== 'pending') return `${r.reqNo || id} is not waiting for approval any more (${r.status}).`;
+  /* Switch on: the request is looked at in the database itself before any printer order is made, so a request somebody has
+   * already rejected or withdrawn never reaches the printer's portal. */
+  if (lineHoldOn()) {
+    let f = null; try { f = await ptGetFresh('pt_vendorOrderReqs/' + id); } catch (e) { console.warn('[line hold] could not read the request before approving it:', e); }
+    if (f && typeof f === 'object' && f.status && f.status !== 'pending') return `${f.reqNo || id} was ${f.status} by somebody else a moment ago — press Refresh.`;
+  }
   const code = String((opts && opts.vendor) || r.vendorCode || '').trim();
   const vend = voAllVendors().find(v => String(v.code) === code);
   if (!vend) return 'That vendor is not active in the vendor master any more. Pick another one.';
@@ -198,7 +204,14 @@ async function vrqApprove(id, opts) {
   if (!have) { const fo = flowOwnedIn(order.lines); if (fo.length) return 'Not sent — ' + flowOwnsMsg(fo, 'PPC raises its printer order in PPC · Production flow. Reject this request with a note.'); }
   if (!have) {
     const put = Object.assign({}, order); delete put._key;
-    try { await ptPut('pt_vendorOrders/' + code + '/' + oid, put); }
+    /* TWO APPROVERS (Ravi, 26 Nov: "two users, one request" — the printer order was written under a new number each time, so
+     * the second approver's order replaced the first's). With the switch on, the order is written only where nothing is yet: the
+     * second approver is told it was sent and writes nothing. Off, as before. */
+    try {
+      if (lineHoldOn() && typeof flowClaim === 'function') {
+        if (await flowClaim('pt_vendorOrders/' + code + '/' + oid, put)) return `${r.reqNo || id} was approved and sent by somebody else a moment ago — press Refresh.`;
+      } else await ptPut('pt_vendorOrders/' + code + '/' + oid, put);
+    }
     catch (e) { return 'Not sent: ' + (e.message || e); }
     if (vend.email && VO.map) {
       try { await ptPut('pt_vendorMap/' + code, { email: String(vend.email).toLowerCase(), name: vend.name || code });
@@ -216,7 +229,7 @@ async function vrqApprove(id, opts) {
         + (moved ? ' (asked for ' + (r.vendorName || voName(r.vendorCode)) + ')' : '') + (note ? ' — ' + note : '') }]),
   });
   delete next._key;
-  try { await ptPut('pt_vendorOrderReqs/' + id, next); }
+  try { const clash = await vrqWrite(id, next); if (clash) return `${order.orderNo} is with ${vname}, but the request was answered meanwhile: ${clash}`; }
   catch (e) {
     return `${order.orderNo} is with ${vname}, but the request could not be marked approved (${e.message || e}). `
       + 'Press Approve again — it will not send the order twice.';
@@ -225,6 +238,19 @@ async function vrqApprove(id, opts) {
   renderVrq();
   if ($('vrqMsg')) { $('vrqMsg').className = 'muted';
     $('vrqMsg').textContent = `${r.reqNo} approved — ${order.orderNo} is on ${vname}'s portal now.`; }
+  return '';
+}
+
+/** Write a request's answer (approved, rejected, withdrawn). With the switch lineHold on, the request is read straight from the
+ *  database first and written only if it is still waiting and unchanged: two people answering one request at once cannot both
+ *  win. '' = written; otherwise the sentence to show. A failed read keeps the plain write — it never blocks a save on its own. */
+async function vrqWrite(id, next) {
+  const path = 'pt_vendorOrderReqs/' + id;
+  let fresh = null;
+  if (lineHoldOn()) { try { fresh = await ptGetFresh(path); } catch (e) { console.warn('[line hold] could not read the request just before saving it:', e); } }
+  if (!fresh || typeof fresh !== 'object') { await ptPut(path, next); return ''; }
+  if (fresh.status !== 'pending') return `${fresh.reqNo || id} was ${fresh.status} by somebody else a moment ago — press Refresh.`;
+  if (await ptCas(path, fresh, next) === 'changed') return `${fresh.reqNo || id} was changed by somebody else a moment ago — press Refresh.`;
   return '';
 }
 
@@ -240,7 +266,7 @@ async function vrqReject(id, reason) {
   const next = Object.assign({}, r, { status: 'rejected', rejectedBy: ME.email, rejectedAt: now, rejectReason: why,
     log: (Array.isArray(r.log) ? r.log : []).concat([{ at: now, by: ME.email, what: 'Rejected — ' + why }]) });
   delete next._key;
-  try { await ptPut('pt_vendorOrderReqs/' + id, next); } catch (e) { return 'Not saved: ' + (e.message || e); }
+  try { const clash = await vrqWrite(id, next); if (clash) return clash; } catch (e) { return 'Not saved: ' + (e.message || e); }
   VRQ.rows = (VRQ.rows || []).map(x => (x.id === id ? next : x));
   renderVrq();
   return '';
@@ -258,7 +284,7 @@ async function vrqWithdraw(id) {
   const next = Object.assign({}, r, { status: 'withdrawn', withdrawnBy: ME.email, withdrawnAt: now,
     log: (Array.isArray(r.log) ? r.log : []).concat([{ at: now, by: ME.email, what: 'Withdrawn' }]) });
   delete next._key;
-  try { await ptPut('pt_vendorOrderReqs/' + id, next); } catch (e) { return 'Not saved: ' + (e.message || e); }
+  try { const clash = await vrqWrite(id, next); if (clash) return clash; } catch (e) { return 'Not saved: ' + (e.message || e); }
   VRQ.rows = (VRQ.rows || []).map(x => (x.id === id ? next : x));
   renderVrq();
   return '';
