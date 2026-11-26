@@ -66,6 +66,13 @@ async function ptGetFresh(path) {
   if (!r.ok) throw new Error('read ' + r.status);
   return typeof dmJson === 'function' ? dmJson(r, path, 'plain') : r.json();
 }
+/** Only the rows of a register whose `field` is exactly `value`, from the database itself (the rules must index that field). */
+async function ptGetFreshWhere(node, field, value) {
+  const q = await ptAuthQuery(), asked = `orderBy=${encodeURIComponent(JSON.stringify(field))}&equalTo=${encodeURIComponent(JSON.stringify(value))}`;
+  const r = await fetch(`${PT_URL}/${ptPath(node)}.json?${asked}` + (q ? '&' + q.slice(1) : ''));
+  if (!r.ok) throw new Error('read ' + r.status);
+  return typeof dmJson === 'function' ? dmJson(r, node, 'plain') : r.json();
+}
 /** The history's own write: a root PATCH that is never itself logged. */
 async function ptAuditWrite(updates, raw) {
   const r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
@@ -281,8 +288,11 @@ async function ptPut(path, value) {
  * else has been written there since it was read. '' when written, 'changed' when somebody else got there first.
  * Two people saving at the same moment can then never write over each other (Production flow: challan and print order
  * numbers, and a revision per challan / line / the accessory shelf).
+ * opts.quiet (26 Nov): a short-lived note such as a line hold — no history line, mirror, sync note or order alert, and a
+ * write the rules refuse answers 'refused' (somebody else holds it) instead of failing as a missing right.
  */
-async function ptCas(path, expect, next) {
+async function ptCas(path, expect, next, opts) {
+  const quiet = !!(opts && opts.quiet);
   const url = `${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery();
   const g = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
   if (g.status === 401 || g.status === 403) throw new Error('The production database refused the read (permission denied).');
@@ -290,17 +300,19 @@ async function ptCas(path, expect, next) {
   const cur = await (typeof dmJson === 'function' ? dmJson(g, path, 'plain') : g.json()), tag = g.headers.get('ETag');
   if (JSON.stringify(cur == null ? null : cur) !== JSON.stringify(expect == null ? null : expect)) return 'changed';
   ptLiveWrote([path]);
-  const early = typeof ptMirrorEarly === 'function' ? ptMirrorEarly('put', { [path]: next }) : null;   // sent with the write itself
+  const early = !quiet && typeof ptMirrorEarly === 'function' ? ptMirrorEarly('put', { [path]: next }) : null;   // sent with the write itself
   let r;
   try {
     r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'if-match': tag }, body: JSON.stringify(next) });
     ptLiveWrote([path]);
     if (r.status === 412) { if (early) ptMirrorFix(early); return 'changed'; }      // somebody else was first: the mirror gets theirs
+    if (quiet && (r.status === 401 || r.status === 403)) return 'refused';
     if (!r.ok) ptSaveFailed('put', [path], r.status);
     if (r.status === 401 || r.status === 403)
       throw new Error('The production database refused the change — this account does not hold the right it needs.');
     if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   } catch (e) { if (early) ptMirrorFix(early); throw e; }
+  if (quiet) return '';
   auditLog('put', { [path]: next });
   if (!early && typeof ptMirror === 'function') ptMirror('put', { [path]: next });
   ptSyncNote([path], true);
