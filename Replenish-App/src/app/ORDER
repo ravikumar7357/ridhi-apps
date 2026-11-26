@@ -40,6 +40,7 @@ core/history.js
 core/line-hold.js
 core/mirror.js
 core/monitor.js
+core/stuck-screen.js
 core/gates.js
 core/delta-sync.js
 core/data-meter.js

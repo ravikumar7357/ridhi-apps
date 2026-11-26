@@ -749,7 +749,7 @@ function buildFactory(folder, mode) {
     html = must(html, new RegExp(`(href|src)="/${f.replace('.', '\.')}"`, 'g'), `$1="${f}"`, null, name + ' ' + f);
   });
   /* R-one: its wordmark, the barcode reader and the guide are also loaded from the site root */
-  html = must(html, /(["'])\/(r-one-wordmark\.png|vendor\/|guide\/)/g, "$1$2", null, name + ' sub-folder paths');
+  html = must(html, /(["'])\/(r-one-wordmark\.png|loading-print\.svg|vendor\/|guide\/)/g, "$1$2", null, name + ' sub-folder paths');
   /* Meera: the page loads her from /meera/ (meera.version.json, then meera.<hash>.js) — at the site root that is GitHub's
    * own root, a 404, so Meera never opened on the test ERP. Her files sit in the test folder's meera/. */
   html = must(html, /(["'])\/meera\//g, '$1meera/', null, name + ' Meera files');
