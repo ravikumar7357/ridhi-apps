@@ -11,7 +11,7 @@
  *
  * Errors: quiet by design. The watcher only counts and shows the picture; every request, its answer and its error go
  * back to the screen untouched, exactly as before. If the cover cannot be found it leaves a console line and skips. */
-const PT_STUCK = { afterMs: 1500, longMs: 30000, slow: 0, verySlow: 0 };
+const PT_STUCK = { afterMs: 1500, longMs: 30000, slow: 0, verySlow: 0, actedAt: -Infinity, actWindowMs: 2000 };
 const PT_STUCK_WORDS = {
   slow: 'Still working…',
   verySlow: 'Still waiting for data. Check the internet, then press Refresh.',
@@ -38,21 +38,37 @@ function ptStuckWatch(call) {
   });
 }
 
+/** ONE PICTURE AT A TIME (Ravi, 26 Nov 2026, Finished Goods: the cover sat on top of the table's own loading
+ *  picture). When the screen already shows the block printing in its table or message line, it already says it is
+ *  loading, so "Still working…" is not drawn over it. After 30 s the cover shows anyway: it says what to do. */
+function ptStuckScreenShowsLoading() {
+  return [...document.querySelectorAll('.main .ptLoading')].some(el => el.offsetParent !== null);
+}
+
 function ptStuckShow() {
   const level = PT_STUCK.verySlow > 0 ? 'verySlow' : PT_STUCK.slow > 0 ? 'slow' : '';
-  document.body.classList.toggle('ptStuck', !!level);
-  if (!level) return;
+  const show = level === 'verySlow' || (level === 'slow' && !ptStuckScreenShowsLoading());
+  document.body.classList.toggle('ptStuck', show);
+  if (!show) return;
   const words = document.getElementById('ptStuckWords');
   if (!words) { console.warn('[stuck screen] the cover is missing from the page; no picture shown'); return; }
   words.textContent = PT_STUCK_WORDS[level];
 }
 
+/** ONLY WHAT STAFF ARE WAITING FOR (Ravi, 26 Nov 2026, Finished Goods: the screen had loaded, yet "Still waiting for
+ *  data" covered it, because a background check was slow). A read counts only if it started within 2 s of a click, a
+ *  key press or a tab being opened; order alerts, the ticker and other background checks never bring the cover up. */
+function ptStuckStaffWaiting() { return Date.now() - PT_STUCK.actedAt <= PT_STUCK.actWindowMs; }
+
 function ptStuckStart() {
   const plain = window.fetch;
   if (typeof plain !== 'function' || plain.__stuck) return;
+  const acted = () => { PT_STUCK.actedAt = Date.now(); };
+  ['click', 'keydown'].forEach(type => document.addEventListener(type, acted, true));
+  window.addEventListener('hashchange', acted);
   const watched = function (input, init) {
     const call = plain.apply(this, arguments);
-    return ptStuckIsDataCall(input) ? ptStuckWatch(call) : call;
+    return ptStuckStaffWaiting() && ptStuckIsDataCall(input) ? ptStuckWatch(call) : call;
   };
   watched.__stuck = true;
   window.fetch = watched;
