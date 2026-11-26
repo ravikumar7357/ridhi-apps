@@ -67,6 +67,20 @@ function agePoll_(id) {
     }
   }
 
+  /* STOCK ON THE WAY (25 Nov 2026, Sellora's Forecast). The report carries Amazon's inbound units per SKU in three
+   * columns; they ride back as one EXTRA field per row, inb: [working, shipped, receiving]. Every other field is as it
+   * was. A report without any of the three columns gives rows with no inb at all, so "unknown" is never read as 0. */
+  var INB_NAMES = [['inbound-working'], ['inbound-shipped'], ['inbound-received', 'inbound-receiving']];
+  var inbCols = INB_NAMES.map(function (names) {
+    for (var ni = 0; ni < names.length; ni++) {
+      for (var hj = 0; hj < headers.length; hj++) {
+        if (String(headers[hj]).trim().toLowerCase() === names[ni]) return headers[hj];
+      }
+    }
+    return '';
+  });
+  var hasInb = inbCols.some(function (c) { return !!c; });
+
   var out = rows.map(function (x) {
     var sku = String(pick_(x, ['sku', 'msku', 'seller-sku']) || '').trim();
     if (!sku) return null;
@@ -78,11 +92,12 @@ function agePoll_(id) {
       storage: storageCol ? num_(x[storageCol]) : 0,
       age: {}, total: 0 };
     ageCols.forEach(function (h) { var v = num_(x[h]); o.age[h] = v; o.total += v; });
+    if (hasInb) o.inb = inbCols.map(function (c) { return c ? num_(x[c]) : 0; });
     return o;
   }).filter(Boolean).sort(function (a, b) { return b.total - a.total; });   // worst ageing first
 
   return { ok: true, status: 'done', rows: out.slice(0, 3000), ageCols: ageCols,
-    storageCol: storageCol, availCol: availCol, headers: headers, total: out.length };
+    storageCol: storageCol, availCol: availCol, inbCols: hasInb ? inbCols : [], headers: headers, total: out.length };
 }
 
 /** SKU â†’ Parent ASIN from the brand's Catalog tab on its main workbook (col A = SKU, col D = Parent). */

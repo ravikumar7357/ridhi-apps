@@ -345,7 +345,7 @@ $('hGo').onclick = async () => {
         (report.rows || []).forEach(row => {
           if (row.sku) map[row.sku] = row.available || 0;
         });
-        await saveStockDoc(brand, map);
+        await saveStockDoc(brand, map, stockInMap(report.rows));
         return map;
       };
       try {
