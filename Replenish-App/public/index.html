@@ -19929,6 +19929,7 @@ function cutSkuTyped() {
 }
 
 function renderCutForm() {
+  frmWire('cuttingEntry', $('cwBox'));   // my previous cutting entry in grey, Tab fills (core/form-memory.js)
   const skuBox = $('cwSku');
   const sku = skuBox.value.trim();
   const m = cutSkuOf(sku);
@@ -20123,6 +20124,7 @@ $('cwSave').onclick = async () => {
   try {
     const why = await cutWrite(entry);
     if (why) { cutFormMsg(why, true); $('cwSave').disabled = false; return; }
+    frmRemember('cuttingEntry', $('cwBox'));
     renderPcut();
     ['cwSku', 'cwPcs', 'cwFabric', 'cwRemarks', 'cwAt', 'cwSub', 'cwCol', 'cwSz', 'cwUsed', 'cwWaste', 'cwWasteW'].forEach(id => { $(id).value = ''; });
     $('cwSku').dataset.typed = '';
@@ -96668,6 +96670,11 @@ function p1FgWaits(x) {
  *   - PIECES ON THE CHALLAN, METRES ON THE VENDOR ORDER (Ravi, 26 Nov: cloth printed on the SKU, ordered from the printer as
  *     running cloth; SHP-8018, all 2.65 m entered, still showed 1 piece out): see p1SideOf. The other way round is left as it
  *     is — a metre challan against an order in pieces is for someone to check.
+ *   - THE ORDER LINE HAS MOVED ON (Ravi, 26 Nov: "mark them received if the orders they were against are moved forward in
+ *     production"; report only, no receipt is written): once the line's whole quantity is past printing (p1PastPrinting),
+ *     none of its challan cloth is with the printer or on the way — what has no receipt is NOT BOOKED ON THE CHALLAN. A line
+ *     only partly past printing is left as it is. Ruffle cloth goes with finished pieces only (cutting does not wait for it).
+ *     Standing cloth stays with the printer.
  * The portal's figures come with the vendor orders, read behind the page (flowEnsureData); until then the challans alone are used,
  * and the page says so. Nothing stored is changed. */
 /** What part of a vendor order line's figure belongs to each order line it stands for: in proportion to the cloth on this
@@ -96724,6 +96731,24 @@ function p1ClothSplit(sent, recv, v, earlier) {
   const unbooked = Math.max(0, got - recv), transit = Math.max(0, said - Math.max(recv, got));
   return { left: flowR2(open - unbooked - transit), transit: flowR2(transit), unbooked: flowR2(unbooked) };
 }
+/** Whether an order line's whole quantity is past printing: all of it cut, given to karigars or made, or the line is waiting
+ *  for Finished Goods or shipping, or finished. For ruffle cloth only made or finished counts: the body is cut and given out
+ *  without it, so those say nothing about the ruffle. */
+function p1PastPrinting(line, state, ruffle) {
+  const q = +(line && line.qty) || 0; if (!(q > 0) || !state) return false;
+  const moved = ruffle ? +state.made || 0 : Math.max(+state.cut || 0, +state.issuedNet || 0, +state.made || 0);
+  return ['fgin', 'ship', 'done'].includes(state.bucket) || moved >= q;
+}
+/** Where an order line stands: the PPC list's own figures, worked out afresh for a line that has left that list. If it cannot
+ *  be read, the line counts as not moved on (its cloth stays out) and the console says why. */
+function p1LineStates() {
+  const known = new Map();
+  try { flowRows().forEach(x => known.set(x.s.key, x.s)); } catch (e) { console.warn('PPC: line states not read (' + ((e && e.message) || e) + ').'); }
+  return (key, line) => {
+    if (known.has(key) || !line) return known.get(key);
+    try { return flowState(line); } catch (e) { console.warn('PPC: state of ' + key + ' not read (' + ((e && e.message) || e) + ').'); return undefined; }
+  };
+}
 function p1PrinterWork(from, to) {
   const inP = d => !!d && (!from || d >= from) && (!to || d <= to), day = (d, at) => String(d || p1Iso(at) || '').slice(0, 10);
   const lineOf = new Map(); try { ordLines().forEach(r => lineOf.set(flowKey(r.orderNo, r.sku), r)); } catch (e) { /* no order book yet */ }
@@ -96755,11 +96780,12 @@ function p1PrinterWork(from, to) {
     Object.values(c.moved || {}).forEach(m => Object.values((m && m.settles) || {}).forEach(x => {
       if (x && x.how === 'store' && inP(day('', x.at))) put(e, m.unit === 'pcs' ? 'pcs' : 'm', +x.qty || 0, 'back'); }));
   });
-  const side = p1VendorSide(onChallans), holds = [], unbooked = [];
+  const side = p1VendorSide(onChallans), stateOf = p1LineStates(), holds = [], unbooked = [];
   lines.forEach(b => {
-    const x = p1ClothSplit(flowR2(b.sent), b.recv, p1SideOf(side, onChallans, b.id), onChallans.get(b.id).earlier);
+    const r = lineOf.get(b.key), movedOn = p1PastPrinting(r, stateOf(b.key, r), b.ruffle);
+    const x = p1ClothSplit(flowR2(b.sent), b.recv, movedOn ? { done: true } : p1SideOf(side, onChallans, b.id), onChallans.get(b.id).earlier);
     put(b.e, b.unit, x.transit, 'transit'); put(b.e, b.unit, x.unbooked, 'unbooked');
-    const r = lineOf.get(b.key), row = qty => ({ stage: 'Printer', sku: r ? obUC(r.sku) : b.sku, orderNo: r ? obUC(r.orderNo) : obUC(String(b.key).split('__')[0]), pcs: qty,
+    const row = qty => ({ stage: 'Printer', sku: r ? obUC(r.sku) : b.sku, orderNo: r ? obUC(r.orderNo) : obUC(String(b.key).split('__')[0]), pcs: qty,
       unit: b.unit, who: b.e.name, since: b.since, ref: (b.ruffle ? 'ruffle · ' : '') + 'Challan ' + b.nos.join(', '), key: b.key });
     if (x.left > 0.01) holds.push(row(x.left));
     if (x.unbooked > 0.01) unbooked.push(row(x.unbooked));
@@ -97555,7 +97581,7 @@ function p1DrawReport() {
     ${p1WipCard()}
     <div class="card" style="padding:0;overflow:hidden"><div class="rp-cap"><b>Work given out — and what came back</b><span class="muted"> · given and back in the period; still out is today: what the printer has not sent, or the karigar not returned</span>
       <span style="flex:1"></span><div class="seg">${[['', 'All'], ['Printer', 'Printers'], ['Karigar', 'Karigars']].map(k => `<button type="button" class="segbtn${(P1.rk || '') === k[0] ? ' on' : ''}" data-p1rk="${k[0]}">${k[1]} <span class="n">${R.rows.filter(p => !k[0] || p.kind === k[0]).length}</span></button>`).join('')}</div></div>
-    <div class="ff-grid" style="max-height:none"><table class="xl"><thead><tr><th class="frz" style="text-align:left">Given to</th><th>Type</th><th>Given</th><th>Back</th><th>Still out now</th><th title="The printer has entered it as sent; we have not received it yet. Not counted as with them.">Sent by printer, not received</th><th title="Finished or delivered on the vendor order, but the challan has no receipt for it. Not counted as with the printer — receive it on the challan.">Not booked on the challan</th><th>Oldest out</th><th>SKUs</th><th></th></tr></thead><tbody>
+    <div class="ff-grid" style="max-height:none"><table class="xl"><thead><tr><th class="frz" style="text-align:left">Given to</th><th>Type</th><th>Given</th><th>Back</th><th>Still out now</th><th title="The printer has entered it as sent; we have not received it yet. Not counted as with them.">Sent by printer, not received</th><th title="Finished or delivered on the vendor order, or the whole order line is already past printing, but the challan has no receipt for it. Not counted as with the printer — receive what came on the challan, or close the challan short.">Not booked on the challan</th><th>Oldest out</th><th>SKUs</th><th></th></tr></thead><tbody>
     ${rows.map(p => { const open = P1.rexp === p.kind + '|' + p.name, d = p1Days(p.out.oldest);
       const lists = [['Still out with ' + p.name, p.out.items], ['Not booked on the challan', p.unbookedItems]].filter(l => l[1].length);
       return `<tr><td class="frz" style="text-align:left"><b>${esc(p.name)}</b></td><td><span class="pl ${p.kind === 'Printer' ? 'mv-mat' : p.kind === 'Karigar' ? 'mv-make' : 'mv-plan'}">${p.kind}</span></td>
