@@ -5833,13 +5833,13 @@ function gdSeedMasters() {
   return { mst: mst, ven: ven, co: { name: gdCoName(), addr: '', email: '', gstin: '', iec: '', pan: '', jurisdiction: 'Jaipur',
     poPrefix: 'RIDHI/PO/GREIG/', poNext: 1, rfdPrefix: 'RIDHI/RFD/' } };
 }
-function gdSaveAll() {
-  if (GD_STATE && GD_STATE !== 'ok') return Promise.resolve();
-  var store = { gpo: {}, fab: {}, mst: DB.mst || [], ven: DB.ven || [], co: DB.co || {} };
-  (DB.gpo || []).forEach(function (x) { store.gpo[x.id] = x; });
-  (DB.fab || []).forEach(function (x) { store.fab[x.id] = x; });
-  GD_SNAP = gdSnap();
-  return Promise.resolve(ptPut(GD_NODE, JSON.parse(JSON.stringify(store)))).catch(function (e) { lmSay('err', 'Not saved: ' + (e && e.message || e)); });
+/** THE STARTING LISTS FOR AN EMPTY DESK (fabric pairs, suppliers and processors, company). The store holds the real greige POs
+ *  and movements, so it is never written whole (Ravi, 26 Nov: one screen's copy could replace what another PC had saved): the
+ *  lists are written only if the store is still empty at that moment, checked and written in one step. Answers what was
+ *  written, or null when another screen got there first. */
+async function gdSeed() {
+  var m = gdSeedMasters(), store = { mst: m.mst, ven: m.ven, co: m.co };
+  return (await ptCas(GD_NODE, null, store)) ? null : store;
 }
 function gdLoad() {
   if (GD_READY) return GD_READY;
@@ -5853,16 +5853,21 @@ function gdLoad() {
     var v = null, failed = '';
     try { v = await ptGet(GD_NODE); } catch (e) { failed = String((e && e.message) || e || 'read failed'); }
     if (failed) { DB = null; GD_STATE = 'err: ' + failed; GD_READY = null; return; }
-    if (v && (v.mst || v.gpo || v.fab)) { DB = gdFromStore(v); lmMigrate(); GD_SNAP = gdSnap(); }
-    else { var m = gdSeedMasters(); DB = { gpo: [], fab: [], mst: m.mst, ven: m.ven, co: m.co, users: [], me: '' }; lmMigrate(); await gdSaveAll(); }
+    if (v == null) {
+      try { v = (await gdSeed()) || await ptGet(GD_NODE); }   // another screen seeded it first: theirs is read
+      catch (e) { DB = null; GD_STATE = 'err: ' + String((e && e.message) || e); GD_READY = null; return; }
+      if (v == null) { DB = null; GD_STATE = 'err: another screen was setting up the desk at the same moment — open it again'; GD_READY = null; return; }
+    }
+    /* Something there that is not a desk (not a record) is never replaced by one: nothing is written, and the screen says so.
+     * A desk whose lists are still empty holds only its company details, and is a desk. */
+    if (!(v && typeof v === 'object' && !Array.isArray(v))) { DB = null; GD_STATE = 'err: the greige store holds something this desk cannot read — nothing was written'; GD_READY = null; return; }
+    DB = gdFromStore(v); lmMigrate(); GD_SNAP = gdSnap();
     GD_STATE = 'ok';
   })();
   return GD_READY;
 }
 function lmLoad() { if (!DB) DB = { gpo: [], fab: [], mst: [], ven: [], co: {}, users: [], me: '' }; lmMigrate(); }
 /* The model's sample (no button for it in the app since 15 Oct), the company's own name on it. */
-function lmResetSample() { var s = lmSample(); s.co.name = gdCoName(); s.users = []; s.me = ''; DB = s; lmMigrate(); gdSaveAll(); }
-function gdClearAll() { DB.gpo = []; DB.fab = []; gdSaveAll(); }
 
 /* ---- WHO IS WORKING: the person signed in to the app, and the rights they hold ---- *
  * gdesk opens the desk; gdled shows the fabric ledger; gdledit lets them add and correct it; gdappr approves an RFD
