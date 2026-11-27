@@ -141,6 +141,7 @@ function world(opts) {
     localStorage: { getItem: k => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)) },
     auth: { currentUser: { uid: opts.uid || 'u1' } }, ME: { email: 'x@y' },
     prGet, sdToday: () => dayOf(Date.now()), sdShift: (d, n) => dayOf(Date.parse(d + 'T00:00:00Z') + n * DAY),
+    sdIsDay: new Function('return ' + /const sdIsDay = (.*);/.exec(fs.readFileSync(path.join(ROOT, 'src', 'app', 'shopify', 'shopify-orders.js'), 'utf8'))[1])(),
     SHP_REACH_MAX_DAYS: 150, PTG: { ob: opts.ob || [] }, SHOP_META: opts.meta || {}, adjOpen: () => true,
     soStamp: () => 'now', soMsg: (t, bad) => msgs.push([t, !!bad]), renderShop: () => {}, shpSyncSoon: () => {},
     console: { info() {}, warn() {}, log() {} }, window: {}, setInterval: () => 0,

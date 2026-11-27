@@ -100,7 +100,7 @@ function shpSheetMatch(rows, storeWant) {
     const d = !dv ? '' : dv instanceof Date ? dv.toISOString().slice(0, 10)
       : /^\d+(\.\d+)?$/.test(String(dv)) ? new Date(Math.round((Number(dv) - 25569) * 86400000)).toISOString().slice(0, 10) : String(dv).slice(0, 10);
     const o = orders.get(no);
-    if (!o) { L.st = 'nofetch'; L.why = 'order not fetched' + (d ? ' (' + d + ')' : ''); if (/^\d{4}-\d{2}-\d{2}$/.test(d) && (!from || d < from)) from = d; return; }
+    if (!o) { L.st = 'nofetch'; L.why = 'order not fetched' + (d ? ' (' + d + ')' : ''); if (sdIsDay(d) && (!from || d < from)) from = d; return; }
     if (o.cancelled) { L.st = 'gone'; L.why = 'cancelled on Shopify'; return; }
     /* the line on the order: its Shopify SKU, else its name (title + variant, as the export joins them) */
     const items = o.items || [], nk = shpNameKey(name);
@@ -524,21 +524,22 @@ async function shpSyncOrder(o, opts) {
 function shpUnseen() {
   const seen = new Set((SO_ALL_ROWS || []).map(r => r && r.id).filter(Boolean));
   const want = new Map();
-  const note = (id, d) => {
+  const note = (id, d, no) => {
     id = String(id || ''); d = String(d || '').slice(0, 10);
     /* A REPLACEMENT's line (returns.js, 2026-10-14) carries "REPL-…", not a Shopify id — Shopify has no such order to
      * find, and asking for it would only add calls to every sync. It is closed by production like any line. */
     if (!id || seen.has(id) || /^REPL-/.test(id)) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) d = '';
+    /* An impossible date counts as no date: the order is still asked about, in the walk back from today. */
+    if (d && !sdIsDay(d)) { console.warn(`Shopify order ${no || id}: "${d}" is not a date, so it was ignored.`); d = ''; }
     const had = want.get(id);
     if (had === undefined || (d && (!had || d < had))) want.set(id, d || had || '');
   };
-  (PTG.ob || []).forEach(r => { if (r && String(r.src || '') === 'SHP') note(r.shopOrderId, r.orderDate); });
+  (PTG.ob || []).forEach(r => { if (r && String(r.src || '') === 'SHP') note(r.shopOrderId, r.orderDate, r.shopOrderNo || r.orderNo); });
   Object.keys(SHOP_META || {}).forEach(id => {
     const lines = (SHOP_META[id] || {}).lines || {};
     Object.keys(lines).forEach(k => {
       const ln = lines[k];
-      if (ln && ln.adj && adjOpen(ln)) note(id, ln.adjOrderDate || ln.adjAt);
+      if (ln && ln.adj && adjOpen(ln)) note(id, ln.adjOrderDate || ln.adjAt, ln.adjOrder);
     });
   });
   return want;

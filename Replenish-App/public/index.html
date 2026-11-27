@@ -79707,9 +79707,9 @@ function soOldOpen(start) {
   const note = (id, d) => {
     id = String(id || ''); d = String(d || '').slice(0, 10);
     if (/^REPL-/.test(id)) return;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(d) && (d >= start || d < floor)) return;   // inside the window, or past the cap
+    if (sdIsDay(d) && (d >= start || d < floor)) return;   // inside the window, or past the cap
     if (/^\d+$/.test(id)) ids.add(id);
-    else if (/^\d{4}-\d{2}-\d{2}$/.test(d) && (!reach || d < reach)) reach = d;
+    else if (sdIsDay(d) && (!reach || d < reach)) reach = d;
   };
   (PTG.ob || []).forEach(r => { if (r && String(r.src || '') === 'SHP') note(r.shopOrderId, r.orderDate); });
   Object.keys(SHOP_META || {}).forEach(id => {
@@ -79758,7 +79758,7 @@ async function soAskStore(brand, want, ids, lim) {
 function soOldestOf(ids) {
   const want = new Set(ids);
   let d0 = '';
-  const see = (id, d) => { d = String(d || '').slice(0, 10); if (want.has(String(id)) && /^\d{4}-/.test(d) && (!d0 || d < d0)) d0 = d; };
+  const see = (id, d) => { d = String(d || '').slice(0, 10); if (want.has(String(id)) && sdIsDay(d) && (!d0 || d < d0)) d0 = d; };
   (PTG.ob || []).forEach(r => { if (r && r.src === 'SHP') see(r.shopOrderId, r.orderDate); });
   Object.keys(SHOP_META || {}).forEach(id => Object.values((SHOP_META[id] || {}).lines || {}).forEach(ln => { if (ln && ln.adj) see(id, ln.adjOrderDate || ln.adjAt); }));
   return d0;
@@ -80241,6 +80241,9 @@ function sdWall(ms, tz) {
 const sdPT = ms => sdWall(ms, 'America/Los_Angeles');
 function sdToday() { const d = sdPT(Date.now()); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 const sdShift = (iso, days) => new Date(new Date(iso + 'T00:00:00Z').getTime() + days * 86400000).toISOString().slice(0, 10);
+/* A day that is on the calendar. "2026-15-11" has the shape and is no day: sdShift throws "Invalid time value" on it, and
+ * that stopped the whole check of older shipped orders (27 Nov 2026). Any date read off a stored record passes here first. */
+const sdIsDay = d => { const t = Date.parse(d + 'T00:00:00Z'); return !isNaN(t) && new Date(t).toISOString().slice(0, 10) === d; };
 /**
  * A timestamp in the MARKETPLACE's day, not UTC.
  *
@@ -81451,7 +81454,7 @@ function shpOldestOpen() {
   let oldest = '';
   const older = d => {
     d = String(d || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    if (!sdIsDay(d)) return;
     if (!oldest || d < oldest) oldest = d;
   };
   (PTG.ob || []).forEach(r => {
@@ -83694,7 +83697,7 @@ function shpSheetMatch(rows, storeWant) {
     const d = !dv ? '' : dv instanceof Date ? dv.toISOString().slice(0, 10)
       : /^\d+(\.\d+)?$/.test(String(dv)) ? new Date(Math.round((Number(dv) - 25569) * 86400000)).toISOString().slice(0, 10) : String(dv).slice(0, 10);
     const o = orders.get(no);
-    if (!o) { L.st = 'nofetch'; L.why = 'order not fetched' + (d ? ' (' + d + ')' : ''); if (/^\d{4}-\d{2}-\d{2}$/.test(d) && (!from || d < from)) from = d; return; }
+    if (!o) { L.st = 'nofetch'; L.why = 'order not fetched' + (d ? ' (' + d + ')' : ''); if (sdIsDay(d) && (!from || d < from)) from = d; return; }
     if (o.cancelled) { L.st = 'gone'; L.why = 'cancelled on Shopify'; return; }
     /* the line on the order: its Shopify SKU, else its name (title + variant, as the export joins them) */
     const items = o.items || [], nk = shpNameKey(name);
@@ -84118,21 +84121,22 @@ async function shpSyncOrder(o, opts) {
 function shpUnseen() {
   const seen = new Set((SO_ALL_ROWS || []).map(r => r && r.id).filter(Boolean));
   const want = new Map();
-  const note = (id, d) => {
+  const note = (id, d, no) => {
     id = String(id || ''); d = String(d || '').slice(0, 10);
     /* A REPLACEMENT's line (returns.js, 2026-10-14) carries "REPL-…", not a Shopify id — Shopify has no such order to
      * find, and asking for it would only add calls to every sync. It is closed by production like any line. */
     if (!id || seen.has(id) || /^REPL-/.test(id)) return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) d = '';
+    /* An impossible date counts as no date: the order is still asked about, in the walk back from today. */
+    if (d && !sdIsDay(d)) { console.warn(`Shopify order ${no || id}: "${d}" is not a date, so it was ignored.`); d = ''; }
     const had = want.get(id);
     if (had === undefined || (d && (!had || d < had))) want.set(id, d || had || '');
   };
-  (PTG.ob || []).forEach(r => { if (r && String(r.src || '') === 'SHP') note(r.shopOrderId, r.orderDate); });
+  (PTG.ob || []).forEach(r => { if (r && String(r.src || '') === 'SHP') note(r.shopOrderId, r.orderDate, r.shopOrderNo || r.orderNo); });
   Object.keys(SHOP_META || {}).forEach(id => {
     const lines = (SHOP_META[id] || {}).lines || {};
     Object.keys(lines).forEach(k => {
       const ln = lines[k];
-      if (ln && ln.adj && adjOpen(ln)) note(id, ln.adjOrderDate || ln.adjAt);
+      if (ln && ln.adj && adjOpen(ln)) note(id, ln.adjOrderDate || ln.adjAt, ln.adjOrder);
     });
   });
   return want;
