@@ -132,7 +132,7 @@
     }).catch(function (e) { try { console.warn('[R1] could not ask ERP data for changes of ' + p + ': ' + e.message); } catch (x) {} return SBMEM[key]; });
   }
   /* LIVE: every 5 s (page in front) the newest save ERP data has applied; when it moved, the lists held here catch up */
-  var LIVE = { upto: null, busy: false, used: {}, tok: '', ok: true };
+  var LIVE = { upto: null, busy: false, used: {}, tok: '', ok: true, lists: true };
   R1.sbLive = LIVE;
   /* A SIGN-IN THAT IS STILL VALID (23 Nov): a sign-in token lasts an hour. The live check used the one it was last handed,
    * so on a page left open without reading anything it kept asking with an expired one (401 every 5 s, no live updates).
@@ -165,13 +165,28 @@
     var of = R1.origFetch;
     freshTok().then(function (tok) {
       if (!tok) return;                                          // no valid sign-in right now: ask nothing
-      return sbRpc('rt_live_upto', {}, tok, of).then(function (u) {
+      /* 27 Nov: ask WHICH lists changed (core.rt_live_lists, change 003) and refresh only those. Before, every list this page
+       * held was refreshed after any save by anyone. Until 003 is on the server (404), the old question is asked as before. */
+      var ask = LIVE.lists === false || LIVE.upto === null
+        ? sbRpc('rt_live_upto', {}, tok, of).then(function (u) { return { upto: u, lists: null }; })
+        : sbRpc('rt_live_lists', { p_from: LIVE.upto }, tok, of).catch(function (e) {
+            if (!/404|not find the function/.test(String(e && e.message))) throw e;
+            LIVE.lists = false; return sbRpc('rt_live_upto', {}, tok, of).then(function (u) { return { upto: u, lists: null }; });
+          });
+      return ask.then(function (a) {
+      var u = a.upto, changed = a.lists;
       if (LIVE.upto !== null && u === LIVE.upto) return;
-      var first = LIVE.upto === null; LIVE.upto = u;
+      var first = LIVE.upto === null, prev = LIVE.upto; LIVE.upto = u;
       if (first) return;
       R1.memo = {};
+      var want = function (key) {
+        if (!changed) return true;                                   // old question or a long gap: every list, as before
+        var mm = SBMEM[key]; if (!mm || mm.upto == null || mm.upto < prev) return true;   // this copy is behind the last check: catch up fully
+        var reg = String(LIVE.used[key] || '').split('/')[0];
+        return changed.indexOf(reg.indexOf('fs') === 0 ? 'fs' : reg) >= 0;
+      };
       return Object.keys(LIVE.used).reduce(function (chain, key) {
-        return chain.then(function () { var m = SBMEM[key]; if (!m || m.upto == null || m.upto >= u) return; return sbRefresh(key, LIVE.used[key], tok, of); })
+        return chain.then(function () { var m = SBMEM[key]; if (!m || m.upto == null || m.upto >= u) return; if (!want(key)) { sbStore(key, { text: m.text, upto: u, at: m.at }); return; } return sbRefresh(key, LIVE.used[key], tok, of); })
           .catch(function (e) { if (sbDenied(e)) { SBDENY[key] = Date.now(); delete LIVE.used[key]; } });   // one list failing does not stop the others
       }, Promise.resolve());
       });
@@ -188,7 +203,9 @@
     LIVE.used[key] = p; if (tok) LIVE.tok = tok;
     var fromMem = SBMEM[key] ? Promise.resolve(SBMEM[key]) : sbCopy(key).then(function (c) { if (c && typeof c.text === 'string' && c.upto != null) SBMEM[key] = c; return SBMEM[key] || null; });
     return fromMem.then(function (m) {
-      if (!m || Date.now() - (m.at || 0) > 6 * 3600000) return sbFull(key, p, tok, of).then(function (x) { return x.text; });
+      /* 27 Nov: this browser's copy is kept for 7 days (was 6 hours, so every morning everyone downloaded every list again).
+       * It is still caught up with the saves since its number, and ERP data answers "full" when the gap is too big. */
+      if (!m || Date.now() - (m.at || 0) > 7 * 24 * 3600000) return sbFull(key, p, tok, of).then(function (x) { return x.text; });
       if (SBSTALE[key]) {
         delete SBSTALE[key];
         return (SBBUSY[key] || Promise.resolve()).then(function () { return sbRefresh(key, p, tok, of); }).then(function (x) { return (x || SBMEM[key]).text; });
