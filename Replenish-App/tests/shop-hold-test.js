@@ -45,7 +45,7 @@ function load(o) {
     ME: { email: 'admin@example.com', admin: o.admin !== false }, FGI: { set: o.set || {} }, fgiOf: () => ({ current: 10 }),
     window: o.testSite ? { __TEST_ERP: {} } : {}, location: { hostname: 'localhost' }, nf: String };
   const keys = Object.keys(ctx);
-  const api = new Function(...keys, HELPERS + HOLD + '\n;return { shpHoldOn, shpHoldBuild, shpHoldPublish, fgiHoldState, fgiHeld, fgiFbaFree, fgiReleaseCreate, fgiReleasePlan, fgiReleaseSpend };')(...keys.map(k => ctx[k]));
+  const api = new Function(...keys, HELPERS + HOLD + '\n;return { shpHoldOn, shpHoldBuild, shpHoldPublish, fgiHoldState, fgiHeld, fgiFbaFree, fgiReleaseCreate, fgiReleasePlan, fgiReleaseSpend, fgiHoldAgeWhy };')(...keys.map(k => ctx[k]));
   return Object.assign(api, { db, warns });
 }
 
@@ -68,19 +68,21 @@ function shop(o) {
     soOrdBrand: x => (x.shopBrand === 'CPC' ? 'CPC' : 'SP'), soAcctName: b => b, shpSheetAllows: x => !x.offSheet,
     soIndiaKey: () => '', soPackFit: sku => (sku === 'NAP-12' ? { ok: true, pack: 4 } : null), obPcsPerPack: sku => (sku === 'PAIR' ? 2 : 1),
     shpTakenNumbers: () => new Map((o.ob || []).map(r => [r.orderNo, String(r.shopOrderId)])), shpOrderNo: n => 'SHP-' + String(n).replace('#', ''),
-    shpHoldOn: () => o.on !== false, shpHoldBuild: claims => claims, shpHoldPublish: async (store, figure) => { published.push({ store, figure }); },
+    shpHoldOn: () => o.on !== false, shpOnTestSite: () => false, prOn: () => true, ptRegLoaded: () => true, shpHoldBuild: claims => claims, shpHoldPublish: async (store, figure) => { published.push({ store, figure }); },
     ptNeed: async () => {}, ptGet: async () => { if (o.offline) throw new Error('offline'); return {}; }, ptList: () => [],
     $: () => msg, soMsg: t => { msg.textContent = t; said.push(t); }, SHP_REACH_MAX_DAYS: 150,
     soAskStore: async (brand, want, ids) => { asked.push({ brand, want, ids }); const a = (o.old || {})[brand] || {}; if (a.fails) throw new Error(a.fails); return { orders: a.orders || [], more: !!a.more }; },
   });
   if (o.publishWhy) ctx.shpHoldPublish = async () => o.publishWhy;
   const keys = Object.keys(ctx);
-  const src = line('core/gates.js', 'const obUC') + fn(ORDERS, 'soLive') + fn(ORDERS, 'soIndiaOwed') + cut(ORDERS, 'const SO_CB_RE', '/** Tracking numbers as one cell')
-    + cut(ORDERS, '/** The lines of an order that still have a claim', 'function soAllocIndia(')
-    + cut(ORDERS, '/* ---------- India stock HELD FROM FBA', 'function soIndia(order)');
+  const src = line('core/gates.js', 'const obUC') + ordersSide();
   const api = new Function(...keys, src + '\n;return { soHoldClaims, soHoldReadOf, soHoldReadOld, soHoldPublish };')(...keys.map(k => ctx[k]));
   return Object.assign(api, { published, warns, said, asked, msg, SHOP: ctx.SHOP });
 }
+/* the Shopify tab's order rules and the whole hold section, as they are in the app */
+const ordersSide = () => fn(ORDERS, 'soLive') + fn(ORDERS, 'soIndiaOwed') + cut(ORDERS, 'const SO_CB_RE', '/** Tracking numbers as one cell')
+  + cut(ORDERS, '/** The lines of an order that still have a claim', 'function soAllocIndia(')
+  + cut(ORDERS, '/* ---------- India stock HELD FROM FBA', 'function soIndia(order)');
 const order = (no, over, item) => Object.assign({ id: String(no), no: '#' + no, items: [Object.assign({ sku: 'A', qty: 3 }, item)] }, over);
 
 /* ---- every way to FBA, with the screens' own code ---- */
@@ -303,6 +305,149 @@ async function waysToFba() {
   ok('the release form saves once, however often it is pressed', first === '' && /already saved/.test(second) && R.db.data.releases['REL-new'].left === 2, first + second);
 }
 
+/* ---- the test website: counted from the shared copy ---- */
+const COPY_FILE = path.join(APP, 'shopify', 'shopify-copy.js');
+/* Today is 27 Nov: the tab reaches back 150 days, to 30 June. The copy last heard from Shopify an hour ago. */
+const FLOOR = '2026-06-30';
+function sharedCopy(o) {
+  const at = o.at || Date.now() - HOUR, docs = new Map(), stores = {};
+  ['SP', 'CPC'].forEach(b => {
+    const days = (o.days || {})[b] || {};
+    stores[b] = Object.assign({ cursor: 'c', syncedAt: at, filledFrom: '2026-10-15', days: {} }, (o.store || {})[b]);
+    Object.entries(days).forEach(([d, orders]) => {
+      stores[b].days[d] = 1;
+      docs.set('shopify_cache_days/' + b + '_' + d, { json: JSON.stringify({ orders: Object.fromEntries(orders.map(x => [x.id, x])) }) });
+    });
+  });
+  docs.set('shopify_cache/meta', { json: JSON.stringify({ v: o.version || 1, stores }) });
+  return { at, docs, stores };
+}
+/* the usual copy: one Ridhi order for 3 of A, one old CPC order for 2 */
+const usual = over => sharedCopy(Object.assign({ days: { SP: { '2026-11-20': [order(1)] }, CPC: { '2026-08-01': [order(2, {}, { qty: 2 })] } } }, over));
+
+/* The test website: the real hold rules and the real readers of the shared copy, a made-up Firestore and database. There is
+ * no way to ask live Shopify here: a call to it would stop the suite. */
+function testSite(o) {
+  o = o || {};
+  const copy = o.copy || usual(), reads = [], warns = [], indexed = [], box = { textContent: '', className: '' };
+  const db = database(o.db || {}, o);
+  const ctx = {
+    window: { __TEST_ERP: {} }, localStorage: { getItem: () => null }, console: { warn: (...a) => warns.push(a.join(' ')) },
+    SHOP: { orders: o.screen || [] }, SHOP_META: o.meta || {}, SHOP_STOCK_LOADED: o.stock !== false, SHOP_INDIA_AT: 'now', SHOP_INDIA_ERR: '',
+    PTG: { ob: [], mdb: [{}], at: 1 }, PTG_ALL: [], prOn: () => true, ptRegLoaded: () => !o.noBook, SO_BRANDS: ['SP', 'CPC'], SHP_REACH_MAX_DAYS: 150,
+    ME: { email: 'a@example.com', admin: true }, FGI: { set: {} }, db: {},
+    doc: (_, coll, id) => coll + '/' + id,
+    getDoc: async ref => {
+      reads.push(ref);
+      if (o.silent) return new Promise(() => {});
+      if (o.denied) throw Object.assign(new Error('ERP data: permission denied'), { code: 'permission-denied' });
+      if (o.failOnce === ref) { o.failOnce = ''; throw new Error('no signal'); }
+      const v = copy.docs.get(ref);
+      return { exists: () => !!v, data: () => v };
+    },
+    ptGetFresh: db.ptGetFresh, ptCas: o.savingOff ? async () => { throw new Error('Saving is off in the TEST ERP'); } : db.ptCas,
+    ptNeed: async () => {}, ptGet: async () => o.ledger || [], ptList: v => v,
+    sdToday: () => '2026-11-27', sdShift: (iso, d) => new Date(Date.parse(iso + 'T00:00:00Z') + d * 86400000).toISOString().slice(0, 10),
+    soIndexNames: more => indexed.push((more || []).map(x => x.no)), soApplyTypedSkus() {}, soSendQty: (id, sku, n) => n, soMcfHas: () => false,
+    soMcf: () => ({ v: 'no' }), soOrdBrand: x => (x.shopBrand === 'CPC' ? 'CPC' : 'SP'), soAcctName: b => (b === 'CPC' ? 'CPC' : 'Ridhi'),
+    shpSheetAllows: () => true, soIndiaKey: () => '', soPackFit: () => null, obPcsPerPack: () => 1, shpTakenNumbers: () => new Map(),
+    shpOrderNo: n => 'SHP-' + String(n).replace('#', ''), $: () => box,
+    setTimeout: (f, ms) => setTimeout(f, o.silent ? 1 : ms), clearTimeout,
+  };
+  const COPY = read(COPY_FILE);
+  const copyReaders = cut(COPY, 'const SO_COPY = {', 'const SO_BRANDS') + line('shopify/shopify-copy.js', 'const soCopyMs')
+    + line('shopify/shopify-copy.js', 'const soCopyDone') + fn(COPY, 'soCopyStrip') + fn(COPY, 'soCopyMerge')
+    + cut(COPY, '/** The contents page. Throws', '/** Which days to read') + fn(COPY, 'soSharedDaysToRead');
+  const keys = Object.keys(ctx);
+  const src = HELPERS + HOLD + copyReaders + fn(read(path.join(APP, 'core', 'database-read.js')), 'ptWithin') + ordersSide();
+  const api = new Function(...keys, src + '\n;return { soHoldPublish, fgiHoldState };')(...keys.map(k => ctx[k]));
+  const noted = b => ((db.data[b]) || null);
+  return Object.assign(api, { copy, reads, db, warns, indexed, box, noted, o });
+}
+const published = async o => { const S = testSite(o); await S.soHoldPublish(); return S; };
+const NOT_NOTED = /Pieces held for website orders were not noted: /;
+
+async function testWebsite() {
+  console.log('== the test website counts from the shared copy ==');
+  const A = await published();
+  ok('each store is noted from its own orders in the copy', same(A.noted('SP').skus, { A: 3 }) && same(A.noted('CPC').skus, { A: 2 }), JSON.stringify(A.db.data) + A.box.textContent);
+  ok('noted with the time the copy last heard from Shopify', A.noted('SP').at === A.copy.at && A.noted('CPC').at === A.copy.at);
+  ok('the contents page and each listed day, once', same(A.reads.slice().sort(), ['shopify_cache/meta', 'shopify_cache_days/CPC_2026-08-01', 'shopify_cache_days/SP_2026-11-20']), A.reads.join());
+  ok('the tab says the copy\'s time and from which day orders were counted', /Test website.*Ridhi: copy of .+, orders counted from 2026-10-15; CPC: copy of /.test(A.box.textContent), A.box.textContent);
+  ok('…and that a copy this short may miss an older order', /does not reach back 150 days/.test(A.box.textContent) && !/6 hours/.test(A.box.textContent) && A.box.className === 'muted');
+  ok('the names on the copy\'s orders are known for pack sizes', A.indexed.some(x => same(x, ['#1'])) && A.indexed.some(x => same(x, ['#2'])));
+  const timed = await published({ copy: usual({ at: Date.parse('2026-11-27T08:35:00Z') }) });
+  ok('the copy\'s time is India time', /copy of 27 Nov, 14:05/.test(timed.box.textContent), timed.box.textContent);
+
+  const long = await published({ copy: usual({ store: { SP: { filledFrom: '2026-06-30' }, CPC: { filledFrom: '2026-05-01' } } }) });
+  ok('a copy that reaches back 150 days: no warning', /counted from 2026-06-30/.test(long.box.textContent) && !/reach back/.test(long.box.textContent), long.box.textContent);
+  const edge = await published({ copy: usual({ days: { SP: { '2026-06-30': [order(3, {}, { qty: 4 })], '2026-06-29': [order(4)] }, CPC: { '2026-08-01': [order(2)] } } }) });
+  ok('days from 150 days back are counted; an older day is not even read', same(edge.noted('SP').skus, { A: 4 }) && !edge.reads.includes('shopify_cache_days/SP_2026-06-29'), edge.reads.join());
+
+  const rules = await published({ screen: [order(1, {}, { qty: 50 }), order(9)], ledger: [issue('A', 1, { shpOrderNo: 'SHP-1' })],
+    copy: usual({ days: { SP: { '2026-11-20': [order(1), order(5, { ff: 'fulfilled' }), order(6, { cancelledAt: '2026-11-21' }), order(7, { note: 'done' })] }, CPC: { '2026-08-01': [order(2)] } } }) });
+  ok('the same counting rules, issued pieces taken off, and only the copy\'s orders, once', same(rules.noted('SP').skus, { A: 2 }), JSON.stringify(rules.db.data));
+
+  console.log('== the copy is read once ==');
+  const R = await published();
+  R.reads.length = 0;
+  await R.soHoldPublish();
+  ok('nothing changed: only the contents page is read again', same(R.reads, ['shopify_cache/meta']), R.reads.join());
+  const meta = JSON.parse(R.copy.docs.get('shopify_cache/meta').json);
+  meta.stores.SP.days['2026-11-20'] = 2;
+  R.copy.docs.set('shopify_cache/meta', { json: JSON.stringify(meta) });
+  R.copy.docs.set('shopify_cache_days/SP_2026-11-20', { json: JSON.stringify({ orders: { 1: order(1, {}, { qty: 8 }) } }) });
+  R.reads.length = 0;
+  await R.soHoldPublish();
+  ok('a day the copy changed is read again, alone, and counted', same(R.reads, ['shopify_cache/meta', 'shopify_cache_days/SP_2026-11-20']) && R.noted('SP').skus.A === 8, R.reads.join());
+  const T = testSite();
+  await Promise.all([T.soHoldPublish(), T.soHoldPublish()]);
+  ok('opening the tab and Fetch at once share one read', T.reads.length === 3, T.reads.join());
+  const again = await published({ failOnce: 'shopify_cache/meta' });
+  const first = again.box.textContent;
+  await again.soHoldPublish();
+  ok('a failed read is asked again next time', /no signal/.test(first) && !!again.noted('SP'), first + ' / ' + again.box.textContent);
+
+  console.log('== not noted, and why ==');
+  const none = { docs: new Map() };
+  for (const [name, o, why] of [['no copy', { copy: none }, /there is no shared copy/], ['another format', { copy: usual({ version: 99 }) }, /format/],
+    ['no read right', { denied: true }, /may not read the shared copy.*Shopify right/], ['no answer', { silent: true }, /No answer for 90 seconds/],
+    ['no order book', { noBook: true }, /order book/], ['stock not in', { stock: false }, /stock has not been read/], ['saving off', { savingOff: true }, /Saving is off/]]) {
+    const S = await published(o);
+    ok('said on the tab, nothing noted: ' + name, NOT_NOTED.test(S.box.textContent) && why.test(S.box.textContent) && S.box.className === 'err'
+      && S.db.writes.length === 0 && S.warns.length >= 1 && !/were noted from/.test(S.box.textContent), S.box.textContent);
+  }
+  const gone = usual();
+  gone.docs.delete('shopify_cache_days/SP_2026-11-20');
+  for (const [name, copy, why] of [['a listed day is missing', gone, /2026-11-20 but they are not there/],
+    ['the store was never filled', usual({ store: { SP: { filledFrom: '' } } }), /not been filled/],
+    ['the store never synced', usual({ store: { SP: { syncedAt: 0 } } }), /not been filled/],
+    ['the store holds no days', usual({ days: { CPC: { '2026-08-01': [order(2)] } } }), /holds no orders/]]) {
+    const S = await published({ copy });
+    ok('only the other store is noted: ' + name, !S.noted('SP') && !!S.noted('CPC') && why.test(S.box.textContent) && /not noted: Ridhi: /.test(S.box.textContent)
+      && /noted from the shared copy of the orders — CPC: /.test(S.box.textContent) && S.box.className === 'err', S.box.textContent);
+  }
+
+  console.log('== how old the copy is, and noting it again ==');
+  const old = await published({ copy: usual({ at: Date.now() - 7 * HOUR }) });
+  ok('an old copy is noted at its own age, so FBA stays refused', old.noted('SP').at === old.copy.at && old.fgiHoldState(old.db.data).state === 'stale');
+  ok('…and the tab says so', /over 6 hours old/.test(old.box.textContent), old.box.textContent);
+  const at = Date.now() - HOUR, held = (t, n) => ({ at: t, by: 'x', skus: { A: n } });
+  const rewrite = async (stored) => (await published({ copy: usual({ at }), db: { SP: stored } })).db.writes.filter(w => /SP$/.test(w.p)).length;
+  ok('the same copy with a changed need is noted again', await rewrite(held(at, 9)) === 1);
+  ok('the same copy with the same need is not', await rewrite(held(at, 3)) === 0);
+  ok('a newer copy is noted at once, same need or not', await rewrite(held(at - 60000, 3)) === 1);
+  ok('an older copy never replaces a newer figure', await rewrite(held(at + 60000, 9)) === 0);
+
+  console.log('== the refusal on the test website ==');
+  const words = (testSiteOn, hold) => load({ testSite: testSiteOn }).fgiHoldAgeWhy(hold);
+  for (const [name, hold] of [['not known', {}], ['old', noted(1, 0, {}, Date.now() - 7 * HOUR)]]) {
+    ok('test website, ' + name + ': says UAT mode and the shared copy', /UAT mode on.*Shopify Orders.*shared copy/.test(words(true, hold)), words(true, hold));
+    ok('live, ' + name + ': the words as before', /open the Shopify Orders tab and press Fetch orders, then try again/.test(words(false, hold)) && !/UAT|shared copy/.test(words(false, hold)));
+  }
+  ok('a current figure refuses nothing there', words(true, noted(1, 0)) === '');
+}
+
 (async () => {
   console.log('== the switch: on by itself on the test website only ==');
   {
@@ -374,6 +519,8 @@ async function waysToFba() {
     ok('another PC writes a newer one in between: theirs stays', raced.db.data.SP.skus.A === 9);
     const off = await run(null, fig(NOW, 4), { offline: true });
     ok('a failed read never throws, and the console says why', off.db.writes.length === 0 && /offline/.test(off.warns[0]));
+    ok('live: the same read is never written again, even with another need', (await run(fig(NOW, 4), fig(NOW, 5))).db.writes.length === 0);
+    ok('live: a read a second newer with the same need waits', (await run(fig(NOW - 1000, 4), fig(NOW, 4))).db.writes.length === 0);
     ok('refused by the rules: said in the console', (await run(null, fig(NOW, 4), { refused: true })).warns.length === 1);
   }
 
@@ -472,13 +619,16 @@ async function waysToFba() {
 
     console.log('== the Fetch orders button ==');
     const press = async o => {
-      const log = { copy: 0, old: [], full: 0 }, box = { value: '', disabled: false, innerHTML: '', textContent: '' };
-      const ctx = { shpHoldOn: () => !o.off, soCopyMode: () => 'copy', SHOP: { orders: [], copy: {} }, soCopyRefresh: async () => { log.copy++; }, soWant: () => ({ start: 's', end: 'e', open: '0' }),
+      const log = { copy: 0, old: [], full: 0, noted: 0 }, box = { value: '', disabled: false, innerHTML: '', textContent: '' };
+      const ctx = { shpHoldOn: () => !o.off, shpOnTestSite: () => !!o.testSite, soCopyMode: () => o.mode || 'copy', SHOP: { orders: [], copy: {} }, soCopyRefresh: async () => { log.copy++; }, soWant: () => ({ start: 's', end: 'e', open: '0' }),
         $: () => box, soMsg() {}, prOn: () => o.gates, ptRegLoaded: r => r === 'ob' && o.book, PTG: { at: o.at }, soOldOpen: () => ({ ids: new Set(), reach: '' }),
         soAskStore: async () => { log.full++; return { orders: [] }; }, soStamp: () => '', soCopyAfterFetch: async () => {}, renderShop() {}, SHOP_FETCHED_AT: 0, SHOP_META: {},
-        soPhotosLoad: async () => {}, shpSyncSoon() {}, soHoldReadOf: () => ({ SP: 1, CPC: 1 }), soHoldReadOld: async (s, stamps, bookIn) => { log.old.push(bookIn); }, soHoldPublish() {}, console };
+        soPhotosLoad: async () => {}, shpSyncSoon() {}, soHoldReadOf: () => ({ SP: 1, CPC: 1 }), soHoldReadOld: async (s, stamps, bookIn) => { log.old.push(bookIn); }, soHoldPublish() { log.noted++; }, console };
+      if (o.shopifyOff) ctx.soAskStore = async () => { log.full++; throw new Error('Live Shopify is off on the test link'); };
       const keys = Object.keys(ctx);
-      await new Function(...keys, cut(ORDERS, 'async function fetchShopOrders(', 'let SO_ALL_ROWS') + '\n;return fetchShopOrders;')(...keys.map(k => ctx[k]))();
+      const rule = from => cut(ORDERS, from, '\n') + '\n';
+      const rules = rule('const soHoldBookIn') + rule('const soHoldFromCopy');
+      await new Function(...keys, rules + cut(ORDERS, 'async function fetchShopOrders(', 'let SO_ALL_ROWS') + '\n;return fetchShopOrders;')(...keys.map(k => ctx[k]))();
       return log;
     };
     const copyOff = await press({ off: true });
@@ -486,7 +636,16 @@ async function waysToFba() {
     const onBook = await press({ gates: true, book: true });
     ok('switch on, copy mode: read in full, then the older orders', onBook.copy === 0 && onBook.full === 2 && same(onBook.old, [true]));
     ok('the order book not loaded is passed on', same((await press({ gates: true, book: false })).old, [false]) && same((await press({ gates: false, at: '' })).old, [false]) && same((await press({ gates: false, at: 'x' })).old, [true]));
+    ok('live: the figure is not noted before the older orders are read', onBook.noted === 1 && onBook.old.length === 1);
+    const testCopy = await press({ testSite: true });
+    ok('test website, copy mode: the shortcut is taken, and the figure noted', testCopy.copy === 1 && testCopy.full === 0 && testCopy.noted === 1, JSON.stringify(testCopy));
+    const testDirect = await press({ testSite: true, mode: 'direct', shopifyOff: true });
+    ok('test website, live Shopify off: noted all the same, and no older orders asked of Shopify', testDirect.noted === 1 && testDirect.old.length === 0, JSON.stringify(testDirect));
+    const testOff = await press({ testSite: true, off: true });
+    ok('test website with the switch off: nothing noted', testOff.copy === 1 && testOff.noted === 0);
   }
+
+  await testWebsite();
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

@@ -10,6 +10,8 @@
  * The Shopify tab works out the need after it has read a store's orders (shopify-orders.js) and notes it, per store, at
  * pt_fgiSettings/_shopHold/{SP|CPC} = { at, by, skus: { SKU key: pieces } }. Releases sit beside it, under .../releases/<id>.
  * "_shopHold" can never be a SKU's own settings row: SKU rows are upper case.
+ * On the test website live Shopify is off, so the tab counts the need from the shared copy of the orders instead, and "at" is
+ * the time that copy last heard from Shopify.
  *
  * WHEN SOMETHING GOES WRONG:
  *   loud, to the user — a release that cannot be saved, used up or given back (it is stock), and a figure that is missing,
@@ -27,12 +29,15 @@ const SHP_HOLD_CLOCK_SLACK_MS = 10 * 60 * 1000;   // noted further ahead than th
 const SHP_HOLD_REWRITE_MS = 60 * 60 * 1000;       // an unchanged figure is noted again after this, so it does not look old
 const SHP_HOLD_TRIES = 3;
 
+/** Is this the test website? */
+const shpOnTestSite = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
+
 /** Is the hold on for this PC? localStorage wins ('1' on, '0' off), else the default:
  *  on for the test website, off elsewhere. */
 function shpHoldOn() {
   try { const v = localStorage.getItem('shopHold'); if (v === '1') return true; if (v === '0') return false; }
   catch (e) { console.warn('India store hold: this browser blocks saved settings, so the switch uses its default.'); }
-  return typeof window !== 'undefined' && !!window.__TEST_ERP;
+  return shpOnTestSite();
 }
 
 /** Is stock also shared between Custom, FBA and Excess (fg-store-alloc.js)? */
@@ -87,6 +92,9 @@ const shpHoldAhead = (at, nowMs) => at > nowMs + SHP_HOLD_CLOCK_SLACK_MS;
  *  clock that runs ahead is always replaced, or it would block every later read. */
 function shpHoldShouldWrite(noted, figure, nowMs = Date.now()) {
   if (!noted || !noted.at || shpHoldAhead(noted.at, nowMs)) return true;
+  /* The test website notes the shared copy's own sync time: every newer copy is noted, and so is the same copy when the need
+   * has changed since (pieces issued to an order, an order marked done). */
+  if (shpOnTestSite()) return figure.at > noted.at || (figure.at === noted.at && !ptSame(noted.skus || {}, figure.skus));
   if (!(figure.at > noted.at)) return false;
   return figure.at - noted.at > SHP_HOLD_REWRITE_MS || !ptSame(noted.skus || {}, figure.skus);
 }
@@ -147,10 +155,17 @@ function fgiFbaFree(sku, current = fgiOf(sku).current, hold = fgiHoldNode(), boo
 function fgiHoldAgeWhy(hold = fgiHoldNode()) {
   const { state } = fgiHoldState(hold);
   if (state === 'ok') return '';
+  if (shpOnTestSite()) return shpHoldTestAgeWhy(state);
   return state === 'missing'
     ? 'The pieces held for website orders are not known yet — open the Shopify Orders tab and press Fetch orders, then try again.'
     : 'The pieces held for website orders are over 6 hours old (or were noted by a PC whose clock is ahead) — open the Shopify Orders tab and press Fetch orders, then try again. A release does not help while the figure is old.';
 }
+/** The same on the test website, where the figure comes from the shared copy and can be noted only in UAT mode. */
+const shpHoldTestAgeWhy = state => (state === 'missing' ? 'The pieces held for website orders are not known yet'
+  : 'The pieces held for website orders are over 6 hours old (or carry a time ahead of this PC\'s clock)')
+  + ' — on the test website, turn UAT mode on, open the Shopify Orders tab and press Fetch orders. They are counted from the'
+  + ' shared copy of the orders: the line there says how old it is, or why it could not be noted.'
+  + (state === 'missing' ? '' : ' A release does not help while the figure is old.');
 /** Why the noted figures cannot be trusted just now, or '': the website hold, and the FBA need when stock is shared. */
 const fgiFbaAgeWhy = hold => fgiHoldAgeWhy(hold) || (shpAllocOn() ? fgaNeedWhy() : '');
 const fgiShortWhy = (s, hold) => shpAllocOn() ? fgaShortWhy(s) : `${s.sku} has ${nf(s.free)} piece(s) free for FBA, not ${nf(s.qty)} (${nf(fgiHeld(s.sku, hold))} held for website orders).`

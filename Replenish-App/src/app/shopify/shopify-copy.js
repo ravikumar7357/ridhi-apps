@@ -543,18 +543,22 @@ function soCopySharedOn() {
   return !!SO_COPY.shared;
 }
 
+/** The contents page. Throws, saying why, when there is none this app can use. */
+async function soSharedContents() {
+  const s = await getDoc(doc(db, 'shopify_cache', 'meta'));
+  if (!s.exists()) throw new Error('there is no shared copy of the orders yet');
+  const m = JSON.parse(s.data().json || 'null');
+  if (!m || m.v !== SO_COPY.ver) throw new Error('the shared copy of the orders is in a format this app cannot read');
+  return m;
+}
 /** The contents page, or null when there is none this app can use. */
 async function soSharedMeta() {
-  try {
-    const s = await getDoc(doc(db, 'shopify_cache', 'meta'));
-    if (!s.exists()) return null;
-    const m = JSON.parse(s.data().json || 'null');
-    return m && m.v === SO_COPY.ver ? m : null;
-  } catch (e) { return null; }
+  try { return await soSharedContents(); } catch (e) { return null; }
 }
+/** One store's orders of one day, or null when the copy has no document for that day. */
 async function soSharedDay(b, d) {
   const s = await getDoc(doc(db, 'shopify_cache_days', b + '_' + d));
-  return s.exists() ? (JSON.parse(s.data().json || '{}').orders || {}) : {};
+  return s.exists() ? (JSON.parse(s.data().json || '{}').orders || {}) : null;
 }
 
 /** Which days to read: those whose time on the contents page is not the one this device last read. */
