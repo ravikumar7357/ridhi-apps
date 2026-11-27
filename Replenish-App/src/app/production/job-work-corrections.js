@@ -122,11 +122,21 @@ async function jwCorrApprove(id) {
     if (!ME.admin) return 'Deleting an entry is an admin\'s to approve.';
     if (qcTookOf(r.id) > 0) return `QC has already taken ${nf(qcTookOf(r.id))} piece(s) of this entry — it cannot be deleted. Use Close (debit) instead.`;
     const at = new Date().toISOString();
+    /* ONE SAVE (27 Nov, ERP backend E2): the entry, its zipper and ruffle stock and the request go in ONE ptPatch, so ERP data
+     * saves all four or none. Before, four saves one after another: a failure in the middle left the entry deleted with the
+     * stock not given back, or the request still "pending". ptPatch finds a completed entry where it lives and copies it to
+     * the recycle bin first, as ptDelete did. A ledger line that was never posted is simply nothing to delete. */
     try {
-      await ptDelete('pt_baseData/' + r.id);          // the same delete as the entry's own Delete button (finds a completed entry where it lives)
-      await ptUnconsumeZippers(r.id); await ptUnconsumeRuffle(r.id);
-      await ptPut('pt_jwCorrReqs/' + id, Object.assign({}, q, { status: 'approved', answeredBy: ME.email, answeredAt: at }));
+      await ptPatch({
+        ['pt_baseData/' + r.id]: null,
+        ['pt_accLedger/acc_auto_' + r.id]: null,
+        ['pt_fabInvLedger/fab_ruf_' + r.id]: null,
+        ['pt_jwCorrReqs/' + id]: Object.assign({}, q, { status: 'approved', answeredBy: ME.email, answeredAt: at }),
+      });
     } catch (e) { return 'Not deleted: ' + (e.message || e); }
+    if (typeof ACC !== 'undefined' && ACC && ACC.ledger) { ACC.ledger = ACC.ledger.filter(x => x._id !== 'acc_auto_' + r.id); if (typeof PTE !== 'undefined') PTE.accLedger = ACC.ledger; }
+    else if (typeof PTE !== 'undefined' && PTE.accLedger) PTE.accLedger = PTE.accLedger.filter(x => x._id !== 'acc_auto_' + r.id);
+    if (typeof FAB !== 'undefined' && FAB && FAB.rows) FAB.rows = FAB.rows.filter(x => x._id !== 'fab_ruf_' + r.id);
     PT.base = (PT.base || []).filter(x => x && x.id !== r.id);
     JWC.rows = Object.assign({}, JWC.rows, { [id]: Object.assign({}, q, { status: 'approved', answeredBy: ME.email, answeredAt: at }) });
     jwCorrBadge();
