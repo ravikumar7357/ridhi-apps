@@ -327,6 +327,12 @@ function lineHoldOn() {
   try { return localStorage.getItem('lineHold') === '1'; } catch (e) { return false; }
 }
 
+/** True when two records say the same, whatever order their fields are in (the database hands them back sorted). */
+function ptSame(a, b) {
+  const canon = v => (v && typeof v === 'object' ? (Array.isArray(v) ? v.map(canon) : Object.keys(v).sort().reduce((o, k) => { if (k !== '_key') o[k] = canon(v[k]); return o; }, {})) : v);
+  return JSON.stringify(canon(a == null ? null : a)) === JSON.stringify(canon(b == null ? null : b));
+}
+
 /** SAVE A WHOLE RECORD ONLY IF NOBODY CHANGED IT SINCE THIS SCREEN READ IT (Ravi, 26 Nov: a whole-record save by a second person
  *  wrote over the first). `seen` is the record as the screen holds it, `next` what is to be written. Switch off, or the read
  *  fails: the plain write, as always (a read never blocks a save on its own). Switch on: the record is read from the database
@@ -337,8 +343,7 @@ async function ptSaveIfUnchanged(path, seen, next) {
   let fresh = null;
   try { fresh = await ptGetFresh(path); } catch (e) { console.warn('[line hold] could not read ' + path + ' just before saving it — saving the plain way:', e); }
   if (!fresh || typeof fresh !== 'object') { await ptPut(path, next); return ''; }
-  const canon = v => (v && typeof v === 'object' ? (Array.isArray(v) ? v.map(canon) : Object.keys(v).sort().reduce((o, k) => { if (k !== '_key') o[k] = canon(v[k]); return o; }, {})) : v);
-  if (JSON.stringify(canon(fresh)) !== JSON.stringify(canon(seen))) return 'changed';
+  if (!ptSame(fresh, seen)) return 'changed';
   return (await ptCas(path, fresh, next)) ? 'changed' : '';
 }
 

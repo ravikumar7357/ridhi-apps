@@ -122,7 +122,8 @@ function flowRfdChallanMoves(name, fromDay) {
     /* a challan made from cloth already standing with the printer took nothing from the store (flowStandUseOpen) */
     /* …nor a record of cloth given earlier without a challan (flowRecordEarlier) — it left the store then — unless asked to */
     let m = 0;
-    if (!c.standing && !(c.recordOnly && !c.deduct)) (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) m += +l.metres || 0; });
+    /* …nor cut pieces: their cloth left with the Cut Pieces Challan (flow-cutpiece.js) */
+    if (!c.standing && !c.fromCut && !(c.recordOnly && !c.deduct)) (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) m += +l.metres || 0; });
     if (m) out.push({ no: c.no || '', date: d, vendor, metres: flowR2(m) });
     if (back) out.push({ no: c.no || '', date: d, vendor, metres: -flowR2(back) });
   });
@@ -156,7 +157,8 @@ function flowRfdCover() {
     const name = fr.what || (p.fabric && p.fabric.name); if (!name) return;
     F(name).held += +fr.metres || +(p.fabric && p.fabric.metres) || 0;
   });
-  rows.filter(x => flowInView('drfd', x.s))
+  /* a line in Cut to size has its cloth off the shelf already: it needs no more */
+  rows.filter(x => flowInView('drfd', x.s) && !(typeof flowCpActive === 'function' && flowCpActive(x.s.key)))
     .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)))
     .forEach(({ s }) => {
       const p = s.plan || {}, name = p.fabric && p.fabric.name;

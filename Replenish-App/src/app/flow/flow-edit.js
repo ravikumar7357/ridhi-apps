@@ -58,6 +58,8 @@ async function flowPoResync(orderNo) {
 function flowChangePrinterPlan(key, code) {
   const x = flowRows().find(y => y.s.key === key);
   if (!x || !x.s.plan) return { err: 'That line is not planned any more — press Refresh.' };
+  const inCut = typeof flowCpActive === 'function' ? flowCpActive(key) : null;
+  if (inCut) return { err: `This line is in Cut to size on challan ${inCut.no} — send it to the printer or take it back first.` };
   if (!flowPrinted(x.s.route)) return { err: 'This line is not printed — it has no printer to change.' };
   const v = flowChVendors().find(y => String(y.code) === String(code));
   if (!v) return { err: 'Pick the new printer.' };
@@ -119,6 +121,8 @@ function flowChangePrinterOpen(key) {
 }
 /** Undo a plan: the line goes back to PPC. Not while its fabric is on a challan. */
 async function flowUnplan(s) {
+  const inCut = typeof flowCpActive === 'function' ? flowCpActive(s.key) : null;
+  if (inCut) return `This line is in Cut to size on challan ${inCut.no} — send it to the printer or take it back first.`;
   if (flowFabLocked(s)) return `Its fabric is on challan ${s.challan.no} — cancel that challan first (Demand history).`;
   const patch = { ['pt_ppc/' + s.key]: null, ['pt_flowDemand/' + s.key]: null, ['pt_accReserve/' + s.key]: null };
   const row = flowRows().find(x => x.s.key === s.key), pos = row ? flowPoSync([{ r: row.r, p: null }], dToday()) : { patch: {}, local: FLOW.po };
