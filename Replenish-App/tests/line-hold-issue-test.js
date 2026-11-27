@@ -16,12 +16,15 @@ function cut(file, startRe, end) {
   return s.slice(i, s.indexOf(end || '\n}', i) + (end || '\n}').length);
 }
 const J = 'production/job-work-entry.js';
+/* what the two caps ask about rejected pieces (27 Nov) */
+const SCRAP_COUNT = [cut('core/lookups.js', /^const obQcRows/m, '\n'), cut('core/lookups.js', /^function obRowScrap\(/m), cut('core/lookups.js', /^const obQcScrapOf/m, '\n'),
+  cut('core/lookups.js', /^let QCREJ_IX/m, ';'), cut('core/lookups.js', /^function obQcRejIndex\(/m), cut('core/lookups.js', /^function obQcScrapQty\(/m), cut('core/lookups.js', /^function flowRejOf\(/m)];
 const CODE = [src('core/line-hold.js'),
   /* the one number rule the forms ask before saving (fix 6, 26 Nov) */
   cut('core/helpers.js', /^const PT_NUM_BIG/m, ';'), cut('core/helpers.js', /^function ptNumErr\(/m), cut('core/helpers.js', /^function ptNumBig\(/m),
   cut('core/history.js', /^async function ptCas\(/m), cut('core/history.js', /^async function ptGetFreshWhere\(/m), cut('core/history.js', /^function lineHoldOn\(/m),
-  cut('core/lookups.js', /^let BASE_IX/m, ';'), cut('core/lookups.js', /^function obBaseIndex\(/m),
-  cut(J, /^function obIssueUsed\(/m), cut(J, /^function bdGuard\(/m), cut(J, /^function bdTwinOf\(/m), cut(J, /^function bdFormMsg\(/m, '\n'),
+  cut('core/lookups.js', /^let BASE_IX/m, ';'), cut('core/lookups.js', /^function obBaseIndex\(/m), ...SCRAP_COUNT,
+  cut(J, /^function obIssueSums\(/m), cut(J, /^function obIssueOfOrder\(/m), cut(J, /^function obIssueOfCut\(/m), cut(J, /^function bdGuard\(/m), cut(J, /^function bdTwinOf\(/m), cut(J, /^function bdFormMsg\(/m, '\n'),
   cut(J, /^const BD_DRAFTS/m, ';'), cut(J, /^function bdSaveHeld\(/m), cut(J, /^async function bdWrite\(/m),
   cut('orders/order-console-table.js', /^async function spIssueReal\(/m), cut('orders/shp-board.js', /^async function shpbIssueVendorSave\(/m), cut(J, /^\$\('bwSave'\)\.onclick/m, '\n};')].join('\n');
 
@@ -71,7 +74,7 @@ function screen(db, o) {
       if (o.lost) { o.lost = false; if (o.arrives) db.at[p] = clone(v); throw new Error('the connection dropped'); }
       db.at[p] = clone(v);
     },
-    PT: { base: o.behind ? [] : null, cut: [] }, ptNum: v => Number(v) || 0, obKeyOf: (a, b) => up(a) + '|' + up(b),
+    PT: { base: o.behind ? [] : null, cut: [] }, PTG: { qc: [] }, ptNum: v => Number(v) || 0, obKeyOf: (a, b) => up(a) + '|' + up(b),
     prOn: () => false, obIsLegacy: () => false, obOrderedQty: () => 4, obCutQty: () => o.cut || 4, obPressQty: () => 0, cutSkuOf: () => ({ articleType: 'Cover' }),
     frmRemember: () => {}, bdIsCustom: () => false, ptEmpsOfType: () => [['', 'Made-up Karigar']], bdIssueDay: () => '2026-11-26', mdbOf: () => ({}), ptCustomOf: () => null,
     stPrinterSku: () => false, validateAgainstMasters: () => [], ptZipCheck: () => '', bdZipTyped: () => '', bdMatEntry: () => ({}), ptStampDate: d => d,

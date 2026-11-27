@@ -23,7 +23,7 @@ function load(events) {
 const line = (o, st, s) => ({ x: { r: { orderNo: o, sku: 'CPC-01', qty: st.q }, s: Object.assign({ key: obUC(o) + '__CPC-01' }, s) }, st });
 const stage = (w, done, na) => ({ w: w || 0, m: 0, done: !!done, na: !!na });
 /** One order line's WIP figures (p1WipLine's shape): only the places given are filled. */
-const W = o => Object.assign({ q: 0, done: 0, bal: 0, grg: 0, prn: 0, m: 0, emb: 0, cut: 0, raw: 0, kar: 0, qc: 0, rdy: 0, inp: 0, todo: 0, who: [] }, o);
+const W = o => Object.assign({ q: 0, done: 0, bal: 0, grg: 0, prn: 0, m: 0, emb: 0, cut: 0, raw: 0, kar: 0, qc: 0, alt: 0, rdy: 0, ship: 0, inp: 0, todo: 0, who: [] }, o);
 const ago = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
 const E = (k, day, pcs, o) => Object.assign({ k, day, ms: Date.parse(day + 'T10:00:00'), t: true, orderNo: 'AMZ-1', sku: 'CPC-01', pcs, unit: 'pcs', party: '', by: '', ref: '', vr: '' }, o);
 
@@ -34,7 +34,7 @@ const ev = [E('ISS', '2026-11-10', 1, { party: 'Prem Singh', by: 'mohit', ref: '
   E('FG', '2026-11-13', 1, { party: 'QC (Production flow)', by: 'ridhistore22', ref: 'Finished Goods RCP-A', vr: 'RCP-A' }), E('ISS', '2026-11-17', 3, { party: 'Prem Singh' }),
   E('REC', '2026-11-18', 3, { party: 'Prem Singh' }), E('RFD', '2026-11-18', 2, { party: 'SS Hand Block', ref: 'Challan RFD-306', vr: 'RFD-306' }), E('PRN', '2026-11-18', 2, { party: 'SS Hand Block' }),
   E('QC', '2026-11-18', 3, { party: 'Choti Devi', ref: 'QC check · 6 for alteration' }), E('FG', '2026-11-19', 1, { party: 'QC (Production flow)', ref: 'Finished Goods RCP-B', vr: 'RCP-B' }), E('FG', '2026-11-19', 2, { party: 'QC (Production flow)', ref: 'Finished Goods RCP-C', vr: 'RCP-C' })];
-const way = { planned: true, q: 50, plan: stage(0, 1), rfd: stage(44), prn: stage(0), cut: stage(2), iss: stage(0), kar: stage(0), qc: stage(0), rdy: stage(0) };
+const way = { planned: true, q: 50, plan: stage(0, 1), rfd: stage(44), prn: stage(0), cut: stage(2), iss: stage(0), kar: stage(0), qc: stage(0), alt: stage(0), rdy: stage(0), ship: stage(0) };
 const A = load(ev);
 const R = (o) => Object.assign({ gk: 'L1', lot: null, notPlanned: 0, sku: 'CPC-01', what: 'Square Tablecloth', ordered: 50, orders: new Set(['AMZ-1']),
   lines: [line('AMZ-1', way, {}).x], ln: [line('AMZ-1', way, {})], wl: [W({ q: 50, done: 4, cut: 2, grg: 44 })],
@@ -49,7 +49,7 @@ A.P1.hist = 'L1'; A.P1.histOrd = '';
   const cl = A.p1HistPlaces([W({ q: 50, m: 71 })], 50, { prn: { days: 9, who: ['Bhavya Ethnic'] } });
   ok('cloth at the printer (metres, not pieces yet): the rest of the order is "At printer, as cloth (71 m)"', cl.rows.length === 1 && cl.rows[0].pcs === 50 && cl.rows[0].label === 'At printer, as cloth (71 m)' && cl.rows[0].who[0] === 'Bhavya Ethnic');
   ok('more placed than ordered is counted, to be said', A.p1HistPlaces([W({ q: 50, done: 40, qc: 20 })], 50, {}).over === 10); }
-{ const S = { rfd: stage(44), prn: stage(0), cut: stage(2), iss: stage(0), kar: stage(0), qc: stage(0), rdy: stage(0) }, ps = A.p1HistPassed(ev, S), by = k => ps.find(x => x.k === k);
+{ const S = { rfd: stage(44), prn: stage(0), cut: stage(2), iss: stage(0), kar: stage(0), qc: stage(0), alt: stage(0), rdy: stage(0), ship: stage(0) }, ps = A.p1HistPassed(ev, S), by = k => ps.find(x => x.k === k);
   ok('what passed each step: QC 4, on 12 Nov (1) and 18 Nov (3)', by('QC').n === 4 && JSON.stringify(by('QC').days) === JSON.stringify([{ day: '2026-11-12', n: 1 }, { day: '2026-11-18', n: 3 }]));
   ok('…given to karigar 4 (10 Nov · 1, 17 Nov · 3); into Finished Goods 4 (13 Nov · 1, and 1 + 2 on 19 Nov made one: 19 Nov · 3)', by('ISS').n === 4 && by('ISS').days.length === 2 && by('FG').n === 4 && JSON.stringify(by('FG').days) === JSON.stringify([{ day: '2026-11-13', n: 1 }, { day: '2026-11-19', n: 3 }]));
   ok('a step on the way with no entry yet is listed ("Cut", none yet); rejected and shipping only when on record', by('CUT') && by('CUT').n === 0 && !by('REJ') && !by('SHIP'));
@@ -66,7 +66,7 @@ A.P1.hist = 'L1'; A.P1.histOrd = '';
   ok('the old step cards are gone', !/class="hcards"|class="hc /.test(h));
   ok('something still waiting for a plan → "To plan"', />To plan</.test(A.p1History(R({ notPlanned: 50 })))); }
 { /* Ravi's CPC-01 (24 Nov): 621 into Finished Goods on an order of 497 — said in red, never shown as if it were the count */
-  const B = load([E('FG', '2026-10-29', 621)]), w497 = { planned: true, q: 497, plan: stage(0, 1), rfd: stage(0, 0, 1), prn: stage(0, 0, 1), cut: stage(0, 1), iss: stage(0, 1), kar: stage(0, 1), qc: stage(0, 1), rdy: stage(0, 1) };
+  const B = load([E('FG', '2026-10-29', 621)]), w497 = { planned: true, q: 497, plan: stage(0, 1), rfd: stage(0, 0, 1), prn: stage(0, 0, 1), cut: stage(0, 1), iss: stage(0, 1), kar: stage(0, 1), qc: stage(0, 1), alt: stage(0, 1), rdy: stage(0, 1), ship: stage(0, 1) };
   B.P1.hist = 'L9'; B.P1.histOrd = '';
   const h = B.p1History({ gk: 'L9', lot: null, notPlanned: 0, sku: 'CPC-01', what: 'x', ordered: 497, orders: new Set(['AMZ-1']), lines: [line('AMZ-1', w497, {}).x], ln: [line('AMZ-1', w497, {})], wl: [W({ q: 497, done: 497 })], holds: [] });
   ok('entries past the order: 621 into Finished Goods in red, "more than the 497 ordered"', /<b class="late">621<\/b>[^]*?more than the 497 ordered/.test(h));

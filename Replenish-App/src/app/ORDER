@@ -47,6 +47,7 @@ core/data-meter.js
 core/pending-badges.js
 core/lookups.js
 core/look-alike-skus.js
+production/reject-reason.js
 production/job-work-entry.js
 production/whatsapp.js
 production/job-work-corrections.js

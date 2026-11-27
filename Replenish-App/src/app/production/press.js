@@ -2,7 +2,7 @@
  *
  * Finished pieces coming off the press, against an order. One gate rather than Base Data's three —
  * pressing is capped at what the order asked for, and nothing else. (Pressed pieces then count twice
- * over in Base Data: as allowance consumed, and as proof that a piece was cut. See obIssueUsed.)
+ * over in Base Data: as allowance consumed, and as proof that a piece was cut. See obIssueOfCut.)
  *
  * The register is PTG.press, the same array the gates read, so a new entry tightens the caps the
  * moment it is saved instead of after a reload.

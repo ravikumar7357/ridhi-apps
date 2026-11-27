@@ -123,7 +123,7 @@ ok(/if \(err\) ptDlgMsg\(err, true\);\s*else \{ if \(PTD\.memory\) frmRemember\(
   ['production/press.js', 'pressEntry', 'pwBox', "await ptPut('pt_pressInventory/"],
   ['production/quality-control.js', 'qcCheck', 'qcwBox', "recheck: () => qcCheckLeft(sku, checked, any, ord)"],
   ['production/quality-control.js', 'qcIssue', 'qciBox', "write: () => ptPut('pt_qcIssuance/' + rec.id, rec) });"],
-  ['production/quality-control.js', 'qcReturn', 'qcrBox', "await ptPut('pt_qcReturns/"],
+  ['production/quality-control.js', 'qcReturn', 'qcrBox', "await qcWriteReturn(row, scrapped);"],
   ['core/look-alike-skus.js', 'cuttingEntry', 'cwBox', 'const why = await cutWrite(entry);']].forEach(([f, name, root, write]) => {
   const src = read(f), rem = src.indexOf(`frmRemember('${name}', $('${root}'))`), at = src.indexOf(write);
   ok(src.includes(`frmWire('${name}', $('${root}'))`), name + ' shows my previous entry');

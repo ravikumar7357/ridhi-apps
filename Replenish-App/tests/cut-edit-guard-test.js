@@ -25,7 +25,7 @@ function screen(o) {
     ptCanEdit: () => true, PT_NO_EDIT: 'no', cutOrdersFor: () => [{ orderNo: 'OC-2', left: 100, ordered: 100 }], ptNum: Number, ptIsoDate: d => d,
     cutGuard: () => '', cutMonthFrozen: () => false, ptMonthKey: d => d, ptStampFrom: (a, b) => b, mdbNum: Number, renderPcut: () => {},
     cutSkuOf: () => ({ cuttingRequired: o.noCutting ? false : true }), flowPlanRouteOf: () => (o.jobwork ? 'jobwork' : ''),
-    obIssueUsed: (no) => (no === (o.order || 'OC-1') ? o.issued : 0), obPressQty: (no) => (no === (o.order || 'OC-1') ? o.press || 0 : 0),
+    obIssueOfCut: (no) => (no === (o.order || 'OC-1') ? o.issued : 0), obPressQty: (no) => (no === (o.order || 'OC-1') ? o.press || 0 : 0),
     obCutQty: (no, sku, excl) => ctx.PT.cut.filter(r => r.orderNo === no && r.id !== excl)
       .reduce((t, r) => t + r.pieces - (r.rejected === true ? r.rejPieces : 0), 0),
     ptPut: async (p, v) => { written.push([p, v]); }, ptDelete: async p => { deleted.push(p); },

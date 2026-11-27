@@ -317,6 +317,7 @@ function renderQcRetForm() {
 
 /** The two ceilings, while typing: what is pending, and whether the split adds up. */
 function qcRetInfo() {
+  rejWhyBoxes('qcr', ptNum($('qcrRej').value));
   const r = (QC.issue || []).find(x => String(x.id) === $('qcrPick').value);
   const info = $('qcrInfo'); if (!info) return;
   if (!r) { info.textContent = ''; return; }
@@ -355,26 +356,65 @@ async function qcSaveReturn() {
   if (ok < 0 || bad < 0) return qcRetMsg('Mended and still-wrong cannot be negative.', true);
   if ((ok || bad) && ok + bad !== got)
     return qcRetMsg(`Mended + still wrong (${nf(ok + bad)}) must equal what came back (${nf(got)}).`, true);
+  const reason = rejWhyTyped('qcr'), whyErr = rejWhyErr(bad, reason) || (rejWhyNeeded(bad) ? qcScrapNotReady() : '');
+  if (whyErr) return qcRetMsg(whyErr, true);
 
-  const row = { id: 'qcr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    date: ptStampDate(), issuanceId: String(r.id), receivedBy: by,
+  const fields = { date: ptStampDate(), issuanceId: String(r.id), receivedBy: by,
     employee: r.employee || '', employmentType: r.employmentType || '',
     brand: r.brand || '', articleType: r.articleType || '', subtype: r.subtype || '',
     color: r.color || '', size: r.size || '', sku: r.sku || '',
     received: got, reworkedOk: ok, stillRejected: bad,
     remarks: String($('qcrRemarks').value || '').trim(),
     addedBy: ME.email, addedAt: new Date().toISOString() };
-  try { await ptPut('pt_qcReturns/' + row.id, row); }
-  catch (e) { return qcRetMsg('Not saved: ' + (e.message || e), true); }
+  const row = Object.assign({ id: qcDraftId('qcr_', Object.assign({}, fields, reason),
+    () => 'qcr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)) }, fields);
+  const scrapped = qcAltScrapChecks(row, reason);
+  $('qcrSave').disabled = true;
+  try { await qcWriteReturn(row, scrapped); }
+  catch (e) { return qcRetMsg('Not saved: ' + (e.message || e), true); } finally { $('qcrSave').disabled = false; }
   frmRemember('qcReturn', $('qcrBox'));
-  QC.ret = (QC.ret || []).concat([Object.assign({ _key: row.id }, row)]);
+  lineHoldDraftDone(QC_DRAFTS, row.id);
+  QC.ret = (QC.ret || []).filter(x => !(x && x.id === row.id)).concat([Object.assign({ _key: row.id }, row)]);
+  if (scrapped.length) QC.checks = (QC.checks || []).filter(c => !(c && c.id === scrapped[0].id)).concat(scrapped.map(c => Object.assign({ _key: c.id }, c)));
   ['qcrPcs', 'qcrOk', 'qcrRej', 'qcrRemarks'].forEach(id => { if ($(id)) $(id).value = ''; });
+  rejWhyClear('qcr');
   renderQc(); renderQcRetForm();
   qcRetMsg(`${nf(got)} piece(s) of ${row.sku} back from ${row.employee}`
     + (ok || bad ? ` — ${nf(ok)} mended, ${nf(bad)} still wrong` : '')
-    + `. ${nf(qcPendingOf(r))} still with them.`);
+    + `. ${nf(qcPendingOf(r))} still with them.` + (rejWhyNeeded(bad) ? qcScrapNote(row.sku, scrapped) : ''));
   return '';
 }
+
+/* PIECES STILL WRONG AFTER ALTERATION, SPOTTING OR TOUCHING ARE SCRAPPED (Ravi, 27 Nov; switch lineHold), so a new one is
+ * cut. QC records the rejection with its reason on an order: spotting and touching know theirs; alteration goes out and comes
+ * back by SKU, so it is the SKU's oldest unfinished order. */
+/** The orders still owing pieces of a SKU: open, and not yet made in full (passed by QC, pressed or filled from stock). */
+const qcUnfinishedOrders = sku => new Set(ordLines().filter(l => l.sku === qcNorm(sku) && l.open && l.pressed < l.qty).map(l => l.orderNo));
+/** The oldest of them; '' when none is unfinished. */
+function qcScrapOrderOf(sku) {
+  const owing = qcUnfinishedOrders(sku);
+  return (cutOrdersFor(sku).filter(o => owing.has(o.orderNo))
+    .sort((a, b) => (ptDtMs(a.date) - ptDtMs(b.date)) || a.orderNo.localeCompare(b.orderNo))[0] || {}).orderNo || '';
+}
+/** The oldest order cannot be told from a half-read order book (page registers). */
+const qcScrapNotReady = () => (prOn() && !ptHas(PTG_ALL) ? ptStillReading() : '');
+/** The QC rejection for the still-wrong pieces of one alteration return: none when nothing is scrapped or no order of the SKU
+ *  is unfinished. Checked and passed stay 0, as these pieces were counted when first checked. */
+function qcAltScrapChecks(ret, reason) {
+  const orderNo = rejWhyNeeded(ret.stillRejected) ? qcScrapOrderOf(ret.sku) : '';
+  if (!orderNo) return [];
+  return [Object.assign({ id: 'qc_' + ret.id, date: ptNow(), checkedBy: ret.receivedBy, brand: ret.brand, articleType: ret.articleType,
+    subtype: ret.subtype, color: ret.color, size: ret.size, sku: ret.sku, orderNo, checked: 0, ok: 0, forAlteration: 0,
+    rejected: ret.stillRejected, altReturnId: ret.id, from: 'alteration', remarks: 'Still wrong after alteration — scrapped',
+    addedBy: ret.addedBy, addedAt: ret.addedAt }, rejWhySaved(ret.stillRejected, reason))];
+}
+/** The return and its QC rejection are written together, all or none. */
+function qcWriteReturn(ret, scrapped) {
+  if (!scrapped.length) return ptPut('pt_qcReturns/' + ret.id, ret);
+  return ptPatch(Object.assign({ ['pt_qcReturns/' + ret.id]: ret }, ...scrapped.map(c => ({ ['pt_qcChecks/' + c.id]: c }))));
+}
+const qcScrapNote = (sku, scrapped) => (scrapped.length
+  ? ` ${nf(scrapped[0].rejected)} scrapped on ${scrapped[0].orderNo}.` : ` No order of ${sku} is unfinished, so nothing is cut again.`);
 
 $('qcrToggle').onclick = () => {
   const box = $('qcrBox');
@@ -456,6 +496,7 @@ function renderQcCheckForm() {
   const al = parseInt($('qcwAlt').value, 10) || 0;
   const rj = parseInt($('qcwRej').value, 10) || 0;
   $('qcwOk').value = ch > 0 ? String(ch - al - rj) : '';
+  rejWhyBoxes('qcw', rj);
   /* Both ceilings are shown while typing, so a refusal is never a surprise at the end. */
   let note = '';
   if (p) note = `${p.at || '—'} · ${p.sub || '—'} · ${p.col || '—'} · ${p.size || '—'}`
@@ -553,6 +594,8 @@ $('qcwSave').onclick = async () => {
   if (!isFinite(checked) || checked <= 0) return qcCheckMsg('Enter how many pieces were checked.', true);
   if (alt < 0 || rej < 0) return qcCheckMsg('For alteration and rejected cannot be negative.', true);
   if (alt + rej > checked) return qcCheckMsg(`For alteration + rejected (${alt + rej}) is more than the ${checked} checked.`, true);
+  const reason = rejWhyTyped('qcw'), whyErr = rejWhyErr(rej, reason);
+  if (whyErr) return qcCheckMsg(whyErr, true);
   if (!any) {
     const avail = qcAvailToCheck(sku);
     if (checked > avail)
@@ -583,7 +626,7 @@ $('qcwSave').onclick = async () => {
   const p = qcParts(sku);
   const fields = {
     date: ptNow(), checkedBy: by, brand: p.brand, articleType: p.at, subtype: p.sub, color: p.col, size: p.size,
-    sku, checked, forAlteration: alt, rejected: rej, ok: checked - alt - rej,
+    sku, checked, forAlteration: alt, rejected: rej, ok: checked - alt - rej, ...rejWhySaved(rej, reason),
     /* Blank survives only for a SKU that is on no order at all — there is nothing to name, and a
      * number somebody made up would be worse than none. */
     ...(obUC(($('qcwOrd') || {}).value) ? { orderNo: obUC($('qcwOrd').value) } : {}),
@@ -600,6 +643,7 @@ $('qcwSave').onclick = async () => {
     QC.checks = (QC.checks || []).filter(r => !(r && r.id === rec.id)).concat(Object.assign({ _key: rec.id }, rec));
     ['qcwChecked', 'qcwAlt', 'qcwRej', 'qcwRemarks', 'qcwOrd'].forEach(id => { $(id).value = ''; });
     $('qcwSku').value = ''; $('qcwSz').value = ''; $('qcwSku').dataset.typed = '';
+    rejWhyClear('qcw');
     renderQcCheckForm(); renderQc();
     qcCheckMsg(`Saved — ${nf(checked)} checked, ${nf(checked - alt - rej)} passed, ${nf(alt)} for alteration, ${nf(rej)} rejected.`);
   } catch (e) { qcCheckMsg('Not saved: ' + (e.message || e), true); }
@@ -681,6 +725,7 @@ function qcEditCheck(id) {
   /* A send to spotting / touching, or a lot back from there, is one half of a pair — editing one half alone would
    * break the count of what is still out. */
   if (r.dept || r.refId) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'This one belongs to Spotting & touching — it cannot be edited here.'; return; }
+  if (r.altReturnId) { $('qcMsg').className = 'err'; $('qcMsg').textContent = 'These pieces were scrapped when they came back from alteration — this one cannot be edited here.'; return; }
   ptOpenDialog({
     title: 'Edit QC Check',
     subtitle: `SKU: ${r.sku || '—'}  ·  checked by ${r.checkedBy || '—'}`,
@@ -693,6 +738,7 @@ function qcEditCheck(id) {
       { key: 'checked', label: 'Pieces checked', type: 'number', min: 1, step: 1, value: ptNum(r.checked) },
       { key: 'forAlteration', label: 'For alteration', type: 'number', min: 0, step: 1, value: ptNum(r.forAlteration) },
       { key: 'rejected', label: 'Rejected', type: 'number', min: 0, step: 1, value: ptNum(r.rejected) },
+      ...(rejWasOld(r) ? [] : rejWhyFields(r)),
       { key: 'remarks', label: 'Remarks', value: r.remarks || '', span: true },
       { key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(r.date), admin: true },
     ],
@@ -702,6 +748,8 @@ function qcEditCheck(id) {
       if (!isFinite(ch) || ch <= 0) return 'Pieces checked must be at least 1.';
       if (al < 0 || rj < 0) return 'For alteration and rejected cannot be negative.';
       if (al + rj > ch) return `For alteration + rejected (${al + rj}) is more than the ${ch} checked.`;
+      const reason = rejWhyOf(v), whyErr = rejOldErr(r, rj, reason) || rejWhyErr(rejEditPcs(r, rj, reason), reason);
+      if (whyErr) return whyErr;
       /* This row's own pieces must come out of the ceiling, or it refuses to save what it holds. */
       const avail = qcAvailToCheck(r.sku) + ptNum(r.checked);
       if (ch > avail) return `Only ${nf(avail)} piece(s) available to check for ${r.sku}.`;
@@ -712,12 +760,12 @@ function qcEditCheck(id) {
       if (altAfter < issuedElsewhere)
         return `${nf(issuedElsewhere)} piece(s) of ${r.sku} have already been issued for alteration — `
           + `for-alteration cannot drop to ${nf(altAfter)}.`;
-      const next = Object.assign({}, r, {
+      const next = rejWhyOnEdit(Object.assign({}, r, {
         checkedBy: v.checkedBy || r.checkedBy, checked: ch, forAlteration: al, rejected: rj, ok: ch - al - rj,
         remarks: String(v.remarks || '').trim(),
         date: v.date ? ptStampFrom(r.date, v.date) : r.date,
         editedBy: ME.email, editedAt: new Date().toISOString(),
-      });
+      }), reason);
       delete next._key;
       await ptPut('pt_qcChecks/' + r.id, next);
       QC.checks = (QC.checks || []).map(x => (x.id === r.id ? Object.assign({ _key: r.id }, next) : x));
@@ -1072,7 +1120,7 @@ function qcInboxRefusal(x, e) {
   const q = qcCheckedOf(e);
   if (!(q > 0)) return 'Type how many pieces passed, or went for alteration, rejected, spotting or touching.';
   if (q > x.wait) return `Passed + alteration + rejected + spotting + touching is ${nf(q)} — only ${nf(x.wait)} piece(s) of this entry are waiting.`;
-  return '';
+  return rejWhyErr(qcPcs(e.rejected), rejWhyOf(e));
 }
 
 /** The records one QC Check window writes for a row: the check (passed, alteration, rejected) and a send per spotting/touching. */
@@ -1088,7 +1136,7 @@ function qcCheckRecords(r, entry, date, id) {
   const ok = qcPcs(entry.passed), al = qcPcs(entry.forAlteration), rj = qcPcs(entry.rejected), kept = ok + al + rj;
   const recs = [];
   if (kept > 0) recs.push(Object.assign({ id: id || qcNewCheckId() }, common, { checked: kept, ok, forAlteration: al, rejected: rj,
-    remarks: String(entry.remarks || '').trim() || 'Accepted from Waiting for QC' }));
+    remarks: String(entry.remarks || '').trim() || 'Accepted from Waiting for QC' }, rejWhySaved(rj, rejWhyOf(entry))));
   Object.keys(QC_DEPTS).filter(d => qcPcs(entry[d]) > 0).forEach(d => recs.push(Object.assign({ id: (id || qcNewCheckId()) + d[0] }, common, {
     checked: qcPcs(entry[d]), ok: 0, forAlteration: 0, rejected: 0, dept: d, [d]: qcPcs(entry[d]), remarks: qcSendRemark(d) })));
   return recs;
@@ -1126,7 +1174,7 @@ function qcCheckFields(x, v, locked) {
     locked ? { key: 'checkedBy', label: 'Checked by', value: v.checkedBy, readonly: true }
       : { key: 'checkedBy', label: 'Checked by', type: 'select', value: v.checkedBy, options: [...new Set([v.checkedBy].concat(qcDeptEmps()).filter(Boolean))] },
     num('passed', 'Passed — pieces'), num('forAlteration', 'For alteration — pieces'),
-    num('rejected', 'Rejected — pieces'), num('spotting', 'Spotting — pieces (a stain)'),
+    num('rejected', 'Rejected — pieces'), ...(locked ? [] : rejWhyFields(v)), num('spotting', 'Spotting — pieces (a stain)'),
     num('touching', 'Touching — pieces (a missed print)'),
     { key: 'remarks', label: 'Remarks', value: v.remarks, span: true, readonly: locked },
     ...(locked ? [] : [{ key: 'date', label: 'Check date', type: 'date', value: ptIsoDate(v.date || ptNow()), admin: true }]),
@@ -1179,9 +1227,14 @@ function qcCorrectable(x) {
   const fixed = x.accepted - sum(c => c.checked);
   const first = replace.reduce((a, c) => (!a || ptDtMs(c.date) < ptDtMs(a.date) ? c : a), null);
   const main = replace.find(c => !c.dept) || first || {};
-  return { replace, fixed, room: x.since - fixed, date: first ? first.date : ptNow(), values: {
+  /* One merged check holds one reason, so it takes one only when every rejection in it has one; some with and some without
+   * ("mixed") cannot be merged without turning old rejections into scrap. */
+  const rejects = replace.filter(c => ptNum(c.rejected) > 0), reasoned = rejects.filter(c => c.rejWhy);
+  const mixed = reasoned.length > 0 && reasoned.length < rejects.length;
+  const reason = rejWhyOf(mixed ? null : reasoned[0]);
+  return { replace, fixed, mixed, room: x.since - fixed, date: first ? first.date : ptNow(), values: {
     date: first ? first.date : '', checkedBy: main.checkedBy || x.receivedBy || qcMyName(), passed: sum(c => (c.dept ? 0 : c.ok)), forAlteration: sum(c => c.forAlteration),
-    rejected: sum(c => c.rejected), spotting: sum(c => c.spotting), touching: sum(c => c.touching), remarks: main.remarks || '' } };
+    rejected: sum(c => c.rejected), rejWhy: reason.why, rejNote: reason.note, spotting: sum(c => c.spotting), touching: sum(c => c.touching), remarks: main.remarks || '' } };
 }
 /*
  * EDIT ON QC PASSED (Ravi, 20 Nov: "the only button that can be changed in qc passed screen is the who entered the value,
@@ -1226,12 +1279,19 @@ async function qcInboxCorrect(baseId, entry) {
   if (!x) return 'That entry is no longer on the list — press Refresh.';
   if (QC_SPLIT.some(k => qcPcs(entry[k]) < 0)) return 'Passed, alteration, rejected, spotting and touching cannot be negative.';
   const fix = qcCorrectable(x), total = qcCheckedOf(entry);
+  if (lineHoldOn() && fix.mixed)
+    return 'Some of this entry\'s rejected pieces were recorded before reasons were asked — it cannot be corrected as one check. Ask Ravi.';
   if (total > fix.room) return `Passed + alteration + rejected + spotting + touching is ${nf(total)} — only ${nf(fix.room)} piece(s) can be set here.`;
   /* Cutting alteration below what has already gone to the tailors would leave that issue standing on nothing. */
   const altAfter = qcAltTotal(x.r.sku) - fix.values.forAlteration + qcPcs(entry.forAlteration), issued = qcIssuedTotal(x.r.sku);
   if (altAfter < issued) return `${nf(issued)} piece(s) of ${x.r.sku} have already been issued for alteration — for-alteration cannot drop that far.`;
+  /* The reason QC gave stays unless the admin picks another; with the switch off there are no reason boxes, so it is kept. */
+  const split = Object.assign({ rejWhy: fix.values.rejWhy, rejNote: fix.values.rejNote }, entry), reason = rejWhyOf(split);
+  const rejected = qcPcs(split.rejected);
+  const whyErr = rejOldErr(fix.values, rejected, reason) || rejWhyErr(rejEditPcs(fix.values, rejected, reason), reason);
+  if (whyErr) return whyErr;
   /* The correction keeps the day the pieces were first checked, unless the admin picked another in the date box. */
-  const recs = qcCheckRecords(x.r, entry, entry.date ? ptStampFrom(fix.date, entry.date) : fix.date).map(c => Object.assign(c, { editedBy: ME.email, editedAt: new Date().toISOString() }));
+  const recs = qcCheckRecords(x.r, split, split.date ? ptStampFrom(fix.date, split.date) : fix.date).map(c => Object.assign(c, { editedBy: ME.email, editedAt: new Date().toISOString() }));
   const gone = new Set(fix.replace.map(c => c.id));
   await ptPatch(Object.assign(Object.fromEntries(fix.replace.map(c => ['pt_qcChecks/' + c.id, null])),
     Object.fromEntries(recs.map(c => ['pt_qcChecks/' + c.id, c]))));
@@ -1278,19 +1338,23 @@ function qcDeptRows() {
     return { c, dept: c.dept, sent, back: got, pass, rej: bad, left: sent - got, ms: ptDtMs(c.date) };
   });
 }
-/** `reject` (2026-10-06, Ravi: "spotting touching se reject bhi ho sakta h") — the pieces come back rejected, not passed. */
-async function qcDeptBack(sendId, qty, reject) {
+/** `reject` (2026-10-06, Ravi: "spotting touching se reject bhi ho sakta h") — the pieces come back rejected, not passed.
+ *  Rejected pieces need a reason (Ravi, 27 Nov): they are scrapped. */
+async function qcDeptBack(sendId, qty, reject, reason = rejWhyOf(null)) {
   const x = qcDeptRows().find(e => e.c.id === sendId);
   if (!x) return 'That entry is not there any more — press Refresh.';
   const q = parseInt(qty, 10);
   if (!(q > 0)) return reject ? 'Type how many pieces are rejected.' : 'Type how many pieces came back.';
   if (q > x.left) return `Only ${nf(x.left)} piece(s) of this are still in ${x.dept}.`;
-  const c = x.c;
+  const c = x.c, rejected = reject ? q : 0;
+  const whyErr = rejWhyErr(rejected, reason) || (rejWhyNeeded(rejected) && !c.orderNo ? qcScrapNotReady() : '');
+  if (whyErr) return whyErr;
+  const orderNo = c.orderNo || (rejWhyNeeded(rejected) ? qcScrapOrderOf(c.sku) : '');
   const fields = {
     date: ptNow(), checkedBy: String(ME.email || '').split('@')[0], brand: c.brand || '',
     articleType: c.articleType || '', subtype: c.subtype || '', color: c.color || '', size: c.size || '',
-    sku: c.sku, checked: 0, ok: reject ? 0 : q, forAlteration: 0, rejected: reject ? q : 0,
-    ...(c.orderNo ? { orderNo: c.orderNo } : {}),
+    sku: c.sku, checked: 0, ok: reject ? 0 : q, forAlteration: 0, rejected, ...rejWhySaved(rejected, reason),
+    ...(orderNo ? { orderNo } : {}),
     refId: c.id, dept: x.dept, from: x.dept, baseId: c.baseId || '', karigar: c.karigar || '', ...(c.test ? { test: true } : {}),
     remarks: reject ? 'Rejected after ' + x.dept : 'Back from ' + x.dept + ' — passed by QC', addedBy: ME.email, addedAt: new Date().toISOString(),
   };
@@ -1301,6 +1365,23 @@ async function qcDeptBack(sendId, qty, reject) {
   if (held) return held;
   QC.checks = (QC.checks || []).filter(r => !(r && r.id === rec.id)).concat(Object.assign({ _key: rec.id }, rec));
   return '';
+}
+/** Reject on Spotting & touching with the switch on: why is asked first (Ravi, 27 Nov). */
+function qcDeptRejectOpen(sendId, qty) {
+  const x = qcDeptRows().find(e => e.c.id === sendId);
+  ptOpenDialog({
+    title: 'Reject — spotting & touching', subtitle: x ? `SKU: ${x.c.sku} · ${x.c.orderNo || 'no order'}` : '',
+    note: `${nf(ptNum(qty))} piece(s) will be rejected and scrapped.`,
+    fields: rejWhyFields(), saveLabel: 'Reject',
+    onSave: async v => {
+      const err = await qcDeptBack(sendId, qty, true, rejWhyOf(v));
+      if (err) return err;
+      renderQc();
+      $('qcMsg').className = 'muted';
+      $('qcMsg').textContent = 'Rejected. ' + $('qcMsg').textContent;
+      return '';
+    },
+  });
 }
 function renderQcDept() {
   const q = $('qcQ').value.trim().toLowerCase();
@@ -1464,9 +1545,10 @@ $('qcTable').addEventListener('click', async e => {
   if (back) {
     const id = back.getAttribute('data-qcd-go');
     const box = document.querySelector(`[data-qcd-qty="${CSS.escape(id)}"]`);
+    const rej = back.getAttribute('data-rej') === '1';
+    if (rej && lineHoldOn()) return qcDeptRejectOpen(id, box ? box.value : '');
     back.disabled = true;
     let err = '';
-    const rej = back.getAttribute('data-rej') === '1';
     try { err = await qcDeptBack(id, box ? box.value : '', rej); } catch (er) { err = 'Not saved: ' + (er.message || er); }
     back.disabled = false;
     renderQc();

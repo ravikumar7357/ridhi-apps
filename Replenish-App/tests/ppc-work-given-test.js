@@ -268,7 +268,7 @@ const page = (state, x) => {
   const challan = { no: 'RFD-1', date: '2026-10-22', vendor: { code: 'RBP', name: 'RBP-Bagru' }, lines: [Object.assign({ key: KA, sku: 'RPC-A' }, x.line || { print: { kind: 'sku' }, pcs: 16, metres: 8 })] };
   const t = load({ ch: { 'RFD-1': challan }, vo: x.vo || [], onList: [state], standing: x.standing });
   const wip = t.p1Wip(), sumOf = f => wip.filter(f).reduce((a, w) => a + w.pcs, 0);
-  return { t, prn: sumOf(w => w.stage === 'Printer'), onWay: sumOf(w => w.stage === 'Printer' && w.onWay), iss: sumOf(w => w.stage === 'Raw cutting in store') };
+  return { t, prn: sumOf(w => w.stage === 'Printer'), onWay: sumOf(w => w.stage === 'Printer' && w.onWay), iss: sumOf(w => w.stage === 'Cut, in store') };
 };
 ok('nothing moved on: all 16 pieces at the printer', page(lineAt({})).prn === 16);
 ok('3 given to karigars: 13 at the printer, not 16', page(lineAt({ issuedNet: 3 })).prn === 13);

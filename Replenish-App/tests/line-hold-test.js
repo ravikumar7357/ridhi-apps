@@ -19,7 +19,7 @@ const CODE = [src('core/line-hold.js'),
   /* the one number rule the forms ask before saving (fix 6, 26 Nov) */
   cut('core/helpers.js', /^const PT_NUM_BIG/m, ';'), cut('core/helpers.js', /^function ptNumErr\(/m), cut('core/helpers.js', /^function ptNumBig\(/m),
   cut('core/history.js', /^async function ptCas\(/m), cut('core/history.js', /^async function ptGetFreshWhere\(/m), cut('core/history.js', /^function lineHoldOn\(/m),
-  cut('core/look-alike-skus.js', /^function cutGuard\(/m),
+  cut('core/look-alike-skus.js', /^const obCutKept/m, ';'), cut('core/look-alike-skus.js', /^function cutGuard\(/m),
   cut('core/look-alike-skus.js', /^const CUT_DRAFT_LIFE_MS/m, ';'), cut('core/look-alike-skus.js', /^const CUT_DRAFTS/m, ';'), cut('core/look-alike-skus.js', /^function cutEntryId\(/m),
   cut('core/look-alike-skus.js', /^async function cutWrite\(/m), cut('orders/order-console-table.js', /^async function spCutReal\(/m),
   cut('core/look-alike-skus.js', /^function cutSaveHeld\(/m), cut('core/look-alike-skus.js', /^function cutFormMsg\(/m, '\n'),
@@ -71,6 +71,7 @@ function screen(db, o) {
   const ctx = {
     console: { warn: m => { log.warned.push(String(m)); }, log: console.log }, Date: PcDate, deltaServerNow: async () => db.now(), $: box, nf: String, obUC: up, ME: { email: 'cutter@test' }, auth: { currentUser: { email: o.email || 'cutter@test' } },
     localStorage: { getItem: k => (k === 'lineHold' && !o.off ? '1' : null) },
+    flowRejOf: () => ({ scrap: 0 }),   // nothing rejected on these lines (tests/rejected-scrap-test.js has those)
     PT_URL: '', ptPath: p => p, ptAuthQuery: async () => '', fetch: async (u, i) => db.fetch(u.replace(/^\//, ''), i), dmJson: undefined,
     ptLiveWrote: nothing, ptSaveFailed: told('refused'), ptMirrorEarly: () => { log.told.push('mirror'); return null; }, ptMirrorFix: nothing,
     ptMirror: told('mirror'), auditLog: told('history'), ptSyncNote: told('sync'), oalAfterSave: told('alert'),
