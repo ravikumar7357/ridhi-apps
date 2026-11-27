@@ -194,7 +194,10 @@ function pksCount(code, via) {
       pksSaveSoon();
       return { ok: false, kind: "wrong", code: obUC(code), sku: r.sku, why: r.sku + " is not on any order of this list." };
     }
-    if (a.kind === "full") return { ok: false, kind: "full", store: a.why === "store", code: obUC(code), sku: r.sku, why: a.why === "store" ? "The India Store holds no more " + r.sku + " for these orders — receive it in Finished Goods first." : "Every order line for " + r.sku + " is already packed." };
+    if (a.kind === "full") {
+      const held = a.why === "store" && typeof shpHoldOn === "function" && shpHoldOn() ? fgiHoldScanWhy(a.sku, p.scan.packed[a.sku]) : "";
+      return { ok: false, kind: "full", store: a.why === "store", code: obUC(code), sku: r.sku, why: held || (a.why === "store" ? "The India Store holds no more " + r.sku + " for these orders — receive it in Finished Goods first." : "Every order line for " + r.sku + " is already packed.") };
+    }
     n = a.taken;
     parts = a.parts;
     left = a.left;

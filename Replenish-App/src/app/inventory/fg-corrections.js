@@ -128,7 +128,11 @@ async function fgiEditApply(id, input) {
     input._reqBy ? { requestedBy: input._reqBy } : {}));
   updates['pt_fgiLedger/' + id + '/edits'] = edits;
   if (input._extra) Object.assign(updates, input._extra);
-  await ptPatch(updates);
+  const write = () => ptPatch(updates);
+  if (typeof shpHoldOn === 'function' && shpHoldOn()) {
+    const refused = await fgiFbaWrite(fgiFbaEditWants(r, after), write);
+    if (refused) return refused;
+  } else await write();
   Object.keys(updates).forEach(p => {
     if (!/^pt_fgiLedger\//.test(p) || p.split('/')[1] !== id) return;
     const f = p.split('/').pop(); if (updates[p] === null) delete r[f]; else r[f] = updates[p];

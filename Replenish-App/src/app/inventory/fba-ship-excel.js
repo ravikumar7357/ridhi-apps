@@ -288,7 +288,11 @@ async function fbaUndo(id) {
     ['fbaAcceptedAt', 'fbaAcceptedBy'].forEach(f => { updates['pt_fgiLedger/' + id + '/' + f] = null; });
     what = 'no longer accepted — back to waiting';
   } else return `This dispatch is ${FBA_PILL[s.st][1]}; there is no step to undo here.`;
-  await ptPatch(updates);
+  const write = () => ptPatch(updates);
+  if (typeof shpHoldOn === 'function' && shpHoldOn()) {
+    const refused = await fgiFbaWrite(fgiFbaReturnWants(backs), write);
+    if (refused) return refused;
+  } else await write();
   Object.keys(updates).forEach(p => {
     const k = p.split('/');
     if (k.length === 3 && k[1] === id) { if (updates[p] == null) delete row[k[2]]; else row[k[2]] = updates[p]; }

@@ -137,7 +137,11 @@ async function fgiDeleteRun(plan) {
   if (short.length) return `That would take ${short.map(x => `${x.sku} to ${nf(x.after)}`).join(', ')} — below zero. `
     + `Those pieces have already left the store, so the movement that took them out has to go first `
     + `(or be corrected) — a store cannot hold less than nothing.`;
-  await ptPatch(plan.updates);
+  const write = () => ptPatch(plan.updates);
+  if (typeof shpHoldOn === 'function' && shpHoldOn()) {
+    const refused = await fgiFbaWrite(fgiFbaReturnWants(plan.rows), write);
+    if (refused) return refused;
+  } else await write();
   plan.pressBack.forEach((q, key) => {
     const press = (PTG.press || []).find(x => (x.id || x._key) === key);
     if (press) press.transferredQty = Math.max(0, fgiNum(press.transferredQty) - q);

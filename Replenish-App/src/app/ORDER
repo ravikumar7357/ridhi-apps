@@ -138,6 +138,7 @@ inventory/fg-corrections.js
 inventory/fg-over-order.js
 inventory/fg-external-orders.js
 inventory/fg-scanning.js
+inventory/fg-shop-hold.js
 inventory/pack-verify.js
 vendors/printing/printer-allocation.js
 vendors/printing/printer-capacity.js

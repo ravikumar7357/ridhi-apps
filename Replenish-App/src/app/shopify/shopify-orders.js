@@ -677,6 +677,18 @@ function soIndiaKey(sku) {
   return '';
 }
 
+/** The lines of an order that still have a claim on India stock: the queue's own rule, shared with the pieces held from FBA. */
+function soIndiaClaimLines(o) {
+  if (o.cancelled) return [];
+  if (/^ful/i.test(String(o.ff || ''))) return [];     // Shopify shipped the whole order: it holds nothing on the shelf
+  const sm = SHOP_META[o.id] || {};
+  if (sm.mcfId && !Array.isArray(sm.mcfSkus)) return []; // the whole order went to Amazon
+  /* A part-order: the lines Amazon did not take still need India, or production. */
+  const lines = o.items.filter(i => soIndiaOwed(i) > 0 && soSendQty(o.id, i.sku, soIndiaOwed(i)) > 0 && !soMcfHas(o.id, i.sku));
+  if (!lines.length || soMcf(o).v === 'yes') return [];  // Amazon has it covered; leave India alone
+  return lines;
+}
+
 function soAllocIndia(orders) {
   SO_INDIA_TAKEN = {};
   if (!SHOP_INDIA_LOADED || SHOP_INDIA_ERR) return;   // nothing read, nothing to share out
@@ -686,14 +698,8 @@ function soAllocIndia(orders) {
     String(a.at || '').localeCompare(String(b.at || '')) || String(a.no || '').localeCompare(String(b.no || '')));
 
   queue.forEach(o => {
-    if (o.cancelled) return;
-    if (/^ful/i.test(String(o.ff || ''))) return;     // Shopify shipped the whole order: it holds nothing on the shelf
-    const sm = SHOP_META[o.id] || {};
-    if (sm.mcfId && !Array.isArray(sm.mcfSkus)) return; // the whole order went to Amazon
-    /* A part-order: the lines Amazon did not take still need India, or production. */
-    const lines = o.items.filter(i => soIndiaOwed(i) > 0 && soSendQty(o.id, i.sku, soIndiaOwed(i)) > 0 && !soMcfHas(o.id, i.sku));
+    const lines = soIndiaClaimLines(o);
     if (!lines.length) return;
-    if (soMcf(o).v === 'yes') return;                  // Amazon has it covered; leave India alone
 
     const take = {};
     lines.forEach(i => {
@@ -712,6 +718,95 @@ function soAllocIndia(orders) {
     });
     SO_INDIA_TAKEN[o.id] = take;
   });
+}
+
+/* ---------- India stock HELD FROM FBA for these orders (inventory/fg-shop-hold.js, switch shopHold) ---------- */
+
+/** Still owed in the ERP: Shopify's flags, our notes, and the store's pending sheet for old orders. */
+function soHoldOrderOpen(o) {
+  const f = soFlags(o, SHOP_META[o.id] || {});
+  return !(f.cancelled || f.shipped || f.chargeback || f.mcfDone || f.handled) && shpSheetAllows(o);
+}
+/** The order's production number, as store issues name it; '' when another order owns the plain one. */
+function soHoldOrderNo(o, taken) {
+  const own = (PTG.ob || []).find(r => r && String(r.shopOrderId || '') === String(o.id));
+  if (own) return own.orderNo;
+  const base = shpOrderNo(o.no);
+  return taken.get(base) ? '' : base;
+}
+/** What one store's open orders need from India, line by line, for shpHoldBuild. */
+function soHoldClaims(store) {
+  soIndexNames();
+  /* The older unshipped orders (soHoldReadOld) beside the ones on screen, each order once, the screen's copy winning. */
+  const orders = [...new Map((SHOP.holdOld || []).concat(SHOP.orders).map(o => [String(o.id), o])).values()];
+  soApplyTypedSkus(orders);
+  const taken = shpTakenNumbers(), claims = [];
+  orders.filter(o => soOrdBrand(o) === store && soHoldOrderOpen(o)).forEach(o => {
+    const orderNo = soHoldOrderNo(o, taken);
+    soIndiaClaimLines(o).forEach(i => {
+      const sku = soIndiaKey(i.sku) || obUC(i.sku);      // never in India yet: held under its own code, for when it arrives
+      if (!sku) return;
+      const fit = soPackFit(i.sku);
+      claims.push({ orderNo, sku, sets: soSendQty(o.id, i.sku, soIndiaOwed(i)),
+        perSet: fit && fit.ok ? fit.pack : obPcsPerPack(sku) });
+    });
+  });
+  return claims;
+}
+/** When each store was read in full by this fetch (0 = not): a failed store, a cut-off list or narrowed dates would
+ *  count too few orders, and that would let held pieces go to FBA. */
+function soHoldReadOf(answers, want, at) {
+  const wholeWindow = want.start <= sdShift(sdToday(), -SO_COPY.windowDays) && want.end >= sdToday();
+  const out = {};
+  SO_BRANDS.forEach(b => { out[b] = wholeWindow && !answers[b].err && !answers[b].more ? at : 0; });
+  return out;
+}
+/** THE OLDER UNSHIPPED ORDERS: the tab's dates cover a fortnight, so every order not yet shipped, as far back as the tab can
+ *  reach, is asked apart and kept in holdOld (the tab shows what it showed before). Only then is a store stamped as read:
+ *  stamps is soHoldReadOf's answer for the tab's own fetch. Never throws. */
+async function soHoldReadOld(shop, stamps, bookIn) {
+  shop.holdAsking = true;
+  const ask = { start: sdShift(sdToday(), -SHP_REACH_MAX_DAYS), end: sdToday(), open: '1' };
+  const answers = await Promise.all(SO_BRANDS.map(b => soAskStore(b, ask, [], { timeoutMs: 90000 })
+    .catch(e => ({ orders: [], err: e.message || String(e) }))));
+  const read = {}, why = {};
+  SO_BRANDS.forEach((b, i) => {
+    const a = answers[i], cut = a.err || (a.more ? 'Shopify had more unshipped orders than one answer holds' : '');
+    read[b] = bookIn && !cut ? stamps[b] : 0;
+    if (!bookIn) why[b] = 'the order book was not loaded yet — press Fetch orders again';
+    else if (cut) why[b] = 'the older unshipped orders were not read: ' + cut;
+  });
+  Object.assign(shop, { holdOld: answers.flatMap(a => a.orders || []), holdWhy: why, holdRead: read, holdAsking: false });
+}
+const SO_HOLD_NOT_NOTED = 'Pieces held for website orders were not noted: ';
+/** Say on the tab why the figure was not noted; nothing to say takes an earlier such line away. */
+function soHoldSay(whys) {
+  if (!whys.length) { if (String($('soMsg').textContent).startsWith(SO_HOLD_NOT_NOTED)) soMsg(''); return; }
+  const line = SO_HOLD_NOT_NOTED + whys.join('; ');
+  console.warn('India store hold: ' + line);
+  soMsg(line, true);
+}
+/** After the orders, India stock and Amazon stock are all in: note each fully read store's need. Never throws. */
+async function soHoldPublish() {
+  if (typeof shpHoldOn !== 'function' || !shpHoldOn()) return;
+  if (!SHOP.holdRead) return soHoldSay([SHOP.holdAsking ? 'the older unshipped orders are still being read'
+    : 'these orders were not just read from Shopify — press Fetch orders']);
+  if (!SHOP_STOCK_LOADED || !SHOP_INDIA_AT || SHOP_INDIA_ERR) return soHoldSay(['Amazon or India stock has not been read yet']);
+  try {
+    await ptNeed(PTG_ALL, { why: 'shop-hold', has: 'mdb' });
+    if (!(PTG.mdb || []).length) throw new Error('the Master Database (pack sizes) was not read');
+    const ledger = ptList(await ptGet('pt_fgiLedger'));
+    /* Orders and their read time are taken together, after the waits: a newer fetch may have replaced both. */
+    const read = SHOP.holdRead || {};
+    const figures = SO_BRANDS.filter(b => read[b]).map(b => [b, { at: read[b], by: ME.email, skus: shpHoldBuild(soHoldClaims(b), ledger) }]);
+    const whys = SO_BRANDS.filter(b => !read[b]).map(b => soAcctName(b) + ': '
+      + ((SHOP.holdWhy || {})[b] || 'its orders were not read in full (narrowed dates, or a failed or cut-off answer)'));
+    for (const [b, figure] of figures) {
+      const why = await shpHoldPublish(b, figure);
+      if (why) whys.push(soAcctName(b) + ': ' + why);
+    }
+    soHoldSay(whys);
+  } catch (e) { soHoldSay([e.message || String(e)]); }
 }
 
 function soIndia(order) {
@@ -1194,7 +1289,7 @@ async function ensureShop_() {
    * everything else up. */
   /* India landing is one of the two moments the "has to be made" answer can change — before it,
    * every order reads as pending, which is exactly why the sync refuses to run until it is in. */
-  loadShopIndia().then(() => { renderShop(); shpSyncSoon(); }).catch(() => {});
+  loadShopIndia().then(() => { renderShop(); shpSyncSoon(); soHoldPublish(); }).catch(() => {});
   loadShopImported().then(() => renderShop()).catch(() => {});
   // Re-fetched on the way back in, not only the first time. This is a queue of what has to ship
   // today: showing what Shopify said twenty minutes ago is the same as showing nothing.
@@ -1207,7 +1302,7 @@ async function ensureShop_() {
       if (shown) {
         soMsg('Showing this device\'s copy — asking Shopify what has changed…');
         renderShop();
-        soCopyRefresh(want);
+        soCopyRefresh(want).then(() => soHoldPublish());   // a copy is never counted: the tab says so
         return;
       }
     }
@@ -1243,18 +1338,22 @@ async function fetchShopOrders(opts) {
   const live = !!(opts && opts.live === true);
   /* ready: what has to be in before the fetched orders are drawn (the bins and the stock, read alongside). */
   const ready = opts && opts.ready;
-  if (!live && soCopyMode() === 'copy' && SHOP.copy) {
+  /* The pieces held from FBA are counted only from a full read of Shopify, so with that switch on the button reads in full. */
+  const holding = typeof shpHoldOn === 'function' && shpHoldOn();
+  if (!live && !holding && soCopyMode() === 'copy' && SHOP.copy) {
     if (ready) await ready.catch(() => {});
     soMsg('Asking Shopify what has changed…'); await soCopyRefresh(soWant(), { now: true }); return;
   }
   const btn = $('soGo');
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>…';
-  let fetched = false;
+  let fetched = false, holdStamps = null, bookIn = false;
   try {
     soMsg('Asking Shopify…');
     const win = soWant(), liveAt = Date.now();
     /* The old unfinished orders, by id — see ensureShop_. Asked of both stores; each answers for its own. An old
      * line with no Shopify id can only be found by date, so for that one the dates stretch back as they used to. */
+    /* Without the order book the old unfinished orders cannot be known, so nothing is counted for the hold. */
+    if (holding) bookIn = prOn() ? ptRegLoaded('ob') : !!PTG.at;
     const old = soOldOpen(win.start);
     const ask = Object.assign({}, win, old.reach && old.reach < win.start ? { start: old.reach } : {});
     /* Two stores, asked at the same time. CPC's own failure must not cost us Ridhi's orders — this
@@ -1267,6 +1366,7 @@ async function fetchShopOrders(opts) {
     ]);
     SHOP = { orders: r.orders.concat(cpc.orders || []), from: r.from, to: r.to, tz: r.tz || '', at: soStamp(),
       cpcErr: cpc.err || '' };
+    if (holding) holdStamps = soHoldReadOf({ SP: r, CPC: cpc }, win, liveAt);
     const cpcErr = cpc.err;
     fetched = true;
     /* Shadow and copy mode keep this as the device's copy (shadow compares first). Not awaited, never in the way. */
@@ -1285,6 +1385,7 @@ async function fetchShopOrders(opts) {
   btn.disabled = false; btn.textContent = 'Fetch orders';
   if (ready) await ready.catch(() => {});
   renderShop();
+  if (holdStamps) soHoldReadOld(SHOP, holdStamps, bookIn).then(() => soHoldPublish());
   /* PHOTOS AFTER THE ORDERS (phase 0): the list is on screen first; the pictures fill in a moment later. The
    * production sync waits for them, because it copies each line's photo onto its production row. */
   if (fetched) soPhotosLoad().catch(() => {}).then(() => { renderShop(); shpSyncSoon(); });

@@ -195,6 +195,8 @@ function packOrderLines(scan) {
       out.push({ sku: l.sku, orderNo: l.orderNo, qty: l.qty, store: c ? c.store : 0 });
     });
   }
+  /* Pieces held for website orders are not there to pack for FBA, so the scanner says so at scan time. */
+  if (typeof shpHoldOn === "function" && shpHoldOn()) return fgiHoldCap(out);
   return out;
 }
 async function packDataReady() {
@@ -204,6 +206,7 @@ async function packDataReady() {
     return e.message || String(e);
   }
   if (FGI.err && !(FGI.rows || []).length) return FGI.err;
+  if (typeof shpHoldOn === "function" && shpHoldOn()) await fgiHoldReread();   // unread: said in the console there, and the save reads it again
   return "";
 }
 const packOrdersUnknown = (orders) => (orders || []).map(obUC).filter(Boolean).filter((o) => !fgiOrderKnown(o));
@@ -236,13 +239,18 @@ async function packLedgerWrite(p, handoverTo) {
   if (!rows.length) return { err: "Nothing packed yet — scan at least one piece." };
   for (const r of rows) {
     const bad = fgiOutCheck(r.sku, r.qty, "FBA", 0);
-    if (bad) return { err: bad + " Receive it in Finished Goods first, then Finish again." };
+    const receive = r.qty > fgiOf(r.sku).current ? " Receive it in Finished Goods first, then Finish again." : "";
+    if (bad) return { err: bad + receive };
   }
   const patch = {};
   rows.forEach((r) => {
     patch["pt_fgiLedger/" + r._id] = r;
   });
-  await ptPatch(patch);
+  const write = () => ptPatch(patch);
+  if (typeof shpHoldOn === "function" && shpHoldOn()) {
+    const refused = await fgiFbaWrite(rows.map((r) => ({ sku: r.sku, qty: r.qty, current: fgiOf(r.sku).current })), write);
+    if (refused) return { err: refused };
+  } else await write();
   FGI.rows = (FGI.rows || []).concat(rows);
   p.scan.ledgerIds = rows.map((r) => r._id);
   p.scan.done = true;

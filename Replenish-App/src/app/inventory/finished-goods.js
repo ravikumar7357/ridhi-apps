@@ -250,6 +250,9 @@ function renderFgi() {
   fgiRenderStock(stock);
 }
 
+/** The stock list's columns that line up as figures. */
+const FGI_NUM_COLS = ['Opening', 'Received', 'Issued', 'To FBA', 'In stock', 'Held', 'Rate', 'Value'];
+
 function fgiRenderStock(stock) {
   const q = $('fgQ').value.trim().toLowerCase();
   /* THE LIST IS THE STORE'S REGISTER, not its shelf. A SKU that came in and went out the same
@@ -284,12 +287,13 @@ function fgiRenderStock(stock) {
     .sort().map(b => [b, b]), 'All brands');
 
   const canEd = fgiCanEdit();
+  const holds = typeof shpHoldOn === 'function' && shpHoldOn();
   const shownSkus = rows.slice(0, 600).map(r => r.sku);
   const allOn = canEd && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
   const head = '<thead><tr>' + (canEd ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
     + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', 'Opening', 'Received',
-    'Issued', 'To FBA', 'In stock', 'Amazon', 'Tag', 'Rate', 'Value', '']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i >= 6 && i <= 10 ? ' class="num"' : (i === 13 || i === 14 ? ' class="num"' : ''))}>${h}</th>`).join('') + '</tr></thead>';
+    'Issued', 'To FBA', 'In stock', ...(holds ? ['Held'] : []), 'Amazon', 'Tag', 'Rate', 'Value', '']
+    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (FGI_NUM_COLS.includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
   if ($('fgTable').classList) $('fgTable').classList.toggle('fg-cards', (typeof mobOn === 'function' && mobOn()));
   if ((typeof mobOn === 'function' && mobOn())) $('fgTable').innerHTML = '<tbody>' + (rows.length ? rows.slice(0, 600).map(r => fgiCard(r, canEd)).join('')
@@ -307,13 +311,14 @@ function fgiRenderStock(stock) {
     + `<td class="num">${r.issued ? nf(r.issued) : '<span class="muted">—</span>'}</td>`
     + `<td class="num">${r.fba ? nf(r.fba) : '<span class="muted">—</span>'}</td>`
     + `<td class="num" style="font-weight:700;color:${r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)')}">${nf(r.current)}</td>`
+    + (holds ? `<td class="num">${fgiHeldCell(r.sku)}</td>` : '')
     /* "Not counted in" and "Status" were taken off this table on 15 Sept, at Ravi's request. */
     + (st => `<td><span class="pill ${LST_PILL[st.st][0]}"${st.asin ? ` title="${esc(st.asin)}"` : ''}>${LST_PILL[st.st][1]}</span></td>`)(lstOf(r.sku))
     + `<td>${r.remark ? esc(r.remark) : '<span class="muted">—</span>'}</td>`
     /* A missing price is shown as missing. A zero would quietly value the stock at nothing. */
     + `<td class="num">${r.price === null ? '<span class="muted">none</span>' : nf(r.price)}</td>`
     + `<td class="num" style="font-weight:700">${r.value === null ? '<span class="muted">—</span>' : nf(Math.round(r.value))}</td>`
-    + `<td style="white-space:nowrap">${fgiCanEntry() ? `<button class="ghost" data-fgentry="${esc(r.sku)}" style="padding:3px 9px;font-size:12px">Entry</button>` : ''}${canEd
+    + `<td style="white-space:nowrap">${holds && fgiMayRelease(r.sku) ? `<button class="ghost" data-fgrel="${esc(r.sku)}" style="padding:3px 9px;font-size:12px">Release held pieces</button> ` : ''}${fgiCanEntry() ? `<button class="ghost" data-fgentry="${esc(r.sku)}" style="padding:3px 9px;font-size:12px">Entry</button>` : ''}${canEd
       ? ` <button class="ghost" data-fgskued="${esc(r.sku)}" style="padding:3px 9px;font-size:12px" title="Correct the count, re-order level and tag">Edit</button>`
         + ` <button class="ghost" data-fgskudel="${esc(r.sku)}" style="padding:3px 9px;font-size:12px;color:var(--bad)" title="Delete every movement of this SKU">Delete</button>` : ''}</td>`
     + '</tr>').join('') + '</tbody>';
@@ -343,6 +348,7 @@ function fgiRenderStock(stock) {
 function fgiCard(r, canEd) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
   const st = lstOf(r.sku);
+  const holds = typeof shpHoldOn === 'function' && shpHoldOn();
   const btn = (attr, label, extra) => `<button class="ghost" ${attr}="${esc(r.sku)}"${extra || ''}>${label}</button>`;
   return '<tr><td class="fg-mc">'
     + (canEd ? `<input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''} aria-label="Tick ${esc(r.sku)}">` : '<span></span>')
@@ -357,8 +363,9 @@ function fgiCard(r, canEd) {
     + '</div>'
     + `<div class="fg-mc-qty" style="color:${tone}">${nf(r.current)}<small>in stock</small></div>`
     + `<div class="fg-mc-figs"><span>In <b>${nf(r.opening + r.received)}</b></span><span>Out <b>${nf(r.issued)}</b></span>`
-      + `<span>FBA <b>${nf(r.fba)}</b></span>${r.value === null ? '' : `<span>₹ <b>${nf(Math.round(r.value))}</b></span>`}</div>`
+      + `<span>FBA <b>${nf(r.fba)}</b></span>${holds ? `<span>Held <b>${fgiHeldCell(r.sku)}</b></span>` : ''}${r.value === null ? '' : `<span>₹ <b>${nf(Math.round(r.value))}</b></span>`}</div>`
     + ((fgiCanEntry() || canEd) ? '<div class="fg-mc-acts">'
+      + (holds && fgiMayRelease(r.sku) ? btn('data-fgrel', 'Release held pieces') : '')
       + (fgiCanEntry() ? btn('data-fgentry', 'Entry') : '')
       + (canEd ? btn('data-fgskued', 'Edit') + btn('data-fgskudel', 'Delete', ' style="color:var(--bad)"') : '') + '</div>' : '')
     + '</td></tr>';
@@ -755,6 +762,7 @@ $('fgTable').addEventListener('click', e => {
     $('fgD1').value = ''; $('fgD2').value = ''; $('fgStat').value = '';
     return renderFgi();
   }
+  const rel = e.target.closest('[data-fgrel]'); if (rel) return fgiReleaseOpen(rel.getAttribute('data-fgrel'));
   const n = e.target.closest('[data-fgentry]'); if (n) return fgiEntryOpen('ISSUE', n.getAttribute('data-fgentry'));
   const s = e.target.closest('[data-fgset]'); if (s) return fgiSetOpen(s.getAttribute('data-fgset'));
   const r = e.target.closest('[data-fgrcv]'); if (r) return fgiReceiveOpen(r.getAttribute('data-fgrcv'));
@@ -779,6 +787,7 @@ async function fgiRefresh() {
   try {
     const [led] = await Promise.all([ptGet('pt_fgiLedger'), ptReadReg('press')]);
     FGI.rows = ptList(led); FGI.err = ''; FGI.at = ptStamp();
+    if (typeof shpHoldOn === 'function' && shpHoldOn()) await fgiHoldReread();   // unread: the list keeps the last figure; every save reads it again
   } catch (e) { FGI.err = e.message || String(e); }
   FGI_PICK = { stock: new Set(), ledger: new Set() };
   renderFgi();
