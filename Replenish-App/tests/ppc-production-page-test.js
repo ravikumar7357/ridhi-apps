@@ -1,5 +1,6 @@
 /* PPC → Production, the lot list (src/app/core/ppc-one.js — p1DrawInv).
  * Ravi, 26 Nov: "remove the next step button and column from the ppc production page" — and keep History.
+ * Ravi, 27 Nov: "add the to plan button back" — Plan only, on what still waits for its plan.
  *   node tests/ppc-production-page-test.js      (PPC_ONE=<file> to test another copy) */
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const FILE = process.env.PPC_ONE || path.join(__dirname, '..', 'src', 'app', 'core', 'ppc-one.js');
@@ -34,6 +35,33 @@ const heads = (h.match(/<thead>[\s\S]*?<\/thead>/)[0].match(/<th[ >]/g) || []).l
 const rows = h.match(/<tr class="p1[rl][\s\S]*?<\/tr>/g) || [];
 ok('every row still has one cell under each heading', rows.length === 2 && rows.every(r => cells(r) === heads), JSON.stringify([heads, rows.map(cells)]));
 ok('a late lot is still marked at its left edge', /class="p1r lot open urgent"/.test(h));
+
+/* ---- the Plan button (Ravi, 27 Nov) ---- */
+ok('a line that has its plan gets no Plan button', !/data-p1plan/.test(h));
+const wait = (orderNo, qty) => ({ r: { orderNo, sku: 'CPC-02', qty }, s: { bucket: 'ppc' } });
+const asLine = x => ({ x, st: Object.assign({ q: x.r.qty }, stages), D: {}, due: '', at: 'plan', chan: 'Amazon', printer: '' });
+const mixed = [wait('AMZ-2', 30), line.x, wait('AMZ-3', 12)];
+const draw = () => { const clicks = [], opened = [];
+  /* every button the page draws for Plan, as the page would hand it to its click */
+  page.querySelectorAll = sel => sel !== '[data-p1plan]' ? [] : [...page.innerHTML.matchAll(/data-p1plan="([^"]*)" data-p1line="([^"]*)"/g)]
+    .map(m => { const b = { dataset: { p1plan: m[1], p1line: m[2] } }; clicks.push(b); return b; });
+  ctx.flowPpcOpen = (a, b, keys) => opened.push(keys);
+  ctx.__t.p1DrawInv(); return { h: page.innerHTML, clicks, opened }; };
+ctx.p1Board = () => [Object.assign({}, lot, { gk: 'L2', notPlanned: 42, lines: mixed, ln: mixed.map(asLine) })];
+mixed.forEach((x, i) => { x.s.key = x.r.orderNo + '__' + i; });
+ctx.__t.P1.inv = 'L2';
+const p = draw();
+const buttons = (p.h.match(/>Plan \d+<\/button>/g) || []).map(s => s.slice(1, -9));
+ok('the lot says the pieces waiting for a plan, and each such order line its own', JSON.stringify(buttons) === JSON.stringify(['Plan 42', 'Plan 30', 'Plan 12']), JSON.stringify(buttons));
+ok('History stays beside it', /class="p1-hbtn" data-p1hist="L2"[^>]*>History<\/button><button type="button" class="p1-go"/.test(p.h));
+ok('no other step button comes back', !/data-p1step|p1-go2|Receive printed|Next step/.test(p.h));
+p.clicks.forEach(b => b.onclick({}));
+ok('the lot button opens the plan form for its waiting lines only', JSON.stringify(p.opened[0]) === JSON.stringify(['AMZ-2__0', 'AMZ-3__2']), JSON.stringify(p.opened[0]));
+ok('an order line button opens it for that line only', JSON.stringify(p.opened.slice(1)) === JSON.stringify([['AMZ-2__0'], ['AMZ-3__2']]), JSON.stringify(p.opened));
+ctx.ME = { admin: false, tabs: [] };
+ok('someone who may not plan sees no Plan button', !/data-p1plan/.test(draw().h));
+ctx.ME = { admin: false, tabs: ['flppc'] };
+ok('…and someone given PPC planning does', /data-p1plan/.test(draw().h));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
