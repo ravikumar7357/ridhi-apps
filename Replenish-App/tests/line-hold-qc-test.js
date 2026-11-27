@@ -16,7 +16,7 @@ function cut(file, startRe, end) {
   return s.slice(i, s.indexOf(end || '\n}', i) + (end || '\n}').length);
 }
 const Q = 'production/quality-control.js';
-const CODE = [src('core/line-hold.js'),
+const CODE = [src('core/line-hold.js'), src('production/reject-reason.js'),
   /* the one number rule the forms ask before saving (fix 6, 26 Nov) */
   cut('core/helpers.js', /^const PT_NUM_BIG/m, ';'), cut('core/helpers.js', /^function ptNumErr\(/m), cut('core/helpers.js', /^function ptNumBig\(/m),
   cut('core/history.js', /^async function ptCas\(/m), cut('core/history.js', /^async function ptGetFreshWhere\(/m), cut('core/history.js', /^function lineHoldOn\(/m),
@@ -54,7 +54,7 @@ function database() {
 function screen(db, o) {
   o = o || {};
   const boxes = {};
-  const box = id => boxes[id] || (boxes[id] = { value: '', textContent: '', className: '', disabled: false, dataset: {} });
+  const box = id => boxes[id] || (boxes[id] = { value: '', textContent: '', className: '', disabled: false, dataset: {}, classList: { toggle() {} } });
   const nothing = () => {}, up = s => String(s || '').trim().toUpperCase();
   const write = async (p, v) => {
     if (o.slow) await new Promise(r => setTimeout(r, 15));

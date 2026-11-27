@@ -1524,6 +1524,8 @@
               <input id="qcwChecked" type="number" min="1" step="1" placeholder="Checked" style="flex:0 0 110px">
               <input id="qcwAlt" type="number" min="0" step="1" placeholder="For alteration" style="flex:0 0 135px">
               <input id="qcwRej" type="number" min="0" step="1" placeholder="Rejected" style="flex:0 0 110px">
+              <select id="qcwWhy" class="hide" aria-label="Why rejected" style="flex:0 0 200px"></select>
+              <input id="qcwNote" class="hide" aria-label="Reason note" placeholder="Reason note (for Other)" style="flex:0 0 200px">
               <input id="qcwOk" placeholder="OK" readonly title="Checked minus alteration and rejected"
                      style="flex:0 0 90px;background:var(--hover,#f1f5f9);color:var(--muted)">
               <input id="qcwRemarks" placeholder="Remarks (optional)" style="flex:1 1 140px;min-width:0">
@@ -1563,6 +1565,8 @@
               <input id="qcrPcs" type="number" min="1" step="1" placeholder="Received" style="flex:0 0 110px">
               <input id="qcrOk" type="number" min="0" step="1" placeholder="Mended" title="Pieces that pass now" style="flex:0 0 110px">
               <input id="qcrRej" type="number" min="0" step="1" placeholder="Still wrong" style="flex:0 0 120px">
+              <select id="qcrWhy" class="hide" aria-label="Why still wrong" style="flex:0 0 200px"></select>
+              <input id="qcrNote" class="hide" aria-label="Reason note" placeholder="Reason note (for Other)" style="flex:0 0 200px">
               <input id="qcrRemarks" placeholder="Remarks (optional)" style="flex:1 1 140px;min-width:0">
               <button id="qcrSave" style="flex:0 0 130px">Receive</button>
             </div>
@@ -2330,6 +2334,8 @@
         <label>Issue pieces<input id="bdmIssue" type="number" min="1" step="1"></label>
         <label>Received pieces (total so far)<input id="bdmRecv" type="number" min="0" step="1"></label>
         <label>Rejection pieces<input id="bdmRej" type="number" min="0" step="1"></label>
+        <label class="hide">Why rejected<select id="bdmWhy"></select></label>
+        <label class="hide">Reason note (needed for "Other")<input id="bdmNote"></label>
         <label style="grid-column:1/-1">Remarks<input id="bdmRemarks"></label>
       </div>
 

@@ -138,6 +138,12 @@ function shpbFlowOf(r) {
   const q = +r.qty || 0;
   return { printer: (s.plan.printer && (s.plan.printer.code || s.plan.printer.name)) || '', back: Math.max(0, Math.min(q, +s.back || 0)) };
 }
+/** What was scrapped on a line (Ravi, 27 Nov; switch lineHold): qc — at QC; scrap — those and the karigar's receive together. */
+function shpbScrapOf(r) {
+  if (typeof flowRejOf !== 'function') return { qc: 0, scrap: 0 };
+  const x = flowRejOf(r.orderNo, r.sku);
+  return { qc: x.qcNew, scrap: x.scrap };
+}
 /** The stage figures of a set of lines. For each stage: A = what has ARRIVED (can be worked on), D = what it has DONE and moved on, W = what waits here. */
 function shpbStages(lines) {
   const s = { pcs: 0, cutX: 0, cutMv: 0, cutNone: 0, toCut: 0, issX: 0, issMv: 0, toIssue: 0, recX: 0, recMv: 0, qcX: 0, qcMv: 0, ready: 0,
@@ -148,14 +154,17 @@ function shpbStages(lines) {
     const q0 = +r.qty || 0, stk = shpbStockOf(r), q = q0 - stk, cap = n => Math.max(0, Math.min(q, +n || 0));
     /* A PIECE REJECTED AT KARIGAR RECEIVE GOES BACK TO ISSUE (Ravi, 14 Nov: order 8180 sat "Stuck" at Receive with nobody holding it —
      * the register closes the entry on a rejection, the board still counted it out). Issued is net of it, so Receive stops waiting
-     * on it and Issue shows it again to give out. */
-    const iss = cap((+r.issued || 0) - (+r.rejected || 0)), rec = cap(r.received), qc = cap(r.pressed);
+     * on it and Issue shows it again to give out.
+     * A SCRAPPED PIECE IS GONE (Ravi, 27 Nov; switch lineHold): it is no longer well cut, and one QC scrapped is no longer issued
+     * or received — so Cut asks for a new one and Issue offers what the Job Work form accepts. */
+    const gone = shpbScrapOf(r), cutGood = cap((+r.cut || 0) - gone.scrap);
+    const iss = cap((+r.issued || 0) - (+r.rejected || 0) - gone.qc), rec = cap((+r.received || 0) - gone.qc), qc = cap(r.pressed);
     const sp = (typeof spOf === 'function' ? spOf(r.orderNo, r.sku) : null) || {}, got = Math.min(q0, Number(sp.handedQty) || (r.handedAt ? q0 : 0));
     /* A QUILT IS NOT PRESSED (Ravi, 4 Nov: "quilt artile press nahi hota h direct filling ke liye jata h"): after QC it goes to the filler
      * vendor, and what comes back filled stands where pressed pieces stand — so Complete, shipping and the reports need no other change. */
     const prs = shpbIsQuilt(r) ? Math.min(qc, cap(shpbFillSum(shpbFillOf(r), 'rec'))) : Math.min(qc, cap(((SHPB.pressBy || {})[shpbKey(r.orderNo, r.sku)] || {}).pcs));
     s.pcs += q0; s.stk += stk;
-    if (r.cutReq) { const c = cap(r.cut); s.cutX += c; s.cutMv += Math.min(c, iss); s.toCut += Math.max(0, q - c); s.toIssue += Math.max(0, c - iss); }
+    if (r.cutReq) { const c = cutGood; s.cutX += c; s.cutMv += Math.min(c, iss); s.toCut += Math.max(0, q - c); s.toIssue += Math.max(0, c - iss); }
     else { s.cutNone += q; s.toIssue += Math.max(0, q - iss); }
     s.issX += iss; s.issMv += Math.min(iss, rec);
     s.recX += rec; s.recMv += Math.min(rec, qc);
@@ -169,8 +178,8 @@ function shpbStages(lines) {
     const fl = shpbFlowOf(r), past = Math.max(r.cutReq ? cap(r.cut) : 0, iss, rec, qc, prs), flBack = fl ? Math.min(q, Math.max(+fl.back || 0, past)) : 0;
     const base = shpbGated(r) ? 0 : (fl ? flBack : q);
     if (fl) { s.prcA += q; s.prcD += flBack; s.prcW += q - flBack; }
-    const cutDone = r.cutReq ? cap(r.cut) : base;
-    if (r.cutReq) { s.cutA += base; s.cutD += cap(r.cut); s.cutW += Math.max(0, base - cap(r.cut)); }
+    const cutDone = r.cutReq ? cutGood : base;
+    if (r.cutReq) { s.cutA += base; s.cutD += cutGood; s.cutW += Math.max(0, base - cutGood); }
     s.issA += cutDone; s.issD += iss; s.issW += Math.max(0, cutDone - iss);
     s.recA += iss; s.recD += rec; s.recW += Math.max(0, iss - rec);
     s.qcA += rec; s.qcD += qc; s.qcW += Math.max(0, rec - qc);
