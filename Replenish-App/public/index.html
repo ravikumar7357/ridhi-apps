@@ -35712,7 +35712,7 @@ function flowShLine(x) {
   let print = null; try { print = flowPrintWhat(x.r, x.s.plan); } catch (e) { print = null; }
   const pl = (x.s.plan && x.s.plan.printer) || {};
   return { x, key: x.s.key, pcs, perPc, metres: flowR2(pcs * perPc), printer: flowPlanPrinter(x.s), printerName: pl.name || '',
-    priority: typeof cutPiecesOn === 'function' && cutPiecesOn() ? flowPri(x.r.orderNo, x.r.sku) : '',
+    priority: typeof flowPri === 'function' ? flowPri(x.r.orderNo, x.r.sku) : '',
     print, printKey: print ? String(print.code || print.label || '') : '' };
 }
 /** The lines of one fabric still waiting on Demand → RFD for cloth, oldest order first. */
@@ -35721,9 +35721,10 @@ function flowShLines(fabric) {
   const oldest = flowRows().filter(x => flowInView('drfd', x.s) && x.s.route !== 'stitch' && flowFabKey(((x.s.plan || {}).fabric || {}).name) === F)
     .map(flowShLine).filter(l => l.pcs > 0)
     /* and the lines with no printing: cutting is allotted from this card (flow-cutpiece.js) */
-    .concat(typeof cutPiecesOn === 'function' && cutPiecesOn() ? flowCpNoPrintLines(fabric) : [])
+    .concat(typeof flowCpCardSave === 'function' ? flowCpNoPrintLines(fabric) : [])
     .sort((a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)));
-  if (!(typeof cutPiecesOn === 'function' && cutPiecesOn())) return oldest;
+  if (typeof flowPriSort !== 'function') return oldest;
+  /* most urgent first: P1 → P4 → no priority (Vishesh, 27 Nov) */
   return flowPriSort(oldest, l => ({ orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority }));
 }
 
@@ -35766,7 +35767,16 @@ function flowShShown(S) {
   const hay = l => [l.x.r.orderNo, obUC(l.x.r.sku), flowChItem(l.x.r), l.print && l.print.code, l.print && l.print.label, l.printerName, flowShVname(flowShPrn(S, l))]
     .filter(Boolean).join(' ').toLowerCase();
   return S.lines.filter(l => (!S.kind || flowShKind(l) === S.kind) && (!words.length || words.every(w => hay(l).includes(w)))
-    && (!S.show || (S.show === '-' ? !flowShPrn(S, l) : flowShPrn(S, l) === String(S.show))));
+    && (!S.show || (S.show === '-' ? !flowShPrn(S, l) : flowShPrn(S, l) === String(S.show))) && flowShOfPri(S, l));
+}
+/** The priority filter: '' every line, '-' the lines with no priority, else P1 … P4. */
+const flowShOfPri = (S, l) => !S.pri || (S.pri === '-' ? !l.priority : l.priority === S.pri);
+/** The filter's choices, each with how many lines of the tab on screen it holds. */
+function flowShPriOptions(S, lines) {
+  const opt = (v, words, n) => `<option value="${v}"${(S.pri || '') === v ? ' selected' : ''}>${words} (${nf(n)})</option>`;
+  return opt('', 'All priorities', lines.length)
+    + ['P1', 'P2', 'P3', 'P4'].map(p => opt(p, p, lines.filter(l => l.priority === p).length)).join('')
+    + opt('-', 'No priority', lines.filter(l => !l.priority).length);
 }
 /** The pieces that go on a line: what was typed (never more than it still needs), else all it still needs. */
 function flowShPcs(S, l) {
@@ -35819,7 +35829,7 @@ function flowShTickAll(S, on) {
 async function flowShelfChallanOpen(fabric, after) {
   if (!flowScreenAllowed().some(b => b[0] === 'drfd')) return 'Making an RFD challan needs Demand → RFD access.';
   await flowEnsureData();
-  if (typeof cutPiecesOn === 'function' && cutPiecesOn()) await flowPriLoad();
+  if (typeof flowPriLoad === 'function') await flowPriLoad();
   return flowShelfChallanShow(fabric, after);
 }
 /* THE CARD'S LOOK (Vishesh, 23 Nov: "not good make better also show product images"): one line is one row-card -- a large
@@ -35906,11 +35916,13 @@ function flowShelfChallanShow(fabric, after, keep) {
           <input id="flshQ" type="search" value="${esc(S.q || '')}" placeholder="Search order no., SKU, item, print or printer" autocomplete="off" aria-label="Search"></div>
         <span id="flshKinds" style="display:inline-flex;gap:6px"></span></div>
       <div class="shc-bar">
-        ${typeof cutPiecesOn === 'function' && cutPiecesOn() ? '<button type="button" class="ghost" id="flshDl">Download List</button>' : ''}
+        ${typeof flowCpCardSave === 'function' ? '<button type="button" class="ghost" id="flshDl">Download List</button>' : ''}
         <button type="button" class="ghost" data-shall="1">Select all</button>
         <button type="button" class="ghost" data-shall="0">Deselect all</button>
         <span id="flshTickN" class="shc-n"></span>
         <span style="flex:1 1 12px"></span>
+        <span style="font-size:12.5px;font-weight:600">Priority</span>
+        <select id="flshPri" style="min-width:170px" aria-label="Priority — only its lines are shown"></select>
         <span style="font-size:12.5px;font-weight:600">Printer</span>
         <select id="flshShow" style="min-width:220px" aria-label="Printer — only its lines are shown"></select></div>
       <div id="flshBody" class="shc-list"></div>
@@ -35933,13 +35945,14 @@ function flowShDraw() {
     return `<button type="button" data-shkind="${k}" class="${S.kind === k ? '' : 'ghost'}" style="width:auto;height:40px;padding:0 14px;border-radius:10px;font-weight:700" title="${k === 'cut' ? 'The printer gets cut pieces (printed on the SKU itself)' : 'The printer gets running cloth, in metres'}">${t} · ${nf(n)}</button>`; }).join('');
   const count = code => inKind.filter(l => (code === '-' ? !flowShPrn(S, l) : flowShPrn(S, l) === String(code))).length;
   const none = count('-');
+  if ($('flshPri')) $('flshPri').innerHTML = flowShPriOptions(S, inKind);
   if ($('flshShow')) $('flshShow').innerHTML = `<option value="">— pick a printer — all (${nf(inKind.length)} lines)</option>`
     + flowPrinters().map(v => ({ v, n: count(v.code) })).filter(o => o.n || String(o.v.code) === String(S.show))
       .map(o => `<option value="${esc(o.v.code)}"${String(o.v.code) === String(S.show) ? ' selected' : ''}>${esc(o.v.desc || o.v.name || o.v.code)} (${nf(o.n)})</option>`).join('')
     + (none || S.show === '-' ? `<option value="-"${S.show === '-' ? ' selected' : ''}>No printer yet (${nf(none)})</option>` : '');
   $('flshBody').innerHTML = flowShTableHtml(S);
   const save = $('ptDlgSave');
-  if (save && typeof cutPiecesOn === 'function' && cutPiecesOn()) save.textContent = S.kind === 'cut' ? 'Send to Cut to size' : 'Make the challans';
+  if (save && typeof flowCpCardSave === 'function') save.textContent = S.kind === 'cut' ? 'Make cutting list' : 'Make the challans';
   $('flshSum').innerHTML = flowShSumHtml(S);
   $('flshWait').innerHTML = flowShWaitHtml(S);
   if ($('flshTickN')) $('flshTickN').textContent = S.tick.size ? `${nf(S.tick.size)} ticked` : '';
@@ -35948,7 +35961,7 @@ function flowShDraw() {
 /** The list: each order's header (its own tick box), then its lines as row-cards. */
 function flowShTableHtml(S) {
   const shown = flowShShown(S);
-  if (!shown.length) return `<div class="muted" style="padding:28px;text-align:center">${S.q || S.show ? 'No line matches — clear the search or show all printers.' : 'No line is waiting.'}</div>`;
+  if (!shown.length) return `<div class="muted" style="padding:28px;text-align:center">${S.q || S.show || S.pri ? 'No line matches — clear the search, or show all printers and priorities.' : 'No line is waiting.'}</div>`;
   const pr = flowPrinters(), groups = [];
   shown.forEach(l => { const k = String(l.x.r.orderNo); const g = groups[groups.length - 1]; if (g && g.k === k) g.ls.push(l); else groups.push({ k, ls: [l] }); });
   return groups.map(g => {
@@ -35963,7 +35976,7 @@ function flowShTableHtml(S) {
 function flowShRowHtml(S, l, pr) {
   const why = flowShWhyNot(S, l), on = S.tick.has(l.key) && !why, noCloth = !(l.noPrint ? l.metres > 0 : l.perPc > 0), wait = flowShWaits(l), as = flowShAs(S, l), sku = obUC(l.x.r.sku);
   const tags = [];
-  if (typeof cutPiecesOn === 'function' && cutPiecesOn()) tags.push([l.priority === 'P1' ? 'b' : l.priority ? 'w' : 'i', flowPriText(l.priority)]);
+  if (typeof flowPriText === 'function') tags.push([l.priority === 'P1' ? 'b' : l.priority ? 'w' : 'i', flowPriText(l.priority)]);
   if (noCloth) tags.push(['b', 'No cloth / pc']);
   if (wait) tags.push(['w', 'Waiting approval']);
   else if (flowShChanged(S, l)) tags.push(['w', 'Printer changed']);
@@ -36012,7 +36025,7 @@ function flowShPcsCell(S, l, blocked) {
 function flowShSumHtml(S) {
   const go = flowShGoing(S), m = flowR2(go.reduce((a, l) => a + l.metres, 0));
   /* cut pieces go to Cut to size first, so no printer challan is promised for them */
-  const groups = typeof cutPiecesOn === 'function' && cutPiecesOn() && go.every(l => flowShKind(l) === 'cut') ? [] : flowShByPrinter(go.filter(l => !l.noPrint));
+  const groups = typeof flowCpCardSave === 'function' && go.every(l => flowShKind(l) === 'cut') ? [] : flowShByPrinter(go.filter(l => !l.noPrint));
   /* cloth already held for a no-printing line is off the free figure, so it is not asked of the shelf twice */
   const st = flowChStock(S.fabric, flowR2(go.reduce((a, l) => a + (l.noPrint && l.ready ? 0 : l.metres), 0)));
   const stock = st.free == null ? '<span class="muted" style="font-size:11.5px">RFD on the shelf not known</span>'
@@ -36133,7 +36146,7 @@ async function flowShSave() {
   if (go.some(l => !!l.x.r.__t) && go.some(l => !l.x.r.__t)) return 'A test order and a real one cannot share a challan.';
   S.note = $('flshNote').value.trim(); S.review = { note: S.note };
   /* cut pieces are cut first: they go to Cut to size, not to the printer (flow-cutpiece.js) */
-  if (typeof cutPiecesOn === 'function' && cutPiecesOn() && go.some(l => flowShKind(l) === 'cut')) return flowCpCardSave(S);
+  if (typeof flowCpCardSave === 'function' && go.some(l => flowShKind(l) === 'cut')) return flowCpCardSave(S);
   /* ASK BEFORE IT GOES (Vishesh, 23 Nov: "when I click on make challan it should give a notification that this order will be sent
    * to this vendor"): the Review always opens -- what goes to which printer, and which printers change. */
   setTimeout(flowShReviewOpen, 0);   // the card closes when this returns; the Review opens on the next tick
@@ -36216,8 +36229,9 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
 });
 /* the card's own boxes: a tick, a printer on a line, the pieces, the filter -- each only changes the draft */
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('change', e => {
-  const t = e.target, S = FLOW_SH; if (!S || !t || !t.closest || !t.closest('#flshShow,[data-shk],[data-shq],[data-shprn],[data-shgrp]')) return;
+  const t = e.target, S = FLOW_SH; if (!S || !t || !t.closest || !t.closest('#flshShow,#flshPri,[data-shk],[data-shq],[data-shprn],[data-shgrp]')) return;
   let said = '';
+  if (t.id === 'flshPri') S.pri = t.value;
   if (t.id === 'flshShow') S.show = t.value;
   if (t.dataset && t.dataset.shk) { if (t.checked) S.tick.add(t.dataset.shk); else S.tick.delete(t.dataset.shk); }
   /* an order's header ticks (or unticks) every line of it that can go */
@@ -36369,9 +36383,9 @@ function flowChallanPrint(no) {
 /* ================= CUT TO SIZE FROM THE SEND TO PRINTER CARD (Vishesh, 27 Nov) =================
  *
  * Cutting is allotted from the order list of the Send to printer card, its "Cut pieces" tab: no challan is made and there
- * is no separate Send to cutting button. Ticked lines show in the Greige Desk's Cut to size column as Waiting to cut →
- * (Piece Ready for Cut) → Ready for cut → (Cut done), on screen and as a download. No approval. The cloth leaves RFD on
- * shelf when the lines are allotted.
+ * is no separate Send to cutting button. Ticked lines show under RFD on shelf on the Greige Desk as "yet to be cut":
+ * Waiting to cut → (Piece Ready for Cut) → Ready for cut → (Cut done), then in the Cut to size column, on screen and as a
+ * download. No approval. The cloth leaves RFD on shelf when the lines are allotted.
  *   - a printed line (printed on the SKU itself) then goes: (Send to printer) → in transit, until the printer presses
  *     "Cloth received". Its printer challan (ch.fromCut) takes nothing more from the shelf.
  *   - a line with no printing is finished at Cut done. Allotting marks its fabric ready (as Send to cutting did), so it
@@ -36382,14 +36396,9 @@ function flowChallanPrint(no) {
  *     ready, cutAt, challan }
  * `no` marks one allotment and its stock rows (GD.cutIssue / GD.cutReturn); it is not shown to anyone.
  *
- * Behind the switch cutPieces (off): priority order, the download, this flow and the desk's transit column. Records that
- * already exist are honoured whatever the switch says, so no PC can send the same cloth twice.
+ * On for everybody, no switch (Vishesh, 27 Nov).
  * Errors: every save is stock, so a refusal or failure is said in words and nothing is guessed. The priority reads are quiet
  * (console line; lines then show "No priority"). */
-function cutPiecesOn() {
-  try { return localStorage.getItem('cutPieces') === '1'; } catch (e) { return false; }
-}
-
 /* ---- priority: the order line's own P1–P4, else the SKU's tag, else none (which goes last) ---- */
 async function flowPriLoad() {
   try {
@@ -36475,7 +36484,7 @@ function flowCpDetail(l) {
 }
 const FLOW_CP_COLS = [['Priority', x => flowPriText(x.priority), 11], ['Order no', x => x.orderNo, 22], ['Order date', x => x.orderDate, 12],
   ['SKU / article no', x => x.sku, 16], ['Article details', x => x.article, 24], ['Product name', x => x.item, 36], ['Fabric', x => x.fabric, 14],
-  ['Piece size', x => x.size, 14], ['Pieces', x => x.pcs, 9], ['Metres per piece', x => x.perPc, 12], ['Total metres', x => x.metres, 12],
+  ['Piece size', x => x.size, 14], ['Pieces to cut', x => x.pcs, 13], ['Length of each piece (m)', x => x.perPc, 22], ['Total length (m)', x => x.metres, 16],
   ['Cutting', x => x.cutting || 'Cut to size', 18], ['Printer', x => x.printerName || '', 22], ['Allotted on', x => x.allotted || '', 13], ['Status', x => x.status, 22]];
 function flowCpXlsx(name, rows) {
   const head = { b: 1, fill: 'F1EFE8' };
@@ -36562,10 +36571,10 @@ async function flowCpAllot(fabric, lines, note) {
 async function flowCpCardSave(S) {
   const picked = flowCpPicked(S); if (picked.err) return picked.err;
   const pcs = picked.lines.reduce((a, l) => a + l.pcs, 0), m = flowR2(picked.lines.reduce((a, l) => a + l.metres, 0));
-  if (!window.confirm(`Send ${picked.lines.length} product(s), ${nf(pcs)} pcs, ${nf(m)} m to Cut to size? The cloth leaves RFD on shelf now.`)) return 'Nothing was sent to cutting.';
+  if (!window.confirm(`Put ${picked.lines.length} product(s), ${nf(pcs)} pcs, ${nf(m)} m on the cutting list? The cloth leaves RFD on shelf now.`)) return 'No cutting list was made.';
   const made = await flowCpAllot(S.fabric, picked.lines, S.note); if (made.err) return made.err;
   FLOW_SH = null;
-  const said = `${made.rows.length} product(s) sent to Cut to size.`;
+  const said = `${made.rows.length} product(s) are yet to be cut.`;
   setTimeout(() => {
     if (typeof S.after === 'function') S.after('', said);
     flowCpResultOpen(S.fabric, made.no, made.said, S.after);
@@ -36611,6 +36620,10 @@ async function flowCpSend(key) {
   return er ? { err: `Challan ${no} is made, but the piece could not be marked sent: ${er}` } : { no };
 }
 
+/* ---- yet to be cut, and cut: the two lists of the desk ---- */
+const flowCpYetToCut = list => (list || []).filter(r => r.status === 'wait' || r.status === 'ready');
+const flowCpCutDone = list => (list || []).filter(r => r.status === 'cut' || r.status === 'sending');
+
 /* ---- the list with its buttons: after allotting, and in the desk's Cut to size drop-down ---- */
 function flowCpButtons(r) {
   const b = (act, words, cls) => `<button type="button" class="${cls || 'jw-btn jw-primary'}" data-cp="${act}" data-cpkey="${esc(r.key)}">${words}</button>`;
@@ -36626,20 +36639,21 @@ function flowCpRowHtml(r) {
   const sub = t => `<div class="muted" style="font-size:11px">${esc(t)}</div>`;
   return `<tr data-cprow="1" data-cpkey="${esc(r.key)}" data-cpst="${r.status === 'sending' ? 'cut' : esc(r.status)}"><td><b>${esc(flowPriText(r.priority))}</b></td>`
     + `<td>${esc(r.orderNo)}${sub(r.orderDate || '')}</td><td style="text-align:left"><b>${esc(r.sku)}</b>${sub([r.article, r.item].filter(Boolean).join(' · '))}</td>`
-    + `<td>${esc(r.size || '—')}${sub(nf(r.perPc) + ' m / pc')}</td><td class="num">${nf(r.pcs)}</td><td class="num">${nf(r.metres)} m</td>`
+    + `<td>${esc(r.size || '—')}</td><td class="num">${nf(r.pcs)}</td><td class="num">${nf(r.perPc)} m</td><td class="num">${nf(r.metres)} m</td>`
     + `<td>${esc(r.noPrint ? 'No printing' : (r.printer || {}).name || '')}</td><td>${esc(flowCpDay(r.at))}</td><td>${esc(FLOW_CP_LABEL[r.status] || r.status)}</td>`
     + `<td style="white-space:nowrap">${flowCpButtons(r)}</td></tr>`;
 }
 function flowCpTableHtml(rows) {
-  const heads = ['Priority', 'Order', 'SKU / product', 'Piece size', 'Pcs', 'Total metres', 'Printer', 'Allotted', 'Status', 'Next step'];
+  const heads = ['Priority', 'Order', 'SKU / product', 'Piece size', 'Pieces to cut', 'Length of each piece', 'Total length', 'Printer', 'Allotted', 'Status', 'Next step'];
+  const filters = FLOW_CP_FILTERS.filter(([k]) => !k || rows.some(r => r.status === k));
   const total = flowR2(rows.reduce((a, r) => a + r.metres, 0)), pcs = rows.reduce((a, r) => a + r.pcs, 0);
   return `<div data-cpwrap="${esc((rows[0] || {}).fabric || '')}"><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 6px">`
     + '<button type="button" class="jw-btn" data-cpdl="1" style="width:auto">Download List</button>'
-    + FLOW_CP_FILTERS.map(([k, words]) => `<button type="button" class="jw-btn${k ? '' : ' jw-primary'}" data-cpf="${k}" aria-pressed="${!k}" style="width:auto">${words}</button>`).join('')
+    + (filters.length > 2 ? filters : []).map(([k, words]) => `<button type="button" class="jw-btn${k ? '' : ' jw-primary'}" data-cpf="${k}" aria-pressed="${!k}" style="width:auto">${words}</button>`).join('')
     + '<input type="search" data-cpq="1" placeholder="Search order, SKU or printer" aria-label="Search cut to size" style="width:auto;flex:0 1 280px"></div>'
     + `<div class="box scroll"><table class="ct li xl"><thead><tr>${heads.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>`
     + rows.map(flowCpRowHtml).join('')
-    + `<tr><td colspan="4"><b>Total · ${nf(rows.length)} product${rows.length === 1 ? '' : 's'}</b></td><td class="num"><b>${nf(pcs)}</b></td><td class="num"><b>${nf(total)} m</b></td><td colspan="4"></td></tr>`
+    + `<tr><td colspan="4"><b>Total · ${nf(rows.length)} product${rows.length === 1 ? '' : 's'}</b></td><td class="num"><b>${nf(pcs)}</b></td><td></td><td class="num"><b>${nf(total)} m</b></td><td colspan="4"></td></tr>`
     + '</tbody></table></div></div>';
 }
 /** Shows the rows that match the status picked and every word typed. */
@@ -36673,8 +36687,8 @@ function flowCpResultOpen(fabric, no, said, after) {
   FLOW_CP = { fabric, no, after };
   flowCpWire();
   ptOpenDialog({
-    title: 'Sent to Cut to size', wide: true,
-    subtitle: `${fabric} · saved. These products are now in Cut to size on the Greige Desk.${said ? ' ' + said : ''}`,
+    title: 'Yet to be cut', wide: true,
+    subtitle: `${fabric} · saved. Find these under RFD on shelf on the Greige Desk.${said ? ' ' + said : ''}`,
     html: '<div id="flcpBody"></div>',
     saveLabel: 'Done', onSave: async () => '',
   });
@@ -44367,7 +44381,8 @@ function ctsOf(fabric) {
 }
 /** The Cut to size cell: pieces left, the metres under them, and how many are waiting for approval. Opens the drop-down. */
 function invCutCell(r) {
-  var c = r.cut, key = r.fabric + '|cut', on = UI.invOpen === key, ch = r.cutCh || [];
+  var c = r.cut, key = r.fabric + '|cut', on = UI.invOpen === key;
+  var ch = (r.cutCh || []).filter(function (x) { return x.status === 'cut' || x.status === 'sending'; });
   var pcs = c.leftPcs + ch.reduce(function (a, x) { return a + x.pcs; }, 0), m = r2(c.leftM + ch.reduce(function (a, x) { return a + x.metres; }, 0));
   if (!(pcs > 0) && !c.waiting) return '<td class="num"><span class="muted">&mdash;</span></td>';
   return '<td class="num"><button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '" title="Show what makes this up">'
@@ -44431,7 +44446,7 @@ function ctsLinesFor(fabric, w, l) {
     return flowInView('drfd', x.s) && x.s.route !== 'stitch' && flowFabKey(((x.s.plan || {}).fabric || {}).name) === F && ctsSizeMatches(ctsLineSize(x), w, l);
   }).map(flowShLine).filter(function (ln) { return ln.pcs > 0; })
     .sort(function (a, b) { return String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)); });
-  if (!(typeof cutPiecesOn === 'function' && cutPiecesOn())) return list;
+  if (typeof flowPriSort !== 'function') return list;
   return flowPriSort(list, function (l) { return { orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority }; });
 }
 /** What would go for this printer: { size, lines, picks: [{ line, pcs, metres }], skipped: [{ line, why }], pcs, metres }. Reads only. */
@@ -45556,14 +45571,15 @@ function invDetail(r, col) {
         + '<td>' + (g.poNo ? '<button type="button" class="jw-btn jw-wa" data-rr="' + esc(g.poNo) + '|' + esc(g.lot) + '">Receive RFD</button>' : '') + '</td></tr>';
     });
     empty = 'Nothing of ' + r.fabric + ' is at an RFD processor.';
-  } else if (col === 'transit') {
-    head = []; body = []; empty = '';
+  } else if (col === 'transit' || col === 'tocut') {
+    head = []; body = []; empty = col === 'tocut' ? 'Nothing of ' + r.fabric + ' is waiting to be cut.' : '';
   } else if (col === 'cut') {
     head = ['Size (W × L)', 'Cut', 'Sent to printer', 'Left', 'Status', 'Next step'];
     body = ctsDetailRows(r.cut, r.fabric);
     empty = 'Nothing has been cut to size from ' + r.fabric + ' yet.';
   } else {
-    head = ['Lot', 'PO', 'Supplier challan', 'RFD processor', 'Back on', 'Came back', 'To cutting', 'Damaged', 'On shelf', 'Next step'];
+    /* no buttons on a lot (Vishesh, 27 Nov): Send to printer is under RFD on shelf, and cutting is allotted from its card */
+    head = ['Lot', 'PO', 'Supplier challan', 'RFD processor', 'Back on', 'Came back', 'To cutting', 'Damaged', 'On shelf'];
     var left = invLotsLeft(r.fabric, r.rfdToPrinters);
     body = invLotsOf(r.fabric).filter(function (g) { return left[g.lot] > 0.05; }).map(function (g) {
       var rec = invRowsOfLot(g.lot, 'RECEIVE_GREIGE'), back = invRowsOfLot(g.lot, 'RECEIVE_RFD');
@@ -45573,17 +45589,14 @@ function invDetail(r, col) {
         + '<td class="tl mono">' + esc(invJoin(rec.map(function (x) { return x.bill; }))) + '</td>'
         + '<td class="tl">' + esc(g.processor || '—') + '</td><td class="tl">' + esc(fmtD(invLastDate(back) || g.date)) + '</td>'
         + '<td class="num">' + nf(came) + ' m</td><td class="num">' + (g.rfdOut ? nf(g.rfdOut) + ' m' : '—') + '</td>'
-        + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(left[g.lot]) + ' m</td>'
-        /* Send to printer opens the RFD challan for this fabric right here (Vishesh, 23 Nov; before: its lines on Demand → RFD) */
-        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>' + gdPrnWaitingPill(r.fabric)
-        /* cutting is allotted from the Send to printer card when the switch cutPieces is on (27 Nov) */
-        + (typeof cutPiecesOn === 'function' && cutPiecesOn() ? '' : '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button>') + '</div></td></tr>';
+        + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(left[g.lot]) + ' m</td></tr>';
     });
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
   }
-  var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf', cut: 'Cut to size', transit: 'In transit to printers' }[col];
+  var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf', cut: 'Cut to size', transit: 'In transit to printers', tocut: 'Yet to be cut' }[col];
   /* the products allotted to cutting; the cut-with-no-product table is left out when only these are there */
-  var pieces = col === 'cut' && (r.cutCh || []).length ? flowCpTableHtml(r.cutCh) : '';
+  var listed = col === 'tocut' ? flowCpYetToCut(r.cutCh) : col === 'cut' && (r.cutCh || []).length ? flowCpCutDone(r.cutCh) : [];
+  var pieces = listed.length ? flowCpTableHtml(listed) : '';
   return '<tr class="invdet"><td colspan="' + (UI.invCols || 6) + '"><div class="invdrop"><div class="sect">' + esc(title) + ' · ' + esc(r.fabric) + '</div>'
     + (col === 'cut' && r.cut.leftPcs > 0 ? '<div class="actions" style="justify-content:flex-start;margin:6px 0"><button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer from the pieces already cut">Send to printer</button></div>' : '')
     + pieces
@@ -45603,16 +45616,25 @@ function invDetail(r, col) {
 function invRfdCell(r) {
   var tr = invTransitM(r), send = invNeeds(r, 'send');
   if (invTransitColumn()) tr = 0;   // it has its own column
-  if (!(tr > 0.05) && !send) return invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700');
+  var yet = invYetM(r);
+  if (!(tr > 0.05) && !send && !(yet > 0)) return invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700');
   return '<td class="num">' + (r.inStoreRfd > 0.05 ? invCellBtn(r, 'rfd', r.inStoreRfd, 'font-weight:700') : '<span class="muted">&mdash;</span>')
     + (tr > 0.05 ? '<div style="font-size:10.5px;color:var(--warn-ink);font-weight:600;white-space:nowrap">+ ' + nf(tr) + ' m in transit to printers</div>' : '')
+    + invYetHtml(r, yet)
     + (send ? '<div class="actions" style="justify-content:flex-end;margin-top:6px"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the ' + plural(r.ppc.lines, 'line') + ' waiting">Send to printer</button>'
       + (typeof gdPrnWaitingPill === 'function' ? gdPrnWaitingPill(r.fabric) : '') + '</div>' : '') + '</td>';
 }
-/* A COLUMN OF ITS OWN (Vishesh, 27 Nov, switch cutPieces): what is sent to a printer shows here, not under RFD on shelf,
+/* A COLUMN OF ITS OWN (Vishesh, 27 Nov): what is sent to a printer shows here, not under RFD on shelf,
  * until the printer marks it received. */
-function invTransitColumn() { return typeof cutPiecesOn === 'function' && cutPiecesOn(); }
+function invTransitColumn() { return typeof flowCpList === 'function'; }
 function invTransitCell(r) { return invCell(r, 'transit', invTransitM(r), 'color:var(--warn-ink)'); }
+/* YET TO BE CUT (Vishesh, 27 Nov): what was ticked on the card's Cut pieces tab shows under RFD on shelf until it is cut;
+ * pressing it lists what to cut, how many, the length of each piece and the total length. */
+function invYetM(r) { return r2((r.cutCh || []).filter(function (x) { return x.status === 'wait' || x.status === 'ready'; }).reduce(function (a, x) { return a + x.metres; }, 0)); }
+function invYetHtml(r, yet) {
+  if (!(yet > 0)) return '';
+  return '<div><button type="button" class="link" data-invd="' + esc(r.fabric + '|tocut') + '" aria-expanded="' + (UI.invOpen === r.fabric + '|tocut') + '" style="font-size:11px;color:var(--warn-ink);font-weight:700;white-space:nowrap" title="Show what is to be cut">+ ' + ctsN(yet) + ' m yet to be cut</button></div>';
+}
 /** The metres of a row still on their way to printers. */
 function invTransitM(r) { return (r.transit || []).reduce(function (a, x) { return a + (+x.metres || 0); }, 0); }
 /** The challan lines of this fabric not yet received by the printer, since the desk began counting it; [] when the flow is not read. */
@@ -46816,7 +46838,7 @@ function entryOpen(kind, row) {
   if (!row && kind === 'RECEIVE_GREIGE') { entryClose(); openDrawer(''); return; }
   if (!row && kind === 'ISSUE_TO_RFD') { entryClose(); UI.tab = 'po'; render(); lmSay('warn', 'Greige goes to RFD from its PO: press Issue to RFD on the PO.'); return; }
   if (!row && kind === 'RECEIVE_RFD') { entryClose(); UI.tab = 'po'; render(); lmSay('warn', 'RFD comes back on its PO: press Receive RFD on the PO.'); return; }
-  if (!row && kind === 'ISSUE_TO_CUTTING') { entryClose(); UI.tab = 'inv'; render(); lmSay('warn', 'RFD goes to cutting from Inventory: open RFD on shelf and press ' + (typeof cutPiecesOn === 'function' && cutPiecesOn() ? 'Send to printer, then its Cut pieces tab.' : 'Send to cutting on the lot.')); return; }
+  if (!row && kind === 'ISSUE_TO_CUTTING') { entryClose(); UI.tab = 'inv'; render(); lmSay('warn', 'RFD goes to cutting from Inventory: press Send to printer under RFD on shelf, then its Cut pieces tab.'); return; }
   if (!canLedgerEdit()) { lmSay('warn', meUser().name + ' may only view the fabric ledger.'); return; }
   EN_AUTO = {};
   EN_ID = row ? row.id : null;
@@ -47546,8 +47568,8 @@ function gdSendToPrinter(fabric) {
     if (typeof gdLinkMasters === 'function') gdLinkMasters();   // the Master Data's fabrics and vendors, read fresh each time
     if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireCutToSize(); wireDateAsks(); wireGd(); }
     render();
-    /* the priorities for Cut to size and the transit list (switch cutPieces); the desk redraws when they are in */
-    if (typeof cutPiecesOn === 'function' && cutPiecesOn()) flowPriLoad().then(render);
+    /* the priorities for the cutting and transit lists; the desk redraws when they are in */
+    if (typeof flowPriLoad === 'function') flowPriLoad().then(render);
   }
   /* the desk as it stands now, with the Master Data's names, before cloth is taken or given back */
   async function cutFresh() {

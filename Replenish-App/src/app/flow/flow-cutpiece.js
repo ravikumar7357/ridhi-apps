@@ -1,9 +1,9 @@
 /* ================= CUT TO SIZE FROM THE SEND TO PRINTER CARD (Vishesh, 27 Nov) =================
  *
  * Cutting is allotted from the order list of the Send to printer card, its "Cut pieces" tab: no challan is made and there
- * is no separate Send to cutting button. Ticked lines show in the Greige Desk's Cut to size column as Waiting to cut →
- * (Piece Ready for Cut) → Ready for cut → (Cut done), on screen and as a download. No approval. The cloth leaves RFD on
- * shelf when the lines are allotted.
+ * is no separate Send to cutting button. Ticked lines show under RFD on shelf on the Greige Desk as "yet to be cut":
+ * Waiting to cut → (Piece Ready for Cut) → Ready for cut → (Cut done), then in the Cut to size column, on screen and as a
+ * download. No approval. The cloth leaves RFD on shelf when the lines are allotted.
  *   - a printed line (printed on the SKU itself) then goes: (Send to printer) → in transit, until the printer presses
  *     "Cloth received". Its printer challan (ch.fromCut) takes nothing more from the shelf.
  *   - a line with no printing is finished at Cut done. Allotting marks its fabric ready (as Send to cutting did), so it
@@ -14,14 +14,9 @@
  *     ready, cutAt, challan }
  * `no` marks one allotment and its stock rows (GD.cutIssue / GD.cutReturn); it is not shown to anyone.
  *
- * Behind the switch cutPieces (off): priority order, the download, this flow and the desk's transit column. Records that
- * already exist are honoured whatever the switch says, so no PC can send the same cloth twice.
+ * On for everybody, no switch (Vishesh, 27 Nov).
  * Errors: every save is stock, so a refusal or failure is said in words and nothing is guessed. The priority reads are quiet
  * (console line; lines then show "No priority"). */
-function cutPiecesOn() {
-  try { return localStorage.getItem('cutPieces') === '1'; } catch (e) { return false; }
-}
-
 /* ---- priority: the order line's own P1–P4, else the SKU's tag, else none (which goes last) ---- */
 async function flowPriLoad() {
   try {
@@ -107,7 +102,7 @@ function flowCpDetail(l) {
 }
 const FLOW_CP_COLS = [['Priority', x => flowPriText(x.priority), 11], ['Order no', x => x.orderNo, 22], ['Order date', x => x.orderDate, 12],
   ['SKU / article no', x => x.sku, 16], ['Article details', x => x.article, 24], ['Product name', x => x.item, 36], ['Fabric', x => x.fabric, 14],
-  ['Piece size', x => x.size, 14], ['Pieces', x => x.pcs, 9], ['Metres per piece', x => x.perPc, 12], ['Total metres', x => x.metres, 12],
+  ['Piece size', x => x.size, 14], ['Pieces to cut', x => x.pcs, 13], ['Length of each piece (m)', x => x.perPc, 22], ['Total length (m)', x => x.metres, 16],
   ['Cutting', x => x.cutting || 'Cut to size', 18], ['Printer', x => x.printerName || '', 22], ['Allotted on', x => x.allotted || '', 13], ['Status', x => x.status, 22]];
 function flowCpXlsx(name, rows) {
   const head = { b: 1, fill: 'F1EFE8' };
@@ -194,10 +189,10 @@ async function flowCpAllot(fabric, lines, note) {
 async function flowCpCardSave(S) {
   const picked = flowCpPicked(S); if (picked.err) return picked.err;
   const pcs = picked.lines.reduce((a, l) => a + l.pcs, 0), m = flowR2(picked.lines.reduce((a, l) => a + l.metres, 0));
-  if (!window.confirm(`Send ${picked.lines.length} product(s), ${nf(pcs)} pcs, ${nf(m)} m to Cut to size? The cloth leaves RFD on shelf now.`)) return 'Nothing was sent to cutting.';
+  if (!window.confirm(`Put ${picked.lines.length} product(s), ${nf(pcs)} pcs, ${nf(m)} m on the cutting list? The cloth leaves RFD on shelf now.`)) return 'No cutting list was made.';
   const made = await flowCpAllot(S.fabric, picked.lines, S.note); if (made.err) return made.err;
   FLOW_SH = null;
-  const said = `${made.rows.length} product(s) sent to Cut to size.`;
+  const said = `${made.rows.length} product(s) are yet to be cut.`;
   setTimeout(() => {
     if (typeof S.after === 'function') S.after('', said);
     flowCpResultOpen(S.fabric, made.no, made.said, S.after);
@@ -243,6 +238,10 @@ async function flowCpSend(key) {
   return er ? { err: `Challan ${no} is made, but the piece could not be marked sent: ${er}` } : { no };
 }
 
+/* ---- yet to be cut, and cut: the two lists of the desk ---- */
+const flowCpYetToCut = list => (list || []).filter(r => r.status === 'wait' || r.status === 'ready');
+const flowCpCutDone = list => (list || []).filter(r => r.status === 'cut' || r.status === 'sending');
+
 /* ---- the list with its buttons: after allotting, and in the desk's Cut to size drop-down ---- */
 function flowCpButtons(r) {
   const b = (act, words, cls) => `<button type="button" class="${cls || 'jw-btn jw-primary'}" data-cp="${act}" data-cpkey="${esc(r.key)}">${words}</button>`;
@@ -258,20 +257,21 @@ function flowCpRowHtml(r) {
   const sub = t => `<div class="muted" style="font-size:11px">${esc(t)}</div>`;
   return `<tr data-cprow="1" data-cpkey="${esc(r.key)}" data-cpst="${r.status === 'sending' ? 'cut' : esc(r.status)}"><td><b>${esc(flowPriText(r.priority))}</b></td>`
     + `<td>${esc(r.orderNo)}${sub(r.orderDate || '')}</td><td style="text-align:left"><b>${esc(r.sku)}</b>${sub([r.article, r.item].filter(Boolean).join(' · '))}</td>`
-    + `<td>${esc(r.size || '—')}${sub(nf(r.perPc) + ' m / pc')}</td><td class="num">${nf(r.pcs)}</td><td class="num">${nf(r.metres)} m</td>`
+    + `<td>${esc(r.size || '—')}</td><td class="num">${nf(r.pcs)}</td><td class="num">${nf(r.perPc)} m</td><td class="num">${nf(r.metres)} m</td>`
     + `<td>${esc(r.noPrint ? 'No printing' : (r.printer || {}).name || '')}</td><td>${esc(flowCpDay(r.at))}</td><td>${esc(FLOW_CP_LABEL[r.status] || r.status)}</td>`
     + `<td style="white-space:nowrap">${flowCpButtons(r)}</td></tr>`;
 }
 function flowCpTableHtml(rows) {
-  const heads = ['Priority', 'Order', 'SKU / product', 'Piece size', 'Pcs', 'Total metres', 'Printer', 'Allotted', 'Status', 'Next step'];
+  const heads = ['Priority', 'Order', 'SKU / product', 'Piece size', 'Pieces to cut', 'Length of each piece', 'Total length', 'Printer', 'Allotted', 'Status', 'Next step'];
+  const filters = FLOW_CP_FILTERS.filter(([k]) => !k || rows.some(r => r.status === k));
   const total = flowR2(rows.reduce((a, r) => a + r.metres, 0)), pcs = rows.reduce((a, r) => a + r.pcs, 0);
   return `<div data-cpwrap="${esc((rows[0] || {}).fabric || '')}"><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 6px">`
     + '<button type="button" class="jw-btn" data-cpdl="1" style="width:auto">Download List</button>'
-    + FLOW_CP_FILTERS.map(([k, words]) => `<button type="button" class="jw-btn${k ? '' : ' jw-primary'}" data-cpf="${k}" aria-pressed="${!k}" style="width:auto">${words}</button>`).join('')
+    + (filters.length > 2 ? filters : []).map(([k, words]) => `<button type="button" class="jw-btn${k ? '' : ' jw-primary'}" data-cpf="${k}" aria-pressed="${!k}" style="width:auto">${words}</button>`).join('')
     + '<input type="search" data-cpq="1" placeholder="Search order, SKU or printer" aria-label="Search cut to size" style="width:auto;flex:0 1 280px"></div>'
     + `<div class="box scroll"><table class="ct li xl"><thead><tr>${heads.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>`
     + rows.map(flowCpRowHtml).join('')
-    + `<tr><td colspan="4"><b>Total · ${nf(rows.length)} product${rows.length === 1 ? '' : 's'}</b></td><td class="num"><b>${nf(pcs)}</b></td><td class="num"><b>${nf(total)} m</b></td><td colspan="4"></td></tr>`
+    + `<tr><td colspan="4"><b>Total · ${nf(rows.length)} product${rows.length === 1 ? '' : 's'}</b></td><td class="num"><b>${nf(pcs)}</b></td><td></td><td class="num"><b>${nf(total)} m</b></td><td colspan="4"></td></tr>`
     + '</tbody></table></div></div>';
 }
 /** Shows the rows that match the status picked and every word typed. */
@@ -305,8 +305,8 @@ function flowCpResultOpen(fabric, no, said, after) {
   FLOW_CP = { fabric, no, after };
   flowCpWire();
   ptOpenDialog({
-    title: 'Sent to Cut to size', wide: true,
-    subtitle: `${fabric} · saved. These products are now in Cut to size on the Greige Desk.${said ? ' ' + said : ''}`,
+    title: 'Yet to be cut', wide: true,
+    subtitle: `${fabric} · saved. Find these under RFD on shelf on the Greige Desk.${said ? ' ' + said : ''}`,
     html: '<div id="flcpBody"></div>',
     saveLabel: 'Done', onSave: async () => '',
   });

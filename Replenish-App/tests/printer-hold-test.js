@@ -199,7 +199,7 @@ console.log('Greige Desk pill');
   const pill = (w) => new Function('flowPrnWaiting', fn + '\n;return gdPrnWaitingPill;')(w);
   ok('pill shows the count beside Send to printer', /3 waiting approval/.test(pill(() => [1, 2, 3])('Cotton')));
   ok('no pill when none wait, or when the list is not there', pill(() => [])('Cotton') === '' && pill(undefined)('Cotton') === '');
-  ok('the pill sits right after the Send to printer button', /Send to printer<\/button>' \+ gdPrnWaitingPill\(r\.fabric\)/.test(gd));
+  ok('the pill sits right after the Send to printer button', /Send to printer<\/button>'\s*\+ \(typeof gdPrnWaitingPill === 'function' \? gdPrnWaitingPill\(r\.fabric\)/.test(gd));
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

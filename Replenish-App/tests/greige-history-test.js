@@ -230,9 +230,10 @@ console.log('== the lines open Demand → RFD with only that fabric (Ravi, 21 No
     box.value === '' && seen.drawn === '' && /if \(t\.getAttribute\('data-gdflow'\)\) \{ gdToFlow\(t\.getAttribute\('data-gdflow'\), ''\);/.test(code));
   /* Ravi, 21 Nov: Send to printer "should open the list of those products which needs that fabric";
    * Vishesh, 23 Nov: it makes that fabric's RFD challan right here (the card itself is tested in flow-test.js) */
-  ok('Send to printer on an RFD lot opens the RFD challan card for that fabric, on the Inventory page',
-    code.includes(`data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>`)
-    && /if \(t\.getAttribute\('data-gdsend'\)\) \{ gdSendToPrinter\(t\.getAttribute\('data-gdsend'\)\); return; \}/.test(code)
+  ok('no Send to printer or Send to cutting button on a lot of the RFD drop-down (Vishesh, 27 Nov)',
+    !code.includes(`data-cut="' + esc(g.lot)`) && !code.includes(`products waiting for ' + esc(r.fabric) + '">Send to printer</button>`));
+  ok('Send to printer under RFD on shelf opens the RFD challan card for that fabric, on the Inventory page',
+    /if \(t\.getAttribute\('data-gdsend'\)\) \{ gdSendToPrinter\(t\.getAttribute\('data-gdsend'\)\); return; \}/.test(code)
     && /flowShelfChallanOpen\(fabric, function/.test(code) && !code.includes('data-gdflow="drfd">Send to printer'));
   ok('…and without the flow in the page it still opens that fabric\'s lines on Demand → RFD',
     /if \(typeof flowShelfChallanOpen !== 'function'\) \{ gdToFlow\('drfd', fabric\); return; \}/.test(code));
