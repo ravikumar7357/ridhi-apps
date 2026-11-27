@@ -91,7 +91,11 @@
 <div id="appView" class="shell hide">
   <!-- Shown only while the perms read is in flight. Every account sees this, briefly; nobody sees a
        sidebar full of sections they do not have. -->
-  <div id="gateWait">Checking your access…</div>
+  <div id="gateWait"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="132" height="134"><span>Checking your access…</span></div></div>
+  <!-- Over the screen while a Refresh button works (ptBusy, 26 Nov 2026). -->
+  <div id="ptBusyCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="108" height="110"><span>Refreshing…</span></div></div>
+  <!-- When a read or save has waited 1.5 seconds (core/stuck-screen.js, 26 Nov 2026). -->
+  <div id="ptStuckCover" aria-live="polite"><div class="ptLoading"><img src="/loading-print.svg" alt="" width="108" height="110"><span id="ptStuckWords">Still working…</span></div></div>
   <aside class="side">
     <div class="brand">
       <span class="brandname r1-brand"><img src="/r-one-wordmark.png" alt="R-one"></span>
@@ -1900,6 +1904,9 @@
             <input id="cwWasteW" type="number" min="0" step="0.25" placeholder="Waste width (in)" style="flex:0 0 150px"
                    title="How wide the leftover piece is, in inches. Leave it blank if nobody measured.">
             <input id="cwDate" type="date" style="flex:0 0 160px" title="Cutting date">
+            <!-- CUT BY (Ravi, 25 Nov): the person signed in, filled in by itself and not to be changed. -->
+            <input id="cwBy" readonly placeholder="Cut by" style="flex:0 0 150px;background:var(--hover,#f1f5f9);color:var(--muted)"
+                   title="Cut by — the person signed in. It is saved with the entry and cannot be changed here.">
             <input id="cwRemarks" placeholder="Remarks (optional)" style="flex:1 1 160px;min-width:0">
             <button id="cwSave" style="flex:0 0 120px">Save entry</button>
           </div>

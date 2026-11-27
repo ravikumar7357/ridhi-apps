@@ -2072,5 +2072,10 @@ document.addEventListener('keydown', e => {
 let last = location.hash;
 window.addEventListener('hashchange', () => { const moved = last !== location.hash; const wasOrder = /^#order\//.test(last); last = location.hash; if (moved && location.hash === '#csb') CSB = null; render(); if (moved && !wasOrder && !/^#order\//.test(location.hash)) window.scrollTo(0, 0); });
 window.addEventListener('focus', () => { if (!$('dlg').innerHTML && !typing()) fetch('/api/state').then(r => r.json()).then(d => { if (d.ok) { took(d, true); render(); FLASH.clear(); } }).catch(() => {}); });
-call('/api/state').then(render).catch(e => { $('page').innerHTML = `<div class="s-card s-empty">${esc(e.message)}</div>`; });
+/* OPENING WITH A TIME LIMIT (Ravi, 26 Nov 2026: "the reloading is not working properly"). Opening waits for the ERP's
+ * settings, the sign-in and the Shopify OS database; none had a time limit, so one that never answered left "Loading…"
+ * for good. After 20 s the page says it could not open and what to do. */
+const HUB_OPEN_MS = 20000;
+const openLimit = new Promise((_, no) => setTimeout(() => no(new Error('no answer in ' + HUB_OPEN_MS / 1000 + ' s')), HUB_OPEN_MS));
+Promise.race([call('/api/state'), openLimit]).then(render).catch(e => { $('page').innerHTML = `<div class="s-card s-empty">Could not open the Shopify hub (${esc(e.message)}). Press Reload.</div>`; });
 })();

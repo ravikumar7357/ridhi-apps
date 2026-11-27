@@ -299,16 +299,31 @@ async function bdSaveRow(next) {
    * read it, nothing is written: the screen takes their version and says so, and the entry is made again on top
    * of it. A read that fails (or finds nothing) keeps the old behaviour — it never blocks a save on its own. */
   const was = (PT.base || []).find(r => r && r.id === next.id);
+  const path = 'pt_baseData/' + next.id;
+  /* A COMPLETED ROW LIVES APART (job-work-split.js) and is written with its month's version, so it keeps the plain path.
+   * Any other row, with the switch on, is read straight from the database (not the screen's live copy) and written only if
+   * it is still exactly as read — the same instant, not just "a moment ago". */
+  const apart = !!(BASE.on && baseRoutePath(path)), guarded = lineHoldOn() && !apart;
   let now = null;
-  try { now = await ptGet('pt_baseData/' + next.id); } catch (e) { now = null; }
-  if (was && now && typeof now === 'object' && Object.keys(now).length
-      && BD_COUNTED.some(k => String(now[k] == null ? '' : now[k]) !== String(was[k] == null ? '' : was[k]))) {
-    PT.base = (PT.base || []).map(r => (r.id === next.id ? Object.assign({ _key: next.id }, now) : r));
+  try { now = guarded ? await ptGetFresh(path) : await ptGet(path); } catch (e) { now = null; }
+  const takeTheirs = fresh => {
+    PT.base = (PT.base || []).map(r => (r.id === next.id ? Object.assign({ _key: next.id }, fresh) : r));
     if (!SP_QUIET) renderPbase();
-    throw new BdChangedError(`somebody else saved this row a moment ago (received is now ${nf(ptNum(now.receivedPieces))}, `
-      + `pending ${nf(ptNum(now.pendingPieces))}). The screen shows their figures — enter yours again on top of them.`);
+    throw new BdChangedError(`somebody else saved this row a moment ago (received is now ${nf(ptNum(fresh.receivedPieces))}, `
+      + `pending ${nf(ptNum(fresh.pendingPieces))}). The screen shows their figures — enter yours again on top of them.`);
+  };
+  const real = !!(now && typeof now === 'object' && Object.keys(now).length);
+  if (was && real && BD_COUNTED.some(k => String(now[k] == null ? '' : now[k]) !== String(was[k] == null ? '' : was[k]))) takeTheirs(now);
+  if (guarded && real) {
+    /* Written only if the row is still what was just read. 'changed' = somebody saved in the last instant: their row is
+     * read again and shown, and nothing of ours is written. A failed read above keeps the old plain write below. */
+    if (await ptCas(path, now, clean) === 'changed') {
+      let theirs = now; try { theirs = await ptGetFresh(path) || now; } catch (e) { console.warn('[line hold] could not read the row again after a clash:', e); }
+      takeTheirs(theirs);
+    }
+  } else {
+    await ptPut(path, clean);
   }
-  await ptPut('pt_baseData/' + next.id, clean);
   PT.base = (PT.base || []).map(r => (r.id === next.id ? Object.assign({ _key: next.id }, clean) : r));
   if (!SP_QUIET) renderPbase();
 }
@@ -556,6 +571,7 @@ function jwRecvOpen(id) {
       { key: 'recv', label: 'Pieces received now (added)', type: 'number', min: 0, value: '' },
       { key: 'rej', label: 'Rejected on this row (total)', type: 'number', min: 0, value: rej || '' },
     ],
+    memory: 'jobWorkReceive',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Save',
     onSave: async v => {
       const addRecv = String(v.recv || '').trim(), newRej = String(v.rej || '').trim();

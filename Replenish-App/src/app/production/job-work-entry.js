@@ -350,6 +350,7 @@ function bdFormMsg(t, bad) { const m = $('bwMsg'); m.textContent = t || ''; m.cl
 
 /** The whole form redrawn from its own state — order → article → subtype → colour → size → SKU. */
 function renderBdForm() {
+  frmWire('jobWorkIssue', $('bwBox'));   // my previous issue in grey, Tab fills (core/form-memory.js)
   const custom = bdIsCustom();
   $('bwOrdWrap').classList.toggle('hide', custom);
   // In Custom mode colour and size are typed, not chosen — that is the point of the mode.
@@ -637,6 +638,38 @@ function bdTwinOf(entry) {
     && now - (Date.parse(r.addedAt || '') || 0) < 120000) || null;
 }
 
+const BD_DRAFTS = new Map();   // unsaved karigar issues from the issue form, Order Console and SHP board → the id each is written under (lineHoldDraftId)
+
+/** The karigar issue, saved while this screen holds the order line: the issues on this SKU are read from the database and the
+ *  order's limits checked on them, so two screens cannot issue the same cut pieces. '' when saved, else the sentence to show. */
+function bdSaveHeld(entry) {
+  return lineHoldRun({ register: 'issue', orderNo: entry.orderNo, sku: entry.sku, form: entry.id }, async () => {
+    /* Open issues live in pt_baseData; a completed one never gains pieces, so the screen's copy of those is enough. */
+    try {
+      const fresh = ptList(await ptGetFreshWhere('pt_baseData', 'sku', entry.sku)), ids = new Set(fresh.map(r => r.id));
+      PT.base = (PT.base || []).filter(r => !(r && ids.has(r.id))).concat(fresh);
+    } catch (e) {
+      console.warn('[line hold] could not read the issues of ' + entry.sku + ' before saving:', e);
+      return 'Nothing was saved — the pieces already issued on this order could not be checked (' + (e.message || e) + '). Check the connection and press Save again.';
+    }
+    if (PT.base.some(r => r && r.id === entry.id)) return '';   // an earlier press of Save reached the database
+    const full = bdGuard(entry.orderNo, entry.sku, entry.issuePieces, undefined, !!entry.extraReason);
+    if (full) { renderPbase(); return 'Not saved — ' + full; }
+    await ptPut('pt_baseData/' + entry.id, entry);
+    return '';
+  });
+}
+
+/** Writes one new karigar issue, for the issue form and the order screens alike: '' when saved, else the sentence to show.
+ *  A database write that fails throws. A custom issue has no order line to hold; its id alone keeps a repeated Save to one. */
+async function bdWrite(entry) {
+  const why = entry.orderNo && lineHoldOn() ? await bdSaveHeld(entry) : await ptPut('pt_baseData/' + entry.id, entry).then(() => '');
+  if (why) return why;
+  lineHoldDraftDone(BD_DRAFTS, entry.id);
+  PT.base = (PT.base || []).filter(r => !(r && r.id === entry.id)).concat(Object.assign({ _key: entry.id }, entry));
+  return '';
+}
+
 $('bwSave').onclick = async () => {
   const custom = bdIsCustom();
   const type = $('bwType').value.trim();
@@ -664,7 +697,17 @@ $('bwSave').onclick = async () => {
   if (!sz) return bdFormMsg(custom ? 'Type the size.' : 'Select the size.', true);
   if (!sku) return bdFormMsg('No SKU — pick the item, or type the SKU directly.', true);
   if (!pcs || pcs < 1) return bdFormMsg('Enter how many pieces are being issued.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): 2.5 pieces was issued as 2. A Custom order issue has no order to cap it,
+   * so a big count is asked about (above 1,500 pcs). */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('bwPcs').value, 'Pieces issued', 'pcs');
+    if (numErr) return bdFormMsg(numErr, true);
+    const big = custom ? ptNumBig(pcs, 'Pieces issued', 'pcs') : '';
+    if (big && !confirm(big)) return bdFormMsg('Not saved — change the pieces, then issue.', true);
+  }
   if (!date) return bdFormMsg('Enter the issue date.', true);
+  /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): today or up to 60 days back, never ahead. */
+  if (lineHoldOn()) { const dateErr = ptDateErr(date, 'Issue date', 'done'); if (dateErr) return bdFormMsg(dateErr, true); }
   /* A PRINTER'S PIECES ARE ALWAYS ISSUED AGAINST AN ORDER (2026-10-03, Ravi: "order number base banao") — even on a path
    * that otherwise lets an order be left out — so the store by order number can account for every one of them. */
   if (!orderNo && stPrinterSku(sku)) return bdFormMsg(`${obUC(sku)} comes from a printer — pick the Order ID it is for.`, true);
@@ -684,8 +727,7 @@ $('bwSave').onclick = async () => {
     if (zErr) return bdFormMsg(zErr, true);
   }
 
-  const entry = {
-    id: 'bd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+  const fields = {
     empType: type, empName: emp[1], sku: obUC(sku),
     articleType: at, articleSubtype: sub, color: col, size: sz,
     orderNo,
@@ -700,6 +742,7 @@ $('bwSave').onclick = async () => {
     ...(custom ? { custOrder, custChannel: bdCustChannel(custOrder) } : {}),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
+  const entry = Object.assign({ id: lineHoldDraftId(BD_DRAFTS, 'bd_', fields) }, fields);
 
   /* THE SAME ISSUE, AGAIN, INSIDE TWO MINUTES. Eleven pairs like this are in the live register — same karigar,
    * SKU, order and pieces, 0 to 47 seconds apart, ten of them already paid in a frozen fortnight. A second
@@ -716,8 +759,9 @@ This would be a SECOND, identical issue — and a second payment. OK saves it an
   /* WhatsApp is opened now, while this is still the click — see waPreOpen. */
   const waWin = waPreOpen(entry);
   try {
-    await ptPut('pt_baseData/' + entry.id, entry);
-    PT.base = (PT.base || []).concat(Object.assign({ _key: entry.id }, entry));
+    const why = await bdWrite(entry);
+    if (why) { waPreClose(waWin); bdFormMsg(why, true); $('bwSave').disabled = false; return; }
+    frmRemember('jobWorkIssue', $('bwBox'));
     const waNote = await waAfterIssue(waWin, entry);
     // A zip SKU spends zippers. Posting it here keeps the accessory ledger honest without a second step.
     let zipNote = '', rufNote = '';

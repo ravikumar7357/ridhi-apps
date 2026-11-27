@@ -6,6 +6,7 @@ core/auth.js
 core/nav.js
 core/backend.js
 core/helpers.js
+core/form-memory.js
 core/page-parts.js
 replenishment/replenishment.js
 core/multi-select-filter.js
@@ -33,10 +34,13 @@ masters/master-database.js
 production/job-work.js
 production/attendance.js
 vendors/printing/fabric-catalogue.js
+vendors/printing/cutting-data-look.js
 core/database-auth.js
 core/history.js
+core/line-hold.js
 core/mirror.js
 core/monitor.js
+core/stuck-screen.js
 core/gates.js
 core/delta-sync.js
 core/data-meter.js
@@ -81,6 +85,7 @@ flow/flow-entries.js
 flow/flow-qcfg.js
 flow/flow-emb.js
 flow/flow-view.js
+flow/flow-cutting-desk.js
 flow/flow-report.js
 flow/greige-desk.js
 dashboard/management-dashboard.js

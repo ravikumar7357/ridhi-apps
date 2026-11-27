@@ -36,7 +36,20 @@ function jwCorrPlan(r, change) {
   const recv = has('receivedPieces') ? parseInt(c.receivedPieces, 10) : ptNum(r.receivedPieces);
   const rej = has('rejectionPieces') ? parseInt(c.rejectionPieces, 10) : ptNum(r.rejectionPieces);
   const sku = has('sku') ? obUC(c.sku) : obUC(r.sku || '');
+  /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): a corrected date is never ahead of today, and receiving never before issue. */
+  if (lineHoldOn()) {
+    const iss = has('issueDate') ? String(c.issueDate).trim() : ptIsoDate(r.issueDate), rcv = has('receivingDate') ? String(c.receivingDate).trim() : ptIsoDate(r.receivingDate);
+    const dateErr = (has('issueDate') ? ptDateErr(iss, 'Issue date', 'fixed') : '') || (has('receivingDate') ? ptDateErr(rcv, 'Receiving date', 'fixed') : '')
+      || ((has('issueDate') || has('receivingDate')) ? ptDateOrderErr([['Issue', iss], ['Receiving', rcv]]) : '');
+    if (dateErr) return { err: dateErr };
+  }
   if (!name) return { err: 'Enter the karigar\'s name.' };
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): a changed figure is whole pieces, never cut down to a whole number. */
+  if (lineHoldOn()) {
+    const numErr = [['issuePieces', 'Issued pieces', false], ['receivedPieces', 'Received pieces', true], ['rejectionPieces', 'Rejected pieces', true]]
+      .map(([k, label, zeroOk]) => has(k) ? ptNumErr(c[k], label, 'pcs', zeroOk) : '').find(Boolean);
+    if (numErr) return { err: numErr };
+  }
   if (!isFinite(issued) || issued < 1) return { err: 'Issued pieces must be at least 1.' };
   if (!isFinite(recv) || recv < 0) return { err: 'Received pieces cannot be negative.' };
   if (!isFinite(rej) || rej < 0) return { err: 'Rejected pieces cannot be negative.' };
@@ -248,6 +261,12 @@ $('bdmSave').onclick = async () => {
 
   if (!name) return bdModalMsg('Enter the employee name.', true);
   if (!type) return bdModalMsg('Select the employment type.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): 2.5 pieces was saved as 2. Issued is above 0; received and rejected may be 0. */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('bdmIssue').value, 'Issue pieces', 'pcs') || ptNumErr($('bdmRecv').value, 'Received pieces', 'pcs', true)
+      || ptNumErr($('bdmRej').value, 'Rejection pieces', 'pcs', true);
+    if (numErr) return bdModalMsg(numErr, true);
+  }
   if (!isFinite(issued) || issued < 1) return bdModalMsg('Issue pieces must be at least 1.', true);
   if (!isFinite(recv) || recv < 0) return bdModalMsg('Received pieces cannot be negative.', true);
   if (!isFinite(rej) || rej < 0) return bdModalMsg('Rejection pieces cannot be negative.', true);
@@ -294,6 +313,14 @@ $('bdmSave').onclick = async () => {
   });
   if (admin) {
     if ($('bdmIssueDate').value) next.issueDate = ptStampFrom(r.issueDate, $('bdmIssueDate').value);
+    /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): an admin's correction may go back any distance, never ahead, and the
+     * receiving date is never before the issue date. A date left as it was is not checked. */
+    if (lineHoldOn()) {
+      const iss = $('bdmIssueDate').value || ptIsoDate(r.issueDate), rcv = $('bdmRecvDate').value;
+      const dateErr = ptDateErr(iss, 'Issue date', 'fixed', ptIsoDate(r.issueDate)) || ptDateErr(rcv, 'Receiving date', 'fixed', ptIsoDate(r.receivingDate))
+        || ptDateOrderErr([['Issue', iss], ['Receiving', rcv]]);
+      if (dateErr) return bdModalMsg(dateErr, true);
+    }
     next.receivingDate = $('bdmRecvDate').value ? ptStampFrom(r.receivingDate, $('bdmRecvDate').value) : '';
   }
   // Completing the row here still has to stamp a receiving date, or a finished row has no date at all.

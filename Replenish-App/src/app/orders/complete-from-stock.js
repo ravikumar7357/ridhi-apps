@@ -19,6 +19,7 @@ async function ordStockSave(l, v) {
   if (!(pcs > 0)) return 'Type how many pieces come from stock.';
   const owed = ordStockOwed(l);
   if (pcs > owed) return `Only ${nf(owed)} piece(s) of this line are still owed.`;
+  const unread = await fgiStockReread(); if (unread) return unread;
   const short = fgiOutCheck(obUC(l.sku), pcs, 'ISSUE', 0); if (short) return short;
   const rows = ordStockRows(l.orderNo, l.sku), row = rows[0], key = row && (row.id || row._key);
   if (!key) return 'Its order-book row is gone — press Refresh.';

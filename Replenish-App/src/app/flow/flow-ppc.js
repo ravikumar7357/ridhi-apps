@@ -215,6 +215,10 @@ const FLOW_PPC_CSS = `<style>
 .fpc-step-ar{color:var(--muted,#94a3b8)}
 </style>`;
 
+/** A plan line that raises no cloth: outsourced, straight to Job Work, or cloth already in hand. Its metres a piece may stay 0 and
+ *  its fabric is never a big figure (fix 6, 26 Nov: a Job Work line with 0 m a piece was refused). */
+const flowPpcNoCloth = p => ['outsource', 'jobwork'].includes(flowRouteOf(p)) || flowInHand(p);
+
 /* THE ORDER, COMBINED (Ravi, 11 Oct: "jitna store me pahle order me consume hone ke bad bacha fabric is order me use karne ke
  * bad jo printing se required rahega uska demand dono SKU ke order ka combine karke, jahan jahan demand generate ho"). Under
  * the lines of one PO: what goes to each printer once the store has given what it can, one row per printed fabric / SKU
@@ -471,6 +475,17 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       const pick = i => { const el = document.querySelector(`[data-fpick="${i}"]`); return !el || !!el.checked; };
       if (rows.length > 1 && !rows.some((x, i) => pick(i))) return 'Tick at least one line to raise — or press Save as draft.';
       if (editing && $('flpUndo') && $('flpUndo').checked) { const er = await flowUnplan(rows[0].s); if (er) return er; flowPpcDraftDrop(rows.map(x => x.s.key)); renderFlow(); return ''; }
+      /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): a ticked line's metres a piece and accessory figures are checked
+       * before anything is kept — the test raised -5 m a piece, -250 m in all. A line that raises no cloth may keep 0 (flowPpcNoCloth). */
+      if (lineHoldOn()) {
+        const box = (i, k) => document.querySelector(`[data-fp="${i}"][data-k="${k}"]`) || {};
+        const numErr = [...document.querySelectorAll('[data-fp][type="number"]')].filter(inp => pick(+inp.dataset.fp) && !inp.disabled).map(inp => {
+          const i = +inp.dataset.fp, fab = inp.dataset.k === 'fabric.perPc';
+          const noCloth = flowPpcNoCloth({ route: box(i, 'route').value, fabric: { noRfd: !!box(i, 'fabric.noRfd').checked } });
+          return ptNumErr(inp.value, `${rows[i].r.sku} · ${fab ? 'Metres / piece' : 'accessory quantity'}`, 'm', !fab || noCloth);
+        }).find(Boolean);
+        if (numErr) return numErr;
+      }
       /* A box's value into the plan; a part the plan has lost (a refused save can leave printer null) is made again. */
       const set = (o, path, v) => { const ks = path.split('.'); let t = o; ks.slice(0, -1).forEach(k => { const kk = /^\d+$/.test(k) ? +k : k; if (t[kk] == null) t[kk] = {}; t = t[kk]; }); t[ks[ks.length - 1]] = v; };
       document.querySelectorAll('[data-fp]').forEach(inp => {
@@ -512,6 +527,22 @@ function flowPpcOpen(orderNo, onlySku, keys) {
       /* READY DATE REQUIRED (28 Oct): the PPC report measures a line's delay against it — a plan without one could never be late. */
       const noReady = plans.filter((p, i) => pick(i) && !String((p.dates || {}).ready || '').trim()).map(p => p.sku);
       if (noReady.length) return `When is it ready? Pick the Ready date for ${noReady.join(', ')}.`;
+      /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): the test raised Ready 03-11-0008. Planned dates are from today to a year
+       * ahead and in order; a date an edited plan already had is left alone. */
+      if (lineHoldOn()) {
+        const dateErr = plans.map((p, i) => {
+          if (!pick(i)) return '';
+          const d = p.dates || {}, was = ((rows[i].s.plan || {}).dates) || {};
+          const each = [['cut', 'Cut'], ['qc', 'QC'], ['ready', 'Ready']].map(([k, label]) => ptDateErr(d[k], `${p.sku} · ${label} date`, 'plan', was[k])).find(Boolean);
+          if (each) return each;
+          const order = ptDateOrderErr([['Cut', d.cut], ['QC', d.qc], ['Ready', d.ready]]);
+          return order ? `${p.sku} · ${order}` : '';
+        }).find(Boolean);
+        if (dateErr) return dateErr;
+      }
+      /* A big figure is asked about, not refused (Ravi, 26 Nov: above 3,000 m). Switch lineHold. */
+      if (lineHoldOn()) { const big = plans.map((p, i) => pick(i) && !flowPpcNoCloth(p) ? ptNumBig(flowR2((+p.fabric.perPc || 0) * (+p.qty || 0)), p.sku + ' · fabric', 'm') : '').find(Boolean);
+        if (big && !confirm(big)) return 'Not raised — change the metres a piece, then raise the plan.'; }
       plans.forEach((p, i) => {
         if (!pick(i)) return;   // left in PPC for now
         p.fabric.metres = flowR2(p.fabric.perPc * p.qty); delete p.fabric.was;

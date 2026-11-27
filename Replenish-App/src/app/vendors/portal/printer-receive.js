@@ -175,7 +175,7 @@ function vprSheet(rows, f) {
   if (!items.length) return VP_SHEET_EMPTY;
   const body = items.map(({ o, l, i, due }) => `<tr class="${vpDueClass(due)}">` + vpSheetCells(o, l, '')
     + (may ? vprRecvCell(o, l, o.id + '|' + i) : '') + '</tr>').join('');
-  return vpSheetTable(VP_SHEET_COLS.concat(may ? ['Receive'] : []), body);
+  return (typeof vpPartBox === 'function' ? vpPartBox(rows) : '') + vpSheetTable(VP_SHEET_COLS.concat(may ? ['Receive'] : []), body);
 }
 
 /* ---- taking it in ---- */

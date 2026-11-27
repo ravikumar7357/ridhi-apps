@@ -36,18 +36,18 @@ function loadInProdOnce() {
 /* ALL AT ONCE: the snapshot, the POs, India stock and what is being made need nothing from each other. Only the
  * FBA map, the catalogue and the forecast plan need the snapshot, and they are worked out after it is in. */
 async function ensureProd() {
-  $('pdMsg').textContent = 'Loading…';
-  await Promise.all([
-    ensureReplData(),
-    PO_LOADED ? null : loadPo().then(() => { PO_LOADED = true; }),
-    loadIndiaStock(),
-    loadInProdOnce(),
-  ]);
-  buildFbaMap(); CATALOG_SET = catalogSet();
-  if (!PROD_LOADED) await loadProd();          // status overrides decide which SKUs are stopped (read with the snapshot)
-  if (!FC_PLAN.length) { FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]); FC_CACHE = new Map(); }
-  $('pdMsg').textContent = '';
-  renderProd();
+  const read = await ptLoadingWhile('pdMsg', async () => {
+    await Promise.all([
+      ensureReplData(),
+      PO_LOADED ? null : loadPo().then(() => { PO_LOADED = true; }),
+      loadIndiaStock(),
+      loadInProdOnce(),
+    ]);
+    buildFbaMap(); CATALOG_SET = catalogSet();
+    if (!PROD_LOADED) await loadProd();          // status overrides decide which SKUs are stopped (read with the snapshot)
+    if (!FC_PLAN.length) { FC_PLAN = buildFcPlan([...new Set(['SP', 'CPC'].flatMap(b => (REPL[b] && REPL[b].recCols) || []))]); FC_CACHE = new Map(); }
+  });
+  if (read) renderProd();
 }
 // Units of a SKU currently being made, plus its dates/supplier. A SKU can appear on several uploaded
 // rows (two factories, two batches) — quantities add up, the window spans earliest start → latest ready.

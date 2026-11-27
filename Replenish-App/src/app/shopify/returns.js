@@ -356,6 +356,7 @@ function srNewOpen(orderId, id) {
       <label class="srRet">Return stage<select id="srSt">${Object.entries(SR_STATUS).map(([k, v]) => `<option value="${k}"${(prev.status || 'started') === k ? ' selected' : ''}>${v[0]}</option>`).join('')}</select></label>
       <label style="grid-column:1/-1">Remarks<input id="srNote" value="${esc(prev.note || '')}" placeholder="anything the warehouse should know"></label>
     </div>`,
+    memory: id ? '' : 'shopifyReturn',  // my previous entry in grey (core/form-memory.js)
     saveLabel: id ? 'Save' : 'Save the case', onCancel: srOpen,
     onSave: async () => {
       const no = ($('srOrd') || {}).value || '';

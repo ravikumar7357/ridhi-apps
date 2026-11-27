@@ -208,7 +208,10 @@ function renderMdbFabric() {
 
 /* ---------------- Cutting Data ---------------- */
 
-async function ensurePcut() { if (PT.cut === null) await ptLoad('cut', 'pt_cuttingData', renderPcut); else renderPcut(); }
+async function ensurePcut() {
+  if (typeof cdkOpenFirst === 'function') cdkOpenFirst();   // where the Cutting Desk is on, the page opens on the lines waiting to be cut
+  if (PT.cut === null) await ptLoad('cut', 'pt_cuttingData', renderPcut); else renderPcut();
+}
 
 /* THE PLATFORM (Ravi, 16 Oct: "cutting entry me kis platform ka order h wo filter bhi add kardo"), read from the order
  * number the way the rest of the app reads it: AMZ- Amazon, SHP- Shopify, ONL- Online, B2B- B2B. Another prefix is shown as
@@ -243,8 +246,19 @@ function pcutApply(rows, f, skip) {
   });
 }
 
+/** Has this cutting gone to a karigar: the Used / Partly / Unused mark, or '' until the Job Work Register is read. */
+function pcutUsePill(r) {
+  const u = pcutUseOf(r);
+  if (!u) return '';
+  const k = pcutUseKind(u);
+  return k === 'used' ? '<span class="pill pill-ok">Used</span>'
+    : k === 'part' ? `<span class="pill pill-low" title="${nf(u.used)} of ${nf(u.net)} issued">Partly · ${nf(u.used)} of ${nf(u.net)}</span>`
+    : `<span class="pill pill-out" title="none of these ${nf(u.net)} has gone to a karigar">Unused</span>`;
+}
+
 function renderPcut() {
   $('pcMore').innerHTML = '';
+  if ($('pcdPager')) $('pcdPager').innerHTML = '';   // the new look's pages (cutting-data-look.js), cleared like the old "show more"
   if (PT.busy.cut) { $('pcMsg').className = 'muted'; $('pcMsg').textContent = 'Reading the production database…'; ptEmpty('pcTable', 'Loading…'); return; }
   if (PT.err.cut) {
     $('pcMsg').className = 'err'; $('pcMsg').textContent = 'Could not read it: ' + PT.err.cut;
@@ -271,8 +285,11 @@ function renderPcut() {
   if (PT.base === null && !PT.busy.base) ptLoad('base', 'pt_baseData', renderPcut);
   const useSel = ($('pcUse') || {}).value || '';
   const useMap = pcutUseMap();
+  const beforeUse = rows;   // before the Unused / Partly / Used pick: the new look counts each kind on its buttons
   if (useSel && useMap) rows = rows.filter(r => pcutUseKind(pcutUseOf(r)) === useSel);
   PT._pcutRows = rows;
+  /* THE CUTTING DESK'S LOOK (Ravi, 25 Nov, cutting-data-look.js): where its switch is on, the same entries are drawn there. */
+  if (typeof pcdOn === 'function' && pcdOn()) return pcdRender(rows, beforeUse, all.length);
 
   const pieces = rows.reduce((s, r) => s + ptNum(r.pieces), 0);
   /* ISSUED AND STILL TO ISSUE, over the entries on screen (2026-10-05, Ravi: "partially used me dikhe ki itna pending h and
@@ -303,16 +320,11 @@ function renderPcut() {
       })()}
     </div></div>`;
 
-  const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by', 'Edit']
+  /* CUT BY (Ravi, 25 Nov: "add who cut it ... auto fills it with its id", not to be changed): the person signed in when the
+   * cutting was entered is the one who cut it, so the entry's own "entered by" is shown under that name — nothing new is stored. */
+  const head = '<thead><tr>' + ['Cut Date', 'Order No', 'SKU', 'Image', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Cut by', 'Edit']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : ([9, 11, 12, 13, 14].indexOf(i) >= 0 ? ' class="num"' : '')}${i === 10 ? ' title="Has this cutting gone to a karigar? The order\'s issues fill its cutting oldest first."' : ''}>${h}</th>`).join('') + '</tr></thead>';
-  const useCell = r => {
-    const u = pcutUseOf(r);
-    if (!u) return `<td class="muted">${PT.busy.base ? '…' : '—'}</td>`;
-    const k = pcutUseKind(u);
-    return k === 'used' ? '<td><span class="pill pill-ok">Used</span></td>'
-      : k === 'part' ? `<td><span class="pill pill-low" title="${nf(u.used)} of ${nf(u.net)} issued">Partly · ${nf(u.used)} of ${nf(u.net)}</span></td>`
-      : `<td><span class="pill pill-out" title="none of these ${nf(u.net)} has gone to a karigar">Unused</span></td>`;
-  };
+  const useCell = r => { const pill = pcutUsePill(r); return pill ? `<td>${pill}</td>` : `<td class="muted">${PT.busy.base ? '…' : '—'}</td>`; };
   const shown = rows.slice(0, PC_CAP);
   const body = shown.map(r => '<tr>'
     + `<td class="frz" style="text-align:left">${esc(r.cutDate)}</td>`
@@ -615,7 +627,7 @@ $('pcExport').onclick = () => {
   }
   const rows = PT._pcutRows || []; if (!rows.length) return;
   const lines = [['Cut Date', 'Order No', 'SKU', 'Article', 'Subtype', 'Color', 'Size', 'Fabric', 'Pieces', 'Issued?', 'Issued pcs',
-    'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Entered by'].map(csvCell).join(',')];
+    'Fabric used (m)', 'Waste (m)', 'Waste width (in)', 'Waste %', 'Remarks', 'Cut by'].map(csvCell).join(',')];
   rows.forEach(r => {
     /* Blank where nobody measured, so a spreadsheet cannot average a missing figure as a nought. */
     const u = ptNum(r.fabricUsed), w = ptNum(r.fabricWaste);

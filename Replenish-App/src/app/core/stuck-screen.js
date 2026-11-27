@@ -1,0 +1,77 @@
+/* ================= STUCK SCREENS (26 Nov 2026) =================
+ *
+ * Ravi: "I want it to be shown also when the screen is stuck". When a read or a save to our own database or to the
+ * Apps Script backend has been waiting 1.5 seconds (3 at first; Ravi made it 1.5 the same day), the block-printing picture (core/database-read.js, ptLoadingArt)
+ * covers the screen with "Still working…". After 30 seconds the words say what to do. The cover lifts the moment the
+ * last slow call ends, and it takes no clicks.
+ *
+ * It watches requests where they leave the page (the same way core/monitor.js counts them), so the screens and the
+ * shared helpers stay as they are. Not covered: Firestore (its own connection, not these requests), and a page that
+ * is frozen — nothing on a page can be drawn while it is frozen.
+ *
+ * Errors: quiet by design. The watcher only counts and shows the picture; every request, its answer and its error go
+ * back to the screen untouched, exactly as before. If the cover cannot be found it leaves a console line and skips. */
+const PT_STUCK = { afterMs: 1500, longMs: 30000, slow: 0, verySlow: 0, actedAt: -Infinity, actWindowMs: 2000 };
+const PT_STUCK_WORDS = {
+  slow: 'Still working…',
+  verySlow: 'Still waiting for data. Check the internet, then press Refresh.',
+};
+
+/** Only our own data: the database and the two Apps Script backends (the ERP's, and the pricing one that Shopify
+ *  Stock reads, added 26 Nov 2026). Pictures, Meera and outside services do not count. */
+function ptStuckIsDataCall(input) {
+  const url = String((input && input.url) || input || '');
+  if (typeof PT_URL === 'string' && url.startsWith(PT_URL)) return true;
+  const ours = backend => !!(backend && backend.url && url.startsWith(backend.url));
+  return (typeof API !== 'undefined' && ours(API)) || (typeof PRAPI !== 'undefined' && ours(PRAPI));
+}
+
+/** Counts one request as slow after 1.5 s and very slow after 30 s, for as long as it is still waiting. */
+function ptStuckWatch(call) {
+  const passed = [];
+  const after = (level, ms) => setTimeout(() => { passed.push(level); PT_STUCK[level]++; ptStuckShow(); }, ms);
+  const timers = [after('slow', PT_STUCK.afterMs), after('verySlow', PT_STUCK.longMs)];
+  return call.finally(() => {
+    timers.forEach(clearTimeout);
+    passed.forEach(level => { PT_STUCK[level]--; });
+    ptStuckShow();
+  });
+}
+
+/** ONE PICTURE AT A TIME (Ravi, 26 Nov 2026, Finished Goods: the cover sat on top of the table's own loading
+ *  picture). When the screen already shows the block printing in its table or message line, it already says it is
+ *  loading, so "Still working…" is not drawn over it. After 30 s the cover shows anyway: it says what to do. */
+function ptStuckScreenShowsLoading() {
+  return [...document.querySelectorAll('.main .ptLoading')].some(el => el.offsetParent !== null);
+}
+
+function ptStuckShow() {
+  const level = PT_STUCK.verySlow > 0 ? 'verySlow' : PT_STUCK.slow > 0 ? 'slow' : '';
+  const show = level === 'verySlow' || (level === 'slow' && !ptStuckScreenShowsLoading());
+  document.body.classList.toggle('ptStuck', show);
+  if (!show) return;
+  const words = document.getElementById('ptStuckWords');
+  if (!words) { console.warn('[stuck screen] the cover is missing from the page; no picture shown'); return; }
+  words.textContent = PT_STUCK_WORDS[level];
+}
+
+/** ONLY WHAT STAFF ARE WAITING FOR (Ravi, 26 Nov 2026, Finished Goods: the screen had loaded, yet "Still waiting for
+ *  data" covered it, because a background check was slow). A read counts only if it started within 2 s of a click, a
+ *  key press or a tab being opened; order alerts, the ticker and other background checks never bring the cover up. */
+function ptStuckStaffWaiting() { return Date.now() - PT_STUCK.actedAt <= PT_STUCK.actWindowMs; }
+
+function ptStuckStart() {
+  const plain = window.fetch;
+  if (typeof plain !== 'function' || plain.__stuck) return;
+  const acted = () => { PT_STUCK.actedAt = Date.now(); };
+  ['click', 'keydown'].forEach(type => document.addEventListener(type, acted, true));
+  window.addEventListener('hashchange', acted);
+  const watched = function (input, init) {
+    const call = plain.apply(this, arguments);
+    return ptStuckStaffWaiting() && ptStuckIsDataCall(input) ? ptStuckWatch(call) : call;
+  };
+  watched.__stuck = true;
+  window.fetch = watched;
+}
+
+if (typeof window !== 'undefined') ptStuckStart();

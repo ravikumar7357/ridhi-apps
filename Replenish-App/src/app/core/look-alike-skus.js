@@ -311,10 +311,12 @@ function cutSkuTyped() {
 }
 
 function renderCutForm() {
+  frmWire('cuttingEntry', $('cwBox'));   // my previous cutting entry in grey, Tab fills (core/form-memory.js)
   const skuBox = $('cwSku');
   const sku = skuBox.value.trim();
   const m = cutSkuOf(sku);
 
+  if ($('cwBy')) $('cwBy').value = 'Cut by: ' + whoShort(ME.email);   // the person signed in is the one cutting (Ravi, 25 Nov)
   $('cwWho').textContent = m
     ? `${m.articleType || '—'} · ${m.subtype || '—'} · ${m.color || '—'} · ${m.size || '—'}`
       + (m.brand ? '  ·  ' + m.brand : '')
@@ -406,6 +408,53 @@ $('cwOrd').addEventListener('change', renderCutForm);
  * before it presses Save, and cleared again; the cutting form itself offers only the Fabric Type master. */
 const CUT_OTHER_CLOTH = { rejected: 'Rejected tablecloth', waste: 'Wastage fabric' };
 let CUT_FROM = '', CUT_OWN_OK = '';   // CUT_OWN_OK: the SKU's own fabric (from its master row / PPC plan) when the Fabric Type master does not list it
+/* ONE ENTRY PER SET OF FIGURES (26 Nov, switch lineHold): Save pressed again for the same figures writes under the same id,
+ * so a save that reached the database but was reported as failed is not entered twice. Each unsaved set is remembered (an
+ * Excel upload from the order screens saves many lines in a row) until it is saved; after that the same figures are new.
+ * A set is remembered for 10 minutes only: a retry, or a re-run of an upload, comes within minutes, while the same figures
+ * later in the day are a real second cut and must not be taken for the first. */
+const CUT_DRAFT_LIFE_MS = 10 * 60 * 1000;
+const CUT_DRAFTS = new Map();   // the figures → { id: the id they are written under, at: when that id was given }
+function cutEntryId(fields) {
+  const sig = JSON.stringify(Object.assign({}, fields, { addedAt: '' })), now = Date.now();
+  CUT_DRAFTS.forEach((d, k) => { if (now - d.at > CUT_DRAFT_LIFE_MS) CUT_DRAFTS.delete(k); });
+  if (!lineHoldOn() || !CUT_DRAFTS.has(sig)) CUT_DRAFTS.set(sig, { id: 'cut_' + now + '_' + Math.random().toString(36).slice(2, 8), at: now });
+  return CUT_DRAFTS.get(sig).id;
+}
+
+/** Writes one new cutting entry, for the cutting form and the order screens alike: '' when saved, else the sentence to
+ *  show. A database write that fails throws. */
+async function cutWrite(entry) {
+  if (lineHoldOn()) {
+    const why = await cutSaveHeld(entry);
+    if (why) return why;
+  } else await ptPut('pt_cuttingData/' + entry.id, entry);
+  CUT_DRAFTS.forEach((d, sig) => { if (d.id === entry.id) CUT_DRAFTS.delete(sig); });
+  PT.cut = (PT.cut || []).filter(r => r.id !== entry.id).concat(Object.assign({ _key: entry.id }, entry));
+  return '';
+}
+
+/** The cutting entry, saved while this screen holds the order line: the register is read again and the ordered quantity
+ *  checked on it, so two screens cannot both cut the same pieces. Answers '' when saved, else the sentence to show. */
+function cutSaveHeld(entry) {
+  return lineHoldRun({ register: 'cutting', orderNo: entry.orderNo, sku: entry.sku, form: entry.id }, async () => {
+    /* The register as this screen has it, with this order's entries straight from the database laid over it: the live copy
+     * can be a moment behind another PC's save. */
+    try {
+      const [all, order] = await Promise.all([ptGet('pt_cuttingData'), ptGetFreshWhere('pt_cuttingData', 'orderNo', entry.orderNo)]);
+      PT.cut = ptList(Object.assign({}, all, order));
+    } catch (e) {
+      console.warn('[line hold] could not read the cuts on ' + entry.orderNo + ' before saving:', e);
+      return 'Nothing was saved — the cuts already on this order could not be checked (' + (e.message || e) + '). Check the connection and press Save again.';
+    }
+    if (PT.cut.some(r => r && r.id === entry.id)) return '';   // an earlier press of Save reached the database
+    const full = cutGuard(entry.orderNo, entry.sku, entry.pieces, undefined, !!entry.extraReason);
+    if (full) { renderPcut(); return 'Not saved — ' + full; }
+    await ptPut('pt_cuttingData/' + entry.id, entry);
+    return '';
+  });
+}
+
 $('cwSave').onclick = async () => {
   const sku = $('cwSku').value.trim();
   const m = cutSkuOf(sku);
@@ -418,12 +467,21 @@ $('cwSave').onclick = async () => {
   if (!m) return cutFormMsg(sku ? `SKU ${sku} is not in the master database.`
     : ($('cwSkuNote').textContent ? 'That item fits more than one SKU — type the SKU.' : 'Pick the article, subtype, colour and size — or type the SKU.'), true);
   if (!pcs || pcs < 1) return cutFormMsg('Enter how many pieces were cut.', true);
+  /* ONE NUMBER RULE (fix 6, 26 Nov; switch lineHold): 2.5 pieces was saved as 2 and a minus metre reading was dropped without a
+   * word. Both are now refused, so what is saved is what was typed. */
+  if (lineHoldOn()) {
+    const numErr = ptNumErr($('cwPcs').value, 'Pieces cut', 'pcs')
+      || [['cwUsed', 'Fabric used'], ['cwWaste', 'Fabric waste'], ['cwWasteW', 'Waste width']].map(([id, label]) => $(id) ? ptNumErr($(id).value, label, 'm', true) : '').find(Boolean);
+    if (numErr) return cutFormMsg(numErr, true);
+  }
   if (!fabric) return cutFormMsg('Pick the fabric.', true);
   /* From the master and nowhere else — a spelling the master does not have is a new fabric nobody
    * has agreed exists. */
   if (!CUT_FROM && !(CUT_OWN_OK && fabric === CUT_OWN_OK) && cutFabrics().indexOf(fabric) < 0)
     return cutFormMsg(`"${fabric}" is not in the Fabric Type master. Add it there first.`, true);
   if (!date) return cutFormMsg('Enter the cutting date.', true);
+  /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): today or up to 60 days back, never ahead. */
+  if (lineHoldOn()) { const dateErr = ptDateErr(date, 'Cutting date', 'done'); if (dateErr) return cutFormMsg(dateErr, true); }
 
   const at = m.articleType || '', sub = m.subtype || '', col = m.color || '', sz = m.size || '';
   const mErr = m._custom ? [] : validateAgainstMasters(at, sub, col, sz);
@@ -435,8 +493,7 @@ $('cwSave').onclick = async () => {
 
   if (cutMonthFrozen(date)) return cutFormMsg(`${ptMonthKey(date)} is frozen — cutting entries for that month are locked.`, true);
 
-  const entry = {
-    id: 'cut_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+  const fields = {
     sku: obUC(sku),
     articleType: at, articleSubtype: sub, color: col, size: sz,
     pieces: pcs,
@@ -451,12 +508,14 @@ $('cwSave').onclick = async () => {
     ...(typeof flowPlanQcDirect === 'function' && flowPlanQcDirect(orderNo, sku) ? { qcDirect: true } : {}),
     addedBy: ME.email, addedAt: new Date().toISOString(),
   };
+  const entry = Object.assign({ id: cutEntryId(fields) }, fields);
 
   $('cwSave').disabled = true;
   cutFormMsg('Saving…');
   try {
-    await ptPut('pt_cuttingData/' + entry.id, entry);
-    PT.cut = (PT.cut || []).concat(Object.assign({ _key: entry.id }, entry));
+    const why = await cutWrite(entry);
+    if (why) { cutFormMsg(why, true); $('cwSave').disabled = false; return; }
+    frmRemember('cuttingEntry', $('cwBox'));
     renderPcut();
     ['cwSku', 'cwPcs', 'cwFabric', 'cwRemarks', 'cwAt', 'cwSub', 'cwCol', 'cwSz', 'cwUsed', 'cwWaste', 'cwWasteW'].forEach(id => { $(id).value = ''; });
     $('cwSku').dataset.typed = '';

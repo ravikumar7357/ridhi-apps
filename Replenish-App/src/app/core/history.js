@@ -66,6 +66,13 @@ async function ptGetFresh(path) {
   if (!r.ok) throw new Error('read ' + r.status);
   return typeof dmJson === 'function' ? dmJson(r, path, 'plain') : r.json();
 }
+/** Only the rows of a register whose `field` is exactly `value`, from the database itself (the rules must index that field). */
+async function ptGetFreshWhere(node, field, value) {
+  const q = await ptAuthQuery(), asked = `orderBy=${encodeURIComponent(JSON.stringify(field))}&equalTo=${encodeURIComponent(JSON.stringify(value))}`;
+  const r = await fetch(`${PT_URL}/${ptPath(node)}.json?${asked}` + (q ? '&' + q.slice(1) : ''));
+  if (!r.ok) throw new Error('read ' + r.status);
+  return typeof dmJson === 'function' ? dmJson(r, node, 'plain') : r.json();
+}
 /** The history's own write: a root PATCH that is never itself logged. */
 async function ptAuditWrite(updates, raw) {
   const r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
@@ -281,8 +288,11 @@ async function ptPut(path, value) {
  * else has been written there since it was read. '' when written, 'changed' when somebody else got there first.
  * Two people saving at the same moment can then never write over each other (Production flow: challan and print order
  * numbers, and a revision per challan / line / the accessory shelf).
+ * opts.quiet (26 Nov): a short-lived note such as a line hold — no history line, mirror, sync note or order alert, and a
+ * write the rules refuse answers 'refused' (somebody else holds it) instead of failing as a missing right.
  */
-async function ptCas(path, expect, next) {
+async function ptCas(path, expect, next, opts) {
+  const quiet = !!(opts && opts.quiet);
   const url = `${PT_URL}/${ptPath(path)}.json` + await ptAuthQuery();
   const g = await fetch(url, { headers: { 'X-Firebase-ETag': 'true' } });
   if (g.status === 401 || g.status === 403) throw new Error('The production database refused the read (permission denied).');
@@ -290,22 +300,46 @@ async function ptCas(path, expect, next) {
   const cur = await (typeof dmJson === 'function' ? dmJson(g, path, 'plain') : g.json()), tag = g.headers.get('ETag');
   if (JSON.stringify(cur == null ? null : cur) !== JSON.stringify(expect == null ? null : expect)) return 'changed';
   ptLiveWrote([path]);
-  const early = typeof ptMirrorEarly === 'function' ? ptMirrorEarly('put', { [path]: next }) : null;   // sent with the write itself
+  const early = !quiet && typeof ptMirrorEarly === 'function' ? ptMirrorEarly('put', { [path]: next }) : null;   // sent with the write itself
   let r;
   try {
     r = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'if-match': tag }, body: JSON.stringify(next) });
     ptLiveWrote([path]);
     if (r.status === 412) { if (early) ptMirrorFix(early); return 'changed'; }      // somebody else was first: the mirror gets theirs
+    if (quiet && (r.status === 401 || r.status === 403)) return 'refused';
     if (!r.ok) ptSaveFailed('put', [path], r.status);
     if (r.status === 401 || r.status === 403)
       throw new Error('The production database refused the change — this account does not hold the right it needs.');
     if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
   } catch (e) { if (early) ptMirrorFix(early); throw e; }
+  if (quiet) return '';
   auditLog('put', { [path]: next });
   if (!early && typeof ptMirror === 'function') ptMirror('put', { [path]: next });
   ptSyncNote([path], true);
   if (typeof oalAfterSave === 'function') oalAfterSave(path, next, 'put');
   return '';
+}
+
+/** THE SWITCH FOR "TWO SCREENS, ONE SET OF PIECES" (Ravi, 26 Nov, after the PPC test run: two screens saved the same pieces and
+ *  both said saved). Off unless this device's storage says '1' (test link → Ravi's PC → everybody, then the switch is removed).
+ *  Off, every save behaves exactly as it did. Storage only, so it is safe to ask at any time. */
+function lineHoldOn() {
+  try { return localStorage.getItem('lineHold') === '1'; } catch (e) { return false; }
+}
+
+/** SAVE A WHOLE RECORD ONLY IF NOBODY CHANGED IT SINCE THIS SCREEN READ IT (Ravi, 26 Nov: a whole-record save by a second person
+ *  wrote over the first). `seen` is the record as the screen holds it, `next` what is to be written. Switch off, or the read
+ *  fails: the plain write, as always (a read never blocks a save on its own). Switch on: the record is read from the database
+ *  itself; if it is not what the screen holds → 'changed', nothing written; else written by compare-and-set, 'changed' if somebody
+ *  got in during that instant. '' = written. The caller shows its own sentence and tells the person to press Refresh. */
+async function ptSaveIfUnchanged(path, seen, next) {
+  if (!lineHoldOn()) { await ptPut(path, next); return ''; }
+  let fresh = null;
+  try { fresh = await ptGetFresh(path); } catch (e) { console.warn('[line hold] could not read ' + path + ' just before saving it — saving the plain way:', e); }
+  if (!fresh || typeof fresh !== 'object') { await ptPut(path, next); return ''; }
+  const canon = v => (v && typeof v === 'object' ? (Array.isArray(v) ? v.map(canon) : Object.keys(v).sort().reduce((o, k) => { if (k !== '_key') o[k] = canon(v[k]); return o; }, {})) : v);
+  if (JSON.stringify(canon(fresh)) !== JSON.stringify(canon(seen))) return 'changed';
+  return (await ptCas(path, fresh, next)) ? 'changed' : '';
 }
 
 /** A single update touching many paths at once. RTDB applies it all or not at all. */

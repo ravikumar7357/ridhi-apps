@@ -221,12 +221,15 @@ function fgiScanHead() {
 async function fgiScanFlush(sku) {
   const r = FGS.rows.get(sku);
   if (!r) return '';
+  const h = fgiScanHead();
+  /* Read before the pieces are counted, so the wait cannot let a second entry count the same scans. */
+  const unread = !h.err && h.k.dir < 0 ? await fgiStockReread() : '';
   const n = fgiNum(r.qty) - fgiNum(r.saved);
   if (n <= 0) { r.why = ''; return ''; }
   const stop = why => { r.why = why; FGS.last = `${sku}: ${why}`; return why; };
   if (!fgiCanEntry()) return stop(FGI_NO_ENTRY);
-  const h = fgiScanHead();
   if (h.err) return stop(h.err);
+  if (unread) return stop(unread);
   if (!(PTG.mdb || []).some(x => x && obUC(x.sku) === sku)) return stop(`${sku} is not in the master database.`);
   let over = 0, ordered = 0;
   if (h.k.dir < 0) {
@@ -386,7 +389,12 @@ async function fgiScanSave() {
     const all = [...FGS.rows.values()];
     if (!rows.length && !all.some(r => r.id)) return 'Nothing is scanned yet.';
     for (const r of rows) {
-      const why = await fgiScanFlush(r.sku);
+      /* In the scans' own queue (26 Nov): beside it, Save all and a scan still being entered both counted the same pieces.
+       * A scan that failed earlier in the queue is only noted: its pieces are still waiting, and this enters them. */
+      const note = e => console.warn('[scan queue] a scan was not entered:', e);
+      const turn = Promise.resolve(FGS.q).catch(note).then(() => fgiScanFlush(r.sku));
+      FGS.q = turn.catch(note);
+      const why = await turn;
       if (why) { fgiScanRender(); return `${r.sku}: ${why}`; }
     }
     const total = all.reduce((sum, r) => sum + fgiNum(r.saved), 0);
@@ -403,6 +411,10 @@ async function fgiScanSave() {
   if (!rows.length) return 'Nothing is scanned yet.';
   const h = fgiScanHead();
   if (h.err) return h.err;
+  if (h.k.dir < 0) {
+    const unread = await fgiStockReread();
+    if (unread) return unread;
+  }
 
   const updates = {}, recs = [];
   for (const r of rows) {

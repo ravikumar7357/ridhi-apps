@@ -64,9 +64,12 @@ async function flowQcEntry(r) {
 const flowFgOf = r => Object.values(FLOW.fg || {}).filter(h => h && obUC(h.orderNo) === obUC(r.orderNo) && obUC(h.sku) === obUC(r.sku));
 /** Passed QC and not in India stock yet. */
 const flowFgToAccept = (r, s) => Math.max(0, (s.made || 0) - (s.india || 0));
-/** The planned lines with something for the Finished Goods team to accept. A make-to-order line is handed to shipping
- * on the Order Console instead; an outsourced one is received from its vendor, as before. */
-const flowFgLines = () => flowRows().filter(x => x.s.plan && x.s.route !== 'outsource' && !flowIsMto(x.r) && flowFgToAccept(x.r, x.s) > 0);
+/** How many pieces of one line wait for the Finished Goods team: planned lines only. A make-to-order line is handed to
+ * shipping on the Order Console instead; an outsourced one is received from its vendor, as before — both answer 0.
+ * The PPC page asks the same question (p1FgWaits, 26 Nov), so the two screens cannot disagree about a line. */
+const flowFgWaiting = x => (x.s.plan && x.s.route !== 'outsource' && !flowIsMto(x.r)) ? flowFgToAccept(x.r, x.s) : 0;
+/** The lines with something for the Finished Goods team to accept. */
+const flowFgLines = () => flowRows().filter(x => flowFgWaiting(x) > 0);
 const flowFgSay = (t, bad) => { if ($('fgMsg')) { $('fgMsg').className = bad ? 'err' : 'muted'; $('fgMsg').textContent = t; } };
 const flowFgFind = key => flowRows().find(y => y.s.key === key);
 const flowFgLog = (x, rec) => { const id = 'fgs_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -82,6 +85,7 @@ function flowFgAcceptOpen(key) {
     title: `Accept into Finished Goods — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`,
     subtitle: `${nf(can)} passed QC and are not in India stock yet.${x.r.__t ? ' TEST order: it goes into the India store as a TEST entry, and "delete test" takes it out again.' : ''}`,
     html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces counted in<input id="flfP" type="number" min="1" value="${can}"></label><label>Note<input id="flfN"></label></div>`,
+    memory: 'fgAccept',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Accept',
     onSave: async () => {
       const n = Math.round(+$('flfP').value || 0);
@@ -125,6 +129,7 @@ function flowFgRejectOpen(key) {
   ptOpenDialog({
     title: `Reject — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`, subtitle: `${nf(can)} waiting. Rejected pieces go back to Quality Control (Waiting for QC) to be checked again.`,
     html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces<input id="flfrP" type="number" min="1" value="${can}"></label><label>Why (stain, wrong size, stitching, packing…)<input id="flfrW"></label></div>`,
+    memory: 'fgReject',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Reject',
     onSave: async () => {
       const n = Math.round(+$('flfrP').value || 0), why = $('flfrW').value.trim();

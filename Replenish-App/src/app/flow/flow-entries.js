@@ -16,15 +16,18 @@ async function flowOpenBox(boxId, toggleId) {
 }
 const flowSay = (t, bad) => { if ($('flMsg')) { $('flMsg').className = bad ? 'err' : 'muted'; $('flMsg').textContent = t; } };
 
+/** The pieces of a line that can be cut today: what is back from the printer (or the embroidery vendor), less what is cut. */
+const flowCutNow = (r, s) => (s.route === 'emb' && !s.embDept ? (s.canCut || 0)   // only what came back from the embroidery vendor
+  : Math.max(0, Math.min(+r.qty || 0, s.printed ? (s.back || 0) : (+r.qty || 0)) - (s.cut || 0)));   // only what is back to cut
 /** Cutting Data → a new cutting entry for the line: SKU, order, the pieces still to cut, the plan's fabric. */
 async function flowCutEntry(r, s) {
   if (!flowMay('pcut')) return flowSay('Cutting Data is not open to this account — ask for the Cutting right.', true);
   try {
-    flowEmbedOff('pcut'); showTab('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
+    /* The page first, then its own form: opening Cutting can land on To cut (the Cutting Desk, 25 Nov), which sets the form aside. */
+    showTab('pcut'); flowEmbedOff('pcut'); await flowOpenBox('cwBox', 'cwToggle'); if (typeof ensureCutForm === 'function') await ensureCutForm();
     $('cwSku').value = obUC(r.sku); cutSkuTyped(); renderCutForm();
     $('cwOrd').value = r.orderNo; renderCutForm();
-    $('cwPcs').value = s.route === 'emb' && !s.embDept ? (s.canCut || 0)   // only what came back from the embroidery vendor
-      : Math.max(0, Math.min(+r.qty || 0, s.printed ? (s.back || 0) : (+r.qty || 0)) - (s.cut || 0));   // only what is back to cut
+    $('cwPcs').value = flowCutNow(r, s);
     const fab = s.plan && s.plan.fabric && s.plan.fabric.name, sel = $('cwFabric');
     if (fab && sel && [...sel.options].some(o => o.value === fab)) sel.value = fab;
     if (typeof renderCutFab === 'function') renderCutFab();

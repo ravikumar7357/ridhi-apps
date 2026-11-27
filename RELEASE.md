@@ -69,6 +69,6 @@ Then fix it on `dev` and release again. Never fix it by editing production direc
 
 ## When not to release
 
-- Diwali week, and 23 Nov – 2 Dec around Black Friday.
+- - Diwali week.
 - Any day the owner is not reachable to approve.
 - Friday evening, unless someone will read the health email on Saturday.

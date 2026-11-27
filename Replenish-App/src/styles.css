@@ -1054,6 +1054,15 @@
   #gateWait{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
     background:var(--bg);z-index:80;color:var(--muted);font-size:13px;letter-spacing:.02em}
   body.gating #gateWait{display:flex}
+  /* The block-printing loading picture (26 Nov 2026): on a browser refresh, in a table still reading, and over the
+   * screen while a Refresh button works. The cover takes no clicks: the button under it is already off. */
+  .ptLoading{display:flex;flex-direction:column;align-items:center;gap:6px;margin:6px auto;color:var(--muted);font-size:13px;text-align:center}
+  .ptLoading img{display:block;max-width:100%;height:auto}
+  #ptBusyCover{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.55);z-index:70;pointer-events:none}
+  body.ptBusy #ptBusyCover{display:flex}
+  /* The same cover when a read or save is slow (core/stuck-screen.js); a Refresh cover or the access check wins. */
+  #ptStuckCover{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.55);z-index:70;pointer-events:none}
+  body.ptStuck:not(.ptBusy):not(.gating) #ptStuckCover{display:flex}
   .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
   .modalbox{background:var(--card);border-radius:14px;padding:20px;width:min(680px,100%);max-height:90vh;overflow:auto;box-shadow:0 20px 50px rgba(0,0,0,.25)}
   .tbl{width:100%;border-collapse:collapse;font-size:13px}
@@ -2266,7 +2275,8 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .p1-stages .st.on span{color:#D6E1EE}
 #p1Home .p1-read{margin-left:auto;align-self:center;font-size:12px;color:var(--faint)}
 #p1Home .p1-read a{color:var(--brand-ink);font-weight:600;cursor:pointer}
-#p1Home .p1-list{padding:0;overflow:hidden}
+/* The table slides sideways inside its box on a narrow screen or phone — the status columns were cut off (fix 9, 26 Nov) */
+#p1Home .p1-list{padding:0;overflow-x:auto}
 #p1Home table.p1t{width:100%;border-collapse:collapse;font-size:13.5px}
 #p1Home table.p1t > thead > tr > th{text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:14px 16px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:2}
 #p1Home table.p1t > tbody > tr.p1r > td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:middle;text-transform:none;letter-spacing:normal}
@@ -2306,6 +2316,74 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .rp-date{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin:0;font-weight:600;text-transform:none;letter-spacing:0}
 #p1Home .rp-date input{height:32px;width:auto;border:1px solid var(--line);border-radius:9px;padding:0 8px;background:#fff;color:var(--ink)}
 @media (max-width:1100px){#p1Home .rp-two{grid-template-columns:1fr}}
+/* the lines report on top of PPC → Report (25 Nov): headline figures, where every piece is, due weeks, channels and categories, the two sheets */
+#p1Home .rp-head2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 12px}
+#p1Home .rp-head2 select{height:32px;width:auto;border:1px solid var(--line);border-radius:8px;padding:0 8px;font:inherit;font-size:12.5px;margin-left:6px}
+#p1Home .hwarn{margin:0 0 10px;font-size:12px;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:6px 10px}
+#p1Home .rk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 14px}
+#p1Home .rk{background:#fff;border-radius:14px;box-shadow:var(--sh-1);padding:12px 16px;display:flex;flex-direction:column;gap:3px;border-top:3px solid #C9D2DE}
+#p1Home .rk span{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#p1Home .rk b{font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+#p1Home .rk i{font-style:normal;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+#p1Home .rk.ok{border-top-color:#3B7A2A} #p1Home .rk.ok b{color:#2F6B22}
+#p1Home .rk.bad{border-top-color:var(--bad)} #p1Home .rk.bad b{color:var(--bad)}
+#p1Home .rk.warn{border-top-color:#D98A1F} #p1Home .rk.warn b{color:#9A5B0C}
+#p1Home .rk-bar{display:inline-block;width:70px;height:6px;border-radius:999px;background:#EEF1F5;overflow:hidden;vertical-align:middle}
+#p1Home .rk-bar em{display:block;height:100%;background:#3B7A2A;border-radius:999px}
+#p1Home .rp2{margin-bottom:14px}
+#p1Home .rp2 .empty{padding:16px}
+#p1Home .rp-pipe{display:flex;height:22px;margin:14px 16px 10px;border-radius:999px;overflow:hidden;background:#EEF1F5}
+#p1Home .rp-pipe span{display:block;height:100%;min-width:3px;border-right:2px solid #fff}
+#p1Home .rp-keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:6px;padding:0 16px 14px}
+#p1Home .rp-key{display:flex;align-items:baseline;gap:7px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 10px;text-align:left;cursor:pointer;color:var(--ink);font-weight:400;box-shadow:none}
+#p1Home .rp-key:hover{border-color:#C9D2DE;background:var(--soft,#F7F9FB)}
+#p1Home .rp-key.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+#p1Home .rp-key i{width:10px;height:10px;border-radius:3px;flex:none;align-self:center}
+#p1Home .rp-key b{font-size:15px;font-variant-numeric:tabular-nums}
+#p1Home .rp-key span{font-size:12px;flex:1}
+#p1Home .rp-key small{color:var(--muted);font-size:11px}
+#p1Home .rp-three{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:14px}
+@media (max-width:1150px){#p1Home .rp-three{grid-template-columns:1fr}}
+#p1Home .rp-cols{display:flex;align-items:flex-end;gap:6px;height:190px;padding:14px 16px 4px;overflow-x:auto}
+#p1Home .rp-col{flex:1 0 44px;max-width:70px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px}
+#p1Home .rp-col span{display:block;width:70%;background:#7C9CC4;border-radius:6px 6px 2px 2px}
+#p1Home .rp-col.late span{background:#C0392B}
+#p1Home .rp-col.now span{background:#D98A1F}
+#p1Home .rp-col small{font-size:10.5px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+#p1Home .rp-col b{font-size:10.5px;font-weight:700;white-space:nowrap;color:var(--ink)}
+#p1Home .rp-col i{font-style:normal;font-size:10px;color:var(--muted);white-space:nowrap}
+#p1Home .rp-legend{display:flex;gap:14px;padding:4px 16px 12px;font-size:11px;color:var(--muted)}
+#p1Home .rp-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;background:#7C9CC4;margin-right:4px;vertical-align:middle}
+#p1Home .rp-legend i.late{background:#C0392B} #p1Home .rp-legend i.now{background:#D98A1F}
+#p1Home .rp-hb{padding:12px 16px 14px;display:flex;flex-direction:column;gap:9px}
+#p1Home .rp-hrow{display:grid;grid-template-columns:minmax(80px,120px) 1fr auto;gap:8px;align-items:center;font-size:12px}
+#p1Home .rp-hrow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+#p1Home .rp-hrow .tr{height:12px;background:transparent}
+#p1Home .rp-hrow .or{display:block;height:100%;background:#E3E8EF;border-radius:4px;overflow:hidden;min-width:4px}
+#p1Home .rp-hrow .or em{display:block;height:100%;background:#3B7A2A}
+#p1Home .rp-hrow .fg{font-size:11.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+#p1Home .rp-hrow .fg b{color:var(--ink)} #p1Home .rp-hrow .fg i{font-style:normal;color:var(--bad);font-weight:700}
+#p1Home .rp-chips{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line)}
+#p1Home .rp-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:12px;font-weight:600;box-shadow:none;cursor:pointer}
+#p1Home .rp-chip:hover{background:var(--soft,#F7F9FB)}
+#p1Home .rp-chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+#p1Home .rp-chip i{width:9px;height:9px;border-radius:2px}
+#p1Home .rp-lines{max-height:620px;overflow:auto}
+#p1Home .rp-lines table.xl th,#p1Home .rp-lines table.xl td{font-size:12px;padding:6px 9px;text-align:left;white-space:nowrap}
+#p1Home .rp-lines table.xl th.num,#p1Home .rp-lines table.xl td.num{text-align:right}
+#p1Home .rp-lines table.xl th.grp{text-align:center;letter-spacing:.05em}
+#p1Home .rp-lines thead tr:nth-child(2) th{top:31px}
+#p1Home .rp-lines thead tr.tot td{position:sticky;top:62px;z-index:2;background:#F7F5EF;border-bottom:2px solid #D3D1C7}
+#p1Home .rp-lines td.sku,#p1Home .rp-sum td.sku{font-weight:700;font-family:ui-monospace,Consolas,monospace;font-size:11.5px}
+#p1Home .rp-lines tr.lt td{background:#FCEBEB}
+#p1Home .rp-lines .late,#p1Home .rp-sum .late{color:#A32D2D}
+#p1Home .rp-done{color:#2F6B22;font-weight:700}
+#p1Home .rp-proc{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+#p1Home .rp-proc::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
+#p1Home .rp-sum th,#p1Home .rp-sum td{text-align:left;font-size:12.5px}
+#p1Home .rp-sum th.num,#p1Home .rp-sum td.num{text-align:right}
+#p1Home .rp-sum tr.tot td{background:#DDEBF7}
+#p1Home .rp-old{margin:26px 0 12px;padding-top:14px;border-top:2px dashed var(--line);font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 /* The old PPC link is off the menu: this page is "PPC" now (its screen and code stay — the Demand buttons open it). */
 #tabFlow{display:none!important}
 /* Production lots and the WIP sheet (Ravi, 28 Oct) */
@@ -2403,10 +2481,6 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home table.p1g td.stc .rb{font-size:11.5px;color:var(--muted)}
 #p1Home table.p1g td.stc .rb.late{color:var(--bad);font-weight:700}
 #p1Home table.p1g td.nx,#p1Home table.p1g th.nx{text-align:right;white-space:nowrap}
-#p1Home table.p1g .p1-go{height:30px;padding:0 12px;font-size:12px;border-radius:8px}
-#p1Home table.p1g .p1-go2{height:30px;padding:0 12px;font-size:12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);font-weight:700}
-#p1Home table.p1g .p1-go2:hover{background:var(--soft)}
-#p1Home table.p1g tr.p1l .p1-go2{height:26px;font-size:11.5px}
 #p1Home .p1-hist{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:4px 0 8px;width:0;min-width:100%;box-sizing:border-box}
 #p1Home .p1-hist .hh{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:13px;margin-bottom:12px}
 #p1Home .p1-hist .hh .p1-lotno{font-size:17px}
@@ -2417,25 +2491,33 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 #p1Home .p1-hist .hh-r label{display:flex;gap:6px;align-items:center;font-size:12px}
 #p1Home .p1-hist .hh-r select{height:32px;width:auto;border:1px solid var(--line);border-radius:8px;padding:0 6px;font:inherit;font-size:12.5px}
 #p1Home .p1-hist .hh-r .hx{width:32px;height:32px;padding:0;font-size:18px;line-height:1}
-/* where the pieces are now (24 Nov): one sentence, then a card a step */
+/* which piece is where, and what passed each step when (25 Nov): a bar and a list that add up to the order, then a row a step */
+#p1Home .p1-hist .hbar{display:flex;height:14px;border-radius:999px;overflow:hidden;background:#EEF1F5;margin:2px 0 10px}
+#p1Home .p1-hist .hb{display:block;height:100%;min-width:3px;border-right:2px solid #fff}
+#p1Home .p1-hist .hb.fg,#p1Home .p1-hist .hdot.fg{background:#5E8C3A}
+#p1Home .p1-hist .hb.qc,#p1Home .p1-hist .hdot.qc{background:#2E8A78}
+#p1Home .p1-hist .hb.mk,#p1Home .p1-hist .hdot.mk{background:#D98A1F}
+#p1Home .p1-hist .hb.pr,#p1Home .p1-hist .hdot.pr{background:#7C5CD6}
+#p1Home .p1-hist .hb.st,#p1Home .p1-hist .hdot.st{background:#4A6A92}
+#p1Home .p1-hist .hb.no,#p1Home .p1-hist .hdot.no{background:#C3CBD6}
+#p1Home .p1-hist .hplaces{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px 18px;margin-bottom:16px}
+#p1Home .p1-hist .hp{display:flex;align-items:baseline;gap:8px;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:#fff}
+#p1Home .p1-hist .hp b{font-size:17px;min-width:34px;text-align:right}
+#p1Home .p1-hist .hdot{width:10px;height:10px;border-radius:50%;flex:none;align-self:center}
+#p1Home .p1-hist .hp-l{color:var(--ink)}
+#p1Home .p1-hist .hp-w{color:var(--muted);font-size:12px}
+#p1Home .p1-hist .hp-d{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+#p1Home .p1-hist .hp-d.late{color:var(--bad);font-weight:700}
+#p1Home .p1-hist .hpass{border:1px solid var(--line);border-radius:10px;margin-bottom:16px}
+#p1Home .p1-hist .hpass th,#p1Home .p1-hist .hpass td{text-align:left;font-size:12.5px}
+#p1Home .p1-hist .hpass th.num,#p1Home .p1-hist .hpass td.num{text-align:right}
+#p1Home .p1-hist .hpb{display:inline-block;width:90px;height:7px;border-radius:999px;background:#EEF1F5;overflow:hidden;vertical-align:middle;margin-right:8px}
+#p1Home .p1-hist .hpb i{display:block;height:100%;background:#5E8C3A}
+#p1Home .p1-hist td.hdays{white-space:normal}
+#p1Home .p1-hist .hday{display:inline-block;background:var(--soft,#F7F9FB);border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin:2px 4px 2px 0;font-size:11.5px;white-space:nowrap}
 #p1Home .p1-hist .hsec{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:6px 0 6px}
 #p1Home .p1-hist .hsec .muted{text-transform:none;letter-spacing:0;font-weight:600}
-#p1Home .p1-hist .hsay{font-size:15px;line-height:1.45;margin:0 0 10px;color:var(--ink)}
 #p1Home .p1-hist .late{color:var(--bad);font-weight:700}
-#p1Home .p1-hist .hcards{display:flex;align-items:stretch;gap:4px;overflow-x:auto;padding-bottom:4px;margin-bottom:16px}
-#p1Home .p1-hist .hc{flex:1 1 0;min-width:112px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;display:flex;flex-direction:column;gap:3px}
-#p1Home .p1-hist .hc-t{font-size:12px;font-weight:700;color:var(--ink)}
-#p1Home .p1-hist .hc-ok{font-size:12px;font-weight:700;color:#27500A}
-#p1Home .p1-hist .hc-ah{font-size:12px;color:var(--muted)}
-#p1Home .p1-hist .hc-now{font-size:12px;color:#633806}
-#p1Home .p1-hist .hc-now b{font-size:18px}
-#p1Home .p1-hist .hc-who{font-size:11.5px;color:#633806;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#p1Home .p1-hist .hc-n{font-size:11.5px;color:var(--muted);margin-top:auto}
-#p1Home .p1-hist .hc-n b{color:var(--ink)}
-#p1Home .p1-hist .hc.ok{background:#F4F9EE;border-color:#CFE3B8}
-#p1Home .p1-hist .hc.now{background:#FDF5E7;border-color:#EF9F27;box-shadow:0 0 0 1px #EF9F27 inset}
-#p1Home .p1-hist .hc.ah{background:#FAFAF8}
-#p1Home .p1-hist .hc-ar{align-self:center;color:#B4B2A9;font-size:16px}
 #p1Home .p1-hist .hgrid{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:10px}
 #p1Home .p1-hist .hgrid td{white-space:nowrap;font-size:12.5px}
 #p1Home .p1-hist .hgrid td.hnote{white-space:normal;color:var(--muted);min-width:200px;text-align:left}
@@ -2473,3 +2555,8 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
 /* Search points at the part it found (14 Nov): a ring for a few seconds */
 .fr-spot{outline:3px solid #E07A1F!important;outline-offset:3px;border-radius:6px;animation:frSpot 1s ease-in-out 3}
 @keyframes frSpot{50%{outline-color:rgba(224,122,31,.25)}}
+
+/* Production flow: a screen's own content is set aside while one of its flow tabs is open (Cutting Desk in Cutting Data; Raw cutting and
+ * WIP in the Job Work Register). The rule was lost with the phone layout on 16 Oct, so both lists showed, one under the other
+ * (Ravi, 25 Nov: "why is cutting entries showing below cutting desk"). */
+.fl-embhide{display:none!important}

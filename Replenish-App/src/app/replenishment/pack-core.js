@@ -223,6 +223,8 @@ async function packLedgerWrite(p, handoverTo) {
   if (FGI_FBA_ACCOUNTS.indexOf(p.account) < 0) return { err: `Pick the FBA account — ${FGI_FBA_ACCOUNTS.join(" or ")}.` };
   const why = await packDataReady();
   if (why) return { err: "Could not read the Finished Goods ledger: " + why };
+  const unread = await fgiStockReread();
+  if (unread) return { err: unread };
   if (handoverTo != null) p.scan.handoverTo = String(handoverTo || "").trim();
   const rows = PACK_CORE.ledgerRows(p, {
     newId: () => fgiNewId("FBA"),

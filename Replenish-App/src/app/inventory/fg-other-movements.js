@@ -104,6 +104,7 @@ function fgiEntryOpen(type, sku) {
       </div>
       <div id="fgmInfo" class="muted" style="margin-top:8px;font-size:12.5px"></div>`,
     onSave: () => fgiEntrySave(),
+    memory: 'fgMovement:' + type,  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Save the entry',
   });
   const info = () => {
@@ -330,6 +331,8 @@ async function fgiEntrySave() {
   let out = null;
   if (k.dir < 0) {
     /* Read again at save: the figure on screen could be minutes old, and the store cannot go short. */
+    const unread = await fgiStockReread();
+    if (unread) return unread;
     const short = fgiOutCheck(sku, qty, type);
     if (short) return short;
     out = fgiOutOrderCheck({ sku, qty, type, order: ($('fgmOutOrd') || {}).value, why: ($('fgmOutWhy') || {}).value,

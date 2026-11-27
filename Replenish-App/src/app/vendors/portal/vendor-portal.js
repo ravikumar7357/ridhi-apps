@@ -73,7 +73,10 @@ const vpIsCustom = o => vpIsShop(o) || vpIsPpcShop(o);
  * entered what it sent. A custom line received in full goes to Custom → History instead (vpLineIsHist), as before. */
 let VP_PART = '';
 const vpLineIsDone = (o, l) => !!(l && (l.cancelled || ['Received', 'Cancelled'].indexOf((o && o.status) || '') >= 0
-  || (vpQty(o, l) > 0 && vpQty(o, l) - vpDone(l) <= 0) || (!vpIsCustom(o) && vpRecvAll(o, l))));
+  || (vpQty(o, l) > 0 && vpFullOf(o, l) - vpDone(l) <= 0) || (!vpIsCustom(o) && vpRecvAll(o, l))));
+/** THE WHOLE ORDER, NOT THE FABRIC GIVEN SO FAR (Ravi, 25 Nov: completed only when all 100 are in): a line shown only for what the RFD challans gave (rfdGate) carries the full
+ * quantity as orderedTotal. Done means that whole quantity — the 10 given and received do not finish a 100 order. */
+const vpFullOf = (o, l) => Math.max(vpQty(o, l), +(l && l.orderedTotal) || 0);
 /* SENT BY THE PRINTER (Ravi, 14 Nov: "vendor apni qty enter vendor sent me to uske bad wo order vendor ko pending order list me show
  * nahi hona chahiye — wo vendor sent me show hona chahiye"): a line the printer has said is sent in full (Vendor sent ≥ ordered) and
  * that is not done yet leaves Bulk / Custom orders for its own tab, "Vendor sent", until it is received. Part-sent stays pending.
@@ -680,7 +683,7 @@ function vpRecvOf(l, o) {
   return { qty: vo, how: vo ? 'on the vendor order' : '' };
 }
 /** Everything ordered on the line has reached us — nothing is left for the printer to say it sent. */
-const vpRecvAll = (o, l) => { const ord = vpOrdOf(o, l); return ord > 0 && vpRecvOf(l, o).qty >= ord - 0.01; };
+const vpRecvAll = (o, l) => { const ord = Math.max(vpOrdOf(o, l), +(l && l.orderedTotal) || 0); return ord > 0 && vpRecvOf(l, o).qty >= ord - 0.01; };
 /* HISTORY (Ravi, 16 Nov: "when all the orders show all received add a button named History which shows all the orders the vendor has
  * completed and are all received"). A line is history once everything ordered has reached us, the printer has recorded all of it as
  * sent, and no extra waits for approval. Until the printer has recorded it, the line stays with its Send box (Ravi, 14 Nov: the printer
@@ -774,7 +777,7 @@ function vpCustomSheet(rows, f) {
  * same eight columns for the office's Printer's view (vprSheet adds Receive) and the printer's own sign-in (vpOrderSheet adds Send now
  * and Your date), so both sides talk about the same figures. The oldest due date first; late lines red, due-soon yellow. */
 const VP_SHEET_COLS = ['Date', 'Image', 'Order Number', 'Item', 'Ordered', 'Sent by printer', 'To receive', 'Due Date'];
-const VP_SHEET_NUM = ['Ordered', 'Sent by printer', 'To receive'];
+const VP_SHEET_NUM = ['Ordered', 'Sent by printer', 'To receive', 'Pending with you'];
 const VP_SHEET_EMPTY = '<div class="card" style="padding:34px;text-align:center;color:var(--muted)">No line to show.</div>';
 /** Every line of these orders that belongs on the tab on screen, oldest due date first. */
 function vpSheetLines(rows, f) {
@@ -800,12 +803,26 @@ function vpSheetCells(o, l, note) {
   const extra = vpVsApproved(vpVsOf(o, l));
   return `<td style="font-size:12px;white-space:nowrap">${esc(o.orderDate || '') || '<span class="muted">—</span>'}</td>`
     + pic
-    + `<td style="text-align:left;font-weight:700;font-size:12.5px">${esc(vpIsShop(o) && (l.shopRef || l.shopOrderNo) ? (l.shopRef || l.shopOrderNo) : (o.orderNo || o.id))}${note || ''}${typeof pclLineHtml === 'function' ? pclLineHtml(o, l) : ''}</td>`
+    + `<td style="text-align:left;font-weight:700;font-size:12.5px">${vpOrderLabel(o, l)}${note || ''}${typeof pclLineHtml === 'function' ? pclLineHtml(o, l) : ''}</td>`
     + `<td style="text-align:left;font-size:12.5px;line-height:1.35">${esc(what) || '<span class="muted">—</span>'}${sub ? `<div class="muted" style="font-size:11px">${esc(sub)}</div>` : ''}</td>`
-    + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span>${extra > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${nf(extra)} approved</div>` : ''}</td>`
-    + `<td class="num">${nf(vpOnTheWay(vpVsSum(vpVsOf(o, l)), rc.qty))}</td>`
+    + `<td class="num" style="font-weight:700">${nf(ord)} <span class="muted" style="font-weight:400;font-size:10px">${unit}</span>${extra > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">incl. +${nf(extra)} approved</div>` : ''}${vpTotalNote(l, ord, unit)}</td>`
+    + (sent => `<td class="num">${nf(sent)}${sent > rc.qty + 0.01 && rc.qty > 0 ? `<div class="muted" style="font-size:10.5px;font-weight:400">${nf(vpOnTheWay(sent, rc.qty))} on the way</div>` : ''}</td>`)(vpSentKept(o, l))
     + vpToReceiveCell(ord, rc, unit)
     + `<td style="text-align:left;font-size:12px;white-space:nowrap">${voDueHtml(due, voWant(l))}</td>`;
+}
+/** THE WHOLE ORDER UNDER WHAT IS ORDERED SO FAR (Ravi, 25 Nov: "ordered ke 10 ke neeche 100 show ho meaning total order"): a line shown only for the fabric given so far
+ * (rfdGate, flowVpGate) carries the full quantity as orderedTotal; the sheet says it under the figure, so 10 pcs reads "of 100 pcs total". */
+function vpTotalNote(l, ord, unit) {
+  const full = l && +l.orderedTotal;
+  return full > ord + 0.01 ? `<div title="The whole order is ${nf(Math.round(full * 100) / 100)} ${unit}; the fabric for ${nf(ord)} ${unit} has come so far" style="font-size:10.5px;font-weight:700;color:#B45309;margin-top:2px;white-space:nowrap">of ${nf(Math.round(full * 100) / 100)} ${unit} total</div>` : '';
+}
+/** THE REAL ORDER FIRST (Ravi, 25 Nov: "vendor portal par real order show hona chahiye like AMZ-24112026-AIR not VPO-261124-IB6"): a line placed from PPC names
+ * the sales orders it is for (forOrders); those are the order number on the sheet and the VPO is the small line under it. A Shopify line keeps its own reference. */
+function vpOrderLabel(o, l) {
+  if (vpIsShop(o) && (l.shopRef || l.shopOrderNo)) return esc(l.shopRef || l.shopOrderNo);
+  const so = [...new Set(vpForOrders(l))], vpo = o.orderNo || o.id;
+  if (!so.length) return esc(vpo);
+  return esc(so.slice(0, 2).join(', ') + (so.length > 2 ? ' +' + (so.length - 2) : '')) + `<div class="muted" style="font-size:10.5px;font-weight:400">${esc(vpo)}</div>`;
 }
 /* TO RECEIVE (Ravi, 21 Nov: "the amount which is actually pending with the printer and has to be received in the coming time"): what was
  * ordered (with approved extra) less what came in — rejected goods are still owed. What came in is the small line under it; "all in" once
@@ -816,8 +833,9 @@ function vpToReceiveCell(ord, rc, unit) {
   return `<td class="num" title="${esc(rc.how)}">${left > 0 ? `<b style="color:var(--bad)">${nf(left)}</b> <span class="muted" style="font-size:10px">${unit}</span>` : '<span class="pill pill-ok">all in</span>'}${got}</td>`;
 }
 const vpToReceive = (ordered, received) => Math.round(Math.max(0, ordered - received) * 100) / 100;
-/* SENT BY PRINTER = ON ITS WAY (21 Nov: "only show how many has he sent currently"): what the printer entered as sent less what has already
- * reached us — a plain number. The batches, approvals and strike-off stay on the other views. */
+/* SENT BY PRINTER (21 Nov: "only show how many has he sent currently"; 25 Nov, Ravi: "sent by printer me 0 aa rha h jabki printer mujhe 8 pcs bhej chuka h"):
+ * the column now shows all the printer sent (8), and "on the way" — what has not reached us yet — is the small line under it. vpOnTheWay is that figure:
+ * what the printer entered as sent less what has already reached us. The batches, approvals and strike-off stay on the other views. */
 const vpOnTheWay = (sent, received) => Math.round(Math.max(0, sent - received) * 100) / 100;
 function vpSheetTable(cols, body) {
   return `<div class="card xlwrap" style="padding:0"><table class="xl"><thead><tr>${cols.map(h => `<th${VP_SHEET_NUM.includes(h) ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
@@ -832,7 +850,10 @@ function vpOrderSheet(rows, f) {
     return `<tr class="${vpDueClass(due)}">` + vpSheetCells(o, l, note)
       + (done ? '' : vpCustSendCell(o, l, i, unit) + vpYourDateCell(o, l, i)) + '</tr>';
   }).join('');
-  return vpSheetTable(VP_SHEET_COLS.concat(done ? [] : ['Send now', 'Your date']), body);
+  /* on the printer's own screen the "to receive" is what the printer still owes: Pending with you (Ravi, 25 Nov: "wo vendor ke liye pending order h") */
+  const cols = VP_SHEET_COLS.map(c => (c === 'To receive' ? 'Pending with you' : c));
+  vpPartPop(rows);
+  return vpPartBox(rows) + vpSheetTable(cols.concat(done ? [] : ['Send now', 'Your date']), body);
 }
 /** The date the printer promises: a box while there is something left to send and they may write, else the date as text. */
 function vpYourDateCell(o, l, i) {
@@ -962,21 +983,49 @@ const vpBuyerOf = l => (/^B2B-/.test(obUC(l && l.shopOrderNo)) && String((l && l
  * ka fabric mila h jisase printer 1 bar me color bana lega"). A line shown only for what the RFD challans gave so far (flow-vendor.js
  * flowVpGate: rfdGate) is named here, on top of the order, in amber: the full quantity, what came so far, and to make the colour for
  * all of it in one go. The office's "View as printer" sees the same box. */
-function vpPartNotice(o) {
+function vpPartItems(o) {
   const ls = voLines(o).filter(l => l && l.rfdGate && !l.awaitRfd);
-  if (!ls.length) return '';
+  if (!ls.length) return [];
   const ctx = vpRawCtx(o), out = [];
   ls.forEach(l => {
     const f = l.meters != null && l.qty == null ? 'meters' : 'qty', u = f === 'meters' ? 'm' : 'pcs';
     const full = +(l.orderedTotal != null ? l.orderedTotal : l[f]) || 0, given = +((vpLineRaw(o, l, ctx) || {}).raw || 0);
     if (!(full > 0) || given >= full - 0.01) return;
-    const what = [l.sku, l.fabricType, l.color].filter(Boolean).join(' · ') || 'this line';
-    out.push(`<li><b>${esc(what)}</b>: full order <b>${nf(Math.round(full * 100) / 100)} ${u}</b> — ${u === 'm' ? 'fabric' : 'pieces'} for <b>${nf(Math.round(given * 100) / 100)} ${u}</b> given so far</li>`);
+    out.push({ o, l, u, full: Math.round(full * 100) / 100, given: Math.round(given * 100) / 100, so: [...new Set(vpForOrders(l))],
+      what: [l.sku, l.fabricType, l.color].filter(Boolean).join(' · ') || 'this line' });
   });
-  if (!out.length) return '';
-  return `<div style="margin-top:8px;padding:9px 12px;border-radius:10px;background:#FFF4E0;border:1px solid #F5C77E;color:#7A3A0C;font-size:13px;white-space:normal">`
-    + `<b>Part of the fabric has come.</b> Make the colour for the FULL order in one go — the rest of the fabric comes with the next challan.`
-    + `<ul style="margin:6px 0 0 18px;padding:0">${out.join('')}</ul></div>`;
+  return out;
+}
+const vpPartLi = (x, withOrder) => `<li>${withOrder ? `<b>${esc(x.so.length ? x.so.join(', ') : (x.o.orderNo || x.o.id))}</b> · ` : ''}<b>${esc(x.what)}</b>: full order <b>${nf(x.full)} ${x.u}</b> — ${x.u === 'm' ? 'fabric' : 'pieces'} for <b>${nf(x.given)} ${x.u}</b> given so far</li>`;
+const vpPartWrap = (inner, mt) => `<div style="margin-top:${mt}px;padding:9px 12px;border-radius:10px;background:#FFF4E0;border:1px solid #F5C77E;color:#7A3A0C;font-size:13px;white-space:normal">`
+  + `<b>Part of the fabric has come.</b> Make the colour for the FULL order in one go — the rest of the fabric comes with the next challan.`
+  + `<ul style="margin:6px 0 0 18px;padding:0">${inner}</ul></div>`;
+function vpPartNotice(o) {
+  const it = vpPartItems(o);
+  return it.length ? vpPartWrap(it.map(x => vpPartLi(x, false)).join(''), 8) : '';
+}
+/** The same amber box above the order sheet (the default view), for every order on screen, with the real order number. */
+function vpPartBox(rows) {
+  const it = (rows || []).reduce((a, o) => a.concat(vpPartItems(o)), []);
+  return it.length ? vpPartWrap(it.map(x => vpPartLi(x, true)).join(''), 0).replace('margin-top:0px;', 'margin:0 0 10px;') : '';
+}
+/* A POP-UP, ONCE (Ravi, 25 Nov: "vendor portal par ye pop pop aay ki isme total 100 pcs ka order h jisase wo printer color 1 bar me bana le"): the printer's own
+ * sign-in is told, when the portal opens, that the order is bigger than the fabric it has so far. Once for each (order, full, given) — a new challan changes
+ * "given", so it comes again; opening the portal twice does not. The office's "View as printer" is not interrupted: it has the box. */
+const VP_PART_SEEN = new Set();
+function vpPartPop(rows) {
+  if ((typeof vprOn === 'function' && vprOn()) || typeof ptOpenDialog !== 'function') return;
+  const it = (rows || []).reduce((a, o) => a.concat(vpPartItems(o)), []), key = x => [x.o.id, x.l.lineId || x.l.sku, x.full, x.given].join('|');
+  let seen = {}; try { seen = JSON.parse(localStorage.getItem('vpPartSeen') || '{}') || {}; } catch (e) { seen = {}; }
+  const fresh = it.filter(x => !VP_PART_SEEN.has(key(x)) && !seen[key(x)]);
+  if (!fresh.length) return;
+  fresh.forEach(x => { VP_PART_SEEN.add(key(x)); seen[key(x)] = 1; });
+  try { localStorage.setItem('vpPartSeen', JSON.stringify(seen)); } catch (e) { /* the box above the sheet still says it */ }
+  setTimeout(() => ptOpenDialog({
+    title: 'The full order is bigger than the fabric you have',
+    subtitle: 'Make the colour for the FULL order in one go — the rest of the fabric comes with the next challan.',
+    html: `<ul style="margin:0 0 0 18px;padding:0;font-size:14px;line-height:1.6">${fresh.map(x => vpPartLi(x, true)).join('')}</ul>`,
+  }), 0);
 }
 function vpProgHtml(o) {
   const p = o && o.flowProg; if (!p) return '';
