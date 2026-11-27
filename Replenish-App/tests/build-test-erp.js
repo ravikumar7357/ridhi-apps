@@ -64,11 +64,22 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
     sb: ${JSON.stringify(SB_DATA)}, sbReads: 0, sbOn: !!window.__TEST_ERP_SB_PAGE };
   /* A read of the factory registers (Firebase Realtime Database REST: <path>.json?auth=<sign-in>&orderBy=…) answered by ERP data's
    * door core.rt_get with the same sign-in — same data, same shape. Only pages that turn it on (the factory ERP) use it. */
+  /* NO READ WAITS FOR EVER (Ravi, 27 Nov: PPC stayed on "Reading" on the Test page). Every call to ERP data is given up after
+   * its time limit and says so; a whole list may take longer than a small question. */
+  var SB_ASK_MS = 60000, SB_LIST_MS = 120000;
+  function sbFetch(origFetch, url, opts, ms) {
+    var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, ms);
+    opts.signal = ctl.signal;
+    var late = function (e) { clearTimeout(t); throw ctl.signal.aborted ? new Error('ERP data did not answer within ' + (ms / 1000) + ' seconds. Check the internet, then try again.') : e; };
+    return origFetch(url, opts).then(function (r) {
+      return r.text().then(function (body) { clearTimeout(t); return { ok: r.ok, status: r.status, text: function () { return Promise.resolve(body); } }; });
+    }).catch(late);
+  }
   /* one call to an ERP data door with the person's sign-in; the answer, or an error that says why */
   function sbRpc(fn, body, tok, origFetch) {
     var sb = window.__TEST_ERP.sb;
-    return origFetch(sb.url + '/rest/v1/rpc/' + fn, { method: 'POST', body: JSON.stringify(body),
-      headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
+    return sbFetch(origFetch, sb.url + '/rest/v1/rpc/' + fn, { method: 'POST', body: JSON.stringify(body),
+      headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } }, SB_ASK_MS)
       .then(function (r) { return r.text().then(function (t) {
         if (r.ok) return t ? JSON.parse(t) : null;
         var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {}
@@ -115,7 +126,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   var SBMAN = null;
   function sbStorageGet(path, tok, origFetch) {
     var sb = window.__TEST_ERP.sb;
-    return origFetch(sb.url + '/storage/v1/object/authenticated/erp-lists/' + path, { headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key) }, cache: 'no-store' })
+    return sbFetch(origFetch, sb.url + '/storage/v1/object/authenticated/erp-lists/' + path, { headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key) }, cache: 'no-store' }, SB_LIST_MS)
       .then(function (r) { return r.ok ? r.text() : null; }).catch(function () { return null; });
   }
   function sbManifest(tok, origFetch) {
@@ -128,13 +139,13 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
       /* 20 Nov (UAT check 25): a list with no file comes from the database's ready copy, which can be a few seconds behind a
        * save just made — so the saves since are added BEFORE it is shown, exactly as for a file */
       if (!e || e.upto == null) return sbFullDb(key, p, tok, origFetch).then(function (m) {
-        return sbRefresh(key, p, tok, origFetch, true).then(function (x) { var n = x || SBMEM[key] || m; if (!n.from) n.from = 'database'; return n; });
+        return sbChanges(key, p, tok, origFetch, true).then(function (x) { var n = x || SBMEM[key] || m; if (!n.from) n.from = 'database'; return n; });
       });
       return sbStorageGet(p + '.json?v=' + e.upto, tok, origFetch).then(function (t) {
         if (!t) return sbFullDb(key, p, tok, origFetch);
         var m = { text: t, upto: e.upto, at: Date.now(), from: 'file' }; sbStore(key, m);
         /* a file can be up to 30 minutes behind (16 Nov): the saves since are added BEFORE it is shown — one small answer */
-        return sbRefresh(key, p, tok, origFetch, true).then(function (x) { var n = x || SBMEM[key] || m; if (!n.from) n.from = 'file'; return n; });
+        return sbChanges(key, p, tok, origFetch, true).then(function (x) { var n = x || SBMEM[key] || m; if (!n.from) n.from = 'file'; return n; });
       });
     });
   }
@@ -142,8 +153,8 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   function sbFullDb(key, p, tok, origFetch) {
     var sb = window.__TEST_ERP.sb;
     return sbRpc('rt_list_upto', { p_reg: p }, tok, origFetch).then(function (upto) {
-      return origFetch(sb.url + '/rest/v1/rpc/rt_get_text', { method: 'POST', body: JSON.stringify({ p_path: p }),
-        headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', Accept: 'text/plain', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
+      return sbFetch(origFetch, sb.url + '/rest/v1/rpc/rt_get_text', { method: 'POST', body: JSON.stringify({ p_path: p }),
+        headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', Accept: 'text/plain', 'Content-Profile': 'core', 'Accept-Profile': 'core' } }, SB_LIST_MS)
         .then(function (r) { return r.text().then(function (t) {
           if (r.status === 406) return sbFullJson(key, p, upto, tok, origFetch);     /* plain text refused: the JSON answer instead */
           if (!r.ok) { var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {} throw new Error('ERP data ' + r.status + ': ' + why); }
@@ -153,17 +164,24 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
   }
   function sbFullJson(key, p, upto, tok, origFetch) {
     var sb = window.__TEST_ERP.sb;
-    return origFetch(sb.url + '/rest/v1/rpc/rt_get_json', { method: 'POST', body: JSON.stringify({ p_path: p }),
-      headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } })
+    return sbFetch(origFetch, sb.url + '/rest/v1/rpc/rt_get_json', { method: 'POST', body: JSON.stringify({ p_path: p }),
+      headers: { apikey: sb.key, Authorization: 'Bearer ' + (tok || sb.key), 'Content-Type': 'application/json', 'Content-Profile': 'core', 'Accept-Profile': 'core' } }, SB_LIST_MS)
       .then(function (r) { return r.text().then(function (t) {
         if (!r.ok) { var why = t; try { var j = JSON.parse(t); why = [j.message, j.hint].filter(Boolean).join(' · ') || t; } catch (e) {} throw new Error('ERP data ' + r.status + ': ' + why); }
         var m = { text: t || 'null', upto: upto, at: Date.now(), from: 'database' }; sbStore(key, m); return m;
       }); });
   }
-  function sbRefresh(key, p, tok, origFetch, afterFile) {
+  /* One catch-up of a list at a time. The step itself is sbChanges: a download asks it directly for the saves since, never
+   * through here — through here it was handed the very job it was part of and waited for itself for ever (27 Nov). */
+  function sbRefresh(key, p, tok, origFetch) {
     if (SBBUSY[key]) return SBBUSY[key];
+    var job = sbChanges(key, p, tok, origFetch, false).then(function (x) { delete SBBUSY[key]; return x; });
+    SBBUSY[key] = job;
+    return job;
+  }
+  function sbChanges(key, p, tok, origFetch, afterFile) {
     var m = SBMEM[key];
-    var job = sbRpc('rt_changes', { p_reg: p, p_upto: m.upto }, tok, origFetch).then(function (r) {
+    return sbRpc('rt_changes', { p_reg: p, p_upto: m.upto }, tok, origFetch).then(function (r) {
       if (!r || r.full) return afterFile ? sbFullDb(key, p, tok, origFetch) : sbFull(key, p, tok, origFetch);   /* never file → file again */
       var ks = Object.keys(r.ch || {});
       if (!ks.length) { if (r.upto !== m.upto) sbStore(key, { text: m.text, upto: r.upto, at: m.at }); return SBMEM[key]; }
@@ -171,10 +189,7 @@ const GUARD = `<script>/* TEST ERP GUARD — added by Replenish-App/tests/build-
       if (Array.isArray(v) || v == null || typeof v !== 'object') return afterFile ? sbFullDb(key, p, tok, origFetch) : sbFull(key, p, tok, origFetch);
       ks.forEach(function (k) { sbSet(v, k.split('/'), r.ch[k]); });
       var n = { text: JSON.stringify(v), upto: r.upto, at: m.at }; sbStore(key, n); return n;
-    }).catch(function (e) { try { console.warn('[TEST ERP] could not ask ERP data for changes of ' + p + ': ' + e.message); } catch (x) {} return SBMEM[key]; })
-      .then(function (x) { delete SBBUSY[key]; return x; });
-    SBBUSY[key] = job;
-    return job;
+    }).catch(function (e) { try { console.warn('[TEST ERP] could not ask ERP data for changes of ' + p + ': ' + e.message); } catch (x) {} return SBMEM[key]; });
   }
   /* LIVE COPIES (16 Nov), as the live ERP keeps its open lists fresh through Firebase's live connection: every 5 s (while the
    * page is in front) one tiny question — the newest save ERP data has applied (core.rt_live_upto). Only when it moved are the
