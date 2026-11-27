@@ -136,7 +136,10 @@ console.log('== Season planner, Fix all, Listing Errors card, Listing History (b
   const nBtn = h => (ttBtn(h).match(/\[title button\]/g) || []).length;
   ok('…the title rows\' buttons are there in both, now with each row\'s own count', nBtn(ba) > 0 && nBtn(ba) === nBtn(bb) && (bb.match(/>Fix [\d,]+ titles?</g) || []).length === nBtn(bb), nBtn(ba) + ' vs ' + nBtn(bb));
   const [ka, kb] = both(C => (typeof C.kfLeCardHtml === 'function' ? C.kfLeCardHtml('SP', null) + C.kfLeCardHtml('CPC', null) : ''));
-  same('Listing Errors: the "Search terms over the limit" card, both brands', ka, kb);
+  // 27 Nov 2026 (OUR WORD RULES + winning words): the card's line saying how it shortens changed ("— shortened to 249 bytes by our word
+  // rules; winning words added when they fit") — that line alone is set aside; the counts, families and buttons must be the same
+  const kfHow = h => h.replace(/(<span class="muted">— shortened to [\d,]+ bytes)[^<]*(<\/span>)/g, '$1 [how]$2');
+  same('Listing Errors: the "Search terms over the limit" card, both brands', kfHow(ka), kfHow(kb));
   const hist = C => {
     const now = Date.now();
     C.LH.rows = Array.from({ length: 300 }, (_, i) => ({ id: 'h' + i, kind: 'listing', at: now - i * 3600000, by: 'a@b.c', name: ['Asha', 'Ravi'][i % 2], approvedBy: '', brand: 'SP', sku: 'SP-' + String(i).padStart(5, '0'), asin: 'B0' + i,
@@ -172,7 +175,33 @@ console.log('== no new calls ==');
   // (listing-ai-test.js) proves no call on page open; its only new database calls are the house style approvals (lsGet / lsSave, Listing Rules' store)
   // fix-status.js (the Fix status bell, 24 Nov 2026) is set aside too: it never calls Amazon or the backend, and its database calls are
   // only its own shared /history documents (fixwatch, fixstatus, fixsc = the Seller Central records, fixseen_<user> = seen marks + open arrows)
-  const mine = changed.filter(f => f !== 'listing-ai.js' && f !== 'fix-status.js');
+  // kw-win.js (winning keywords, 27–28 Nov 2026) is set aside too: its backend calls are READS of the nightly caches (?cache=…, one
+  // baCall, kept per visit) — never Amazon; its database calls are only its own uploads (history/kwwin_*, history/kwsqp_*)
+  // aplus-audit.js and listing-match.js (A+ modules + description, 2 Dec 2026) are set aside too, each with its own check below: their new
+  // calls are READS of Amazon a person starts ("Read modules now" = ?lh=aplusdoc, the read Preview A+ makes), the team's A+ standard
+  // (listingrules/aplusstd, lsGet / lsSave like the marks) and one more cache read (?cache=lmAplus_Mods_<brand>); (4 Dec 2026) the Product
+  // details panel reads that ONE listing from Amazon when a person opens it (?lfix=get — read-only, kept for the session)
+  const mine = changed.filter(f => f !== 'listing-ai.js' && f !== 'fix-status.js' && f !== 'kw-win.js' && f !== 'aplus-audit.js' && f !== 'listing-match.js');
+  const now2 = f => fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8');
+  const count = (s, re) => (s.match(re) || []).length;
+  if (old['aplus-audit.js'] !== undefined && changed.includes('aplus-audit.js')) {
+    const a0 = old['aplus-audit.js'], a1 = now2('aplus-audit.js');
+    ok('aplus-audit.js: its new calls are one read-only A+ document read ("Read modules now"), the A+ standard (lsGet / lsSave) and the panel\'s listing read (?lfix=get) — no Amazon change',
+      count(a1, /baCall\(\{ lh: 'aplusdoc'/g) - count(a0, /baCall\(\{ lh: 'aplusdoc'/g) <= 1 && count(a1, /\blsGet\(/g) - count(a0, /\blsGet\(/g) <= 1 && count(a1, /\blsSave\(/g) - count(a0, /\blsSave\(/g) <= 1
+      && count(a1, /\b(baCall|lmNet|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g) - count(a0, /\b(baCall|lmNet|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g) <= 4
+      && count(a1, /baCall\(\{ lfix: 'get', brand, sku \}\)/g) <= 1 && !/lfix: '(?!get')|lfix=(?!get)|lcreate|imPost\(|setDoc\(|sqSendWithCheck\(/.test(a1));
+  }
+  if (old['listing-match.js'] !== undefined && changed.includes('listing-match.js')) {
+    const l0 = old['listing-match.js'], l1 = now2('listing-match.js');
+    ok('listing-match.js: its one new call is a cache read of the daily A+ module tab (?cache=lmAplus_Mods_<brand>)', count(l1, /\blmNet\(/g) - count(l0, /\blmNet\(/g) === 1
+      && /lmNet\(\{ cache: 'lmAplus_Mods_' \+ b \}\)/.test(l1) && count(l1, /\b(baCall|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g) === count(l0, /\b(baCall|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g));
+  }
+  if (old['kw-win.js'] !== undefined) {
+    const kw = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'kw-win.js'), 'utf8');
+    const ba = [...kw.matchAll(/\bbaCall\(([^)]*)\)/g)].map(m => m[1]);
+    const docs = [...kw.matchAll(/\bdoc\(db, '([^']+)', ([^)]+\))\)/g)].map(m => m[1]);
+    ok(`kw-win.js: no Amazon call; its backend calls only cache reads (${ba.length}), its database calls only history (${docs.length})`, ba.length > 0 && ba.every(a => /^\{ cache: name \}$/.test(a)) && !/\b(lmNet|imPost|fetch)\(/.test(kw) && docs.every(d => d === 'history'), JSON.stringify([ba, docs]));
+  }
   const was = mine.reduce((n, f) => n + calls(old[f]), 0);
   const now = mine.reduce((n, f) => n + calls(fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8')), 0);
   if (old['listing-ai.js'] !== undefined) {

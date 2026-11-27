@@ -342,8 +342,8 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
     const pop = C.el('spModalBox').innerHTML;
     ok('the Guard\'s Fix opens that popup for the listing ("Fix all search terms — NP-2")', run.plans.length === 1 && p.sku === 'NP-2' && /<b>Fix all search terms — NP-2<\/b>/.test(pop), strip(pop).slice(0, 200));
     ok('the plan: ONLY the risky words go — "pottery barn style" and "organic"; the rest as written', p.ok && p.after === 'cotton napkins, dinner table, cloth' && p.removed.map(r => r.w).join() === 'pottery,barn,style,organic' && p.removed.every(r => r.risk) && p.what === 'Take out 4 risky words', JSON.stringify([p.after, p.removed, p.why]));
-    ok('the popup shows it: the risky words struck through, "1 child · all will be ≤ 249 bytes · 4 risky words taken out"', /<s class="kf-cut is-risk" title="risky: another brand&#39;s name">pottery<\/s>|<s class="kf-cut is-risk" title="risky: another brand's name">pottery<\/s>/.test(pop)
-      && /<s class="kf-cut is-risk" title="risky: restricted claim">organic<\/s>/.test(pop) && /1 child · all will be ≤ 249 bytes · 4 risky words taken out/.test(strip(pop)), strip(pop).slice(0, 500));
+    ok('the popup shows it: the risky words struck through, "1 child · all will be ≤ 249 bytes · 4 risky words taken out"', /<s class="kf-cut is-risk" title="other brand">pottery<\/s><small class="kf-why">other brand<\/small>/.test(pop)   // the reason in plain words since 27 Nov 2026
+      && /<s class="kf-cut is-risk" title="restricted claim">organic<\/s>/.test(pop) && /1 child · all will be ≤ 249 bytes · 4 risky words taken out/.test(strip(pop)), strip(pop).slice(0, 500));
     ok('…a text within the limit is not shown in red (53 → 29 bytes)', /<span class="">\d+<\/span> → <span class="ok" data-kf-n="SP\|NP-2">\d+<\/span> bytes/.test(pop));
     ok('nothing sent yet', patches(C, false).length === 0 && patches(C, true).length === 0);
     const done = C.kfGo();

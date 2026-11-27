@@ -374,6 +374,21 @@ function lmAplusState(brand) {
 function lmAplusDocs(brand) {
   return (brand ? [brand] : ['SP', 'CPC']).flatMap(b => (LM.aplus[b] ? [...LM.aplus[b].docs.values()] : []));
 }
+/* (2 Dec 2026) A+ MODULES — the backend's daily read of each document's modules (Pricing-API/AplusModules.gs → cache tab
+ * lmAplus_Mods_<brand>, once it is deployed): per brand { at, atText, docs: { key → { n, ty (Amazon's module types), sub, ct, at } } },
+ * or null while it is not written — the A+ Content screen then says "not read yet" (or uses its own "Read modules now"). Read-only. */
+const LM_APLUS_MODS = { SP: null, CPC: null };
+async function lmAplusModsRead() {
+  await Promise.all(['SP', 'CPC'].map(async b => {
+    try {
+      const r = await lmNet({ cache: 'lmAplus_Mods_' + b });
+      const d = r && r.data;
+      if (d && d.docs) LM_APLUS_MODS[b] = { at: Number(d.atMs) || lmTime(d.at) || 0, atText: String(d.at || ''), docs: d.docs };
+    } catch (e) { /* not written yet */ }
+  }));
+  return LM_APLUS_MODS;
+}
+const lmAplusMods = brand => LM_APLUS_MODS[brand] || null;
 const LM_APLUS_RANK = { APPROVED: 4, SUBMITTED: 3, REJECTED: 2, DRAFT: 1 };
 /** One ASIN's A+ as Amazon's documents say: null when no A+ read is held for the brand (not checked). Else { docs (every document on the
  *  ASIN — or, when it has none of its own, on its parent ASIN), via ('asin' | 'parent' | ''), main (the one that counts: approved before

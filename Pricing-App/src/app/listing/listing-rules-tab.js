@@ -145,6 +145,7 @@ function renderLrules() {
   $('lrAllow').classList.toggle('hide', LR_VIEW !== 'issues');
   if (LR_VIEW === 'issues') lrAllowRender(cfg);
   lrHistoryRender();
+  if (typeof kwPanelDraw === 'function') kwPanelDraw();       // the "Winning keywords" card under the rules (listing/kw-win.js)
 
   // --- the issues view ---
   if (LR_VIEW === 'issues') {

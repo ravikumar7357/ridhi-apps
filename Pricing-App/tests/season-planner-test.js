@@ -516,11 +516,11 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
   {
     const { C, put, done } = setup({ only: true });
     const HL = ['Thanksgiving and Christmas table decor'];
-    // TR: the one rule's order — our brand name out (search words), then a) repeats, b) colours that are not its colour (the pad's coral,
-    // ivory, olive) — one at a time, until "thanksgiving christmas" fits
+    // TR: the one rule's order — our brand name KEPT (27 Nov 2026), then a) repeats, b) colours that are not its colour (the pad's coral,
+    // ivory, olive), c) joining words — one at a time, until "thanksgiving christmas" fits
     const kwTR = sized(C, 'cotton blue ridhi wedding reusable napkin for the with block print reusable napkins', 259);
     put('TR', TITLE('Blue'), { parent: 'PT1', kw: kwTR, hl: HL });
-    // PB: our brand names (out of search words, as in Fix all search terms) — the trim stops as soon as it fits
+    // PB: our brand names — never taken out of the search words since 27 Nov 2026 (before: they went first)
     const kwPB = sized(C, 'ridhi whimsical corner cpc cotton linen blue 18 inch napkin tablecloth runner placemat wedding brunch', 240);
     put('PB', TITLE('Blue'), { parent: 'PT1', kw: kwPB, hl: HL });
     // OV: 263 letters with both seasons already there: "Search words too long" → trimmed to ≤ 249 (repeats), with your OK
@@ -534,12 +534,14 @@ const TITLE = color => `Ridhi Cloth Napkins 100% Cotton 18 x 18 Inch Block Print
     put('NS', TITLE('Blue'), { parent: 'PT1', kw: kwNS, hl: HL });
     done();
     const by = byId(C.spCompute(NOV));
-    ok('TR: trim → "Needs your OK": our brand name out, then the repeats (reusable, napkins), then the colours that are not its colour (coral, ivory, olive) — until it fits',
-      by.TR.status === 'look' && JSON.stringify(by.TR.trim.kw.slice().sort()) === JSON.stringify(['coral', 'ivory', 'napkins', 'olive', 'reusable', 'ridhi']) && C.lrKwBytes(by.TR.kwAfter) <= 249
+    // OUR WORD RULES (27 Nov 2026): our brand name STAYS in the search words now — so one joining word ("with") goes too
+    ok('TR: trim → "Needs your OK": our brand name KEPT, then the repeats (reusable, napkins), the colours that are not its colour (coral, ivory, olive), a joining word (with) — until it fits',
+      by.TR.status === 'look' && JSON.stringify(by.TR.trim.kw.slice().sort()) === JSON.stringify(['coral', 'ivory', 'napkins', 'olive', 'reusable', 'with']) && C.lrKwBytes(by.TR.kwAfter) <= 249 && /\bridhi\b/.test(by.TR.kwAfter)
         && /\bfor\b/.test(by.TR.kwAfter) && / thanksgiving christmas$/.test(by.TR.kwAfter), JSON.stringify([by.TR.status, by.TR.why, by.TR.trim.kw, C.lrKwBytes(by.TR.kwAfter)]));
     ok('…its product, colour, material and print words stay (cotton, blue, napkin, block print) and every other word too', ['cotton', 'blue', 'napkin', 'block', 'print', 'wedding', 'alpha'].every(w => new RegExp('\\b' + w + '\\b').test(by.TR.kwAfter)), by.TR.kwAfter);
-    ok('PB: our brand names (Ridhi, Whimsical Corner, CPC) go out of the search words first — then it fits: nothing else taken out, "Needs your OK"',
-      by.PB.status === 'look' && by.PB.trim.kw.join(' ') === 'ridhi whimsical corner cpc' && ['cotton', 'blue', '18', 'inch', 'napkin', 'linen', 'tablecloth'].every(w => new RegExp('\\b' + w + '\\b').test(by.PB.kwAfter)), by.PB.status + ' ' + by.PB.why + ' ' + by.PB.trim.kw);
+    // OUR WORD RULES (27 Nov 2026): our brand names are never taken out — with nothing else safe to remove it is "Fix by hand" (before: they went)
+    ok('PB: our brand names (Ridhi, Whimsical Corner, CPC) are NEVER taken out of the search words — nothing else safe to remove → Fix by hand, nothing changed',
+      by.PB.status === 'fix' && by.PB.why === 'search words full: 240 of 249, nothing safe to remove' && by.PB.kw === kwPB, by.PB.status + ' ' + by.PB.why + ' ' + (by.PB.trim && by.PB.trim.kw));
     ok('OV: 263 of 249 → "Search words too long" → trimmed to ≤ 249, Needs your OK', by.OV.kwOver && by.OV.status === 'look' && C.lrKwBytes(by.OV.kw) === 263 && C.lrKwBytes(by.OV.kwAfter) <= 249
       && by.OV.trim.kw.every(w => /^(reusable|washable|dinner|napkins)$/.test(w)), JSON.stringify([by.OV.status, by.OV.trim.kw, C.lrKwBytes(by.OV.kwAfter)]));
     ok(`NS: ${nsBytes} of 249 and only important words → Fix by hand: "search words full: ${nsBytes} of 249, nothing safe to remove"`, by.NS.status === 'fix' && by.NS.why === `search words full: ${nsBytes} of 249, nothing safe to remove`, by.NS.why);

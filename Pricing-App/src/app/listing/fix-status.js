@@ -485,12 +485,17 @@ const fsUnseen = () => fsAlerts(FS.recs).filter(r => !FS.seen.has(r.id));
 function fsBellDraw() {
   const btn = $('fsBell');
   if (!btn) return;
-  btn.hidden = !FS.on;
-  const n = FS.on && !fsLocal() ? fsUnseen().length : 0;          // no red count at 0, nor on a test / local copy
+  // My tasks (sales/tasks.js, 25 Nov 2026): the bell also shows for anyone with tasks, Listing user or not
+  const tk = typeof tkBellOn === 'function' && tkBellOn();
+  btn.hidden = !FS.on && !tk;
+  const fixN = FS.on && !fsLocal() ? fsUnseen().length : 0;      // no red count at 0, nor on a test / local copy
+  const tkN = tk && typeof tkBellUnseen === 'function' ? tkBellUnseen().length : 0;
+  const n = fixN + tkN;
   const badge = btn.querySelector ? btn.querySelector('.fs-badge') : null;
   if (badge) { badge.hidden = !n; badge.textContent = n > 99 ? '99+' : String(n); }
-  btn.setAttribute('aria-label', n ? `Fix status: ${n} not accepted by Amazon` : 'Fix status: nothing waiting');
-  btn.title = n ? `${n} fix${n === 1 ? '' : 'es'} not accepted by Amazon` : 'Fix status — nothing rejected by Amazon';
+  const words = [fixN ? `${fixN} fix${fixN === 1 ? '' : 'es'} not accepted by Amazon` : '', tkN ? `${tkN} on your tasks` : ''].filter(Boolean).join(' · ');
+  btn.setAttribute('aria-label', n ? `${FS.on ? 'Fix status and tasks' : 'My tasks'}: ${words}` : FS.on ? 'Fix status: nothing waiting' : 'My tasks: nothing new');
+  btn.title = n ? words : FS.on ? 'Fix status — nothing rejected by Amazon' : 'My tasks — nothing new';
   btn.classList.toggle('has-n', !!n);
 }
 // Where a fix was done, in words: "Sellora" / "Seller Central (marked by Asha K)" / "Seller Central (auto-detected)" / "Seller Central".
@@ -524,8 +529,12 @@ function fsSecHtml(k, title, items, t) {
 }
 function fsPanelHtml(now) {
   const t = now || Date.now();
+  // My tasks (sales/tasks.js): the third section for everyone with tasks; a user without Listing sees only it
+  const tk = typeof tkBellOn === 'function' && tkBellOn() && typeof tkBellSecHtml === 'function' ? tkBellSecHtml(!FS.on) : '';
+  if (!FS.on) return '<div class="fs-p-h"><b>My tasks</b><button type="button" class="fs-x" data-fs-close="1" aria-label="Close">×</button></div>'
+    + `<div class="fs-secs">${tk}</div><div class="fs-p-f"><span></span>${typeof tkMayOpenBoard === 'function' && tkMayOpenBoard() ? '<button type="button" class="fs-all" data-tk-board="1">See all tasks →</button>' : ''}</div>`;
   const head = '<div class="fs-p-h"><b>Not accepted by Amazon</b><button type="button" class="fs-x" data-fs-close="1" aria-label="Close">×</button></div>';
-  const foot = '<div class="fs-p-f"><span></span><button type="button" class="fs-all" data-fs-all="1">See all fix status →</button></div>';
+  const foot = tk + '<div class="fs-p-f"><span></span><button type="button" class="fs-all" data-fs-all="1">See all fix status →</button></div>';
   // a test site / a local copy: nothing is sent to Amazon from it — its own words first, then what is there
   const local = fsLocal() ? '<div class="fs-empty">Test site — fixes aren\'t sent to Amazon here, so there\'s nothing to track. Real fix status shows on live Sellora.</div>' : '';
   if (!FS.loaded) return head + local + '<div class="fs-empty muted">Checking your fixes against Amazon…</div>' + foot;
@@ -547,7 +556,7 @@ function fsPanelDraw() {
 function fsPanel(open) {
   const box = $('fsPanel');
   const btn = $('fsBell');
-  FS.open = !!open && FS.on;                                     // the bell shows only when FS.on: a click on it always opens this
+  FS.open = !!open && (FS.on || (typeof tkBellOn === 'function' && tkBellOn()));   // the bell shows only when FS.on or there are tasks: a click on it always opens this
   if (!box) return;
   // the panel lives on the page itself, so nothing in the menu bar can clip or cover it
   if (FS.open && typeof document !== 'undefined' && document.body && box.parentNode && box.parentNode !== document.body && document.body.appendChild) document.body.appendChild(box);

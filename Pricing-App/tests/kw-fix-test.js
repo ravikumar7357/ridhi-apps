@@ -84,9 +84,11 @@ const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => 
     ok('2 its important words stay the first time though the title says them: napkins (its product), cotton (its material), Blue (its colour)', !why('napkins') && !why('cotton') && !why('Blue')
       && /^napkins cotton dinner party/.test(s.after) && / Blue /.test(s.after), s.after);
     ok('3 punctuation and stop words out: "&", the, for — and "party;" kept as "party"', why('the') === 'stop word' && why('for') === 'stop word' && s.removed.some(r => r.w === '&' && r.why === 'punctuation') && / party /.test(' ' + s.after + ' '));
-    ok('4 brand names (ours: CPC, "Whimsical Corner" as two words) and ASINs out', why('CPC') === 'brand name' && why('Whimsical') === 'brand name' && why('Corner') === 'brand name' && why('B0ABCDEFGH') === 'ASIN');
-    ok('…250 bytes after those: the last other word goes ("cut to fit": alpha0021) → 241, every important word kept', s.cut && s.fits && s.bytesAfter === 241 && why('alpha0021') === 'cut to fit'
-      && s.after === 'napkins cotton dinner party wedding table linen kitchen Blue ' + words('alpha', 21, 4).join(' '), s.bytesAfter + ' ' + s.after);
+    // OUR WORD RULES (27 Nov 2026): our brand names STAY once (they were taken out before) — ASINs still go
+    ok('4 our brand names KEPT once (CPC, "Whimsical Corner" — protected like the important words); the ASIN out', !why('CPC') && !why('Whimsical') && !why('Corner') && why('B0ABCDEFGH') === 'ASIN'
+      && / CPC Whimsical Corner Blue /.test(s.after), s.after);
+    ok('…268 bytes after those (our brands stay): the last other words go ("cut to fit": alpha0019–0021) → 241, every important word and brand kept', s.cut && s.fits && s.bytesAfter === 241 && why('alpha0021') === 'cut to fit' && why('alpha0019') === 'cut to fit'
+      && s.after === 'napkins cotton dinner party wedding table linen kitchen CPC Whimsical Corner Blue ' + words('alpha', 19, 4).join(' '), s.bytesAfter + ' ' + s.after);
     const s2 = C.kfShorten(K2, { title: TITLE('Blue'), brands });
     ok('5 still over: words cut from the END until it fits (the start stays): 280 → 245, word035…word039 out', s2.cut && s2.bytesAfter === 245 && s2.after === words('word', 35, 3).join(' ')
       && s2.removed.map(r => r.w).join() === 'word035,word036,word037,word038,word039' && s2.removed.every(r => r.why === 'cut to fit'));
@@ -103,7 +105,7 @@ const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => 
     const g = C.faGroups('SP', 'PK', C.faKids('SP', 'PK')).find(x => x.kind === 'kw');
     ok('one row, kind kw: K1, K2, K5, K6 (not K3 short, not K4 at exactly 249)', g && g.kids.map(k => k.sku).sort().join() === 'K1,K2,K5,K6', g && g.kids.map(k => k.sku).join());
     const html = C.faBlockHtml('SP', 'PK');
-    ok('the block: what we will do, and ONE button "Fix all 4 children" (K6 counts: read whole when the preview opens)', /Shorten to 249 bytes — brand names and ASINs out, then repeats, a wrong shape or colour, low-value words and other words until it fits; important words kept, nothing added/.test(html)
+    ok('the block: what we will do, and ONE button "Fix all 4 children" (K6 counts: read whole when the preview opens)', /Shorten to 249 bytes — repeats, other brands' names and ASINs out; winning words added when they fit; then a wrong shape or colour, low-value words, the weakest added word and other words until it fits; our brands and important words kept once/.test(html)
       && />Fix all 4 children</.test(html), strip(html).slice(0, 500));
     C.FA.open.add('SP|PK|' + g.key);
     const open = C.faBlockHtml('SP', 'PK');
@@ -124,7 +126,9 @@ const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => 
     ok('the total on top: "4 children · all will be ≤ 249 bytes"', /4 children · all will be ≤ 249 bytes/.test(strip(html)), strip(html).slice(0, 200));
     ok('a row per child: SKU, colour · size, bytes before → after (K1 291 → 241, K6 360 → 243)', /<b>K1<\/b><small>Blue · 18 x 18 Inch<\/small>/.test(html)
       && /data-kf-key="SP\|K1"[\s\S]*?<span class="err">291<\/span> → <span class="ok" data-kf-n="SP\|K1">241<\/span> bytes/.test(html) && /<span class="err">360<\/span> → <span class="ok" data-kf-n="SP\|K6">243<\/span>/.test(html), strip(html).slice(0, 600));
-    ok('the removed words struck through, with why on hover', /<s class="kf-cut" title="repeated">dinner<\/s>/.test(html) && /<s class="kf-cut" title="brand name">CPC<\/s>/.test(html) && /<s class="kf-cut" title="cut to fit">word035<\/s>/.test(html));
+    ok('the removed words struck through, with the reason after them (duplicate · limit); our brand kept 🔒', /<s class="kf-cut" title="duplicate">dinner<\/s><small class="kf-why">duplicate<\/small>/.test(html) && /<s class="kf-cut" title="limit">word035<\/s>/.test(html)
+      && !/<s class="kf-cut"[^>]*>CPC<\/s>/.test(html) && /<span class="kf-lock" title="protected: our brand">🔒CPC<\/span>/.test(html), html.slice(html.indexOf('SP|K1'), html.indexOf('SP|K1') + 600));
+    ok('no winning-keyword data here: the popup says so — nothing is added', /No winning-keyword data/.test(html) && !/kf-add/.test(html), strip(html).slice(0, 400));
     ok('a search box, Select all (on), a tick per child (on), the new text to edit', /data-kf-q/.test(html) && /data-kf-all checked/.test(html) && (html.match(/data-kf-tick="[^"]+" checked/g) || []).length === 4 && (html.match(/<textarea data-kf-edit=/g) || []).length === 4);
     ok('…and nothing sent yet: no patch at all', !C.calls.some(c => c.lfix === 'patch'));
     // search: the rows that do not match are hidden (in place in the page; drawn hidden here), the ticks stay as they were

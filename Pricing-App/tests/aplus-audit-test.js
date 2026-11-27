@@ -43,7 +43,7 @@ function sample(o) {
   };
   if (o.docs) o.docs(docs, doc);
   const sales = { [A('TC-1')]: [9, 1000], [A('TC-4')]: [4, 400], [A('TC-6')]: [7, 900], [A('NP-1')]: [1, 50], [A('NP-2')]: [2, 70], [A('RN-1')]: [3, 300], [A('RN-2')]: [1, 10], [A('CD-2')]: [2, 120], [A('LS-1')]: [1, 5], [A('TC-5')]: [1, 77] };
-  return { kids, docs, sales, now };
+  return { kids, docs, sales, now, pd: o.pd || {} };
 }
 // The cache tabs as ListingMatch.gs writes them: the listings, the catalog (with each child's parent), lmMeta.aplus and the A+ tabs.
 function cacheOf(S, o) {
@@ -58,6 +58,9 @@ function cacheOf(S, o) {
         readAt: at, rs: 'Active', price: 20, ch: 'AMAZON_NA', rAt: at - 30 * 60000, fba: k.qty, fyp: null, inSupReport: false, sup: null };
       cat[k.asin] = { asin: k.asin, t: 'Title of ' + k.sku, brand: '', img: { MAIN: { u: `https://m.media-amazon.com/images/I/${k.sku.replace(/\W/g, '')}.jpg`, w: 2000, h: 2000 } }, pa: k.psku ? [A(k.psku)] : [], kids: [], theme: '', tattrs: [],
         vals: {}, bc: 'Home & Kitchen › Tablecloths', rk: { main: null, sub: null }, aplus: null, readAt: at };
+      // (3 Dec 2026) a product's attributes as ListingMatch keeps them: sp (the spec attributes filled), va (values), pt; the catalogue's brand
+      const pd = (S.pd || {})[k.sku];
+      if (pd) { ['sp', 'va', 'pt'].forEach(f => { if (f in pd) items[k.sku][f] = pd[f]; }); if ('brand' in pd) cat[k.asin].brand = pd.brand; }
     });
     tabs[`lmListings_${b}_1_0`] = { b, items };
     tabs[`lmCatalog_${b}_1_0`] = { b, items: cat };
@@ -92,8 +95,8 @@ function setup(opts) {
       .concat(mine.map(k => ({ sku: k.sku, asin: k.asin, st: 'BUYABLE,DISCOVERABLE', pt: 'HOME', t: 'Title of ' + k.sku, lvl: k.psku ? 'child' : '', psku: k.psku, pa: k.psku ? A(k.psku) : '', c: '', z: '', img: {}, live: {}, iss: [] }))) };
     HEALTH[b] = { at: new Date(), rows: mine.map(k => Object.assign({ sku: k.sku, asin: k.asin, parent: k.psku ? A(k.psku) : '', title: 'Title of ' + k.sku, qty: k.qty, status: 'Active', channel: 'AMAZON_NA', price: 20 }, (opts.health || {})[k.sku] || {})) };
   });
-  const calls = [], copied = [];
-  const net = { tabs: opts.noCache ? null : cacheOf(S, opts.cache), doc: opts.docAnswer || null, pub: opts.pub || {} };
+  const calls = [], copied = [], wsOpened = [];
+  const net = { tabs: opts.noCache ? null : cacheOf(S, opts.cache), doc: opts.docAnswer || null, pub: opts.pub || {}, listing: opts.listing || {} };
   const ctx = {
     $: el, document: { addEventListener() {}, querySelectorAll: () => [], createElement: () => ({ click() {} }), querySelector: () => null },
     window: { scrollTo() {}, scrollBy() {}, addEventListener() {}, __TEST_ERP: false },
@@ -102,7 +105,7 @@ function setup(opts) {
     navigator: { clipboard: { writeText: async t => { copied.push(t); } } },
     BRAND_NAME: { SP: 'Ridhi', CPC: 'CPC' }, IML, HEALTH, LR_CAT: { SP: {}, CPC: {} }, H_LOADED: true, ME: { email: 'vishesh.g@example.com', tabs: ['health'] },
     SALES30: opts.noSales ? { asins: {}, at: '' } : { asins: S.sales, at: opts.salesAt || new Date(Date.now() - 2 * DAY).toISOString().slice(0, 10) + ' 09:00' },
-    WEEKLY: { rows: opts.weekly || {} }, LI_WS: { aplus: { SP: {}, CPC: {} }, liveV: 0 },
+    WEEKLY: { rows: opts.weekly || {} }, LI_WS: { aplus: { SP: {}, CPC: {} }, liveV: 0, schema: opts.schema || {}, live: opts.live || {} },
     parentName: (b, asin, fallback) => fallback,
     baCall: async q => {
       calls.push(q);
@@ -113,6 +116,7 @@ function setup(opts) {
       }
       if (q.lh === 'aplusdoc') { if (opts.docFail) throw new Error('Amazon answered 500'); return net.doc ? net.doc(q) : { ok: true, key: q.doc, name: 'Tablecloth A+', status: 'APPROVED', type: 'Premium', updated: '2026-10-29T10:00:00Z', reasons: [],
         modules: [{ type: 'STANDARD_HEADER_IMAGE_TEXT', texts: ['Made by hand', 'Printed in Jaipur'], imgs: [{ id: 'aplus-media/sc/abc.jpg', alt: 'A table' }] }], asins: [] }; }
+      if (q.lfix === 'get') { const a = net.listing[q.sku]; if (!a || a === 'fail') throw new Error('Amazon answered 503'); return JSON.parse(JSON.stringify(Object.assign({ ok: true, brand: q.brand, sku: q.sku }, a))); }   // (4 Dec 2026) the panel's live read
       if (q.lh === 'aplusasin') { const map = {}; String(q.asins).split(',').forEach(a => { if (a in net.pub) map[a] = net.pub[a]; }); return { ok: true, map }; }
       return {};
     },
@@ -125,18 +129,19 @@ function setup(opts) {
     },
     sqSendWithCheck: () => Promise.resolve({}), sqIsOpen: () => false,
     sqName: e => String(e || '').split('@')[0].split(/[._-]+/).map(w => w[0].toUpperCase() + w.slice(1)).join(' '),
-    showTab() {}, lrNorm: s => String(s || '').toLowerCase(), lrKwBytes: s => String(s || '').length, lrPicId: u => String(u), lrWholeCut: s => String(s || ''),
+    showTab() {}, hFocusOpen: (b, pa) => { wsOpened.push(b + '|' + pa); }, lrNorm: s => String(s || '').toLowerCase(), lrKwBytes: s => String(s || '').length, lrPicId: u => String(u), lrWholeCut: s => String(s || ''),
     imThumb: u => u.replace(/\.jpg$/, '._SL120_.jpg'),
   };
   const src = L('listing-match.js') + '\n' + L('family-check.js') + '\n' + L('aplus-audit.js')
     + '\n;return { APC, FC, apcBuild, apcGroups, apcDraw, apcOpen, apcClick, apcFilter, apcCsv, apcDocsCsv, apcDocs, apcShownRows, apcFixList, apcSummary, apcOkSetMany, apcOkUndo, apcPreview, apcWhat, apcRowView,'
-    + ' aplusCounts, aplusAccuracyReport, APC_CSV_COLS, APC_DOC_COLS, APC_ST, LM, lmEnsure, lmRefresh, lmStoreUse, lmOk, lmGetAplus, lmAplusDocs, lmAplusState, lmAplusOf, lmAplusFresh, lmVersion, lmDataLabel };';
+    + ' aplusCounts, aplusAccuracyReport, APC_CSV_COLS, APC_DOC_COLS, APC_ST, LM, lmEnsure, lmRefresh, lmStoreUse, lmOk, lmGetAplus, lmAplusDocs, lmAplusState, lmAplusOf, lmAplusFresh, lmVersion, lmDataLabel,'
+    + ' apcReadMods, apcStdSave, apcModsOf, apcVsStd, apcFlatList, apcModsDailyLoad, lmAplusMods, lmAplusModsRead, apcPd, apcKey, apcSideHtml, APC_PD_ROWS, APC_PD_ALL, apcPdVal, apcOutside };';
   const C = new Function(...Object.keys(ctx), src)(...Object.values(ctx));
   const saved = { copy: opts.savedCopy || null, puts: 0 };
   C.lmStoreUse({ get: async () => saved.copy, put: async c => { saved.copy = JSON.parse(JSON.stringify(c)); saved.puts++; return true; } });
   const body = () => els.apcBody.innerHTML;
   const click = d => C.apcClick({ dataset: d });
-  return { C, S, els, el, calls, copied, store, net, saved, IML, HEALTH, ctx, body, click, text: () => strip(body()) };
+  return { C, S, els, el, calls, copied, wsOpened, store, net, saved, IML, HEALTH, ctx, body, click, text: () => strip(body()) };
 }
 // A page opened on A+ Content, the cache read.
 async function open(opts) {
@@ -255,7 +260,7 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
   T.click({ apc: 'grp', apcV: groups[0].f.fk });
   ok('opened: its products with picture, SKU, ASIN link, status, document, type, last updated, 30-day sales and one "What to do"', screenRows(T).length === 5 && /<img class="cc-pic"/.test(T.body())
     && T.body().includes(`<a href="https://www.amazon.com/dp/${A('TC-4')}" target="_blank" rel="noopener"`)
-    && /TC-1 .* ✓ Live Tablecloth A\+ Premium \d{1,2} \w{3} \d{4} \$1,000 Nothing to do — A\+ is live/.test(screenRows(T).find(r => r.key.endsWith(A('TC-1'))).text), screenRows(T).find(r => r.key.endsWith(A('TC-1'))).text);
+    && /TC-1 .* ✓ Live Tablecloth A\+ Premium \d{1,2} \w{3} \d{4} not read yet not read \$1,000 Nothing to do — A\+ is live/.test(screenRows(T).find(r => r.key.endsWith(A('TC-1'))).text), screenRows(T).find(r => r.key.endsWith(A('TC-1'))).text);   // + Modules, Product details (2–3 Dec 2026; no attributes in this cache: "not read")
   ok('inside a family: what needs doing first (the biggest sales first), the live ones last', screenRows(T).map(r => r.key.split('|')[1]).join() === [A('TC-6'), A('TC-4'), A('TC-1'), A('TC-2'), A('TC-3')].join(), screenRows(T).map(r => r.key).join());
   ok('the family gap: the exact ASINs to add, and Copy ASIN list', new RegExp(`Family gap: 1 product of this family has no A\\+ while the others are on “Tablecloth A\\+”\\. Add this ASIN to that document: ${A('TC-4')} Copy ASIN list`).test(T.text()), T.text().slice(700, 1200));
   await C.apcClick({ dataset: { apc: 'copy', apcV: A('TC-4'), apcId: 'gap:' + groups[0].f.fk } });
@@ -338,9 +343,9 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
   ok('an unused document: "Not on any live product"', D('D-UNUSED').unused && D('D-UNUSED').liveN === 0 && /Old launch page ✓ Live Not on any live product/.test(T.text()));
   ok('a document on the parent ASIN counts the children it covers (not unused)', !D('D-PAR').unused && D('D-PAR').liveN === 2);
   ok('"on N products" counts only OUR listings: the parent document is on our 2 children, its parent ASIN is an "other" ASIN', D('D-PAR').onOurs.length === 2 && D('D-PAR').extra.length === 1 && D('D-PAR').extra[0].asin === A('CS-P') && D('D-PAR').extra[0].parent
-    && /Coasters \(on the parent\) ✓ Live Ridhi · type not given · updated \d{1,2} \w+ \d{4} · on 2 products at Amazon · 2 live in Sellora \+ 1 other ASIN \(parents \/ closed \/ not in our listings\) /.test(T.text()), D('D-PAR').onOurs.length + ' ' + (T.text().match(/Coasters \(on the parent\).{0,260}/) || [''])[0]);
+    && /Coasters \(on the parent\) ✓ Live Ridhi · type not given · updated \d{1,2} \w+ \d{4} · on 2 products at Amazon · 2 live in Sellora (?:Modules not read yet — “Read modules now” reads them \(read-only\) )?\+ 1 other ASIN \(parents \/ closed \/ not in our listings\) /.test(T.text()), D('D-PAR').onOurs.length + ' ' + (T.text().match(/Coasters \(on the parent\).{0,260}/) || [''])[0]);
   ok('…an ASIN not in our listing cache is not counted: "on 0 products" + 1 other ASIN, the list opens to it', D('D-UNUSED').onOurs.length === 0 && D('D-UNUSED').extra.length === 1 && !D('D-UNUSED').extra[0].parent
-    && /Old launch page ✓ Live Not on any live product Ridhi · Basic · updated \d{1,2} \w+ \d{4} · on 0 products at Amazon · 0 live in Sellora \+ 1 other ASIN \(parents \/ closed \/ not in our listings\) B0NOTOURS1/.test(T.text())
+    && /Old launch page ✓ Live Not on any live product Ridhi · Basic · updated \d{1,2} \w+ \d{4} · on 0 products at Amazon · 0 live in Sellora (?:Modules not read yet — “Read modules now” reads them \(read-only\) )?\+ 1 other ASIN \(parents \/ closed \/ not in our listings\) B0NOTOURS1/.test(T.text())
     && /<details class="apc-dx muted"><summary>\+ 1 other ASIN \(parents \/ closed \/ not in our listings\)<\/summary><span class="ui-mono">[^<]*<small>\(parent\)<\/small><\/span><\/details>/.test(T.body()));
   ok('…a document with only our ASINs has no "other" line', D('D-LIVE').onOurs.length === 3 && !D('D-LIVE').extra.length && (T.body().match(/class="apc-dx muted"/g) || []).length === 2);
   {
@@ -349,7 +354,7 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     X.click({ apc: 'view', apcV: 'doc' });
     const xl = X.C.apcDocs(X.C.apcBuild()).find(x => x.d.k === 'D-LIVE');
     ok('a document with 6 ASINs, 3 of them ours: "on 3 products" + "3 other ASINs", the parent marked', xl.on.length === 6 && xl.onOurs.length === 3 && xl.extra.length === 3 && xl.extra.filter(e => e.parent).length === 1
-      && /Tablecloth A\+ ✓ Live Ridhi · Premium · updated \d{1,2} \w+ \d{4} · on 3 products at Amazon · 3 live in Sellora \+ 3 other ASINs \(parents \/ closed \/ not in our listings\) B0RNPXXXXX \(parent\) B0CLOSED01 B0NOTOURS2/.test(X.text()), X.text().slice(300, 900));
+      && /Tablecloth A\+ ✓ Live Ridhi · Premium · updated \d{1,2} \w+ \d{4} · on 3 products at Amazon · 3 live in Sellora (?:Modules not read yet — “Read modules now” reads them \(read-only\) )?\+ 3 other ASINs \(parents \/ closed \/ not in our listings\) B0RNPXXXXX \(parent\) B0CLOSED01 B0NOTOURS2/.test(X.text()), X.text().slice(300, 900));
     const xc = X.C.apcDocsCsv(), xr = csvRows(xc.text).find(r => r[1] === 'Tablecloth A+');
     ok('…the sheet: Products on it 3, Other ASINs on it 3', xr[5] === '3' && xr[6] === '3' && X.C.APC_DOC_COLS[6] === 'Other ASINs on it (parents / closed / not in our listings)', xr.join('|'));
     const xn = X.C.aplusCounts();
@@ -388,7 +393,9 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     };
     const all = check('all products');
     ok('the sheet\'s columns: Brand · Family · SKU · ASIN · Stock · 30-day sales · A+ status · Document name · Type · Last updated · Amazon\'s reason · What to do · Amazon link · Data time · Priority',
-      csvRows(all.csv.text)[0].join(' · ') === "Brand · Family · SKU · ASIN · Stock · 30-day sales · A+ status · Document name · Type · Last updated · Amazon's reason · What to do · Amazon link · Data time · Priority" && all.csv.text.charCodeAt(0) === 0xFEFF);
+      // the first 14 exactly where they were; the modules and product-details columns (2–3 Dec 2026) after them; Priority still last
+      csvRows(all.csv.text)[0].slice(0, 14).join(' · ') === "Brand · Family · SKU · ASIN · Stock · 30-day sales · A+ status · Document name · Type · Last updated · Amazon's reason · What to do · Amazon link · Data time"
+      && csvRows(all.csv.text)[0].slice(14).join(' · ') === 'Modules · Module types · Basic / Premium · Only Brand Story · Modules read · Product details filled · Missing attributes · Priority' && all.csv.text.charCodeAt(0) === 0xFEFF);
     const tc6 = all.rows.find(r => r[2] === 'TC-6');
     ok('a row of the sheet, whole', tc6[0] === 'Ridhi' && tc6[1] === 'Floral Tablecloth' && tc6[3] === A('TC-6') && tc6[4] === '5' && tc6[5] === '900.00' && tc6[6] === 'Rejected' && tc6[7] === 'Tablecloth winter' && tc6[8] === 'Basic'
       && /^\d{1,2} \w{3} \d{4}$/.test(tc6[9]) && tc6[10] === 'Image has a web link' && tc6[11] === 'Fix: Image has a web link, then resubmit' && tc6[12] === 'https://www.amazon.com/dp/' + A('TC-6') && /^\d{1,2} \w{3} \d{2}:\d{2}$/.test(tc6[13]), tc6.join(' | '));
@@ -412,7 +419,8 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
   }
 
   console.log('== no Amazon call by itself; Preview A+ on a click only ==');
-  ok('opening and using the screen made only cache reads (lmMeta and the tabs it names)', T.calls.every(q => q.cache) && T.calls.filter(q => /^lmAplus_/.test(q.cache)).length === 2, JSON.stringify(T.calls.filter(q => !q.cache)));
+  ok('opening and using the screen made only cache reads (lmMeta and the tabs it names; + the daily module tabs, 2 Dec 2026)', T.calls.every(q => q.cache) && T.calls.filter(q => /^lmAplus_(SP|CPC)$/.test(q.cache)).length === 2
+    && T.calls.filter(q => /^lmAplus_Mods_(SP|CPC)$/.test(q.cache)).length === 2, JSON.stringify(T.calls.filter(q => !q.cache)));
   T.click({ apc: 'grp', apcV: groups[0].f.fk });
   await C.apcPreview('SP|D-LIVE', 'SP|' + A('TC-1'));
   ok('Preview A+: ONE read of that one document (?lh=aplusdoc), shown under the row — its modules, texts and pictures small', T.calls.filter(q => q.lh === 'aplusdoc').length === 1 && T.calls.find(q => q.lh === 'aplusdoc').doc === 'D-LIVE'
@@ -511,7 +519,9 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
   {
     const code = L('aplus-audit.js');
     ok('aplus-audit.js reads the A+ data only through lmGetAplus / lmAplusDocs / lmAplusState (no cache tab, no Firestore, no fetch of its own)', !/lmAplus_|lmMeta|lmListings_|lmCatalog_|getDoc\(|setDoc\(|fetch\(/.test(code) && /lmGetAplus\(/.test(code) && /lmAplusDocs\(/.test(code));
-    ok('its only backend calls are the two a person starts: Preview A+ and the accuracy report', (code.match(/baCall\(/g) || []).length === 3 && (code.match(/baCall\(\{ lh: 'aplusdoc'/g) || []).length === 2 && (code.match(/baCall\(\{ lh: 'aplusasin'/g) || []).length === 1);
+    ok('its only backend calls are the ones a person starts: Preview A+, the accuracy report, "Read modules now" (2 Dec 2026) and the Product details panel\'s listing read (4 Dec 2026) — all reads', (code.match(/baCall\(/g) || []).length === 5 && (code.match(/baCall\(\{ lh: 'aplusdoc'/g) || []).length === 3 && (code.match(/baCall\(\{ lh: 'aplusasin'/g) || []).length === 1
+      && (code.match(/baCall\(\{ lfix: 'get', brand, sku \}\)/g) || []).length === 1 && (code.match(/lfix/g) || []).length === (code.match(/lfix: 'get'|\?lfix=get/g) || []).length
+      && !/lcreate|method: 'POST'|imPost\(|sqSendWithCheck\(/.test(code));
     ok('every name it adds starts with apc / APC (and the two console names)', (code.match(/^(?:async )?function (\w+)/gm) || []).every(f => /function (apc|aplusCounts|aplusAccuracyReport)/.test(f)) && (code.match(/^(?:const|let) (\w+)/gm) || []).every(f => /^(?:const|let) (apc|APC)/.test(f)),
       (code.match(/^(?:const|let) (\w+)/gm) || []).filter(f => !/^(?:const|let) (apc|APC)/.test(f)).join());
     ok('no "live" Amazon read on opening: apcOpen calls only the saved-data loaders', !/baCall/.test(code.slice(code.indexOf('async function apcOpen'), code.indexOf('const apcPaneOn'))));
@@ -581,6 +591,229 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
       && new RegExp('A\\+ is read once a day after the ' + apGs + ':00 refresh').test(strip(T.els.apcMeta.innerHTML)), apGs + ' vs ' + apJs);
     ok('the browser sync line names its own hours (every 2 hours, 9 AM – 7 PM; origin/listing-sync-2h) — the backend passes are not on that clock', /const LY_CYCLE_MS = 2 \* 60 \* 60 \* 1000;/.test(syncJs) && /const LY_FROM_HOUR = 9;/.test(syncJs) && /const LY_TO_HOUR = 19;/.test(syncJs)
       && /next sync \$\{/.test(syncJs) && !/\bLY_/.test(gs));
+  }
+
+
+  console.log('== (2 Dec 2026) MODULES + (3 Dec 2026) PRODUCT DETAILS — counted from what Sellora holds, never guessed; everything else as it was ==');
+  {
+    // the modules Amazon would answer per document (getContentDocument, through ?lh=aplusdoc); D-PAR is a Brand Story (its sub-type)
+    const H_ = 'STANDARD_HEADER_IMAGE_TEXT', IT = 'STANDARD_SINGLE_SIDE_IMAGE', CMP = 'STANDARD_COMPARISON_TABLE', TX = 'STANDARD_TEXT';
+    const MODS = { 'D-LIVE': [H_, IT, IT, CMP, TX], 'D-REJ': [H_, TX], 'D-DRAFT': [H_, CMP, IT], 'D-NEW': [H_], 'D-WAIT': [H_, IT, IT, CMP, TX], 'D-WAIT2': [H_, IT, IT, CMP, TX],
+      'D-PAR': ['STANDARD_SINGLE_IMAGE_HIGHLIGHTS', 'STANDARD_THREE_IMAGE_TEXT'], 'D-UNUSED': [H_, IT, TX], 'C-LIVE': [H_, IT, IT, CMP, TX] };
+    // PRODUCT DETAILS (3 Dec 2026): every product has all 12 spec attributes + its brand + its type (14) but —
+    const SPALL = ['material', 'color', 'size', 'pattern', 'style', 'item_shape', 'number_of_items', 'theme', 'care_instructions', 'special_feature', 'item_type_name', 'fabric_type'];
+    const VA = { color: 'Turquoise', size: '60 x 90 Inch', pattern: 'Floral', material: 'Cotton', style: 'Farmhouse', item_shape: 'Rectangular', number_of_items: '1' };
+    const pd = {}; ['TC-1', 'TC-3', 'TC-5', 'TC-6', 'RN-1', 'RN-2', 'PM-1', 'PM-2', 'CS-1', 'CS-2', 'CD-1', 'CD-2'].forEach(s => { pd[s] = { sp: SPALL, va: VA, brand: 'Ridhi' }; });
+    pd['TC-2'] = { sp: SPALL.filter(k => !['theme', 'fabric_type', 'care_instructions'].includes(k)), va: VA, brand: 'Ridhi' };    // partly: 11 of 14
+    pd['TC-4'] = { sp: ['color', 'size'], va: { color: 'Red', size: '60 x 90 Inch' }, brand: 'Ridhi' };                           // mostly missing: 4 of 14
+    pd['NP-1'] = { sp: SPALL.filter(k => k !== 'item_shape' && k !== 'fabric_type'), va: VA, brand: 'Ridhi', pt: 'NAPKIN' };      // NAPKIN has no shape / fabric type
+    pd['NP-2'] = { sp: SPALL.filter(k => k !== 'item_shape'), va: Object.assign({}, VA, { item_shape: '' }), brand: 'Ridhi' };                                         // HOME: shape counted, missing
+    pd['LS-1'] = { brand: 'Ridhi' };                                                                                                // no spec attributes kept: not read
+    const schema = { SP: { NAPKIN: { at: Date.now(), ok: SPALL.filter(k => k !== 'item_shape' && k !== 'fabric_type') } } };
+    // (4 Dec 2026) what Amazon's listing holds (?lfix=get — getListingsItem's attributes), as Amazon writes them
+    const MK = 'ATVPDKIKX0DER', v = x => [{ value: x, language_tag: 'en_US', marketplace_id: MK }], vl = (...xs) => xs.map(x => ({ value: x, language_tag: 'en_US', marketplace_id: MK }));
+    const fullAttrs = () => ({ style: v('Farmhouse'), pattern: v('Floral'), color: v('Turquoise'), occasion_type: vl('Christmas', 'Thanksgiving'), seasons: vl('Winter', 'Fall'),
+      size: v('60 x 90 Inch'), item_dimensions: [{ length: { value: 90, unit: 'inches' }, width: { value: 60, unit: 'inches' }, marketplace_id: MK }], item_shape: v('Rectangular'),
+      item_weight: [{ value: 1.2, unit: 'pounds', marketplace_id: MK }], brand: v('Ridhi'), number_of_items: [{ value: 1, marketplace_id: MK }], included_components: v('1 Tablecloth'),
+      item_type_name: v('Tablecloth'), material: v('Cotton'), fabric_type: v('100% Cotton'), care_instructions: v('Machine Wash Cold'), special_feature: vl('Stain Resistant', 'Wrinkle Free'),
+      room_type: v('Dining Room'), country_of_origin: [{ value: 'IN', marketplace_id: MK }], is_fragile: [{ value: false, marketplace_id: MK }],
+      item_name: v('Title of TC-2'), bullet_point: vl('One', 'Two'), generic_keyword: v('table cover'), purchasable_offer: [{ currency: 'USD', our_price: [{ schedule: [{ value_with_tax: 20 }] }], marketplace_id: MK }],
+      main_product_image_locator: [{ media_location: 'https://m.media-amazon.com/images/I/x.jpg', marketplace_id: MK }], child_parent_sku_relationship: [{ parent_sku: 'TC-P', child_relationship_type: 'variation', marketplace_id: MK }] });
+    const tc2 = fullAttrs(); delete tc2.theme;                                                      // TC-2: everything but its theme
+    const np1 = fullAttrs(); delete np1.theme; delete np1.item_shape; delete np1.fabric_type; np1.theme = v('Rustic');   // NAPKIN: no shape / fabric type
+    const listing = { 'TC-1': { productType: 'HOME', attributes: Object.assign(fullAttrs(), { theme: v('Floral') }) }, 'TC-2': { productType: 'HOME', attributes: tc2 }, 'NP-1': { productType: 'NAPKIN', attributes: np1 }, 'NP-2': 'fail' };
+    const docAnswer = q => ({ ok: true, key: q.doc, name: q.doc, status: 'APPROVED', type: 'Basic', subType: q.doc === 'D-PAR' ? 'BRAND_STORY' : '', contentType: 'EBC',
+      modules: (MODS[q.doc] || [H_]).map(type => ({ type, texts: [], imgs: [] })), readAt: Date.now(), asins: [] });
+    const M = await open({ pd, schema, docAnswer, listing });
+    const MC = M.C, p = sku => M.C.apcBuild().rows.find(r => r.c.sku === sku);
+    const before = MC.apcBuild().rows.map(r => r.c.sku + ':' + r.bucket).join();
+    const chipsBefore = (M.body().match(/data-apc="chip" data-apc-v="[a-z]*"/g) || []).join();
+    ok('nothing read yet: the meta says "modules not read yet", a product with a document "not read yet" — never guessed', /Ridhi: modules not read yet/.test(strip(M.els.apcMeta.innerHTML))
+      && !p('TC-1').make.m && MC.apcRowView(p('TC-1')).mods === 'not read yet' && !p('TC-1').weak && !p('CS-1').storyOnly, strip(M.els.apcMeta.innerHTML));
+    ok('a "Read modules now" button and a "⚙ A+ standard" button in the tools', /data-apc="modread"[^>]*>Read modules now</.test(M.els.apcTools.innerHTML) && /data-apc="stdopen"/.test(M.els.apcTools.innerHTML));
+    M.calls.length = 0;
+    const run = await MC.apcReadMods();
+    ok('"Read modules now": ONE read-only ?lh=aplusdoc per document (9) — nothing else asked, nothing sent', run.done === 9 && run.fail === 0 && M.calls.length === 9 && M.calls.every(q => q.lh === 'aplusdoc' && !q.asins), JSON.stringify(M.calls.slice(0, 2)));
+    ok('…the statuses are exactly as before (no product moved)', MC.apcBuild().rows.map(r => r.c.sku + ':' + r.bucket).join() === before);
+    // (3 Dec 2026) the company standard: 5 modules, a header image among them; the count SHOWN is capped at 5, the missing parts in the tooltip
+    ok('MODULE COUNT vs the standard (5 incl. a header image): TC-1 "✅ 5 of 5"', p('TC-1').make.vs.text === '✅ 5 of 5' && !p('TC-1').weak);
+    ok('…TC-6 (header + text): "⚠️ 2 of 5" — weak; what is missing only in the tooltip', p('TC-6').make.vs.text === '⚠️ 2 of 5' && p('TC-6').weak && /— missing: 3 more modules$/.test(p('TC-6').make.vs.tip), p('TC-6').make.vs.text + ' | ' + p('TC-6').make.vs.tip);
+    ok('…RN-1 (header, comparison, image + text): "⚠️ 3 of 5"', p('RN-1').make.vs.text === '⚠️ 3 of 5' && p('RN-1').weak);
+    ok('BASIC vs PREMIUM: the Modules cell names the document\'s type (Premium on TC-1, Basic on TC-6)', (() => { openAll(M); return /✅ 5 of 5<\/span> <small class="muted">Premium<\/small>/.test(M.body()) && /⚠️ 2 of 5<\/span> <small class="muted">Basic<\/small>/.test(M.body()); })());
+    ok('BRAND STORY ≠ product A+: Coasters (its only document a Brand Story) — "Only Brand Story — no product A+" (amber), still Live', p('CS-1').storyOnly && p('CS-1').bucket === 'live' && /Only Brand Story — no product A\+/.test(M.body()) && /<span class="fc-chip is-y apc-storyc"/.test(M.body()));
+    const s = MC.apcSummary(MC.apcBuild());
+    const live = s.live, counted = s.counted;
+    ok('the Live bar is as it was ("Live on X of Y products") and gets a second line: "with product A+: X of Y" (the Brand Story products not in it)', new RegExp('Live on ' + live + ' of ' + counted + ' products \\(\\d+%\\) with product A\\+: ' + (live - 2) + ' of ' + counted).test(M.text()) && s.prodLive === live - 2 && /1 Brand Story document, counted apart/.test(M.text()), (M.text().match(/Live on.{0,160}/) || [''])[0]);
+    M.click({ apc: 'chip', apcV: 'weak' });
+    const weak = screenRows(M).map(r => r.key.split('|')[1]);
+    ok('chip "Weak A+ N": the products under the standard, the biggest sellers first (TC-6 $900, RN-1 $300, RN-2 $10)', weak.join() === [A('TC-6'), A('RN-1'), A('RN-2')].join() && /Weak A\+ <b>3<\/b>/.test(M.body()), weak.join());
+    M.click({ apc: 'chip', apcV: 'story' });
+    ok('chip "Only Brand Story N": the two Coasters', screenRows(M).length === 2 && /Only Brand Story <b>2<\/b>/.test(M.body()));
+    M.click({ apc: 'chip', apcV: '' });
+    ok('the old chips are all there, in the same order, before the new ones', (M.body().match(/data-apc="chip" data-apc-v="[a-z]*"/g) || []).join().startsWith(chipsBefore.replace(/,data-apc="chip" data-apc-v="(weak|story|pd)"/g, '')), chipsBefore);
+    openAll(M);
+    ok('By product: the "Modules" and "Product details" columns (no Description column, no description text), the family line "avg N of 5 modules" (Floral Tablecloth: 5, 5, 5, 2 → 4.3)', /<th>Modules<\/th><th>Product details<\/th>/.test(M.body()) && !/<th>Description<\/th>/.test(M.body())
+      && !/apc-dsc|apc-descc|apc-nodesc|No A\+ and no description/.test(M.body()) && /avg 4\.3 of 5 modules/.test(M.text()), (M.text().match(/Floral Tablecloth.{0,200}/) || [''])[0]);
+    const pdCell = sku => (M.body().match(new RegExp('data-apc-row="SP\\|' + A(sku) + '"[^]*?<td class="apc-pdc">([^]*?)</td>')) || ['', ''])[1];
+    ok('PRODUCT DETAILS filled: TC-1 "✅ 14/14" (12 spec attributes + brand + product type), green', /^<button type="button" class="apc-pdb is-ok" data-apc="pd" data-apc-v="SP\|[^"]+" title="Every product detail counted is filled — click for the details">✅ 14\/14<\/button>$/.test(pdCell('TC-1'))
+      && p('TC-1').pd.n === 14 && p('TC-1').pd.of === 14 && !p('TC-1').pd.miss.length, pdCell('TC-1'));
+    ok('…partly: TC-2 "⚠️ 11/14" (amber) — the missing names only in the tooltip', /class="apc-pdb is-y"[^>]*title="Missing: Theme, Fabric type, Care instructions — click for the details">⚠️ 11\/14<\/button>$/.test(pdCell('TC-2')), pdCell('TC-2'));
+    ok('…mostly missing: TC-4 "❌ 4/14" (red) — colour, size, brand and product type only', /class="apc-pdb is-r"[^>]*>❌ 4\/14<\/button>$/.test(pdCell('TC-4')) && p('TC-4').pd.miss.join() === 'Style,Pattern,Theme,Item shape,Number of items / unit count,Item type name,Material,Fabric type,Care instructions,Special features', p('TC-4').pd.miss.join());
+    ok('NEVER GUESSED: LS-1 (no spec attributes in the listing cache) — grey "not read" (a click reads it from Amazon), never ❌; occasion / weight / components / room type are not counted before that read', /^<button type="button" class="apc-pdb is-g" data-apc="pd"[^>]*>not read<\/button>$/.test((M.body().match(new RegExp('data-apc-row="SP\\|' + A('LS-1') + '"[^]*?<td class="apc-pdc">([^]*?)</td>')) || ['', ''])[1])
+      && !p('LS-1').pd.known && ['occasion_type', 'item_weight', 'included_components', 'room_type'].every(k => p('TC-1').pd.rows.find(r => r.key === k).st === 'unread' && !p('TC-1').pd.rows.find(r => r.key === k).counted));
+    ok('PER PRODUCT TYPE: NP-1 (NAPKIN — its type has no item shape / fabric type) "✅ 12/12"; NP-2 (HOME) misses its shape: "⚠️ 13/14"', p('NP-1').pd.n === 12 && p('NP-1').pd.of === 12 && /✅ 12\/12/.test(pdCell('NP-1'))
+      && p('NP-1').pd.rows.find(r => r.key === 'item_shape').st === 'na' && p('NP-2').pd.miss.join() === 'Item shape' && /title="Missing: Item shape — click for the details">⚠️ 13\/14/.test(pdCell('NP-2')), pdCell('NP-1') + ' | ' + pdCell('NP-2'));
+    const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
+    const cells = (M.body().match(/<td class="apc-pdc">[^]*?<\/td>/g) || []);
+    ok('THE TABLE ROWS STAY ONE LINE: every Product details cell is one short line (no <br>, no box, ≤ 12 characters) and the cell never wraps', cells.length > 10 && cells.every(c => !/<br|<details|<div|<p\b/.test(c) && strip(c).length <= 12)
+      && /#paneAplus td\.apc-pdc\{white-space:nowrap/.test(css) && /#paneAplus \.apc-pdb\{[^}]*white-space:nowrap/.test(css), cells.map(strip).join(' | '));
+    ok('the family line as a percentage: "product details 81% filled" (Floral Tablecloth live: 14/14, 11/14, 14/14, 4/14, 14/14 → 81%); Cotton Napkins 12/12 and 13/14 → 96%; Desk Organizer Set all complete → 100%', /Floral Tablecloth .*product details 81% filled/.test(M.text()) && /Cotton Napkins .*product details 96% filled/.test(M.text())
+      && /Desk Organizer Set .*product details 100% filled/.test(M.text()) && !/avg [\d.]+ of [\d.]+ product details/.test(M.text()), (M.text().match(/Cotton Napkins.{0,200}/) || [''])[0]);
+    ok('chip "Missing product details 3" (in place of "No A+ and no description")', /data-apc-v="pd"[^>]*>Missing product details <b>3<\/b>/.test(M.body()) && !/data-apc-v="nodesc"/.test(M.body()), (M.body().match(/[^>]*Missing product details.{0,20}/) || [''])[0]);
+    M.click({ apc: 'chip', apcV: 'pd' });
+    ok('…pressed: TC-4 ($400), NP-2 ($70), TC-2 — the biggest sellers first', screenRows(M).map(r => r.key.split('|')[1]).join() === [A('TC-4'), A('NP-2'), A('TC-2')].join(), screenRows(M).map(r => r.key).join());
+    M.click({ apc: 'chip', apcV: '' }); openAll(M);
+    // THE SIDE PANEL — and (4 Dec 2026) its live read of that one listing
+    ok('no panel until a cell is pressed — and no listing read from Amazon', M.els.apcSide.innerHTML === '' && M.C.APC.pd === '' && !M.calls.some(q => q.lfix));
+    M.calls.length = 0;
+    const reading = M.click({ apc: 'pd', apcV: p('TC-2').key });
+    ok('CLICK → the panel opens at once with "Reading from Amazon…" — no row, no ❌ yet', /Reading from Amazon…/.test(M.els.apcSide.innerHTML) && !/❌|apc-pdsec/.test(M.els.apcSide.innerHTML), strip(M.els.apcSide.innerHTML));
+    await reading;
+    const side = M.els.apcSide.innerHTML, sideT = strip(side);
+    ok('…ONE read-only call: ?lfix=get for TC-2 (Listings Items getListingsItem, every attribute) — nothing else', M.calls.length === 1 && M.calls[0].lfix === 'get' && M.calls[0].sku === 'TC-2' && M.calls[0].brand === 'SP' && !M.calls[0].method, JSON.stringify(M.calls));
+    ok('the panel: SKU, title, "⚠️ 19 of 20 filled · 1 missing" (recounted from the full read), "Open in Listing Workspace ↗"', /^<aside class="apc-side" role="dialog"/.test(side) && /TC-2 Title of TC-2 × ⚠️ 19 of 20 filled · 1 missing Open in Listing Workspace ↗/.test(sideT), sideT.slice(0, 200));
+    ok('…its sections in Amazon\'s Product information order: Style · Measurements · Item details · Materials & care · Features & specs · Other', (side.match(/data-apc-sec="\w+"><h4>[^<]+/g) || []).map(x => x.split('>').pop()).join(' · ') === 'Style · Measurements · Item details · Materials &amp; care · Features &amp; specs · Other'
+      && (side.match(/data-apc-sec="(\w+)"/g) || []).join() === 'data-apc-sec="style",data-apc-sec="meas",data-apc-sec="item",data-apc-sec="care",data-apc-sec="feat",data-apc-sec="other"');
+    const secRows = k => ((side.match(new RegExp('data-apc-sec="' + k + '">[^]*?</section>')) || [''])[0].match(/<th scope="row">[^<]+/g) || []).map(x => x.slice(16)).join(', ');
+    ok('…each section\'s attributes in Amazon\'s order; "Other" = the listing\'s further attributes (not its content, pictures, offer or family links)',
+      secRows('style') === 'Style, Pattern, Theme, Colour, Occasion, Seasons' && secRows('meas') === 'Item size, Item dimensions, Item shape, Item weight'
+      && secRows('item') === 'Brand, Number of items / unit count, Included components, Item type name, Product type' && secRows('care') === 'Material, Fabric type, Care instructions' && secRows('feat') === 'Special features, Room type'
+      && secRows('other') === 'Country of origin, Is fragile', ['style', 'meas', 'other'].map(secRows).join(' | '));
+    const row = (label, value) => new RegExp('<tr class="is-ok"><th scope="row">' + label + '</th><td>' + value + '</td><td><span class="apc-pdok">✅ filled</span></td></tr>').test(side);
+    ok('EVERY ATTRIBUTE WITH ITS REAL VALUE: style, pattern, colour, size, shape, brand, number of items, item type, material, product type',
+      row('Style', 'Farmhouse') && row('Pattern', 'Floral') && row('Colour', 'Turquoise') && row('Item size', '60 x 90 Inch') && row('Item shape', 'Rectangular') && row('Brand', 'Ridhi')
+      && row('Number of items / unit count', '1') && row('Item type name', 'Tablecloth') && row('Material', 'Cotton') && row('Product type', 'home'));
+    ok('…the ones "not read" before now have their values: occasion, seasons, item weight, dimensions, included components, room type', row('Occasion', 'Christmas, Thanksgiving') && row('Seasons', 'Winter, Fall') && row('Item weight', '1.2 pounds')
+      && row('Item dimensions', 'length: 90 inches, width: 60 inches') && row('Included components', '1 Tablecloth') && row('Room type', 'Dining Room'));
+    ok('…and the ones the cache had without a value: fabric type, care instructions, special features (the cache\'s "missing" fabric / care are filled on Amazon)', row('Fabric type', '100% Cotton') && row('Care instructions', 'Machine Wash Cold') && row('Special features', 'Stain Resistant, Wrinkle Free')
+      && row('Country of origin', 'IN') && row('Is fragile', 'No'));
+    ok('…no "not read" and no "value not in Sellora\'s copy" anywhere; the listing\'s content / offer / pictures are not in it', !/not read|Sellora's copy/.test(sideT) && !/Item name|Bullet point|Purchasable offer|image|Child parent/i.test(secRows('other')));
+    ok('MISSING STAYS ❌: Theme (our listing has no value) — red, the only ❌', /<tr class="is-miss"><th scope="row">Theme<\/th><td><span class="fc-none">—<\/span><\/td><td><span class="apc-pdno">❌ missing<\/span><\/td><\/tr>/.test(side) && (side.match(/❌ missing/g) || []).length === 1);
+    ok('the TABLE badge updates after the read: TC-2 "⚠️ 19/20" (was 11/14 from the cache), missing Theme in its tooltip', /class="apc-pdb is-y"[^>]*title="Missing: Theme \(read from Amazon this session\) — click for the details">⚠️ 19\/20<\/button>$/.test(pdCell('TC-2')), pdCell('TC-2'));
+    M.calls.length = 0;
+    await M.click({ apc: 'pd', apcV: p('TC-2').key }); await M.click({ apc: 'pd', apcV: p('TC-2').key });
+    ok('after the live read (TC-2 19/20 among 14-attribute products): the family line is still a whole percentage — 85% (1, .95, 1, 4/14, 1) — never "avg 13 of 15.2"; the cells keep "19/20"', /Floral Tablecloth .*product details 85% filled/.test(M.text()) && !/of \d+\.\d+ product details|\d+\.\d+% filled/.test(M.text()) && /19\/20/.test(pdCell('TC-2')), (M.text().match(/Floral Tablecloth.{0,200}/) || [''])[0]);
+    ok('kept for the session: closing and opening it again reads nothing more', M.calls.length === 0 && /19 of 20 filled/.test(strip(M.els.apcSide.innerHTML)), JSON.stringify(M.calls));
+    await M.click({ apc: 'pd', apcV: p('NP-1').key });
+    ok('PER PRODUCT TYPE: NP-1 (NAPKIN) — its item shape and fabric type "not for this product type", not counted: "✅ 18 of 18 filled"', /<th scope="row">Item shape<\/th><td><span class="fc-none">—<\/span><\/td><td><span class="fc-none">not for this product type<\/span>/.test(M.els.apcSide.innerHTML)
+      && /✅ 18 of 18 filled/.test(strip(M.els.apcSide.innerHTML)) && /product type NAPKIN/.test(strip(M.els.apcSide.innerHTML)) && /<th scope="row">Theme<\/th><td>Rustic<\/td>/.test(M.els.apcSide.innerHTML), strip(M.els.apcSide.innerHTML).slice(0, 160));
+    ok('Esc closes the panel (another key does not)', !M.C.apcKey({ key: 'a' }) && M.els.apcSide.innerHTML !== '' && M.C.apcKey({ key: 'Escape' }) === true && M.els.apcSide.innerHTML === '' && M.C.APC.pd === '' && !M.C.apcKey({ key: 'Escape' }));
+    // (5 Dec 2026) ✕ always in view, and a click outside closes it
+    const X = '<button type="button" class="apc-x" data-apc="pdclose" aria-label="Close" title="Close (Esc)">×</button>';
+    const opening = M.click({ apc: 'pd', apcV: p('TC-1').key });
+    const whileReading = M.els.apcSide.innerHTML;
+    await opening;
+    const xHead = h => new RegExp('^<aside class="apc-side"[^>]*><div class="apc-side-top"><div class="apc-side-h">[^]*?' + X.replace(/[()]/g, '\\$&') + '</div><div class="apc-side-a">').test(h);
+    ok('✕ CLOSE in the top-right corner of the panel\'s header — aria-label "Close" — while reading and once read', xHead(whileReading) && xHead(M.els.apcSide.innerHTML) && /Reading from Amazon…/.test(whileReading), whileReading.slice(0, 400));
+    ok('…the header is sticky (stays in view while the rows scroll); the ✕ has the Workspace panel\'s look; nothing hides it on the phone sheet', /#paneAplus \.apc-side-top\{position:sticky;top:0;z-index:2;flex:none;background:var\(--card\)/.test(css)
+      && /#paneAplus \.apc-x\{flex:none;display:grid;place-items:center;width:30px;height:30px;margin:0 0 0 auto;padding:0;border:0;border-radius:50%;background:var\(--hover\);\s*color:var\(--muted\)/.test(css)
+      && /#paneAplus \.apc-side-b\{flex:1;min-height:0;overflow:auto/.test(css) && !/apc-x[^{]*\{[^}]*display:none/.test(css) && !/apc-side-top[^{]*\{[^}]*display:none/.test(css));
+    M.click({ apc: 'pdclose' });
+    ok('…a click on ✕ closes it', M.els.apcSide.innerHTML === '' && M.C.APC.pd === '');
+    await M.click({ apc: 'pd', apcV: p('TC-1').key });
+    const tgt = (hit, connected) => ({ target: { isConnected: connected !== false, closest: q => (q === hit ? {} : null) } });
+    ok('A CLICK OUTSIDE closes it; a click inside it, on a Product details cell (that opens another) or on a part just redrawn does not', !M.C.apcOutside(tgt('.apc-side')) && !M.C.apcOutside(tgt('[data-apc="pd"]')) && !M.C.apcOutside(tgt('[data-apc="pdread"]'))
+      && !M.C.apcOutside(tgt('', false)) && M.els.apcSide.innerHTML !== '' && M.C.apcOutside(tgt('')) === true && M.els.apcSide.innerHTML === '' && M.C.APC.pd === '' && !M.C.apcOutside(tgt('')));
+    // a failed read: a message and Try again — never ❌
+    const before2 = pdCell('NP-2');
+    await M.click({ apc: 'pd', apcV: p('NP-2').key });
+    ok('READ FAILS: "Couldn\'t read from Amazon — try again"; no row and no ❌ in the panel (its ✕ still there); the table badge stays the cache\'s', /Couldn't read from Amazon — try again/.test(strip(M.els.apcSide.innerHTML)) && M.els.apcSide.innerHTML.includes(X) && /data-apc="pdread"/.test(M.els.apcSide.innerHTML)
+      && !/❌|apc-pdsec|filled/.test(M.els.apcSide.innerHTML) && pdCell('NP-2') === before2 && /Amazon answered 503/.test(M.els.apcSide.innerHTML), strip(M.els.apcSide.innerHTML));
+    M.net.listing['NP-2'] = { productType: 'HOME', attributes: Object.assign(fullAttrs(), { theme: v('Rustic') }) };
+    M.calls.length = 0;
+    await M.click({ apc: 'pdread', apcV: p('NP-2').key });
+    ok('…"try again" reads it once more: now "✅ 20 of 20 filled", the table "✅ 20/20"', M.calls.length === 1 && M.calls[0].lfix === 'get' && /✅ 20 of 20 filled/.test(strip(M.els.apcSide.innerHTML)) && /✅ 20\/20/.test(pdCell('NP-2')), strip(M.els.apcSide.innerHTML).slice(0, 120));
+    M.click({ apc: 'pdclose' });
+    ok('✕ closes it; pressing the same cell again closes it too', M.els.apcSide.innerHTML === '' && (() => { M.click({ apc: 'pd', apcV: p('TC-2').key }); M.click({ apc: 'pd', apcV: p('TC-2').key }); return M.els.apcSide.innerHTML === ''; })());
+    M.click({ apc: 'pd', apcV: p('TC-2').key });
+    ok('"Open in Listing Workspace ↗" opens Listing Health on TC-2\'s family (its parent ASIN) and closes the panel', new RegExp('data-apc="pdws" data-apc-b="SP" data-apc-v="' + A('TC-P') + '"').test(M.els.apcSide.innerHTML)
+      && (() => { M.click({ apc: 'pdws', apcB: 'SP', apcV: A('TC-P') }); return M.wsOpened.join() === 'SP|' + A('TC-P') && M.els.apcSide.innerHTML === ''; })(), M.wsOpened.join());
+    ok('the panel CSS: the Listing Workspace panel\'s look on the right; a bottom sheet on a phone; theme colours only', /#paneAplus \.apc-side\{position:fixed;top:var\(--apc-top,0px\);right:0;bottom:0;z-index:50;[^}]*width:min\(520px,100vw\);margin:8px;\s*max-height:calc\(100vh - var\(--apc-top,0px\) - 16px\)/.test(css)
+      // (5 Dec 2026) BELOW the menu bar: --apc-top is what this pane measures (apcStickNow); --ls-top is Listing Health's and is never set here
+      && !/#paneAplus \.apc-side\{[^}]*--ls-top/.test(css) && /function apcSideDraw\(\) \{[^}]*if \(APC\.pd\) apcStickNow\(\);/.test(L('aplus-audit.js'))
+      && /@media \(max-width:640px\)\{#paneAplus \.apc-side\{top:auto;left:0;right:0;bottom:0;width:auto;margin:0;max-height:82vh;border-radius:16px 16px 0 0/.test(css) && /#paneAplus \.apc-pdmsg\.is-r\{background:var\(--bad-bg\);color:var\(--bad-ink\)\}/.test(css));
+    ok('apcPdVal: Amazon\'s shapes in plain words (value + unit, nested sizes, lists, yes / no; nothing = "")', MC.apcPdVal([{ value: 2.5, unit: 'kilograms' }]) === '2.5 kilograms' && MC.apcPdVal(vl('A', 'B', 'A')) === 'A, B'
+      && MC.apcPdVal([{ height: { value: 1, unit: 'inches' }, marketplace_id: MK }]) === '1 inches' && MC.apcPdVal([{ value: true }]) === 'Yes' && MC.apcPdVal([]) === '' && MC.apcPdVal(undefined) === '' && MC.apcPdVal([{ value: '' }]) === '');
+    // the Workspace's newer live read wins over the cache
+    M.ctx.LI_WS.live = { SP: { 'TC-4': { specs: Object.fromEntries(SPALL.map(k => [k, true])), gAt: Date.now() + 1000 } } }; M.ctx.LI_WS.liveV++;
+    ok('the Listing Workspace\'s newer live read counts (TC-4 → "14 of 14")', p('TC-4').pd.n === 14 && p('TC-4').pd.of === 14);
+    M.ctx.LI_WS.live = {}; M.ctx.LI_WS.liveV++;
+    ok('…and back to the cache without it (4 of 14)', p('TC-4').pd.n === 4);
+    M.click({ apc: 'view', apcV: 'doc' });
+    ok('By A+ document: "Modules: ✅ 5 of 5 header image · image + text ×2 · comparison chart · text" — Amazon\'s real count and raw types in the tooltip', /Tablecloth A\+ .*Modules: ✅ 5 of 5 header image · image \+ text ×2 · comparison chart · text read \d/.test(M.text())
+      && /<div class="apc-dmod" title="5 modules on Amazon: STANDARD_HEADER_IMAGE_TEXT, STANDARD_SINGLE_SIDE_IMAGE, STANDARD_SINGLE_SIDE_IMAGE, STANDARD_COMPARISON_TABLE, STANDARD_TEXT">/.test(M.body()), (M.text().match(/Tablecloth A\+.{0,300}/) || [''])[0]);
+    ok('…the Brand Story document carries the tag "Brand Story"; doc chips "Weak A+" and "Brand Story"', /Coasters \(on the parent\) ✓ Live Brand Story/.test(M.text()) && /Weak A\+ <b>\d+<\/b>/.test(M.body()) && /Brand Story <b>1<\/b>/.test(M.body()));
+    const csv = MC.apcCsv(), cr = r => csvRows(csv.text).find(x => x[2] === r);
+    M.click({ apc: 'view', apcV: 'prod' });
+    const csv2 = MC.apcCsv(), row6 = csvRows(csv2.text).find(x => x[2] === 'TC-6'), row4 = csvRows(csv2.text).find(x => x[2] === 'TC-4'), rowCs = csvRows(csv2.text).find(x => x[2] === 'CS-1');
+    const rowLs = csvRows(csv2.text).find(x => x[2] === 'LS-1'), rowT2 = csvRows(csv2.text).find(x => x[2] === 'TC-2');
+    ok('CSV (products): Modules, Module types, Basic / Premium, Only Brand Story, Modules read, Product details filled, Missing attributes (then Priority)', row6[14] === '2 of 5' && row6[15] === '2 modules on Amazon: STANDARD_HEADER_IMAGE_TEXT, STANDARD_TEXT — missing: 3 more modules' && row6[16] === 'Basic' && /\(this browser\)$/.test(row6[18])
+      && row4[19] === '4 of 14' && row4[20] === 'Style, Pattern, Theme, Item shape, Number of items / unit count, Item type name, Material, Fabric type, Care instructions, Special features' && row4.length === 22
+      && rowT2[19] === '19 of 20' && rowT2[20] === 'Theme' && row6[19] === '14 of 14' && row6[20] === '' && rowLs[19] === 'not read' && rowLs[20] === ''
+      && rowCs[17] === 'yes' && rowCs[14] === 'Only Brand Story — no product A+', JSON.stringify([row4.slice(14), rowLs.slice(14)]));
+    const dc = MC.apcDocsCsv(), dl = csvRows(dc.text).find(x => x[1] === 'Tablecloth A+'), dp = csvRows(dc.text).find(x => x[1] === 'Coasters (on the parent)');
+    ok('CSV (documents): Modules, Module types, Against the standard, Brand Story, Modules read', csvRows(dc.text)[0].slice(12).join(' · ') === 'Modules · Module types · Against the standard · Brand Story · Modules read'
+      && dl[12] === '5 of 5' && dl[14] === '5 of 5' && /^5 modules on Amazon: STANDARD_HEADER_IMAGE_TEXT/.test(dl[13]) && dp[15] === 'yes' && dp[14] === 'Brand Story (not product A+)', JSON.stringify([dl.slice(12), dp.slice(12)]));
+    ok('the meta says when: "modules read <date> for 8 of 8 documents (this browser)"', /Ridhi: modules read \d{1,2} \w+ \d{4} for 8 of 8 documents \(this browser\)/.test(strip(M.els.apcMeta.innerHTML)), strip(M.els.apcMeta.innerHTML));
+    // the standard, shared: 3 modules with a header image
+    await MC.apcStdSave({ n: 3, must: ['header'] });
+    ok('⚙ A+ standard: saved for the team (listingrules/aplusstd) — TC-6 "⚠️ 2 of 3", RN-1 "✅ 3 of 3", TC-1 (5 modules) "✅ 3 of 3" — never "5 of 3"', p('TC-6').make.vs.text === '⚠️ 2 of 3' && p('RN-1').make.vs.text === '✅ 3 of 3' && p('TC-1').make.vs.text === '✅ 3 of 3'
+      && M.store['listingrules/aplusstd'] && M.store['listingrules/aplusstd'].items.std.n === 3 && M.store['listingrules/aplusstd'].items.std.must.join() === 'header');
+    await MC.apcStdSave({ n: 5, must: ['header'] });
+    // (3 Dec 2026) the product details counted are in the same shared standard
+    MC.APC.setOpen = true; MC.apcDraw();
+    const box = M.body(); MC.APC.setOpen = false;
+    ok('⚙ A+ standard: "Product details counted" — all 20 attributes offered and ticked by default (occasion, seasons, weight, dimensions, components, room type too)', MC.APC.std.pd.join() === MC.APC_PD_ALL.join() && MC.APC_PD_ALL.length === 20
+      && MC.APC_PD_ALL.every(k => new RegExp('data-apc-std="pd" value="' + k + '" checked').test(box)));
+    await MC.apcStdSave({ n: 5, must: ['header'], pd: MC.APC_PD_ALL.filter(k => k !== 'theme') });
+    ok('…untick Theme and save: TC-2 "19 of 19" (its missing Theme no longer counted), saved for the team with the standard', p('TC-2').pd.n === 19 && p('TC-2').pd.of === 19 && !p('TC-2').pd.miss.length && !M.store['listingrules/aplusstd'].items.std.pd.includes('theme') && M.store['listingrules/aplusstd'].items.std.pd.length === 19 && M.store['listingrules/aplusstd'].items.std.pdv === 2);
+    await MC.apcStdSave({ n: 5, must: ['header'], pd: MC.APC_PD_ALL });
+    ok('read-only all the way: no write but the team\'s own standard and marks — no Amazon change (the only listing calls are ?lfix=get reads)', !M.calls.some(q => (q.lfix && q.lfix !== 'get') || q.lcreate || q.method === 'POST') && Object.keys(M.store).every(k => /^listingrules\/(aplusstd|aplusok_)/.test(k)), Object.keys(M.store).join());
+    // a name is never read as a Brand Story — only Amazon's own sub-type / module type
+    ok('never guessed from a name: a document called "Brand Story page" with normal modules is product A+', !MC.apcModsOf({ brand: 'SP', k: 'X' }) && (() => { MC.APC.mods.set('SP|D-UNUSED', { n: 3, ty: [H_, IT, TX], sub: '', ct: 'EBC', at: Date.now(), src: 'browser' }); return true; })()
+      && !MC.apcDocs(MC.apcBuild()).find(x => x.d.k === 'D-UNUSED').story);
+    // (3 Dec 2026) the company standard, Premium's own module types, the count capped at 5
+    ok('the default ⚙ A+ standard is the company\'s: 5 modules, must include a header image only (pre-filled in the box)', (() => { const T2 = setup(); return T2.C.APC.std.n === 5 && T2.C.APC.std.must.join() === 'header'; })()
+      && (() => { MC.APC.setOpen = true; MC.apcDraw(); const b = M.body(); MC.APC.setOpen = false; return /value="header" checked/.test(b) && /value="comparison">/.test(b) && /value="imagetext">/.test(b) && /value="text">/.test(b) && /data-apc-std="n" value="5"/.test(b); })());
+    const prem7 = ['PREMIUM_HERO_IMAGE', 'PREMIUM_IMAGE_TEXT', 'PREMIUM_IMAGE_TEXT', 'PREMIUM_COMPARISON_TABLE_1', 'PREMIUM_TEXT', 'PREMIUM_SIMPLE_IMAGE_CAROUSEL', 'PREMIUM_QA'];
+    MC.APC.mods.set('SP|D-WAIT', { n: 7, ty: prem7, sub: '', ct: 'EMC', at: Date.now(), src: 'browser' });
+    MC.APC.modV++;
+    ok('a 7-module Premium A+ with a hero image → "✅ 5 of 5" — never "7 of 5"; the real count only in the tooltip', p('PM-1').make.vs.text === '✅ 5 of 5' && p('PM-1').make.vs.shown === 5 && !p('PM-1').weak
+      && p('PM-1').make.vs.tip === '7 modules on Amazon: ' + prem7.join(', '), JSON.stringify(p('PM-1').make.vs));
+    M.click({ apc: 'view', apcV: 'prod' }); openAll(M);
+    ok('…on the page: no "7 of 5" anywhere; the cell\'s tooltip has Amazon\'s raw module types', !/7 of 5/.test(M.body()) && new RegExp('title="7 modules on Amazon: ' + prem7.join(', ') + '">✅ 5 of 5</span>').test(M.body()));
+    ok('…the family line "avg N of 5" is capped too (Placemats: 7 → 5 and 5 → avg 5, not 6)', /Placemats .*avg 5 of 5 modules/.test(M.text()) && !/avg 6 of 5/.test(M.text()), (M.text().match(/Placemats.{0,160}/) || [''])[0]);
+    const vs = ty => MC.apcVsStd({ n: ty.length, ty });
+    ok('Premium banners count as the header image: full-width, full-background, hero, banner, video with an image', ['PREMIUM_FULL_WIDTH_IMAGE', 'PREMIUM_FULL_BACKGROUND_IMAGE', 'PREMIUM_HERO_VIDEO_WITH_IMAGE', 'PREMIUM_BANNER_IMAGE', 'PREMIUM_VIDEO_IMAGE_CAROUSEL']
+      .every(h => vs([h, 'PREMIUM_TEXT', 'PREMIUM_TEXT', 'PREMIUM_IMAGE_TEXT', 'PREMIUM_COMPARISON_TABLE_2']).text === '✅ 5 of 5'));
+    const noHead = vs(['STANDARD_SINGLE_SIDE_IMAGE', 'STANDARD_TEXT', 'STANDARD_TEXT', 'STANDARD_COMPARISON_TABLE', 'PREMIUM_IMAGE_TEXT', 'STANDARD_TEXT']);
+    ok('no header image (6 modules) → "⚠️ missing header image" — Weak A+', noHead.text === '⚠️ missing header image' && noHead.weak && noHead.tip === '6 modules on Amazon: STANDARD_SINGLE_SIDE_IMAGE, STANDARD_TEXT, STANDARD_TEXT, STANDARD_COMPARISON_TABLE, PREMIUM_IMAGE_TEXT, STANDARD_TEXT — missing: header image', JSON.stringify(noHead));
+    ok('fewer than 5: "⚠️ 3 of 5" (Weak A+) — the missing parts only in the tooltip', vs(['STANDARD_HEADER_IMAGE_TEXT', 'STANDARD_TEXT', 'STANDARD_TEXT']).text === '⚠️ 3 of 5' && vs(['STANDARD_HEADER_IMAGE_TEXT', 'STANDARD_TEXT', 'STANDARD_TEXT']).weak
+      && /— missing: 2 more modules$/.test(vs(['STANDARD_HEADER_IMAGE_TEXT', 'STANDARD_TEXT', 'STANDARD_TEXT']).tip));
+    MC.APC.mods.set('SP|D-WAIT2', { n: 6, ty: noHead.tip.split(': ')[1].split(' — ')[0].split(', '), sub: '', ct: 'EBC', at: Date.now(), src: 'browser' });
+    MC.APC.modV++;
+    ok('…and a product whose A+ has no header image is under the "Weak A+" chip', p('PM-2').weak && MC.apcFlatList(MC.apcBuild(), 'weak').some(r => r.c.sku === 'PM-2'));
+    // three failures in a row stop the read
+    const F = await open({ docFail: true });
+    const fr = await F.C.apcReadMods();
+    ok('"Read modules now" stops after 3 failed reads in a row and says why; nothing is invented for them', fr.fail === 3 && fr.done === 3 && /stopped after 3 failed reads in a row/.test(fr.err) && !F.C.apcBuild().rows.some(r => r.make && r.make.m), JSON.stringify(fr));
+    // the backend's daily read (once AplusModules.gs is deployed): read with the rest, no button needed
+    const D = setup({ pd });
+    D.net.tabs.lmAplus_Mods_SP = { b: 'SP', at: IST(Date.now() - H), atMs: Date.now() - H, ok: true, docs: { 'D-LIVE': { n: 5, ty: MODS['D-LIVE'], sub: '', ct: 'EMC', at: Date.now() - H } } };
+    await D.C.lmEnsure(); await D.C.lmRefresh(); await D.C.apcOpen(); await new Promise(r => setTimeout(r, 0));
+    const d1 = D.C.apcBuild().rows.find(r => r.c.sku === 'TC-1');
+    ok('the daily backend read counts with no click: TC-1 "✅ 5 of 5" (daily read); a document it does not hold stays "not read yet"', d1.make.vs.text === '✅ 5 of 5' && d1.make.m.src === 'daily'
+      && !D.C.apcBuild().rows.find(r => r.c.sku === 'TC-6').make.m && /modules read \d{1,2} \w+ \d{4} for 1 of 8 documents \(daily read\)/.test(strip(D.els.apcMeta.innerHTML)), strip(D.els.apcMeta.innerHTML));
   }
 
   console.log('== the menu, the pane, the styles ==');

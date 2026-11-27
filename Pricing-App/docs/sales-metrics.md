@@ -1,6 +1,6 @@
 # Sellora — sales, ads and stock numbers: the rule book
 
-Written 21 Nov 2026 (Sales card #1, "Numbers Check"). **This file documents the code as it is — no formula was changed.**
+Written 21 Nov 2026 (Sales card #1, "Numbers Check"); the Forecast rules added 25 Nov 2026 (Sales card #5). **This file documents the code as it is — no formula was changed.**
 The same rules show on the Numbers Check screen (Sales → Check & alerts), drawn from `NC_RULES` in
 `src/app/sales/sales-check.js`; `tests/sales-metrics-test.js` fails when a rule is missing here. The golden values that lock
 each formula are in that test.
@@ -9,7 +9,7 @@ each formula are in that test.
 (one per brand) the backend reads. *Seller Central totals* = Amazon's Business Report day totals (matchBiz cache) and ad
 totals (matchAds cache). *Ridhi* = brand key SP. *Both* / *All*: see each rule — they do not mean the same everywhere.
 
-## The rules (34 numbers)
+## The rules (44 numbers)
 
 ### Sales
 
@@ -453,10 +453,141 @@ Last week, the 6-week average, run rate and cover per parent.
 - **Rounding:** Whole $; % whole; DOS 1 decimal.
 - **How fresh:** Nightly.
 
+### Forecast — weeks used
+
+Units per product per finished week, the history every forecast starts from.
+
+- **Screens:** Forecast (table, drawer chart, CSV, forecastCheck)
+- **Data source:** The nightly per-product days (dailyAsin, 45 days) for the weeks they hold whole; PPC & Organic's weekly store (nightly "weekly" cache, u) for the 26 weeks before. The same units Numbers Check checks.
+- **Formula:** Week = Σ day units Sun–Sat. Stock-out / suppressed time skipped: in daily weeks a zero run ≥ max(3, 3.9 ÷ units a day) days (or the last zero days when stock is 0 now) is taken out and the week = units ÷ live days × 7 (3+ live days, else skipped); an older week under 25 % of the product's usual week (usual ≥ 3) is skipped; a week the brand has no figure for at all is missing. Family = Σ children, a child out all week counted at its usual rate.
+- **Day cut-off:** US Pacific, finished Sunday–Saturday weeks; the last one ends on or before the last finished day.
+- **Included / excluded:** Amazon units (Ridhi, CPC). Shopify not in. Weeks before the first sale are not history.
+- **Brands:** Ridhi · CPC · Both (each family in its own brand).
+- **Rounding:** Units 1 decimal inside; shown whole.
+- **How fresh:** Nightly (Amazon data 1–2 days late).
+
+### Forecast — base
+
+A product's usual week now.
+
+- **Screens:** Forecast (drawer "Usually sells ~N/week", CSV "Usual units/week")
+- **Data source:** Forecast — weeks used.
+- **Formula:** Weighted average of the last 8 weeks (skipped ones left out; up to 12 weeks back to find 4), weights 8, 7 … 1 (last week 8); a week above 2 × the median of those weeks counts as 2 ×.
+- **Day cut-off:** Finished weeks (PT).
+- **Included / excluded:** Skipped weeks out.
+- **Brands:** Per family and per child.
+- **Rounding:** 1 decimal.
+- **How fresh:** Nightly.
+
+### Forecast — season
+
+How the coming weeks usually differ from the last 8, from last year.
+
+- **Screens:** Forecast (drawer story, chart "last year's pattern", forecastCheck)
+- **Data source:** The brand's own daily history (Sales Dashboard, 800 days, day[1] units). Sellora keeps no per-product last year (the weekly cache is 26 weeks).
+- **Formula:** LY week = Σ brand units 364 days back, averaged with the weeks either side. Factor = LY of the target week ÷ LY of the 8 base weeks (same weights), capped 0.5×–2×; only when last year's base weeks sold ≥ 50 units a week; used for a product only when its blind test with it is no worse than without (≤ 1.15 × + 2 points).
+- **Day cut-off:** Weeks 364 days back (same weekdays).
+- **Included / excluded:** Amazon brand totals.
+- **Brands:** Each family takes its own brand's last year.
+- **Rounding:** 2 decimals.
+- **How fresh:** Nightly.
+
+### Forecast — trend
+
+A small, fading lean up or down.
+
+- **Screens:** Forecast (drawer, forecastCheck)
+- **Data source:** Forecast — base weeks, season taken out.
+- **Formula:** g = ½ × ((newest half ÷ older half)^(1 ÷ weeks apart) − 1), capped ± 4 %/week; week h ahead × (1 + Σ g × 0.8^i, i = 1…h) — never more than ± 16 %.
+- **Day cut-off:** Finished weeks.
+- **Included / excluded:** As base.
+- **Brands:** Per family and child.
+- **Rounding:** 1 decimal %.
+- **How fresh:** Nightly.
+
+### Forecast — range and confidence
+
+LOW–HIGH around the most likely, and how much to trust it.
+
+- **Screens:** Forecast (range bars, tiles, pills, headline, "Accuracy last 8 weeks")
+- **Data source:** The product's own blind test: the model from 8 weeks ago (fewer with a short history, at least 4), on data up to then only, against the weeks it did not see.
+- **Formula:** Likely = Σ daily rate (week forecast ÷ 7) over the next 7 / 30 / 90 days from today. Error 7 d = Σ|actual − forecast| ÷ Σ actual (weekly); 30 d = mean of the 4-week blocks' |Σ actual − Σ forecast| ÷ Σ actual; 90 d = max(30 d, all 8 weeks) × 1.25; each at least 10 % and 1.28 ÷ √likely. LOW–HIGH = likely × (1 ∓ error). Confidence from the 30-day error: High ≤ 20 %, Medium ≤ 40 %, Low above. Gate: ≥ 8 weeks since the first sale and ≥ 3 units a week, else "Not enough history". A child with too few sales of its own: its family's error, Low. Headline = Σ families' likely, range from the brand total's own blind test (at least ± 5 %). Accuracy = families' 30-day test error weighted by their likely.
+- **Day cut-off:** From today (PT).
+- **Included / excluded:** Families with a forecast (headline: active ones).
+- **Brands:** Ridhi · CPC · Both.
+- **Rounding:** Whole units; % whole.
+- **How fresh:** Nightly.
+
+### Days of cover and runs out
+
+How long the stock lasts, worst case first.
+
+- **Screens:** Forecast (Cover, Runs out, Act first cards, drawer "Stock lasts A–B days")
+- **Data source:** FBA units now (stock/{brand}, as Sales Alerts reads it) — else the Inventory Age snapshot; missing = "No stock data", never guessed. On the way: the same stock data's inbound (stock/{brand}.in, working + shipped + receiving per SKU); not carried = "Inbound: unknown" (today's documents carry none).
+- **Formula:** Supply = available + on the way (available only when inbound is unknown; a SKU at 0 stays out until it arrives). From the stock's date, day by day: cumulative likely ≥ supply → likely cover; cumulative likely × (1 + error at that horizon) ≥ supply → HIGH-demand cover (the smaller). Days counted from today; beyond about half a year = "180+". Runs out = today + cover. A family = its TOTAL: its sizes with stock data (stock + on the way) against their forecast; a size missing from the stock data is "No stock data" (never 0) and left out on both sides.
+- **Day cut-off:** PT days.
+- **Included / excluded:** FBA available units (inbound not counted).
+- **Brands:** Per child; family = its first to run out.
+- **Rounding:** Whole days; dates "9 Dec".
+- **How fresh:** Stock as of its own date.
+
+### Reorder status
+
+⛔ Out of stock · 🔴 Reorder now · 🟡 Reorder soon · 🟢 OK · Not selling · No stock data · ⚪ Not enough history.
+
+- **Screens:** Forecast (chips, table, cards, drawer)
+- **Data source:** Days of cover, the lead time (⚙ Settings: Ridhi / CPC, 60 days unless changed; "soon" window 30 — history/forecast, shared).
+- **Formula:** ⛔ stock 0 and sold in the last 8 weeks (losing ~this week's forecast) — with units on the way "Out of stock — N on the way", amber, still first; Not selling: stock > 0 and ≤ 2 units in 8 weeks; ⚪ under the gate; No stock data; 🔴 HIGH-demand cover < lead time; 🟡 < lead time + soon; 🟢 otherwise. Hidden (inactive): stock 0 and no sale in 8 weeks. A family's status comes from its total; its sizes show as badges (⛔ N of M sizes out of stock · 🔴 N sizes need reorder · N sizes: no stock data).
+- **Day cut-off:** Today (PT).
+- **Included / excluded:** Active children (stock > 0 or sold in 8 weeks); "Stock > 0 only" shows only stocked ones.
+- **Brands:** Each brand its own lead time.
+- **Rounding:** A status, not a number.
+- **How fresh:** As its inputs.
+
+### Task verdict ("did it work?")
+
+Whether a sales task (Action Tracker) changed the product's sales.
+
+- **Screens:** Action Tracker (cards, drawer, CSV, the bell, taskCheck)
+- **Data source:** The Forecast's weeks per family (PPC & Organic's weekly store + the nightly per-product days, out-of-stock / suppressed weeks skipped — the Sales Alerts families); the nightly per-product days after Done; Sales Alerts' own result; the Forecast status (reorder tasks).
+- **Formula:** Baseline = average units/week of the 4 finished weeks before the week the task was made (skipped weeks left out; at least 2 needed; kept on the task when made). After = units over the 7 / 14 days after the done day ÷ days × 7 (older: whole weeks after it). Change = after ÷ baseline − 1. From day 7: "Early check: +X%". From day 14 (or day 7 when the task's maker chose a 7-day review window): ✅ Worked ≥ +15 % (or Sales Alerts no longer flags it and it is not below −15 %), ➖ No change −15 % … +15 %, ❌ Didn't work below −15 %. A reorder task from the Forecast: ✅ as soon as the family is no longer ⛔ / 🔴. The final verdict is kept on the task.
+- **Day cut-off:** US Pacific days, Sunday–Saturday weeks (as Numbers Check); created / done / updated times shown in IST.
+- **Included / excluded:** Amazon units (Ridhi, CPC); Shopify not in. Data missing (Amazon 1–2 days late) → "Not enough data yet".
+- **Brands:** The task's own brand.
+- **Rounding:** Units/week whole; % whole.
+- **How fresh:** Nightly.
+
+### Return rate
+
+How many of what sold came back, per family and per SKU, per week.
+
+- **Screens:** Sales Alerts (↩ Return spikes: cards, rows, chart, returnsCheck)
+- **Data source:** Amazon's FBA Customer Returns report — the nightly cache "returns" once Pricing-API/Returns.gs runs, else the reports uploaded on Sales Alerts (history/returns_<brand>_<n>; a re-upload replaces rows with the same order, SKU, licence plate, date, quantity and reason). Units sold: the Forecast's weeks (PPC & Organic's weekly store + the nightly per-product days, the Sales Alerts families).
+- **Formula:** Rate(week) = units returned that week ÷ units sold a week, averaged over that week and the week before ((sold this week + sold last week) ÷ 2) — returns come after the sale. A SKU's return is counted on its ASIN (the report's, else the SKU's in Sellora). Only weeks the returns data covers whole.
+- **Day cut-off:** The return date on the US Pacific day (a timestamp is turned into PT); Sunday–Saturday weeks.
+- **Included / excluded:** Amazon FBA customer returns (every disposition). Shopify not in.
+- **Brands:** Ridhi · CPC · All (each family its own brand).
+- **Rounding:** Whole % (one decimal under 1 %).
+- **How fresh:** As the last upload / the nightly cache ("returns data up to <date>").
+
+### Return spike
+
+A family whose returns jumped in the last week the data covers.
+
+- **Screens:** Sales Alerts (↩ Return spikes chip, cards, rows; the Action Tracker's return tasks)
+- **Data source:** Return rate.
+- **Formula:** Baseline = the 8 weeks before, pooled (Σ returned ÷ Σ sold a week), at least 4 covered weeks. Spike = rate ≥ 2 × baseline AND ≥ baseline + 3 points AND ≥ 5 units returned. 🔴 Critical when ≥ 3 × baseline or ≥ 15 %; else 🟡 Watch. "Returns 3% → 11% in 15–21 Nov (9 units) · top reason: Not as described (6)". No returns data: a note, never a number.
+- **Day cut-off:** US Pacific weeks.
+- **Included / excluded:** As Return rate.
+- **Brands:** As Return rate.
+- **Rounding:** Whole %; points whole.
+- **How fresh:** As Return rate.
+
 ## Worked out in more than one place
 
 Each of these is a place two screens can disagree. The ones marked "checked below" are compared by Numbers Check.
 
+- Days of cover: Parent Listing Review "DOS" (MONTHS, stock ÷ last week × 52 ÷ 12) and Forecast "Cover" (DAYS, stock used up by the forecast at its HIGH end) — two definitions, both shown as they are.
 - Sales MTD / YTD: Sales Dashboard (sdSum) and Dashboard (DASH_CALC.sales, through sdSum with the channel swapped) — checked below.
 - Sales: Sales Dashboard uses Seller Central's totals where published; PPC & Organic, Profit & Margin, Parent Listing Review and Sales Analysis add up the Orders workbooks — checked below (PPC week, Profit & Margin).
 - "Both" / "All": Dashboard Both = Ridhi + CPC; Sales Dashboard All = Ridhi + CPC + Shopify; PPC & Organic All = every row, also one with no brand.
