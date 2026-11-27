@@ -32,8 +32,10 @@
  *       (Pricing-API/AplusModules.gs, read by listing-match.js lmAplusMods — once deployed) and, until then, "Read modules now" (one read-only
  *       ?lh=aplusdoc per document, kept in this browser). The newer of the two counts; a document never read says "not read yet".
  *       Per product (its product A+ document) and per document: the count, the types, Basic / Premium, against the team's standard
- *       (⚙ A+ standard, shared in listingrules/aplusstd; default 5 modules incl. a header image and a comparison chart): "2 of 5 ·
- *       missing: comparison chart, 2 more modules" or "5 of 5 · complete". BRAND STORY documents (Amazon's sub-type or module type says
+ *       (⚙ A+ standard, shared in listingrules/aplusstd; the company's default since 3 Dec 2026: 5 modules incl. a header image —
+ *       Premium's full-width / full-background / hero / banner / video-with-image modules are its header image): the count SHOWN is
+ *       capped at the standard — "✅ 5 of 5" (5 or more with a header image), "⚠️ 3 of 5" (fewer), "⚠️ missing header image" (enough,
+ *       but no header) — never "7 of 5"; Amazon's real count, raw module types and what is missing are in the tooltip. BRAND STORY documents (Amazon's sub-type or module type says
  *       so — never guessed from a name) are not product A+: "Only Brand Story — no product A+" (amber), counted apart; the Live bar's
  *       second line "with product A+: X of Y". Chips "Weak A+" (fewer modules than the standard) and "Only Brand Story", biggest sellers
  *       first. DESCRIPTION: the listing's product_description (the listing cache, up to 2,000 characters): ✅ N characters / ⚠️ short
@@ -84,7 +86,7 @@ let APC = { view: 'prod', brand: 'ALL', stock: true, f: '', q: '', open: new Set
 /* ----- MODULES + DESCRIPTION (2 Dec 2026) — added on top; nothing above changes ----- */
 const APC_MOD_KEEP = 'sellora.aplusMods.v1';         // this browser's module reads ("Read modules now", Preview A+)
 const APC_STD_ID = 'aplusstd';                        // the team's standard (listingrules/aplusstd)
-const APC_STD_DEF = { n: 5, must: ['header', 'comparison'] };
+const APC_STD_DEF = { n: 5, must: ['header'] };       // the company standard (3 Dec 2026): 5 modules, a header image among them
 const APC_DESC_SHORT = 200;                           // characters: a description shorter than this is "short"
 const APC_MOD_FRESH = 86400000;                       // "Read modules now" reads again what is older than a day
 // Amazon's module types (A+ Content API contentModuleType) in plain words, and the kind each one counts as for the standard
@@ -105,6 +107,14 @@ function apcModType(t) {
   const k = String(t || '').toUpperCase(), e = APC_MOD_TYPES[k];
   if (e) return { name: e[0], kind: e[1] };
   if (/BRAND.?STORY/.test(k)) return { name: 'brand story', kind: 'story' };
+  // PREMIUM A+ (3 Dec 2026) has its own module types: a full-width / full-background / hero / banner image (or a video with an image) is
+  // the header image; its comparison table the comparison chart; its image + text and text modules the same as Basic's
+  if (/^PREMIUM/.test(k)) {
+    if (/FULL.?WIDTH|FULL.?BACKGROUND|FULL.?IMAGE|HERO|BANNER|VIDEO.*IMAGE|IMAGE.*VIDEO/.test(k)) return { name: 'header image', kind: 'header' };
+    if (/COMPARISON/.test(k)) return { name: 'comparison chart', kind: 'comparison' };
+    if (/IMAGE|CAROUSEL|HOTSPOT|GALLERY/.test(k)) return { name: 'image + text', kind: 'imagetext' };
+    if (/TEXT|Q.?A|QUESTION/.test(k)) return { name: 'text', kind: 'text' };
+  }
   if (/COMPARISON/.test(k)) return { name: 'comparison chart', kind: 'comparison' };
   if (/HEADER/.test(k)) return { name: 'header image', kind: 'header' };
   return { name: k.replace(/^(STANDARD|PREMIUM)_/, '').replace(/_/g, ' ').toLowerCase() || 'module', kind: /IMAGE/.test(k) ? 'imagetext' : /TEXT/.test(k) ? 'text' : 'other' };
@@ -150,14 +160,20 @@ function apcModsText(m) {
   (m.ty || []).forEach(t => { const n = apcModType(t).name; seen.set(n, (seen.get(n) || 0) + 1); });
   return [...seen].map(([n, c]) => (c > 1 ? `${n} ×${c}` : n)).join(' · ');
 }
-/** Against the standard: { n, of, complete, weak (fewer modules than it asks), missing: [words], text: "2 of 5 · missing: …" / "5 of 5 · complete" }. */
+/** Against the standard (3 Dec 2026: the count SHOWN is capped at the standard — never "7 of 5"):
+ *  { n (Amazon's real count), shown (capped), of, complete, weak, missing: [words], text ("✅ 5 of 5" / "⚠️ 3 of 5" / "⚠️ missing header
+ *  image"), plain (the same without the mark — the sheet), tip (Amazon's real count and raw module types, and what is missing) }.
+ *  Fewer modules than the standard: "⚠️ N of 5"; enough but a must-have missing: "⚠️ missing <it>"; both weak. */
 function apcVsStd(m) {
   const std = APC.std, kinds = (m.ty || []).map(t => apcModType(t).kind);
   const miss = std.must.filter(k => !kinds.includes(k)).map(k => APC_KIND_NAME[k] || k);
-  const more = Math.max(0, std.n - m.n - miss.length);
+  const more = Math.max(0, std.n - m.n);
   const missing = miss.concat(more ? [`${more} more module${more === 1 ? '' : 's'}`] : []);
+  const shown = Math.min(m.n, std.n);
   const complete = m.n >= std.n && !miss.length;
-  return { n: m.n, of: std.n, complete, weak: m.n < std.n, missing, text: `${m.n} of ${std.n} · ${complete ? 'complete' : 'missing: ' + missing.join(', ')}` };
+  const plain = complete ? `${std.n} of ${std.n}` : m.n < std.n ? `${shown} of ${std.n}` : `missing ${miss.join(', ')}`;
+  const tip = `${m.n} module${m.n === 1 ? '' : 's'} on Amazon: ${(m.ty || []).join(', ') || 'none'}` + (missing.length ? ` — missing: ${missing.join(', ')}` : '');
+  return { n: m.n, shown, of: std.n, complete, weak: !complete, missing, text: (complete ? '✅ ' : '⚠️ ') + plain, plain, tip };
 }
 // The listing's description (product_description, the listing cache — up to 2,000 characters): { known, len, text }.
 function apcDesc(c) {
@@ -561,7 +577,7 @@ function apcRowView(p) {
     sales: p.sales, status, doc: d ? d.n || 'unnamed document' : '', type: d ? d.t || '' : '', updated: d && d.u ? apcDate(d.u) : '', reason: p.reasons.join('; '),
     what: p.what, link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: apcTime(c.brand),
     // (2 Dec 2026) modules and description
-    mods: !p.make ? '' : p.storyOnly ? 'Only Brand Story — no product A+' : p.make.m ? p.make.vs.text : 'not read yet', modTypes: p.make && p.make.m ? apcModsText(p.make.m) : '',
+    mods: !p.make ? '' : p.storyOnly ? 'Only Brand Story — no product A+' : p.make.m ? p.make.vs.plain : 'not read yet', modTypes: p.make && p.make.m ? p.make.vs.tip : '',
     plan: p.make && p.make.d ? p.make.d.t || '' : '', story: p.storyOnly ? 'yes' : '', modAt: p.make && p.make.m ? apcDate(p.make.m.at) + (p.make.m.src === 'daily' ? ' (daily read)' : ' (this browser)') : '',
     desc: !p.desc || !p.desc.known ? 'not read' : !p.desc.len ? 'missing' : p.desc.len < APC_DESC_SHORT ? 'short' : 'has it', descLen: p.desc && p.desc.known ? p.desc.len : '', noDesc: p.noDesc ? 'yes' : '' };
 }
@@ -583,7 +599,7 @@ function apcDocView(x) {
   return { brand: fcBrandName(d.brand), name: d.n || 'unnamed document', status: x.stuck ? 'Stuck' : APC_ST[x.st].t + (x.st === 'unchecked' && d.s ? ' (' + d.s + ')' : ''), type: d.t || '', updated: d.u ? apcDate(d.u) : '',
     on: x.onOurs === null ? '' : x.onOurs.length, extra: x.on === null ? '' : x.extra.length, liveN: x.liveN, add: x.add.join(' '), note: apcDocNote(x), reason: (d.rr || []).join('; '), time: apcTime(d.brand),
     // (2 Dec 2026) its modules
-    mods: x.m ? x.m.n : 'not read yet', modTypes: x.m ? apcModsText(x.m) : '', vs: x.story ? 'Brand Story (not product A+)' : x.vs ? x.vs.text : '', story: x.story ? 'yes' : '',
+    mods: x.m ? (x.vs ? x.vs.plain : apcModsText(x.m)) : 'not read yet', modTypes: x.m ? (x.vs ? x.vs.tip : `${x.m.n} on Amazon: ${(x.m.ty || []).join(', ')}`) : '', vs: x.story ? 'Brand Story (not product A+)' : x.vs ? x.vs.plain : '', story: x.story ? 'yes' : '',
     modAt: x.m ? apcDate(x.m.at) + (x.m.src === 'daily' ? ' (daily read)' : ' (this browser)') : '' };
 }
 const APC_DOC_COLS = ['Brand', 'Document', 'Status', 'Type', 'Last updated', 'Products on it', 'Other ASINs on it (parents / closed / not in our listings)', 'Live products on it', 'ASINs to add', 'Note', "Amazon's reason", 'Data time',
@@ -711,7 +727,7 @@ function apcModCellHtml(p) {
   if (!mk) return '<span class="fc-none">—</span>';
   if (p.storyOnly) return '<span class="muted">Brand Story only</span>';
   if (!mk.m) return '<span class="fc-none" title="Press “Read modules now” (top right)">not read yet</span>';
-  return `<span class="apc-mc ${mk.vs.complete ? 'is-ok' : 'is-y'}" title="${fcEsc(apcModsText(mk.m))}">${fcEsc(mk.vs.text)}</span>${mk.d && mk.d.t ? ` <small class="muted">${fcEsc(mk.d.t)}</small>` : ''}`;
+  return `<span class="apc-mc ${mk.vs.complete ? 'is-ok' : 'is-y'}" title="${fcEsc(mk.vs.tip)}">${fcEsc(mk.vs.text)}</span>${mk.d && mk.d.t ? ` <small class="muted">${fcEsc(mk.d.t)}</small>` : ''}`;
 }
 // (2 Dec 2026) the Description cell: ✅ N characters / ⚠️ short / ❌ missing — opened, the text itself
 function apcDescHtml(p) {
@@ -755,7 +771,8 @@ function apcGroupHtml(x) {
   const badges = badge('missing', 'missing') + badge('rejected', 'rejected') + badge('draft', 'draft') + badge('waiting', 'waiting') + (stuck ? `<span class="fc-chip is-y">${fcNf(stuck)} stuck</span>` : '')
     + badge('unchecked', 'not checked') + (g.n.none ? `<span class="fc-chip is-g">${fcNf(g.n.none)} no A+ needed</span>` : '') + (g.gap ? '<span class="fc-chip is-r apc-gapc" title="Some products of this family have A+ and others have none">Family gap</span>' : '');
   const mods = g.rows.filter(p => p.make && p.make.m);                          // (2 Dec 2026) the family's modules on average
-  const avg = mods.length ? `<span class="apc-avg" title="The product A+ of ${fcNf(mods.length)} of its products, modules read">avg ${(mods.reduce((s, p) => s + p.make.m.n, 0) / mods.length).toFixed(1).replace(/\.0$/, '')} of ${fcNf(APC.std.n)} modules</span>` : '';
+  // capped at the standard like each product (3 Dec 2026): 7 modules count as 5
+  const avg = mods.length ? `<span class="apc-avg" title="The product A+ of ${fcNf(mods.length)} of its products, modules read (each counted up to ${fcNf(APC.std.n)})">avg ${(mods.reduce((s, p) => s + p.make.vs.shown, 0) / mods.length).toFixed(1).replace(/\.0$/, '')} of ${fcNf(APC.std.n)} modules</span>` : '';
   const mini = `<span class="apc-mini" title="${fcNf(live)} of ${fcNf(counted)} have A+ live"><span class="apc-minib"><i style="width:${counted ? Math.round(live / counted * 100) : 0}%"></i></span>${fcNf(live)} of ${fcNf(counted)} have A+</span>${avg}`;
   const markable = x.rows.filter(p => p.bucket !== 'live' && p.bucket !== 'none').map(p => p.key);
   const allOn = markable.length && markable.every(k => APC.sel.has(k));
@@ -823,8 +840,9 @@ function apcDocCardHtml(x) {
   const flags = (x.stuck ? ' <span class="fc-chip is-y">Stuck</span>' : '') + (x.oldDraft ? ' <span class="fc-chip is-y">Forgotten draft</span>' : '') + (x.unused ? ' <span class="fc-chip is-g">Not on any live product</span>' : '')
     + (x.story ? ' <span class="fc-chip is-b apc-story" title="A Brand Story: not the products\' own A+">Brand Story</span>' : '');
   // (2 Dec 2026) its modules: "5 modules: header image · image + text ×2 · comparison chart · text", against the standard
-  const modLine = x.m ? `<div class="apc-dmod"><b>${fcNf(x.m.n)} module${x.m.n === 1 ? '' : 's'}:</b> ${fcEsc(apcModsText(x.m) || '—')}`
-    + (x.vs ? ` <span class="apc-mc ${x.vs.complete ? 'is-ok' : 'is-y'}">${fcEsc(x.vs.text)}</span>` : '') + ` <small class="muted">read ${fcEsc(apcDate(x.m.at))}${x.m.src === 'daily' ? ' (daily read)' : ' (this browser)'}</small></div>`
+  // (3 Dec 2026) the count shown is capped at the standard; Amazon's real count and raw types are in the tooltip
+  const modLine = x.m ? `<div class="apc-dmod" title="${fcEsc(x.vs ? x.vs.tip : `${x.m.n} module${x.m.n === 1 ? '' : 's'} on Amazon: ${(x.m.ty || []).join(', ') || 'none'}`)}"><b>Modules:</b> `
+    + (x.vs ? `<span class="apc-mc ${x.vs.complete ? 'is-ok' : 'is-y'}">${fcEsc(x.vs.text)}</span> ` : '') + `${fcEsc(apcModsText(x.m) || '—')} <small class="muted">read ${fcEsc(apcDate(x.m.at))}${x.m.src === 'daily' ? ' (daily read)' : ' (this browser)'}</small></div>`
     : '<div class="apc-dmod muted">Modules not read yet — “Read modules now” reads them (read-only)</div>';
   const on = x.on === null ? 'its product list could not be read' : `on ${fcNf(x.onOurs.length)} product${x.onOurs.length === 1 ? '' : 's'} at Amazon · ${fcNf(x.liveN)} live in Sellora`;
   // the ASINs on it that are not our listings: one small muted line, the list when it is opened
@@ -900,7 +918,7 @@ function apcStdHtml() {
   return `<div class="card apc-set" role="group" aria-label="A+ standard"><div><b>A+ standard</b> <span class="muted">— what a complete product A+ has; one standard for the whole team</span></div>`
     + `<div class="apc-setr"><label class="apc-setk">Modules <input type="number" min="1" max="12" data-apc-std="n" value="${fcEsc(std.n)}" aria-label="Modules"></label><span class="muted">must include:</span>${APC_KINDS.slice(0, 4).map(box).join('')}</div>`
     + `<div class="apc-setr"><button type="button" class="fc-b" data-apc="stdsave">Save standard</button><button type="button" class="ghost fc-b" data-apc="stdclose">Close</button>`
-    + `<span class="muted">${APC.stdBy ? fcEsc(`Saved by ${APC.stdBy.name || APC.stdBy.by || 'someone'}${APC.stdBy.at ? ' on ' + apcDate(APC.stdBy.at) : ''}`) : 'The default: 5 modules incl. a header image and a comparison chart'}</span>`
+    + `<span class="muted">${APC.stdBy ? fcEsc(`Saved by ${APC.stdBy.name || APC.stdBy.by || 'someone'}${APC.stdBy.at ? ' on ' + apcDate(APC.stdBy.at) : ''}`) : 'The company standard: 5 modules incl. a header image'}</span>`
     + `${APC.stdNote ? ` <span class="fc-oknote">${fcEsc(APC.stdNote)}</span>` : ''}</div></div>`;
 }
 /** Draw the screen. Everything comes from memory: no network wait, no Amazon call. */

@@ -611,10 +611,11 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     const run = await MC.apcReadMods();
     ok('"Read modules now": ONE read-only ?lh=aplusdoc per document (9) — nothing else asked, nothing sent', run.done === 9 && run.fail === 0 && M.calls.length === 9 && M.calls.every(q => q.lh === 'aplusdoc' && !q.asins), JSON.stringify(M.calls.slice(0, 2)));
     ok('…the statuses are exactly as before (no product moved)', MC.apcBuild().rows.map(r => r.c.sku + ':' + r.bucket).join() === before);
-    ok('MODULE COUNT vs the standard (5 incl. header image + comparison chart): TC-1 "5 of 5 · complete"', p('TC-1').make.vs.text === '5 of 5 · complete' && !p('TC-1').weak);
-    ok('…TC-6 (header + text): "2 of 5 · missing: comparison chart, 2 more modules" — weak', p('TC-6').make.vs.text === '2 of 5 · missing: comparison chart, 2 more modules' && p('TC-6').weak, p('TC-6').make.vs.text);
-    ok('…RN-1 (header, comparison, image + text): "3 of 5 · missing: 2 more modules"', p('RN-1').make.vs.text === '3 of 5 · missing: 2 more modules' && p('RN-1').weak);
-    ok('BASIC vs PREMIUM: the Modules cell names the document\'s type (Premium on TC-1, Basic on TC-6)', /5 of 5 · complete<\/span> <small class="muted">Premium<\/small>/.test(M.body()) || (() => { openAll(M); return /5 of 5 · complete<\/span> <small class="muted">Premium<\/small>/.test(M.body()) && /2 of 5 · missing: comparison chart, 2 more modules<\/span> <small class="muted">Basic<\/small>/.test(M.body()); })());
+    // (3 Dec 2026) the company standard: 5 modules, a header image among them; the count SHOWN is capped at 5, the missing parts in the tooltip
+    ok('MODULE COUNT vs the standard (5 incl. a header image): TC-1 "✅ 5 of 5"', p('TC-1').make.vs.text === '✅ 5 of 5' && !p('TC-1').weak);
+    ok('…TC-6 (header + text): "⚠️ 2 of 5" — weak; what is missing only in the tooltip', p('TC-6').make.vs.text === '⚠️ 2 of 5' && p('TC-6').weak && /— missing: 3 more modules$/.test(p('TC-6').make.vs.tip), p('TC-6').make.vs.text + ' | ' + p('TC-6').make.vs.tip);
+    ok('…RN-1 (header, comparison, image + text): "⚠️ 3 of 5"', p('RN-1').make.vs.text === '⚠️ 3 of 5' && p('RN-1').weak);
+    ok('BASIC vs PREMIUM: the Modules cell names the document\'s type (Premium on TC-1, Basic on TC-6)', (() => { openAll(M); return /✅ 5 of 5<\/span> <small class="muted">Premium<\/small>/.test(M.body()) && /⚠️ 2 of 5<\/span> <small class="muted">Basic<\/small>/.test(M.body()); })());
     ok('BRAND STORY ≠ product A+: Coasters (its only document a Brand Story) — "Only Brand Story — no product A+" (amber), still Live', p('CS-1').storyOnly && p('CS-1').bucket === 'live' && /Only Brand Story — no product A\+/.test(M.body()) && /<span class="fc-chip is-y apc-storyc"/.test(M.body()));
     const s = MC.apcSummary(MC.apcBuild());
     const live = s.live, counted = s.counted;
@@ -633,26 +634,48 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     ok('NO A+ AND NO DESCRIPTION: TC-4 and NP-2 (Missing, no description) red with the chip; TC-2 (Live, short) is not', p('TC-4').noDesc && p('NP-2').noDesc && !p('TC-2').noDesc && !p('TC-1').noDesc
       && new RegExp('class="fc-row apc-row is-orphan apc-nodesc[^"]*" data-apc-row="SP\\|' + A('TC-4') + '"').test(M.body()) && /No A\+ and no description <b>2<\/b>/.test(M.body()));
     M.click({ apc: 'view', apcV: 'doc' });
-    ok('By A+ document: "5 modules: header image · image + text ×2 · comparison chart · text" with "5 of 5 · complete"', /Tablecloth A\+ .*5 modules: header image · image \+ text ×2 · comparison chart · text 5 of 5 · complete read \d/.test(M.text()), (M.text().match(/Tablecloth A\+.{0,300}/) || [''])[0]);
+    ok('By A+ document: "Modules: ✅ 5 of 5 header image · image + text ×2 · comparison chart · text" — Amazon\'s real count and raw types in the tooltip', /Tablecloth A\+ .*Modules: ✅ 5 of 5 header image · image \+ text ×2 · comparison chart · text read \d/.test(M.text())
+      && /<div class="apc-dmod" title="5 modules on Amazon: STANDARD_HEADER_IMAGE_TEXT, STANDARD_SINGLE_SIDE_IMAGE, STANDARD_SINGLE_SIDE_IMAGE, STANDARD_COMPARISON_TABLE, STANDARD_TEXT">/.test(M.body()), (M.text().match(/Tablecloth A\+.{0,300}/) || [''])[0]);
     ok('…the Brand Story document carries the tag "Brand Story"; doc chips "Weak A+" and "Brand Story"', /Coasters \(on the parent\) ✓ Live Brand Story/.test(M.text()) && /Weak A\+ <b>\d+<\/b>/.test(M.body()) && /Brand Story <b>1<\/b>/.test(M.body()));
     const csv = MC.apcCsv(), cr = r => csvRows(csv.text).find(x => x[2] === r);
     M.click({ apc: 'view', apcV: 'prod' });
     const csv2 = MC.apcCsv(), row6 = csvRows(csv2.text).find(x => x[2] === 'TC-6'), row4 = csvRows(csv2.text).find(x => x[2] === 'TC-4'), rowCs = csvRows(csv2.text).find(x => x[2] === 'CS-1');
-    ok('CSV (products): Modules, Module types, Basic / Premium, Only Brand Story, Modules read, Description, its characters, No A+ and no description', row6[14] === '2 of 5 · missing: comparison chart, 2 more modules' && row6[15] === 'header image · text' && row6[16] === 'Basic' && /\(this browser\)$/.test(row6[18])
+    ok('CSV (products): Modules, Module types, Basic / Premium, Only Brand Story, Modules read, Description, its characters, No A+ and no description', row6[14] === '2 of 5' && row6[15] === '2 modules on Amazon: STANDARD_HEADER_IMAGE_TEXT, STANDARD_TEXT — missing: 3 more modules' && row6[16] === 'Basic' && /\(this browser\)$/.test(row6[18])
       && row4[19] === 'missing' && row4[20] === '0' && row4[21] === 'yes' && rowCs[17] === 'yes' && rowCs[14] === 'Only Brand Story — no product A+', JSON.stringify([row6, row4.slice(14)]));
     const dc = MC.apcDocsCsv(), dl = csvRows(dc.text).find(x => x[1] === 'Tablecloth A+'), dp = csvRows(dc.text).find(x => x[1] === 'Coasters (on the parent)');
     ok('CSV (documents): Modules, Module types, Against the standard, Brand Story, Modules read', csvRows(dc.text)[0].slice(12).join(' · ') === 'Modules · Module types · Against the standard · Brand Story · Modules read'
-      && dl[12] === '5' && dl[14] === '5 of 5 · complete' && dp[15] === 'yes' && dp[14] === 'Brand Story (not product A+)', JSON.stringify([dl.slice(12), dp.slice(12)]));
+      && dl[12] === '5 of 5' && dl[14] === '5 of 5' && /^5 modules on Amazon: STANDARD_HEADER_IMAGE_TEXT/.test(dl[13]) && dp[15] === 'yes' && dp[14] === 'Brand Story (not product A+)', JSON.stringify([dl.slice(12), dp.slice(12)]));
     ok('the meta says when: "modules read <date> for 8 of 8 documents (this browser)"', /Ridhi: modules read \d{1,2} \w+ \d{4} for 8 of 8 documents \(this browser\)/.test(strip(M.els.apcMeta.innerHTML)), strip(M.els.apcMeta.innerHTML));
     // the standard, shared: 3 modules with a header image
     await MC.apcStdSave({ n: 3, must: ['header'] });
-    ok('⚙ A+ standard: saved for the team (listingrules/aplusstd) — TC-6 "2 of 3 · missing: 1 more module", RN-1 "3 of 3 · complete"', p('TC-6').make.vs.text === '2 of 3 · missing: 1 more module' && p('RN-1').make.vs.text === '3 of 3 · complete'
+    ok('⚙ A+ standard: saved for the team (listingrules/aplusstd) — TC-6 "⚠️ 2 of 3", RN-1 "✅ 3 of 3", TC-1 (5 modules) "✅ 3 of 3" — never "5 of 3"', p('TC-6').make.vs.text === '⚠️ 2 of 3' && p('RN-1').make.vs.text === '✅ 3 of 3' && p('TC-1').make.vs.text === '✅ 3 of 3'
       && M.store['listingrules/aplusstd'] && M.store['listingrules/aplusstd'].items.std.n === 3 && M.store['listingrules/aplusstd'].items.std.must.join() === 'header');
-    await MC.apcStdSave({ n: 5, must: ['header', 'comparison'] });
+    await MC.apcStdSave({ n: 5, must: ['header'] });
     ok('read-only all the way: no write but the team\'s own standard and marks — no Amazon change', !M.calls.some(q => q.lfix || q.lcreate || q.method === 'POST') && Object.keys(M.store).every(k => /^listingrules\/(aplusstd|aplusok_)/.test(k)), Object.keys(M.store).join());
     // a name is never read as a Brand Story — only Amazon's own sub-type / module type
     ok('never guessed from a name: a document called "Brand Story page" with normal modules is product A+', !MC.apcModsOf({ brand: 'SP', k: 'X' }) && (() => { MC.APC.mods.set('SP|D-UNUSED', { n: 3, ty: [H_, IT, TX], sub: '', ct: 'EBC', at: Date.now(), src: 'browser' }); return true; })()
       && !MC.apcDocs(MC.apcBuild()).find(x => x.d.k === 'D-UNUSED').story);
+    // (3 Dec 2026) the company standard, Premium's own module types, the count capped at 5
+    ok('the default ⚙ A+ standard is the company\'s: 5 modules, must include a header image only (pre-filled in the box)', (() => { const T2 = setup(); return T2.C.APC.std.n === 5 && T2.C.APC.std.must.join() === 'header'; })()
+      && (() => { MC.APC.setOpen = true; MC.apcDraw(); const b = M.body(); MC.APC.setOpen = false; return /value="header" checked/.test(b) && /value="comparison">/.test(b) && /value="imagetext">/.test(b) && /value="text">/.test(b) && /data-apc-std="n" value="5"/.test(b); })());
+    const prem7 = ['PREMIUM_HERO_IMAGE', 'PREMIUM_IMAGE_TEXT', 'PREMIUM_IMAGE_TEXT', 'PREMIUM_COMPARISON_TABLE_1', 'PREMIUM_TEXT', 'PREMIUM_SIMPLE_IMAGE_CAROUSEL', 'PREMIUM_QA'];
+    MC.APC.mods.set('SP|D-WAIT', { n: 7, ty: prem7, sub: '', ct: 'EMC', at: Date.now(), src: 'browser' });
+    MC.APC.modV++;
+    ok('a 7-module Premium A+ with a hero image → "✅ 5 of 5" — never "7 of 5"; the real count only in the tooltip', p('PM-1').make.vs.text === '✅ 5 of 5' && p('PM-1').make.vs.shown === 5 && !p('PM-1').weak
+      && p('PM-1').make.vs.tip === '7 modules on Amazon: ' + prem7.join(', '), JSON.stringify(p('PM-1').make.vs));
+    M.click({ apc: 'view', apcV: 'prod' }); openAll(M);
+    ok('…on the page: no "7 of 5" anywhere; the cell\'s tooltip has Amazon\'s raw module types', !/7 of 5/.test(M.body()) && new RegExp('title="7 modules on Amazon: ' + prem7.join(', ') + '">✅ 5 of 5</span>').test(M.body()));
+    ok('…the family line "avg N of 5" is capped too (Placemats: 7 → 5 and 5 → avg 5, not 6)', /Placemats .*avg 5 of 5 modules/.test(M.text()) && !/avg 6 of 5/.test(M.text()), (M.text().match(/Placemats.{0,160}/) || [''])[0]);
+    const vs = ty => MC.apcVsStd({ n: ty.length, ty });
+    ok('Premium banners count as the header image: full-width, full-background, hero, banner, video with an image', ['PREMIUM_FULL_WIDTH_IMAGE', 'PREMIUM_FULL_BACKGROUND_IMAGE', 'PREMIUM_HERO_VIDEO_WITH_IMAGE', 'PREMIUM_BANNER_IMAGE', 'PREMIUM_VIDEO_IMAGE_CAROUSEL']
+      .every(h => vs([h, 'PREMIUM_TEXT', 'PREMIUM_TEXT', 'PREMIUM_IMAGE_TEXT', 'PREMIUM_COMPARISON_TABLE_2']).text === '✅ 5 of 5'));
+    const noHead = vs(['STANDARD_SINGLE_SIDE_IMAGE', 'STANDARD_TEXT', 'STANDARD_TEXT', 'STANDARD_COMPARISON_TABLE', 'PREMIUM_IMAGE_TEXT', 'STANDARD_TEXT']);
+    ok('no header image (6 modules) → "⚠️ missing header image" — Weak A+', noHead.text === '⚠️ missing header image' && noHead.weak && noHead.tip === '6 modules on Amazon: STANDARD_SINGLE_SIDE_IMAGE, STANDARD_TEXT, STANDARD_TEXT, STANDARD_COMPARISON_TABLE, PREMIUM_IMAGE_TEXT, STANDARD_TEXT — missing: header image', JSON.stringify(noHead));
+    ok('fewer than 5: "⚠️ 3 of 5" (Weak A+) — the missing parts only in the tooltip', vs(['STANDARD_HEADER_IMAGE_TEXT', 'STANDARD_TEXT', 'STANDARD_TEXT']).text === '⚠️ 3 of 5' && vs(['STANDARD_HEADER_IMAGE_TEXT', 'STANDARD_TEXT', 'STANDARD_TEXT']).weak
+      && /— missing: 2 more modules$/.test(vs(['STANDARD_HEADER_IMAGE_TEXT', 'STANDARD_TEXT', 'STANDARD_TEXT']).tip));
+    MC.APC.mods.set('SP|D-WAIT2', { n: 6, ty: noHead.tip.split(': ')[1].split(' — ')[0].split(', '), sub: '', ct: 'EBC', at: Date.now(), src: 'browser' });
+    MC.APC.modV++;
+    ok('…and a product whose A+ has no header image is under the "Weak A+" chip', p('PM-2').weak && MC.apcFlatList(MC.apcBuild(), 'weak').some(r => r.c.sku === 'PM-2'));
     // three failures in a row stop the read
     const F = await open({ docFail: true });
     const fr = await F.C.apcReadMods();
@@ -662,7 +685,7 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     D.net.tabs.lmAplus_Mods_SP = { b: 'SP', at: IST(Date.now() - H), atMs: Date.now() - H, ok: true, docs: { 'D-LIVE': { n: 5, ty: MODS['D-LIVE'], sub: '', ct: 'EMC', at: Date.now() - H } } };
     await D.C.lmEnsure(); await D.C.lmRefresh(); await D.C.apcOpen(); await new Promise(r => setTimeout(r, 0));
     const d1 = D.C.apcBuild().rows.find(r => r.c.sku === 'TC-1');
-    ok('the daily backend read counts with no click: TC-1 "5 of 5 · complete" (daily read); a document it does not hold stays "not read yet"', d1.make.vs.text === '5 of 5 · complete' && d1.make.m.src === 'daily'
+    ok('the daily backend read counts with no click: TC-1 "✅ 5 of 5" (daily read); a document it does not hold stays "not read yet"', d1.make.vs.text === '✅ 5 of 5' && d1.make.m.src === 'daily'
       && !D.C.apcBuild().rows.find(r => r.c.sku === 'TC-6').make.m && /modules read \d{1,2} \w+ \d{4} for 1 of 8 documents \(daily read\)/.test(strip(D.els.apcMeta.innerHTML)), strip(D.els.apcMeta.innerHTML));
   }
 
