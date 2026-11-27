@@ -595,6 +595,55 @@ const LR_SW_COLOR_SET = new Set(LR_SW_COLORS.map(lrSwKey));
 const LR_SW_LOW_SET = new Set(LR_SW_LOW.map(lrSwKey));
 const LR_SW_STOP_SET = new Set(LR_SW_STOP.map(lrSwKey).concat(['&', '+']));
 const LR_SW_LEFT_SET = new Set(LR_SW_LEFTOVER.map(lrSwKey));
+/* SEARCH TERMS — fixes from real data (30 Nov 2026; Tablecloth Main RT146-70118, RT354_70118). Search-terms mode only: the title
+ * rules keep their own lists (LR_SW_COLORS, LR_SW_LOW) and are not changed. */
+// every colour word, shades too: never ADDED unless it is the product's own colour; in the listing's own words another colour goes
+const LR_KW_COLORS = LR_SW_COLORS.concat(['salmon', 'sage', 'navy', 'mustard', 'peach', 'mint', 'lavender', 'lilac', 'maroon', 'burgundy', 'rust',
+  'terracotta', 'ochre', 'olive', 'khaki', 'taupe', 'beige', 'tan', 'charcoal', 'cobalt', 'emerald', 'fuchsia', 'magenta', 'plum', 'mauve', 'violet',
+  'purple', 'indigo', 'blush', 'ruby', 'turquoise', 'teal', 'aqua', 'aquamarine', 'cyan', 'bubblegum', 'chartreuse', 'seafoam', 'periwinkle', 'cerulean',
+  'vermilion', 'aubergine', 'ivory', 'cream', 'eggshell', 'apricot', 'tangerine', 'cranberry', 'raspberry', 'scarlet', 'crimson', 'amethyst', 'lime',
+  'grey', 'silver', 'gold', 'golden', 'copper', 'bronze', 'champagne', 'azure', 'sapphire', 'jade', 'rose', 'pink', 'hotpink', 'oxblood']);
+const LR_KW_COLOR_SET = new Set(LR_KW_COLORS.map(lrSwKey));
+// CLOSE SHADES count as the product's own colour: a Turquoise cloth may say teal or aqua, a Bubblegum Pink one rose or blush
+const LR_KW_SHADES = [['turquoise', 'teal', 'aqua', 'aquamarine', 'cyan'], ['pink', 'rose', 'blush', 'bubblegum', 'hotpink'], ['ivory', 'cream', 'offwhite', 'eggshell'],
+  ['gray', 'grey', 'silver']];
+/** The product's own colour words (keys) with their close shades: a Set — empty when its colour is not known. */
+function lrKwOwnColours(colour) {
+  const own = new Set(String(colour || '').split(/[\s,&/+-]+/).map(lrSwKey).filter(k => k && !LR_SW_STOP_SET.has(k)));
+  LR_KW_SHADES.forEach(g => { const keys = g.map(lrSwKey); if (keys.some(k => own.has(k))) keys.forEach(k => own.add(k)); });
+  return own;
+}
+// LOW VALUE in search terms: the title rule's list + these — never ADDED, and the first of the listing's own words to go to fit
+const LR_KW_LOW = LR_SW_LOW.concat(['fun', 'nice', 'cute', 'pretty', 'best', 'cheap', 'new', 'beautiful', 'lovely', 'perfect', 'great', 'cars', 'car', 'cool',
+  'good', 'top', 'amazing', 'awesome', 'wonderful', 'super', 'special', 'popular', 'gorgeous', 'fancy', 'classy', 'adorable', 'sale', 'deal', 'discount', 'free']);
+const LR_KW_LOW_SET = new Set(LR_KW_LOW.map(lrSwKey));
+/** Two words a typing slip apart: the optimal-string-alignment distance (a swap of two letters = 1) is at most `max`. */
+function lrSwNear(a, b, max) {
+  a = String(a || ''); b = String(b || '');
+  if (Math.abs(a.length - b.length) > max) return false;
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i].concat(Array(b.length).fill(0)));
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const c = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length] <= max;
+}
+/** A misspelt or run-together brand: a word a typing slip (or none) from one of these brand keys — "anthropology" → Anthropologie,
+ *  "potterybarn" / "potterybarm" → Pottery Barn (the keys are written as one word). → the brand key, or ''. Words of 7+ letters two
+ *  slips, of 5–6 letters one slip apart (`short`: 2 for OUR brands — "rhidi" is Ridhi); the same first letter. */
+function lrKwBrandSlip(k, brandKeys, short) {
+  if (!k || k.length < 5 || /\d/.test(k)) return '';
+  for (const b of brandKeys) {
+    if (!b || b.length < 5 || k[0] !== b[0]) continue;
+    if (b === k) return b;
+    if (lrSwNear(k, b, k.length >= 7 && b.length >= 7 ? 2 : (short || 1))) return b;
+  }
+  return '';
+}
 const LR_SW_SHAPE_OF = new Map(Object.entries(LR_SW_SHAPES).flatMap(([shape, words]) => words.map(w => [lrSwKey(w), shape])));
 // "Rectangular" → 'rectangle', "Round" → 'round'; '' when it names no shape.
 const lrSwShapeWord = text => { for (const w of String(text || '').split(/[^A-Za-z]+/)) { const s = LR_SW_SHAPE_OF.get(lrSwKey(w)); if (s) return s; } return ''; };
@@ -763,6 +812,32 @@ function lrSuggestWords(text, o) {
   // a size: a number, "54x54", "18in", "100%" — not a word that holds a digit ("word035", an ASIN)
   const digit = t => !!t && /^\d+(?:\.\d+)?(?:x\d+(?:\.\d+)?){0,2}(?:inch|in|cm|ft|mm|%|"|”|″)?$/.test(t.k);
   toks.forEach((t, i) => { if (!t.cls && (digit(t) || (LR_SW_UNIT.includes(t.k) && (digit(toks[i - 1]) || digit(toks[i + 1]) || (t.k !== 'x' && t.k !== 'by' && digit(toks[i - 2])))))) t.cls = 'size'; });
+  /* SIZES (30 Nov 2026, search terms): only the product's OWN size is protected (118x70, 70x118, "70 x 118 inch" — the numbers in any
+   * order); another size ("60x90" in a 118 x 70 cloth) is not — it goes, "not its size". A bare number (a count: "set of 4") and a
+   * percentage ("100%") are left as they were. Its own size not known: every size stays protected, as before.
+   * NOT in the Season planner's trim (cutEnd: false — it takes out only what it must, the 30-Nov steps are not its rules). */
+  const kwFix = mode === 'kw' && o.cutEnd !== false;
+  if (kwFix) {
+    const ownNums = (String(f.size || '').match(/\d+(?:\.\d+)?/g) || []).map(Number);
+    if (ownNums.length) {
+      const own = ownNums.slice().sort((a, b) => a - b).join('x');
+      const unitK = new Set(['x', 'inch', 'in', 'cm', 'ft', 'feet', 'mm', '"', '”', '″']);
+      for (let i = 0; i < toks.length;) {
+        if (toks[i].cls !== 'size' || !/\d/.test(toks[i].k)) { i++; continue; }
+        // one size: a number, then "x" + a number / a unit, as long as they follow
+        let j = i + 1;
+        while (j < toks.length && toks[j].cls === 'size' && (unitK.has(toks[j].k) || (toks[j - 1].k === 'x' && /^\d/.test(toks[j].k)))) j++;
+        const seg = toks.slice(i, j);
+        const isSize = !seg.some(t => /%/.test(t.k)) && seg.some(t => /\dx\d/.test(t.k) || /\d(?:inch|in|cm|ft|mm|"|”|″)$/.test(t.k) || (unitK.has(t.k) && t.k !== 'x') || t.k === 'x');
+        if (isSize) {
+          const nums = seg.flatMap(t => (t.k.match(/\d+(?:\.\d+)?/g) || []).map(Number));
+          const mine = nums.slice().sort((a, b) => a - b).join('x') === own || (nums.length === 1 && ownNums.includes(nums[0]));
+          if (!mine) seg.forEach(t => { t.cls = ''; t.notSize = true; });
+        }
+        i = j;
+      }
+    }
+  }
   // the text as it would be now
   const live = () => toks.filter(t => !t.out);
   const tidy = s => s.replace(/\s+([,;:])/g, '$1').replace(/([,;:])(?:\s*[,;:])+/g, '$1').replace(/(\s[-–—|·])(?:\s+[-–—|·])+/g, '$1')
@@ -813,6 +888,21 @@ function lrSuggestWords(text, o) {
       }
     }
     toks.forEach(t => { if (t.out) return; if (!t.k) drop(t, 'punctuation'); else if (LR_SW_ASIN.test(t.k)) drop(t, 'ASIN'); });
+    // (30 Nov 2026) another size goes ("not its size"); another colour goes ("not its colour" — its own colour and its close shades
+    // stay; not judged when its colour is not known)
+    toks.forEach(t => { if (!t.out && t.notSize) drop(t, 'not its size'); });
+    const ownCol = lrKwOwnColours(f.colour);
+    if (kwFix && ownCol.size && !ownCol.has('multicolor')) toks.forEach(t => { if (!t.out && !t.cls && t.k && LR_KW_COLOR_SET.has(t.k) && !ownCol.has(t.k)) drop(t, 'not its colour'); });
+    // (30 Nov 2026) a MISSPELT brand: another brand's name a typing slip off ("anthropology" → Anthropologie) goes like the brand; a slip
+    // of OUR brand ("rhidi") is a duplicate when our brand is there too
+    const slipKeys = [...new Set(lrWords(lrAllow((typeof LR !== 'undefined' && LR) || LR_DEFAULT).otherBrands).concat(o.others || []).map(b => lrSwKey(b)).filter(Boolean))];
+    const ourKeys = [...new Set(brandPhrases.filter(p => p.length === 1).map(p => p[0]))].filter(k => k.length >= 5);
+    if (kwFix) toks.forEach(t => {
+      if (t.out || t.cls || !t.k) return;
+      if (lrKwBrandSlip(t.k, slipKeys)) return drop(t, 'other brand');
+      const ours = lrKwBrandSlip(t.k, ourKeys, 2);
+      if (ours && toks.some(x => x !== t && !x.out && x.k === ours)) drop(t, 'repeated');
+    });
     toks.forEach((t, i) => { if (!t.out && t.k && !unit(t) && toks.slice(0, i).some(x => !x.out && x.k === t.k)) drop(t, 'repeated'); });
     const inTitle = new Set(String(o.title || '').split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
     // a text someone else wrote (the ✨ AI's): a word of the title that the search terms did not hold before goes — our brands stay
@@ -826,7 +916,10 @@ function lrSuggestWords(text, o) {
       o.add.forEach(a => {
         const w = String((a && a.w) || '').trim();
         const k = lrSwKey(w);
-        if (!k || /\s/.test(w) || have.has(k) || inTitle.has(k) || LR_SW_STOP_SET.has(k) || LR_SW_ASIN.test(k)) return;
+        if (!k || /\s/.test(w) || have.has(k) || inTitle.has(k) || LR_SW_STOP_SET.has(k) || LR_KW_LOW_SET.has(k) || LR_SW_ASIN.test(k)) return;
+        // never another colour, never a misspelt brand (ours or anyone's)
+        if (LR_KW_COLOR_SET.has(k) && ownCol.size && !ownCol.has(k)) return;
+        if (lrKwBrandSlip(k, slipKeys) || lrKwBrandSlip(k, ourKeys, 2)) return;
         have.add(k);
         toks.push({ raw: w, w, k, at: -1, i: toks.length, out: '', cls: '', risk: false, added: true, addWhy: String((a && a.why) || ''), proven: !!(a && a.proven) });
       });
@@ -855,7 +948,8 @@ function lrSuggestWords(text, o) {
     return false;
   })) return done();
   // 3 low-value words and joining words
-  if (step(t => (isProt(t) || t.added ? false : LR_SW_LOW_SET.has(t.k) ? 'low-value word' : LR_SW_STOP_SET.has(t.k) ? 'stop word' : false))) return done();
+  const lowSet = kwFix ? LR_KW_LOW_SET : LR_SW_LOW_SET;        // search terms: the longer list (30 Nov 2026) — not the planner's trim
+  if (step(t => (isProt(t) || t.added ? false : lowSet.has(t.k) ? 'low-value word' : LR_SW_STOP_SET.has(t.k) ? 'stop word' : false))) return done();
   // 3b search terms: the Brand Analytics words added (never a proven one here), the weakest (the last added) first — they never
   // push out the listing's own words
   if (step(t => !!t.added && !t.proven, 'limit')) return done();

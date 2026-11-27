@@ -201,10 +201,12 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     ok('…and only then the listing\'s own ordinary words, from the end — never our brand or an important word', !r.removed.some(x => x.why === 'cut to fit' && /^(ridhi|hand|block|print|tablecloth|cotton|indigo|blue|rectangular|dining|kitchen)$/.test(x.w)), JSON.stringify(r.removed.filter(x => x.why === 'cut to fit').map(x => x.w)));
     let kwNS = 'ridhi cpc whimsical corner hand block print blockprint handmade napkins cotton sage green dinner kitchen dining washable reusable wrinkle free';
     for (let i = 10; bytes(kwNS) <= 260; i++) kwNS += ` ${i}x${i}`;
-    const ns = suggest(C, N1, kwNS);
+    // (30 Nov 2026) only the product's OWN size is protected — so these padding sizes are protected only while its size is not known
+    const noSize = Object.assign({}, facts(C, N1), { size: '' });
+    const ns = suggest(C, N1, kwNS, { facts: noSize });
     ok('only our brands + important words left and still over → nothing cut, no word added: "Only important words left — edit by hand"', ns.important && !ns.fits && !ns.removed.length && !ns.added.length && ns.after === kwNS, JSON.stringify([bytes(ns.after), ns.removed]));
-    const kp = C.kfShorten(kwNS, { title: N1.title, brands: ['ridhi', 'cpc', 'whimsical corner'], facts: facts(C, N1) });
-    ok('…Fix all search terms holds it with the same words', kp.important && C.kfPlan({ key: 'k', brand: 'CPC', sku: N1.sku, kw: kwNS, title: N1.title, brands: ['cpc'], facts: facts(C, N1), full: true, pt: 'NAPKIN' }).why === 'Only important words left — edit by hand');
+    const kp = C.kfShorten(kwNS, { title: N1.title, brands: ['ridhi', 'cpc', 'whimsical corner'], facts: noSize });
+    ok('…Fix all search terms holds it with the same words', kp.important && C.kfPlan({ key: 'k', brand: 'CPC', sku: N1.sku, kw: kwNS, title: N1.title, brands: ['cpc'], facts: noSize, full: true, pt: 'NAPKIN' }).why === 'Only important words left — edit by hand');
     const C2 = setup();
     C2.KF.full.set('SP|' + T1.sku, { kw: T1.kw, pt: 'TABLECLOTH', at: Date.now() });          // read whole from Amazon (its product type known)
     const it = C2.kfItemOf('SP', C2.HEALTH.SP.rows.find(x => x.sku === T1.sku), C2.hCtx(), null);
@@ -334,7 +336,7 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     ok('…never a 🔒 protected word (cpc, napkins, sage green, cotton, dinner, washable, reusable) and never a word with proof ("picnic": a search with orders)', !pr.removed.some(x => /^(cpc|napkins|sage|green|cotton|dinner|washable|reusable|picnic)$/.test(x.w)) && /picnic/.test(pr.after));
     let prot = 'napkins sage green cotton cpc whimsical corner dinner washable reusable hand block print';
     for (let i = 10; bytes(prot) < 246; i++) prot += ` ${i}x${i}`;                          // sizes: protected too
-    const onlyProt = P.lrSuggestWords(prot, { mode: 'kw', facts: N1f, title: N1.title, brands: ['cpc'], fits, add: [{ w: 'farmhouse', why: 'x', proven: true }] });
+    const onlyProt = P.lrSuggestWords(prot, { mode: 'kw', facts: Object.assign({}, N1f, { size: '' }), title: N1.title, brands: ['cpc'], fits, add: [{ w: 'farmhouse', why: 'x', proven: true }] });
     ok('…with only 🔒 words left there is no room: the proven word is not added and nothing is replaced', !onlyProt.added.length && !onlyProt.removed.some(x => x.why === 'replaced') && onlyProt.notAdded.map(a => a.w).join() === 'farmhouse', JSON.stringify([onlyProt.added, onlyProt.removed.slice(0, 4)]));
     const ba = P.lrSuggestWords(near, { mode: 'kw', facts: N1f, title: N1.title, brands: ['cpc'], fits, proof: proofOf, add: [{ w: 'farmhouse', why: 'wins for Etopia on …' }] });
     ok('a Brand Analytics word does NOT push out the listing\'s own words: not added, nothing taken out, the text as it was', !ba.added.length && !ba.removed.length && ba.after === near && ba.notAdded.map(a => a.w).join() === 'farmhouse', JSON.stringify([ba.added, ba.removed.map(x => x.w + ':' + x.why)]));

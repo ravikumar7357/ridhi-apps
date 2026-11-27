@@ -281,10 +281,15 @@ function kfAddedHtml(p) {
   const add = (p.added || []).map(a => `<li><ins class="kf-add">+ ${kfEsc(a.w)}</ins> <span class="muted">(${kfEsc(a.why)})</span>${a.replaces && a.replaces.length ? ` <span class="kf-repl">replaces ${kfEsc(a.replaces.join(', '))} (no orders)</span>` : ''}</li>`).join('');
   const not = (p.notAdded || []).length ? `<li class="muted">Not added (no room within the limit): ${kfEsc(p.notAdded.slice(0, 8).map(a => a.w).join(', '))}${p.notAdded.length > 8 ? ` +${kfNf(p.notAdded.length - 8)}` : ''}</li>` : '';
   // (29 Nov 2026) the words of searches Sellora is not sure describe this product: never added, said
-  const sk = (p.skipped || []).slice(0, 6).map(x => `<li class="kf-skip muted">${kfEsc(x.why)} (${kfEsc(x.from)} from '${kfEsc(x.term)}')</li>`).join('');
+  const sk = (p.skipped || []).slice(0, 8).map(x => `<li class="kf-skip muted">${kfEsc(x.why)} (${kfEsc(x.from)} from '${kfEsc(x.term)}')</li>`).join('');
   return add || not || sk ? `<ul class="kf-adds">${add}${not}${sk}</ul>` : '';
 }
 // The winning-keyword data's line for the popup: where it is from and how old — or that there is none (nothing is added then).
+// (30 Nov 2026) the words not added because they are not this product, counted on top so they are easy to review
+function kfSkipLine(run) {
+  const n = run.plans.reduce((s, p) => s + ((p.skipped && p.skipped.length) || 0), 0);
+  return n ? `<p class="kf-skipn">Skipped ${kfNf(n)} word${n === 1 ? '' : 's'} (not this product) — under each child, with why</p>` : '';
+}
 function kfWinLine(run) {
   const p = run.plans.find(x => x.win && x.win.status) || null;
   const st = p ? p.win.status : (typeof kwStatus === 'function' ? kwStatus() : null);
@@ -350,7 +355,7 @@ function kfDraw() {
   spModal(`<div class="sq-pop kf-pop"><div class="sp-m-h sq-top"><b>Fix all search terms — ${kfEsc(run.o.title || '')}</b>`
     + `<p class="sq-sum" data-kf-sum>${kfEsc(kfSumText(run))}</p>`
     + `<p>Always out: every word said twice (the first stays), ${typeof ipgKwRisk === 'function' ? 'risky words (other brands’ names and restricted claims: struck through in red), ' : ''}other brands’ names and ASINs. Then the winning words this product type is missing are added (+, with why). Then, only until it fits: a shape or colour that is not the product’s, low-value and joining words, the weakest Brand Analytics word, then other words (those the title already says first) — a word PROVEN in our ads (2+ orders) may take the place of the listing’s own words with no orders. 🔒 Our brands and its important words — hand, block print, its product, shape, material, colour, size and use words — stay once. A text within the limit loses only its risky words.</p>`
-    + kfWinLine(run)
+    + kfSkipLine(run) + kfWinLine(run)
     + `<div class="kf-tools"><input type="search" data-kf-q placeholder="Search SKU, colour, size…" value="${kfEsc(run.q)}" aria-label="Search the children">`
     + `<label class="kf-all"><input type="checkbox" data-kf-all${all ? ' checked' : ''}> Select all</label></div></div>`
     + `<div class="sp-m-list">${order.map(p => kfRowHtml(run, p)).join('') || '<div class="sp-m-row sq-none">Nothing to fix.</div>'}</div>`
