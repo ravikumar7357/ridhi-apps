@@ -3970,10 +3970,24 @@ function invWorthShowing(r) {
 }
 /** How much of the PPC need the RFD free covers, in whole percent (0–100). */
 function invCoverPct(p) { return p && p.need > 0.05 ? Math.min(100, Math.round((p.free || 0) / p.need * 100)) : 0; }
+/* ORDER BUCKETS (Ravi, 27 Nov: "Greige Desk me bucket ho SHP board / Online board"): the same PPC need, split by the board the order came from.
+ * 'all' shows every order; 'shp' / 'onl' / 'oth' show only the fabrics that board's orders need, with that board's metres in the need column. */
+UI.invChan = 'all';
+var INV_CHAN = ['all', 'shp', 'onl', 'oth'];
+function invChanLabel(k) { return k === 'all' ? 'All orders' : ((typeof FLOW_BOARDS !== 'undefined' && FLOW_BOARDS[k]) || k); }
+function invChanOf(r, k) { var c = r && r.ppc && r.ppc.chan && r.ppc.chan[k]; return c || { need: 0, lines: 0 }; }
+function invChanOn(r) { return UI.invChan === 'all' || invChanOf(r, UI.invChan).need > 0.05; }
 function invNeedCell(r, loading) {
   if (loading) return '<td class="tl muted">…</td>';
   var p = r.ppc;
   if (invNeedState(r) === 'none') return '<td class="tl muted" style="font-size:12px">no PPC demand</td>';
+  if (UI.invChan !== 'all') {
+    var c = invChanOf(r, UI.invChan);
+    return '<td class="tl"><div><b>' + nf(c.need) + ' m</b> <span class="muted" style="font-size:11px">· ' + esc(invChanLabel(UI.invChan)) + ' · </span>'
+      + '<button type="button" class="link" data-gdlines="' + esc(p.name) + '" style="font-size:11px;padding:0" title="See these lines on Demand → RFD">' + plural(c.lines, 'line') + '</button></div>'
+      + '<div class="muted" style="font-size:11px">of ' + nf(p.need) + ' m PPC needs in all · ' + nf(p.free) + ' m RFD free'
+      + (p.short > 0.05 ? ' · <span style="color:var(--bad);font-weight:700">' + nf(p.short) + ' short (all orders)</span>' : ' · fully covered') + '</div></td>';
+  }
   var pct = invCoverPct(p), col = pct >= 100 ? 'var(--ok-ink)' : pct >= 50 ? 'var(--warn-ink)' : 'var(--bad)';
   var tip = 'RFD free ' + nf(p.free) + ' m' + (p.desk > 0.05 ? ' (' + nf(p.desk) + ' m on this desk)' : '') + (p.onWay > 0.05 ? ' · ' + nf(p.onWay) + ' m greige on its way' : '');
   var words = p.short > 0.05
@@ -4110,7 +4124,9 @@ function renderInv() {
     }).join('') + '</select>';
   /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, and the greige PO for what is short, from here. Only in the app. */
   var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap, loading = !!(ppcMap && ppcMap.__loading);
-  var inView = all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type)); });
+  if (!withPpc || loading) UI.invChan = 'all';
+  var inView = all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type)) && invChanOn(x); });
+  var chanN = function (k) { return all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (k === 'all' ? invNeedState(x) !== 'none' : invChanOf(x, k).need > 0.05); }).length; };
   if ((!withPpc || loading) && !INV_ACT[UI.invShow]) UI.invShow = 'all';
   var shown = function (k) { return inView.filter(function (x) { return invShows(x, k); }); };
   /* short first, then late, then covered, then those PPC does not need */
@@ -4120,6 +4136,10 @@ function renderInv() {
   var byCut = invTransitColumn();
   UI.invCols = (withPpc ? 9 : 8) + (byCut ? 1 : 0);
   var tools = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'
+    + (withPpc && !loading ? '<div class="seg" role="tablist" aria-label="Orders from">' + INV_CHAN.map(function (k) {
+        return '<button type="button" role="tab" class="segbtn' + (UI.invChan === k ? ' on' : '') + '" aria-selected="' + (UI.invChan === k) + '" data-invchan="' + k + '" title="Only the cloth the ' + esc(invChanLabel(k)) + ' needs">'
+          + esc(invChanLabel(k)) + ' <span class="n">' + chanN(k) + '</span></button>';
+      }).join('') + '</div>' : '')
     + (withPpc && !loading ? '<div class="seg" role="tablist" aria-label="Show">' + ['all', 'short', 'ok', 'none'].map(function (k) {
         return '<button type="button" role="tab" class="segbtn' + (UI.invShow === k ? ' on' : '') + '" aria-selected="' + (UI.invShow === k) + '" data-invshow="' + k + '">'
           + INV_SHOW_LABEL[k] + ' <span class="n">' + shown(k).length + '</span></button>';
@@ -4334,7 +4354,7 @@ function invOpenPo(poNo, chId) {
 }
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow],[data-invgo]') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow],[data-invchan],[data-invgo]') : null;
     if (d && d.getAttribute('data-invgo')) { UI.tab = d.getAttribute('data-invgo'); UI.invOpen = ''; render(); return; }
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
     if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
@@ -4344,6 +4364,7 @@ function wireInventory() {
     if (d && d.id === 'histAll') { invHistOpenAll(); return; }
     if (d && d.getAttribute('data-histpo')) { var p = d.getAttribute('data-histpo').split('|'); $('lmHist').classList.add('hide'); invOpenPo(p[0], p[1]); return; }
     if (d && d.id === 'histXlsx') { invHistXlsx(); return; }
+    if (d && d.getAttribute('data-invchan')) { UI.invChan = d.getAttribute('data-invchan'); UI.invOpen = ''; render(); return; }
     if (d && d.getAttribute('data-invshow')) { UI.invShow = d.getAttribute('data-invshow'); UI.invOpen = ''; render(); return; }
   });
   document.addEventListener('click', function (ev) {
@@ -6064,7 +6085,7 @@ function gdPpcMap() {
   Object.keys(cov.fab).forEach(function (k) {
     var f = cov.fab[k]; if (!(f.need > 0.05)) return;
     var pipe = gdPipeline(f.name), toOrder = Math.max(0, f.short - (pipe.order + pipe.greige + pipe.proc));
-    out[String(f.name).toUpperCase()] = { name: f.name, need: f.need, lines: f.lines, free: Math.max(0, f.free), short: f.short,
+    out[String(f.name).toUpperCase()] = { name: f.name, need: f.need, lines: f.lines, free: Math.max(0, f.free), short: f.short, chan: f.chan,
       desk: gdRfdShelf(f.name), onWay: pipe.order + pipe.greige + pipe.proc, greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0, greige: fabGreigeOf(f.name) };
   });
   return out;

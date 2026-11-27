@@ -145,9 +145,17 @@ function flowLedgerAfter(name, day) {
     return d > day ? a + fabMove(r) : a;
   }, 0);
 }
+/** THE BOARD AN ORDER CAME FROM: 'shp' (Shopify / SHP board), 'onl' (Online board: ONL, Etsy), else 'oth' (Amazon, B2B, the rest). The order number's first
+ *  part says it (SHP-7862, ONL-…, AMZ-24112026-01-AIR); the line's own src is read only when the number says nothing. */
+const FLOW_BOARDS = { shp: 'SHP board', onl: 'Online board', oth: 'Amazon & others' };
+function flowBoardOf(r) {
+  const pre = String((r && r.orderNo) || '').split('-')[0].trim().toUpperCase(), src = String((r && r.src) || '').trim().toUpperCase();
+  const f = x => (x === 'SHP' ? 'shp' : (x === 'ONL' || x === 'ETSY') ? 'onl' : '');
+  return f(pre) || (pre === 'AMZ' || pre === 'B2B' ? '' : f(src)) || 'oth';
+}
 function flowRfdCover() {
   const rows = flowRows(), fab = {}, line = {};
-  const F = name => { const k = flowFabKey(name); return fab[k] || (fab[k] = { name: String(name || '').trim(), stock: flowRfdStock(name), held: 0, need: 0, lines: 0 }); };
+  const F = name => { const k = flowFabKey(name); return fab[k] || (fab[k] = { name: String(name || '').trim(), stock: flowRfdStock(name), held: 0, need: 0, lines: 0, chan: { shp: { need: 0, lines: 0 }, onl: { need: 0, lines: 0 }, oth: { need: 0, lines: 0 } } }); };
   rows.forEach(({ s }) => {
     const fr = s.demand && s.demand.fabricReady, p = s.plan;
     /* A line on a challan has already come off the stock (flowRfdChallanOut) — it is not held a second time. Nor is one the
@@ -160,13 +168,15 @@ function flowRfdCover() {
   /* a line in Cut to size has its cloth off the shelf already: it needs no more */
   rows.filter(x => flowInView('drfd', x.s) && !(typeof flowCpActive === 'function' && flowCpActive(x.s.key)))
     .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)))
-    .forEach(({ s }) => {
+    .forEach(({ r, s }) => {
       const p = s.plan || {}, name = p.fabric && p.fabric.name;
       const need = flowPrinted(s.route) ? flowFabOwed({ qty: p.qty || 0 }, s).metres : flowR2(flowToPrint({ qty: p.qty || 0 }, p).metres * flowRemFrac({ qty: p.qty || 0 }, s));
       if (!name) { line[s.key] = { name: '', need, short: need, avail: 0 }; return; }
       const f = F(name), avail = Math.max(0, f.stock - f.held - f.need);
       line[s.key] = { name: f.name, need, avail: flowR2(avail), short: flowR2(Math.max(0, need - avail)) };
       f.need = flowR2(f.need + need); f.lines++;
+      /* the same need by the board the order came from (Ravi, 27 Nov: a bucket in Greige Desk for the SHP board / Online board) */
+      const b = f.chan[flowBoardOf(r)]; b.need = flowR2(b.need + need); b.lines++;
     });
   Object.values(fab).forEach(f => { f.free = flowR2(f.stock - f.held); f.short = flowR2(Math.max(0, f.need - Math.max(0, f.free))); });
   return { fab, line };
