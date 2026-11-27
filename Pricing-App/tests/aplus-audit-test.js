@@ -667,7 +667,8 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     const cells = (M.body().match(/<td class="apc-pdc">[^]*?<\/td>/g) || []);
     ok('THE TABLE ROWS STAY ONE LINE: every Product details cell is one short line (no <br>, no box, ≤ 12 characters) and the cell never wraps', cells.length > 10 && cells.every(c => !/<br|<details|<div|<p\b/.test(c) && strip(c).length <= 12)
       && /#paneAplus td\.apc-pdc\{white-space:nowrap/.test(css) && /#paneAplus \.apc-pdb\{[^}]*white-space:nowrap/.test(css), cells.map(strip).join(' | '));
-    ok('the family line "avg N of M product details" (Floral Tablecloth live: 14, 11, 14, 4, 14 → 11.4 of 14; Cotton Napkins: 12/12 and 13/14 → 12.5 of 13)', /Floral Tablecloth .*avg 11\.4 of 14 product details/.test(M.text()) && /Cotton Napkins .*avg 12\.5 of 13 product details/.test(M.text()), (M.text().match(/Cotton Napkins.{0,200}/) || [''])[0]);
+    ok('the family line as a percentage: "product details 81% filled" (Floral Tablecloth live: 14/14, 11/14, 14/14, 4/14, 14/14 → 81%); Cotton Napkins 12/12 and 13/14 → 96%; Desk Organizer Set all complete → 100%', /Floral Tablecloth .*product details 81% filled/.test(M.text()) && /Cotton Napkins .*product details 96% filled/.test(M.text())
+      && /Desk Organizer Set .*product details 100% filled/.test(M.text()) && !/avg [\d.]+ of [\d.]+ product details/.test(M.text()), (M.text().match(/Cotton Napkins.{0,200}/) || [''])[0]);
     ok('chip "Missing product details 3" (in place of "No A+ and no description")', /data-apc-v="pd"[^>]*>Missing product details <b>3<\/b>/.test(M.body()) && !/data-apc-v="nodesc"/.test(M.body()), (M.body().match(/[^>]*Missing product details.{0,20}/) || [''])[0]);
     M.click({ apc: 'chip', apcV: 'pd' });
     ok('…pressed: TC-4 ($400), NP-2 ($70), TC-2 — the biggest sellers first', screenRows(M).map(r => r.key.split('|')[1]).join() === [A('TC-4'), A('NP-2'), A('TC-2')].join(), screenRows(M).map(r => r.key).join());
@@ -701,6 +702,7 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     ok('the TABLE badge updates after the read: TC-2 "⚠️ 19/20" (was 11/14 from the cache), missing Theme in its tooltip', /class="apc-pdb is-y"[^>]*title="Missing: Theme \(read from Amazon this session\) — click for the details">⚠️ 19\/20<\/button>$/.test(pdCell('TC-2')), pdCell('TC-2'));
     M.calls.length = 0;
     await M.click({ apc: 'pd', apcV: p('TC-2').key }); await M.click({ apc: 'pd', apcV: p('TC-2').key });
+    ok('after the live read (TC-2 19/20 among 14-attribute products): the family line is still a whole percentage — 85% (1, .95, 1, 4/14, 1) — never "avg 13 of 15.2"; the cells keep "19/20"', /Floral Tablecloth .*product details 85% filled/.test(M.text()) && !/of \d+\.\d+ product details|\d+\.\d+% filled/.test(M.text()) && /19\/20/.test(pdCell('TC-2')), (M.text().match(/Floral Tablecloth.{0,200}/) || [''])[0]);
     ok('kept for the session: closing and opening it again reads nothing more', M.calls.length === 0 && /19 of 20 filled/.test(strip(M.els.apcSide.innerHTML)), JSON.stringify(M.calls));
     await M.click({ apc: 'pd', apcV: p('NP-1').key });
     ok('PER PRODUCT TYPE: NP-1 (NAPKIN) — its item shape and fabric type "not for this product type", not counted: "✅ 18 of 18 filled"', /<th scope="row">Item shape<\/th><td><span class="fc-none">—<\/span><\/td><td><span class="fc-none">not for this product type<\/span>/.test(M.els.apcSide.innerHTML)
