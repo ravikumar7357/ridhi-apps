@@ -170,7 +170,8 @@
       var ask = LIVE.lists === false || LIVE.upto === null
         ? sbRpc('rt_live_upto', {}, tok, of).then(function (u) { return { upto: u, lists: null }; })
         : sbRpc('rt_live_lists', { p_from: LIVE.upto }, tok, of).catch(function (e) {
-            if (!/404|not find the function/.test(String(e && e.message))) throw e;
+            /* any refusal of the new question (missing, not allowed, …): never stop live updates — ask the old one from now on */
+            try { console.warn('[R1] rt_live_lists not usable, back to rt_live_upto: ' + (e && e.message)); } catch (x) {}
             LIVE.lists = false; return sbRpc('rt_live_upto', {}, tok, of).then(function (u) { return { upto: u, lists: null }; });
           });
       return ask.then(function (a) {
