@@ -415,8 +415,9 @@ function tkWorked(tasks, brand, days, now, verdictOf) {
   return Object.values(by).map(r => Object.assign(r, { avg: r.pcts.length ? r.pcts.reduce((s, p) => s + p, 0) / r.pcts.length : null }))
     .sort((a, b) => b.done - a.done || a.label.localeCompare(b.label));
 }
-function tkWorkedHtml() {
-  const rows = tkWorked(TK.tasks, TK.brand, TK.ww.days, Date.now(), tkVerdictOf);
+// now: the moment the window ends — the clock, unless a caller (a test) gives its own day
+function tkWorkedHtml(now) {
+  const rows = tkWorked(TK.tasks, TK.brand, TK.ww.days, now != null ? now : Date.now(), tkVerdictOf);
   const seg = `<span class="tk-seg tk-wwseg" role="group" aria-label="Done in the last">${[30, 90].map(n => `<button type="button" data-tk-ww="${n}" aria-pressed="${TK.ww.days === n}">${n} days</button>`).join('')}</span>`;
   const line = r => `${r.label}: ${r.done} done · ${r.worked} worked${r.avg != null ? ' · avg ' + tkPctTxt(r.avg) : ''}`;
   // the action that worked most often (then the higher share, then the higher average)

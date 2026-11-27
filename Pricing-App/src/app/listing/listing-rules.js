@@ -777,8 +777,8 @@ function lrSuggestWords(text, o) {
   const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
   if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
   let cut = false;
-  const done = () => ({ before, after: mode !== 'kw' && !toks.some(t => t.out) && shortText == null ? before : now(), short: shortForms, removed: toks.filter(t => t.out && !t.added).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0 })), toks, risky: toks.filter(t => t.risk).length,
-    added: toks.filter(t => t.added && !t.out).map(t => ({ w: t.w, why: t.addWhy, i: t.i })), notAdded: toks.filter(t => t.added && t.out).map(t => ({ w: t.w, why: t.out, i: t.i })),
+  const done = () => ({ before, after: mode !== 'kw' && !toks.some(t => t.out) && shortText == null ? before : now(), short: shortForms, removed: toks.filter(t => t.out && !t.added).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0, by: t.by || '' })), toks, risky: toks.filter(t => t.risk).length,
+    added: toks.filter(t => t.added && !t.out).map(t => ({ w: t.w, why: t.addWhy, i: t.i, proven: !!t.proven, replaces: t.replaces || [] })), notAdded: toks.filter(t => t.added && t.out).map(t => ({ w: t.w, why: t.out, i: t.i, proven: !!t.proven })),
     fits: fits(), important: !fits(), cut });
   if (o.riskOnly) return done();
   const isProt = t => !!t.cls;
@@ -810,7 +810,7 @@ function lrSuggestWords(text, o) {
         const k = lrSwKey(w);
         if (!k || /\s/.test(w) || have.has(k) || inTitle.has(k) || LR_SW_STOP_SET.has(k) || LR_SW_ASIN.test(k)) return;
         have.add(k);
-        toks.push({ raw: w, w, k, at: -1, i: toks.length, out: '', cls: '', risk: false, added: true, addWhy: String((a && a.why) || '') });
+        toks.push({ raw: w, w, k, at: -1, i: toks.length, out: '', cls: '', risk: false, added: true, addWhy: String((a && a.why) || ''), proven: !!(a && a.proven) });
       });
     }
   }
@@ -838,17 +838,47 @@ function lrSuggestWords(text, o) {
   })) return done();
   // 3 low-value words and joining words
   if (step(t => (isProt(t) || t.added ? false : LR_SW_LOW_SET.has(t.k) ? 'low-value word' : LR_SW_STOP_SET.has(t.k) ? 'stop word' : false))) return done();
-  // 3b search terms: the winning words added, the weakest (the last added) first
-  if (step(t => !!t.added, 'limit')) return done();
-  // 4 any other word that is not protected: in search terms what the title already says first; then from the end
-  cut = true;
+  // 3b search terms: the Brand Analytics words added (never a proven one here), the weakest (the last added) first — they never
+  // push out the listing's own words
+  if (step(t => !!t.added && !t.proven, 'limit')) return done();
   // search terms: when the listing's own words had to go too, the room left over takes back the winning words that fit, best first
   const refill = () => { toks.filter(t => t.added && t.out === 'limit').sort((a, b) => a.i - b.i).forEach(t => { t.out = ''; if (!fits()) t.out = 'limit'; }); };
-  if (mode === 'kw' && o.title) {
-    const inTitle = new Set(String(o.title).split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
-    if (step(t => !isProt(t) && !t.added && inTitle.has(t.k), 'in the title')) { refill(); return done(); }
+  // 4 any other word that is not protected: in search terms what the title already says first; then from the end
+  const cutOwn = () => {
+    cut = true;
+    if (mode === 'kw' && o.title) {
+      const inTitle = new Set(String(o.title).split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
+      if (step(t => !isProt(t) && !t.added && inTitle.has(t.k), 'in the title')) return;
+    }
+    if (o.cutEnd !== false) step(t => !isProt(t) && !t.added, 'cut to fit');
+  };
+  // 3c search terms (28 Nov 2026): a PROVEN word (o.add[].proven: 2+ orders in our own ads) may push out the listing's own words that
+  // have NO proof (not a word of a search with orders in our ads, not a Brand Analytics winning word — o.proof), never a protected one
+  // (our brands, the important words): the listing's own text is made to fit first (step 4, the proven words set aside); then each
+  // proven word, best first, takes the room of the weakest unproven words (one the title already says first, then from the end) — or,
+  // when it still cannot fit, it is not added and nothing goes for it. The Brand Analytics words get only the room left over (refill).
+  const proven = mode === 'kw' ? toks.filter(t => t.added && t.proven && !t.out) : [];
+  if (proven.length) {
+    proven.forEach(t => { t.out = 'limit'; t.n = ++seq; });
+    if (!fits()) cutOwn();
+    const proof = new Set((o.proof || []).map(lrSwKey));
+    const inTitle = new Set(String(o.title || '').split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
+    proven.forEach(p => {
+      p.out = '';
+      const took = [];
+      while (!fits()) {
+        const own = toks.filter(t => !t.out && t.k && !t.cls && !t.added && !proof.has(t.k));
+        if (!own.length) break;
+        const v = own.filter(t => inTitle.has(t.k)).pop() || own.pop();
+        v.out = 'replaced'; v.n = ++seq; v.by = p.w; took.push(v);
+      }
+      if (!fits()) { took.forEach(v => { v.out = ''; v.by = ''; }); p.out = 'limit'; }
+      else { p.replaces = took.map(v => v.w); if (took.length) cut = true; }
+    });
+    refill();
+    return done();
   }
-  if (o.cutEnd !== false) step(t => !isProt(t) && !t.added, 'cut to fit');
+  cutOwn();
   if (mode === 'kw') refill();
   // a title with only important words left, still too long: the short forms the house rule allows at shortFrom–75 characters
   if (mode === 'title' && o.short !== false && !fits()) {

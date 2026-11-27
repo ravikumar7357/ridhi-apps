@@ -602,7 +602,8 @@ function kwWordFilter(item, cfg) {
     word: (k, w) => !(k.length < 3 || /\d/.test(k) || have.has(k) || blocked.has(k) || vocab.has(k) || plain(k) || /^b0[a-z0-9]{8}$/.test(k) || risky(w)),
   };
 }
-// A proven word's reason, as every screen shows it.
+// A proven word's reason, as every screen shows it; and when it took the room of the listing's own unproven words, which ones.
+const kwReplacesText = list => (list && list.length ? ` replaces ${list.join(', ')} (no orders)` : '');
 const kwPpcWhy = e => `PPC: ${kwNf(e.orders)} order${e.orders === 1 ? '' : 's'} from '${e.term}' in ${e.days} days`;
 /** item: { brand, sku, asin, parent, price, title, kw, facts (lrSwFacts), pt, cfg } → { status (Brand Analytics), ppc (its status), type,
  *  words: [{ w, k, why, src: 'ppc' | 'ba', … }] } — the words this listing may take, in the order they are added: the words PROVEN in our
@@ -610,7 +611,7 @@ const kwPpcWhy = e => `PPC: ${kwNf(e.orders)} order${e.orders === 1 ? '' : 's'} 
 function kwWinFor(item) {
   item = item || {};
   const status = kwStatus(), ppc = kwPpcStatus();
-  const out = { status, ppc, type: '', words: [], proven: 0 };
+  const out = { status, ppc, type: '', words: [], proven: 0, proof: [] };
   const f = item.facts || {};
   const type = kwTypeOfListing(f, item.pt, item.title);
   out.type = type;
@@ -623,13 +624,18 @@ function kwWinFor(item) {
   }
   if (!fam && asin) fam = (kwFamOf(item.brand).get(asin) || {}).fam || asin;
   const memoKey = [KW.v, type, item.brand, fam, asin, price, f.shape, f.colour, f.material, f.size, item.title, item.kw].join('\u0001');
-  if (KW.win.has(memoKey)) { const m = KW.win.get(memoKey); return Object.assign(out, { words: m.words, proven: m.proven }); }
+  if (KW.win.has(memoKey)) { const m = KW.win.get(memoKey); return Object.assign(out, { words: m.words, proven: m.proven, proof: m.proof }); }
   const cfg = item.cfg || (typeof LR !== 'undefined' && LR) || (typeof LR_DEFAULT !== 'undefined' ? LR_DEFAULT : null);
   const flt = kwWordFilter(item, cfg);
+  // PROOF (28 Nov 2026): the listing's own words that have evidence — a word of a search with an order in our ads, or of a search other
+  // brands win (Brand Analytics). A proven word never pushes those out (listing-rules.js lrSuggestWords step 3c), only words without.
+  const proof = new Set();
   // 1 PROVEN IN OUR ADS — by orders
   const proven = new Map();
   if (ppc.ok) {
-    kwProvenTerms(item.brand, asin, fam, price).filter(t => t.ok).forEach(t => {
+    const terms = kwProvenTerms(item.brand, asin, fam, price);
+    terms.forEach(t => { if (t.o >= 1) kwKeys(t.t).forEach(k => proof.add(k)); });
+    terms.filter(t => t.ok).forEach(t => {
       const ww = kwWords(t.t);
       if (!flt.term(ww.keys, t.t)) return;
       ww.keys.forEach((k, j) => {
@@ -642,19 +648,22 @@ function kwWinFor(item) {
   const best = new Map();
   if (status.ok && type) {
     (kwModel().types.get(type) || []).forEach(t => {
-      if (!t.wins || t.not || !flt.term(t.keys, t.q)) return;
+      if (!t.wins || t.not) return;
+      t.keys.forEach(k => proof.add(k));
+      if (!flt.term(t.keys, t.q)) return;
       t.keys.forEach((k, j) => {
         if (proven.has(k) || (best.has(k) && best.get(k).score >= t.score) || !flt.word(k, t.words[j])) return;
         best.set(k, { w: t.words[j], k, src: 'ba', score: t.score, term: t.q, brand: t.top.brand, rank: t.r, conv: t.top.v || 0, click: t.top.c || 0 });
       });
     });
   }
-  const pw = [...proven.values()].sort((a, z) => z.orders - a.orders).map(e => Object.assign(e, { why: kwPpcWhy(e) }));
+  const pw = [...proven.values()].sort((a, z) => z.orders - a.orders).map(e => Object.assign(e, { why: kwPpcWhy(e), proven: true }));
   const bw = [...best.values()].sort((a, b) => b.score - a.score || a.rank - b.rank).map(e => Object.assign(e, { why: kwWhy(e) }));
   const words = pw.concat(bw).slice(0, KW_MAX_WORDS);
   if (KW.win.size > 3000) KW.win.clear();
-  KW.win.set(memoKey, { words, proven: Math.min(pw.length, KW_MAX_WORDS) });
-  return Object.assign(out, { words, proven: Math.min(pw.length, KW_MAX_WORDS) });
+  const pf = [...proof];
+  KW.win.set(memoKey, { words, proven: Math.min(pw.length, KW_MAX_WORDS), proof: pf });
+  return Object.assign(out, { words, proven: Math.min(pw.length, KW_MAX_WORDS), proof: pf });
 }
 /** A reason as the preview shows it: duplicate · other brand · low value · limit (the rule's own words otherwise). */
 function kwWhyLabel(why) {
@@ -665,6 +674,7 @@ function kwWhyLabel(why) {
   if (w === 'low-value word' || w === 'stop word') return 'low value';
   if (w === 'cut to fit' || w === 'limit') return 'limit';
   if (w === 'in the title') return 'limit — the title already says it';
+  if (w === 'replaced') return 'replaced (no orders)';
   return w;
 }
 // The protected class of a kept word, said plainly (the 🔒 tip).

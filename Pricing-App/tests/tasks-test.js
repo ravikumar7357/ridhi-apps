@@ -317,7 +317,7 @@ const fresh = opt => { const W = makeWorld(Object.assign({ store: { 'history/tas
     ok('…90 days takes the older one too; CPC only its own', W.tkWorked(T, 'SP', 90, now, vOf).find(r => r.pick === 'price').done === 6 && W.tkWorked(T, 'CPC', 30, now, vOf).map(r => r.pick).join() === 'listing' && W.tkWorked(T, 'ALL', 30, now, vOf).length === 4);
     W.TK.tasks = Object.assign({}, W.TK.tasks, T); W.TK.ww = { days: 30, open: true }; W.TK.brand = 'SP';
     W.ctx.tkVerdictOf = vOf;
-    const ww = W.tkWorkedHtml();
+    const ww = W.tkWorkedHtml(now);      // the same fixed day as the sample (25 Nov 2026) — passes on any day it is run
     ok('the panel: collapsible, 30 / 90 days, a row per action with Done · ✅ · ➖ · ❌ · ⏳ · avg', /<details class="tk-ww" open data-tk-wwbox><summary><b>What worked<\/b>/.test(ww) && /data-tk-ww="30" aria-pressed="true">30 days/.test(ww) && /data-tk-ww="90"/.test(ww)
       && /<th scope="row">Change price<\/th><td class="num">5<\/td><td class="num">4<\/td><td class="num">1<\/td><td class="num">0<\/td><td class="num">0<\/td><td class="num is-up">\+26%<\/td>/.test(ww), ww.slice(0, 600));
     // the review window

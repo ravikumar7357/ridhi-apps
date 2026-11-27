@@ -74,7 +74,7 @@ function kfShorten(kw, o) {
   const over = lrKwCheck(before, max).over;
   // a text within the limit that is here for its risky words only: they go, the rest is as written (not even its punctuation changes)
   const riskOnly = !!o.riskOnly && !over;
-  const r = lrSuggestWords(before, { mode: 'kw', facts: o.facts || null, title: o.title, brands: o.brands || [], others: o.others || [], add: o.add || null, risk: o.risk, riskOnly,
+  const r = lrSuggestWords(before, { mode: 'kw', facts: o.facts || null, title: o.title, brands: o.brands || [], others: o.others || [], add: o.add || null, proof: o.proof || null, risk: o.risk, riskOnly,
     fits: text => !lrKwCheck(text, max).over });
   const toks = r.toks;
   // risky words only: the text as the person wrote it (their commas and semicolons too) with those words cut out of it
@@ -120,7 +120,7 @@ function kfItemOf(brand, row, ctx, kid) {
 }
 /** One child's fix: { ok, wait, why, before, after, removed, b0, b1, patches, sent, beforeKw, pt } — the same function for every screen. */
 function kfPlan(item) {
-  const s = kfShorten(item.kw, { title: item.title, brands: item.brands, others: item.others, add: item.win ? item.win.words : null, risk: item.risk, riskOnly: true, facts: item.facts });
+  const s = kfShorten(item.kw, { title: item.title, brands: item.brands, others: item.others, add: item.win ? item.win.words : null, proof: item.win ? item.win.proof : null, risk: item.risk, riskOnly: true, facts: item.facts });
   const out = { key: item.key, brand: item.brand, sku: item.sku, asin: item.asin, label: item.label, parent: item.parent, kind: 'kw', ok: false, wait: false, why: '',
     before: s.before, after: s.after, removed: s.removed, added: s.added, notAdded: s.notAdded, toks: s.toks, b0: s.bytesBefore, b1: s.bytesAfter, max: s.max, cut: s.cut, beforeKw: s.before, over: s.over, risky: s.risky,
     win: item.win ? { status: item.win.status, ppc: item.win.ppc, type: item.win.type, n: item.win.words.length } : null };
@@ -264,7 +264,7 @@ const KF_LOCK = { brand: 'our brand', identity: 'hand block print', product: 'it
 /** The words of the old text: the removed ones struck through with their reason, the protected ones kept 🔒 (our brands and the important
  *  words, once per phrase), the winning words added marked "+ word" with why, and an added word the limit took out again. */
 function kfDiffHtml(p) {
-  const why = new Map(p.removed.map(r => [r.i, r.why]));
+  const why = new Map(p.removed.map(r => [r.i, r.why === 'replaced' && r.by ? `replaced by ${r.by} (no orders)` : r.why]));
   let lastCls = '';
   const old = (p.toks || []).filter(t => !t.added).map(t => {
     if (why.has(t.i)) { lastCls = ''; const w = kfWhy(why.get(t.i)); return `<s class="kf-cut${t.risk ? ' is-risk' : ''}" title="${kfEsc(w)}">${kfEsc(t.raw)}</s><small class="kf-why">${kfEsc(w)}</small>`; }
@@ -277,7 +277,8 @@ function kfDiffHtml(p) {
 }
 // Under a child's words: every winning word added, with its reason; those the limit took out again.
 function kfAddedHtml(p) {
-  const add = (p.added || []).map(a => `<li><ins class="kf-add">+ ${kfEsc(a.w)}</ins> <span class="muted">(${kfEsc(a.why)})</span></li>`).join('');
+  // a proven word that took the room of the listing's own unproven words says which: "replaces elegant, stylish (no orders)"
+  const add = (p.added || []).map(a => `<li><ins class="kf-add">+ ${kfEsc(a.w)}</ins> <span class="muted">(${kfEsc(a.why)})</span>${a.replaces && a.replaces.length ? ` <span class="kf-repl">replaces ${kfEsc(a.replaces.join(', '))} (no orders)</span>` : ''}</li>`).join('');
   const not = (p.notAdded || []).length ? `<li class="muted">Not added (no room within the limit): ${kfEsc(p.notAdded.slice(0, 8).map(a => a.w).join(', '))}${p.notAdded.length > 8 ? ` +${kfNf(p.notAdded.length - 8)}` : ''}</li>` : '';
   return add || not ? `<ul class="kf-adds">${add}${not}</ul>` : '';
 }
@@ -346,7 +347,7 @@ function kfDraw() {
   const all = ok.length && ok.every(p => run.sel.has(p.key));
   spModal(`<div class="sq-pop kf-pop"><div class="sp-m-h sq-top"><b>Fix all search terms — ${kfEsc(run.o.title || '')}</b>`
     + `<p class="sq-sum" data-kf-sum>${kfEsc(kfSumText(run))}</p>`
-    + `<p>Always out: every word said twice (the first stays), ${typeof ipgKwRisk === 'function' ? 'risky words (other brands’ names and restricted claims: struck through in red), ' : ''}other brands’ names and ASINs. Then the winning words this product type is missing are added (+, with why). Then, only until it fits: a shape or colour that is not the product’s, low-value and joining words, the weakest added word, then other words (those the title already says first). 🔒 Our brands and its important words — hand, block print, its product, shape, material, colour, size and use words — stay once. A text within the limit loses only its risky words.</p>`
+    + `<p>Always out: every word said twice (the first stays), ${typeof ipgKwRisk === 'function' ? 'risky words (other brands’ names and restricted claims: struck through in red), ' : ''}other brands’ names and ASINs. Then the winning words this product type is missing are added (+, with why). Then, only until it fits: a shape or colour that is not the product’s, low-value and joining words, the weakest Brand Analytics word, then other words (those the title already says first) — a word PROVEN in our ads (2+ orders) may take the place of the listing’s own words with no orders. 🔒 Our brands and its important words — hand, block print, its product, shape, material, colour, size and use words — stay once. A text within the limit loses only its risky words.</p>`
     + kfWinLine(run)
     + `<div class="kf-tools"><input type="search" data-kf-q placeholder="Search SKU, colour, size…" value="${kfEsc(run.q)}" aria-label="Search the children">`
     + `<label class="kf-all"><input type="checkbox" data-kf-all${all ? ' checked' : ''}> Select all</label></div></div>`

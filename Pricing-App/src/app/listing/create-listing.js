@@ -474,7 +474,7 @@ function clKwSuggest() {
     const c = clCtx();
     const max = typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249;
     return lrSuggestWords(CL.kw, { mode: 'kw', facts: c.facts, title: CL.title, brands: typeof lrBrandWords === 'function' ? lrBrandWords(c.fresh, c.cfg) : [],
-      others: typeof kwOthers === 'function' ? kwOthers(c.cfg) : [], add: typeof aiWinWords === 'function' ? aiWinWords(c, CL.kw) : null,
+      others: typeof kwOthers === 'function' ? kwOthers(c.cfg) : [], add: typeof aiWinAll === 'function' ? aiWinAll(c, CL.kw).words : null, proof: typeof aiWinAll === 'function' ? aiWinAll(c, CL.kw).proof : null,
       risk: typeof ipgKwRisk === 'function' && CL.src ? ipgKwRisk(CL.brand, CL.src, c.fresh, c.cfg) : null, fits: t => !lrKwCheck(t, max).over });
   });
   if (!r.important) CL.kw = r.after;
@@ -485,7 +485,7 @@ function clKwSuggest() {
 function clKwNoteHtml() {
   const n = CL.kwNote;
   if (!n) return '';
-  const add = n.added.map(a => `<ins class="kf-add" title="${clEsc(a.why)}">+ ${clEsc(a.w)}</ins>`).join(' ');
+  const add = n.added.map(a => `<ins class="kf-add" title="${clEsc(a.why + (a.replaces && a.replaces.length ? ' — replaces ' + a.replaces.join(', ') + ' (no orders)' : ''))}">+ ${clEsc(a.w)}</ins>`).join(' ');
   const cut = n.removed.slice(0, 12).map(x => `<s>${clEsc(x.w)}</s> (${clEsc(x.why)})`).join(', ');
   return `<div class="cl-kwnote muted">${n.important ? clEsc(typeof LR_SW_IMPORTANT === 'string' ? LR_SW_IMPORTANT : 'Only important words left — edit by hand') + ' · ' : ''}${add ? 'Added: ' + add + ' · ' : ''}${cut ? 'Taken out: ' + cut + ' · ' : ''}🏆 ${clEsc(n.status)}</div>`;
 }

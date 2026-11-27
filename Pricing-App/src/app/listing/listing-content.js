@@ -201,7 +201,7 @@ function lcSuggestKeywords(brand, sku, title, current) {
   if (typeof kwEnsure === 'function') kwEnsure();            // the winning-keyword data: read once per visit (the next suggestion has it)
   const win = typeof kwWinFor === 'function' ? kwWinFor({ brand, sku, title, kw: current, facts, pt: ((typeof lmGet === 'function' && lmGet(sku, brand)) || {}).pt, cfg }) : null;
   return lrSuggestWords(words.join(' '), { mode: 'kw', facts, title, brands: lrBrandWords(row, cfg), others: typeof kwOthers === 'function' ? kwOthers(cfg) : [],
-    add: win ? win.words : null, risk: typeof ipgKwRisk === 'function' && sku ? ipgKwRisk(brand, sku, row, cfg) : null, fits: text => lrKwBytes(text) <= max }).after;
+    add: win ? win.words : null, proof: win ? win.proof : null, risk: typeof ipgKwRisk === 'function' && sku ? ipgKwRisk(brand, sku, row, cfg) : null, fits: text => lrKwBytes(text) <= max }).after;
 }
 
 /* ============================================================================================

@@ -99,8 +99,9 @@ function setup(o) {
 }
 const facts = (C, L) => C.lrSwFacts({ brand: L.brand, sku: L.sku }, null, null, { title: L.title, pt: L.pt });
 const fits = t => bytes(t) <= 249;
+const winOf = (C, L, text) => C.kwWinFor({ brand: L.brand, sku: L.sku, title: L.title, kw: text, facts: facts(C, L), pt: L.pt });
 const suggest = (C, L, text, extra) => C.lrSuggestWords(text, Object.assign({ mode: 'kw', facts: facts(C, L), title: L.title, brands: C.lrBrandWords({ brand: L.brand }, C.getLR()),
-  others: C.kwOthers(C.getLR()), add: C.kwWinFor({ brand: L.brand, sku: L.sku, title: L.title, kw: text, facts: facts(C, L), pt: L.pt }).words, fits }, extra || {}));
+  others: C.kwOthers(C.getLR()), add: winOf(C, L, text).words, proof: winOf(C, L, text).proof, fits }, extra || {}));
 const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
 
 (async () => {
@@ -317,7 +318,26 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     for (let i = 0; bytes(base(tight)) < 241 && i < PAD.length; i++) tight += ' ' + PAD[i];
     const r = P.lrSuggestWords(tight, { mode: 'kw', facts: facts(P, N1), title: N1.title, brands: P.lrBrandWords({ brand: 'CPC' }, P.getLR()), others: P.kwOthers(P.getLR()), fits,
       add: P.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: tight, facts: facts(P, N1), pt: N1.pt }).words });
-    ok('space short (room for one word): the best PROVEN word (rustic) is kept, the Brand Analytics words go first; ≤ 249 bytes, none of the listing\'s own words cut', r.added.map(a => a.w).join() === 'rustic' && r.notAdded.map(a => a.w).sort().join() === 'boho,farmhouse,wedding' && fits(r.after) && !r.removed.some(x => x.why === 'cut to fit'), JSON.stringify([bytes(tight), r.added, r.notAdded.map(a => a.w), bytes(r.after)]));
+    ok('space short: the PROVEN words (rustic, wedding) get in — "wedding" takes the room of one of the listing\'s own words with no orders — the Brand Analytics words (farmhouse, boho) do not push anything out; ≤ 249 bytes',
+      r.added.map(a => a.w).join() === 'rustic,wedding' && r.notAdded.map(a => a.w).sort().join() === 'boho,farmhouse' && fits(r.after) && !r.removed.some(x => x.why === 'cut to fit')
+      && r.removed.filter(x => x.why === 'replaced').every(x => x.by === 'rustic' || x.by === 'wedding'), JSON.stringify([bytes(tight), r.added, r.notAdded.map(a => a.w), r.removed.filter(x => x.why === 'replaced'), bytes(r.after)]));
+    // (28 Nov 2026 later) PROVEN words may push out the listing's own UNPROVEN, unprotected words — never 🔒 words, never words with proof
+    const N1f = facts(P, N1);
+    // ordinary words with no proof (not low-value, not joining words): 3-letter pads up to 247 bytes — a 9-byte word needs 3 of them out
+    const fill = (start, pad, to) => { let t = start; for (let i = 0; bytes(t) < to; i++) t += ' ' + pad + String.fromCharCode(97 + (i % 26)) + String.fromCharCode(97 + Math.floor(i / 26)); return t; };
+    const near = fill('napkins sage green cotton cpc dinner washable reusable picnic', 'w', 247);
+    const proofOf = ['picnic'];
+    const pr = P.lrSuggestWords(near, { mode: 'kw', facts: N1f, title: N1.title, brands: ['cpc'], fits, proof: proofOf, add: [{ w: 'farmhouse', why: 'PPC: 14 orders from \'farmhouse napkins\' in 30 days', proven: true }] });
+    const repl = pr.removed.filter(x => x.why === 'replaced');
+    ok('a 14-order PROVEN word replaces the listing\'s own weakest unproven words (from the end) until it fits: "+ farmhouse … replaces …"', pr.added.map(a => a.w).join() === 'farmhouse' && repl.length === 3 && repl.every(x => x.by === 'farmhouse') && pr.added[0].replaces.slice().sort().join() === repl.map(x => x.w).sort().join() && pr.added[0].replaces[0] === repl[repl.length - 1].w && fits(pr.after) && / farmhouse$/.test(pr.after), JSON.stringify([bytes(near), pr.added, repl.map(x => x.w)]));
+    ok('…never a 🔒 protected word (cpc, napkins, sage green, cotton, dinner, washable, reusable) and never a word with proof ("picnic": a search with orders)', !pr.removed.some(x => /^(cpc|napkins|sage|green|cotton|dinner|washable|reusable|picnic)$/.test(x.w)) && /picnic/.test(pr.after));
+    let prot = 'napkins sage green cotton cpc whimsical corner dinner washable reusable hand block print';
+    for (let i = 10; bytes(prot) < 246; i++) prot += ` ${i}x${i}`;                          // sizes: protected too
+    const onlyProt = P.lrSuggestWords(prot, { mode: 'kw', facts: N1f, title: N1.title, brands: ['cpc'], fits, add: [{ w: 'farmhouse', why: 'x', proven: true }] });
+    ok('…with only 🔒 words left there is no room: the proven word is not added and nothing is replaced', !onlyProt.added.length && !onlyProt.removed.some(x => x.why === 'replaced') && onlyProt.notAdded.map(a => a.w).join() === 'farmhouse', JSON.stringify([onlyProt.added, onlyProt.removed.slice(0, 4)]));
+    const ba = P.lrSuggestWords(near, { mode: 'kw', facts: N1f, title: N1.title, brands: ['cpc'], fits, proof: proofOf, add: [{ w: 'farmhouse', why: 'wins for Etopia on …' }] });
+    ok('a Brand Analytics word does NOT push out the listing\'s own words: not added, nothing taken out, the text as it was', !ba.added.length && !ba.removed.length && ba.after === near && ba.notAdded.map(a => a.w).join() === 'farmhouse', JSON.stringify([ba.added, ba.removed.map(x => x.w + ':' + x.why)]));
+
     // ACoS: with a break-even known (Search Terms' cpBreakEven), a term over it is not proven
     const A = setup({ ppc: true, ctx: { cpBreakEven: () => 30 } });
     const wa = A.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(A, T1), pt: T1.pt });
@@ -329,8 +349,10 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     P.kfPreview([P.kfItemOf('SP', P.HEALTH.SP.rows.find(x => x.sku === T1.sku), P.hCtx(), null)], { title: 'T1', brand: 'SP', parent: T1.parent });
     await settle();
     const html = P.el('spModalBox').innerHTML.replace(/&#39;/g, "'");
-    // the over-limit tablecloth has room for one short word only: "bistro" (proven, 6 bytes) — farmhouse and the rest are "not added"
-    ok('preview: "+ bistro (PPC: 3 orders from \'bistro tablecloth\' in 30 days)", "Not added (no room…): farmhouse…" and the data line "📈 Proven in our ads: … 30 days"', /<ins class="kf-add">\+ bistro<\/ins> <span class="muted">\(PPC: 3 orders from 'bistro tablecloth' in 30 days\)<\/span>/.test(html) && /Not added \(no room within the limit\): farmhouse, scalloped, boho/.test(html)
+    // the over-limit tablecloth: the proven words take the room of its own words with no orders — "farmhouse" replaces "reception"
+    ok('preview: "+ farmhouse (PPC: 14 orders from \'farmhouse tablecloth\' in 30 days) replaces reception (no orders)", the replaced word struck "replaced by farmhouse (no orders)", and the data line "📈 Proven in our ads: … 30 days"',
+      /<ins class="kf-add">\+ farmhouse<\/ins> <span class="muted">\(PPC: 14 orders from 'farmhouse tablecloth' in 30 days\)<\/span> <span class="kf-repl">replaces reception \(no orders\)<\/span>/.test(html)
+      && /<s class="kf-cut" title="replaced by farmhouse \(no orders\)">reception<\/s>/.test(html)
       && /📈 Proven in our ads: Sponsored Products search terms, 30 days up to 25 Nov 2026 \(nightly\)/.test(strip(html)), (html.match(/kf-adds[\s\S]{0,500}/) || [''])[0] + strip(html).slice(0, 300));
     P.kfClick({ dataset: { kf: 'cancel' } });
     // the panel's tab
@@ -368,8 +390,8 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
       console.log(`  ${L.sku} (${L.title})`);
       console.log(`    before (${bytes(L.kw)} bytes): ${L.kw}`);
       console.log(`    after  (${bytes(r.after)} bytes): ${r.after}`);
-      console.log(`    added: ${r.added.map(a => `+ ${a.w} (${a.why})`).join('; ') || '—'}${r.notAdded.length ? ` · not added (no room): ${r.notAdded.map(a => a.w).join(', ')}` : ''}`);
-      console.log(`    removed: ${r.removed.map(x => `${x.w} (${C.kwWhyLabel(x.why)})`).join(', ') || '—'}`);
+      console.log(`    added: ${r.added.map(a => `+ ${a.w} (${a.why})${a.replaces && a.replaces.length ? ' replaces ' + a.replaces.join(', ') + ' (no orders)' : ''}`).join('; ') || '—'}${r.notAdded.length ? ` · not added (no room): ${r.notAdded.map(a => a.w).join(', ')}` : ''}`);
+      console.log(`    removed: ${r.removed.map(x => `${x.w} (${x.why === 'replaced' ? 'replaced by ' + x.by + ', no orders' : C.kwWhyLabel(x.why)})`).join(', ') || '—'}`);
     });
   }
 

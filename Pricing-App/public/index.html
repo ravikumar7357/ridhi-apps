@@ -4673,6 +4673,7 @@
   .kf-lock{white-space:nowrap}
   .kf-add{background:var(--accent-bg);color:var(--accent-ink);border-radius:3px;padding:0 3px;text-decoration:none;font-weight:600;white-space:nowrap}
   .kf-adds{margin:2px 0 4px;padding:0 0 0 2px;list-style:none;font-size:12px;line-height:1.5}
+  .kf-repl{color:var(--act-ink);font-size:12px}
   .kf-win{font-size:12px;margin:6px 0 0;color:var(--ink)}
   .kf-win.is-none{color:var(--warn-ink)}
   .cl-kwnote{font-size:12px;margin:4px 0}
@@ -17183,8 +17184,8 @@ function lrSuggestWords(text, o) {
   const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
   if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
   let cut = false;
-  const done = () => ({ before, after: mode !== 'kw' && !toks.some(t => t.out) && shortText == null ? before : now(), short: shortForms, removed: toks.filter(t => t.out && !t.added).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0 })), toks, risky: toks.filter(t => t.risk).length,
-    added: toks.filter(t => t.added && !t.out).map(t => ({ w: t.w, why: t.addWhy, i: t.i })), notAdded: toks.filter(t => t.added && t.out).map(t => ({ w: t.w, why: t.out, i: t.i })),
+  const done = () => ({ before, after: mode !== 'kw' && !toks.some(t => t.out) && shortText == null ? before : now(), short: shortForms, removed: toks.filter(t => t.out && !t.added).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0, by: t.by || '' })), toks, risky: toks.filter(t => t.risk).length,
+    added: toks.filter(t => t.added && !t.out).map(t => ({ w: t.w, why: t.addWhy, i: t.i, proven: !!t.proven, replaces: t.replaces || [] })), notAdded: toks.filter(t => t.added && t.out).map(t => ({ w: t.w, why: t.out, i: t.i, proven: !!t.proven })),
     fits: fits(), important: !fits(), cut });
   if (o.riskOnly) return done();
   const isProt = t => !!t.cls;
@@ -17216,7 +17217,7 @@ function lrSuggestWords(text, o) {
         const k = lrSwKey(w);
         if (!k || /\s/.test(w) || have.has(k) || inTitle.has(k) || LR_SW_STOP_SET.has(k) || LR_SW_ASIN.test(k)) return;
         have.add(k);
-        toks.push({ raw: w, w, k, at: -1, i: toks.length, out: '', cls: '', risk: false, added: true, addWhy: String((a && a.why) || '') });
+        toks.push({ raw: w, w, k, at: -1, i: toks.length, out: '', cls: '', risk: false, added: true, addWhy: String((a && a.why) || ''), proven: !!(a && a.proven) });
       });
     }
   }
@@ -17244,17 +17245,47 @@ function lrSuggestWords(text, o) {
   })) return done();
   // 3 low-value words and joining words
   if (step(t => (isProt(t) || t.added ? false : LR_SW_LOW_SET.has(t.k) ? 'low-value word' : LR_SW_STOP_SET.has(t.k) ? 'stop word' : false))) return done();
-  // 3b search terms: the winning words added, the weakest (the last added) first
-  if (step(t => !!t.added, 'limit')) return done();
-  // 4 any other word that is not protected: in search terms what the title already says first; then from the end
-  cut = true;
+  // 3b search terms: the Brand Analytics words added (never a proven one here), the weakest (the last added) first — they never
+  // push out the listing's own words
+  if (step(t => !!t.added && !t.proven, 'limit')) return done();
   // search terms: when the listing's own words had to go too, the room left over takes back the winning words that fit, best first
   const refill = () => { toks.filter(t => t.added && t.out === 'limit').sort((a, b) => a.i - b.i).forEach(t => { t.out = ''; if (!fits()) t.out = 'limit'; }); };
-  if (mode === 'kw' && o.title) {
-    const inTitle = new Set(String(o.title).split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
-    if (step(t => !isProt(t) && !t.added && inTitle.has(t.k), 'in the title')) { refill(); return done(); }
+  // 4 any other word that is not protected: in search terms what the title already says first; then from the end
+  const cutOwn = () => {
+    cut = true;
+    if (mode === 'kw' && o.title) {
+      const inTitle = new Set(String(o.title).split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
+      if (step(t => !isProt(t) && !t.added && inTitle.has(t.k), 'in the title')) return;
+    }
+    if (o.cutEnd !== false) step(t => !isProt(t) && !t.added, 'cut to fit');
+  };
+  // 3c search terms (28 Nov 2026): a PROVEN word (o.add[].proven: 2+ orders in our own ads) may push out the listing's own words that
+  // have NO proof (not a word of a search with orders in our ads, not a Brand Analytics winning word — o.proof), never a protected one
+  // (our brands, the important words): the listing's own text is made to fit first (step 4, the proven words set aside); then each
+  // proven word, best first, takes the room of the weakest unproven words (one the title already says first, then from the end) — or,
+  // when it still cannot fit, it is not added and nothing goes for it. The Brand Analytics words get only the room left over (refill).
+  const proven = mode === 'kw' ? toks.filter(t => t.added && t.proven && !t.out) : [];
+  if (proven.length) {
+    proven.forEach(t => { t.out = 'limit'; t.n = ++seq; });
+    if (!fits()) cutOwn();
+    const proof = new Set((o.proof || []).map(lrSwKey));
+    const inTitle = new Set(String(o.title || '').split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
+    proven.forEach(p => {
+      p.out = '';
+      const took = [];
+      while (!fits()) {
+        const own = toks.filter(t => !t.out && t.k && !t.cls && !t.added && !proof.has(t.k));
+        if (!own.length) break;
+        const v = own.filter(t => inTitle.has(t.k)).pop() || own.pop();
+        v.out = 'replaced'; v.n = ++seq; v.by = p.w; took.push(v);
+      }
+      if (!fits()) { took.forEach(v => { v.out = ''; v.by = ''; }); p.out = 'limit'; }
+      else { p.replaces = took.map(v => v.w); if (took.length) cut = true; }
+    });
+    refill();
+    return done();
   }
-  if (o.cutEnd !== false) step(t => !isProt(t) && !t.added, 'cut to fit');
+  cutOwn();
   if (mode === 'kw') refill();
   // a title with only important words left, still too long: the short forms the house rule allows at shortFrom–75 characters
   if (mode === 'title' && o.short !== false && !fits()) {
@@ -30004,7 +30035,7 @@ function kfShorten(kw, o) {
   const over = lrKwCheck(before, max).over;
   // a text within the limit that is here for its risky words only: they go, the rest is as written (not even its punctuation changes)
   const riskOnly = !!o.riskOnly && !over;
-  const r = lrSuggestWords(before, { mode: 'kw', facts: o.facts || null, title: o.title, brands: o.brands || [], others: o.others || [], add: o.add || null, risk: o.risk, riskOnly,
+  const r = lrSuggestWords(before, { mode: 'kw', facts: o.facts || null, title: o.title, brands: o.brands || [], others: o.others || [], add: o.add || null, proof: o.proof || null, risk: o.risk, riskOnly,
     fits: text => !lrKwCheck(text, max).over });
   const toks = r.toks;
   // risky words only: the text as the person wrote it (their commas and semicolons too) with those words cut out of it
@@ -30050,7 +30081,7 @@ function kfItemOf(brand, row, ctx, kid) {
 }
 /** One child's fix: { ok, wait, why, before, after, removed, b0, b1, patches, sent, beforeKw, pt } — the same function for every screen. */
 function kfPlan(item) {
-  const s = kfShorten(item.kw, { title: item.title, brands: item.brands, others: item.others, add: item.win ? item.win.words : null, risk: item.risk, riskOnly: true, facts: item.facts });
+  const s = kfShorten(item.kw, { title: item.title, brands: item.brands, others: item.others, add: item.win ? item.win.words : null, proof: item.win ? item.win.proof : null, risk: item.risk, riskOnly: true, facts: item.facts });
   const out = { key: item.key, brand: item.brand, sku: item.sku, asin: item.asin, label: item.label, parent: item.parent, kind: 'kw', ok: false, wait: false, why: '',
     before: s.before, after: s.after, removed: s.removed, added: s.added, notAdded: s.notAdded, toks: s.toks, b0: s.bytesBefore, b1: s.bytesAfter, max: s.max, cut: s.cut, beforeKw: s.before, over: s.over, risky: s.risky,
     win: item.win ? { status: item.win.status, ppc: item.win.ppc, type: item.win.type, n: item.win.words.length } : null };
@@ -30194,7 +30225,7 @@ const KF_LOCK = { brand: 'our brand', identity: 'hand block print', product: 'it
 /** The words of the old text: the removed ones struck through with their reason, the protected ones kept 🔒 (our brands and the important
  *  words, once per phrase), the winning words added marked "+ word" with why, and an added word the limit took out again. */
 function kfDiffHtml(p) {
-  const why = new Map(p.removed.map(r => [r.i, r.why]));
+  const why = new Map(p.removed.map(r => [r.i, r.why === 'replaced' && r.by ? `replaced by ${r.by} (no orders)` : r.why]));
   let lastCls = '';
   const old = (p.toks || []).filter(t => !t.added).map(t => {
     if (why.has(t.i)) { lastCls = ''; const w = kfWhy(why.get(t.i)); return `<s class="kf-cut${t.risk ? ' is-risk' : ''}" title="${kfEsc(w)}">${kfEsc(t.raw)}</s><small class="kf-why">${kfEsc(w)}</small>`; }
@@ -30207,7 +30238,8 @@ function kfDiffHtml(p) {
 }
 // Under a child's words: every winning word added, with its reason; those the limit took out again.
 function kfAddedHtml(p) {
-  const add = (p.added || []).map(a => `<li><ins class="kf-add">+ ${kfEsc(a.w)}</ins> <span class="muted">(${kfEsc(a.why)})</span></li>`).join('');
+  // a proven word that took the room of the listing's own unproven words says which: "replaces elegant, stylish (no orders)"
+  const add = (p.added || []).map(a => `<li><ins class="kf-add">+ ${kfEsc(a.w)}</ins> <span class="muted">(${kfEsc(a.why)})</span>${a.replaces && a.replaces.length ? ` <span class="kf-repl">replaces ${kfEsc(a.replaces.join(', '))} (no orders)</span>` : ''}</li>`).join('');
   const not = (p.notAdded || []).length ? `<li class="muted">Not added (no room within the limit): ${kfEsc(p.notAdded.slice(0, 8).map(a => a.w).join(', '))}${p.notAdded.length > 8 ? ` +${kfNf(p.notAdded.length - 8)}` : ''}</li>` : '';
   return add || not ? `<ul class="kf-adds">${add}${not}</ul>` : '';
 }
@@ -30276,7 +30308,7 @@ function kfDraw() {
   const all = ok.length && ok.every(p => run.sel.has(p.key));
   spModal(`<div class="sq-pop kf-pop"><div class="sp-m-h sq-top"><b>Fix all search terms — ${kfEsc(run.o.title || '')}</b>`
     + `<p class="sq-sum" data-kf-sum>${kfEsc(kfSumText(run))}</p>`
-    + `<p>Always out: every word said twice (the first stays), ${typeof ipgKwRisk === 'function' ? 'risky words (other brands’ names and restricted claims: struck through in red), ' : ''}other brands’ names and ASINs. Then the winning words this product type is missing are added (+, with why). Then, only until it fits: a shape or colour that is not the product’s, low-value and joining words, the weakest added word, then other words (those the title already says first). 🔒 Our brands and its important words — hand, block print, its product, shape, material, colour, size and use words — stay once. A text within the limit loses only its risky words.</p>`
+    + `<p>Always out: every word said twice (the first stays), ${typeof ipgKwRisk === 'function' ? 'risky words (other brands’ names and restricted claims: struck through in red), ' : ''}other brands’ names and ASINs. Then the winning words this product type is missing are added (+, with why). Then, only until it fits: a shape or colour that is not the product’s, low-value and joining words, the weakest Brand Analytics word, then other words (those the title already says first) — a word PROVEN in our ads (2+ orders) may take the place of the listing’s own words with no orders. 🔒 Our brands and its important words — hand, block print, its product, shape, material, colour, size and use words — stay once. A text within the limit loses only its risky words.</p>`
     + kfWinLine(run)
     + `<div class="kf-tools"><input type="search" data-kf-q placeholder="Search SKU, colour, size…" value="${kfEsc(run.q)}" aria-label="Search the children">`
     + `<label class="kf-all"><input type="checkbox" data-kf-all${all ? ' checked' : ''}> Select all</label></div></div>`
@@ -31952,7 +31984,8 @@ function kwWordFilter(item, cfg) {
     word: (k, w) => !(k.length < 3 || /\d/.test(k) || have.has(k) || blocked.has(k) || vocab.has(k) || plain(k) || /^b0[a-z0-9]{8}$/.test(k) || risky(w)),
   };
 }
-// A proven word's reason, as every screen shows it.
+// A proven word's reason, as every screen shows it; and when it took the room of the listing's own unproven words, which ones.
+const kwReplacesText = list => (list && list.length ? ` replaces ${list.join(', ')} (no orders)` : '');
 const kwPpcWhy = e => `PPC: ${kwNf(e.orders)} order${e.orders === 1 ? '' : 's'} from '${e.term}' in ${e.days} days`;
 /** item: { brand, sku, asin, parent, price, title, kw, facts (lrSwFacts), pt, cfg } → { status (Brand Analytics), ppc (its status), type,
  *  words: [{ w, k, why, src: 'ppc' | 'ba', … }] } — the words this listing may take, in the order they are added: the words PROVEN in our
@@ -31960,7 +31993,7 @@ const kwPpcWhy = e => `PPC: ${kwNf(e.orders)} order${e.orders === 1 ? '' : 's'} 
 function kwWinFor(item) {
   item = item || {};
   const status = kwStatus(), ppc = kwPpcStatus();
-  const out = { status, ppc, type: '', words: [], proven: 0 };
+  const out = { status, ppc, type: '', words: [], proven: 0, proof: [] };
   const f = item.facts || {};
   const type = kwTypeOfListing(f, item.pt, item.title);
   out.type = type;
@@ -31973,13 +32006,18 @@ function kwWinFor(item) {
   }
   if (!fam && asin) fam = (kwFamOf(item.brand).get(asin) || {}).fam || asin;
   const memoKey = [KW.v, type, item.brand, fam, asin, price, f.shape, f.colour, f.material, f.size, item.title, item.kw].join('\u0001');
-  if (KW.win.has(memoKey)) { const m = KW.win.get(memoKey); return Object.assign(out, { words: m.words, proven: m.proven }); }
+  if (KW.win.has(memoKey)) { const m = KW.win.get(memoKey); return Object.assign(out, { words: m.words, proven: m.proven, proof: m.proof }); }
   const cfg = item.cfg || (typeof LR !== 'undefined' && LR) || (typeof LR_DEFAULT !== 'undefined' ? LR_DEFAULT : null);
   const flt = kwWordFilter(item, cfg);
+  // PROOF (28 Nov 2026): the listing's own words that have evidence — a word of a search with an order in our ads, or of a search other
+  // brands win (Brand Analytics). A proven word never pushes those out (listing-rules.js lrSuggestWords step 3c), only words without.
+  const proof = new Set();
   // 1 PROVEN IN OUR ADS — by orders
   const proven = new Map();
   if (ppc.ok) {
-    kwProvenTerms(item.brand, asin, fam, price).filter(t => t.ok).forEach(t => {
+    const terms = kwProvenTerms(item.brand, asin, fam, price);
+    terms.forEach(t => { if (t.o >= 1) kwKeys(t.t).forEach(k => proof.add(k)); });
+    terms.filter(t => t.ok).forEach(t => {
       const ww = kwWords(t.t);
       if (!flt.term(ww.keys, t.t)) return;
       ww.keys.forEach((k, j) => {
@@ -31992,19 +32030,22 @@ function kwWinFor(item) {
   const best = new Map();
   if (status.ok && type) {
     (kwModel().types.get(type) || []).forEach(t => {
-      if (!t.wins || t.not || !flt.term(t.keys, t.q)) return;
+      if (!t.wins || t.not) return;
+      t.keys.forEach(k => proof.add(k));
+      if (!flt.term(t.keys, t.q)) return;
       t.keys.forEach((k, j) => {
         if (proven.has(k) || (best.has(k) && best.get(k).score >= t.score) || !flt.word(k, t.words[j])) return;
         best.set(k, { w: t.words[j], k, src: 'ba', score: t.score, term: t.q, brand: t.top.brand, rank: t.r, conv: t.top.v || 0, click: t.top.c || 0 });
       });
     });
   }
-  const pw = [...proven.values()].sort((a, z) => z.orders - a.orders).map(e => Object.assign(e, { why: kwPpcWhy(e) }));
+  const pw = [...proven.values()].sort((a, z) => z.orders - a.orders).map(e => Object.assign(e, { why: kwPpcWhy(e), proven: true }));
   const bw = [...best.values()].sort((a, b) => b.score - a.score || a.rank - b.rank).map(e => Object.assign(e, { why: kwWhy(e) }));
   const words = pw.concat(bw).slice(0, KW_MAX_WORDS);
   if (KW.win.size > 3000) KW.win.clear();
-  KW.win.set(memoKey, { words, proven: Math.min(pw.length, KW_MAX_WORDS) });
-  return Object.assign(out, { words, proven: Math.min(pw.length, KW_MAX_WORDS) });
+  const pf = [...proof];
+  KW.win.set(memoKey, { words, proven: Math.min(pw.length, KW_MAX_WORDS), proof: pf });
+  return Object.assign(out, { words, proven: Math.min(pw.length, KW_MAX_WORDS), proof: pf });
 }
 /** A reason as the preview shows it: duplicate · other brand · low value · limit (the rule's own words otherwise). */
 function kwWhyLabel(why) {
@@ -32015,6 +32056,7 @@ function kwWhyLabel(why) {
   if (w === 'low-value word' || w === 'stop word') return 'low value';
   if (w === 'cut to fit' || w === 'limit') return 'limit';
   if (w === 'in the title') return 'limit — the title already says it';
+  if (w === 'replaced') return 'replaced (no orders)';
   return w;
 }
 // The protected class of a kept word, said plainly (the 🔒 tip).
@@ -38787,10 +38829,12 @@ function aiOurBrands(c, text) {
 const aiTitleLimits = c => (typeof ttLimits === 'function' ? ttLimits(c.cfg) : { min: 60, max: 75 });
 const aiKwMax = c => (typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249);
 // The words this listing may take (kw-win.js): proven in our own ads first (by orders), then Brand Analytics; [] without any data.
-function aiWinWords(c, before) {
-  if (typeof kwWinFor !== 'function') return [];
+function aiWinWords(c, before) { return aiWinAll(c, before).words; }
+// …the whole answer: { words, proof (the listing's own words with evidence — a proven word never pushes those out) }.
+function aiWinAll(c, before) {
+  if (typeof kwWinFor !== 'function') return { words: [], proof: [] };
   const r = c.row || {};       // its ASIN, family and price (Create Listing: the listing it is copied from — the same family)
-  try { return kwWinFor({ brand: c.brand, sku: c.sku, asin: r.asin || c.asin, parent: r.parent, price: r.price, title: c.now.title, kw: String(before == null ? c.now.kw : before), facts: c.facts, pt: c.pt, cfg: c.cfg }).words || []; } catch (e) { return []; }
+  try { const w = kwWinFor({ brand: c.brand, sku: c.sku, asin: r.asin || c.asin, parent: r.parent, price: r.price, title: c.now.title, kw: String(before == null ? c.now.kw : before), facts: c.facts, pt: c.pt, cfg: c.cfg }); return { words: w.words || [], proof: w.proof || [] }; } catch (e) { return { words: [], proof: [] }; }
 }
 /** THE AI'S SEARCH TERMS THROUGH OUR RULE (27 Nov 2026): the same one rule as every suggestion (listing-rules.js lrSuggestWords) runs on
  *  the answer before it is shown — every repeat out, other brands' names and risky words out, a word of the title it added out (our
@@ -40140,7 +40184,7 @@ function clKwSuggest() {
     const c = clCtx();
     const max = typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249;
     return lrSuggestWords(CL.kw, { mode: 'kw', facts: c.facts, title: CL.title, brands: typeof lrBrandWords === 'function' ? lrBrandWords(c.fresh, c.cfg) : [],
-      others: typeof kwOthers === 'function' ? kwOthers(c.cfg) : [], add: typeof aiWinWords === 'function' ? aiWinWords(c, CL.kw) : null,
+      others: typeof kwOthers === 'function' ? kwOthers(c.cfg) : [], add: typeof aiWinAll === 'function' ? aiWinAll(c, CL.kw).words : null, proof: typeof aiWinAll === 'function' ? aiWinAll(c, CL.kw).proof : null,
       risk: typeof ipgKwRisk === 'function' && CL.src ? ipgKwRisk(CL.brand, CL.src, c.fresh, c.cfg) : null, fits: t => !lrKwCheck(t, max).over });
   });
   if (!r.important) CL.kw = r.after;
@@ -40151,7 +40195,7 @@ function clKwSuggest() {
 function clKwNoteHtml() {
   const n = CL.kwNote;
   if (!n) return '';
-  const add = n.added.map(a => `<ins class="kf-add" title="${clEsc(a.why)}">+ ${clEsc(a.w)}</ins>`).join(' ');
+  const add = n.added.map(a => `<ins class="kf-add" title="${clEsc(a.why + (a.replaces && a.replaces.length ? ' — replaces ' + a.replaces.join(', ') + ' (no orders)' : ''))}">+ ${clEsc(a.w)}</ins>`).join(' ');
   const cut = n.removed.slice(0, 12).map(x => `<s>${clEsc(x.w)}</s> (${clEsc(x.why)})`).join(', ');
   return `<div class="cl-kwnote muted">${n.important ? clEsc(typeof LR_SW_IMPORTANT === 'string' ? LR_SW_IMPORTANT : 'Only important words left — edit by hand') + ' · ' : ''}${add ? 'Added: ' + add + ' · ' : ''}${cut ? 'Taken out: ' + cut + ' · ' : ''}🏆 ${clEsc(n.status)}</div>`;
 }
@@ -63603,7 +63647,7 @@ function lcSuggestKeywords(brand, sku, title, current) {
   if (typeof kwEnsure === 'function') kwEnsure();            // the winning-keyword data: read once per visit (the next suggestion has it)
   const win = typeof kwWinFor === 'function' ? kwWinFor({ brand, sku, title, kw: current, facts, pt: ((typeof lmGet === 'function' && lmGet(sku, brand)) || {}).pt, cfg }) : null;
   return lrSuggestWords(words.join(' '), { mode: 'kw', facts, title, brands: lrBrandWords(row, cfg), others: typeof kwOthers === 'function' ? kwOthers(cfg) : [],
-    add: win ? win.words : null, risk: typeof ipgKwRisk === 'function' && sku ? ipgKwRisk(brand, sku, row, cfg) : null, fits: text => lrKwBytes(text) <= max }).after;
+    add: win ? win.words : null, proof: win ? win.proof : null, risk: typeof ipgKwRisk === 'function' && sku ? ipgKwRisk(brand, sku, row, cfg) : null, fits: text => lrKwBytes(text) <= max }).after;
 }
 
 /* ============================================================================================
@@ -72671,8 +72715,9 @@ function tkWorked(tasks, brand, days, now, verdictOf) {
   return Object.values(by).map(r => Object.assign(r, { avg: r.pcts.length ? r.pcts.reduce((s, p) => s + p, 0) / r.pcts.length : null }))
     .sort((a, b) => b.done - a.done || a.label.localeCompare(b.label));
 }
-function tkWorkedHtml() {
-  const rows = tkWorked(TK.tasks, TK.brand, TK.ww.days, Date.now(), tkVerdictOf);
+// now: the moment the window ends — the clock, unless a caller (a test) gives its own day
+function tkWorkedHtml(now) {
+  const rows = tkWorked(TK.tasks, TK.brand, TK.ww.days, now != null ? now : Date.now(), tkVerdictOf);
   const seg = `<span class="tk-seg tk-wwseg" role="group" aria-label="Done in the last">${[30, 90].map(n => `<button type="button" data-tk-ww="${n}" aria-pressed="${TK.ww.days === n}">${n} days</button>`).join('')}</span>`;
   const line = r => `${r.label}: ${r.done} done · ${r.worked} worked${r.avg != null ? ' · avg ' + tkPctTxt(r.avg) : ''}`;
   // the action that worked most often (then the higher share, then the higher average)
