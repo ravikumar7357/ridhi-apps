@@ -296,6 +296,27 @@ async function flowGuard(thing) {
   FLOW.rev = Object.assign({}, FLOW.rev, { [thing]: next });
   return '';
 }
+/* NUMBERS FROM THE SERVER (27 Nov, ERP backend E3). The page still works out the next number from what it has read
+ * ("local", e.g. RFD-202611-013); the server (core.next_no → erp.next_no) then hands out the next free one at or above it,
+ * one at a time, so two people saving together get different numbers and nobody walks through retries. The format stays
+ * the same. If the server cannot answer (not set up, offline, refused), the local number is used exactly as before, and
+ * flowClaim still makes sure a number is never written twice. */
+async function flowServerNo(local) {
+  const m = /^([A-Z]{2,8})-(\d{6})-(\d{3,})$/.exec(String(local || ''));
+  const R1 = window.__R1;
+  if (!m || !R1 || typeof R1.rpc !== 'function' || flowServerNo.off) return local;
+  try {
+    const q = await ptAuthQuery(), tok = q ? decodeURIComponent(q.replace(/^\?auth=/, '')) : '';
+    if (!tok) return local;
+    const n = await R1.rpc('next_no', { p_kind: m[1], p_period: m[2], p_floor: (+m[3] || 1) - 1 }, tok, R1.origFetch);
+    if (!(+n >= 1)) return local;
+    return m[1] + '-' + m[2] + '-' + String(+n).padStart(3, '0');
+  } catch (e) {
+    if (/404|not find the function|permission denied/.test(String(e && e.message))) flowServerNo.off = true;   // not set up: stop asking
+    try { console.warn('[flow] server number not used: ' + (e && e.message)); } catch (x) {}
+    return local;
+  }
+}
 /** Write a NEW record only where nothing is yet: '' written, 'taken' somebody else holds that number. */
 async function flowClaim(path, value) {
   if (typeof ptCas !== 'function') return '';

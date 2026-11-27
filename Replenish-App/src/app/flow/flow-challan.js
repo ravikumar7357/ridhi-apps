@@ -234,7 +234,7 @@ async function flowRecordEarlier(key, o) {
   if (!(pcs >= 1) || pcs > (pcsWise ? e.qty : e.pcs)) return `Type the pieces made from that cloth — at most ${nf(pcsWise ? e.qty : e.pcs)}.`;
   const pr = (p.printer && p.printer.code) ? p.printer : null; if (!pr) return 'This line has no printer planned — pick it with "edit plan" first.';
   const metres = flowR2(+o.metres > 0 ? +o.metres : pcs * per), qty = pcsWise ? pcs : metres, now = new Date().toISOString(), date = o.date || dToday();
-  let no = flowChallanNo(dToday(), !!x.r.__t);
+  let no = await flowServerNo(flowChallanNo(dToday(), !!x.r.__t));
   const ch = { no, date, orderNo: x.r.orderNo, orders: [x.r.orderNo], vendor: { code: pr.code, name: pr.name }, at: now, by: ME.email || '',
     recordOnly: true, deduct: !!o.deduct, note: `Given earlier without a challan — record only. ${nf(pcs)} pcs made already${o.note ? ' · ' + o.note : ''}`,
     lines: [{ key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, p), extras: [], fabric: (p.fabric && p.fabric.name) || '', pcs, metres }],
@@ -463,7 +463,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
       /* A line whose body is all from printed stock may go for its ruffle cloth alone. */
       const noM = picked.filter(y => !(y.m > 0) && (y.ruf || flowRufflePrinter(y.x.s.plan) || !(!y.x.s.fabSent && flowPrintExtras(y.x.r, y.x.s.plan).length))).map(y => obUC(y.x.r.sku) + (y.ruf ? ' (ruffle)' : ''));
       if (noM.length) return `How many metres? Type them for ${noM.join(', ')}.`;
-      let no = flowChallanNo(date, isTest); const now = new Date().toISOString(), vname = v.desc || v.name || v.code;
+      let no = await flowServerNo(flowChallanNo(date, isTest)); const now = new Date().toISOString(), vname = v.desc || v.name || v.code;
       const ch = { no, date, orderNo, orders, vendor: { code: v.code, name: vname }, note: $('flcNote').value.trim(), at: now, by: ME.email || '',
         lines: picked.map(({ x, m, ruf, pc }) => ruf
           /* the ruffle cloth alone, to its own printer: its key is the line's, marked ruffleOnly (indexed as <key>~ruffle) */

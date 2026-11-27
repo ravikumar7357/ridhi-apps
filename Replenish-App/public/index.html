@@ -32057,6 +32057,27 @@ async function flowGuard(thing) {
   FLOW.rev = Object.assign({}, FLOW.rev, { [thing]: next });
   return '';
 }
+/* NUMBERS FROM THE SERVER (27 Nov, ERP backend E3). The page still works out the next number from what it has read
+ * ("local", e.g. RFD-202611-013); the server (core.next_no → erp.next_no) then hands out the next free one at or above it,
+ * one at a time, so two people saving together get different numbers and nobody walks through retries. The format stays
+ * the same. If the server cannot answer (not set up, offline, refused), the local number is used exactly as before, and
+ * flowClaim still makes sure a number is never written twice. */
+async function flowServerNo(local) {
+  const m = /^([A-Z]{2,8})-(\d{6})-(\d{3,})$/.exec(String(local || ''));
+  const R1 = window.__R1;
+  if (!m || !R1 || typeof R1.rpc !== 'function' || flowServerNo.off) return local;
+  try {
+    const q = await ptAuthQuery(), tok = q ? decodeURIComponent(q.replace(/^\?auth=/, '')) : '';
+    if (!tok) return local;
+    const n = await R1.rpc('next_no', { p_kind: m[1], p_period: m[2], p_floor: (+m[3] || 1) - 1 }, tok, R1.origFetch);
+    if (!(+n >= 1)) return local;
+    return m[1] + '-' + m[2] + '-' + String(+n).padStart(3, '0');
+  } catch (e) {
+    if (/404|not find the function|permission denied/.test(String(e && e.message))) flowServerNo.off = true;   // not set up: stop asking
+    try { console.warn('[flow] server number not used: ' + (e && e.message)); } catch (x) {}
+    return local;
+  }
+}
 /** Write a NEW record only where nothing is yet: '' written, 'taken' somebody else holds that number. */
 async function flowClaim(path, value) {
   if (typeof ptCas !== 'function') return '';
@@ -33489,7 +33510,7 @@ async function flowRecordEarlier(key, o) {
   if (!(pcs >= 1) || pcs > (pcsWise ? e.qty : e.pcs)) return `Type the pieces made from that cloth — at most ${nf(pcsWise ? e.qty : e.pcs)}.`;
   const pr = (p.printer && p.printer.code) ? p.printer : null; if (!pr) return 'This line has no printer planned — pick it with "edit plan" first.';
   const metres = flowR2(+o.metres > 0 ? +o.metres : pcs * per), qty = pcsWise ? pcs : metres, now = new Date().toISOString(), date = o.date || dToday();
-  let no = flowChallanNo(dToday(), !!x.r.__t);
+  let no = await flowServerNo(flowChallanNo(dToday(), !!x.r.__t));
   const ch = { no, date, orderNo: x.r.orderNo, orders: [x.r.orderNo], vendor: { code: pr.code, name: pr.name }, at: now, by: ME.email || '',
     recordOnly: true, deduct: !!o.deduct, note: `Given earlier without a challan — record only. ${nf(pcs)} pcs made already${o.note ? ' · ' + o.note : ''}`,
     lines: [{ key, sku: obUC(x.r.sku), item: flowChItem(x.r), print: flowPrintWhat(x.r, p), extras: [], fabric: (p.fabric && p.fabric.name) || '', pcs, metres }],
@@ -33718,7 +33739,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
       /* A line whose body is all from printed stock may go for its ruffle cloth alone. */
       const noM = picked.filter(y => !(y.m > 0) && (y.ruf || flowRufflePrinter(y.x.s.plan) || !(!y.x.s.fabSent && flowPrintExtras(y.x.r, y.x.s.plan).length))).map(y => obUC(y.x.r.sku) + (y.ruf ? ' (ruffle)' : ''));
       if (noM.length) return `How many metres? Type them for ${noM.join(', ')}.`;
-      let no = flowChallanNo(date, isTest); const now = new Date().toISOString(), vname = v.desc || v.name || v.code;
+      let no = await flowServerNo(flowChallanNo(date, isTest)); const now = new Date().toISOString(), vname = v.desc || v.name || v.code;
       const ch = { no, date, orderNo, orders, vendor: { code: v.code, name: vname }, note: $('flcNote').value.trim(), at: now, by: ME.email || '',
         lines: picked.map(({ x, m, ruf, pc }) => ruf
           /* the ruffle cloth alone, to its own printer: its key is the line's, marked ruffleOnly (indexed as <key>~ruffle) */
@@ -34367,7 +34388,7 @@ async function flowStandUse(no, key, toKey, qty, note) {
   if (!(q > 0) || q > most + 1e-9) return `Type how much — at most ${flowQtyTxt(most, x.unit)} (what stands, and what the line still needs).`;
   if (x.unit === 'pcs' && q !== Math.round(q)) return 'Pieces are whole.';
   const now = new Date().toISOString(), date = dToday(), metres = flowR2(x.unit === 'pcs' ? (o.left ? o.metres * q / o.left : 0) : q);
-  let cno = flowChallanNo(date, false);
+  let cno = await flowServerNo(flowChallanNo(date, false));
   const ch = { no: cno, date, orderNo: y.r.orderNo, orders: [y.r.orderNo], vendor: { code: x.code, name: x.printer }, at: now, by: ME.email || '',
     standing: { from: no, key, sku: x.sku }, note: `From cloth standing with ${x.printer} (${no}, ${x.orderNo} · ${x.sku})${note ? ' — ' + note : ''}`,
     lines: [{ key: y.s.key, sku: obUC(y.r.sku), item: flowChItem(y.r), print: flowPrintWhat(y.r, y.s.plan), extras: [], fabric: (y.s.plan.fabric && y.s.plan.fabric.name) || x.fabric, pcs: x.unit === 'pcs' ? q : +y.r.qty || 0, metres }] };
@@ -34721,7 +34742,7 @@ async function flowDueRecvSave(key, got, o) {
   if (extra.length) {
     const x0 = extra[0].x, test = extra.every(e => e.x.test), orders = [...new Set(extra.map(e => e.x.orderNo))];
     const lines = extra.map(({ x, q }) => Object.assign({}, x.l, { orderNo: x.orderNo, extras: [], pcs: x.unit === 'pcs' ? q : (x.mPerPc ? Math.round(q / x.mPerPc) : 0), metres: flowR2(x.unit === 'pcs' ? q * x.mPerPc : q) }));
-    let no = flowChallanNo(date, test);
+    let no = await flowServerNo(flowChallanNo(date, test));
     const ch = { no, date, orderNo: orders.join(', '), orders, vendor: { code: x0.code, name: x0.printer }, at: now, by: ME.email || '',
       recordOnly: true, noChallan: true, deduct, note: 'Printed goods received with no RFD challan — the cloth went without one' + (note ? ' · ' + note : ''),
       lines, receipts: { r0: { date, at: now, by: ME.email || '', items: Object.fromEntries(extra.map(({ x, q }) => [x.l.key, q])), note, via: 'printed fabric in' } },
@@ -36454,7 +36475,7 @@ function flowEmbSendOpen(orderNo) {
       const over = picked.filter(y => y.m > y.x.s.embCanSend + 0.01);
       if (over.length) return over.map(y => `${obUC(y.x.r.sku)}: only ${nf(y.x.s.embCanSend)} m of its printed cloth is back and not sent`).join(' · ');
       const now = new Date().toISOString();
-      let no = flowEmbNo(date, isTest);
+      let no = await flowServerNo(flowEmbNo(date, isTest));
       const ch = { no, kind: 'emb', date, orderNo: obUC(orderNo), vendor: who, note: $('flemNote').value.trim(), at: now, by: ME.email || '',
         lines: picked.map(({ x, m, pc }) => { let w = null; try { w = flowPrintWhat(x.r, x.s.plan); } catch (e) { w = null; }
           return { key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', print: w ? (w.code || '') : '', metres: m, pcs: pc }; }) };

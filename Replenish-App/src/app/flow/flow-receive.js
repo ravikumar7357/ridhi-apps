@@ -175,7 +175,7 @@ async function flowStandUse(no, key, toKey, qty, note) {
   if (!(q > 0) || q > most + 1e-9) return `Type how much — at most ${flowQtyTxt(most, x.unit)} (what stands, and what the line still needs).`;
   if (x.unit === 'pcs' && q !== Math.round(q)) return 'Pieces are whole.';
   const now = new Date().toISOString(), date = dToday(), metres = flowR2(x.unit === 'pcs' ? (o.left ? o.metres * q / o.left : 0) : q);
-  let cno = flowChallanNo(date, false);
+  let cno = await flowServerNo(flowChallanNo(date, false));
   const ch = { no: cno, date, orderNo: y.r.orderNo, orders: [y.r.orderNo], vendor: { code: x.code, name: x.printer }, at: now, by: ME.email || '',
     standing: { from: no, key, sku: x.sku }, note: `From cloth standing with ${x.printer} (${no}, ${x.orderNo} · ${x.sku})${note ? ' — ' + note : ''}`,
     lines: [{ key: y.s.key, sku: obUC(y.r.sku), item: flowChItem(y.r), print: flowPrintWhat(y.r, y.s.plan), extras: [], fabric: (y.s.plan.fabric && y.s.plan.fabric.name) || x.fabric, pcs: x.unit === 'pcs' ? q : +y.r.qty || 0, metres }] };
@@ -529,7 +529,7 @@ async function flowDueRecvSave(key, got, o) {
   if (extra.length) {
     const x0 = extra[0].x, test = extra.every(e => e.x.test), orders = [...new Set(extra.map(e => e.x.orderNo))];
     const lines = extra.map(({ x, q }) => Object.assign({}, x.l, { orderNo: x.orderNo, extras: [], pcs: x.unit === 'pcs' ? q : (x.mPerPc ? Math.round(q / x.mPerPc) : 0), metres: flowR2(x.unit === 'pcs' ? q * x.mPerPc : q) }));
-    let no = flowChallanNo(date, test);
+    let no = await flowServerNo(flowChallanNo(date, test));
     const ch = { no, date, orderNo: orders.join(', '), orders, vendor: { code: x0.code, name: x0.printer }, at: now, by: ME.email || '',
       recordOnly: true, noChallan: true, deduct, note: 'Printed goods received with no RFD challan — the cloth went without one' + (note ? ' · ' + note : ''),
       lines, receipts: { r0: { date, at: now, by: ME.email || '', items: Object.fromEntries(extra.map(({ x, q }) => [x.l.key, q])), note, via: 'printed fabric in' } },

@@ -109,7 +109,7 @@ function flowEmbSendOpen(orderNo) {
       const over = picked.filter(y => y.m > y.x.s.embCanSend + 0.01);
       if (over.length) return over.map(y => `${obUC(y.x.r.sku)}: only ${nf(y.x.s.embCanSend)} m of its printed cloth is back and not sent`).join(' · ');
       const now = new Date().toISOString();
-      let no = flowEmbNo(date, isTest);
+      let no = await flowServerNo(flowEmbNo(date, isTest));
       const ch = { no, kind: 'emb', date, orderNo: obUC(orderNo), vendor: who, note: $('flemNote').value.trim(), at: now, by: ME.email || '',
         lines: picked.map(({ x, m, pc }) => { let w = null; try { w = flowPrintWhat(x.r, x.s.plan); } catch (e) { w = null; }
           return { key: x.s.key, sku: obUC(x.r.sku), item: flowChItem(x.r), fabric: (x.s.plan && x.s.plan.fabric && x.s.plan.fabric.name) || '', print: w ? (w.code || '') : '', metres: m, pcs: pc }; }) };
