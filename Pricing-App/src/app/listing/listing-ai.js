@@ -206,20 +206,67 @@ function aiWinAll(c, before) {
   const r = c.row || {};       // its ASIN, family and price (Create Listing: the listing it is copied from — the same family)
   try { const w = kwWinFor({ brand: c.brand, sku: c.sku, asin: r.asin || c.asin, parent: r.parent, price: r.price, title: c.now.title, kw: String(before == null ? c.now.kw : before), facts: c.facts, pt: c.pt, cfg: c.cfg }); return { words: w.words || [], proof: w.proof || [] }; } catch (e) { return { words: [], proof: [] }; }
 }
-/** THE AI'S SEARCH TERMS THROUGH OUR RULE (27 Nov 2026): the same one rule as every suggestion (listing-rules.js lrSuggestWords) runs on
- *  the answer before it is shown — every repeat out, other brands' names and risky words out, a word of the title it added out (our
- *  brands stay), then the 249-byte limit. → { text, removed: [{ w, why }] } (said on the card). */
+/** THE AI'S SEARCH TERMS THROUGH OUR RULE (27 Nov 2026; 2 Dec 2026: put back + the product checks), before the answer is shown:
+ *  1 PUT BACK every 🔒 protected word of the search terms before (our brands, hand block print, its product, shape, own colour, size,
+ *    material, use words) the AI left out — next to the word it stood beside, else at the end (a size counts as there when its numbers
+ *    are); 2 the words the AI ADDED that are not this product go (kw-win.js kwAiNotThis: another shape / colour, a fit, a season,
+ *    pattern, edge or material the listing does not say — "skipped: not sure the product is christmas"); 3 THE ONE RULE, the same as
+ *    every suggestion (listing-rules.js lrSuggestWords): repeats, other brands, another colour / size, low value, leftovers, a title
+ *    word it added, then the 249-byte limit — a protected word never goes.
+ *  → { text, removed: [{ w, why }], putBack: [{ w, why }] } (both said on the card). */
 function aiKwClean(c, text, before) {
-  if (typeof lrSuggestWords !== 'function') return { text: String(text || ''), removed: [] };
+  if (typeof lrSuggestWords !== 'function') return { text: String(text || ''), removed: [], putBack: [] };
   const max = aiKwMax(c);
+  const bef = String(before == null ? '' : before);
+  const brands = typeof lrBrandWords === 'function' ? lrBrandWords(c.fresh, c.cfg) : [];
+  const strip = w => String(w).replace(/^[^\p{L}\p{N}%]+|[^\p{L}\p{N}%"”″]+$/gu, '');
+  let words = String(text || '').split(/[\s,;|]+/).filter(Boolean);
+  const putBack = [], pre = [];
+  try {
+    // 1 put back the protected words of the search terms before that the answer left out
+    const bt = lrSuggestWords(bef, { mode: 'kw', facts: c.facts, brands, riskOnly: true }).toks.filter(t => t.k);
+    const keyOf = w => lrSwKey(strip(w));
+    const nums = () => new Set(words.join(' ').match(/\d+(?:\.\d+)?/g) || []);
+    const seen = new Set();
+    bt.forEach((t, idx) => {
+      if (!t.cls || seen.has(t.k)) return;
+      seen.add(t.k);
+      // a size: the whole size ("70 x 118 inch") when one of its numbers is gone from the answer — never a lone "x" or "inch"
+      if (t.cls === 'size') {
+        if (!/\d/.test(t.k)) return;
+        let a = idx, z = idx;
+        while (a > 0 && bt[a - 1].cls === 'size') a--;
+        while (z + 1 < bt.length && bt[z + 1].cls === 'size') z++;
+        const grp = bt.slice(a, z + 1);
+        grp.forEach(g => seen.add(g.k));
+        if ((grp.map(g => g.k).join(' ').match(/\d+(?:\.\d+)?/g) || []).every(n => nums().has(n))) return;
+        const nx = z + 1 < bt.length ? words.findIndex(w => keyOf(w) === bt[z + 1].k) : -1;
+        words.splice(nx >= 0 ? nx : words.length, 0, ...grp.map(g => g.w));
+        putBack.push({ w: grp.map(g => g.w).join(' '), why: 'protected, put back' });
+        return;
+      }
+      if (words.some(w => keyOf(w) === t.k)) return;
+      // next to the word it stood beside: before the next word of the old text, else after the one before it, else at the end
+      const nx = bt[idx + 1] ? words.findIndex(w => keyOf(w) === bt[idx + 1].k) : -1;
+      const pv = idx > 0 ? words.findIndex(w => keyOf(w) === bt[idx - 1].k) : -1;
+      const at = nx >= 0 ? nx : pv >= 0 ? pv + 1 : words.length;
+      words.splice(at, 0, t.w);
+      putBack.push({ w: t.w, why: 'protected, put back' });
+    });
+    // 2 the words it added that are not this product
+    if (typeof kwAiNotThis === 'function') {
+      const no = kwAiNotThis({ brand: c.brand, sku: c.sku, title: c.now.title, kw: bef, facts: c.facts, cfg: c.cfg }, words);
+      words = words.filter((w, i) => { if (!no.has(i)) return true; pre.push({ w: strip(w), why: no.get(i) }); return false; });
+    }
+  } catch (e) { /* the rule below still runs on the answer as written */ }
   let r;
   try {
-    r = lrSuggestWords(String(text || ''), { mode: 'kw', facts: c.facts, title: c.now.title, brands: typeof lrBrandWords === 'function' ? lrBrandWords(c.fresh, c.cfg) : [],
-      others: typeof kwOthers === 'function' ? kwOthers(c.cfg) : [], had: String(before == null ? '' : before),
+    r = lrSuggestWords(words.join(' '), { mode: 'kw', facts: c.facts, title: c.now.title, brands: typeof lrBrandWords === 'function' ? lrBrandWords(c.fresh, c.cfg) : [],
+      others: typeof kwOthers === 'function' ? kwOthers(c.cfg) : [], had: bef,
       risk: typeof ipgKwRisk === 'function' && c.sku ? ipgKwRisk(c.brand, c.sku, c.fresh, c.cfg) : null, fits: t => !lrKwCheck(t, max).over });
-  } catch (e) { return { text: String(text || ''), removed: [] }; }
-  if (r.important) return { text: String(text || ''), removed: [] };   // only important words left and over: as written, the checks say why
-  return { text: r.after, removed: r.removed.map(x => ({ w: x.w, why: typeof kwWhyLabel === 'function' ? kwWhyLabel(x.why) : x.why })) };
+  } catch (e) { return { text: words.join(' '), removed: pre, putBack }; }
+  // only important words left and still over: nothing protected is cut — the checks say it is over the limit (Use is not enabled)
+  return { text: r.after, removed: pre.concat(r.removed.map(x => ({ w: x.w, why: typeof kwWhyLabel === 'function' ? kwWhyLabel(x.why) : x.why }))), putBack };
 }
 
 /** OUR RULES ON A SUGGESTION: { pass, fails: [red, Approve disabled], notes: [amber, to look at] }. field: title | kw | bullets | desc | hl |
@@ -432,7 +479,7 @@ async function aiOpen(btn) {
   if (!reply.ok) { host.innerHTML = /not set up|limit reached/i.test(reply.reason) ? aiQuietHtml(reply.reason) : aiFailHtml(job, reply.reason); return reply; }
   job.text = aiTextOf(job, reply.result || {});
   // search terms: our one rule runs on the AI's answer before it is shown (what it took out is said on the card)
-  if (field === 'kw') { const cl = aiKwClean(c, job.text, job.before); job.text = cl.text; job.cleaned = cl.removed; }
+  if (field === 'kw') { const cl = aiKwClean(c, job.text, job.before); job.text = cl.text; job.cleaned = cl.removed; job.putBack = cl.putBack; }
   job.keep =field === 'aplus' || field === 'explain' || field === 'image' || field === 'page' ? [] : aiProtected(Array.isArray(job.before) ? job.before.join(' ') : job.before,
     field === 'kw' ? 'kw' : field === 'hl' ? 'hl' : 'title', c.facts);
   if (field === 'bullets' || field === 'desc') job.keep = [];      // a rewrite of the bullets / description keeps the facts, not each word
@@ -517,6 +564,7 @@ function aiCardHtml(job) {
   return head + `<div class="ai-ba${job.field === 'aplus' ? ' is-one' : ''}">${oldCol}`
     + `<div class="ai-col"><small>✨ AI · <span data-ai-n>${aiEsc(aiLen(job.field, job.text))}</span></small><div class="tt-new ai-txt" data-ai-new>${aiMarkHtml(job.before, job.text)}</div>`
     + `<details class="kf-ed"><summary>Edit the AI text</summary><textarea data-ai-edit="${aiEsc(job.id)}" rows="${rows}" spellcheck="false">${aiEsc(val)}</textarea>${job.field === 'bullets' ? '<small class="muted">One bullet per line.</small>' : ''}</details></div></div>`
+    + (job.putBack && job.putBack.length ? `<p class="ai-clean ai-put">Put back: ${job.putBack.map(x => `<ins class="kf-add">+ ${aiEsc(x.w)}</ins> (${aiEsc(x.why)})`).join(', ')}</p>` : '')
     + (job.cleaned && job.cleaned.length ? `<p class="muted ai-clean">Our rules took out of the AI's answer: ${job.cleaned.slice(0, 12).map(x => `<s>${aiEsc(x.w)}</s> (${aiEsc(x.why)})`).join(', ')}${job.cleaned.length > 12 ? ` +${job.cleaned.length - 12}` : ''}</p>` : '')
     + `<div data-ai-chks>${aiChkHtml(job.chk)}</div><div class="ai-a">${aiActHtml(job)}</div>` + foot;
 }

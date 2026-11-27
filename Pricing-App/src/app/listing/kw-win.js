@@ -644,12 +644,39 @@ function kwWordFilter(item, cfg) {
       if (e) return '?' + w(e);
       // a season the product is not said to be for
       const s = season.find(p => kwHasSeq(keys, p) && !p.every(k => sure.has(k)));
-      if (s) return '?' + s.join(' ');
+      if (s) {                                         // said as written ("christmas"), not as compared ("christma")
+        const at = keys.findIndex((k, i) => s.every((x, j) => keys[i + j] === x));
+        return '?' + (words && at >= 0 ? words.slice(at, at + s.length).map(x => String(x).toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')).join(' ') : s.join(' '));
+      }
       return '';
     },
     word: (k, w) => !(k.length < 3 || /\d/.test(k) || have.has(k) || blocked.has(k) || vocab.has(k) || plain(k) || /^b0[a-z0-9]{8}$/.test(k) || risky(w)
       || (colours.has(k) && !colour.has(k)) || (typeof lrKwBrandSlip === 'function' && (!!lrKwBrandSlip(k, slip) || !!lrKwBrandSlip(k, ours, 2)))),
   };
+}
+/** FOR THE ✨ AI ANSWER (2 Dec 2026): the words the AI ADDED (not in the search terms before) that are not this product, by the same
+ *  checks as the words Sellora adds (kwWordFilter.term, one word — or two together: "card table", "black friday"): another shape or
+ *  colour, something our cloth is not, a fit, a season / pattern / edge / material the listing does not say. Words with digits are
+ *  left to the size rule. item: { brand, sku, title, kw (before), facts, cfg, va }; words: the answer's words as written.
+ *  → Map index → reason ("skipped: not sure the product is christmas", "skipped: not its shape (round)"). */
+function kwAiNotThis(item, words) {
+  const out = new Map();
+  const cfg = item.cfg || (typeof LR !== 'undefined' && LR) || (typeof LR_DEFAULT !== 'undefined' ? LR_DEFAULT : null);
+  const flt = kwWordFilter(item, cfg);
+  const had = new Set(kwKeys(item.kw));
+  const keys = words.map(w => kwKey(String(w).replace(/^[^\p{L}\p{N}%]+|[^\p{L}\p{N}%]+$/gu, '')));
+  const say = code => (code[0] === '?' ? `skipped: not sure the product is ${code.slice(1)}` : `skipped: ${code.slice(1)}`);
+  const plainW = (i, j) => keys.slice(i, j + 1).every(k => k && !had.has(k) && !/\d/.test(k));
+  for (let i = 0; i < keys.length; i++) {
+    if (!plainW(i, i)) continue;
+    const one = flt.term([keys[i]], words[i], [words[i]]);
+    if (one && (one[0] === '?' || one[0] === '!')) { out.set(i, say(one)); continue; }
+    if (i + 1 < keys.length && plainW(i + 1, i + 1)) {
+      const two = flt.term([keys[i], keys[i + 1]], words[i] + ' ' + words[i + 1], [words[i], words[i + 1]]);
+      if (two && (two[0] === '?' || two[0] === '!') && !flt.term([keys[i + 1]], words[i + 1], [words[i + 1]])) { out.set(i, say(two)); out.set(i + 1, say(two)); i++; }
+    }
+  }
+  return out;
 }
 // A proven word's reason, as every screen shows it; and when it took the room of the listing's own unproven words, which ones.
 const kwReplacesText = list => (list && list.length ? ` replaces ${list.join(', ')} (no orders)` : '');

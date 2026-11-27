@@ -341,7 +341,7 @@ async function clAiWrite() {
     // search terms: our one rule runs on the answer first (repeats, other brands, title words it added, the limit) — listing-ai.js aiKwClean
     const kwClean = task === 'kw' && typeof aiKwClean === 'function' ? aiKwClean(c, v.kw, CL.kw) : null;
     CL.ai[field] = { text: task === 'title' ? v.title : task === 'bullets' ? (v.bullets || []) : task === 'description' ? v.description : kwClean ? kwClean.text : v.kw, style: r.style || null, cost: r.costUsd,
-      cleaned: kwClean ? kwClean.removed : [] };
+      cleaned: kwClean ? kwClean.removed : [], putBack: kwClean ? kwClean.putBack || [] : [] };
   }
   CL.busy = '';
   clDraw();

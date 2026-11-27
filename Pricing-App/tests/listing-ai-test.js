@@ -354,8 +354,10 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
       /dinner:duplicate/.test(cut) && /cotton:limit — the title already says it/.test(cut) && /blue:limit — the title already says it/.test(cut) && /pottery:other brand/.test(cut) && /barn:other brand/.test(cut) && /w{240}:limit/.test(cut)
       && /Our rules took out of the AI's answer/.test(r.card), cut);
     ok('…our brand "ridhi" STAYS (kept once, never removed); "napkins" stays (it was in the search terms already)', /\bridhi\b/.test(r.job.text) && /\bnapkins\b/.test(r.job.text) && C.lrKwCheck(r.job.text, 249).bytes <= 249, r.job.text);
-    ok('…and what it lost is still red: the protected words of the search terms now ("reusable", "washable")', /leaves out a protected word: .*reusable/.test(f) && !/our brand name/.test(f), f);
-    ok('…Approve disabled', !enabled(r.card, 'approve'));
+    // (2 Dec 2026) what it lost is PUT BACK — not only blocked: the protected words of the search terms now ("reusable", "washable")
+    ok('…the protected words it left out are PUT BACK ("+ reusable (protected, put back)"), said on the card; nothing red', /\breusable\b/.test(r.job.text) && /\bwashable\b/.test(r.job.text)
+      && (r.job.putBack || []).map(x => x.w).join() === 'reusable,washable' && /Put back: <ins class="kf-add">\+ reusable<\/ins> \(protected, put back\)/.test(r.card) && !f, f + ' | ' + r.job.text);
+    ok('…Approve enabled only now that it passes', enabled(r.card, 'approve') && r.job.chk.pass);
     // the checks themselves (a hand edit of the card is checked, not cleaned): over the limit, title words, twice, another brand → red; our brand → fine
     const c1 = C.aiCtx('SP', 'NP-1');
     const f2 = C.aiCheck(c1, 'kw', 'cotton napkins blue ridhi dinner dinner pottery barn ' + 'w'.repeat(240)).fails.join(' | ');
@@ -364,7 +366,8 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
     ok('…our brand name and the important words the title also has (cotton, napkins, blue) are NOT red any more', !/our brand name/.test(f2) && !/already in the title/.test(C.aiCheck(c1, 'kw', 'ridhi cotton napkins blue reusable washable dinner').fails.join(' | ')), f2);
     C.AI.memo.clear(); AIR.answer.kw = () => ({ kw: 'serviettes party wedding' });
     r = await press(C, page(), C.aiBtnHtml('kw', 'SP', 'NP-1', { use: 'send', key: 'lost' }));
-    ok('the protected words of the search terms now that the title does not carry ("reusable", "washable") must stay', /leaves out a protected word: .*reusable/.test(r.job.chk.fails.join(' | ')), r.job.chk.fails.join(' | '));
+    ok('the protected words of the search terms now (dinner, napkins, reusable, washable) are put back next to their words; the answer passes', ['dinner', 'napkins', 'reusable', 'washable'].every(w => new RegExp('\\b' + w + '\\b').test(r.job.text))
+      && r.job.chk.pass && enabled(r.card, 'approve') && /serviettes party wedding/.test(r.job.text), r.job.text + ' | ' + r.job.chk.fails.join(' | '));
     C.AI.memo.clear(); delete AIR.answer.kw;
   }
 

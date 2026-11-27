@@ -130,6 +130,28 @@ const keysOf = keys;
   const ow = p(T146, 'tablecloth off white turquoise');
   ok('"off white" on the turquoise cloth: white (not its colour) and off (leftover) go together', ow.after === 'tablecloth turquoise' && ow.removed.map(x => x.w + ':' + x.why).sort().join() === 'off:leftover,white:not its colour', JSON.stringify([ow.after, ow.removed]));
 
+
+  console.log('== (2 Dec 2026) ✨ AI search terms: put back, the same rules, then the limit ==');
+  {
+    const c = C.aiCtx('SP', T146.sku);
+    const ans = 'tablecloth turquoise teal moss green cotton block print dining kitchen linen farmhouse christmas salmon sage cute fun round tablecloth';
+    const cl = C.aiKwClean(c, ans, T146.kw);
+    const back = cl.putBack.map(x => x.w), out = cl.removed.map(x => x.w + ' | ' + x.why);
+    ok('the AI dropped "hand": it is PUT BACK next to "block print" ("+ hand (protected, put back)")', back.includes('hand') && /\bhand block print\b/.test(cl.text) && cl.putBack.every(x => x.why === 'protected, put back'), JSON.stringify([cl.text, back]));
+    ok('…every protected word it dropped comes back: ridhi, its size (118x70 / 70 x 118 inch), rectangle, washable, everyday (aqua is a close shade, not one of its own colour words: not protected)', ['ridhi', 'rectangle', 'washable', 'everyday'].every(w => back.includes(w)) && /\b118x70\b/.test(cl.text) && /70 x 118 inch/.test(cl.text), JSON.stringify(back));
+    ok('it added "christmas" to a cloth that is not a Christmas one → removed, "skipped: not sure the product is christmas"', !/christmas/.test(cl.text) && out.includes('christmas | skipped: not sure the product is christmas'), out.join(' ; '));
+    ok('…another colour (salmon, sage) → removed ("not its colour" / skipped); another shape (round) → "skipped: not its shape (round)"', !/\b(salmon|sage|round)\b/.test(cl.text) && out.some(x => /^salmon \| .*not its colour/.test(x)) && out.some(x => /^round \| skipped: not its shape \(round\)/.test(x)), out.join(' ; '));
+    ok('…low value (cute, fun) and the repeat (tablecloth) go; "farmhouse" (a fine word) stays; ≤ 249 bytes', !/\b(cute|fun)\b/.test(cl.text) && keys(cl.text).filter(w => w === 'tablecloth').length === 1 && /\bfarmhouse\b/.test(cl.text) && fits(cl.text), cl.text);
+    const keep = C.aiProtected(T146.kw, 'kw', c.facts);
+    const chk = C.aiCheck(c, 'kw', cl.text, { keep });
+    ok('…and then it passes every check (so "Use AI version" is enabled)', chk.pass, chk.fails.join(' | '));
+    const c2 = C.aiCtx('SP', T354.sku);
+    const cl2 = C.aiKwClean(c2, 'ridhi hot pink teal navy blue tablecloth 70x118 floral', T354.kw);
+    ok('RT354: the AI added teal and navy blue (other colours) → removed; "hot pink" stays', !/\b(teal|navy|blue)\b/.test(cl2.text) && /hot pink/.test(cl2.text), JSON.stringify([cl2.text, cl2.removed]));
+    const big = C.aiKwClean(c, T146.kw.replace(/\bhand\b/, '') + ' ' + Array.from({ length: 30 }, (_, i) => 'wordx' + String.fromCharCode(97 + i % 26) + String.fromCharCode(97 + Math.floor(i / 26))).join(' '), T146.kw);
+    ok('over the limit: its own ordinary words are cut to fit — the 🔒 words (hand put back, ridhi, turquoise, its size…) never', fits(big.text) && /hand block print/.test(big.text) && ['ridhi', 'turquoise', 'tablecloth', 'cotton'].every(w => keys(big.text).includes(w)), big.text);
+  }
+
   console.log('== titles are never touched ==');
   const tt = C.lrSuggestWords(T146.title + ' 60x90 Salmon', { mode: 'title', facts: facts(C, T146), fits: x => x.length <= 200 });
   ok('a title keeps every word (the 30-Nov rules are search terms only)', tt.after === T146.title + ' 60x90 Salmon' && !tt.removed.length);
