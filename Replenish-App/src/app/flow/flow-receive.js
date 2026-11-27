@@ -164,6 +164,7 @@ async function flowStandBack(no, key, qty, as, note) {
 /** The order lines this standing cloth can go to: waiting for RFD, planned to this printer, the same fabric and unit. */
 function flowStandTargets(x) {
   return flowRows().filter(y => flowInView('drfd', y.s) && y.s.route !== 'stitch' && String(flowPlanPrinter(y.s)) === String(x.code)
+    && !(typeof flowCpActive === 'function' && flowCpActive(y.s.key))
     && flowFabKey((y.s.plan && y.s.plan.fabric && y.s.plan.fabric.name) || '') === flowFabKey(x.fabric) && (y.s.fabUnit || 'm') === x.unit && flowFabOwed(y.r, y.s).left > 0);
 }
 /** Used for another order: a challan to the same printer for that line, made from the standing cloth — nothing leaves the store. */

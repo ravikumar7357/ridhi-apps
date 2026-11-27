@@ -327,6 +327,12 @@ function lineHoldOn() {
   try { return localStorage.getItem('lineHold') === '1'; } catch (e) { return false; }
 }
 
+/** True when two records say the same, whatever order their fields are in (the database hands them back sorted). */
+function ptSame(a, b) {
+  const canon = v => (v && typeof v === 'object' ? (Array.isArray(v) ? v.map(canon) : Object.keys(v).sort().reduce((o, k) => { if (k !== '_key') o[k] = canon(v[k]); return o; }, {})) : v);
+  return JSON.stringify(canon(a == null ? null : a)) === JSON.stringify(canon(b == null ? null : b));
+}
+
 /** WHY A PIECE WAS REJECTED (Ravi, 27 Nov): a rejection carrying one of these is scrap — the piece is gone and a new one is cut
  *  (or issued, on a line that needs no cutting). "Other" needs a short note. Reasons are recorded only with the switch lineHold
  *  on, so a rejection without one counts as it always did and no start date is needed. */
@@ -342,8 +348,7 @@ async function ptSaveIfUnchanged(path, seen, next) {
   let fresh = null;
   try { fresh = await ptGetFresh(path); } catch (e) { console.warn('[line hold] could not read ' + path + ' just before saving it — saving the plain way:', e); }
   if (!fresh || typeof fresh !== 'object') { await ptPut(path, next); return ''; }
-  const canon = v => (v && typeof v === 'object' ? (Array.isArray(v) ? v.map(canon) : Object.keys(v).sort().reduce((o, k) => { if (k !== '_key') o[k] = canon(v[k]); return o; }, {})) : v);
-  if (JSON.stringify(canon(fresh)) !== JSON.stringify(canon(seen))) return 'changed';
+  if (!ptSame(fresh, seen)) return 'changed';
   return (await ptCas(path, fresh, next)) ? 'changed' : '';
 }
 

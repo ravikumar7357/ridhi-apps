@@ -204,6 +204,8 @@ function flowEarlierOf(x) {
   return { qty, pcs, metres: flowR2(pcsWise ? pcs * per : qty) };
 }
 async function flowRecordEarlier(key, o) {
+  const inCut = typeof flowCpActive === 'function' ? flowCpActive(key) : null;
+  if (inCut) return `This line is in Cut to size on challan ${inCut.no} — send it from there or take it back first.`;
   const x = flowRows().find(y => y.s.key === key); if (!x) return 'That line is not here any more — press Refresh.';
   const e = flowEarlierOf(x), pcsWise = x.s.fabUnit === 'pcs', p = x.s.plan || {}, per = +(p.fabric && p.fabric.perPc) || 0;
   const pcs = Math.round(+o.pcs || 0);
@@ -477,6 +479,10 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
  * Returns '' when saved (ch.no is then its number), else what went wrong in words, for the window to show. */
 async function flowChallanWrite(ch, v, how) {
   const vname = ch.vendor.name, now = ch.at;
+  /* A line in Cut to size has its cloth off the shelf already: only its own Send to printer (flow-cutpiece.js) may send it. */
+  const inCut = !how.fromCut && typeof flowCpActive === 'function' && (ch.lines || []).find(l => !l.ruffleOnly && flowCpActive(l.key));
+  if (inCut) return `${inCut.sku} is in Cut to size on challan ${flowCpActive(inCut.key).no} — send it from the Greige Desk's Cut to size.`;
+  if (how.fromCut) ch.fromCut = how.fromCut;
   let no = flowChallanNo(ch.date, how.isTest); ch.no = no;
   for (let k = 0, taken = []; ; k++) {
     let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
@@ -484,6 +490,7 @@ async function flowChallanWrite(ch, v, how) {
     if (k >= 15) return 'Could not get a free challan number — press Refresh and try again.';
     taken.push(no); no = flowChallanNo(ch.date, how.isTest, taken); ch.no = no;
   }
+  how.claimedNo = no;   // from here the challan exists, whatever else fails
   const patch = typeof ptCas === 'function' ? {} : { ['pt_flowChallans/' + no]: ch };
   const setP = how.unplanned || [];
   setP.forEach(k => { patch[`pt_ppc/${k}/printer`] = { code: v.code, name: vname, why: 'set by challan ' + no }; });
@@ -595,14 +602,17 @@ function flowShLine(x) {
   let print = null; try { print = flowPrintWhat(x.r, x.s.plan); } catch (e) { print = null; }
   const pl = (x.s.plan && x.s.plan.printer) || {};
   return { x, key: x.s.key, pcs, perPc, metres: flowR2(pcs * perPc), printer: flowPlanPrinter(x.s), printerName: pl.name || '',
+    priority: typeof cutPiecesOn === 'function' && cutPiecesOn() ? flowPri(x.r.orderNo, x.r.sku) : '',
     print, printKey: print ? String(print.code || print.label || '') : '' };
 }
 /** The lines of one fabric still waiting on Demand → RFD for cloth, oldest order first. */
 function flowShLines(fabric) {
   const F = flowFabKey(fabric);
-  return flowRows().filter(x => flowInView('drfd', x.s) && x.s.route !== 'stitch' && flowFabKey(((x.s.plan || {}).fabric || {}).name) === F)
+  const oldest = flowRows().filter(x => flowInView('drfd', x.s) && x.s.route !== 'stitch' && flowFabKey(((x.s.plan || {}).fabric || {}).name) === F)
     .map(flowShLine).filter(l => l.pcs > 0)
     .sort((a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)));
+  if (!(typeof cutPiecesOn === 'function' && cutPiecesOn())) return oldest;
+  return flowPriSort(oldest, l => ({ orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority }));
 }
 
 /** The open card: { fabric, lines, tick: Set of line keys, qty: { key: pcs typed }, prn: { key: printer code chosen }, q: search,
@@ -624,6 +634,8 @@ function flowShStuck(S, l) {
 }
 /** Why a line cannot be ticked ('' when it can go). */
 function flowShWhyNot(S, l) {
+  const cp = typeof flowCpActive === 'function' ? flowCpActive(l.key) : null;
+  if (cp) return `In Cut to size on challan ${cp.no} · ${FLOW_CP_LABEL[cp.status] || cp.status}`;
   if (!(l.perPc > 0)) return 'No cloth per piece on its master row — add it there first';
   if (flowShWaits(l)) return 'Waiting for approval of a change of printer';
   if (!flowShPrn(S, l)) return 'PPC has not given it a printer yet — PPC sets it first';
@@ -692,6 +704,7 @@ function flowShTickAll(S, on) {
 async function flowShelfChallanOpen(fabric, after) {
   if (!flowScreenAllowed().some(b => b[0] === 'drfd')) return 'Making an RFD challan needs Demand → RFD access.';
   await flowEnsureData();
+  if (typeof cutPiecesOn === 'function' && cutPiecesOn()) await flowPriLoad();
   return flowShelfChallanShow(fabric, after);
 }
 /* THE CARD'S LOOK (Vishesh, 23 Nov: "not good make better also show product images"): one line is one row-card -- a large
@@ -778,6 +791,7 @@ function flowShelfChallanShow(fabric, after, keep) {
           <input id="flshQ" type="search" value="${esc(S.q || '')}" placeholder="Search order no., SKU, item, print or printer" autocomplete="off" aria-label="Search"></div>
         <span id="flshKinds" style="display:inline-flex;gap:6px"></span></div>
       <div class="shc-bar">
+        ${typeof cutPiecesOn === 'function' && cutPiecesOn() ? '<button type="button" class="ghost" id="flshDl">Download List</button>' : ''}
         <button type="button" class="ghost" data-shall="1">Select all</button>
         <button type="button" class="ghost" data-shall="0">Deselect all</button>
         <span id="flshTickN" class="shc-n"></span>
@@ -792,6 +806,8 @@ function flowShelfChallanShow(fabric, after, keep) {
     onSave: flowShSave,
   });
   flowShDraw();
+  const dl = $('flshDl');
+  if (dl) dl.onclick = () => { const er = flowCpXlsx(`send-to-printer-${fabric}-${dToday()}`, flowCpCardRows(FLOW_SH)); if (er) window.alert(er); };
   return '';
 }
 /** Draws the filter, the lines and the totals from the draft. */
@@ -807,6 +823,8 @@ function flowShDraw() {
       .map(o => `<option value="${esc(o.v.code)}"${String(o.v.code) === String(S.show) ? ' selected' : ''}>${esc(o.v.desc || o.v.name || o.v.code)} (${nf(o.n)})</option>`).join('')
     + (none || S.show === '-' ? `<option value="-"${S.show === '-' ? ' selected' : ''}>No printer yet (${nf(none)})</option>` : '');
   $('flshBody').innerHTML = flowShTableHtml(S);
+  const save = $('ptDlgSave');
+  if (save && typeof cutPiecesOn === 'function' && cutPiecesOn()) save.textContent = S.kind === 'cut' ? 'Make Cut Pieces Challan' : 'Make the challans';
   $('flshSum').innerHTML = flowShSumHtml(S);
   $('flshWait').innerHTML = flowShWaitHtml(S);
   if ($('flshTickN')) $('flshTickN').textContent = S.tick.size ? `${nf(S.tick.size)} ticked` : '';
@@ -830,6 +848,7 @@ function flowShTableHtml(S) {
 function flowShRowHtml(S, l, pr) {
   const why = flowShWhyNot(S, l), on = S.tick.has(l.key) && !why, noCloth = !(l.perPc > 0), wait = flowShWaits(l), as = flowShAs(S, l), sku = obUC(l.x.r.sku);
   const tags = [];
+  if (typeof cutPiecesOn === 'function' && cutPiecesOn()) tags.push([l.priority === 'P1' ? 'b' : l.priority ? 'w' : 'i', flowPriText(l.priority)]);
   if (noCloth) tags.push(['b', 'No cloth / pc']);
   if (wait) tags.push(['w', 'Waiting approval']);
   else if (flowShChanged(S, l)) tags.push(['w', 'Printer changed']);
@@ -975,7 +994,7 @@ function flowShWaitHtml(S) {
 }
 
 /** One challan for the lines given, to one printer. Returns { err } when refused, else { no }. */
-async function flowShMake(v, go, note, fabric) {
+async function flowShMake(v, go, note, fabric, extra) {
   const orders = [...new Set(go.map(l => l.x.r.orderNo))];
   const ch = { no: '', date: dToday(), orderNo: orders.join(', '), orders, vendor: { code: v.code, name: v.desc || v.name || v.code },
     note, at: new Date().toISOString(), by: ME.email || '', from: 'Greige Desk inventory',
@@ -983,8 +1002,9 @@ async function flowShMake(v, go, note, fabric) {
       /* the ruffle cloth goes once, on the first challan for the line — never when it has a printer of its own */
       extras: l.x.s.fabSent > 0 || flowRufflePrinter(l.x.s.plan) ? [] : flowPrintExtras(l.x.r, l.x.s.plan, flowPoRemOf(l.x.r, l.x.s)),
       fabric: ((l.x.s.plan || {}).fabric || {}).name || fabric, pcs: l.pcs, metres: l.metres })) };
-  const err = await flowChallanWrite(ch, v, { isTest: go.every(l => !!l.x.r.__t), unplanned: go.filter(l => !l.printer).map(l => l.key) });
-  return err ? { err } : { no: ch.no };
+  const how = Object.assign({ isTest: go.every(l => !!l.x.r.__t), unplanned: go.filter(l => !l.printer).map(l => l.key) }, extra);
+  const err = await flowChallanWrite(ch, v, how);
+  return err ? { err, claimed: how.claimedNo || '' } : { no: ch.no };
 }
 /** Make the challans: checks what is ticked, then always asks first (the Review). Nothing is written until "Yes". */
 async function flowShSave() {
@@ -993,6 +1013,8 @@ async function flowShSave() {
   if (!go.length) return S.lines.some(l => S.tick.has(l.key)) ? 'The ticked lines cannot go yet — see the note on each.' : 'Tick at least one line.';
   if (go.some(l => !!l.x.r.__t) && go.some(l => !l.x.r.__t)) return 'A test order and a real one cannot share a challan.';
   S.note = $('flshNote').value.trim(); S.review = { note: S.note };
+  /* cut pieces are cut first: their challan goes to Cut to size, not to the printer (flow-cutpiece.js) */
+  if (typeof cutPiecesOn === 'function' && cutPiecesOn() && go.some(l => flowShKind(l) === 'cut')) return flowCpCardSave(S);
   /* ASK BEFORE IT GOES (Vishesh, 23 Nov: "when I click on make challan it should give a notification that this order will be sent
    * to this vendor"): the Review always opens -- what goes to which printer, and which printers change. */
   setTimeout(flowShReviewOpen, 0);   // the card closes when this returns; the Review opens on the next tick

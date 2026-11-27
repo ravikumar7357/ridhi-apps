@@ -143,6 +143,12 @@ async function flowTestDelete(orderNo) {
   if (typeof QC !== 'undefined' && Array.isArray(QC.checks)) QC.checks.filter(mine).forEach(r => regs.pt_qcChecks.add(r.id));
   Object.entries(regs).forEach(([node, ids]) => ids.forEach(id => { if (id) patch[node + '/' + id] = null; }));
   try { await ptPatch(patch); } catch (e) { return 'Could not delete: ' + (e.message || e); }
+  /* …and the cloth its Cut Pieces Challans took goes back on the shelf (flow-cutpiece.js) */
+  const cutKeys = Object.keys(o.lines || {}).map(sku => flowKey(orderNo, sku)).filter(k => ((FLOW.dem || {})[k] || {}).cutPc);
+  if (cutKeys.length) {
+    await GD.cutFresh();
+    for (const k of cutKeys) { const er = await GD.cutReturn('', k); if (er) return er; }
+  }
   const drop = (obj, pre) => { const n = Object.assign({}, obj); Object.keys(patch).filter(p => p.startsWith(pre)).forEach(p => { delete n[p.slice(pre.length)]; }); return n; };
   FLOW.test = drop(FLOW.test, 'pt_flowTest/'); FLOW.ppc = drop(FLOW.ppc, 'pt_ppc/'); FLOW.dem = drop(FLOW.dem, 'pt_flowDemand/');
   FLOW.res = drop(FLOW.res, 'pt_accReserve/'); FLOW.ch = drop(FLOW.ch, 'pt_flowChallans/'); FLOW.po = drop(FLOW.po, 'pt_flowPrintOrders/'); FLOW.fg = drop(FLOW.fg, 'pt_flowFgSend/');
