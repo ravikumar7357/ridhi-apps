@@ -84,10 +84,12 @@ function obCutIndex() {
  * counted, so nothing already complete reopens: made = the LARGER of the old press entries and the pieces QC
  * passed against that order (never the sum — a pressed piece was QC'd first). Every caller of obPressQty — the
  * Order Console's made / complete / ready for shipping, the Job Work issue cap, Sales Orders — reads this. */
+/** The QC checks as this screen holds them: Quality Control's own copy, else the one read with the registers. */
+const obQcRows = () => (typeof QC !== 'undefined' && QC.checks) || PTG.qc || PT_NONE;
 let PRESS_IX = { src: null, n: -1, qc: null, qn: -1, map: null };
 function obPressIndex() {
   const rows = PTG.press || [];
-  const qc = (typeof QC !== 'undefined' && QC.checks) || PTG.qc || [];
+  const qc = obQcRows();
   if (PRESS_IX.src === rows && PRESS_IX.n === rows.length && PRESS_IX.qc === qc && PRESS_IX.qn === qc.length) return PRESS_IX.map;
   const m = new Map(), ok = new Map();
   rows.forEach(r => {
@@ -114,15 +116,59 @@ function obBaseIndex() {
   rows.forEach(r => {
     if (!r) return;
     const k = obKeyOf(r.orderNo, r.sku);
-    let e = m.get(k); if (!e) { e = { issued: 0, received: 0, rejected: 0 }; m.set(k, e); }
+    let e = m.get(k); if (!e) { e = { issued: 0, received: 0, rejected: 0, scrap: 0 }; m.set(k, e); }
     e.issued += ptNum(r.issuePieces);
     e.received += ptNum(r.receivedPieces);
     /* Rejected when it came back from the karigar: the entry closes on it, so it is no longer out with anybody. Issued stays
      * gross (reports show what went out); the board and the issue allowance take this off themselves. */
     e.rejected += ptNum(r.rejectionPieces);
+    e.scrap += obRowScrap(r);
   });
   BASE_IX = { src: rows, n: rows.length, map: m };
   return m;
+}
+
+/* ---- scrapped pieces (Ravi, 27 Nov) ----
+ * A rejection is scrap only when it carries a reason (REJ_REASONS): on a Job Work entry as rejections/<id> = { at, pcs, why,
+ * note?, by }, on a QC check as rejWhy beside `rejected`. These figures move what may be cut and issued, never anybody's pay. */
+/** Pieces of one Job Work entry scrapped at the karigar's receive — never more than the entry's rejected total. */
+function obRowScrap(r) {
+  const withReason = Object.values(r.rejections || {}).reduce((t, x) => t + (x && x.why ? ptNum(x.pcs) : 0), 0);
+  return Math.min(withReason, ptNum(r.rejectionPieces));
+}
+const obQcScrapOf = c => (c.rejWhy ? ptNum(c.rejected) : 0);
+
+/** Rejected and scrapped at QC, per order and SKU. */
+let QCREJ_IX = { src: null, n: -1, map: null };
+function obQcRejIndex() {
+  const rows = obQcRows();
+  if (QCREJ_IX.map && QCREJ_IX.src === rows && QCREJ_IX.n === rows.length) return QCREJ_IX.map;
+  const m = new Map();
+  rows.forEach(c => {
+    if (!c || !c.orderNo) return;
+    const k = obKeyOf(c.orderNo, c.sku);
+    let e = m.get(k); if (!e) { e = { rejected: 0, scrap: 0 }; m.set(k, e); }
+    e.rejected += ptNum(c.rejected);
+    e.scrap += obQcScrapOf(c);
+  });
+  QCREJ_IX = { src: rows, n: rows.length, map: m };
+  return m;
+}
+
+/** Pieces QC scrapped on a line; exclBaseId leaves out the checks of the Job Work entry being edited. Switch off: none. */
+function obQcScrapQty(orderNo, sku, exclBaseId) {
+  if (!lineHoldOn()) return 0;
+  if (!exclBaseId) return flowRejOf(orderNo, sku).qcNew;
+  const k = obKeyOf(orderNo, sku);
+  return obQcRows().filter(c => c && c.baseId !== exclBaseId && obKeyOf(c.orderNo, c.sku) === k).reduce((t, c) => t + obQcScrapOf(c), 0);
+}
+
+/** What was rejected on an order line: karOld / qcOld count as they always did; karNew (karigar) and qcNew (QC) are scrapped,
+ *  and `scrap` is the two together. Switch lineHold off: nothing is scrap. */
+function flowRejOf(orderNo, sku) {
+  const k = obKeyOf(orderNo, sku), b = obBaseIndex().get(k), q = obQcRejIndex().get(k), on = lineHoldOn();
+  const karNew = on && b ? b.scrap : 0, qcNew = on && q ? q.scrap : 0;
+  return { karOld: (b ? b.rejected : 0) - karNew, karNew, qcOld: (q ? q.rejected : 0) - qcNew, qcNew, scrap: karNew + qcNew };
 }
 
 

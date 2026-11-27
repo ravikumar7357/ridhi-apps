@@ -27,8 +27,9 @@ const jwCorrOfRow = rowId => jwCorrPending().find(q => q.rowId === rowId) || nul
  * change (a SKU, a date, a completed row). An admin just edits. */
 const jwCanAsk = () => (ME.tabs || []).includes('pbase') && !ME.admin;
 
-/** What a row would become with these changes, checked the way the Edit box checks it. { err } or { next }. */
-function jwCorrPlan(r, change) {
+/** What a row would become with these changes, checked the way the Edit box checks it. { err } or { next }.
+ *  `by`: who is rejecting any newly rejected pieces, when it is not the person saving. */
+function jwCorrPlan(r, change, by) {
   const c = change || {};
   const has = k => c[k] !== undefined && c[k] !== null && String(c[k]).trim() !== '';
   const name = has('empName') ? String(c.empName).trim() : (r.empName || '');
@@ -54,6 +55,9 @@ function jwCorrPlan(r, change) {
   if (!isFinite(recv) || recv < 0) return { err: 'Received pieces cannot be negative.' };
   if (!isFinite(rej) || rej < 0) return { err: 'Rejected pieces cannot be negative.' };
   if (recv + rej > issued) return { err: `Received ${recv} plus rejected ${rej} is more than the ${issued} issued.` };
+  const reason = Object.assign(rejWhyOf(c), { by });
+  const whyErr = rejWhyErr(rej - ptNum(r.rejectionPieces), reason);
+  if (whyErr) return { err: whyErr };
   let at = r.articleType, sub = r.articleSubtype, col = r.color, sz = r.size;
   if (sku !== obUC(r.sku || '')) {
     const m = cutSkuOf(sku);
@@ -69,7 +73,7 @@ function jwCorrPlan(r, change) {
     empName: name, sku, articleType: at, articleSubtype: sub, color: col, size: sz,
     issuePieces: issued, receivedPieces: recv, rejectionPieces: rej, pendingPieces: pending, frozen: pending <= 0,
     remarks: c.remarks !== undefined ? String(c.remarks || '').trim() : (r.remarks || ''),
-  });
+  }, rejLogFor(r, rej, reason));
   if (has('issueDate')) next.issueDate = ptStampFrom(r.issueDate, c.issueDate);
   if (c.receivingDate !== undefined) next.receivingDate = String(c.receivingDate || '').trim() ? ptStampFrom(r.receivingDate, c.receivingDate) : '';
   if (next.frozen && !next.receivingDate) next.receivingDate = ptNow();
@@ -100,6 +104,8 @@ async function jwCorrAsk(rowId, change, why) {
   const diff = jwCorrDiff(r, change);
   if (!diff.length) return 'Nothing is different from what the entry already says.';
   const clean = {}; diff.forEach(([k, , to]) => { clean[k] = to; });
+  /* newly rejected pieces carry their reason to the approver */
+  Object.assign(clean, rejWhySaved(ptNum(clean.rejectionPieces) - ptNum(r.rejectionPieces), rejWhyOf(change)));
   const plan = jwCorrPlan(r, clean);
   if (plan.err) return plan.err;
   const now = new Date().toISOString();
@@ -126,7 +132,9 @@ async function jwCorrApprove(id) {
     return 'It changes the SKU or a date, which only an admin may change — an admin has to approve it.';
   const r = (PT.base || []).find(x => x && x.id === q.rowId);
   if (!r) return 'The entry it is about has been deleted — reject the request.';
-  const plan = jwCorrPlan(r, q.change);
+  if (rejWhyNeeded(ptNum((q.change || {}).rejectionPieces) - ptNum(r.rejectionPieces)) && !rejWhyOf(q.change).why)
+    return `This request was sent before a reason was asked for rejected pieces — reject it and ask ${whoShort(q.by)} to send it again with the reason.`;
+  const plan = jwCorrPlan(r, q.change, q.by);
   if (plan.err) return 'Cannot be applied as it stands now: ' + plan.err;
   if (ptNum(plan.next.receivedPieces) < qcTookOf(r.id))
     return `Cannot be applied: QC has already taken ${nf(qcTookOf(r.id))} piece(s) of this entry — received cannot be less than that.`;
@@ -175,6 +183,7 @@ function jwCorrAskOpen(rowId) {
       { key: 'issuePieces', label: 'Issued', type: 'number', value: ptNum(r.issuePieces) },
       { key: 'receivedPieces', label: 'Received', type: 'number', value: ptNum(r.receivedPieces) },
       { key: 'rejectionPieces', label: 'Rejected', type: 'number', value: ptNum(r.rejectionPieces) },
+      ...rejWhyFields(),
       { key: 'sku', label: 'SKU', value: r.sku || '' },
       { key: 'issueDate', label: 'Issue date', type: 'date', value: ptIsoDate(r.issueDate) },
       { key: 'receivingDate', label: 'Receiving date', type: 'date', value: ptIsoDate(r.receivingDate) },
@@ -183,7 +192,7 @@ function jwCorrAskOpen(rowId) {
     ],
     saveLabel: 'Send for approval',
     onSave: async v => {
-      const change = {}; JWC_FIELDS.forEach(([k]) => { if (v[k] !== undefined) change[k] = v[k]; });
+      const change = { rejWhy: v.rejWhy, rejNote: v.rejNote }; JWC_FIELDS.forEach(([k]) => { if (v[k] !== undefined) change[k] = v[k]; });
       const err = await jwCorrAsk(rowId, change, v.why);
       if (!err) { renderPbase(); $('pbMsg').className = 'muted'; $('pbMsg').textContent = 'Sent for approval. The entry changes once it is approved.'; }
       return err;
@@ -247,6 +256,8 @@ $('bdmClose').onclick = bdModalClose;
 $('bdmCancel').onclick = bdModalClose;
 $('bdModal').addEventListener('click', e => { if (e.target === $('bdModal')) bdModalClose(); });
 
+$('bdmRej').addEventListener('input', () => rejWhyBoxes('bdm', ptNum($('bdmRej').value) - ptNum(BD_M && BD_M.rejectionPieces)));
+
 $('bdmSave').onclick = async () => {
   const r = BD_M; if (!r) return;
   /* A page left open while the right is withdrawn still has the dialog on it. The lock is here. */
@@ -272,6 +283,8 @@ $('bdmSave').onclick = async () => {
   if (!isFinite(rej) || rej < 0) return bdModalMsg('Rejection pieces cannot be negative.', true);
   if (recv + rej > issued)
     return bdModalMsg(`Received ${recv} plus rejected ${rej} is more than the ${issued} issued.`, true);
+  const reason = rejWhyTyped('bdm'), whyErr = rejWhyErr(rej - ptNum(r.rejectionPieces), reason);
+  if (whyErr) return bdModalMsg(whyErr, true);
 
   /* A changed SKU re-derives the item from the master database, exactly as the dialog promises.
    * A custom SKU that is not in the master database is left alone — it never was in there. */
@@ -310,7 +323,7 @@ $('bdmSave').onclick = async () => {
     pendingPieces: pending, frozen: pending <= 0,
     remarks: $('bdmRemarks').value.trim(),
     editedBy: ME.email, editedAt: new Date().toISOString(),
-  });
+  }, rejLogFor(r, rej, reason));
   if (admin) {
     if ($('bdmIssueDate').value) next.issueDate = ptStampFrom(r.issueDate, $('bdmIssueDate').value);
     /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): an admin's correction may go back any distance, never ahead, and the

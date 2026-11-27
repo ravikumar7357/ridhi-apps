@@ -103,6 +103,10 @@ function obCutQty(orderNo, sku, exclId) {
   return Math.max(0, gross - rej);
 }
 
+/** Cut pieces that still count against the ordered quantity: the good cut less what was rejected and scrapped since, so a new
+ *  piece may be cut in its place (Ravi, 27 Nov). */
+const obCutKept = (orderNo, sku, exclId) => Math.max(0, obCutQty(orderNo, sku, exclId) - flowRejOf(orderNo, sku).scrap);
+
 /** The tool's own guard, for kind 'cut'. Same numbers, same wording. */
 /* A LEGACY ORDER TAKES NO NEW WORK (Ravi, 24 Oct: "ye quilt ki cutting mene new orders ke liye cutt kiya tha but ye direct
  * LEG-17102026 me chali gyi but leg order sirf humne pahli pending entry complete krne ke liye kiya tha"). LEG-… holds the pieces
@@ -118,10 +122,10 @@ function cutGuard(orderNo, sku, qty, exclId, allowExtra) {
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
   /* Extra, with a reason recorded on the row: the ordered cap is the thing being knowingly passed. */
   if (allowExtra) return '';
-  const used = obCutQty(orderNo, sku, exclId);
+  const used = obCutKept(orderNo, sku, exclId);
   const want = parseInt(qty, 10) || 0;
   if (used + want > ordered)
-    return `Order ${orderNo} · ${obUC(sku)}: ordered ${ordered} pcs, already cut ${used} pcs — `
+    return `Order ${orderNo} · ${obUC(sku)}: ordered ${ordered} pcs, already cut ${used} pcs${flowRejOf(orderNo, sku).scrap ? ' (scrapped pieces not counted)' : ''} — `
       + `at most ${ordered - used} more allowed. Entry blocked.`;
   return '';
 }
@@ -236,7 +240,7 @@ function cutOrdersFor(sku) {
   return obLines().filter(l => l.sku === obUC(sku) && !obIsLegacy(l.orderNo)).filter(l => {
     if (seen.has(l.orderNo)) return false; seen.add(l.orderNo); return true;
   }).map(l => {
-    const ordered = obOrderedQty(l.orderNo, sku), used = obCutQty(l.orderNo, sku);
+    const ordered = obOrderedQty(l.orderNo, sku), used = obCutKept(l.orderNo, sku);
     return { orderNo: l.orderNo, ordered, used, left: Math.max(0, ordered - used), date: l.date };
   }).sort((a, b) => (b.left - a.left) || a.orderNo.localeCompare(b.orderNo));
 }

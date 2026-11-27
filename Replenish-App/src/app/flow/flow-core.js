@@ -314,6 +314,53 @@ function flowRemFrac(r, s) {
   const done = Math.min(q, Math.max(+s.cut || 0, +s.issued || 0, +s.made || 0));
   return (q - done) / q;
 }
+/* REJECTED PIECES ARE SCRAPPED (Ravi, 27 Nov; switch lineHold). A piece rejected with a reason, by the karigar or at QC, is
+ * gone: it leaves what is issued and what is well cut, and a new one is cut — or issued, on a line that needs no cutting. A
+ * printed or embroidered line takes the new piece from printed cloth on hand; with none, s.needReprint says how many pieces
+ * short it is. Rejections without a reason count as before. Outsourced lines, and an embroidery vendor's (embroidered again),
+ * are counted as before. */
+function flowCountScrap(r, s) {
+  const rej = flowRejOf(r.orderNo, r.sku), cutAll = Math.max(0, +r.cut || 0);
+  s.rej = { kar: rej.karNew, qc: rej.qcNew, scrap: rej.scrap };
+  s.cutGood = Math.max(0, cutAll - rej.scrap);
+  if (!rej.scrap || s.route === 'outsource' || (s.route === 'emb' && !s.embDept)) return;
+  /* pieces that have used up a cut piece or a printed one: QC's without a reason go back to the store on a planned line */
+  const taken = Math.max(0, s.issuedAll - (s.plan ? rej.qcOld : 0));
+  const used = s.cutReq ? cutAll : taken;
+  const wanted = Math.max(0, (s.printed ? s.back : +r.qty || 0) + rej.scrap - used);
+  const can = s.printed ? Math.min(wanted, flowReplaceCloth(r, s, used)) : wanted;
+  if (can < wanted) s.needReprint = wanted - can;
+  s.issuedNet = Math.max(0, taken - rej.scrap);
+  s.canCut = s.cutReq ? can : 0;
+  s.canIssue = s.cutReq ? Math.max(0, cutAll - taken) : can;
+  s.recounted = true;
+}
+/** Scrapped pieces of a line still waiting for their new one — to be cut, or issued on a line that needs no cutting. The PPC
+ *  history card and the Report count them with this (Ravi, 27 Nov). */
+function flowScrapRedo(r, s) {
+  if (!s.recounted) return 0;
+  const good = Math.max(s.cutReq ? s.cutGood : s.issuedNet, +s.made || 0, +s.india || 0);
+  return Math.min(s.rej.scrap, Math.max(0, (+r.qty || 0) - good));
+}
+/** Pieces' worth of printed cloth on hand for a replacement: what this line received and has not used, or what the store holds
+ *  — the larger, as the store figure can already include the line's own. No limit when the store cannot be told. */
+function flowReplaceCloth(r, s, used) {
+  const store = flowStoreClothPcs(r, s);
+  if (store == null) return Infinity;
+  const came = s.fabTotal > 0 ? Math.floor((+r.qty || 0) * s.fabHave / s.fabTotal + 1e-9) : 0;
+  return Math.max(0, Math.max(s.back, came) - used, store);
+}
+/** Printed stock in the store for a planned line, in pieces; null when it cannot be told (store not read, no cloth per piece). */
+function flowStoreClothPcs(r, s) {
+  if (!s.plan) return null;
+  try {
+    const m = cutSkuOf(r.sku) || {}, fab = s.plan.fabric || {}, what = flowPrintWhat(r, s.plan);
+    const stock = flowPrintedStock(Object.assign({ fabric: fab.name || m.fabric || '' }, what), String(m.color || r.color || '').trim());
+    if (stock == null || what.kind === 'sku') return stock == null ? null : Math.floor(stock);
+    const perPiece = +fab.perPc || (+fab.metres || 0) / (+r.qty || 1);
+    return perPiece > 0 ? Math.floor(stock / perPiece + 1e-9) : null;
+  } catch (e) { console.warn('[scrap] printed stock not read for ' + r.orderNo + ' ' + r.sku + ', the new piece is not held back for cloth:', e); return null; }
+}
 function flowState(r) {
   const k = flowKey(r.orderNo, r.sku), qty = +r.qty || 0;
   const cap = n => Math.max(0, Math.min(qty, +n || 0));
@@ -391,6 +438,7 @@ function flowState(r) {
     s.received = cap(cutAll); s.receivedAll = cutAll;
     s.canIssue = 0;
   }
+  if (lineHoldOn()) flowCountScrap(r, s);
   const accNeed = !!p && route !== 'outsource' && (p.acc || []).some(a => a.code && +a.qty > 0);
   const handReady = !!(d && d.fabricReady && !d.fabricReady.challan);
   s.needFab = isNew && !!p && route !== 'outsource' && route !== 'jobwork' && !handReady && !flowInHand(p)
@@ -415,7 +463,7 @@ function flowState(r) {
     : (printed && s.back < qty) ? 'fabric'
     : (route === 'emb' && !s.embDept && s.embOk < qty) ? 'emb'
     : (route === 'emb' && !s.embDept && s.issuedNet < qty) ? 'cut'
-    : (s.cutReq && s.cut < qty) ? 'cut'
+    : (s.cutReq && (s.cutGood != null ? s.cutGood : s.cut) < qty) ? 'cut'   // a scrapped piece is cut again
     /* REJECTED AT QC → BACK IN RAW CUTTING IN STORE (Ravi, 10 Oct: "rejected pcs raw cutting in store me hona chahiye").
      * For a planned line the pieces QC rejected are not "issued" any more: they wait in the store to be issued again. */
     : (s.issuedNet < qty && !(p && flowQcOpen(r, s))) ? 'raw'   // QC work still open comes first
@@ -431,10 +479,12 @@ function flowState(r) {
 
 /** Every open line (and every new order's lines) with its state. Cached on the order book and the three nodes. */
 let FLOW_C = { src: null, test: null, ppc: null, dem: null, res: null, rows: null };
+/** The printed store as read: a line waiting for cloth for a scrapped piece moves when it arrives. */
+const flowStoreRead = () => (typeof STORE !== 'undefined' ? STORE.rows : null);
 function flowRows() {
   const real = FLOW_REAL ? ordLines() : flowMtoLines(), test = flowTestLines();
   if (FLOW_C.rows && FLOW_C.src === real && FLOW_C.test === test && FLOW_C.ppc === FLOW.ppc && FLOW_C.dem === FLOW.dem && FLOW_C.res === FLOW.res && FLOW_C.ch === FLOW.ch && FLOW_C.emb === FLOW.emb && FLOW_C.po === FLOW.po && FLOW_C.fg === FLOW.fg
-    && FLOW_C.qc === (typeof QC !== 'undefined' ? QC.checks : null) && FLOW_C.fgi === (typeof FGI !== 'undefined' ? FGI.rows : null)) return FLOW_C.rows;
+    && FLOW_C.qc === (typeof QC !== 'undefined' ? QC.checks : null) && FLOW_C.fgi === (typeof FGI !== 'undefined' ? FGI.rows : null) && FLOW_C.store === flowStoreRead()) return FLOW_C.rows;
   const lines = test.length ? real.concat(test) : real;
   const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   const rows = [];
@@ -444,6 +494,6 @@ function flowRows() {
     if (s.bucket === 'done' && !recent) return;
     rows.push({ r, s, recent });
   });
-  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, emb: FLOW.emb, po: FLOW.po, fg: FLOW.fg, qc: (typeof QC !== 'undefined' ? QC.checks : null), fgi: (typeof FGI !== 'undefined' ? FGI.rows : null), rows };
+  FLOW_C = { src: real, test, ppc: FLOW.ppc, dem: FLOW.dem, res: FLOW.res, ch: FLOW.ch, emb: FLOW.emb, po: FLOW.po, fg: FLOW.fg, qc: (typeof QC !== 'undefined' ? QC.checks : null), fgi: (typeof FGI !== 'undefined' ? FGI.rows : null), store: flowStoreRead(), rows };
   return rows;
 }

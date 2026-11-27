@@ -11,6 +11,7 @@
  *      (issued − received) PLUS everything already pressed. A received piece is not counted twice,
  *      because once it is processed it shows up as pressed stock instead. Issuable = ordered −
  *      pressed − open.
+ *   (A rejected piece frees its place, and a scrapped one has used up its cut piece: see obIssueOfOrder and obIssueOfCut.)
  *   2. A piece must be CUT before it can be issued. For a SKU that needs cutting, the issue is also
  *      capped at the net cut against that same order — with pressed used as a floor, because every
  *      pressed piece was cut once and old records are incomplete. The exception is deliberate: a
@@ -56,30 +57,48 @@ function obPressQty(orderNo, sku, exclId) {
     .reduce((a, r) => a + (parseInt(r.pieces, 10) || 0), 0);
 }
 
-/**
+/** Pieces issued against an order line, and what the karigar's receive rejected and scrapped of them. */
+function obIssueSums(orderNo, sku, exclId) {
+  /* The ordinary case comes off the index. The excluding case — one row being edited — keeps the
+   * walk, so that rule lives in exactly one place. */
+  if (!exclId) {
+    const b = obBaseIndex().get(obKeyOf(orderNo, sku));
+    return b ? { issued: b.issued, rejected: b.rejected, scrap: lineHoldOn() ? b.scrap : 0 } : { issued: 0, rejected: 0, scrap: 0 };
+  }
+  const o = obUC(orderNo), s = obUC(sku);
+  const sums = { issued: 0, rejected: 0, scrap: 0 };
+  (PT.base || []).forEach(r => {
+    if (!r || obUC(r.orderNo) !== o || obUC(r.sku) !== s) return;
+    if (r.id === exclId) return;      // the row being edited does not count against itself
+    sums.issued += parseInt(r.issuePieces, 10) || 0;
+    sums.rejected += parseInt(r.rejectionPieces, 10) || 0;
+    if (lineHoldOn()) sums.scrap += obRowScrap(r);
+  });
+  return sums;
+}
+
+/*
  * What an order line has already consumed of its issue allowance: EVERY piece ever issued against it, back or not.
  *
  * A PIECE IS NEVER ISSUED TWICE (Ravi, 2026-10-05: "nahi, ek piece dobara issue nahi hota"). This used to be
  * "out with karigars + made", so the moment pieces came back and before they were made (pressed, now QC passed) they
  * dropped out of it and the same room opened again — 70 order lines were issued 2,361 pieces past their cut that
  * way. Made is still counted where it is larger: an old order made with no Job Work issue on record keeps its cap.
+ *
+ * A rejected piece is asked about two ways (Ravi, 27 Nov), because a scrapped one frees its place on the order but has
+ * used up its cut piece.
  */
-function obIssueUsed(orderNo, sku, exclId) {
-  /* The ordinary case comes off the index. The excluding case — one row being edited — keeps the
-   * walk, so that rule lives in exactly one place. */
-  if (!exclId) {
-    const b = obBaseIndex().get(obKeyOf(orderNo, sku));
-    /* A piece the karigar's receive REJECTED frees its room: its replacement is a new piece, not the same one issued twice. */
-    return Math.max(b ? b.issued - (b.rejected || 0) : 0, obPressQty(orderNo, sku));
-  }
-  const o = obUC(orderNo), s = obUC(sku);
-  let iss = 0;
-  (PT.base || []).forEach(r => {
-    if (!r || obUC(r.orderNo) !== o || obUC(r.sku) !== s) return;
-    if (exclId && r.id === exclId) return;      // the row being edited does not count against itself
-    iss += (parseInt(r.issuePieces, 10) || 0) - (parseInt(r.rejectionPieces, 10) || 0);
-  });
-  return Math.max(iss, obPressQty(orderNo, sku));
+/** Used up of the ORDERED quantity. A piece the karigar's receive rejected frees its place, and so does one QC scrapped:
+ *  its replacement is a new piece, not the same one issued twice. */
+function obIssueOfOrder(orderNo, sku, exclId) {
+  const n = obIssueSums(orderNo, sku, exclId);
+  return Math.max(n.issued - n.rejected - obQcScrapQty(orderNo, sku, exclId), obPressQty(orderNo, sku));
+}
+/** Used up of the CUT pieces. A scrapped piece stays used, so a new one has to be cut; a karigar's rejection without a reason
+ *  comes back to be issued, as it always did. */
+function obIssueOfCut(orderNo, sku, exclId) {
+  const n = obIssueSums(orderNo, sku, exclId);
+  return Math.max(n.issued - (n.rejected - n.scrap), obPressQty(orderNo, sku));
 }
 
 /**
@@ -165,7 +184,7 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
   if (typeof obIsLegacy === 'function' && obIsLegacy(orderNo) && !exclId) return OB_LEGACY_SHUT(orderNo);
   const ordered = obOrderedQty(orderNo, sku);
   if (!ordered) return `Order ${orderNo} has no line for SKU ${obUC(sku)} — pick the correct Order ID.`;
-  const used = obIssueUsed(orderNo, sku, exclId);
+  const used = obIssueOfOrder(orderNo, sku, exclId);
   const want = parseInt(qty, 10) || 0;
   /* EXTRA passes the ordered cap only. What has not been cut still cannot be issued. */
   if (!allowExtra && used + want > ordered)
@@ -184,10 +203,11 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
     const legacyUnknownCut = /^LEG-/.test(obUC(orderNo)) && cutNet <= 0;
     if (!legacyUnknownCut) {
       const effCut = Math.max(cutNet, obPressQty(orderNo, sku));
-      const avail = effCut - used;
+      const cutUsed = obIssueOfCut(orderNo, sku, exclId);
+      const avail = effCut - cutUsed;
       if (want > avail)
         return `Order ${orderNo} · ${obUC(sku)}: only ${Math.max(0, avail)} cut piece(s) available to `
-          + `issue — ${effCut} cut so far, ${used} already issued/finished. Cut more pieces first.`;
+          + `issue — ${effCut} cut so far, ${cutUsed} already issued/finished. Cut more pieces first.`;
     }
   }
   return '';
@@ -200,15 +220,15 @@ function bdOrdersFor(sku) {
   return obLines().filter(l => l.sku === obUC(sku) && !(typeof obIsLegacy === 'function' && obIsLegacy(l.orderNo))).filter(l => {
     if (seen.has(l.orderNo)) return false; seen.add(l.orderNo); return true;
   }).map(l => {
-    const ordered = obOrderedQty(l.orderNo, sku), used = obIssueUsed(l.orderNo, sku);
+    const ordered = obOrderedQty(l.orderNo, sku), used = obIssueOfOrder(l.orderNo, sku), cutUsed = obIssueOfCut(l.orderNo, sku);
     const cutNet = obCutQty(l.orderNo, sku);
     const effCut = Math.max(cutNet, obPressQty(l.orderNo, sku));
     const m = cutSkuOf(sku);
     const cutReq = !m || m.cuttingRequired !== false;
     const legacy = /^LEG-/.test(l.orderNo) && cutNet <= 0;
     const byOrder = Math.max(0, ordered - used);
-    const byCut = (cutReq && !legacy) ? Math.max(0, effCut - used) : byOrder;
-    return { orderNo: l.orderNo, ordered, used, cut: effCut, left: Math.min(byOrder, byCut), byOrder, byCut };
+    const byCut = (cutReq && !legacy) ? Math.max(0, effCut - cutUsed) : byOrder;
+    return { orderNo: l.orderNo, ordered, used, cutUsed, cut: effCut, left: Math.min(byOrder, byCut), byOrder, byCut };
   }).sort((a, b) => (b.left - a.left) || a.orderNo.localeCompare(b.orderNo));
 }
 
@@ -271,7 +291,7 @@ function bdOpenOrders() {
   obLines().forEach(l => { if (typeof obIsLegacy === 'function' && obIsLegacy(l.orderNo)) return; (m[l.orderNo] = m[l.orderNo] || { skus: new Set(), date: l.date }).skus.add(l.sku); });
   return Object.keys(m).map(no => {
     const skus = [...m[no].skus];
-    const bal = skus.reduce((a, s) => a + Math.max(0, obOrderedQty(no, s) - obIssueUsed(no, s)), 0);
+    const bal = skus.reduce((a, s) => a + Math.max(0, obOrderedQty(no, s) - obIssueOfOrder(no, s)), 0);
     return { orderNo: no, skus, bal, date: m[no].date };
   }).filter(o => o.bal > 0).sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.orderNo.localeCompare(b.orderNo));
 }
@@ -431,7 +451,7 @@ function renderBdForm() {
   const bdNone = !!(bdOrds && !bdOrds.length);
   $('bwLeft').textContent = custom ? 'Custom order — saves without an Order ID.'
     : o ? (o.byCut < o.byOrder
-      ? `${nf(o.left)} issuable — held down by cutting: ${nf(o.cut)} cut so far, ${nf(o.used)} already issued or finished.`
+      ? `${nf(o.left)} issuable — held down by cutting: ${nf(o.cut)} cut so far, ${nf(o.cutUsed)} already issued or finished.`
       : `${nf(o.left)} issuable — ${nf(o.ordered)} ordered, ${nf(o.used)} already issued or finished.`)
     : bdNone ? `No open order is waiting for ${obUC(bdTypedSku)} — tick Custom Order for a one-off.` : '';
   $('bwLeft').className = ((o && o.left <= 0) || bdNone) ? 'err' : 'muted';

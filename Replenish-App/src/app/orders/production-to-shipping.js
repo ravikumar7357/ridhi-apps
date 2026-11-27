@@ -258,7 +258,10 @@ function ordLinesBuild() {
      * cutting table by its plan (bdGuard reads the same route). */
     const cutReq = ordCutReq(l.sku) && !/^LEG-/i.test(l.orderNo)
       && !(typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(l.orderNo, l.sku) === 'jobwork');
-    const cutPct = l.qty > 0 ? ((cut + Math.min(l.qty, l.fromStock || 0)) / l.qty) * 100 : 0;
+    /* A SCRAPPED PIECE IS CUT AGAIN (Ravi, 27 Nov; switch lineHold): what is still to cut counts only the good cut pieces. The
+     * "cut" column stays what was cut. */
+    const goodCut = Math.max(0, cut - (typeof flowRejOf === 'function' ? flowRejOf(l.orderNo, l.sku).scrap : 0));
+    const cutPct = l.qty > 0 ? ((goodCut + Math.min(l.qty, l.fromStock || 0)) / l.qty) * 100 : 0;
     const cutDone = !cutReq || cutPct >= ORD_THRESHOLD(l.qty);
     /* MADE IS WHAT CAME BACK — the received figure from Base Data, and nothing else.
      *
@@ -274,7 +277,7 @@ function ordLinesBuild() {
     const stk = Math.min(l.qty, l.fromStock || 0), made = received + stk;
     return Object.assign({}, l, {
       cut, pressed: pressed + stk, issued, received, rejected, made, cutReq, cutPct, cutDone,
-      pendingCut: cutReq ? Math.max(0, l.qty - cut - stk) : 0,
+      pendingCut: cutReq ? Math.max(0, l.qty - goodCut - stk) : 0,
       pendingMake: Math.max(0, l.qty - made),
       /* MORE CAME BACK THAN WAS ORDERED. "Still to make" is floored at zero per line, because extra
        * pieces of one SKU cannot fill a shortfall in another — so the line totals do not equal

@@ -282,20 +282,22 @@ function flowTestRecvOpen(no, sku) {
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
       <label style="grid-column:1/-1">Issue<select id="fltrI">${open.map(([id, e]) => `<option value="${esc(id)}">${esc(e.karigar)} · issued ${nf(e.pcs)} on ${esc(e.date)} · ${nf(e.pcs - (e.received || 0) - (e.rejected || 0))} out</option>`).join('')}</select></label>
       <label>Received now<input id="fltrP" type="number" min="0"></label><label>Rejected<input id="fltrX" type="number" min="0" value="0"></label>
-      <label>Date<input id="fltrD" type="date" value="${esc(dToday())}"></label></div>`,
+      <label>Date<input id="fltrD" type="date" value="${esc(dToday())}"></label>${rejWhyHtml('fltr')}</div>`,
     saveLabel: 'Received',
     onSave: async () => {
       const id = $('fltrI').value, e = (x.t.issues || {})[id]; if (!e) return 'Pick the issue.';
       const got = Math.round(+$('fltrP').value || 0), rej = Math.round(+$('fltrX').value || 0), out = (+e.pcs || 0) - (+e.received || 0) - (+e.rejected || 0);
       if (!(got > 0) && !(rej > 0)) return 'How many came back?';
       if (got + rej > out) return `Only ${nf(out)} are out with ${e.karigar}.`;
+      const reason = rejWhyTyped('fltr'), whyErr = rejWhyErr(rej, reason);
+      if (whyErr) return whyErr;
       /* The same Job Work row gets the receipt, the way the register's own Receive writes it. */
       let regs = {}, after = null;
       const row = e.reg && (PT.base || []).find(b => b && b.id === e.reg);
       if (row) {
         let nx = row;
         if (got > 0) { const a = bdApplyRecv(nx, got, ptNow()); if (a.err) return a.err; nx = a.row; }
-        if (rej > 0) { const b = bdApplyRej(nx, (+nx.rejectionPieces || 0) + rej); if (b.err) return b.err; nx = b.row; }
+        if (rej > 0) { const b = bdApplyRej(nx, (+nx.rejectionPieces || 0) + rej, reason); if (b.err) return b.err; nx = b.row; }
         const clean = Object.assign({}, nx); delete clean._key;
         regs = { ['pt_baseData/' + row.id]: clean };
         after = () => { PT.base = (PT.base || []).map(b => (b && b.id === row.id ? Object.assign({ _key: row.id }, clean) : b)); };

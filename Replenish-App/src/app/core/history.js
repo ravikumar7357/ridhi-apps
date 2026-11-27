@@ -333,6 +333,11 @@ function ptSame(a, b) {
   return JSON.stringify(canon(a == null ? null : a)) === JSON.stringify(canon(b == null ? null : b));
 }
 
+/** WHY A PIECE WAS REJECTED (Ravi, 27 Nov): a rejection carrying one of these is scrap — the piece is gone and a new one is cut
+ *  (or issued, on a line that needs no cutting). "Other" needs a short note. Reasons are recorded only with the switch lineHold
+ *  on, so a rejection without one counts as it always did and no start date is needed. */
+const REJ_REASONS = Object.freeze(['Stitching fault', 'Fabric fault or hole', 'Print fault', 'Stain', 'Wrong size', 'Torn or burnt', 'Other']);
+
 /** SAVE A WHOLE RECORD ONLY IF NOBODY CHANGED IT SINCE THIS SCREEN READ IT (Ravi, 26 Nov: a whole-record save by a second person
  *  wrote over the first). `seen` is the record as the screen holds it, `next` what is to be written. Switch off, or the read
  *  fails: the plain write, as always (a read never blocks a save on its own). Switch on: the record is read from the database
