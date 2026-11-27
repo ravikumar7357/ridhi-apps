@@ -3029,7 +3029,8 @@ function ctsOf(fabric) {
 }
 /** The Cut to size cell: pieces left, the metres under them, and how many are waiting for approval. Opens the drop-down. */
 function invCutCell(r) {
-  var c = r.cut, key = r.fabric + '|cut', on = UI.invOpen === key, ch = r.cutCh || [];
+  var c = r.cut, key = r.fabric + '|cut', on = UI.invOpen === key;
+  var ch = (r.cutCh || []).filter(function (x) { return x.status === 'cut' || x.status === 'sending'; });
   var pcs = c.leftPcs + ch.reduce(function (a, x) { return a + x.pcs; }, 0), m = r2(c.leftM + ch.reduce(function (a, x) { return a + x.metres; }, 0));
   if (!(pcs > 0) && !c.waiting) return '<td class="num"><span class="muted">&mdash;</span></td>';
   return '<td class="num"><button type="button" class="cellbtn' + (on ? ' on' : '') + '" data-invd="' + esc(key) + '" aria-expanded="' + on + '" title="Show what makes this up">'
@@ -3093,7 +3094,7 @@ function ctsLinesFor(fabric, w, l) {
     return flowInView('drfd', x.s) && x.s.route !== 'stitch' && flowFabKey(((x.s.plan || {}).fabric || {}).name) === F && ctsSizeMatches(ctsLineSize(x), w, l);
   }).map(flowShLine).filter(function (ln) { return ln.pcs > 0; })
     .sort(function (a, b) { return String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)); });
-  if (!(typeof cutPiecesOn === 'function' && cutPiecesOn())) return list;
+  if (typeof flowPriSort !== 'function') return list;
   return flowPriSort(list, function (l) { return { orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority }; });
 }
 /** What would go for this printer: { size, lines, picks: [{ line, pcs, metres }], skipped: [{ line, why }], pcs, metres }. Reads only. */
@@ -4218,14 +4219,15 @@ function invDetail(r, col) {
         + '<td>' + (g.poNo ? '<button type="button" class="jw-btn jw-wa" data-rr="' + esc(g.poNo) + '|' + esc(g.lot) + '">Receive RFD</button>' : '') + '</td></tr>';
     });
     empty = 'Nothing of ' + r.fabric + ' is at an RFD processor.';
-  } else if (col === 'transit') {
-    head = []; body = []; empty = '';
+  } else if (col === 'transit' || col === 'tocut') {
+    head = []; body = []; empty = col === 'tocut' ? 'Nothing of ' + r.fabric + ' is waiting to be cut.' : '';
   } else if (col === 'cut') {
     head = ['Size (W × L)', 'Cut', 'Sent to printer', 'Left', 'Status', 'Next step'];
     body = ctsDetailRows(r.cut, r.fabric);
     empty = 'Nothing has been cut to size from ' + r.fabric + ' yet.';
   } else {
-    head = ['Lot', 'PO', 'Supplier challan', 'RFD processor', 'Back on', 'Came back', 'To cutting', 'Damaged', 'On shelf', 'Next step'];
+    /* no buttons on a lot (Vishesh, 27 Nov): Send to printer is under RFD on shelf, and cutting is allotted from its card */
+    head = ['Lot', 'PO', 'Supplier challan', 'RFD processor', 'Back on', 'Came back', 'To cutting', 'Damaged', 'On shelf'];
     var left = invLotsLeft(r.fabric, r.rfdToPrinters);
     body = invLotsOf(r.fabric).filter(function (g) { return left[g.lot] > 0.05; }).map(function (g) {
       var rec = invRowsOfLot(g.lot, 'RECEIVE_GREIGE'), back = invRowsOfLot(g.lot, 'RECEIVE_RFD');
@@ -4235,17 +4237,14 @@ function invDetail(r, col) {
         + '<td class="tl mono">' + esc(invJoin(rec.map(function (x) { return x.bill; }))) + '</td>'
         + '<td class="tl">' + esc(g.processor || '—') + '</td><td class="tl">' + esc(fmtD(invLastDate(back) || g.date)) + '</td>'
         + '<td class="num">' + nf(came) + ' m</td><td class="num">' + (g.rfdOut ? nf(g.rfdOut) + ' m' : '—') + '</td>'
-        + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(left[g.lot]) + ' m</td>'
-        /* Send to printer opens the RFD challan for this fabric right here (Vishesh, 23 Nov; before: its lines on Demand → RFD) */
-        + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>' + gdPrnWaitingPill(r.fabric)
-        /* cutting is allotted from the Send to printer card when the switch cutPieces is on (27 Nov) */
-        + (typeof cutPiecesOn === 'function' && cutPiecesOn() ? '' : '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button>') + '</div></td></tr>';
+        + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(left[g.lot]) + ' m</td></tr>';
     });
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
   }
-  var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf', cut: 'Cut to size', transit: 'In transit to printers' }[col];
+  var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf', cut: 'Cut to size', transit: 'In transit to printers', tocut: 'Yet to be cut' }[col];
   /* the products allotted to cutting; the cut-with-no-product table is left out when only these are there */
-  var pieces = col === 'cut' && (r.cutCh || []).length ? flowCpTableHtml(r.cutCh) : '';
+  var listed = col === 'tocut' ? flowCpYetToCut(r.cutCh) : col === 'cut' && (r.cutCh || []).length ? flowCpCutDone(r.cutCh) : [];
+  var pieces = listed.length ? flowCpTableHtml(listed) : '';
   return '<tr class="invdet"><td colspan="' + (UI.invCols || 6) + '"><div class="invdrop"><div class="sect">' + esc(title) + ' · ' + esc(r.fabric) + '</div>'
     + (col === 'cut' && r.cut.leftPcs > 0 ? '<div class="actions" style="justify-content:flex-start;margin:6px 0"><button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer from the pieces already cut">Send to printer</button></div>' : '')
     + pieces
@@ -4265,16 +4264,25 @@ function invDetail(r, col) {
 function invRfdCell(r) {
   var tr = invTransitM(r), send = invNeeds(r, 'send');
   if (invTransitColumn()) tr = 0;   // it has its own column
-  if (!(tr > 0.05) && !send) return invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700');
+  var yet = invYetM(r);
+  if (!(tr > 0.05) && !send && !(yet > 0)) return invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700');
   return '<td class="num">' + (r.inStoreRfd > 0.05 ? invCellBtn(r, 'rfd', r.inStoreRfd, 'font-weight:700') : '<span class="muted">&mdash;</span>')
     + (tr > 0.05 ? '<div style="font-size:10.5px;color:var(--warn-ink);font-weight:600;white-space:nowrap">+ ' + nf(tr) + ' m in transit to printers</div>' : '')
+    + invYetHtml(r, yet)
     + (send ? '<div class="actions" style="justify-content:flex-end;margin-top:6px"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the ' + plural(r.ppc.lines, 'line') + ' waiting">Send to printer</button>'
       + (typeof gdPrnWaitingPill === 'function' ? gdPrnWaitingPill(r.fabric) : '') + '</div>' : '') + '</td>';
 }
-/* A COLUMN OF ITS OWN (Vishesh, 27 Nov, switch cutPieces): what is sent to a printer shows here, not under RFD on shelf,
+/* A COLUMN OF ITS OWN (Vishesh, 27 Nov): what is sent to a printer shows here, not under RFD on shelf,
  * until the printer marks it received. */
-function invTransitColumn() { return typeof cutPiecesOn === 'function' && cutPiecesOn(); }
+function invTransitColumn() { return typeof flowCpList === 'function'; }
 function invTransitCell(r) { return invCell(r, 'transit', invTransitM(r), 'color:var(--warn-ink)'); }
+/* YET TO BE CUT (Vishesh, 27 Nov): what was ticked on the card's Cut pieces tab shows under RFD on shelf until it is cut;
+ * pressing it lists what to cut, how many, the length of each piece and the total length. */
+function invYetM(r) { return r2((r.cutCh || []).filter(function (x) { return x.status === 'wait' || x.status === 'ready'; }).reduce(function (a, x) { return a + x.metres; }, 0)); }
+function invYetHtml(r, yet) {
+  if (!(yet > 0)) return '';
+  return '<div><button type="button" class="link" data-invd="' + esc(r.fabric + '|tocut') + '" aria-expanded="' + (UI.invOpen === r.fabric + '|tocut') + '" style="font-size:11px;color:var(--warn-ink);font-weight:700;white-space:nowrap" title="Show what is to be cut">+ ' + ctsN(yet) + ' m yet to be cut</button></div>';
+}
 /** The metres of a row still on their way to printers. */
 function invTransitM(r) { return (r.transit || []).reduce(function (a, x) { return a + (+x.metres || 0); }, 0); }
 /** The challan lines of this fabric not yet received by the printer, since the desk began counting it; [] when the flow is not read. */
@@ -5478,7 +5486,7 @@ function entryOpen(kind, row) {
   if (!row && kind === 'RECEIVE_GREIGE') { entryClose(); openDrawer(''); return; }
   if (!row && kind === 'ISSUE_TO_RFD') { entryClose(); UI.tab = 'po'; render(); lmSay('warn', 'Greige goes to RFD from its PO: press Issue to RFD on the PO.'); return; }
   if (!row && kind === 'RECEIVE_RFD') { entryClose(); UI.tab = 'po'; render(); lmSay('warn', 'RFD comes back on its PO: press Receive RFD on the PO.'); return; }
-  if (!row && kind === 'ISSUE_TO_CUTTING') { entryClose(); UI.tab = 'inv'; render(); lmSay('warn', 'RFD goes to cutting from Inventory: open RFD on shelf and press ' + (typeof cutPiecesOn === 'function' && cutPiecesOn() ? 'Send to printer, then its Cut pieces tab.' : 'Send to cutting on the lot.')); return; }
+  if (!row && kind === 'ISSUE_TO_CUTTING') { entryClose(); UI.tab = 'inv'; render(); lmSay('warn', 'RFD goes to cutting from Inventory: press Send to printer under RFD on shelf, then its Cut pieces tab.'); return; }
   if (!canLedgerEdit()) { lmSay('warn', meUser().name + ' may only view the fabric ledger.'); return; }
   EN_AUTO = {};
   EN_ID = row ? row.id : null;
@@ -6208,8 +6216,8 @@ function gdSendToPrinter(fabric) {
     if (typeof gdLinkMasters === 'function') gdLinkMasters();   // the Master Data's fabrics and vendors, read fresh each time
     if (!GD_WIRED) { GD_WIRED = true; wireShell(); wirePurchaseOrders(); wireInventory(); wireLedger(); wireMasterData(); wireEntry(); wireUsersRfd(); wireCutToSize(); wireDateAsks(); wireGd(); }
     render();
-    /* the priorities for Cut to size and the transit list (switch cutPieces); the desk redraws when they are in */
-    if (typeof cutPiecesOn === 'function' && cutPiecesOn()) flowPriLoad().then(render);
+    /* the priorities for the cutting and transit lists; the desk redraws when they are in */
+    if (typeof flowPriLoad === 'function') flowPriLoad().then(render);
   }
   /* the desk as it stands now, with the Master Data's names, before cloth is taken or given back */
   async function cutFresh() {

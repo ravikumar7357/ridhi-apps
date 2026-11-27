@@ -35,6 +35,7 @@ const ctx = {
   GD: { cutFresh: async () => {}, state: () => 'ok', cutCheck: () => '', cutIssue: async (f, no, rows) => { if (stockSays) return stockSays; taken.push({ no, rows }); return ''; }, cutReturn: async (no, key, back) => { returned.push(no + ' ' + key + (back ? ' back' : '')); return ''; } },
 };
 vm.createContext(ctx);
+const challan0 = fs.readFileSync(path.join(APP, 'flow-challan.js'), 'utf8').replace(/\r\n/g, '\n');
 const history = fs.readFileSync(path.join(APP, '..', 'core', 'history.js'), 'utf8');
 const slice = (src, a, b) => { const i = src.indexOf(a), j = src.indexOf(b, i); if (i < 0 || j < 0) throw new Error('moved: ' + a); return src.slice(i, j); };
 vm.runInContext(slice(history, 'function ptSame(', '/** SAVE A WHOLE RECORD') + fs.readFileSync(CP, 'utf8') + '\nglobalThis.T = { flowPri, flowPriSort, flowCpAllot, flowCpStep, flowCpTakeBack, flowCpSend, flowCpActive, flowCpList, flowCpPicked };', ctx);
@@ -130,6 +131,25 @@ const rec = key => ((ctx.FLOW.dem[key] || {}).cutPc) || null;
   await d.S.gdCutReturn('CP-2', 'h', { was: { lot: 'L0', metres: 1 } });
   const back = patches[patches.length - 1];
   ok('take back restores the line\'s earlier mark in the same save', JSON.stringify(back['pt_flowDemand/h/fabricReady']) === '{"lot":"L0","metres":1}' && back['pt_gdTest/fab/r9'] === null, back);
+
+  console.log('== the priority filter on the card ==');
+  const f = { nf: String };
+  vm.createContext(f);
+  vm.runInContext(slice(challan0, 'const flowShOfPri =', '/** The pieces that go on a line') + '\nglobalThis.F = { of: flowShOfPri, opts: flowShPriOptions };', f);
+  const ls = [{ priority: 'P1' }, { priority: 'P2' }, { priority: '' }];
+  ok('P1 shows only P1', ls.filter(l => f.F.of({ pri: 'P1' }, l)).length === 1);
+  ok('No priority shows the lines without one', ls.filter(l => f.F.of({ pri: '-' }, l))[0] === ls[2]);
+  ok('All shows every line', ls.filter(l => f.F.of({}, l)).length === 3);
+  ok('each choice says how many lines it holds', /All priorities \(3\).*P1 \(1\).*P4 \(0\).*No priority \(1\)/.test(f.F.opts({}, ls)));
+
+  console.log('== yet to be cut, under RFD on shelf ==');
+  const y = { UI: { invOpen: '' }, r2: ctx.flowR2, esc: ctx.esc, ctsN: String };
+  vm.createContext(y);
+  vm.runInContext(slice(deskSrc, 'function invYetM(', '/** The metres of a row still on their way') + '\nglobalThis.Y = { m: invYetM, html: invYetHtml };', y);
+  const mix = { fabric: 'Canvas', cutCh: [{ status: 'wait', metres: 4.74 }, { status: 'ready', metres: 1.26 }, { status: 'cut', metres: 100 }] };
+  ok('only what is not cut yet is counted', y.Y.m(mix) === 6, y.Y.m(mix));
+  ok('the line says yet to be cut and opens its list', /data-invd="Canvas\|tocut"[^>]*>\+ 6 m yet to be cut</.test(y.Y.html(mix, 6)));
+  ok('nothing to cut: no line', y.Y.html(mix, 0) === '');
 
   console.log('== no other way to the printer ==');
   const challan = fs.readFileSync(path.join(APP, 'flow-challan.js'), 'utf8').replace(/\r\n/g, '\n');
