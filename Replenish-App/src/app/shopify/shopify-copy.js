@@ -230,9 +230,9 @@ function soOldOpen(start) {
   const note = (id, d) => {
     id = String(id || ''); d = String(d || '').slice(0, 10);
     if (/^REPL-/.test(id)) return;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(d) && (d >= start || d < floor)) return;   // inside the window, or past the cap
+    if (sdIsDay(d) && (d >= start || d < floor)) return;   // inside the window, or past the cap
     if (/^\d+$/.test(id)) ids.add(id);
-    else if (/^\d{4}-\d{2}-\d{2}$/.test(d) && (!reach || d < reach)) reach = d;
+    else if (sdIsDay(d) && (!reach || d < reach)) reach = d;
   };
   (PTG.ob || []).forEach(r => { if (r && String(r.src || '') === 'SHP') note(r.shopOrderId, r.orderDate); });
   Object.keys(SHOP_META || {}).forEach(id => {
@@ -281,7 +281,7 @@ async function soAskStore(brand, want, ids, lim) {
 function soOldestOf(ids) {
   const want = new Set(ids);
   let d0 = '';
-  const see = (id, d) => { d = String(d || '').slice(0, 10); if (want.has(String(id)) && /^\d{4}-/.test(d) && (!d0 || d < d0)) d0 = d; };
+  const see = (id, d) => { d = String(d || '').slice(0, 10); if (want.has(String(id)) && sdIsDay(d) && (!d0 || d < d0)) d0 = d; };
   (PTG.ob || []).forEach(r => { if (r && r.src === 'SHP') see(r.shopOrderId, r.orderDate); });
   Object.keys(SHOP_META || {}).forEach(id => Object.values((SHOP_META[id] || {}).lines || {}).forEach(ln => { if (ln && ln.adj) see(id, ln.adjOrderDate || ln.adjAt); }));
   return d0;
