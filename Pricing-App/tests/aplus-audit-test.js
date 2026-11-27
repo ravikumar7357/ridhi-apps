@@ -96,7 +96,7 @@ function setup(opts) {
     HEALTH[b] = { at: new Date(), rows: mine.map(k => Object.assign({ sku: k.sku, asin: k.asin, parent: k.psku ? A(k.psku) : '', title: 'Title of ' + k.sku, qty: k.qty, status: 'Active', channel: 'AMAZON_NA', price: 20 }, (opts.health || {})[k.sku] || {})) };
   });
   const calls = [], copied = [], wsOpened = [];
-  const net = { tabs: opts.noCache ? null : cacheOf(S, opts.cache), doc: opts.docAnswer || null, pub: opts.pub || {} };
+  const net = { tabs: opts.noCache ? null : cacheOf(S, opts.cache), doc: opts.docAnswer || null, pub: opts.pub || {}, listing: opts.listing || {} };
   const ctx = {
     $: el, document: { addEventListener() {}, querySelectorAll: () => [], createElement: () => ({ click() {} }), querySelector: () => null },
     window: { scrollTo() {}, scrollBy() {}, addEventListener() {}, __TEST_ERP: false },
@@ -116,6 +116,7 @@ function setup(opts) {
       }
       if (q.lh === 'aplusdoc') { if (opts.docFail) throw new Error('Amazon answered 500'); return net.doc ? net.doc(q) : { ok: true, key: q.doc, name: 'Tablecloth A+', status: 'APPROVED', type: 'Premium', updated: '2026-10-29T10:00:00Z', reasons: [],
         modules: [{ type: 'STANDARD_HEADER_IMAGE_TEXT', texts: ['Made by hand', 'Printed in Jaipur'], imgs: [{ id: 'aplus-media/sc/abc.jpg', alt: 'A table' }] }], asins: [] }; }
+      if (q.lfix === 'get') { const a = net.listing[q.sku]; if (!a || a === 'fail') throw new Error('Amazon answered 503'); return JSON.parse(JSON.stringify(Object.assign({ ok: true, brand: q.brand, sku: q.sku }, a))); }   // (4 Dec 2026) the panel's live read
       if (q.lh === 'aplusasin') { const map = {}; String(q.asins).split(',').forEach(a => { if (a in net.pub) map[a] = net.pub[a]; }); return { ok: true, map }; }
       return {};
     },
@@ -134,7 +135,7 @@ function setup(opts) {
   const src = L('listing-match.js') + '\n' + L('family-check.js') + '\n' + L('aplus-audit.js')
     + '\n;return { APC, FC, apcBuild, apcGroups, apcDraw, apcOpen, apcClick, apcFilter, apcCsv, apcDocsCsv, apcDocs, apcShownRows, apcFixList, apcSummary, apcOkSetMany, apcOkUndo, apcPreview, apcWhat, apcRowView,'
     + ' aplusCounts, aplusAccuracyReport, APC_CSV_COLS, APC_DOC_COLS, APC_ST, LM, lmEnsure, lmRefresh, lmStoreUse, lmOk, lmGetAplus, lmAplusDocs, lmAplusState, lmAplusOf, lmAplusFresh, lmVersion, lmDataLabel,'
-    + ' apcReadMods, apcStdSave, apcModsOf, apcVsStd, apcFlatList, apcModsDailyLoad, lmAplusMods, lmAplusModsRead, apcPd, apcKey, apcSideHtml, APC_PD_ROWS, APC_PD_ALL };';
+    + ' apcReadMods, apcStdSave, apcModsOf, apcVsStd, apcFlatList, apcModsDailyLoad, lmAplusMods, lmAplusModsRead, apcPd, apcKey, apcSideHtml, APC_PD_ROWS, APC_PD_ALL, apcPdVal };';
   const C = new Function(...Object.keys(ctx), src)(...Object.values(ctx));
   const saved = { copy: opts.savedCopy || null, puts: 0 };
   C.lmStoreUse({ get: async () => saved.copy, put: async c => { saved.copy = JSON.parse(JSON.stringify(c)); saved.puts++; return true; } });
@@ -518,8 +519,9 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
   {
     const code = L('aplus-audit.js');
     ok('aplus-audit.js reads the A+ data only through lmGetAplus / lmAplusDocs / lmAplusState (no cache tab, no Firestore, no fetch of its own)', !/lmAplus_|lmMeta|lmListings_|lmCatalog_|getDoc\(|setDoc\(|fetch\(/.test(code) && /lmGetAplus\(/.test(code) && /lmAplusDocs\(/.test(code));
-    ok('its only backend calls are the ones a person starts: Preview A+, the accuracy report and "Read modules now" (2 Dec 2026) — all reads', (code.match(/baCall\(/g) || []).length === 4 && (code.match(/baCall\(\{ lh: 'aplusdoc'/g) || []).length === 3 && (code.match(/baCall\(\{ lh: 'aplusasin'/g) || []).length === 1
-      && !/lfix|lcreate|method: 'POST'|imPost\(|sqSendWithCheck\(/.test(code));
+    ok('its only backend calls are the ones a person starts: Preview A+, the accuracy report, "Read modules now" (2 Dec 2026) and the Product details panel\'s listing read (4 Dec 2026) — all reads', (code.match(/baCall\(/g) || []).length === 5 && (code.match(/baCall\(\{ lh: 'aplusdoc'/g) || []).length === 3 && (code.match(/baCall\(\{ lh: 'aplusasin'/g) || []).length === 1
+      && (code.match(/baCall\(\{ lfix: 'get', brand, sku \}\)/g) || []).length === 1 && (code.match(/lfix/g) || []).length === (code.match(/lfix: 'get'|\?lfix=get/g) || []).length
+      && !/lcreate|method: 'POST'|imPost\(|sqSendWithCheck\(/.test(code));
     ok('every name it adds starts with apc / APC (and the two console names)', (code.match(/^(?:async )?function (\w+)/gm) || []).every(f => /function (apc|aplusCounts|aplusAccuracyReport)/.test(f)) && (code.match(/^(?:const|let) (\w+)/gm) || []).every(f => /^(?:const|let) (apc|APC)/.test(f)),
       (code.match(/^(?:const|let) (\w+)/gm) || []).filter(f => !/^(?:const|let) (apc|APC)/.test(f)).join());
     ok('no "live" Amazon read on opening: apcOpen calls only the saved-data loaders', !/baCall/.test(code.slice(code.indexOf('async function apcOpen'), code.indexOf('const apcPaneOn'))));
@@ -608,9 +610,21 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     pd['NP-2'] = { sp: SPALL.filter(k => k !== 'item_shape'), va: Object.assign({}, VA, { item_shape: '' }), brand: 'Ridhi' };                                         // HOME: shape counted, missing
     pd['LS-1'] = { brand: 'Ridhi' };                                                                                                // no spec attributes kept: not read
     const schema = { SP: { NAPKIN: { at: Date.now(), ok: SPALL.filter(k => k !== 'item_shape' && k !== 'fabric_type') } } };
+    // (4 Dec 2026) what Amazon's listing holds (?lfix=get — getListingsItem's attributes), as Amazon writes them
+    const MK = 'ATVPDKIKX0DER', v = x => [{ value: x, language_tag: 'en_US', marketplace_id: MK }], vl = (...xs) => xs.map(x => ({ value: x, language_tag: 'en_US', marketplace_id: MK }));
+    const fullAttrs = () => ({ style: v('Farmhouse'), pattern: v('Floral'), color: v('Turquoise'), occasion_type: vl('Christmas', 'Thanksgiving'), seasons: vl('Winter', 'Fall'),
+      size: v('60 x 90 Inch'), item_dimensions: [{ length: { value: 90, unit: 'inches' }, width: { value: 60, unit: 'inches' }, marketplace_id: MK }], item_shape: v('Rectangular'),
+      item_weight: [{ value: 1.2, unit: 'pounds', marketplace_id: MK }], brand: v('Ridhi'), number_of_items: [{ value: 1, marketplace_id: MK }], included_components: v('1 Tablecloth'),
+      item_type_name: v('Tablecloth'), material: v('Cotton'), fabric_type: v('100% Cotton'), care_instructions: v('Machine Wash Cold'), special_feature: vl('Stain Resistant', 'Wrinkle Free'),
+      room_type: v('Dining Room'), country_of_origin: [{ value: 'IN', marketplace_id: MK }], is_fragile: [{ value: false, marketplace_id: MK }],
+      item_name: v('Title of TC-2'), bullet_point: vl('One', 'Two'), generic_keyword: v('table cover'), purchasable_offer: [{ currency: 'USD', our_price: [{ schedule: [{ value_with_tax: 20 }] }], marketplace_id: MK }],
+      main_product_image_locator: [{ media_location: 'https://m.media-amazon.com/images/I/x.jpg', marketplace_id: MK }], child_parent_sku_relationship: [{ parent_sku: 'TC-P', child_relationship_type: 'variation', marketplace_id: MK }] });
+    const tc2 = fullAttrs(); delete tc2.theme;                                                      // TC-2: everything but its theme
+    const np1 = fullAttrs(); delete np1.theme; delete np1.item_shape; delete np1.fabric_type; np1.theme = v('Rustic');   // NAPKIN: no shape / fabric type
+    const listing = { 'TC-2': { productType: 'HOME', attributes: tc2 }, 'NP-1': { productType: 'NAPKIN', attributes: np1 }, 'NP-2': 'fail' };
     const docAnswer = q => ({ ok: true, key: q.doc, name: q.doc, status: 'APPROVED', type: 'Basic', subType: q.doc === 'D-PAR' ? 'BRAND_STORY' : '', contentType: 'EBC',
       modules: (MODS[q.doc] || [H_]).map(type => ({ type, texts: [], imgs: [] })), readAt: Date.now(), asins: [] });
-    const M = await open({ pd, schema, docAnswer });
+    const M = await open({ pd, schema, docAnswer, listing });
     const MC = M.C, p = sku => M.C.apcBuild().rows.find(r => r.c.sku === sku);
     const before = MC.apcBuild().rows.map(r => r.c.sku + ':' + r.bucket).join();
     const chipsBefore = (M.body().match(/data-apc="chip" data-apc-v="[a-z]*"/g) || []).join();
@@ -645,7 +659,7 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
       && p('TC-1').pd.n === 14 && p('TC-1').pd.of === 14 && !p('TC-1').pd.miss.length, pdCell('TC-1'));
     ok('…partly: TC-2 "⚠️ 11/14" (amber) — the missing names only in the tooltip', /class="apc-pdb is-y"[^>]*title="Missing: Theme, Fabric type, Care instructions — click for the details">⚠️ 11\/14<\/button>$/.test(pdCell('TC-2')), pdCell('TC-2'));
     ok('…mostly missing: TC-4 "❌ 4/14" (red) — colour, size, brand and product type only', /class="apc-pdb is-r"[^>]*>❌ 4\/14<\/button>$/.test(pdCell('TC-4')) && p('TC-4').pd.miss.join() === 'Style,Pattern,Theme,Item shape,Number of items / unit count,Item type name,Material,Fabric type,Care instructions,Special features', p('TC-4').pd.miss.join());
-    ok('NEVER GUESSED: LS-1 (no spec attributes in the listing cache) — grey "not read", never ❌; occasion / weight / components / room type are never counted', /^<span class="fc-none"[^>]*>not read<\/span>$/.test((M.body().match(new RegExp('data-apc-row="SP\\|' + A('LS-1') + '"[^]*?<td class="apc-pdc">([^]*?)</td>')) || ['', ''])[1])
+    ok('NEVER GUESSED: LS-1 (no spec attributes in the listing cache) — grey "not read" (a click reads it from Amazon), never ❌; occasion / weight / components / room type are not counted before that read', /^<button type="button" class="apc-pdb is-g" data-apc="pd"[^>]*>not read<\/button>$/.test((M.body().match(new RegExp('data-apc-row="SP\\|' + A('LS-1') + '"[^]*?<td class="apc-pdc">([^]*?)</td>')) || ['', ''])[1])
       && !p('LS-1').pd.known && ['occasion_type', 'item_weight', 'included_components', 'room_type'].every(k => p('TC-1').pd.rows.find(r => r.key === k).st === 'unread' && !p('TC-1').pd.rows.find(r => r.key === k).counted));
     ok('PER PRODUCT TYPE: NP-1 (NAPKIN — its type has no item shape / fabric type) "✅ 12/12"; NP-2 (HOME) misses its shape: "⚠️ 13/14"', p('NP-1').pd.n === 12 && p('NP-1').pd.of === 12 && /✅ 12\/12/.test(pdCell('NP-1'))
       && p('NP-1').pd.rows.find(r => r.key === 'item_shape').st === 'na' && p('NP-2').pd.miss.join() === 'Item shape' && /title="Missing: Item shape — click for the details">⚠️ 13\/14/.test(pdCell('NP-2')), pdCell('NP-1') + ' | ' + pdCell('NP-2'));
@@ -658,31 +672,58 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     M.click({ apc: 'chip', apcV: 'pd' });
     ok('…pressed: TC-4 ($400), NP-2 ($70), TC-2 — the biggest sellers first', screenRows(M).map(r => r.key.split('|')[1]).join() === [A('TC-4'), A('NP-2'), A('TC-2')].join(), screenRows(M).map(r => r.key).join());
     M.click({ apc: 'chip', apcV: '' }); openAll(M);
-    // THE SIDE PANEL
-    ok('no panel until a cell is pressed', M.els.apcSide.innerHTML === '' && M.C.APC.pd === '');
-    M.click({ apc: 'pd', apcV: p('TC-2').key });
+    // THE SIDE PANEL — and (4 Dec 2026) its live read of that one listing
+    ok('no panel until a cell is pressed — and no listing read from Amazon', M.els.apcSide.innerHTML === '' && M.C.APC.pd === '' && !M.calls.some(q => q.lfix));
+    M.calls.length = 0;
+    const reading = M.click({ apc: 'pd', apcV: p('TC-2').key });
+    ok('CLICK → the panel opens at once with "Reading from Amazon…" — no row, no ❌ yet', /Reading from Amazon…/.test(M.els.apcSide.innerHTML) && !/❌|apc-pdsec/.test(M.els.apcSide.innerHTML), strip(M.els.apcSide.innerHTML));
+    await reading;
     const side = M.els.apcSide.innerHTML, sideT = strip(side);
-    ok('CLICK → the right-side panel: SKU, title, "⚠️ 11 of 14 filled · 3 missing", "Open in Listing Workspace ↗"', /^<aside class="apc-side" role="dialog"/.test(side) && /TC-2 Title of TC-2 × ⚠️ 11 of 14 filled · 3 missing Open in Listing Workspace ↗/.test(sideT), sideT.slice(0, 200));
-    ok('…its sections in Amazon\'s Product information order: Style · Measurements · Item details · Materials & care · Features & specs', (side.match(/data-apc-sec="\w+"><h4>[^<]+/g) || []).map(x => x.split('>').pop()).join(' · ') === 'Style · Measurements · Item details · Materials &amp; care · Features &amp; specs'
-      && (side.match(/data-apc-sec="(\w+)"/g) || []).join() === 'data-apc-sec="style",data-apc-sec="meas",data-apc-sec="item",data-apc-sec="care",data-apc-sec="feat"');
+    ok('…ONE read-only call: ?lfix=get for TC-2 (Listings Items getListingsItem, every attribute) — nothing else', M.calls.length === 1 && M.calls[0].lfix === 'get' && M.calls[0].sku === 'TC-2' && M.calls[0].brand === 'SP' && !M.calls[0].method, JSON.stringify(M.calls));
+    ok('the panel: SKU, title, "⚠️ 19 of 20 filled · 1 missing" (recounted from the full read), "Open in Listing Workspace ↗"', /^<aside class="apc-side" role="dialog"/.test(side) && /TC-2 Title of TC-2 × ⚠️ 19 of 20 filled · 1 missing Open in Listing Workspace ↗/.test(sideT), sideT.slice(0, 200));
+    ok('…its sections in Amazon\'s Product information order: Style · Measurements · Item details · Materials & care · Features & specs · Other', (side.match(/data-apc-sec="\w+"><h4>[^<]+/g) || []).map(x => x.split('>').pop()).join(' · ') === 'Style · Measurements · Item details · Materials &amp; care · Features &amp; specs · Other'
+      && (side.match(/data-apc-sec="(\w+)"/g) || []).join() === 'data-apc-sec="style",data-apc-sec="meas",data-apc-sec="item",data-apc-sec="care",data-apc-sec="feat",data-apc-sec="other"');
     const secRows = k => ((side.match(new RegExp('data-apc-sec="' + k + '">[^]*?</section>')) || [''])[0].match(/<th scope="row">[^<]+/g) || []).map(x => x.slice(16)).join(', ');
-    ok('…each section\'s attributes in Amazon\'s order (Style: style, pattern, theme, colour, occasion; Measurements: size, shape, weight; Item details: brand, number of items, components, item type, product type; Materials & care; Features)',
-      secRows('style') === 'Style, Pattern, Theme, Colour, Occasion' && secRows('meas') === 'Item size / dimensions, Item shape, Item weight'
-      && secRows('item') === 'Brand, Number of items / unit count, Included components, Item type name, Product type' && secRows('care') === 'Material, Fabric type, Care instructions' && secRows('feat') === 'Special features, Room type', [secRows('style'), secRows('item')].join(' | '));
-    ok('…each row: the attribute · Amazon\'s value · ✅ filled / ❌ missing (red) / grey "not read"', /<tr class="is-ok"><th scope="row">Colour<\/th><td>Turquoise<\/td><td><span class="apc-pdok">✅ filled<\/span><\/td><\/tr>/.test(side)
-      && /<tr class="is-miss"><th scope="row">Theme<\/th><td><span class="fc-none">—<\/span><\/td><td><span class="apc-pdno">❌ missing<\/span><\/td><\/tr>/.test(side)
-      && /<tr class="is-unread is-off"><th scope="row">Occasion<\/th><td><span class="fc-none">—<\/span><\/td><td><span class="fc-none">not read<\/span><\/td><\/tr>/.test(side)
-      && /<th scope="row">Brand<\/th><td>Ridhi<\/td>/.test(side) && /<th scope="row">Product type<\/th><td>home<\/td>/.test(side) && (side.match(/❌ missing/g) || []).length === 3);
-    M.click({ apc: 'pd', apcV: p('NP-1').key });
-    ok('…per product type: NP-1\'s panel says "not for this product type" for its item shape, and "✅ 12 of 12 filled"', /<th scope="row">Item shape<\/th><td><span class="fc-none">—<\/span><\/td><td><span class="fc-none">not for this product type<\/span>/.test(M.els.apcSide.innerHTML) && /✅ 12 of 12 filled/.test(strip(M.els.apcSide.innerHTML)) && /product type NAPKIN/.test(strip(M.els.apcSide.innerHTML)));
+    ok('…each section\'s attributes in Amazon\'s order; "Other" = the listing\'s further attributes (not its content, pictures, offer or family links)',
+      secRows('style') === 'Style, Pattern, Theme, Colour, Occasion, Seasons' && secRows('meas') === 'Item size, Item dimensions, Item shape, Item weight'
+      && secRows('item') === 'Brand, Number of items / unit count, Included components, Item type name, Product type' && secRows('care') === 'Material, Fabric type, Care instructions' && secRows('feat') === 'Special features, Room type'
+      && secRows('other') === 'Country of origin, Is fragile', ['style', 'meas', 'other'].map(secRows).join(' | '));
+    const row = (label, value) => new RegExp('<tr class="is-ok"><th scope="row">' + label + '</th><td>' + value + '</td><td><span class="apc-pdok">✅ filled</span></td></tr>').test(side);
+    ok('EVERY ATTRIBUTE WITH ITS REAL VALUE: style, pattern, colour, size, shape, brand, number of items, item type, material, product type',
+      row('Style', 'Farmhouse') && row('Pattern', 'Floral') && row('Colour', 'Turquoise') && row('Item size', '60 x 90 Inch') && row('Item shape', 'Rectangular') && row('Brand', 'Ridhi')
+      && row('Number of items / unit count', '1') && row('Item type name', 'Tablecloth') && row('Material', 'Cotton') && row('Product type', 'home'));
+    ok('…the ones "not read" before now have their values: occasion, seasons, item weight, dimensions, included components, room type', row('Occasion', 'Christmas, Thanksgiving') && row('Seasons', 'Winter, Fall') && row('Item weight', '1.2 pounds')
+      && row('Item dimensions', 'length: 90 inches, width: 60 inches') && row('Included components', '1 Tablecloth') && row('Room type', 'Dining Room'));
+    ok('…and the ones the cache had without a value: fabric type, care instructions, special features (the cache\'s "missing" fabric / care are filled on Amazon)', row('Fabric type', '100% Cotton') && row('Care instructions', 'Machine Wash Cold') && row('Special features', 'Stain Resistant, Wrinkle Free')
+      && row('Country of origin', 'IN') && row('Is fragile', 'No'));
+    ok('…no "not read" and no "value not in Sellora\'s copy" anywhere; the listing\'s content / offer / pictures are not in it', !/not read|Sellora's copy/.test(sideT) && !/Item name|Bullet point|Purchasable offer|image|Child parent/i.test(secRows('other')));
+    ok('MISSING STAYS ❌: Theme (our listing has no value) — red, the only ❌', /<tr class="is-miss"><th scope="row">Theme<\/th><td><span class="fc-none">—<\/span><\/td><td><span class="apc-pdno">❌ missing<\/span><\/td><\/tr>/.test(side) && (side.match(/❌ missing/g) || []).length === 1);
+    ok('the TABLE badge updates after the read: TC-2 "⚠️ 19/20" (was 11/14 from the cache), missing Theme in its tooltip', /class="apc-pdb is-y"[^>]*title="Missing: Theme \(read from Amazon this session\) — click for the details">⚠️ 19\/20<\/button>$/.test(pdCell('TC-2')), pdCell('TC-2'));
+    M.calls.length = 0;
+    await M.click({ apc: 'pd', apcV: p('TC-2').key }); await M.click({ apc: 'pd', apcV: p('TC-2').key });
+    ok('kept for the session: closing and opening it again reads nothing more', M.calls.length === 0 && /19 of 20 filled/.test(strip(M.els.apcSide.innerHTML)), JSON.stringify(M.calls));
+    await M.click({ apc: 'pd', apcV: p('NP-1').key });
+    ok('PER PRODUCT TYPE: NP-1 (NAPKIN) — its item shape and fabric type "not for this product type", not counted: "✅ 18 of 18 filled"', /<th scope="row">Item shape<\/th><td><span class="fc-none">—<\/span><\/td><td><span class="fc-none">not for this product type<\/span>/.test(M.els.apcSide.innerHTML)
+      && /✅ 18 of 18 filled/.test(strip(M.els.apcSide.innerHTML)) && /product type NAPKIN/.test(strip(M.els.apcSide.innerHTML)) && /<th scope="row">Theme<\/th><td>Rustic<\/td>/.test(M.els.apcSide.innerHTML), strip(M.els.apcSide.innerHTML).slice(0, 160));
     ok('Esc closes the panel (another key does not)', !M.C.apcKey({ key: 'a' }) && M.els.apcSide.innerHTML !== '' && M.C.apcKey({ key: 'Escape' }) === true && M.els.apcSide.innerHTML === '' && M.C.APC.pd === '' && !M.C.apcKey({ key: 'Escape' }));
-    M.click({ apc: 'pd', apcV: p('TC-2').key }); M.click({ apc: 'pdclose' });
+    // a failed read: a message and Try again — never ❌
+    const before2 = pdCell('NP-2');
+    await M.click({ apc: 'pd', apcV: p('NP-2').key });
+    ok('READ FAILS: "Couldn\'t read from Amazon — try again"; no row and no ❌ in the panel; the table badge stays the cache\'s', /Couldn't read from Amazon — try again/.test(strip(M.els.apcSide.innerHTML)) && /data-apc="pdread"/.test(M.els.apcSide.innerHTML)
+      && !/❌|apc-pdsec|filled/.test(M.els.apcSide.innerHTML) && pdCell('NP-2') === before2 && /Amazon answered 503/.test(M.els.apcSide.innerHTML), strip(M.els.apcSide.innerHTML));
+    M.net.listing['NP-2'] = { productType: 'HOME', attributes: Object.assign(fullAttrs(), { theme: v('Rustic') }) };
+    M.calls.length = 0;
+    await M.click({ apc: 'pdread', apcV: p('NP-2').key });
+    ok('…"try again" reads it once more: now "✅ 20 of 20 filled", the table "✅ 20/20"', M.calls.length === 1 && M.calls[0].lfix === 'get' && /✅ 20 of 20 filled/.test(strip(M.els.apcSide.innerHTML)) && /✅ 20\/20/.test(pdCell('NP-2')), strip(M.els.apcSide.innerHTML).slice(0, 120));
+    M.click({ apc: 'pdclose' });
     ok('✕ closes it; pressing the same cell again closes it too', M.els.apcSide.innerHTML === '' && (() => { M.click({ apc: 'pd', apcV: p('TC-2').key }); M.click({ apc: 'pd', apcV: p('TC-2').key }); return M.els.apcSide.innerHTML === ''; })());
     M.click({ apc: 'pd', apcV: p('TC-2').key });
     ok('"Open in Listing Workspace ↗" opens Listing Health on TC-2\'s family (its parent ASIN) and closes the panel', new RegExp('data-apc="pdws" data-apc-b="SP" data-apc-v="' + A('TC-P') + '"').test(M.els.apcSide.innerHTML)
       && (() => { M.click({ apc: 'pdws', apcB: 'SP', apcV: A('TC-P') }); return M.wsOpened.join() === 'SP|' + A('TC-P') && M.els.apcSide.innerHTML === ''; })(), M.wsOpened.join());
     ok('the panel CSS: the Listing Workspace panel\'s look on the right; a bottom sheet on a phone; theme colours only', /#paneAplus \.apc-side\{position:fixed;top:var\(--ls-top,0px\);right:0;bottom:0;z-index:50;[^}]*width:min\(520px,100vw\)/.test(css)
-      && /@media \(max-width:640px\)\{#paneAplus \.apc-side\{top:auto;left:0;right:0;bottom:0;width:auto;margin:0;max-height:82vh;border-radius:16px 16px 0 0/.test(css));
+      && /@media \(max-width:640px\)\{#paneAplus \.apc-side\{top:auto;left:0;right:0;bottom:0;width:auto;margin:0;max-height:82vh;border-radius:16px 16px 0 0/.test(css) && /#paneAplus \.apc-pdmsg\.is-r\{background:var\(--bad-bg\);color:var\(--bad-ink\)\}/.test(css));
+    ok('apcPdVal: Amazon\'s shapes in plain words (value + unit, nested sizes, lists, yes / no; nothing = "")', MC.apcPdVal([{ value: 2.5, unit: 'kilograms' }]) === '2.5 kilograms' && MC.apcPdVal(vl('A', 'B', 'A')) === 'A, B'
+      && MC.apcPdVal([{ height: { value: 1, unit: 'inches' }, marketplace_id: MK }]) === '1 inches' && MC.apcPdVal([{ value: true }]) === 'Yes' && MC.apcPdVal([]) === '' && MC.apcPdVal(undefined) === '' && MC.apcPdVal([{ value: '' }]) === '');
     // the Workspace's newer live read wins over the cache
     M.ctx.LI_WS.live = { SP: { 'TC-4': { specs: Object.fromEntries(SPALL.map(k => [k, true])), gAt: Date.now() + 1000 } } }; M.ctx.LI_WS.liveV++;
     ok('the Listing Workspace\'s newer live read counts (TC-4 → "14 of 14")', p('TC-4').pd.n === 14 && p('TC-4').pd.of === 14);
@@ -698,7 +739,7 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     const rowLs = csvRows(csv2.text).find(x => x[2] === 'LS-1'), rowT2 = csvRows(csv2.text).find(x => x[2] === 'TC-2');
     ok('CSV (products): Modules, Module types, Basic / Premium, Only Brand Story, Modules read, Product details filled, Missing attributes (then Priority)', row6[14] === '2 of 5' && row6[15] === '2 modules on Amazon: STANDARD_HEADER_IMAGE_TEXT, STANDARD_TEXT — missing: 3 more modules' && row6[16] === 'Basic' && /\(this browser\)$/.test(row6[18])
       && row4[19] === '4 of 14' && row4[20] === 'Style, Pattern, Theme, Item shape, Number of items / unit count, Item type name, Material, Fabric type, Care instructions, Special features' && row4.length === 22
-      && rowT2[19] === '11 of 14' && rowT2[20] === 'Theme, Fabric type, Care instructions' && row6[19] === '14 of 14' && row6[20] === '' && rowLs[19] === 'not read' && rowLs[20] === ''
+      && rowT2[19] === '19 of 20' && rowT2[20] === 'Theme' && row6[19] === '14 of 14' && row6[20] === '' && rowLs[19] === 'not read' && rowLs[20] === ''
       && rowCs[17] === 'yes' && rowCs[14] === 'Only Brand Story — no product A+', JSON.stringify([row4.slice(14), rowLs.slice(14)]));
     const dc = MC.apcDocsCsv(), dl = csvRows(dc.text).find(x => x[1] === 'Tablecloth A+'), dp = csvRows(dc.text).find(x => x[1] === 'Coasters (on the parent)');
     ok('CSV (documents): Modules, Module types, Against the standard, Brand Story, Modules read', csvRows(dc.text)[0].slice(12).join(' · ') === 'Modules · Module types · Against the standard · Brand Story · Modules read'
@@ -712,13 +753,12 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     // (3 Dec 2026) the product details counted are in the same shared standard
     MC.APC.setOpen = true; MC.apcDraw();
     const box = M.body(); MC.APC.setOpen = false;
-    ok('⚙ A+ standard: "Product details counted" — every attribute Sellora reads ticked by default; the ones it does not read are not offered', MC.APC.std.pd.join() === MC.APC_PD_ALL.join()
-      && ['style', 'pattern', 'theme', 'color', 'size', 'item_shape', 'brand', 'number_of_items', 'item_type_name', 'product_type', 'material', 'fabric_type', 'care_instructions', 'special_feature'].every(k => new RegExp('data-apc-std="pd" value="' + k + '" checked').test(box))
-      && !/value="occasion_type"|value="room_type"|value="item_weight"|value="included_components"/.test(box));
+    ok('⚙ A+ standard: "Product details counted" — all 20 attributes offered and ticked by default (occasion, seasons, weight, dimensions, components, room type too)', MC.APC.std.pd.join() === MC.APC_PD_ALL.join() && MC.APC_PD_ALL.length === 20
+      && MC.APC_PD_ALL.every(k => new RegExp('data-apc-std="pd" value="' + k + '" checked').test(box)));
     await MC.apcStdSave({ n: 5, must: ['header'], pd: MC.APC_PD_ALL.filter(k => k !== 'theme') });
-    ok('…untick Theme and save: TC-2 "11 of 13" (its missing Theme no longer counted), saved for the team with the standard', p('TC-2').pd.n === 11 && p('TC-2').pd.of === 13 && p('TC-2').pd.miss.join() === 'Fabric type,Care instructions' && !M.store['listingrules/aplusstd'].items.std.pd.includes('theme') && M.store['listingrules/aplusstd'].items.std.pd.length === 17);
+    ok('…untick Theme and save: TC-2 "19 of 19" (its missing Theme no longer counted), saved for the team with the standard', p('TC-2').pd.n === 19 && p('TC-2').pd.of === 19 && !p('TC-2').pd.miss.length && !M.store['listingrules/aplusstd'].items.std.pd.includes('theme') && M.store['listingrules/aplusstd'].items.std.pd.length === 19 && M.store['listingrules/aplusstd'].items.std.pdv === 2);
     await MC.apcStdSave({ n: 5, must: ['header'], pd: MC.APC_PD_ALL });
-    ok('read-only all the way: no write but the team\'s own standard and marks — no Amazon change', !M.calls.some(q => q.lfix || q.lcreate || q.method === 'POST') && Object.keys(M.store).every(k => /^listingrules\/(aplusstd|aplusok_)/.test(k)), Object.keys(M.store).join());
+    ok('read-only all the way: no write but the team\'s own standard and marks — no Amazon change (the only listing calls are ?lfix=get reads)', !M.calls.some(q => (q.lfix && q.lfix !== 'get') || q.lcreate || q.method === 'POST') && Object.keys(M.store).every(k => /^listingrules\/(aplusstd|aplusok_)/.test(k)), Object.keys(M.store).join());
     // a name is never read as a Brand Story — only Amazon's own sub-type / module type
     ok('never guessed from a name: a document called "Brand Story page" with normal modules is product A+', !MC.apcModsOf({ brand: 'SP', k: 'X' }) && (() => { MC.APC.mods.set('SP|D-UNUSED', { n: 3, ty: [H_, IT, TX], sub: '', ct: 'EBC', at: Date.now(), src: 'browser' }); return true; })()
       && !MC.apcDocs(MC.apcBuild()).find(x => x.d.k === 'D-UNUSED').story);
