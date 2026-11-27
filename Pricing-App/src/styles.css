@@ -4263,13 +4263,40 @@
   #paneAplus .apc-mc.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
   #paneAplus .apc-mc.is-y{background:var(--rev-bg);color:var(--rev-ink)}
   #paneAplus .apc-avg{margin-left:8px;font-size:12px;color:var(--muted);white-space:nowrap}
-  #paneAplus td.apc-modc,#paneAplus td.apc-descc{white-space:normal;min-width:130px;max-width:220px;font-size:12px}
-  #paneAplus .apc-dsc summary{cursor:pointer;white-space:nowrap}
-  #paneAplus .apc-dsc.is-r{color:var(--bad-ink);font-weight:600}
-  #paneAplus .apc-dsc.is-y summary{color:var(--rev-ink)}
-  #paneAplus .apc-dsct{max-width:420px;max-height:220px;overflow:auto;margin-top:4px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--soft);
-    font-size:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
-  #paneAplus tr.apc-nodesc>td{background:var(--bad-bg)}
+  #paneAplus td.apc-modc{white-space:normal;min-width:130px;max-width:220px;font-size:12px}
+  /* (3 Dec 2026) Product details: ONE short line in the table, the rest in the right-side panel (the Listing Workspace panel's look) */
+  #paneAplus td.apc-pdc{white-space:nowrap;font-size:12px}
+  #paneAplus .apc-pdb{display:inline-block;padding:1px 8px;border:1px solid transparent;border-radius:10px;font:inherit;font-weight:600;line-height:1.5;white-space:nowrap;cursor:pointer;background:var(--soft);color:var(--ink)}
+  #paneAplus .apc-pdb:hover,#paneAplus .apc-pdb:focus-visible{border-color:var(--line)}
+  #paneAplus .apc-pdb.is-ok,#paneAplus .apc-pds.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  #paneAplus .apc-pdb.is-y,#paneAplus .apc-pds.is-y{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneAplus .apc-pdb.is-r,#paneAplus .apc-pds.is-r{background:var(--bad-bg);color:var(--bad-ink)}
+  #paneAplus .apc-pdb.is-g{color:var(--muted)}
+  #paneAplus .apc-side{position:fixed;top:var(--ls-top,0px);right:0;bottom:0;z-index:50;display:flex;flex-direction:column;width:min(520px,100vw);margin:8px;
+    max-height:calc(100vh - var(--ls-top,0px) - 16px);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-2);animation:ls-panel-in .22s cubic-bezier(.2,.7,.2,1) both}
+  #paneAplus .apc-side-h{display:flex;align-items:flex-start;gap:10px;padding:14px 16px 8px}
+  #paneAplus .apc-side-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  #paneAplus .apc-side-t b{font-size:14px;overflow-wrap:anywhere}
+  #paneAplus .apc-side-t span{font-size:12.5px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere}
+  #paneAplus .apc-x{flex:0 0 30px;width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--card);color:var(--ink);font-size:18px;line-height:1;cursor:pointer}
+  #paneAplus .apc-x:hover{background:var(--soft)}
+  #paneAplus .apc-side-a{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:0 16px 10px;border-bottom:1px solid var(--line)}
+  #paneAplus .apc-side-a .fc-b{margin:0}
+  #paneAplus .apc-pds{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12.5px;background:var(--soft)}
+  #paneAplus .apc-side-b{flex:1;min-height:0;overflow:auto;padding:4px 16px 14px;overscroll-behavior:contain}
+  #paneAplus .apc-pdsec h4{margin:12px 0 4px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  #paneAplus .apc-pdt{width:100%;border-collapse:collapse;font-size:12.5px}
+  #paneAplus .apc-pdt th,#paneAplus .apc-pdt td{padding:5px 6px;border-top:1px solid var(--line);text-align:left;vertical-align:top}
+  #paneAplus .apc-pdt th{width:38%;font-weight:600;color:var(--ink)}
+  #paneAplus .apc-pdt td{overflow-wrap:anywhere}
+  #paneAplus .apc-pdt td:last-child{width:1%;white-space:nowrap}
+  #paneAplus .apc-pdt tr.is-off th{color:var(--muted);font-weight:500}
+  #paneAplus .apc-pdok{color:var(--accent-ink)}
+  #paneAplus .apc-pdno{color:var(--bad-ink);font-weight:600}
+  #paneAplus .apc-pdt tr.is-miss>*{background:var(--bad-bg)}
+  #paneAplus .apc-side-f{margin:12px 0 0;font-size:11.5px;line-height:1.45}
+  @media (max-width:640px){#paneAplus .apc-side{top:auto;left:0;right:0;bottom:0;width:auto;margin:0;max-height:82vh;border-radius:16px 16px 0 0;animation:apc-sheet-in .22s cubic-bezier(.2,.7,.2,1) both}}
+  @keyframes apc-sheet-in{from{transform:translateY(24px)}to{transform:none}}
   #paneAplus .apc-dmod{font-size:12.5px;margin:2px 0;overflow-wrap:anywhere}
   #paneAplus .apc-set{display:flex;flex-direction:column;gap:8px;margin:12px 0 0;padding:12px 14px;font-size:13px}
   #paneAplus .apc-setr{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
