@@ -24258,14 +24258,13 @@ function qcPiecesOf(x) {
   };
 }
 /*
- * QC PASS WAITS A MINUTE FOR EVERY PIECE RECEIVED (Ravi, 19 Nov: "for each piece there must be at least a 1 min count down …
- * they can only click on qc passed after 1 × N pieces, where N is the number of pieces the qc has accepted"), so nobody
- * passes pieces they had no time to look at. Counted from the QC Accept press; rows accepted before this rule have no wait.
+ * QC PASS WAITS 30 SECONDS AFTER QC ACCEPT (27 Nov, asked for the Quality Control screen; it replaces the 19 Nov rule of a
+ * minute for every piece received). The same wait whatever the pieces; rows accepted before 19 Nov have no wait.
  */
-const QC_PASS_MS_PER_PIECE = 60 * 1000;
+const QC_PASS_WAIT_MS = 30 * 1000;
 function qcPassOpensAt(row) {
   const on = Date.parse((row && row.qcReceivedOn) || '');
-  return isFinite(on) ? on + ptNum(row.qcReceivedPcs) * QC_PASS_MS_PER_PIECE : 0;
+  return isFinite(on) ? on + QC_PASS_WAIT_MS : 0;
 }
 /** "4:05" or "1:02:30" — time left, rounded up to the second. */
 function qcTimeLeft(ms) {
@@ -24274,7 +24273,7 @@ function qcTimeLeft(ms) {
 }
 /** The locked QC pass button, counting down; qcPassTick wakes it when its time is up. */
 function qcPassLockedBtn(x) {
-  return `<button class="qc-closed" disabled data-qc-unlock="${x.passOpensAt}" title="QC pass opens a minute for every piece received — ${nf(ptNum(x.r.qcReceivedPcs))} piece(s)">`
+  return `<button class="qc-closed" disabled data-qc-unlock="${x.passOpensAt}" title="QC pass opens 30 seconds after QC Accept">`
     + `QC pass · ${qcTimeLeft(x.passOpensAt - Date.now())}</button>`;
 }
 /* One timer for the whole list, every second: it rewrites the countdowns and, when one runs out, redraws the list so that
@@ -24429,7 +24428,7 @@ async function qcInboxReceive(baseId) {
   if (!x) return 'That entry is no longer waiting — press Refresh.';
   if (x.received) return '';
   const node = x.r.fromCut ? 'pt_cuttingData' : 'pt_baseData';
-  /* qcReceivedOn (world time, to the second) and qcReceivedPcs start QC pass's wait: a minute for every piece received. */
+  /* qcReceivedOn (world time, to the second) starts QC pass's 30-second wait; qcReceivedPcs records what was received. */
   const stamp = { qcReceivedAt: ptNow(), qcReceivedBy: qcMyName(), qcReceivedOn: new Date().toISOString(), qcReceivedPcs: x.wait };
   await ptPatch(Object.fromEntries(Object.entries(stamp).map(([k, v]) => [`${node}/${baseId}/${k}`, v])));
   const withStamp = list => (list || []).map(r => (r && (r.id || r._key) === baseId ? Object.assign({}, r, stamp) : r));
@@ -24633,7 +24632,7 @@ function qcInboxOpen(baseId) {
   if (!x.received) { $('qcMsg').className = 'err'; $('qcMsg').textContent = `Press QC Accept first on ${x.r.sku} — QC pass opens once QC has received the pieces.`; return; }
   if (x.passOpensAt > Date.now()) {
     $('qcMsg').className = 'err';
-    $('qcMsg').textContent = `QC pass on ${x.r.sku} opens in ${qcTimeLeft(x.passOpensAt - Date.now())} — a minute for each of the ${nf(ptNum(x.r.qcReceivedPcs))} piece(s) received.`;
+    $('qcMsg').textContent = `QC pass on ${x.r.sku} opens in ${qcTimeLeft(x.passOpensAt - Date.now())} — 30 seconds after QC Accept.`;
     return;
   }
   ptOpenDialog({
