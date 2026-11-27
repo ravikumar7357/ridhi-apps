@@ -17025,6 +17025,13 @@ function lrKwOwnColours(colour) {
 const LR_KW_LOW = LR_SW_LOW.concat(['fun', 'nice', 'cute', 'pretty', 'best', 'cheap', 'new', 'beautiful', 'lovely', 'perfect', 'great', 'cars', 'car', 'cool',
   'good', 'top', 'amazing', 'awesome', 'wonderful', 'super', 'special', 'popular', 'gorgeous', 'fancy', 'classy', 'adorable', 'sale', 'deal', 'discount', 'free']);
 const LR_KW_LOW_SET = new Set(LR_KW_LOW.map(lrSwKey));
+// COLOUR MODIFIERS (1 Dec 2026): a word that makes a colour phrase with the colour after it ("hot pink", "baby blue", "off white") —
+// it stays with its colour, and goes with it ("leftover")
+const LR_KW_COLOR_MODS = ['hot', 'baby', 'light', 'dark', 'pale', 'deep', 'bright', 'dusty', 'soft', 'neon', 'pastel', 'royal', 'sky', 'powder', 'forest',
+  'hunter', 'sea', 'ice', 'electric', 'off', 'midnight', 'dusky'];
+const LR_KW_COLOR_MODS_SET = new Set(LR_KW_COLOR_MODS.map(lrSwKey));
+// the BASIC colours: a shade right before one makes a colour phrase ("navy blue", "sage green", "moss green", "blush pink", "rose gold")
+const LR_KW_BASE_SET = new Set(['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'white', 'black', 'gray', 'grey', 'brown', 'gold', 'silver'].map(lrSwKey));
 /** Two words a typing slip apart: the optimal-string-alignment distance (a swap of two letters = 1) is at most `max`. */
 function lrSwNear(a, b, max) {
   a = String(a || ''); b = String(b || '');
@@ -17271,7 +17278,14 @@ function lrSuggestWords(text, o) {
     if (mode !== 'kw' || o.riskOnly) return;
     for (let i = 0; i < toks.length; i++) {
       const t = toks[i];
-      if (t.out || t.added || !t.k || t.cls || !LR_SW_LEFT_SET.has(t.k)) continue;
+      // (1 Dec 2026) a colour modifier whose colour went ("hot" of "hot pink" once pink is gone) goes too
+      if (kwFix && !t.out && !t.added && t.k && !t.cls && LR_KW_COLOR_MODS_SET.has(t.k)) {
+        let n = i + 1;
+        while (n < toks.length && !toks[n].k) n++;
+        if (n < toks.length && !toks[n].added && LR_KW_COLOR_SET.has(toks[n].k) && toks[n].out) { drop(t, 'leftover'); continue; }
+      }
+      // (1 Dec 2026) a joining word (for, of, the…) is a leftover the same way once the word before it went ("gift for her")
+      if (t.out || t.added || !t.k || t.cls || !(LR_SW_LEFT_SET.has(t.k) || (kwFix && LR_SW_STOP_SET.has(t.k)))) continue;
       let j = i - 1;
       while (j >= 0 && !toks[j].k) j--;                  // bare punctuation does not part a phrase
       const prev = j >= 0 ? toks[j] : null;
@@ -17305,6 +17319,31 @@ function lrSuggestWords(text, o) {
     // of OUR brand ("rhidi") is a duplicate when our brand is there too
     const slipKeys = [...new Set(lrWords(lrAllow((typeof LR !== 'undefined' && LR) || LR_DEFAULT).otherBrands).concat(o.others || []).map(b => lrSwKey(b)).filter(Boolean))];
     const ourKeys = [...new Set(brandPhrases.filter(p => p.length === 1).map(p => p[0]))].filter(k => k.length >= 5);
+    /* (1 Dec 2026) COLOUR PHRASES stay together: a modifier right before a colour ("hot pink", "baby blue", "light pink", "off white"),
+     * or a shade right before a basic colour ("navy blue", "sage green", "moss green", "blush pink") is one phrase. A lone repeat of a
+     * phrase's colour goes ("pink … hot pink": the lone "pink"), the phrase stays; a modifier whose colour went goes too (leftover). */
+    if (kwFix) {
+      let cp = 0;
+      for (let i = 0; i < toks.length; i++) {
+        const a = toks[i];
+        if (a.out || !a.k) continue;
+        let j = i + 1;
+        while (j < toks.length && !toks[j].k) j++;
+        const b = toks[j];
+        if (!b || b.out || !LR_KW_COLOR_SET.has(b.k)) continue;
+        const mod = LR_KW_COLOR_MODS_SET.has(a.k), shade = LR_KW_COLOR_SET.has(a.k) && !LR_KW_BASE_SET.has(a.k) && LR_KW_BASE_SET.has(b.k);
+        if (mod || shade) { const id = a.cphr || b.cphr || ++cp; a.cphr = id; b.cphr = id; }
+      }
+    }
+    // (1 Dec 2026) low-value words go ALWAYS ("low value"), not only to fit — never a protected word, never a word of a colour phrase
+    if (kwFix) toks.forEach(t => { if (!t.out && !t.cls && !t.cphr && t.k && LR_KW_LOW_SET.has(t.k)) drop(t, 'low-value word'); });
+    if (kwFix) {
+      toks.forEach(t => {
+        if (t.out || !t.cphr || !LR_KW_COLOR_SET.has(t.k)) return;
+        toks.forEach(x => { if (x !== t && !x.out && !x.cphr && x.k === t.k) drop(x, 'repeated'); });
+      });
+      leftovers();                                       // a modifier whose colour went goes now, before the repeats are judged
+    }
     if (kwFix) toks.forEach(t => {
       if (t.out || t.cls || !t.k) return;
       if (lrKwBrandSlip(t.k, slipKeys)) return drop(t, 'other brand');

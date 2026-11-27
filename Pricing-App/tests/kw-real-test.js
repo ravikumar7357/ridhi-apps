@@ -53,6 +53,7 @@ const suggest = (C, L, text, extra) => { const w = winOf(C, L, text); return C.l
   others: C.kwOthers(C.getLR()), add: w.words, proof: w.proof, fits }, extra || {})); };
 const why = (r, w) => (r.removed.find(x => x.w.toLowerCase() === w) || {}).why;
 const keys = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
+const keysOf = keys;
 
 (async () => {
   const C = setup();
@@ -108,6 +109,26 @@ const keys = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
   ok('…and under the child each reason: "skipped: not sure the product is for a card table (PPC: 6 orders from \'card table tablecloth\')"', /skipped: not sure the product is for a card table \(PPC: 6 orders from 'card table tablecloth'\)/.test(html), (html.match(/kf-adds[\s\S]{0,1200}/) || [''])[0]);
   ok('…the struck words with their reasons: not its colour, not its size, other brand, duplicate', /title="not its colour">salmon<\/s>/.test(html) && /title="not its size">60x90<\/s>/.test(html) && /title="other brand">anthropology<\/s>/.test(html) && /title="duplicate">rhidi<\/s>/.test(html));
   C.kfClick({ dataset: { kf: 'cancel' } });
+
+
+  console.log('== (1 Dec 2026) low value ALWAYS out; colour phrases stay together ==');
+  ok('RT146: fun, nice, cute go though it is within the limit — "low value"', bytes(T146.kw) <= 249 && ['fun', 'nice', 'cute'].every(w => why(r146, w) === 'low-value word') && !/\b(fun|nice|cute)\b/.test(r146.after), JSON.stringify(r146.removed.map(x => x.w + ':' + x.why)));
+  ok('RT354: fun, cute, pretty go too', ['fun', 'cute', 'pretty'].every(w => why(r354, w) === 'low-value word'));
+  const lb = Object.assign({}, facts(C, T354), { colour: 'Light Blue' });
+  const lr = C.lrSuggestWords('light blue napkin light weight', { mode: 'kw', facts: lb, title: 'Ridhi Light Blue Napkins', fits });
+  ok('…never a 🔒 word: "light" of its own colour "Light Blue" stays; the other "light" (a low-value word) goes', lr.after === 'light blue napkin weight' && lr.removed.length === 1 && lr.removed[0].i === 3, JSON.stringify([lr.after, lr.removed]));
+  ok('RT354 "pink … hot pink": the PHRASE "hot pink" stays, the lone "pink" goes ("duplicate")', /\bhot pink\b/.test(r354.after) && r354.removed.some(x => x.w === 'pink' && x.i === 1 && x.why === 'repeated') && keysOf(r354.after).filter(w => w === 'pink').length === 1, r354.after);
+  const p = (L, t, f) => C.lrSuggestWords(t, { mode: 'kw', facts: f || facts(C, L), title: L.title, fits });
+  const bb = p(T354, 'tablecloth baby blue baby shower');
+  ok('a colour modifier never stays alone: "baby blue" on the pink cloth → blue (not its colour), baby (leftover); "baby shower" stays', bb.after === 'tablecloth baby shower' && bb.removed.map(x => x.w + ':' + x.why).sort().join() === 'baby:leftover,blue:not its colour', JSON.stringify([bb.after, bb.removed]));
+  const dk = p(T354, 'tablecloth light pink dark salmon pale coral deep pink');
+  ok('"light pink" stays (its colour); "dark salmon", "pale coral" go whole; "deep pink" — the second pink goes with its modifier', /^tablecloth light pink$/.test(dk.after) && ['dark:leftover', 'pale:leftover', 'salmon:not its colour', 'coral:not its colour'].every(x => dk.removed.map(r => r.w + ':' + r.why).includes(x)), JSON.stringify([dk.after, dk.removed]));
+  const nb = p(T354, 'blue tablecloth navy blue', Object.assign({}, facts(C, T354), { colour: 'Navy Blue' }));
+  ok('"blue … navy blue" on a Navy Blue cloth: "navy blue" stays, the lone "blue" goes', nb.after === 'tablecloth navy blue' && nb.removed.map(x => x.w + ':' + x.why).join() === 'blue:repeated', JSON.stringify([nb.after, nb.removed]));
+  const sg = p(T146, 'tablecloth sage green moss green');
+  ok('"sage green" on the Moss Green cloth: sage (not its colour), then the second green is a repeat — "moss green" stays whole', sg.after === 'tablecloth moss green' && sg.removed.some(x => x.w === 'sage' && x.why === 'not its colour'), JSON.stringify([sg.after, sg.removed]));
+  const ow = p(T146, 'tablecloth off white turquoise');
+  ok('"off white" on the turquoise cloth: white (not its colour) and off (leftover) go together', ow.after === 'tablecloth turquoise' && ow.removed.map(x => x.w + ':' + x.why).sort().join() === 'off:leftover,white:not its colour', JSON.stringify([ow.after, ow.removed]));
 
   console.log('== titles are never touched ==');
   const tt = C.lrSuggestWords(T146.title + ' 60x90 Salmon', { mode: 'title', facts: facts(C, T146), fits: x => x.length <= 200 });

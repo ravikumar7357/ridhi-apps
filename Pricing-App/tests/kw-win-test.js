@@ -189,15 +189,16 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     const r = suggest(C, T1, T1.kw);
     const why = r.removed.map(x => x.w + ':' + x.why);
     ok('the tablecloth (over the limit): ≤ 249 bytes after — duplicates, other brands, low-value / joining words go before any winning word', fits(r.after) && bytes(T1.kw) > 249
-      && ['tablecloths:repeated', 'cotton:repeated', 'etopia:other brand', 'gift:low-value word', 'the:stop word', 'a:stop word'].every(x => why.includes(x)), JSON.stringify([bytes(T1.kw), bytes(r.after), why]));
+      && ['tablecloths:repeated', 'cotton:repeated', 'etopia:other brand', 'gift:low-value word', 'indian:low-value word', 'for:leftover', 'her:leftover', 'the:leftover', 'a:leftover'].every(x => why.includes(x)), JSON.stringify([bytes(T1.kw), bytes(r.after), why]));
     const order = r.removed.slice().sort((a, b) => a.n - b.n);
     const firstCut = order.findIndex(x => x.why === 'cut to fit' || x.why === 'in the title');
-    const lastLow = order.map(x => x.why).lastIndexOf('stop word');
+    const lastLow = Math.max(order.map(x => x.why).lastIndexOf('low-value word'), order.map(x => x.why).lastIndexOf('leftover'));
     const addCut = order.filter(x => x.why === 'limit');
     ok('…then the ADDED words, the weakest first ("farmhouse", then "boho"), before any of the listing\'s own words is cut', lastLow < firstCut
       && r.toks.filter(t => t.added).sort((a, b) => a.n - b.n).map(t => t.w).join() === 'farmhouse,boho' && order.findIndex(x => x.why === 'cut to fit') > -1, JSON.stringify([r.notAdded, addCut]));
-    // (29 Nov 2026) the leftovers (her, style) go before the room left over is filled — so both winning words fit now
-    ok('…and when the listing\'s own words had to go too, the room left over (with the leftovers her / style out first) takes back the winning words that fit (boho, farmhouse)', r.added.map(a => a.w).join() === 'boho,farmhouse' && !r.notAdded.length && fits(r.after) && / boho farmhouse$/.test(r.after) && r.removed.filter(x => x.why === 'leftover').map(x => x.w).join() === 'style,her', r.after);
+    // (1 Dec 2026) low value and the leftovers (style, for, her, the, a) go first — so only 4 of its own words are cut to fit, and the
+    // Brand Analytics words (they never push its own words out) find no room left
+    ok('…the listing\'s own words keep their place: only 4 cut to fit (bridal, shower, anniversary, festive); boho and farmhouse not added (no room)', r.removed.filter(x => x.why === 'cut to fit').map(x => x.w).join() === 'bridal,shower,anniversary,festive' && r.notAdded.map(a => a.w).sort().join() === 'boho,farmhouse' && !r.added.length && fits(r.after) && r.removed.filter(x => x.why === 'leftover').map(x => x.w).join() === 'style,for,her,the,a', JSON.stringify([r.after, r.removed.filter(x => /leftover|cut/.test(x.why)).map(x => x.w)]));
     ok('…and only then the listing\'s own ordinary words, from the end — never our brand or an important word', !r.removed.some(x => x.why === 'cut to fit' && /^(ridhi|hand|block|print|tablecloth|cotton|indigo|blue|rectangular|dining|kitchen)$/.test(x.w)), JSON.stringify(r.removed.filter(x => x.why === 'cut to fit').map(x => x.w)));
     let kwNS = 'ridhi cpc whimsical corner hand block print blockprint handmade napkins cotton sage green dinner kitchen dining washable reusable wrinkle free';
     for (let i = 10; bytes(kwNS) <= 260; i++) kwNS += ` ${i}x${i}`;
@@ -212,7 +213,7 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     const it = C2.kfItemOf('SP', C2.HEALTH.SP.rows.find(x => x.sku === T1.sku), C2.hCtx(), null);
     const plan = C2.kfPlan(it);
     ok('Fix all search terms (kfPlan) sends only generic_keyword — the title, bullets and description are never in the patch', plan.ok && plan.patches.length === 1 && plan.patches[0].path === '/attributes/generic_keyword' && plan.b1 <= 249, JSON.stringify([plan.ok, plan.why, plan.patches]));
-    ok('its plan of the over-limit tablecloth: "Shorten to 248 bytes · + 2 winning words" (her, style: leftovers — their room used)', /^Shorten to 248 bytes · \+ 2 winning words$/.test(plan.what) && plan.added.map(a => a.w).join() === 'boho,farmhouse', plan.what);
+    ok('its plan of the over-limit tablecloth: "Shorten to 248 bytes" (no room left for a Brand Analytics word)', /^Shorten to 248 bytes$/.test(plan.what) && !plan.added.length, plan.what);
   }
 
   console.log('== the preview (Fix all search terms popup): + added with why, struck words with their reason, 🔒 protected, bytes ==');
@@ -352,10 +353,10 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     P.kfPreview([P.kfItemOf('SP', P.HEALTH.SP.rows.find(x => x.sku === T1.sku), P.hCtx(), null)], { title: 'T1', brand: 'SP', parent: T1.parent });
     await settle();
     const html = P.el('spModalBox').innerHTML.replace(/&#39;/g, "'");
-    // the over-limit tablecloth: the proven words take the room of its own words with no orders — "farmhouse" replaces "reception"
-    ok('preview: "+ farmhouse (PPC: 14 orders from \'farmhouse tablecloth\' in 30 days) replaces reception (no orders)", the replaced word struck "replaced by farmhouse (no orders)", and the data line "📈 Proven in our ads: … 30 days"',
-      /<ins class="kf-add">\+ farmhouse<\/ins> <span class="muted">\(PPC: 14 orders from 'farmhouse tablecloth' in 30 days\)<\/span> <span class="kf-repl">replaces reception \(no orders\)<\/span>/.test(html)
-      && /<s class="kf-cut" title="replaced by farmhouse \(no orders\)">reception<\/s>/.test(html)
+    // the over-limit tablecloth: the proven words take the room of its own words with no orders — "farmhouse" replaces "buffet, banquet"
+    ok('preview: "+ farmhouse (PPC: 14 orders from \'farmhouse tablecloth\' in 30 days) replaces buffet, banquet (no orders)", the replaced word struck "replaced by farmhouse (no orders)", and the data line "📈 Proven in our ads: … 30 days"',
+      /<ins class="kf-add">\+ farmhouse<\/ins> <span class="muted">\(PPC: 14 orders from 'farmhouse tablecloth' in 30 days\)<\/span> <span class="kf-repl">replaces buffet, banquet \(no orders\)<\/span>/.test(html)
+      && /<s class="kf-cut" title="replaced by farmhouse \(no orders\)">banquet<\/s>/.test(html)
       && /📈 Proven in our ads: Sponsored Products search terms, 30 days up to 25 Nov 2026 \(nightly\)/.test(strip(html)), (html.match(/kf-adds[\s\S]{0,500}/) || [''])[0] + strip(html).slice(0, 300));
     P.kfClick({ dataset: { kf: 'cancel' } });
     // the panel's tab
@@ -400,7 +401,7 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     let over = 'napkins sage green cotton gift for her washable';
     for (let i = 0; bytes(over) < 252; i++) over += ' q' + String.fromCharCode(97 + (i % 26)) + String.fromCharCode(97 + Math.floor(i / 26));
     const d = kw(over);
-    ok('"gift for her" over the limit: gift (low value), for (low value), her (leftover) — the protected words stay', /^napkins sage green cotton washable/.test(d.after) && ['gift:low-value word', 'for:stop word', 'her:leftover'].every(x => d.removed.map(r => r.w + ':' + r.why).includes(x)) && fits(d.after), JSON.stringify(d.removed.slice(0, 5)));
+    ok('"gift for her": gift (low value — always, since 1 Dec 2026), then for and her (leftovers: the word before them went) — the protected words stay', /^napkins sage green cotton washable/.test(d.after) && ['gift:low-value word', 'for:leftover', 'her:leftover'].every(x => d.removed.map(r => r.w + ':' + r.why).includes(x)) && fits(d.after), JSON.stringify(d.removed.slice(0, 5)));
     const e = L.lrSuggestWords('napkins etopia style dinner', { mode: 'kw', facts: nf, title: N1.title, brands: ['cpc'], others: ['Etopia'], risk: t => [{ s: t.indexOf('etopia'), e: t.indexOf('etopia') + 6, why: "risky: another brand's name" }], riskOnly: true });
     ok('…never in "risky words only" (the Guard\'s fix: only the risky words go)', !e.removed.some(x => x.why === 'leftover'));
     // added words must match the product
