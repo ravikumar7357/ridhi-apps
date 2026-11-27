@@ -69760,9 +69760,9 @@ $('ptDlgBody').addEventListener('change', e => {
  *   quiet, with a console line — the switch (storage blocked: off), noting the figure after the Shopify tab reads orders, and
  *   reading it when a packing screen opens or the store list refreshes (every save reads it again, loudly).
  *
- * BEHIND SWITCH shopHold, OFF everywhere, test links too (a device with it on writes live data): localStorage shopHold = '1'
- * turns it on for one computer, '0' off. The way back is that same '0'. */
-const SHP_HOLD_DEFAULT = false;
+ * BEHIND SWITCH shopHold. On by itself on the test website only (asked 27 Nov; saving is off there), OFF everywhere else,
+ * branch test links too (a device with it on there writes live data). localStorage shopHold = '1' turns it on for one
+ * computer, '0' off. The way back is that same '0'. */
 const SHP_HOLD_PATH = 'pt_fgiSettings/_shopHold';
 const SHP_HOLD_STORES = ['SP', 'CPC'];
 const SHP_HOLD_MAX_AGE_MS = 6 * 60 * 60 * 1000;   // older than this, FBA is refused
@@ -69770,11 +69770,12 @@ const SHP_HOLD_CLOCK_SLACK_MS = 10 * 60 * 1000;   // noted further ahead than th
 const SHP_HOLD_REWRITE_MS = 60 * 60 * 1000;       // an unchanged figure is noted again after this, so it does not look old
 const SHP_HOLD_TRIES = 3;
 
-/** Is the hold on for this PC? localStorage wins ('1' on, '0' off), else the default. */
+/** Is the hold on for this PC? localStorage wins ('1' on, '0' off), else the default:
+ *  on for the test website, off elsewhere. */
 function shpHoldOn() {
   try { const v = localStorage.getItem('shopHold'); if (v === '1') return true; if (v === '0') return false; }
   catch (e) { console.warn('India store hold: this browser blocks saved settings, so the switch uses its default.'); }
-  return SHP_HOLD_DEFAULT;
+  return typeof window !== 'undefined' && !!window.__TEST_ERP;
 }
 
 /* ---- the need of one store ---- */

@@ -9,8 +9,9 @@ const FORM = 'inventory/fg-other-movements.js', SCAN = 'inventory/fg-scanning.js
   CORE = 'replenishment/pack-core.js', PHONE = 'replenishment/pack-scan.js', DESK = 'inventory/pack-verify.js', LIST = 'inventory/finished-goods.js',
   DEL = 'inventory/fg-change-remove.js', UNDO = 'inventory/fba-ship-excel.js';
 const breaks = {
-  'on by default': [H, 'const SHP_HOLD_DEFAULT = false;', 'const SHP_HOLD_DEFAULT = true;'],
   'sets are not turned into pieces': [H, 'fgiNum(c.sets) * fgiNum(c.perSet)', 'fgiNum(c.sets)'],
+  'on for everybody': [H, "return typeof window !== 'undefined' && !!window.__TEST_ERP;", 'return true;'],
+  'off on the test website': [H, "return typeof window !== 'undefined' && !!window.__TEST_ERP;", 'return false;'],
   'a reversed issue still counts': [H, ' || r.reversed === true) return;', ') return;'],
   'issued pieces are held twice': [H, 'const left = n.pieces - Math.round(issued.get(id) || 0);', 'const left = n.pieces;'],
   'one store is enough': [H, 'if (times.some(t => !t))', 'if (times.every(t => !t))'],
