@@ -871,7 +871,7 @@ function apcSideHtml(model) {
   if (!p) { APC.pd = ''; return ''; }
   const pd = p.pd, c = p.c;
   const head = `<div class="apc-side-h"><div class="apc-side-t"><b title="${fcEsc(c.title || '')}">${fcEsc((c.skus || [c.sku]).join(' / '))}</b><span>${fcEsc(String(c.title || '').slice(0, 140))}</span></div>`
-    + '<button type="button" class="apc-x" data-apc="pdclose" aria-label="Close">×</button></div>';
+    + '<button type="button" class="apc-x" data-apc="pdclose" aria-label="Close" title="Close (Esc)">×</button></div>';
   // (4 Dec 2026) the panel shows the live read only: reading → "Reading from Amazon…"; failed → "Couldn't read from Amazon — try again" (no ❌)
   const lv = APC.pdLive.get(c.brand + '|' + c.sku) || { st: 'reading' };
   const sum = lv.st === 'reading' ? '<span class="apc-pdmsg" role="status">Reading from Amazon…</span>'
@@ -885,7 +885,8 @@ function apcSideHtml(model) {
     + '</tbody></table></section>').join('') : '';
   const at = live && pd.at ? new Date(pd.at) : null;
   const foot = live ? `<p class="muted apc-side-f">Read live from Amazon${at ? ' at ' + fcEsc(at.toTimeString().slice(0, 5)) : ''} (kept for this session)${pd.pt ? ' · product type ' + fcEsc(pd.pt) : ''}. ❌ = our listing has no value. Counted: the attributes ticked in ⚙ A+ standard that exist for this product type; "Other" is shown, not counted. <button type="button" class="linkbtn" data-apc="pdread" data-apc-v="${fcEsc(p.key)}">Read again</button></p>` : '';
-  return `<aside class="apc-side" role="dialog" aria-label="Product details of ${fcEsc(c.sku)}">${head}${acts}<div class="apc-side-b">${secs}${foot}</div></aside>`;
+  // (5 Dec 2026) the header (✕ in its top-right corner) is sticky: it stays in view while the rows scroll
+  return `<aside class="apc-side" role="dialog" aria-label="Product details of ${fcEsc(c.sku)}"><div class="apc-side-top">${head}${acts}</div><div class="apc-side-b">${secs}${foot}</div></aside>`;
 }
 function apcSideDraw() {
   const box = typeof $ === 'function' ? $('apcSide') : null;
@@ -894,6 +895,17 @@ function apcSideDraw() {
 /** Esc closes the panel (a key the page passes here). */
 function apcKey(e) {
   if (!APC.pd || !e || e.key !== 'Escape') return false;
+  if (typeof sqIsOpen === 'function' && sqIsOpen()) return false;
+  APC.pd = '';
+  apcSideDraw();
+  return true;
+}
+/** A click outside the panel closes it (5 Dec 2026) — not a click inside it, not on a Product details cell (that opens another), not on a
+ *  part the page has just redrawn (no longer in the page), not while a send popup is open. */
+function apcOutside(e) {
+  const t = e && e.target;
+  if (!APC.pd || !t || !t.closest || t.isConnected === false) return false;
+  if (t.closest('.apc-side') || t.closest('[data-apc="pd"]') || t.closest('[data-apc="pdread"]')) return false;
   if (typeof sqIsOpen === 'function' && sqIsOpen()) return false;
   APC.pd = '';
   apcSideDraw();
@@ -1318,6 +1330,7 @@ if (typeof document !== 'undefined' && document.addEventListener && $('apcPane')
     if (el && !el.disabled && !(el.tagName === 'TR' && e.target.closest('a,button,input'))) apcClick(el);
   });
   document.addEventListener('keydown', e => { if (apcPaneOn() && apcKey(e)) e.preventDefault(); });   // Esc closes the panel
+  document.addEventListener('click', e => { if (apcPaneOn()) apcOutside(e); });                     // …and a click outside it (5 Dec 2026)
   $('apcPane').addEventListener('keydown', e => {
     const t = e.target && e.target.dataset ? e.target : null;
     if (t && (e.key === 'Enter' || e.key === ' ') && t.dataset.apc === 'grp' && t.tagName !== 'BUTTON') { e.preventDefault(); apcClick(t); }

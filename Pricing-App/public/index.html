@@ -4299,12 +4299,16 @@
   #paneAplus .apc-pdb.is-g{color:var(--muted)}
   #paneAplus .apc-side{position:fixed;top:var(--ls-top,0px);right:0;bottom:0;z-index:50;display:flex;flex-direction:column;width:min(520px,100vw);margin:8px;
     max-height:calc(100vh - var(--ls-top,0px) - 16px);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-2);animation:ls-panel-in .22s cubic-bezier(.2,.7,.2,1) both}
+  /* (5 Dec 2026) the header stays in view (sticky) — the ✕ in its top-right corner, the Workspace panel's ✕ */
+  #paneAplus .apc-side-top{position:sticky;top:0;z-index:2;flex:none;background:var(--card);border-radius:16px 16px 0 0}
   #paneAplus .apc-side-h{display:flex;align-items:flex-start;gap:10px;padding:14px 16px 8px}
   #paneAplus .apc-side-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
   #paneAplus .apc-side-t b{font-size:14px;overflow-wrap:anywhere}
   #paneAplus .apc-side-t span{font-size:12.5px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere}
-  #paneAplus .apc-x{flex:0 0 30px;width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--card);color:var(--ink);font-size:18px;line-height:1;cursor:pointer}
-  #paneAplus .apc-x:hover{background:var(--soft)}
+  #paneAplus .apc-x{flex:none;display:grid;place-items:center;width:30px;height:30px;margin:0 0 0 auto;padding:0;border:0;border-radius:50%;background:var(--hover);
+    color:var(--muted);font-size:18px;line-height:1;box-shadow:none;cursor:pointer}
+  #paneAplus .apc-x:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
+  #paneAplus .apc-x:focus-visible{outline:none;box-shadow:var(--ring)}
   #paneAplus .apc-side-a{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:0 16px 10px;border-bottom:1px solid var(--line)}
   #paneAplus .apc-side-a .fc-b{margin:0}
   #paneAplus .apc-pds{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12.5px;background:var(--soft)}
@@ -37894,7 +37898,7 @@ function apcSideHtml(model) {
   if (!p) { APC.pd = ''; return ''; }
   const pd = p.pd, c = p.c;
   const head = `<div class="apc-side-h"><div class="apc-side-t"><b title="${fcEsc(c.title || '')}">${fcEsc((c.skus || [c.sku]).join(' / '))}</b><span>${fcEsc(String(c.title || '').slice(0, 140))}</span></div>`
-    + '<button type="button" class="apc-x" data-apc="pdclose" aria-label="Close">×</button></div>';
+    + '<button type="button" class="apc-x" data-apc="pdclose" aria-label="Close" title="Close (Esc)">×</button></div>';
   // (4 Dec 2026) the panel shows the live read only: reading → "Reading from Amazon…"; failed → "Couldn't read from Amazon — try again" (no ❌)
   const lv = APC.pdLive.get(c.brand + '|' + c.sku) || { st: 'reading' };
   const sum = lv.st === 'reading' ? '<span class="apc-pdmsg" role="status">Reading from Amazon…</span>'
@@ -37908,7 +37912,8 @@ function apcSideHtml(model) {
     + '</tbody></table></section>').join('') : '';
   const at = live && pd.at ? new Date(pd.at) : null;
   const foot = live ? `<p class="muted apc-side-f">Read live from Amazon${at ? ' at ' + fcEsc(at.toTimeString().slice(0, 5)) : ''} (kept for this session)${pd.pt ? ' · product type ' + fcEsc(pd.pt) : ''}. ❌ = our listing has no value. Counted: the attributes ticked in ⚙ A+ standard that exist for this product type; "Other" is shown, not counted. <button type="button" class="linkbtn" data-apc="pdread" data-apc-v="${fcEsc(p.key)}">Read again</button></p>` : '';
-  return `<aside class="apc-side" role="dialog" aria-label="Product details of ${fcEsc(c.sku)}">${head}${acts}<div class="apc-side-b">${secs}${foot}</div></aside>`;
+  // (5 Dec 2026) the header (✕ in its top-right corner) is sticky: it stays in view while the rows scroll
+  return `<aside class="apc-side" role="dialog" aria-label="Product details of ${fcEsc(c.sku)}"><div class="apc-side-top">${head}${acts}</div><div class="apc-side-b">${secs}${foot}</div></aside>`;
 }
 function apcSideDraw() {
   const box = typeof $ === 'function' ? $('apcSide') : null;
@@ -37917,6 +37922,17 @@ function apcSideDraw() {
 /** Esc closes the panel (a key the page passes here). */
 function apcKey(e) {
   if (!APC.pd || !e || e.key !== 'Escape') return false;
+  if (typeof sqIsOpen === 'function' && sqIsOpen()) return false;
+  APC.pd = '';
+  apcSideDraw();
+  return true;
+}
+/** A click outside the panel closes it (5 Dec 2026) — not a click inside it, not on a Product details cell (that opens another), not on a
+ *  part the page has just redrawn (no longer in the page), not while a send popup is open. */
+function apcOutside(e) {
+  const t = e && e.target;
+  if (!APC.pd || !t || !t.closest || t.isConnected === false) return false;
+  if (t.closest('.apc-side') || t.closest('[data-apc="pd"]') || t.closest('[data-apc="pdread"]')) return false;
   if (typeof sqIsOpen === 'function' && sqIsOpen()) return false;
   APC.pd = '';
   apcSideDraw();
@@ -38341,6 +38357,7 @@ if (typeof document !== 'undefined' && document.addEventListener && $('apcPane')
     if (el && !el.disabled && !(el.tagName === 'TR' && e.target.closest('a,button,input'))) apcClick(el);
   });
   document.addEventListener('keydown', e => { if (apcPaneOn() && apcKey(e)) e.preventDefault(); });   // Esc closes the panel
+  document.addEventListener('click', e => { if (apcPaneOn()) apcOutside(e); });                     // …and a click outside it (5 Dec 2026)
   $('apcPane').addEventListener('keydown', e => {
     const t = e.target && e.target.dataset ? e.target : null;
     if (t && (e.key === 'Enter' || e.key === ' ') && t.dataset.apc === 'grp' && t.tagName !== 'BUTTON') { e.preventDefault(); apcClick(t); }

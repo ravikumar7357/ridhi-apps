@@ -135,7 +135,7 @@ function setup(opts) {
   const src = L('listing-match.js') + '\n' + L('family-check.js') + '\n' + L('aplus-audit.js')
     + '\n;return { APC, FC, apcBuild, apcGroups, apcDraw, apcOpen, apcClick, apcFilter, apcCsv, apcDocsCsv, apcDocs, apcShownRows, apcFixList, apcSummary, apcOkSetMany, apcOkUndo, apcPreview, apcWhat, apcRowView,'
     + ' aplusCounts, aplusAccuracyReport, APC_CSV_COLS, APC_DOC_COLS, APC_ST, LM, lmEnsure, lmRefresh, lmStoreUse, lmOk, lmGetAplus, lmAplusDocs, lmAplusState, lmAplusOf, lmAplusFresh, lmVersion, lmDataLabel,'
-    + ' apcReadMods, apcStdSave, apcModsOf, apcVsStd, apcFlatList, apcModsDailyLoad, lmAplusMods, lmAplusModsRead, apcPd, apcKey, apcSideHtml, APC_PD_ROWS, APC_PD_ALL, apcPdVal };';
+    + ' apcReadMods, apcStdSave, apcModsOf, apcVsStd, apcFlatList, apcModsDailyLoad, lmAplusMods, lmAplusModsRead, apcPd, apcKey, apcSideHtml, APC_PD_ROWS, APC_PD_ALL, apcPdVal, apcOutside };';
   const C = new Function(...Object.keys(ctx), src)(...Object.values(ctx));
   const saved = { copy: opts.savedCopy || null, puts: 0 };
   C.lmStoreUse({ get: async () => saved.copy, put: async c => { saved.copy = JSON.parse(JSON.stringify(c)); saved.puts++; return true; } });
@@ -621,7 +621,7 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
       main_product_image_locator: [{ media_location: 'https://m.media-amazon.com/images/I/x.jpg', marketplace_id: MK }], child_parent_sku_relationship: [{ parent_sku: 'TC-P', child_relationship_type: 'variation', marketplace_id: MK }] });
     const tc2 = fullAttrs(); delete tc2.theme;                                                      // TC-2: everything but its theme
     const np1 = fullAttrs(); delete np1.theme; delete np1.item_shape; delete np1.fabric_type; np1.theme = v('Rustic');   // NAPKIN: no shape / fabric type
-    const listing = { 'TC-2': { productType: 'HOME', attributes: tc2 }, 'NP-1': { productType: 'NAPKIN', attributes: np1 }, 'NP-2': 'fail' };
+    const listing = { 'TC-1': { productType: 'HOME', attributes: Object.assign(fullAttrs(), { theme: v('Floral') }) }, 'TC-2': { productType: 'HOME', attributes: tc2 }, 'NP-1': { productType: 'NAPKIN', attributes: np1 }, 'NP-2': 'fail' };
     const docAnswer = q => ({ ok: true, key: q.doc, name: q.doc, status: 'APPROVED', type: 'Basic', subType: q.doc === 'D-PAR' ? 'BRAND_STORY' : '', contentType: 'EBC',
       modules: (MODS[q.doc] || [H_]).map(type => ({ type, texts: [], imgs: [] })), readAt: Date.now(), asins: [] });
     const M = await open({ pd, schema, docAnswer, listing });
@@ -708,10 +708,26 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     ok('PER PRODUCT TYPE: NP-1 (NAPKIN) — its item shape and fabric type "not for this product type", not counted: "✅ 18 of 18 filled"', /<th scope="row">Item shape<\/th><td><span class="fc-none">—<\/span><\/td><td><span class="fc-none">not for this product type<\/span>/.test(M.els.apcSide.innerHTML)
       && /✅ 18 of 18 filled/.test(strip(M.els.apcSide.innerHTML)) && /product type NAPKIN/.test(strip(M.els.apcSide.innerHTML)) && /<th scope="row">Theme<\/th><td>Rustic<\/td>/.test(M.els.apcSide.innerHTML), strip(M.els.apcSide.innerHTML).slice(0, 160));
     ok('Esc closes the panel (another key does not)', !M.C.apcKey({ key: 'a' }) && M.els.apcSide.innerHTML !== '' && M.C.apcKey({ key: 'Escape' }) === true && M.els.apcSide.innerHTML === '' && M.C.APC.pd === '' && !M.C.apcKey({ key: 'Escape' }));
+    // (5 Dec 2026) ✕ always in view, and a click outside closes it
+    const X = '<button type="button" class="apc-x" data-apc="pdclose" aria-label="Close" title="Close (Esc)">×</button>';
+    const opening = M.click({ apc: 'pd', apcV: p('TC-1').key });
+    const whileReading = M.els.apcSide.innerHTML;
+    await opening;
+    const xHead = h => new RegExp('^<aside class="apc-side"[^>]*><div class="apc-side-top"><div class="apc-side-h">[^]*?' + X.replace(/[()]/g, '\\$&') + '</div><div class="apc-side-a">').test(h);
+    ok('✕ CLOSE in the top-right corner of the panel\'s header — aria-label "Close" — while reading and once read', xHead(whileReading) && xHead(M.els.apcSide.innerHTML) && /Reading from Amazon…/.test(whileReading), whileReading.slice(0, 400));
+    ok('…the header is sticky (stays in view while the rows scroll); the ✕ has the Workspace panel\'s look; nothing hides it on the phone sheet', /#paneAplus \.apc-side-top\{position:sticky;top:0;z-index:2;flex:none;background:var\(--card\)/.test(css)
+      && /#paneAplus \.apc-x\{flex:none;display:grid;place-items:center;width:30px;height:30px;margin:0 0 0 auto;padding:0;border:0;border-radius:50%;background:var\(--hover\);\s*color:var\(--muted\)/.test(css)
+      && /#paneAplus \.apc-side-b\{flex:1;min-height:0;overflow:auto/.test(css) && !/apc-x[^{]*\{[^}]*display:none/.test(css) && !/apc-side-top[^{]*\{[^}]*display:none/.test(css));
+    M.click({ apc: 'pdclose' });
+    ok('…a click on ✕ closes it', M.els.apcSide.innerHTML === '' && M.C.APC.pd === '');
+    await M.click({ apc: 'pd', apcV: p('TC-1').key });
+    const tgt = (hit, connected) => ({ target: { isConnected: connected !== false, closest: q => (q === hit ? {} : null) } });
+    ok('A CLICK OUTSIDE closes it; a click inside it, on a Product details cell (that opens another) or on a part just redrawn does not', !M.C.apcOutside(tgt('.apc-side')) && !M.C.apcOutside(tgt('[data-apc="pd"]')) && !M.C.apcOutside(tgt('[data-apc="pdread"]'))
+      && !M.C.apcOutside(tgt('', false)) && M.els.apcSide.innerHTML !== '' && M.C.apcOutside(tgt('')) === true && M.els.apcSide.innerHTML === '' && M.C.APC.pd === '' && !M.C.apcOutside(tgt('')));
     // a failed read: a message and Try again — never ❌
     const before2 = pdCell('NP-2');
     await M.click({ apc: 'pd', apcV: p('NP-2').key });
-    ok('READ FAILS: "Couldn\'t read from Amazon — try again"; no row and no ❌ in the panel; the table badge stays the cache\'s', /Couldn't read from Amazon — try again/.test(strip(M.els.apcSide.innerHTML)) && /data-apc="pdread"/.test(M.els.apcSide.innerHTML)
+    ok('READ FAILS: "Couldn\'t read from Amazon — try again"; no row and no ❌ in the panel (its ✕ still there); the table badge stays the cache\'s', /Couldn't read from Amazon — try again/.test(strip(M.els.apcSide.innerHTML)) && M.els.apcSide.innerHTML.includes(X) && /data-apc="pdread"/.test(M.els.apcSide.innerHTML)
       && !/❌|apc-pdsec|filled/.test(M.els.apcSide.innerHTML) && pdCell('NP-2') === before2 && /Amazon answered 503/.test(M.els.apcSide.innerHTML), strip(M.els.apcSide.innerHTML));
     M.net.listing['NP-2'] = { productType: 'HOME', attributes: Object.assign(fullAttrs(), { theme: v('Rustic') }) };
     M.calls.length = 0;

@@ -4274,12 +4274,16 @@
   #paneAplus .apc-pdb.is-g{color:var(--muted)}
   #paneAplus .apc-side{position:fixed;top:var(--ls-top,0px);right:0;bottom:0;z-index:50;display:flex;flex-direction:column;width:min(520px,100vw);margin:8px;
     max-height:calc(100vh - var(--ls-top,0px) - 16px);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-2);animation:ls-panel-in .22s cubic-bezier(.2,.7,.2,1) both}
+  /* (5 Dec 2026) the header stays in view (sticky) — the ✕ in its top-right corner, the Workspace panel's ✕ */
+  #paneAplus .apc-side-top{position:sticky;top:0;z-index:2;flex:none;background:var(--card);border-radius:16px 16px 0 0}
   #paneAplus .apc-side-h{display:flex;align-items:flex-start;gap:10px;padding:14px 16px 8px}
   #paneAplus .apc-side-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
   #paneAplus .apc-side-t b{font-size:14px;overflow-wrap:anywhere}
   #paneAplus .apc-side-t span{font-size:12.5px;color:var(--muted);line-height:1.4;overflow-wrap:anywhere}
-  #paneAplus .apc-x{flex:0 0 30px;width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--card);color:var(--ink);font-size:18px;line-height:1;cursor:pointer}
-  #paneAplus .apc-x:hover{background:var(--soft)}
+  #paneAplus .apc-x{flex:none;display:grid;place-items:center;width:30px;height:30px;margin:0 0 0 auto;padding:0;border:0;border-radius:50%;background:var(--hover);
+    color:var(--muted);font-size:18px;line-height:1;box-shadow:none;cursor:pointer}
+  #paneAplus .apc-x:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
+  #paneAplus .apc-x:focus-visible{outline:none;box-shadow:var(--ring)}
   #paneAplus .apc-side-a{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:0 16px 10px;border-bottom:1px solid var(--line)}
   #paneAplus .apc-side-a .fc-b{margin:0}
   #paneAplus .apc-pds{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12.5px;background:var(--soft)}
