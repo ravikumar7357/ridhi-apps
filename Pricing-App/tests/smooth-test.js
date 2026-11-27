@@ -177,7 +177,24 @@ console.log('== no new calls ==');
   // only its own shared /history documents (fixwatch, fixstatus, fixsc = the Seller Central records, fixseen_<user> = seen marks + open arrows)
   // kw-win.js (winning keywords, 27–28 Nov 2026) is set aside too: its backend calls are READS of the nightly caches (?cache=…, one
   // baCall, kept per visit) — never Amazon; its database calls are only its own uploads (history/kwwin_*, history/kwsqp_*)
-  const mine = changed.filter(f => f !== 'listing-ai.js' && f !== 'fix-status.js' && f !== 'kw-win.js');
+  // aplus-audit.js and listing-match.js (A+ modules + description, 2 Dec 2026) are set aside too, each with its own check below: their new
+  // calls are READS of Amazon a person starts ("Read modules now" = ?lh=aplusdoc, the read Preview A+ makes), the team's A+ standard
+  // (listingrules/aplusstd, lsGet / lsSave like the marks) and one more cache read (?cache=lmAplus_Mods_<brand>)
+  const mine = changed.filter(f => f !== 'listing-ai.js' && f !== 'fix-status.js' && f !== 'kw-win.js' && f !== 'aplus-audit.js' && f !== 'listing-match.js');
+  const now2 = f => fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8');
+  const count = (s, re) => (s.match(re) || []).length;
+  if (old['aplus-audit.js'] !== undefined && changed.includes('aplus-audit.js')) {
+    const a0 = old['aplus-audit.js'], a1 = now2('aplus-audit.js');
+    ok('aplus-audit.js: its new calls are one read-only A+ document read ("Read modules now") and the A+ standard (lsGet / lsSave) — no Amazon change',
+      count(a1, /baCall\(\{ lh: 'aplusdoc'/g) - count(a0, /baCall\(\{ lh: 'aplusdoc'/g) <= 1 && count(a1, /\blsGet\(/g) - count(a0, /\blsGet\(/g) <= 1 && count(a1, /\blsSave\(/g) - count(a0, /\blsSave\(/g) <= 1
+      && count(a1, /\b(baCall|lmNet|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g) - count(a0, /\b(baCall|lmNet|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g) <= 3
+      && !/lfix|lcreate|imPost\(|setDoc\(|sqSendWithCheck\(/.test(a1));
+  }
+  if (old['listing-match.js'] !== undefined && changed.includes('listing-match.js')) {
+    const l0 = old['listing-match.js'], l1 = now2('listing-match.js');
+    ok('listing-match.js: its one new call is a cache read of the daily A+ module tab (?cache=lmAplus_Mods_<brand>)', count(l1, /\blmNet\(/g) - count(l0, /\blmNet\(/g) === 1
+      && /lmNet\(\{ cache: 'lmAplus_Mods_' \+ b \}\)/.test(l1) && count(l1, /\b(baCall|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g) === count(l0, /\b(baCall|imPost|fetch|getDoc|getDocs|setDoc|lsGet|lsSave)\(/g));
+  }
   if (old['kw-win.js'] !== undefined) {
     const kw = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'kw-win.js'), 'utf8');
     const ba = [...kw.matchAll(/\bbaCall\(([^)]*)\)/g)].map(m => m[1]);

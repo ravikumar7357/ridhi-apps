@@ -4256,6 +4256,27 @@
   #paneAplus .apc-mod p{margin:2px 0 0;font-size:12px;line-height:1.4;color:var(--ink);overflow-wrap:anywhere}
   #paneAplus .apc-skel{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line)}
   #paneAplus .apc-skel:first-child{border-top:0}
+  /* (2 Dec 2026) modules + description: the Live bar's second line, the Modules / Description cells, the red "no A+ and no description"
+     row, the family's average, the document's modules line, the ⚙ A+ standard box. Theme colours only. */
+  #paneAplus .apc-cov2{margin:2px 0 4px;font-size:12.5px;color:var(--ink)}
+  #paneAplus .apc-mc{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11.5px;font-weight:600;line-height:1.4}
+  #paneAplus .apc-mc.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  #paneAplus .apc-mc.is-y{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneAplus .apc-avg{margin-left:8px;font-size:12px;color:var(--muted);white-space:nowrap}
+  #paneAplus td.apc-modc,#paneAplus td.apc-descc{white-space:normal;min-width:130px;max-width:220px;font-size:12px}
+  #paneAplus .apc-dsc summary{cursor:pointer;white-space:nowrap}
+  #paneAplus .apc-dsc.is-r{color:var(--bad-ink);font-weight:600}
+  #paneAplus .apc-dsc.is-y summary{color:var(--rev-ink)}
+  #paneAplus .apc-dsct{max-width:420px;max-height:220px;overflow:auto;margin-top:4px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--soft);
+    font-size:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+  #paneAplus tr.apc-nodesc>td{background:var(--bad-bg)}
+  #paneAplus .apc-dmod{font-size:12.5px;margin:2px 0;overflow-wrap:anywhere}
+  #paneAplus .apc-set{display:flex;flex-direction:column;gap:8px;margin:12px 0 0;padding:12px 14px;font-size:13px}
+  #paneAplus .apc-setr{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+  #paneAplus .apc-setk{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  #paneAplus .apc-setk input[type=number]{width:64px}
+  #paneAplus .apc-setk input[type=checkbox]{width:16px;height:16px;margin:0;accent-color:var(--brand)}
+  #paneAplus .apc-setr .fc-b{margin:0}
   @media (max-width:860px){#paneAplus .apc-tb{position:static}#paneAplus .apc-risk{padding-left:0;border-left:0}#paneAplus .apc-docs{grid-template-columns:1fr}}
   /* ----- IP & Trademark Guard (listing/ip-guard.js): the Family-check look above, plus its own summary, finding blocks and word cards. Theme colours only. ----- */
   #paneIpg .ipg-tb{position:sticky;top:var(--ipg-top,0px);z-index:6;box-shadow:var(--sh-1)}

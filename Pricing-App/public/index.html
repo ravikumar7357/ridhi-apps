@@ -4281,6 +4281,27 @@
   #paneAplus .apc-mod p{margin:2px 0 0;font-size:12px;line-height:1.4;color:var(--ink);overflow-wrap:anywhere}
   #paneAplus .apc-skel{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--line)}
   #paneAplus .apc-skel:first-child{border-top:0}
+  /* (2 Dec 2026) modules + description: the Live bar's second line, the Modules / Description cells, the red "no A+ and no description"
+     row, the family's average, the document's modules line, the ⚙ A+ standard box. Theme colours only. */
+  #paneAplus .apc-cov2{margin:2px 0 4px;font-size:12.5px;color:var(--ink)}
+  #paneAplus .apc-mc{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11.5px;font-weight:600;line-height:1.4}
+  #paneAplus .apc-mc.is-ok{background:var(--accent-bg);color:var(--accent-ink)}
+  #paneAplus .apc-mc.is-y{background:var(--rev-bg);color:var(--rev-ink)}
+  #paneAplus .apc-avg{margin-left:8px;font-size:12px;color:var(--muted);white-space:nowrap}
+  #paneAplus td.apc-modc,#paneAplus td.apc-descc{white-space:normal;min-width:130px;max-width:220px;font-size:12px}
+  #paneAplus .apc-dsc summary{cursor:pointer;white-space:nowrap}
+  #paneAplus .apc-dsc.is-r{color:var(--bad-ink);font-weight:600}
+  #paneAplus .apc-dsc.is-y summary{color:var(--rev-ink)}
+  #paneAplus .apc-dsct{max-width:420px;max-height:220px;overflow:auto;margin-top:4px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--soft);
+    font-size:12px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+  #paneAplus tr.apc-nodesc>td{background:var(--bad-bg)}
+  #paneAplus .apc-dmod{font-size:12.5px;margin:2px 0;overflow-wrap:anywhere}
+  #paneAplus .apc-set{display:flex;flex-direction:column;gap:8px;margin:12px 0 0;padding:12px 14px;font-size:13px}
+  #paneAplus .apc-setr{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+  #paneAplus .apc-setk{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  #paneAplus .apc-setk input[type=number]{width:64px}
+  #paneAplus .apc-setk input[type=checkbox]{width:16px;height:16px;margin:0;accent-color:var(--brand)}
+  #paneAplus .apc-setr .fc-b{margin:0}
   @media (max-width:860px){#paneAplus .apc-tb{position:static}#paneAplus .apc-risk{padding-left:0;border-left:0}#paneAplus .apc-docs{grid-template-columns:1fr}}
   /* ----- IP & Trademark Guard (listing/ip-guard.js): the Family-check look above, plus its own summary, finding blocks and word cards. Theme colours only. ----- */
   #paneIpg .ipg-tb{position:sticky;top:var(--ipg-top,0px);z-index:6;box-shadow:var(--sh-1)}
@@ -19235,6 +19256,21 @@ function lmAplusState(brand) {
 function lmAplusDocs(brand) {
   return (brand ? [brand] : ['SP', 'CPC']).flatMap(b => (LM.aplus[b] ? [...LM.aplus[b].docs.values()] : []));
 }
+/* (2 Dec 2026) A+ MODULES — the backend's daily read of each document's modules (Pricing-API/AplusModules.gs → cache tab
+ * lmAplus_Mods_<brand>, once it is deployed): per brand { at, atText, docs: { key → { n, ty (Amazon's module types), sub, ct, at } } },
+ * or null while it is not written — the A+ Content screen then says "not read yet" (or uses its own "Read modules now"). Read-only. */
+const LM_APLUS_MODS = { SP: null, CPC: null };
+async function lmAplusModsRead() {
+  await Promise.all(['SP', 'CPC'].map(async b => {
+    try {
+      const r = await lmNet({ cache: 'lmAplus_Mods_' + b });
+      const d = r && r.data;
+      if (d && d.docs) LM_APLUS_MODS[b] = { at: Number(d.atMs) || lmTime(d.at) || 0, atText: String(d.at || ''), docs: d.docs };
+    } catch (e) { /* not written yet */ }
+  }));
+  return LM_APLUS_MODS;
+}
+const lmAplusMods = brand => LM_APLUS_MODS[brand] || null;
 const LM_APLUS_RANK = { APPROVED: 4, SUBMITTED: 3, REJECTED: 2, DRAFT: 1 };
 /** One ASIN's A+ as Amazon's documents say: null when no A+ read is held for the brand (not checked). Else { docs (every document on the
  *  ASIN — or, when it has none of its own, on its parent ASIN), via ('asin' | 'parent' | ''), main (the one that counts: approved before
@@ -36982,6 +37018,18 @@ if (typeof document !== 'undefined' && document.addEventListener && $('fcPane'))
  *       and ours it covers through their parent); the other ASINs it lists (parents, closed listings, ASINs not in our cache) are a muted
  *       line of their own, "+ X other ASINs (…)", opened to the list. Conversion is shown only with 30+ products AND 300+ sessions a side;
  *       sales pulled more than 7 days ago get an amber "old" warning.
+ * MODULES + DESCRIPTION (2 Dec 2026, the MD task — ADDED; every status, box, chip and view above is as it was):
+ *   MODULES of each document (Amazon's getContentDocument → contentModuleList, the read Preview A+ uses): the daily backend read
+ *       (Pricing-API/AplusModules.gs, read by listing-match.js lmAplusMods — once deployed) and, until then, "Read modules now" (one read-only
+ *       ?lh=aplusdoc per document, kept in this browser). The newer of the two counts; a document never read says "not read yet".
+ *       Per product (its product A+ document) and per document: the count, the types, Basic / Premium, against the team's standard
+ *       (⚙ A+ standard, shared in listingrules/aplusstd; default 5 modules incl. a header image and a comparison chart): "2 of 5 ·
+ *       missing: comparison chart, 2 more modules" or "5 of 5 · complete". BRAND STORY documents (Amazon's sub-type or module type says
+ *       so — never guessed from a name) are not product A+: "Only Brand Story — no product A+" (amber), counted apart; the Live bar's
+ *       second line "with product A+: X of Y". Chips "Weak A+" (fewer modules than the standard) and "Only Brand Story", biggest sellers
+ *       first. DESCRIPTION: the listing's product_description (the listing cache, up to 2,000 characters): ✅ N characters / ⚠️ short
+ *       (< 200) / ❌ missing — click to read it; a product with no A+ live and no description is red, chip "No A+ and no description".
+ *       All in the two CSVs. Nothing is sent to Amazon; no A+ is changed.
  * Console: aplusCounts() — per brand, each status, the sales without A+, and the documents' ASINs: ours and others apart; aplusAccuracyReport() — 10 products per status per brand
  *       against Amazon's A+ API now (publish records + the document's own status): MATCH / DIFFERENT.
  * Main functions: apcBuild, apcGroups, apcDraw, apcWhat, apcOkSetMany, apcOkUndo, apcCsv, apcDocsCsv, apcPreview, aplusCounts,
@@ -37016,12 +37064,171 @@ const APC_ST = {
 const APC_CARDS = ['live', 'waiting', 'draft', 'rejected', 'missing', 'none'];
 const APC_FIX = ['missing', 'rejected', 'draft'];                         // "Fix first" and the sales at risk
 const APC_BAR = ['live', 'waiting', 'draft', 'rejected', 'missing', 'unchecked'];
-const APC_DOC_CHIPS = [['', 'All'], ['add', 'Has ASINs to add'], ['live', 'Live'], ['waiting', 'Waiting'], ['stuck', 'Stuck'], ['draft', 'Draft'], ['rejected', 'Rejected'], ['unused', 'Not on any live product']];
-const APC_COLS = 11;
+const APC_DOC_CHIPS = [['', 'All'], ['add', 'Has ASINs to add'], ['live', 'Live'], ['waiting', 'Waiting'], ['stuck', 'Stuck'], ['draft', 'Draft'], ['rejected', 'Rejected'], ['unused', 'Not on any live product'],
+  ['weak', 'Weak A+'], ['story', 'Brand Story']];                       // the last two: 2 Dec 2026 (modules)
+const APC_COLS = 13;                 // + Modules, Description (2 Dec 2026)
 let APC = { view: 'prod', brand: 'ALL', stock: true, f: '', q: '', open: new Set(), sel: new Set(), limit: APC_STEP, flat: APC_FLAT_STEP, docs: APC_DOC_STEP,
   ok: { SP: {}, CPC: {} }, okLoaded: false, okLoading: null, okV: 0, okNote: '',
   built: false, loaded: false, loading: false, err: '', model: null, order: null, orderKey: '',
   prev: new Map(), prevOpen: '', copied: '', io: null, qT: 0, sideV: 0, fam: null, stickT: 0, later: new Map(), laterV: 0, need: '' };
+
+/* ----- MODULES + DESCRIPTION (2 Dec 2026) — added on top; nothing above changes ----- */
+const APC_MOD_KEEP = 'sellora.aplusMods.v1';         // this browser's module reads ("Read modules now", Preview A+)
+const APC_STD_ID = 'aplusstd';                        // the team's standard (listingrules/aplusstd)
+const APC_STD_DEF = { n: 5, must: ['header', 'comparison'] };
+const APC_DESC_SHORT = 200;                           // characters: a description shorter than this is "short"
+const APC_MOD_FRESH = 86400000;                       // "Read modules now" reads again what is older than a day
+// Amazon's module types (A+ Content API contentModuleType) in plain words, and the kind each one counts as for the standard
+const APC_MOD_TYPES = { STANDARD_HEADER_IMAGE_TEXT: ['header image', 'header'], STANDARD_COMPANY_LOGO: ['logo', 'logo'], STANDARD_COMPARISON_TABLE: ['comparison chart', 'comparison'],
+  STANDARD_FOUR_IMAGE_TEXT: ['4 images + text', 'imagetext'], STANDARD_FOUR_IMAGE_TEXT_QUADRANT: ['4 images + text', 'imagetext'], STANDARD_IMAGE_SIDEBAR: ['single image + sidebar', 'imagetext'],
+  STANDARD_IMAGE_TEXT_OVERLAY: ['image + text overlay', 'imagetext'], STANDARD_MULTIPLE_IMAGE_TEXT: ['multiple images + text', 'imagetext'], STANDARD_PRODUCT_DESCRIPTION: ['text', 'text'],
+  STANDARD_SINGLE_IMAGE_HIGHLIGHTS: ['image + highlights', 'imagetext'], STANDARD_SINGLE_IMAGE_SPECS_DETAIL: ['image + specs', 'imagetext'], STANDARD_SINGLE_SIDE_IMAGE: ['image + text', 'imagetext'],
+  STANDARD_TECH_SPECS: ['tech specs', 'text'], STANDARD_TEXT: ['text', 'text'], STANDARD_THREE_IMAGE_TEXT: ['3 images + text', 'imagetext'] };
+const APC_KINDS = [['header', 'header image'], ['comparison', 'comparison chart'], ['imagetext', 'image + text'], ['text', 'text'], ['logo', 'logo']];
+const APC_KIND_NAME = Object.fromEntries(APC_KINDS);
+const APC_NOAPLUS = ['missing', 'rejected', 'draft', 'waiting'];    // no A+ live for the shopper (Not checked and No A+ needed are not judged)
+const APC_FLAT_F = ['fix', 'weak', 'story', 'nodesc'];              // chips shown as one list, the biggest sellers first
+const APC_DOC_RANK = { APPROVED: 4, SUBMITTED: 3, REJECTED: 2, DRAFT: 1 };
+Object.assign(APC, { mods: new Map(), modsLoaded: false, daily: { SP: null, CPC: null }, modV: 0, std: { n: APC_STD_DEF.n, must: APC_STD_DEF.must.slice() }, stdBy: null, stdV: 0,
+  stdDraft: null, setOpen: false, stdNote: '', modRead: null });
+/** One module type in words: { name, kind }. */
+function apcModType(t) {
+  const k = String(t || '').toUpperCase(), e = APC_MOD_TYPES[k];
+  if (e) return { name: e[0], kind: e[1] };
+  if (/BRAND.?STORY/.test(k)) return { name: 'brand story', kind: 'story' };
+  if (/COMPARISON/.test(k)) return { name: 'comparison chart', kind: 'comparison' };
+  if (/HEADER/.test(k)) return { name: 'header image', kind: 'header' };
+  return { name: k.replace(/^(STANDARD|PREMIUM)_/, '').replace(/_/g, ' ').toLowerCase() || 'module', kind: /IMAGE/.test(k) ? 'imagetext' : /TEXT/.test(k) ? 'text' : 'other' };
+}
+// This browser's module reads: kept between visits (a reload keeps them); every read and write wrapped (no storage = this visit only).
+function apcModKeepLoad() {
+  if (APC.modsLoaded) return;
+  APC.modsLoaded = true;
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(APC_MOD_KEEP) : null;
+    const o = raw ? JSON.parse(raw) : null;
+    if (o && typeof o === 'object') Object.keys(o).forEach(k => { const m = o[k]; if (m && Array.isArray(m.ty)) APC.mods.set(k, m); });
+  } catch (e) { /* nothing kept */ }
+  APC.modV++;
+}
+function apcModKeepSave() { try { if (typeof localStorage !== 'undefined') localStorage.setItem(APC_MOD_KEEP, JSON.stringify(Object.fromEntries(APC.mods))); } catch (e) { /* this visit only */ } }
+/** One document's modules from an answer of ?lh=aplusdoc (getContentDocument): { n, ty (Amazon's types), sub, ct, at, src }. */
+function apcModFrom(r) {
+  const list = Array.isArray(r.modules) ? r.modules : [];
+  return { n: r.moduleCount != null ? Number(r.moduleCount) || 0 : list.length, ty: list.map(m => String(m.type || '')), sub: String(r.subType || ''), ct: String(r.contentType || ''),
+    at: Number(r.readAt) || Date.now(), src: 'browser' };
+}
+function apcModPut(pk, r) { APC.mods.set(pk, apcModFrom(r)); APC.modV++; apcModKeepSave(); }
+/** The backend's daily module read, through listing-match.js (lmAplusModsRead / lmAplusMods): none until AplusModules.gs is deployed. */
+async function apcModsDailyLoad() {
+  if (typeof lmAplusModsRead === 'function') await lmAplusModsRead();
+  ['SP', 'CPC'].forEach(b => { APC.daily[b] = typeof lmAplusMods === 'function' ? lmAplusMods(b) : null; });
+  APC.modV++;
+}
+/** The modules of one document: the newer of the daily read and this browser's read; null when never read (never guessed). */
+function apcModsOf(d) {
+  if (!d) return null;
+  const held = APC.daily[d.brand], day = held && held.docs ? held.docs[d.k] : null;
+  const a = day && Array.isArray(day.ty) ? { n: Number(day.n) || day.ty.length, ty: day.ty.map(String), sub: String(day.sub || ''), ct: String(day.ct || ''), at: Number(day.at) || held.at || 0, src: 'daily' } : null;
+  const b = APC.mods.get(d.brand + '|' + d.k) || null;
+  return !a ? b : !b ? a : (b.at > a.at ? b : a);
+}
+/** A Brand Story: Amazon's sub-type, content type or a module type says so. */
+const apcIsStory = m => !!m && (/BRAND.?STORY/i.test(m.sub) || /BRAND.?STORY/i.test(m.ct) || (m.ty || []).some(t => /BRAND.?STORY/i.test(t)));
+/** "header image · image + text ×2 · comparison chart · text" */
+function apcModsText(m) {
+  const seen = new Map();
+  (m.ty || []).forEach(t => { const n = apcModType(t).name; seen.set(n, (seen.get(n) || 0) + 1); });
+  return [...seen].map(([n, c]) => (c > 1 ? `${n} ×${c}` : n)).join(' · ');
+}
+/** Against the standard: { n, of, complete, weak (fewer modules than it asks), missing: [words], text: "2 of 5 · missing: …" / "5 of 5 · complete" }. */
+function apcVsStd(m) {
+  const std = APC.std, kinds = (m.ty || []).map(t => apcModType(t).kind);
+  const miss = std.must.filter(k => !kinds.includes(k)).map(k => APC_KIND_NAME[k] || k);
+  const more = Math.max(0, std.n - m.n - miss.length);
+  const missing = miss.concat(more ? [`${more} more module${more === 1 ? '' : 's'}`] : []);
+  const complete = m.n >= std.n && !miss.length;
+  return { n: m.n, of: std.n, complete, weak: m.n < std.n, missing, text: `${m.n} of ${std.n} · ${complete ? 'complete' : 'missing: ' + missing.join(', ')}` };
+}
+// The listing's description (product_description, the listing cache — up to 2,000 characters): { known, len, text }.
+function apcDesc(c) {
+  if (typeof lmGet !== 'function') return { known: false, len: 0, text: '' };
+  for (const s of c.skus || [c.sku]) {
+    const m = lmGet(s, c.brand);
+    if (m) { const t = String(m.d || '').trim(); return { known: true, len: t.length, text: t }; }
+  }
+  return { known: false, len: 0, text: '' };
+}
+/** What apcBuild adds to each product: p.make { d (its product A+ document), m (its modules, null = not read), vs, story, unknown },
+ *  p.storyOnly (its only A+ is a Brand Story), p.weak, p.desc, p.noDesc (no A+ live and no description). */
+function apcExtra(p) {
+  const docs = (p.docs || []).map(d => ({ d, m: apcModsOf(d) }));
+  const story = docs.length > 0 && docs.every(x => x.m && apcIsStory(x.m));
+  const prod = docs.filter(x => x.m && !apcIsStory(x.m)).sort((a, b) => (APC_DOC_RANK[b.d.s] || 0) - (APC_DOC_RANK[a.d.s] || 0) || b.m.n - a.m.n)[0] || null;
+  p.make = docs.length ? { d: prod ? prod.d : null, m: prod ? prod.m : null, vs: prod ? apcVsStd(prod.m) : null, story, unknown: docs.some(x => !x.m) } : null;
+  p.storyOnly = story;
+  p.weak = !!(p.make && p.make.vs && p.make.vs.weak);
+  p.desc = apcDesc(p.c);
+  p.noDesc = APC_NOAPLUS.includes(p.bucket) && p.desc.known && !p.desc.len;
+}
+/** The standard, shared with the team (listingrules/aplusstd through lsGet / lsSave, like the marks). */
+async function apcStdLoad() {
+  try {
+    const data = typeof lsGet === 'function' ? await lsGet(FC_OK_COLL, APC_STD_ID) : null;
+    const s = data && data.items && data.items.std;
+    if (s && +s.n > 0) { APC.std = { n: Math.min(12, Math.max(1, Math.round(+s.n))), must: (s.must || []).filter(k => APC_KIND_NAME[k]) }; APC.stdBy = { by: s.by, name: s.name, at: s.at }; APC.stdV++; }
+  } catch (e) { APC.stdNote = 'Could not read the A+ standard: ' + ((e && e.message) || e); }
+}
+async function apcStdSave(v) {
+  const n = Math.min(12, Math.max(1, Math.round(+(v && v.n) || APC_STD_DEF.n)));
+  const must = [...new Set(((v && v.must) || []).filter(k => APC_KIND_NAME[k]))];
+  const by = fcWho(), rec = { n, must, by, name: fcName(by), at: Date.now() };
+  APC.std = { n, must }; APC.stdBy = rec; APC.stdV++; APC.stdDraft = null; APC.stdNote = '';
+  apcDrawKeep();
+  try {
+    const saved = typeof lsSave === 'function' ? await lsSave(FC_OK_COLL, APC_STD_ID, { kind: APC_STD_ID, items: { std: rec } }) : false;
+    if (!saved) APC.stdNote = fcIsTest() ? 'Test site — the standard is kept on this page only, not saved.' : 'Not saved — the standard is kept on this page only.';
+  } catch (e) { APC.stdNote = 'Could not save the standard (' + ((e && e.message) || e) + ') — it is kept on this page only.'; }
+  if (APC.stdNote) apcDrawKeep();
+  return rec;
+}
+function apcStdInput(el) {
+  const d = APC.stdDraft || (APC.stdDraft = { n: APC.std.n, must: APC.std.must.slice() });
+  if (el.dataset.apcStd === 'n') d.n = Number(el.value);
+  else { d.must = d.must.filter(x => x !== el.value); if (el.checked) d.must.push(el.value); }
+}
+/** "Read modules now": every document of the brand(s) in view whose modules this page does not have (or has from over a day ago) — one
+ *  read-only getContentDocument each (?lh=aplusdoc, the read Preview A+ makes), one at a time, kept in this browser. Stop ends it after
+ *  the current one; three failures in a row end it too. Nothing is sent, nothing changed. */
+async function apcReadMods() {
+  if (APC.modRead && APC.modRead.busy) return APC.modRead;
+  const brands = APC.brand === 'ALL' ? ['SP', 'CPC'] : [APC.brand];
+  const now = Date.now();
+  const todo = brands.flatMap(b => lmAplusDocs(b)).filter(d => { const m = apcModsOf(d); return !m || now - m.at > APC_MOD_FRESH; });
+  const run = APC.modRead = { busy: true, done: 0, total: todo.length, fail: 0, stop: false, err: '' };
+  apcDrawKeep();
+  let inRow = 0;
+  for (const d of todo) {
+    if (run.stop) break;
+    try {
+      const r = await baCall({ lh: 'aplusdoc', brand: d.brand, doc: d.k });
+      if (!r || r.ok === false) throw new Error((r && r.error) || 'no answer');
+      APC.mods.set(d.brand + '|' + d.k, apcModFrom(r));
+      inRow = 0;
+    } catch (e) {
+      run.fail++; inRow++;
+      run.err = String((e && e.message) || e).slice(0, 160);
+      if (inRow >= 3) { run.stop = true; run.err = 'stopped after 3 failed reads in a row — ' + run.err; }
+    }
+    run.done++;
+    if (run.done % 5 === 0) { APC.modV++; apcModKeepSave(); apcDrawKeep(); }
+  }
+  run.busy = false;
+  APC.modV++;
+  apcModKeepSave();
+  apcDrawKeep();
+  return run;
+}
 
 /* ----- small words ----- */
 const apcId = c => c.asin || 'sku:' + c.sku;                                // a product's id for marks and ticks: its ASIN (one row per ASIN)
@@ -37190,7 +37397,7 @@ function apcBuild() {
   const lmV = typeof lmVersion === 'function' ? lmVersion() : 0;
   const src = [typeof HEALTH !== 'undefined' ? HEALTH.SP : null, typeof HEALTH !== 'undefined' ? HEALTH.CPC : null, typeof IML !== 'undefined' ? IML.SP : null, typeof IML !== 'undefined' ? IML.CPC : null,
     typeof SALES30 !== 'undefined' ? SALES30 : null, typeof LI_WS !== 'undefined' ? LI_WS.liveV : 0];
-  const key = [lmV, APC.okV, APC.stock, APC.sideV].join('|');
+  const key = [lmV, APC.okV, APC.stock, APC.sideV, APC.modV, APC.stdV].join('|');
   const m = APC.model;
   if (m && m.key === key && m.src.length === src.length && m.src.every((x, i) => x === src[i])) return m;
   // Family check's picture of the families (fcBuild: one row per ASIN, who is live) — worked out once while the data is the same
@@ -37251,11 +37458,13 @@ function apcBuild() {
     APC.orderKey = orderKey;
   }
   groups.sort((a, b) => (APC.order.has(a.f.fk) ? APC.order.get(a.f.fk) : 1e9) - (APC.order.has(b.f.fk) ? APC.order.get(b.f.fk) : 1e9));
+  rows.forEach(apcExtra);                              // modules, Brand Story, description (2 Dec 2026)
   APC.model = { key, src, groups, rows, all, ours, parentAsins, state: ctx.state, salesAt: apcSalesAt(), notes: v.notes || [], now };
   return APC.model;
 }
 // Does this product belong under the chip? '' = every product; 'fix' = Missing / Rejected / Draft; 'stuck'; else its own status.
-const apcRowIn = (p, f) => (!f ? true : f === 'fix' ? APC_FIX.includes(p.bucket) : f === 'stuck' ? p.stuck && p.bucket === 'waiting' : p.bucket === f);
+const apcRowIn = (p, f) => (!f ? true : f === 'fix' ? APC_FIX.includes(p.bucket) : f === 'stuck' ? p.stuck && p.bucket === 'waiting'
+  : f === 'weak' ? !!p.weak : f === 'story' ? !!p.storyOnly : f === 'nodesc' ? !!p.noDesc : p.bucket === f);
 const apcHit = (p, q) => (p.c.skus || [p.c.sku]).some(x => fcNorm(x).includes(q)) || fcNorm(p.c.asin).includes(q) || (p.doc && fcNorm(p.doc.n).includes(q)) || fcNorm(p.c.title).includes(q);
 /** The families the brand, the search and the chip keep, each with the rows they keep ('all' = every row of the family in view). */
 function apcGroups(model, f) {
@@ -37273,9 +37482,15 @@ function apcFixList(model) {
   const idx = new Map(model.groups.map((g, i) => [g.f.fk, i]));
   return apcGroups(model, 'fix').flatMap(x => x.rows).sort((a, b) => (b.sales || 0) - (a.sales || 0) || idx.get(a.g.f.fk) - idx.get(b.g.f.fk) || String(a.c.sku).localeCompare(String(b.c.sku)));
 }
+/** "Weak A+", "Only Brand Story", "No A+ and no description" (and "Fix first"): one list, the biggest 30-day sales first. */
+function apcFlatList(model, f) {
+  if (f === 'fix') return apcFixList(model);
+  const idx = new Map(model.groups.map((g, i) => [g.f.fk, i]));
+  return apcGroups(model, f).flatMap(x => x.rows).sort((a, b) => (b.sales || 0) - (a.sales || 0) || idx.get(a.g.f.fk) - idx.get(b.g.f.fk) || String(a.c.sku).localeCompare(String(b.c.sku)));
+}
 /** The rows the By-product screen shows now, in its order — the download's rows too. */
 function apcShownRows(model) {
-  return APC.f === 'fix' ? apcFixList(model) : apcGroups(model).flatMap(x => x.rows);
+  return APC_FLAT_F.includes(APC.f) ? apcFlatList(model, APC.f) : apcGroups(model).flatMap(x => x.rows);
 }
 /** The numbers of the top summary, for the brand, the toggle and the search in use. */
 function apcSummary(model) {
@@ -37286,8 +37501,12 @@ function apcSummary(model) {
   const risk = rows.filter(p => APC_FIX.includes(p.bucket)).reduce((s, p) => s + (p.sales || 0), 0);
   const stuck = rows.filter(p => p.stuck && p.bucket === 'waiting').length;
   const brands = APC.brand === 'ALL' ? ['SP', 'CPC'] : [APC.brand];
+  // (2 Dec 2026) live WITH PRODUCT A+: a live product whose product A+ document's modules are read and it is not only a Brand Story
+  const prodLive = rows.filter(p => p.bucket === 'live' && p.make && p.make.m).length;
+  const prodUnknown = rows.filter(p => p.bucket === 'live' && p.make && !p.make.m && !p.storyOnly).length;
+  const storyDocs = brands.flatMap(b => lmAplusDocs(b)).filter(d => apcIsStory(apcModsOf(d))).length;
   return { rows, n, total: rows.length, counted, live: n.live || 0, pct: counted ? Math.round((n.live || 0) / counted * 100) : 0, risk, stuck, salesKnown: !!model.salesAt,
-    conv: brands.map(b => apcConv(rows, b)).filter(Boolean), brands };
+    conv: brands.map(b => apcConv(rows, b)).filter(Boolean), brands, prodLive, prodUnknown, storyDocs };
 }
 
 /* ----- the documents (By A+ document) ----- */
@@ -37311,12 +37530,15 @@ function apcDocs(model) {
     const mine = model.ours[d.brand] || new Set(), pas = model.parentAsins[d.brand] || new Set();
     const onOurs = d.a === null ? null : [...new Set(d.a.filter(a => mine.has(a)).concat(ours.map(c => c.asin)))];
     const extra = d.a === null ? [] : [...new Set(d.a.filter(a => !mine.has(a)))].map(a => ({ asin: a, parent: pas.has(a) }));
+    const m = apcModsOf(d), story = apcIsStory(m);                    // its modules (2 Dec 2026): null = not read yet
     return { d, st, stuck: st === 'waiting' && d.u > 0 && now - d.u > APC_STUCK_DAYS * APC_DAY, oldDraft: st === 'draft' && d.u > 0 && now - d.u > APC_OLD_DRAFT_DAYS * APC_DAY,
-      on: d.a, onOurs, extra, ours, liveN: ours.filter(c => c.live).length, unused: !ours.some(c => c.live), add, addRisk: gaps.reduce((s, g) => s + g.gap.risk, 0), fams: gaps.map(g => g.f.name) };
+      on: d.a, onOurs, extra, ours, liveN: ours.filter(c => c.live).length, unused: !ours.some(c => c.live), add, addRisk: gaps.reduce((s, g) => s + g.gap.risk, 0), fams: gaps.map(g => g.f.name),
+      m, story, vs: m && !story ? apcVsStd(m) : null };
   }).filter(x => !q || fcNorm(x.d.n).includes(q) || (x.d.a || []).some(a => fcNorm(a).includes(q)) || x.ours.some(c => fcNorm(c.sku).includes(q)))
     .sort((a, b) => b.addRisk - a.addRisk || b.add.length - a.add.length || b.liveN - a.liveN || String(a.d.n).localeCompare(String(b.d.n)) || a.d.k.localeCompare(b.d.k));
 }
-const apcDocIn = (x, f) => (!f ? true : f === 'add' ? x.add.length > 0 : f === 'unused' ? x.unused : f === 'stuck' ? x.stuck : x.st === f);
+const apcDocIn = (x, f) => (!f ? true : f === 'add' ? x.add.length > 0 : f === 'unused' ? x.unused : f === 'stuck' ? x.stuck
+  : f === 'weak' ? !!(x.vs && x.vs.weak) : f === 'story' ? !!x.story : x.st === f);
 const apcDocNote = x => [x.unused ? 'Not on any live product' : '', x.stuck ? `Stuck in review since ${apcDate(x.d.u)} — contact Seller Support` : '', x.oldDraft ? `Forgotten draft (not touched since ${apcDate(x.d.u)})` : '',
   x.on === null ? 'Its product list could not be read' : x.d.as ? 'Its product list is from an older read' : ''].filter(Boolean).join(' · ');
 
@@ -37328,28 +37550,39 @@ function apcRowView(p) {
   const status = p.bucket === 'waiting' && p.stuck ? 'Stuck' : APC_ST[p.bucket].t;
   return { brand: fcBrandName(c.brand), family: p.g.f.solo ? '' : String(p.g.f.name || ''), sku: (c.skus || [c.sku]).join(' / '), asin: c.asin || '', stock: c.stock == null ? '' : c.stock,
     sales: p.sales, status, doc: d ? d.n || 'unnamed document' : '', type: d ? d.t || '' : '', updated: d && d.u ? apcDate(d.u) : '', reason: p.reasons.join('; '),
-    what: p.what, link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: apcTime(c.brand) };
+    what: p.what, link: c.asin ? 'https://www.amazon.com/dp/' + c.asin : '', time: apcTime(c.brand),
+    // (2 Dec 2026) modules and description
+    mods: !p.make ? '' : p.storyOnly ? 'Only Brand Story — no product A+' : p.make.m ? p.make.vs.text : 'not read yet', modTypes: p.make && p.make.m ? apcModsText(p.make.m) : '',
+    plan: p.make && p.make.d ? p.make.d.t || '' : '', story: p.storyOnly ? 'yes' : '', modAt: p.make && p.make.m ? apcDate(p.make.m.at) + (p.make.m.src === 'daily' ? ' (daily read)' : ' (this browser)') : '',
+    desc: !p.desc || !p.desc.known ? 'not read' : !p.desc.len ? 'missing' : p.desc.len < APC_DESC_SHORT ? 'short' : 'has it', descLen: p.desc && p.desc.known ? p.desc.len : '', noDesc: p.noDesc ? 'yes' : '' };
 }
-const APC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', '30-day sales', 'A+ status', 'Document name', 'Type', 'Last updated', "Amazon's reason", 'What to do', 'Amazon link', 'Data time', 'Priority'];
+// (2 Dec 2026) the modules and description columns go before Priority: every earlier column stays where it was, Priority stays last
+const APC_CSV_COLS = ['Brand', 'Family', 'SKU', 'ASIN', 'Stock', '30-day sales', 'A+ status', 'Document name', 'Type', 'Last updated', "Amazon's reason", 'What to do', 'Amazon link', 'Data time',
+  'Modules', 'Module types', 'Basic / Premium', 'Only Brand Story', 'Modules read', 'Description', 'Description characters', 'No A+ and no description', 'Priority'];
 const apcCsvQ = val => { const s = String(val == null ? '' : val); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 /** The products' sheet: the rows on the screen (view, toggle, brand, chip, search), Excel-ready (UTF-8 BOM, CRLF). */
 function apcCsv(model) {
   const shown = apcShownRows(model || apcBuild());
   const rows = shown.map(apcRowView);
-  const lines = rows.map((r, i) => [r.brand, r.family, r.sku, r.asin, r.stock, r.sales == null ? '' : (Math.round(r.sales * 100) / 100).toFixed(2), r.status, r.doc, r.type, r.updated, r.reason, r.what, r.link, r.time, typeof prOf === 'function' && PR_APC[shown[i].bucket] ? prCsv(prApc(shown[i])) : ''].map(apcCsvQ).join(','));
+  const lines = rows.map((r, i) => [r.brand, r.family, r.sku, r.asin, r.stock, r.sales == null ? '' : (Math.round(r.sales * 100) / 100).toFixed(2), r.status, r.doc, r.type, r.updated, r.reason, r.what, r.link, r.time,
+    r.mods, r.modTypes, r.plan, r.story, r.modAt, r.desc, r.descLen, r.noDesc, typeof prOf === 'function' && PR_APC[shown[i].bucket] ? prCsv(prApc(shown[i])) : ''].map(apcCsvQ).join(','));
   return { n: lines.length, rows, text: '﻿' + [APC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
 /** One document card in words. */
 function apcDocView(x) {
   const d = x.d;
   return { brand: fcBrandName(d.brand), name: d.n || 'unnamed document', status: x.stuck ? 'Stuck' : APC_ST[x.st].t + (x.st === 'unchecked' && d.s ? ' (' + d.s + ')' : ''), type: d.t || '', updated: d.u ? apcDate(d.u) : '',
-    on: x.onOurs === null ? '' : x.onOurs.length, extra: x.on === null ? '' : x.extra.length, liveN: x.liveN, add: x.add.join(' '), note: apcDocNote(x), reason: (d.rr || []).join('; '), time: apcTime(d.brand) };
+    on: x.onOurs === null ? '' : x.onOurs.length, extra: x.on === null ? '' : x.extra.length, liveN: x.liveN, add: x.add.join(' '), note: apcDocNote(x), reason: (d.rr || []).join('; '), time: apcTime(d.brand),
+    // (2 Dec 2026) its modules
+    mods: x.m ? x.m.n : 'not read yet', modTypes: x.m ? apcModsText(x.m) : '', vs: x.story ? 'Brand Story (not product A+)' : x.vs ? x.vs.text : '', story: x.story ? 'yes' : '',
+    modAt: x.m ? apcDate(x.m.at) + (x.m.src === 'daily' ? ' (daily read)' : ' (this browser)') : '' };
 }
-const APC_DOC_COLS = ['Brand', 'Document', 'Status', 'Type', 'Last updated', 'Products on it', 'Other ASINs on it (parents / closed / not in our listings)', 'Live products on it', 'ASINs to add', 'Note', "Amazon's reason", 'Data time'];
+const APC_DOC_COLS = ['Brand', 'Document', 'Status', 'Type', 'Last updated', 'Products on it', 'Other ASINs on it (parents / closed / not in our listings)', 'Live products on it', 'ASINs to add', 'Note', "Amazon's reason", 'Data time',
+  'Modules', 'Module types', 'Against the standard', 'Brand Story', 'Modules read'];
 const apcDocsShown = model => apcDocs(model).filter(x => apcDocIn(x, APC.f));
 function apcDocsCsv(model) {
   const rows = apcDocsShown(model || apcBuild()).map(apcDocView);
-  const lines = rows.map(r => [r.brand, r.name, r.status, r.type, r.updated, r.on, r.extra, r.liveN, r.add, r.note, r.reason, r.time].map(apcCsvQ).join(','));
+  const lines = rows.map(r => [r.brand, r.name, r.status, r.type, r.updated, r.on, r.extra, r.liveN, r.add, r.note, r.reason, r.time, r.mods, r.modTypes, r.vs, r.story, r.modAt].map(apcCsvQ).join(','));
   return { n: lines.length, rows, text: '﻿' + [APC_DOC_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
 function apcDownload(docs) {
@@ -37380,9 +37613,30 @@ function apcShell() {
 }
 // The buttons that belong to the view: Open all / Close all and the download.
 function apcToolsHtml() {
-  return APC.view === 'doc' ? '<button type="button" class="ghost" data-apc="csvdocs" title="The document cards in view, as a sheet">⬇ Download documents</button>'
-    : (APC.f === 'fix' ? '' : '<button type="button" class="ghost" data-apc="openall">Open all</button><button type="button" class="ghost" data-apc="closeall">Close all</button>')
-      + '<button type="button" class="ghost" data-apc="csv" title="The rows in view (toggle, brand, chip and search), as a sheet">⬇ Download</button>';
+  // (2 Dec 2026) the modules: read them now (read-only), and the standard they are judged against
+  const run = APC.modRead;
+  const mods = (run && run.busy ? `<button type="button" class="ghost" data-apc="modstop">Stop reading modules (${fcNf(run.done)} of ${fcNf(run.total)})</button>`
+    : '<button type="button" class="ghost" data-apc="modread" title="Reads each A+ document\'s modules from Amazon now — read-only, the same read as Preview A+ — and keeps them in this browser">Read modules now</button>')
+    + `<button type="button" class="ghost" data-apc="stdopen" aria-pressed="${APC.setOpen}" title="How many modules a complete product A+ has, and which ones (shared with the team)">⚙ A+ standard</button>`;
+  return mods + (APC.view === 'doc' ? '<button type="button" class="ghost" data-apc="csvdocs" title="The document cards in view, as a sheet">⬇ Download documents</button>'
+    : (APC_FLAT_F.includes(APC.f) ? '' : '<button type="button" class="ghost" data-apc="openall">Open all</button><button type="button" class="ghost" data-apc="closeall">Close all</button>')
+      + '<button type="button" class="ghost" data-apc="csv" title="The rows in view (toggle, brand, chip and search), as a sheet">⬇ Download</button>');
+}
+// The modules' line of the meta: when they were read and for how many documents — or "not read yet" (never guessed).
+function apcModMetaHtml(brands) {
+  const parts = brands.map(b => {
+    const docs = lmAplusDocs(b);
+    if (!docs.length) return '';
+    const ms = docs.map(apcModsOf).filter(Boolean);
+    const name = fcEsc(fcBrandName(b));
+    if (!ms.length) return `<span class="fc-old">${name}: modules not read yet</span>`;
+    const daily = ms.some(m => m.src === 'daily'), browser = ms.some(m => m.src === 'browser');
+    return `<span>${name}: modules read ${fcEsc(apcDate(Math.max(...ms.map(m => m.at))))} for ${fcNf(ms.length)} of ${fcNf(docs.length)} documents`
+      + ` (${[daily ? 'daily read' : '', browser ? 'this browser' : ''].filter(Boolean).join(' + ')})</span>`;
+  }).filter(Boolean);
+  const run = APC.modRead;
+  const prog = run && run.busy ? ` · reading modules… ${fcNf(run.done)} of ${fcNf(run.total)}` : run && run.total ? ` · last “Read modules now”: ${fcNf(run.done - run.fail)} read${run.fail ? `, ${fcNf(run.fail)} failed (${fcEsc(run.err)})` : ''}` : run ? ' · every document\'s modules were read in the last day' : '';
+  return parts.length || prog ? `<div>A+ modules: ${parts.join(' · ')}${prog}</div>` : '';
 }
 function apcMetaHtml(model) {
   const label = typeof lmDataLabel === 'function' ? lmDataLabel(APC.brand === 'ALL' ? ['SP', 'CPC'] : [APC.brand]) : null;
@@ -37396,13 +37650,18 @@ function apcMetaHtml(model) {
   }).join(' · ');
   return `<div>Amazon data: ${label ? fcEsc(label.text) : 'this screen reads the saved copy only'} · ${ap} · A+ is read once a day after the ${typeof lmHour === 'function' ? lmHour(LM_APLUS_AT) : '13:00'} refresh</div>`
     + (model.salesAt ? `<div>30-day sales as at ${fcEsc(model.salesAt)} (Listing Audit → Pull sales)</div>` : '<div class="fc-old">30-day sales not pulled yet — Listing Audit → Pull sales. Products are still listed; the money columns stay empty.</div>')
+    + apcModMetaHtml(brands)
     + model.notes.map(n => `<div>${fcEsc(n)}</div>`).join('') + (APC.okNote ? `<div class="fc-oknote">${fcEsc(APC.okNote)}</div>` : '') + (APC.err ? `<div class="fc-oknote">${fcEsc(APC.err)}</div>` : '');
 }
 /** The one-glance summary: the coverage bar, the sales without A+, and (when the data has it) how A+ converts. */
 function apcSummaryHtml(s) {
   const seg = APC_BAR.map(k => { const n = s.n[k] || 0; return n ? `<i class="is-${APC_ST[k].cls} k-${k}" style="flex:${n} 1 0" title="${fcEsc(APC_ST[k].t)}: ${fcNf(n)}"></i>` : ''; }).join('');
   const key = APC_BAR.filter(k => s.n[k]).map(k => `<span><i class="is-${APC_ST[k].cls} k-${k}"></i>${fcEsc(APC_ST[k].t)} ${fcNf(s.n[k])}</span>`).join('');
-  const cover = `<div class="apc-cov"><b>Live on ${fcNf(s.live)} of ${fcNf(s.counted)} products (${s.pct}%)</b>`
+  // (2 Dec 2026) the second line: live with PRODUCT A+ (a Brand Story alone is not product A+), and what is not known yet
+  const cov2 = `<div class="apc-cov2">with product A+: <b>${fcNf(s.prodLive)} of ${fcNf(s.counted)}</b>`
+    + (s.prodUnknown ? ` <span class="muted">· ${fcNf(s.prodUnknown)} not known yet (modules not read)</span>` : '')
+    + (s.storyDocs ? ` <span class="muted">· ${fcNf(s.storyDocs)} Brand Story document${s.storyDocs === 1 ? '' : 's'}, counted apart</span>` : '') + '</div>';
+  const cover = `<div class="apc-cov"><b>Live on ${fcNf(s.live)} of ${fcNf(s.counted)} products (${s.pct}%)</b>${cov2}`
     + `<div class="apc-bar" role="img" aria-label="A+ coverage: ${APC_BAR.map(k => APC_ST[k].t + ' ' + (s.n[k] || 0)).join(', ')}">${seg || '<i class="is-g" style="flex:1"></i>'}</div><div class="apc-key">${key}`
     + `${s.n.none ? `<span class="muted">${fcNf(s.n.none)} marked “No A+ needed” (not counted)</span>` : ''}</div></div>`;
   const old = s.salesKnown ? apcSalesOld() : '';
@@ -37419,6 +37678,7 @@ function apcCardsHtml(model, s) {
   const chips = [chip('', 'All'), chip('fix', 'Fix first', apcCount(model, 'fix'))].concat(['missing', 'rejected', 'draft', 'waiting'].map(k => chip(k, APC_ST[k].t, apcCount(model, k))),
     [chip('stuck', 'Stuck', apcCount(model, 'stuck')), chip('live', 'Live', apcCount(model, 'live')), chip('none', 'No A+ needed', apcCount(model, 'none'))],
     s.n.unchecked || APC.f === 'unchecked' ? [chip('unchecked', 'Not checked', apcCount(model, 'unchecked'))] : []).join('')
+    + [chip('weak', 'Weak A+', apcCount(model, 'weak')), chip('story', 'Only Brand Story', apcCount(model, 'story')), chip('nodesc', 'No A+ and no description', apcCount(model, 'nodesc'))].join('')
     + (typeof prOf === 'function' ? prFilterHtml('apc', (k, label, on) => `<button type="button" class="cc-fchip${on ? ' is-on' : ''}" data-apc="prf" data-apc-v="${k}" aria-pressed="${on}">${label}</button>`) : '');
   return `<div class="fc-boxes">${APC_CARDS.map(box).join('')}</div><div class="cc-chips" role="group" aria-label="Show">${chips}</div>`;
 }
@@ -37432,7 +37692,25 @@ function apcPicHtml(c) {
 function apcStatusHtml(p) {
   if (p.bucket === 'none') return apcChip('none') + (p.st !== 'unchecked' ? ` <small class="muted">was ${fcEsc(APC_ST[p.st].t)}</small>` : '');
   return apcChip(p.bucket, p.bucket === 'live' ? '✓ Live' : undefined) + (p.stuck ? ' <span class="fc-chip is-y">Stuck</span>' : '') + (p.oldDraft ? ' <span class="fc-chip is-y">Forgotten draft</span>' : '')
-    + (p.via === 'parent' ? ' <small class="muted" title="The document is attached to the parent ASIN, which covers its children">via parent</small>' : '');
+    + (p.via === 'parent' ? ' <small class="muted" title="The document is attached to the parent ASIN, which covers its children">via parent</small>' : '')
+    + (p.storyOnly ? ' <span class="fc-chip is-y apc-storyc" title="Its only A+ is a Brand Story: the product\'s own A+ section is empty">Only Brand Story — no product A+</span>' : '')
+    + (p.noDesc ? ' <span class="fc-chip is-r apc-nodc" title="No A+ live and no description: the section under the bullets is empty on Amazon">No A+ and no description</span>' : '');
+}
+// (2 Dec 2026) the Modules cell: "2 of 5 · missing: …" / "5 of 5 · complete", Basic / Premium — or "not read yet"
+function apcModCellHtml(p) {
+  const mk = p.make;
+  if (!mk) return '<span class="fc-none">—</span>';
+  if (p.storyOnly) return '<span class="muted">Brand Story only</span>';
+  if (!mk.m) return '<span class="fc-none" title="Press “Read modules now” (top right)">not read yet</span>';
+  return `<span class="apc-mc ${mk.vs.complete ? 'is-ok' : 'is-y'}" title="${fcEsc(apcModsText(mk.m))}">${fcEsc(mk.vs.text)}</span>${mk.d && mk.d.t ? ` <small class="muted">${fcEsc(mk.d.t)}</small>` : ''}`;
+}
+// (2 Dec 2026) the Description cell: ✅ N characters / ⚠️ short / ❌ missing — opened, the text itself
+function apcDescHtml(p) {
+  const d = p.desc;
+  if (!d || !d.known) return '<span class="fc-none" title="This listing is not in the listing cache yet">not read</span>';
+  if (!d.len) return '<span class="apc-dsc is-r">❌ missing</span>';
+  const short = d.len < APC_DESC_SHORT;
+  return `<details class="apc-dsc${short ? ' is-y' : ''}"><summary>${short ? '⚠️ short' : '✅'} ${fcNf(d.len)} characters</summary><div class="apc-dsct">${fcEsc(d.text)}</div></details>`;
 }
 /** One product row. `flat`: the "Fix first" list (rank and family shown, no tick column difference). */
 function apcRowHtml(p, flat, rank) {
@@ -37446,18 +37724,19 @@ function apcRowHtml(p, flat, rank) {
     + (p.bucket === 'none' ? `<button type="button" class="ghost fc-b" data-apc="undo" ${a}>Undo</button>` : '')
     + (p.doc ? `<button type="button" class="ghost fc-b" data-apc="prev" data-apc-v="${fcEsc(pk)}" data-apc-at="${fcEsc(p.key)}" title="Reads this one document from Amazon now and shows what is in it">Preview A+</button>` : '')
     + ((p.bucket === 'missing' || p.bucket === 'draft') && typeof aiOn === 'function' && aiOn() ? aiBtnHtml('aplus_text', c.brand, c.sku, { use: 'copy', place: 'row', asin: c.asin || '', label: 'Draft A+ text' }) : '');
-  const side = APC_ST[p.bucket].cls === 'r' ? ' is-orphan' : APC_ST[p.bucket].cls === 'y' || p.stuck ? ' cc-chk' : '';
+  const side = (APC_ST[p.bucket].cls === 'r' ? ' is-orphan' : APC_ST[p.bucket].cls === 'y' || p.stuck ? ' cc-chk' : '') + (p.noDesc ? ' apc-nodesc' : '');
   const more = p.docs.length > 1 ? ` <small class="muted" title="${fcEsc(p.docs.map(d => (d.n || 'unnamed') + ' — ' + d.s).join('\n'))}">+${p.docs.length - 1} more</small>` : '';
   const row = `<tr class="fc-row apc-row${side}${APC.sel.has(p.key) ? ' is-sel' : ''}" data-apc-row="${fcEsc(p.key)}"><td class="fc-tk">${flat ? `<small class="muted apc-rank">${rank}</small>` : ''}${tick}</td><td class="cc-pc">${apcPicHtml(c)}</td>`
     + `<td class="fc-sku"><b>${fcEsc(r.sku)}</b>${typeof lmOldHtml === 'function' ? lmOldHtml(c.brand, c.sku) : ''}<small>${fcEsc(flat ? (r.family || String(c.title || '')).slice(0, 70) : String(c.title || '').slice(0, 70))}</small></td>`
     + `<td class="ui-mono">${amz}</td><td class="apc-st">${apcStatusHtml(p)}${typeof prOf === 'function' && PR_APC[p.bucket] ? ' ' + prChipHtml(prApc(p), 'fc-chip') : ''}</td>`
     + `<td class="apc-doc">${p.doc ? fcEsc(r.doc) + more : '<span class="fc-none">—</span>'}</td><td>${r.type ? fcEsc(r.type) : '<span class="fc-none">—</span>'}</td><td class="apc-upd">${r.updated ? fcEsc(r.updated) : '<span class="fc-none">—</span>'}</td>`
+    + `<td class="apc-modc">${apcModCellHtml(p)}</td><td class="apc-descc">${apcDescHtml(p)}</td>`
     + `<td class="num">${p.sales == null ? '<span class="fc-none">—</span>' : apcMoney(p.sales)}</td>`
     + `<td class="fc-prob apc-what"><div class="apc-do is-${APC_ST[p.bucket].cls}">${fcEsc(r.what)}</div></td>`
     + `<td class="fc-acts">${acts}</td></tr>`;
   return row + (APC.prevOpen === p.key && p.doc ? `<tr class="apc-prevr"><td colspan="${APC_COLS}">${apcPrevHtml(pk)}</td></tr>` : '');
 }
-const APC_COLHEAD = '<tr class="fc-colh"><th class="fc-tk"></th><th></th><th>SKU</th><th>ASIN</th><th>A+ status</th><th>Document</th><th>Type</th><th>Last updated</th><th class="num">30-day sales</th><th>What to do</th><th></th></tr>';
+const APC_COLHEAD = '<tr class="fc-colh"><th class="fc-tk"></th><th></th><th>SKU</th><th>ASIN</th><th>A+ status</th><th>Document</th><th>Type</th><th>Last updated</th><th>Modules</th><th>Description</th><th class="num">30-day sales</th><th>What to do</th><th></th></tr>';
 /** One family: a single line while closed (its coverage and its badges); open, the column header and its products. */
 function apcGroupHtml(x) {
   const g = x.g, f = g.f, open = APC.open.has(f.fk);
@@ -37466,7 +37745,9 @@ function apcGroupHtml(x) {
   const stuck = g.rows.filter(p => p.stuck && p.bucket === 'waiting').length;
   const badges = badge('missing', 'missing') + badge('rejected', 'rejected') + badge('draft', 'draft') + badge('waiting', 'waiting') + (stuck ? `<span class="fc-chip is-y">${fcNf(stuck)} stuck</span>` : '')
     + badge('unchecked', 'not checked') + (g.n.none ? `<span class="fc-chip is-g">${fcNf(g.n.none)} no A+ needed</span>` : '') + (g.gap ? '<span class="fc-chip is-r apc-gapc" title="Some products of this family have A+ and others have none">Family gap</span>' : '');
-  const mini = `<span class="apc-mini" title="${fcNf(live)} of ${fcNf(counted)} have A+ live"><span class="apc-minib"><i style="width:${counted ? Math.round(live / counted * 100) : 0}%"></i></span>${fcNf(live)} of ${fcNf(counted)} have A+</span>`;
+  const mods = g.rows.filter(p => p.make && p.make.m);                          // (2 Dec 2026) the family's modules on average
+  const avg = mods.length ? `<span class="apc-avg" title="The product A+ of ${fcNf(mods.length)} of its products, modules read">avg ${(mods.reduce((s, p) => s + p.make.m.n, 0) / mods.length).toFixed(1).replace(/\.0$/, '')} of ${fcNf(APC.std.n)} modules</span>` : '';
+  const mini = `<span class="apc-mini" title="${fcNf(live)} of ${fcNf(counted)} have A+ live"><span class="apc-minib"><i style="width:${counted ? Math.round(live / counted * 100) : 0}%"></i></span>${fcNf(live)} of ${fcNf(counted)} have A+</span>${avg}`;
   const markable = x.rows.filter(p => p.bucket !== 'live' && p.bucket !== 'none').map(p => p.key);
   const allOn = markable.length && markable.every(k => APC.sel.has(k));
   const selAll = open && markable.length ? ` <button type="button" class="ghost fc-b fc-selall" data-apc="selfam" data-apc-v="${fcEsc(f.fk)}">${allOn ? 'Clear this family' : 'Select all in family'}</button>` : '';
@@ -37530,7 +37811,12 @@ function apcPrevHtml(pk) {
 function apcDocCardHtml(x) {
   const d = x.d, r = apcDocView(x), pk = fcKey(d.brand, d.k);
   const st = x.st === 'unchecked' ? `<span class="fc-chip is-g">${fcEsc(d.s || 'status not given')}</span>` : apcChip(x.st, x.st === 'live' ? '✓ Live' : undefined);
-  const flags = (x.stuck ? ' <span class="fc-chip is-y">Stuck</span>' : '') + (x.oldDraft ? ' <span class="fc-chip is-y">Forgotten draft</span>' : '') + (x.unused ? ' <span class="fc-chip is-g">Not on any live product</span>' : '');
+  const flags = (x.stuck ? ' <span class="fc-chip is-y">Stuck</span>' : '') + (x.oldDraft ? ' <span class="fc-chip is-y">Forgotten draft</span>' : '') + (x.unused ? ' <span class="fc-chip is-g">Not on any live product</span>' : '')
+    + (x.story ? ' <span class="fc-chip is-b apc-story" title="A Brand Story: not the products\' own A+">Brand Story</span>' : '');
+  // (2 Dec 2026) its modules: "5 modules: header image · image + text ×2 · comparison chart · text", against the standard
+  const modLine = x.m ? `<div class="apc-dmod"><b>${fcNf(x.m.n)} module${x.m.n === 1 ? '' : 's'}:</b> ${fcEsc(apcModsText(x.m) || '—')}`
+    + (x.vs ? ` <span class="apc-mc ${x.vs.complete ? 'is-ok' : 'is-y'}">${fcEsc(x.vs.text)}</span>` : '') + ` <small class="muted">read ${fcEsc(apcDate(x.m.at))}${x.m.src === 'daily' ? ' (daily read)' : ' (this browser)'}</small></div>`
+    : '<div class="apc-dmod muted">Modules not read yet — “Read modules now” reads them (read-only)</div>';
   const on = x.on === null ? 'its product list could not be read' : `on ${fcNf(x.onOurs.length)} product${x.onOurs.length === 1 ? '' : 's'} at Amazon · ${fcNf(x.liveN)} live in Sellora`;
   // the ASINs on it that are not our listings: one small muted line, the list when it is opened
   const extra = x.extra.length ? `<details class="apc-dx muted"><summary>+ ${fcNf(x.extra.length)} other ASIN${x.extra.length === 1 ? '' : 's'} (parents / closed / not in our listings)</summary>`
@@ -37542,7 +37828,7 @@ function apcDocCardHtml(x) {
     x.st === 'rejected' ? ((d.rr || []).length ? `Amazon's reason: ${d.rr.join('; ')}` : 'Rejected — Amazon\'s reason is in A+ Content Manager and in its e-mail.') : '',
     x.unused ? 'It is attached to no product that is buyable and in stock.' : '', d.as ? 'Its product list is from an older read (today\'s read of it failed).' : ''].filter(Boolean);
   return `<div class="card apc-dcard" data-apc-k="${fcEsc(pk)}"><div class="apc-dh"><b title="${fcEsc(r.name)}">${fcEsc(r.name)}</b> ${st}${flags}</div>`
-    + `<div class="apc-dm muted">${fcEsc([fcBrandName(d.brand), r.type || 'type not given', r.updated ? 'updated ' + r.updated : 'no update date', on].join(' · '))}</div>` + extra
+    + `<div class="apc-dm muted">${fcEsc([fcBrandName(d.brand), r.type || 'type not given', r.updated ? 'updated ' + r.updated : 'no update date', on].join(' · '))}</div>` + modLine + extra
     + notes.map(n => `<div class="apc-dn">${fcEsc(n)}</div>`).join('') + add
     + `<div class="apc-da"><button type="button" class="ghost fc-b" data-apc="prev" data-apc-v="${fcEsc(pk)}" data-apc-at="doc:${fcEsc(pk)}" title="Reads this one document from Amazon now and shows what is in it">Preview A+</button>`
     + (x.on && x.on.length ? `<button type="button" class="ghost fc-b" data-apc="copy" data-apc-v="${fcEsc(x.on.join(' '))}" data-apc-id="all:${fcEsc(pk)}" title="Every ASIN this document is attached to">${APC.copied === 'all:' + pk ? 'Copied ✓' : 'Copy its ' + fcNf(x.on.length) + ' ASINs'}</button>` : '')
@@ -37572,7 +37858,7 @@ function apcBodyHtml(model) {
     const shown = list.slice(0, APC.docs);
     const note = !all.length ? `<div class="card fc-empty"><b>${noData ? 'A+ not checked yet' : 'No A+ document matches'}</b><p class="muted">${noData ? fcEsc(s.brands.map(b => fcBrandName(b) + ': ' + model.state[b].why).join(' · ')) : 'Clear the search to see every document.'}</p></div>`
       : !list.length ? '<div class="card fc-empty"><b>No document under this chip</b></div>' : '';
-    return apcSummaryHtml(s) + chips + note + `<div class="apc-docs">${shown.map(apcDocCardHtml).join('')}</div>`
+    return apcStdHtml() + apcSummaryHtml(s) + chips + note + `<div class="apc-docs">${shown.map(apcDocCardHtml).join('')}</div>`
       + (list.length > shown.length ? `<div class="fc-more" id="apcMore"><button type="button" class="ghost" data-apc="more">Show more documents (${fcNf(list.length - shown.length)} left)</button></div>` : '');
   }
   let note = '';
@@ -37580,9 +37866,12 @@ function apcBodyHtml(model) {
   else if (noData) note = `<div class="card fc-empty"><b>A+ not checked yet</b><p class="muted">${fcEsc(s.brands.map(b => fcBrandName(b) + ': ' + model.state[b].why).join(' · '))}. Nothing is flagged; the list below shows the products.</p></div>`;
   else if (s.counted && s.live === s.counted && !APC.f && !APC.q) note = '<div class="card fc-empty cc-allok"><b>Every live product has A+ ✓</b></div>';
   let table = '', more = '';
-  if (APC.f === 'fix') {
-    const list = apcFixList(model), shown = list.slice(0, APC.flat);
-    if (!list.length && s.total && !noData) note += '<div class="card fc-empty cc-allok"><b>Nothing to fix first ✓</b> — no product is Missing, Rejected or Draft.</div>';
+  if (APC_FLAT_F.includes(APC.f)) {
+    const list = apcFlatList(model, APC.f), shown = list.slice(0, APC.flat);
+    if (!list.length && s.total && !noData) {
+      note += APC.f === 'fix' ? '<div class="card fc-empty cc-allok"><b>Nothing to fix first ✓</b> — no product is Missing, Rejected or Draft.</div>'
+        : `<div class="card fc-empty"><b>${{ weak: 'No weak A+', story: 'No product has only a Brand Story', nodesc: 'Every product without A+ has a description' }[APC.f]}</b>${APC.f !== 'nodesc' ? ' — among the documents whose modules are read' : ''}</div>`;
+    }
     table = list.length ? `<div class="card xlwrap fc-wrap"><table class="xl fc-tbl cc-tbl apc-tbl"><tbody class="fc-grp is-open">${APC_COLHEAD}${shown.map((p, i) => apcRowHtml(p, true, i + 1)).join('')}</tbody></table></div>` : '';
     more = list.length > shown.length ? `<div class="fc-more" id="apcMore"><button type="button" class="ghost" data-apc="more">Show more (${fcNf(list.length - shown.length)} left)</button></div>` : '';
   } else {
@@ -37592,7 +37881,18 @@ function apcBodyHtml(model) {
     table = groups.length ? `<div class="card xlwrap fc-wrap"><table class="xl fc-tbl cc-tbl apc-tbl">${shown.map(apcGroupHtml).join('')}</table></div>` : '';
     more = groups.length > shown.length ? `<div class="fc-more" id="apcMore"><button type="button" class="ghost" data-apc="more">Show more families (${fcNf(groups.length - shown.length)} left)</button></div>` : '';
   }
-  return top + note + table + more + apcBarHtml(model);
+  return apcStdHtml() + top + note + table + more + apcBarHtml(model);
+}
+// (2 Dec 2026) ⚙ A+ standard: the number of modules and the ones a complete product A+ must have — shared with the team
+function apcStdHtml() {
+  if (!APC.setOpen) return '';
+  const std = APC.stdDraft || APC.std;
+  const box = ([k, t]) => `<label class="apc-setk"><input type="checkbox" data-apc-std="must" value="${k}"${std.must.includes(k) ? ' checked' : ''}> ${fcEsc(t)}</label>`;
+  return `<div class="card apc-set" role="group" aria-label="A+ standard"><div><b>A+ standard</b> <span class="muted">— what a complete product A+ has; one standard for the whole team</span></div>`
+    + `<div class="apc-setr"><label class="apc-setk">Modules <input type="number" min="1" max="12" data-apc-std="n" value="${fcEsc(std.n)}" aria-label="Modules"></label><span class="muted">must include:</span>${APC_KINDS.slice(0, 4).map(box).join('')}</div>`
+    + `<div class="apc-setr"><button type="button" class="fc-b" data-apc="stdsave">Save standard</button><button type="button" class="ghost fc-b" data-apc="stdclose">Close</button>`
+    + `<span class="muted">${APC.stdBy ? fcEsc(`Saved by ${APC.stdBy.name || APC.stdBy.by || 'someone'}${APC.stdBy.at ? ' on ' + apcDate(APC.stdBy.at) : ''}`) : 'The default: 5 modules incl. a header image and a comparison chart'}</span>`
+    + `${APC.stdNote ? ` <span class="fc-oknote">${fcEsc(APC.stdNote)}</span>` : ''}</div></div>`;
 }
 /** Draw the screen. Everything comes from memory: no network wait, no Amazon call. */
 function apcDraw() {
@@ -37639,7 +37939,7 @@ function apcWatchMore() {
 }
 function apcMore() {
   if (APC.view === 'doc') APC.docs += APC_DOC_STEP;
-  else if (APC.f === 'fix') APC.flat += APC_FLAT_STEP;
+  else if (APC_FLAT_F.includes(APC.f)) APC.flat += APC_FLAT_STEP;
   else APC.limit += apcStep();
   apcDraw();
 }
@@ -37704,6 +38004,7 @@ async function apcPreview(pk, at, again) {
     const r = await baCall({ lh: 'aplusdoc', brand: pk.slice(0, cut), doc: pk.slice(cut + 1) });
     if (!r || r.ok === false) throw new Error((r && r.error) || 'no answer');
     APC.prev.set(pk, { state: 'ok', data: r });
+    apcModPut(pk, r);                                    // its modules count too (2 Dec 2026)
   } catch (e) {
     APC.prev.set(pk, { state: 'err', err: String((e && e.message) || e).slice(0, 240) });
   }
@@ -37751,6 +38052,12 @@ function apcClick(el) {
   if (act === 'prevagain') return apcPreview(v, APC.prevOpen, true);
   if (act === 'prevclose') { APC.prevOpen = ''; return apcDrawKeep(); }
   if (act === 'copy') return apcCopy(v, el.dataset.apcId);
+  // (2 Dec 2026) modules and the standard
+  if (act === 'modread') { apcReadMods(); return null; }
+  if (act === 'modstop') { if (APC.modRead) APC.modRead.stop = true; return null; }
+  if (act === 'stdopen') { APC.setOpen = !APC.setOpen; APC.stdDraft = null; return apcDraw(); }
+  if (act === 'stdclose') { APC.setOpen = false; APC.stdDraft = null; return apcDraw(); }
+  if (act === 'stdsave') return apcStdSave(APC.stdDraft || APC.std);
   return null;
 }
 function apcFilter(el) {
@@ -37777,6 +38084,10 @@ async function apcOpen() {
     if (typeof H_LOADED !== 'undefined' && !H_LOADED && typeof loadHealthCache === 'function') await loadHealthCache();
     for (const b of ['SP', 'CPC']) if (typeof IML !== 'undefined' && !(b in IML) && typeof imListLoad === 'function') await imListLoad(b);
     apcOkLoad();
+    // (2 Dec 2026) the modules this browser read, the team's standard, the backend's daily module read (none until it is deployed)
+    apcModKeepLoad();
+    apcStdLoad().then(() => apcDrawKeep()).catch(() => {});
+    apcModsDailyLoad().then(() => apcDrawKeep()).catch(() => {});
     // sales and sessions Sellora already keeps (saved documents, never Amazon): they land when read and the page draws again
     const side = () => { APC.sideV++; if (apcPaneOn()) apcDrawKeep(); };
     if (typeof SALES30 !== 'undefined' && !SALES30.at && typeof loadSales30 === 'function') loadSales30().then(side).catch(() => {});
@@ -37799,6 +38110,7 @@ if (typeof document !== 'undefined' && document.addEventListener && $('apcPane')
     if (t && (e.key === 'Enter' || e.key === ' ') && t.dataset.apc === 'grp' && t.tagName !== 'BUTTON') { e.preventDefault(); apcClick(t); }
   });
   $('apcPane').addEventListener('change', e => { if (e.target && e.target.dataset && e.target.dataset.apcF && e.target.dataset.apcF !== 'q') apcFilter(e.target); });
+  $('apcPane').addEventListener('change', e => { if (e.target && e.target.dataset && e.target.dataset.apcStd) apcStdInput(e.target); });     // ⚙ A+ standard (2 Dec 2026)
   $('apcPane').addEventListener('input', e => { if (e.target && e.target.dataset && e.target.dataset.apcF === 'q') apcFilter(e.target); });
   // a preview picture Amazon does not serve under that address is simply not shown
   $('apcPane').addEventListener('error', e => { if (e.target && e.target.classList && e.target.classList.contains('apc-pimg')) e.target.style.display = 'none'; }, true);
@@ -37822,7 +38134,9 @@ function aplusCounts() {
     lmAplusDocs(b).forEach(d => (d.a || []).forEach(a => onDocs.add(a)));
     const mine = model.ours[b];
     const docAsinsOurs = [...onDocs].filter(a => mine.has(a)).length;
-    out[fcBrandName(b)] = { products: rows.length, live: n('live'), waiting: n('waiting'), stuck: rows.filter(p => p.stuck && p.bucket === 'waiting').length, draft: n('draft'), rejected: n('rejected'), missing: n('missing'),
+    out[fcBrandName(b)] = { products: rows.length, live: n('live'), withProductAplus: rows.filter(p => p.bucket === 'live' && p.make && p.make.m).length, weakAplus: rows.filter(p => p.weak).length,
+      onlyBrandStory: rows.filter(p => p.storyOnly).length, noAplusNoDescription: rows.filter(p => p.noDesc).length,
+      waiting: n('waiting'), stuck: rows.filter(p => p.stuck && p.bucket === 'waiting').length, draft: n('draft'), rejected: n('rejected'), missing: n('missing'),
       noAplusNeeded: n('none'), notChecked: n('unchecked'), salesWithoutAplus30d: model.salesAt ? Math.round(rows.filter(p => APC_FIX.includes(p.bucket)).reduce((s, p) => s + (p.sales || 0), 0)) : 'sales not pulled',
       documents: st.docs, docAsinsOurs, docAsinsOther: onDocs.size - docAsinsOurs, ourListings: mine.size, aplusRead: st.atText || 'not read', oldData: st.old || st.stale, callsOfThatRead: st.calls, stockOnly: APC.stock };
   });
