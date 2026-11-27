@@ -43,7 +43,7 @@ function load(o) {
   const ctx = { localStorage: { getItem: () => { if (o.lsBlocked) throw new Error('blocked'); return o.ls === undefined ? null : o.ls; } },
     console: { warn: (...a) => warns.push(a.join(' ')) }, ptGetFresh: db.ptGetFresh, ptCas: db.ptCas,
     ME: { email: 'admin@example.com', admin: o.admin !== false }, FGI: { set: o.set || {} }, fgiOf: () => ({ current: 10 }),
-    window: { __TEST_ERP: true }, location: { hostname: 'localhost' }, nf: String };
+    window: o.testSite ? { __TEST_ERP: {} } : {}, location: { hostname: 'localhost' }, nf: String };
   const keys = Object.keys(ctx);
   const api = new Function(...keys, HELPERS + HOLD + '\n;return { shpHoldOn, shpHoldBuild, shpHoldPublish, fgiHoldState, fgiHeld, fgiFbaFree, fgiReleaseCreate, fgiReleasePlan, fgiReleaseSpend };')(...keys.map(k => ctx[k]));
   return Object.assign(api, { db, warns });
@@ -304,9 +304,11 @@ async function waysToFba() {
 }
 
 (async () => {
-  console.log('== the switch: off everywhere, test links too ==');
+  console.log('== the switch: on by itself on the test website only ==');
   {
-    ok('off by default, even on a test link and this PC', load().shpHoldOn() === false);
+    ok('off by default away from the test website', load().shpHoldOn() === false);
+    ok('on by itself on the test website', load({ testSite: true }).shpHoldOn() === true);
+    ok('can still be turned off on the test website', load({ testSite: true, ls: '0' }).shpHoldOn() === false);
     ok('turned on for one computer', load({ ls: '1' }).shpHoldOn() === true);
     ok('turned off', load({ ls: '0' }).shpHoldOn() === false);
     const B = load({ lsBlocked: true });
