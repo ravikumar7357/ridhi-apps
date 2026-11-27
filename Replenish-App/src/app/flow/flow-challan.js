@@ -205,7 +205,7 @@ function flowEarlierOf(x) {
 }
 async function flowRecordEarlier(key, o) {
   const inCut = typeof flowCpActive === 'function' ? flowCpActive(key) : null;
-  if (inCut) return `This line is in Cut to size on challan ${inCut.no} — send it from there or take it back first.`;
+  if (inCut) return 'This line is in Cut to size — send it from there or take it back first.';
   const x = flowRows().find(y => y.s.key === key); if (!x) return 'That line is not here any more — press Refresh.';
   const e = flowEarlierOf(x), pcsWise = x.s.fabUnit === 'pcs', p = x.s.plan || {}, per = +(p.fabric && p.fabric.perPc) || 0;
   const pcs = Math.round(+o.pcs || 0);
@@ -481,7 +481,7 @@ async function flowChallanWrite(ch, v, how) {
   const vname = ch.vendor.name, now = ch.at;
   /* A line in Cut to size has its cloth off the shelf already: only its own Send to printer (flow-cutpiece.js) may send it. */
   const inCut = !how.fromCut && typeof flowCpActive === 'function' && (ch.lines || []).find(l => !l.ruffleOnly && flowCpActive(l.key));
-  if (inCut) return `${inCut.sku} is in Cut to size on challan ${flowCpActive(inCut.key).no} — send it from the Greige Desk's Cut to size.`;
+  if (inCut) return `${inCut.sku} is in Cut to size — send it from the Greige Desk's Cut to size.`;
   if (how.fromCut) ch.fromCut = how.fromCut;
   let no = flowChallanNo(ch.date, how.isTest); ch.no = no;
   for (let k = 0, taken = []; ; k++) {
@@ -610,6 +610,8 @@ function flowShLines(fabric) {
   const F = flowFabKey(fabric);
   const oldest = flowRows().filter(x => flowInView('drfd', x.s) && x.s.route !== 'stitch' && flowFabKey(((x.s.plan || {}).fabric || {}).name) === F)
     .map(flowShLine).filter(l => l.pcs > 0)
+    /* and the lines with no printing: cutting is allotted from this card (flow-cutpiece.js) */
+    .concat(typeof cutPiecesOn === 'function' && cutPiecesOn() ? flowCpNoPrintLines(fabric) : [])
     .sort((a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)));
   if (!(typeof cutPiecesOn === 'function' && cutPiecesOn())) return oldest;
   return flowPriSort(oldest, l => ({ orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority }));
@@ -635,7 +637,8 @@ function flowShStuck(S, l) {
 /** Why a line cannot be ticked ('' when it can go). */
 function flowShWhyNot(S, l) {
   const cp = typeof flowCpActive === 'function' ? flowCpActive(l.key) : null;
-  if (cp) return `In Cut to size on challan ${cp.no} · ${FLOW_CP_LABEL[cp.status] || cp.status}`;
+  if (cp) return `In Cut to size · ${FLOW_CP_LABEL[cp.status] || cp.status}`;
+  if (l.noPrint) return l.metres > 0 ? '' : 'No cloth worked out for it — add it on its plan first';
   if (!(l.perPc > 0)) return 'No cloth per piece on its master row — add it there first';
   if (flowShWaits(l)) return 'Waiting for approval of a change of printer';
   if (!flowShPrn(S, l)) return 'PPC has not given it a printer yet — PPC sets it first';
@@ -646,7 +649,7 @@ function flowShWhyNot(S, l) {
  * be changed (a line PPC left without one waits for PPC); the printer picked shows that printer's lines only; and the lines are in two
  * kinds — CUT PIECES (the printer gets pieces: the SKU is printed on itself) and RUNNING CLOTH (the printer gets metres) — one at a time. */
 const FLOW_SH_KINDS = [['cut', 'Cut pieces'], ['run', 'Running cloth']];
-const flowShKind = l => (l.x.s.fabUnit === 'pcs' || (l.print && l.print.kind === 'sku') ? 'cut' : 'run');
+const flowShKind = l => (l.noPrint || l.x.s.fabUnit === 'pcs' || (l.print && l.print.kind === 'sku') ? 'cut' : 'run');
 /** What the card shows: the kind, the search and the printer filter. */
 function flowShShown(S) {
   const words = String(S.q || '').toLowerCase().split(/\s+/).filter(Boolean);
@@ -657,11 +660,13 @@ function flowShShown(S) {
 }
 /** The pieces that go on a line: what was typed (never more than it still needs), else all it still needs. */
 function flowShPcs(S, l) {
+  if (l.noPrint) return l.pcs;   // cut for the whole line, as planned
   const t = S && S.qty ? S.qty[l.key] : undefined;
   return t > 0 && t < l.pcs ? Math.round(t) : l.pcs;
 }
 /** The line as it goes: the pieces typed, the metres they make, the printer it goes to. */
 function flowShAs(S, l) {
+  if (l.noPrint) return Object.assign({}, l, { to: '' });
   const pcs = flowShPcs(S, l);
   return Object.assign({}, l, { pcs, metres: flowR2(pcs * l.perPc), to: flowShPrn(S, l) }, pcs < l.pcs ? { planned: l.pcs } : {});
 }
@@ -824,7 +829,7 @@ function flowShDraw() {
     + (none || S.show === '-' ? `<option value="-"${S.show === '-' ? ' selected' : ''}>No printer yet (${nf(none)})</option>` : '');
   $('flshBody').innerHTML = flowShTableHtml(S);
   const save = $('ptDlgSave');
-  if (save && typeof cutPiecesOn === 'function' && cutPiecesOn()) save.textContent = S.kind === 'cut' ? 'Make Cut Pieces Challan' : 'Make the challans';
+  if (save && typeof cutPiecesOn === 'function' && cutPiecesOn()) save.textContent = S.kind === 'cut' ? 'Send to Cut to size' : 'Make the challans';
   $('flshSum').innerHTML = flowShSumHtml(S);
   $('flshWait').innerHTML = flowShWaitHtml(S);
   if ($('flshTickN')) $('flshTickN').textContent = S.tick.size ? `${nf(S.tick.size)} ticked` : '';
@@ -846,14 +851,14 @@ function flowShTableHtml(S) {
 }
 /** One line: tick, photo, what it is (with tags), printer, pieces, metres. */
 function flowShRowHtml(S, l, pr) {
-  const why = flowShWhyNot(S, l), on = S.tick.has(l.key) && !why, noCloth = !(l.perPc > 0), wait = flowShWaits(l), as = flowShAs(S, l), sku = obUC(l.x.r.sku);
+  const why = flowShWhyNot(S, l), on = S.tick.has(l.key) && !why, noCloth = !(l.noPrint ? l.metres > 0 : l.perPc > 0), wait = flowShWaits(l), as = flowShAs(S, l), sku = obUC(l.x.r.sku);
   const tags = [];
   if (typeof cutPiecesOn === 'function' && cutPiecesOn()) tags.push([l.priority === 'P1' ? 'b' : l.priority ? 'w' : 'i', flowPriText(l.priority)]);
   if (noCloth) tags.push(['b', 'No cloth / pc']);
   if (wait) tags.push(['w', 'Waiting approval']);
   else if (flowShChanged(S, l)) tags.push(['w', 'Printer changed']);
   else if (!l.printer && flowShPrn(S, l)) tags.push(['w', 'Printer set here']);
-  else if (!flowShPrn(S, l)) tags.push(['i', 'No printer yet']);
+  else if (!flowShPrn(S, l)) tags.push(['i', l.noPrint ? 'No printing' : 'No printer yet']);
   if (as.planned) tags.push(['i', `Part: ${nf(as.pcs)} of ${nf(as.planned)}`]);
   const photo = typeof ptImgSpan === 'function' ? ptImgSpan(sku, 72) : '<span class="muted" style="font-size:11px">—</span>';
   return `<div class="shc-row${on ? ' on' : ''}${why && why !== 'Pick its printer' ? ' off' : ''}">
@@ -864,11 +869,12 @@ function flowShRowHtml(S, l, pr) {
       ${l.print ? `<div class="shc-print">Print: ${flowPrintTxt(l.print)}</div>` : ''}
       ${why && why !== 'Pick its printer' && !wait ? `<div class="shc-why">${esc(why)}</div>` : ''}</div>
     <div class="shc-prn">${flowShPrnCell(S, l, pr)}</div>
-    <div>${flowShPcsCell(S, l, noCloth || !!wait)}</div>
+    <div>${flowShPcsCell(S, l, noCloth || !!wait || !!l.noPrint)}</div>
     <div class="shc-m">${noCloth ? '<b>—</b>' : `<b>${nf(as.metres)} m</b><div>${nf(l.perPc)} m / pc</div>`}</div></div>`;
 }
 /** The Printer cell: a drop-down (PPC's printer marked); a change says what it was, and Undo. */
 function flowShPrnCell(S, l, pr) {
+  if (l.noPrint) return '<div style="font-size:12.5px;font-weight:700">No printing</div><div class="sub" style="color:var(--muted)">finished at Cut done</div>';
   const wait0 = flowShWaits(l);
   if (!wait0) return l.printer ? `<div style="font-size:12.5px;font-weight:700">${esc(l.printerName || flowShVname(l.printer))}</div><div class="sub" style="color:var(--muted)">set by PPC</div>`
     : '<div style="font-size:12.5px;font-weight:600;color:var(--bad,#850000)">No printer yet</div><div class="sub" style="color:var(--muted)">PPC sets it first</div>';
@@ -894,8 +900,11 @@ function flowShPcsCell(S, l, blocked) {
 }
 /** The totals bar: what goes, a chip per printer, the cloth on the shelf, the printer changes and the pieces left for later. */
 function flowShSumHtml(S) {
-  const go = flowShGoing(S), groups = flowShByPrinter(go), m = flowR2(go.reduce((a, l) => a + l.metres, 0));
-  const st = flowChStock(S.fabric, m);
+  const go = flowShGoing(S), m = flowR2(go.reduce((a, l) => a + l.metres, 0));
+  /* cut pieces go to Cut to size first, so no printer challan is promised for them */
+  const groups = typeof cutPiecesOn === 'function' && cutPiecesOn() && go.every(l => flowShKind(l) === 'cut') ? [] : flowShByPrinter(go.filter(l => !l.noPrint));
+  /* cloth already held for a no-printing line is off the free figure, so it is not asked of the shelf twice */
+  const st = flowChStock(S.fabric, flowR2(go.reduce((a, l) => a + (l.noPrint && l.ready ? 0 : l.metres), 0)));
   const stock = st.free == null ? '<span class="muted" style="font-size:11.5px">RFD on the shelf not known</span>'
     : st.short > 0.05 ? flowChPill(false, `${nf(st.free)} m on the shelf · ${nf(st.short)} m short`) : flowChPill(true, `${nf(st.free)} m on the shelf · enough`);
   const changes = S.lines.filter(l => flowShChanged(S, l)).length, stay = go.reduce((a, l) => a + (l.planned ? l.planned - l.pcs : 0), 0);
@@ -1013,7 +1022,7 @@ async function flowShSave() {
   if (!go.length) return S.lines.some(l => S.tick.has(l.key)) ? 'The ticked lines cannot go yet — see the note on each.' : 'Tick at least one line.';
   if (go.some(l => !!l.x.r.__t) && go.some(l => !l.x.r.__t)) return 'A test order and a real one cannot share a challan.';
   S.note = $('flshNote').value.trim(); S.review = { note: S.note };
-  /* cut pieces are cut first: their challan goes to Cut to size, not to the printer (flow-cutpiece.js) */
+  /* cut pieces are cut first: they go to Cut to size, not to the printer (flow-cutpiece.js) */
   if (typeof cutPiecesOn === 'function' && cutPiecesOn() && go.some(l => flowShKind(l) === 'cut')) return flowCpCardSave(S);
   /* ASK BEFORE IT GOES (Vishesh, 23 Nov: "when I click on make challan it should give a notification that this order will be sent
    * to this vendor"): the Review always opens -- what goes to which printer, and which printers change. */

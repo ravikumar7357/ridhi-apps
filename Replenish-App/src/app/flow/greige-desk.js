@@ -4238,12 +4238,13 @@ function invDetail(r, col) {
         + '<td class="num">' + (g.dmgRfd ? '<span class="err-in">' + nf(g.dmgRfd) + ' m</span>' : '—') + '</td><td class="num b">' + nf(left[g.lot]) + ' m</td>'
         /* Send to printer opens the RFD challan for this fabric right here (Vishesh, 23 Nov; before: its lines on Demand → RFD) */
         + '<td><div class="actions" style="justify-content:flex-start"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the products waiting for ' + esc(r.fabric) + '">Send to printer</button>' + gdPrnWaitingPill(r.fabric)
-        + '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button></div></td></tr>';
+        /* cutting is allotted from the Send to printer card when the switch cutPieces is on (27 Nov) */
+        + (typeof cutPiecesOn === 'function' && cutPiecesOn() ? '' : '<button type="button" class="jw-btn" data-cut="' + esc(g.lot) + '">Send to cutting</button>') + '</div></td></tr>';
     });
     empty = 'No RFD ' + r.fabric + ' is on the shelf.';
   }
   var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf', cut: 'Cut to size', transit: 'In transit to printers' }[col];
-  /* the Cut Pieces Challan products; the cut-with-no-product table is left out when only these are there */
+  /* the products allotted to cutting; the cut-with-no-product table is left out when only these are there */
   var pieces = col === 'cut' && (r.cutCh || []).length ? flowCpTableHtml(r.cutCh) : '';
   return '<tr class="invdet"><td colspan="' + (UI.invCols || 6) + '"><div class="invdrop"><div class="sect">' + esc(title) + ' · ' + esc(r.fabric) + '</div>'
     + (col === 'cut' && r.cut.leftPcs > 0 ? '<div class="actions" style="justify-content:flex-start;margin:6px 0"><button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer from the pieces already cut">Send to printer</button></div>' : '')
@@ -4325,13 +4326,15 @@ function wireInventory() {
     if (d && d.getAttribute('data-invshow')) { UI.invShow = d.getAttribute('data-invshow'); UI.invOpen = ''; render(); return; }
   });
   document.addEventListener('click', function (ev) {
-    var t = ev.target.closest ? ev.target.closest('[data-cp]') : null; if (!t) return;
+    var t = ev.target.closest ? ev.target.closest('[data-cp],[data-cpf],[data-cpdl]') : null; if (!t) return;
+    if (t.hasAttribute('data-cpf')) { flowCpPickStatus(t); return; }
+    if (t.hasAttribute('data-cpdl')) { var bad = flowCpDownload(t.closest('[data-cpwrap]')); if (bad) lmSay('err', bad); return; }
     t.disabled = true;
     flowCpPress(t.getAttribute('data-cp'), t.getAttribute('data-cpkey')).then(function (said) {
       render(); if (said) lmSay(said.ok ? 'ok' : 'err', said.text);
     }, function (e) { console.error('Cut to size button failed:', e); render(); lmSay('err', 'Not saved: ' + ((e && e.message) || e)); });
   });
-  document.addEventListener('input', function (ev) { if (ev.target.getAttribute && ev.target.getAttribute('data-cpq')) flowCpFilter(ev.target); });
+  document.addEventListener('input', function (ev) { if (ev.target.getAttribute && ev.target.getAttribute('data-cpq')) flowCpFilter(ev.target.closest('[data-cpwrap]')); });
   document.addEventListener('change', function (ev) {
     if (ev.target.id === 'invType') { UI.inv = ev.target.value || 'all'; UI.invOpen = ''; render(); return; }
     if (ev.target.id !== 'histFrom' && ev.target.id !== 'histTo') return;
@@ -5475,7 +5478,7 @@ function entryOpen(kind, row) {
   if (!row && kind === 'RECEIVE_GREIGE') { entryClose(); openDrawer(''); return; }
   if (!row && kind === 'ISSUE_TO_RFD') { entryClose(); UI.tab = 'po'; render(); lmSay('warn', 'Greige goes to RFD from its PO: press Issue to RFD on the PO.'); return; }
   if (!row && kind === 'RECEIVE_RFD') { entryClose(); UI.tab = 'po'; render(); lmSay('warn', 'RFD comes back on its PO: press Receive RFD on the PO.'); return; }
-  if (!row && kind === 'ISSUE_TO_CUTTING') { entryClose(); UI.tab = 'inv'; render(); lmSay('warn', 'RFD goes to cutting from Inventory: open RFD on shelf and press Send to cutting on the lot.'); return; }
+  if (!row && kind === 'ISSUE_TO_CUTTING') { entryClose(); UI.tab = 'inv'; render(); lmSay('warn', 'RFD goes to cutting from Inventory: open RFD on shelf and press ' + (typeof cutPiecesOn === 'function' && cutPiecesOn() ? 'Send to printer, then its Cut pieces tab.' : 'Send to cutting on the lot.')); return; }
   if (!canLedgerEdit()) { lmSay('warn', meUser().name + ' may only view the fabric ledger.'); return; }
   EN_AUTO = {};
   EN_ID = row ? row.id : null;
@@ -5947,7 +5950,7 @@ function invChallanOut(name) {
   var opened = gdRfdOpened(name); if (!opened) return 0;
   try { return Math.max(0, +flowRfdChallanOut(name, opened) || 0); } catch (e) { console.warn('RFD on shelf for ' + name + ': challans to printers not counted (' + ((e && e.message) || e) + ').'); return 0; }
 }
-/* THE CLOTH FOR A CUT PIECES CHALLAN (27 Nov): off the shelf the moment the challan is made, from the oldest lots that
+/* THE CLOTH FOR CUT TO SIZE (27 Nov): off the shelf the moment a line is allotted, from the oldest lots that
  * still hold RFD. One ledger row per line and lot, marked cutNo, so Take back removes exactly those. */
 function gdCutLots(fabric) {
   var left = invLotsLeft(fabric, invChallanOut(fabric));
@@ -5967,22 +5970,36 @@ async function gdCutIssue(fabric, no, lines) {
     lots.forEach(function (L) {
       var take = r2(Math.min(need, L.left)); if (!(take > 0)) return;
       need = r2(need - take); L.left = r2(L.left - take);
-      rows.push({ id: uid(), date: lmToday(), lot: L.lot, fabricType: fabric, txnType: 'ISSUE_TO_CUTTING', qty: take, party: 'Cutting', bill: no,
+      rows.push({ id: uid(), date: lmToday(), lot: L.lot, fabricType: fabric, txnType: 'ISSUE_TO_CUTTING', qty: take, party: 'Cutting', bill: '',
         orderNo: l.orderNo, done: false, by: by, cutNo: no, lineKey: l.key, remark: 'Cut pieces ' + l.sku + ' · ' + l.pcs + ' pcs' });
     });
   });
-  var patch = {};
+  var patch = {}, ready = gdCutReady(fabric, lines, rows);
   rows.forEach(function (r) { patch[GD_NODE + '/fab/' + r.id] = r; });
-  try { await ptPatch(patch); } catch (e) { return 'The cloth could not be taken off the shelf (' + ((e && e.message) || e) + '). Nothing was saved.'; }
+  try { await ptPatch(Object.assign(patch, ready)); } catch (e) { return 'The cloth could not be taken off the shelf (' + ((e && e.message) || e) + '). Nothing was saved.'; }
   rows.forEach(function (r) { DB.fab.push(r); if (GD_SNAP) GD_SNAP.fab[r.id] = JSON.stringify(r); });
+  cutFlowKeep(ready);
   return '';
 }
-async function gdCutReturn(no, key) {
+/** A line with no printing is marked "fabric ready" in the same save, as Send to cutting did, so Cutting Data shows its lot. */
+function gdCutReady(fabric, lines, rows) {
+  var patch = {}, at = new Date().toISOString(), by = (typeof ME !== 'undefined' && ME && ME.email) || meUser().name;
+  lines.filter(function (l) { return l.noPrint; }).forEach(function (l) {
+    var first = rows.filter(function (r) { return r.lineKey === l.key; })[0]; if (!first) return;
+    patch['pt_flowDemand/' + l.key + '/fabricReady'] = { at: at, by: by, what: fabric, metres: l.metres, note: 'Sent to cutting · ' + first.lot, lot: first.lot, cutEntry: first.id };
+  });
+  return patch;
+}
+/** `back` (a line with no printing): its fabric-ready mark goes back to what it was, in the same save. */
+async function gdCutReturn(no, key, back) {
   if (GD_STATE !== 'ok' || !DB) return 'The Greige Desk could not be read, so the cloth is not back on the shelf.';
   /* no challan number: every cut row of the line (a test order being deleted) */
   var gone = DB.fab.filter(function (r) { return r.cutNo && r.lineKey === key && (!no || r.cutNo === no); }), patch = {};
   gone.forEach(function (r) { patch[GD_NODE + '/fab/' + r.id] = null; });
-  try { if (gone.length) await ptPatch(patch); } catch (e) { return 'The piece is taken back, but its cloth could not be returned to the shelf (' + ((e && e.message) || e) + '). Tell the office: challan ' + no + '.'; }
+  var mark = {};
+  if (back) mark['pt_flowDemand/' + key + '/fabricReady'] = back.was;
+  try { if (gone.length || back) await ptPatch(Object.assign(patch, mark)); } catch (e) { return 'The piece is taken back, but its cloth could not be returned to the shelf (' + ((e && e.message) || e) + '). Tell the office.'; }
+  cutFlowKeep(mark);
   DB.fab = DB.fab.filter(function (r) { return gone.indexOf(r) < 0; });
   gone.forEach(function (r) { if (GD_SNAP) delete GD_SNAP.fab[r.id]; });
   return '';
