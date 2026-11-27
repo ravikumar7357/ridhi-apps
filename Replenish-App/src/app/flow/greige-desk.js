@@ -3937,7 +3937,7 @@ function invAll() {
     /* The cloth cut to size and not yet sent to a printer is still ours: it is in the total though it left the RFD shelf. */
     return { fabric: n, type: invType(n), greige: fabGreigeOf(n), onOrder: o ? o.m : 0,
       inStoreGreige: g, atProcessor: p, inStoreRfd: r, rfdToPrinters: chOut, transit: transit, cut: cut, cutCh: cutCh, owned: g + p + r + cut.leftM + cutCh.reduce(function (a, x) { return a + x.metres; }, 0),
-      ppc: ppc && !ppc.__loading ? (ppc[n.toUpperCase()] || null) : null };
+      ppc: ppc && !ppc.__loading ? invChanPpc(ppc[n.toUpperCase()] || null, UI.invChan) : null };
   }).filter(invWorthShowing)
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
 }
@@ -3972,22 +3972,23 @@ function invWorthShowing(r) {
 function invCoverPct(p) { return p && p.need > 0.05 ? Math.min(100, Math.round((p.free || 0) / p.need * 100)) : 0; }
 /* ORDER BUCKETS (Ravi, 27 Nov: "Greige Desk me bucket ho SHP board / Online board"): the same PPC need, split by the board the order came from.
  * 'all' shows every order; 'shp' / 'onl' / 'oth' show only the fabrics that board's orders need, with that board's metres in the need column. */
-UI.invChan = 'all';
-var INV_CHAN = ['all', 'shp', 'onl', 'oth'];
-function invChanLabel(k) { return k === 'all' ? 'All orders' : ((typeof FLOW_BOARDS !== 'undefined' && FLOW_BOARDS[k]) || k); }
-function invChanOf(r, k) { var c = r && r.ppc && r.ppc.chan && r.ppc.chan[k]; return c || { need: 0, lines: 0 }; }
-function invChanOn(r) { return UI.invChan === 'all' || invChanOf(r, UI.invChan).need > 0.05; }
+UI.invChan = 'shp';
+/* 27 Nov, Ravi: "I need only SHP board / Online board as a custom order request, or nothing" — the desk shows only these two boards' needs. Free RFD is shared, so
+ * each board's short and greige-to-order are worked out from that board's own metres (invChanPpc). */
+var INV_CHAN = ['shp', 'onl'];
+function invChanLabel(k) { return (typeof FLOW_BOARDS !== 'undefined' && FLOW_BOARDS[k]) || k; }
+function invChanOf(p, k) { var c = p && p.chan && p.chan[k]; return c || { need: 0, lines: 0 }; }
+/** The PPC figure of a fabric for one board: its own need and lines, short after the free RFD, greige to order after what is on its way. */
+function invChanPpc(p, k) {
+  if (!p) return null;
+  var c = invChanOf(p, k); if (!(c.need > 0.05)) return null;
+  var short = Math.max(0, Math.round((c.need - Math.max(0, p.free)) * 100) / 100), toOrder = Math.max(0, short - p.onWay);
+  return Object.assign({}, p, { need: c.need, lines: c.lines, short: short, greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0 });
+}
 function invNeedCell(r, loading) {
   if (loading) return '<td class="tl muted">…</td>';
   var p = r.ppc;
   if (invNeedState(r) === 'none') return '<td class="tl muted" style="font-size:12px">no PPC demand</td>';
-  if (UI.invChan !== 'all') {
-    var c = invChanOf(r, UI.invChan);
-    return '<td class="tl"><div><b>' + nf(c.need) + ' m</b> <span class="muted" style="font-size:11px">· ' + esc(invChanLabel(UI.invChan)) + ' · </span>'
-      + '<button type="button" class="link" data-gdlines="' + esc(p.name) + '" style="font-size:11px;padding:0" title="See these lines on Demand → RFD">' + plural(c.lines, 'line') + '</button></div>'
-      + '<div class="muted" style="font-size:11px">of ' + nf(p.need) + ' m PPC needs in all · ' + nf(p.free) + ' m RFD free'
-      + (p.short > 0.05 ? ' · <span style="color:var(--bad);font-weight:700">' + nf(p.short) + ' short (all orders)</span>' : ' · fully covered') + '</div></td>';
-  }
   var pct = invCoverPct(p), col = pct >= 100 ? 'var(--ok-ink)' : pct >= 50 ? 'var(--warn-ink)' : 'var(--bad)';
   var tip = 'RFD free ' + nf(p.free) + ' m' + (p.desk > 0.05 ? ' (' + nf(p.desk) + ' m on this desk)' : '') + (p.onWay > 0.05 ? ' · ' + nf(p.onWay) + ' m greige on its way' : '');
   var words = p.short > 0.05
@@ -4124,9 +4125,8 @@ function renderInv() {
     }).join('') + '</select>';
   /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, and the greige PO for what is short, from here. Only in the app. */
   var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap, loading = !!(ppcMap && ppcMap.__loading);
-  if (!withPpc || loading) UI.invChan = 'all';
-  var inView = all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type)) && invChanOn(x); });
-  var chanN = function (k) { return all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (k === 'all' ? invNeedState(x) !== 'none' : invChanOf(x, k).need > 0.05); }).length; };
+  var inView = all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type)) && (!withPpc || loading || !!x.ppc); });
+  var chanN = function (k) { return ppcMap && !loading ? Object.keys(ppcMap).filter(function (n) { return invChanOf(ppcMap[n], k).need > 0.05; }).length : 0; };
   if ((!withPpc || loading) && !INV_ACT[UI.invShow]) UI.invShow = 'all';
   var shown = function (k) { return inView.filter(function (x) { return invShows(x, k); }); };
   /* short first, then late, then covered, then those PPC does not need */
