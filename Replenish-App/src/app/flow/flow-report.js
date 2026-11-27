@@ -84,10 +84,19 @@ function flowRepWhere(r, s, p) {
   if (route === 'outsource') { w.out = qty - done; return w; }
   /* the steps every made line goes through, the furthest first */
   const pressed = Math.max(cap(r.pressed), done), passed = Math.max(cap(s.qc), pressed);
-  const issued = Math.max(cap(s.issuedNet), passed), back = Math.min(issued, Math.max(cap(s.received), passed));
-  const cut = s.cutReq ? Math.max(cap(s.cut), issued) : issued;
+  /* SCRAPPED PIECES (Ravi, 27 Nov): only good pieces count as cut and received — a piece QC scrapped came back, but is gone */
+  const received = s.recounted ? s.receivedAll - s.rej.qc : s.received;
+  const issued = Math.max(cap(s.issuedNet), passed), back = Math.min(issued, Math.max(cap(received), passed));
+  const cut = s.cutReq ? Math.max(cap(s.recounted ? s.cutGood : s.cut), issued) : issued;
   w.press = pressed - done; w.qc = passed - pressed; w.recv = back - passed; w.kar = issued - back;
   if (s.cutReq) w.cutStore = cut - issued;
+  /* …and the new pieces owed for them show as to cut (to give a karigar where nothing is cut), wherever the line's cloth stands */
+  let redo = s.recounted ? flowScrapRedo(r, s) : 0;
+  const placed = () => {
+    const to = s.cutReq ? 'toCut' : 'cutStore';
+    ['prnStore', 'rfd', 'prn', 'emb'].forEach(k => { const n = Math.min(redo, w[k]); w[k] -= n; w[to] += n; redo -= n; });
+    return w;
+  };
   const printOn = flowPrinted(route) && !s.fromStock && !flowInHand(p);
   if (!printOn) {
     /* no printer: printed cloth already in the store (from stock, or in hand), cloth to cut, or straight to the karigars */
@@ -95,7 +104,7 @@ function flowRepWhere(r, s, p) {
     if (route === 'jobwork' || !s.cutReq) w.cutStore += rest;
     else if (flowPrinted(route)) w.prnStore = rest;
     else if (ready) w.toCut = rest; else w.rfd = rest;
-    return w;
+    return placed();
   }
   /* printed by a printer: what went to them (the challans, or the printer's own count where no print order stands), what came back */
   const embVendor = route === 'emb' && !s.embDept, after = s.cutReq ? cut : issued;
@@ -107,8 +116,11 @@ function flowRepWhere(r, s, p) {
   const sent = Math.max(left == null ? 0 : qty - Math.min(qty, Math.max(0, left)), s.po || s.challan ? 0 : cap(s.given), printed);
   w.rfd = qty - sent; w.prn = sent - printed;
   /* a vendor's embroidery: printed cloth not back embroidered is at embroidery (or about to go); back embroidered, it is to cut */
-  if (embVendor) { w.emb = printed - embDone; w.toCut = embDone - after; } else w.prnStore = printed - after;
-  return w;
+  if (embVendor) { w.emb = printed - embDone; w.toCut = embDone - after; }
+  /* printed on the item itself, never cut: ready for a karigar, under the name PPC gives it (fix 10, Ravi 26 Nov) */
+  else if (!s.cutReq) w.cutStore += printed - after;
+  else w.prnStore = printed - after;
+  return placed();
 }
 /** The line's process: the earliest place still holding pieces (where it is held up); Completed once every piece is. */
 function flowRepProcess(w, qty, mto) {
@@ -192,6 +204,7 @@ function flowRepLines(o) {
       fabric: String((p && p.fabric && p.fabric.name) || m.fabric || ''), pcs: qty,
       printedBy: flowRepPrintedBy(s, p), completion: p && p.dates && p.dates.ready ? String(p.dates.ready).slice(0, 10) : '',
       due: due.due, dueFrom: due.from, delay: dl.txt, late: dl.late, made, at: w, completed: w.done, moved: flowRepLastMoved(r, s, p),
+      rejected: s.recounted ? s.rej.scrap : 0,
       waitDays: s.bucket === 'ppc' && r.orderDate ? Math.max(0, flowRepDaysBetween(ptIsoDate(r.orderDate), today)) : 0,
       process: flowRepProcess(w, qty, mto) };
     if (shp) {
@@ -232,6 +245,14 @@ const FLOW_REP_COLS = [
   ['QC', 'QC', x => x.at.qc, 'num', 12], ['Press', 'Press', x => x.at.press, 'num', 12],
   ['Dates', 'Due', x => x.due, 'date', 13.5], ['Dates', 'Exp. completion', x => x.completion, 'date', 13.5], ['Dates', 'Days late', x => x.process === 'Completed' ? 'Completed' : (x.late || ''), 'late', 12],
   ['Dates', 'Last moved', x => x.moved && x.moved.day, 'date', 13.5], ['Dates', 'Last step', x => x.moved && x.moved.step, '', 24]];
+/* REJECTED (Ravi, 27 Nov): the pieces scrapped on a line, beside Completed. Not a place — a line's stages still add up to its
+ * order without it. The column is there only when some line of the report has scrapped pieces. */
+const FLOW_REP_REJ_COL = ['Qty', 'Rejected', x => x.rejected, 'num', 11];
+function flowRepCols(lines) {
+  if (!lines.some(x => x.rejected > 0)) return FLOW_REP_COLS;
+  const after = FLOW_REP_COLS.findIndex(c => c[1] === 'Completed') + 1;
+  return FLOW_REP_COLS.slice(0, after).concat([FLOW_REP_REJ_COL], FLOW_REP_COLS.slice(after));
+}
 /** The Summary sheet's rows: one a SKU — how many ordered, how many completed, how many still pending (Ravi, 28 Oct: "what SKU,
  * how many completed and how many ordered"), on how many lines, how many of them late. */
 function flowRepSkus(lines) {
@@ -303,7 +324,7 @@ function flowRepGrid(name, cols, items, o) {
 const flowRepSerial = iso => { const q = String(iso).slice(0, 10).split('-').map(Number); return q.length === 3 && q[0] ? Math.round((Date.UTC(q[0], q[1] - 1, q[2]) - Date.UTC(1899, 11, 30)) / 864e5) : ''; };
 /** The workbook: Lines (Ravi's v6 sheet) and Summary (the pivot by SKU). No late-lines sheet (Ravi, 28 Oct). */
 function flowRepSheets(lines) {
-  return [flowRepGrid('Lines', FLOW_REP_COLS, lines, { tint: true }), flowRepPivot(lines)];
+  return [flowRepGrid('Lines', flowRepCols(lines), lines, { tint: true }), flowRepPivot(lines)];
 }
 
 /* The app's own writer (no library). Styles are made as the cells ask for them: { b, color, fill, bl, br, bb, fmt, h, v, wrap }. */
@@ -366,7 +387,7 @@ function flowRepBody() {
   const lines = flowRepNow(), tot = lines.reduce((a, x) => a + x.pcs, 0), skus = new Set(lines.map(x => x.sku)).size;
   const late = lines.filter(x => x.late > 0).length, orders = new Set(lines.map(x => x.orderNo)).size, old = lines.filter(x => x.planned && !x.plannedKnown).length;
   const rng = FLOW_REP.on === 'waiting' ? (FLOW_REP.kind === 'shp' ? 'open on the SHP board today' : 'waiting in PPC today') : `${flowRepShow(FLOW_REP.from)} – ${flowRepShow(FLOW_REP.to)}`;
-  const groups = []; FLOW_REP_COLS.forEach(c => { const l = groups[groups.length - 1]; if (l && l[0] === c[0]) l[1]++; else groups.push([c[0], 1]); });
+  const cols = flowRepCols(lines), groups = []; cols.forEach(c =>{ const l = groups[groups.length - 1]; if (l && l[0] === c[0]) l[1]++; else groups.push([c[0], 1]); });
   const show = (v, c) => c[3] === 'date' ? flowRepShow(v) : (c[3] === 'num' || c[3] === 'late') ? (typeof v === 'string' && v ? v : +v > 0 ? nf(+v) : '') : c[3] === 'qty' ? nf(+v || 0) : (v == null ? '' : v);
   const td = (v, c, x) => `<td style="white-space:nowrap${['num', 'qty', 'late'].includes(c[3]) ? ';text-align:right' : ''}${x.late > 0 ? ';background:#fcebeb' : ''}${c[3] === 'late' && x.late > 0 ? ';color:#a32d2d;font-weight:700' : ''}${c[3] === 'sku' ? ';font-weight:600' : ''}">${esc(show(v, c))}</td>`;
   return `<div style="display:flex;gap:22px;flex-wrap:wrap;background:var(--hover,#f8fafc);border-radius:8px;padding:8px 12px;margin:6px 0 10px">
@@ -376,8 +397,8 @@ function flowRepBody() {
     + (old ? `<div class="muted" style="font-size:12px;margin-bottom:6px">${nf(old)} plan(s) were saved before 28 Oct 2026: their plan date is the day they were last saved.</div>` : '')
     + (lines.length ? `<div style="overflow:auto;max-height:46vh"><table class="xl" style="font-size:12px"><thead>`
       + `<tr>${groups.map(([n, k]) => { const g = FLOW_REP_GRP[n] || ['F1EFE8', '444441']; return `<th colspan="${k}" style="text-align:center;background:#${g[0]};color:#${g[1]}">${esc(n)}</th>`; }).join('')}</tr>`
-      + `<tr>${FLOW_REP_COLS.map(c => { const g = FLOW_REP_GRP[c[0]] || ['F1EFE8', '444441']; return `<th style="white-space:nowrap;background:#${g[0]};color:#${g[1]}">${esc(c[1])}</th>`; }).join('')}</tr></thead><tbody>`
-      + lines.slice(0, 300).map(x => `<tr>${FLOW_REP_COLS.map(c => td(c[2](x), c, x)).join('')}</tr>`).join('')
+      + `<tr>${cols.map(c => { const g = FLOW_REP_GRP[c[0]] || ['F1EFE8', '444441']; return `<th style="white-space:nowrap;background:#${g[0]};color:#${g[1]}">${esc(c[1])}</th>`; }).join('')}</tr></thead><tbody>`
+      + lines.slice(0, 300).map(x => `<tr>${cols.map(c => td(c[2](x), c, x)).join('')}</tr>`).join('')
       + `</tbody></table></div>${lines.length > 300 ? `<div class="muted" style="font-size:12px">Showing 300 of ${nf(lines.length)} lines — the Excel has them all.</div>` : ''}`
       : '<div class="muted" style="padding:14px 0">No lines for these days.</div>');
 }

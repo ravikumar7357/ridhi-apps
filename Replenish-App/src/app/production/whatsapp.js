@@ -267,14 +267,17 @@ function bdApplyRecv(row, addAmt, at) {
   return { row: next };
 }
 
-/** Set the rejection count. Same ceiling, same freeze. */
-function bdApplyRej(row, val) {
+/** Set the rejection count. Same ceiling, same freeze. Newly rejected pieces need a reason and are logged with it
+ *  (production/reject-reason.js). */
+function bdApplyRej(row, val, reason = rejWhyOf(null)) {
   const issued = ptNum(row.issuePieces), recv = ptNum(row.receivedPieces);
   const rej = parseInt(val, 10) || 0;
   if (rej < 0) return { err: 'Rejection cannot be negative.' };
   if (recv + rej > issued)
     return { err: `Received ${recv} plus rejected ${rej} would be more than the ${issued} issued.` };
-  const next = Object.assign({}, row, { rejectionPieces: rej, pendingPieces: issued - recv - rej });
+  const whyErr = rejWhyErr(rej - ptNum(row.rejectionPieces), reason);
+  if (whyErr) return { err: whyErr };
+  const next = Object.assign({}, row, { rejectionPieces: rej, pendingPieces: issued - recv - rej }, rejLogFor(row, rej, reason));
   if (next.pendingPieces <= 0) {
     next.pendingPieces = 0; next.frozen = true;
     next.receivingDate = row.receivingDate || ptNow();
@@ -570,6 +573,7 @@ function jwRecvOpen(id) {
     fields: [
       { key: 'recv', label: 'Pieces received now (added)', type: 'number', min: 0, value: '' },
       { key: 'rej', label: 'Rejected on this row (total)', type: 'number', min: 0, value: rej || '' },
+      ...rejWhyFields(),
     ],
     memory: 'jobWorkReceive',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Save',
@@ -580,7 +584,7 @@ function jwRecvOpen(id) {
       if (addRecv) { const a = bdApplyRecv(next, addRecv); if (a.err) return a.err; next = a.row; }
       if (newRej !== '' && parseInt(newRej, 10) !== ptNum(next.rejectionPieces)) {
         if (next.frozen && !row.frozen && parseInt(newRej, 10) > ptNum(next.rejectionPieces)) return 'Received plus rejected would be more than was issued.';
-        const b = bdApplyRej(Object.assign({}, next, { frozen: false }), newRej); if (b.err) return b.err; next = b.row;
+        const b = bdApplyRej(Object.assign({}, next, { frozen: false }), newRej, rejWhyOf(v)); if (b.err) return b.err; next = b.row;
       }
       /* Only pieces coming back tell the karigar anything — a changed reject count alone does not open WhatsApp. */
       const told = addRecv ? waReceiptRow(next, addRecv) : null;
@@ -666,6 +670,7 @@ function bdEdit(id) {
   $('bdmIssue').value = ptNum(r.issuePieces);
   $('bdmRecv').value = ptNum(r.receivedPieces);
   $('bdmRej').value = ptNum(r.rejectionPieces);
+  rejWhyClear('bdm');
   $('bdmRemarks').value = r.remarks || '';
   $('bdmSku').value = r.sku || '';
   $('bdmIssueDate').value = ptIsoDate(r.issueDate);

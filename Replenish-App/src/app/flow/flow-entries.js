@@ -16,8 +16,9 @@ async function flowOpenBox(boxId, toggleId) {
 }
 const flowSay = (t, bad) => { if ($('flMsg')) { $('flMsg').className = bad ? 'err' : 'muted'; $('flMsg').textContent = t; } };
 
-/** The pieces of a line that can be cut today: what is back from the printer (or the embroidery vendor), less what is cut. */
-const flowCutNow = (r, s) => (s.route === 'emb' && !s.embDept ? (s.canCut || 0)   // only what came back from the embroidery vendor
+/** The pieces of a line that can be cut today: what is back from the printer (or the embroidery vendor), less what is cut.
+ *  A line with scrapped pieces is already counted by flowState (flowCountScrap): its replacements are in s.canCut. */
+const flowCutNow = (r, s) => (s.recounted || (s.route === 'emb' && !s.embDept) ? (s.canCut || 0)   // emb: only what came back from the embroidery vendor
   : Math.max(0, Math.min(+r.qty || 0, s.printed ? (s.back || 0) : (+r.qty || 0)) - (s.cut || 0)));   // only what is back to cut
 /** Cutting Data → a new cutting entry for the line: SKU, order, the pieces still to cut, the plan's fabric. */
 async function flowCutEntry(r, s) {
@@ -48,8 +49,9 @@ async function flowIssueEntry(r, s) {
     if ($('bwBox').scrollIntoView) $('bwBox').scrollIntoView({ block: 'start', behavior: 'smooth' });
   } catch (e) { flowSay('The Job Work Register is open — the issue could not be filled in by itself (' + (e.message || e) + '); type it in.', true); }
 }
-/** What can go to a karigar now: what is cut (or back from the printer as pieces) less what is issued. */
-const flowIssuable = (r, s) => Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));
+/** What can go to a karigar now: what is cut (or back from the printer as pieces) less what is issued. A line with scrapped
+ *  pieces is already counted by flowState (flowCountScrap), so both give the same figure. */
+const flowIssuable = (r, s) => s.recounted ? s.canIssue : Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));
 /** The Job Work rows of this line still out with a karigar. */
 const flowOpenIssues = r => (PT.base || []).filter(b => b && obUC(b.sku) === obUC(r.sku) && obUC(b.orderNo) === obUC(r.orderNo) && !b.frozen
   && (+b.issuePieces || 0) - (+b.receivedPieces || 0) - (+b.rejectionPieces || 0) > 0);

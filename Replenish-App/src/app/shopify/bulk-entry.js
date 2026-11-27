@@ -30,12 +30,13 @@ function spBulkState(sku) {
     const holders = {};
     open.forEach(r => { const k = String(r.empName || '').trim(); if (k) holders[k] = (holders[k] || 0) + ptNum(r.pendingPieces); });
     return { l, orderNo: l.orderNo, shop: l.shopOrderNo || l.orderNo, date: l.orderDate,
-      ordered: obOrderedQty(l.orderNo, s), cut: obCutQty(l.orderNo, s), used: obIssueUsed(l.orderNo, s),
+      ordered: obOrderedQty(l.orderNo, s), cut: obCutQty(l.orderNo, s), scrap: flowRejOf(l.orderNo, s).scrap,
+      used: obIssueOfOrder(l.orderNo, s), cutUsed: obIssueOfCut(l.orderNo, s),
       pressed: obPressQty(l.orderNo, s), received: ptNum(l.received), holders };
   });
   const room = {
-    cut: x => x.ordered - x.cut,
-    issue: x => Math.min(x.ordered - x.used, cutReq ? Math.max(x.cut, x.pressed) - x.used : Infinity),
+    cut: x => x.ordered - Math.max(0, x.cut - x.scrap),   // a scrapped piece may be cut again (Ravi, 27 Nov)
+    issue: x => Math.min(x.ordered - x.used, cutReq ? Math.max(x.cut, x.pressed) - x.cutUsed : Infinity),
     press: x => Math.min(x.ordered - x.pressed, x.received - x.pressed),
   };
   const sum = f => lines.reduce((a, x) => a + Math.max(0, f(x)), 0);
@@ -160,12 +161,13 @@ function spBulkPlan(entries, defaultDate) {
       const who = spBulkWho(en.karigar);
       if (who.err) problems.push(`${sku}: ${who.err === 'no karigar' ? 'which karigar are the ' + nf(n.issue) + ' going to?' : who.err} — issue not saved.`);
       else {
-        const extraRoom = x => (st.cutReq ? Math.max(x.cut, x.pressed) - x.used : Infinity);
-        let left = share('issue', n.issue, st.room.issue, { empType: who.type, empName: who.name }, (x, t) => { x.used += t; });
+        const extraRoom = x => (st.cutReq ? Math.max(x.cut, x.pressed) - x.cutUsed : Infinity);
+        const issued = (x, t) => { x.used += t; x.cutUsed += t; };
+        let left = share('issue', n.issue, st.room.issue, { empType: who.type, empName: who.name }, issued);
         /* Beyond the orders: only cut pieces nobody has, oldest order first. */
         const free = st.lines.reduce((a, x) => a + Math.max(0, Math.min(1e9, extraRoom(x))), 0);
         if (left > 0 && free > 0 && !reason) { needReason('issue', Math.min(left, free)); left -= Math.min(left, free); }
-        else if (left > 0 && reason) left = extraOn('issue', left, st.cutReq ? st.lines : newest, extraRoom, { empType: who.type, empName: who.name }, (x, t) => { x.used += t; });
+        else if (left > 0 && reason) left = extraOn('issue', left, st.cutReq ? st.lines : newest, extraRoom, { empType: who.type, empName: who.name }, issued);
         unplaced('issue', n.issue, left, st.cutReq ? 'not enough cut pieces — cut them first' : 'the open orders are fully issued');
       }
     }

@@ -243,7 +243,7 @@ function cutBelowIssued(orderNo, sku, exclId, pcs) {
   const m = cutSkuOf(sku);
   const jw = typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(orderNo, sku) === 'jobwork';
   if (jw || (m && m.cuttingRequired === false)) return '';
-  const issued = obIssueUsed(orderNo, sku), press = obPressQty(orderNo, sku);
+  const issued = obIssueOfCut(orderNo, sku), press = obPressQty(orderNo, sku);
   const cut = Math.max(obCutQty(orderNo, sku, exclId) + pcs, press), was = Math.max(obCutQty(orderNo, sku), press);
   /* A legacy order with no cut on record is issued on its ordered quantity alone, as the issue form allows. A line that was
    * already below (issued before its cut was entered) may still be put right, as long as the change does not lower it further. */
