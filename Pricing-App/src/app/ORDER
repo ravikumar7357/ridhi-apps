@@ -40,6 +40,7 @@ listing/fix-all.js
 listing/listing-send-check.js
 listing/kw-fix.js
 listing/title-fix.js
+listing/kw-win.js
 listing/listing-history.js
 listing/new-listings.js
 listing/fix-status.js

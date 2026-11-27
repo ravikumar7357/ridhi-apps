@@ -322,7 +322,8 @@ function faPlanSig(g, kid, ctx) {
   }
   const own = faLiveKey(kid.brand, kid.sku);
   if (g.kind === 'kw') return base.concat([own, typeof lmGet === 'function' ? lmGet(kid.sku, kid.brand) : null, typeof KF !== 'undefined' ? KF.full.get(faKidKey(kid)) || null : null,
-    typeof IPG !== 'undefined' ? IPG.okV + ':' + IPG.wordsV : 0]);       // the risky words it takes out: the lists and the "Allowed on purpose" marks (ip-guard.js)
+    typeof IPG !== 'undefined' ? IPG.okV + ':' + IPG.wordsV : 0,         // the risky words it takes out: the lists and the "Allowed on purpose" marks (ip-guard.js)
+    typeof KW !== 'undefined' ? KW.v : 0]);                              // the winning words it adds (kw-win.js: the uploaded Brand Analytics data)
   if (g.kind === 'spec') return base.concat([own, faSpecSig(g)]);
   return base.concat([own]);
 }
@@ -437,7 +438,7 @@ function faDoLine(g, plans) {
   }
   if (g.kind === 'img') return 'Change the pictures in Image Manager — no automatic fix';
   if (g.kind === 'ttl') return 'Each child keeps its own title — only its real mistakes corrected, every other word as it is — every title problem of the family fixed at once';
-  if (g.kind === 'kw') return `Shorten to ${typeof lrKwMax === 'function' ? lrKwMax() : 249} bytes — brand names and ASINs out, then repeats, a wrong shape or colour, low-value words and other words until it fits; important words kept, nothing added`;
+  if (g.kind === 'kw') return `Shorten to ${typeof lrKwMax === 'function' ? lrKwMax() : 249} bytes — repeats, other brands' names and ASINs out; winning words added when they fit; then a wrong shape or colour, low-value words, the weakest added word and other words until it fits; our brands and important words kept once`;
   const fix = new Map();
   g.kids.forEach(kid => { const hit = g.hits.get(faKidKey(kid)); if (hit && hit.fix) fix.set(hit.fix, (fix.get(hit.fix) || 0) + 1); });
   return [...fix.entries()].sort((a, b) => b[1] - a[1]).map(([text]) => text)[0] || 'Fix it in Listing Errors';

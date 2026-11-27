@@ -524,8 +524,14 @@ function lrKwCheck(text, max, bytes) {
  *   word of the colour attribute: "Turquoise Moss Green", "Light Blue"); its size; use / special-feature words (kitchen, dining,
  *   housewarming, wrinkle free, washable, reusable…). In a title (and Item Highlights) our brand too. In a TITLE (RULE 3) the use words
  *   are not locked: a 75-character title keeps brand, product, shape, material, size, the print ("Hand" too) and colour — the uses may go.
+ * SEARCH TERMS (27 Nov 2026 — OUR WORD RULES): our brands (Ridhi, Whimsical Corner, CPC, Cotton Print Club — LR_KW_OURS, beside "Our
+ *   brand words") are protected like the important words and kept ONE time each; every word said again goes ALWAYS, not only to fit (the
+ *   first one stays; case and plural ignored: tablecloth = tablecloths); other brands' names always go (`risk`, and `others`: Angry
+ *   Orange, Etopia, Maison and the brands the winning-keyword data names). WINNING WORDS (listing/kw-win.js, `add`) are added at the end,
+ *   best first, never a word the title or the text already holds; to fit, after the low-value and joining words, the weakest added
+ *   word goes first. A text written by someone else (the ✨ AI's: `had` = the search terms before) also loses the title's words it added.
  * RULE 2 — what may go, in this order, stopping as soon as the text fits (`fits`): 0 always: other brands' names and restricted claims
- *   (IP & Trademark Guard's lists, `risk`) — and in search terms our own brand names, ASINs and bare punctuation; 1 a word said again (the
+ *   (IP & Trademark Guard's lists, `risk`) — and in search terms ASINs, bare punctuation and the words said again; 1 a word said again (the
  *   2nd, 3rd… time — a protected word too; the first stays); 2 a shape that is NOT the product's, a colour that is NOT its colour; 3
  *   low-value words (gift, Indian, colorful, light when not part of its colour, cute, neutral, decorative… and the joining words a, and,
  *   the, for…); 4 any other word that is not protected — in search terms the ones the title already says first, then from the end.
@@ -539,6 +545,8 @@ function lrKwCheck(text, max, bytes) {
  *   (below that the strict style stays).
  *   Every word is kept; the title checks run on it as on any new title. */
 const LR_SW_IMPORTANT = 'Only important words left — edit by hand';
+// OUR BRANDS in search terms (27 Nov 2026): never taken out, kept once — with Listing Rules' "Our brand words" and Amazon's brand.
+const LR_KW_OURS = ['Ridhi', 'Whimsical Corner', 'CPC', 'Cotton Print Club'];
 const LR_SW_IDENTITY = ['hand block print', 'hand block printed', 'handblockprint', 'handblockprinted', 'block print', 'block printed', 'blockprint', 'blockprinted',
   'hand printed', 'handprinted', 'hand print', 'handmade', 'hand made', 'hand', 'block'];
 const LR_SW_PRODUCTS = ['tablecloth', 'table cloth', 'table cover', 'napkin', 'cloth napkin', 'dinner napkin', 'placemat', 'place mat', 'table mat', 'table runner', 'runner',
@@ -693,7 +701,10 @@ function lrSwShortForms(text, fits, from) {
  *  brand phrases: removed from search terms, protected elsewhere), risk(text) → [{ s, e, why }], riskOnly (only the risky words go),
  *  keep: more words never to remove (the seasons on now), shortFrom (a title: where the short forms are allowed — Listing Rules' 74;
  *  short: false = never use them), cutEnd: false — stop before "any other word from the end" (the Season planner:
- *  it never cuts an ordinary word of the customer's own, only the ones this rule names) }. Never adds a word. */
+ *  it never cuts an ordinary word of the customer's own, only the ones this rule names); search terms only: others (other brands'
+ *  names: always out), add ([{ w, why }] winning words, best first — the ONLY words this rule ever adds), had (the search terms before a
+ *  text someone else wrote: a title word it added goes) }. → also added: [{ w, why, i }] (the words added and kept), notAdded (added,
+ *  then taken out again to fit). */
 function lrSuggestWords(text, o) {
   o = o || {};
   const mode = o.mode || 'kw';
@@ -716,8 +727,8 @@ function lrSuggestWords(text, o) {
       }
     }
   };
-  const brandPhrases = lrSwPhrases(o.brands || f.brands || []);
-  if (mode !== 'kw') mark('brand', brandPhrases);
+  const brandPhrases = lrSwPhrases((o.brands || f.brands || []).concat(mode === 'kw' ? LR_KW_OURS : []));
+  mark('brand', brandPhrases);                               // search terms too since 27 Nov 2026: our brands stay (once)
   const colourKeys = new Set(String(f.colour || '').split(/[\s,&/+-]+/).map(lrSwKey).filter(k => k && !LR_SW_STOP_SET.has(k)));
   if (f.colour) mark('colour', lrSwPhrases([String(f.colour)]));       // the whole colour as written ("Indigo Blue and Rust Orange" keeps its "and")
   mark('colour', [...colourKeys].map(k => [k]));
@@ -766,17 +777,42 @@ function lrSuggestWords(text, o) {
   const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
   if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
   let cut = false;
-  const done = () => ({ before, after: mode !== 'kw' && !toks.some(t => t.out) && shortText == null ? before : now(), short: shortForms, removed: toks.filter(t => t.out).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0 })), toks, risky: toks.filter(t => t.risk).length,
+  const done = () => ({ before, after: mode !== 'kw' && !toks.some(t => t.out) && shortText == null ? before : now(), short: shortForms, removed: toks.filter(t => t.out && !t.added).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0 })), toks, risky: toks.filter(t => t.risk).length,
+    added: toks.filter(t => t.added && !t.out).map(t => ({ w: t.w, why: t.addWhy, i: t.i })), notAdded: toks.filter(t => t.added && t.out).map(t => ({ w: t.w, why: t.out, i: t.i })),
     fits: fits(), important: !fits(), cut });
   if (o.riskOnly) return done();
+  const isProt = t => !!t.cls;
+  const unit = t => t.cls === 'size' && !/[a-z]/.test(t.k.replace(/x/g, ''));         // a number or a unit of a size: never a "repeat"
   if (mode === 'kw') {
-    // …and in search terms: our own brand names (Amazon reads the brand field), ASINs and bare punctuation
-    for (let i = 0; i < toks.length; i++) {
-      const l = toks;
-      const p = brandPhrases.find(ph => i + ph.length <= l.length && ph.every((k, j) => l[i + j].k === k && !l[i + j].out));
-      if (p) { for (let j = 0; j < p.length; j++) drop(l[i + j], 'brand name'); i += p.length - 1; }
+    // …and in search terms (27 Nov 2026): other brands' names (o.others — the IP & Trademark Guard's list came out with `risk` above),
+    // ASINs, bare punctuation and every word said again (the first one stays — our brands and the important words too). Our own brand
+    // names STAY: they are protected (RULE 1) like the important words.
+    const others = lrSwPhrases(o.others || []);
+    if (others.length) {
+      for (let i = 0; i < toks.length; i++) {
+        const p = others.find(ph => i + ph.length <= toks.length && ph.every((k, j) => toks[i + j].k === k && !toks[i + j].out && !toks[i + j].cls));
+        if (p) { for (let j = 0; j < p.length; j++) drop(toks[i + j], 'other brand'); i += p.length - 1; }
+      }
     }
     toks.forEach(t => { if (t.out) return; if (!t.k) drop(t, 'punctuation'); else if (LR_SW_ASIN.test(t.k)) drop(t, 'ASIN'); });
+    toks.forEach((t, i) => { if (!t.out && t.k && !unit(t) && toks.slice(0, i).some(x => !x.out && x.k === t.k)) drop(t, 'repeated'); });
+    const inTitle = new Set(String(o.title || '').split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
+    // a text someone else wrote (the ✨ AI's): a word of the title that the search terms did not hold before goes — our brands stay
+    if (o.had != null) {
+      const had = new Set(String(o.had).split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
+      toks.forEach(t => { if (!t.out && t.k && inTitle.has(t.k) && !had.has(t.k) && t.cls !== 'brand') drop(t, 'in the title'); });
+    }
+    // WINNING WORDS (listing/kw-win.js): added at the end, best first — never one the text or the title already holds
+    if (o.add && o.add.length) {
+      const have = new Set(live().map(t => t.k).filter(Boolean));
+      o.add.forEach(a => {
+        const w = String((a && a.w) || '').trim();
+        const k = lrSwKey(w);
+        if (!k || /\s/.test(w) || have.has(k) || inTitle.has(k) || LR_SW_STOP_SET.has(k) || LR_SW_ASIN.test(k)) return;
+        have.add(k);
+        toks.push({ raw: w, w, k, at: -1, i: toks.length, out: '', cls: '', risk: false, added: true, addWhy: String((a && a.why) || '') });
+      });
+    }
   }
   if (fits()) return done();
   // the steps of RULE 2, each one word at a time from the end, stopping the moment the text fits
@@ -791,8 +827,6 @@ function lrSuggestWords(text, o) {
     }
     return false;
   };
-  const isProt = t => !!t.cls;
-  const unit = t => t.cls === 'size' && !/[a-z]/.test(t.k.replace(/x/g, ''));         // a number or a unit of a size: never a "repeat"
   // 1 said again (the first one stays — a protected word too)
   if (step((t, i) => !unit(t) && toks.slice(0, i).some(x => !x.out && x.k === t.k), 'repeated')) return done();
   // 2 a shape that is not the product's, a colour that is not its colour
@@ -803,14 +837,19 @@ function lrSuggestWords(text, o) {
     return false;
   })) return done();
   // 3 low-value words and joining words
-  if (step(t => (isProt(t) ? false : LR_SW_LOW_SET.has(t.k) ? 'low-value word' : LR_SW_STOP_SET.has(t.k) ? 'stop word' : false))) return done();
+  if (step(t => (isProt(t) || t.added ? false : LR_SW_LOW_SET.has(t.k) ? 'low-value word' : LR_SW_STOP_SET.has(t.k) ? 'stop word' : false))) return done();
+  // 3b search terms: the winning words added, the weakest (the last added) first
+  if (step(t => !!t.added, 'limit')) return done();
   // 4 any other word that is not protected: in search terms what the title already says first; then from the end
   cut = true;
+  // search terms: when the listing's own words had to go too, the room left over takes back the winning words that fit, best first
+  const refill = () => { toks.filter(t => t.added && t.out === 'limit').sort((a, b) => a.i - b.i).forEach(t => { t.out = ''; if (!fits()) t.out = 'limit'; }); };
   if (mode === 'kw' && o.title) {
     const inTitle = new Set(String(o.title).split(/[^\p{L}\p{N}%]+/u).map(lrSwKey).filter(Boolean));
-    if (step(t => !isProt(t) && inTitle.has(t.k), 'in the title')) return done();
+    if (step(t => !isProt(t) && !t.added && inTitle.has(t.k), 'in the title')) { refill(); return done(); }
   }
-  if (o.cutEnd !== false) step(t => !isProt(t), 'cut to fit');
+  if (o.cutEnd !== false) step(t => !isProt(t) && !t.added, 'cut to fit');
+  if (mode === 'kw') refill();
   // a title with only important words left, still too long: the short forms the house rule allows at shortFrom–75 characters
   if (mode === 'title' && o.short !== false && !fits()) {
     const from = +o.shortFrom || lrAllow((typeof LR !== 'undefined' && LR) || LR_DEFAULT).shortFrom;

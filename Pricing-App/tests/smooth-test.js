@@ -136,7 +136,10 @@ console.log('== Season planner, Fix all, Listing Errors card, Listing History (b
   const nBtn = h => (ttBtn(h).match(/\[title button\]/g) || []).length;
   ok('…the title rows\' buttons are there in both, now with each row\'s own count', nBtn(ba) > 0 && nBtn(ba) === nBtn(bb) && (bb.match(/>Fix [\d,]+ titles?</g) || []).length === nBtn(bb), nBtn(ba) + ' vs ' + nBtn(bb));
   const [ka, kb] = both(C => (typeof C.kfLeCardHtml === 'function' ? C.kfLeCardHtml('SP', null) + C.kfLeCardHtml('CPC', null) : ''));
-  same('Listing Errors: the "Search terms over the limit" card, both brands', ka, kb);
+  // 27 Nov 2026 (OUR WORD RULES + winning words): the card's line saying how it shortens changed ("— shortened to 249 bytes by our word
+  // rules; winning words added when they fit") — that line alone is set aside; the counts, families and buttons must be the same
+  const kfHow = h => h.replace(/(<span class="muted">— shortened to [\d,]+ bytes)[^<]*(<\/span>)/g, '$1 [how]$2');
+  same('Listing Errors: the "Search terms over the limit" card, both brands', kfHow(ka), kfHow(kb));
   const hist = C => {
     const now = Date.now();
     C.LH.rows = Array.from({ length: 300 }, (_, i) => ({ id: 'h' + i, kind: 'listing', at: now - i * 3600000, by: 'a@b.c', name: ['Asha', 'Ravi'][i % 2], approvedBy: '', brand: 'SP', sku: 'SP-' + String(i).padStart(5, '0'), asin: 'B0' + i,

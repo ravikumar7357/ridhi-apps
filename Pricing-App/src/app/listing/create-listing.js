@@ -332,11 +332,16 @@ async function clAiWrite() {
   try { const t = typeof lrTemplateFor === 'function' ? lrTemplateFor(Object.assign({}, c.row, { sku: CL.src }), c.cfg) : null; tpl = t && t.template ? t.template : ''; } catch (e) { tpl = ''; }
   CL.ai = {};
   for (const [task, field] of [['title', 'title'], ['bullets', 'bullets'], ['description', 'desc'], ['kw', 'kw']]) {
-    const extra = task === 'title' ? { max: 75, tpl } : task === 'kw' ? { max: typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249 } : {};
+    // search terms: the winning words of its product type go with the question (kw-win.js — none without fresh Brand Analytics data)
+    if (task === 'kw' && typeof kwLoad === 'function' && typeof KW !== 'undefined' && !KW.loaded) { try { await kwLoad(); } catch (e) { /* asked without them */ } }
+    const extra = task === 'title' ? { max: 75, tpl } : task === 'kw' ? { max: typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249, win: typeof aiWinWords === 'function' ? aiWinWords(c, CL.kw).slice(0, 25).map(e => e.w) : [] } : {};
     const r = await aiAsk(task, CL.brand, CL.src, Object.assign({}, base, extra));
     if (!r.ok) { CL.ai[field] = { err: r.reason }; if (/not set up|limit reached/i.test(r.reason || '')) break; continue; }
     const v = r.result || {};
-    CL.ai[field] = { text: task === 'title' ? v.title : task === 'bullets' ? (v.bullets || []) : task === 'description' ? v.description : v.kw, style: r.style || null, cost: r.costUsd };
+    // search terms: our one rule runs on the answer first (repeats, other brands, title words it added, the limit) — listing-ai.js aiKwClean
+    const kwClean = task === 'kw' && typeof aiKwClean === 'function' ? aiKwClean(c, v.kw, CL.kw) : null;
+    CL.ai[field] = { text: task === 'title' ? v.title : task === 'bullets' ? (v.bullets || []) : task === 'description' ? v.description : kwClean ? kwClean.text : v.kw, style: r.style || null, cost: r.costUsd,
+      cleaned: kwClean ? kwClean.removed : [] };
   }
   CL.busy = '';
   clDraw();
@@ -432,7 +437,7 @@ function clDraw() {
     `<div class="cl-c"><b>Title</b> <span class="muted">${CL.title.length} characters</span><textarea data-cl-in="title" rows="2" style="width:100%">${clEsc(CL.title)}</textarea>${clChkHtml(chk.title, 'title')}${clAiHtml('title')}</div>`
     + `<div class="cl-c"><b>Bullet points</b>${CL.bullets.map((b, i) => `<textarea data-cl-in="bullet" data-cl-i="${i}" rows="2" style="width:100%">${clEsc(b)}</textarea>`).join('')}${clChkHtml(chk.bullets, 'bullets')}${clAiHtml('bullets')}</div>`
     + `<div class="cl-c"><b>Description</b> <span class="muted">${CL.desc.length} characters</span><textarea data-cl-in="desc" rows="4" style="width:100%">${clEsc(CL.desc)}</textarea>${clChkHtml(chk.desc, 'desc')}${clAiHtml('desc')}</div>`
-    + `<div class="cl-c"><b>Search terms</b> <span class="muted">${typeof lrKwBytes === 'function' ? lrKwBytes(CL.kw) : CL.kw.length} bytes of words</span><textarea data-cl-in="kw" rows="2" style="width:100%">${clEsc(CL.kw)}</textarea>${clChkHtml(chk.kw, 'kw')}${clAiHtml('kw')}</div>`,
+    + `<div class="cl-c"><b>Search terms</b> <span class="muted">${typeof lrKwBytes === 'function' ? lrKwBytes(CL.kw) : CL.kw.length} bytes of words</span> <button type="button" class="ghost im-b" data-cl="kwsug" title="Our word rules on the text in the box, and the winning words of its product type added when they fit">Suggest search terms</button><textarea data-cl-in="kw" rows="2" style="width:100%">${clEsc(CL.kw)}</textarea>${clKwNoteHtml()}${clChkHtml(chk.kw, 'kw')}${clAiHtml('kw')}</div>`,
     'checked by the same rules as every suggestion');
   // --- the pre-submit check and Create ---
   const amz = CL.amz ? `<div class="cl-amz ${CL.amz.test ? 'muted' : CL.amz.ok ? 'is-ok' : 'err'}">${clEsc(CL.amz.text)}</div>` : '';
@@ -452,6 +457,7 @@ function clInput(el) {
   if (k === 'brand') { CL.brand = el.value === 'CPC' ? 'CPC' : 'SP'; CL.schema = null; clDraftSoon(); return clDraw(); }
   if (k === 'bullet') CL.bullets[Number(el.dataset.clI) || 0] = el.value;
   else if (k) CL[k] = el.value;
+  if (k === 'kw') CL.kwNote = null;          // the suggestion's note was about the text before this edit
   if (el.dataset.clField) CL.fields[el.dataset.clField] = el.value;
   clDraftSoon();
   // the checks follow at once; the box being typed in keeps its place (drawn again only when typing stops)
@@ -459,8 +465,39 @@ function clInput(el) {
   clInput.t = setTimeout(() => { const a = typeof document !== 'undefined' ? document.activeElement : null; const sel = a && a.dataset ? (a.dataset.clIn ? `[data-cl-in="${a.dataset.clIn}"]${a.dataset.clI ? `[data-cl-i="${a.dataset.clI}"]` : ''}` : a.dataset.clField ? `[data-cl-field="${a.dataset.clField}"]` : '') : ''; const pos = a && a.selectionStart; clDraw(); if (sel && document.querySelector) { const n = document.querySelector(sel); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* not a text box */ } } } }, 500);
   return null;
 }
+/** SEARCH TERMS SUGGESTED (27 Nov 2026): THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords) on the search terms in the box —
+ *  our brands and important words kept once, every repeat and other brands' names out, the winning words of its product type added
+ *  (kw-win.js: Brand Analytics, never a title word, never another brand), the 249-byte limit. Put in the box; the checks run on it. */
+function clKwSuggest() {
+  if (typeof lrSuggestWords !== 'function') return null;
+  const r = clWithCat(() => {
+    const c = clCtx();
+    const max = typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249;
+    return lrSuggestWords(CL.kw, { mode: 'kw', facts: c.facts, title: CL.title, brands: typeof lrBrandWords === 'function' ? lrBrandWords(c.fresh, c.cfg) : [],
+      others: typeof kwOthers === 'function' ? kwOthers(c.cfg) : [], add: typeof aiWinWords === 'function' ? aiWinWords(c, CL.kw) : null,
+      risk: typeof ipgKwRisk === 'function' && CL.src ? ipgKwRisk(CL.brand, CL.src, c.fresh, c.cfg) : null, fits: t => !lrKwCheck(t, max).over });
+  });
+  if (!r.important) CL.kw = r.after;
+  const why = w => (typeof kwWhyLabel === 'function' ? kwWhyLabel(w) : w);
+  CL.kwNote = { added: r.added || [], removed: r.removed.map(x => ({ w: x.w, why: why(x.why) })), important: !!r.important, status: typeof kwStatus === 'function' ? kwStatus().text : '' };
+  return r;
+}
+function clKwNoteHtml() {
+  const n = CL.kwNote;
+  if (!n) return '';
+  const add = n.added.map(a => `<ins class="kf-add" title="${clEsc(a.why)}">+ ${clEsc(a.w)}</ins>`).join(' ');
+  const cut = n.removed.slice(0, 12).map(x => `<s>${clEsc(x.w)}</s> (${clEsc(x.why)})`).join(', ');
+  return `<div class="cl-kwnote muted">${n.important ? clEsc(typeof LR_SW_IMPORTANT === 'string' ? LR_SW_IMPORTANT : 'Only important words left — edit by hand') + ' · ' : ''}${add ? 'Added: ' + add + ' · ' : ''}${cut ? 'Taken out: ' + cut + ' · ' : ''}🏆 ${clEsc(n.status)}</div>`;
+}
 function clClick(el) {
   const act = el.dataset.cl;
+  if (act === 'kwsug') {
+    return (async () => {
+      if (typeof kwLoad === 'function' && typeof KW !== 'undefined' && !KW.loaded) { try { await kwLoad(); } catch (e) { /* the rule alone */ } }
+      clKwSuggest();
+      clDraw();
+    })();
+  }
   if (act === 'clone') { const v = (typeof document !== 'undefined' && document.querySelector && document.querySelector('[data-cl-in="src"]')) ? document.querySelector('[data-cl-in="src"]').value : CL.src; clClone(v); return clDraw(); }
   if (act === 'readall') return clReadAll();
   if (act === 'schema') return clSchemaRead();

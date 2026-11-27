@@ -173,7 +173,9 @@ const lcTemplateTitle = (brand, sku, max) => lcTemplateFit(brand, sku, max).titl
 const lcKwMax = () => { const rule = lcRule('keyword_bytes'); return rule ? (+(rule.params || {}).max || 249) : 249; };
 /** Search terms: the template's own words that the title does not carry (its important words — hand, block print, its product, shape,
  *  material, colour, use words — even when the title has them), then what is there now; never a shape or colour from the template that is
- *  not the product's; fitted to the byte limit by THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords), not cut off at the end. */
+ *  not the product's; fitted to the byte limit by THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords), not cut off at the end.
+ *  OUR WORD RULES (27 Nov 2026): our brands kept once, every repeat and other brands' names out, and the WINNING WORDS of its product type
+ *  added when they fit (listing/kw-win.js — Brand Analytics; none when that data is missing or old). */
 function lcSuggestKeywords(brand, sku, title, current) {
   const cfg = LR || LR_DEFAULT;
   const row = { brand, sku };
@@ -196,7 +198,10 @@ function lcSuggestKeywords(brand, sku, title, current) {
   add(parts.shape, true);
   add(current, false);
   const max = lcKwMax();
-  return lrSuggestWords(words.join(' '), { mode: 'kw', facts, title, brands: lrBrandWords(row, cfg), fits: text => lrKwBytes(text) <= max }).after;
+  if (typeof kwEnsure === 'function') kwEnsure();            // the winning-keyword data: read once per visit (the next suggestion has it)
+  const win = typeof kwWinFor === 'function' ? kwWinFor({ brand, sku, title, kw: current, facts, pt: ((typeof lmGet === 'function' && lmGet(sku, brand)) || {}).pt, cfg }) : null;
+  return lrSuggestWords(words.join(' '), { mode: 'kw', facts, title, brands: lrBrandWords(row, cfg), others: typeof kwOthers === 'function' ? kwOthers(cfg) : [],
+    add: win ? win.words : null, risk: typeof ipgKwRisk === 'function' && sku ? ipgKwRisk(brand, sku, row, cfg) : null, fits: text => lrKwBytes(text) <= max }).after;
 }
 
 /* ============================================================================================
