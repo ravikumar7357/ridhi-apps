@@ -52772,6 +52772,9 @@ async function soDetailRun(o, sku, want) {
   if (done.floor && moved.some(f => f.k !== 'deliveryDate'))
     return nf(done.floor) + ' piece(s) are already cut against this line, so its size, colour and quality stay. The date can still move.';
   if (moved.some(f => f.k === 'deliveryDate') && !String(want.deliveryDate || '').trim()) return 'Pick the delivery date.';
+  /* The date rule on a line's delivery date (Ravi, 27 Nov 2026; switch lineHold): a new date is from today on; the one it had stays. */
+  const dateErr = lineHoldOn() && moved.some(f => f.k === 'deliveryDate') ? ptDateErr(want.deliveryDate, obUC(sku) + ' · Delivery date', 'plan', was.deliveryDate) : '';
+  if (dateErr) return dateErr;
   const now = new Date().toISOString(), base = 'pt_salesOrders/' + o._id + '/', patch = {};
   moved.forEach(f => ls.forEach(x => { patch[base + 'lines/' + x.i + '/' + f.k] = String(want[f.k]).trim(); }));
   /* ONE DATE FOR THE WHOLE ORDER, AND NOW ONE LINE DIFFERS. The order turns per-line, and every line that leaned on the
@@ -55287,6 +55290,9 @@ async function soQtyRun(o, sku, want, why) {
   const reason = String(why || '').trim();
   /* A CHANGE WITH NO REASON IS THE ONE NOBODY CAN EXPLAIN LATER. */
   if (!reason) return 'Say why it is changing — it goes on the order beside the figure.';
+  /* A big new quantity is asked about (the number rule, Ravi 27 Nov; switch lineHold). */
+  const big = lineHoldOn() ? ptNumBig(plan.to, plan.sku, 'pcs') : '';
+  if (big && !confirm(big)) return 'Not asked — change the quantity.';
   const now = new Date().toISOString();
   /* PADDED SO IT SORTS AS A NUMBER, and strictly after everything the order already holds. Two asks
    * in one millisecond tie on `at`, and then five random characters decide which reads as the later
@@ -55849,6 +55855,28 @@ async function soB2BFile(file, rows) {
 }
 
 /* ---- saving ---- */
+/* THE NUMBER AND DATE RULES, WHERE AN ORDER STARTS (Ravi, 27 Nov 2026: a draft saved with the year 0008, delivery in 2099 and
+ * 2.5 pieces — PPC plans from these orders). Behind the switch lineHold, with the same words as the PPC forms: pieces whole (a
+ * minus line, which takes from an existing order, stays allowed); the order date today or up to 60 days back; delivery dates
+ * from today to a year ahead. A date the order already had is left alone. '' or what to fix. */
+function soEntryErr(rawLines, existing, orderDate, delivery) {
+  const had = existing || {}, oldDates = new Set(soLines(had).map(l => l.deliveryDate).concat(had.deliveryDate).filter(Boolean));
+  const dateErr = ptDateErr(orderDate, 'Order date', 'done', had.orderDate);
+  if (dateErr) return dateErr;
+  const deliveryErr = (d, label) => (!d || oldDates.has(d)) ? '' : ptDateErr(d, label, 'plan');   // from today on, so never before the order date
+  const headErr = deliveryErr(delivery, 'Delivery date');
+  if (headErr) return headErr;
+  return rawLines.map((l, i) => {
+    const qty = String(l.qty == null ? '' : l.qty).trim(), name = obUC(l.sku) || String(l.itemName || '').trim() || `Line ${i + 1}`;
+    return (qty ? ptNumErr(qty.replace(/^-/, ''), `${name} · Quantity`, 'pcs', true) : '') || deliveryErr(l.deliveryDate, `${name} · Delivery date`);
+  }).find(Boolean) || '';
+}
+/** One "is that right?" for the whole order, naming the first big line; '' when no line is above the big figure. */
+function soBigAsk(lines) {
+  const big = lines.filter(l => ptNumBig(Math.abs(l.qty), l.sku, 'pcs'));
+  if (!big.length) return '';
+  return ptNumBig(Math.abs(big[0].qty), big[0].sku, 'pcs') + (big.length > 1 ? ` (${big.length - 1} more line(s) are as big.)` : '');
+}
 async function soFormSave(place) {
   const orderDate = $('sof_date').value || '';
   if (!orderDate) return 'Pick the order date.';
@@ -55890,6 +55918,12 @@ async function soFormSave(place) {
 
   const existing = (SOX.rows || []).find(x => x._id === SOF.id) || null;
   if (existing && !soCanEdit(existing)) return 'This order is no longer yours to change.';
+  if (lineHoldOn()) {
+    const entryErr = soEntryErr(SOF.lines, existing, orderDate, $('sof_delivery').value || '');
+    if (entryErr) return entryErr;
+    const big = soBigAsk(lines);
+    if (big && !confirm(big)) return 'Not saved — change the quantity, then save.';
+  }
   const now = new Date().toISOString();
   const rec = existing ? Object.assign({}, existing) : { _id: '', createdAt: now, createdBy: ME.email };
 
@@ -56112,6 +56146,9 @@ async function soApproveRun(id) {
   if (mode === 'complete') {
     const d = $('sor_date').value;
     if (!d) return 'Set the delivery date for the order, or switch to the date already on each line.';
+    /* The date rule at approval (Ravi, 27 Nov; switch lineHold): a delivery date newly set here is from today on. */
+    const dateErr = lineHoldOn() ? ptDateErr(d, 'Delivery date', 'plan', o.deliveryDate) : '';
+    if (dateErr) return dateErr;
     lines = lines.map(l => Object.assign({}, l, { deliveryDate: d }));
   } else {
     const missing = lines.filter(l => !l.deliveryDate).length;
