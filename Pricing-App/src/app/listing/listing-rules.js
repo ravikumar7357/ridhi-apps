@@ -860,7 +860,8 @@ function lrSuggestWords(text, o) {
   // push out the listing's own words
   if (step(t => !!t.added && !t.proven, 'limit')) return done();
   // search terms: when the listing's own words had to go too, the room left over takes back the winning words that fit, best first
-  const refill = () => { toks.filter(t => t.added && t.out === 'limit').sort((a, b) => a.i - b.i).forEach(t => { t.out = ''; if (!fits()) t.out = 'limit'; }); };
+  // (the leftovers go first, so the room they leave is used too)
+  const refill = () => { leftovers(); toks.filter(t => t.added && t.out === 'limit').sort((a, b) => a.i - b.i).forEach(t => { t.out = ''; if (!fits()) t.out = 'limit'; }); };
   // 4 any other word that is not protected: in search terms what the title already says first; then from the end
   const cutOwn = () => {
     cut = true;

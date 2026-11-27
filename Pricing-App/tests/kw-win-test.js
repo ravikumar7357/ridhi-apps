@@ -196,7 +196,8 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     const addCut = order.filter(x => x.why === 'limit');
     ok('…then the ADDED words, the weakest first ("farmhouse", then "boho"), before any of the listing\'s own words is cut', lastLow < firstCut
       && r.toks.filter(t => t.added).sort((a, b) => a.n - b.n).map(t => t.w).join() === 'farmhouse,boho' && order.findIndex(x => x.why === 'cut to fit') > -1, JSON.stringify([r.notAdded, addCut]));
-    ok('…and when the listing\'s own words had to go too, the room left over takes back the best winning word that fits ("boho", 4 bytes) — never "farmhouse" (no room)', r.added.map(a => a.w).join() === 'boho' && r.notAdded.map(a => a.w).join() === 'farmhouse' && fits(r.after) && / boho$/.test(r.after), r.after);
+    // (29 Nov 2026) the leftovers (her, style) go before the room left over is filled — so both winning words fit now
+    ok('…and when the listing\'s own words had to go too, the room left over (with the leftovers her / style out first) takes back the winning words that fit (boho, farmhouse)', r.added.map(a => a.w).join() === 'boho,farmhouse' && !r.notAdded.length && fits(r.after) && / boho farmhouse$/.test(r.after) && r.removed.filter(x => x.why === 'leftover').map(x => x.w).join() === 'style,her', r.after);
     ok('…and only then the listing\'s own ordinary words, from the end — never our brand or an important word', !r.removed.some(x => x.why === 'cut to fit' && /^(ridhi|hand|block|print|tablecloth|cotton|indigo|blue|rectangular|dining|kitchen)$/.test(x.w)), JSON.stringify(r.removed.filter(x => x.why === 'cut to fit').map(x => x.w)));
     let kwNS = 'ridhi cpc whimsical corner hand block print blockprint handmade napkins cotton sage green dinner kitchen dining washable reusable wrinkle free';
     for (let i = 10; bytes(kwNS) <= 260; i++) kwNS += ` ${i}x${i}`;
@@ -209,7 +210,7 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     const it = C2.kfItemOf('SP', C2.HEALTH.SP.rows.find(x => x.sku === T1.sku), C2.hCtx(), null);
     const plan = C2.kfPlan(it);
     ok('Fix all search terms (kfPlan) sends only generic_keyword — the title, bullets and description are never in the patch', plan.ok && plan.patches.length === 1 && plan.patches[0].path === '/attributes/generic_keyword' && plan.b1 <= 249, JSON.stringify([plan.ok, plan.why, plan.patches]));
-    ok('its plan of the over-limit tablecloth: "Shorten to 239 bytes · + 1 winning word" (her, style: leftovers)', /^Shorten to 239 bytes · \+ 1 winning word$/.test(plan.what) && plan.added.map(a => a.w).join() === 'boho', plan.what);
+    ok('its plan of the over-limit tablecloth: "Shorten to 248 bytes · + 2 winning words" (her, style: leftovers — their room used)', /^Shorten to 248 bytes · \+ 2 winning words$/.test(plan.what) && plan.added.map(a => a.w).join() === 'boho,farmhouse', plan.what);
   }
 
   console.log('== the preview (Fix all search terms popup): + added with why, struck words with their reason, 🔒 protected, bytes ==');
