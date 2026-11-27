@@ -117,10 +117,10 @@ h1{font-size:clamp(26px,4vw,36px);font-weight:800;letter-spacing:-.02em;margin-t
 /* ============ ROADMAP: the data. Change these numbers to update the page. ============
  * status: done | active | next | later      unit: lines | steps | scripts      done / total: how far along */
 const ROADMAP = {
-  updated: '26 Nov 2026',
+  updated: '27 Nov 2026',
   next: [
-    { text: "Check that last night's backup (03:20) read from Supabase", done: false },
-    { text: 'Run the 3 parity checks', done: false },
+    { text: "Check that last night's backup (03:20) read from Supabase: yes, 85 registers + 38 collections", done: true },
+    { text: 'Parity checks: weekly:keys and listing:periods match Apps Script; ping needs the Amazon login in .env', done: false },
     { text: 'Server: exact cost first, then buy DigitalOcean App Platform', done: false },
     { text: 'Put the backend on the server and stop the copy on this PC', done: false },
     { text: 'Pause clasp push on the office PC', done: false },
