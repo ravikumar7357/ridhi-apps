@@ -43,6 +43,8 @@ Replenish-App/dist/
 !/Backup-Script/
 # Monday/Thursday company report mail and Tuesday/Friday printer delay mail (Apps Script), Ravi 17-19 Nov 2026
 !/Report-Mail/
+# The ERP database (Supabase): every function, rule and table as SQL. Copied from migration/sql on 27 Nov 2026.
+!/ERP-DB/
 # Lighter local builds (node Replenish-App/tests/build-dist-opt.js [app folder]); for trying out, never deployed
 Replenish-App/dist-opt/
 Pricing-App/dist-opt/
