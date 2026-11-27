@@ -230,8 +230,8 @@ function soArticlePack(sku) {
 /* SKU — product name, off the orders themselves. soPackFit is handed a SKU and nothing else by nine
  * call sites, so the name it needs has to be findable from the code alone. */
 let SO_SKU_NAME = {};
-function soIndexNames() {
-  SHOP.orders.concat(soImpLive()).forEach(o => (o.items || []).forEach(i => {
+function soIndexNames(more) {
+  SHOP.orders.concat(soImpLive(), more || []).forEach(o => (o.items || []).forEach(i => {
     const k = String(i.sku || '').trim().toUpperCase();
     if (k && i.name && !SO_SKU_NAME[k]) SO_SKU_NAME[k] = i.name;
   }));
@@ -737,11 +737,12 @@ function soHoldOrderNo(o, taken) {
   const base = shpOrderNo(o.no);
   return taken.get(base) ? '' : base;
 }
-/** What one store's open orders need from India, line by line, for shpHoldBuild. */
-function soHoldClaims(store) {
-  soIndexNames();
+/** What one store's open orders need from India, line by line, for shpHoldBuild. copyOrders (test website): the shared
+ *  copy's orders, counted in place of the ones read from Shopify. */
+function soHoldClaims(store, copyOrders) {
+  soIndexNames(copyOrders);
   /* The older unshipped orders (soHoldReadOld) beside the ones on screen, each order once, the screen's copy winning. */
-  const orders = [...new Map((SHOP.holdOld || []).concat(SHOP.orders).map(o => [String(o.id), o])).values()];
+  const orders = copyOrders || [...new Map((SHOP.holdOld || []).concat(SHOP.orders).map(o => [String(o.id), o])).values()];
   soApplyTypedSkus(orders);
   const taken = shpTakenNumbers(), claims = [];
   orders.filter(o => soOrdBrand(o) === store && soHoldOrderOpen(o)).forEach(o => {
@@ -789,16 +790,25 @@ function soHoldSay(whys) {
   console.warn('India store hold: ' + line);
   soMsg(line, true);
 }
+/** Is the order book in? Without it an order's production number, and what was issued to it, cannot be known. */
+const soHoldBookIn = () => (prOn() ? ptRegLoaded('ob') : !!PTG.at);
+/** Why the stock a need is judged by is not in yet, or ''. */
+const soHoldStockWhy = () => (!SHOP_STOCK_LOADED || !SHOP_INDIA_AT || SHOP_INDIA_ERR ? 'Amazon or India stock has not been read yet' : '');
+/** The store ledger, read once the Master Database (pack sizes) is in. Throws when either cannot be read. */
+async function soHoldLedger() {
+  await ptNeed(PTG_ALL, { why: 'shop-hold', has: 'mdb' });
+  if (!(PTG.mdb || []).length) throw new Error('the Master Database (pack sizes) was not read');
+  return ptList(await ptGet('pt_fgiLedger'));
+}
 /** After the orders, India stock and Amazon stock are all in: note each fully read store's need. Never throws. */
 async function soHoldPublish() {
   if (typeof shpHoldOn !== 'function' || !shpHoldOn()) return;
+  if (soHoldFromCopy()) return soHoldPublishCopy();
   if (!SHOP.holdRead) return soHoldSay([SHOP.holdAsking ? 'the older unshipped orders are still being read'
     : 'these orders were not just read from Shopify — press Fetch orders']);
-  if (!SHOP_STOCK_LOADED || !SHOP_INDIA_AT || SHOP_INDIA_ERR) return soHoldSay(['Amazon or India stock has not been read yet']);
+  if (soHoldStockWhy()) return soHoldSay([soHoldStockWhy()]);
   try {
-    await ptNeed(PTG_ALL, { why: 'shop-hold', has: 'mdb' });
-    if (!(PTG.mdb || []).length) throw new Error('the Master Database (pack sizes) was not read');
-    const ledger = ptList(await ptGet('pt_fgiLedger'));
+    const ledger = await soHoldLedger();
     /* Orders and their read time are taken together, after the waits: a newer fetch may have replaced both. */
     const read = SHOP.holdRead || {};
     const figures = SO_BRANDS.filter(b => read[b]).map(b => [b, { at: read[b], by: ME.email, skus: shpHoldBuild(soHoldClaims(b), ledger) }]);
@@ -810,6 +820,93 @@ async function soHoldPublish() {
     }
     soHoldSay(whys);
   } catch (e) { soHoldSay([e.message || String(e)]); }
+}
+
+/* THE TEST WEBSITE COUNTS FROM THE SHARED COPY (27 Nov): live Shopify is off there (it shares the live ERP's Shopify limit), so
+ * the need is counted from the shared copy of the orders (shopify-copy.js) and noted with the time that copy last heard from
+ * Shopify, so the 6-hour rule judges its real age. A store the copy cannot answer for is not noted, and the tab says why. A
+ * copy that does not reach back as far as the tab does is still counted (test website only), and the tab says from which day. */
+const soHoldFromCopy = () => typeof shpHoldOn === 'function' && shpHoldOn() && shpOnTestSite();
+const SO_HOLD_COPY_MS = 90000;          // the copy not read by then: said on the tab
+const SO_HOLD_COPY_AT_ONCE = 10;        // days asked for together
+/* Days already read, by 'STORE_day': one is read again only when the copy's contents page says it changed. */
+const SO_HOLD_DAYS = new Map();
+let SO_HOLD_COPY_READING = null;        // opening the tab and pressing Fetch share one read
+
+async function soHoldCopyDay(brand, day, changedAt) {
+  const key = brand + '_' + day, had = SO_HOLD_DAYS.get(key);
+  if (had && had.changedAt === changedAt) return had.orders;
+  const orders = await soSharedDay(brand, day);
+  if (!orders) throw new Error('the shared copy lists the orders of ' + day + ' but they are not there');
+  SO_HOLD_DAYS.set(key, { changedAt, orders });
+  return orders;
+}
+/** One store's orders in the shared copy, placed on `floor` or later: { orders, at: the copy's last sync, from: the first day
+ *  the copy holds in full }. Throws why the store cannot be counted. */
+async function soHoldCopyStore(brand, contents, floor) {
+  const st = (contents.stores || {})[brand] || {};
+  if (!st.syncedAt || !st.filledFrom) throw new Error('the shared copy has not been filled for this store');
+  const days = soSharedDaysToRead(st, {}, floor), orders = {};
+  if (!days.length) throw new Error('the shared copy holds no orders for this store');
+  for (let i = 0; i < days.length; i += SO_HOLD_COPY_AT_ONCE) {
+    const part = await Promise.all(days.slice(i, i + SO_HOLD_COPY_AT_ONCE).map(d => soHoldCopyDay(brand, d, st.days[d])));
+    part.forEach(dayOrders => soCopyMerge(orders, Object.values(dayOrders)));
+  }
+  /* The copy's orders do not name their store. */
+  const mark = o => Object.assign({}, o, { shopBrand: brand, channel: brand === 'CPC' ? 'CPC Shopify' : o.channel || 'Shopify' });
+  return { orders: Object.values(orders).map(mark), at: st.syncedAt, from: st.filledFrom > floor ? st.filledFrom : floor };
+}
+const soHoldCopyWhy = e => (e.code === 'permission-denied'
+  ? 'this account may not read the shared copy of the orders — ask an admin for the Shopify right' : e.message || String(e));
+/** Both stores from the shared copy: { floor, SP, CPC }, a store that cannot be counted as { why }. */
+async function soHoldCopyReadBoth() {
+  const contents = await soSharedContents();
+  const out = { floor: sdShift(sdToday(), -SHP_REACH_MAX_DAYS) };
+  await Promise.all(SO_BRANDS.map(async b => {
+    out[b] = await soHoldCopyStore(b, contents, out.floor).catch(e => ({ why: soHoldCopyWhy(e) }));
+  }));
+  return out;
+}
+function soHoldCopyRead() {
+  if (!SO_HOLD_COPY_READING) {
+    SO_HOLD_COPY_READING = ptWithin(soHoldCopyReadBoth(), SO_HOLD_COPY_MS).finally(() => { SO_HOLD_COPY_READING = null; });
+  }
+  return SO_HOLD_COPY_READING;
+}
+const soHoldCopyTime = at => new Date(at).toLocaleString('en-GB',
+  { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+/** The line for the stores noted from the copy: its time, the first day counted, and what that leaves out. */
+function soHoldCopyNoted(read, brands) {
+  if (!brands.length) return '';
+  const parts = brands.map(b => soAcctName(b) + ': copy of ' + soHoldCopyTime(read[b].at) + ', orders counted from ' + read[b].from);
+  const short = brands.some(b => read[b].from > read.floor);
+  const old = brands.some(b => Date.now() - read[b].at > SHP_HOLD_MAX_AGE_MS);
+  return 'Test website: pieces held for website orders were noted from the shared copy of the orders — ' + parts.join('; ') + '.'
+    + (short ? ' The copy does not reach back ' + SHP_REACH_MAX_DAYS + ' days, so an older unshipped order may be missing.' : '')
+    + (old ? ' A copy is over 6 hours old: FBA stays refused until the copy is newer.' : '');
+}
+/** Its own line on the tab, because the order list redraws the other one. */
+function soHoldCopySay(text, bad) {
+  const el = $('soHoldMsg');
+  el.textContent = text;
+  el.className = bad ? 'err' : 'muted';
+  if (bad) console.warn('India store hold: ' + text);
+}
+/** The test website's soHoldPublish. Never throws. */
+async function soHoldPublishCopy() {
+  if (soHoldStockWhy()) return soHoldCopySay(SO_HOLD_NOT_NOTED + soHoldStockWhy(), true);
+  try {
+    const ledger = await soHoldLedger();
+    if (!soHoldBookIn()) throw new Error('the order book was not loaded yet — press Fetch orders again');
+    const read = await soHoldCopyRead(), noted = [], whys = [];
+    for (const b of SO_BRANDS) {
+      const s = read[b];
+      const why = s.why || await shpHoldPublish(b, { at: s.at, by: ME.email, skus: shpHoldBuild(soHoldClaims(b, s.orders), ledger) });
+      if (why) whys.push(soAcctName(b) + ': ' + why); else noted.push(b);
+    }
+    const notNoted = whys.length ? SO_HOLD_NOT_NOTED + whys.join('; ') : '';
+    soHoldCopySay([soHoldCopyNoted(read, noted), notNoted].filter(Boolean).join(' '), !!whys.length);
+  } catch (e) { soHoldCopySay(SO_HOLD_NOT_NOTED + soHoldCopyWhy(e), true); }
 }
 
 function soIndia(order) {
@@ -1341,11 +1438,15 @@ async function fetchShopOrders(opts) {
   const live = !!(opts && opts.live === true);
   /* ready: what has to be in before the fetched orders are drawn (the bins and the stock, read alongside). */
   const ready = opts && opts.ready;
-  /* The pieces held from FBA are counted only from a full read of Shopify, so with that switch on the button reads in full. */
-  const holding = typeof shpHoldOn === 'function' && shpHoldOn();
+  /* The pieces held from FBA are counted only from a full read of Shopify, so with that switch on the button reads in full.
+   * Not on the test website, which counts them from the shared copy. */
+  const fromCopy = soHoldFromCopy();
+  const holding = !fromCopy && typeof shpHoldOn === 'function' && shpHoldOn();
   if (!live && !holding && soCopyMode() === 'copy' && SHOP.copy) {
     if (ready) await ready.catch(() => {});
-    soMsg('Asking Shopify what has changed…'); await soCopyRefresh(soWant(), { now: true }); return;
+    soMsg('Asking Shopify what has changed…'); await soCopyRefresh(soWant(), { now: true });
+    if (fromCopy) soHoldPublish();
+    return;
   }
   const btn = $('soGo');
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>…';
@@ -1356,7 +1457,7 @@ async function fetchShopOrders(opts) {
     /* The old unfinished orders, by id — see ensureShop_. Asked of both stores; each answers for its own. An old
      * line with no Shopify id can only be found by date, so for that one the dates stretch back as they used to. */
     /* Without the order book the old unfinished orders cannot be known, so nothing is counted for the hold. */
-    if (holding) bookIn = prOn() ? ptRegLoaded('ob') : !!PTG.at;
+    if (holding) bookIn = soHoldBookIn();
     const old = soOldOpen(win.start);
     const ask = Object.assign({}, win, old.reach && old.reach < win.start ? { start: old.reach } : {});
     /* Two stores, asked at the same time. CPC's own failure must not cost us Ridhi's orders — this
@@ -1389,6 +1490,7 @@ async function fetchShopOrders(opts) {
   if (ready) await ready.catch(() => {});
   renderShop();
   if (holdStamps) soHoldReadOld(SHOP, holdStamps, bookIn).then(() => soHoldPublish());
+  if (fromCopy) soHoldPublish();
   /* PHOTOS AFTER THE ORDERS (phase 0): the list is on screen first; the pictures fill in a moment later. The
    * production sync waits for them, because it copies each line's photo onto its production row. */
   if (fetched) soPhotosLoad().catch(() => {}).then(() => { renderShop(); shpSyncSoon(); });
