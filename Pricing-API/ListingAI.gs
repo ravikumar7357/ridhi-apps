@@ -16,6 +16,9 @@
  *   Search words  the words that brought sales — the Listing Optimiser's own reading of the ads search-term cache (ListingOptimiser.gs
  *                 listingKeywords_ over the nightly srchTerm / adGroup caches): only terms from single-product ad groups (clean), with
  *                 orders. The SQP cache is not used: nothing writes it yet.
+ *   Winning words (task kw, 27 Nov 2026) &win=a|b|c — words of the Brand Analytics searches other brands win for this product type,
+ *                 best first, worked out in Sellora (listing/kw-win.js) from the uploaded reports: single words only, never a brand,
+ *                 never a title word. Sellora runs its own search-terms rule on the answer before showing it.
  *
  * TASKS (whitelist — any other name is refused; the prompts live here, never in the app):
  *   title, bullets, description, kw   Claude Sonnet (Script Property AI_MODEL, default claude-sonnet-5-5)
@@ -164,9 +167,14 @@ var AI_SYSTEM = [
   '   feel; the hand block print; care as FACTS states it; uses and occasions). Start each with a short capitalised lead phrase and a colon.',
   'DESCRIPTION (task description): 600–1500 characters of plain sentences in 2–4 short paragraphs separated by a blank line; no bullet marks.',
   'SEARCH TERMS (task kw): backend keywords, at most FACTS.kwMax bytes counting only the words (spaces and ; , . do not count).',
-  '   Lower case, words separated by single spaces, no commas. NO word that is already in the title, no word twice, no brand names (ours or',
-  '   anyone\'s), no ASINs, no filler (and, the, for, with). Put first the customer search words that brought sales and are not in the',
-  '   title; then synonyms, uses, occasions, rooms, other spellings (table cloth / tablecloth), sizes written another way.',
+  '   Lower case, words separated by single spaces, no commas. Start from FACTS.searchTermsNow. KEEP, ONE time each, our brand names',
+  '   (ridhi, whimsical corner, cpc, cotton print club) and the important words (hand, block print, hand block print, blockprint,',
+  '   handmade, hand printed, the product, its real shape, material, own colour, size, use words such as kitchen, dining, washable,',
+  '   wrinkle free) when they are in FACTS.searchTermsNow. No word twice (singular and plural are the same word). NEVER another brand\'s',
+  '   name (Angry Orange, Etopia, Maison or any other), no ASINs, no filler (and, the, for, with), no new word that is already in the',
+  '   title. Then add the words of FACTS.winningWords (searches other brands win; best first) that are missing, then the customer search',
+  '   words that brought sales and are not in the title; then synonyms, uses, rooms, other spellings (table cloth / tablecloth).',
+  '   No season words (the season planner adds those).',
   'SEASON (task season): field hl = Item Highlights for the season FACTS.season: one text of at most FACTS.hlMax characters that names',
   '   the season once and keeps the product\'s own facts; field title = a title as above that also names the season once. Never a sale word.',
   'A+ TEXT (task aplus_text): a headline (at most 80 characters) and 3 or 4 blocks, each a heading (at most 60 characters) and a body',
@@ -371,7 +379,10 @@ function aiFacts_(task, brand, sku, asin, p) {
       f.max = Math.min(200, Math.max(60, Number(p.max) || 75));
       f.template = String(p.tpl || '{brand} {product} {shape} {material} {size} {pattern} - {color}').slice(0, 200);
     }
-    if (task === 'kw') f.kwMax = Math.min(500, Math.max(50, Number(p.max) || 249));
+    if (task === 'kw') {
+      f.kwMax = Math.min(500, Math.max(50, Number(p.max) || 249));
+      f.winningWords = aiList_(p.win, 40, 40);     // 27 Nov 2026: Sellora's winning words (Brand Analytics) — words only, best first
+    }
     if (task === 'season') {
       f.season = String(p.season || '').slice(0, 40);
       f.field = p.field === 'title' ? 'title' : 'hl';

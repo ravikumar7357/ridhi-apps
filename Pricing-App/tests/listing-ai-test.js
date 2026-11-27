@@ -348,13 +348,26 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
     C.AI.memo.clear(); AIR.answer.kw = () => ({ kw: 'cotton napkins blue ridhi dinner dinner pottery barn ' + 'w'.repeat(240) });
     r = await press(C, page(), C.aiBtnHtml('kw', 'SP', 'NP-1', { use: 'send', key: 'bad' }));
     const f = r.job.chk.fails.join(' | ');
-    ok('over 249 bytes → red', /bytes, over 249/.test(f), f);
-    ok('words already in the title → red', /already in the title: .*cotton/.test(f) && /napkins/.test(f), f);
-    ok('a word twice → red; our brand name → red; another brand\'s name → red', /said twice: dinner/.test(f) && /our brand name “Ridhi”/i.test(f) && /pottery barn/i.test(f), f);
-    ok('…Approve disabled', !enabled(r.card, 'approve'));
+    // OUR WORD RULES (27 Nov 2026): the AI's answer goes through the one rule BEFORE it is shown — what it took out is said on the card
+    const cut = (r.job.cleaned || []).map(x => x.w + ':' + x.why).join(' ');
+    ok('the AI answer through our rule: the repeat (dinner), the title words it added (cotton, blue), another brand (pottery barn), the limit (www…) out — said on the card',
+      /dinner:duplicate/.test(cut) && /cotton:limit — the title already says it/.test(cut) && /blue:limit — the title already says it/.test(cut) && /pottery:other brand/.test(cut) && /barn:other brand/.test(cut) && /w{240}:limit/.test(cut)
+      && /Our rules took out of the AI's answer/.test(r.card), cut);
+    ok('…our brand "ridhi" STAYS (kept once, never removed); "napkins" stays (it was in the search terms already)', /\bridhi\b/.test(r.job.text) && /\bnapkins\b/.test(r.job.text) && C.lrKwCheck(r.job.text, 249).bytes <= 249, r.job.text);
+    // (2 Dec 2026) what it lost is PUT BACK — not only blocked: the protected words of the search terms now ("reusable", "washable")
+    ok('…the protected words it left out are PUT BACK ("+ reusable (protected, put back)"), said on the card; nothing red', /\breusable\b/.test(r.job.text) && /\bwashable\b/.test(r.job.text)
+      && (r.job.putBack || []).map(x => x.w).join() === 'reusable,washable' && /Put back: <ins class="kf-add">\+ reusable<\/ins> \(protected, put back\)/.test(r.card) && !f, f + ' | ' + r.job.text);
+    ok('…Approve enabled only now that it passes', enabled(r.card, 'approve') && r.job.chk.pass);
+    // the checks themselves (a hand edit of the card is checked, not cleaned): over the limit, title words, twice, another brand → red; our brand → fine
+    const c1 = C.aiCtx('SP', 'NP-1');
+    const f2 = C.aiCheck(c1, 'kw', 'cotton napkins blue ridhi dinner dinner pottery barn ' + 'w'.repeat(240)).fails.join(' | ');
+    ok('a hand edit: over 249 bytes → red; a title word that is not protected (inch) → red; a word twice → red; another brand → red', /bytes, over 249/.test(f2)
+      && /said twice: dinner/.test(f2) && /pottery barn/i.test(f2) && /already in the title: inch/.test(C.aiCheck(c1, 'kw', 'dinner napkins reusable washable inch').fails.join(' | ')), f2);
+    ok('…our brand name and the important words the title also has (cotton, napkins, blue) are NOT red any more', !/our brand name/.test(f2) && !/already in the title/.test(C.aiCheck(c1, 'kw', 'ridhi cotton napkins blue reusable washable dinner').fails.join(' | ')), f2);
     C.AI.memo.clear(); AIR.answer.kw = () => ({ kw: 'serviettes party wedding' });
     r = await press(C, page(), C.aiBtnHtml('kw', 'SP', 'NP-1', { use: 'send', key: 'lost' }));
-    ok('the protected words of the search terms now that the title does not carry ("reusable", "washable") must stay', /leaves out a protected word: .*reusable/.test(r.job.chk.fails.join(' | ')), r.job.chk.fails.join(' | '));
+    ok('the protected words of the search terms now (dinner, napkins, reusable, washable) are put back next to their words; the answer passes', ['dinner', 'napkins', 'reusable', 'washable'].every(w => new RegExp('\\b' + w + '\\b').test(r.job.text))
+      && r.job.chk.pass && enabled(r.card, 'approve') && /serviettes party wedding/.test(r.job.text), r.job.text + ' | ' + r.job.chk.fails.join(' | '));
     C.AI.memo.clear(); delete AIR.answer.kw;
   }
 
@@ -440,7 +453,8 @@ const patches = (C, apply) => C.calls.filter(c => c.lfix === 'patch' && c.apply 
     C.ttClose();
     C.AI.memo.clear(); AIR.answer.ip_rewrite = q2 => ({ field: q2.field, index: 0, text: 'dinner napkins pottery barn table linen', word: q2.word });
     const bad = await press(C, page(), C.aiBtnHtml('ip_rewrite', 'SP', 'NP-2', { use: 'ipg', field: 'kw', word: 'pottery barn style', wk: 'Pottery Barn' }));
-    ok('a rewrite that still holds the word → "still holds", disabled', /still holds “Pottery Barn”/.test(bad.job.chk.fails.join(' | ')) && !enabled(bad.card, 'use'), bad.job.chk.fails.join(' | '));
+    // search terms (27 Nov 2026): our one rule runs on the AI's answer first — the risky word it still holds is taken out before it is shown
+    ok('a search-terms rewrite that still holds the word → our rule takes it out first ("pottery barn": other brand), said on the card', !/pottery|barn/i.test(bad.job.text) && (bad.job.cleaned || []).some(x => /pottery/i.test(x.w)) && /Our rules took out/.test(bad.card), JSON.stringify([bad.job.text, bad.job.cleaned]));
     C.AI.memo.clear(); delete AIR.answer.ip_rewrite;
     const kw = await press(C, page(), C.aiBtnHtml('ip_rewrite', 'SP', 'NP-2', { use: 'ipg', field: 'kw', word: 'organic', wk: 'organic', key: 'k2' }));
     C.aiUse(kw.job);

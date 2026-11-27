@@ -343,7 +343,8 @@ function viLoad(force) {
           const s = snap.data();
           const skuOf = {};
           ((HEALTH[b] && HEALTH[b].rows) || []).forEach(r => { const a = String(r.asin || '').toUpperCase(); if (a && r.sku) (skuOf[a] || (skuOf[a] = [])).push(r.sku); });
-          data.stock[b] = { m: s.m || {}, at: s.at && s.at.toDate ? s.at.toDate().toISOString() : '', skuOf };
+          // in: units on the way per SKU when the document carries them (the Forecast adds them to the cover; absent = unknown)
+          data.stock[b] = { m: s.m || {}, in: s.in && typeof s.in === 'object' ? s.in : null, at: s.at && s.at.toDate ? s.at.toDate().toISOString() : '', skuOf };
         } catch (e) { /* no stock: "out of stock" is never claimed */ }
       }));
     }
@@ -436,7 +437,9 @@ function viBoxHtml(res, sum, brand, open) {
     const tip = `${m.name}: ${viMoney(m.was)} → ${viMoney(m.now)} (${viPct(m.pct, 0)})${res.brand === 'ALL' ? ' · ' + (VI_BRAND_NAME[m.brand] || m.brand) : ''} · ${m.driver.t}${m.driver.also ? ' · ' + m.driver.also : ''}`;
     return `<div class="sdx-mv ${m.d < 0 ? 'down' : 'up'}" title="${viEsc(tip)}"><span class="sdx-mv-n">${viEsc(m.name)}</span><span class="sdx-mv-amt">${viMoney(m.d, true)}</span>`
       + `<span class="sdx-mv-bar" aria-hidden="true"><i style="width:${Math.max(3, Math.round(Math.abs(m.d) / max * 100))}%"></i></span>`
-      + `<span class="sdx-pills">${viPill(m.driver)}${m.driver.k !== 'none' ? viPill(m.driver.more) : ''}</span></div>`;
+      + `<span class="sdx-pills">${viPill(m.driver)}${m.driver.k !== 'none' ? viPill(m.driver.more) : ''}`
+      + (m.d < 0 && typeof tkBtnHtml === 'function' ? tkBtnHtml({ src: 'insight', brand: m.brand, key: m.key, parent: m.parent, name: m.name, problem: `Sales ${viPct(m.pct, 0)} in ${viDash(res.labels.L)} (${viMoney(m.d, true)} against ${viDash(res.labels.P)})`, kind: 'week', ref: res.wk.L, pick: m.driver && { oos: 'stock', price: 'price', ads: 'ads', traffic: 'listing', conv: 'listing' }[m.driver.k] || '' }, 'vi-tk') : '')
+      + '</span></div>';
   };
   const gains = res.movers.filter(m => m.d > 0).sort((a, b) => b.d - a.d), drops = res.movers.filter(m => m.d < 0).sort((a, b) => a.d - b.d);
   const col = (cls, title, list, none) => `<div><h3 class="sdx-mv-h ${cls}">${title}</h3>${list.length ? list.map(row).join('') : `<p class="sdx-none">${none}</p>`}</div>`;
@@ -502,5 +505,8 @@ function viDashOf(view) {
   const first = (text.match(/^.*?[.!?](?=\s|$)/) || [text])[0];
   const t = res.total;
   return { head: t.d ? `Revenue ${viFell(t.d)} ${viMoney(Math.abs(t.d))} last week` : 'Revenue held level last week',
-    pct: t.pct == null ? null : Math.round(t.pct * 10) / 10, up: t.d >= 0, text: first, when: `${res.labels.L} · sales as at ${res.asOf.sales || '—'}` };
+    pct: t.pct == null ? null : Math.round(t.pct * 10) / 10, up: t.d >= 0, text: first, when: `${res.labels.L} · sales as at ${res.asOf.sales || '—'}`,
+    // the Dashboard card's sentence and two bars (26 Nov 2026): the same two week totals, in cents, with their labels and the brand on view
+    d: t.d, amount: viMoney(Math.abs(t.d)), brand: VI_BRAND_NAME[res.brand] || res.brand, asAt: res.asOf.sales || '',
+    weeks: [{ label: viDash(res.labels.P), cents: t.was }, { label: viDash(res.labels.L), cents: t.now }] };
 }

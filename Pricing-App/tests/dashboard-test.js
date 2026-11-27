@@ -18,7 +18,7 @@ const APP = path.join(__dirname, '..', 'src', 'app');
 const read = p => fs.readFileSync(p, 'utf8');
 const CLOCK = `(() => { const RD = Date; class FD extends RD { constructor(...a) { if (a.length) super(...a); else super(globalThis.__now); }
   static now() { return globalThis.__now; } } globalThis.Date = FD; })();`;
-const FILES = ['sales/sales-dashboard.js', 'ads/account-trends.js', 'ads/ppc-organic.js', 'listing/new-listings.js', 'core/dashboard.js'];
+const FILES = ['sales/sales-dashboard.js', 'ads/account-trends.js', 'ads/ppc-organic.js', 'listing/new-listings.js', 'sales/sales-insight.js', 'core/dashboard.js'];
 const SRC = FILES.map(f => `/* ${f} */\n` + read(path.join(APP, f))).join('\n;\n');
 function makeEl(id, vals) {
   const cls = new Set();
@@ -219,7 +219,7 @@ console.log('== 4. the cards: New listings, Wins, skeletons, the kept copy ==');
 function withNl(C, rows) {
   C.run(`HEALTH = { SP: { rows: ${JSON.stringify((rows || ROWS).SP)}, at: new Date(Date.parse('2026-11-21T20:00:00Z')) }, CPC: { rows: ${JSON.stringify((rows || ROWS).CPC)}, at: null } };
     H_LOADED = true; lmGet = (sku, b) => (${JSON.stringify(LMX)})[b + '|' + sku] || null; lmVersion = () => 1; LM = { ov: 0, busy: null };
-    VI = { v: 1, data: { days: ${JSON.stringify(DAILY)}, weekly: null } }; LH = { rows: ${JSON.stringify(LHR)}, loading: false, err: '' };
+    VI.v = 1; VI.data = { days: ${JSON.stringify(DAILY)}, weekly: null }; VI.res = {}; LH = { rows: ${JSON.stringify(LHR)}, loading: false, err: '' };
     DASH.weekly = { weeks: [], rows: ${JSON.stringify(WEEKLY_ROWS)}, at: '2026-11-24 05:10' }; lmDataLabel = () => null;
     NL.memo = null; DASH.memo = {}; DASH.st.nl = { s: 'ok' }; DASH.brand = 'ALL'; DASH.nlDays = 30; TAB_OK = () => true;`);
 }
@@ -312,6 +312,37 @@ console.log('== 5. no error counts anywhere on the Dashboard; the page ==');
     && /prefers-reduced-motion:reduce\)\{ #paneDash \*/.test(block));
   ok('CSS: no red anywhere in the block except the ▼ colour token', !/--bad(?!-ink)\b|#e5484d|#dc2626|\bred\b/i.test(block.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--d-dn:var\(--bad-ink\)/, '')));
 }
+console.log('== This week, explained (26 Nov 2026): one sentence, two week bars, the brand on view ==');
+{
+  // the weekly store (PPC & Organic): Ridhi up, CPC down; last finished week Nov 15–21 against Nov 8–14
+  const weekly = (cells) => JSON.stringify({ weeks: ['2026-11-08', '2026-11-15'], at: '2026-11-24 05:10', rows: cells });
+  const both = { A1: { brand: 'SP', weeks: { '2026-11-08': { u: 900, rev: 250000 }, '2026-11-15': { u: 1000, rev: 300000 } } },
+    C1: { brand: 'CPC', weeks: { '2026-11-08': { u: 300, rev: 80000 }, '2026-11-15': { u: 200, rev: 50000 } } } };
+  const C = app(NOW);
+  const paint = (brand, cells) => { C.run(`VI.data = { weekly: ${weekly(cells || both)}, days: null, stock: {} }; VI.res = {}; VI.v++; DASH.st.vi = { s: 'ok' }; DASH.memo = {}; DASH.sigUsed = {}; DASH.brand = '${brand}'; TAB_OK = () => true;`); return C.run('DASH_PAINT.cVi()'); };
+  const sp = paint('SP');
+  ok('Ridhi up: "Revenue rose $50,000 (▲ +20.0%) in Nov 15–21 against Nov 8–14." — amount bold, ▲ green', strip(sp).replace(/\( /g, '(').includes('Revenue rose $50,000 (▲ +20.0%) in Nov 15–21 against Nov 8–14.')
+    && /<b class="dash-vi-amt">\$50,000<\/b> <span class="dash-chg is-up">\(<span aria-hidden="true">▲<\/span> \+20\.0%\)<\/span>/.test(sp), strip(sp));
+  ok('…two bars: Nov 8–14 muted $250k, Nov 15–21 strong $300k (full width), labels left, amounts right', /<span class="dash-wk-l">Nov 8–14<\/span><span class="dash-wk-t"><span class="dash-wk-f is-was" style="--w:83\.3%"><\/span><\/span><b class="dash-wk-v" title="\$250,000">\$250k<\/b>/.test(sp)
+    && /<span class="dash-wk-l">Nov 15–21<\/span><span class="dash-wk-t"><span class="dash-wk-f is-now" style="--w:100\.0%"><\/span><\/span><b class="dash-wk-v" title="\$300,000">\$300k<\/b>/.test(sp));
+  ok('…footer: "Ridhi · sales as at 2026-11-24 05:10"', /<div class="dash-asof"[^>]*>Ridhi · sales as at 2026-11-24 05:10<\/div><\/article>$/.test(sp));
+  const cpc = paint('CPC');
+  ok('CPC down: "Revenue fell $30,000 (▼ −37.5%)" — ▼ red; the bigger week (Nov 8–14) is the full bar', strip(cpc).replace(/\( /g, '(').includes('Revenue fell $30,000 (▼ −37.5%) in Nov 15–21 against Nov 8–14.') && /dash-chg is-dn/.test(cpc)
+    && /is-was" style="--w:100\.0%"/.test(cpc) && /is-now" style="--w:62\.5%"/.test(cpc) && /CPC · sales as at/.test(cpc), strip(cpc));
+  const all = paint('ALL');
+  ok('Both = Ridhi + CPC together (never CPC only): rose $20,000 (+6.1%), $330k → $350k, "Ridhi + CPC ·"', strip(all).replace(/\( /g, '(').includes('Revenue rose $20,000 (▲ +6.1%) in Nov 15–21 against Nov 8–14.') && /\$330k<\/b>/.test(all) && /\$350k<\/b>/.test(all) && /Ridhi \+ CPC · sales as at 2026-11-24 05:10/.test(all), strip(all));
+  const level = paint('SP', { A1: { brand: 'SP', weeks: { '2026-11-08': { u: 900, rev: 250000 }, '2026-11-15': { u: 1000, rev: 250000 } } } });
+  ok('the same both weeks → "Revenue held level …", no arrow', strip(level).includes('Revenue held level in Nov 15–21 against Nov 8–14.') && !/▲|▼/.test(level));
+  const miss = paint('SP', { A1: { brand: 'SP', weeks: { '2026-11-15': { u: 1000, rev: 300000 } } } });
+  ok('a week missing → one plain line "Not enough data for this week yet", no bars', /<p class="dash-vi-none"[^>]*>Not enough data for this week yet<\/p>/.test(miss) && !/dash-wk-f/.test(miss) && /dash-asof/.test(miss), strip(miss));
+  C.run("DASH.st.vi = { s: 'loading' }; DASH.memo = {};");
+  ok('loading: the card\'s own shape in skeletons (no "0", no empty bars)', /dash-vi-s"><span class="dash-sk"/.test(C.run('DASH_PAINT.cVi()')) && !/dash-wk-f/.test(C.run('DASH_PAINT.cVi()')));
+  const css = read(path.join(__dirname, '..', 'src', 'styles.css'));
+  ok('the card is as tall as its content (not stretched to its neighbour); bars grow only with ✨ (and never with reduced motion)', /#paneDash #dash-cVi\{align-self:start\}/.test(css)
+    && /#paneDash\.dash-fx \.dash-slot\.is-draw \.dash-wk-f\{animation:dashGrowX/.test(css) && !/#paneDash \.dash-wk-f\{[^}]*animation/.test(css) && /prefers-reduced-motion:reduce\)\{ #paneDash \*/.test(css));
+  ok('…with GSAP the same bars grow from the left (only when ✨ picks GSAP)', /el\.querySelectorAll\('\.dash-wk-f'\)/.test(read(path.join(__dirname, '..', 'src', 'app', 'core', 'dashboard.js'))));
+}
+
 function DASH_SLOTS_ALL(C) { return C.run('DASH_SLOTS'); }
 
 console.log(`\n${pass} passed, ${fail} failed`);

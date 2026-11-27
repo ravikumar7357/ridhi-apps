@@ -454,8 +454,8 @@ ok('the hero: "N products need attention · $X/week at risk" + the five chips', 
 const none = X.alHeroHtml(Object.assign({}, R, { alerts: [], atRisk: 0 })).replace(/<[^>]+>/g, ' ');
 ok('nothing to fix → "All good — no real drops this week ✅"', /All good — no real drops this week ✅/.test(none));
 const card = X.alCardHtml(A).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-ok('a top card: headline, −$/week, the cause with its evidence and confidence, what to do, Snooze / Dismiss, Create task coming soon',
-  /−\$[\d,]+ \/ week/.test(card) && /Out of stock · FBA 0/.test(card) && /High confidence/.test(card) && /Check replenishment \/ send inbound/.test(card) && /Snooze 7 days/.test(card) && /Dismiss/.test(card) && /Create task/.test(card), card.slice(0, 300));
+ok('a top card: headline, −$/week, the cause with its evidence and confidence, what to do, Snooze / Dismiss (the "+ Task" button comes from the Action Tracker, sales/tasks.js — not loaded here; the old "coming soon" placeholder is gone)',
+  /−\$[\d,]+ \/ week/.test(card) && /Out of stock · FBA 0/.test(card) && /High confidence/.test(card) && /Check replenishment \/ send inbound/.test(card) && /Snooze 7 days/.test(card) && /Dismiss/.test(card) && !/Coming soon/.test(card) && /tkBtnHtml\(\{ src: 'alert'/.test(SRC), card.slice(0, 300));
 ok('at most 2 cause pills on a card', (X.alCardHtml(N).match(/class="al-pill/g) || []).length <= 2);
 const Y = load({ VI: { v: 1, data: { days: dailyAsin, stock, weekly } }, sdDays: ch => ly[ch] || {}, SD: { at: 'x', d: { SP: {}, CPC: {} } }, wParentOf: a => PARENT[a] || a,
   viNameOf: p => 'Product ' + p });

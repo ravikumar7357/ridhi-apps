@@ -40,6 +40,7 @@ listing/fix-all.js
 listing/listing-send-check.js
 listing/kw-fix.js
 listing/title-fix.js
+listing/kw-win.js
 listing/listing-history.js
 listing/new-listings.js
 listing/fix-status.js
@@ -88,5 +89,8 @@ sales/sales-check.js
 sales/sales-insight.js
 sales/sales-charts.js
 sales/sales-alerts.js
+sales/forecast.js
+sales/tasks.js
+sales/returns.js
 core/dashboard.js
 core/version-check.js

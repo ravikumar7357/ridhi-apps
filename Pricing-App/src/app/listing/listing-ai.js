@@ -107,6 +107,7 @@ async function aiAsk(task, brand, sku, opts) {
   const list = v => [...new Set((Array.isArray(v) ? v : []).map(s => aiLine(String(s).replace(/\|/g, ' '))).filter(Boolean))].slice(0, 40).join('|');
   if (opts.words && opts.words.length) params.words = list(opts.words);
   if (opts.avoid && opts.avoid.length) params.avoid = list(opts.avoid);
+  if (opts.win && opts.win.length) params.win = list(opts.win);          // search terms: the winning words (kw-win.js), best first
   ['field', 'season', 'word', 'code', 'tpl', 'max', 'hlmax', 'pt', 'style', 'newsku', 'colour', 'size'].forEach(k => { if (opts[k] != null && opts[k] !== '') params[k] = String(opts[k]).slice(0, 200); });
   if (opts.d) params.d = (typeof opts.d === 'string' ? opts.d : JSON.stringify(opts.d)).slice(0, 8000);      // a page task's facts: numbers, ids, rule names
   const key = JSON.stringify(params);
@@ -188,7 +189,7 @@ function aiAvoid(c) {
 }
 // A sale word in a text ("Black Friday", "deal", "% off"), or ''.
 const aiSaleWord = text => { const m = String(text || '').match(AI_SALE); return m ? m[0] : ''; };
-// Our brand words in a text (search terms must not hold them: Amazon reads the brand field).
+// Our brand words in a text.
 function aiOurBrands(c, text) {
   if (typeof lrBrandWords !== 'function') return [];
   let words = [];
@@ -197,6 +198,76 @@ function aiOurBrands(c, text) {
 }
 const aiTitleLimits = c => (typeof ttLimits === 'function' ? ttLimits(c.cfg) : { min: 60, max: 75 });
 const aiKwMax = c => (typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249);
+// The words this listing may take (kw-win.js): proven in our own ads first (by orders), then Brand Analytics; [] without any data.
+function aiWinWords(c, before) { return aiWinAll(c, before).words; }
+// …the whole answer: { words, proof (the listing's own words with evidence — a proven word never pushes those out) }.
+function aiWinAll(c, before) {
+  if (typeof kwWinFor !== 'function') return { words: [], proof: [] };
+  const r = c.row || {};       // its ASIN, family and price (Create Listing: the listing it is copied from — the same family)
+  try { const w = kwWinFor({ brand: c.brand, sku: c.sku, asin: r.asin || c.asin, parent: r.parent, price: r.price, title: c.now.title, kw: String(before == null ? c.now.kw : before), facts: c.facts, pt: c.pt, cfg: c.cfg }); return { words: w.words || [], proof: w.proof || [] }; } catch (e) { return { words: [], proof: [] }; }
+}
+/** THE AI'S SEARCH TERMS THROUGH OUR RULE (27 Nov 2026; 2 Dec 2026: put back + the product checks), before the answer is shown:
+ *  1 PUT BACK every 🔒 protected word of the search terms before (our brands, hand block print, its product, shape, own colour, size,
+ *    material, use words) the AI left out — next to the word it stood beside, else at the end (a size counts as there when its numbers
+ *    are); 2 the words the AI ADDED that are not this product go (kw-win.js kwAiNotThis: another shape / colour, a fit, a season,
+ *    pattern, edge or material the listing does not say — "skipped: not sure the product is christmas"); 3 THE ONE RULE, the same as
+ *    every suggestion (listing-rules.js lrSuggestWords): repeats, other brands, another colour / size, low value, leftovers, a title
+ *    word it added, then the 249-byte limit — a protected word never goes.
+ *  → { text, removed: [{ w, why }], putBack: [{ w, why }] } (both said on the card). */
+function aiKwClean(c, text, before) {
+  if (typeof lrSuggestWords !== 'function') return { text: String(text || ''), removed: [], putBack: [] };
+  const max = aiKwMax(c);
+  const bef = String(before == null ? '' : before);
+  const brands = typeof lrBrandWords === 'function' ? lrBrandWords(c.fresh, c.cfg) : [];
+  const strip = w => String(w).replace(/^[^\p{L}\p{N}%]+|[^\p{L}\p{N}%"”″]+$/gu, '');
+  let words = String(text || '').split(/[\s,;|]+/).filter(Boolean);
+  const putBack = [], pre = [];
+  try {
+    // 1 put back the protected words of the search terms before that the answer left out
+    const bt = lrSuggestWords(bef, { mode: 'kw', facts: c.facts, brands, riskOnly: true }).toks.filter(t => t.k);
+    const keyOf = w => lrSwKey(strip(w));
+    const nums = () => new Set(words.join(' ').match(/\d+(?:\.\d+)?/g) || []);
+    const seen = new Set();
+    bt.forEach((t, idx) => {
+      if (!t.cls || seen.has(t.k)) return;
+      seen.add(t.k);
+      // a size: the whole size ("70 x 118 inch") when one of its numbers is gone from the answer — never a lone "x" or "inch"
+      if (t.cls === 'size') {
+        if (!/\d/.test(t.k)) return;
+        let a = idx, z = idx;
+        while (a > 0 && bt[a - 1].cls === 'size') a--;
+        while (z + 1 < bt.length && bt[z + 1].cls === 'size') z++;
+        const grp = bt.slice(a, z + 1);
+        grp.forEach(g => seen.add(g.k));
+        if ((grp.map(g => g.k).join(' ').match(/\d+(?:\.\d+)?/g) || []).every(n => nums().has(n))) return;
+        const nx = z + 1 < bt.length ? words.findIndex(w => keyOf(w) === bt[z + 1].k) : -1;
+        words.splice(nx >= 0 ? nx : words.length, 0, ...grp.map(g => g.w));
+        putBack.push({ w: grp.map(g => g.w).join(' '), why: 'protected, put back' });
+        return;
+      }
+      if (words.some(w => keyOf(w) === t.k)) return;
+      // next to the word it stood beside: before the next word of the old text, else after the one before it, else at the end
+      const nx = bt[idx + 1] ? words.findIndex(w => keyOf(w) === bt[idx + 1].k) : -1;
+      const pv = idx > 0 ? words.findIndex(w => keyOf(w) === bt[idx - 1].k) : -1;
+      const at = nx >= 0 ? nx : pv >= 0 ? pv + 1 : words.length;
+      words.splice(at, 0, t.w);
+      putBack.push({ w: t.w, why: 'protected, put back' });
+    });
+    // 2 the words it added that are not this product
+    if (typeof kwAiNotThis === 'function') {
+      const no = kwAiNotThis({ brand: c.brand, sku: c.sku, title: c.now.title, kw: bef, facts: c.facts, cfg: c.cfg }, words);
+      words = words.filter((w, i) => { if (!no.has(i)) return true; pre.push({ w: strip(w), why: no.get(i) }); return false; });
+    }
+  } catch (e) { /* the rule below still runs on the answer as written */ }
+  let r;
+  try {
+    r = lrSuggestWords(words.join(' '), { mode: 'kw', facts: c.facts, title: c.now.title, brands: typeof lrBrandWords === 'function' ? lrBrandWords(c.fresh, c.cfg) : [],
+      others: typeof kwOthers === 'function' ? kwOthers(c.cfg) : [], had: bef,
+      risk: typeof ipgKwRisk === 'function' && c.sku ? ipgKwRisk(c.brand, c.sku, c.fresh, c.cfg) : null, fits: t => !lrKwCheck(t, max).over });
+  } catch (e) { return { text: words.join(' '), removed: pre, putBack }; }
+  // only important words left and still over: nothing protected is cut — the checks say it is over the limit (Use is not enabled)
+  return { text: r.after, removed: pre.concat(r.removed.map(x => ({ w: x.w, why: typeof kwWhyLabel === 'function' ? kwWhyLabel(x.why) : x.why }))), putBack };
+}
 
 /** OUR RULES ON A SUGGESTION: { pass, fails: [red, Approve disabled], notes: [amber, to look at] }. field: title | kw | bullets | desc | hl |
  *  aplus. o: { season (name), seasonWords, hlMax, word (the risky word that must be gone), keep (the protected phrases of the old text) }. */
@@ -231,15 +302,19 @@ function aiCheck(c, field, value, o) {
     const key = w => (typeof lrSwKey === 'function' ? lrSwKey(w) : w.toLowerCase());
     const words = t.split(/[\s,;]+/).map(w => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}%]+$/gu, '')).filter(Boolean);
     const inTitle = new Set(String(c.now.title).split(/[^\p{L}\p{N}%]+/u).filter(w => w.length > 2).map(key));
-    const dup = [...new Set(words.filter(w => w.length > 2 && inTitle.has(key(w))).map(w => w.toLowerCase()))];
+    // OUR WORD RULES (27 Nov 2026): our brands and the important words may stay though the title has them; any other title word is wasted
+    const prot = new Set(aiProtected(t, 'kw', c.facts).flatMap(p => p.keys));
+    const dup = [...new Set(words.filter(w => w.length > 2 && inTitle.has(key(w)) && !prot.has(key(w))).map(w => w.toLowerCase()))];
     if (dup.length) add(fails, `already in the title: ${dup.slice(0, 8).join(', ')}`);
     const seen = new Map();
     words.forEach(w => { const k = key(w); if (k && !/^\d/.test(k)) seen.set(k, (seen.get(k) || 0) + 1); });
     const rep = [...seen.entries()].filter(([, n]) => n > 1).map(([k]) => k);
     if (rep.length) add(fails, `said twice: ${rep.slice(0, 8).join(', ')}`);
     if (/\bB0[A-Z0-9]{8}\b/i.test(t)) add(fails, 'holds an ASIN');
-    const ours = aiOurBrands(c, t);
-    if (ours.length) add(fails, `our brand name “${ours[0]}” — Amazon reads the brand field, not search terms`);
+    // our brand names are KEPT once since 27 Nov 2026 (no longer a fail); another brand's name is (aiRisk below, and the data's brands)
+    const others = typeof kwOthers === 'function' ? kwOthers(c.cfg) : [];
+    const other = others.find(b => (typeof lrFind === 'function' ? lrFind(t, b) >= 0 : t.toLowerCase().includes(String(b).toLowerCase())));
+    if (other) add(fails, `another brand's name “${other}”`);
   } else if (field === 'bullets') {
     const list = (Array.isArray(value) ? value : text.split(/\n+/)).map(aiLine).filter(Boolean);
     if (typeof lcCheck === 'function') lcCheck('bullet_point', list).forEach(f => add(f.bad || /Listing Rules/.test(f.msg) ? fails : notes, f.msg));
@@ -339,7 +414,10 @@ function aiOptsFor(task, field, c, x, before) {
     o.max = aiTitleLimits(c).max;
     try { const tpl = typeof lrTemplateFor === 'function' ? lrTemplateFor(c.row, c.cfg) : null; if (tpl && tpl.template) o.tpl = tpl.template; } catch (e) { /* the backend's default order */ }
   }
-  if (field === 'kw') o.max = aiKwMax(c);
+  if (field === 'kw') {
+    o.max = aiKwMax(c);
+    o.win = aiWinWords(c, before).slice(0, 25).map(e => e.w);            // the winning words it may use (Brand Analytics), best first
+  }
   if (task === 'season') { o.season = x.season; o.hlmax = x.hlmax; }
   if (task === 'ip_rewrite') o.word = x.word;
   if (task === 'error_explain') o.code = x.code;
@@ -392,13 +470,17 @@ async function aiOpen(btn) {
   AI.jobs.set(id, job);
   host.innerHTML = '<div class="ai-wait muted">✨ Asking the AI… nothing changes on Amazon.</div>';
   if (btn.disabled !== undefined) btn.disabled = true;
+  // search terms: the winning-keyword data first (read once per visit), so its words go with the question
+  if (field === 'kw' && typeof kwLoad === 'function' && typeof KW !== 'undefined' && !KW.loaded) { try { await kwLoad(); } catch (e) { /* asked without them */ } }
   const reply = await aiAsk(task, brand, sku, field === 'page' ? aiPageOpts(task, brand, sku, x) : aiOptsFor(task, field, c, x, job.before));
   if (btn.disabled !== undefined) btn.disabled = false;
   job.busy = false;
   job.reply = reply;
   if (!reply.ok) { host.innerHTML = /not set up|limit reached/i.test(reply.reason) ? aiQuietHtml(reply.reason) : aiFailHtml(job, reply.reason); return reply; }
   job.text = aiTextOf(job, reply.result || {});
-  job.keep = field === 'aplus' || field === 'explain' || field === 'image' || field === 'page' ? [] : aiProtected(Array.isArray(job.before) ? job.before.join(' ') : job.before,
+  // search terms: our one rule runs on the AI's answer before it is shown (what it took out is said on the card)
+  if (field === 'kw') { const cl = aiKwClean(c, job.text, job.before); job.text = cl.text; job.cleaned = cl.removed; job.putBack = cl.putBack; }
+  job.keep =field === 'aplus' || field === 'explain' || field === 'image' || field === 'page' ? [] : aiProtected(Array.isArray(job.before) ? job.before.join(' ') : job.before,
     field === 'kw' ? 'kw' : field === 'hl' ? 'hl' : 'title', c.facts);
   if (field === 'bullets' || field === 'desc') job.keep = [];      // a rewrite of the bullets / description keeps the facts, not each word
   aiRecheck(job);
@@ -482,6 +564,8 @@ function aiCardHtml(job) {
   return head + `<div class="ai-ba${job.field === 'aplus' ? ' is-one' : ''}">${oldCol}`
     + `<div class="ai-col"><small>✨ AI · <span data-ai-n>${aiEsc(aiLen(job.field, job.text))}</span></small><div class="tt-new ai-txt" data-ai-new>${aiMarkHtml(job.before, job.text)}</div>`
     + `<details class="kf-ed"><summary>Edit the AI text</summary><textarea data-ai-edit="${aiEsc(job.id)}" rows="${rows}" spellcheck="false">${aiEsc(val)}</textarea>${job.field === 'bullets' ? '<small class="muted">One bullet per line.</small>' : ''}</details></div></div>`
+    + (job.putBack && job.putBack.length ? `<p class="ai-clean ai-put">Put back: ${job.putBack.map(x => `<ins class="kf-add">+ ${aiEsc(x.w)}</ins> (${aiEsc(x.why)})`).join(', ')}</p>` : '')
+    + (job.cleaned && job.cleaned.length ? `<p class="muted ai-clean">Our rules took out of the AI's answer: ${job.cleaned.slice(0, 12).map(x => `<s>${aiEsc(x.w)}</s> (${aiEsc(x.why)})`).join(', ')}${job.cleaned.length > 12 ? ` +${job.cleaned.length - 12}` : ''}</p>` : '')
     + `<div data-ai-chks>${aiChkHtml(job.chk)}</div><div class="ai-a">${aiActHtml(job)}</div>` + foot;
 }
 // The card follows an edit of the AI text: its length, its checks, its button (the box being typed in keeps its place).
