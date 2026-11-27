@@ -96953,7 +96953,7 @@ frBuild();
  *
  * PRODUCTION, SIMPLE (Ravi, 24 Oct: after a Greige-Inventory-style table, "not refined — easy to use, all information on
  * a page, less complex but still actionable"): one line per SKU — ordered, where its pieces are and who has them (with
- * days), due, and ONE next-step button; a stage filter across the top; a line opens the SKU's card (p1DrawInv). The
+ * days), due, History, and a Plan button where pieces still wait for PPC's plan (Ravi, 27 Nov); a stage filter across the top; a line opens the SKU's card (p1DrawInv). The
  * movement ledger is the second view, "PPC ledger".
  *
  * THE LEDGER (Ravi, 24 Oct, after a board was drawn: "I want ledger format only"; of the five-view page: "looks plain,
@@ -98245,7 +98245,8 @@ if (typeof GUIDE_TOURS !== 'undefined') {
     { sel: '#p1Home .p1-bar select', en: 'Narrow the list by channel, printer, karigar or due date; the search finds a lot, SKU, order, printer or karigar.', hi: 'चैनल, प्रिंटर, कारीगर या तारीख़ से लिस्ट छोटी करें; सर्च में लॉट, SKU, ऑर्डर, प्रिंटर या कारीगर।' },
     { sel: '#p1Home tr.p1r.lot', en: 'A grey line is one <b>lot</b> — 001, 002… from the 1st of each month; the ending says where it starts: <b>GR</b> greige, <b>CT</b> cutting, <b>JW</b> Job Work, <b>OS</b> outsourced. Click the line to see its orders under it.', hi: 'स्लेटी लाइन एक <b>लॉट</b> है — हर महीने की 1 तारीख़ से 001, 002…; आख़िर के अक्षर बताते हैं कहाँ से शुरू: <b>GR</b> ग्रेज, <b>CT</b> कटिंग, <b>JW</b> जॉब वर्क, <b>OS</b> बाहर से। लाइन पर क्लिक करें तो उसके ऑर्डर नीचे दिखेंगे।' },
     { sel: '#p1Home tr.p1r.lot td.sg', en: 'Where the pieces are: an orange number is pieces waiting there, with the days they have waited (red after 7). <b>✓</b> the stage is done, <b>·</b> the work has not got there yet, <b>—</b> the lot does not go that way.', hi: 'पीस कहाँ हैं: नारंगी नंबर मतलब वहाँ रुके पीस, नीचे कितने दिन से (7 के बाद लाल)। <b>✓</b> स्टेज पूरा, <b>·</b> काम अभी वहाँ नहीं पहुँचा, <b>—</b> लॉट उस रास्ते नहीं जाता।' },
-    { sel: '#p1Home tr.p1r.lot td.st', en: 'Where the lot is held now, and its ready date — red with the days late when it is past. A lot still waiting for its plan has a <b>Plan</b> button, which opens the plan form.', hi: 'लॉट अभी कहाँ रुका है, और उसकी तैयार होने की तारीख़ — लेट हो तो लाल, कितने दिन लेट के साथ। जिस लॉट का प्लान बाकी है उस पर <b>Plan</b> बटन है, जो प्लान फ़ॉर्म खोलता है।' },
+    { sel: '#p1Home tr.p1r.lot td.st', en: 'Where the lot is held now, and its ready date — red with the days late when it is past.', hi: 'लॉट अभी कहाँ रुका है, और उसकी तैयार होने की तारीख़ — लेट हो तो लाल, कितने दिन लेट के साथ।' },
+    { sel: '#p1Home tr.p1r.lot .p1-go[data-p1plan]', en: 'A lot still waiting for its plan has a <b>Plan</b> button with its pieces; it opens the plan form for them. An order line under it has its own.', hi: 'जिस लॉट का प्लान बाकी है उस पर <b>Plan</b> बटन है, पीस के साथ; यह उनका प्लान फ़ॉर्म खोलता है। नीचे के ऑर्डर पर अपना बटन है।' },
     { sel: '#p1Home .p1-hbtn', en: '<b>History</b> opens the lot’s card: where it has been, where it is now, and every step — by whom and when — with a download. Clicking the lot number or an order does the same.', hi: '<b>History</b> से लॉट का कार्ड खुलता है: कहाँ से गुज़रा, अभी कहाँ है, और हर कदम — किसने और कब — डाउनलोड के साथ। लॉट नंबर या ऑर्डर पर क्लिक करने से भी यही खुलता है।' },
     { sel: '#p1Home .p1-views', en: '<b>PPC ledger</b> shows every step of every SKU — who did what, and when. Ask me anything about this page with my round button.', hi: '<b>PPC ledger</b> में हर SKU का हर कदम है — किसने क्या किया, कब। इस पेज के बारे में कुछ भी पूछना हो तो मेरे गोल बटन से पूछें।' }];
   GUIDE_TOURS.ppcreport = [
