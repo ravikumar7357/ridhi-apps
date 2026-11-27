@@ -738,7 +738,9 @@ const csvRows = text => text.replace(/^﻿/, '').trim().split('\r\n').map(line =
     M.click({ apc: 'pd', apcV: p('TC-2').key });
     ok('"Open in Listing Workspace ↗" opens Listing Health on TC-2\'s family (its parent ASIN) and closes the panel', new RegExp('data-apc="pdws" data-apc-b="SP" data-apc-v="' + A('TC-P') + '"').test(M.els.apcSide.innerHTML)
       && (() => { M.click({ apc: 'pdws', apcB: 'SP', apcV: A('TC-P') }); return M.wsOpened.join() === 'SP|' + A('TC-P') && M.els.apcSide.innerHTML === ''; })(), M.wsOpened.join());
-    ok('the panel CSS: the Listing Workspace panel\'s look on the right; a bottom sheet on a phone; theme colours only', /#paneAplus \.apc-side\{position:fixed;top:var\(--ls-top,0px\);right:0;bottom:0;z-index:50;[^}]*width:min\(520px,100vw\)/.test(css)
+    ok('the panel CSS: the Listing Workspace panel\'s look on the right; a bottom sheet on a phone; theme colours only', /#paneAplus \.apc-side\{position:fixed;top:var\(--apc-top,0px\);right:0;bottom:0;z-index:50;[^}]*width:min\(520px,100vw\);margin:8px;\s*max-height:calc\(100vh - var\(--apc-top,0px\) - 16px\)/.test(css)
+      // (5 Dec 2026) BELOW the menu bar: --apc-top is what this pane measures (apcStickNow); --ls-top is Listing Health's and is never set here
+      && !/#paneAplus \.apc-side\{[^}]*--ls-top/.test(css) && /function apcSideDraw\(\) \{[^}]*if \(APC\.pd\) apcStickNow\(\);/.test(L('aplus-audit.js'))
       && /@media \(max-width:640px\)\{#paneAplus \.apc-side\{top:auto;left:0;right:0;bottom:0;width:auto;margin:0;max-height:82vh;border-radius:16px 16px 0 0/.test(css) && /#paneAplus \.apc-pdmsg\.is-r\{background:var\(--bad-bg\);color:var\(--bad-ink\)\}/.test(css));
     ok('apcPdVal: Amazon\'s shapes in plain words (value + unit, nested sizes, lists, yes / no; nothing = "")', MC.apcPdVal([{ value: 2.5, unit: 'kilograms' }]) === '2.5 kilograms' && MC.apcPdVal(vl('A', 'B', 'A')) === 'A, B'
       && MC.apcPdVal([{ height: { value: 1, unit: 'inches' }, marketplace_id: MK }]) === '1 inches' && MC.apcPdVal([{ value: true }]) === 'Yes' && MC.apcPdVal([]) === '' && MC.apcPdVal(undefined) === '' && MC.apcPdVal([{ value: '' }]) === '');

@@ -4272,8 +4272,10 @@
   #paneAplus .apc-pdb.is-y,#paneAplus .apc-pds.is-y{background:var(--rev-bg);color:var(--rev-ink)}
   #paneAplus .apc-pdb.is-r,#paneAplus .apc-pds.is-r{background:var(--bad-bg);color:var(--bad-ink)}
   #paneAplus .apc-pdb.is-g{color:var(--muted)}
-  #paneAplus .apc-side{position:fixed;top:var(--ls-top,0px);right:0;bottom:0;z-index:50;display:flex;flex-direction:column;width:min(520px,100vw);margin:8px;
-    max-height:calc(100vh - var(--ls-top,0px) - 16px);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-2);animation:ls-panel-in .22s cubic-bezier(.2,.7,.2,1) both}
+  /* (5 Dec 2026) it starts BELOW Sellora's menu bar: --apc-top is that bar's measured height on this pane (apcStickNow) — --ls-top is
+     Listing Health's own and is never set here, so the panel's top (SKU, title, ✕) sat under the bar */
+  #paneAplus .apc-side{position:fixed;top:var(--apc-top,0px);right:0;bottom:0;z-index:50;display:flex;flex-direction:column;width:min(520px,100vw);margin:8px;
+    max-height:calc(100vh - var(--apc-top,0px) - 16px);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh-2);animation:ls-panel-in .22s cubic-bezier(.2,.7,.2,1) both}
   /* (5 Dec 2026) the header stays in view (sticky) — the ✕ in its top-right corner, the Workspace panel's ✕ */
   #paneAplus .apc-side-top{position:sticky;top:0;z-index:2;flex:none;background:var(--card);border-radius:16px 16px 0 0}
   #paneAplus .apc-side-h{display:flex;align-items:flex-start;gap:10px;padding:14px 16px 8px}

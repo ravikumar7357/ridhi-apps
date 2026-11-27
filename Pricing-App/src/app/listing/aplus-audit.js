@@ -890,6 +890,7 @@ function apcSideHtml(model) {
 }
 function apcSideDraw() {
   const box = typeof $ === 'function' ? $('apcSide') : null;
+  if (APC.pd) apcStickNow();                  // (5 Dec 2026) the menu bar's height measured now: the panel starts below it
   if (box) box.innerHTML = apcSideHtml(apcBuild());
 }
 /** Esc closes the panel (a key the page passes here). */
