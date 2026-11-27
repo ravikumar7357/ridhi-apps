@@ -247,6 +247,12 @@ async function fgiScanFlush(sku) {
     }
   }
   const old = r.id ? (FGI.rows || []).find(x => fgiRowId(x) === r.id) : null;
+  /* The one write of this scan; to FBA it passes the pieces held for website orders first. '' = saved. */
+  const send = async patch => {
+    if (h.t === 'FBA' && typeof shpHoldOn === 'function' && shpHoldOn()) return fgiFbaWrite([{ sku, qty: n, current: fgiOf(sku).current }], () => ptPatch(patch));
+    await ptPatch(patch);
+    return '';
+  };
   /* A SCAN LEAVES FOR ORDERS TOO (2026-09-25), dealt the Auto way; more scans of the same SKU add to the same parts. */
   const al = h.k.dir < 0 ? fgiOutAlloc(sku, n, h.t, '') : null;
   if (old) {
@@ -264,7 +270,8 @@ async function fgiScanFlush(sku) {
     }
     const patch = {};
     Object.keys(next).forEach(f => { patch[`pt_fgiLedger/${r.id}/${f}`] = next[f]; });
-    await ptPatch(patch);
+    const refused = await send(patch);
+    if (refused) return stop(refused);
     Object.assign(old, next);
   } else {
     const rec = { _id: fgiNewId(h.t === 'FBA' ? 'FBA' : (h.t === 'ISSUE' ? 'ISS' : 'RCP')),
@@ -276,7 +283,8 @@ async function fgiScanFlush(sku) {
       ...(over ? { overQty: over, overOrdered: ordered, overReason: String(r.over).trim(), overStatus: 'open' } : {}),
       [h.k.dir < 0 ? 'issuedFor' : 'receivedFrom']: h.who,
       remarks: 'scanned', createdAt: new Date().toISOString(), createdBy: ME.email };
-    await ptPatch({ ['pt_fgiLedger/' + rec._id]: rec });
+    const refused = await send({ ['pt_fgiLedger/' + rec._id]: rec });
+    if (refused) return stop(refused);
     FGI.rows = (FGI.rows || []).concat([rec]);
     r.id = rec._id;
   }
@@ -447,7 +455,11 @@ async function fgiScanSave() {
     updates['pt_fgiLedger/' + rec._id] = rec;
     recs.push(rec);
   }
-  await ptPatch(updates);
+  const write = () => ptPatch(updates);
+  if (h.t === 'FBA' && typeof shpHoldOn === 'function' && shpHoldOn()) {
+    const refused = await fgiFbaWrite(recs.map(x => ({ sku: x.sku, qty: x.qty, current: fgiOf(x.sku).current })), write);
+    if (refused) return refused;
+  } else await write();
   FGI.rows = (FGI.rows || []).concat(recs);
   const notListed = [];
   for (const rec of recs) { const line = await lstAlertFor(rec.sku, h.t, rec.qty); if (line) notListed.push(rec.sku); }

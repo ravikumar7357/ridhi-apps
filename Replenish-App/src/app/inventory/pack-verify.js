@@ -173,7 +173,10 @@ function pkvOnCode(raw, via) {
   const what = hit.sku ? `${esc(m.subcat || m.articleType || '')} · ${esc(m.color || '')} · ${esc(m.size || '')}` : '';
   if (res.kind === 'unknown') pkvSay('bad', `NOT KNOWN: ${esc(code)}`, 'Not a SKU and not an FNSKU in the list. Nothing added.');
   else if (res.kind === 'wrong') { p.scan.wrong.push({ at: new Date().toISOString(), code, sku: hit.sku, by: ME.email || '' }); pkvSay('bad', `WRONG ARTICLE: ${esc(hit.sku)}`, `${what} — not on any order of this list. Blocked.`, hit.sku); }
-  else if (res.kind === 'full') pkvSay('full', `${res.why === 'store' ? 'NO STOCK LEFT' : 'ORDER FULL'}: ${esc(hit.sku)}`, res.why === 'store' ? 'The India Store holds no more of it for these orders — receive it in Finished Goods first.' : 'Every order line for this SKU is already packed.', hit.sku);
+  else if (res.kind === 'full') {
+    const held = res.why === 'store' && typeof shpHoldOn === 'function' && shpHoldOn() ? fgiHoldScanWhy(res.sku, p.scan.packed[res.sku]) : '';
+    pkvSay('full', `${res.why === 'store' ? 'NO STOCK LEFT' : 'ORDER FULL'}: ${esc(hit.sku)}`, held ? esc(held) : res.why === 'store' ? 'The India Store holds no more of it for these orders — receive it in Finished Goods first.' : 'Every order line for this SKU is already packed.', hit.sku);
+  }
   else {
     const b = pksBoxOf(p, PKV.box);
     PACK_CORE.addToBox(b, hit.sku, 1, pkLookupSku(hit.sku) || {});

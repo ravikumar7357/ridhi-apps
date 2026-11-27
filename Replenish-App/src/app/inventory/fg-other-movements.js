@@ -242,6 +242,7 @@ function fgiOutCheck(sku, qty, type, already) {
   if (qty > have) return `You don't have enough stock — ${sku} has ${nf(Math.max(0, have))} piece(s) in the India Store`
     + (took ? ` after the ${nf(took)} the rows above take` : '')
     + ` and this ${type === 'FBA' ? 'dispatch' : 'issue'} asks for ${nf(qty)}.`;
+  if (type === 'FBA' && typeof shpHoldOn === 'function' && shpHoldOn()) return fgiHoldRefusal([{ sku, qty, current: have }]);
   return '';
 }
 
@@ -333,6 +334,10 @@ async function fgiEntrySave() {
     /* Read again at save: the figure on screen could be minutes old, and the store cannot go short. */
     const unread = await fgiStockReread();
     if (unread) return unread;
+    if (type === 'FBA' && typeof shpHoldOn === 'function' && shpHoldOn()) {
+      const unchecked = await fgiHoldReread();
+      if (unchecked) return unchecked;
+    }
     const short = fgiOutCheck(sku, qty, type);
     if (short) return short;
     out = fgiOutOrderCheck({ sku, qty, type, order: ($('fgmOutOrd') || {}).value, why: ($('fgmOutWhy') || {}).value,
@@ -373,7 +378,11 @@ async function fgiEntrySave() {
     [k.dir < 0 ? 'issuedFor' : 'receivedFrom']: who,
     remarks: String(($('fgmRemarks') || {}).value || '').trim(),
     createdAt: new Date().toISOString(), createdBy: ME.email };
-  await ptPut('pt_fgiLedger/' + rec._id, rec);
+  const write = () => ptPut('pt_fgiLedger/' + rec._id, rec);
+  if (type === 'FBA' && typeof shpHoldOn === 'function' && shpHoldOn()) {
+    const refused = await fgiFbaWrite([{ sku, qty, current: fgiOf(sku).current }], write);
+    if (refused) return refused;
+  } else await write();
   FGI.rows = (FGI.rows || []).concat(rec);
   renderFgi();
   $('fgMsg').className = 'muted';
