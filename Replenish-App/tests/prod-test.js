@@ -20910,10 +20910,10 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
   const rowsInOrder = () => els.qcTable.innerHTML.split('<tr').map(t => (t.match(/>W-(k\d)</) || [])[1]).filter(Boolean);
   const rowHtml = id => (els.qcTable.innerHTML.split('<tr').find(t => t.includes(`>W-${id}<`)) || '');
   const cells = id => (rowHtml(id).match(/<td class="num"[^>]*>(.*?)<\/td>/g) || []).map(c => c.replace(/<[^>]+>/g, '').replace('—', '0'));
-  /* A minute a piece has gone by since QC Accept on this row: its receipt is moved back by that much, then the list redrawn. */
+  /* The 30-second wait has gone by since QC Accept on this row: its receipt is moved back by that much, then the list redrawn. */
   const timeGoesBy = id => {
     A.setPT(Object.assign({}, A.PT(), { base: A.PT().base.map(r => (r.id !== id ? r
-      : Object.assign({}, r, { qcReceivedOn: new Date(Date.now() - (r.qcReceivedPcs || 0) * 60000 - 1000).toISOString() }))) }));
+      : Object.assign({}, r, { qcReceivedOn: new Date(Date.now() - 31000).toISOString() }))) }));
     A.renderQc();
   };
   A.setPT(Object.assign({}, wasPT, { base: [receivedBack('k1', 20), receivedBack('k2', 6), receivedBack('k3', 4)] }));
@@ -20941,19 +20941,19 @@ console.log('\n== Waiting for QC and QC passed: where each row\'s pieces are now
   ok('…QC Accept is now grey with the date and who', /class="qc-closed" disabled title="QC has received these pieces">✓ Accepted \d\d\/\d\d \d\d:\d\d · [^<]+</.test(rowHtml('k3'))
     && !/data-qcin-accept="k3"/.test(rowHtml('k3')), rowHtml('k3').slice(0, 900));
   /* Ravi, 19 Nov: "for each piece there must be at least a 1 min count down … they can only click on qc passed after
-   * 1 × N pieces". 4 pieces received: QC pass waits 4 minutes. */
+   * 1 × N pieces". 4 pieces received: Replaced 27 Nov: QC pass waits 30 seconds after QC Accept, whatever the pieces. */
   ok('…it saves how many pieces were received and the exact moment', jobRow().qcReceivedPcs === 4 && !isNaN(Date.parse(jobRow().qcReceivedOn)), JSON.stringify(jobRow()));
-  ok('…QC pass stays locked, counting down from 4 minutes', /class="qc-closed" disabled data-qc-unlock="\d+"[^>]*>QC pass · (4:00|3:5\d)</.test(rowHtml('k3')) && !/data-qcin-check="k3"/.test(rowHtml('k3')),
+  ok('…QC pass stays locked, counting down from 30 seconds', /class="qc-closed" disabled data-qc-unlock="\d+"[^>]*>QC pass · 0:(30|[12]\d)</.test(rowHtml('k3')) && !/data-qcin-check="k3"/.test(rowHtml('k3')),
     rowHtml('k3').slice(0, 900));
   A.qcInboxOpen('k3');
-  ok('…and cannot be opened early by any route', /QC pass on W-k3 opens in (4:00|3:5\d) — a minute for each of the 4 piece\(s\) received/.test(els.qcMsg.textContent) && !(A.PTD_() && A.PTD_().title === 'QC Pass'),
+  ok('…and cannot be opened early by any route', /QC pass on W-k3 opens in 0:(30|[12]\d) — 30 seconds after QC Accept/.test(els.qcMsg.textContent) && !(A.PTD_() && A.PTD_().title === 'QC Pass'),
     els.qcMsg.textContent);
-  ok('the wait is a minute a piece: 1 piece 1 minute, 240 pieces 4 hours', A.qcPassOpensAt({ qcReceivedOn: '2026-11-19T10:00:00.000Z', qcReceivedPcs: 1 }) === Date.parse('2026-11-19T10:01:00.000Z')
-    && A.qcPassOpensAt({ qcReceivedOn: '2026-11-19T10:00:00.000Z', qcReceivedPcs: 240 }) === Date.parse('2026-11-19T14:00:00.000Z'));
+  ok('the wait is 30 seconds, for 1 piece or 240', A.qcPassOpensAt({ qcReceivedOn: '2026-11-19T10:00:00.000Z', qcReceivedPcs: 1 }) === Date.parse('2026-11-19T10:00:30.000Z')
+    && A.qcPassOpensAt({ qcReceivedOn: '2026-11-19T10:00:00.000Z', qcReceivedPcs: 240 }) === Date.parse('2026-11-19T10:00:30.000Z'));
   ok('…a row received before this rule has no wait', A.qcPassOpensAt({ qcReceivedAt: '19/11/2026, 10:00' }) === 0);
   ok('…the countdown reads minutes and seconds, and hours when long', A.qcTimeLeft(4 * 60000) === '4:00' && A.qcTimeLeft(61500) === '1:02' && A.qcTimeLeft(3 * 3600000 + 5000) === '3:00:05' && A.qcTimeLeft(-5) === '0:00');
   timeGoesBy('k3');
-  ok('when the minutes are up QC pass turns blue and opens', /data-qcin-check="k3" class="qc-act"[^>]*>QC pass</.test(rowHtml('k3')), rowHtml('k3').slice(0, 900));
+  ok('when the 30 seconds are up QC pass turns blue and opens', /data-qcin-check="k3" class="qc-act"[^>]*>QC pass</.test(rowHtml('k3')), rowHtml('k3').slice(0, 900));
   NET.calls = [];
   ok('…pressing it again writes nothing more', (await A.qcInboxReceive('k3')) === '' && NET.calls.length === 0 && jobRow().qcReceivedAt === stampedAt);
   show('inbox');
