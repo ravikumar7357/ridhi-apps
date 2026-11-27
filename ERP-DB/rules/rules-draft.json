@@ -1,0 +1,2049 @@
+[
+ {
+  "register": "pt_cuttingData / pt_pressInventory / pt_baseData / pt_baseDone (written from core)",
+  "area": "core (edit-dialog, look-alike-skus, job-work-split)",
+  "screens": "core/edit-dialog.js:206,214,287,295; core/look-alike-skus.js:458; core/job-work-split.js:170,191",
+  "saves": 7,
+  "record_key": "<register>/<row id>; pt_baseDone/<day>/<id> and pt_baseDone/_ver/<day>",
+  "required": "production rows - belong to the production draft",
+  "ranges": "see production draft",
+  "month_field": "see production draft",
+  "write_right": "any logged-in staff, not a vendor (rt_rights_refresh.sql:107-112)",
+  "delete_right": "same",
+  "browser_only_rules": "job-work-split moves done rows base->done in one patch, noRoute/noTrash (job-work-split.js:167-170)",
+  "multi_save": "yes - job-work-split writes pt_baseDone rows + nulls pt_baseData rows in one patch",
+  "numbering": "none here",
+  "money_effect": "pt_baseData received pieces feed karigar payout",
+  "notes": "Listed for completeness; owner of rules = production area.",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_audit",
+  "area": "core (history)",
+  "screens": "core/history.js (auditLog, after every save)",
+  "saves": 1,
+  "record_key": "pt_audit/<YYYY-MM>/<auditId>",
+  "required": "at, by, tab, kind, n, paths[<=50], vals",
+  "ranges": "none",
+  "month_field": "path YYYY-MM",
+  "write_right": "default: any logged-in staff, not a vendor (catch-all)",
+  "delete_right": "same - any staff can delete history",
+  "browser_only_rules": "written by root PATCH outside ptPatch, never awaited, failure swallowed (history.js:37,62-68)",
+  "multi_save": "follows every save",
+  "numbering": "none",
+  "money_effect": "none",
+  "notes": "DOUBT: audit should be written by the server inside rt_save and be insert-only; today browser writes it and anyone can erase it.",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_perms",
+  "area": "core (perms/users)",
+  "screens": "none in Replenish-App - core/access-host.js only reads it",
+  "saves": 0,
+  "record_key": "pt_perms/<email, dots as commas> = {admin, r:{...}, t:{...}}",
+  "required": "n/a",
+  "ranges": "n/a",
+  "month_field": "none",
+  "write_right": "admin only (rt_rights_refresh.sql:17-18)",
+  "delete_right": "admin only",
+  "browser_only_rules": "n/a",
+  "multi_save": "n/a",
+  "numbering": "none",
+  "money_effect": "none",
+  "notes": "DOUBT: written by Sellora/rights screen elsewhere, not this app - confirm the writer.",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_trash",
+  "area": "core (recycle bin)",
+  "screens": "core/history.js (auditTrash before delete; restore)",
+  "saves": 3,
+  "record_key": "pt_trash/<auditId>",
+  "required": "path, value, at, by, tab, why; restoredAt/restoredBy on restore",
+  "ranges": "none",
+  "month_field": "none",
+  "write_right": "default: any logged-in staff, not a vendor (catch-all)",
+  "delete_right": "same",
+  "browser_only_rules": "restore re-puts value to original path via ptPut (history.js:155) - checked by that path's right",
+  "multi_save": "restore = ptPut(original path) + trash stamp",
+  "numbering": "none",
+  "money_effect": "none",
+  "notes": "Should be server-side, like pt_audit.",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_accReserve",
+  "area": "flow",
+  "screens": [
+   "flow/flow-demand.js",
+   "flow/flow-ppc.js",
+   "flow/flow-edit.js",
+   "flow/flow-test-order.js"
+  ],
+  "saves": "~5",
+  "record_key": "pt_accReserve/<flowKey>",
+  "required": [
+   "orderNo",
+   "sku",
+   "items",
+   "at",
+   "by"
+  ],
+  "ranges": [],
+  "month_field": "none",
+  "write_right": "staff (line 216)",
+  "delete_right": "set null in patch",
+  "browser_only_rules": [],
+  "multi_save": "with pt_ppc on PPC save",
+  "numbering": "none",
+  "notes": "auto:true when PPC reserved it.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_cuttingData",
+  "area": "flow",
+  "screens": [
+   "flow/flow-test-order.js"
+  ],
+  "saves": "in delete patch",
+  "record_key": "pt_cuttingData/<id>",
+  "required": [],
+  "ranges": [],
+  "month_field": "date",
+  "write_right": "staff (line 109)",
+  "delete_right": "test-order delete only here",
+  "browser_only_rules": [],
+  "multi_save": "yes",
+  "numbering": "none",
+  "notes": "Main writer outside this area.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_flowChallans",
+  "area": "flow",
+  "screens": [
+   "flow/flow-challan.js",
+   "flow/flow-edit.js",
+   "flow/flow-emb.js",
+   "flow/flow-receive.js",
+   "flow/flow-test-order.js",
+   "vendors/portal/printer-receive.js"
+  ],
+  "saves": 16,
+  "record_key": "pt_flowChallans/<challan no>",
+  "required": [
+   "no",
+   "date",
+   "orderNo",
+   "orders",
+   "vendor{code,name}",
+   "at",
+   "by",
+   "lines[{key,sku,pcs,metres}]"
+  ],
+  "ranges": [
+   "pcs >= 1, <= still owed (flow-challan.js:234)",
+   "receipt qty <= sent",
+   "reject reason in VPR_REJ_REASONS; Other needs note",
+   "pcs whole numbers"
+  ],
+  "month_field": "date (also number prefix YYYYMM)",
+  "write_right": "staff (save rule line 244)",
+  "delete_right": "no hard delete; cancelled / closed flags",
+  "browser_only_rules": [
+   "flchl tab or admin (flowMay, flow-entries.js:11)",
+   "new number claimed with CAS create-only (flow-core.js:300)",
+   "edits guarded by pt_flowRev CAS (flow-core.js:291)",
+   "settle standing cloth admin only (flow-receive.js:157)",
+   "change receipt admin only (printer-receive.js:363)",
+   "test and real orders cannot share a challan (flow-challan.js:212)"
+  ],
+  "multi_save": "yes: pt_ppc, pt_flowDemand, pt_vendorOrders (vRej), pt_recvRejects, pt_flowRev",
+  "numbering": "RFD-YYYYMM-NNN / TRFD- (flow-challan.js:173); EMB-YYYYMM-NNN / TEMB- (flow-emb.js:56); max+1, retry 15, server key refresh",
+  "notes": "Number = max+1 from browser copy; server should hand out numbers.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_flowDemand",
+  "area": "flow",
+  "screens": [
+   "flow/flow-demand.js",
+   "flow/flow-challan.js",
+   "flow/flow-edit.js",
+   "flow/flow-ppc.js",
+   "flow/flow-receive.js"
+  ],
+  "saves": "in patches (~8)",
+  "record_key": "pt_flowDemand/<flowKey(orderNo,sku)>",
+  "required": [
+   "fabricReady (judged)"
+  ],
+  "ranges": [],
+  "month_field": "none",
+  "write_right": "staff (line 246)",
+  "delete_right": "null in patches (test order delete)",
+  "browser_only_rules": [
+   "flow tab rights"
+  ],
+  "multi_save": "always with pt_flowChallans/pt_ppc",
+  "numbering": "none",
+  "notes": "DOUBT: full shape not read.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_flowFgSend",
+  "area": "flow",
+  "screens": [
+   "flow/flow-qcfg.js"
+  ],
+  "saves": 2,
+  "record_key": "pt_flowFgSend/<id>",
+  "required": [
+   "(log, DOUBT)"
+  ],
+  "ranges": [],
+  "month_field": "at (judged)",
+  "write_right": "staff (line 248)",
+  "delete_right": "test-order delete",
+  "browser_only_rules": [
+   "fgi tab or admin (flow-qcfg.js:49)"
+  ],
+  "multi_save": "with pt_fgiLedger, pt_qcChecks, pt_flowTest",
+  "numbering": "none",
+  "notes": "",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_flowPrintOrders",
+  "area": "flow",
+  "screens": [
+   "flow/flow-printorder.js",
+   "flow/flow-edit.js",
+   "flow/flow-ppc.js"
+  ],
+  "saves": "~3",
+  "record_key": "pt_flowPrintOrders/<PRN-YYYYMM-NNN>",
+  "required": [
+   "(DOUBT not read)"
+  ],
+  "ranges": [],
+  "month_field": "number prefix YYYYMM",
+  "write_right": "staff (line 250)",
+  "delete_right": "",
+  "browser_only_rules": [
+   "resync admin only (flow-edit.js:35)"
+  ],
+  "multi_save": "yes: pt_vendorOrders",
+  "numbering": "PRN-/TPRN-YYYYMM-NNN max+1 in browser (flow-printorder.js:32)",
+  "notes": "printorder auto-patch on draw (flow-printorder.js:174) writes on page view.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_flowRev",
+  "area": "flow",
+  "screens": [
+   "flow/flow-core.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_flowRev/<thing>",
+  "required": [
+   "integer counter"
+  ],
+  "ranges": [
+   "next = expected + 1"
+  ],
+  "month_field": "none",
+  "write_right": "staff (line 252)",
+  "delete_right": "none",
+  "browser_only_rules": [],
+  "multi_save": "before each guarded flow save (separate call)",
+  "numbering": "none",
+  "notes": "Lock counter; moves to a server version column.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_flowTest",
+  "area": "flow",
+  "screens": [
+   "flow/flow-test-order.js",
+   "flow/flow-qcfg.js"
+  ],
+  "saves": 5,
+  "record_key": "pt_flowTest/<TEST-src-tag-NN>",
+  "required": [
+   "lines"
+  ],
+  "ranges": [],
+  "month_field": "none",
+  "write_right": "staff (line 254)",
+  "delete_right": "delete removes order + its ppc/demand/challans/cutting/baseData/qc rows in one patch (flow-test-order.js:129-150)",
+  "browser_only_rules": [],
+  "multi_save": "yes: delete touches ~11 registers",
+  "numbering": "TEST-<src>-<tag>-NN (flow-test-order.js:113)",
+  "notes": "Test delete could wipe real rows if keys wrong - server should only allow test-flagged rows.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_ppc",
+  "area": "flow",
+  "screens": [
+   "flow/flow-ppc.js",
+   "flow/flow-challan.js",
+   "flow/flow-edit.js",
+   "flow/flow-test-order.js"
+  ],
+  "saves": "~4 patches",
+  "record_key": "pt_ppc/<flowKey(orderNo,sku)>",
+  "required": [
+   "route",
+   "plan{printer,fabric}"
+  ],
+  "ranges": [
+   "route in [stitch, outsource, printed... ] (DOUBT exact list)"
+  ],
+  "month_field": "none",
+  "write_right": "staff (line 268)",
+  "delete_right": "null via test-order delete",
+  "browser_only_rules": [
+   "claim rows with CAS then undo on failure (flow-ppc.js:555)"
+  ],
+  "multi_save": "yes: pt_accReserve, pt_flowPrintOrders, pt_flowDemand, pt_vendorOrders, pt_masterDB/pt_customSkus",
+  "numbering": "none",
+  "notes": "Biggest multi-register click; server needs one transaction.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_gdTest",
+  "area": "flow (greige desk)",
+  "screens": [
+   "flow/greige-desk.js"
+  ],
+  "saves": 2,
+  "record_key": "pt_gdTest/<list>/<id> and whole node",
+  "required": [],
+  "ranges": [],
+  "month_field": "none",
+  "write_right": "staff (line 258)",
+  "delete_right": "null per id in diff patch",
+  "browser_only_rules": [],
+  "multi_save": "no",
+  "numbering": "none",
+  "notes": "Test sandbox; whole-node put (greige-desk.js:4168) can overwrite everyone's work.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_masterDB",
+  "area": "flow (PPC) | orders/store | masters",
+  "screens": [
+   "flow/flow-ppc.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_masterDB/<key>/<field> | SKU key | pt_masterDB/<key>; 'mdb_' + Date.now() (edit.js:213), 'mdb_'+time+'_'+4 random (import, asin-from-amazon.js:369), 'mdb_'+time+'_'+3-digit idx (sku-codes.js:234)",
+  "required": [
+   "updatedAt",
+   "updatedBy"
+  ],
+  "ranges": "none seen | sku unique (95); asin/parentAsin 10 letters+digits (93-94); packType in {Polythene, Box}; listingStatus in {'',Listed,Need Listing,Discontinue,Use In Mix} (119); if isZip chainLength>0, zipQty blank or >0; ruffle/piping/filler metres >0 when Yes (100-108, skipped for ready products); inventoryValuationPrice >= 0 (110)",
+  "month_field": "none",
+  "write_right": "admin or r.mdbEdit or r.prodEdit (save rule line 40) | rt_can_save: admin or r.mdbEdit or r.prodEdit | admin or r.mdbEdit or r.prodEdit (rt_rights_refresh.sql:39-40)",
+  "delete_right": "none here | same",
+  "browser_only_rules": "mdbCanEdit (core/database.js:43) | UI needs admin or mdbEdit and not vendor (database.js:43) - server also lets prodEdit; delete refused if SKU used in live rows, deletes all duplicate keys (master-database-edit.js:274-281); recipe fills blanks (211)",
+  "multi_save": "part of PPC save patch | custom-order-skus also pt_skuPriority | yes - sku-codes create writes pt_masterDB rows + pt_masters/colour in one ptPatch (sku-codes.js:231-238); ASIN fill one ptPatch over many field paths (asin-from-amazon.js:162-165)",
+  "numbering": "none | SKU codes built from base code + colour code (sku-codes.js skcPlanNew); no running number",
+  "notes": "DOUBT: which fields PPC writes into master rows (flow-ppc.js:350) - owner should confirm PPC may edit master. | Masters area owns this; included as written here. | Import writes rows one by one (asin-from-amazon.js:364-381) - not atomic. DOUBT: prodEdit can write server-side but UI says mdbEdit only.",
+  "from": [
+   "production",
+   "orders-stock",
+   "hr-masters"
+  ],
+  "stock_effect": "none",
+  "money_effect": "inventoryValuationPrice only (stored, not computed)"
+ },
+ {
+  "register": "pt_fgiLedger",
+  "area": "flow | inventory (FG)",
+  "screens": [
+   "flow/flow-qcfg.js",
+   "flow/flow-test-order.js"
+  ],
+  "saves": 2,
+  "record_key": "pt_fgiLedger/<_id> | fgiNewId: PREFIX-time36-seq-rand (RCP/ISS/FBA/FBR/ADJ/TRF)",
+  "required": [
+   "(FG row, DOUBT)"
+  ],
+  "ranges": [
+   "qty > 0"
+  ],
+  "month_field": "date (judged) | date (DD/MM/YYYY string)",
+  "write_right": "staff (line 240) | any non-vendor staff",
+  "delete_right": "test-order delete | server: any staff. Screen: fgiEdit/admin (fg-change-remove.js:39); others raise pt_fgiCorrReqs",
+  "browser_only_rules": "entry needs fgiEntry/fgiEdit/admin (fg-entry-access.js:24); no negative stock - fgiOutCheck (fg-other-movements.js:239, pack-core.js:236); locked fields on TRANSFER_IN/FBA_RETURN/accepted FBA (fg-change-remove.js:216); over-order needs reason (fgiRecvOrderCheck 256); same-day twin warning only (345); FBA dispatch needs tab fba (fba-dispatch.js:32)",
+  "multi_save": "yes | yes: pt_pressInventory transferredQty (finished-goods.js:502, fg-receive-excel.js:446), pt_orderBook, pt_cxOrders, pt_shpBoardTest, pt_fgiSettings",
+  "numbering": "none | fgiNewId (finished-goods.js:32) - id only, no business number",
+  "notes": "Owned by inventory area too - merge with that draft. | DOUBT: date stored DD/MM/YYYY string - server month lock must parse it. Negative-stock guard is browser-only and uses a possibly stale copy.",
+  "from": [
+   "production",
+   "orders-stock"
+  ],
+  "stock_effect": "India Store FG pieces: + OPENING/RECEIVE/TRANSFER_IN/FBA_RETURN, - ISSUE/FBA. Balance computed in browser (fgiOf(sku).current)"
+ },
+ {
+  "register": "pt_obDeleteReqs",
+  "area": "flow | orders",
+  "screens": [
+   "flow/flow-back.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_obDeleteReqs/<id> | request id",
+  "required": [
+   "(DOUBT)"
+  ],
+  "ranges": "status pending|deleted|kept; reject needs note",
+  "month_field": "none",
+  "write_right": "staff (line 208) | any non-vendor staff",
+  "delete_right": "not deleted; status changes",
+  "browser_only_rules": [
+   "flowCanAgain (flow-back.js:25)"
+  ],
+  "multi_save": "no | yes: approve writes pt_orderBook null + pt_salesOrders lines/removedLines (delete-requests.js:205-232)",
+  "numbering": "none",
+  "notes": "Answered in orders/delete-requests.js. | DOUBT: can the asker also answer their own request? screen does not seem to stop it.",
+  "from": [
+   "production",
+   "orders-stock"
+  ],
+  "stock_effect": "none"
+ },
+ {
+  "register": "pt_orderBook",
+  "area": "flow | orders",
+  "screens": [
+   "flow/flow-back.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_orderBook/<key>/ppcBack | ob_so_{ORDER}_{SKU} for SO rows; obKey(sku) for Shopify rows",
+  "required": [
+   "ppcBack"
+  ],
+  "ranges": "qty > 0 (rounded, raise-sales-order.js:1047); one row per order+SKU",
+  "month_field": "none | orderDate (saleMonth optional)",
+  "write_right": "staff (line 113) | any non-vendor staff",
+  "delete_right": "server: any non-vendor staff. Screen: only via delete request answered by tab so (delete-requests.js:33,205); Shopify sync also nulls rows (orders-to-make.js:500,529)",
+  "browser_only_rules": [
+   "flppc tab or admin (flow-back.js:24)"
+  ],
+  "multi_save": "no | yes: with pt_salesOrders, pt_fgiLedger (complete-from-stock.js:30), pt_obDeleteReqs",
+  "numbering": "none | deterministic key, no running number",
+  "notes": "Owned by orders area. | Deleting rows with work done (cut/issued/pressed) is only recorded (workAtDelete), not blocked - DOUBT whether server should block.",
+  "from": [
+   "production",
+   "orders-stock"
+  ],
+  "stock_effect": "none directly; stockDone/stockLog track pieces taken from FG"
+ },
+ {
+  "register": "pt_amzListings / pt_listingAlerts",
+  "area": "inventory",
+  "screens": "inventory/amazon-listing-status.js",
+  "saves": "5",
+  "record_key": "refreshing lock; alert key",
+  "required": "status, closedAt, closedBy, note",
+  "ranges": "status open|listed|closed",
+  "month_field": "none",
+  "write_right": "any non-vendor staff",
+  "delete_right": "any non-vendor staff",
+  "browser_only_rules": "lock in browser",
+  "multi_save": "yes",
+  "numbering": "none",
+  "stock_effect": "none",
+  "notes": "",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_accLedger",
+  "area": "inventory (accessories)",
+  "screens": "inventory/accessories.js",
+  "saves": "7",
+  "record_key": "_id acc_csv_/acc_auto_/random",
+  "required": "_id, txnType, itemCode, qty, date, by",
+  "ranges": "txnType OPENING|IN|OUT|RETURN|ADJUST (accessories.js:17)",
+  "month_field": "date",
+  "write_right": "rt_can_save: any non-vendor staff",
+  "delete_right": "server any staff; screen accEdit/admin",
+  "browser_only_rules": "entry accEntry/accEdit/admin, edit accEdit (accessories.js:231-232)",
+  "multi_save": "auto OUT with production entry; pt_fabInvLedger (accessories.js:859)",
+  "numbering": "none",
+  "stock_effect": "accessory stock; sign by txnType; balance in browser",
+  "notes": "DOUBT: is accessory stock allowed to go negative?",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_fnskuMap",
+  "area": "inventory (FG scanning)",
+  "screens": "inventory/fg-scanning.js",
+  "saves": "2",
+  "record_key": "single node (whole map)",
+  "required": "at, by, n, src, list",
+  "ranges": "none",
+  "month_field": "none",
+  "write_right": "any non-vendor staff",
+  "delete_right": "any non-vendor staff",
+  "browser_only_rules": "none seen",
+  "multi_save": "no",
+  "numbering": "none",
+  "stock_effect": "none",
+  "notes": "Whole node overwrite.",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_fgiCorrReqs",
+  "area": "inventory (FG)",
+  "screens": "inventory/fg-corrections.js",
+  "saves": "4",
+  "record_key": "request id",
+  "required": "id, status, kind, change, why, by, at, sku, txnType, qty, snapshot",
+  "ranges": "status pending|approved|rejected|closed; reject needs note",
+  "month_field": "none (follows ledger row)",
+  "write_right": "any non-vendor staff",
+  "delete_right": "not deleted",
+  "browser_only_rules": "ask: fgiEntry and NOT fgiEdit (fg-corrections.js:22); answer: fgiEdit/admin (50,144)",
+  "multi_save": "approve patches pt_fgiLedger row + edits log (fg-corrections.js:116-131)",
+  "numbering": "none",
+  "stock_effect": "via the ledger row it changes",
+  "notes": "",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_fgiSettings",
+  "area": "inventory (FG)",
+  "screens": "fg-receive-excel.js, fg-change-remove.js",
+  "saves": "~3",
+  "record_key": "SKU",
+  "required": "remark, reorder, at, by",
+  "ranges": "reorder > 0 or null",
+  "month_field": "none",
+  "write_right": "any non-vendor staff",
+  "delete_right": "any non-vendor staff",
+  "browser_only_rules": "fgiEdit/admin",
+  "multi_save": "with pt_fgiLedger ADJ rows (fg-change-remove.js:382-387)",
+  "numbering": "none",
+  "stock_effect": "none",
+  "notes": "",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_storeChecks",
+  "area": "inventory (store)",
+  "screens": "inventory/store.js",
+  "saves": "1",
+  "record_key": "check key (/ -> __)",
+  "required": "by, at",
+  "ranges": "none",
+  "month_field": "none",
+  "write_right": "admin or r.prodEdit",
+  "delete_right": "same",
+  "browser_only_rules": "ptCanEdit",
+  "multi_save": "no",
+  "numbering": "none",
+  "stock_effect": "none",
+  "notes": "",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_storeLedger",
+  "area": "inventory (store)",
+  "screens": "inventory/store.js",
+  "saves": "5",
+  "record_key": "st_{time36}{rand}",
+  "required": "id, kind, unit, qty, date, by, at; sku (pcs) or fabric (m)",
+  "ranges": "kind OPENING|IN|OUT|ADJUST|RETURN; unit pcs|m; qty > 0 (ADJUST != 0); pcs whole; SKU in master (store.js:326-339)",
+  "month_field": "date",
+  "write_right": "rt_can_save: admin or r.prodEdit",
+  "delete_right": "admin or r.prodEdit; screen deletes hand rows only",
+  "browser_only_rules": "ptCanEdit (store.js:324)",
+  "multi_save": "no",
+  "numbering": "none",
+  "stock_effect": "store pieces/metres; balance in browser",
+  "notes": "No negative guard seen.",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_skuImages",
+  "area": "masters",
+  "screens": "masters/master-database-edit.js (image cache save)",
+  "saves": 1,
+  "record_key": "pt_skuImages/<sku key>",
+  "required": "image url or '' (empty = Amazon has none)",
+  "ranges": "none",
+  "month_field": "none",
+  "write_right": "any logged-in staff, not a vendor (rt_rights_refresh.sql:286-287)",
+  "delete_right": "same",
+  "browser_only_rules": "none; failure swallowed (master-database-edit.js:420)",
+  "multi_save": "yes - many keys in one ptPatch",
+  "numbering": "none",
+  "money_effect": "none",
+  "notes": "Cache, low risk.",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_baseData / pt_cuttingData",
+  "area": "orders",
+  "screens": "orders/order-console-table.js, shp-board.js",
+  "saves": "4",
+  "record_key": "entry id",
+  "required": "production entry fields",
+  "ranges": "pendingPieces > 0 for open rows",
+  "month_field": "date (cutting month freeze)",
+  "write_right": "any non-vendor staff",
+  "delete_right": "any non-vendor staff",
+  "browser_only_rules": "month freeze cutMonthFrozen (order-console-table.js:557, bulk-entry.js:152)",
+  "multi_save": "no",
+  "numbering": "none",
+  "stock_effect": "none",
+  "notes": "Production area owns; listed only.",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_cxOrders",
+  "area": "orders",
+  "screens": "orders/customer-orders.js",
+  "saves": "4",
+  "record_key": "line id",
+  "required": "id + line fields (not fully traced)",
+  "ranges": "not traced",
+  "month_field": "unsure",
+  "write_right": "any non-vendor staff",
+  "delete_right": "server: any staff; screen ptDelete customer-orders.js:223",
+  "browser_only_rules": "not traced",
+  "multi_save": "yes: issue writes pt_fgiLedger + pt_cxOrders together (customer-orders.js:210)",
+  "numbering": "unsure",
+  "stock_effect": "issue removes FG stock via pt_fgiLedger",
+  "notes": "DOUBT: fields and gates not read in detail.",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_orderAlerts",
+  "area": "orders",
+  "screens": "orders/order-alerts.js",
+  "saves": "~3",
+  "record_key": "l/{key}, lease, v, at",
+  "required": "lease {by,until}",
+  "ranges": "none",
+  "month_field": "none",
+  "write_right": "any non-vendor staff",
+  "delete_right": "any non-vendor staff",
+  "browser_only_rules": "lease via ptCas (order-alerts.js:250)",
+  "multi_save": "log to pt_orderAlertsLog (audit write)",
+  "numbering": "none",
+  "stock_effect": "none",
+  "notes": "Machine cache, not business data.",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_salesOrders",
+  "area": "orders",
+  "screens": "orders/raise-sales-order.js, quantity-changes.js, quantity-sheet.js, sales-orders.js, delete-requests.js, shopify/orders-to-make.js",
+  "saves": "~14",
+  "record_key": "order number CHANNEL-DDMMYYYY-SEQ[-AIR|-SEA] (_id)",
+  "required": "_id, channel, orderDate, orderTypeKey, lines[{sku,qty,deliveryDate,orderTypeKey,priority}], status, buyerEmail, createdAt/By, updatedAt",
+  "ranges": "status draft|submitted|returned|approved; line qty != 0; B2B qty >= 0; negative line only if SKU has net qty on order; priority P1-P4; orderTypeKey regular|newdev; shipMode AIR|SEA for Amazon; saleMonth YYYY-MM; SKU must be in master (not B2B/ONL); SKU no . $ # [ ] /",
+  "month_field": "orderDate (saleMonth is sale projection month)",
+  "write_right": "rt_can_save: any signed-in staff (perm not null or ravi), not a vendor. No flag.",
+  "delete_right": "server: same as write. Screen: admin only (raise-sales-order.js:945)",
+  "browser_only_rules": "edit own draft/returned only unless admin (raise-sales-order.js:136); approve needs soApprove/admin (core/database.js:39, raise-sales-order.js:1014); number frozen once placed or on order book (raise-sales-order.js:812,826); delivery date required to approve (1020-1024); qty-change approve/reject needs tab ord (quantity-changes.js:40), reject needs reason (106)",
+  "multi_save": "yes: approve also writes pt_orderBook (raise-sales-order.js:1070); qty change writes pt_orderBook qty (quantity-changes.js:76); delete-request approve writes lines + pt_orderBook null; also pt_skuPriority, pt_customSkus",
+  "numbering": "soGenId: CHANNEL-DDMMYYYY-NN over salesOrders+orderBook (raise-sales-order.js:57); soFreeId re-reads DB to skip taken (77); B2B SKU minted soB2BMint (782)",
+  "stock_effect": "none",
+  "notes": "DOUBT: number is made in browser, race only softened by re-read; server should mint. Draft renumber deletes old node (850).",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_skuPriority",
+  "area": "orders",
+  "screens": "raise-sales-order.js, custom-order-skus.js",
+  "saves": "2",
+  "record_key": "SKU",
+  "required": "priority tag",
+  "ranges": "P1-P4 assumed",
+  "month_field": "none",
+  "write_right": "any non-vendor staff",
+  "delete_right": "any non-vendor staff (rename nulls old key, custom-order-skus.js:225)",
+  "browser_only_rules": "none",
+  "multi_save": "with pt_salesOrders",
+  "numbering": "none",
+  "stock_effect": "none",
+  "notes": "",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_shpBoardTest / pt_shpBoardPress / pt_shpBoardShip",
+  "area": "orders (Shopify board)",
+  "screens": "orders/shp-board.js",
+  "saves": "6",
+  "record_key": "line key / press id",
+  "required": "not traced",
+  "ranges": "order cap, zipper short checks (shp-board.js:561)",
+  "month_field": "unsure",
+  "write_right": "any non-vendor staff",
+  "delete_right": "any non-vendor staff",
+  "browser_only_rules": "shpbCanEdit admin/prodEdit (shp-board.js:60)",
+  "multi_save": "yes: pt_fgiLedger issue (shp-board.js:586), pt_baseData",
+  "numbering": "none",
+  "stock_effect": "issue removes FG",
+  "notes": "Name says Test - DOUBT whether live.",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_shopProd",
+  "area": "orders/shopify",
+  "screens": "orders/order-console.js, production-to-shipping.js, shopify/bulk-entry.js",
+  "saves": "6",
+  "record_key": "key per Shopify order line",
+  "required": "not fully traced; handedQty, handLog, handedAt/By on hand-over",
+  "ranges": "handedQty <= line.qty (production-to-shipping.js:55)",
+  "month_field": "unsure",
+  "write_right": "any non-vendor staff",
+  "delete_right": "any non-vendor staff",
+  "browser_only_rules": "assign needs shopAssign/b2bAssign (order-console.js:165,173); receive needs shpCanReceive (production-to-shipping.js:40)",
+  "multi_save": "no",
+  "numbering": "none",
+  "stock_effect": "none",
+  "notes": "DOUBT: fields.",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_advances",
+  "area": "people-pay",
+  "screens": "people-pay/vendor-payout.js (hrSetAdvance)",
+  "saves": 1,
+  "record_key": "whole array; row id = 'adv_' + Date.now() + '_' + 4 random (vendor-payout.js:308)",
+  "required": "id, empName, ym, amount, addedBy, addedAt; remarks optional",
+  "ranges": "amount >= 0, 0 removes row (305-308); one row per person per month (307)",
+  "month_field": "ym (YYYY-MM)",
+  "write_right": "admin or t.hr (rt_rights_refresh.sql:35-36)",
+  "delete_right": "admin or t.hr",
+  "browser_only_rules": "whole-list clash guard; NOT blocked by payout freeze",
+  "multi_save": "no",
+  "numbering": "none",
+  "money_effect": "net = max(0, gross - advance) on full-month slip only (vendor-payout.js:352-353); net not saved",
+  "notes": "DOUBT: should an advance be locked once that month is frozen?",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_empList",
+  "area": "people-pay",
+  "screens": "people-pay/printer-rates.js (new/edit/delete employee) via finance-hr.js hrPutList",
+  "saves": 3,
+  "record_key": "whole array, written whole; row = [empType, name, department, phone] (printer-rates.js:967)",
+  "required": "name, empType, department per row",
+  "ranges": "no duplicate name in same department (965,996)",
+  "month_field": "none",
+  "write_right": "admin or t.hr or r.empEdit (rt_rights_refresh.sql:37-38)",
+  "delete_right": "same (whole-list rewrite)",
+  "browser_only_rules": "delete needs admin or empEdit (finance-hr.js:137, printer-rates.js:1004); cannot delete if named in job work/extra hours/QC (1009); whole-list clash guard (finance-hr.js:51-60)",
+  "multi_save": "no",
+  "numbering": "none (array position)",
+  "money_effect": "none",
+  "notes": "Positional array kept for Vimal's tool (finance-hr.js:33). Whole-list write = server cannot see which row changed.",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_extraHours",
+  "area": "people-pay",
+  "screens": "people-pay/printer-rates.js (log/edit/delete), people-pay/vendor-payout.js (authorise one / all)",
+  "saves": 5,
+  "record_key": "pt_extraHours/<id>, id = 'eh_' + Date.now() + '_' + 4 random chars (printer-rates.js:1148)",
+  "required": "id, date (YYYY-MM-DD), empName, department, hours, fromTime, toTime, status, enteredBy, enteredAt; remarks/authorizedBy/authorizedAt may be ''",
+  "ranges": "hours > 0 and <= 24 (from HH:MM times, past midnight allowed) (printer-rates.js:1141-1142,1187-1188); status in {pending, authorized}; empName+department must exist in pt_empList (1133); one entry per employee per date (1143,1189)",
+  "month_field": "date (first 7 chars = YYYY-MM, finance-hr.js:111)",
+  "write_right": "any logged-in staff, not a vendor (perm row exists, no pt_vendorByEmail) - rt_rights_refresh.sql:123",
+  "delete_right": "same as write (delete = save null)",
+  "browser_only_rules": "month freeze from pt_ehFreezes blocks add/edit/delete/authorise (finance-hr.js:112, printer-rates.js:1145,1184,1213, vendor-payout.js:448,469); only admin may set status authorized or change date (printer-rates.js:1179,1193); non-admin time change on authorised row resets to pending (1195); authorise buttons admin-only (vendor-payout.js:447,467); authorizedBy/At stamped by browser (1202-1205, vendor-payout.js:434-440)",
+  "multi_save": "yes - Authorise all = one ptPatch over many pt_extraHours/<id>/<field> paths (vendor-payout.js:485-490); no other register",
+  "numbering": "none (random id)",
+  "money_effect": "none saved; hours shown on salary slip only, not added to payout (vendor-payout.js:355-357,386)",
+  "notes": "DOUBT: brief says 0-16 h; code allows up to 24. DOUBT: no ERP screen writes pt_ehFreezes (read only, finance-hr.js:78) - who sets it? Server does not check status, so any staff can write status=authorized directly.",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_payoutFreezes",
+  "area": "people-pay",
+  "screens": "people-pay/vendor-payout.js (paySetFreeze, vpaySetFreeze)",
+  "saves": 2,
+  "record_key": "pt_payoutFreezes/<empType>|<YYYY-MM> (payouts.js:23); empType = Company Contractor / External Contractor / vendor type",
+  "required": "frozen{period:true}, periods{period:[lines]}, meta{period:{by,at,lines,amount,pieces?}}; null when nothing frozen",
+  "ranges": "period in {1,2} (fortnights); 3 = whole month refused (vendor-payout.js:630,696); live rows must be non-empty (642,700); vendor freeze refused if any line has no approved rate (701-704)",
+  "month_field": "key part YYYY-MM (+ period 1/2)",
+  "write_right": "admin only (perm.admin or owner email) - rt_rights_refresh.sql:19-20",
+  "delete_right": "admin only",
+  "browser_only_rules": "admin check also in browser (vendor-payout.js:627,694); confirm dialogs",
+  "multi_save": "no",
+  "numbering": "none",
+  "money_effect": "snapshot of live payout saved: cc/ec lines {empName,articleType,subtype,size,recvPcs,rate,amount}, amount = recvPcs*rate (payouts.js:89); vendor lines amount = qty*rate (vendor-payout.js:119); meta.amount = sum",
+  "notes": "Server trusts browser totals; it does not recompute. Freeze does NOT block edits to pt_baseData/pt_extraHours on server - only payout reads use the snapshot. Consider hr.payout_locks.",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_printerRates",
+  "area": "people-pay",
+  "screens": "people-pay/printer-rates.js (hrSavePrRate, called from upload/new/approve/approve-all/edit/delete)",
+  "saves": 1,
+  "record_key": "pt_printerRates/<key>; old rows = array index, new = 'pr_' + base36 time + '_' + idx + '_' + 5 random (printer-rates.js:35)",
+  "required": "vendor, service, rate, status; running: fabric, print direction; cut: articleType, subtype, size; filling: filler, weight",
+  "ranges": "rate > 0 (618); weight > 0 for fill (608); colours = range like 1-4, 5+, number, or a no-digit label (614); status in {Approved, Pending, Refused} (98); no duplicate/overlapping colour range per vendor+work (627-633)",
+  "month_field": "none",
+  "write_right": "whole node: admin or r.rateApprove; per row: t.hr only if old row absent or status 'Pending' AND new row absent or status 'Pending' (rt_rights_refresh.sql:25-31)",
+  "delete_right": "admin/r.rateApprove; t.hr may delete only a Pending row",
+  "browser_only_rules": "upload admin-only (printer-rates.js:782); approve/refuse needs admin or rateApprove (871,896); delete button only for approvers (940); new row gets Approved if user can approve else Pending (105-108); clash check vs last-read rows (51-61)",
+  "multi_save": "yes - one ptPatch of many pt_printerRates/<key> paths (62)",
+  "numbering": "none",
+  "money_effect": "rate per metre/piece; used by vendor payout amount = qty*rate (vendor-payout.js:119)",
+  "notes": "DOUBT: row with no status reads as Approved in browser (printer-rates.js:100-101) but server t.hr rule needs literal 'Pending' - old rows missing status count as approved.",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_rateList",
+  "area": "people-pay",
+  "screens": "people-pay/printer-rates.js (new/edit/delete employee rate) via hrPutList",
+  "saves": 3,
+  "record_key": "whole array; row = [articleType, subtype, size, applicableFor, rate, commission|'NA'] (printer-rates.js:1052)",
+  "required": "articleType, subtype, size, applicableFor, rate",
+  "ranges": "rate > 0 (1059); applicableFor in {Company Contractor, External Contractor} (1019); no duplicate at+sub+size+for (1062)",
+  "month_field": "none",
+  "write_right": "admin or t.hr (rt_rights_refresh.sql:33-34)",
+  "delete_right": "admin or t.hr",
+  "browser_only_rules": "whole-list clash guard; no rate approval step for employee rates",
+  "multi_save": "no",
+  "numbering": "none",
+  "money_effect": "karigar payout amount = recvPcs * rate (payouts.js:89); commission field stored as text",
+  "notes": "DOUBT: employee rates have no approval while printer rates do - intended?",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_approvals",
+  "area": "production",
+  "screens": [
+   "production/job-work-corrections.js"
+  ],
+  "saves": 2,
+  "record_key": "pt_approvals/<baseData row id> (old ones may end _dup1)",
+  "required": [
+   "id",
+   "type=del_entry",
+   "at",
+   "by",
+   "why",
+   "label",
+   "data"
+  ],
+  "ranges": [
+   "type = del_entry"
+  ],
+  "month_field": "none",
+  "write_right": "staff (fallback)",
+  "delete_right": "screen: admin only answers and deletes the request (:478,503); server: staff",
+  "browser_only_rules": [
+   "ask needs prodEdit and not admin (:452-454)",
+   "answer admin only (:478)",
+   "approve refused if QC took pieces (:486)"
+  ],
+  "multi_save": "yes: approve deletes pt_baseData then pt_approvals (separate calls)",
+  "numbering": "none",
+  "notes": "Legacy queue shared with old tool.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_attend",
+  "area": "production",
+  "screens": [
+   "production/attendance.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_attend/<attId(day,empName)>",
+  "required": [
+   "id",
+   "day",
+   "empName",
+   "empType",
+   "dept",
+   "inAt",
+   "outAt",
+   "status",
+   "markedBy",
+   "markedAt",
+   "updatedBy",
+   "updatedAt"
+  ],
+  "ranges": [
+   "day = YYYY-MM-DD",
+   "status in [P, A] (A clears in/out)",
+   "outAt needs inAt",
+   "outAt > inAt (HH:MM)"
+  ],
+  "month_field": "day",
+  "write_right": "staff (fallback rule; pt_attend listed, no perm flag)",
+  "delete_right": "no delete in screen",
+  "browser_only_rules": [
+   "attCanMark gate (attendance.js:76)"
+  ],
+  "multi_save": "no",
+  "numbering": "none",
+  "notes": "DOUBT: attCanMark definition not checked; payroll reads hours so month lock likely needed.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_baseData",
+  "area": "production",
+  "screens": [
+   "production/job-work-entry.js",
+   "production/job-work-corrections.js",
+   "production/whatsapp.js",
+   "flow/flow-test-order.js"
+  ],
+  "saves": 9,
+  "record_key": "pt_baseData/<bd_ms_rand>",
+  "required": [
+   "id",
+   "empType",
+   "empName",
+   "sku",
+   "articleType",
+   "articleSubtype",
+   "color",
+   "size",
+   "orderNo (blank only for custom)",
+   "issuePieces",
+   "issueDate",
+   "receivedPieces",
+   "rejectionPieces",
+   "pendingPieces",
+   "frozen",
+   "addedBy",
+   "addedAt"
+  ],
+  "ranges": [
+   "issuePieces >= 1",
+   "receivedPieces >= 0",
+   "rejectionPieces >= 0",
+   "received + rejected <= issued",
+   "pendingPieces = issued - received - rejected",
+   "frozen = pending <= 0",
+   "receivedPieces >= pieces QC took off this row",
+   "empName must be on employee list of empType",
+   "sku in master DB or custom list",
+   "printer SKU needs orderNo"
+  ],
+  "month_field": "issueDate (issue pay) / receivingDate (payout); dates stored dd/mm/yyyy, hh:mm",
+  "write_right": "staff: ravi or any pt_perms row, not a vendor (no perm flag)",
+  "delete_right": "server: same as write. Screen: admin only (job-work-corrections.js:519); others ask via pt_approvals or pt_jwCorrReqs kind=delete",
+  "browser_only_rules": [
+   "edit needs admin or prodEdit (core/database.js:26, job-work-corrections.js:326)",
+   "SKU / dates change admin only (job-work-corrections.js:333,381)",
+   "first receivingDate never re-stamped (whatsapp.js:263)",
+   "order cap bdGuard (job-work-entry.js:679)",
+   "zipper check (job-work-entry.js:683)",
+   "twin issue within 2 min confirm (job-work-entry.js:707)",
+   "no delete when QC took pieces (job-work-corrections.js:520)",
+   "row re-read before write, compare counted fields (whatsapp.js:296-311)"
+  ],
+  "multi_save": "yes: delete also un-consumes zippers/ruffle (ptUnconsumeZippers/Ruffle, other register); correction approve writes pt_baseData+pt_jwCorrReqs in one patch (job-work-corrections.js:142)",
+  "numbering": "none (id bd_<ms>_<rand>, job-work-entry.js:688)",
+  "notes": "DOUBT: no server month lock today; which date decides the frozen fortnight (issueDate or receivingDate)? waIssueSentAt/waRecvSentAt written as single field puts.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_jwCorrReqs",
+  "area": "production",
+  "screens": [
+   "production/job-work-corrections.js"
+  ],
+  "saves": 4,
+  "record_key": "pt_jwCorrReqs/<jwc_id>",
+  "required": [
+   "id",
+   "rowId",
+   "snapshot",
+   "change",
+   "why",
+   "by",
+   "at",
+   "status"
+  ],
+  "ranges": [
+   "status in [pending, approved, rejected, closed]",
+   "kind in [absent, delete]",
+   "why not empty",
+   "reject needs answerNote"
+  ],
+  "month_field": "at (request); debit dated at close",
+  "write_right": "staff (fallback rule, any pt_perms, not vendor)",
+  "delete_right": "not deleted by screen; server same as write",
+  "browser_only_rules": [
+   "ask needs pbase tab and not admin (job-work-corrections.js:28,82)",
+   "one pending per row (:86)",
+   "approve/reject/close needs prodEdit (:112,151,190)",
+   "no self-approve unless admin (:116,193)",
+   "SKU/date change needs admin approver (:117)",
+   "delete kind admin only (:122)",
+   "only pending can be answered (:114)"
+  ],
+  "multi_save": "yes: approve writes pt_baseData + pt_jwCorrReqs together (:142); delete approve deletes pt_baseData first then puts request (:126-128, not atomic)",
+  "numbering": "none",
+  "notes": "Close stores debit {pcs,rate,amount} read by payouts - server should check amount = pcs*rate? DOUBT.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_qcChecks",
+  "area": "production",
+  "screens": [
+   "production/quality-control.js",
+   "flow/flow-qcfg.js",
+   "flow/flow-test-order.js"
+  ],
+  "saves": 7,
+  "record_key": "pt_qcChecks/<qc_id>",
+  "required": [
+   "id",
+   "date",
+   "checkedBy",
+   "sku",
+   "checked",
+   "forAlteration",
+   "rejected",
+   "ok",
+   "addedBy",
+   "addedAt"
+  ],
+  "ranges": [
+   "checked > 0 (0 allowed on spotting/touching return rows)",
+   "alt, rej >= 0",
+   "alt + rej <= checked",
+   "ok = checked - alt - rej",
+   "checked <= received-not-checked for sku/order",
+   "dept in [spotting, touching]",
+   "return qty <= left in dept"
+  ],
+  "month_field": "date (dd/mm/yyyy, hh:mm)",
+  "write_right": "staff (save rule line 119)",
+  "delete_right": "screen: prodEdit; blocked if alteration already issued (quality-control.js:638)",
+  "browser_only_rules": [
+   "edit/delete needs prodEdit (:588,649)",
+   "dept/refId rows not editable (:592)",
+   "date change admin field (:606)",
+   "order must be named when SKU is on orders (:489)",
+   "alt cannot drop below issued (:621)"
+  ],
+  "multi_save": "flow-qcfg: pt_qcChecks + pt_fgiLedger + pt_flowFgSend + pt_flowTest in one patch (flow-qcfg.js:107-157)",
+  "numbering": "none",
+  "notes": "Inbox accept allowed for qc tab users without prodEdit (:774).",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_qcIssuance",
+  "area": "production",
+  "screens": [
+   "production/quality-control.js"
+  ],
+  "saves": 3,
+  "record_key": "pt_qcIssuance/<qci_id>",
+  "required": [
+   "id",
+   "date",
+   "employee",
+   "employmentType",
+   "sku",
+   "pieces",
+   "addedBy",
+   "addedAt"
+  ],
+  "ranges": [
+   "pieces > 0",
+   "pieces <= flagged alteration - already issued",
+   "employee on list"
+  ],
+  "month_field": "date",
+  "write_right": "staff (save rule line 121)",
+  "delete_right": "screen prodEdit (quality-control.js:683)",
+  "browser_only_rules": [
+   "edit/delete prodEdit"
+  ],
+  "multi_save": "no",
+  "numbering": "none",
+  "notes": "",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_qcReturns",
+  "area": "production",
+  "screens": [
+   "production/quality-control.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_qcReturns/<qcr_id>",
+  "required": [
+   "id",
+   "date",
+   "issuanceId",
+   "receivedBy",
+   "employee",
+   "sku",
+   "received",
+   "reworkedOk",
+   "stillRejected",
+   "addedBy",
+   "addedAt"
+  ],
+  "ranges": [
+   "received > 0",
+   "received <= pending on that issuance",
+   "ok, bad >= 0",
+   "if ok or bad: ok + bad = received"
+  ],
+  "month_field": "date",
+  "write_right": "staff (save rule line 274)",
+  "delete_right": "none",
+  "browser_only_rules": [
+   "prodEdit (quality-control.js:317)"
+  ],
+  "multi_save": "no",
+  "numbering": "none",
+  "notes": "",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_pressInventory",
+  "area": "production | inventory/orders",
+  "screens": [
+   "production/press.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_pressInventory/<press_ms_rand> | press entry id",
+  "required": [
+   "id",
+   "sku",
+   "articleType",
+   "articleSubtype",
+   "color",
+   "size",
+   "pieces",
+   "entryDate",
+   "orderNo",
+   "addedBy",
+   "addedAt"
+  ],
+  "ranges": [
+   "pieces >= 1",
+   "orderNo required",
+   "pressGuard order cap"
+  ],
+  "month_field": "entryDate | press date (owned by production)",
+  "write_right": "staff (save rule line 111) | any non-vendor staff",
+  "delete_right": "edit needs prodEdit (press.js:112) | any non-vendor staff",
+  "browser_only_rules": [
+   "save button disabled since 5 Oct 2026 (press.js:215)",
+   "month freeze pt_pressFreezes (press.js:231)"
+  ],
+  "multi_save": "no | with pt_fgiLedger",
+  "numbering": "none",
+  "notes": "New entries blocked in screen; server still accepts. Should server refuse new press rows? | Production area owns full shape.",
+  "from": [
+   "production",
+   "orders-stock"
+  ],
+  "stock_effect": "moves press pieces to FG"
+ },
+ {
+  "register": "pt_customSkus",
+  "area": "production | orders/shopify | masters",
+  "screens": [
+   "production/job-work-entry.js",
+   "flow/flow-ppc.js"
+  ],
+  "saves": 2,
+  "record_key": "pt_customSkus/<SKU> | pt_customSkus/<key> (existing key, sku not changed)",
+  "required": [
+   "sku",
+   "articleType",
+   "subtype",
+   "color",
+   "size (judged)"
+  ],
+  "ranges": "none seen | as pt_masterDB",
+  "month_field": "none",
+  "write_right": "staff (save rule line 115: perm row, not vendor) | any non-vendor staff | any logged-in staff, not a vendor (rt_rights_refresh.sql:115-116)",
+  "delete_right": "none in area | any non-vendor staff | same",
+  "browser_only_rules": "only add if SKU not already in list | UI needs mdbEdit or prodEdit (master-database-edit.js:296); lookups fill needs mdbEdit (lookups.js:274); only empty boxes filled",
+  "multi_save": "flow-ppc writes it inside PPC patch (g.node/g.key fields, flow-ppc.js:350) | yes, with pt_salesOrders/pt_orderBook | yes - lookups.js:303 one ptPatch over pt_customSkus fields AND vendor-order line paths (x.path, likely pt_vendorOrders)",
+  "numbering": "none",
+  "notes": "DOUBT: exact field set not read; flow-ppc line 350 writes either pt_masterDB or pt_customSkus by g.node. | Server right is much wider than UI (any staff).",
+  "from": [
+   "production",
+   "orders-stock",
+   "hr-masters"
+  ],
+  "stock_effect": "none",
+  "money_effect": "none"
+ },
+ {
+  "register": "fs/repl, replrows, replslim(rows), replshop(rows), repl_india",
+  "area": "replenishment",
+  "screens": "replenishment.js, article-review.js, priority.js, new-launch.js, revenue-target.js, top-asin.js, minutes-of-meeting.js",
+  "saves": "~20",
+  "record_key": "brand / doc",
+  "required": "computed tables, overrides",
+  "ranges": "none",
+  "month_field": "none",
+  "write_right": "admin or repl (replTabs); projoverride needs replProj",
+  "delete_right": "same",
+  "browser_only_rules": "none",
+  "multi_save": "rows + header",
+  "numbering": "none",
+  "stock_effect": "none",
+  "notes": "Mostly computed caches; India stock likely here (repl_india) - DOUBT.",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "fs/packlist",
+  "area": "replenishment (packing lists/boxes)",
+  "screens": "packing-list-labels.js, fba-box-template.js",
+  "saves": "2",
+  "record_key": "doc id",
+  "required": "boxes[items{sku,qty,perPcsWt}], account, scan",
+  "ranges": "weight needed per SKU",
+  "month_field": "none",
+  "write_right": "fs_rights: admin, repl, fgiEntry or fgiEdit",
+  "delete_right": "same",
+  "browser_only_rules": "pack finish needs fgiCanEntry + FBA account + stock (pack-core.js:222-237)",
+  "multi_save": "finish writes pt_fgiLedger FBA rows (pack-core.js:243)",
+  "numbering": "none",
+  "stock_effect": "via pt_fgiLedger",
+  "notes": "packlist write and ledger write are two separate saves - not atomic.",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "fs/po",
+  "area": "replenishment (purchase orders)",
+  "screens": "replenishment/purchase-orders.js, follow-ups.js",
+  "saves": "5",
+  "record_key": "Firestore doc id (addDoc)",
+  "required": "brand, supplier, mode, orderDate, eta, priority, status, lines, followups",
+  "ranges": "not traced",
+  "month_field": "orderDate",
+  "write_right": "fs_rights: admin or repl flag (+replTabs incl. repl/prod/follow/...)",
+  "delete_right": "same (purchase-orders.js:195)",
+  "browser_only_rules": "not traced",
+  "multi_save": "no",
+  "numbering": "none (Firestore id)",
+  "stock_effect": "none",
+  "notes": "",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_articleLevel",
+  "area": "reports",
+  "screens": "reports/day-by-day-target.js (kaLevelsSave)",
+  "saves": 1,
+  "record_key": "pt_articleLevel/<articleType+subtype key>",
+  "required": "articleType, subtype, level, by, at; null removes",
+  "ranges": "level in {easy, mid, hard} (324)",
+  "month_field": "none",
+  "write_right": "any logged-in staff, not a vendor (rt_rights_refresh.sql:222-223)",
+  "delete_right": "same",
+  "browser_only_rules": "UI needs admin or prodEdit (319, database.js:26)",
+  "multi_save": "yes - many keys in one ptPatch (332)",
+  "numbering": "none",
+  "money_effect": "none",
+  "notes": "",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_contractorHeads",
+  "area": "reports",
+  "screens": "reports/charts.js",
+  "saves": 1,
+  "record_key": "pt_contractorHeads/<week or _settings>/<name key>",
+  "required": "a whole number",
+  "ranges": ">= 0 integer; _days 1-7 (charts.js:419-422)",
+  "month_field": "week key (not month)",
+  "write_right": "falls to default: any logged-in staff, not a vendor (rt_rights_refresh.sql:296-298)",
+  "delete_right": "same",
+  "browser_only_rules": "none",
+  "multi_save": "no",
+  "numbering": "none",
+  "money_effect": "none",
+  "notes": "Not listed in rights file - covered only by the catch-all rule.",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_freight",
+  "area": "reports",
+  "screens": "reports/meeting.js (freight sheet upload)",
+  "saves": 1,
+  "record_key": "pt_freight/<'fr_' + date + '_' + shipment no, cleaned, <=80> (meeting.js:261)",
+  "required": "date, no, mode, amount, cur, by, at",
+  "ranges": "mode in {Sea, Air, Shop, LC Air} (258); amount >= 0 (259); date readable DD-MM-YYYY; one bad row refuses file (271)",
+  "month_field": "date (week of date)",
+  "write_right": "default: any logged-in staff, not a vendor (catch-all)",
+  "delete_right": "same",
+  "browser_only_rules": "admin or prodEdit (268)",
+  "multi_save": "yes - all rows one ptPatch (275)",
+  "numbering": "key from date + shipment no (same again replaces)",
+  "money_effect": "freight amount stored as given",
+  "notes": "",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_meeting",
+  "area": "reports",
+  "screens": "reports/meeting.js, reports/meeting-slides.js",
+  "saves": 8,
+  "record_key": "pt_meeting/<week>/notes/<key> (text), /actions/<'a'+base36 time>, /frozen; pt_meeting/_groups/<'g_'+base36 time>",
+  "required": "action: what (<=300), who (<=80), by, status, addedBy, addedAt; note text <= 4000; group: name, members (>=2), at, by; frozen: at, by, text",
+  "ranges": "action status in {open, done} (443); group members >= 2, a karigar in one group only (486-489)",
+  "month_field": "week key (not month)",
+  "write_right": "default: any logged-in staff, not a vendor (catch-all, rt_rights_refresh.sql:296-298)",
+  "delete_right": "same",
+  "browser_only_rules": "admin or prodEdit (meeting.js:366); frozen week does NOT block later note/action edits in code seen",
+  "multi_save": "action toggle writes status + doneAt in one ptPatch (444)",
+  "numbering": "none",
+  "money_effect": "none",
+  "notes": "DOUBT: should a frozen meeting week be read-only on server?",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_teamSize",
+  "area": "reports",
+  "screens": "reports/production-karigar-analysis.js",
+  "saves": 1,
+  "record_key": "pt_teamSize/<name key>",
+  "required": "name, sizes[{n, from, by, at}]",
+  "ranges": "n whole number 1-500; from YYYY-MM-DD (302-303)",
+  "month_field": "none (from date)",
+  "write_right": "any logged-in staff, not a vendor (rt_rights_refresh.sql:290-291)",
+  "delete_right": "same",
+  "browser_only_rules": "admin or prodEdit (300)",
+  "multi_save": "no",
+  "numbering": "none",
+  "money_effect": "none",
+  "notes": "",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "pt_kaTargets",
+  "area": "reports / masters (cloth-per-piece target button)",
+  "screens": "reports/day-by-day-target.js",
+  "saves": 1,
+  "record_key": "single record at pt_kaTargets",
+  "required": "perPerson, by{name:amount}, at, setBy",
+  "ranges": "perPerson and each amount >= 0, rounded rupees (day-by-day-target.js:139-146)",
+  "month_field": "none (one standing target)",
+  "write_right": "admin only (rt_rights_refresh.sql:23-24)",
+  "delete_right": "admin only",
+  "browser_only_rules": "admin check (137, cloth-per-piece.js:456)",
+  "multi_save": "no",
+  "numbering": "none",
+  "money_effect": "monthly rupee target per karigar; progress uses received pcs * employee rate (day-by-day-target.js:307-308), not saved",
+  "notes": "",
+  "from": [
+   "hr-masters"
+  ]
+ },
+ {
+  "register": "fs/stock, fs/audit",
+  "area": "shopify",
+  "screens": "shopify/shopify-orders.js",
+  "saves": "3",
+  "record_key": "brand",
+  "required": "not traced",
+  "ranges": "not traced",
+  "month_field": "none",
+  "write_right": "see fs_rights stock/audit",
+  "delete_right": "same",
+  "browser_only_rules": "none",
+  "multi_save": "no",
+  "numbering": "none",
+  "stock_effect": "unsure",
+  "notes": "DOUBT: custom-order-skus.js:485,490 also setDoc on a collection starting 'b' - not identified.",
+  "from": [
+   "orders-stock"
+  ]
+ },
+ {
+  "register": "pt_loginDir",
+  "area": "vendors",
+  "screens": [
+   "vendors/portal/phone-pin.js",
+   "vendors/portal/vendor-master.js",
+   "vendors/portal/vendor-portal.js"
+  ],
+  "saves": 3,
+  "record_key": "pt_loginDir/<phone>",
+  "required": [
+   "email",
+   "name",
+   "updatedAt"
+  ],
+  "ranges": [
+   "phone digits"
+  ],
+  "month_field": "none",
+  "write_right": "admin (line 70)",
+  "delete_right": "admin",
+  "browser_only_rules": [
+   "admin"
+  ],
+  "multi_save": "yes",
+  "numbering": "none",
+  "notes": "",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_recvRejects",
+  "area": "vendors",
+  "screens": [
+   "vendors/portal/printer-receive.js"
+  ],
+  "saves": 3,
+  "record_key": "pt_recvRejects/<rj_id>",
+  "required": [
+   "status",
+   "code",
+   "printer",
+   "orderNo",
+   "voId",
+   "sku",
+   "qty",
+   "unit",
+   "reason",
+   "at",
+   "by"
+  ],
+  "ranges": [
+   "status in [pending, seen]",
+   "qty > 0, <= received"
+  ],
+  "month_field": "at",
+  "write_right": "staff (fallback - NOT in rights list)",
+  "delete_right": "",
+  "browser_only_rules": [
+   "admin only for reject-after-receive (:363)"
+  ],
+  "multi_save": "with pt_flowChallans + pt_vendorOrders vRej",
+  "numbering": "none",
+  "notes": "DOUBT: 'seen' mark (:489) - done by printer? If vendor, server refuses (no vendor rule).",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_vendorByEmail",
+  "area": "vendors",
+  "screens": [
+   "vendors/portal/phone-pin.js",
+   "vendors/portal/vendor-master.js",
+   "vendors/portal/vendor-portal.js"
+  ],
+  "saves": 3,
+  "record_key": "pt_vendorByEmail/<email key, first dot as comma>",
+  "required": [
+   "code",
+   "name",
+   "phone"
+  ],
+  "ranges": [],
+  "month_field": "none",
+  "write_right": "admin (line 63)",
+  "delete_right": "admin",
+  "browser_only_rules": [
+   "admin"
+  ],
+  "multi_save": "with pt_vendorMap + pt_loginDir",
+  "numbering": "none",
+  "notes": "Decides vendor own-branch rights - security critical.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_vendorChallans",
+  "area": "vendors",
+  "screens": [
+   "vendors/portal/daily-challan.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_vendorChallans/<code>/<DC-code-ddmmyyyy-NN>",
+  "required": [
+   "no",
+   "date",
+   "code",
+   "name",
+   "lines[{orderNo,voId,lineId,sku,article,qty}]"
+  ],
+  "ranges": [
+   "qty > 0"
+  ],
+  "month_field": "date",
+  "write_right": "staff not vendor, or vendor own code (line 89-94)",
+  "delete_right": "",
+  "browser_only_rules": [
+   "dchCanSave (daily-challan.js:149)"
+  ],
+  "multi_save": "yes: vSent per line on pt_vendorOrders (daily-challan.js:168, separate calls)",
+  "numbering": "DC-<code>-<ddmmyyyy>-NN max+1 (daily-challan.js:61)",
+  "notes": "",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_vendorOrderReqs",
+  "area": "vendors",
+  "screens": [
+   "vendors/orders/vendor-order-requests.js"
+  ],
+  "saves": 4,
+  "record_key": "pt_vendorOrderReqs/<vrq_id>",
+  "required": [
+   "id",
+   "reqNo",
+   "status",
+   "vendorCode",
+   "vendorName",
+   "service",
+   "orderType",
+   "lines",
+   "requestedBy",
+   "requestedAt",
+   "log"
+  ],
+  "ranges": [
+   "status in [pending, approved, rejected, withdrawn]",
+   "answer only when pending",
+   "reject needs reason"
+  ],
+  "month_field": "requestedAt",
+  "write_right": "staff (line 206)",
+  "delete_right": "none (withdraw)",
+  "browser_only_rules": [
+   "vendor cannot raise (:113)",
+   "approve/reject vrqCanApprove (:148,232)",
+   "withdraw by raiser or approver (:253)"
+  ],
+  "multi_save": "yes: approve writes pt_vendorOrders, pt_vendorMap then request",
+  "numbering": "VRQ-YYMMDD-XXX random (vendor-order-requests.js:40)",
+  "notes": "Approve right likely r.vreqApprove - not enforced on server.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_vendorPin",
+  "area": "vendors",
+  "screens": [
+   "vendors/portal/phone-pin.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_vendorPin/<email key>",
+  "required": [
+   "changedAt"
+  ],
+  "ranges": [],
+  "month_field": "none",
+  "write_right": "admin, or the vendor for own email key with changedAt (line 73-78)",
+  "delete_right": "admin",
+  "browser_only_rules": [],
+  "multi_save": "no",
+  "numbering": "none",
+  "notes": "",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_greigePOs",
+  "area": "vendors (greige)",
+  "screens": [
+   "vendors/greige/greige-po.js"
+  ],
+  "saves": 3,
+  "record_key": "pt_greigePOs/<id> (+ /sent/<k>)",
+  "required": [
+   "(DOUBT)"
+  ],
+  "ranges": [],
+  "month_field": "date (judged)",
+  "write_right": "staff (line 260)",
+  "delete_right": "",
+  "browser_only_rules": [
+   "prodEdit (greige-po.js:163,175,272)"
+  ],
+  "multi_save": "no",
+  "numbering": "GPO-<day>-NN (greige-po.js:57)",
+  "notes": "",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_poSettings",
+  "area": "vendors (greige)",
+  "screens": [
+   "vendors/greige/greige-po.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_poSettings (single)",
+  "required": [],
+  "ranges": [],
+  "month_field": "none",
+  "write_right": "admin (line 21)",
+  "delete_right": "admin",
+  "browser_only_rules": [
+   "admin (greige-po.js:195)"
+  ],
+  "multi_save": "no",
+  "numbering": "none",
+  "notes": "Matches.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_fabInvLedger",
+  "area": "vendors (greige) | inventory (fabric)",
+  "screens": [
+   "vendors/greige/fabric-flow.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_fabInvLedger/<id>",
+  "required": [
+   "(DOUBT)"
+  ],
+  "ranges": "not traced",
+  "month_field": "date (judged)",
+  "write_right": "staff (line 117) | any non-vendor staff",
+  "delete_right": "any non-vendor staff",
+  "browser_only_rules": [
+   "prodEdit (fabric-flow.js:502)"
+  ],
+  "multi_save": "no | with pt_accLedger",
+  "numbering": "none",
+  "notes": "",
+  "from": [
+   "production",
+   "orders-stock"
+  ],
+  "stock_effect": "removes fabric"
+ },
+ {
+  "register": "pt_blockHave",
+  "area": "vendors (printer allocation)",
+  "screens": [
+   "vendors/printing/printer-capacity.js"
+  ],
+  "saves": 3,
+  "record_key": "pt_blockHave/<printerKey>",
+  "required": [
+   "map design->blocks"
+  ],
+  "ranges": [
+   "blocks int >= 0",
+   "printer must exist"
+  ],
+  "month_field": "none",
+  "write_right": "staff (line 226)",
+  "delete_right": "with printer delete",
+  "browser_only_rules": [
+   "palCanEdit"
+  ],
+  "multi_save": "printer delete writes pt_printers then pt_blockHave (2 calls)",
+  "numbering": "none",
+  "notes": "",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_blockNeed",
+  "area": "vendors (printer allocation)",
+  "screens": [
+   "vendors/printing/printer-capacity.js"
+  ],
+  "saves": 2,
+  "record_key": "pt_blockNeed (single: at, by, map, info)",
+  "required": [
+   "at",
+   "by",
+   "map",
+   "info"
+  ],
+  "ranges": [
+   "blocks int >= 0",
+   "info field in [cur, status, printer]"
+  ],
+  "month_field": "none",
+  "write_right": "staff (line 228)",
+  "delete_right": "clear",
+  "browser_only_rules": [
+   "palCanEdit"
+  ],
+  "multi_save": "clear",
+  "numbering": "none",
+  "notes": "",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_colorGroups",
+  "area": "vendors (printer allocation)",
+  "screens": [
+   "vendors/printing/printer-capacity.js"
+  ],
+  "saves": 2,
+  "record_key": "pt_colorGroups (single: at, by, map, live)",
+  "required": [
+   "at",
+   "by",
+   "map",
+   "live"
+  ],
+  "ranges": [
+   "live values false only"
+  ],
+  "month_field": "none",
+  "write_right": "staff (line 230)",
+  "delete_right": "bulk clear (printer-capacity.js:262)",
+  "browser_only_rules": [
+   "palCanEdit: admin or prodEdit, not vendor (printer-allocation.js:35)",
+   "whole record rewritten - both maps carried (printer-capacity.js:303)"
+  ],
+  "multi_save": "clear writes pt_colorGroups, pt_blockNeed, pt_blockHave, pt_printers in one patch",
+  "numbering": "none",
+  "notes": "No backup on clear by owner's choice.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_printers",
+  "area": "vendors (printer allocation)",
+  "screens": [
+   "vendors/printing/printer-capacity.js"
+  ],
+  "saves": 3,
+  "record_key": "pt_printers/<PRN-base36>",
+  "required": [
+   "name",
+   "tables",
+   "pcsMonth",
+   "groups",
+   "vendorCode",
+   "active",
+   "note",
+   "at",
+   "by"
+  ],
+  "ranges": [
+   "name unique",
+   "tables >= 0 int",
+   "pcsMonth >= 0 int",
+   "tables or pcsMonth > 0"
+  ],
+  "month_field": "none",
+  "write_right": "staff (line 272)",
+  "delete_right": "palCanEdit",
+  "browser_only_rules": [
+   "palCanEdit"
+  ],
+  "multi_save": "see pt_blockHave",
+  "numbering": "PRN-<Date.now base36> (printer-capacity.js:430)",
+  "notes": "Key prefix PRN- clashes visually with print order PRN-YYYYMM-NNN.",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_rfdDecisions",
+  "area": "vendors (RFD)",
+  "screens": [
+   "vendors/rfd/order-driven-rfd.js"
+  ],
+  "saves": 2,
+  "record_key": "pt_rfdDecisions/<reqId>",
+  "required": [
+   "(DOUBT)"
+  ],
+  "ranges": [
+   "send q <= left"
+  ],
+  "month_field": "at (judged)",
+  "write_right": "staff (line 276; vendor cannot)",
+  "delete_right": "",
+  "browser_only_rules": [
+   "rfdCanApprove (order-driven-rfd.js:461)",
+   "rfdCanSend (:489)"
+  ],
+  "multi_save": "mirror written to pt_vendorOrders/../rfdReqs/<id>/shown (:532, separate)",
+  "numbering": "rfd_<ms>_<NNNN>_<rand> id (:369)",
+  "notes": "",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_rfdStock",
+  "area": "vendors (RFD)",
+  "screens": [
+   "vendors/rfd/ask-for-now.js"
+  ],
+  "saves": 1,
+  "record_key": "pt_rfdStock/<code>/<key>",
+  "required": [
+   "(DOUBT)"
+  ],
+  "ranges": [],
+  "month_field": "none",
+  "write_right": "staff not vendor, or vendor own code (line 97-102)",
+  "delete_right": "null in patch",
+  "browser_only_rules": [],
+  "multi_save": "no",
+  "numbering": "none",
+  "notes": "",
+  "from": [
+   "production"
+  ]
+ },
+ {
+  "register": "pt_masters",
+  "area": "vendors (sub-lists vendor, fabricSku, recipe) | inventory | masters",
+  "screens": [
+   "vendors/portal/phone-pin.js",
+   "vendors/portal/vendor-master.js",
+   "vendors/orders/place-vendor-order.js",
+   "vendors/printing/printed-on-what.js"
+  ],
+  "saves": 4,
+  "record_key": "pt_masters/<list>/<key> | pt_masters/accessories (whole list); pt_masters/recipe/{key} | pt_masters/<list>/<rowKey>; lists: colour, fabricType, articleType, articleSubtype, size, ... rowKey 'r'+next number (masters.js:89-92); greigeRfd 'g'+2-digit next, vendorBook 'v'+2-digit next (fabric-master.js:233); skuCode 'skc_'+base36 time+3 random (sku-codes.js:255) or 'skc_'+time+'_'+i (329); ruffleRule and printRule = whole array",
+  "required": [
+   "vendor: desc, category, email, phone, modifiedAt, modifiedBy",
+   "fabricSku: sku, colour, fabric",
+   "recipe: (DOUBT)"
+  ],
+  "ranges": [
+   "fabricSku sku [A-Z0-9_-]",
+   "brand in [CPC, RBP, blank]",
+   "dir in [Vertical, Horizontal, blank]",
+   "side in [Front, Back, blank]"
+  ],
+  "month_field": "none",
+  "write_right": "recipe: admin or r.mdbEdit (line 54); vendor + fabricSku: admin only (else branch line 59) | accessories: admin or r.accEdit; recipe: admin or r.mdbEdit; other sub-lists admin | by list: accessories = admin or r.accEdit; ruffleRule, printRule = admin or r.prodEdit; recipe, skuCode = admin or r.mdbEdit; every other list = admin only (rt_rights_refresh.sql:45-60)",
+  "delete_right": "same | same as write",
+  "browser_only_rules": [
+   "add vendor admin only (phone-pin.js:272)",
+   "fabricSku save mdbCanEdit (place-vendor-order.js:450)"
+  ],
+  "multi_save": "vendor-master rename also writes pt_vendorMap, pt_loginDir, pt_vendorByEmail | no | yes - sku-codes create writes pt_masters/colour + pt_masterDB (sku-codes.js:231-238); spreadsheet and skuCode upload one ptPatch of many rows",
+  "numbering": "none | row keys r<N>, g<NN>, v<NN> from max existing +1 in browser (masters.js:89, fabric-master.js:233) - race between two users",
+  "notes": "MISMATCH: fabricSku screen allows mdbEdit, server admin-only -> mdbEdit users get refused. | accessories saved as ONE whole list (accessories.js:256) - lost-update risk. | DOUBT: SKU create by mdbEdit (non-admin) adds pt_masters/colour, which server allows only to admin - the whole patch would be refused? ruffleRule/printRule written whole.",
+  "from": [
+   "production",
+   "orders-stock",
+   "hr-masters"
+  ],
+  "stock_effect": "none",
+  "money_effect": "greigeRfd gr/rr = greige/RFD rate per metre (stored only)"
+ },
+ {
+  "register": "pt_vendorMap",
+  "area": "vendors | orders/reserve",
+  "screens": [
+   "vendors/orders/vendor-order-requests.js",
+   "vendors/portal/phone-pin.js",
+   "vendors/portal/vendor-master.js",
+   "vendors/portal/vendor-portal.js"
+  ],
+  "saves": 4,
+  "record_key": "pt_vendorMap/<code> | vendor code",
+  "required": [
+   "email",
+   "name",
+   "phone (optional)"
+  ],
+  "ranges": [
+   "email valid lower case"
+  ],
+  "month_field": "none",
+  "write_right": "admin or r.vreqApprove (line 72) | rt_can_save: admin or r.vreqApprove",
+  "delete_right": "admin / r.vreqApprove",
+  "browser_only_rules": [
+   "admin only for login setup (phone-pin.js:170,204; vendor-portal.js:1730)"
+  ],
+  "multi_save": "with pt_vendorByEmail + pt_loginDir | with pt_vendorOrders",
+  "numbering": "none",
+  "notes": "Write may fail for staff without vreqApprove; screen swallows error?",
+  "from": [
+   "production",
+   "orders-stock"
+  ],
+  "stock_effect": "none"
+ },
+ {
+  "register": "pt_vendorOrders",
+  "area": "vendors | orders/reserve",
+  "screens": [
+   "vendors/orders/accept-delivery.js",
+   "vendors/orders/change-remove.js",
+   "vendors/orders/vendor-order-requests.js",
+   "vendors/portal/daily-challan.js",
+   "vendors/portal/vendor-portal.js",
+   "vendors/portal/vendor-sent-excel.js",
+   "vendors/portal/printer-receive.js",
+   "vendors/rfd/order-driven-rfd.js",
+   "vendors/rfd/ask-for-now.js",
+   "flow/flow-receive.js",
+   "flow/flow-printorder.js"
+  ],
+  "saves": 20,
+  "record_key": "pt_vendorOrders/<vendorCode>/<orderId> (+ /vSent/<vs_id>, /vRej/<rj_id>, /rfdReqs/<rfd_id>) | {vendorCode}/{orderId}",
+  "required": [
+   "id",
+   "orderNo",
+   "vendorCode",
+   "vendorName",
+   "service",
+   "orderType",
+   "orderDate",
+   "status",
+   "lines",
+   "createdBy",
+   "createdAt"
+  ],
+  "ranges": [
+   "orderType in [cut, running]",
+   "status in [Placed, Acknowledged, In production, Dispatched, Received, Cancelled] (judged)",
+   "vSent qty > 0, over-order part flagged ask:true",
+   "printer cap per SKU (vendor-order-requests.js:167)",
+   "RFD send q <= toSend"
+  ],
+  "month_field": "orderDate (dd/mm/yyyy) / vSent.at | unsure",
+  "write_right": "staff not vendor; vendor only own branch where vendorByEmail.code = segment 2 (save rule lines 81-88) | any non-vendor staff, or vendor whose vend.code = path code",
+  "delete_right": "screen admin only, refused when deliveries exist (change-remove.js:415-424); server same as write | same; reserve.js:672 deletes on vendor move",
+  "browser_only_rules": [
+   "change order admin only (change-remove.js:152,202,274)",
+   "accept delivery vlCanAccept (accept-delivery.js:124)",
+   "vendor strike-off only own batches (vendor-portal.js:1059)",
+   "approve extra pieces admin (flow-receive.js:456)",
+   "flow-owned orders refused (vendor-order-requests.js:197)"
+  ],
+  "multi_save": "yes: approval writes order + pt_vendorMap + pt_vendorOrderReqs (3 calls); vendor challan writes pt_vendorChallans + vSent | yes: pt_vendorMap on first order (reserve.js:574), pt_customSkus (reserve.js:524)",
+  "numbering": "VPO-YYMMDD-XXX random 3 chars (place-vendor-order.js:169); id vpo_<reqId> | spShopOrderId(code) (order-console.js:286)",
+  "notes": "DOUBT: vendor can rewrite WHOLE order under own branch (vpSave vendor-portal.js:1406) - server should limit vendor to status/vSent/rfdReqs fields. | Mainly vendors area; listed because orders screens write it.",
+  "from": [
+   "production",
+   "orders-stock"
+  ],
+  "stock_effect": "none"
+ }
+]
