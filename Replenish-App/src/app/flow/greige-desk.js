@@ -4006,9 +4006,10 @@ var INV_ACT = {
   store: { label: 'Greige in store', sub: 'to issue to RFD', tone: 'greige' },
   late: { label: 'Late at the processor', sub: 'over ' + CHASE_PROCESSOR_DAYS + ' days — chase', tone: 'bad' },
   send: { label: 'RFD for PPC lines', sub: 'on the shelf — send to printers', tone: 'rfd' },
-  cut: { label: 'Cut pieces left', sub: 'to send to printers', tone: 'brand' }
+  cut: { label: 'Cut pieces left', sub: 'to send to printers', tone: 'brand' },
+  tocut: { label: 'Yet to be cut', sub: 'on the cutting list', tone: 'warn' }
 };
-INV_SHOW_LABEL.store = INV_ACT.store.label; INV_SHOW_LABEL.late = INV_ACT.late.label; INV_SHOW_LABEL.send = INV_ACT.send.label; INV_SHOW_LABEL.cut = INV_ACT.cut.label;
+INV_SHOW_LABEL.store = INV_ACT.store.label; INV_SHOW_LABEL.late = INV_ACT.late.label; INV_SHOW_LABEL.send = INV_ACT.send.label; INV_SHOW_LABEL.cut = INV_ACT.cut.label; INV_SHOW_LABEL.tocut = INV_ACT.tocut.label;
 /** The lots of a fabric at an RFD processor for longer than CHASE_PROCESSOR_DAYS: [{ lot, m, days, who }]. */
 function invLateOf(r) {
   return invLotsOf(r.fabric).filter(function (g) { return g.withProcessor > 0.05; }).map(function (g) {
@@ -4022,6 +4023,7 @@ function invNeeds(r, k) {
   if (k === 'late') return invLateOf(r).length > 0;
   if (k === 'send') return r.inStoreRfd > 0.05 && !!(r.ppc && r.ppc.lines > 0);
   if (k === 'cut') return !!(r.cut && r.cut.leftPcs > 0);
+  if (k === 'tocut') return invYetM(r) > 0;
   return false;
 }
 /** A row is shown under a filter: one of PPC's (all / short / ok / none) or one of the to-dos. */
@@ -4039,9 +4041,10 @@ function invTodoHtml(rows, withPpc, loading) {
       + '<span class="gdx-n">' + nf(n) + '</span><span class="gdx-l">' + esc(big) + '</span><span class="gdx-s">' + sub + '</span></button>';
   };
   /* No "Short for PPC" or "RFD for PPC lines" tile (Ravi, 24 Nov: remove them); the filter drop-down still has both. */
-  ['store', 'late', 'cut'].forEach(function (k) {
+  ['tocut', 'store', 'late', 'cut'].forEach(function (k) {
     var list = rows.filter(function (r) { return invNeeds(r, k); }); if (!list.length) return;
-    var sub = k === 'store' ? nf(m(list, function (r) { return r.inStoreGreige; })) + ' m · ' + INV_ACT.store.sub
+    var sub = k === 'tocut' ? ctsN(m(list, invYetM)) + ' m · ' + INV_ACT.tocut.sub
+      : k === 'store' ? nf(m(list, function (r) { return r.inStoreGreige; })) + ' m · ' + INV_ACT.store.sub
       : k === 'late' ? plural(m(list, function (r) { return invLateOf(r).length; }), 'lot') + ' · ' + INV_ACT.late.sub
       : nf(m(list, function (r) { return r.cut.leftPcs; })) + ' pcs ' + INV_ACT.cut.sub;
     tiles.push(tile(k, list.length, INV_ACT[k].label, sub, INV_ACT[k].tone, 'data-invshow="' + (UI.invShow === k ? 'all' : k) + '"'));
@@ -4072,18 +4075,28 @@ function invNextCell(r, loading) {
 /** The coloured edge of a row: red when short for PPC, amber when cloth is late at a processor. */
 function invEdge(r) { return invNeedState(r) === 'short' ? 'var(--bad)' : invLateOf(r).length ? 'var(--warn-ink)' : ''; }
 var INV_CSS = '<style>'
-  + '.gdx-todo{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin:0 0 12px}'
-  + '.gdx-tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);cursor:pointer;box-shadow:none;color:var(--ink);height:auto;min-height:0;white-space:normal;position:relative;overflow:hidden}'
+  + '.gdx-todo{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin:0 0 10px}'
+  + '.gdx-tile{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;padding:9px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card);cursor:pointer;box-shadow:none;color:var(--ink);height:auto;min-height:0;white-space:normal;position:relative;overflow:hidden}'
   + '.gdx-tile:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--tone)}'
   + '.gdx-tile:hover{border-color:var(--tone);background:var(--soft)}'
   + '.gdx-tile.on{border-color:var(--tone);box-shadow:0 0 0 2px var(--tone) inset;background:var(--soft)}'
   + '.gdx-tile.bad{--tone:var(--bad)}.gdx-tile.greige{--tone:var(--c-greige)}.gdx-tile.rfd{--tone:var(--c-rfd)}.gdx-tile.brand{--tone:var(--brand)}.gdx-tile.warn{--tone:var(--warn-ink)}'
-  + '.gdx-n{font-size:24px;font-weight:800;line-height:1.1;color:var(--tone)}'
+  + '.gdx-n{font-size:20px;font-weight:800;line-height:1.1;color:var(--tone)}'
   + '.gdx-l{font-size:13px;font-weight:700}.gdx-s{font-size:11.5px;color:var(--muted)}'
   + '.gdx-clear{margin:0 0 12px;padding:12px 16px;border-radius:14px;background:var(--accent-bg);color:var(--ok-ink);font-weight:700;font-size:13px}'
-  + '.gdx-next{text-align:left;min-width:170px}.gdx-next .jw-btn{white-space:nowrap;padding:5px 11px;font-size:12px}'
+  + '.gdx-next{text-align:left}.gdx-next .jw-btn{padding:5px 11px;font-size:12px}'
   + '.gdx-bad{background:var(--bad-bg)!important;color:var(--bad)!important;border-color:var(--bad-line)!important}'
   + '.gdx-more{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:5px}.gdx-more .link{font-size:11.5px;padding:0}'
+  /* NO SIDEWAYS SLIDING (Vishesh, 27 Nov): the stock table and the lists under a row fit the screen -- tight cells, words
+   * that wrap, figures that stay whole. Child selectors, so the lists keep their own look. */
+  + 'table.xl.gdx-inv>thead>tr>th,table.xl.gdx-inv>tbody>tr>td{padding:7px 4px;white-space:normal}'
+  + 'table.xl.gdx-inv>thead>tr>th{font-size:10px;line-height:1.25;letter-spacing:0}'
+  + 'table.xl.gdx-inv>tbody>tr>td.frz{max-width:190px;padding-left:10px}table.xl.gdx-inv>tbody>tr>td.num>.cellbtn{white-space:nowrap}'
+  + '.gdx-stack{display:flex;flex-direction:column;align-items:center;gap:4px}.gdx-stack .jw-btn{white-space:nowrap;padding:5px 11px;font-size:12px}'
+  + '.invdrop .ct th{position:static;text-align:left;font-size:10px;letter-spacing:0;padding:6px 5px;white-space:normal}'
+  + '.invdrop .ct td{text-align:left;font-size:12px;padding:6px 5px;white-space:normal;overflow-wrap:anywhere}'
+  + '.invdrop .ct th.num,.invdrop .ct td.num{text-align:right}.invdrop .ct td.num,.invdrop .ct td.gdx-keep{white-space:nowrap;overflow-wrap:normal}'
+  + '.invdrop .ct td.gdx-wrap{min-width:130px}.invdrop .ct td .jw-btn{padding:4px 8px;font-size:11.5px;margin:1px 0;white-space:nowrap}'
   + '</style>';
 function renderInv() {
   var all = invAll(), types = uniq(all.map(function (x) { return x.type; })).sort();
@@ -4121,7 +4134,7 @@ function renderInv() {
     + '<th colspan="' + stockHeads.length + '" style="text-align:center;color:var(--muted);font-weight:600;border-bottom:0">Where the cloth is now →</th><th></th></tr>';
   var heads = th(withPpc ? ['Fabric', 'PPC need, covered by RFD', 'Next step'].concat(stockHeads, ['Total']) : ['Fabric', 'Next step'].concat(stockHeads, ['Total']),
     (withPpc ? [3, 4, 5, 6, 7, 8] : [2, 3, 4, 5, 6, 7]).concat(byCut ? [withPpc ? 9 : 8] : [])).replace('<thead>', '<thead>' + group);
-  var table = INV_CSS + invTodoHtml(inView, withPpc, loading) + tools + '<div class="card"><div class="ff-grid"><table class="xl">' + heads
+  var table = INV_CSS + invTodoHtml(inView, withPpc, loading) + tools + '<div class="card"><div class="ff-grid"><table class="xl gdx-inv">' + heads
     + '<tbody>' + (rows.map(function (r) {
       var edge = invEdge(r);
       return '<tr><td class="frz" style="text-align:left' + (edge ? ';box-shadow:inset 4px 0 0 ' + edge : '') + '">' + invFabricName(r.fabric)
@@ -4243,7 +4256,7 @@ function invDetail(r, col) {
   }
   var title = { order: 'Greige on order', store: 'Greige in the store', proc: 'At the RFD processor', rfd: 'RFD on the shelf', cut: 'Cut to size', transit: 'In transit to printers', tocut: 'Yet to be cut' }[col];
   /* the products allotted to cutting; the cut-with-no-product table is left out when only these are there */
-  var listed = col === 'tocut' ? flowCpYetToCut(r.cutCh) : col === 'cut' && (r.cutCh || []).length ? flowCpCutDone(r.cutCh) : [];
+  var listed = col === 'tocut' ? flowCpYetToCut(r.cutCh) : col === 'cut' && (r.cutCh || []).length ? flowCpAlreadyCut(r.cutCh) : [];
   var pieces = listed.length ? flowCpTableHtml(listed) : '';
   return '<tr class="invdet"><td colspan="' + (UI.invCols || 6) + '"><div class="invdrop"><div class="sect">' + esc(title) + ' · ' + esc(r.fabric) + '</div>'
     + (col === 'cut' && r.cut.leftPcs > 0 ? '<div class="actions" style="justify-content:flex-start;margin:6px 0"><button type="button" class="jw-btn jw-primary" data-ctssend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer from the pieces already cut">Send to printer</button></div>' : '')
@@ -4266,11 +4279,11 @@ function invRfdCell(r) {
   if (invTransitColumn()) tr = 0;   // it has its own column
   var yet = invYetM(r);
   if (!(tr > 0.05) && !send && !(yet > 0)) return invCell(r, 'rfd', r.inStoreRfd, 'font-weight:700');
-  return '<td class="num">' + (r.inStoreRfd > 0.05 ? invCellBtn(r, 'rfd', r.inStoreRfd, 'font-weight:700') : '<span class="muted">&mdash;</span>')
+  return '<td class="num"><div class="gdx-stack">' + (r.inStoreRfd > 0.05 ? invCellBtn(r, 'rfd', r.inStoreRfd, 'font-weight:700') : '<span class="muted">&mdash;</span>')
     + (tr > 0.05 ? '<div style="font-size:10.5px;color:var(--warn-ink);font-weight:600;white-space:nowrap">+ ' + nf(tr) + ' m in transit to printers</div>' : '')
     + invYetHtml(r, yet)
-    + (send ? '<div class="actions" style="justify-content:flex-end;margin-top:6px"><button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the ' + plural(r.ppc.lines, 'line') + ' waiting">Send to printer</button>'
-      + (typeof gdPrnWaitingPill === 'function' ? gdPrnWaitingPill(r.fabric) : '') + '</div>' : '') + '</td>';
+    + (send ? '<button type="button" class="jw-btn jw-primary" data-gdsend="' + esc(r.fabric) + '" title="Make an RFD challan to a printer for the ' + plural(r.ppc.lines, 'line') + ' waiting">Send to printer</button>'
+      + (typeof gdPrnWaitingPill === 'function' ? gdPrnWaitingPill(r.fabric) : '') : '') + '</div></td>';
 }
 /* A COLUMN OF ITS OWN (Vishesh, 27 Nov): what is sent to a printer shows here, not under RFD on shelf,
  * until the printer marks it received. */
