@@ -38,7 +38,7 @@ vm.createContext(ctx);
 const challan0 = fs.readFileSync(path.join(APP, 'flow-challan.js'), 'utf8').replace(/\r\n/g, '\n');
 const history = fs.readFileSync(path.join(APP, '..', 'core', 'history.js'), 'utf8');
 const slice = (src, a, b) => { const i = src.indexOf(a), j = src.indexOf(b, i); if (i < 0 || j < 0) throw new Error('moved: ' + a); return src.slice(i, j); };
-vm.runInContext(slice(history, 'function ptSame(', '/** SAVE A WHOLE RECORD') + fs.readFileSync(CP, 'utf8') + '\nglobalThis.T = { flowPri, flowPriSort, flowCpAllot, flowCpStep, flowCpTakeBack, flowCpSend, flowCpActive, flowCpList, flowCpPicked };', ctx);
+vm.runInContext(slice(history, 'function ptSame(', '/** SAVE A WHOLE RECORD') + fs.readFileSync(CP, 'utf8') + '\nglobalThis.T = { flowPri, flowPriSort, flowCpAllot, flowCpCutDone, flowCpTakeBack, flowCpSend, flowCpActive, flowCpList, flowCpPicked };', ctx);
 const T = ctx.T;
 const line = (key, sku, pcs) => ({ key, pcs, perPc: 0.25, metres: pcs * 0.25, to: 'V1',
   x: { r: { orderNo: 'AMZ-1', orderDate: '2026-10-20', sku, item: 'Round mat' }, s: { plan: { fabric: { name: 'Canvas' } } } } });
@@ -67,10 +67,9 @@ const rec = key => ((ctx.FLOW.dem[key] || {}).cutPc) || null;
   stockSays = '';
 
   console.log('== the steps ==');
-  ok('Cut done before Ready is refused', (await T.flowCpStep('k1', 'cut')) !== '' && rec('k1').status === 'wait');
   ok('sending before it is cut is refused', /Only a cut piece/.test((await T.flowCpSend('k1')).err) && sent.length === 0);
-  ok('Piece Ready for Cut', (await T.flowCpStep('k1', 'ready')) === '' && rec('k1').status === 'ready' && rec('k1').ready.by === 'neha@example.test');
-  ok('Cut done', (await T.flowCpStep('k1', 'cut')) === '' && rec('k1').status === 'cut');
+  ok('one press: Cut done, with who', (await T.flowCpCutDone('k1')) === '' && rec('k1').status === 'cut' && rec('k1').cutAt.by === 'neha@example.test');
+  ok('it cannot be cut twice', (await T.flowCpCutDone('k1')) !== '');
   ok('a cut piece cannot be taken back', (await T.flowCpTakeBack('k1')) !== '' && returned.length === 0);
   ok('one not yet cut can: record gone, cloth returned', (await T.flowCpTakeBack('k2')) === '' && rec('k2') === null && returned[0] === made.no + ' k2');
 
@@ -97,7 +96,7 @@ const rec = key => ((ctx.FLOW.dem[key] || {}).cutPc) || null;
   const plain = Object.assign(line('n1', 'MAT1', 4), { to: '', noPrint: true, was: null });
   await T.flowCpAllot('Canvas', [plain], '');
   ok('allotted like any other, with no printer', rec('n1').noPrint === true && rec('n1').printer.code === '' && !('was' in rec('n1')));
-  await T.flowCpStep('n1', 'ready'); await T.flowCpStep('n1', 'cut');
+  await T.flowCpCutDone('n1');
   ok('finished at Cut done: it leaves Cut to size', rec('n1').status === 'cut' && T.flowCpActive('n1') === null);
   ok('…and cannot be sent to a printer', /Only a cut piece/.test((await T.flowCpSend('n1')).err));
   await T.flowCpAllot('Canvas', [Object.assign({}, plain, { key: 'n2', x: line('n2', 'MAT2', 1).x })], '');

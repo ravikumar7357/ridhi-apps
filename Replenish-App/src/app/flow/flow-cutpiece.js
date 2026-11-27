@@ -2,8 +2,7 @@
  *
  * Cutting is allotted from the order list of the Send to printer card, its "Cut pieces" tab: no challan is made and there
  * is no separate Send to cutting button. Ticked lines show under RFD on shelf on the Greige Desk as "yet to be cut":
- * Waiting to cut → (Piece Ready for Cut) → Ready for cut → (Cut done), then in the Cut to size column, on screen and as a
- * download. No approval. The cloth leaves RFD on shelf when the lines are allotted.
+ * Waiting to cut → (Cut done), then in the Cut to size column, on screen and as a download. No approval. The cloth leaves RFD on shelf when the lines are allotted.
  *   - a printed line (printed on the SKU itself) then goes: (Send to printer) → in transit, until the printer presses
  *     "Cloth received". Its printer challan (ch.fromCut) takes nothing more from the shelf.
  *   - a line with no printing is finished at Cut done. Allotting marks its fabric ready (as Send to cutting did), so it
@@ -46,7 +45,8 @@ function flowPriSort(list, of) {
 }
 
 /* ---- the records ---- */
-const FLOW_CP_LABEL = { wait: 'Waiting to cut', ready: 'Ready for cut', cut: 'Cut done', sending: 'Going to the printer', sent: 'Sent to printer' };
+/* 'ready' is a step removed on 27 Nov; a record saved with it is simply still waiting to be cut */
+const FLOW_CP_LABEL = { wait: 'Waiting to cut', ready: 'Waiting to cut', cut: 'Cut done', sending: 'Going to the printer', sent: 'Sent to printer' };
 /** The line's record while it is still in cutting: null once it has gone to a printer (unless that challan was cancelled),
  *  or once a line with no printing is cut (Cut done here, or its pieces recorded on Cutting Data). */
 function flowCpActive(key) {
@@ -200,18 +200,17 @@ async function flowCpCardSave(S) {
   return '';
 }
 
-/* ---- the three presses in Cut to size ---- */
-const FLOW_CP_NEXT = { ready: { from: 'wait', stamp: 'ready' }, cut: { from: 'ready', stamp: 'cutAt' } };
-async function flowCpStep(key, to) {
-  const r = flowCpActive(key), step = FLOW_CP_NEXT[to];
-  if (!r || r.status !== step.from) return 'This piece has moved on — press Refresh.';
-  return flowCpPut(key, Object.assign({}, r, { status: to, [step.stamp]: { at: new Date().toISOString(), by: ME.email || '' } }));
+/* ---- the presses on a listed line ---- */
+async function flowCpCutDone(key) {
+  const r = flowCpActive(key);
+  if (!r || !flowCpUncut(r)) return 'This piece has moved on — press Refresh.';
+  return flowCpPut(key, Object.assign({}, r, { status: 'cut', cutAt: { at: new Date().toISOString(), by: ME.email || '' } }));
 }
 /** Allotted by mistake: allowed until the piece is cut. The cloth goes back on the shelf, and a no-printing line goes back
  *  to what it was before. */
 async function flowCpTakeBack(key) {
   const r = flowCpActive(key);
-  if (!r || (r.status !== 'wait' && r.status !== 'ready')) return 'Only a piece not yet cut can be taken back.';
+  if (!r || !flowCpUncut(r)) return 'Only a piece not yet cut can be taken back.';
   await GD.cutFresh();
   if (GD.state() !== 'ok') return 'The Greige Desk could not be read, so nothing was taken back.';
   const er = await flowCpPut(key, null);
@@ -239,37 +238,37 @@ async function flowCpSend(key) {
 }
 
 /* ---- yet to be cut, and cut: the two lists of the desk ---- */
-const flowCpYetToCut = list => (list || []).filter(r => r.status === 'wait' || r.status === 'ready');
-const flowCpCutDone = list => (list || []).filter(r => r.status === 'cut' || r.status === 'sending');
+const flowCpUncut = r => r.status === 'wait' || r.status === 'ready';
+const flowCpYetToCut = list => (list || []).filter(flowCpUncut);
+const flowCpAlreadyCut = list => (list || []).filter(r => r.status === 'cut' || r.status === 'sending');
 
 /* ---- the list with its buttons: after allotting, and in the desk's Cut to size drop-down ---- */
 function flowCpButtons(r) {
   const b = (act, words, cls) => `<button type="button" class="${cls || 'jw-btn jw-primary'}" data-cp="${act}" data-cpkey="${esc(r.key)}">${words}</button>`;
-  if (r.status === 'wait') return b('ready', 'Piece Ready for Cut') + ' ' + b('back', 'Take back', 'jw-btn ghost');
-  if (r.status === 'ready') return b('cut', 'Cut done') + ' ' + b('back', 'Take back', 'jw-btn ghost');
+  if (flowCpUncut(r)) return b('cut', 'Cut done') + ' ' + b('back', 'Take back', 'jw-btn ghost');
   if (r.status === 'cut') return b('send', 'Send to printer');
   return '';
 }
 /** The day a line was allotted, in India. */
 const flowCpDay = at => (at ? new Date(at).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata' }) : '');
-const FLOW_CP_FILTERS = [['', 'All'], ['wait', 'Waiting'], ['ready', 'Ready'], ['cut', 'Cut done']];
+const FLOW_CP_FILTERS = [['', 'All'], ['wait', 'Waiting'], ['cut', 'Cut done']];
 function flowCpRowHtml(r) {
   const sub = t => `<div class="muted" style="font-size:11px">${esc(t)}</div>`;
-  return `<tr data-cprow="1" data-cpkey="${esc(r.key)}" data-cpst="${r.status === 'sending' ? 'cut' : esc(r.status)}"><td><b>${esc(flowPriText(r.priority))}</b></td>`
-    + `<td>${esc(r.orderNo)}${sub(r.orderDate || '')}</td><td style="text-align:left"><b>${esc(r.sku)}</b>${sub([r.article, r.item].filter(Boolean).join(' · '))}</td>`
+  return `<tr data-cprow="1" data-cpkey="${esc(r.key)}" data-cpst="${flowCpUncut(r) ? 'wait' : 'cut'}"><td><b>${esc(flowPriText(r.priority))}</b></td>`
+    + `<td class="gdx-keep">${esc(r.orderNo)}${sub(r.orderDate || '')}</td><td class="gdx-wrap"><b>${esc(r.sku)}</b>${sub([r.article, r.item].filter(Boolean).join(' · '))}</td>`
     + `<td>${esc(r.size || '—')}</td><td class="num">${nf(r.pcs)}</td><td class="num">${nf(r.perPc)} m</td><td class="num">${nf(r.metres)} m</td>`
-    + `<td>${esc(r.noPrint ? 'No printing' : (r.printer || {}).name || '')}</td><td>${esc(flowCpDay(r.at))}</td><td>${esc(FLOW_CP_LABEL[r.status] || r.status)}</td>`
-    + `<td style="white-space:nowrap">${flowCpButtons(r)}</td></tr>`;
+    + `<td>${esc(r.noPrint ? 'No printing' : (r.printer || {}).name || '')}</td><td class="gdx-keep">${esc(flowCpDay(r.at))}</td><td>${esc(FLOW_CP_LABEL[r.status] || r.status)}</td>`
+    + `<td>${flowCpButtons(r)}</td></tr>`;
 }
 function flowCpTableHtml(rows) {
   const heads = ['Priority', 'Order', 'SKU / product', 'Piece size', 'Pieces to cut', 'Length of each piece', 'Total length', 'Printer', 'Allotted', 'Status', 'Next step'];
-  const filters = FLOW_CP_FILTERS.filter(([k]) => !k || rows.some(r => r.status === k));
+  const filters = FLOW_CP_FILTERS.filter(([k]) => !k || rows.some(r => (k === 'wait') === flowCpUncut(r)));
   const total = flowR2(rows.reduce((a, r) => a + r.metres, 0)), pcs = rows.reduce((a, r) => a + r.pcs, 0);
   return `<div data-cpwrap="${esc((rows[0] || {}).fabric || '')}"><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 6px">`
     + '<button type="button" class="jw-btn" data-cpdl="1" style="width:auto">Download List</button>'
     + (filters.length > 2 ? filters : []).map(([k, words]) => `<button type="button" class="jw-btn${k ? '' : ' jw-primary'}" data-cpf="${k}" aria-pressed="${!k}" style="width:auto">${words}</button>`).join('')
     + '<input type="search" data-cpq="1" placeholder="Search order, SKU or printer" aria-label="Search cut to size" style="width:auto;flex:0 1 280px"></div>'
-    + `<div class="box scroll"><table class="ct li xl"><thead><tr>${heads.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>`
+    + `<div class="box scroll"><table class="ct li"><thead><tr>${heads.map(h => `<th${/Pieces|length/i.test(h) ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead><tbody>`
     + rows.map(flowCpRowHtml).join('')
     + `<tr><td colspan="4"><b>Total · ${nf(rows.length)} product${rows.length === 1 ? '' : 's'}</b></td><td class="num"><b>${nf(pcs)}</b></td><td></td><td class="num"><b>${nf(total)} m</b></td><td colspan="4"></td></tr>`
     + '</tbody></table></div></div>';
@@ -326,8 +325,8 @@ async function flowCpPress(act, key) {
     const pe = flowChallanPrint(sent.no);
     return { ok: !pe, text: `Challan ${sent.no} made: ${what} is in transit to ${r.printer.name}. ${pe}` };
   }
-  const er = act === 'back' ? await flowCpTakeBack(key) : await flowCpStep(key, act);
-  const done = { ready: 'is ready for cut', cut: r.noPrint ? 'is cut — it has no printing, so it is finished here' : 'is cut', back: 'is taken back' }[act];
+  const er = act === 'back' ? await flowCpTakeBack(key) : await flowCpCutDone(key);
+  const done = { cut: r.noPrint ? 'is cut — it has no printing, so it is finished here' : 'is cut', back: 'is taken back' }[act];
   return { ok: !er, text: er || `${what} · ${nf(r.metres)} m · ${flowPriText(flowPri(r.orderNo, r.sku))} ${done}.` };
 }
 let FLOW_CP_WIRED = false;
