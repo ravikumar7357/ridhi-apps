@@ -122,7 +122,7 @@ function flowRfdChallanMoves(name, fromDay) {
     /* a challan made from cloth already standing with the printer took nothing from the store (flowStandUseOpen) */
     /* …nor a record of cloth given earlier without a challan (flowRecordEarlier) — it left the store then — unless asked to */
     let m = 0;
-    /* …nor cut pieces: their cloth left with the Cut Pieces Challan (flow-cutpiece.js) */
+    /* …nor cut pieces: their cloth left when they were sent to Cut to size (flow-cutpiece.js) */
     if (!c.standing && !c.fromCut && !(c.recordOnly && !c.deduct)) (c.lines || []).forEach(l => { if (l && flowFabKey(l.fabric) === k) m += +l.metres || 0; });
     if (m) out.push({ no: c.no || '', date: d, vendor, metres: flowR2(m) });
     if (back) out.push({ no: c.no || '', date: d, vendor, metres: -flowR2(back) });

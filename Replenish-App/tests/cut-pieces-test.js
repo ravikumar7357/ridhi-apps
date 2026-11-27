@@ -32,12 +32,12 @@ const ctx = {
   flowEnsureData: async () => {}, flowRows: () => [{ s: { key: 'k1' }, r: {} }], flowShVen: c => ({ code: c }), flowShLine: x => ({ x, key: x.s.key }),
   flowShMake: async (v, go, note, fabric, extra) => { if (sendSays) return { err: sendSays }; sent.push({ go, extra }); return { no: 'RFD-1' }; },
   flowScreenAllowed: () => [['drfd']],
-  GD: { cutFresh: async () => {}, state: () => 'ok', cutCheck: () => '', cutIssue: async (f, no, rows) => { if (stockSays) return stockSays; taken.push({ no, rows }); return ''; }, cutReturn: async (no, key) => { returned.push(no + ' ' + key); return ''; } },
+  GD: { cutFresh: async () => {}, state: () => 'ok', cutCheck: () => '', cutIssue: async (f, no, rows) => { if (stockSays) return stockSays; taken.push({ no, rows }); return ''; }, cutReturn: async (no, key, back) => { returned.push(no + ' ' + key + (back ? ' back' : '')); return ''; } },
 };
 vm.createContext(ctx);
 const history = fs.readFileSync(path.join(APP, '..', 'core', 'history.js'), 'utf8');
 const slice = (src, a, b) => { const i = src.indexOf(a), j = src.indexOf(b, i); if (i < 0 || j < 0) throw new Error('moved: ' + a); return src.slice(i, j); };
-vm.runInContext(slice(history, 'function ptSame(', '/** SAVE A WHOLE RECORD') + fs.readFileSync(CP, 'utf8') + '\nglobalThis.T = { flowPri, flowPriSort, flowCpMake, flowCpStep, flowCpTakeBack, flowCpSend, flowCpActive, flowCpList, flowCpPicked };', ctx);
+vm.runInContext(slice(history, 'function ptSame(', '/** SAVE A WHOLE RECORD') + fs.readFileSync(CP, 'utf8') + '\nglobalThis.T = { flowPri, flowPriSort, flowCpAllot, flowCpStep, flowCpTakeBack, flowCpSend, flowCpActive, flowCpList, flowCpPicked };', ctx);
 const T = ctx.T;
 const line = (key, sku, pcs) => ({ key, pcs, perPc: 0.25, metres: pcs * 0.25, to: 'V1',
   x: { r: { orderNo: 'AMZ-1', orderDate: '2026-10-20', sku, item: 'Round mat' }, s: { plan: { fabric: { name: 'Canvas' } } } } });
@@ -53,15 +53,15 @@ const rec = key => ((ctx.FLOW.dem[key] || {}).cutPc) || null;
   ok('P1 → P2 (oldest first) → none, an order\'s lines together', sorted.map(x => x.orderNo + x.priority).join(' ') === 'AP1 DP2 BP2 BP4 C', sorted);
 
   console.log('== making the challan ==');
-  const made = await T.flowCpMake('Canvas', [line('k1', 'MAT1', 86), line('k2', 'MAT2', 40)], 'tempo');
-  ok('a numbered challan', made.no === 'CP-20261127-01', made);
+  const made = await T.flowCpAllot('Canvas', [line('k1', 'MAT1', 86), line('k2', 'MAT2', 40)], 'tempo');
+  ok('allotted, with no challan number made', /^cut-/.test(made.no) && !Object.keys(db).some(p => p.includes('cutch')), made);
   ok('each line waits to be cut, with its order, size, pieces, metres, printer and challan', rec('k1').status === 'wait' && rec('k1').orderNo === 'AMZ-1' && rec('k1').size === '15 Round' && rec('k1').pcs === 86 && rec('k1').metres === 21.5 && rec('k1').printer.code === 'V1' && rec('k1').no === made.no);
   ok('the cloth leaves the shelf for exactly these lines', taken.length === 1 && taken[0].rows.map(r => r.key + ':' + r.metres).join() === 'k1:21.5,k2:10');
   ok('the list is most urgent first', T.flowCpList('canvas').map(r => r.sku).join() === 'MAT2,MAT1');
-  const again = await T.flowCpMake('Canvas', [line('k1', 'MAT1', 86)], '');
+  const again = await T.flowCpAllot('Canvas', [line('k1', 'MAT1', 86)], '');
   ok('the same product cannot go into a second record', /already in Cut to size/.test(again.err) && rec('k1').no === made.no && taken.length === 1, again);
   stockSays = 'no cloth';
-  const short = await T.flowCpMake('Canvas', [line('k3', 'MAT1', 5)], '');
+  const short = await T.flowCpAllot('Canvas', [line('k3', 'MAT1', 5)], '');
   ok('cloth cannot be taken: no record is left behind', short.err === 'no cloth' && rec('k3') === null);
   stockSays = '';
 
@@ -91,19 +91,45 @@ const rec = key => ((ctx.FLOW.dem[key] || {}).cutPc) || null;
   const half = await T.flowCpSend('k1');
   ok('a challan that was saved counts as sent, so it cannot be made twice', /saved/.test(half.err) && rec('k1').status === 'sent' && rec('k1').challan === 'RFD-9', rec('k1'));
 
+  console.log('== a line with no printing ==');
+  ctx.flowRows = () => [{ s: { key: 'n1' }, r: line('n1', 'MAT1', 4).x.r }];
+  const plain = Object.assign(line('n1', 'MAT1', 4), { to: '', noPrint: true, was: null });
+  await T.flowCpAllot('Canvas', [plain], '');
+  ok('allotted like any other, with no printer', rec('n1').noPrint === true && rec('n1').printer.code === '' && !('was' in rec('n1')));
+  await T.flowCpStep('n1', 'ready'); await T.flowCpStep('n1', 'cut');
+  ok('finished at Cut done: it leaves Cut to size', rec('n1').status === 'cut' && T.flowCpActive('n1') === null);
+  ok('…and cannot be sent to a printer', /Only a cut piece/.test((await T.flowCpSend('n1')).err));
+  await T.flowCpAllot('Canvas', [Object.assign({}, plain, { key: 'n2', x: line('n2', 'MAT2', 1).x })], '');
+  await T.flowCpTakeBack('n2');
+  ok('taking it back also puts its fabric-ready mark back', / n2 back$/.test(returned[returned.length - 1]), returned);
+
+  await T.flowCpAllot('Canvas', [Object.assign({}, plain, { key: 'n3', x: line('n3', 'MAT1', 1).x })], '');
+  ctx.flowRows = () => [{ s: { key: 'n3', cut: 1 }, r: {} }];
+  ok('cut on Cutting Data before Cut done: it leaves Cut to size', rec('n3').status === 'wait' && T.flowCpActive('n3') === null);
+  db['pt_flowDemand/n4/fabricReady'] = { cutEntry: 'other' };
+  const late = await T.flowCpAllot('Canvas', [Object.assign({}, plain, { key: 'n4', x: line('n4', 'MAT1', 1).x })], '');
+  ok('a line somebody marked meanwhile is not allotted', /changed this line/.test(late.err) && rec('n4') === null, late);
+
   console.log('== the desk\'s stock ==');
   const deskSrc = fs.readFileSync(path.join(APP, 'greige-desk.js'), 'utf8').replace(/\r\n/g, '\n');
   const patches = [];
   const d = { GD_STATE: 'ok', GD_SNAP: { fab: {} }, GD_NODE: 'pt_gdTest', DB: { fab: [] }, r2: ctx.flowR2, ctsN: String, nf: String,
     invChallanOut: () => 0, invLotsLeft: () => ({ OLD: 10, NEW: 20 }), uid: (() => { let n = 0; return () => 'r' + (++n); })(), lmToday: () => '2026-11-27',
-    meUser: () => ({ name: 'Neha' }), ptPatch: async p => { patches.push(p); } };
+    meUser: () => ({ name: 'Neha' }), cutFlowKeep: () => {}, ptPatch: async p => { patches.push(p); } };
   vm.createContext(d);
   vm.runInContext(slice(deskSrc, 'function gdCutLots(', 'function gdRfdShelf(') + '\nglobalThis.S = { gdCutCheck, gdCutIssue, gdCutReturn };', d);
   ok('never more than the lots hold', /hold 30 m/.test(d.S.gdCutCheck('Canvas', 31)) && d.S.gdCutCheck('Canvas', 30) === '');
-  await d.S.gdCutIssue('Canvas', 'CP-1', [{ key: 'a', sku: 'MAT1', orderNo: 'AMZ-1', pcs: 48, metres: 12 }, { key: 'b', sku: 'MAT2', orderNo: 'AMZ-1', pcs: 4, metres: 1 }]);
+  await d.S.gdCutIssue('Canvas', 'CP-1', [{ key: 'a', sku: 'MAT1', orderNo: 'AMZ-1', pcs: 48, metres: 12 }, { key: 'b', sku: 'MAT2', orderNo: 'AMZ-1', pcs: 4, metres: 1, noPrint: true }]);
+  const marks = Object.keys(patches[0]).filter(p => p.startsWith('pt_flowDemand'));
+  ok('only the no-printing line is marked fabric ready, with its lot, in the same save', marks.join() === 'pt_flowDemand/b/fabricReady' && patches[0][marks[0]].lot === 'NEW', marks);
   ok('the oldest lot goes first, then the next', d.DB.fab.map(r => r.lineKey + r.lot + r.qty).join() === 'aOLD10,aNEW2,bNEW1', d.DB.fab.map(r => r.lineKey + r.lot + r.qty));
   await d.S.gdCutReturn('CP-1', 'a');
   ok('take back removes that line\'s rows only', d.DB.fab.map(r => r.lineKey).join() === 'b' && Object.values(patches[1]).every(v => v === null) && Object.keys(patches[1]).length === 2);
+
+  d.DB.fab = [{ id: 'r9', cutNo: 'CP-2', lineKey: 'h' }];
+  await d.S.gdCutReturn('CP-2', 'h', { was: { lot: 'L0', metres: 1 } });
+  const back = patches[patches.length - 1];
+  ok('take back restores the line\'s earlier mark in the same save', JSON.stringify(back['pt_flowDemand/h/fabricReady']) === '{"lot":"L0","metres":1}' && back['pt_gdTest/fab/r9'] === null, back);
 
   console.log('== no other way to the printer ==');
   const challan = fs.readFileSync(path.join(APP, 'flow-challan.js'), 'utf8').replace(/\r\n/g, '\n');
@@ -111,7 +137,7 @@ const rec = key => ((ctx.FLOW.dem[key] || {}).cutPc) || null;
   vm.createContext(w);
   vm.runInContext(slice(challan, 'async function flowChallanWrite(', '  let no = flowChallanNo(') + "return 'went';\n}\nglobalThis.W = flowChallanWrite;", w);
   const line1 = { at: '', vendor: { name: 'V' }, lines: [{ key: 'k1', sku: 'MAT1' }] };
-  ok('an ordinary challan refuses a line in Cut to size', /is in Cut to size on challan CP-1/.test(await w.W(Object.assign({}, line1), {}, {})));
+  ok('an ordinary challan refuses a line in Cut to size', /is in Cut to size/.test(await w.W(Object.assign({}, line1), {}, {})));
   ok('its own send goes through', (await w.W(Object.assign({}, line1), {}, { fromCut: 'CP-1' })) === 'went');
 
   console.log('== ticking ==');
