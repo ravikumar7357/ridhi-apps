@@ -321,6 +321,9 @@ async function soDetailRun(o, sku, want) {
   if (done.floor && moved.some(f => f.k !== 'deliveryDate'))
     return nf(done.floor) + ' piece(s) are already cut against this line, so its size, colour and quality stay. The date can still move.';
   if (moved.some(f => f.k === 'deliveryDate') && !String(want.deliveryDate || '').trim()) return 'Pick the delivery date.';
+  /* The date rule on a line's delivery date (Ravi, 27 Nov 2026; switch lineHold): a new date is from today on; the one it had stays. */
+  const dateErr = lineHoldOn() && moved.some(f => f.k === 'deliveryDate') ? ptDateErr(want.deliveryDate, obUC(sku) + ' · Delivery date', 'plan', was.deliveryDate) : '';
+  if (dateErr) return dateErr;
   const now = new Date().toISOString(), base = 'pt_salesOrders/' + o._id + '/', patch = {};
   moved.forEach(f => ls.forEach(x => { patch[base + 'lines/' + x.i + '/' + f.k] = String(want[f.k]).trim(); }));
   /* ONE DATE FOR THE WHOLE ORDER, AND NOW ONE LINE DIFFERS. The order turns per-line, and every line that leaned on the
