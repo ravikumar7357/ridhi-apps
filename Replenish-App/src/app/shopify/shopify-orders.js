@@ -19,6 +19,9 @@ function sdWall(ms, tz) {
 const sdPT = ms => sdWall(ms, 'America/Los_Angeles');
 function sdToday() { const d = sdPT(Date.now()); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 const sdShift = (iso, days) => new Date(new Date(iso + 'T00:00:00Z').getTime() + days * 86400000).toISOString().slice(0, 10);
+/* A day that is on the calendar. "2026-15-11" has the shape and is no day: sdShift throws "Invalid time value" on it, and
+ * that stopped the whole check of older shipped orders (27 Nov 2026). Any date read off a stored record passes here first. */
+const sdIsDay = d => { const t = Date.parse(d + 'T00:00:00Z'); return !isNaN(t) && new Date(t).toISOString().slice(0, 10) === d; };
 /**
  * A timestamp in the MARKETPLACE's day, not UTC.
  *
@@ -1326,7 +1329,7 @@ function shpOldestOpen() {
   let oldest = '';
   const older = d => {
     d = String(d || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    if (!sdIsDay(d)) return;
     if (!oldest || d < oldest) oldest = d;
   };
   (PTG.ob || []).forEach(r => {

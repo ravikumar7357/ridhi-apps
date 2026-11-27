@@ -1159,6 +1159,33 @@ console.log('\n== an order nobody fetched is still judged ==');
   ok('with nothing outstanding it does not call Shopify at all',
      out4.looked === 0 && CALLS.prGet.length === 0);
 
+  /* AN IMPOSSIBLE DATE (27 Nov 2026). "2026-15-11" has the shape of a date and is none: it went to sdShift, which threw
+   * "Invalid time value", and no older order was checked at all. */
+  RT = {}; SOX.rows = []; A.setMETA({}); A.renderShop(); CALLS.prGet.length = 0;
+  const monthFifteen = july.slice(0, 4) + '-15-11', feb30 = july.slice(0, 4) + '-02-30';
+  PTG.ob = [{ id: 'ob_shp_SHP-4001_X', orderNo: 'SHP-4001', sku: 'X', src: 'SHP', qty: 1, orderDate: monthFifteen,
+    shopOrderId: 'o-bad', shopOrderNo: '#4001' }];
+  A.setMETA({ 'o-july': { lines: { 'RTC52-6090': { adj: 'ADJ-2923-RTC526090', adjQty: 1,
+    adjOrder: '#2923', adjOrderDate: july, adjState: 'raised' } } },
+    'o-feb': { lines: { Y: { adj: 'ADJ-4002-Y', adjQty: 1, adjOrder: '#4002', adjOrderDate: feb30, adjState: 'raised' } } } });
+  PRGET_REPLY = { orders: [] };
+  const warns = [], warnWas = console.warn;
+  let unseen, out5, threw = '';
+  console.warn = m => warns.push(String(m));
+  try { unseen = A.shpUnseen(); out5 = await A.shpCloseShipped(); }
+  catch (e) { threw = e.message; }
+  finally { console.warn = warnWas; }
+  ok('an impossible date does not stop the check of older orders', !threw && !!out5 && out5.looked === 3 && !out5.err, threw || JSON.stringify(out5));
+  ok('…that order is still looked for, with no date', !!unseen && unseen.get('o-bad') === '' && unseen.get('o-feb') === '', JSON.stringify(unseen && [...unseen]));
+  ok('…the order with a good date is still asked about for its own days', CALLS.prGet.some(p => p.start === july), JSON.stringify(CALLS.prGet));
+  ok('…the console names the order and the date', warns.some(w => w.includes('#4001') && w.includes(monthFifteen)) && warns.some(w => w.includes('#4002') && w.includes(feb30)), JSON.stringify(warns));
+  ok('…every day asked of Shopify is on the calendar', CALLS.prGet.length > 0 && CALLS.prGet.every(p => !(p.start + p.end).includes(monthFifteen) && !(p.start + p.end).includes(feb30)), JSON.stringify(CALLS.prGet));
+  ok('…and the From date is not taken from it', A.shpOldestOpen() === july, A.shpOldestOpen());
+  let sheet, sheetErr = '';
+  try { sheet = A.shpSheetMatch([['Name', 'Lineitem name', 'Created at'], ['#9999', 'x', monthFifteen + ' 10:00:00 +0530']], 'Ridhi'); }
+  catch (e) { sheetErr = e.message; }
+  ok('a pending sheet with such a date is still read', !sheetErr && !!sheet && sheet.from === '', sheetErr || JSON.stringify(sheet));
+
   PRGET_REPLY = { ok: true };
   A.setMETA({}); RT = {}; PTG.ob = []; SOX.rows = [];
 }
