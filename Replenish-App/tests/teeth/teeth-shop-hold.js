@@ -38,7 +38,7 @@ const breaks = {
   'opening a packing screen reads nothing': [CORE, 'await fgiHoldReread();', ''],
   'the phone does not say why': [PHONE, 'why: held || (', 'why: ('],
   'the desk does not say why': [DESK, 'held ? esc(held) : ', ''],
-  'no Held column': [LIST, "...(holds ? ['Held'] : []), ", ''],
+  'no Shopify held column': [LIST, "...(holds ? ['Shopify held'] : []), ", ''],
   'everybody may release': [H, 'const fgiMayRelease = sku => !!(ME && ME.admin) &&', 'const fgiMayRelease = sku =>'],
   'a release is written over blindly': [H, "if (!(await ptCas(SHP_HOLD_PATH + '/releases', hold.releases, plan.next)))", "await ptCas(SHP_HOLD_PATH + '/releases', hold.releases, plan.next); if (true)"],
   'a refused save goes through': [H, "if (why) return { err: 'Nothing was saved", "if (false) return { err: 'Nothing was saved"],

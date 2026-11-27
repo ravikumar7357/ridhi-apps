@@ -251,7 +251,7 @@ function renderFgi() {
 }
 
 /** The stock list's columns that line up as figures. */
-const FGI_NUM_COLS = ['Opening', 'Received', 'Issued', 'To FBA', 'In stock', 'Held', 'Rate', 'Value'];
+const FGI_NUM_COLS = ['Opening', 'Received', 'Issued', 'To FBA', 'In stock', 'Shopify held', 'Rate', 'Value'];
 
 function fgiRenderStock(stock) {
   const q = $('fgQ').value.trim().toLowerCase();
@@ -292,7 +292,7 @@ function fgiRenderStock(stock) {
   const allOn = canEd && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
   const head = '<thead><tr>' + (canEd ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
     + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', 'Opening', 'Received',
-    'Issued', 'To FBA', 'In stock', ...(holds ? ['Held'] : []), 'Amazon', 'Tag', 'Rate', 'Value', '']
+    'Issued', 'To FBA', 'In stock', ...(holds ? ['Shopify held'] : []), 'Amazon', 'Tag', 'Rate', 'Value', '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (FGI_NUM_COLS.includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
   if ($('fgTable').classList) $('fgTable').classList.toggle('fg-cards', (typeof mobOn === 'function' && mobOn()));
@@ -363,7 +363,7 @@ function fgiCard(r, canEd) {
     + '</div>'
     + `<div class="fg-mc-qty" style="color:${tone}">${nf(r.current)}<small>in stock</small></div>`
     + `<div class="fg-mc-figs"><span>In <b>${nf(r.opening + r.received)}</b></span><span>Out <b>${nf(r.issued)}</b></span>`
-      + `<span>FBA <b>${nf(r.fba)}</b></span>${holds ? `<span>Held <b>${fgiHeldCell(r.sku)}</b></span>` : ''}${r.value === null ? '' : `<span>₹ <b>${nf(Math.round(r.value))}</b></span>`}</div>`
+      + `<span>FBA <b>${nf(r.fba)}</b></span>${holds ? `<span>Shopify held <b>${fgiHeldCell(r.sku)}</b></span>` : ''}${r.value === null ? '' : `<span>₹ <b>${nf(Math.round(r.value))}</b></span>`}</div>`
     + ((fgiCanEntry() || canEd) ? '<div class="fg-mc-acts">'
       + (holds && fgiMayRelease(r.sku) ? btn('data-fgrel', 'Release held pieces') : '')
       + (fgiCanEntry() ? btn('data-fgentry', 'Entry') : '')

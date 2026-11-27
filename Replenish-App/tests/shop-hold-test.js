@@ -290,7 +290,7 @@ async function waysToFba() {
     return S.box('fgTable').innerHTML;
   };
   const on = table({}), off = table({ off: true });
-  ok('switch on: a Held column and the figure', on.includes('<th class="num">Held</th>') && on.includes('<td class="num">4</td>'));
+  ok('switch on: a Shopify held column and the figure', on.includes('<th class="num">Shopify held</th>') && on.includes('<td class="num">4</td>'));
   ok('an admin has the release button, nobody else', on.includes('data-fgrel="A"') && !table({ admin: false }).includes('data-fgrel'));
   ok('switch off: no column, no button', !off.includes('Held') && !off.includes('data-fgrel'));
   ok('the figure columns line up as before', off.includes('<th class="num">In stock</th><th>Amazon</th><th>Tag</th><th class="num">Rate</th><th class="num">Value</th><th></th>'));
