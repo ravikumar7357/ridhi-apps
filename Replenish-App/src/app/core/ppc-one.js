@@ -8,7 +8,7 @@
  *
  * PRODUCTION, SIMPLE (Ravi, 24 Oct: after a Greige-Inventory-style table, "not refined — easy to use, all information on
  * a page, less complex but still actionable"): one line per SKU — ordered, where its pieces are and who has them (with
- * days), due, and ONE next-step button; a stage filter across the top; a line opens the SKU's card (p1DrawInv). The
+ * days), due, History, and a Plan button where pieces still wait for PPC's plan (Ravi, 27 Nov); a stage filter across the top; a line opens the SKU's card (p1DrawInv). The
  * movement ledger is the second view, "PPC ledger".
  *
  * THE LEDGER (Ravi, 24 Oct, after a board was drawn: "I want ledger format only"; of the five-view page: "looks plain,
@@ -463,6 +463,14 @@ function p1Do(k, xs) {
   else if (k === 'PRN') leave(() => { FLOW_VIEW = 'dhist'; showTab('flow'); });
   else if (k === 'SHIP') leave(() => showTab('ord'));   // the Order Console's Production to shipping, where the shipping team takes it
 }
+/** The lines of a lot still waiting for PPC's plan, for someone who may plan. */
+function p1ToPlan(lines) { const a = P1_ADD.find(x => x[0] === 'PLAN'); return p1MayTab(a[2]) ? lines.filter(a[3]) : []; }
+/** "Plan" on a lot or an order line, with the pieces waiting for it: the only step button on the Production list (Ravi,
+ *  27 Nov: "add the to plan button back"; the other next-step buttons stay off). `line` is '' for the whole lot. */
+function p1PlanBtn(lines, gk, line) {
+  const xs = p1ToPlan(lines); if (!xs.length) return '';
+  return `<button type="button" class="p1-go" data-p1plan="${esc(gk)}" data-p1line="${line}" title="Open the plan form for these pieces">Plan ${p1N(xs.reduce((t, x) => t + (+x.r.qty || 0), 0))}</button>`;
+}
 /** What is waiting for the chosen step, on the page itself. */
 function p1WaitCard(k) {
   const a = P1_ADD.find(x => x[0] === k), q = P1.q.trim().toUpperCase();
@@ -681,11 +689,11 @@ function p1DrawInv() {
   const lotRow = r => { const open = P1.inv === r.gk;
     let h = `<tr class="p1r lot${open ? ' open' : ''}${p1Urgent(r) ? ' urgent' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
       <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div></td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
-      ${P1_COLS.map(([k]) => p1StageCell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button></td></tr>`;
-    if (open) h += r.ln.map(l => { const od = l.due && l.due < today ? p1Days(l.due) : 0;
+      ${P1_COLS.map(([k]) => p1StageCell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${p1PlanBtn(r.lines, r.gk, '')}</td></tr>`;
+    if (open) h += r.ln.map((l, i) => { const od = l.due && l.due < today ? p1Days(l.due) : 0;
       return `<tr class="p1l"><td class="lc"><a class="p1-ord" data-p1hist="${esc(r.gk)}" data-p1ho="${esc(l.x.r.orderNo)}" title="This order's history">${esc(l.x.r.shopOrderNo || l.x.r.orderNo)}</a><span class="ch">${esc(l.chan)}</span></td>
         <td class="it muted sm">${esc(p1Day(p1Iso(l.x.r.orderDate) || l.x.r.openIso || ''))}</td><td class="num">${p1N(l.st.q)}</td><td class="pr">${l.printer ? esc(l.printer) : l.st.planned ? '<span class="muted">—</span>' : '<b class="np">not planned</b>'}</td>
-        ${P1_COLS.map(([k]) => p1StageCell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx"></td></tr>`; }).join('');
+        ${P1_COLS.map(([k]) => p1StageCell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${p1PlanBtn([l.x], r.gk, i)}</td></tr>`; }).join('');
     return h; };
   const shown = rows.slice(0, P1.lim), R0 = gk => all.find(r => r.gk === gk);
   el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<span class="p1-read">${P1.err ? `<b style="color:var(--bad)">Could not read everything: ${esc(P1.err)}</b> · ` : ''}${P1.more ? 'Reading the rest… · ' : ''}${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
@@ -716,6 +724,8 @@ function p1DrawInv() {
   /* the card closes with ×, a click outside it, or Esc */
   on('[data-p1modal]', (b, e) => { if (e.target === b) { P1.hist = ''; p1Draw(); } });
   if (!P1.escOn) { P1.escOn = true; document.addEventListener('keydown', e => { if (e.key === 'Escape' && P1.hist && P1.shown) { P1.hist = ''; p1Draw(); } }); }
+  on('[data-p1plan]', b => { const r = R(b.dataset.p1plan); if (!r) return; const i = b.dataset.p1line;
+    const xs = p1ToPlan(i === '' ? r.lines : [r.lines[+i]]); if (xs.length) p1Do('PLAN', xs); });
   /* the history's own controls */
   on('[data-p1hord]', b => { P1.histOrd = b.value; p1Draw(); }, 'onchange');
   on('[data-p1hdl]', () => { const r = R(P1.hist); if (r) p1HistoryDownload(r); });
@@ -1291,6 +1301,7 @@ if (typeof GUIDE_TOURS !== 'undefined') {
     { sel: '#p1Home tr.p1r.lot', en: 'A grey line is one <b>lot</b> — 001, 002… from the 1st of each month; the ending says where it starts: <b>GR</b> greige, <b>CT</b> cutting, <b>JW</b> Job Work, <b>OS</b> outsourced. Click the line to see its orders under it.', hi: 'स्लेटी लाइन एक <b>लॉट</b> है — हर महीने की 1 तारीख़ से 001, 002…; आख़िर के अक्षर बताते हैं कहाँ से शुरू: <b>GR</b> ग्रेज, <b>CT</b> कटिंग, <b>JW</b> जॉब वर्क, <b>OS</b> बाहर से। लाइन पर क्लिक करें तो उसके ऑर्डर नीचे दिखेंगे।' },
     { sel: '#p1Home tr.p1r.lot td.sg', en: 'Where the pieces are: an orange number is pieces waiting there, with the days they have waited (red after 7). <b>✓</b> the stage is done, <b>·</b> the work has not got there yet, <b>—</b> the lot does not go that way.', hi: 'पीस कहाँ हैं: नारंगी नंबर मतलब वहाँ रुके पीस, नीचे कितने दिन से (7 के बाद लाल)। <b>✓</b> स्टेज पूरा, <b>·</b> काम अभी वहाँ नहीं पहुँचा, <b>—</b> लॉट उस रास्ते नहीं जाता।' },
     { sel: '#p1Home tr.p1r.lot td.st', en: 'Where the lot is held now, and its ready date — red with the days late when it is past.', hi: 'लॉट अभी कहाँ रुका है, और उसकी तैयार होने की तारीख़ — लेट हो तो लाल, कितने दिन लेट के साथ।' },
+    { sel: '#p1Home tr.p1r.lot .p1-go[data-p1plan]', en: 'A lot still waiting for its plan has a <b>Plan</b> button with its pieces; it opens the plan form for them. An order line under it has its own.', hi: 'जिस लॉट का प्लान बाकी है उस पर <b>Plan</b> बटन है, पीस के साथ; यह उनका प्लान फ़ॉर्म खोलता है। नीचे के ऑर्डर पर अपना बटन है।' },
     { sel: '#p1Home .p1-hbtn', en: '<b>History</b> opens the lot’s card: where it has been, where it is now, and every step — by whom and when — with a download. Clicking the lot number or an order does the same.', hi: '<b>History</b> से लॉट का कार्ड खुलता है: कहाँ से गुज़रा, अभी कहाँ है, और हर कदम — किसने और कब — डाउनलोड के साथ। लॉट नंबर या ऑर्डर पर क्लिक करने से भी यही खुलता है।' },
     { sel: '#p1Home .p1-views', en: '<b>PPC ledger</b> shows every step of every SKU — who did what, and when. Ask me anything about this page with my round button.', hi: '<b>PPC ledger</b> में हर SKU का हर कदम है — किसने क्या किया, कब। इस पेज के बारे में कुछ भी पूछना हो तो मेरे गोल बटन से पूछें।' }];
   GUIDE_TOURS.ppcreport = [
