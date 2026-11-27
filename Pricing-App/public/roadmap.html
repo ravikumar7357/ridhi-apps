@@ -124,7 +124,11 @@ const ROADMAP = {
     { text: 'Server: exact cost first, then buy DigitalOcean App Platform', done: false },
     { text: 'Put the backend on the server and stop the copy on this PC', done: false },
     { text: 'Pause clasp push on the office PC', done: false },
-    { text: 'List every Apps Script route and timer with how often it is used', done: false },
+    { text: 'Map every Apps Script route to the page that calls it: done, about 25 routes are called by nobody', done: true },
+    { text: 'Read the 3 timers found only in live Apps Script: lmTick, v2Tick, matchTick (every 10 min)', done: false },
+    { text: 'Keep the backend running on this PC (npm run local) until the server is bought', done: false },
+    { text: 'After 2 Dec: add a route counter to Pricing-API to get real use per route', done: false },
+    { text: '3 Dec: build M2a (orders, shipments, stock) and run it beside invTick', done: false },
   ],
   modules: [
     { code: 'M0', name: 'Foundation and front door', files: 'Code.gs, SpApi.gs → router, Amazon gateway, switches, job log, queue, server', unit: 'lines', total: 485, done: 485, status: 'done', week: 'Done · 26 Nov', note: '95 tests pass. Running on this PC; heartbeat logged in Supabase.' },
