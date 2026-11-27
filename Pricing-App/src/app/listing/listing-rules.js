@@ -565,6 +565,8 @@ const LR_SW_LOW = ['gift', 'gifting', 'indian', 'india', 'colorful', 'colourful'
   'perfect', 'unique', 'lovely', 'pretty', 'nice', 'best', 'great', 'amazing', 'awesome', 'fancy', 'trendy', 'attractive', 'gorgeous', 'idea', 'ideas'];
 const LR_SW_STOP = ['a', 'an', 'and', 'the', 'for', 'with', 'of', 'in', 'on', 'to', 'or', 'by', '&', '+'];
 const LR_SW_UNIT = ['x', 'inch', 'in', 'cm', 'ft', 'feet', 'mm', 'by', '"', '”', '″'];
+// LEFTOVERS (29 Nov 2026, search terms): words that mean nothing on their own — they go when the word before them went
+const LR_SW_LEFTOVER = ['her', 'him', 'his', 'hers', 'them', 'style', 'styled', 'type', 'inspired', 'like', 'kind', 'version'];
 const LR_SW_ASIN = /^b0[a-z0-9]{8}$/;
 const LR_SW_SEP = /^[-–—|,;:·/]+$/;
 /** One word as it is compared: lower case, letters, digits and % only; Grey = Gray, Colour = Color, Inches = Inch; a plural as its singular. */
@@ -592,6 +594,7 @@ const LR_SW_P = { identity: lrSwPhrases(LR_SW_IDENTITY), uses: lrSwPhrases(LR_SW
 const LR_SW_COLOR_SET = new Set(LR_SW_COLORS.map(lrSwKey));
 const LR_SW_LOW_SET = new Set(LR_SW_LOW.map(lrSwKey));
 const LR_SW_STOP_SET = new Set(LR_SW_STOP.map(lrSwKey).concat(['&', '+']));
+const LR_SW_LEFT_SET = new Set(LR_SW_LEFTOVER.map(lrSwKey));
 const LR_SW_SHAPE_OF = new Map(Object.entries(LR_SW_SHAPES).flatMap(([shape, words]) => words.map(w => [lrSwKey(w), shape])));
 // "Rectangular" → 'rectangle', "Round" → 'round'; '' when it names no shape.
 const lrSwShapeWord = text => { for (const w of String(text || '').split(/[^A-Za-z]+/)) { const s = LR_SW_SHAPE_OF.get(lrSwKey(w)); if (s) return s; } return ''; };
@@ -777,7 +780,22 @@ function lrSuggestWords(text, o) {
   const spans = typeof o.risk === 'function' ? o.risk(before) || [] : [];
   if (spans.length) toks.forEach(t => { const hit = spans.find(sp => t.at < sp.e && t.at + t.raw.length > sp.s); if (hit) { t.out = hit.why; t.risk = true; } });
   let cut = false;
-  const done = () => ({ before, after: mode !== 'kw' && !toks.some(t => t.out) && shortText == null ? before : now(), short: shortForms, removed: toks.filter(t => t.out && !t.added).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0, by: t.by || '' })), toks, risky: toks.filter(t => t.risk).length,
+  /* LEFTOVERS (29 Nov 2026, search terms): a word that means nothing alone ("her", "him", "style", "type", "inspired", "like"…) goes
+   * — reason "leftover" — once the word before it went and its phrase is broken ("gift for her" with gift and for gone, "Etopia
+   * style" with Etopia gone, or at the very start); it stays in a kept phrase ("boho style"). Never a protected word, never in
+   * riskOnly (only the risky words go there). */
+  const leftovers = () => {
+    if (mode !== 'kw' || o.riskOnly) return;
+    for (let i = 0; i < toks.length; i++) {
+      const t = toks[i];
+      if (t.out || t.added || !t.k || t.cls || !LR_SW_LEFT_SET.has(t.k)) continue;
+      let j = i - 1;
+      while (j >= 0 && !toks[j].k) j--;                  // bare punctuation does not part a phrase
+      const prev = j >= 0 ? toks[j] : null;
+      if (!prev || prev.out) drop(t, 'leftover');
+    }
+  };
+  const done = () => (leftovers(), { before, after: mode !== 'kw' && !toks.some(t => t.out) && shortText == null ? before : now(), short: shortForms, removed: toks.filter(t => t.out && !t.added).map(t => ({ w: t.raw, why: t.out, i: t.i, risk: t.risk, n: t.n || 0, by: t.by || '' })), toks, risky: toks.filter(t => t.risk).length,
     added: toks.filter(t => t.added && !t.out).map(t => ({ w: t.w, why: t.addWhy, i: t.i, proven: !!t.proven, replaces: t.replaces || [] })), notAdded: toks.filter(t => t.added && t.out).map(t => ({ w: t.w, why: t.out, i: t.i, proven: !!t.proven })),
     fits: fits(), important: !fits(), cut });
   if (o.riskOnly) return done();

@@ -26,7 +26,9 @@
  *   a search that names another shape, colour, size or material than the listing's, a pattern the listing does not say (buffalo plaid,
  *   gingham…), a season (the Season planner adds those, in their window) — or something our cloth is not (waterproof, vinyl,
  *   disposable, a napkin ring…) — is skipped whole; from the rest, every word that is not in the title or the search terms already,
- *   not a brand (ours or anyone's), not a joining / low-value word, not a restricted claim, not an ASIN or a number. Each carries its reason: "wins for Maison on 'farmhouse tablecloth rectangle', search rank 12,400".
+ *   not a brand (ours or anyone's), not a joining / low-value word, not a restricted claim, not an ASIN or a number. (29 Nov 2026) An edge (scalloped, fringe, lace…), a pattern (plaid, striped, floral…), a season or
+ *   (when the listing's is not known) a material is only added when its title, attributes or colour say the product is so — else
+ *   the search is skipped and said: "skipped: not sure the product is scalloped". Each carries its reason: "wins for Maison on 'farmhouse tablecloth rectangle', search rank 12,400".
  * Used by: kw-fix.js (Fix all search terms: the Workspace row and the Listing Errors card), listing-content.js lcSuggestKeywords,
  *   listing-ai.js (✨ AI kw: the words are sent, its answer goes through the same rule), create-listing.js. The rule itself — the only
  *   place a word is added or taken out — is listing-rules.js lrSuggestWords.
@@ -104,6 +106,9 @@ const KW_TYPE_P = KW_TYPES.map(([type, , phrases]) => [type, kwPhrases(phrases)]
 const KW_NOT_P = kwPhrases(KW_NOT);
 const KW_MAT_SET = new Set(KW_MATERIALS.map(kwKey));
 const KW_PAT_SET = new Set(KW_PATTERNS.map(kwKey));
+// An EDGE a search may name (29 Nov 2026): only added when the listing's title / attributes say it is made so.
+const KW_EDGE = ['scalloped', 'scallop', 'fringe', 'fringed', 'tassel', 'tasseled', 'lace', 'ruffle', 'ruffled', 'pompom', 'pom', 'hemstitch', 'hemstitched', 'trimmed', 'piped', 'piping', 'frilled', 'frill', 'beaded', 'sequined'];
+const KW_EDGE_SET = new Set(KW_EDGE.map(kwKey));
 
 /* ============================================================================================
  * 1. READING THE FILES (pure)
@@ -569,17 +574,30 @@ function kwProvenTerms(brand, asin, fam, price) {
     return Object.assign({}, b, { acos, ok: !why, why, be });
   }).sort((a, z) => z.o - a.o || z.c - a.c);
 }
-/** THE FILTERS both sources share, for one listing: term(keys, q) → false when the search is about another product (another shape,
- *  colour, material, size, a pattern it does not say, a season, something our cloth is not); word(k, w) → false when the word may not be
- *  added (in the title or the search terms already, a brand — ours or anyone's — a product, joining or low-value word, a claim, an
- *  ASIN or a number). */
+// The listing's own attribute words (Amazon's attributes: pattern, style, edge, material, theme, design, fabric, colour) — given (item.va),
+// else the ListingMatch cache's copy of them; '' when none is known.
+function kwAttrText(item) {
+  let va = item.va;
+  if (!va && item.sku && typeof lmGet === 'function') { try { const m = lmGet(item.sku, item.brand); va = m && m.va; } catch (e) { va = null; } }
+  if (!va || typeof va !== 'object') return '';
+  const val = v => (Array.isArray(v) ? v.map(x => (x && typeof x === 'object' ? x.value : x)).join(' ') : v && typeof v === 'object' ? v.value : v);
+  return Object.keys(va).filter(k => /pattern|style|edge|material|theme|design|fabric|colou?r/i.test(k)).map(k => String(val(va[k]) == null ? '' : val(va[k]))).join(' ');
+}
+/** THE FILTERS both sources share, for one listing: term(keys, q) → '' when the search may give words; a word = skipped silently (it is
+ *  about another shape, colour, size, a material the listing is NOT, something our cloth is not); '?word' = skipped because Sellora is
+ *  not sure the product is that (29 Nov 2026: an edge — scalloped, fringe, lace…; a pattern — plaid, striped, floral…; a season; a
+ *  material when the listing's is not known) — checked against the listing's title, attributes and colour, never guessed.
+ *  word(k, w) → false when the word may not be added (in the title or the search terms already, a brand — ours or anyone's — a product,
+ *  joining or low-value word, a claim, an ASIN or a number). */
 function kwWordFilter(item, cfg) {
   const f = item.facts || {};
   const shape = f.shape || '';
   const colour = new Set(kwKeys(f.colour));
-  const mat = new Set(kwKeys(f.material || 'cotton'));
+  const mat = new Set(kwKeys(f.material));
   const nums = new Set(String(f.size || '').match(/\d+(?:\.\d+)?/g) || []);
   const have = new Set(kwKeys(item.title).concat(kwKeys(item.kw)));
+  // what the product is said to BE: its title, its attributes, its colour, its material — never its search terms
+  const sure = new Set(kwKeys(item.title).concat(kwKeys(kwAttrText(item)), [...colour], [...mat]));
   const blocked = kwBlocked(cfg);
   const season = kwSeasonPhrases(cfg);
   const vocab = new Set();
@@ -589,15 +607,22 @@ function kwWordFilter(item, cfg) {
   const plain = k => (typeof LR_SW_STOP_SET !== 'undefined' && LR_SW_STOP_SET.has(k)) || (typeof LR_SW_LOW_SET !== 'undefined' && LR_SW_LOW_SET.has(k));
   const risky = w => { try { return typeof ipgFind === 'function' && cfg ? ipgFind(w, cfg).length > 0 : false; } catch (e) { return false; } };
   return {
-    term: (keys, q) => {
-      if (keys.some(k => shapeOf.has(k) && shapeOf.get(k) !== shape)) return false;
-      if (keys.some(k => colours.has(k) && !colour.has(k))) return false;
-      if (keys.some(k => KW_MAT_SET.has(k) && !mat.has(k))) return false;
-      if ((String(q).match(/\d+(?:\.\d+)?/g) || []).some(n => !nums.has(n))) return false;
-      if (keys.some(k => KW_PAT_SET.has(k) && !have.has(k))) return false;
-      if (season.some(p => kwHasSeq(keys, p))) return false;
-      if (KW_NOT_P.some(p => kwHasSeq(keys, p))) return false;
-      return true;
+    term: (keys, q, words) => {
+      const w = k => (words && words[keys.indexOf(k)]) || k;
+      if (keys.some(k => shapeOf.has(k) && shapeOf.get(k) !== shape)) return 'shape';
+      if (keys.some(k => colours.has(k) && !colour.has(k) && !sure.has(k))) return 'colour';
+      if ((String(q).match(/\d+(?:\.\d+)?/g) || []).some(n => !nums.has(n))) return 'size';
+      if (KW_NOT_P.some(p => kwHasSeq(keys, p))) return 'not our cloth';
+      // a material: known and another one → not ours; not known → not sure
+      const m = keys.find(k => KW_MAT_SET.has(k) && !sure.has(k));
+      if (m) return mat.size ? 'material' : '?' + w(m);
+      // an edge or a pattern the title, attributes and colour do not say
+      const e = keys.find(k => (KW_EDGE_SET.has(k) || KW_PAT_SET.has(k)) && !sure.has(k));
+      if (e) return '?' + w(e);
+      // a season the product is not said to be for
+      const s = season.find(p => kwHasSeq(keys, p) && !p.every(k => sure.has(k)));
+      if (s) return '?' + s.join(' ');
+      return '';
     },
     word: (k, w) => !(k.length < 3 || /\d/.test(k) || have.has(k) || blocked.has(k) || vocab.has(k) || plain(k) || /^b0[a-z0-9]{8}$/.test(k) || risky(w)),
   };
@@ -611,7 +636,7 @@ const kwPpcWhy = e => `PPC: ${kwNf(e.orders)} order${e.orders === 1 ? '' : 's'} 
 function kwWinFor(item) {
   item = item || {};
   const status = kwStatus(), ppc = kwPpcStatus();
-  const out = { status, ppc, type: '', words: [], proven: 0, proof: [] };
+  const out = { status, ppc, type: '', words: [], proven: 0, proof: [], skipped: [] };
   const f = item.facts || {};
   const type = kwTypeOfListing(f, item.pt, item.title);
   out.type = type;
@@ -623,10 +648,13 @@ function kwWinFor(item) {
     if (row) { asin = asin || String(row.asin || '').toUpperCase(); fam = fam || row.parent || ''; price = price != null ? price : row.price; }
   }
   if (!fam && asin) fam = (kwFamOf(item.brand).get(asin) || {}).fam || asin;
-  const memoKey = [KW.v, type, item.brand, fam, asin, price, f.shape, f.colour, f.material, f.size, item.title, item.kw].join('\u0001');
-  if (KW.win.has(memoKey)) { const m = KW.win.get(memoKey); return Object.assign(out, { words: m.words, proven: m.proven, proof: m.proof }); }
+  const memoKey = [KW.v, type, item.brand, fam, asin, price, f.shape, f.colour, f.material, f.size, item.title, item.kw, kwAttrText(item)].join('\u0001');
+  if (KW.win.has(memoKey)) { const m = KW.win.get(memoKey); return Object.assign(out, { words: m.words, proven: m.proven, proof: m.proof, skipped: m.skipped }); }
   const cfg = item.cfg || (typeof LR !== 'undefined' && LR) || (typeof LR_DEFAULT !== 'undefined' ? LR_DEFAULT : null);
   const flt = kwWordFilter(item, cfg);
+  // SKIPPED — words of a search Sellora is not sure describe this product: "skipped: not sure the product is scalloped" (once per word)
+  const skipped = new Map();
+  const unsure = (w, term, from) => { if (!skipped.has(w)) skipped.set(w, { w, term, from, why: `skipped: not sure the product is ${w}` }); };
   // PROOF (28 Nov 2026): the listing's own words that have evidence — a word of a search with an order in our ads, or of a search other
   // brands win (Brand Analytics). A proven word never pushes those out (listing-rules.js lrSuggestWords step 3c), only words without.
   const proof = new Set();
@@ -637,7 +665,8 @@ function kwWinFor(item) {
     terms.forEach(t => { if (t.o >= 1) kwKeys(t.t).forEach(k => proof.add(k)); });
     terms.filter(t => t.ok).forEach(t => {
       const ww = kwWords(t.t);
-      if (!flt.term(ww.keys, t.t)) return;
+      const no = flt.term(ww.keys, t.t, ww.words);
+      if (no) { if (no[0] === '?') unsure(no.slice(1), t.t, `PPC: ${kwNf(t.o)} orders`); return; }
       ww.keys.forEach((k, j) => {
         if (proven.has(k) || !flt.word(k, ww.words[j])) return;
         proven.set(k, { w: ww.words[j], k, src: 'ppc', term: t.t, orders: t.o, clicks: t.c, acos: t.acos, days: KW.ppc.days });
@@ -650,7 +679,8 @@ function kwWinFor(item) {
     (kwModel().types.get(type) || []).forEach(t => {
       if (!t.wins || t.not) return;
       t.keys.forEach(k => proof.add(k));
-      if (!flt.term(t.keys, t.q)) return;
+      const no = flt.term(t.keys, t.q, t.words);
+      if (no) { if (no[0] === '?') unsure(no.slice(1), t.q, `wins for ${t.top.brand || 'another brand'}`); return; }
       t.keys.forEach((k, j) => {
         if (proven.has(k) || (best.has(k) && best.get(k).score >= t.score) || !flt.word(k, t.words[j])) return;
         best.set(k, { w: t.words[j], k, src: 'ba', score: t.score, term: t.q, brand: t.top.brand, rank: t.r, conv: t.top.v || 0, click: t.top.c || 0 });
@@ -662,8 +692,9 @@ function kwWinFor(item) {
   const words = pw.concat(bw).slice(0, KW_MAX_WORDS);
   if (KW.win.size > 3000) KW.win.clear();
   const pf = [...proof];
-  KW.win.set(memoKey, { words, proven: Math.min(pw.length, KW_MAX_WORDS), proof: pf });
-  return Object.assign(out, { words, proven: Math.min(pw.length, KW_MAX_WORDS), proof: pf });
+  const sk = [...skipped.values()].filter(x => !words.some(w => w.k === kwKey(x.w)));
+  KW.win.set(memoKey, { words, proven: Math.min(pw.length, KW_MAX_WORDS), proof: pf, skipped: sk });
+  return Object.assign(out, { words, proven: Math.min(pw.length, KW_MAX_WORDS), proof: pf, skipped: sk });
 }
 /** A reason as the preview shows it: duplicate · other brand · low value · limit (the rule's own words otherwise). */
 function kwWhyLabel(why) {

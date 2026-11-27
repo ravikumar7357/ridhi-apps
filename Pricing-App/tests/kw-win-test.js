@@ -209,7 +209,7 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     const it = C2.kfItemOf('SP', C2.HEALTH.SP.rows.find(x => x.sku === T1.sku), C2.hCtx(), null);
     const plan = C2.kfPlan(it);
     ok('Fix all search terms (kfPlan) sends only generic_keyword — the title, bullets and description are never in the patch', plan.ok && plan.patches.length === 1 && plan.patches[0].path === '/attributes/generic_keyword' && plan.b1 <= 249, JSON.stringify([plan.ok, plan.why, plan.patches]));
-    ok('its plan of the over-limit tablecloth: "Shorten to 247 bytes · + 1 winning word"', /^Shorten to 247 bytes · \+ 1 winning word$/.test(plan.what) && plan.added.map(a => a.w).join() === 'boho', plan.what);
+    ok('its plan of the over-limit tablecloth: "Shorten to 239 bytes · + 1 winning word" (her, style: leftovers)', /^Shorten to 239 bytes · \+ 1 winning word$/.test(plan.what) && plan.added.map(a => a.w).join() === 'boho', plan.what);
   }
 
   console.log('== the preview (Fix all search terms popup): + added with why, struck words with their reason, 🔒 protected, bytes ==');
@@ -303,12 +303,12 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     const P = setup({ ppc: true });
     const w = P.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(P, T1), pt: T1.pt });
     const byW = new Map(w.words.map(x => [x.w, x]));
-    ok('a proven word is offered: "farmhouse" (14 orders from \'farmhouse tablecloth\'), "scalloped" (3) — with the reason "PPC: 14 orders from \'farmhouse tablecloth\' in 30 days"',
-      byW.has('farmhouse') && byW.get('farmhouse').src === 'ppc' && byW.get('farmhouse').why === "PPC: 14 orders from 'farmhouse tablecloth' in 30 days" && byW.has('scalloped'), JSON.stringify(w.words.map(x => x.w + ': ' + x.why)));
+    ok('a proven word is offered: "farmhouse" (14 orders from \'farmhouse tablecloth\'), "bistro" (3) — with the reason "PPC: 14 orders from \'farmhouse tablecloth\' in 30 days" ("scalloped": not sure it is scalloped)',
+      byW.has('farmhouse') && byW.get('farmhouse').src === 'ppc' && byW.get('farmhouse').why === "PPC: 14 orders from 'farmhouse tablecloth' in 30 days" && byW.has('bistro') && !byW.has('scalloped'), JSON.stringify(w.words.map(x => x.w + ': ' + x.why)));
     ok('low-order terms ignored: "vintage tablecloth" (1 order) gives nothing', !byW.has('vintage'));
     ok('the same filters: not another shape (round), colour (red), brand (etopia), an ASIN target, a word of the title (indigo), a season (christmas)', !['round', 'red', 'etopia', 'b0abcdefgh', 'indigo', 'christmas', 'gnome'].some(x => byW.has(x)), [...byW.keys()].join());
     ok('a term from an ad group that advertises two families (tablecloth + napkins) belongs to neither: "harvest" not offered', !byW.has('harvest') && !P.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: N1.kw, facts: facts(P, N1), pt: N1.pt }).words.some(x => x.w === 'harvest'));
-    ok('PRIORITY: the proven words first, by orders (farmhouse 14, scalloped 3, bistro 3 — fewer clicks), then the Brand Analytics words (boho)', w.words.map(x => x.w).join() === 'farmhouse,scalloped,bistro,boho' && w.proven === 3, w.words.map(x => x.w + '/' + x.src).join());
+    ok('PRIORITY: the proven words first, by orders (farmhouse 14, bistro 3), then the Brand Analytics words (boho)', w.words.map(x => x.w).join() === 'farmhouse,bistro,boho' && w.proven === 2, w.words.map(x => x.w + '/' + x.src).join());
     const n = P.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: N1.kw, facts: facts(P, N1), pt: N1.pt });
     ok('the napkins: "rustic" and "wedding" proven in our ads (7 orders) — Brand Analytics then adds only what is still missing (farmhouse, boho): "wedding" once, from our ads', n.words.map(x => x.w + '/' + x.src).join() === 'rustic/ppc,wedding/ppc,farmhouse/ba,boho/ba', n.words.map(x => x.w + '/' + x.src).join());
     // space short: a napkin text with room for about one word — the proven word stays, the Brand Analytics ones go first
@@ -367,7 +367,7 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     // works with NO upload
     const U = setup({ data: false, ppc: true });
     const wu = U.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(U, T1), pt: T1.pt });
-    ok('works with NO Brand Analytics upload: the proven words alone (farmhouse, scalloped, bistro); the panel opens on "Proven in our ads"', wu.words.map(x => x.w).join() === 'farmhouse,scalloped,bistro' && /class="segbtn on" data-kw-tab="ppc"/.test(U.kwPanelHtml()), wu.words.map(x => x.w).join());
+    ok('works with NO Brand Analytics upload: the proven words alone (farmhouse, bistro); the panel opens on "Proven in our ads"', wu.words.map(x => x.w).join() === 'farmhouse,bistro' && /class="segbtn on" data-kw-tab="ppc"/.test(U.kwPanelHtml()), wu.words.map(x => x.w).join());
     // no PPC data → skipped
     const NP = setup({ ppc: 'none' });
     const wn = NP.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(NP, T1), pt: T1.pt });
@@ -382,6 +382,45 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     ok('read-only from the nightly caches: the 60-day one (stD60) when it exists, else the 30-day srchTerm — with adGroup', R.KW.ppc.src === 'stD60' && R.KW.ppc.days === 60 && R2.KW.ppc.src === 'srchTerm' && R2.KW.ppc.days === 30 && /in 30 days/.test(R2.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(R2, T1), pt: T1.pt }).words[0].why));
   }
 
+
+  console.log('== (29 Nov 2026) leftovers, and added words must match the product ==');
+  {
+    const L = setup({ ppc: true });
+    const nf = facts(L, N1);
+    const kw = t => L.lrSuggestWords(t, { mode: 'kw', facts: nf, title: N1.title, brands: ['cpc'], others: L.kwOthers(L.getLR()), fits });
+    const a = kw('napkins etopia style dinner');
+    ok('a leftover goes once the word before it went: "etopia style" → etopia (other brand), style (leftover)', a.after === 'napkins dinner' && a.removed.some(x => x.w === 'style' && x.why === 'leftover') && L.kwWhyLabel('leftover') === 'leftover', JSON.stringify(a.removed));
+    const b = kw('napkins boho style dinner');
+    ok('…it stays in a kept phrase ("boho style")', b.after === 'napkins boho style dinner' && !b.removed.length, b.after);
+    const c = kw('her napkins dinner');
+    ok('…alone at the very start ("her napkins") it goes too', c.after === 'napkins dinner' && c.removed[0].why === 'leftover');
+    let over = 'napkins sage green cotton gift for her washable';
+    for (let i = 0; bytes(over) < 252; i++) over += ' q' + String.fromCharCode(97 + (i % 26)) + String.fromCharCode(97 + Math.floor(i / 26));
+    const d = kw(over);
+    ok('"gift for her" over the limit: gift (low value), for (low value), her (leftover) — the protected words stay', /^napkins sage green cotton washable/.test(d.after) && ['gift:low-value word', 'for:stop word', 'her:leftover'].every(x => d.removed.map(r => r.w + ':' + r.why).includes(x)) && fits(d.after), JSON.stringify(d.removed.slice(0, 5)));
+    const e = L.lrSuggestWords('napkins etopia style dinner', { mode: 'kw', facts: nf, title: N1.title, brands: ['cpc'], others: ['Etopia'], risk: t => [{ s: t.indexOf('etopia'), e: t.indexOf('etopia') + 6, why: "risky: another brand's name" }], riskOnly: true });
+    ok('…never in "risky words only" (the Guard\'s fix: only the risky words go)', !e.removed.some(x => x.why === 'leftover'));
+    // added words must match the product
+    const w = L.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(L, T1), pt: T1.pt });
+    const sk = w.skipped.map(x => x.why + ' | ' + x.from + ' | ' + x.term);
+    ok('an EDGE it is not said to have: "scalloped" (PPC, 3 orders) is not added — "skipped: not sure the product is scalloped"', !w.words.some(x => x.w === 'scalloped') && sk.includes("skipped: not sure the product is scalloped | PPC: 3 orders | scalloped tablecloth"), sk.join(' ; '));
+    ok('…a PATTERN and a SEASON it is not said to be: "christmas tablecloth buffalo plaid" skipped and said; a Christmas search too', w.skipped.some(x => x.term === 'christmas tablecloth buffalo plaid') && w.skipped.some(x => /christmas/.test(x.term)), sk.join(' ; '));
+    const wa = L.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(L, T1), pt: T1.pt, va: { edge_style: [{ value: 'Scalloped' }] } });
+    ok('…when its attributes say it (edge style "Scalloped") the word is added', wa.words.some(x => x.w === 'scalloped') && !wa.skipped.some(x => x.w === 'scalloped'), wa.words.map(x => x.w).join());
+    const wt = L.kwWinFor({ brand: T1.brand, sku: T1.sku, title: 'Ridhi Indigo Blue Christmas Hand Block Print Rectangle Tablecloth 60x90 Inch', kw: T1.kw, facts: facts(L, T1), pt: T1.pt });
+    ok('…when its title says the season (Christmas) the season search is not "not sure" any more', !wt.skipped.some(x => /christmas/.test(x.w)), wt.skipped.map(x => x.w).join());
+    const noMat = Object.assign({}, facts(L, N1), { material: '' });
+    const wm = L.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: N1.kw, facts: noMat, pt: N1.pt });
+    const wk = L.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: N1.kw, facts: Object.assign({}, noMat, { material: 'Cotton' }), pt: N1.pt });
+    ok('a MATERIAL: the listing\'s not known → "not sure the product is linen"; known cotton → linen searches skipped quietly (it is not linen)', wm.skipped.some(x => x.why === 'skipped: not sure the product is linen') && !wk.skipped.some(x => x.w === 'linen'), JSON.stringify([wm.skipped.map(x => x.w), wk.skipped.map(x => x.w)]));
+    L.KF.full.set('SP|' + T1.sku, { kw: T1.kw, pt: 'TABLECLOTH', at: Date.now() });
+    L.kfPreview([L.kfItemOf('SP', L.HEALTH.SP.rows.find(x => x.sku === T1.sku), L.hCtx(), null)], { title: 'T1', brand: 'SP', parent: T1.parent });
+    await settle();
+    const html = L.el('spModalBox').innerHTML.replace(/&#39;/g, "'");
+    ok('preview: "skipped: not sure the product is scalloped (PPC: 3 orders from \'scalloped tablecloth\')", and "her" / "style" struck as leftover',
+      /<li class="kf-skip muted">skipped: not sure the product is scalloped \(PPC: 3 orders from 'scalloped tablecloth'\)<\/li>/.test(html) && /<s class="kf-cut" title="leftover">her<\/s>/.test(html) && /<s class="kf-cut" title="leftover">style<\/s>/.test(html), (html.match(/kf-adds[\s\S]{0,900}/) || [''])[0]);
+    L.kfClick({ dataset: { kf: 'cancel' } });
+  }
   console.log('== before → after (two listings in our real title format; our ads\' proven words + the Brand Analytics sample above) ==');
   {
     const PB = setup({ ppc: true });

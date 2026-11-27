@@ -123,7 +123,7 @@ function kfPlan(item) {
   const s = kfShorten(item.kw, { title: item.title, brands: item.brands, others: item.others, add: item.win ? item.win.words : null, proof: item.win ? item.win.proof : null, risk: item.risk, riskOnly: true, facts: item.facts });
   const out = { key: item.key, brand: item.brand, sku: item.sku, asin: item.asin, label: item.label, parent: item.parent, kind: 'kw', ok: false, wait: false, why: '',
     before: s.before, after: s.after, removed: s.removed, added: s.added, notAdded: s.notAdded, toks: s.toks, b0: s.bytesBefore, b1: s.bytesAfter, max: s.max, cut: s.cut, beforeKw: s.before, over: s.over, risky: s.risky,
-    win: item.win ? { status: item.win.status, ppc: item.win.ppc, type: item.win.type, n: item.win.words.length } : null };
+    win: item.win ? { status: item.win.status, ppc: item.win.ppc, type: item.win.type, n: item.win.words.length } : null, skipped: item.win ? item.win.skipped || [] : [] };
   if (!s.over && !s.risky) return Object.assign(out, { why: `already within the limit (${kfNf(s.bytesBefore)} of ${s.max} bytes)${typeof ipgKwRisk === 'function' ? ' and no risky word' : ''}` });
   if (!item.full) return Object.assign(out, { wait: true, why: 'reading the whole search terms from Amazon first' });
   if (!s.fits) return Object.assign(out, { why: s.important ? LR_SW_IMPORTANT : 'could not be made to fit' });
@@ -280,7 +280,9 @@ function kfAddedHtml(p) {
   // a proven word that took the room of the listing's own unproven words says which: "replaces elegant, stylish (no orders)"
   const add = (p.added || []).map(a => `<li><ins class="kf-add">+ ${kfEsc(a.w)}</ins> <span class="muted">(${kfEsc(a.why)})</span>${a.replaces && a.replaces.length ? ` <span class="kf-repl">replaces ${kfEsc(a.replaces.join(', '))} (no orders)</span>` : ''}</li>`).join('');
   const not = (p.notAdded || []).length ? `<li class="muted">Not added (no room within the limit): ${kfEsc(p.notAdded.slice(0, 8).map(a => a.w).join(', '))}${p.notAdded.length > 8 ? ` +${kfNf(p.notAdded.length - 8)}` : ''}</li>` : '';
-  return add || not ? `<ul class="kf-adds">${add}${not}</ul>` : '';
+  // (29 Nov 2026) the words of searches Sellora is not sure describe this product: never added, said
+  const sk = (p.skipped || []).slice(0, 6).map(x => `<li class="kf-skip muted">${kfEsc(x.why)} (${kfEsc(x.from)} from '${kfEsc(x.term)}')</li>`).join('');
+  return add || not || sk ? `<ul class="kf-adds">${add}${not}${sk}</ul>` : '';
 }
 // The winning-keyword data's line for the popup: where it is from and how old — or that there is none (nothing is added then).
 function kfWinLine(run) {
