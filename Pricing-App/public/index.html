@@ -4692,6 +4692,9 @@
   .kw-file{cursor:pointer;padding:5px 10px;border-radius:8px;font-size:12.5px}
   .kw-asof{font-size:12px}
   .kw-msg{margin:6px 0 0;font-size:12px}
+  .kw-tabs{margin:8px 0 10px}
+  .kw-tabs .segbtn{width:auto}
+  .kw-fam{font-weight:600}
   .kw-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
   .kw-tools select{width:auto;font-size:12.5px}
   .kw-tools input[type=search]{flex:0 1 200px;min-width:0;font-size:12.5px;padding:5px 8px}
@@ -30040,7 +30043,8 @@ function kfItemOf(brand, row, ctx, kid) {
   return { key, brand, sku: row.sku, asin: row.asin || '', parent: row.parent || row.asin || row.sku || '—', label, title, kw, full, pt, brands: kfBrands(fresh, ctx.cfg),
     facts, others: kfOthers(ctx.cfg),
     // the winning words this listing may take (kw-win.js: Brand Analytics, its product type), best first — none without fresh data
-    win: typeof kwWinFor === 'function' ? kwWinFor({ brand, sku: row.sku, title, kw, facts, pt, cfg: ctx.cfg }) : null,
+    // (28 Nov 2026) its family's PROVEN words from our own ads first, by orders — then the Brand Analytics words
+    win: typeof kwWinFor === 'function' ? kwWinFor({ brand, sku: row.sku, asin: row.asin || fresh.asin, parent: row.parent || fresh.parent, price: row.price != null ? row.price : fresh.price, title, kw, facts, pt, cfg: ctx.cfg }) : null,
     // the risky words of this listing's search terms (IP & Trademark Guard), the ones allowed on purpose left out
     risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, fresh, ctx.cfg) : null };
 }
@@ -30049,7 +30053,7 @@ function kfPlan(item) {
   const s = kfShorten(item.kw, { title: item.title, brands: item.brands, others: item.others, add: item.win ? item.win.words : null, risk: item.risk, riskOnly: true, facts: item.facts });
   const out = { key: item.key, brand: item.brand, sku: item.sku, asin: item.asin, label: item.label, parent: item.parent, kind: 'kw', ok: false, wait: false, why: '',
     before: s.before, after: s.after, removed: s.removed, added: s.added, notAdded: s.notAdded, toks: s.toks, b0: s.bytesBefore, b1: s.bytesAfter, max: s.max, cut: s.cut, beforeKw: s.before, over: s.over, risky: s.risky,
-    win: item.win ? { status: item.win.status, type: item.win.type, n: item.win.words.length } : null };
+    win: item.win ? { status: item.win.status, ppc: item.win.ppc, type: item.win.type, n: item.win.words.length } : null };
   if (!s.over && !s.risky) return Object.assign(out, { why: `already within the limit (${kfNf(s.bytesBefore)} of ${s.max} bytes)${typeof ipgKwRisk === 'function' ? ' and no risky word' : ''}` });
   if (!item.full) return Object.assign(out, { wait: true, why: 'reading the whole search terms from Amazon first' });
   if (!s.fits) return Object.assign(out, { why: s.important ? LR_SW_IMPORTANT : 'could not be made to fit' });
@@ -30160,7 +30164,7 @@ async function kfPreview(items, o) {
     try { await kwLoad(); } catch (e) { /* the popup says "No winning-keyword data" */ }
     if (run.closed) return run.promise;
     const ctx0 = hCtx();
-    run.items = items = items.map(it => (it.win && it.win.status && it.win.status.loading ? Object.assign({}, it, { win: kwWinFor({ brand: it.brand, sku: it.sku, title: it.title, kw: it.kw, facts: it.facts, pt: it.pt, cfg: ctx0.cfg }) }) : it));
+    run.items = items = items.map(it => (it.win && ((it.win.status && it.win.status.loading) || (it.win.ppc && it.win.ppc.loading)) ? Object.assign({}, it, { win: kwWinFor({ brand: it.brand, sku: it.sku, asin: it.asin, parent: it.parent, title: it.title, kw: it.kw, facts: it.facts, pt: it.pt, cfg: ctx0.cfg }) }) : it));
   }
   const need = items.filter(it => !it.full || !it.pt);
   if (need.length) {
@@ -30211,9 +30215,13 @@ function kfAddedHtml(p) {
 function kfWinLine(run) {
   const p = run.plans.find(x => x.win && x.win.status) || null;
   const st = p ? p.win.status : (typeof kwStatus === 'function' ? kwStatus() : null);
-  if (!st) return '';
-  const n = run.plans.reduce((s, x) => s + ((x.ok && x.added) ? x.added.length : 0), 0);
-  return `<p class="kf-win${st.ok ? '' : ' is-none'}">🏆 ${kfEsc(st.text)}${st.ok ? ` · ${n ? `${kfNf(n)} winning word${n === 1 ? '' : 's'} added` : 'no winning word fits or is missing'}` : ''}</p>`;
+  const pp = p ? p.win.ppc : (typeof kwPpcStatus === 'function' ? kwPpcStatus() : null);
+  if (!st && !pp) return '';
+  const added = run.plans.flatMap(x => ((x.ok && x.added) ? x.added : []));
+  const nP = added.filter(a => /^PPC: /.test(a.why)).length, nB = added.length - nP;
+  const line = (s, n, what) => (s ? `<p class="kf-win${s.ok ? '' : ' is-none'}">${what} ${kfEsc(s.text)}${s.ok ? ` · ${n ? `${kfNf(n)} word${n === 1 ? '' : 's'} added` : 'none missing that fits'}` : ''}</p>` : '');
+  // our own ads first (they go in first), then Brand Analytics
+  return line(pp, nP, '📈') + line(st, nB, '🏆');
 }
 // What the ticked ones would send: [{ p, text, chk }] (chk: lrKwCheck of the text).
 function kfChosen(run) {
@@ -31354,6 +31362,10 @@ if (typeof window !== 'undefined') window.ttReport = ttReport;
  *      it is not used here.
  *   2. Brand Analytics → Search Query Performance (Brand view, CSV), per brand: OUR impressions / clicks / purchases per search —
  *      history/kwsqp_<brand>_<n> (kind 'kwsqp'). Shown in the panel ("we sold 4"); the suggestion does not need it.
+ *   3. (28 Nov 2026) PROVEN IN OUR ADS — no upload needed: our own Sponsored Products customer search terms from the nightly caches
+ *      (stD60 when the backend writes it, else srchTerm: 30 days) with adGroup (which ASINs each ad group advertises). Per listing
+ *      FAMILY, the terms with ORDERS >= 2 and an ACoS not over its break-even (when known): their words are added FIRST, by orders,
+ *      before the Brand Analytics words (kwWinFor). "PPC: 14 orders from 'farmhouse tablecloth' in 30 days". Panel tab "Proven in our ads".
  *   Nothing uploaded, or the newest week older than KW_OLD_DAYS: "No winning-keyword data (updated <date>)" — every suggestion then
  *   only applies our word rules and the 249-byte limit (listing-rules.js lrSuggestWords), no word is added.
  * A SEARCH OTHER BRANDS WIN: its top-3 products that are not ours hold a conversion share ≥ 3 % (or a click share ≥ 8 %). Its brand:
@@ -31416,7 +31428,7 @@ const KW_PLAIN = ['set', 'pack', 'piece', 'pieces', 'pcs', 'premium', 'luxury', 
   'heavy', 'duty', 'soft', 'natural', 'classic', 'french', 'country', 'outdoor', 'indoor', 'kids', 'baby', 'new', 'quality', 'pure', 'handmade', 'woven', 'cloth'];
 const KW_KEEP_ROWS = 60;                                    // rows the panel shows at once (Show more adds as many)
 
-const KW = { terms: null, sqp: { SP: null, CPC: null }, v: 0, loaded: false, busy: null, err: '', msg: '', upBrand: 'SP', type: '', brand: 'ALL', q: '', limit: KW_KEEP_ROWS,
+const KW = { terms: null, sqp: { SP: null, CPC: null }, v: 0, loaded: false, busy: null, err: '', msg: '', upBrand: 'SP', type: '', brand: 'ALL', tab: '', ppcBrand: 'ALL', ppc: null, q: '', limit: KW_KEEP_ROWS,
   model: null, win: new Map(), others: null, ours: null };
 const kwTest = () => typeof sqIsTest === 'function' && sqIsTest();
 const kwEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
@@ -31604,6 +31616,7 @@ async function kwLoad(force) {
       }
       KW.err = '';
     } catch (e) { KW.err = 'The winning-keyword data could not be read (' + ((e && e.code) || (e && e.message) || 'no access') + ').'; }
+    await kwPpcLoad();                                       // our own ads' search terms (never throws): works with no upload at all
     KW.loaded = true;
     kwChanged();
   })().finally(() => { KW.busy = null; });
@@ -31613,7 +31626,7 @@ async function kwLoad(force) {
 function kwEnsure() { if (!KW.loaded) { kwLoad(); return false; } return true; }
 function kwChanged() {
   KW.v++;
-  KW.model = null; KW.win.clear(); KW.others = null; KW.ours = null;
+  KW.model = null; KW.win.clear(); KW.others = null; KW.ours = null; KW.ppcM = null;
   if (typeof kwPanelDraw === 'function') kwPanelDraw();
 }
 /** FOR TESTS and the test site: the data as if uploaded — { terms: rows, to, sqp: { SP: rows } }. */
@@ -31819,20 +31832,99 @@ function kwStatus() {
 }
 // A winning word's reason, as every screen shows it.
 const kwWhy = e => `wins for ${e.brand || 'another brand'} on '${e.term}', search rank ${kwNf(e.rank)}`;
-/** item: { brand, sku, title, kw, facts (lrSwFacts), pt, cfg } → { status, type, words: [{ w, k, why, score, term, brand, rank, conv, click }] }
- *  — the winning words this listing may take, best first (none when the data is missing or old). */
-function kwWinFor(item) {
-  item = item || {};
-  const status = kwStatus();
-  const out = { status, type: '', words: [] };
-  if (!status.ok) return out;
+/* ---- PROVEN IN OUR ADS (28 Nov 2026): the 2nd source — our own Sponsored Products customer search terms ----
+ * Read-only from the nightly caches every Ads screen reads (no Amazon call, no backend change): stD60 (60 days, in stSettled's shape)
+ * when the backend writes it, else srchTerm (the nightly 30-day window — the only window there is today), with adGroup (which ASINs
+ * each ad group advertises). A search term belongs to a FAMILY when every ASIN its ad group advertises is in that one family (our
+ * Listing Health rows: ASIN → parent); a single-ASIN group's terms are that ASIN's. "Proven" = ORDERS ≥ KW_PPC_MIN_ORDERS in the
+ * window, and the ACoS not over the break-even ACoS (Search Terms' cpBreakEven) when that is known. Its words go through exactly the
+ * same filters as the Brand Analytics words (kwWordFilter), and come FIRST, by orders: when space is short the Brand Analytics words
+ * (added after them) are the first to go. Reason: "PPC: 14 orders from 'farmhouse tablecloth' in 30 days". */
+const KW_PPC_MIN_ORDERS = 2;
+const KW_PPC_SRC = [['stD60', 60], ['srchTerm', 30]];      // the longest window the backend has written wins
+/** FOR TESTS: the PPC data as if read — { terms: { SP: { rows, from, to } }, groups: { SP: { groups } }, days, src, at }. */
+function kwUsePpc(o) {
+  KW.ppc = o ? { terms: o.terms || {}, groups: o.groups || {}, days: o.days || 30, src: o.src || 'srchTerm', at: o.at || '', loaded: true } : { terms: {}, groups: {}, days: 0, src: '', loaded: true };
+  kwChanged();
+}
+/** Read the nightly search-term caches (once per visit; baCall keeps a copy). Never throws: no data = no proven words. */
+async function kwPpcLoad() {
+  if (KW.ppc && KW.ppc.loaded) return KW.ppc;
+  const grab = async name => { try { const r = typeof baCall === 'function' ? await baCall({ cache: name }) : null; return (r && r.data) || null; } catch (e) { return null; } };
+  let terms = null, src = '', days = 0, at = '';
+  for (const [name, d] of KW_PPC_SRC) {
+    const c = await grab(name);
+    if (c && c.d && Object.values(c.d).some(p => p && (p.rows || []).length)) { terms = c.d; src = name; days = d; at = c.at || ''; break; }
+  }
+  const ag = terms ? await grab('adGroup') : null;
+  KW.ppc = { terms: terms || {}, groups: (ag && ag.d) || {}, days, src, at, loaded: true };
+  return KW.ppc;
+}
+// Where a listing's family is: Listing Health's rows (ASIN → { parent, sku, price }), per brand.
+function kwFamOf(brand) {
+  const rows = (typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || [];
+  if (KW.fam && KW.fam[brand] && KW.fam[brand].src === rows && KW.fam[brand].n === rows.length) return KW.fam[brand].m;
+  const m = new Map();
+  rows.forEach(r => { if (r.asin && !m.has(String(r.asin).toUpperCase())) m.set(String(r.asin).toUpperCase(), { fam: String(r.parent || r.asin), sku: r.sku, price: r.price }); });
+  KW.fam = Object.assign(KW.fam || {}, { [brand]: { src: rows, n: rows.length, m } });
+  return m;
+}
+/** { v, by: Map family → Map term → { t, c, sp, o, s, i, groups } } per brand — the PPC terms attributed to one family each. */
+function kwPpcModel(brand) {
+  const p = KW.ppc;
+  if (!p || !p.src) return null;
+  const fam = kwFamOf(brand);
+  const key = KW.v + '|' + fam.size;
+  KW.ppcM = KW.ppcM || {};
+  if (KW.ppcM[brand] && KW.ppcM[brand].key === key) return KW.ppcM[brand];
+  const groups = ((p.groups[brand] || {}).groups) || {};
+  const by = new Map();
+  (((p.terms[brand] || {}).rows) || []).forEach(r => {
+    const t = String(r.t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!t || /^b0[a-z0-9]{8}$/.test(t) || /^asin="/.test(t)) return;           // a product it was shown on, not a customer's words
+    const asins = ((groups[r.ag] || {}).a || []).map(a => String(a).toUpperCase());
+    const fams = new Set(asins.map(a => (fam.get(a) || {}).fam || '').filter(Boolean));
+    if (!asins.length || fams.size !== 1 || asins.some(a => !fam.has(a))) return;   // a group across families (or unknown ASINs): not one listing's
+    const f = [...fams][0];
+    if (!by.has(f)) by.set(f, new Map());
+    const m = by.get(f);
+    const b = m.get(t) || { t, i: 0, c: 0, sp: 0, o: 0, s: 0, asins: new Set() };
+    b.i += +r.i || 0; b.c += +r.c || 0; b.sp += +r.sp || 0; b.o += +r.o || 0; b.s += +r.s || 0;
+    asins.forEach(a => b.asins.add(a));
+    m.set(t, b);
+  });
+  KW.ppcM[brand] = { key, by };
+  return KW.ppcM[brand];
+}
+/** Is the PPC data there? { ok, days, text }. */
+function kwPpcStatus() {
+  const p = KW.ppc;
+  if (!p || !p.loaded) return { ok: false, loading: true, text: 'Proven in our ads: reading…' };
+  if (!p.src) return { ok: false, none: true, text: 'No PPC search-term data (the nightly cache is not there) — skipped' };
+  const to = ['SP', 'CPC'].map(b => (p.terms[b] || {}).to).filter(Boolean).sort().pop() || '';
+  return { ok: true, days: p.days, text: `Proven in our ads: Sponsored Products search terms, ${p.days} days${to ? ` up to ${kwDay(to)}` : ''} (nightly)` };
+}
+// The break-even ACoS of a listing (%), or null when its cost or price is not known (then any ACoS is fine).
+function kwBreakEven(asin, price) {
+  try { const v = typeof cpBreakEven === 'function' && asin && price > 0 ? cpBreakEven(asin, price) : null; return typeof v === 'number' && isFinite(v) ? v : null; } catch (e) { return null; }
+}
+/** The proven search terms of a listing's family: [{ t, c, o, sp, s, acos, ok, why }] by orders (every one with orders, ok = proven). */
+function kwProvenTerms(brand, asin, fam, price) {
+  const md = kwPpcModel(brand);
+  if (!md || !fam) return [];
+  const be = kwBreakEven(asin, price);
+  return [...((md.by.get(fam) || new Map()).values())].map(b => {
+    const acos = b.s > 0 ? b.sp / b.s * 100 : null;
+    const why = b.o < KW_PPC_MIN_ORDERS ? `${b.o} order${b.o === 1 ? '' : 's'} (fewer than ${KW_PPC_MIN_ORDERS})` : be != null && acos != null && acos > be ? `ACoS ${Math.round(acos)}% over break-even ${Math.round(be)}%` : '';
+    return Object.assign({}, b, { acos, ok: !why, why, be });
+  }).sort((a, z) => z.o - a.o || z.c - a.c);
+}
+/** THE FILTERS both sources share, for one listing: term(keys, q) → false when the search is about another product (another shape,
+ *  colour, material, size, a pattern it does not say, a season, something our cloth is not); word(k, w) → false when the word may not be
+ *  added (in the title or the search terms already, a brand — ours or anyone's — a product, joining or low-value word, a claim, an
+ *  ASIN or a number). */
+function kwWordFilter(item, cfg) {
   const f = item.facts || {};
-  const type = kwTypeOfListing(f, item.pt, item.title);
-  out.type = type;
-  if (!type) return out;
-  const memoKey = [KW.v, type, f.shape, f.colour, f.material, f.size, item.title, item.kw].join('\u0001');
-  if (KW.win.has(memoKey)) return Object.assign(out, { words: KW.win.get(memoKey) });
-  const cfg = item.cfg || (typeof LR !== 'undefined' && LR) || (typeof LR_DEFAULT !== 'undefined' ? LR_DEFAULT : null);
   const shape = f.shape || '';
   const colour = new Set(kwKeys(f.colour));
   const mat = new Set(kwKeys(f.material || 'cotton'));
@@ -31846,29 +31938,73 @@ function kwWinFor(item) {
   const colours = typeof LR_SW_COLOR_SET !== 'undefined' ? LR_SW_COLOR_SET : new Set();
   const plain = k => (typeof LR_SW_STOP_SET !== 'undefined' && LR_SW_STOP_SET.has(k)) || (typeof LR_SW_LOW_SET !== 'undefined' && LR_SW_LOW_SET.has(k));
   const risky = w => { try { return typeof ipgFind === 'function' && cfg ? ipgFind(w, cfg).length > 0 : false; } catch (e) { return false; } };
-  const best = new Map();
-  (kwModel().types.get(type) || []).forEach(t => {
-    if (!t.wins || t.not) return;
-    // a search about another shape, colour, size or material than this listing's: skipped whole
-    if (t.keys.some(k => shapeOf.has(k) && shapeOf.get(k) !== shape)) return;
-    if (t.keys.some(k => colours.has(k) && !colour.has(k))) return;
-    if (t.keys.some(k => KW_MAT_SET.has(k) && !mat.has(k))) return;
-    if ((t.q.match(/\d+(?:\.\d+)?/g) || []).some(n => !nums.has(n))) return;
-    // …a pattern it does not say (buffalo plaid, gingham, stripes), or a season (the Season planner adds those, in their window)
-    if (t.keys.some(k => KW_PAT_SET.has(k) && !have.has(k))) return;
-    if (season.some(p => kwHasSeq(t.keys, p))) return;
-    t.keys.forEach((k, j) => {
-      if (k.length < 3 || /\d/.test(k) || have.has(k) || blocked.has(k) || vocab.has(k) || plain(k) || /^b0[a-z0-9]{8}$/.test(k)) return;
-      const w = t.words[j];
-      if (best.has(k) && best.get(k).score >= t.score) return;
-      if (risky(w)) return;
-      best.set(k, { w, k, score: t.score, term: t.q, brand: t.top.brand, rank: t.r, conv: t.top.v || 0, click: t.top.c || 0 });
+  return {
+    term: (keys, q) => {
+      if (keys.some(k => shapeOf.has(k) && shapeOf.get(k) !== shape)) return false;
+      if (keys.some(k => colours.has(k) && !colour.has(k))) return false;
+      if (keys.some(k => KW_MAT_SET.has(k) && !mat.has(k))) return false;
+      if ((String(q).match(/\d+(?:\.\d+)?/g) || []).some(n => !nums.has(n))) return false;
+      if (keys.some(k => KW_PAT_SET.has(k) && !have.has(k))) return false;
+      if (season.some(p => kwHasSeq(keys, p))) return false;
+      if (KW_NOT_P.some(p => kwHasSeq(keys, p))) return false;
+      return true;
+    },
+    word: (k, w) => !(k.length < 3 || /\d/.test(k) || have.has(k) || blocked.has(k) || vocab.has(k) || plain(k) || /^b0[a-z0-9]{8}$/.test(k) || risky(w)),
+  };
+}
+// A proven word's reason, as every screen shows it.
+const kwPpcWhy = e => `PPC: ${kwNf(e.orders)} order${e.orders === 1 ? '' : 's'} from '${e.term}' in ${e.days} days`;
+/** item: { brand, sku, asin, parent, price, title, kw, facts (lrSwFacts), pt, cfg } → { status (Brand Analytics), ppc (its status), type,
+ *  words: [{ w, k, why, src: 'ppc' | 'ba', … }] } — the words this listing may take, in the order they are added: the words PROVEN in our
+ *  own ads first (by orders), then the Brand Analytics winning words (best first). Each source is skipped when its data is missing. */
+function kwWinFor(item) {
+  item = item || {};
+  const status = kwStatus(), ppc = kwPpcStatus();
+  const out = { status, ppc, type: '', words: [], proven: 0 };
+  const f = item.facts || {};
+  const type = kwTypeOfListing(f, item.pt, item.title);
+  out.type = type;
+  if (!status.ok && !ppc.ok) return out;
+  // its ASIN, family and price: given, else its Listing Health row
+  let asin = String(item.asin || '').toUpperCase(), fam = item.parent || '', price = item.price;
+  if ((!asin || !fam) && item.sku) {
+    const row = ((typeof HEALTH !== 'undefined' && HEALTH[item.brand] && HEALTH[item.brand].rows) || []).find(r => r.sku === item.sku);
+    if (row) { asin = asin || String(row.asin || '').toUpperCase(); fam = fam || row.parent || ''; price = price != null ? price : row.price; }
+  }
+  if (!fam && asin) fam = (kwFamOf(item.brand).get(asin) || {}).fam || asin;
+  const memoKey = [KW.v, type, item.brand, fam, asin, price, f.shape, f.colour, f.material, f.size, item.title, item.kw].join('\u0001');
+  if (KW.win.has(memoKey)) { const m = KW.win.get(memoKey); return Object.assign(out, { words: m.words, proven: m.proven }); }
+  const cfg = item.cfg || (typeof LR !== 'undefined' && LR) || (typeof LR_DEFAULT !== 'undefined' ? LR_DEFAULT : null);
+  const flt = kwWordFilter(item, cfg);
+  // 1 PROVEN IN OUR ADS — by orders
+  const proven = new Map();
+  if (ppc.ok) {
+    kwProvenTerms(item.brand, asin, fam, price).filter(t => t.ok).forEach(t => {
+      const ww = kwWords(t.t);
+      if (!flt.term(ww.keys, t.t)) return;
+      ww.keys.forEach((k, j) => {
+        if (proven.has(k) || !flt.word(k, ww.words[j])) return;
+        proven.set(k, { w: ww.words[j], k, src: 'ppc', term: t.t, orders: t.o, clicks: t.c, acos: t.acos, days: KW.ppc.days });
+      });
     });
-  });
-  const words = [...best.values()].sort((a, b) => b.score - a.score || a.rank - b.rank).slice(0, KW_MAX_WORDS).map(e => Object.assign(e, { why: kwWhy(e) }));
+  }
+  // 2 BRAND ANALYTICS — the searches other brands win for its product type, best first
+  const best = new Map();
+  if (status.ok && type) {
+    (kwModel().types.get(type) || []).forEach(t => {
+      if (!t.wins || t.not || !flt.term(t.keys, t.q)) return;
+      t.keys.forEach((k, j) => {
+        if (proven.has(k) || (best.has(k) && best.get(k).score >= t.score) || !flt.word(k, t.words[j])) return;
+        best.set(k, { w: t.words[j], k, src: 'ba', score: t.score, term: t.q, brand: t.top.brand, rank: t.r, conv: t.top.v || 0, click: t.top.c || 0 });
+      });
+    });
+  }
+  const pw = [...proven.values()].sort((a, z) => z.orders - a.orders).map(e => Object.assign(e, { why: kwPpcWhy(e) }));
+  const bw = [...best.values()].sort((a, b) => b.score - a.score || a.rank - b.rank).map(e => Object.assign(e, { why: kwWhy(e) }));
+  const words = pw.concat(bw).slice(0, KW_MAX_WORDS);
   if (KW.win.size > 3000) KW.win.clear();
-  KW.win.set(memoKey, words);
-  return Object.assign(out, { words });
+  KW.win.set(memoKey, { words, proven: Math.min(pw.length, KW_MAX_WORDS) });
+  return Object.assign(out, { words, proven: Math.min(pw.length, KW_MAX_WORDS) });
 }
 /** A reason as the preview shows it: duplicate · other brand · low value · limit (the rule's own words otherwise). */
 function kwWhyLabel(why) {
@@ -31928,7 +32064,7 @@ function kwSqpText(t) {
   const parts = ['SP', 'CPC'].filter(b => t.sqp[b]).map(b => `${({ SP: 'Ridhi', CPC: 'CPC' })[b]}: ${kwNf(t.sqp[b].c)} clicks · ${kwNf(t.sqp[b].o)} sold`);
   return parts.join(' · ');
 }
-function kwPanelHtml() {
+function kwBaPanelHtml() {
   const st = kwStatus();
   const b = (v, t) => `<button type="button" data-kw-brand="${v}" aria-pressed="${KW.upBrand === v}">${t}</button>`;
   const trail = KW.terms && KW.terms.trail.length ? KW.terms.trail[KW.terms.trail.length - 1] : null;
@@ -31938,8 +32074,7 @@ function kwPanelHtml() {
     + `<label class="ghost kw-file">Choose a file…<input type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" data-kw-file hidden></label>`
     + `<span class="muted kw-asof">Top search terms: ${KW.terms ? `${kwNf(KW.terms.rows.length)} searches${trail ? ` · uploaded by ${kwEsc(trail.name || trail.by)} ${kwDay(kwIso(trail.at))}` : ''}` : 'not uploaded'} · SQP ${sqpLine}${kwTest() ? ' · test site: uploads stay in this visit only' : ''}</span></div>`
     + `${KW.msg ? `<p class="kw-msg" role="status">${kwEsc(KW.msg)}</p>` : ''}${KW.err ? `<p class="kw-msg err">${kwEsc(KW.err)}</p>` : ''}</div>`;
-  const head = `<div class="kw-h"><b>🏆 Winning keywords</b><span class="${st.ok ? 'muted' : 'kw-none'}">${kwEsc(st.text.replace(/^Winning keywords: /, ''))}</span></div>`
-    + `<p class="muted kw-what">The searches other brands win (their products' conversion share ≥ ${Math.round(KW_MIN.conv * 100)} % or click share ≥ ${Math.round(KW_MIN.click * 100)} %), per product type, best first (competitor conversion share ÷ search rank). Fix all search terms, Listing Content, ✨ AI and Create Listing add their words to a listing's search terms when they fit — never another brand's name, never a word the title already says, never a search for another shape, colour, size or material.</p>`;
+  const head = `<p class="muted kw-what">The searches other brands win (their products' conversion share ≥ ${Math.round(KW_MIN.conv * 100)} % or click share ≥ ${Math.round(KW_MIN.click * 100)} %), per product type, best first (competitor conversion share ÷ search rank). Fix all search terms, Listing Content, ✨ AI and Create Listing add their words to a listing's search terms when they fit — never another brand's name, never a word the title already says, never a search for another shape, colour, size or material.</p>`;
   if (!KW.terms || !(KW.terms.rows || []).length) return head + up;
   const sh = kwShown();
   const md = kwModel();
@@ -31965,6 +32100,78 @@ function kwPanelHtml() {
     + `<p class="muted kw-foot">Showing ${kwNf(Math.min(KW.limit, sh.list.length))} of ${kwNf(sh.list.length)} · underlined: a word none of our ${kwEsc(kwTypeName(sh.type).toLowerCase())} uses yet${used ? '' : ' (open Listing Health to see which words we use)'} · ? = brand read from the product title ${more}</p>`;
   return head + up + tools + table;
 }
+/* ---- the panel's two tabs (28 Nov 2026): Brand Analytics (the uploads) · 📈 Proven in our ads (the nightly PPC search terms) ---- */
+function kwPanelHtml() {
+  const st = kwStatus(), pp = kwPpcStatus();
+  const hasBa = !!(KW.terms && (KW.terms.rows || []).length);
+  const tab = KW.tab || (hasBa || !pp.ok ? 'ba' : 'ppc');
+  const baText = st.text.replace(/^Winning keywords: /, '');
+  const head = `<div class="kw-h"><b>🏆 Winning keywords</b><span class="${st.ok ? 'muted' : 'kw-none'}">${kwEsc(baText)}</span><span class="${pp.ok ? 'muted' : 'kw-none'}">· 📈 ${kwEsc(pp.text)}</span></div>`;
+  const b = (k, t) => `<button type="button" class="segbtn${tab === k ? ' on' : ''}" data-kw-tab="${k}" aria-pressed="${tab === k}">${t}</button>`;
+  const tabs = `<div class="seg kw-tabs" role="group" aria-label="Which words">${b('ba', '🏆 Brand Analytics (uploads)')}${b('ppc', '📈 Proven in our ads')}</div>`;
+  return head + tabs + (tab === 'ppc' ? kwPpcPanelHtml() : kwBaPanelHtml());
+}
+// One family of ours: { name, asin, price, words (Set of the keys of its titles and search terms) } — from Listing Health's rows.
+function kwFamInfo(brand, fam) {
+  const rows = ((typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || []).filter(r => String(r.parent || r.asin) === String(fam));
+  const key = KW.v + '|' + brand + '|' + fam + '|' + rows.length;
+  KW.famInfo = KW.famInfo || new Map();
+  if (KW.famInfo.has(key)) return KW.famInfo.get(key);
+  const words = new Set();
+  rows.forEach(r => {
+    const title = typeof hTitleText === 'function' ? hTitleText(r) : (r.title || '');
+    const m = typeof lmGet === 'function' ? lmGet(r.sku, brand) : null;
+    const live = typeof LI_WS !== 'undefined' && LI_WS.live && LI_WS.live[brand] ? LI_WS.live[brand][r.sku] : null;
+    kwKeys(title + ' ' + ((live && live.kw) || (m && m.kw) || '')).forEach(k => words.add(k));
+  });
+  const name = (typeof parentName === 'function' ? parentName(brand, fam, '') : '') || (rows[0] ? (typeof hTitleText === 'function' ? hTitleText(rows[0]) : rows[0].title) : '') || fam;
+  const out = { name, asin: rows[0] ? String(rows[0].asin || '').toUpperCase() : '', price: rows[0] ? rows[0].price : null, words, n: rows.length };
+  if (KW.famInfo.size > 5000) KW.famInfo.clear();
+  KW.famInfo.set(key, out);
+  return out;
+}
+/** Every search term with an order, per family, the brand filter and the search box applied: by orders. */
+function kwPpcRows() {
+  const out = [];
+  const brands = new Set(kwBrandKeys((typeof LR !== 'undefined' && LR) || null));
+  ['SP', 'CPC'].filter(b => KW.ppcBrand === 'ALL' || KW.ppcBrand === b).forEach(b => {
+    const md = kwPpcModel(b);
+    if (!md) return;
+    md.by.forEach((m, fam) => {
+      const fi = kwFamInfo(b, fam);
+      kwProvenTerms(b, fi.asin, fam, fi.price).forEach(t => {
+        if (!(t.o >= 1) || (KW.q && !t.t.includes(KW.q))) return;
+        const ww = kwWords(t.t);
+        const miss = ww.keys.map((k, j) => ({ k, w: ww.words[j] })).filter(x => kwPlainWord(x.k, brands) && !fi.words.has(x.k)).map(x => x.w);
+        out.push(Object.assign({}, t, { brand: b, fam, name: fi.name, miss, inKw: !miss.length }));
+      });
+    });
+  });
+  return out.sort((a, z) => z.o - a.o || z.c - a.c);
+}
+function kwPpcPanelHtml() {
+  const pp = kwPpcStatus();
+  if (!pp.ok) return `<p class="kw-msg kw-none">${kwEsc(pp.text)}</p>`;
+  const list = kwPpcRows();
+  const sel = `<select data-kw-f="ppcBrand" aria-label="Brand">${[['ALL', 'Both brands'], ['SP', 'Ridhi'], ['CPC', 'CPC']].map(([v, t]) => `<option value="${v}"${KW.ppcBrand === v ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
+  const tools = `<p class="muted kw-what">Customer search terms from our own Sponsored Products ads, per listing family (an ad group's terms count for a family only when every product it advertises is in that family). Proven = ${KW_PPC_MIN_ORDERS}+ orders in ${pp.days} days and the ACoS not over the listing's break-even (when its cost is known). Their missing words are added to that family's search terms FIRST (by orders), before the Brand Analytics words — with the same rules.</p>`
+    + `<div class="kw-tools">${sel}<input type="search" data-kw-f="q" placeholder="Search a word…" value="${kwEsc(KW.q)}" aria-label="Search the search terms"><span style="flex:1"></span><button type="button" class="ghost" data-kw-act="csv">⬇ CSV (${kwNf(list.length)})</button></div>`;
+  const rows = list.slice(0, KW.limit).map(t => `<tr><td>${kwEsc(t.t)}</td><td><span class="kw-fam" title="${kwEsc(t.fam)}">${kwEsc(String(t.name).slice(0, 60))}</span> <small class="muted">${t.brand === 'CPC' ? 'CPC' : 'Ridhi'}</small></td>`
+    + `<td class="num">${kwNf(t.c)}</td><td class="num">${kwNf(t.o)}</td><td class="num">${t.acos == null ? '—' : Math.round(t.acos) + '%'}</td>`
+    + `<td>${t.ok ? '<span class="kw-yes">✓ proven</span>' : `<span class="muted">${kwEsc(t.why)}</span>`}</td>`
+    + `<td>${t.inKw ? '<span class="kw-yes">✓ yes</span>' : `<span class="kw-no">missing: ${kwEsc(t.miss.slice(0, 4).join(', '))}</span>`}</td></tr>`).join('');
+  const more = list.length > KW.limit ? `<button type="button" class="ghost" data-kw-act="more">Show more (${kwNf(list.length - KW.limit)} left)</button>` : '';
+  return tools + `<div class="xlwrap kw-tw"><table class="xl kw-t kw-pt"><thead><tr><th>Search term</th><th>Listing family</th><th class="num">Clicks</th><th class="num">Orders</th><th class="num">ACoS</th><th>Proven?</th><th>Already in keywords?</th></tr></thead>`
+    + `<tbody>${rows || '<tr><td colspan="7" class="ui-empty">No search term with an order for this brand.</td></tr>'}</tbody></table></div>`
+    + `<p class="muted kw-foot">Showing ${kwNf(Math.min(KW.limit, list.length))} of ${kwNf(list.length)} search terms with an order · words of the family's titles and search terms count as "in keywords" ${more}</p>`;
+}
+const KW_PPC_CSV_COLS = ['Brand', 'Listing family', 'Family name', 'Search term', 'Clicks', 'Orders', 'Spend', 'Sales', 'ACoS', 'Break-even ACoS', 'Proven', 'Why not', 'Already in keywords', 'Missing words', 'Window (days)'];
+function kwPpcCsv() {
+  const list = kwPpcRows();
+  const lines = list.map(t => [t.brand === 'CPC' ? 'CPC' : 'Ridhi', t.fam, t.name, t.t, t.c, t.o, Math.round(t.sp * 100) / 100, Math.round(t.s * 100) / 100, t.acos == null ? '' : Math.round(t.acos) + '%',
+    t.be == null ? '' : Math.round(t.be) + '%', t.ok ? 'yes' : 'no', t.why, t.inKw ? 'yes' : 'no', t.miss.join(' '), (KW.ppc && KW.ppc.days) || ''].map(kwCsvQ).join(','));
+  return { n: lines.length, text: '﻿' + [KW_PPC_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
+}
 function kwPanelDraw() {
   const box = typeof $ === 'function' ? $('kwWin') : null;
   if (!box) return;
@@ -31989,26 +32196,29 @@ function kwCsv() {
   return { n: lines.length, text: '﻿' + [KW_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
 function kwDownload() {
-  const out = kwCsv();
+  const ppc = KW.tab === 'ppc' || (!KW.tab && !(KW.terms && (KW.terms.rows || []).length) && kwPpcStatus().ok);
+  const out = ppc ? kwPpcCsv() : kwCsv();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([out.text], { type: 'text/csv;charset=utf-8' }));
-  a.download = `Sellora-winning-keywords-${kwShown().type || 'all'}-${kwIso(Date.now())}.csv`;
+  a.download = ppc ? `Sellora-proven-in-our-ads-${kwIso(Date.now())}.csv` : `Sellora-winning-keywords-${kwShown().type || 'all'}-${kwIso(Date.now())}.csv`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   return out;
 }
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('click', e => {
-    const t = e.target && e.target.closest ? e.target.closest('#kwWin [data-kw-act], #kwWin [data-kw-brand]') : null;
+    const t = e.target && e.target.closest ? e.target.closest('#kwWin [data-kw-act], #kwWin [data-kw-brand], #kwWin [data-kw-tab]') : null;
     if (!t) return;
     if (t.dataset.kwBrand) { KW.upBrand = t.dataset.kwBrand === 'CPC' ? 'CPC' : 'SP'; return kwPanelDraw(); }
     if (t.dataset.kwAct === 'csv') return kwDownload();
+    if (t.dataset.kwTab) { KW.tab = t.dataset.kwTab === 'ppc' ? 'ppc' : 'ba'; KW.limit = KW_KEEP_ROWS; return kwPanelDraw(); }
     if (t.dataset.kwAct === 'more') { KW.limit += KW_KEEP_ROWS; return kwPanelDraw(); }
   });
   document.addEventListener('change', async e => {
     const el = e.target;
     if (!el || !el.closest || !el.closest('#kwWin')) return;
     if (el.dataset && el.dataset.kwF === 'type') { KW.type = el.value; KW.limit = KW_KEEP_ROWS; return kwPanelDraw(); }
+    if (el.dataset && el.dataset.kwF === 'ppcBrand') { KW.ppcBrand = el.value || 'ALL'; KW.limit = KW_KEEP_ROWS; return kwPanelDraw(); }
     if (el.dataset && el.dataset.kwF === 'brand') { KW.brand = el.value || 'ALL'; KW.limit = KW_KEEP_ROWS; return kwPanelDraw(); }
     if (el.dataset && el.dataset.kwFile !== undefined && el.files && el.files[0]) {
       const file = el.files[0];
@@ -32032,7 +32242,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
  *  winning words (Listing Health loaded) and its search terms before → after. */
 function kwReport(sku) {
   const md = kwModel();
-  const out = { status: kwStatus().text, searches: (KW.terms && KW.terms.rows.length) || 0, types: {} };
+  const out = { status: kwStatus().text, ppc: kwPpcStatus().text, searches: (KW.terms && KW.terms.rows.length) || 0, types: {} };
   md.types.forEach((list, t) => { out.types[kwTypeName(t)] = { searches: list.length, won: list.filter(x => x.wins).length, top: list.filter(x => x.wins).slice(0, 3).map(x => `${x.q} (${x.top.brand || '?'}, rank ${x.r})`).join(' · ') }; });
   console.table(out.types);
   if (sku && typeof kfItemOf === 'function' && typeof hCtx === 'function') {
@@ -38576,10 +38786,11 @@ function aiOurBrands(c, text) {
 }
 const aiTitleLimits = c => (typeof ttLimits === 'function' ? ttLimits(c.cfg) : { min: 60, max: 75 });
 const aiKwMax = c => (typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249);
-// The winning words of this listing (kw-win.js — Brand Analytics, its product type): [{ w, why }], best first; [] without fresh data.
+// The words this listing may take (kw-win.js): proven in our own ads first (by orders), then Brand Analytics; [] without any data.
 function aiWinWords(c, before) {
   if (typeof kwWinFor !== 'function') return [];
-  try { return kwWinFor({ brand: c.brand, sku: c.sku, title: c.now.title, kw: String(before == null ? c.now.kw : before), facts: c.facts, pt: c.pt, cfg: c.cfg }).words || []; } catch (e) { return []; }
+  const r = c.row || {};       // its ASIN, family and price (Create Listing: the listing it is copied from — the same family)
+  try { return kwWinFor({ brand: c.brand, sku: c.sku, asin: r.asin || c.asin, parent: r.parent, price: r.price, title: c.now.title, kw: String(before == null ? c.now.kw : before), facts: c.facts, pt: c.pt, cfg: c.cfg }).words || []; } catch (e) { return []; }
 }
 /** THE AI'S SEARCH TERMS THROUGH OUR RULE (27 Nov 2026): the same one rule as every suggestion (listing-rules.js lrSuggestWords) runs on
  *  the answer before it is shown — every repeat out, other brands' names and risky words out, a word of the title it added out (our

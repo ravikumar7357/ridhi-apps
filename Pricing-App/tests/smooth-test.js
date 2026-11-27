@@ -175,7 +175,15 @@ console.log('== no new calls ==');
   // (listing-ai-test.js) proves no call on page open; its only new database calls are the house style approvals (lsGet / lsSave, Listing Rules' store)
   // fix-status.js (the Fix status bell, 24 Nov 2026) is set aside too: it never calls Amazon or the backend, and its database calls are
   // only its own shared /history documents (fixwatch, fixstatus, fixsc = the Seller Central records, fixseen_<user> = seen marks + open arrows)
-  const mine = changed.filter(f => f !== 'listing-ai.js' && f !== 'fix-status.js');
+  // kw-win.js (winning keywords, 27–28 Nov 2026) is set aside too: its backend calls are READS of the nightly caches (?cache=…, one
+  // baCall, kept per visit) — never Amazon; its database calls are only its own uploads (history/kwwin_*, history/kwsqp_*)
+  const mine = changed.filter(f => f !== 'listing-ai.js' && f !== 'fix-status.js' && f !== 'kw-win.js');
+  if (old['kw-win.js'] !== undefined) {
+    const kw = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'kw-win.js'), 'utf8');
+    const ba = [...kw.matchAll(/\bbaCall\(([^)]*)\)/g)].map(m => m[1]);
+    const docs = [...kw.matchAll(/\bdoc\(db, '([^']+)', ([^)]+\))\)/g)].map(m => m[1]);
+    ok(`kw-win.js: no Amazon call; its backend calls only cache reads (${ba.length}), its database calls only history (${docs.length})`, ba.length > 0 && ba.every(a => /^\{ cache: name \}$/.test(a)) && !/\b(lmNet|imPost|fetch)\(/.test(kw) && docs.every(d => d === 'history'), JSON.stringify([ba, docs]));
+  }
   const was = mine.reduce((n, f) => n + calls(old[f]), 0);
   const now = mine.reduce((n, f) => n + calls(fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8')), 0);
   if (old['listing-ai.js'] !== undefined) {

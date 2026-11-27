@@ -4667,6 +4667,9 @@
   .kw-file{cursor:pointer;padding:5px 10px;border-radius:8px;font-size:12.5px}
   .kw-asof{font-size:12px}
   .kw-msg{margin:6px 0 0;font-size:12px}
+  .kw-tabs{margin:8px 0 10px}
+  .kw-tabs .segbtn{width:auto}
+  .kw-fam{font-weight:600}
   .kw-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
   .kw-tools select{width:auto;font-size:12.5px}
   .kw-tools input[type=search]{flex:0 1 200px;min-width:0;font-size:12.5px;padding:5px 8px}

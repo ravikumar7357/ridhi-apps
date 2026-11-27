@@ -113,7 +113,8 @@ function kfItemOf(brand, row, ctx, kid) {
   return { key, brand, sku: row.sku, asin: row.asin || '', parent: row.parent || row.asin || row.sku || '—', label, title, kw, full, pt, brands: kfBrands(fresh, ctx.cfg),
     facts, others: kfOthers(ctx.cfg),
     // the winning words this listing may take (kw-win.js: Brand Analytics, its product type), best first — none without fresh data
-    win: typeof kwWinFor === 'function' ? kwWinFor({ brand, sku: row.sku, title, kw, facts, pt, cfg: ctx.cfg }) : null,
+    // (28 Nov 2026) its family's PROVEN words from our own ads first, by orders — then the Brand Analytics words
+    win: typeof kwWinFor === 'function' ? kwWinFor({ brand, sku: row.sku, asin: row.asin || fresh.asin, parent: row.parent || fresh.parent, price: row.price != null ? row.price : fresh.price, title, kw, facts, pt, cfg: ctx.cfg }) : null,
     // the risky words of this listing's search terms (IP & Trademark Guard), the ones allowed on purpose left out
     risk: typeof ipgKwRisk === 'function' ? ipgKwRisk(brand, row.sku, fresh, ctx.cfg) : null };
 }
@@ -122,7 +123,7 @@ function kfPlan(item) {
   const s = kfShorten(item.kw, { title: item.title, brands: item.brands, others: item.others, add: item.win ? item.win.words : null, risk: item.risk, riskOnly: true, facts: item.facts });
   const out = { key: item.key, brand: item.brand, sku: item.sku, asin: item.asin, label: item.label, parent: item.parent, kind: 'kw', ok: false, wait: false, why: '',
     before: s.before, after: s.after, removed: s.removed, added: s.added, notAdded: s.notAdded, toks: s.toks, b0: s.bytesBefore, b1: s.bytesAfter, max: s.max, cut: s.cut, beforeKw: s.before, over: s.over, risky: s.risky,
-    win: item.win ? { status: item.win.status, type: item.win.type, n: item.win.words.length } : null };
+    win: item.win ? { status: item.win.status, ppc: item.win.ppc, type: item.win.type, n: item.win.words.length } : null };
   if (!s.over && !s.risky) return Object.assign(out, { why: `already within the limit (${kfNf(s.bytesBefore)} of ${s.max} bytes)${typeof ipgKwRisk === 'function' ? ' and no risky word' : ''}` });
   if (!item.full) return Object.assign(out, { wait: true, why: 'reading the whole search terms from Amazon first' });
   if (!s.fits) return Object.assign(out, { why: s.important ? LR_SW_IMPORTANT : 'could not be made to fit' });
@@ -233,7 +234,7 @@ async function kfPreview(items, o) {
     try { await kwLoad(); } catch (e) { /* the popup says "No winning-keyword data" */ }
     if (run.closed) return run.promise;
     const ctx0 = hCtx();
-    run.items = items = items.map(it => (it.win && it.win.status && it.win.status.loading ? Object.assign({}, it, { win: kwWinFor({ brand: it.brand, sku: it.sku, title: it.title, kw: it.kw, facts: it.facts, pt: it.pt, cfg: ctx0.cfg }) }) : it));
+    run.items = items = items.map(it => (it.win && ((it.win.status && it.win.status.loading) || (it.win.ppc && it.win.ppc.loading)) ? Object.assign({}, it, { win: kwWinFor({ brand: it.brand, sku: it.sku, asin: it.asin, parent: it.parent, title: it.title, kw: it.kw, facts: it.facts, pt: it.pt, cfg: ctx0.cfg }) }) : it));
   }
   const need = items.filter(it => !it.full || !it.pt);
   if (need.length) {
@@ -284,9 +285,13 @@ function kfAddedHtml(p) {
 function kfWinLine(run) {
   const p = run.plans.find(x => x.win && x.win.status) || null;
   const st = p ? p.win.status : (typeof kwStatus === 'function' ? kwStatus() : null);
-  if (!st) return '';
-  const n = run.plans.reduce((s, x) => s + ((x.ok && x.added) ? x.added.length : 0), 0);
-  return `<p class="kf-win${st.ok ? '' : ' is-none'}">🏆 ${kfEsc(st.text)}${st.ok ? ` · ${n ? `${kfNf(n)} winning word${n === 1 ? '' : 's'} added` : 'no winning word fits or is missing'}` : ''}</p>`;
+  const pp = p ? p.win.ppc : (typeof kwPpcStatus === 'function' ? kwPpcStatus() : null);
+  if (!st && !pp) return '';
+  const added = run.plans.flatMap(x => ((x.ok && x.added) ? x.added : []));
+  const nP = added.filter(a => /^PPC: /.test(a.why)).length, nB = added.length - nP;
+  const line = (s, n, what) => (s ? `<p class="kf-win${s.ok ? '' : ' is-none'}">${what} ${kfEsc(s.text)}${s.ok ? ` · ${n ? `${kfNf(n)} word${n === 1 ? '' : 's'} added` : 'none missing that fits'}` : ''}</p>` : '');
+  // our own ads first (they go in first), then Brand Analytics
+  return line(pp, nP, '📈') + line(st, nB, '🏆');
 }
 // What the ticked ones would send: [{ p, text, chk }] (chk: lrKwCheck of the text).
 function kfChosen(run) {

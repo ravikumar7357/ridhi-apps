@@ -59,10 +59,22 @@ const N1 = { brand: 'CPC', sku: 'CPN18-SAGE6', asin: 'B0CPNSAGE1', parent: 'P-CP
   title: 'Whimsical Corner Sage Green Hand Block Print Cloth Napkins 18x18 Inch Set of 6',
   kw: 'cpc cotton print club napkins napkin cotton sage green dinner party washable reusable whimsical corner cotton print club angry orange maison serviettes' };
 
+// ---- our own Sponsored Products search terms, in the nightly srchTerm cache's shape ({ t, ag, cid, kw, mt, i, c, sp, o, s }) and adGroup's ----
+const st = (t, ag, c, o, sp, s) => ({ t, ag, cid: 'C1', kw: t, mt: 'BROAD', i: c * 40, c, sp, o, s });
+const PPC = {
+  SP: { from: '2026-10-27', to: '2026-11-25', rows: [st('farmhouse tablecloth', 'AG1', 120, 14, 60, 400), st('scalloped tablecloth', 'AG1', 40, 3, 20, 90), st('vintage tablecloth', 'AG1', 20, 1, 10, 30),
+    st('round tablecloth', 'AG1', 50, 5, 20, 150), st('red tablecloth', 'AG1', 30, 4, 15, 120), st('etopia tablecloth', 'AG1', 25, 6, 12, 160), st('b0abcdefgh', 'AG1', 9, 3, 5, 80),
+    st('indigo tablecloth', 'AG1', 30, 5, 10, 140), st('christmas gnome tablecloth', 'AG1', 30, 5, 10, 140), st('bistro tablecloth', 'AG1', 30, 3, 90, 40),
+    st('harvest tablecloth napkins', 'AG2', 60, 9, 20, 300)] },
+  CPC: { from: '2026-10-27', to: '2026-11-25', rows: [st('cloth napkins sage', 'AG3', 50, 4, 10, 120), st('napkins rustic wedding', 'AG3', 70, 7, 20, 220)] },
+};
+const AG = { SP: { groups: { AG1: { n: 'RTC indigo', cn: 'SP auto', a: ['B0RTCIND01'] }, AG2: { n: 'mixed', cn: 'SP mixed', a: ['B0RTCIND01', 'B0CPNSAGE1'] } } },
+  CPC: { groups: { AG3: { n: 'Sage napkins', cn: 'CPC auto', a: ['B0CPNSAGE1'] } } } };
+
 function setup(o) {
   o = o || {};
-  const C = load({ ws: true, sp: true, fa: true, ai: true, le: true, ctx: { imOnly() {}, imListRender() {} },
-    baCall: async q => (q.lfix === 'get' ? { productType: q.sku === N1.sku ? 'NAPKIN' : 'TABLECLOTH', status: ['BUYABLE'], attributes: { generic_keyword: [{ value: (q.sku === N1.sku ? N1 : T1).kw }] } } : {}) });
+  const C = load({ ws: true, sp: true, fa: true, ai: true, le: true, ctx: Object.assign({ imOnly() {}, imListRender() {} }, o.ctx || {}),
+    baCall: o.baCall || (async q => (q.lfix === 'get' ? { productType: q.sku === N1.sku ? 'NAPKIN' : 'TABLECLOTH', status: ['BUYABLE'], attributes: { generic_keyword: [{ value: (q.sku === N1.sku ? N1 : T1).kw }] } } : {})) });
   C.setHealthLoaded(true);
   C.LI_WS.stored = true;
   C.SP.log = [];
@@ -81,6 +93,8 @@ function setup(o) {
     const p = C.kwParse(TERMS_CSV), q = C.kwParse(OLD_CSV);
     C.kwUse({ terms: C.kwMerge(p.rows, q.rows).rows, to: o.to || p.to, sqp: { SP: C.kwParse(SQP_CSV).rows } });
   } else C.kwUse({});
+  if (o.ppc === true) C.kwUsePpc({ terms: PPC, groups: AG, days: 30, src: 'srchTerm' });
+  else if (o.ppc === 'none') C.kwUsePpc(null);
   return C;
 }
 const facts = (C, L) => C.lrSwFacts({ brand: L.brand, sku: L.sku }, null, null, { title: L.title, pt: L.pt });
@@ -210,7 +224,7 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     await settle();
     const html = C3.el('spModalBox').innerHTML;
     const s = strip(html);
-    ok('the data line: "🏆 Winning keywords: Brand Analytics up to 21 Nov 2026 … · N winning words added"', /🏆 Winning keywords: Brand Analytics up to 21 Nov 2026/.test(s) && /winning words? added/.test(s), s.slice(0, 600));
+    ok('the data line: "🏆 Winning keywords: Brand Analytics up to 21 Nov 2026 … · N winning words added"', /🏆 Winning keywords: Brand Analytics up to 21 Nov 2026/.test(s) && /words? added/.test(s), s.slice(0, 600));
     ok('a removed word struck through with its reason: duplicate, other brand, limit', /<s class="kf-cut" title="duplicate">napkin<\/s><small class="kf-why">duplicate<\/small>/.test(html) && /<s class="kf-cut" title="other brand">angry<\/s>/.test(html) && /title="limit">z{200}<\/s>/.test(html), (html.match(/<div class="kf-text">[\s\S]*?<\/div>/) || [''])[0].slice(0, 1500));
     ok('our brands and important words shown protected 🔒 (with what they are on hover)', /<span class="kf-lock" title="protected: our brand">🔒cpc<\/span>/.test(html) && /title="protected: its product">🔒napkins/.test(html) && /title="protected: its colour">🔒sage/.test(html), html.match(/kf-lock[^<]*<\/span>/g) && html.match(/kf-lock[^<]*<\/span>/g).slice(0, 6).join(' '));
     ok('each added word marked "+ farmhouse (wins for … on \'cloth napkins farmhouse wedding\', search rank 7,400)"', /<ins class="kf-add">\+ farmhouse<\/ins> <span class="muted">\(wins for Etopia on 'cloth napkins farmhouse wedding', search rank 7,400\)<\/span>/.test(html.replace(/&#39;/g, "'")), (html.match(/kf-adds[\s\S]{0,400}/) || [''])[0]);
@@ -283,10 +297,74 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     ok('the search-terms rule never touches another field: a title text keeps its repeats unless it must be cut', lc.after === 'Soft cotton napkins. Soft cotton napkins.');
   }
 
-  console.log('== before → after (two listings in our real title format; the winning words from the sample data above) ==');
+  console.log('== 2nd source: PROVEN IN OUR ADS (our own Sponsored Products search terms, the nightly cache) ==');
   {
+    const P = setup({ ppc: true });
+    const w = P.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(P, T1), pt: T1.pt });
+    const byW = new Map(w.words.map(x => [x.w, x]));
+    ok('a proven word is offered: "farmhouse" (14 orders from \'farmhouse tablecloth\'), "scalloped" (3) — with the reason "PPC: 14 orders from \'farmhouse tablecloth\' in 30 days"',
+      byW.has('farmhouse') && byW.get('farmhouse').src === 'ppc' && byW.get('farmhouse').why === "PPC: 14 orders from 'farmhouse tablecloth' in 30 days" && byW.has('scalloped'), JSON.stringify(w.words.map(x => x.w + ': ' + x.why)));
+    ok('low-order terms ignored: "vintage tablecloth" (1 order) gives nothing', !byW.has('vintage'));
+    ok('the same filters: not another shape (round), colour (red), brand (etopia), an ASIN target, a word of the title (indigo), a season (christmas)', !['round', 'red', 'etopia', 'b0abcdefgh', 'indigo', 'christmas', 'gnome'].some(x => byW.has(x)), [...byW.keys()].join());
+    ok('a term from an ad group that advertises two families (tablecloth + napkins) belongs to neither: "harvest" not offered', !byW.has('harvest') && !P.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: N1.kw, facts: facts(P, N1), pt: N1.pt }).words.some(x => x.w === 'harvest'));
+    ok('PRIORITY: the proven words first, by orders (farmhouse 14, scalloped 3, bistro 3 — fewer clicks), then the Brand Analytics words (boho)', w.words.map(x => x.w).join() === 'farmhouse,scalloped,bistro,boho' && w.proven === 3, w.words.map(x => x.w + '/' + x.src).join());
+    const n = P.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: N1.kw, facts: facts(P, N1), pt: N1.pt });
+    ok('the napkins: "rustic" and "wedding" proven in our ads (7 orders) — Brand Analytics then adds only what is still missing (farmhouse, boho): "wedding" once, from our ads', n.words.map(x => x.w + '/' + x.src).join() === 'rustic/ppc,wedding/ppc,farmhouse/ba,boho/ba', n.words.map(x => x.w + '/' + x.src).join());
+    // space short: a napkin text with room for about one word — the proven word stays, the Brand Analytics ones go first
+    let tight = N1.kw.replace(' angry orange maison', '');
+    const PAD = 'tea brunch picnic bridal baby kitchen everyday buffet banquet catering hotel cafe linen cocktail luncheon dinnerware gathering restaurant patio garden backyard porch lunch supper feast meal family friends hosting entertaining cottage chalet cabin lodge'.split(' ');
+    const base = t => P.lrSuggestWords(t, { mode: 'kw', facts: facts(P, N1), title: N1.title, brands: P.lrBrandWords({ brand: 'CPC' }, P.getLR()), others: P.kwOthers(P.getLR()), fits }).after;
+    for (let i = 0; bytes(base(tight)) < 241 && i < PAD.length; i++) tight += ' ' + PAD[i];
+    const r = P.lrSuggestWords(tight, { mode: 'kw', facts: facts(P, N1), title: N1.title, brands: P.lrBrandWords({ brand: 'CPC' }, P.getLR()), others: P.kwOthers(P.getLR()), fits,
+      add: P.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: tight, facts: facts(P, N1), pt: N1.pt }).words });
+    ok('space short (room for one word): the best PROVEN word (rustic) is kept, the Brand Analytics words go first; ≤ 249 bytes, none of the listing\'s own words cut', r.added.map(a => a.w).join() === 'rustic' && r.notAdded.map(a => a.w).sort().join() === 'boho,farmhouse,wedding' && fits(r.after) && !r.removed.some(x => x.why === 'cut to fit'), JSON.stringify([bytes(tight), r.added, r.notAdded.map(a => a.w), bytes(r.after)]));
+    // ACoS: with a break-even known (Search Terms' cpBreakEven), a term over it is not proven
+    const A = setup({ ppc: true, ctx: { cpBreakEven: () => 30 } });
+    const wa = A.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(A, T1), pt: T1.pt });
+    const bis = A.kwProvenTerms('SP', T1.asin, T1.parent, 30).find(t => t.t === 'bistro tablecloth');
+    ok('good ACoS when known: "bistro tablecloth" (3 orders, ACoS 225 %) is not proven with a break-even of 30 % — "ACoS 225% over break-even 30%"; without a known break-even it is',
+      !wa.words.some(x => x.w === 'bistro') && bis && !bis.ok && bis.why === 'ACoS 225% over break-even 30%' && w.words.some(x => x.w === 'bistro') && P.kwProvenTerms('SP', T1.asin, T1.parent, 30).find(t => t.t === 'bistro tablecloth').ok, JSON.stringify(bis));
+    // the popup: the reason on the added word
+    P.KF.full.set('SP|' + T1.sku, { kw: T1.kw, pt: 'TABLECLOTH', at: Date.now() });
+    P.kfPreview([P.kfItemOf('SP', P.HEALTH.SP.rows.find(x => x.sku === T1.sku), P.hCtx(), null)], { title: 'T1', brand: 'SP', parent: T1.parent });
+    await settle();
+    const html = P.el('spModalBox').innerHTML.replace(/&#39;/g, "'");
+    // the over-limit tablecloth has room for one short word only: "bistro" (proven, 6 bytes) — farmhouse and the rest are "not added"
+    ok('preview: "+ bistro (PPC: 3 orders from \'bistro tablecloth\' in 30 days)", "Not added (no room…): farmhouse…" and the data line "📈 Proven in our ads: … 30 days"', /<ins class="kf-add">\+ bistro<\/ins> <span class="muted">\(PPC: 3 orders from 'bistro tablecloth' in 30 days\)<\/span>/.test(html) && /Not added \(no room within the limit\): farmhouse, scalloped, boho/.test(html)
+      && /📈 Proven in our ads: Sponsored Products search terms, 30 days up to 25 Nov 2026 \(nightly\)/.test(strip(html)), (html.match(/kf-adds[\s\S]{0,500}/) || [''])[0] + strip(html).slice(0, 300));
+    P.kfClick({ dataset: { kf: 'cancel' } });
+    // the panel's tab
+    P.KW.tab = 'ppc';
+    const ph = P.kwPanelHtml(), ps = strip(ph);
+    ok('panel tab "Proven in our ads": search term, listing family, clicks, orders, ACoS, proven?, already in keywords?', /📈 Proven in our ads/.test(ps) && /Search term Listing family Clicks Orders ACoS Proven\? Already in keywords\?/.test(ps)
+      && /farmhouse tablecloth .* 120 14 15% ✓ proven missing: farmhouse/.test(ps) && /vintage tablecloth .* 1 order \(fewer than 2\)/.test(ps) && /cloth napkins sage .* ✓ yes/.test(ps), ps.slice(0, 900));
+    const csv = P.kwPpcCsv();
+    ok('…and its CSV (Excel-ready)', /^\uFEFFBrand,Listing family,Family name,Search term,Clicks,Orders/.test(csv.text) && /Ridhi,P-RTC,.*,farmhouse tablecloth,120,14,60,400,15%,,yes,,no,farmhouse,30/.test(csv.text), csv.text.slice(0, 400));
+    P.KW.ppcBrand = 'CPC';
+    ok('…brand filter: CPC shows only the napkins\' terms', !/farmhouse tablecloth/.test(strip(P.kwPanelHtml())) && /napkins rustic wedding/.test(strip(P.kwPanelHtml())));
+    // works with NO upload
+    const U = setup({ data: false, ppc: true });
+    const wu = U.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(U, T1), pt: T1.pt });
+    ok('works with NO Brand Analytics upload: the proven words alone (farmhouse, scalloped, bistro); the panel opens on "Proven in our ads"', wu.words.map(x => x.w).join() === 'farmhouse,scalloped,bistro' && /class="segbtn on" data-kw-tab="ppc"/.test(U.kwPanelHtml()), wu.words.map(x => x.w).join());
+    // no PPC data → skipped
+    const NP = setup({ ppc: 'none' });
+    const wn = NP.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(NP, T1), pt: T1.pt });
+    ok('no PPC data: that source is skipped ("No PPC search-term data") — the Brand Analytics words only', !NP.kwPpcStatus().ok && /^No PPC search-term data/.test(NP.kwPpcStatus().text) && wn.words.map(x => x.w).join() === 'boho,farmhouse' && wn.words.every(x => x.src === 'ba'), wn.words.map(x => x.w + '/' + x.src).join());
+    // reading: stD60 when the backend writes it, else the nightly 30-day srchTerm
+    const R = setup({ data: false, baCall: async q => (q.cache === 'stD60' ? { data: { at: 'x', d: { SP: { rows: PPC.SP.rows, to: '2026-11-25' } } } } : q.cache === 'srchTerm' ? { data: { d: PPC } } : q.cache === 'adGroup' ? { data: { d: AG } } : {}) });
+    R.KW.ppc = null;
+    await R.kwPpcLoad();
+    const R2 = setup({ data: false, baCall: async q => (q.cache === 'srchTerm' ? { data: { at: 'x', d: PPC } } : q.cache === 'adGroup' ? { data: { d: AG } } : {}) });
+    R2.KW.ppc = null;
+    await R2.kwPpcLoad();
+    ok('read-only from the nightly caches: the 60-day one (stD60) when it exists, else the 30-day srchTerm — with adGroup', R.KW.ppc.src === 'stD60' && R.KW.ppc.days === 60 && R2.KW.ppc.src === 'srchTerm' && R2.KW.ppc.days === 30 && /in 30 days/.test(R2.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(R2, T1), pt: T1.pt }).words[0].why));
+  }
+
+  console.log('== before → after (two listings in our real title format; our ads\' proven words + the Brand Analytics sample above) ==');
+  {
+    const PB = setup({ ppc: true });
     [T1, N1].forEach(L => {
-      const r = suggest(C, L, L.kw);
+      const r = suggest(PB, L, L.kw);
       console.log(`  ${L.sku} (${L.title})`);
       console.log(`    before (${bytes(L.kw)} bytes): ${L.kw}`);
       console.log(`    after  (${bytes(r.after)} bytes): ${r.after}`);

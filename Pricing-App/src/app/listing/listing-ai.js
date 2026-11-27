@@ -198,10 +198,11 @@ function aiOurBrands(c, text) {
 }
 const aiTitleLimits = c => (typeof ttLimits === 'function' ? ttLimits(c.cfg) : { min: 60, max: 75 });
 const aiKwMax = c => (typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249);
-// The winning words of this listing (kw-win.js — Brand Analytics, its product type): [{ w, why }], best first; [] without fresh data.
+// The words this listing may take (kw-win.js): proven in our own ads first (by orders), then Brand Analytics; [] without any data.
 function aiWinWords(c, before) {
   if (typeof kwWinFor !== 'function') return [];
-  try { return kwWinFor({ brand: c.brand, sku: c.sku, title: c.now.title, kw: String(before == null ? c.now.kw : before), facts: c.facts, pt: c.pt, cfg: c.cfg }).words || []; } catch (e) { return []; }
+  const r = c.row || {};       // its ASIN, family and price (Create Listing: the listing it is copied from — the same family)
+  try { return kwWinFor({ brand: c.brand, sku: c.sku, asin: r.asin || c.asin, parent: r.parent, price: r.price, title: c.now.title, kw: String(before == null ? c.now.kw : before), facts: c.facts, pt: c.pt, cfg: c.cfg }).words || []; } catch (e) { return []; }
 }
 /** THE AI'S SEARCH TERMS THROUGH OUR RULE (27 Nov 2026): the same one rule as every suggestion (listing-rules.js lrSuggestWords) runs on
  *  the answer before it is shown — every repeat out, other brands' names and risky words out, a word of the title it added out (our
