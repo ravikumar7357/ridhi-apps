@@ -67,6 +67,11 @@ h1{font-size:clamp(26px,4vw,36px);font-weight:800;letter-spacing:-.02em;margin-t
 .files{font-size:13px;color:var(--mute);overflow-wrap:anywhere}
 .note{font-size:13px;color:var(--text)}
 .mod .bar{height:9px}
+.parthead{margin-top:14px;padding:4px 4px 2px}
+.parthead:first-child{margin-top:0}
+.parthead .pt{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.parthead h3{margin:0;font-size:17px}
+.parthead .files,.parthead .note{margin:4px 0 0}
 .mod.done .bar i{background:linear-gradient(90deg,var(--good),#3fbf86)}
 .mod.active .bar i{background:linear-gradient(90deg,var(--amber-2),#f0c46c)}
 .right{display:grid;gap:6px;justify-items:end;text-align:right}
@@ -106,7 +111,7 @@ h1{font-size:clamp(26px,4vw,36px);font-weight:800;letter-spacing:-.02em;margin-t
   </section>
 
   <section class="mods" aria-label="Every module">
-    <div class="head"><h2>Every module, in order</h2><span class="upd">bar = done / total for that module</span></div>
+    <div class="head"><h2>The backend in three parts</h2><span class="upd">bar = done / total for that module</span></div>
     <div id="mods" style="display:grid;gap:12px"></div>
   </section>
 
@@ -119,34 +124,49 @@ h1{font-size:clamp(26px,4vw,36px);font-weight:800;letter-spacing:-.02em;margin-t
 const ROADMAP = {
   updated: '27 Nov 2026',
   next: [
-    { text: "Check that last night's backup (03:20) read from Supabase: yes, 85 registers + 38 collections", done: true },
-    { text: 'Parity checks: weekly:keys and listing:periods and ping all match Apps Script (3 of 3)', done: true },
-    { text: 'Server: exact cost first, then buy DigitalOcean App Platform', done: false },
-    { text: 'Put the backend on the server and stop the copy on this PC', done: false },
-    { text: 'Pause clasp push on the office PC', done: false },
-    { text: 'Map every Apps Script route to the page that calls it: done, about 25 routes are called by nobody', done: true },
-    { text: 'Read the 3 timers found only in live Apps Script: lmTick, v2Tick, matchTick (every 10 min)', done: false },
-    { text: 'Keep the backend running on this PC (npm run local) until the server is bought', done: false },
-    { text: 'After 2 Dec: add a route counter to Pricing-API to get real use per route', done: false },
-    { text: 'Copy the 16 files that were only in the live Apps Script into GitHub (6,353 lines; real total now 17,533)', done: true },
-    { text: '3 Dec: build M2a (orders, shipments, stock) and run it beside invTick', done: false },
+    { text: 'Backend foundation built, 95 tests, running on this PC; parity 3 of 3 with Apps Script', done: true },
+    { text: 'Every Apps Script route mapped; 16 live-only files saved to GitHub (real size 17,533 lines)', done: true },
+    { text: 'ERP mapped: 170 screens files, saves through core.rt_save, rules only in the browser', done: true },
+    { text: 'DigitalOcean Droplet bought ($18/month)', done: true },
+    { text: 'Part 1: copy the 79 ERP SQL files into GitHub (read-only copy, nothing live changes)', done: false },
+    { text: 'Put the backend on the Droplet (6 steps) and stop the copy on this PC', done: false },
+    { text: 'Pause clasp push on the office PC until 3 Dec', done: false },
+    { text: 'Part 1: change log + month lock in rt_save, starting with pt_extraHours', done: false },
+  ],
+  parts: [
+    { key: 'saving',  name: 'Part 1 · Saving: the ERP rules', where: 'Inside Supabase (core.rt_save and SQL functions)', why: 'Today the server takes any data; every rule is in the browser. Fix: rules, numbers, change log and all-or-nothing saves on the server.' },
+    { key: 'getting', name: 'Part 2 · Getting: data coming in', where: 'Node backend on the Droplet (timers + Amazon gateway)', why: 'Today Apps Script timers fetch Amazon and Shopify. Fix: move one dataset at a time, run beside, compare, switch.' },
+    { key: 'sending', name: 'Part 3 · Sending: things going out', where: 'Node backend, behind sign-in', why: 'Today Apps Script sends mails and writes to Amazon and Shopify with a shared key. Fix: each send checks who asks and is logged.' },
+    { key: 'end',     name: 'Finish', where: 'All parts', why: 'Apps Script, the Firebase bridge and the Firebase database are switched off.' },
   ],
   modules: [
-    { code: 'M0', name: 'Foundation and front door', files: 'Code.gs, SpApi.gs → router, Amazon gateway, switches, job log, queue, server', unit: 'lines', total: 485, done: 485, status: 'done', week: 'Done · 26 Nov', note: '95 tests pass. Running on this PC; heartbeat logged in Supabase.' },
-    { code: '—', name: 'Live sales', files: 'SalesLive.gs', unit: 'lines', total: 764, done: 764, status: 'done', week: 'Done · 21 Nov', note: "Replaced by Sellora's backend. Its Apps Script timer is switched off later." },
-    { code: '—', name: 'Old setup and test scripts', files: 'Setup.gs, V2Test.gs, WideTest.gs', unit: 'lines', total: 596, done: 596, status: 'done', week: 'Not needed', note: 'Deleted with Apps Script at switch-off.' },
-    { code: 'M1', name: 'Setup', files: 'Supabase tables, secrets, server, budget alert', unit: 'steps', total: 7, done: 4, status: 'active', week: 'This week', stat: true, note: 'Done: SQL files, backend schema, API_KEY secret, running on this PC. Left: server, budget alert, pause clasp push.' },
-    { code: 'M2a', name: 'Orders, shipments, stock', files: 'InvSync.gs, ReplSnap.gs, SupaJob.gs, SbMirror.gs', unit: 'lines', total: 1514, done: 0, status: 'next', week: 'Week of 3 Dec', note: 'First real piece: run beside Apps Script, compare 3–5 days, switch.' },
-    { code: 'M4', name: 'ERP save rules', files: 'core.rt_save in Supabase: month lock + change log', unit: 'steps', total: 6, done: 1, status: 'active', week: 'From 10 Dec', stat: true, note: 'Done: every ERP save listed (~375). Next: extra hours, then pay, stock ledgers, big registers, masters.' },
-    { code: 'M2b', name: 'Ads and PPC', files: 'AdsApi.gs, WeeklyPpc.gs, AdsDecide.gs, AdsEntities.gs', unit: 'lines', total: 1784, done: 0, status: 'later', week: 'Week of 10 Dec', note: 'Ads profiles and PPC week keys already rebuilt. Live ads reports get one owner.' },
-    { code: 'M2c', name: 'Nightly caches and sales', files: 'Nightly.gs, SalesAnalysis.gs, AmazonMatch.gs, V2Nightly / V2Orders / V2Ads / V2Merge.gs', unit: 'lines', total: 2458, done: 0, status: 'later', week: 'Week of 17 Dec' },
-    { code: 'M3', name: 'Shopify', files: 'Shopify.gs, ShopifyCache.gs, ShopifySkuSales.gs', unit: 'lines', total: 874, done: 0, status: 'later', week: 'Week of 17 Dec', note: 'Builds on the webhooks Flowmerce-Sync already registers.' },
-    { code: 'M2d', name: 'Research, search terms, listing health and the rest', files: 'Research, SearchTerms, OrderAudits, ListingHealth, BrandAnalytics, MarketBasket, ListingFix, SkuPictures, InventoryAge, FriBooks, Lookups, ListingMatch', unit: 'lines', total: 4695, done: 0, status: 'later', week: '24 Dec – 7 Jan', note: 'Brand Analytics periods already rebuilt.' },
-    { code: 'M6', name: 'Amazon writes', files: 'Mcf.gs, McfTrack.gs, ListingImages.gs', unit: 'lines', total: 1369, done: 0, status: 'later', week: 'January' },
-    { code: 'M7', name: 'Mail and notices', files: 'MailPo.gs, Notifications.gs', unit: 'lines', total: 175, done: 0, status: 'later', week: 'January' },
-    { code: 'M8', name: 'AI and creators', files: 'ListingOptimiser.gs, CreatorOrders.gs, ListingAI.gs, SalesAI.gs, CreatorProbe.gs', unit: 'lines', total: 2819, done: 0, status: 'later', week: 'January' },
-    { code: 'M9–M10', name: 'Inventory app and housekeeping', files: 'Backup, report mails, checker, FabriCrush Inventory app', unit: 'scripts', total: 4, done: 0, status: 'later', week: 'End of January', note: 'The nightly backup already reads from Supabase.' },
-    { code: 'M11', name: 'Switch-off', files: 'Apps Script deleted, pushBack off, bridge functions removed, Firebase database retired', unit: 'steps', total: 5, done: 0, status: 'later', week: 'End of January' },
+    /* ---- Part 1: Saving (ERP rules, in Supabase) ---- */
+    { part: 'saving', code: 'S1', name: 'ERP database code into GitHub', files: '79 SQL files in migration/sql: rt_save, rights, sync engine, orders, stock, hr', unit: 'steps', total: 1, done: 0, status: 'next', week: 'This week', note: 'Today they exist only on one PC. Read-only copy; nothing live changes.' },
+    { part: 'saving', code: 'S2', name: 'Change log + month lock', files: 'core.rt_save: who changed what, and closed months refuse edits', unit: 'steps', total: 6, done: 1, status: 'active', week: 'From sale week', stat: true, note: 'Done: every ERP save listed (~375). Next: extra hours, then pay, stock ledgers, big registers, masters.' },
+    { part: 'saving', code: 'S3', name: 'Numbers made by the server', files: 'challan, print order, sales order', unit: 'steps', total: 3, done: 0, status: 'later', week: 'Early Dec', note: 'Replaces the browser read-then-retry; no duplicate or skipped numbers.' },
+    { part: 'saving', code: 'S4', name: 'All-or-nothing actions', files: 'accept delivery → FG stock → payout; raise sales order; close lines; delete requests', unit: 'steps', total: 4, done: 0, status: 'later', week: 'December', note: 'One server function per flow, so a flow can never be half saved.' },
+    { part: 'saving', code: 'S5', name: 'Server checks', files: 'approvals, delete requests, payouts, vendor portal', unit: 'steps', total: 4, done: 0, status: 'later', week: 'Dec – Jan', note: 'The same rules the screens use, checked again on the server.' },
+
+    /* ---- Part 2: Getting (data in, Node backend) ---- */
+    { part: 'getting', code: 'G0', name: 'Foundation and front door', files: 'Code.gs, SpApi.gs → router, Amazon gateway, switches, job log, queue', unit: 'lines', total: 485, done: 485, status: 'done', week: 'Done · 26 Nov', note: '95 tests pass. Running on this PC; heartbeat logged in Supabase.' },
+    { part: 'getting', code: 'G1', name: 'Setup', files: 'Supabase tables, secrets, server, pause clasp push', unit: 'steps', total: 7, done: 5, status: 'active', week: 'This week', stat: true, note: 'Done: SQL files, backend schema, API_KEY, running on this PC, Droplet bought. Left: backend on the Droplet, pause clasp push.' },
+    { part: 'getting', code: '—', name: 'Live sales', files: 'SalesLive.gs', unit: 'lines', total: 764, done: 764, status: 'done', week: 'Done · 21 Nov', note: "Replaced by Sellora's backend." },
+    { part: 'getting', code: '—', name: 'Old setup and test scripts', files: 'Setup.gs, V2Test.gs, WideTest.gs', unit: 'lines', total: 596, done: 596, status: 'done', week: 'Not needed', note: 'Deleted with Apps Script.' },
+    { part: 'getting', code: 'G2', name: 'ERP jobs: replenish snapshot, orders, shipments, stock', files: 'InvSync.gs, ReplSnap.gs, SupaJob.gs, SbMirror.gs', unit: 'lines', total: 1514, done: 0, status: 'next', week: 'Week of 3 Dec', note: 'Read; final tables designed (schema amazon). Run beside invTick, compare, switch.' },
+    { part: 'getting', code: 'G3', name: 'Ads and PPC', files: 'AdsApi.gs, WeeklyPpc.gs, AdsDecide.gs, AdsEntities.gs', unit: 'lines', total: 1784, done: 0, status: 'later', week: 'Week of 10 Dec', note: 'Ads profiles and PPC week keys already rebuilt.' },
+    { part: 'getting', code: 'G4', name: 'Nightly caches and sales', files: 'Nightly.gs, SalesAnalysis.gs, AmazonMatch.gs, V2Nightly / V2Orders / V2Ads / V2Merge.gs', unit: 'lines', total: 2458, done: 0, status: 'later', week: 'Week of 17 Dec' },
+    { part: 'getting', code: 'G5', name: 'Shopify', files: 'Shopify.gs, ShopifyCache.gs, ShopifySkuSales.gs', unit: 'lines', total: 874, done: 0, status: 'later', week: 'Week of 17 Dec', note: 'Builds on the webhooks Flowmerce-Sync already registers.' },
+    { part: 'getting', code: 'G6', name: 'Listings, research and the rest', files: 'Research, SearchTerms, OrderAudits, ListingHealth, BrandAnalytics, MarketBasket, ListingFix, SkuPictures, InventoryAge, FriBooks, Lookups, ListingMatch', unit: 'lines', total: 4695, done: 0, status: 'later', week: '24 Dec – 7 Jan', note: 'Brand Analytics periods already rebuilt.' },
+    { part: 'getting', code: 'G7', name: 'AI and creators', files: 'ListingOptimiser.gs, CreatorOrders.gs, ListingAI.gs, SalesAI.gs, CreatorProbe.gs', unit: 'lines', total: 2819, done: 0, status: 'later', week: 'January' },
+
+    /* ---- Part 3: Sending (things going out) ---- */
+    { part: 'sending', code: 'X1', name: 'Daily report mail on Supabase', files: 'Report-Mail: stop reading and patching Firebase', unit: 'scripts', total: 1, done: 0, status: 'later', week: 'December' },
+    { part: 'sending', code: 'X2', name: 'Mail and notices', files: 'MailPo.gs, Notifications.gs', unit: 'lines', total: 175, done: 0, status: 'later', week: 'December' },
+    { part: 'sending', code: 'X3', name: 'Amazon writes', files: 'Mcf.gs, McfTrack.gs, ListingImages.gs', unit: 'lines', total: 1369, done: 0, status: 'later', week: 'January' },
+    { part: 'sending', code: 'X4', name: 'Keys and housekeeping', files: 'API keys out of Firestore, backup, checker, FabriCrush Inventory app', unit: 'scripts', total: 4, done: 1, status: 'later', week: 'January', note: 'Done: the nightly backup reads from Supabase (checked 27 Nov).' },
+
+    /* ---- Finish ---- */
+    { part: 'end', code: 'F', name: 'Switch-off', files: 'Apps Script deleted, pushBack off, bridge functions removed, Firebase database retired', unit: 'steps', total: 5, done: 0, status: 'later', week: 'End of January' },
   ],
 };
 
@@ -187,7 +207,7 @@ const ROADMAP = {
     $('nextlist').appendChild(li);
   });
 
-  mods.forEach(m => {
+  const renderMod = m => {
     const st = STATUS[m.status] ? m.status : 'later';
     const r = el('div', 'mod ' + st);
     r.appendChild(el('p', 'when', m.week || ''));
@@ -199,7 +219,19 @@ const ROADMAP = {
     r.appendChild(mid);
     const right = el('div', 'right'); right.append(el('span', 'pill ' + st, STATUS[st]), el('span', 'amt num', fmt(Math.min(m.done, m.total)) + ' / ' + fmt(m.total) + ' ' + m.unit));
     r.appendChild(right);
-    $('mods').appendChild(r);
+    return r;
+  };
+  (ROADMAP.parts || [{ key: undefined }]).forEach(pt => {
+    const list = mods.filter(m => m.part === pt.key);
+    if (!list.length) return;
+    if (pt.name) {
+      const d = list.filter(m => m.status === 'done').length;
+      const h = el('div', 'parthead');
+      const top = el('div', 'pt'); top.append(el('h3', null, pt.name), el('span', 'amt num', d + ' / ' + list.length + ' done'));
+      h.append(top, el('p', 'files', pt.where), el('p', 'note', pt.why));
+      $('mods').appendChild(h);
+    }
+    list.forEach(m => $('mods').appendChild(renderMod(m)));
   });
 })();
 </script>
