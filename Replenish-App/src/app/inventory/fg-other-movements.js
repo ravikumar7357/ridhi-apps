@@ -48,6 +48,7 @@ const fgiSeen = field => [...new Set((FGI.rows || []).map(r => String((r && r[fi
 
 function fgiEntryOpen(type, sku) {
   const k = FGI_KINDS[type] || FGI_KINDS.RECEIVE;
+  FGI.repeatStem = fgiNewId('FORM');   // one per form: a second press asks for the same repeat FBA request (fg-fba-repeat.js)
   ptOpenDialog({
     title: 'Stock entry',
     subtitle: sku ? obUC(sku) + ' · ' + [fgiMaster(sku).articleType, fgiMaster(sku).color, fgiMaster(sku).size].filter(Boolean).join(' · ') : '',
@@ -343,6 +344,8 @@ async function fgiEntrySave() {
     out = fgiOutOrderCheck({ sku, qty, type, order: ($('fgmOutOrd') || {}).value, why: ($('fgmOutWhy') || {}).value,
       inv: ($('fgmInv') || {}).value, trans: ($('fgmTrans') || {}).value, lr: ($('fgmLr') || {}).value });
     if (out.err) return out.err;
+    const kept = type === 'ISSUE' && typeof fgaIssueRefusal === 'function' ? fgaIssueRefusal([{ sku, qty, orders: out.fields.orders }]) : '';
+    if (kept) return kept;
   }
   // Day-first, like every other date this database keeps.
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -378,7 +381,18 @@ async function fgiEntrySave() {
     [k.dir < 0 ? 'issuedFor' : 'receivedFrom']: who,
     remarks: String(($('fgmRemarks') || {}).value || '').trim(),
     createdAt: new Date().toISOString(), createdBy: ME.email };
-  const write = () => ptPut('pt_fgiLedger/' + rec._id, rec);
+  /* A SKU sent to FBA in the past 7 days asks first (fg-fba-repeat.js): it may wait for approval instead. */
+  const gate = type === 'FBA' && typeof fapGate === 'function' ? await fapGate([rec], FGI.repeatStem) : null;
+  if (gate && gate.stop) return gate.stop;
+  if (gate && !gate.send.length) {
+    renderFgi();
+    $('fgMsg').className = 'muted';
+    $('fgMsg').textContent = fapHeldNote(gate.held).trim();
+    return '';
+  }
+  if (gate) Object.assign(rec, gate.send[0]);
+  const write = () => (gate && Object.keys(gate.extra).length
+    ? ptPatch(Object.assign({ ['pt_fgiLedger/' + rec._id]: rec }, gate.extra)) : ptPut('pt_fgiLedger/' + rec._id, rec));
   if (type === 'FBA' && typeof shpHoldOn === 'function' && shpHoldOn()) {
     const refused = await fgiFbaWrite([{ sku, qty, current: fgiOf(sku).current }], write);
     if (refused) return refused;

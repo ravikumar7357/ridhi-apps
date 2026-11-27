@@ -39,7 +39,7 @@ const breaks = {
   'the phone does not say why': [PHONE, 'why: held || (', 'why: ('],
   'the desk does not say why': [DESK, 'held ? esc(held) : ', ''],
   'no Shopify held column': [LIST, "...(holds ? ['Shopify held'] : []), ", ''],
-  'everybody may release': [H, 'const fgiMayRelease = sku => !!(ME && ME.admin) &&', 'const fgiMayRelease = sku =>'],
+  'everybody may release': [H, 'const fgiMayRelease = (sku, shares) => !!(ME && ME.admin) &&', 'const fgiMayRelease = (sku, shares) =>'],
   'a release is written over blindly': [H, "if (!(await ptCas(SHP_HOLD_PATH + '/releases', hold.releases, plan.next)))", "await ptCas(SHP_HOLD_PATH + '/releases', hold.releases, plan.next); if (true)"],
   'a refused save goes through': [H, "if (why) return { err: 'Nothing was saved", "if (false) return { err: 'Nothing was saved"],
   'an old figure is trusted': [H, "if (state === 'ok') return '';", "if (state !== 'missing') return '';"],

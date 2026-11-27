@@ -263,6 +263,8 @@ async function fbaReturnSave(ids) {
 /** One step back: shipped → accepted, accepted → waiting. A return is undone by deleting it in Finished Goods. */
 async function fbaUndo(id) {
   if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can change a dispatch.';
+  /* Undoing a part shipment sends pieces to FBA again, so a shared-out store (fg-store-alloc.js) is read afresh. */
+  if (typeof fgaOn === 'function' && fgaOn()) { const unread = await fgaReread(); if (unread) return unread; }
   const [{ row }] = await fbaFresh([id]);
   if (!row) { fbaForget([{ id, row: null }]); renderFba(); return 'That dispatch was deleted from the store.'; }
   const s = fbaState(row), updates = {};

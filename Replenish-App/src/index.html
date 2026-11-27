@@ -937,6 +937,7 @@
         <div class="toolbar">
           <select id="fgView" style="flex:0 0 210px">
             <option value="stock">India Store</option>
+            <option value="fbarep" id="fapOpt" hidden disabled>Repeat FBA requests</option>
             <option value="pending">Waiting to be counted in</option>
             <option value="alerts">Needs listing on Amazon</option>
             <option value="corr">Correction requests</option>
@@ -965,6 +966,11 @@
             <option value="inactive">Listed · inactive</option>
             <option value="not">Not listed</option>
           </select>
+          <select id="fgaView" class="hide" style="flex:0 0 150px" aria-label="FBA need shown" title="Which account's FBA need the list shows. A save is always checked against both.">
+            <option value="">FBA: SP + CPC</option>
+            <option value="SP">FBA: SP</option>
+            <option value="CPC">FBA: CPC</option>
+          </select>
           <input id="fgQ" placeholder="Search SKU / colour / size / tag" style="flex:1 1 160px;min-width:0">
           <input id="fgD1" type="date" class="hide" style="flex:0 0 140px" title="Movements from">
           <input id="fgD2" type="date" class="hide" style="flex:0 0 140px" title="Movements to">
@@ -986,6 +992,7 @@
         <div id="fgAlerts" class="fg-alerts">
           <button type="button" id="fgiLstBadge" class="navbadge hide" data-fgview="alerts" data-what="not on Amazon" title="SKUs received into Finished Goods that Amazon does not list — open the list"></button>
           <button type="button" id="fgiCorrBadge" class="navbadge hide" data-fgview="corr" data-what="to approve" title="Correction requests waiting for approval — open them" style="background:#b45309"></button>
+          <button type="button" id="fapBadge" class="navbadge hide" data-fgview="fbarep" data-what="repeat FBA" title="Repeat FBA requests — open them" style="background:#0369a1"></button>
           <button type="button" id="fgiOverBadge" class="navbadge hide" data-fgview="over" data-what="over order" title="Receipts with more pieces than the order, not yet reviewed — open them" style="background:#7c3aed"></button>
         </div>
         <div id="fgMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>

@@ -48,6 +48,8 @@ function fgiCorrBadge() {
  */
 async function fgiEditApply(id, input) {
   if (!fgiCanEdit()) return FGI_NO_EDIT;
+  /* Stock shared out (fg-store-alloc.js): judged on what is in the database now, read before the row is picked up. */
+  if (typeof fgaOn === 'function' && fgaOn()) { const unread = await fgaReread(); if (unread) return unread; }
   const r = (FGI.rows || []).find(x => fgiRowId(x) === id); if (!r) return 'That movement is gone — somebody deleted it.';
   if (fgiIsMarker(r)) return 'That row is a marker for a transfer and cannot be edited.';
   /* An FBA dispatch is the one row somebody ELSE writes to — read it again, or an edit made on a
@@ -128,6 +130,10 @@ async function fgiEditApply(id, input) {
     input._reqBy ? { requestedBy: input._reqBy } : {}));
   updates['pt_fgiLedger/' + id + '/edits'] = edits;
   if (input._extra) Object.assign(updates, input._extra);
+  const kept = typeof fgaIssueRefusal === 'function' ? fgaIssueRefusal(fgaIssueEditWants(r, after)) : '';
+  if (kept) return kept;
+  const repeat = typeof fapEditRefusal === 'function' ? fapEditRefusal(fgiFbaEditWants(r, after)) : '';
+  if (repeat) return repeat;
   const write = () => ptPatch(updates);
   if (typeof shpHoldOn === 'function' && shpHoldOn()) {
     const refused = await fgiFbaWrite(fgiFbaEditWants(r, after), write);

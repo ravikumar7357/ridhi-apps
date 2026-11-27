@@ -122,6 +122,8 @@ const fgiNum = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
  *  loudly: when the ledger cannot be read, the sentence returned is shown and nothing is saved. '' = go ahead.
  *  Two saves in the same instant can still both pass; only a hold on the pieces closes that. */
 async function fgiStockReread() {
+  /* Stock shared between Custom, FBA and Excess (fg-store-alloc.js) needs the order book and the noted figures too. */
+  if (typeof fgaOn === 'function' && fgaOn()) return fgaReread();
   if (!lineHoldOn()) return '';
   try { FGI.rows = ptList(await ptGet('pt_fgiLedger')); return ''; }
   catch (e) {
@@ -170,12 +172,15 @@ async function indiaFromFg() {
   const d = {};
   fgiStock().forEach((b, sku) => {
     const pieces = Math.max(0, Math.round(b.current));
-    const m = mdbOf(sku), rec = m ? parseInt(String(m.packOf || '').replace(/[^0-9]/g, ''), 10) || 0 : 0;
-    const pack = rec > 0 ? rec : (obPcsPerPack(sku) || 1);
+    const rec = fgiRecordedPack(sku), pack = fgiPackOf(sku);
     d[sku] = [Math.floor(pieces / pack), pieces, rec, ''];
   });
   return { d, at: ptStamp() };
 }
+/** The pack the Master Database records for a SKU, 0 when it records none. */
+const fgiRecordedPack = sku => parseInt(String((mdbOf(sku) || {}).packOf || '').replace(/[^0-9]/g, ''), 10) || 0;
+/** Pieces in one sellable unit: the recorded pack, else the app's own pack rule. */
+const fgiPackOf = sku => fgiRecordedPack(sku) || obPcsPerPack(sku) || 1;
 const fgiMaster = sku => mdbOf(sku) || {};
 /** What is left on a press row after whatever has already gone to the store. */
 const fgiPressLeft = r => Math.max(0, (parseInt(r.pieces, 10) || 0) - fgiNum(r.transferredQty));
@@ -219,9 +224,10 @@ function renderFgi() {
   /* FROM QC — TO ACCEPT ONLY (core/auth.js, ME.fgAccOnly): the one list this account works, without the store's other views. */
   if (ME.fgAccOnly) {
     $('fgView').value = 'flow'; $('fgKpis').innerHTML = '';
-    ['fgView', 'fgPendBadge', 'fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
+    ['fgView', 'fgPendBadge', 'fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge', 'fapBadge'].forEach(id => { const b = $(id); if (b && b.classList) b.classList.add('hide'); });
   }
 
+  if (typeof fapOfferView === 'function') { fapOfferView(); fapDrawBadge(); }
   const view = $('fgView').value;
   ['fgD1', 'fgD2'].forEach(i => $(i).classList.toggle('hide', view !== 'ledger'));
   ['fgBrand', 'fgTag', 'fgAmz'].forEach(i => $(i).classList.toggle('hide', view !== 'stock'));
@@ -232,8 +238,9 @@ function renderFgi() {
   // The label has its own id rather than being reached through the checkbox's parent — a wrapper
   // that changes shape would otherwise break this silently.
   $('fgZeroWrap').classList.toggle('hide', view !== 'stock');
+  if ($('fgaView')) $('fgaView').classList.toggle('hide', view !== 'stock' || !(typeof fgaOn === 'function' && fgaOn()));
   $('fgEntry').classList.toggle('hide', !fgiCanEntry());
-  ['fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge', 'flFgBadge'].forEach(id => { const b = $(id); if (b && b.dataset) b.classList.toggle('on', b.dataset.fgview === $('fgView').value); });
+  ['fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge', 'flFgBadge', 'fapBadge'].forEach(id => { const b = $(id); if (b && b.dataset) b.classList.toggle('on', b.dataset.fgview === $('fgView').value); });
   ['fgRecvXl', 'fgIssXl'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', !fgiCanEntry()); });
   $('fgScan').classList.toggle('hide', !fgiCanEntry());
   $('fgPack').classList.toggle('hide', !fgiCanEntry());
@@ -244,6 +251,7 @@ function renderFgi() {
   if (view === 'ledger') return fgiRenderLedger();
   if (view === 'pending') return fgiRenderPending();
   if (view === 'alerts') return lstRenderAlerts();
+  if (view === 'fbarep' && typeof fapOn === 'function' && fapOn()) return fapRender();
   if (view === 'corr') return fgiRenderCorr();
   if (view === 'over') return fgiRenderOver();
   if (view === 'flow' && typeof flowFgRender === 'function') return flowFgRender();   // Production flow (preview): From QC — to accept
@@ -251,7 +259,44 @@ function renderFgi() {
 }
 
 /** The stock list's columns that line up as figures. */
-const FGI_NUM_COLS = ['Opening', 'Received', 'Issued', 'To FBA', 'In stock', 'Shopify held', 'Rate', 'Value'];
+const FGI_NUM_COLS = ['Opening', 'Received', 'Issued', 'To FBA', 'In stock', 'Shopify held', 'Rate', 'Value',
+  'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess'];
+
+/** The movement and value cells of a stock row (switch storeAlloc off). */
+function fgiMovementCells(r, holds) {
+  return `<td class="num">${r.opening ? nf(r.opening) : '<span class="muted">—</span>'}</td>`
+    + `<td class="num">${r.received ? nf(r.received) : '<span class="muted">—</span>'}</td>`
+    + `<td class="num">${r.issued ? nf(r.issued) : '<span class="muted">—</span>'}</td>`
+    + `<td class="num">${r.fba ? nf(r.fba) : '<span class="muted">—</span>'}</td>`
+    + `<td class="num" style="font-weight:700;color:${r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)')}">${nf(r.current)}</td>`
+    + (holds ? `<td class="num">${fgiHeldCell(r.sku)}</td>` : '')
+    /* "Not counted in" and "Status" were taken off this table on 15 Sept, at Ravi's request. */
+    + (st => `<td><span class="pill ${LST_PILL[st.st][0]}"${st.asin ? ` title="${esc(st.asin)}"` : ''}>${LST_PILL[st.st][1]}</span></td>`)(lstOf(r.sku))
+    + `<td>${r.remark ? esc(r.remark) : '<span class="muted">—</span>'}</td>`
+    /* A missing price is shown as missing. A zero would quietly value the stock at nothing. */
+    + `<td class="num">${r.price === null ? '<span class="muted">none</span>' : nf(r.price)}</td>`
+    + `<td class="num" style="font-weight:700">${r.value === null ? '<span class="muted">—</span>' : nf(Math.round(r.value))}</td>`;
+}
+
+/** The line above the stock list. */
+function fgiStockNote(rows, onlyStock, alloc) {
+  const neg = rows.filter(r => r.current < 0);
+  const low = rows.filter(r => r.status.txt === 'low').length;
+  const val = rows.reduce((s, r) => s + (r.value || 0), 0);
+  const noPrice = rows.filter(r => r.current > 0 && r.price === null).length;
+  $('fgMsg').className = neg.length ? 'err' : 'muted';
+  const held = rows.filter(r => r.current !== 0 || r.pending > 0).length;
+  $('fgMsg').textContent = `${nf(rows.length)} SKU(s)`
+    + (onlyStock ? ' in stock now' : ` on record · ${nf(held)} with pieces left`)
+    + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
+    + (val ? ` · ${nf(Math.round(val))} rupees of stock` : '')
+    + (noPrice ? ` · ${nf(noPrice)} in stock have no rate, so they are in the pieces and not in the value` : '')
+    + (low ? ` · ${nf(low)} at or below their re-order level` : '')
+    + (neg.length ? ` · ${nf(neg.length)} SKU(s) are NEGATIVE, meaning more has gone out than ever came in` : '')
+    + ' · stock is opening plus what came in, less what went out — pieces still in transit from press are not stock';
+  const old = alloc ? fgiFbaAgeWhy() : '';
+  if (old) { $('fgMsg').className = 'err'; $('fgMsg').textContent += ' · The FBA and Excess figures cannot be relied on: ' + old; }
+}
 
 function fgiRenderStock(stock) {
   const q = $('fgQ').value.trim().toLowerCase();
@@ -260,7 +305,7 @@ function fgiRenderStock(stock) {
    * list to what is actually left. */
   const onlyStock = $('fgZero').checked;
   const fBrand = $('fgBrand').value, fStat = $('fgStat').value, fTag = $('fgTag').value;
-  const rows = [...stock.values()].map(b => {
+  const listed = [...stock.values()].map(b => {
     const m = fgiMaster(b.sku);
     const st = fgiStatus(b.sku, b.current);
     const set = (FGI.set || {})[b.sku] || {};
@@ -281,6 +326,9 @@ function fgiRenderStock(stock) {
     .filter(r => !$('fgAmz').value || lstOf(r.sku).st === $('fgAmz').value)
     .filter(r => !q || [r.sku, r.articleType, r.subtype, r.color, r.size, r.remark].join(' ').toLowerCase().includes(q))
     .sort((a, b) => b.current - a.current || a.sku.localeCompare(b.sku));
+  /* Switch storeAlloc (27 Nov): the list shows who each SKU's stock is for, in place of its movement and value columns. */
+  const alloc = typeof fgaOn === 'function' && fgaOn();
+  const rows = alloc ? fgaListRows(listed) : listed;
   FGI.shown = rows;
 
   ptFillSelect('fgBrand', [...new Set([...stock.values()].map(b => String(fgiMaster(b.sku).brand || '').trim()).filter(Boolean))]
@@ -291,8 +339,8 @@ function fgiRenderStock(stock) {
   const shownSkus = rows.slice(0, 600).map(r => r.sku);
   const allOn = canEd && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
   const head = '<thead><tr>' + (canEd ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
-    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', 'Opening', 'Received',
-    'Issued', 'To FBA', 'In stock', ...(holds ? ['Shopify held'] : []), 'Amazon', 'Tag', 'Rate', 'Value', '']
+    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['In Stock', ...FGA_SHARES.map(s => s[1])] : ['Opening', 'Received',
+    'Issued', 'To FBA', 'In stock', ...(holds ? ['Shopify held'] : []), 'Amazon', 'Tag', 'Rate', 'Value']), '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (FGI_NUM_COLS.includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
   if ($('fgTable').classList) $('fgTable').classList.toggle('fg-cards', (typeof mobOn === 'function' && mobOn()));
@@ -306,37 +354,12 @@ function fgiRenderStock(stock) {
     + `<td>${esc(r.brand)}</td>`
     + `<td>${esc(r.subtype || r.articleType) || '<span class="muted">not in the master DB</span>'}</td>`
     + `<td>${esc(r.color)}</td><td>${esc(r.size)}</td>`
-    + `<td class="num">${r.opening ? nf(r.opening) : '<span class="muted">—</span>'}</td>`
-    + `<td class="num">${r.received ? nf(r.received) : '<span class="muted">—</span>'}</td>`
-    + `<td class="num">${r.issued ? nf(r.issued) : '<span class="muted">—</span>'}</td>`
-    + `<td class="num">${r.fba ? nf(r.fba) : '<span class="muted">—</span>'}</td>`
-    + `<td class="num" style="font-weight:700;color:${r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)')}">${nf(r.current)}</td>`
-    + (holds ? `<td class="num">${fgiHeldCell(r.sku)}</td>` : '')
-    /* "Not counted in" and "Status" were taken off this table on 15 Sept, at Ravi's request. */
-    + (st => `<td><span class="pill ${LST_PILL[st.st][0]}"${st.asin ? ` title="${esc(st.asin)}"` : ''}>${LST_PILL[st.st][1]}</span></td>`)(lstOf(r.sku))
-    + `<td>${r.remark ? esc(r.remark) : '<span class="muted">—</span>'}</td>`
-    /* A missing price is shown as missing. A zero would quietly value the stock at nothing. */
-    + `<td class="num">${r.price === null ? '<span class="muted">none</span>' : nf(r.price)}</td>`
-    + `<td class="num" style="font-weight:700">${r.value === null ? '<span class="muted">—</span>' : nf(Math.round(r.value))}</td>`
-    + `<td style="white-space:nowrap">${holds && fgiMayRelease(r.sku) ? `<button class="ghost" data-fgrel="${esc(r.sku)}" style="padding:3px 9px;font-size:12px">Release held pieces</button> ` : ''}${fgiCanEntry() ? `<button class="ghost" data-fgentry="${esc(r.sku)}" style="padding:3px 9px;font-size:12px">Entry</button>` : ''}${canEd
+    + (alloc ? fgaCells(r) : fgiMovementCells(r, holds))
+    + `<td style="white-space:nowrap">${holds && fgiMayRelease(r.sku, r.alloc) ? `<button class="ghost" data-fgrel="${esc(r.sku)}" style="padding:3px 9px;font-size:12px">Release held pieces</button> ` : ''}${fgiCanEntry() ? `<button class="ghost" data-fgentry="${esc(r.sku)}" style="padding:3px 9px;font-size:12px">Entry</button>` : ''}${canEd
       ? ` <button class="ghost" data-fgskued="${esc(r.sku)}" style="padding:3px 9px;font-size:12px" title="Correct the count, re-order level and tag">Edit</button>`
         + ` <button class="ghost" data-fgskudel="${esc(r.sku)}" style="padding:3px 9px;font-size:12px;color:var(--bad)" title="Delete every movement of this SKU">Delete</button>` : ''}</td>`
     + '</tr>').join('') + '</tbody>';
-
-  const neg = rows.filter(r => r.current < 0);
-  const low = rows.filter(r => r.status.txt === 'low').length;
-  const val = rows.reduce((s, r) => s + (r.value || 0), 0);
-  const noPrice = rows.filter(r => r.current > 0 && r.price === null).length;
-  $('fgMsg').className = neg.length ? 'err' : 'muted';
-  const held = rows.filter(r => r.current !== 0 || r.pending > 0).length;
-  $('fgMsg').textContent = `${nf(rows.length)} SKU(s)`
-    + (onlyStock ? ' in stock now' : ` on record · ${nf(held)} with pieces left`)
-    + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
-    + (val ? ` · ${nf(Math.round(val))} rupees of stock` : '')
-    + (noPrice ? ` · ${nf(noPrice)} in stock have no rate, so they are in the pieces and not in the value` : '')
-    + (low ? ` · ${nf(low)} at or below their re-order level` : '')
-    + (neg.length ? ` · ${nf(neg.length)} SKU(s) are NEGATIVE, meaning more has gone out than ever came in` : '')
-    + ' · stock is opening plus what came in, less what went out — pieces still in transit from press are not stock';
+  fgiStockNote(rows, onlyStock, alloc);
   ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptImgPatch);
 }
 
@@ -350,6 +373,7 @@ function fgiCard(r, canEd) {
   const st = lstOf(r.sku);
   const holds = typeof shpHoldOn === 'function' && shpHoldOn();
   const btn = (attr, label, extra) => `<button class="ghost" ${attr}="${esc(r.sku)}"${extra || ''}>${label}</button>`;
+  const alloc = typeof fgaOn === 'function' && fgaOn();
   return '<tr><td class="fg-mc">'
     + (canEd ? `<input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''} aria-label="Tick ${esc(r.sku)}">` : '<span></span>')
     + `<div class="fg-mc-img" data-img="${esc(obUC(r.sku))}" data-imgpx="64">${ptImgInner(r.sku, 64)}</div>`
@@ -361,11 +385,11 @@ function fgiCard(r, canEd) {
         + (r.remark ? `<span class="pill">${esc(r.remark)}</span>` : '')
         + (r.pending > 0 ? `<span class="pill pill-low">${nf(r.pending)} from press</span>` : '') + '</div>'
     + '</div>'
-    + `<div class="fg-mc-qty" style="color:${tone}">${nf(r.current)}<small>in stock</small></div>`
-    + `<div class="fg-mc-figs"><span>In <b>${nf(r.opening + r.received)}</b></span><span>Out <b>${nf(r.issued)}</b></span>`
-      + `<span>FBA <b>${nf(r.fba)}</b></span>${holds ? `<span>Shopify held <b>${fgiHeldCell(r.sku)}</b></span>` : ''}${r.value === null ? '' : `<span>₹ <b>${nf(Math.round(r.value))}</b></span>`}</div>`
+    + `<div class="fg-mc-qty" style="color:${tone}">${nf(alloc ? Math.max(0, r.current) : r.current)}<small>in stock</small></div>`
+    + (alloc ? `<div class="fg-mc-figs">${fgaCardFigs(r)}</div>` : `<div class="fg-mc-figs"><span>In <b>${nf(r.opening + r.received)}</b></span><span>Out <b>${nf(r.issued)}</b></span>`
+      + `<span>FBA <b>${nf(r.fba)}</b></span>${holds ? `<span>Shopify held <b>${fgiHeldCell(r.sku)}</b></span>` : ''}${r.value === null ? '' : `<span>₹ <b>${nf(Math.round(r.value))}</b></span>`}</div>`)
     + ((fgiCanEntry() || canEd) ? '<div class="fg-mc-acts">'
-      + (holds && fgiMayRelease(r.sku) ? btn('data-fgrel', 'Release held pieces') : '')
+      + (holds && fgiMayRelease(r.sku, r.alloc) ? btn('data-fgrel', 'Release held pieces') : '')
       + (fgiCanEntry() ? btn('data-fgentry', 'Entry') : '')
       + (canEd ? btn('data-fgskued', 'Edit') + btn('data-fgskudel', 'Delete', ' style="color:var(--bad)"') : '') + '</div>' : '')
     + '</td></tr>';
@@ -763,6 +787,8 @@ $('fgTable').addEventListener('click', e => {
     return renderFgi();
   }
   const rel = e.target.closest('[data-fgrel]'); if (rel) return fgiReleaseOpen(rel.getAttribute('data-fgrel'));
+  const apOk = e.target.closest('[data-fapok]'); if (apOk) return fapApprovePress(apOk);
+  const apNo = e.target.closest('[data-fapno]'); if (apNo) return fapRejectOpen(apNo.getAttribute('data-fapno'));
   const n = e.target.closest('[data-fgentry]'); if (n) return fgiEntryOpen('ISSUE', n.getAttribute('data-fgentry'));
   const s = e.target.closest('[data-fgset]'); if (s) return fgiSetOpen(s.getAttribute('data-fgset'));
   const r = e.target.closest('[data-fgrcv]'); if (r) return fgiReceiveOpen(r.getAttribute('data-fgrcv'));
@@ -779,6 +805,7 @@ $('fgDelPicked').onclick = () => ($('fgView').value === 'stock' ? fgiSkuDeleteAs
  * left defined on purpose — they are the only written description of how the seeding worked, and a
  * button can be put back in one line if it is ever wanted. */
 ['fgBrand', 'fgStat', 'fgTag', 'fgAmz', 'fgD1', 'fgD2'].forEach(id => $(id).addEventListener('change', renderFgi));
+if ($('fgaView')) $('fgaView').addEventListener('change', renderFgi);
 /** Finished Goods Refresh (18 Nov 2026): the screen had none, so the store reloaded the page to see another PC's
  *  receipts. The ledger and the press-pending list are read again from their live copies (nothing downloaded) and
  *  the screen redrawn without going blank. Ticks are cleared, as on any fresh read, since a ticked row may have
@@ -788,6 +815,7 @@ async function fgiRefresh() {
     const [led] = await Promise.all([ptGet('pt_fgiLedger'), ptReadReg('press')]);
     FGI.rows = ptList(led); FGI.err = ''; FGI.at = ptStamp();
     if (typeof shpHoldOn === 'function' && shpHoldOn()) await fgiHoldReread();   // unread: the list keeps the last figure; every save reads it again
+    if (typeof fapOn === 'function' && fapOn()) await fapReread();   // unread: said in the console there
   } catch (e) { FGI.err = e.message || String(e); }
   FGI_PICK = { stock: new Set(), ledger: new Set() };
   renderFgi();
@@ -808,11 +836,13 @@ $('ptDlgBody').addEventListener('input', e => {
   if (el) { FGT.picked.set(el.getAttribute('data-fgt'), el.value); fgiTransferTotal(); }
 });
 $('fgView').addEventListener('change', renderFgi);
+$('fgView').addEventListener('change', () => { if (typeof fapViewOpened === 'function') fapViewOpened(); });
 if ($('fgAlerts')) $('fgAlerts').addEventListener('click', e => {
   const b = e.target && e.target.closest ? e.target.closest('[data-fgview]') : null;
   if (!b) return;
   $('fgView').value = $('fgView').value === b.dataset.fgview ? 'stock' : b.dataset.fgview;   // pressed again: back to the store
   renderFgi();
+  if (typeof fapViewOpened === 'function') fapViewOpened();
 });
 $('fgKpis').addEventListener('click', e => {
   const t = e.target.closest('[data-fgkpi]');
@@ -838,6 +868,7 @@ $('fgExport').onclick = () => {
   const view = $('fgView').value;
   if (view === 'stock') {
     const rows = FGI.shown || []; if (!rows.length) return;
+    if (rows[0].alloc) return ptDownload('finished-goods-stock', [fgaExportHead(), ...rows.map(fgaExportRow)].map(line => line.map(csvCell).join(',')));
     ptDownload('finished-goods-stock', [['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'Opening', 'Received',
       'Issued', 'To FBA', 'In stock', 'Not counted in', 'Status', 'Re-order level', 'Amazon', 'Tag', 'Rate', 'Value'].map(csvCell).join(',')]
       .concat(rows.map(r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.opening, r.received,

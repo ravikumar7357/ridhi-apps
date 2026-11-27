@@ -207,6 +207,8 @@ async function cxFromIndia(id) {
   const have = cxIndia(l.sku);
   if (have < q0) return `You don't have enough stock — ${obUC(l.sku)} has ${nf(have)} piece(s) in the India Store`
     + ` and this line needs ${nf(q0)}.`;
+  /* A Customer Orders line is not an order-book order, so it takes Excess only (switch storeAlloc). */
+  const kept = typeof fgaIssueRefusal === 'function' ? fgaIssueRefusal([{ sku: l.sku, qty: q0 }]) : ''; if (kept) return kept;
   const now = new Date().toISOString();
   const d = new Date(), p = x => String(x).padStart(2, '0');
   const issue = { _id: fgiNewId('CXO'), txnType: 'ISSUE', sku: obUC(l.sku), qty: q0,

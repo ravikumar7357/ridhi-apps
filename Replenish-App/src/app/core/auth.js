@@ -116,6 +116,8 @@ onAuthStateChanged(auth, async user => {
       ME.fgiEdit = d.fgiEdit === true;
       /* …and a narrower one: may ADD a stock entry — receive, issue, send to FBA — and nothing more. */
       ME.fgiEntry = d.fgiEntry === true;
+      /* …and: may approve a repeat FBA dispatch of a SKU sent in the past 7 days (inventory/fg-fba-repeat.js, the shipping head). */
+      ME.fbaRepeatApprove = d.fbaRepeatApprove === true;
       /* …and: may add, change and DELETE people on the employee list. It opens the Employee list on
        * its own — pay, rates and slips stay shut unless Finance & HR is granted as well. */
       ME.empEdit = d.empEdit === true;
@@ -329,6 +331,7 @@ onAuthStateChanged(auth, async user => {
   if (linkPrinter && typeof flowVpLinkPrepare === 'function') flowVpLinkPrepare(linkPrinter);
   showTab(navHashTab() || ME.tabs[0]);
   if (linkOrder) ordOpenOrder(linkOrder);
+  if (typeof fgaSignInCheck === 'function') fgaSignInCheck();   // an old FBA need for the India store asks for fresh figures; never throws
   /* Somebody who approves requests is told how many are waiting without having to open the tab. */
   /* With the pending-badges switch on (core/pending-badges.js) the four request counts below come from asking the database
    * for the pending rows only; the screens' own lists are not filled here and load in full when each screen is opened.
