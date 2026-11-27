@@ -204,7 +204,7 @@
     var fromMem = SBMEM[key] ? Promise.resolve(SBMEM[key]) : sbCopy(key).then(function (c) { if (c && typeof c.text === 'string' && c.upto != null) SBMEM[key] = c; return SBMEM[key] || null; });
     return fromMem.then(function (m) {
       /* 27 Nov: this browser's copy is kept for 7 days (was 6 hours, so every morning everyone downloaded every list again).
-       * It is still caught up with the saves since its number, and ERP data answers "full" when the gap is too big. */
+       * It is still caught up with the saves since its number, and ERP data answers "full" when the gap is too big (rt_changes). */
       if (!m || Date.now() - (m.at || 0) > 7 * 24 * 3600000) return sbFull(key, p, tok, of).then(function (x) { return x.text; });
       if (SBSTALE[key]) {
         delete SBSTALE[key];
