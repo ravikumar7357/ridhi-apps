@@ -520,6 +520,7 @@ async function shpbStockSave(r, v) {
   if (pcs > need) return `Only ${nf(need)} piece(s) of this line still need to be made.`;
   const unread = await fgiStockReread(); if (unread) return unread;
   const short = fgiOutCheck(obUC(r.sku), pcs, 'ISSUE', 0); if (short) return short;
+  const kept = typeof fgaIssueRefusal === 'function' ? fgaIssueRefusal([{ sku: r.sku, qty: pcs, orders: [{ orderNo: r.orderNo, qty: pcs }] }]) : ''; if (kept) return kept;
   const now = new Date().toISOString(), d = new Date(), p2 = x => String(x).padStart(2, '0');
   const issue = { _id: fgiNewId('ISS'), txnType: 'ISSUE', sku: obUC(r.sku), qty: pcs, date: p2(d.getDate()) + '/' + p2(d.getMonth() + 1) + '/' + d.getFullYear(),
     issuedFor: 'Shopify order ' + (r.shopOrderNo || r.orderNo), reason: 'SHP board — completed from ready stock', remarks: String(v.note || '').trim(), shpOrderNo: r.orderNo,

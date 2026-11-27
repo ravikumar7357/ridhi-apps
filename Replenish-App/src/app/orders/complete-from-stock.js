@@ -21,6 +21,7 @@ async function ordStockSave(l, v) {
   if (pcs > owed) return `Only ${nf(owed)} piece(s) of this line are still owed.`;
   const unread = await fgiStockReread(); if (unread) return unread;
   const short = fgiOutCheck(obUC(l.sku), pcs, 'ISSUE', 0); if (short) return short;
+  const kept = typeof fgaIssueRefusal === 'function' ? fgaIssueRefusal([{ sku: l.sku, qty: pcs, orders: [{ orderNo: l.orderNo, qty: pcs }] }]) : ''; if (kept) return kept;
   const rows = ordStockRows(l.orderNo, l.sku), row = rows[0], key = row && (row.id || row._key);
   if (!key) return 'Its order-book row is gone — press Refresh.';
   const now = new Date().toISOString(), d = new Date(), p2 = x => String(x).padStart(2, '0');

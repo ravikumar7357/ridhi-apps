@@ -41,6 +41,7 @@ async function loadReplCache(wantFull) {
   if (REPL_LOADING) { try { await REPL_LOADING.p; } catch (e) { /* the full read below stands on its own */ } }
   if (REPL_MODE === 'full') return;
   const p = loadReplCacheRun(full).then(() => { REPL_MODE = full ? 'full' : 'slim'; try { replMasterSync(); } catch (e) { /* the snapshot's details stay */ }
+    if (full && typeof fgaNeedNote === 'function') fgaNeedNote();   // the India store is told what FBA needs (never throws)
     /* a full read after a slim one listens to the full header instead */
     try { if (REPL_WATCH && full) { REPL_WATCH.forEach(u => { try { u(); } catch (e) {} }); REPL_WATCH = null; } replWatch(); }
     catch (e) { /* no listening (or a test page without it): the next read is fresh anyway */ } }).finally(() => { if (REPL_LOADING && REPL_LOADING.p === p) REPL_LOADING = null; });
@@ -421,6 +422,7 @@ $('rTable').addEventListener('change', async e => {
   if (val) STATUS_OVR[skuU] = val; else delete STATUS_OVR[skuU];
   PROJ_VER++;                                            // stopped feeds the forecast too → drop its cache
   renderRepl();                                          // status change flips stopped → Req columns + subtotals
+  if (typeof fgaNeedNote === 'function') fgaNeedNote();
   try { await fsSetDoc(doc(db, 'repl', 'prodstatus'), { statusOverride: { [skuU]: val || null } }, { merge: true }); }
   catch (err) { rMsg('Could not save status: ' + (err.message || err), true); }
 });

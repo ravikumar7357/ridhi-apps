@@ -256,6 +256,8 @@ async function fgiRecvXlSave() {
     if (unread) return unread;
     const by = new Map(); p.good.forEach(x => by.set(x.rec.sku, (by.get(x.rec.sku) || 0) + x.rec.qty));
     for (const [sku, q] of by) { const short = fgiOutCheck(sku, q, 'ISSUE'); if (short) return short + ' Nothing has been saved — choose the sheet again.'; }
+    const kept = typeof fgaIssueRefusal === 'function' ? fgaIssueRefusal(p.good.map(x => x.rec)) : '';
+    if (kept) return kept + ' Nothing has been saved — choose the sheet again.';
   }
   const recs = p.good.map(x => x.rec);
   for (let i = 0; i < recs.length; i += 400) {

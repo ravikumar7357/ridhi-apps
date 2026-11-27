@@ -3,6 +3,7 @@
  * to FBA. Stock 10, need 4: 6 are free for FBA. Need 15: none are free, and new arrivals stay held too. An admin may release
  * pieces of one SKU, with a reason: FBA may then take that many more, never more than the stock, even when orders need more
  * than the store holds. An FBA save uses a release up only for pieces beyond what was free without it; it stays on record.
+ * With switch storeAlloc also on (fg-store-alloc.js), FBA may take only the Air, Sea and AWD share of the stock instead.
  * Every way to FBA asks here: the entry form, scan out, Pack & verify, Scan to pack, an edit that sends more to FBA, and
  * deleting a "returned from FBA" row or undoing a part shipment (those pieces are with the FBA team again).
  *
@@ -34,17 +35,25 @@ function shpHoldOn() {
   return typeof window !== 'undefined' && !!window.__TEST_ERP;
 }
 
+/** Is stock also shared between Custom, FBA and Excess (fg-store-alloc.js)? */
+const shpAllocOn = () => typeof fgaOn === 'function' && fgaOn();
+
 /* ---- the need of one store ---- */
 /** The name a SKU is held under (the database refuses some characters). */
 const shpHoldKey = sku => lstKey(sku);
+
+/** The orders an issue names: the SHP board and "complete from stock" in the Order Console name one on the row itself. */
+function shpHoldPartsOf(r) {
+  const named = r.shpOrderNo || r.stockForOrder;
+  return named ? [{ orderNo: named, qty: r.qty }] : fgiOutParts(r);
+}
 
 /** Pieces already issued from the store to each order, by 'ORDER|SKU key'. A reversed issue does not count. */
 function shpHoldIssued(ledgerRows) {
   const out = new Map();
   (ledgerRows || []).forEach(r => {
     if (!r || r.txnType !== 'ISSUE' || r.reversed === true) return;
-    const parts = r.shpOrderNo ? [{ orderNo: r.shpOrderNo, qty: r.qty }] : fgiOutParts(r);
-    parts.forEach(p => {
+    shpHoldPartsOf(r).forEach(p => {
       const k = obUC(p.orderNo) + '|' + shpHoldKey(r.sku);
       out.set(k, (out.get(k) || 0) + fgiNum(p.qty));
     });
@@ -127,8 +136,9 @@ const fgiReleased = (sku, hold = fgiHoldNode()) => fgiReleasesOpen(sku, (hold ||
   .reduce((n, [, r]) => n + Number(r.left), 0);
 
 /** Pieces of a SKU free to go to FBA. Says nothing about the figure's age: ask fgiHoldState first. */
-function fgiFbaFree(sku, current = fgiOf(sku).current, hold = fgiHoldNode()) {
+function fgiFbaFree(sku, current = fgiOf(sku).current, hold = fgiHoldNode(), book) {
   const have = Math.max(0, current);
+  if (shpAllocOn()) return Math.min(have, fgaFbaShare(sku, have, hold, book) + fgiReleased(sku, hold));
   return Math.min(have, Math.max(0, have - fgiHeld(sku, hold)) + fgiReleased(sku, hold));
 }
 
@@ -141,20 +151,22 @@ function fgiHoldAgeWhy(hold = fgiHoldNode()) {
     ? 'The pieces held for website orders are not known yet — open the Shopify Orders tab and press Fetch orders, then try again.'
     : 'The pieces held for website orders are over 6 hours old (or were noted by a PC whose clock is ahead) — open the Shopify Orders tab and press Fetch orders, then try again. A release does not help while the figure is old.';
 }
-const fgiShortWhy = (s, hold) => `${s.sku} has ${nf(s.free)} piece(s) free for FBA, not ${nf(s.qty)} (${nf(fgiHeld(s.sku, hold))} held for website orders).`
+/** Why the noted figures cannot be trusted just now, or '': the website hold, and the FBA need when stock is shared. */
+const fgiFbaAgeWhy = hold => fgiHoldAgeWhy(hold) || (shpAllocOn() ? fgaNeedWhy() : '');
+const fgiShortWhy = (s, hold) => shpAllocOn() ? fgaShortWhy(s) : `${s.sku} has ${nf(s.free)} piece(s) free for FBA, not ${nf(s.qty)} (${nf(fgiHeld(s.sku, hold))} held for website orders).`
   + ' Send fewer, or ask an admin to release held pieces on Finished Goods.';
 /** Why these pieces cannot go to FBA, or ''. wants: [{ sku, qty, current }]. */
 function fgiHoldRefusal(wants, hold = fgiHoldNode()) {
-  return fgiHoldAgeWhy(hold) || fgiReleasePlan(hold, wants, {}).short.map(s => fgiShortWhy(s, hold)).join(' ');
+  return fgiFbaAgeWhy(hold) || fgiReleasePlan(hold, wants, {}).short.map(s => fgiShortWhy(s, hold)).join(' ');
 }
 
 /* ---- the packing screens ---- */
 /** The order lines of a packing list, each line's store pieces cut to what its SKU has free for FBA. New lines are returned. */
 function fgiHoldCap(lines) {
-  const known = !fgiHoldAgeWhy(), stock = fgiStock(), left = new Map();
+  const known = !fgiFbaAgeWhy(), stock = fgiStock(), left = new Map(), book = shpAllocOn() ? fgaBook() : undefined;
   return lines.map(l => {
     const sku = obUC(l.sku);
-    if (!left.has(sku)) left.set(sku, known ? fgiFbaFree(sku, (stock.get(sku) || {}).current || 0) : 0);
+    if (!left.has(sku)) left.set(sku, known ? fgiFbaFree(sku, (stock.get(sku) || {}).current || 0, fgiHoldNode(), book) : 0);
     const store = Math.min(l.store, left.get(sku));
     left.set(sku, left.get(sku) - Math.max(0, Math.min(l.qty, store)));
     return Object.assign({}, l, { store });
@@ -163,7 +175,7 @@ function fgiHoldCap(lines) {
 /** What to tell the packer when a scan finds no stock because of the hold; '' when the hold is not the reason.
  *  packed: { orderNo: pieces } already in this list for the SKU. */
 function fgiHoldScanWhy(sku, packed) {
-  const age = fgiHoldAgeWhy();
+  const age = fgiFbaAgeWhy();
   if (age) return age;
   const current = fgiOf(sku).current, free = fgiFbaFree(sku, current);
   const inList = Object.values(packed || {}).reduce((n, q) => n + fgiNum(q), 0);
@@ -173,9 +185,14 @@ function fgiHoldScanWhy(sku, packed) {
 /* ---- reading it again ---- */
 const fgiHoldKeep = node => { FGI.set = Object.assign({}, FGI.set, { _shopHold: node }); };
 const fgiHoldUnread = e => 'Nothing was saved — the pieces held for website orders could not be checked (' + (e.message || e) + '). Check the connection and save again.';
-/** Read the noted figure and the releases as they are now. '' when read, else the sentence to show. */
+/** Read the noted figure and the releases (and the FBA need, when stock is shared) as they are now. '' when read, else the
+ *  sentence to show. */
 async function fgiHoldReread() {
-  try { fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {}); return ''; }
+  try {
+    fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {});
+    if (shpAllocOn()) await fgaNeedReread();
+    return '';
+  }
   catch (e) {
     console.warn('India store hold: the pieces held for website orders could not be read:', e.message || e);
     return fgiHoldUnread(e);
@@ -201,18 +218,21 @@ async function fgiReleaseCreate(v) {
 
 /** WHAT AN FBA SAVE USES UP. wants: [{ sku, qty, current }] (current = pieces in stock before the save). Only the pieces beyond
  *  what was free without a release are taken from releases, oldest first. Returns { next, used: { id: pieces }, short:
- *  [{ sku, qty, free }] }; with anything short, next is the releases unchanged. The releases handed in are not changed. */
+ *  [{ sku, qty, free }] }; with anything short, next is the releases unchanged. The releases handed in are not changed.
+ *  A want's `without` names the movement being changed, left out when the stock is shared. */
 function fgiReleasePlan(hold, wants, stamp) {
   const releases = (hold || {}).releases || {}, next = Object.assign({}, releases), used = {}, short = [];
   const bySku = new Map();
+  const book = shpAllocOn() ? fgaBook(new Set((wants || []).map(w => w.without).filter(Boolean))) : undefined;
   (wants || []).forEach(w => {
     const key = shpHoldKey(w.sku), had = bySku.get(key);
     bySku.set(key, { sku: w.sku, current: w.current, qty: fgiNum(w.qty) + (had ? had.qty : 0) });
   });
   bySku.forEach(w => {
-    const free = fgiFbaFree(w.sku, w.current, hold);
+    const free = fgiFbaFree(w.sku, w.current, hold, book);
     if (w.qty > free) { short.push({ sku: w.sku, qty: w.qty, free }); return; }
     let owed = w.qty - Math.max(0, w.current - fgiHeld(w.sku, hold));   // only the pieces beyond what was free anyway
+    if (book) owed = w.qty - fgaFbaShare(w.sku, w.current, hold, book);
     fgiReleasesOpen(w.sku, releases).forEach(([id, r]) => {
       const take = Math.min(owed, Number(r.left));
       if (take <= 0) return;
@@ -231,6 +251,7 @@ async function fgiReleaseSpend(wants) {
     for (let i = 0; i < SHP_HOLD_TRIES; i++) {
       const hold = (await ptGetFresh(SHP_HOLD_PATH)) || {};
       fgiHoldKeep(hold);
+      if (shpAllocOn()) await fgaNeedReread();
       const why = fgiHoldRefusal(wants, hold);
       if (why) return { err: 'Nothing was saved — ' + why, used: {} };
       const plan = fgiReleasePlan(hold, wants, { by: ME.email, at: new Date().toISOString() });
@@ -289,7 +310,7 @@ function fgiFbaEditWants(was, now) {
     return more > 0 ? [{ sku, qty: more, current: fgiOf(sku).current }] : [];
   }
   /* Newly FBA: judged as a fresh dispatch, with this movement's old effect on the SKU taken back first. */
-  return [{ sku, qty: fgiNum(now.qty), current: fgiOf(sku).current - (sameSku ? fgiEffect(was) : 0) }];
+  return [{ sku, qty: fgiNum(now.qty), current: fgiOf(sku).current - (sameSku ? fgiEffect(was) : 0), without: was._id || was.id }];
 }
 
 /** What deleting movements sends back to FBA, as fgiFbaWrite wants it: the "returned from FBA" rows that go while their
@@ -309,14 +330,16 @@ function fgiHeldCell(sku) {
   return (held ? nf(held) : '<span class="muted">—</span>')
     + (released ? `<div class="muted" style="font-size:10.5px">${nf(released)} released</div>` : '');
 }
-const fgiMayRelease = sku => !!(ME && ME.admin) && fgiHeld(sku) > 0;
+/** shares: the row's stock shares, when stock is shared. */
+const fgiMayRelease = (sku, shares) => !!(ME && ME.admin) && (shpAllocOn() ? fgaKeptBack(shares) : fgiHeld(sku) > 0);
 
 /** The admin's release form. The id is made once per form, so a second press saves nothing new. */
 function fgiReleaseOpen(sku) {
   const s = obUC(sku), id = fgiNewId('REL');
   ptOpenDialog({
     title: 'Release held pieces',
-    subtitle: `${s} · ${nf(fgiHeld(s))} held for website orders · ${nf(fgiOf(s).current)} in stock`,
+    subtitle: shpAllocOn() ? `${s} · ${nf(fgiFbaFree(s))} free for FBA · ${nf(fgiOf(s).current)} in stock`
+      : `${s} · ${nf(fgiHeld(s))} held for website orders · ${nf(fgiOf(s).current)} in stock`,
     note: 'FBA may then take this many more pieces of the SKU, never more than the stock.',
     fields: [{ key: 'sku', label: 'SKU', value: s, readonly: true }, { key: 'pieces', label: 'Pieces', type: 'number', min: 1, step: 1, value: '' },
       { key: 'reason', label: 'Reason', value: '', span: true }],
@@ -326,7 +349,7 @@ function fgiReleaseOpen(sku) {
       await fgiHoldReread();   // unread: the list keeps the last figure, and the console says why
       renderFgi();
       $('fgMsg').className = 'muted';
-      $('fgMsg').textContent = `${nf(Number(v.pieces))} held piece(s) of ${s} released for FBA.`;
+      $('fgMsg').textContent = `${nf(Number(v.pieces))} ${shpAllocOn() ? '' : 'held '}piece(s) of ${s} released for FBA.`;
       return '';
     },
     saveLabel: 'Release them',

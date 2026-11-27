@@ -255,6 +255,10 @@ async function fgiScanFlush(sku) {
   };
   /* A SCAN LEAVES FOR ORDERS TOO (2026-09-25), dealt the Auto way; more scans of the same SKU add to the same parts. */
   const al = h.k.dir < 0 ? fgiOutAlloc(sku, n, h.t, '') : null;
+  const kept = h.t === 'ISSUE' && typeof fgaIssueRefusal === 'function' ? fgaIssueRefusal([{ sku, qty: n, orders: al.orders }]) : '';
+  if (kept) return stop(kept);
+  const repeat = h.t === 'FBA' && typeof fapScanHeld === 'function' ? fapScanHeld(sku, r.id) : '';
+  if (repeat) return stop(repeat);
   if (old) {
     const next = { qty: fgiNum(old.qty) + n };
     if (al && al.orders.length) {
@@ -390,6 +394,16 @@ async function fgiScanSave() {
   if (!fgiCanEntry()) return FGI_NO_ENTRY;
   if (FGS.unknown.size) return `${nf(FGS.unknown.size)} scanned code(s) are not known — remove them (×) or add them to the FNSKU list first.`;
   const auto = fgiScanAuto();
+  /* SKUs sent to FBA in the past 7 days are answered first, together (fg-fba-repeat.js). */
+  const repeat = typeof fapScanSave === 'function' ? await fapScanSave() : { handled: 0, note: '' };
+  if (repeat.err) return repeat.err;
+  if (repeat.handled && !FGS.rows.size) {
+    fbaBadge(); fgiOverBadge();
+    renderFgi();
+    $('fgMsg').className = 'muted';
+    $('fgMsg').textContent = `${nf(repeat.handled)} repeat SKU(s) saved.` + repeat.note;
+    return '';
+  }
   const rows = [...FGS.rows.values()].filter(r => fgiNum(r.qty) > (auto ? fgiNum(r.saved) : 0));
 
   /* Every scan went in as it was made; all that can be left is what a missing reason held back. */
@@ -412,7 +426,7 @@ async function fgiScanSave() {
     renderFgi();
     $('fgMsg').className = over ? 'err' : 'muted';
     $('fgMsg').textContent = `Scanned ${nf(total)} piece(s) across ${nf(all.length)} SKU(s) — each one entered as it was scanned.`
-      + (over ? ` ⚠ ${nf(over)} SKU(s) came in above the order — flagged for review.` : '');
+      + (over ? ` ⚠ ${nf(over)} SKU(s) came in above the order — flagged for review.` : '') + repeat.note;
     return '';
   }
 
@@ -455,6 +469,8 @@ async function fgiScanSave() {
     updates['pt_fgiLedger/' + rec._id] = rec;
     recs.push(rec);
   }
+  const kept = h.t === 'ISSUE' && typeof fgaIssueRefusal === 'function' ? fgaIssueRefusal(recs) : '';
+  if (kept) return kept;
   const write = () => ptPatch(updates);
   if (h.t === 'FBA' && typeof shpHoldOn === 'function' && shpHoldOn()) {
     const refused = await fgiFbaWrite(recs.map(x => ({ sku: x.sku, qty: x.qty, current: fgiOf(x.sku).current })), write);
@@ -472,7 +488,7 @@ async function fgiScanSave() {
   $('fgMsg').textContent = `Scanned ${nf(total)} piece(s) across ${nf(recs.length)} SKU(s) — ${h.t === 'FBA' ? 'sent to FBA' : (h.t === 'ISSUE' ? 'issued' : 'received')}`
     + (h.orderNo ? ` against ${h.orderNo}` : '') + '.'
     + (over ? ` ⚠ ${nf(over)} SKU(s) came in above the order — flagged for review.` : '')
-    + (notListed.length ? ` ⚠ ${nf(notListed.length)} SKU(s) are not listed on Amazon — the listing team has been alerted.` : '');
+    + (notListed.length ? ` ⚠ ${nf(notListed.length)} SKU(s) are not listed on Amazon — the listing team has been alerted.` : '') + repeat.note;
   return '';
 }
 

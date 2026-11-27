@@ -237,22 +237,35 @@ async function packLedgerWrite(p, handoverTo) {
     allot: (sku, n, taken) => fgiOutAlloc(sku, n, "FBA", "", taken)
   });
   if (!rows.length) return { err: "Nothing packed yet — scan at least one piece." };
+  if (typeof fapOn === "function" && fapOn()) {
+    const unseen = await fapReread();
+    if (unseen) return { err: unseen };
+  }
   for (const r of rows) {
+    /* an approved repeat SKU has already left the store (fg-fba-repeat.js): it is not asked of the stock again */
+    if (typeof fapApproved === "function" && fapApproved(p.id, r.sku)) continue;
     const bad = fgiOutCheck(r.sku, r.qty, "FBA", 0);
     const receive = r.qty > fgiOf(r.sku).current ? " Receive it in Finished Goods first, then Finish again." : "";
     if (bad) return { err: bad + receive };
   }
-  const patch = {};
-  rows.forEach((r) => {
+  /* SKUs sent to FBA in the past 7 days ask first (fg-fba-repeat.js). While one waits, nothing of the list is written. */
+  const gate = typeof fapGate === "function" ? await fapGate(rows, p.id) : { send: rows, extra: {}, held: [], written: [] };
+  if (gate.stop) return { err: gate.stop };
+  if (gate.held.length) return { err: fapHeldNote(gate.held).trim() + " The list is not finished — finish it again once approved, or take those boxes out." };
+  const sent = gate.send;
+  const patch = Object.assign({}, gate.extra);
+  sent.forEach((r) => {
     patch["pt_fgiLedger/" + r._id] = r;
   });
   const write = () => ptPatch(patch);
-  if (typeof shpHoldOn === "function" && shpHoldOn()) {
-    const refused = await fgiFbaWrite(rows.map((r) => ({ sku: r.sku, qty: r.qty, current: fgiOf(r.sku).current })), write);
+  if (!sent.length) {
+    /* every SKU of the list was approved: its movements are written already */
+  } else if (typeof shpHoldOn === "function" && shpHoldOn()) {
+    const refused = await fgiFbaWrite(sent.map((r) => ({ sku: r.sku, qty: r.qty, current: fgiOf(r.sku).current })), write);
     if (refused) return { err: refused };
   } else await write();
-  FGI.rows = (FGI.rows || []).concat(rows);
-  p.scan.ledgerIds = rows.map((r) => r._id);
+  FGI.rows = (FGI.rows || []).concat(sent);
+  p.scan.ledgerIds = sent.concat(gate.written).map((r) => r._id);
   p.scan.done = true;
   p.scan.doneAt = (/* @__PURE__ */ new Date()).toISOString();
   p.scan.doneBy = ME.email || "";
@@ -261,11 +274,11 @@ async function packLedgerWrite(p, handoverTo) {
     fgiOverBadge();
   } catch (e) {
   }
-  for (const r of rows) {
+  for (const r of sent) {
     try {
       await lstAlertFor(r.sku, "FBA", r.qty);
     } catch (e) {
     }
   }
-  return { rows };
+  return { rows: sent };
 }

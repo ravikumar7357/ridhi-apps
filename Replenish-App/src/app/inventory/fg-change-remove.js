@@ -137,6 +137,8 @@ async function fgiDeleteRun(plan) {
   if (short.length) return `That would take ${short.map(x => `${x.sku} to ${nf(x.after)}`).join(', ')} — below zero. `
     + `Those pieces have already left the store, so the movement that took them out has to go first `
     + `(or be corrected) — a store cannot hold less than nothing.`;
+  /* A deleted "returned from FBA" row sends pieces to FBA again, so a shared-out store (fg-store-alloc.js) is read afresh. */
+  if (typeof fgaOn === 'function' && fgaOn() && plan.rows.some(r => r.txnType === 'FBA_RETURN')) { const unread = await fgaReread(); if (unread) return unread; }
   const write = () => ptPatch(plan.updates);
   if (typeof shpHoldOn === 'function' && shpHoldOn()) {
     const refused = await fgiFbaWrite(fgiFbaReturnWants(plan.rows), write);
