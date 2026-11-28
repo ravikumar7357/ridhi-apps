@@ -24,7 +24,7 @@ const CODE = [src('core/line-hold.js'),
   cut('core/helpers.js', /^const PT_NUM_BIG/m, ';'), cut('core/helpers.js', /^function ptNumErr\(/m), cut('core/helpers.js', /^function ptNumBig\(/m),
   cut('core/history.js', /^async function ptCas\(/m), cut('core/history.js', /^async function ptGetFreshWhere\(/m), cut('core/history.js', /^function lineHoldOn\(/m),
   cut('core/lookups.js', /^let BASE_IX/m, ';'), cut('core/lookups.js', /^function obBaseIndex\(/m), ...SCRAP_COUNT,
-  cut(J, /^function obIssueSums\(/m), cut(J, /^function obIssueOfOrder\(/m), cut(J, /^function obIssueOfCut\(/m), cut(J, /^function bdPrintedBackErr\(/m), cut(J, /^function bdGuard\(/m), cut(J, /^function bdTwinOf\(/m), cut(J, /^function bdFormMsg\(/m, '\n'),
+  cut(J, /^function obIssueSums\(/m), cut(J, /^function obIssueOfOrder\(/m), cut(J, /^function obIssueOfCut\(/m), cut(J, /^function bdPrintedBackErr\(/m), cut(J, /^function bdCutReq\(/m), cut(J, /^function bdGuard\(/m), cut(J, /^function bdTwinOf\(/m), cut(J, /^function bdFormMsg\(/m, '\n'),
   cut(J, /^const BD_DRAFTS/m, ';'), cut(J, /^function bdSaveHeld\(/m), cut(J, /^async function bdWrite\(/m),
   cut('orders/order-console-table.js', /^async function spIssueReal\(/m), cut('orders/shp-board.js', /^async function shpbIssueVendorSave\(/m), cut(J, /^\$\('bwSave'\)\.onclick/m, '\n};')].join('\n');
 
@@ -76,7 +76,7 @@ function screen(db, o) {
     },
     PT: { base: o.behind ? [] : null, cut: [] }, PTG: { qc: [] }, ptNum: v => Number(v) || 0, obKeyOf: (a, b) => up(a) + '|' + up(b),
     prOn: () => false, obIsLegacy: () => false, obOrderedQty: () => 4, obCutQty: () => o.cut || 4, obPressQty: () => 0, cutSkuOf: () => ({ articleType: 'Cover' }),
-    frmRemember: () => {}, bdIsCustom: () => false, ptEmpsOfType: () => [['', 'Made-up Karigar']], bdIssueDay: () => '2026-11-26', mdbOf: () => ({}), ptCustomOf: () => null,
+    frmRemember: () => {}, bdIsCustom: () => false, ptEmpsOfType: () => [['', 'Made-up Karigar']], bdIssueDay: () => '2026-11-26', mdbOf: () => (o.custom ? null : {}), ptCustomOf: () => o.custom || null,
     stPrinterSku: () => false, validateAgainstMasters: () => [], ptZipCheck: () => '', bdZipTyped: () => '', bdMatEntry: () => ({}), ptStampDate: d => d,
     waPreOpen: () => null, waPreClose: nothing, waAfterIssue: async () => { sent.wa++; return ''; },
     ptCanEdit: () => true, ordLines: () => [{ orderNo: 'OC-1', sku: SKU }], dToday: () => '2026-11-26', SP_QUIET: true, SP_WA_NOTE: '', MDBX: { custom: [] },
@@ -143,6 +143,16 @@ function screen(db, o) {
   { const db = database(), a = screen(db); db.at[HOLD] = { by: 'x@test', form: 'other', at: Date.now() };
     const said = await a.vendor(1);
     ok('a held line: the SHP board says so and writes nothing', /somebody else/.test(said) && db.entries().length === 0, said); }
+
+  console.log('== a custom item not filled in on the Custom SKUs list ==');
+  { const db = database(), a = screen(db, { custom: { _custom: true, articleType: '', subtype: '', color: 'Red', size: '' } });
+    a.fill(1); ['bwAt', 'bwSub', 'bwSz'].forEach(id => { a.box(id).value = ''; });
+    const said = await a.press();
+    ok('refused naming what is blank and where to fill it, nothing saved', /MADE-UP has no article type, article subtype, size on the Custom SKUs list\. Fill it in under Master Database → Custom SKUs/.test(said) && db.entries().length === 0, said); }
+  { const db = database(), a = screen(db, { custom: { _custom: true, articleType: 'Cover', subtype: 'Plain', color: 'Red', size: '16x16' } });
+    a.fill(1); ['bwAt', 'bwSub', 'bwCol', 'bwSz'].forEach(id => { a.box(id).value = ''; });
+    const said = await a.press();
+    ok('a filled-in custom item is issued off its list entry', /^Issued/.test(said) && db.entries().length === 1, said); }
 
   console.log('== switch off ==');
   { const db = database(), a = screen(db, { off: true, lost: true, arrives: true });

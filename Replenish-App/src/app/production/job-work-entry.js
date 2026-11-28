@@ -193,12 +193,7 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
 
   const unprinted = bdPrintedBackErr(orderNo, sku, used, want, exclId);
   if (unprinted) return unprinted;
-  const m = cutSkuOf(sku);
-  /* PPC SENT IT STRAIGHT TO JOB WORK (Ravi, 15 Oct): the plan's route 'jobwork' skips the cutting table, so pieces are
-   * issued without a cutting entry. The ordered cap above still holds. */
-  const jw = typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(orderNo, sku) === 'jobwork';
-  const cutReq = !jw && (!m || m.cuttingRequired !== false);
-  if (cutReq) {
+  if (bdCutReq(orderNo, sku)) {
     const cutNet = obCutQty(orderNo, sku);
     // A legacy order with no cutting recorded at all has unknown cut history — the ordered cap still
     // protects it, so do not freeze real work over missing paperwork.
@@ -213,6 +208,15 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
     }
   }
   return '';
+}
+
+/** Whether this order line must be cut before it is issued: the item says so, unless PPC SENT IT STRAIGHT TO JOB WORK (Ravi,
+ *  15 Oct: the plan's route 'jobwork' skips the cutting table). One rule for the Save check and for what the issue form says
+ *  (28 Nov: the form said "held down by cutting" on a line that Save did not hold). The ordered cap holds either way. */
+function bdCutReq(orderNo, sku) {
+  if (typeof flowPlanRouteOf === 'function' && flowPlanRouteOf(orderNo, sku) === 'jobwork') return false;
+  const m = cutSkuOf(sku);
+  return !m || m.cuttingRequired !== false;
 }
 
 /** A printed line that skips cutting can go to a karigar only as far as it is back from the printer (28 Nov: 5 were issued
@@ -237,8 +241,7 @@ function bdOrdersFor(sku) {
     const ordered = obOrderedQty(l.orderNo, sku), used = obIssueOfOrder(l.orderNo, sku), cutUsed = obIssueOfCut(l.orderNo, sku);
     const cutNet = obCutQty(l.orderNo, sku);
     const effCut = Math.max(cutNet, obPressQty(l.orderNo, sku));
-    const m = cutSkuOf(sku);
-    const cutReq = !m || m.cuttingRequired !== false;
+    const cutReq = bdCutReq(l.orderNo, sku);
     const legacy = /^LEG-/.test(l.orderNo) && cutNet <= 0;
     const byOrder = Math.max(0, ordered - used);
     const byCut = (cutReq && !legacy) ? Math.max(0, effCut - cutUsed) : byOrder;
@@ -455,7 +458,7 @@ function renderBdForm() {
   const m = cutSkuOf(sku);
   $('bwWho').textContent = m
     ? `${m.articleType || '—'} · ${m.subtype || '—'} · ${m.color || '—'} · ${m.size || '—'}`
-      + (m.cuttingRequired === false ? '  ·  no cutting needed' : '  ·  cutting required')
+      + (bdCutReq(custom ? '' : obUC($('bwOrd').value), sku) ? '  ·  cutting required' : '  ·  no cutting needed')
     : (sku && !custom ? 'Not in the master database.' : '');
   $('bwWho').className = (m || custom || !sku) ? 'muted' : 'err';
 
@@ -725,6 +728,10 @@ $('bwSave').onclick = async () => {
   if (!name) return bdFormMsg('Enter the employee.', true);
   const emp = ptEmpsOfType(type).find(e => String(e[1]).trim().toLowerCase() === name.toLowerCase());
   if (!emp) return bdFormMsg(`"${name}" is not on the ${type} list.`, true);
+  /* A custom item not filled in on its list leaves these boxes with nothing to pick (28 Nov: B2B-CUST-261128-01 was only told
+   * "Select the article type."). Say what is missing and where it is filled. */
+  const blank = cm ? [['article type', at], ['article subtype', sub], ['colour', col], ['size', sz]].filter(x => !x[1]).map(x => x[0]) : [];
+  if (blank.length) return bdFormMsg(`Not saved — ${obUC(sku)} has no ${blank.join(', ')} on the Custom SKUs list. Fill it in under Master Database → Custom SKUs, then issue.`, true);
   if (!at) return bdFormMsg('Select the article type.', true);
   if (!sub) return bdFormMsg('Select the article subtype.', true);
   if (!col) return bdFormMsg(custom ? 'Type the colour.' : 'Select the colour.', true);
