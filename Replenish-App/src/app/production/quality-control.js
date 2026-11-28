@@ -1415,7 +1415,7 @@ function renderQcDept() {
     + `<td class="num">${nf(x.sent)}</td><td class="num" style="color:#166534">${x.pass ? nf(x.pass) : '<span class="muted">—</span>'}</td>`
     + `<td class="num" style="color:var(--bad)">${x.rej ? nf(x.rej) : '<span class="muted">—</span>'}</td>`
     + `<td class="num" style="font-weight:700;color:#b45309">${nf(x.left)}</td>`
-    + `<td>${can ? `<input type="number" min="1" max="${x.left}" value="${x.left}" data-qcd-qty="${esc(x.c.id)}" style="width:80px">` : ''}</td>`
+    + `<td>${can ? `<input type="number" step="1" min="1" max="${x.left}" value="${x.left}" data-qcd-qty="${esc(x.c.id)}" style="width:80px">` : ''}</td>`
     + `<td style="white-space:nowrap">${can ? `<button data-qcd-go="${esc(x.c.id)}" style="padding:3px 10px;font-size:12px;margin-right:4px">Back — QC pass</button>`
       + `<button data-qcd-go="${esc(x.c.id)}" data-rej="1" class="ghost" style="padding:3px 10px;font-size:12px;color:var(--bad)">Reject</button>` : '<span class="muted">—</span>'}</td>`
     + '</tr>').join('') || '<tr><td colspan="13" class="muted" style="padding:14px">Nothing in spotting or touching.</td></tr>') + '</tbody>';

@@ -955,6 +955,7 @@ async function pksStart(mode) {
           let plan = [], planNo = "";
           if (planTxt) {
             const pp = PACK_CORE.planParse(planTxt);
+            if (pp.part) wpShow(pp.part + " cannot be saved", pp.why);
             if (!pp.lines.length) return pp.why;
             const unk = pp.lines.filter((l) => !pksResolve(l.sku).sku).map((l) => l.sku);
             if (unk.length) return "Not a SKU this app knows: " + unk.join(", ");

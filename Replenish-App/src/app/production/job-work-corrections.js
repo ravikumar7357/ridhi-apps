@@ -180,9 +180,9 @@ function jwCorrAskOpen(rowId) {
       + 'and size come from it. Somebody who may edit production entries approves it; a change of SKU or date needs an admin.',
     fields: [
       { key: 'empName', label: 'Karigar', value: r.empName || '' },
-      { key: 'issuePieces', label: 'Issued', type: 'number', value: ptNum(r.issuePieces) },
-      { key: 'receivedPieces', label: 'Received', type: 'number', value: ptNum(r.receivedPieces) },
-      { key: 'rejectionPieces', label: 'Rejected', type: 'number', value: ptNum(r.rejectionPieces) },
+      { key: 'issuePieces', label: 'Issued', type: 'number', step: 1, value: ptNum(r.issuePieces) },
+      { key: 'receivedPieces', label: 'Received', type: 'number', step: 1, value: ptNum(r.receivedPieces) },
+      { key: 'rejectionPieces', label: 'Rejected', type: 'number', step: 1, value: ptNum(r.rejectionPieces) },
       ...rejWhyFields(),
       { key: 'sku', label: 'SKU', value: r.sku || '' },
       { key: 'issueDate', label: 'Issue date', type: 'date', value: ptIsoDate(r.issueDate) },
