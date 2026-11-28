@@ -7,17 +7,17 @@
  * THE MATHS UNDERNEATH IS bsr-audit.js, unchanged: the rows come from bsrBuildRows (the rank used — sub-category, else main —, the noise
  *   filter, the move, the facts from bsrFacts, the decision, the category trend, the money at stake, the action follow-up, the daily
  *   7-day average). This file only adds what a period of SALES says beside it, and draws the page.
- * ORDERS AND REVENUE — the same rows Sales Alerts and the Forecast read (VI.data from sales/sales-insight.js viLoad):
+ * UNITS ORDERED AND REVENUE — the same rows Sales Alerts and the Forecast read (VI.data from sales/sales-insight.js viLoad):
  *   the nightly per-product days (dailyAsin: [units, sales] per ASIN per US Pacific day, 45 days) for the days they hold; before them,
  *   PPC & Organic's weekly store (WEEKLY rows[asin].weeks[Sunday] u / rev, 26 weeks): a week wholly before the per-day data is taken
  *   whole, the part of a week before it = the week's total − its days in the per-day data; a part-week that cannot be split is taken
- *   pro rata and the page says so ("≈"). "Orders" are units ordered (per product Amazon's data counts units — as Sales Alerts and the
+ *   pro rata and the page says so ("≈"). "Units ordered" (Amazon's Business Reports term; 28 Nov 2026: was "Orders") — per product Amazon's data counts units, as Sales Alerts and the
  *   Forecast). The last day = the last finished day the per-day data holds (never today), as Sales Alerts.
  * PERIODS (US Pacific days): This week vs last = Sunday → the last day, against the same days a week before · Last 2 / 4 weeks = the 2 / 4
  *   finished Sunday–Saturday weeks against the 2 / 4 before · This month vs last month = the 1st → the last day, against the same days
  *   of last month. RANKS: the newest stored week (week A) against the stored week 1 / 2 / 4 weeks before it (month: the newest week of
  *   last month) — the existing comparison, per brand.
- * VERDICT per family (bsxVerdict): too few orders (< 10 in both periods) · category changed · rank better + revenue up = 🟢 Growing ·
+ * VERDICT per family (bsxVerdict): too few units ordered (< 10 in both periods) · category changed · rank better + revenue up = 🟢 Growing ·
  *   rank better + revenue flat / down = 🟡 Check price / conversion · rank worse + revenue down = 🔴 Needs action · rank worse + revenue
  *   up / flat = ⚪ Category busier (OK) · rank held: revenue up = Growing, down = Check, flat = Steady. Revenue moves when ≥ 10 %.
  * READ-ONLY: no Amazon call, no backend change — reads what the other screens read; "+ Task" is the Action Tracker's own button.
@@ -31,6 +31,8 @@ const BSX_PERIODS = [
   { k: 'month', t: 'This month vs last month', word: 'this month', n: 0 },
 ];
 const BSX_M = { lowOrders: 10, revMove: 0.10, page: 25, top: 20 };
+// What "Units ordered" means, on every label that shows it.
+const BSX_UNITS_TIP = 'Units ordered (Amazon counts units, e.g. 3 napkins in one order = 3)';
 const BSX_V = {
   act: { e: '🔴', t: 'Needs action', cls: 'bad', o: 0 },
   check: { e: '🟡', t: 'Check price / conversion', cls: 'warn', o: 1 },
@@ -38,13 +40,14 @@ const BSX_V = {
   busy: { e: '⚪', t: 'Category busier', cls: 'off', o: 3 },
   grow: { e: '🟢', t: 'Growing', cls: 'ok', o: 4 },
   steady: { e: '', t: 'Steady', cls: 'off', o: 5 },
-  low: { e: '', t: 'Too few orders to judge', cls: 'off', o: 6 },
+  low: { e: '', t: 'Too few units ordered to judge', cls: 'off', o: 6 },
   norank: { e: '', t: 'No rank to compare', cls: 'off', o: 7 },
 };
 const BSX_CHIPS = [['', 'All'], ['grow', '🟢 Growing'], ['check', '🟡 Check'], ['act', '🔴 Needs action'], ['busy', '⚪ Busier'], ['top', 'Top 20 sellers']];
 const bsxLs = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* this visit */ } } };
 const BSX = { period: 'week', brand: ['SP', 'CPC', 'ALL'].includes(bsxLs.get('bsxBrand')) ? bsxLs.get('bsxBrand') : 'ALL', f: '', q: '', sort: { k: 'default', dir: 1 },
-  limit: BSX_M.page, res: null, tok: 0, panel: '', counted: false, shell: false, err: '', chart: null, vi: null };
+  limit: BSX_M.page, res: null, tok: 0, panel: '', counted: false, shell: false, err: '', chart: null, vi: null,
+  custom: null, hist: null, cal: null };              // 📅 a custom period { a, b, cmp } · Full history's range [from, to] · the open calendar — this visit only
 const bsxEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const BSX_NUM = new Intl.NumberFormat('en-US');
 const bsxNf = v => BSX_NUM.format(Math.round(Number(v || 0)));
@@ -97,7 +100,7 @@ function bsxWeeksFor(weeks, kind) {
   return { a, b };
 }
 
-/* ----- orders and revenue (pure): the same rows as Sales Alerts and the Forecast ----- */
+/* ----- units ordered and revenue (pure): the same rows as Sales Alerts and the Forecast ----- */
 /** Units and sales of some ASINs over [from, to] (US Pacific days). src = { days (VI.data.days), weekly (VI.data.weekly) }.
  *  → { u, s, est (days taken pro rata from a weekly total), miss (days with no figure anywhere) } */
 function bsxSum(asins, from, to, src) {
@@ -245,10 +248,12 @@ function bsxComputeView() {
   const brands = BSX.brand === 'ALL' ? ['SP', 'CPC'] : [BSX.brand];
   const src = bsxSrc();
   const last = bsxLast(src);
-  const per = bsxPeriodDates(BSX.period, last);
-  // the ranks: each brand on its own newest week against the week the period asks for (brands with the same two weeks together, as before)
+  const per = BSX.custom ? { a: BSX.custom.a.slice(), b: BSX.custom.b.slice(), label: `${bsxSpan(BSX.custom.a[0], BSX.custom.a[1])} vs ${bsxSpan(BSX.custom.b[0], BSX.custom.b[1])}`, custom: true }
+    : bsxPeriodDates(BSX.period, last);
+  // the ranks: each brand on its own newest week against the week the period asks for (a custom period: the snapshots closest to its
+  // dates); brands with the same two weeks together, as before
   const pairs = new Map();
-  brands.forEach(b => { const w = bsxWeeksFor(BSR_WEEKS[b], BSX.period); const k = w.a + '|' + w.b; (pairs.get(k) || (pairs.set(k, { w, brands: [] }), pairs.get(k))).brands.push(b); });
+  brands.forEach(b => { const w = bsxRankWeeks(b, per); const k = w.a + '|' + w.b; (pairs.get(k) || (pairs.set(k, { w, brands: [] }), pairs.get(k))).brands.push(b); });
   let rows = [];
   const weeks = {};
   pairs.forEach(({ w, brands: bs }) => { if (w.a) rows = rows.concat(bsrBuildRows(bs, w.a, w.b).all); bs.forEach(b => { weeks[b] = w; }); });
@@ -258,8 +263,9 @@ function bsxComputeView() {
 }
 async function bsxEnsureWeeks() {
   const brands = BSX.brand === 'ALL' ? ['SP', 'CPC'] : [BSX.brand];
+  const per = BSX.custom ? { a: BSX.custom.a, b: BSX.custom.b } : null;
   for (const b of brands) {
-    const w = bsxWeeksFor(BSR_WEEKS[b], BSX.period);
+    const w = bsxRankWeeks(b, per);
     for (const wk of [w.a, w.b].filter(Boolean)) { if (BSR_WEEKS[b].includes(wk)) await loadBsrWeek(b, wk); await bsrLoadDays(b, wk); }
   }
 }
@@ -292,6 +298,7 @@ function bsxShell() {
     <h1 class="bsx-h">BSR Audit</h1>
     <div class="bsx-ctl">
       <label class="bsx-sel"><span class="sr-only">Period</span><select data-bsx="period" aria-label="Period">${BSX_PERIODS.map(p => `<option value="${p.k}"${p.k === BSX.period ? ' selected' : ''}>${p.t}</option>`).join('')}</select></label>
+      <button type="button" class="bsx-btn bsx-calbtn" data-bsx-act="cal" aria-label="Pick dates" title="Pick dates">📅</button><span id="bsxChip"></span>
       <div class="bsx-seg" role="group" aria-label="Brand">${brandBtn('SP', 'Ridhi')}${brandBtn('CPC', 'CPC')}${brandBtn('ALL', 'Both')}</div>
       <input type="search" data-bsx="q" placeholder="Search a family…" aria-label="Search a family" value="${bsxEsc(BSX.q)}">
       <button type="button" class="bsx-btn" data-bsx-act="csv">⬇ CSV</button>
@@ -349,7 +356,7 @@ function bsxShown() {
   if (q) rows = rows.filter(x => (x.name + ' ' + x.parent + ' ' + bsxName(x.brand) + ' ' + (x.rank.cat || '')).toLowerCase().includes(q));
   return bsxSorted(rows, BSX.sort);
 }
-/** Sort: 'default' = Needs action first (by revenue at risk), then by revenue; or a column (name, rank, orders, revenue, price, verdict). */
+/** Sort: 'default' = Needs action first (by revenue at risk), then by revenue; or a column (name, rank, orders = units ordered, revenue, price, verdict). */
 function bsxSorted(rows, sort) {
   const k = sort.k, dir = sort.dir || 1;
   const v = x => (k === 'name' ? x.name.toLowerCase() : k === 'rank' ? (x.r && x.r.a > 0 ? x.r.a : null) : k === 'orders' ? x.uA : k === 'revenue' ? x.sA : k === 'price' ? x.price : k === 'verdict' ? BSX_V[x.verdict].o : null);
@@ -387,7 +394,7 @@ function bsxLine(x) {
     case 'act': return `Needs action: ${rk}, ${rv}.`;
     case 'busy': return `Rank slipped (${rk.replace(/^rank /, '')}) but ${rv} — the category is busier; OK.`;
     case 'steady': return 'Holding steady — rank and revenue within 10%.';
-    case 'low': return `Too few orders to judge (${bsxNf(x.uA)} and ${bsxNf(x.uB)}).`;
+    case 'low': return `Too few units ordered to judge (${bsxNf(x.uA)} and ${bsxNf(x.uB)}).`;
     case 'cat': return 'Amazon moved it to another category — the ranks cannot be compared.';
     default: return `No rank to compare · ${rv}.`;
   }
@@ -398,18 +405,20 @@ function bsxPaint() {
   const p = BSX_PERIODS.find(x => x.k === BSX.period) || BSX_PERIODS[0];
   const asof = bsxEl('bsxAsof');
   const at = res.at ? `updated ${bsxDay(res.at.slice(0, 10))} ${res.at.slice(11, 16)} IST · ` : '';
-  const wk = Object.entries(res.weeks).map(([b, w]) => (w.a ? `${res.brands.length > 1 ? bsxName(b) + ' ' : ''}ranks ${w.a.replace(/^\d{4}-/, '')} vs ${w.b ? w.b.replace(/^\d{4}-/, '') : '—'}` : '')).filter(Boolean).join(' · ');
+  const wk = Object.entries(res.weeks).map(([b, w]) => (w.a ? `${res.brands.length > 1 ? bsxName(b) + ' ' : ''}ranks: ${bsxWeekOf(w.a)} vs ${w.b ? bsxWeekOf(w.b).replace(/^week of /, '') : '—'}` : '')).filter(Boolean).join(' · ');
+  const chip = bsxEl('bsxChip');
+  if (chip) chip.innerHTML = bsxChipHtml();
   if (asof) asof.innerHTML = `${bsxEsc(at)}Amazon data 1–2 days late · <b>${bsxEsc(res.per.label)}</b>${wk ? ' · ' + bsxEsc(wk) : ''}${res.kpi.est ? ' · ≈ part of a week from the weekly totals' : ''}`;
   const story = bsxEl('bsxStory');
-  if (story) story.textContent = bsxStory(res, p.word);
+  if (story) story.textContent = bsxStory(res, res.per.custom ? `in ${bsxSpan(res.per.a[0], res.per.a[1])}` : p.word);
   bsxKpis(res);
   bsxDecision(res);
   bsxChipsPaint(res);
   bsxTablePaint();
   const foot = bsxEl('bsxFoot');
-  if (foot) foot.innerHTML = `Ranks: the sub-category rank (main when there is none), the newest stored week against the one ${p.n === 1 ? 'a week' : p.n ? p.n + ' weeks' : 'a month'} before — a move counts at 10% and a real distance; low sellers are noise. `
-    + `<b>Lower rank number = better.</b> Orders = units ordered; revenue = ordered sales — the same per-day figures as Sales Alerts and Numbers Check (US Pacific days). `
-    + `Verdict: 🟢 rank and revenue up · 🟡 rank up, revenue flat or down · 🔴 rank and revenue down · ⚪ rank down, revenue held · fewer than ${BSX_M.lowOrders} orders in both periods: too few to judge. Revenue moves at ${Math.round(BSX_M.revMove * 100)}%.`;
+  if (foot) foot.innerHTML = `Ranks: the sub-category rank (main when there is none), ${res.per.custom ? 'the weekly snapshots closest to the chosen dates' : `the newest stored week against the one ${p.n === 1 ? 'a week' : p.n ? p.n + ' weeks' : 'a month'} before`} — a move counts at 10% and a real distance; low sellers are noise. `
+    + `<b>Lower rank number = better.</b> Units ordered: Amazon counts units (3 napkins in one order = 3); revenue = ordered sales — the same per-day figures as Sales Alerts and Numbers Check (US Pacific days). `
+    + `Verdict: 🟢 rank and revenue up · 🟡 rank up, revenue flat or down · 🔴 rank and revenue down · ⚪ rank down, revenue held · fewer than ${BSX_M.lowOrders} units ordered in both periods: too few to judge. Revenue moves at ${Math.round(BSX_M.revMove * 100)}%.`;
   if (BSX.panel) bsxPanelDraw();
 }
 function bsxKpis(res) {
@@ -418,10 +427,10 @@ function bsxKpis(res) {
   const k = res.kpi;
   const pct = (a, b) => (b > 0 ? (a - b) / b : null);
   const arrow = p => (p == null ? '' : `<span class="bsx-kd is-${p >= 0 ? 'up' : 'down'}">${p >= 0 ? '▲' : '▼'} ${Math.abs(p) < 0.1 ? (Math.round(Math.abs(p) * 1000) / 10).toFixed(1) : Math.round(Math.abs(p) * 100)}%</span>`);
-  const card = (f, t, v, sub, cls, raw) => `<button type="button" class="bsx-kpi${cls ? ' is-' + cls : ''}${BSX.f === f && f ? ' is-on' : ''}" data-bsx-f="${f}" aria-pressed="${BSX.f === f && !!f}">`
+  const card = (f, t, v, sub, cls, raw, tip) => `<button type="button" class="bsx-kpi${cls ? ' is-' + cls : ''}${BSX.f === f && f ? ' is-on' : ''}" data-bsx-f="${f}" aria-pressed="${BSX.f === f && !!f}"${tip ? ` title="${bsxEsc(tip)}"` : ''}>`
     + `<span class="bsx-kn">${t}</span><b data-to="${raw}" data-fmt="${String(v).startsWith('$') ? 'money' : 'n'}">${v}</b><span class="bsx-ks">${sub}</span></button>`;
   el.innerHTML = card('', 'Revenue', bsxMoney(k.sA), arrow(pct(k.sA, k.sB)) + ` <span class="muted">vs ${bsxMoney(k.sB)}</span>`, '', k.sA)
-    + card('', 'Orders', bsxNf(k.uA), arrow(pct(k.uA, k.uB)) + ` <span class="muted">vs ${bsxNf(k.uB)}</span>`, '', k.uA)
+    + card('', 'Units ordered', bsxNf(k.uA), arrow(pct(k.uA, k.uB)) + ` <span class="muted">vs ${bsxNf(k.uB)}</span>`, '', k.uA, BSX_UNITS_TIP)
     + card('better', 'Ranking better', bsxNf(k.better), 'families', '', k.better)
     + card('worse', 'Ranking worse', bsxNf(k.worse), 'families', '', k.worse)
     + card('act', 'Needs action', bsxNf(k.act), 'rank and revenue down', k.act ? 'bad' : '', k.act);
@@ -446,14 +455,14 @@ function bsxDecCard(x, win) {
   return `<article class="bsx-card is-${win ? 'win' : 'act'}" data-bsx-open="${bsxEsc(x.key)}" tabindex="0" aria-label="${bsxEsc(x.name)} — open details">`
     + `<div class="bsx-card-h"><h3>${bsxEsc(x.name)}</h3><span class="bsx-brand">${bsxEsc(bsxName(x.brand))}</span></div>`
     + `<div class="bsx-card-r">${bsxRankHtml(x)}</div>`
-    + `<div class="bsx-card-m"><span><b>${bsxMoney(x.sA)}</b> revenue ${bsxChange(x.dS, x.pS, true)}</span><span>${bsxNf(x.uA)} orders ${bsxChange(x.dU, x.pU)}</span></div>`
+    + `<div class="bsx-card-m"><span><b>${bsxMoney(x.sA)}</b> revenue ${bsxChange(x.dS, x.pS, true)}</span><span title="${bsxEsc(BSX_UNITS_TIP)}">${bsxNf(x.uA)} units ordered ${bsxChange(x.dU, x.pU)}</span></div>`
     + `<p class="bsx-why"><span class="muted">Why:</span> ${bsxEsc(x.why || 'nothing known explains it')}</p>`
     + `<div class="bsx-card-a"><span class="bsx-do is-${win ? 'win' : 'act'}">${bsxEsc(x.act || (win ? 'Keep going' : 'Look into it'))}</span>${task}</div></article>`;
 }
 function bsxDecision(res) {
   const el = bsxEl('bsxDec');
   if (!el) return;
-  const word = (BSX_PERIODS.find(x => x.k === BSX.period) || BSX_PERIODS[0]).word;
+  const word = BSX.custom ? `in ${bsxSpan(BSX.custom.a[0], BSX.custom.a[1])}` : (BSX_PERIODS.find(x => x.k === BSX.period) || BSX_PERIODS[0]).word;
   el.innerHTML = `<div class="bsx-col"><h2 class="bsx-ch2">🔴 Act now</h2>${res.act3.length ? res.act3.map(x => bsxDecCard(x, false)).join('') : `<p class="bsx-empty">Nothing needs action ${bsxEsc(word)} ✅</p>`}</div>`
     + `<div class="bsx-col"><h2 class="bsx-ch2">🟢 Winning</h2>${res.win3.length ? res.win3.map(x => bsxDecCard(x, true)).join('') : `<p class="bsx-empty">No family is ranking and selling better ${bsxEsc(word)} yet.</p>`}</div>`;
 }
@@ -464,7 +473,7 @@ function bsxChipsPaint(res) {
   el.innerHTML = BSX_CHIPS.map(([f, t]) => `<button type="button" class="bsx-chip${BSX.f === f ? ' is-on' : ''}" data-bsx-f="${f}" aria-pressed="${BSX.f === f}">${t} <b>${bsxNf(n(f))}</b></button>`).join('')
     + (BSX.f === 'better' || BSX.f === 'worse' ? `<span class="bsx-fnote">Showing: ranking ${BSX.f} <button type="button" class="bsx-link" data-bsx-f="">Show all</button></span>` : '');
 }
-const BSX_COLS = [['name', 'Family'], ['rank', 'Rank'], ['orders', 'Orders'], ['revenue', 'Revenue'], ['price', 'Avg price'], ['verdict', 'Verdict']];
+const BSX_COLS = [['name', 'Family'], ['rank', 'Rank'], ['orders', 'Units ordered'], ['revenue', 'Revenue'], ['price', 'Avg price'], ['verdict', 'Verdict']];
 function bsxTablePaint() {
   const t = bsxEl('bsxTable');
   if (!t || !BSX.res) return;
@@ -472,7 +481,7 @@ function bsxTablePaint() {
   const sh = rows.slice(0, BSX.limit);
   const head = '<thead><tr>' + BSX_COLS.map(([k, n], i) => {
     const on = BSX.sort.k === k;
-    return `<th scope="col" class="${i ? (i < 5 && i > 1 ? 'num' : '') : 'bsx-fz'}" aria-sort="${on ? (BSX.sort.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button type="button" class="bsx-th" data-bsx-sort="${k}"${k === 'rank' ? ' title="Lower rank number = better on Amazon"' : ''}>${n}${on ? (BSX.sort.dir > 0 ? ' ↑' : ' ↓') : ''}</button></th>`;
+    return `<th scope="col" class="${i ? (i < 5 && i > 1 ? 'num' : '') : 'bsx-fz'}" aria-sort="${on ? (BSX.sort.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button type="button" class="bsx-th" data-bsx-sort="${k}"${k === 'rank' ? ' title="Lower rank number = better on Amazon"' : k === 'orders' ? ` title="${bsxEsc(BSX_UNITS_TIP)}"` : ''}>${n}${on ? (BSX.sort.dir > 0 ? ' ↑' : ' ↓') : ''}</button></th>`;
   }).join('') + '</tr></thead>';
   const row = x => `<tr tabindex="0" data-bsx-row="${bsxEsc(x.key)}" class="${BSX.panel === x.key ? 'is-open' : ''}" aria-label="${bsxEsc(x.name)}: ${bsxEsc(BSX_V[x.verdict].t)} — Enter for details">`
     + `<td class="bsx-fz"><span class="bsx-fn">${bsxEsc(x.name)}</span><small>${bsxEsc(bsxName(x.brand))} · ${x.sizes ? bsxNf(x.sizes) + ' size' + (x.sizes === 1 ? '' : 's') : bsxEsc(x.parent)}</small></td>`
@@ -511,7 +520,7 @@ function bsxPanelClose() {
   const tr = was && document.querySelector(`#bsxTable tr[data-bsx-row="${CSS.escape(was)}"]`);
   if (tr && tr.focus) tr.focus();
 }
-/** A family's sizes: each child's rank (week A / B), orders, revenue and change, and its own verdict. */
+/** A family's sizes: each child's rank (week A / B), units ordered, revenue and change, and its own verdict. */
 function bsxKids(x) {
   const res = BSX.res;
   const r = x.r;
@@ -577,7 +586,7 @@ function bsxPanelDraw() {
     + `<h3 class="bsx-h3">Why it moved</h3><ul class="bsx-facts">${why}</ul>`
     + `<h3 class="bsx-h3">What to do</h3><ul class="bsx-todo">${todo}</ul><div class="bsx-btns">${task}`
     + `<button type="button" class="bsx-btn" data-bsx-go="health">Open in Listing Health</button><button type="button" class="bsx-btn" data-bsx-go="salert">Open in Sales Alerts</button></div>`
-    + `<h3 class="bsx-h3">Sizes</h3>${kids.length ? `<div class="bsx-tw"><table class="bsx-kids"><thead><tr><th scope="col">Size</th><th scope="col">Rank</th><th scope="col" class="num">Orders</th><th scope="col" class="num">Revenue</th><th scope="col">Verdict</th></tr></thead><tbody>${kidRows}</tbody></table></div>` : '<p class="muted">No sizes in Listing Health for this family.</p>'}</div>`;
+    + `<h3 class="bsx-h3">Sizes</h3>${kids.length ? `<div class="bsx-tw"><table class="bsx-kids"><thead><tr><th scope="col">Size</th><th scope="col">Rank</th><th scope="col" class="num" title="${bsxEsc(BSX_UNITS_TIP)}">Units ordered</th><th scope="col" class="num">Revenue</th><th scope="col">Verdict</th></tr></thead><tbody>${kidRows}</tbody></table></div>` : '<p class="muted">No sizes in Listing Health for this family.</p>'}</div>`;
   box.hidden = false;
   bsxChartDraw(x);
 }
@@ -614,9 +623,191 @@ function bsxChartDraw(x) {
   });
 }
 
+/* ----- 📅 THE CALENDAR (28 Nov 2026): a custom period on the decision page, a date range on Full history ----- */
+// The days that can be picked. Decision page: from the oldest day the sales hold (the weekly store's first Sunday, else the per-day
+// data's first day) to the last finished day. Full history: the days of the stored snapshot weeks (Monday–Sunday), up to today.
+function bsxCalSpan(page) {
+  if (page === 'hist') {
+    const weeks = typeof allWeeks === 'function' ? allWeeks() : [];
+    const days = new Set();
+    weeks.forEach(w => { const m = bsrMonday(w); if (!m) return; for (let i = 0; i < 7; i++) days.add(bsrIso(new Date(m.getTime() + i * 864e5))); });
+    const today = bsxToday();
+    const list = [...days].filter(d => d <= today).sort();
+    return { min: list[0] || today, max: list[list.length - 1] || today, has: d => days.has(d) && d <= today };
+  }
+  const src = bsxSrc();
+  const max = bsxLast(src);
+  const firsts = [src.days && src.days.from, src.weekly && (src.weekly.weeks || []).slice().sort()[0]].filter(Boolean).sort();
+  const min = firsts[0] || bsxAdd(max, -180);
+  return { min, max, has: d => d >= min && d <= max };
+}
+const bsxDays = r => Math.round((Date.parse(r[1]) - Date.parse(r[0])) / 864e5) + 1;
+// "Compare with": the same number of days just before.
+const bsxBefore = a => [bsxAdd(a[0], -bsxDays(a)), bsxAdd(a[0], -1)];
+/** The stored week whose middle is closest to a day (the newest such week when two are as close); `not` = a week to leave out. */
+function bsxWeekNear(weeks, day, not) {
+  const t = Date.parse(day + 'T00:00:00Z');
+  let best = '', bd = Infinity;
+  (weeks || []).forEach(w => {
+    if (w === not) return;
+    const m = bsrMonday(w);
+    if (!m) return;
+    const d = Math.abs(m.getTime() + 3 * 864e5 - t);
+    if (d < bd || (d === bd && w > best)) { bd = d; best = w; }
+  });
+  return best;
+}
+/** The two weeks a brand's ranks are compared on: the default period's (bsxWeeksFor), or — a custom period — the snapshots closest to the
+ *  end of each period (the compared week always older than this period's). */
+function bsxRankWeeks(brand, per) {
+  const ws = ((typeof BSR_WEEKS !== 'undefined' && BSR_WEEKS[brand]) || []).slice().sort();
+  if (!BSX.custom) return bsxWeeksFor(ws, BSX.period);
+  const a = bsxWeekNear(ws, per.a[1]);
+  let b = bsxWeekNear(ws, per.b[1]);
+  if (!a) return { a: '', b: '' };
+  if (!b || b >= a) b = ws.filter(w => w < a).pop() || '';
+  return { a, b };
+}
+const bsxWeekOf = w => { const m = w && bsrMonday(w); return m ? 'week of ' + bsxDay(bsrIso(m)) : '—'; };
+// The presets inside the calendar: the four periods, and last month against the month before.
+const BSX_PRESETS = [['week', 'This week vs last'], ['2w', 'Last 2 weeks'], ['4w', 'Last 4 weeks'], ['month', 'This month vs last month'], ['lmonth', 'Last month vs month before']];
+function bsxLastMonths(last) {
+  const y = +last.slice(0, 4), m = +last.slice(5, 7);
+  const first = (yy, mm) => new Date(Date.UTC(yy, mm - 1, 1)).toISOString().slice(0, 10);
+  const a0 = first(m === 1 ? y - 1 : y, m === 1 ? 12 : m - 1), a1 = bsxAdd(first(y, m), -1);
+  const b0 = first(+a0.slice(0, 4) - (+a0.slice(5, 7) === 1 ? 1 : 0), +a0.slice(5, 7) === 1 ? 12 : +a0.slice(5, 7) - 1), b1 = bsxAdd(a0, -1);
+  return { a: [a0, a1], b: [b0, b1] };
+}
+function bsxCalOpen(page, anchor) {
+  const span = bsxCalSpan(page);
+  const cur = page === 'hist' ? (BSX.hist ? { a: BSX.hist.slice() } : { a: ['', ''] })
+    : BSX.custom ? { a: BSX.custom.a.slice(), b: BSX.custom.b.slice(), cmp: BSX.custom.cmp || 'auto' }
+    : (p => ({ a: p.a.slice(), b: p.b.slice(), cmp: 'auto' }))(bsxPeriodDates(BSX.period, span.max));
+  BSX.cal = Object.assign({ page, step: 'a', cmp: 'auto', b: ['', ''], month: (cur.a[1] || span.max).slice(0, 7), span }, cur);
+  let box = bsxEl('bsxCal');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'bsxCal';
+    box.className = 'bsx-cal';
+    box.setAttribute('role', 'dialog');
+    (bsxEl('paneBsr') || document.body).appendChild(box);
+  }
+  box.setAttribute('aria-label', page === 'hist' ? 'Pick the weeks to show' : 'Pick a period');
+  box.hidden = false;
+  bsxCalDraw();
+  try {
+    const r = anchor && anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : null;
+    if (r && typeof innerWidth !== 'undefined') {
+      box.style.top = Math.round(r.bottom + 8) + 'px';
+      box.style.left = Math.max(12, Math.min(Math.round(r.left), innerWidth - 372)) + 'px';
+    }
+  } catch (e) { /* placed by the style */ }
+  const f = box.querySelector && box.querySelector('[data-bsx-cal-day]:not([disabled])');
+  if (f && f.focus) f.focus();
+}
+function bsxCalClose() {
+  BSX.cal = null;
+  const box = bsxEl('bsxCal');
+  if (box) { box.hidden = true; box.innerHTML = ''; }
+}
+const BSX_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+function bsxCalDraw() {
+  const c = BSX.cal, box = bsxEl('bsxCal');
+  if (!c || !box) return;
+  const dec = c.page !== 'hist';
+  const y = +c.month.slice(0, 4), m = +c.month.slice(5, 7);
+  const first = c.month + '-01';
+  const start = bsxSun(first);
+  const nextMonth = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
+  const inR = (d, r) => r && r[0] && d >= r[0] && d <= (r[1] || r[0]);
+  let cells = '';
+  for (let d = start; d < nextMonth || new Date(d + 'T00:00:00Z').getUTCDay() !== 0; d = bsxAdd(d, 1)) {
+    const out = d.slice(0, 7) !== c.month, ok = c.span.has(d) && !out;
+    const cls = [out ? 'is-out' : '', inR(d, c.a) ? 'is-a' : '', dec && inR(d, c.b) ? 'is-b' : '', d === c.a[0] || d === c.a[1] ? 'is-edge' : '', dec && (d === c.b[0] || d === c.b[1]) ? 'is-bedge' : ''].filter(Boolean).join(' ');
+    cells += `<button type="button" class="bsx-cd ${cls}" data-bsx-cal-day="${d}"${ok ? '' : ' disabled'} aria-label="${+d.slice(8, 10)} ${BSX_MONTHS[+d.slice(5, 7) - 1]} ${d.slice(0, 4)}${ok ? '' : ' — no data'}">${out ? '' : +d.slice(8, 10)}</button>`;
+  }
+  const txt = r => (r && r[0] ? bsxSpan(r[0], r[1] || r[0]) : 'pick the days');
+  const canPrev = c.span.min.slice(0, 7) < c.month, canNext = c.span.max.slice(0, 7) > c.month;
+  const ready = c.a[0] && c.a[1] && (!dec || (c.b[0] && c.b[1]));
+  const steps = dec ? `<div class="bsx-cal-steps" role="group" aria-label="Which dates">`
+    + `<button type="button" data-bsx-cal-step="a" aria-pressed="${c.step === 'a'}"><span>This period</span><b>${bsxEsc(txt(c.a))}</b></button>`
+    + `<button type="button" data-bsx-cal-step="b" aria-pressed="${c.step === 'b'}"><span>Compare with</span><b>${bsxEsc(txt(c.b))}</b></button></div>`
+    + (c.step === 'b' ? `<div class="bsx-seg bsx-cal-cmp" role="group" aria-label="Compare with"><button type="button" data-bsx-cal-cmp="auto" aria-pressed="${c.cmp === 'auto'}">Same number of days just before</button><button type="button" data-bsx-cal-cmp="pick" aria-pressed="${c.cmp === 'pick'}">Pick dates</button></div>` : '') : '';
+  const pre = dec ? `<div class="bsx-cal-pre" role="group" aria-label="Quick periods">${BSX_PRESETS.map(([k, t]) => `<button type="button" data-bsx-cal-preset="${k}">${t}</button>`).join('')}</div>` : '';
+  box.innerHTML = `<div class="bsx-cal-h"><b>${dec ? 'Custom period' : 'Show the weeks between'}</b><button type="button" class="bsx-x" data-bsx-cal-act="cancel" aria-label="Close">✕</button></div>`
+    + pre + steps
+    + (!dec ? `<p class="bsx-cal-sel">${bsxEsc(txt(c.a))}</p>` : '')
+    + `<div class="bsx-cal-m"><button type="button" data-bsx-cal-nav="-1" aria-label="Month before"${canPrev ? '' : ' disabled'}>‹</button><b>${BSX_MONTHS[m - 1]} ${y}</b><button type="button" data-bsx-cal-nav="1" aria-label="Month after"${canNext ? '' : ' disabled'}>›</button></div>`
+    + `<div class="bsx-cal-g">${['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => `<span class="bsx-cw" aria-hidden="true">${d}</span>`).join('')}${cells}</div>`
+    + `<p class="bsx-cal-note">${dec ? `Data from ${bsxDay(c.span.min)} ${c.span.min.slice(0, 4)} to ${bsxDay(c.span.max)} — greyed days have no data. Ranks: the weekly snapshots closest to the dates.` : 'Only the weeks with a rank snapshot can be picked (others greyed).'}</p>`
+    + `<div class="bsx-cal-f">${!dec && BSX.hist ? '<button type="button" class="bsx-btn" data-bsx-cal-act="clear">Show the last weeks again</button>' : ''}<span style="flex:1"></span>`
+    + `<button type="button" class="bsx-btn" data-bsx-cal-act="cancel">Cancel</button><button type="button" class="bsx-btn is-main" data-bsx-cal-act="apply"${ready ? '' : ' disabled'}>Apply</button></div>`;
+}
+/** A day clicked: the range of the step on view grows (start, then end); "same days just before" follows this period. */
+function bsxCalPick(day) {
+  const c = BSX.cal;
+  if (!c || !c.span.has(day)) return;
+  const key = c.page !== 'hist' && c.step === 'b' ? 'b' : 'a';
+  const r = c[key];
+  c[key] = !r[0] || r[1] || day < r[0] ? [day, ''] : [r[0], day];
+  if (key === 'a' && c[key][1] && c.page !== 'hist') {
+    if (c.cmp === 'auto') c.b = bsxBefore(c.a);
+    else c.step = 'b';
+  }
+  if (key === 'b') c.cmp = 'pick';
+  bsxCalDraw();
+}
+function bsxCalApply() {
+  const c = BSX.cal;
+  if (!c || !c.a[0] || !c.a[1]) return;
+  if (c.page === 'hist') {
+    BSX.hist = c.a.slice();
+    bsxCalClose();
+    bsxHistChip();
+    if (typeof renderBsr === 'function') renderBsr();
+    return;
+  }
+  if (!c.b[0] || !c.b[1]) return;
+  BSX.custom = { a: c.a.slice(), b: c.b.slice(), cmp: c.cmp };
+  bsxCalClose();
+  BSX.limit = BSX_M.page; BSX.counted = false;
+  bsxRender();
+}
+function bsxCalPreset(k) {
+  const c = BSX.cal;
+  if (!c) return;
+  bsxCalClose();
+  if (k === 'lmonth') { const p = bsxLastMonths(c.span.max); BSX.custom = { a: p.a, b: p.b, cmp: 'pick', preset: k }; }
+  else {
+    BSX.custom = null;
+    BSX.period = k;
+    const sel = document.querySelector && document.querySelector('#bsxPane [data-bsx="period"]');
+    if (sel) sel.value = k;
+  }
+  BSX.limit = BSX_M.page; BSX.counted = false;
+  bsxRender();
+}
+/** The toolbar chip of a custom period: "16–21 Nov vs 9–14 Nov ✕" (✕ = back to the default period). */
+function bsxChipHtml() {
+  if (!BSX.custom) return '';
+  return `<span class="bsx-cchip">${bsxEsc(`${bsxSpan(BSX.custom.a[0], BSX.custom.a[1])} vs ${bsxSpan(BSX.custom.b[0], BSX.custom.b[1])}`)}<button type="button" data-bsx-act="uncustom" aria-label="Back to the default period">✕</button></span>`;
+}
+/** Full history: the weeks inside the range picked (each week whose Monday–Sunday touches it), oldest first; null = no range. */
+function bsxHistWeeks() {
+  if (!BSX.hist) return null;
+  const [f, t] = BSX.hist;
+  const list = (typeof allWeeks === 'function' ? allWeeks() : []).filter(w => { const m = bsrMonday(w); return m && bsrIso(m) <= t && bsrIso(new Date(m.getTime() + 6 * 864e5)) >= f; });
+  return list.length ? list : null;
+}
+function bsxHistChip() {
+  const el = bsxEl('bHistChip');
+  if (!el) return;
+  el.innerHTML = BSX.hist ? `<span class="bsx-cchip">${bsxEsc(bsxSpan(BSX.hist[0], BSX.hist[1]))}<button type="button" data-bsx-act="unhist" aria-label="Show the last weeks again">✕</button></span>` : '';
+}
+
 /* ----- the CSV: what is on screen ----- */
 const BSX_CSV_COLS = ['Brand', 'Family (parent)', 'Name', 'Sizes', 'Category', 'Rank now', 'Rank before', 'Rank change', 'Rank change %', 'Main rank now', 'Main category',
-  'Orders now', 'Orders before', 'Orders change %', 'Revenue now', 'Revenue before', 'Revenue change', 'Revenue change %', 'Avg price', 'Verdict', 'Why', 'Suggested action', 'Period now', 'Period before', 'Rank weeks'];
+  'Units ordered now', 'Units ordered before', 'Units ordered change %', 'Revenue now', 'Revenue before', 'Revenue change', 'Revenue change %', 'Avg price', 'Verdict', 'Why', 'Suggested action', 'Period now', 'Period before', 'Rank weeks'];
 function bsxCsv() {
   const res = BSX.res;
   if (!res) return { n: 0, text: '' };
@@ -636,7 +827,7 @@ function bsxDownload() {
   if (!out.n) return out;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([out.text], { type: 'text/csv;charset=utf-8' }));
-  a.download = `Sellora-BSR-Audit-${BSX.period}-${BSX.brand}-${bsxToday()}.csv`;
+  a.download = `Sellora-BSR-Audit-${BSX.custom ? 'custom-' + BSX.custom.a.join('-to-') : BSX.period}-${BSX.brand}-${bsxToday()}.csv`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   return out;
@@ -649,6 +840,8 @@ function bsxMode(mode) {
   if (pane) pane.classList.toggle('hide', !on);
   if (old) old.classList.toggle('hide', on);
   if (!on) bsxPanelClose();
+  bsxCalClose();
+  bsxHistChip();
 }
 /** The tab opened (bsr-audit.js ensureBsr): the frame at once, the sales read in parallel with the ranks. */
 function bsxOpen() {
@@ -660,6 +853,23 @@ function bsxOpen() {
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('click', e => {
     const on = s => (e.target && e.target.closest ? e.target.closest(s) : null);
+    // 📅 the calendar: its own buttons; a click outside it (not on a 📅) closes it
+    if (BSX.cal) {
+      const cb = on('#bsxCal [data-bsx-cal-day], #bsxCal [data-bsx-cal-nav], #bsxCal [data-bsx-cal-step], #bsxCal [data-bsx-cal-cmp], #bsxCal [data-bsx-cal-preset], #bsxCal [data-bsx-cal-act]');
+      if (cb) {
+        const cd = cb.dataset, c = BSX.cal;
+        if (cd.bsxCalDay) bsxCalPick(cd.bsxCalDay);
+        else if (cd.bsxCalNav) { const [y, m] = c.month.split('-').map(Number); c.month = new Date(Date.UTC(y, m - 1 + Number(cd.bsxCalNav), 1)).toISOString().slice(0, 7); bsxCalDraw(); }
+        else if (cd.bsxCalStep) { c.step = cd.bsxCalStep; bsxCalDraw(); }
+        else if (cd.bsxCalCmp) { c.cmp = cd.bsxCalCmp; if (c.cmp === 'auto' && c.a[0] && c.a[1]) c.b = bsxBefore(c.a); else if (c.cmp === 'pick') c.b = ['', '']; bsxCalDraw(); }
+        else if (cd.bsxCalPreset) bsxCalPreset(cd.bsxCalPreset);
+        else if (cd.bsxCalAct === 'apply') bsxCalApply();
+        else if (cd.bsxCalAct === 'clear') { BSX.hist = null; bsxCalClose(); bsxHistChip(); if (typeof renderBsr === 'function') renderBsr(); }
+        else if (cd.bsxCalAct === 'cancel') bsxCalClose();
+        return;
+      }
+      if (!on('#bsxCal') && !on('[data-bsx-act="cal"], [data-bsx-act="hcal"]')) bsxCalClose();
+    }
     const panel = bsxEl('bsxPanel');
     if (BSX.panel && panel && !panel.hidden && !on('#bsxPanel') && !on('#bsxTable tr[data-bsx-row]') && !on('[data-bsx-open]') && !on('#tkF, .tk-dlg, [data-tk-new]')) bsxPanelClose();
     if (!on('#paneBsr')) return;
@@ -668,6 +878,9 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (t.matches('[data-tk-new]') || on('[data-tk-new]')) return;
     const d = t.dataset;
     if (d.bsxAct === 'csv') return bsxDownload();
+    if (d.bsxAct === 'cal' || d.bsxAct === 'hcal') return BSX.cal ? bsxCalClose() : bsxCalOpen(d.bsxAct === 'hcal' ? 'hist' : 'dec', t);
+    if (d.bsxAct === 'uncustom') { BSX.custom = null; BSX.limit = BSX_M.page; BSX.counted = false; return bsxRender(); }
+    if (d.bsxAct === 'unhist') { BSX.hist = null; bsxHistChip(); return typeof renderBsr === 'function' ? renderBsr() : undefined; }
     if (d.bsxAct === 'history') return setBsrMode('history');
     if (d.bsxAct === 'more') { BSX.limit += BSX_M.page; return bsxTablePaint(); }
     if (d.bsxAct === 'close') return bsxPanelClose();
@@ -696,7 +909,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('change', e => {
     const el = e.target;
     if (!el || !el.closest || !el.closest('#bsxPane') || !el.dataset) return;
-    if (el.dataset.bsx === 'period') { BSX.period = el.value; BSX.limit = BSX_M.page; BSX.counted = false; bsxRender(); }
+    if (el.dataset.bsx === 'period') { BSX.period = el.value; BSX.custom = null; BSX.limit = BSX_M.page; BSX.counted = false; bsxRender(); }
   });
   document.addEventListener('input', e => {
     const el = e.target;
@@ -706,6 +919,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     BSX.qt = setTimeout(() => { BSX.limit = BSX_M.page; bsxTablePaint(); }, 150);
   });
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && BSX.cal) { bsxCalClose(); return; }
     if (e.key === 'Escape' && BSX.panel) { bsxPanelClose(); return; }
     const tr = e.target && e.target.closest ? e.target.closest('#bsxTable tr[data-bsx-row], [data-bsx-open]') : null;
     if (!tr) return;

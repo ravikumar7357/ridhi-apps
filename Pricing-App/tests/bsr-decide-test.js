@@ -75,7 +75,7 @@ function load(o) {
   const store = { 'selloraDashFx': o.fx === false ? '0' : null };
   const raf = [];
   const ctx = {
-    $: el, document: { getElementById: el, querySelectorAll: () => [], querySelector: () => null, addEventListener() {}, createElement: () => ({ click() {} }) }, window: undefined,
+    $: el, document: { body: el('body'), getElementById: el, querySelectorAll: () => [], querySelector: () => null, addEventListener() {}, createElement: () => ({ click() {} }) }, window: undefined,
     localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } }, matchMedia: () => ({ matches: false }),
     requestAnimationFrame: fn => { raf.push(fn); return raf.length; }, performance: { now: () => 0 },
     CSS: { escape: s => s }, getComputedStyle: () => ({ position: 'static', getPropertyValue: () => '' }), Blob: class {}, URL: { createObjectURL: () => '', revokeObjectURL() {} },
@@ -91,7 +91,7 @@ function load(o) {
   };
   const names = ['bsxPeriodDates', 'bsxWeeksFor', 'bsxSum', 'bsxVerdict', 'bsxRankParts', 'bsxRankHtml', 'bsxAction', 'bsxCompute', 'bsxStory', 'bsxComputeView', 'bsxPaint', 'bsxShown', 'bsxSorted',
     'bsxTablePaint', 'bsxKpis', 'bsxChipsPaint', 'bsxDecision', 'bsxPanelOpen', 'bsxPanelClose', 'bsxPanelDraw', 'bsxCsv', 'bsxMode', 'bsxFx', 'bsxLine', 'bsxKids', 'bsxShell', 'BSX', 'BSX_V',
-    'bsrBuildRows', 'renderBsr', 'BSR', 'BSR_WEEKS', 'BSR_SRC'];
+    'bsrBuildRows', 'renderBsr', 'BSR', 'BSR_WEEKS', 'BSR_SRC', 'bsxCalOpen', 'bsxCalPick', 'bsxCalApply', 'bsxCalPreset', 'bsxCalClose', 'bsxChipHtml', 'bsxHistWeeks', 'bsxHistChip', 'bsxRankWeeks', 'bsxWeekNear'];
   const src = SRC('bsr-audit.js') + '\n;' + SRC('bsr-decide.js') + '\n;return {' + names.join(',') + ', setLoaded: v => { BSR_LOADED = v; }, setMode: m => { BSR_MODE = m; } };';
   const api = new Function(...Object.keys(ctx), src)(...Object.values(ctx));
   api.BSR_WEEKS.SP = WEEKS.slice();
@@ -220,7 +220,7 @@ function load(o) {
     X.BSX.sort = { k: 'default', dir: 1 };
     X.bsxTablePaint();
     const t = X.el('bsxTable').innerHTML;
-    ok('the table: Family · Rank · Orders · Revenue · Avg price · Verdict; rows focusable (↑↓ + Enter), Family pinned, numbers right-aligned', /Family.*Rank.*Orders.*Revenue.*Avg price.*Verdict/.test(strip(t.slice(0, t.indexOf('</thead>'))))
+    ok('the table: Family · Rank · Units ordered · Revenue · Avg price · Verdict; rows focusable (↑↓ + Enter), Family pinned, numbers right-aligned', /Family.*Rank.*Units ordered.*Revenue.*Avg price.*Verdict/.test(strip(t.slice(0, t.indexOf('</thead>'))))
       && /<tr tabindex="0" data-bsx-row="SP\|/.test(t) && /<td class="bsx-fz">/.test(t) && /<td class="num"><b>/.test(t) && /🔴 Needs action/.test(t));
     X.BSX.limit = 3; X.bsxTablePaint();
     ok('25 rows then "Show more" (here 3: "Show more (5 left)")', /Show more \(5 left\)/.test(X.el('bsxMore').innerHTML) && (X.el('bsxTable').innerHTML.match(/data-bsx-row=/g) || []).length === 3);
@@ -259,7 +259,7 @@ function load(o) {
     ok('✨ on: the numbers count up once (an animation frame), the second paint does not', Y.raf.length === 1 && (Y.bsxKpis(Y.BSX.res), Y.raf.length === 1));
     const csv = Y.bsxCsv();
     const lines = csv.text.split('\r\n');
-    ok('CSV: rank both periods, change, orders, revenue, changes, verdict, why, action, the periods (Excel-ready: BOM, CRLF)', /^﻿Brand,Family \(parent\),Name,Sizes,Category,Rank now,Rank before,Rank change,Rank change %,Main rank now,Main category,Orders now,Orders before,Orders change %,Revenue now,Revenue before,Revenue change,Revenue change %,Avg price,Verdict,Why,Suggested action,Period now,Period before,Rank weeks$/.test(lines[0])
+    ok('CSV: rank both periods, change, orders, revenue, changes, verdict, why, action, the periods (Excel-ready: BOM, CRLF)', /^﻿Brand,Family \(parent\),Name,Sizes,Category,Rank now,Rank before,Rank change,Rank change %,Main rank now,Main category,Units ordered now,Units ordered before,Units ordered change %,Revenue now,Revenue before,Revenue change,Revenue change %,Avg price,Verdict,Why,Suggested action,Period now,Period before,Rank weeks$/.test(lines[0])
       && lines.some(l => /^Ridhi,B0P8PARENT,Big Tablecloth,1,Tablecloths,9800,7000,2800,40%,147000,Home & Kitchen,120,200,-40%,2400\.00,4000\.00,-1600\.00,-40%,20\.00,Needs action,Worse by 40% — nothing known explains it,Watch,2026-11-22 to 2026-11-26,2026-11-15 to 2026-11-19,2026-W48 vs 2026-W47$/.test(l)), lines.slice(0, 3).join('\n'));
     const dec = SRC('bsr-decide.js');
     ok('read-only: the page calls no Amazon / backend / database write (no baCall, setDoc, fetch, imPost, lfix)', !/\b(baCall|setDoc|deleteDoc|fetch|imPost|lmNet)\(|lfix/.test(dec));
@@ -271,6 +271,73 @@ function load(o) {
     ok('the engine underneath is the existing one: bsrBuildRows = the rows the Compare table decided on (action, move, risk, priority) for the same weeks', built.length === 8 && built.every(r => r.decision && r.prio && 'risk' in r)
       && built.find(r => r.parent.startsWith('B0P2')).action === 'Restock first' && built.find(r => r.parent.startsWith('B0P6')).action === 'Check category');
     ok('the decision page only reads the existing decision (bsrDecide / bsrFacts are never redefined in bsr-decide.js)', !/function bsr(Decide|Facts|FactList|Move|Used|AtRisk|Priority|CatTrend)\b/.test(dec));
+  }
+
+  console.log('== 9. (28 Nov 2026) "Units ordered" everywhere; the 📅 calendar on both pages ==');
+  {
+    const X = load();
+    X.BSX.res = X.bsxComputeView();
+    X.bsxKpis(X.BSX.res); X.bsxTablePaint(); X.bsxDecision(X.BSX.res); X.bsxPanelOpen(X.BSX.res.act3[0].key);
+    const tip = 'Units ordered (Amazon counts units, e.g. 3 napkins in one order = 3)';
+    const all = [X.el('bsxKpis').innerHTML, X.el('bsxTable').innerHTML, X.el('bsxDec').innerHTML, X.el('bsxPanel').innerHTML].join('\n');
+    ok('RENAME: the card, the table column, Act now / Winning, the panel say "Units ordered" with the tooltip — "Orders" nowhere', /<span class="bsx-kn">Units ordered<\/span>/.test(X.el('bsxKpis').innerHTML) && X.el('bsxKpis').innerHTML.includes('title="' + tip + '"')
+      && /data-bsx-sort="orders" title="Units ordered \(Amazon counts units, e\.g\. 3 napkins in one order = 3\)">Units ordered/.test(X.el('bsxTable').innerHTML) && /\d+ units ordered /.test(X.el('bsxDec').innerHTML)
+      && /title="Units ordered \(Amazon counts units[^"]*"\>Units ordered<\/th>/.test(X.el('bsxPanel').innerHTML) && !/\bOrders\b|\d orders\b/.test(all), (all.match(/.{40}\b[Oo]rders\b.{20}/g) || []).join(' | '));
+    ok('…the CSV ("Units ordered now / before / change %"), the verdict ("Too few units ordered to judge"), the footnote and the docs too', /Units ordered now,Units ordered before,Units ordered change %/.test(X.bsxCsv().text) && X.BSX_V.low.t === 'Too few units ordered to judge'
+      && /Units ordered: Amazon counts units/.test(SRC('bsr-decide.js')) && /### BSR Audit — units ordered and revenue/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sales-metrics.md'), 'utf8')));
+    X.bsxPanelClose();
+    // the calendar on both pages
+    X.BSX.shell = false; X.bsxShell();
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
+    ok('📅 on both pages: beside the Period dropdown of the decision page, beside the weeks dropdown of Full history (with its chip)', /<\/select><\/label>\n\s*<button type="button" class="bsx-btn bsx-calbtn" data-bsx-act="cal" aria-label="Pick dates"/.test(X.el('bsxPane').innerHTML)
+      && /<option value="999">All weeks<\/option>\r?\n\s*<\/select>[\s\S]{0,200}<button type="button" id="bHistCal" class="ghost histOnly hide bsx-calbtn" data-bsx-act="hcal"/.test(html) && /<span id="bHistChip" class="histOnly hide"><\/span>/.test(html));
+    // a custom period: 16–21 Nov, compared with the same 6 days just before (10–15 Nov)
+    X.el('bsxCal');
+    X.bsxCalOpen('dec', null);
+    ok('the calendar opens on the period in use (22–26 Nov vs 15–19 Nov), with the presets and the two steps', X.BSX.cal && X.BSX.cal.a.join() === '2026-11-22,2026-11-26' && /This week vs last.*Last 2 weeks.*Last 4 weeks.*This month vs last month.*Last month vs month before/.test(strip(X.el('bsxCal').innerHTML)) && /This period/.test(X.el('bsxCal').innerHTML) && /Compare with/.test(X.el('bsxCal').innerHTML));
+    const cal = X.el('bsxCal').innerHTML;
+    ok('only days with data can be picked: 27 Nov (after the last day of data) and 30 May (before the weekly store) greyed — "no data"', /data-bsx-cal-day="2026-11-27" disabled aria-label="27 November 2026 — no data"/.test(cal) && /data-bsx-cal-day="2026-11-26" aria-label="26 November 2026"/.test(cal) && X.BSX.cal.span.has('2026-05-31') && !X.BSX.cal.span.has('2026-05-30'));
+    X.bsxCalPick('2026-11-27');
+    ok('…a greyed day does nothing when clicked', X.BSX.cal.a.join() === '2026-11-22,2026-11-26');
+    X.bsxCalPick('2026-11-16'); X.bsxCalPick('2026-11-21');
+    ok('picking 16 → 21 Nov: "Compare with" = the same 6 days just before (10–15 Nov) — shown as "16–21 Nov" / "10–15 Nov"', X.BSX.cal.a.join() === '2026-11-16,2026-11-21' && X.BSX.cal.b.join() === '2026-11-10,2026-11-15' && /<b>16–21 Nov<\/b>/.test(X.el('bsxCal').innerHTML) && /<b>10–15 Nov<\/b>/.test(X.el('bsxCal').innerHTML));
+    X.bsxCalApply();
+    const r = X.bsxComputeView();
+    ok('Apply: units ordered and revenue for exactly those days; ranks from the snapshots closest to the dates (16–21 Nov → week of 16 Nov; 10–15 Nov → week of 9 Nov)', r.per.a.join() === '2026-11-16,2026-11-21' && r.per.b.join() === '2026-11-10,2026-11-15' && r.weeks.SP.a === '2026-W47' && r.weeks.SP.b === '2026-W46'
+      && (x => x.uA === X.bsxSum(x.asins, '2026-11-16', '2026-11-21', { days: X.F.days, weekly: X.F.weekly }).u)(r.rows.find(x => x.name === 'Stripe Tablecloth')));
+    X.BSX.res = r; X.bsxPaint();
+    ok('…the toolbar says which weeks ("ranks: week of 16 Nov vs 9 Nov") and shows the chip "16–21 Nov vs 10–15 Nov ✕"', /ranks: week of 16 Nov vs 9 Nov/.test(X.el('bsxAsof').innerHTML) && /16–21 Nov vs 10–15 Nov<button type="button" data-bsx-act="uncustom" aria-label="Back to the default period">✕<\/button>/.test(X.el('bsxChip').innerHTML), X.el('bsxAsof').innerHTML);
+    ok('…the story line, the cards, the table and the CSV follow it ("in 16–21 Nov"; Period now = 2026-11-16 to 2026-11-21)', /^Revenue (up|down|flat)[^.]* in 16–21 Nov\./.test(X.el('bsxStory').textContent) && X.bsxCsv().text.split('\r\n').slice(1, 2).every(l => /,2026-11-16 to 2026-11-21,2026-11-10 to 2026-11-15,2026-W47 vs 2026-W46$/.test(l)), X.el('bsxStory').textContent);
+    // "Compare with": your own dates
+    X.bsxCalOpen('dec', null);
+    X.BSX.cal.step = 'b'; X.BSX.cal.cmp = 'pick'; X.BSX.cal.b = ['', ''];
+    X.bsxCalPick('2026-11-01'); X.bsxCalPick('2026-11-06');
+    X.bsxCalApply();
+    const r2 = X.bsxComputeView();
+    ok('"Compare with" your own dates: 1–6 Nov (ranks: the snapshot closest to 6 Nov = week of 2 Nov)', r2.per.b.join() === '2026-11-01,2026-11-06' && r2.per.a.join() === '2026-11-16,2026-11-21' && r2.weeks.SP.b === '2026-W45');
+    // the chip's ✕: the default period again
+    X.BSX.custom = null;
+    const r3 = X.bsxComputeView();
+    ok('the chip\'s ✕ (custom = null): back to the default period (22–26 Nov vs 15–19 Nov, W48 vs W47), no chip', r3.per.label === '22–26 Nov vs 15–19 Nov' && r3.weeks.SP.a === '2026-W48' && X.bsxChipHtml() === '');
+    // the presets
+    X.bsxCalOpen('dec', null); X.bsxCalPreset('2w');
+    ok('preset "Last 2 weeks": the period dropdown\'s own period, no custom chip', X.BSX.period === '2w' && !X.BSX.custom && !X.BSX.cal);
+    X.bsxCalOpen('dec', null); X.bsxCalPreset('lmonth');
+    ok('preset "Last month vs month before": 1–31 Oct vs 1–30 Sep', X.BSX.custom && X.BSX.custom.a.join() === '2026-10-01,2026-10-31' && X.BSX.custom.b.join() === '2026-09-01,2026-09-30');
+    X.BSX.custom = null; X.BSX.period = 'week';
+    // Full history: a date range → only the weeks inside it
+    X.bsxCalOpen('hist', null);
+    const hc = X.el('bsxCal').innerHTML;
+    ok('Full history\'s calendar: only the days of the stored snapshot weeks can be picked (20 Oct greyed; 2 Nov not)', /Show the weeks between/.test(hc) && !X.BSX.cal.span.has('2026-10-20') && X.BSX.cal.span.has('2026-11-02') && !/This period/.test(hc));
+    X.bsxCalPick('2026-11-02'); X.bsxCalPick('2026-11-15'); X.bsxCalApply();
+    ok('a range 2–15 Nov: the weeks inside it (W45, W46) and the chip "2–15 Nov ✕"', X.bsxHistWeeks().join() === '2026-W45,2026-W46' && /2–15 Nov<button type="button" data-bsx-act="unhist"/.test(X.el('bHistChip').innerHTML));
+    X.setMode('history');
+    X.el('bHistWeeks').value = '6'; X.el('bBrandView').value = 'SP'; X.el('bFilter').value = '';
+    await X.renderBsr();
+    const hd = X.el('bTable').innerHTML;
+    ok('…Full history draws only those weeks as columns (W45, W46 — not W44 or W48)', /<th class="num"[^>]*>2026-W45<\/th>/.test(hd) && /2026-W46<\/th>/.test(hd) && !/2026-W44<\/th>|2026-W48<\/th>/.test(hd), hd.slice(0, 600));
+    X.BSX.hist = null;
+    ok('✕ on that chip: back to the last weeks (bsxHistWeeks null)', X.bsxHistWeeks() === null);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

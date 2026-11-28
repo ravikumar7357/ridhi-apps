@@ -1237,7 +1237,8 @@ async function renderBsrHistory() {
 
   // --- the window: the last N stored weeks, loaded on demand ---
   const want = Math.max(2, +$('bHistWeeks').value || 6);
-  const weeks = allWeeks().slice(-want);                 // oldest → newest
+  // (28 Nov 2026) 📅 a date range picked (bsr-decide.js bsxHistWeeks): only the weeks inside it
+  const weeks = (typeof bsxHistWeeks === 'function' && bsxHistWeeks()) || allWeeks().slice(-want);   // oldest → newest
 
   // Pull every week this window needs that isn't already in memory.
   $('bMsg').textContent = 'Loading history…';

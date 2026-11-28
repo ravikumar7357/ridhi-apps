@@ -583,13 +583,13 @@ A family whose returns jumped in the last week the data covers.
 - **Rounding:** Whole %; points whole.
 - **How fresh:** As Return rate.
 
-### BSR Audit — orders and revenue
+### BSR Audit — units ordered and revenue
 
-Units ordered and ordered sales of a family in a period, beside its rank.
+Units ordered (Amazon's Business Reports term — Amazon counts units, e.g. 3 napkins in one order = 3) and ordered sales of a family in a period, beside its rank.
 
-- **Screens:** BSR Audit (story line, Revenue / Orders cards, decision cards, table, panel chart and sizes, CSV)
+- **Screens:** BSR Audit (story line, Revenue / Units ordered cards, decision cards, table, panel chart and sizes, CSV)
 - **Data source:** The same rows as Sales Alerts and the Forecast: the nightly per-product days (dailyAsin, [units, sales] per ASIN per day, 45 days); before them PPC & Organic's weekly store (WEEKLY u / rev, Sunday weeks, 26 weeks).
-- **Formula:** Σ over the family's ASINs (Listing Health's parent) of the days in the period. A week wholly before the per-day data = its weekly total; the part of a week before it = the week's total − its days in the per-day data; a part that cannot be split is pro rata and shown "≈". Orders = units ordered (per product the data counts units). Avg price = revenue ÷ orders.
+- **Formula:** Σ over the family's ASINs (Listing Health's parent) of the days in the period. A week wholly before the per-day data = its weekly total; the part of a week before it = the week's total − its days in the per-day data; a part that cannot be split is pro rata and shown "≈". Units ordered = units (per product the data counts units; the label said "Orders" until 28 Nov 2026). Avg price = revenue ÷ units ordered.
 - **Day cut-off:** US Pacific days; the last day = the last finished day the per-day data holds (never today). This week vs last = Sunday → last day vs the same days a week before; Last 2 / 4 weeks = the finished Sunday–Saturday weeks vs the same number before; This month vs last month = the 1st → last day vs the same days of last month.
 - **Included / excluded:** Amazon (Ridhi, CPC); Shopify not in. As the per-day cache: Amazon.com, cancelled and MCF out.
 - **Brands:** Ridhi · CPC · Both (each family in its own brand).
@@ -614,8 +614,8 @@ A family's rank now against before, as Amazon writes it ("#3,100 in Tablecloths"
 One word per family for the period: is it growing, does it need action?
 
 - **Screens:** BSR Audit (pills, chips, Needs action card, Act now / Winning, CSV)
-- **Data source:** BSR Audit — rank change and BSR Audit — orders and revenue.
-- **Formula:** Fewer than 10 orders in BOTH periods → Too few orders to judge; category changed → Category changed; revenue moves at ±10 %. Rank better: revenue up → 🟢 Growing, else 🟡 Check price / conversion. Rank worse: revenue down → 🔴 Needs action, else ⚪ Category busier (OK). Rank held: up → Growing, down → Check, flat → Steady. No rank in a week → No rank to compare. Act now = the 3 Needs action with the most revenue lost (before − now); Winning = the 3 Growing with the most gained. The why and the action = the existing decision's strongest fact (bsrFacts): out of stock → Restock, price up / deal ended → Check price, Buy Box lost → Check Buy Box, ad spend fell → Restore ads, suppressed / our change / content gaps → Fix listing.
+- **Data source:** BSR Audit — rank change and BSR Audit — units ordered and revenue.
+- **Formula:** Fewer than 10 units ordered in BOTH periods → Too few units ordered to judge; category changed → Category changed; revenue moves at ±10 %. Rank better: revenue up → 🟢 Growing, else 🟡 Check price / conversion. Rank worse: revenue down → 🔴 Needs action, else ⚪ Category busier (OK). Rank held: up → Growing, down → Check, flat → Steady. No rank in a week → No rank to compare. Act now = the 3 Needs action with the most revenue lost (before − now); Winning = the 3 Growing with the most gained. The why and the action = the existing decision's strongest fact (bsrFacts): out of stock → Restock, price up / deal ended → Check price, Buy Box lost → Check Buy Box, ad spend fell → Restore ads, suppressed / our change / content gaps → Fix listing.
 - **Day cut-off:** As its two inputs.
 - **Included / excluded:** Families with a rank or a sale.
 - **Brands:** Ridhi · CPC · Both.

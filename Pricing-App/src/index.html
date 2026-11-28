@@ -931,6 +931,9 @@
           <option value="20">Last 20 weeks</option>
           <option value="999">All weeks</option>
         </select>
+        <!-- 📅 a date range: only the weeks inside it (listing/bsr-decide.js bsxCalOpen) -->
+        <button type="button" id="bHistCal" class="ghost histOnly hide bsx-calbtn" data-bsx-act="hcal" aria-label="Pick dates" title="Pick dates" style="flex:0 0 auto;width:auto">📅</button>
+        <span id="bHistChip" class="histOnly hide"></span>
         <div id="bHistKind" class="seg histOnly hide" role="group" aria-label="Which rank Full history shows">
           <button type="button" class="segbtn on" data-kind="sub" aria-pressed="true">Sub category</button>
           <button type="button" class="segbtn" data-kind="main" aria-pressed="false">Main category</button>
