@@ -6,6 +6,8 @@
  *             issued to each, plus the Shopify website hold (fg-shop-hold.js).
  *   FBA     = what Replenishment asks to send (SP and CPC together, in pieces), less dispatches already on the way: every
  *             one not yet marked shipped, and any shipped after the Amazon figures were read. Air is reduced first.
+ * The stock list holds only SKUs with stock now (28 Nov); a search that finds none of them says why.
+ * On the stock list (28 Nov), a Custom figure opens the orders it is for: the stock is counted against them oldest first.
  * What may leave: FBA only the Air + Sea + AWD pieces the stock covers, plus an admin's release; an issue for an order up to
  * that order's pending pieces within Custom, plus Excess; any other issue Excess only.
  *
@@ -158,7 +160,9 @@ async function fgaReread() {
 
 /* ---- sharing the stock ---- */
 const fgaOpenLines = lines => lines.filter(l => ordSrcOf(l.orderNo) !== 'AMZ' && !l.shopDoneAt && !l.handedAt);
-const fgaClaim = l => ({ orderNo: l.orderNo, sku: l.sku, sets: l.qty, perSet: 1 });
+const fgaClaim = l => ({ orderNo: l.orderNo, sku: l.sku, sets: l.qty, perSet: 1, on: l.orderDate });
+/** What the open order-book orders claim as Custom: a Shopify order's own line is already in the website figure. */
+const fgaBookClaims = open => open.filter(l => !l.shopOrderId).map(fgaClaim);
 
 /** Dispatches still on the way to FBA, in pieces: Map of SKU key → { SP, CPC, '' (account unknown) }. Each dispatch counts
  *  once: not yet marked shipped, or shipped after its store's Amazon figures were read (no shipping time: made after). */
@@ -184,7 +188,7 @@ function fgaBook(without, need = fgaNeedNode()) {
   const rows = without && without.size ? (FGI.rows || []).filter(r => !without.has(r._id || r.id)) : (FGI.rows || []);
   const open = fgaOpenLines(ordLines());
   return { rows, open, need, onTheWay: fgaOnTheWay(rows, need),
-    ordered: shpHoldBuild(open.filter(l => !l.shopOrderId).map(fgaClaim), rows) };
+    ordered: shpHoldBuild(fgaBookClaims(open), rows) };
 }
 
 /** The pieces FBA still asks for, per lane, for these stores, less what is on the way (Air first, then Sea, then AWD). */
@@ -278,16 +282,100 @@ function fgaListRows(rows) {
   return rows.map(r => Object.assign({}, r, { alloc: fgaShares(r.sku, r.current, hold, book, stores) }));
 }
 const fgaNum = n => (n ? nf(n) : '<span class="muted">—</span>');
+/** Does this figure open the orders behind it? Only a Custom figure with pieces in it. */
+const fgaOpensOrders = (share, pieces) => share === 'custom' && pieces > 0;
+const fgaOrdersButton = (sku, inner) => `<button class="ghost" data-fgacustom="${esc(sku)}" title="See the orders these pieces are for"`
+  + ` style="width:auto;padding:1px 7px;font-size:inherit;text-decoration:underline">${inner}</button>`;
 function fgaCells(r) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
   return `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
-    + FGA_SHARES.map(([k]) => `<td class="num">${fgaNum(r.alloc[k])}</td>`).join('');
+    + FGA_SHARES.map(([k]) => `<td class="num">${fgaOpensOrders(k, r.alloc[k]) ? fgaOrdersButton(r.sku, nf(r.alloc[k])) : fgaNum(r.alloc[k])}</td>`).join('');
 }
-const fgaCardFigs = r => FGA_SHARES.map(([k, label]) => `<span>${label} <b>${nf(r.alloc[k])}</b></span>`).join('');
+const fgaCardFigs = r => FGA_SHARES.map(([k, label]) => {
+  const figure = `${label} <b>${nf(r.alloc[k])}</b>`;
+  return fgaOpensOrders(k, r.alloc[k]) ? fgaOrdersButton(r.sku, figure) : `<span>${figure}</span>`;
+}).join('');
 /** Is some of this stock kept from FBA, so a release would mean something? */
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
 const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'In Stock', ...FGA_SHARES.map(s => s[1])];
 const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, Math.max(0, r.current), ...FGA_SHARES.map(([k]) => r.alloc[k])];
+
+/* ---- the orders behind a Custom figure ---- */
+const FGA_NO_DETAIL = 'Website orders (details after Shopify Orders is opened again)';
+const fgaSum = (orders, field) => orders.reduce((n, o) => n + o[field], 0);
+
+/** The open order-book orders waiting for a SKU: [{ no, channel, on, ordered, pending }]. */
+function fgaBookOrders(key, book) {
+  const claims = fgaBookClaims(book.open).filter(c => shpHoldKey(c.sku) === key);
+  return shpHoldLeft(claims, book.rows).map(n => ({ no: n.orderNo, channel: ORD_PLAT_SRC[n.orderNo.split('-')[0]] || 'Other',
+    on: pdIso(n.on), ordered: n.asked, pending: n.pieces }));
+}
+/** One store's website orders waiting for a SKU, as noted with its figure. A figure whose orders are not noted, or do not
+ *  add up to it, is one line with no order details, so the pieces still match the figure. */
+function fgaWebOrders(key, store, hold) {
+  const figure = (hold || {})[store] || {}, total = Number((figure.skus || {})[key]) || 0;
+  if (!total) return [];
+  const channel = 'Shopify ' + soAcctName(store);
+  const noted = Object.values((figure.orders || {})[key] || {})
+    .map(o => ({ no: o.no, channel, on: o.on || '', ordered: Number(o.of || o.pcs), pending: Number(o.pcs) }));
+  return fgaSum(noted, 'pending') === total ? noted : [{ no: FGA_NO_DETAIL, channel, on: '', ordered: null, pending: total }];
+}
+/** The orders behind a SKU's Custom figure, oldest first, each with the pieces of today's stock counted for it. */
+function fgaCustomOrders(sku, current, hold = fgiHoldNode(), book = fgaBook()) {
+  const key = shpHoldKey(sku);
+  let left = fgaShares(sku, current, hold, book).custom;
+  return fgaBookOrders(key, book).concat(...SHP_HOLD_STORES.map(s => fgaWebOrders(key, s, hold)))
+    .sort(shpHoldOldestFirst)
+    .map(o => { const counted = Math.min(left, o.pending); left -= counted; return Object.assign({}, o, { counted }); });
+}
+function fgaOrderRow(o) {
+  const known = o.ordered !== null;
+  return `<tr><td style="text-align:left">${esc(o.no)}</td><td style="text-align:left">${esc(o.channel)}</td>`
+    + `<td style="text-align:left;white-space:nowrap">${esc(fgiDmy(o.on) || '—')}</td>`
+    + `<td class="num">${known ? nf(o.ordered) : '—'}</td><td class="num">${known ? fgaNum(o.ordered - o.pending) : '—'}</td>`
+    + `<td class="num">${nf(o.pending)}</td><td class="num" style="font-weight:700">${fgaNum(o.counted)}</td>`
+    + `<td class="num">${fgaNum(o.pending - o.counted)}</td></tr>`;
+}
+const fgaOrdersTable = orders => '<div style="max-height:60vh;overflow:auto"><table class="xl" style="font-size:12.5px"><thead><tr>'
+  + ['Order', 'Channel', 'Order date'].map(h => `<th style="text-align:left">${h}</th>`).join('')
+  + ['Ordered', 'Already issued', 'Pending', 'From stock', 'Not covered'].map(h => `<th class="num">${h}</th>`).join('')
+  + '</tr></thead><tbody>' + orders.map(fgaOrderRow).join('') + '</tbody></table></div>';
+
+/** The box a Custom figure opens, from the same figures the list was drawn from. */
+function fgaCustomOpen(sku) {
+  const s = obUC(sku), m = fgiMaster(s), orders = fgaCustomOrders(s, fgiOf(s).current);
+  const counted = fgaSum(orders, 'counted');
+  ptOpenDialog({
+    title: 'Orders for the Custom pieces',
+    subtitle: [s, m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · '),
+    note: `${nf(counted)} piece(s) in stock are counted for these orders, oldest order first. `
+      + `${nf(fgaSum(orders, 'pending') - counted)} pending piece(s) are not covered by stock.`,
+    wide: true,
+    html: fgaOrdersTable(orders),
+  });
+}
+
+/* ---- searching the list ---- */
+/** The list holds only SKUs with stock now, so a search it cannot answer says why (28 Nov). '' = nothing to say.
+ *  typed: the search box as it is; rows: the rows listed; stock: fgiStock(). A whole SKU code is judged first. */
+function fgaSearchNote(typed, rows, stock) {
+  const text = typed.trim(), code = obUC(text);
+  if (!code || rows.some(r => r.sku === code)) return '';
+  const record = stock.get(code);
+  if (record && record.current !== 0) return `SKU ${code} is in the India Store but hidden by the filters.`;
+  if (record || mdbOf(code)) return `SKU ${code} is not in the India Store.`;
+  return rows.length ? '' : fgaNoMatchNote(text, stock);
+}
+/** Why a search that is no SKU's code lists nothing. "Does not exist" is said only when the Master Database was read. */
+function fgaNoMatchNote(text, stock) {
+  const found = r => fgiMatches(r, text.toLowerCase());
+  const onRecord = [...stock.values()].map(b => Object.assign({}, fgiMaster(b.sku), (FGI.set || {})[b.sku], b));
+  if (onRecord.some(r => r.current !== 0 && found(r))) return 'Matching products are in the India Store but hidden by the filters.';
+  const master = PTG.mdb || [];
+  if (onRecord.some(found) || master.some(found)) return 'Matching products are not in the India Store.';
+  if (!master.length) return `"${text}" could not be checked — the Master Database was not read. Press Refresh to try again.`;
+  return `SKU ${obUC(text)} does not exist.`;
+}
 
 /** With the switch on, "Waiting to be counted in" is not in the view list (asked 28 Nov). Only the choice is hidden: the
  *  "Sent from press, not counted in" tile still opens it, so pieces on their way from press can still be counted in. */

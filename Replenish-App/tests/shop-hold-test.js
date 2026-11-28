@@ -45,7 +45,7 @@ function load(o) {
     ME: { email: 'admin@example.com', admin: o.admin !== false }, FGI: { set: o.set || {} }, fgiOf: () => ({ current: 10 }),
     window: o.testSite ? { __TEST_ERP: {} } : {}, location: { hostname: 'localhost' }, nf: String };
   const keys = Object.keys(ctx);
-  const api = new Function(...keys, HELPERS + HOLD + '\n;return { shpHoldOn, shpHoldBuild, shpHoldPublish, fgiHoldState, fgiHeld, fgiFbaFree, fgiReleaseCreate, fgiReleasePlan, fgiReleaseSpend, fgiHoldAgeWhy, fgiHoldOldWarning };')(...keys.map(k => ctx[k]));
+  const api = new Function(...keys, HELPERS + HOLD + '\n;return { shpHoldOn, shpHoldBuild, shpHoldNeed,shpHoldPublish, fgiHoldState, fgiHeld, fgiFbaFree, fgiReleaseCreate, fgiReleasePlan, fgiReleaseSpend, fgiHoldAgeWhy, fgiHoldOldWarning };')(...keys.map(k => ctx[k]));
   return Object.assign(api, { db, warns });
 }
 
@@ -68,7 +68,8 @@ function shop(o) {
     soOrdBrand: x => (x.shopBrand === 'CPC' ? 'CPC' : 'SP'), soAcctName: b => b, shpSheetAllows: x => !x.offSheet,
     soIndiaKey: () => '', soPackFit: sku => (sku === 'NAP-12' ? { ok: true, pack: 4 } : null), obPcsPerPack: sku => (sku === 'PAIR' ? 2 : 1),
     shpTakenNumbers: () => new Map((o.ob || []).map(r => [r.orderNo, String(r.shopOrderId)])), shpOrderNo: n => 'SHP-' + String(n).replace('#', ''),
-    shpHoldOn: () => o.on !== false, shpOnTestSite: () => false, prOn: () => true, ptRegLoaded: () => true, shpHoldBuild: claims => claims, shpHoldPublish: async (store, figure) => { published.push({ store, figure }); },
+    shpHoldOn: () => o.on !== false, shpOnTestSite: () => false, prOn: () => true, ptRegLoaded: () => true,
+    shpHoldNeed: claims => ({ skus: claims, orders: { from: claims } }), shpHoldPublish: async (store, figure) => { published.push({ store, figure }); },
     ptNeed: async () => {}, ptGet: async () => { if (o.offline) throw new Error('offline'); return {}; }, ptList: () => [],
     $: () => msg, soMsg: t => { msg.textContent = t; said.push(t); }, SHP_REACH_MAX_DAYS: 150,
     soAskStore: async (brand, want, ids) => { asked.push({ brand, want, ids }); const a = (o.old || {})[brand] || {}; if (a.fails) throw new Error(a.fails); return { orders: a.orders || [], more: !!a.more }; },
@@ -372,6 +373,7 @@ async function testWebsite() {
   const A = await published();
   ok('each store is noted from its own orders in the copy', same(A.noted('SP').skus, { A: 3 }) && same(A.noted('CPC').skus, { A: 2 }), JSON.stringify(A.db.data) + A.box.textContent);
   ok('noted with the time the copy last heard from Shopify', A.noted('SP').at === A.copy.at && A.noted('CPC').at === A.copy.at);
+  ok('noted with the orders behind each SKU', same(A.noted('SP').orders, { A: [{ no: 'SHP-1', pcs: 3 }] }) && same(A.noted('CPC').orders, { A: [{ no: 'SHP-2', pcs: 2 }] }), JSON.stringify(A.db.data));
   ok('the contents page and each listed day, once', same(A.reads.slice().sort(), ['shopify_cache/meta', 'shopify_cache_days/CPC_2026-08-01', 'shopify_cache_days/SP_2026-11-20']), A.reads.join());
   ok('the tab says the copy\'s time and from which day orders were counted', /Test website.*Ridhi: copy of .+, orders counted from 2026-10-15; CPC: copy of /.test(A.box.textContent), A.box.textContent);
   ok('…and that a copy this short may miss an older order', /does not reach back 150 days/.test(A.box.textContent) && !/6 hours/.test(A.box.textContent) && A.box.className === 'muted');
@@ -432,10 +434,11 @@ async function testWebsite() {
   const old = await published({ copy: usual({ at: Date.now() - 7 * HOUR }) });
   ok('an old copy is noted at its own age, and the test website accepts it', old.noted('SP').at === old.copy.at && old.fgiHoldState(old.db.data).state === 'ok');
   ok('…and the tab warns', /TEST ONLY.*over 6 hours old/.test(old.box.textContent), old.box.textContent);
-  const at = Date.now() - HOUR, held = (t, n) => ({ at: t, by: 'x', skus: { A: n } });
+  const at = Date.now() - HOUR, held = (t, n) => ({ at: t, by: 'x', skus: { A: n }, orders: { A: [{ no: 'SHP-1', pcs: n }] } });
   const rewrite = async (stored) => (await published({ copy: usual({ at }), db: { SP: stored } })).db.writes.filter(w => /SP$/.test(w.p)).length;
   ok('the same copy with a changed need is noted again', await rewrite(held(at, 9)) === 1);
   ok('the same copy with the same need is not', await rewrite(held(at, 3)) === 0);
+  ok('the same copy noted without its orders is noted again', await rewrite({ at, by: 'x', skus: { A: 3 } }) === 1);
   ok('a newer copy is noted at once, same need or not', await rewrite(held(at - 60000, 3)) === 1);
   ok('an older copy never replaces a newer figure', await rewrite(held(at + 60000, 9)) === 0);
 
@@ -479,6 +482,22 @@ async function testWebsite() {
       issue('A', 1, { txnType: 'FBA', orderNo: 'SHP-1' })]), { A: 5 }));
     ok('issued in full or beyond: nothing held, never below nought', same(B([claim('SHP-1', 'A', 2), claim('SHP-2', 'A', 1)], [issue('A', 7, { shpOrderNo: 'SHP-1' })]), { A: 1 }));
     ok('a SKU the database cannot hold as a key is made safe', same(B([claim('SHP-1', 'a.b/c', 1)], []), { A_B_C: 1 }));
+  }
+
+  console.log('== the orders behind the need ==');
+  {
+    const N = load().shpHoldNeed;
+    const from = (orderNo, sets, on, ref, sku) => Object.assign(claim(orderNo, sku || 'A', sets), { on, ref });
+    const need = N([from('SHP-1000', 2, '2026-11-20', '#1000'), from('SHP-999', 4, '2026-11-20', '#999'), from('SHP-7', 1, '2026-11-01', '#7'),
+      from('SHP-7', 1, '2026-11-01', '#7'), from('SHP-5', 2, '2026-11-02', '#5'), from('SHP-8', 1, '', '#8', 'a.b')],
+    [issue('A', 1, { shpOrderNo: 'SHP-999' }), issue('A', 2, { shpOrderNo: 'SHP-5' })]);
+    ok('per SKU, oldest first, with pieces and date; the pieces asked only when some were issued', same(need.orders.A,
+      [{ no: 'SHP-7', pcs: 2, on: '2026-11-01' }, { no: 'SHP-999', pcs: 3, on: '2026-11-20', of: 4 }, { no: 'SHP-1000', pcs: 2, on: '2026-11-20' }]), JSON.stringify(need));
+    ok('an order issued in full is not listed, and each SKU\'s orders add up to its pieces',
+      Object.keys(need.skus).every(k => need.orders[k].reduce((n, o) => n + o.pcs, 0) === need.skus[k]) && need.skus.A === 7);
+    ok('under a database-safe SKU key; no date, no date field', same(need.orders.A_B, [{ no: 'SHP-8', pcs: 1 }]));
+    const blank = N([from('', 1, '2026-11-01', '#1'), from('', 2, '2026-11-02', '#2')], []);
+    ok('orders with no production number stay apart, under their Shopify name', same(blank.orders.A.map(o => [o.no, o.pcs]), [['#1', 1], ['#2', 2]]) && blank.skus.A === 3, JSON.stringify(blank));
   }
 
   console.log('== how old the figure is ==');
@@ -527,6 +546,10 @@ async function testWebsite() {
     ok('live: the same read is never written again, even with another need', (await run(fig(NOW, 4), fig(NOW, 5))).db.writes.length === 0);
     ok('live: a read a second newer with the same need waits', (await run(fig(NOW - 1000, 4), fig(NOW, 4))).db.writes.length === 0);
     ok('refused by the rules: said in the console', (await run(null, fig(NOW, 4), { refused: true })).warns.length === 1);
+    const named = (at, no) => Object.assign(fig(at, 4), { orders: { A: [{ no, pcs: 4 }] } });
+    ok('a figure without its orders is replaced by a newer read that has them', (await run(fig(NOW - 1000, 4), named(NOW, 'SHP-1'))).db.data.SP.orders.A[0].no === 'SHP-1');
+    ok('the same pieces for another order are noted again', (await run(named(NOW - 1000, 'SHP-1'), named(NOW, 'SHP-2'))).db.writes.length === 1);
+    ok('the same pieces for the same orders wait', (await run(named(NOW - 1000, 'SHP-1'), named(NOW, 'SHP-1'))).db.writes.length === 0);
   }
 
   console.log('== releases ==');
@@ -569,7 +592,10 @@ async function testWebsite() {
   console.log('== which orders count (Shopify tab) ==');
   {
     const claims = (orders, o) => shop(Object.assign({ orders }, o)).soHoldClaims('SP');
-    ok('an open order counts, under its production number', same(claims([order(1)]), [{ orderNo: 'SHP-1', sku: 'A', sets: 3, perSet: 1 }]));
+    ok('an open order counts, under its production number', same(claims([order(1)]), [{ orderNo: 'SHP-1', sku: 'A', sets: 3, perSet: 1, ref: '#1', on: '' }]));
+    const dated = claims([order(1, { at: '2026-11-20T10:00:00+05:30', customer: 'Made Up', phone: '000' })])[0];
+    ok('it carries the order\'s name and date, and nothing about the customer', dated.ref === '#1' && dated.on === '2026-11-20'
+      && same(Object.keys(dated), ['orderNo', 'sku', 'sets', 'perSet', 'ref', 'on']), JSON.stringify(dated));
     for (const [name, o] of [['cancelled', order(1, { cancelledAt: 'x' })], ['shipped', order(1, { ff: 'fulfilled' })], ['marked done', order(1, { note: 'done' })],
       ['MCF done in a note', order(1, { note: 'MCF done' })], ['chargeback', order(1, { tags: 'chargeback' })], ['off the pending sheet', order(1, { offSheet: true })],
       ['Amazon can fill it', order(1, { fba: true })], ['the other store\'s', order(1, { shopBrand: 'CPC' })], ['line already shipped', order(1, {}, { ffl: 'fulfilled' })]]) {
@@ -589,6 +615,7 @@ async function testWebsite() {
     const pub = async o => { const S = shop(Object.assign({ orders: [order(1)], holdRead: { SP: 7, CPC: 8 } }, o)); await S.soHoldPublish(); return S; };
     const both = await pub();
     ok('each store is noted with the time Shopify was read', same(both.published.map(x => [x.store, x.figure.at]), [['SP', 7], ['CPC', 8]]));
+    ok('…with its pieces and the orders behind them', both.published[0].figure.skus.length === 1 && both.published[0].figure.orders.from.length === 1);
     const part = await pub({ holdRead: { SP: 7, CPC: 0 } });
     ok('a partial load leaves that store alone and says so', part.published.length === 1 && part.warns.length === 1);
     ok('switch off: no write at all', (await pub({ on: false })).published.length === 0);
