@@ -127,10 +127,11 @@ function soQtyDrift(o, lines) {
 /** The order-book row an approved sales order writes for one SKU — the id soApproveRun uses. */
 const soBookId = (orderNo, sku) => 'ob_so_' + obUC(orderNo) + '_' + obUC(sku);
 
-function soCurrentNetQty(sku, typeKey) {
+/** Pieces of a SKU and type on approved orders, leaving out the order `skipId` (the one being saved). */
+function soCurrentNetQty(sku, typeKey, skipId) {
   const S = obUC(sku), tk = typeKey === 'newdev' ? 'newdev' : 'regular';
   let net = 0;
-  (SOX.rows || []).filter(s => s.status === 'approved').forEach(s => {
+  (SOX.rows || []).filter(s => s.status === 'approved' && !(skipId && s._id === skipId)).forEach(s => {
     const headerKey = s.orderTypeKey === 'newdev' ? 'newdev' : 'regular';
     soLines(s).forEach(l => {
       if (obUC(l.sku) !== S) return;
@@ -222,9 +223,15 @@ async function soQtyRun(o, sku, want, why) {
   const reason = String(why || '').trim();
   /* A CHANGE WITH NO REASON IS THE ONE NOBODY CAN EXPLAIN LATER. */
   if (!reason) return 'Say why it is changing — it goes on the order beside the figure.';
-  /* A big new quantity is asked about (the number rule, Ravi 27 Nov; switch lineHold). */
-  const big = lineHoldOn() ? ptNumBig(plan.to, plan.sku, 'pcs') : '';
+  /* A big new quantity is asked about (the number rule, Ravi 27 Nov; for everybody since 28 Nov). */
+  const big = ptNumBig(plan.to, plan.sku, 'pcs');
   if (big && !confirm(big)) return 'Not asked — change the quantity.';
+  if (typeof VO !== 'undefined' && VO.rows == null && typeof ensureVo === 'function') {
+    try { await ensureVo(); }
+    catch (e) { console.warn('[printer holds more] the printers\' orders could not be read; the quantity is changed without the question:', e); }
+  }
+  const held = soPrinterAsk(o._id, plan.sku, plan.to);
+  if (held && !confirm(held)) return 'Not asked — the quantity stays as it is.';
   const now = new Date().toISOString();
   /* PADDED SO IT SORTS AS A NUMBER, and strictly after everything the order already holds. Two asks
    * in one millisecond tie on `at`, and then five random characters decide which reads as the later
@@ -610,13 +617,27 @@ const soNormType = v => {
   return null;
 };
 
+/** A file's priority cell: '' or P1 to P4; anything else null. */
+function soFilePriority(raw) {
+  const p = String(raw || '').trim().toUpperCase();
+  return !p || /^P[1-4]$/.test(p) ? p : null;
+}
+/** A file's quantity cell: whole pieces, with or without thousands commas (1,000 · 1,00,000). Blank is 0; anything else null. */
+function soFileQty(raw) {
+  const t = String(raw == null ? '' : raw).trim();
+  if (!t) return 0;
+  return /^-?(\d+|\d{1,3}(,\d{2,3})*,\d{3})(\.0+)?$/.test(t) ? Number(t.replace(/,/g, '')) : null;
+}
+
+/** A file's date cell: DD-MM-YYYY, or the day count an .xlsx keeps a date as. ISO date, or null. */
+const soFileDate = v => soParseDMY(/^\d{5}(\.\d+)?$/.test(String(v == null ? '' : v).trim()) ? spBulkDate(v, '') : v);
+
 /** DD-MM-YYYY to ISO, with a real calendar check — 31-02-2026 is not a date. */
 function soParseDMY(v) {
   if (v == null || String(v).trim() === '') return null;
   const s = String(v).trim();
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) return s;
-  const m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/);
+  const m = iso ? [s, iso[3], iso[2], iso[1]] : s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/);
   if (!m) return null;
   let d = +m[1], mo = +m[2], y = +m[3];
   if (m[3].length === 2) y += 2000;
@@ -655,13 +676,14 @@ async function soBulkFile(file) {
     const row = 'Row ' + (n + 2) + ': ';
     if (at(ix.lg) && !legacy) legacy = at(ix.lg);
     if (!sku) { errors.push(row + 'no SKU.'); return; }
-    const qty = parseFloat(qtyRaw) || 0;
+    const qty = soFileQty(qtyRaw);
+    if (qty === null) { errors.push(row + 'the quantity for ' + sku + ' must be whole pieces, not "' + qtyRaw + '".'); return; }
     if (!qty) { errors.push(row + 'the quantity is zero or missing for ' + sku + '. Positive adds, negative subtracts.'); return; }
     const ot = soNormType(otRaw);
     if (!ot) { errors.push(row + 'order type must be "Regular" or "New Development" for ' + sku + (otRaw ? ', not "' + otRaw + '".' : ', and it is blank.')); return; }
-    const od = soParseDMY(odRaw);
+    const od = soFileDate(odRaw);
     if (!od) { errors.push(row + 'the order date must be DD-MM-YYYY for ' + sku + (odRaw ? ', not "' + odRaw + '".' : ', and it is blank.')); return; }
-    const dd = soParseDMY(ddRaw);
+    const dd = soFileDate(ddRaw);
     if (!dd) { errors.push(row + 'the delivery date must be DD-MM-YYYY for ' + sku + (ddRaw ? ', not "' + ddRaw + '".' : ', and it is blank.')); return; }
     /* ONLINE takes a SKU the master lacks — it goes on the Custom SKUs list when the order is saved (2026-09-30). */
     /* SAY WHAT THE MASTER HAS INSTEAD (Ravi, 24 Oct: "ye sabhi sku master data me h but it's showing not available" — the sheet
@@ -671,8 +693,9 @@ async function soBulkFile(file) {
     if (!known.has(sku)) newSkus.add(sku);
     if (qty < 0 && soCurrentNetQty(sku, ot) <= 0) { errors.push(row + sku + ' has nothing on order to subtract from.'); return; }
     dates.add(od);
-    const pr = at(ix.pr).toUpperCase();
-    parsed.push({ sku, qty, deliveryDate: dd, orderTypeKey: ot, priority: /^P[1-4]$/.test(pr) ? pr : '' });
+    const pr = soFilePriority(at(ix.pr));
+    if (pr === null) { errors.push(row + 'priority for ' + sku + ' must be blank or P1 to P4, not "' + at(ix.pr) + '".'); return; }
+    parsed.push({ sku, qty, deliveryDate: dd, orderTypeKey: ot, priority: pr });
   });
   if (dates.size > 1) errors.push('Every row must carry the same order date. This file has ' + dates.size + ': ' + [...dates].sort().join(', ') + '.');
   /* One bad row rejects the file. A part-loaded order is worse than none — nobody can tell what is missing. */
@@ -720,7 +743,7 @@ function soB2BRows(rows) {
     const qty = Number(qtyRaw);
     if (!(qty > 0) || !Number.isInteger(qty)) { errors.push(where + `the quantity for ${sku || item} must be a whole number above 0${qtyRaw ? ', not "' + qtyRaw + '"' : ''}.`); return; }
     let dd = '';
-    if (cell('deliveryDate')) { dd = soParseDMY(cell('deliveryDate')); if (!dd) { errors.push(where + `the delivery date for ${sku || item} must be DD-MM-YYYY, not "${cell('deliveryDate')}".`); return; } }
+    if (cell('deliveryDate')) { dd = soFileDate(cell('deliveryDate')); if (!dd) { errors.push(where + `the delivery date for ${sku || item} must be DD-MM-YYYY, not "${cell('deliveryDate')}".`); return; } }
     const extra = {};
     extraCols.forEach(([h, i]) => { const v = String(r[i] == null ? '' : r[i]).trim(); if (v) extra[h] = v; });
     const line = { sku, qty, deliveryDate: dd || '', orderTypeKey: ($('sof_type') || {}).value || 'regular', priority: '' };
@@ -787,8 +810,55 @@ async function soB2BFile(file, rows) {
 }
 
 /* ---- saving ---- */
+/* WRONG ENTRIES ON THE ORDER FORM (28 Nov 2026, "test all the possible errors of this screen"). Errors: loud — the form says
+ * what is wrong and nothing is saved; the two questions (a very big line, the same line twice) save on OK. */
+/** A line with something on it but no SKU or no quantity used to be left out of the saved order without a word. An empty row
+ *  is still ignored. A B2B line may have a name instead of a SKU (it is given one once it has a quantity). A 0 the order
+ *  already holds (Change quantity cuts a line to 0) passes. */
+function soHalfLineErr(rawLines, b2b, existing) {
+  const held = new Set(soLines(existing || {}).map(l => obUC(l.sku)));
+  return rawLines.map((l, i) => {
+    const sku = obUC(l.sku), name = String(l.itemName || '').trim(), typed = String(l.qty == null ? '' : l.qty).trim(), qty = parseFloat(typed) || 0;
+    if (!sku && !typed && !name) return '';
+    if (!sku && !(b2b && name)) return `Line ${i + 1}: the quantity ${typed} has no SKU. Type the SKU, or remove the line.`;
+    if (!sku && qty < 0) return `Line ${i + 1} (${name}): a B2B line is a quantity to make — type a quantity above 0.`;   // 4
+    return qty || (typed && Number(typed) === 0 && held.has(sku)) ? '' : `Line ${i + 1} (${sku || name}): type a quantity, or remove the line.`;
+  }).find(Boolean) || '';
+}
+/** The sale month cannot be before the month of the order. One the order already had is left alone. */
+function soSaleMonthErr(month, orderDate, existing) {
+  const m = String(month || '').trim();
+  if (!m || (existing && existing.saleMonth === m) || m >= String(orderDate).slice(0, 7)) return '';
+  const words = x => `${x.slice(5, 7)}-${x.slice(0, 4)}`;
+  return `Sale month ${words(m)} is before the order's month ${words(String(orderDate))}. Pick that month or a later one.`;
+}
+/** Minus lines may take off no more than is on approved orders for that SKU and type (-9,99,999 was saved on a few pieces). */
+function soTakeErr(lines, skipId) {
+  const take = new Map();
+  lines.filter(l => l.qty < 0).forEach(l => { const k = l.sku + '|' + l.orderTypeKey; take.set(k, (take.get(k) || 0) - l.qty); });
+  for (const [k, n] of take) {
+    const [sku, type] = k.split('|'), on = soCurrentNetQty(sku, type, skipId);
+    if (n > on) return `${sku}: ${nf(n)} pieces cannot be taken off — only ${nf(Math.max(0, on))} are on approved orders.`;
+  }
+  return '';
+}
+/** A question when one SKU sits on two lines of the same type and delivery date, or ''. */
+function soTwiceAsk(lines) {
+  const seen = new Set(), twice = new Set();
+  lines.forEach(l => { const k = [l.sku, l.orderTypeKey, l.deliveryDate].join('|'); if (seen.has(k)) twice.add(l.sku); seen.add(k); });
+  return twice.size ? `${[...twice].slice(0, 5).join(', ')} is on more than one line with the same delivery date. Save both lines?` : '';
+}
+
+/** The question before an order is cut below what a printer was already asked for (28 Nov: cut to 5, the printer's order
+ *  stayed at 998). Nothing is changed at the printer: PPC does that. '' when no printer holds more. */
+function soPrinterAsk(orderNo, sku, to) {
+  const v = typeof ordVendorOf === 'function' ? ordVendorOf(orderNo, sku) : null;
+  if (!v && (typeof VO === 'undefined' || VO.rows == null)) console.warn('[printer holds more] no printer figures read for ' + sku + ' on ' + orderNo);
+  return v && v.given > to ? `The printer already has an order for ${nf(v.given)} pcs of ${sku}, and this makes the order ${nf(to)}. The printer's order does not change by itself: tell PPC. Go on?` : '';
+}
+
 /* THE NUMBER AND DATE RULES, WHERE AN ORDER STARTS (Ravi, 27 Nov 2026: a draft saved with the year 0008, delivery in 2099 and
- * 2.5 pieces — PPC plans from these orders). Behind the switch lineHold, with the same words as the PPC forms: pieces whole (a
+ * 2.5 pieces — PPC plans from these orders). For everybody since 28 Nov, with the same words as the PPC forms: pieces whole (a
  * minus line, which takes from an existing order, stays allowed); the order date today or up to 60 days back; delivery dates
  * from today to a year ahead. A date the order already had is left alone. '' or what to fix. */
 function soEntryErr(rawLines, existing, orderDate, delivery) {
@@ -828,6 +898,10 @@ async function soFormSave(place) {
       minted.add(l.sku);
     });
   }
+  const existing = (SOX.rows || []).find(x => x._id === SOF.id) || null;
+  if (existing && !soCanEdit(existing)) return 'This order is no longer yours to change.';
+  const halfDone = soHalfLineErr(SOF.lines, b2b, existing);
+  if (halfDone) return halfDone;
   const lines = SOF.lines.map(l => Object.assign({
     sku: obUC(l.sku), qty: parseFloat(l.qty) || 0, deliveryDate: l.deliveryDate || '',
     orderTypeKey: (l.orderTypeKey === 'newdev' || l.orderTypeKey === 'regular') ? l.orderTypeKey : headerType,
@@ -845,17 +919,14 @@ async function soFormSave(place) {
    * than as a failed write halfway through the order book. */
   const unwritable = [...new Set(lines.filter(l => /[.$#\[\]\/]/.test(l.sku)).map(l => l.sku))];
   if (unwritable.length) return `These SKUs contain a character the production database cannot use in a key: ${unwritable.join(', ')}.`;
-  const negBad = [...new Set(lines.filter(l => l.qty < 0 && soCurrentNetQty(l.sku, l.orderTypeKey) <= 0).map(l => l.sku))];
+  const negBad = [...new Set(lines.filter(l => l.qty < 0 && soCurrentNetQty(l.sku, l.orderTypeKey, existing && existing._id) <= 0).map(l => l.sku))];
   if (negBad.length) return `A negative line subtracts from an existing order, and these have nothing on order: ${negBad.join(', ')}.`;
 
-  const existing = (SOX.rows || []).find(x => x._id === SOF.id) || null;
-  if (existing && !soCanEdit(existing)) return 'This order is no longer yours to change.';
-  if (lineHoldOn()) {
-    const entryErr = soEntryErr(SOF.lines, existing, orderDate, $('sof_delivery').value || '');
-    if (entryErr) return entryErr;
-    const big = soBigAsk(lines);
-    if (big && !confirm(big)) return 'Not saved — change the quantity, then save.';
-  }
+  const entryErr = soEntryErr(SOF.lines, existing, orderDate, $('sof_delivery').value || '')
+    || soSaleMonthErr(($('sof_smonth') || {}).value, orderDate, existing) || soTakeErr(lines, existing && existing._id);
+  if (entryErr) return entryErr;
+  const ask = [soBigAsk(lines), soTwiceAsk(lines)].filter(Boolean).join('\n');
+  if (ask && !confirm(ask)) return 'Not saved — change the lines, then save.';
   const now = new Date().toISOString();
   const rec = existing ? Object.assign({}, existing) : { _id: '', createdAt: now, createdBy: ME.email };
 
@@ -892,8 +963,8 @@ async function soFormSave(place) {
   rec.buyerEmail = existing ? existing.buyerEmail : ME.email;
   rec.buyerName = existing ? existing.buyerName : (ME.email || '').split('@')[0];
   /* A PLACED ORDER STAYS PLACED (Ravi, 26 Nov, PPC test: an admin's Save on an approved order turned it back into a Draft, silently,
-   * while PPC and the floor worked to it). Behind the switch lineHold. Save keeps its status; Return to buyer is the way back. */
-  const keepPlaced = !place && lineHoldOn() && existing && !['draft', 'returned'].includes(soStatus(existing));
+   * while PPC and the floor worked to it). Save keeps its status; Return to buyer is the way back. For everybody since 28 Nov. */
+  const keepPlaced = !place && existing && !['draft', 'returned'].includes(soStatus(existing));
   const drift = keepPlaced && soStatus(existing) === 'approved' ? soQtyDrift(existing, lines) : '';
   if (drift) return `${existing._id} is approved and on the order book — Save cannot change its quantities or SKUs (${drift}). Use Change quantity on the order, which moves the order book with it, or Return to buyer.`;
   rec.status = place ? 'submitted' : (keepPlaced ? existing.status : 'draft');
@@ -1078,8 +1149,8 @@ async function soApproveRun(id) {
   if (mode === 'complete') {
     const d = $('sor_date').value;
     if (!d) return 'Set the delivery date for the order, or switch to the date already on each line.';
-    /* The date rule at approval (Ravi, 27 Nov; switch lineHold): a delivery date newly set here is from today on. */
-    const dateErr = lineHoldOn() ? ptDateErr(d, 'Delivery date', 'plan', o.deliveryDate) : '';
+    /* The date rule at approval (Ravi, 27 Nov; for everybody since 28 Nov): a delivery date newly set here is from today on. */
+    const dateErr = ptDateErr(d, 'Delivery date', 'plan', o.deliveryDate);
     if (dateErr) return dateErr;
     lines = lines.map(l => Object.assign({}, l, { deliveryDate: d }));
   } else {

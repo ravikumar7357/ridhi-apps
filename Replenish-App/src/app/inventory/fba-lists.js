@@ -5,23 +5,30 @@
  * A list may take the lane's share of the stock for that store (fg-store-alloc.js) plus any open release, never more than
  * the stock that no other list has. A SKU sent to FBA in the past 7 days (fg-fba-repeat.js) goes on a list only when the
  * FBA repeat approver or an admin makes it, which is their approval.
- * Whoever holds the FBA Dispatch tab makes, packs, ships and undoes; a list is cancelled by its maker or an admin.
+ * Whoever holds the FBA Dispatch tab makes, ships and undoes; packing also needs the right to save packing lists
+ * (pack-core.js). A list is cancelled by its maker or an admin.
+ * Ship sends exactly the packed pieces, so the packing list, its labels and the Amazon file agree with what went. To send
+ * fewer, pieces are taken out of the boxes and Finish pressed again: a packed list whose boxes change is not packed until then.
  * Undoing a shipment puts the list back to packed with the pieces that were shipped: those it left behind stay free.
+ * A shipped or cancelled list's record is removed after 60 days, when another list ships; its shipment can then no longer be
+ * undone, and FBA Dispatch offers Return on its rows instead.
  *
  * Lists sit at pt_fgiSettings/_fbaLists/<id> = { account, store, lane, status: open | packed | shipping, by, at,
  * lines: { SKU key: { sku, qty, packed } }, packId, released: { release id: pieces }, claimBy, claimAt }. A shipped or
  * cancelled one moves to .../_fbaListsDone/<id> with { status: shipped | cancelled, shipment, shipDate, shippedAt, ... ,
- * lines[..].shipped }. <id> is made once per form (fgiNewId('FBL')) and the movements are FBA-<id>-<n>, so a second tap
+ * lines[..].shipped, owed: { at, back: { release id: pieces } } until the releases and listing alerts of the shipment are
+ * done }. <id> is made once per form (fgiNewId('FBL')) and the movements are FBA-<id>-<n>, so a second tap
  * writes nothing new.
  *
  * WHEN SOMETHING GOES WRONG:
  *   loud, to the user — making, packing, shipping, cancelling and undoing are stock: anything that cannot be read or saved
  *   is refused with what to do. A claim (a shipment or an undo) that did not finish can be done again after 5 minutes. It
  *   saves only while the list still carries its own claim, and only within 2 minutes of taking it, so a slow computer cannot
- *   write over the one that took over. A shipment whose answer was lost is looked up: saved counts as shipped.
+ *   write over the one that took over. A shipment whose answer was lost is looked up: saved counts as shipped. If it cannot
+ *   be looked up, pressing Ship again finds it, and so does the next shipment: what is owed is done once.
  *   quiet, with a console line — the switch (storage blocked: the default), putting a failed shipment back to packed,
- *   moving a cancelled list out of the open ones (it keeps no pieces either way), and an Amazon listing alert that could not
- *   be raised after a shipment.
+ *   moving a cancelled list out of the open ones (it keeps no pieces either way), removing old records, and an Amazon listing
+ *   alert that could not be raised after a shipment.
  *
  * BEHIND SWITCH fbaList, which needs storeAlloc on. On by itself on the test website only, OFF everywhere else.
  * localStorage fbaList = '1' turns it on for one computer, '0' off. The way back is that same '0'; a shipment a list made
@@ -33,11 +40,16 @@ const FBL_ALLOTTING = ['open', 'packed', 'shipping'];   // a list in one of thes
 const FBL_CLAIM_MS = 5 * 60 * 1000;
 const FBL_SEND_BY_MS = 2 * 60 * 1000;   // a claim saves only this soon; the rest of its time is for the save to arrive
 const FBL_TRIES = 3;
+const FBL_SAVE_MS = 30 * 1000;   // a save with no answer by then is looked up, or tried again
+const FBL_KEEP_DAYS = 60;        // a shipped or cancelled list's record is kept this long
 const FBL_SOURCE = 'fba list';
 const FBL_NOT_TEAM = 'Only the FBA team (the FBA Dispatch tab) can do this to an FBA list.';
 const FBL_OFF = 'FBA lists are switched off on this computer.';
 const FBL_MOVED = 'The list was changed by somebody else just now — press Refresh and try again.';
 const FBL_CLAIM_LOST = 'this took too long, or somebody else has taken the list over — press Refresh and look before trying again.';
+const FBL_REPACKED = 'The packing changed since this box was opened — close it and press Ship again.';
+const FBL_RECORD_GONE = `The record of this shipment is removed after ${FBL_KEEP_DAYS} days, so it cannot be undone — use Return on its row on FBA Dispatch instead.`;
+const FBL_OWED_LATER = 'The released pieces and Amazon listing alerts are still to be completed — the next shipment completes them.';
 
 function fblOn() {
   if (!fgaOn()) return false;
@@ -57,6 +69,9 @@ function fblKeep(node, id, rec) {
   FGI.set = Object.assign({}, FGI.set, { [node]: next });
 }
 const fblKeepAll = lists => { FGI.set = Object.assign({}, FGI.set, { _fbaLists: lists }); };
+const fblSave = patch => ptPatch(patch, { timeoutMs: FBL_SAVE_MS });
+/** Is this a movement of a list whose record has been removed? Such a shipment is returned, not undone. */
+const fblRecordGone = row => !!row.fbaListId && !fblLists()[row.fbaListId] && !fblDone()[row.fbaListId];
 
 /** The pieces the lists keep, per SKU key: { total, SP: [air, sea, awd], CPC: [air, sea, awd] }. */
 function fblAllotted(lists) {
@@ -212,29 +227,47 @@ async function fblPackSave(id, packId, packed) {
   return '';
 }
 
+/* ---- boxes changed after packing ---- */
+/** Do the boxes hold exactly what the list says is packed? totals: { SKU: pieces }. */
+function fblBoxesAgree(list, totals) {
+  const boxed = {};
+  Object.entries(totals).forEach(([sku, n]) => { boxed[shpHoldKey(sku)] = (boxed[shpHoldKey(sku)] || 0) + n; });
+  return Object.keys(Object.assign({}, boxed, list.lines)).every(key => (boxed[key] || 0) === fgiNum((list.lines[key] || {}).packed));
+}
+/** A list as it is before any packing is saved on it. */
+function fblUnpacked(list) {
+  const lines = {};
+  Object.entries(list.lines).forEach(([key, line]) => { lines[key] = Object.assign({}, line, { packed: 0 }); });
+  const next = Object.assign({}, list, { status: 'open', lines });
+  delete next.claimBy; delete next.claimAt;
+  return next;
+}
+/** Asked before a changed packing list of this FBA list is saved: a packed list that no longer agrees with its boxes goes
+ *  back to open, so it cannot ship until Finish. Throws, so the boxes are not saved, when that cannot be done. */
+async function fblBoxesChanged(id, totals) {
+  const path = FBL_PATH + '/' + id, list = await ptGetFresh(path);
+  if (!list || list.status === 'open' || fblBoxesAgree(list, totals)) return;
+  if (list.status === 'shipping' && fblClaimLive(list)) throw new Error(fblBusyWhy(list));
+  const next = fblUnpacked(list);
+  if (await ptCas(path, list, next)) throw new Error(FBL_MOVED);
+  fblKeep('_fbaLists', id, next);
+}
+
 /* ---- shipping ---- */
-/** The pieces of each line that go, by default all that is packed: { qty: { SKU key: pieces } } or { err }. */
-function fblShipQty(list, qtyBySku) {
-  const asked = {};
-  for (const [sku, n] of Object.entries(qtyBySku || {})) {
-    if (!list.lines[shpHoldKey(sku)]) return { err: `${obUC(sku)} is not on this FBA list.` };
-    asked[shpHoldKey(sku)] = Number(n);
-  }
+/** The pieces of each line that go: all that is packed. shown: { SKU: pieces } as the Ship box showed them, refused when the
+ *  packing has changed since. { qty: { SKU key: pieces } } or { err }. */
+function fblShipQty(list, shown) {
+  if (shown && !fblBoxesAgree(list, shown)) return { err: FBL_REPACKED };
   const qty = {};
-  for (const [key, line] of Object.entries(list.lines)) {
-    const n = key in asked ? asked[key] : fgiNum(line.packed);
-    if (!Number.isInteger(n) || n < 0 || n > fgiNum(line.packed))
-      return { err: `${line.sku}: ${nf(fgiNum(line.packed))} piece(s) are packed — ship no more than that, in whole pieces.` };
-    qty[key] = n;
-  }
-  return Object.values(qty).some(n => n > 0) ? { qty } : { err: 'Nothing to ship — put in the pieces going.' };
+  Object.entries(list.lines).forEach(([key, line]) => { qty[key] = fgiNum(line.packed); });
+  return Object.values(qty).some(n => n > 0) ? { qty } : { err: 'Nothing to ship — pack this FBA list first.' };
 }
 /** Why the store cannot cover these pieces beside what the other lists keep, or ''. */
 function fblStockWhy(id, list, qty) {
   const others = fblAllotted(Object.assign({}, fblLists(), { [id]: null }));
   return Object.entries(qty).map(([key, n]) => {
     const { sku } = list.lines[key], free = fgiOf(sku).current - ((others[key] || {}).total || 0);
-    return n > 0 && n > free ? `${sku}: the India Store has ${nf(Math.max(0, free))} piece(s) for this list, not ${nf(n)} — ship fewer.` : '';
+    return n > 0 && n > free ? `${sku}: the India Store has ${nf(Math.max(0, free))} piece(s) for this list, not ${nf(n)} — take the extra out of the boxes in Pack, press Finish, then Ship.` : '';
   }).filter(Boolean).join(' ');
 }
 /** The movements of a shipment, one per SKU that goes, already accepted and shipped. */
@@ -261,12 +294,13 @@ function fblReleaseSplit(list, qty, releases) {
   });
   return { back, kept };
 }
-/** The record of a shipped list, as it is kept among the finished ones. */
-function fblShippedRec(list, qty, head, released) {
+/** The record of a shipped list, as it is kept among the finished ones. releases: { kept (used up), back (to give back) }. */
+function fblShippedRec(list, qty, head, releases) {
+  const released = releases.kept;
   const lines = {};
   Object.entries(list.lines).forEach(([key, line]) => { lines[key] = Object.assign({}, line, { shipped: qty[key] }); });
   const rec = Object.assign({}, list, { status: 'shipped', lines, released, shipment: head.shipment, shipDate: head.shipDate,
-    shippedAt: head.at, shippedBy: ME.email });
+    shippedAt: head.at, shippedBy: ME.email, owed: { at: head.at, back: releases.back } });
   delete rec.claimBy; delete rec.claimAt;
   if (!Object.keys(released).length) delete rec.released;
   return rec;
@@ -277,83 +311,117 @@ async function fblGiveBack(used) {
   return said.includes('NOT given back') ? said.trim() : '';
 }
 
-/** SHIP A PACKED LIST, ONCE. v: { shipment, date (YYYY-MM-DD, default today), qtyBySku: { SKU: pieces } }. The list is
- *  claimed, then the movements and the shipped list are written together. '' when done, else the sentence to show. */
+/** SHIP A PACKED LIST, ONCE. v: { shipment, date (YYYY-MM-DD, default today), packed: { SKU: pieces } as shown }. The list
+ *  is claimed, then the movements and the shipped list are written together. '' when done, else the sentence to show. */
 async function fblShip(id, v) {
   const blocked = fblBlocked();
   if (blocked) return blocked;
   const shipment = String(v.shipment || '').trim();
   if (!shipment) return 'Put in the shipment id — a shipment nobody can trace is not a shipment.';
-  const taken = await fblShipClaim(id, shipment, v.qtyBySku);
+  const dateWhy = ptDateErr(v.date, 'Ship date', ME.admin ? 'fixed' : 'done');   // the same date rule as every other shipment
+  if (dateWhy) return wpRefuse(dateWhy);
+  const taken = await fblShipClaim(id, shipment, v.packed);
+  if (taken.saved) return fblShipAfter(id);
   if (!taken.claim) return taken.err;
   const head = { shipment, shipDate: fgiDmy(v.date || dTodayIndia()), at: taken.claim.claimAt };
-  const written = await fblShipWrite(id, taken.claim, taken.qty, head);
-  if (written.err) { await fblUnclaim(id, taken.claim, taken.was); return written.err; }
-  return fblShipAfter(taken.claim, taken.qty, written.back);
+  const refused = await fblShipWrite(id, taken.claim, taken.qty, head);
+  if (refused) { await fblUnclaim(id, taken.claim, taken.was); return refused; }
+  return fblShipAfter(id);
 }
-/** Claim a packed list for this shipment: { claim, was, qty }, else { err } ('' when this shipment is already written). */
-async function fblShipClaim(id, shipment, qtyBySku) {
+/** Claim a packed list for this shipment: { claim, was, qty }, { saved } when this shipment is already written, else { err }. */
+async function fblShipClaim(id, shipment, shown) {
   try {
     const { open, done } = await fblReadOne(id);
     if (!open) {
       const already = !!done && done.status === 'shipped' && done.shipment === shipment;
-      return { err: already ? '' : 'This FBA list is no longer waiting to ship — press Refresh.' };
+      return already ? { saved: true } : { err: 'This FBA list is no longer waiting to ship — press Refresh.' };
     }
     if (open.status === 'shipping' && fblClaimLive(open)) return { err: fblBusyWhy(open) };
     if (!['packed', 'shipping'].includes(open.status)) return { err: 'Pack this FBA list before shipping it.' };
-    const going = fblShipQty(open, qtyBySku);
+    const going = fblShipQty(open, shown);
     if (going.err) return going;
     const claim = Object.assign({}, open, { status: 'shipping', claimBy: ME.email, claimAt: new Date().toISOString() });
     if (await ptCas(FBL_PATH + '/' + id, open, claim)) return { err: FBL_MOVED };
     return { claim, was: open, qty: going.qty };
   } catch (e) { return { err: `Not shipped: ${e.message || e} — check the connection and try again.` }; }
 }
-/** Check the stock afresh and write the shipment: { back (release pieces to give back) }, else { err }. */
+/** Check the stock afresh and write the shipment. '' when written, else the sentence to show. */
 async function fblShipWrite(id, claim, qty, head) {
   try {
     const unread = await fgiStockReread();
-    if (unread) return { err: unread };
+    if (unread) return unread;
     fblKeepAll((await ptGetFresh(FBL_PATH)) || {});
     const short = fblStockWhy(id, claim, qty);
-    if (short) return { err: 'Not shipped — ' + short };
+    if (short) return 'Not shipped — ' + short;
     const rows = fblShipRows(id, claim, qty, head);
-    const { back, kept } = fblReleaseSplit(claim, qty, fgiHoldNode().releases);
-    const done = fblShippedRec(claim, qty, head, kept);
+    const done = fblShippedRec(claim, qty, head, fblReleaseSplit(claim, qty, fgiHoldNode().releases));
     const patch = { [FBL_PATH + '/' + id]: null, [FBL_DONE_PATH + '/' + id]: done };
     rows.forEach(r => { patch['pt_fgiLedger/' + r._id] = r; });
     const lost = await fblClaimLostWhy(FBL_PATH + '/' + id, claim);
-    if (lost) return { err: 'Not shipped — ' + lost };
+    if (lost) return 'Not shipped — ' + lost;
     const unsure = await fblShipSend(id, patch, head);
-    if (unsure) return { err: unsure };
+    if (unsure) return unsure;
     const ids = new Set(rows.map(fgiRowId));
     FGI.rows = (FGI.rows || []).filter(r => !ids.has(fgiRowId(r))).concat(rows);
     fblKeep('_fbaLists', id, null);
     fblKeep('_fbaListsDone', id, done);
-    return { back };
-  } catch (e) { return { err: `Not shipped: ${e.message || e} — check the connection and try again.` }; }
+    return '';
+  } catch (e) { return `Not shipped: ${e.message || e} — check the connection and try again.`; }
 }
 /** Send the shipment. '' when it is saved, also when only the answer was lost; throws when it was not saved; else the
  *  sentence to show because that could not be checked. */
 async function fblShipSend(id, patch, head) {
-  try { await ptPatch(patch); return ''; }
+  try { await fblSave(patch); return ''; }
   catch (e) {
     let done;
     try { done = await ptGetFresh(FBL_DONE_PATH + '/' + id); }
     catch (unread) {
       console.warn('FBA lists: shipment ' + head.shipment + ' could not be looked up after a failed save:', unread.message || unread);
-      return `The shipment may or may not be saved: ${e.message || e} — press Refresh and look before shipping again.`;
+      return `The shipment may or may not be saved: ${e.message || e} — check the connection and press Ship again here: nothing is shipped twice.`;
     }
     if (!done || done.status !== 'shipped' || done.shippedAt !== head.at) throw e;
     console.warn('FBA lists: shipment ' + head.shipment + ' was saved although its answer was lost:', e.message || e);
     return '';
   }
 }
-/** After the shipment is written: unused releases go back, and Amazon listing alerts are raised. */
-async function fblShipAfter(list, qty, back) {
-  const kept = await fblGiveBack(back);
+/** After the shipment is written: what it owes is done, and old records are removed. '' or "Shipped. …" to show. */
+async function fblShipAfter(id) {
+  const said = [await fblSettle(id)];
   fbaBadge();
-  for (const [key, n] of Object.entries(qty)) if (n > 0) await fblListingAlert(list.lines[key].sku, n);
-  return kept && 'Shipped. ' + kept;
+  said.push(...await fblTidyDone());
+  const left = [...new Set(said.filter(Boolean))].join(' ');
+  return left && 'Shipped. ' + left;
+}
+/** What a written shipment still owes, done once: its unused releases go back and Amazon listing alerts are raised. Whoever
+ *  takes `owed` off the record, in one step, does both. '' when done or nothing is owed, else the sentence to show. */
+async function fblSettle(id) {
+  try {
+    const path = FBL_DONE_PATH + '/' + id, done = await ptGetFresh(path);
+    if (!done || done.status !== 'shipped' || !done.owed) return '';
+    const settled = Object.assign({}, done);
+    delete settled.owed;
+    if (await ptCas(path, done, settled)) return '';
+    fblKeep('_fbaListsDone', id, settled);
+    const kept = await fblGiveBack(done.owed.back || {});
+    for (const line of Object.values(done.lines)) if (line.shipped > 0) await fblListingAlert(line.sku, line.shipped);
+    return kept;
+  } catch (e) {
+    console.warn('FBA lists: what shipped list ' + id + ' still owes was not completed:', e.message || e);
+    return FBL_OWED_LATER;
+  }
+}
+const fblExpired = rec => Date.now() - Date.parse(rec.shippedAt || rec.cancelledAt) > FBL_KEEP_DAYS * 864e5 && !fblClaimLive(rec);
+/** Run when a list ships, as the finished ones are downloaded with every screen load: shipments still owing are completed and
+ *  records over 60 days old removed, each only if unchanged since read. Returns the sentences to show; never throws. */
+async function fblTidyDone() {
+  const said = [];
+  try {
+    for (const [id, rec] of Object.entries((await ptGetFresh(FBL_DONE_PATH)) || {})) {
+      if (rec.owed) said.push(await fblSettle(id));
+      else if (fblExpired(rec) && !(await ptCas(FBL_DONE_PATH + '/' + id, rec, null))) fblKeep('_fbaListsDone', id, null);
+    }
+  } catch (e) { console.warn('FBA lists: old list records were not tidied; the next shipment tries again:', e.message || e); }
+  return said;
 }
 /** The pieces have gone whether or not the alert can be raised, so its failure never reads as a failed shipment. */
 async function fblListingAlert(sku, pieces) {
@@ -394,7 +462,7 @@ async function fblCancel(id) {
 async function fblFileCancelled(id, list) {
   fblKeep('_fbaLists', id, list);
   try {
-    await ptPatch({ [FBL_PATH + '/' + id]: null, [FBL_DONE_PATH + '/' + id]: list });
+    await fblSave({ [FBL_PATH + '/' + id]: null, [FBL_DONE_PATH + '/' + id]: list });
     fblKeep('_fbaLists', id, null);
     fblKeep('_fbaListsDone', id, list);
   } catch (e) { console.warn('FBA lists: cancelled list ' + id + ' stays among the open ones (it keeps no pieces):', e.message || e); }
@@ -426,8 +494,11 @@ function fblShippedMovements(id) {
 async function fblUndoShip(id) {
   if (!fbaCan()) return FBL_NOT_TEAM;
   try {
+    const owing = await fblSettle(id);   // the releases go back before the shipment that freed them is taken apart
+    if (owing) return 'The shipment was not undone yet — ' + owing;
     const { open, done } = await fblReadOne(id);
-    if (!done) return open && open.status === 'packed' ? '' : 'This FBA list is not shipped — press Refresh.';
+    if (!open && !done) return FBL_RECORD_GONE;
+    if (!done) return open.status === 'packed' ? '' : 'This FBA list is not shipped — press Refresh.';
     if (done.status !== 'shipped') return 'This FBA list is not shipped — press Refresh.';
     if (fblClaimLive(done)) return fblBusyWhy(done);
     const unread = await fgiStockReread();
@@ -448,7 +519,7 @@ async function fblWriteUndo(id, done, ids) {
   ids.forEach(rowId => { patch['pt_fgiLedger/' + rowId] = null; });
   const lost = await fblClaimLostWhy(FBL_DONE_PATH + '/' + id, done);
   if (lost) return 'The shipment was not undone — ' + lost;
-  await ptPatch(patch);
+  await fblSave(patch);
   const gone = new Set(ids);
   FGI.rows = (FGI.rows || []).filter(r => !gone.has(fgiRowId(r)));
   fblKeep('_fbaListsDone', id, null);

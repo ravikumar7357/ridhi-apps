@@ -5,7 +5,8 @@
  * and take decimals.
  * Errors: this fails loudly to the person, and nothing is saved: the screen never hears the stopped change, and nothing under the
  * pop-up can be pressed or left while it is open (a tap on Save, or a box that saves when you leave it). Pasted plans and files
- * with part pieces are refused whole by their own imports, never partly saved. A new pieces box only needs step="1". */
+ * with part pieces are refused whole by their own imports, never partly saved. A new pieces box only needs step="1".
+ * Text a number box cannot read ("1-000", on any number box) is stopped the same way, on change, Enter or leaving the box. */
 
 /** Is this typed text something other than a whole number? Blank is not: each form says for itself what a blank means.
  *  "2.0" is whole; "2.5" and "1e3" are not. A minus is left to the form's own check. */
@@ -29,6 +30,9 @@ function wpShow(title, text, back) {
   ok.focus();
 }
 
+/** A save refused for what was typed: the same pop-up, and the sentence goes back for the form to show too. */
+function wpRefuse(why) { wpShow('This cannot be saved', why); return why; }
+
 /** Stops a part number in a whole-number box: puts the old figure back, lets the screen's totals catch up, and says why.
  *  The old figure, not a blank: several screens read a blank as 0 or as "remove it". True when stopped. */
 function wpStop(el) {
@@ -40,11 +44,24 @@ function wpStop(el) {
   return true;
 }
 
+/** Text a number box cannot read ("1-000"): the browser hands the screen a blank, so the form complained about something
+ *  else. Said on leaving the box (no change event fires when an empty box stays blank to the browser). True when stopped. */
+function wpNotANumber(el) {
+  if (!(el && el.tagName === 'INPUT' && el.type === 'number' && el.validity && el.validity.badInput)) return false;
+  const was = WP_WAS.get(el);
+  el.value = was === undefined ? '' : was;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  wpShow('This is not a number', 'What was typed cannot be read as a number, so it was not taken. Please type it again.', el);
+  return true;
+}
+
 /* All caught on the way down, before any screen's own handler. The guard for the open pop-up comes first. */
 ['click', 'focusout', 'blur', 'change'].forEach(type => document.addEventListener(type, e => {
   const pop = document.getElementById('wpPop');
   if (pop && !pop.contains(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); }
 }, true));
-document.addEventListener('focusin', e => { if (wpBox(e.target)) WP_WAS.set(e.target, e.target.value); }, true);
-document.addEventListener('change', e => { if (wpStop(e.target)) e.stopImmediatePropagation(); }, true);
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && wpStop(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+document.addEventListener('focusin', e => { if (e.target && e.target.type === 'number') WP_WAS.set(e.target, e.target.value); }, true);
+/* a box that was blank sends no change, so leaving it is watched too */
+document.addEventListener('focusout', e => { wpNotANumber(e.target); }, true);
+document.addEventListener('change', e => { if (wpNotANumber(e.target) || wpStop(e.target)) e.stopImmediatePropagation(); }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && (wpNotANumber(e.target) || wpStop(e.target))) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);

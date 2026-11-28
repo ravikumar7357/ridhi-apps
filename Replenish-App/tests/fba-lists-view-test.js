@@ -8,7 +8,7 @@ function screen(o = {}) {
   const S = store(Object.assign({ admin: false }, o));
   const calls = [], dialogs = [];
   S.made = 0;
-  S.ctx.ME = { email: o.email || 'team@test', admin: !!o.admin, tabs: o.tabs || ['fba', 'fgi'] };
+  S.ctx.ME = { email: o.email || 'team@test', admin: !!o.admin, repl: o.repl !== false, tabs: o.tabs || ['fba', 'fgi'] };
   Object.assign(S.ctx, {
     spIsVendor: () => false, ptDtMs: () => 0, FGI_PICK: { stock: new Set(o.picked || []), ledger: new Set() },
     ptOpenDialog: cfg => dialogs.push(cfg), renderFba: () => calls.push(['renderFba']), renderFgi: () => calls.push(['renderFgi']),
@@ -17,6 +17,7 @@ function screen(o = {}) {
   });
   S.run(line('core/helpers.js', 'const dTodayIndia') + line('core/helpers.js', 'const dAdd') + line('core/helpers.js', 'const ptDayWords')
     + line('inventory/fg-change-remove.js', 'const fgiDmy') + line('inventory/fba-dispatch.js', 'const fbaCan')
+    + ['const packFbaMayPack', 'const PACK_NO_RIGHT'].map(start => line('replenishment/pack-core.js', start)).join('')
     + whole('inventory/finished-goods.js', 'fgiCard') + 'const ptIsoDate = d => String(d || "").split("/").reverse().join("-");\n'
     + appFile('inventory/fg-fba-repeat.js') + appFile('inventory/fba-lists.js') + appFile('inventory/fba-lists-view.js'));
   S.saved.fbaList = o.switch || '1';
@@ -116,6 +117,13 @@ const actions = html => (html.match(/data-fbl="\w+"/g) || []).map(m => m.slice(1
     const X = panel({ lists: { L: list('open', { lines: { A: { sku: '<img src=x>', qty: 1, packed: 0 } } }) } });
     ok('text is escaped', !/<img/.test(X.html) && /&lt;img/.test(X.html));
   }
+  {
+    const N = panel({ repl: false, lists: { L: list('packed') } });
+    ok('cannot save packing lists: no Pack, and told what to ask for', actions(N.html) === 'ship,cancel' && !N.pack && /ask an admin to give you the Packing List tab/.test(N.html), N.html);
+    const E = screen({ repl: false }); E.ctx.ME.fgiEntry = true;
+    ok('a stock-entry right can pack', E.run('packFbaMayPack()') === true);
+    ok('nothing said to those who can', !/ask an admin to give/.test(panel({ lists: { L: list('open') } }).html));
+  }
   console.log('== pack ==');
   {
     const S = screen({ lists: { L: list('open') } });
@@ -133,11 +141,14 @@ const actions = html => (html.match(/data-fbl="\w+"/g) || []).map(m => m.slice(1
     const S = screen({ lists: { L: list('packed') } });
     await S.ctx.fblvShipOpen('L');
     const d = S.dialogs[0];
-    ok('pieces default to packed, never above', /max="3" step="1" value="3"/.test(d.html) && /freed/.test(d.note));
+    ok('the packed pieces are shown, not typed, and sending fewer is explained', /3 shipping \(4 on the list\)/.test(d.html) && !/fblvShipQty/.test(d.html)
+      && /exactly the packed pieces/.test(d.note) && /take the pieces out of the boxes/.test(d.note) && /freed/.test(d.note) && !/ask an admin/.test(d.note), d.html);
     S.box('fblvShipment').value = 'FBA1'; S.box('fblvDate').value = '2026-11-28';
-    ok('a blank box is refused', /0 if none/.test(await d.onSave()) && S.calls.length === 0);
-    S.box('fblvShipQty0').value = '2';
-    ok('shipment, date and pieces are sent', await d.onSave() === '' && JSON.stringify(S.calls[0]) === '["fblShip","L",{"shipment":"FBA1","date":"2026-11-28","qtyBySku":{"A":2}}]', JSON.stringify(S.calls[0]));
+    ok('shipment, date and the shown packing are sent', await d.onSave() === '' && JSON.stringify(S.calls[0]) === '["fblShip","L",{"shipment":"FBA1","date":"2026-11-28","packed":{"A":3}}]', JSON.stringify(S.calls[0]));
+    const P = screen({ repl: false, lists: { L: list('packed') } }); await P.ctx.fblvShipOpen('L');
+    ok('who cannot pack is told what to ask for', /ask an admin to give you the Packing List tab/.test(P.dialogs[0].note));
+    const R = screen(); await R.run('fblvUndoAsk("GONE")');
+    ok('undo of a removed record says to use Return', R.dialogs.length === 0 && /use Return/.test(R.box('fbaMsg').textContent));
     const O = screen({ lists: { L: list('open') } }); await O.ctx.fblvShipOpen('L');
     ok('an unpacked list has no ship form', O.dialogs.length === 0);
     const W = screen({ says: 'Shipped. 2 released piece(s) were NOT given back.' });
@@ -167,6 +178,12 @@ const actions = html => (html.match(/data-fbl="\w+"/g) || []).map(m => m.slice(1
         && got.S.dialogs[0].title === 'Undo ship' && got.S.writes.length === 0, got.said);
     }
   }
+  console.log('== Return of a shipment whose record is removed ==');
+  for (const [name, done, expected] of [['removed', {}, true], ['still there', { L: shippedList() }, false]]) {
+    const S = screen({ done });
+    S.run(whole('inventory/fba-ship-excel.js', 'fbaListRecordRemoved'));
+    ok('record ' + name, await S.ctx.fbaListRecordRemoved({ fbaListId: 'L' }) === expected && await S.ctx.fbaListRecordRemoved({}) === false);
+  }
   console.log('== wiring ==');
   {
     const has = (f, text) => appFile(f).includes(text);
@@ -174,7 +191,8 @@ const actions = html => (html.match(/data-fbl="\w+"/g) || []).map(m => m.slice(1
       && has('inventory/finished-goods.js', "$('fgPack').classList.toggle('hide', !scanners)") && has('inventory/finished-goods.js', "$('fgScan').classList.toggle('hide', !scanners)"));
     ok('the stock list ticks for the FBA team', has('inventory/finished-goods.js', "const canTick = canEd || (typeof fblOn === 'function' && fblOn() && fbaCan());")
       && has('inventory/finished-goods.js', "(canTick ? `<td><input type=\"checkbox\" data-fgpick"));
-    ok('every shipped row has Undo ship, list rows too', has('inventory/fba-dispatch.js', "s.st === 'shipped' ? btn('data-fba-undo', id, 'Undo ship')"));
+    ok('a shipped row has Undo ship, or Return once its list record is removed', has('inventory/fba-dispatch.js', "fblRecordGone(r)")
+      && has('inventory/fba-dispatch.js', "? btn('data-fba-ret', id, 'Return', true) : btn('data-fba-undo', id, 'Undo ship')"));
     const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
     ok('the buttons and panel are on the page', ['fgFbaList', 'fbaPackBtn', 'fbaLists', 'fgScan', 'fgPack'].every(id => html.includes(`id="${id}"`)));
   }
@@ -195,11 +213,16 @@ function teeth() {
     [view, '+ fgiReleased(sku);', ';'],
     [view, 'onSave: () => fblvMakeSave(id, skus),', "onSave: () => fblvMakeSave(fgiNewId('FBL'), skus),"],
     [view, ".filter(l => l.qty !== '' && Number(l.qty) !== 0)", ''],
-    [view, "if (typed === '') return", "if (typed === 'x') return"],
+    [view, 'lines.forEach(l => { packed[l.sku] = l.packed; });', ''],
+    [view, "fblvPackable(list) && packFbaMayPack() ?", 'fblvPackable(list) ?'],
+    [view, "(noRight ? ", '(false ? '],
+    [view, "+ (packFbaMayPack() ? '' : ' ' + PACK_NO_RIGHT);", ';'],
+    [view, "const fblvUndoAsk = id => fblvConfirm(id, { title: 'Undo ship', gone: FBL_RECORD_GONE,", "const fblvUndoAsk = id => fblvConfirm(id, { title: 'Undo ship',"],
+    ['inventory/fba-ship-excel.js', 'return !open && !done;', 'return true;'],
     [view, 'if (said && !said.startsWith(doneStart)) return said;', 'if (said) return said;'],
     [view, '<b style="font-family:ui-monospace,monospace">${esc(l.sku)}</b>', '<b>${l.sku}</b>'],
     [view, 'if (!fbaCan()) return \'\';', ''],
-    ['inventory/fba-dispatch.js', "s.st === 'shipped' ? btn(", "s.st === 'shipped' && !r.fbaListId ? btn("],
+    ['inventory/fba-dispatch.js', "? btn('data-fba-ret', id, 'Return', true) : btn(", "? '' : btn("],
     ['inventory/fba-ship-excel.js', 'await fblvUndoAsk(row.fbaListId);', ''],
   ];
   const tmp = path.join(os.tmpdir(), `fblv-broken-${process.pid}.js`);

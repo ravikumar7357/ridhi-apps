@@ -142,13 +142,15 @@ function fblvCard(list, buttons) {
 }
 function fblvWaitingButtons(id, list) {
   if (!fbaCan()) return '';
-  return (fblvPackable(list) ? fblvButton('pack', id, 'Pack') : '')
+  return (fblvPackable(list) && packFbaMayPack() ? fblvButton('pack', id, 'Pack') : '')
     + (fblvShippable(list) ? fblvButton('ship', id, 'Ship') : '')
     + (fblvMayCancel(list) ? fblvButton('cancel', id, 'Cancel list') : '');
 }
 function fblvPanelHtml(waiting) {
   const shipped = fblvRecentlyShipped();
+  const noRight = fbaCan() && !packFbaMayPack() && waiting.some(([, l]) => fblvPackable(l));
   return '<h3 style="margin:0">FBA lists</h3>'
+    + (noRight ? `<div class="err" style="margin-top:6px">${esc(PACK_NO_RIGHT)}</div>` : '')
     + (waiting.length ? waiting.map(([id, l]) => fblvCard(l, fblvWaitingButtons(id, l))).join('')
       : '<div class="muted">No list is waiting. Tick SKUs on Finished Goods and press Make FBA list.</div>')
     + (shipped.length ? `<h4 style="margin:12px 0 0">Shipped in the past ${FBLV_RECENT_DAYS} days</h4>`
@@ -160,7 +162,7 @@ function fblvRender() {
   const panel = $('fbaLists'); if (!panel) return;
   const on = fblOn() && !FGI.busy && !FGI.err, waiting = on ? fblvWaiting() : [];
   panel.classList.toggle('hide', !on);
-  $('fbaPackBtn').classList.toggle('hide', !(fblvMayList() && waiting.some(([, l]) => fblvPackable(l))));
+  $('fbaPackBtn').classList.toggle('hide', !(fblvMayList() && packFbaMayPack() && waiting.some(([, l]) => fblvPackable(l))));
   panel.innerHTML = on ? fblvPanelHtml(waiting) : '';
 }
 
@@ -187,22 +189,27 @@ function fblvAfter(said, doneStart, success) {
   return '';
 }
 
-/** The list as it is now, or null after saying why it cannot be had. */
-async function fblvFresh(id) {
+/** The list as it is now, or null after saying why it cannot be had. gone: what to say when it is nowhere. */
+async function fblvFresh(id, gone = 'That FBA list is gone — press Refresh.') {
   try {
     const { open, done } = await fblReadOne(id);
     if (open || done) return open || done;
-    fblvSay('fbaMsg', 'That FBA list is gone — press Refresh.', true);
+    fblvSay('fbaMsg', gone, true);
   } catch (e) { fblvSay('fbaMsg', `The FBA list could not be read: ${e.message || e} — try again.`, true); }
   return null;
 }
 
+/** What the Ship box says about sending fewer than are packed. */
+const fblvFewerNote = () => 'Ship sends exactly the packed pieces; pieces on the list that are not packed are freed for the store. '
+  + 'To ship fewer, close this box, press Pack on the list, take the pieces out of the boxes and press Finish.'
+  + (packFbaMayPack() ? '' : ' ' + PACK_NO_RIGHT);
 function fblvShipHtml(lines) {
   return `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
       <label>Shipment id<input id="fblvShipment" type="text" placeholder="FBA15…" style="font-family:ui-monospace,monospace"></label>
       <label>Ship date<input id="fblvDate" type="date" value="${esc(dTodayIndia())}"></label>
-      ${lines.map((l, i) => `<label>${esc(l.sku)} — pieces shipped (${nf(l.packed)} packed)<input id="fblvShipQty${i}" type="number" min="0" max="${esc(l.packed)}" step="1" value="${esc(l.packed)}"></label>`).join('')}
-    </div>`;
+    </div>
+    <div style="margin-top:10px">${lines.map(l => `<div><b style="font-family:ui-monospace,monospace">${esc(l.sku)}</b> — `
+      + `${nf(l.packed)} shipping (${nf(l.qty)} on the list)</div>`).join('')}</div>`;
 }
 async function fblvShipOpen(id) {
   if (!fblvMayList()) return;
@@ -216,33 +223,29 @@ async function fblvShipOpen(id) {
   ptOpenDialog({
     title: 'Ship FBA list',
     subtitle: fblvTitle(list),
-    note: 'Put in the Amazon shipment id and the pieces going, no more than are packed. Pieces not shipped are freed for the store.',
+    note: 'Put in the Amazon shipment id. ' + fblvFewerNote(),
     html: fblvShipHtml(lines),
     saveLabel: 'Ship',
     onSave: () => fblvShipSave(id, lines),
   });
 }
 async function fblvShipSave(id, lines) {
-  const qtyBySku = {};
-  for (const [i, line] of lines.entries()) {
-    const typed = String($('fblvShipQty' + i).value).trim();
-    if (typed === '') return `Put in the pieces shipped for ${line.sku} — 0 if none are going.`;
-    qtyBySku[line.sku] = Number(typed);
-  }
-  const said = await fblShip(id, { shipment: $('fblvShipment').value, date: $('fblvDate').value, qtyBySku });
+  const packed = {};
+  lines.forEach(l => { packed[l.sku] = l.packed; });
+  const said = await fblShip(id, { shipment: $('fblvShipment').value, date: $('fblvDate').value, packed });
   return fblvAfter(said, 'Shipped.', 'FBA list shipped.');
 }
 
 /** Ask before cancelling or undoing. ask: { title, note, run }. */
 async function fblvConfirm(id, ask) {
-  const list = await fblvFresh(id);
+  const list = await fblvFresh(id, ask.gone);
   if (!list) return;
   ptOpenDialog({ title: ask.title, subtitle: fblvTitle(list), note: ask.note, saveLabel: ask.title, onSave: ask.run });
 }
 const fblvCancelAsk = id => fblvConfirm(id, { title: 'Cancel this FBA list',
   note: 'Its pieces are free for the store again. To keep the list, close this box.',
   run: async () => fblvAfter(await fblCancel(id), 'Cancelled.', 'FBA list cancelled.') });
-const fblvUndoAsk = id => fblvConfirm(id, { title: 'Undo ship',
+const fblvUndoAsk = id => fblvConfirm(id, { title: 'Undo ship', gone: FBL_RECORD_GONE,
   note: 'The whole shipment is taken back: its movements are deleted and the list is packed again, with the pieces that were shipped.',
   run: async () => fblvAfter(await fblUndoShip(id), 'Undone.', 'Shipment undone — the list is packed again.') });
 

@@ -70,6 +70,15 @@ function ptNumErr(raw, label, kind, zeroOk) {
   if (n === 0 && !zeroOk && kind !== 'rs') return `${label} must be more than 0.`;
   return '';
 }
+/* CLOTH ABOVE THE NEED (28 Nov 2026, order-to-shipping test: 5,000 m went on a challan for a 5.2 m line): a challan or a cutting
+ * entry may take up to a tenth more than the worked-out need. Where no need can be worked out, nothing is refused. */
+const PT_CLOTH_EXTRA = 0.10;
+function ptClothOver(typed, need, label) {
+  const m = Number(typed), n = Number(need);
+  if (!(n > 0) || !(m > n * (1 + PT_CLOTH_EXTRA) + 0.05)) return '';   // 0.05 m: figures are rounded on screen
+  const most = Math.round(n * (1 + PT_CLOTH_EXTRA) * 100) / 100;
+  return `${label}: ${m} m typed, but the need is ${Math.round(n * 100) / 100} m — at most ${most} m (10% extra).`;
+}
 /** The "is that right?" question for a big figure, or '' when it is not big. Rupees are never asked about. */
 function ptNumBig(n, label, kind) {
   const cap = PT_NUM_BIG[kind];

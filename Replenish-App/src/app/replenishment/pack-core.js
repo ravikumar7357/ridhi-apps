@@ -154,7 +154,7 @@ const PACK_CORE = /* @__PURE__ */ (() => {
       }
       const orders = [...parts.entries()].map(([orderNo, qty]) => ({ orderNo, qty }));
       return Object.assign(
-        { _id: o.newId(), txnType: "FBA", sku: r.sku, qty: r.qty, date, reason: "", scanned: true },
+        { _id: o.newId(r.sku), txnType: "FBA", sku: r.sku, qty: r.qty, date, reason: "", scanned: true },
         orders.length ? { orders } : {},
         { issuedFor: p.account || "" },
         o.handoverTo || sc.handoverTo ? { handoverTo: o.handoverTo || sc.handoverTo } : {},
@@ -194,6 +194,21 @@ const packFbaIdOf = (listId) => "PK-" + listId;
 const packFbaPackable = (list) => !!list && ["open", "packed"].includes(list.status);
 /** False only for the packing list of an FBA list that has since been shipped or cancelled. */
 const packFbaStillOpen = (p) => !(packFbaOn() && p.scan && p.scan.fbaListId) || packFbaPackable(fblLists()[p.scan.fbaListId]);
+/* The database lets only these accounts save a packing list (Sellora's rules, canPack), so packing is not offered to others. */
+const packFbaMayPack = () => !!(ME.admin || ME.repl || ME.fgiEdit || ME.fgiEntry);
+const PACK_NO_RIGHT = "This account cannot save packing lists, so it cannot pack: ask an admin to give you the Packing List tab.";
+/** Why this person cannot pack an FBA list here, or "". */
+const packFbaBlocked = () => fblBlocked() || (packFbaMayPack() ? "" : PACK_NO_RIGHT);
+/** Before a packing list is saved or deleted: an FBA list packed from other boxes than these is no longer packed. Throws. */
+async function packFbaKeepInStep(p) {
+  if (packFbaOn() && p.scan && p.scan.fbaListId) await fblBoxesChanged(p.scan.fbaListId, packBoxTotals(p));
+}
+/** What the boxes hold, as the scanner's packed count of an FBA list, so boxes changed on the Packing List tab count too. */
+function packFbaPackedOf(p, listId) {
+  const out = {};
+  Object.entries(packBoxTotals(p)).forEach(([sku, n]) => { out[sku] = { [listId]: n }; });
+  return out;
+}
 /** Read the FBA lists as they are now: "" or why not. */
 async function packFbaListsRead() {
   try {
@@ -214,7 +229,7 @@ function packFbaOptions() {
 /** The packing list of an FBA list, holding the list's SKUs and pieces as they are now: { p } or { err }.
  * head: { title, invoice, handoverTo }, used when it is made. */
 async function packFbaSession(listId, head) {
-  const blocked = fblBlocked();
+  const blocked = packFbaBlocked();
   if (blocked) return { err: blocked };
   try {
     const { open } = await fblReadOne(listId);
@@ -223,7 +238,8 @@ async function packFbaSession(listId, head) {
     const lines = Object.values(open.lines).map((l) => ({ sku: l.sku, qty: l.qty }));
     if (had.exists()) {
       const saved = Object.assign({ id }, had.data());
-      const p = Object.assign({}, saved, { account: open.account, scan: Object.assign({}, saved.scan, { plan: lines }) });
+      const scan = Object.assign({}, saved.scan, { plan: lines, packed: packFbaPackedOf(saved, listId) });
+      const p = Object.assign({}, saved, { account: open.account, scan });
       PK = [p].concat(PK.filter((x) => x.id !== id));
       return { p };
     }
@@ -309,6 +325,38 @@ function packWtOf(sku) {
   });
   return PACK_CORE.weightOf(sku, PK_WT || {}, meta, all);
 }
+function packMarkDone(p, ids) {
+  p.scan.ledgerIds = ids;
+  p.scan.done = true;
+  p.scan.doneAt = (/* @__PURE__ */ new Date()).toISOString();
+  p.scan.doneBy = ME.email || "";
+}
+/* ONE ROW PER LIST AND SKU (28 Nov): the same list finished on two screens wrote the stock out twice. The row's name is made
+ * from the list and the SKU, so a later Finish meets the first one's rows. Two presses at the very same moment still land on
+ * one row each, but the later one's figures stay and a website-order release may be used twice. Errors: loud: nothing is
+ * written when the rows or the saved list cannot be read, or when another screen finished the list. */
+const packRowId = (packId, sku) => "FBA-" + packId + "-" + shpHoldKey(sku);
+/** { done } when exactly these rows are written already (the list only has to be marked finished), { err }, or {} to write. */
+async function packWrittenBefore(rows) {
+  let was;
+  try { was = await Promise.all(rows.map((r) => ptGet("pt_fgiLedger/" + r._id))); }
+  catch (e) { return { err: "Nothing was saved — could not check whether this list was finished already (" + (e.message || e) + "). Check the connection and press Finish again." }; }
+  const found = was.filter((x, i) => x && x._id === rows[i]._id);
+  if (!found.length) return {};
+  if (found.length === rows.length && rows.every((r, i) => Number(was[i].qty) === Number(r.qty))) return { done: true };
+  return { err: "Nothing was saved — this list was already finished" + (found[0].createdBy ? " by " + found[0].createdBy : "") + " on another screen, with other quantities. Close it and open it again." };
+}
+/** The rows are there already. '' when this screen may mark the list finished (they were written, the list was not saved);
+ *  else why not: saving this screen's copy would cover the finished list. */
+async function packFinishedElsewhere(packId) {
+  try {
+    const saved = await getDoc(doc(db, "packlist", packId));
+    const scan = saved.exists() && saved.data().scan || {};
+    return (scan.ledgerIds || []).length ? "Nothing was saved — this list is already finished on another screen. Close it and open it again." : "";
+  } catch (e) {
+    return "Nothing was saved — could not check the saved list (" + (e.message || e) + "). Check the connection and press Finish again.";
+  }
+}
 async function packLedgerWrite(p, handoverTo) {
   if (!p) return { err: "No packing list open." };
   p.scan = p.scan || packScanNew([], [], "", "");
@@ -323,7 +371,7 @@ async function packLedgerWrite(p, handoverTo) {
   if (unread) return { err: unread };
   if (handoverTo != null) p.scan.handoverTo = String(handoverTo || "").trim();
   const rows = PACK_CORE.ledgerRows(p, {
-    newId: () => fgiNewId("FBA"),
+    newId: (sku) => packRowId(p.id, sku),
     nowIso: (/* @__PURE__ */ new Date()).toISOString(),
     by: ME.email || "",
     handoverTo: p.scan.handoverTo,
@@ -333,6 +381,16 @@ async function packLedgerWrite(p, handoverTo) {
   if (typeof fapOn === "function" && fapOn()) {
     const unseen = await fapReread();
     if (unseen) return { err: unseen };
+  }
+  /* an approved repeat SKU already left the store under its approval's own row (FBAR-…), so it is not looked for here */
+  const mine = rows.filter((r) => !(typeof fapApproved === "function" && fapApproved(p.id, r.sku)));
+  const before = await packWrittenBefore(mine);
+  if (before.err) return { err: before.err };
+  if (before.done) {
+    const elsewhere = await packFinishedElsewhere(p.id);
+    if (elsewhere) return { err: elsewhere };
+    packMarkDone(p, rows.map((r) => mine.includes(r) ? r._id : fapIdOf(p.id, r.sku)));
+    return { rows: [], already: true };
   }
   for (const r of rows) {
     /* an approved repeat SKU has already left the store (fg-fba-repeat.js): it is not asked of the stock again */
@@ -358,10 +416,7 @@ async function packLedgerWrite(p, handoverTo) {
     if (refused) return { err: refused };
   } else await write();
   FGI.rows = (FGI.rows || []).concat(sent);
-  p.scan.ledgerIds = sent.concat(gate.written).map((r) => r._id);
-  p.scan.done = true;
-  p.scan.doneAt = (/* @__PURE__ */ new Date()).toISOString();
-  p.scan.doneBy = ME.email || "";
+  packMarkDone(p, sent.concat(gate.written).map((r) => r._id));
   try {
     fbaBadge();
     fgiOverBadge();

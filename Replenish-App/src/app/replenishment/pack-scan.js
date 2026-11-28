@@ -181,6 +181,10 @@ function pksHistClear(id) {
 const pksQty = (p) => (p && p.boxes || []).reduce((s, b) => s + PACK_CORE.boxQty(b), 0);
 
 const pksOrderLines = () => packOrderLines(PKS.p && PKS.p.scan);
+/* the words for what a list is packed against: an FBA list (fba-lists.js), else orders */
+const pksOfFbaList = () => !!(PKS.p && PKS.p.scan && PKS.p.scan.fbaListId);
+const pksWants = () => (pksOfFbaList() ? "the FBA list wants" : "the orders want");
+const pksAgainstTxt = () => (pksOfFbaList() ? "the FBA list" : "the orders");
 function pksCount(code, via) {
   const p = PKS.p;
   if (!p) return { ok: false, kind: "none", code, why: "No packing list open." };
@@ -192,10 +196,11 @@ function pksCount(code, via) {
     if (a.kind === "wrong") {
       p.scan.wrong.push({ at: (/* @__PURE__ */ new Date()).toISOString(), code: obUC(code), sku: r.sku, by: ME.email || "" });
       pksSaveSoon();
-      return { ok: false, kind: "wrong", code: obUC(code), sku: r.sku, why: r.sku + " is not on any order of this list." };
+      return { ok: false, kind: "wrong", code: obUC(code), sku: r.sku, why: r.sku + (pksOfFbaList() ? " is not on this FBA list." : " is not on any order of this list.") };
     }
     if (a.kind === "full") {
       const held = a.why === "store" && typeof shpHoldOn === "function" && shpHoldOn() ? fgiHoldScanWhy(a.sku, p.scan.packed[a.sku]) : "";
+      if (pksOfFbaList()) return { ok: false, kind: "full", code: obUC(code), sku: r.sku, why: "Every piece of " + r.sku + " on the FBA list is already packed." };
       return { ok: false, kind: "full", store: a.why === "store", code: obUC(code), sku: r.sku, why: held || (a.why === "store" ? "The India Store holds no more " + r.sku + " for these orders — receive it in Finished Goods first." : "Every order line for " + r.sku + " is already packed.") };
     }
     n = a.taken;
@@ -847,7 +852,7 @@ function pksHit(code, via) {
     PKS.hold = r.kind !== "none" && !(r.kind === "unknown" && via === "camera");
     pksBeep(false);
     pksFlash(false);
-    pksSay(r.kind === "wrong" ? "Wrong article — not counted" : r.kind === "full" ? "Not counted — the orders want no more of it" : "Not counted — unknown label", true);
+    pksSay(r.kind === "wrong" ? "Wrong article — not counted" : r.kind === "full" ? `Not counted — ${pksWants()} no more of it` : "Not counted — unknown label", true);
     pksDraw();
     return;
   }
@@ -857,10 +862,10 @@ function pksHit(code, via) {
   pksFlash(true);
   if (PKS.allDone && !wasDone) {
     pksBeep(true, "done");
-    pksSay("Everything on the orders is packed — press Finish");
+    pksSay(`Everything on ${pksAgainstTxt()} is packed — press Finish`);
   } else {
     pksBeep(true);
-    pksSay(`+${r.n} ${r.sku}${r.short ? ` — only ${r.n} of ${PKS.per}: the orders want no more` : ""}${r.left != null ? ` · ${nf(r.left)} left on the orders` : ""}`);
+    pksSay(`+${r.n} ${r.sku}${r.short ? ` — only ${r.n} of ${PKS.per}: ${pksWants()} no more` : ""}${r.left != null ? ` · ${nf(r.left)} left on ${pksAgainstTxt()}` : ""}`);
   }
   pksDraw();
 }
@@ -888,11 +893,13 @@ const PKS_MODES = [
   ["box", "Box pack scan", "Pack pieces into boxes — every known label counts", "📦"],
   ["order", "Pack by order scan", "Pack against orders or an Amazon plan — a wrong piece is stopped", "🧾"]
 ];
+/** The three buttons; with FBA lists on, the third packs an FBA list (fba-lists.js). */
+const pksModes = () => PKS_MODES.map((m) => (m[0] === "order" && packFbaOn() ? ["order", "Pack an FBA list", "Pack against an FBA list — a wrong piece is stopped", m[3]] : m));
 async function pksOpen() {
   if (PKS.on) return;
   ptOpenDialog({
     title: "Scan",
-    html: `<div class="pks-choose">${PKS_MODES.map(([k, t, d, ic]) => `<button type="button" class="pks-mode" data-pks-mode="${k}"><span class="pks-mode-ic" aria-hidden="true">${ic}</span><span><b>${t}</b><small>${d}</small></span></button>`).join("")}</div>`
+    html: `<div class="pks-choose">${pksModes().map(([k, t, d, ic]) => `<button type="button" class="pks-mode" data-pks-mode="${k}"><span class="pks-mode-ic" aria-hidden="true">${ic}</span><span><b>${t}</b><small>${d}</small></span></button>`).join("")}</div>`
   });
   $("ptDlgBody").onclick = (e) => {
     const b = e.target.closest("[data-pks-mode]");
@@ -911,7 +918,7 @@ async function pksStart(mode) {
   const byOrder = mode === "order";
   const fromFba = byOrder && packFbaOn();     // a new list is packed from an FBA list, not from orders or a plan
   if (fromFba) {
-    const why = await packFbaListsRead();
+    const why = packFbaBlocked() || await packFbaListsRead();
     if (why) return pkMsg(why, true);
   }
   /* Each way offers only its own lists: a box list never turns into an order list half way, nor the other way round. */
@@ -919,13 +926,13 @@ async function pksStart(mode) {
   /* A list with scans only on this phone is said so in the picker, and picked for you. */
   const kept = open.filter((p) => pksBackupOf(p.id));
   ptOpenDialog({
-    title: byOrder ? "Pack by order scan" : "Box pack scan",
+    title: fromFba ? "Pack an FBA list" : byOrder ? "Pack by order scan" : "Box pack scan",
     subtitle: fromFba ? "Only the SKUs and pieces on the FBA list count. No stock leaves here: it ships from FBA Dispatch." : byOrder ? "Only what the orders still want counts; a wrong article stops the scanner." : "Every known label counts into the open box.",
     html: `<div class="ptgrid" style="grid-template-columns:1fr">
       ${kept.length ? `<div class="pks-keptnote">Scans not yet saved are kept on this phone for: <b>${kept.map((p) => esc(p.title || "(untitled)")).join(", ")}</b>. Open the list to save them.</div>` : ""}
       <label>Packing list<select id="pksPick">
         <option value="">+ A new packing list</option>
-        ${open.map((p) => `<option value="${esc(p.id)}"${kept[0] && kept[0].id === p.id ? " selected" : ""}>${esc((p.title || "(untitled)") + " · " + (p.date || "") + " · " + pkTotals(p).boxes + " box(es)" + (byOrder ? " · " + (p.scan.orders || []).join(", ") + (p.scan.planNo ? " + plan" : "") : "") + (pksBackupOf(p.id) ? " · unsaved scans on this phone" : ""))}</option>`).join("")}
+        ${open.map((p) => `<option value="${esc(p.id)}"${kept[0] && kept[0].id === p.id ? " selected" : ""}>${esc((p.title || "(untitled)") + " · " + (p.date || "") + " · " + pkTotals(p).boxes + " box(es)" + (p.scan && p.scan.fbaListId ? " · FBA list" : byOrder ? " · " + (p.scan.orders || []).join(", ") + (p.scan.planNo ? " + plan" : "") : "") + (pksBackupOf(p.id) ? " · unsaved scans on this phone" : ""))}</option>`).join("")}
       </select></label>
       <label>Title (a new list)<input id="pksTitle" value="Scan ${esc(pkToday())}"></label>
       ${fromFba ? `<label>FBA list (a new list)<select id="pksFbaPick">${packFbaOptions()}</select></label>` : `<label>FBA account (a new list)<input id="pksAcc" list="pksAccs" placeholder="${esc(FGI_FBA_ACCOUNTS.join(" / "))}"><datalist id="pksAccs">${[...new Set(FGI_FBA_ACCOUNTS.concat(PK.map((p) => p.account).filter(Boolean)))].map((a) => `<option value="${esc(a)}">`).join("")}</datalist></label>`}
@@ -954,7 +961,7 @@ async function pksStart(mode) {
         if (listId) PKS.p.scan.plan = server.scan.plan;     // the FBA list as it is now, not as this phone kept it
         if (packGuarded(PKS.p)) {
           const why = await packDataReady();
-          if (why) return "This list packs against orders, and the orders could not be read: " + why;
+          if (why) return (listId ? "The India Store could not be read: " : "This list packs against orders, and the orders could not be read: ") + why;
         }
       } else {
         const ords = ($("pksOrds") ? $("pksOrds").value : "").split(/[,;\s]+/).map(obUC).filter(Boolean);
@@ -1300,7 +1307,7 @@ function pksDraw() {
   if (PKS.panel) {
     /* the Box done / Finish panel stays as it is */
   } else if (PKS.bad) {
-    const k = PKS.bad.kind, title = k === "wrong" ? "Wrong article" : k === "full" ? "Not counted — orders want no more" : "Not counted — unknown label";
+    const k = PKS.bad.kind, title = k === "wrong" ? "Wrong article" : k === "full" ? `Not counted — ${pksWants()} no more` : "Not counted — unknown label";
     const img = k === "wrong" || k === "full" ? pksImg(PKS.bad.sku) : "";
     card.innerHTML = `<div class="pks-badcard${k === "full" ? " pks-fullcard" : ""}"><div class="pks-badicon">${k === "full" ? "■" : "✕"}</div><div class="pks-big">${title}</div><div class="pks-code">${esc(PKS.bad.sku || PKS.bad.code)}</div>
       ${img ? `<img class="pks-img pks-img-sm" src="${esc(img)}" alt="">` : ""}
@@ -1308,7 +1315,7 @@ function pksDraw() {
       ${k === "full" && PKS.bad.store ? pksQcHtml(PKS.bad.sku, pksOrdersWant(PKS.bad.sku) || PKS.per, "Accept {n} from QC and count this piece") : ""}
       ${PKS.hold ? '<button id="pksAside" class="pks-aside">✓ Kept aside — carry on</button>' : ""}</div>`;
   } else if (PKS.allDone) {
-    card.innerHTML = `<div class="pks-donecard"><div class="pks-badicon">✓</div><div class="pks-big">Everything on the orders is packed</div>
+    card.innerHTML = `<div class="pks-donecard"><div class="pks-badicon">✓</div><div class="pks-big">Everything on ${pksAgainstTxt()} is packed</div>
       <div class="pks-sub">${nf(t.qty)} pcs in ${nf(t.boxes)} box(es). ${p.scan.fbaListId ? "Press Finish to save it as packed; it ships from FBA Dispatch." : "Press Finish to write the Send to FBA rows."}</div></div>`;
   } else if (PKS.last) {
     const sku = PKS.last.sku, it = (b.items || []).find((x) => obUC(x.sku) === sku) || {}, info = pkLookupSku(sku) || {}, img = pksImg(sku);
@@ -1319,7 +1326,7 @@ function pksDraw() {
       <div class="pks-facts"><span>Size <b>${esc(it.size || info.size || "—")}</b></span><span>${esc(it.material || info.material || "")}</span>
         <span>${pkNum(it.perPcsWt) ? pkNum(it.perPcsWt).toFixed(2) + " kg/pc" : '<b class="pks-warn">no weight</b>'}</span></div>
       <div class="pks-count">${pkNum(it.qty)} <small>in box ${b.n}</small></div>
-      ${PKS.last.left != null ? `<div class="pks-facts"><span>The orders still want <b>${nf(PKS.last.left)}</b> of this SKU</span></div>` : ""}</div>`;
+      ${PKS.last.left != null ? `<div class="pks-facts"><span>${pksOfFbaList() ? "The FBA list still wants" : "The orders still want"} <b>${nf(PKS.last.left)}</b> of this SKU</span></div>` : ""}</div>`;
   } else card.innerHTML = `<div class="pks-empty">Box ${b.n} is open. Scan the first piece.</div>`;
   $("pksBox").innerHTML = `<div class="pks-list-h">In box ${b.n}</div>` + ((b.items || []).slice().reverse().map((x) => {
     const u = pksImg(x.sku);

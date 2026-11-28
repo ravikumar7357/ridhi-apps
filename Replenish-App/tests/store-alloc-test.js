@@ -2,7 +2,7 @@
  *   node tests/store-alloc-test.js      (FGA_MUT_FILE=<path under src/app> FGA_MUT_SRC=<file> tests a broken copy —
  *   teeth/teeth-store-alloc.js does)
  * Loads src/app/inventory/fg-store-alloc.js with fg-shop-hold.js and every way out of the store, with a made-up database. */
-const { same, cut, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, store, split, issueWhy, forOrder, WAYS, editStore, movement, counts, check: ok } = require('./india-store-harness');
+const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, store, split, issueWhy, forOrder, KINDS, WAYS, editStore, movement, counts, check: ok } = require('./india-store-harness');
 
 (async () => {
   console.log('== the switch ==');
@@ -254,6 +254,154 @@ const { same, cut, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, store, sp
     ok('the phone card shows the same figures', /In Stock|in stock/i.test(phone) && ['Photoshoot <b>0', 'Custom <b>6', 'FBA Air <b>3', 'FBA Sea <b>4', 'FBA AWD <b>2', 'Excess <b>5'].every(x => phone.includes(x)) && !phone.includes('Out <b>'));
     const off = table({ ls: '0' }).html;
     ok('switch off: the old columns', off.includes('Shopify held') && off.includes('>Value<') && !off.includes('Excess'));
+    ok('switch on: the Custom figure opens its orders, in the table and the card', html.includes('data-fgacustom="A"') && phone.includes('data-fgacustom="A"'));
+    ok('switch off: nothing opens them', !off.includes('data-fgacustom') && !table({ ls: '0' }, true).html.includes('data-fgacustom'));
+  }
+
+  console.log('== the orders behind a Custom figure ==');
+  {
+    const book = (orderNo, qty, orderDate, over) => ordLine(orderNo, qty, Object.assign({ orderDate }, over));
+    /* B2B-1 asks 4 (1 issued), ONL-2 asks 3 (newest), SHP-7 is a hand-raised order; the website: Ridhi SHP-5 (2 of 3 left), CPC #9 */
+    const lines = [book('ONL-2', 3, '2026-11-20'), book('B2B-1', 4, '05/11/2026'), book('AMZ-3', 9, '2026-11-01'),
+      book('SHP-5', 3, '2026-11-02', { shopOrderId: '5' }), book('B2B-9', 5, '2026-11-01', { sku: 'B' }), book('B2B-8', 2, '2026-11-01', { handedAt: 'x' })];
+    const rows = n => [row('O', 'OPENING', n), row('I', 'ISSUE', 1, { orders: [{ orderNo: 'B2B-1', qty: 1 }] })];
+    const web = { SP: { at: NOW, skus: { A: 2 }, orders: { A: [{ no: 'SHP-5', pcs: 2, of: 3, on: '2026-11-02' }] } },
+      CPC: { at: NOW, skus: { A: 1 }, orders: { A: [{ no: '#9', pcs: 1, on: '2026-11-10' }] } } };
+    const behind = (stock, hold, o) => {
+      const S = store(Object.assign({ lines, rows: rows(stock + 1) }, o));
+      S.run(line('inventory/fg-change-remove.js', 'const fgiDmy'));
+      S.ctx.FGI.set._shopHold = hold || web;
+      return { S, list: JSON.parse(S.run('JSON.stringify(fgaCustomOrders("a", fgiOf("A").current))')) };
+    };
+    const brief = list => list.map(o => [o.no, o.channel, o.on, o.ordered, o.pending, o.counted]);
+    const plenty = behind(20);
+    ok('every order in Custom, oldest first, with its channel, date, ordered and pending', same(brief(plenty.list), [
+      ['SHP-5', 'Shopify Ridhi', '2026-11-02', 3, 2, 2], ['B2B-1', 'B2B', '2026-11-05', 4, 3, 3],
+      ['#9', 'Shopify CPC', '2026-11-10', 1, 1, 1], ['ONL-2', 'Online', '2026-11-20', 3, 3, 3]]), JSON.stringify(plenty.list));
+    const short = behind(4);
+    ok('short stock is counted oldest first', same(short.list.map(o => o.counted), [2, 2, 0, 0]), JSON.stringify(short.list));
+    for (const n of [0, 1, 4, 9, 20]) {
+      const T = behind(n);
+      ok(`stock ${n}: the rows add up to the Custom figure`, T.list.reduce((s, o) => s + o.counted, 0) === T.S.shares().custom, JSON.stringify(T.list));
+    }
+    ok('below nought: nothing counted, the orders still listed', same(behind(-2).list.map(o => o.counted), [0, 0, 0, 0]));
+    ok('a prefix with no channel of its own is Other', behind(9, web, { lines: [book('XYZ-1', 1, '2026-11-01')] }).list[0].channel === 'Other');
+    ok('an order with no date comes last', behind(20, web, { lines: [book('B2B-6', 1, '')] }).list.slice(-1)[0].no === 'B2B-6');
+    const old = behind(20, { SP: { at: NOW, skus: { A: 2 } }, CPC: web.CPC }).list;
+    const unnamed = old.find(o => /^Website orders/.test(o.no));
+    ok('a figure without its orders is one line, after the dated ones', old.slice(-1)[0] === unnamed
+      && unnamed.no === 'Website orders (details after Shopify Orders is opened again)' && unnamed.pending === 2 && unnamed.counted === 2
+      && unnamed.channel === 'Shopify Ridhi' && unnamed.ordered === null, JSON.stringify(old));
+    const wrong = behind(20, { SP: { at: NOW, skus: { A: 5 }, orders: web.SP.orders }, CPC: { at: NOW, skus: {} } }).list;
+    ok('orders that do not add up to the figure are not shown for it', wrong.filter(o => o.channel === 'Shopify Ridhi').length === 1
+      && wrong.some(o => /^Website orders/.test(o.no) && o.pending === 5), JSON.stringify(wrong));
+
+    const opened = (stock, hold, over) => {
+      const { S } = behind(stock, hold, over);
+      let box = null;
+      Object.assign(S.ctx, { ptOpenDialog: cfg => { box = cfg; }, fgiMaster: () => ({ subtype: 'Quilt', color: 'Blue', size: 'King' }),
+        esc: v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') });
+      S.run('fgaCustomOpen("a")');
+      return { S, box };
+    };
+    const { box, S } = opened(4);
+    ok('the box names the article once', box.subtitle === 'A · Quilt · Blue · King', box.subtitle);
+    ok('it says what is counted and what is not covered', /^4 piece\(s\) in stock .*oldest.* 5 pending piece\(s\) are not covered/.test(box.note), box.note);
+    const cells = tr => [...tr.matchAll(/<td[^>]*>(.*?)<\/td>/g)].map(m => m[1]);
+    const trs = box.html.split('<tbody>')[1].split('</tr>').map(cells).filter(c => c.length);
+    ok('a row: ordered, issued, pending, from stock, not covered', same(trs[1], ['B2B-1', 'B2B', '05/11/2026', '4', '1', '3', '2', '1']), JSON.stringify(trs));
+    ok('it is a box to read: nothing to save', !box.onSave && box.wide === true);
+    ok('opening it writes nothing', S.writes.length === 0);
+    const bad = opened(20, { SP: { at: NOW, skus: { A: 1 }, orders: { A: [{ no: '<img src=x>', pcs: 1 }] } }, CPC: web.CPC }).box;
+    ok('an order number is shown as text', !bad.html.includes('<img') && bad.html.includes('&lt;img src=x&gt;'));
+    const unnamedRow = opened(20, { SP: { at: NOW, skus: { A: 2 } }, CPC: web.CPC }).box.html;
+    ok('the line without details shows no ordered or issued figure', /\(details after[^<]*<\/td>(<td[^>]*>[^<]*<\/td>){2}<td class="num">—<\/td><td class="num">—<\/td><td class="num">2</.test(unnamedRow), unnamedRow);
+
+    const click = appFile('inventory/finished-goods.js');
+    ok('a press on the figure opens the box', click.includes("closest('[data-fgacustom]'); if (cu) return fgaCustomOpen(cu.getAttribute('data-fgacustom'));"));
+    const row0 = (custom, fn) => store().run(`${fn}({ sku: "A", current: 5, alloc: { photo: 0, custom: ${custom}, air: 3, sea: 0, awd: 0, excess: 1 } })`);
+    for (const fn of ['fgaCells', 'fgaCardFigs']) {
+      const some = row0(6, fn), none = row0(0, fn);
+      ok(`${fn}: a Custom figure above 0 opens its orders, and only it`, some.split('data-fgacustom="A"').length === 2 && /data-fgacustom[^>]*>(Custom <b>)?6/.test(some), some);
+      ok(`${fn}: a Custom figure of 0 does not`, !none.includes('data-fgacustom') && !none.includes('<button'), none);
+    }
+  }
+
+  console.log('== the list holds only what is in stock ==');
+  {
+    const bal = (sku, current, pending) => ({ sku, current, opening: 0, received: 0, issued: 0, fba: 0, pending: pending || 0 });
+    /* AB-1 has stock, AB-10 none (but 4 on the way from press), AB-2 is below nought, OLD-1 has history only, no master row */
+    const STOCK = [bal('AB-1', 5), bal('AB-10', 0, 4), bal('AB-2', -1), bal('OLD-1', 0)];
+    const MASTER = [{ sku: 'AB-1', brand: 'Ridhi', color: 'Blue' }, { sku: 'AB-10', color: 'Green' }, { sku: 'AB-2', color: 'Red' },
+      { sku: 'NEW-9', color: 'Mustard' }];
+    const list = (o = {}) => {
+      const S = store(o);
+      const master = o.master || MASTER;
+      Object.assign(S.ctx, { fgiStatus: () => ({ txt: 'ok' }), lstOf: () => ({ st: 'unknown' }), LST_PILL: { unknown: ['', ''] }, ptFillSelect: () => {},
+        FGI_PICK: { stock: new Set() }, ptImgCell: () => '<td></td>', ptImgInner: () => '', ptImgFill: () => {}, ptImgPatch: null, mobOn: () => !!o.phone,
+        PTG: { mdb: master }, mdbOf: sku => master.find(m => m.sku === String(sku).trim().toUpperCase()),
+        esc: v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') });
+      S.run('const fgiMaster = sku => mdbOf(sku) || {};' + cut(appFile('inventory/finished-goods.js'), 'const FGI_NUM_COLS', 'function fgiRenderStock(')
+        + whole('inventory/finished-goods.js', 'fgiRenderStock') + whole('inventory/finished-goods.js', 'fgiCard'));
+      S.box('fgQ').value = o.q || '';
+      S.box('fgZero').checked = !!o.zero;
+      S.box('fgBrand').value = o.brand || '';
+      S.ctx.stock = new Map(STOCK.map(b => [b.sku, b]));
+      S.run('fgiRenderStock(stock)');
+      return { S, skus: [...S.ctx.FGI.shown].map(r => r.sku), msg: S.box('fgMsg').textContent, html: S.box('fgTable').innerHTML };
+    };
+    const all = list();
+    ok('only SKUs with stock now, a count below nought included; nothing from the master is added', same(all.skus, ['AB-1', 'AB-2']), all.skus.join());
+    ok('the count line speaks of what is in stock', /^2 SKU\(s\) in stock now/.test(all.msg) && !/on record/.test(all.msg) && /NEGATIVE/.test(all.msg), all.msg);
+    const card = list({ phone: true }).html;
+    ok('the table and the card list the same', [all.html, card].every(h => h.includes('AB-2') && !h.includes('AB-10') && !h.includes('OLD-1')));
+    ok('the export follows the list', same([...all.S.run('FGI.shown.map(fgaExportRow)')].map(r => r[0]), ['AB-1', 'AB-2']));
+    const off = list({ ls: '0' });
+    ok('switch off: every SKU on record, as before', off.skus.length === 4 && /4 SKU\(s\) on record/.test(off.msg), off.msg);
+    ok('switch off: the tick still keeps pieces from press', same(list({ ls: '0', zero: true }).skus, ['AB-1', 'AB-10', 'AB-2']));
+    ok('switch off: a search says nothing new', !/India Store but|does not exist|not in the India Store|Nothing in the Master Database/.test(list({ ls: '0', q: 'zzz' }).msg));
+    ok('the screen hides the tick with the switch on', appFile('inventory/finished-goods.js')
+      .includes("$('fgZeroWrap').classList.toggle('hide', view !== 'stock' || (typeof fgaOn === 'function' && fgaOn()));"));
+
+    console.log('== searching it ==');
+    const said = (q, o) => { const first = list(Object.assign({ q }, o)).msg.split(' · ')[0]; return /^\d+ SKU/.test(first) ? '' : first; };
+    const is = (name, q, want, o) => { const got = said(q, o); ok(name, got === want, JSON.stringify(got)); };
+    is('a SKU with stock: nothing to say', 'ab-1', '');
+    is('in the master, no stock: not in the India Store', ' new-9 ', 'SKU NEW-9 is not in the India Store.');
+    is('history only, no stock: not in the India Store', 'old-1', 'SKU OLD-1 is not in the India Store.');
+    is('only pieces on the way from press: not in the India Store', 'AB-10', 'SKU AB-10 is not in the India Store.');
+    is('nowhere: does not exist', 'zz-7', 'SKU ZZ-7 does not exist.');
+    is('with stock but filtered out: hidden by the filters', 'ab-2', 'SKU AB-2 is in the India Store but hidden by the filters.', { brand: 'Ridhi' });
+    is('a part of a code that lists rows: as before', 'ab', '');
+    is('a word that lists rows: as before', 'blue', '');
+    is('a word matching only products without stock', 'mustard', 'Matching products are not in the India Store.');
+    is('a word matching only history', 'old', 'Matching products are not in the India Store.');
+    is('a word whose stock is filtered out', 'red', 'Matching products are in the India Store but hidden by the filters.', { brand: 'Ridhi' });
+    is('a whole code filtered out is said', 'ab-1', 'SKU AB-1 is in the India Store but hidden by the filters.', { brand: 'Other' });
+    const none = { master: [] };
+    is('no Master Database: never "does not exist"', 'zz-7', '"zz-7" could not be checked — the Master Database was not read. Press Refresh to try again.', none);
+    is('no Master Database: history still answers', 'old-1', 'SKU OLD-1 is not in the India Store.', none);
+    const typed = list({ q: '<img src=x>', phone: true });
+    ok('typed text is shown as text', !/<img src=x/i.test(typed.html) && /matches (&quot;|")&lt;img src=x&gt;/.test(typed.html), typed.html);
+    is('words that match nothing are not called a missing SKU', 'blue kurta', 'Nothing in the Master Database matches "blue kurta".');
+    is('one plain word neither', 'kurta', 'Nothing in the Master Database matches "kurta".');
+    ok('no search and nothing listed keeps the old words', list({ phone: true, brand: 'Other' }).html.includes('No SKU matches these filters.'));
+    const E = store({ rows: [] });
+    Object.assign(E.ctx, { FGI_KINDS: KINDS, fgiRecvOrderCheck: () => ({}) });
+    E.ctx.FGI.shown = [];
+    E.run(whole('inventory/fg-other-movements.js', 'fgiEntrySave'));
+    Object.entries({ fgmType: 'RECEIVE', fgmSku: 'A', fgmQty: '3', fgmWho: 'x' }).forEach(([k, v]) => { E.box(k).value = v; });
+    const saved = await E.ctx.fgiEntrySave();
+    ok('+ Stock entry still receives a SKU the list does not hold', saved === '' && E.writes.length === 1, saved);
+  }
+
+  console.log('== the view list ==');
+  {
+    const hidden = o => { const S = store(o); S.run(whole('inventory/fg-store-alloc.js', 'fgaTrimViews') + 'fgaTrimViews()'); const b = S.box('fgPendOpt'); return b.hidden === b.disabled ? b.hidden : 'half'; };
+    ok('switch on: "Waiting to be counted in" is not offered', hidden({}) === true);
+    ok('switch off: it is offered as before', hidden({ ls: '0' }) === false);
+    ok('the screen asks for it, and the choice carries the name it hides', appFile('inventory/finished-goods.js').includes('fgaTrimViews();')
+      && require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'index.html'), 'utf8').includes('value="pending" id="fgPendOpt"'));
   }
 
   console.log('== FBA lists (switch fbaList) ==');

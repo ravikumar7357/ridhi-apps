@@ -31,7 +31,7 @@ function lists(o = {}) {
   Object.assign(S, { db, ledger, wants: [], alerts: [], patched: [] });
   S.ctx.ME = { email: o.email || 'team@test', admin: !!o.admin, fbaRepeatApprove: !!o.approver, tabs: o.tabs || ['fba'] };
   Object.assign(S.ctx, {
-    spIsVendor: () => !!o.vendor, ptDtMs: () => 0,
+    spIsVendor: () => !!o.vendor, ptDtMs: () => 0, wpShow() {}, wpRefuse: why => why,
     ptGetFresh: async p => { if (S.down && p.includes(S.down)) throw new Error('no signal'); return asRead(copy(at(p))); },
     ptGet: async p => (p === 'pt_fgiLedger' ? copy(Object.fromEntries(ledger)) : copy(ledger.get(p.split('/')[1]))),
     ptCas: async (p, expect, next) => {
@@ -52,6 +52,7 @@ function lists(o = {}) {
   });
   S.ctx.FGI.rows = [...ledger.values()].map(copy);
   S.run(line('core/helpers.js', 'const dTodayIndia') + line('core/helpers.js', 'const dAdd') + line('core/helpers.js', 'const ptDayWords')
+    + line('core/helpers.js', 'const dDiff') + line('core/helpers.js', 'const PT_DATE_BACK_DAYS') + whole('core/helpers.js', 'ptDateErr')
     + line('inventory/fg-change-remove.js', 'const fgiDmy') + line('inventory/fba-dispatch.js', 'const fbaCan')
     + line('inventory/fg-other-movements.js', 'const FGI_FBA_ACCOUNTS') + 'const ptIsoDate = d => String(d || "").split("/").reverse().join("-");\n'
     + appFile('inventory/fg-fba-repeat.js') + appFile('inventory/fba-lists.js'));
@@ -187,9 +188,11 @@ const release = (left, over) => ({ R1: Object.assign({ sku: 'A', pcs: left, left
     const U = lists(); await U.make(4);
     ok('not packed: refused', /Pack this/.test(await U.ship()) && U.movements().length === 0);
     const S = await packed(4);
-    ok('more than packed: refused', /ship no more/.test(await S.ship({ qtyBySku: { A: 5 } })) && S.movements().length === 0);
+    for (const n of [3, 5]) ok('packing changed since the box showed ' + n + ': refused', /packing changed/.test(await S.ship({ packed: { A: n } })) && S.movements().length === 0 && S.open().L1.status === 'packed');
+    ok('a wrong ship date is refused', /in the future/.test(await S.ship({ date: '2027-01-01' })) && S.movements().length === 0);
     ok('no shipment id: refused', /shipment id/.test(await S.ship({ shipment: ' ' })));
-    ok('nothing going: refused', /Nothing to ship/.test(await S.ship({ qtyBySku: { A: 0 } })) && S.open().L1.status === 'packed');
+    const none = S.ctx.fblShipQty({ lines: { A: { sku: 'A', qty: 4, packed: 0 } } });
+    ok('nothing packed: nothing to ship', /Nothing to ship/.test(none.err));
     const said = await S.ship();
     const r = S.ledger.get('FBA-L1-1');
     ok('one movement, accepted and shipped', said === '' && S.movements().length === 1 && r.qty === 4 && r.txnType === 'FBA' && r.issuedFor === 'Ridhi FBA'
@@ -204,11 +207,11 @@ const release = (left, over) => ({ R1: Object.assign({ sku: 'A', pcs: left, left
     const both = await Promise.all([D.ship(), D.ship()]);
     ok('double tap: one set of movements', D.movements().length === 1 && D.patched.length === 1 && both.filter(x => x === '').length === 1, JSON.stringify(both));
     const F = await packed(4, { approver: true });
-    await F.ship({ qtyBySku: { a: 1 } });
+    await F.pack(1); await F.ship({ packed: { a: 1 } });
     ok('shipping fewer frees the rest', F.stock() === 19 && F.done().L1.lines.A.shipped === 1 && same(copy(F.ctx.fblAllotted(F.open())), {})
       && await F.make(2, { id: 'L2', lane: 'air' }) === '');
     const G = lists({ releases: release(3) });
-    await G.make(7); await G.pack(7); await G.ship({ qtyBySku: { A: 5 } });
+    await G.make(7); await G.pack(5); await G.ship();
     ok('unused release pieces go back', G.releaseLeft('R1') === 2 && same(G.done().L1.released, { R1: 1 }));
     const K = await packed(4);
     K.db._fbaLists.X = { status: 'open', store: 'CPC', lane: 'awd', lines: { A: { sku: 'A', qty: 17 } } };
@@ -233,14 +236,14 @@ const release = (left, over) => ({ R1: Object.assign({ sku: 'A', pcs: left, left
   };
   {
     const A = lists({ releases: release(3) });
-    await A.make(7); await A.pack(7);
+    await A.make(7); await A.pack(5);
     const B = lists({ db: A, email: 'bee@test' });
     let theirs;
     midShip(A, async () => {
       A.db._fbaLists.L1.claimAt = iso(Date.now() - 6 * 60000);
-      theirs = await B.ship({ qtyBySku: { A: 5 } });
+      theirs = await B.ship();
     });
-    const said = await A.ship({ qtyBySku: { A: 5 } });
+    const said = await A.ship();
     ok('taken over and shipped: the first save is refused', theirs === '' && /Not shipped.*taken the list over/.test(said) && A.patched.length === 0, said);
     ok('one set of movements, releases given back once', A.movements().length === 1 && B.patched.length === 1 && A.releaseLeft('R1') === 2
       && !A.open().L1 && A.done().L1.shippedBy === 'bee@test' && A.alerts.length === 0, A.releaseLeft('R1'));
@@ -257,14 +260,45 @@ const release = (left, over) => ({ R1: Object.assign({ sku: 'A', pcs: left, left
   console.log('== saved, but the answer was lost ==');
   {
     const S = lists({ releases: release(3) });
-    await S.make(7); await S.pack(7);
+    await S.make(7); await S.pack(5);
     S.answerLost = true;
-    const said = await S.ship({ qtyBySku: { A: 5 } });
+    const said = await S.ship();
     ok('counts as shipped, releases back and alert raised', said === '' && S.done().L1.status === 'shipped' && S.releaseLeft('R1') === 2
       && same(S.alerts, [['A', 'FBA', 5]]) && S.warns.some(w => /answer was lost/.test(w)), said);
     ok('and the screen holds the movement', S.ctx.FGI.rows.some(r => r._id === 'FBA-L1-1'));
     const U = await packed(4); U.answerLost = true; U.thenDown = '_fbaListsDone';
-    ok('cannot be looked up: not called failed', /may or may not be saved.*Refresh/.test(await U.ship()) && U.alerts.length === 0);
+    ok('cannot be looked up: not called failed', /may or may not be saved.*press Ship again/.test(await U.ship()) && U.alerts.length === 0);
+    const V = lists({ releases: release(3) });
+    await V.make(7); await V.pack(5);
+    V.answerLost = true; V.thenDown = '_fbaListsDone';
+    await V.ship();
+    ok('until it can be looked up, nothing is given back', V.releaseLeft('R1') === 0 && V.alerts.length === 0 && V.done().L1.owed.back.R1 === 2);
+    V.answerLost = false; V.down = '';
+    ok('Ship again completes the give-back and the alert', await V.ship() === '' && V.releaseLeft('R1') === 2 && same(V.alerts, [['A', 'FBA', 5]])
+      && !V.done().L1.owed && V.patched.length === 1);
+    ok('once only', await V.ship() === '' && V.releaseLeft('R1') === 2 && V.alerts.length === 1);
+    const W = lists({ releases: release(3) });
+    await W.make(7); await W.pack(5);
+    W.answerLost = true; W.thenDown = '_fbaListsDone';
+    await W.ship();
+    W.answerLost = false; W.down = '';
+    const X = lists({ db: W, email: 'bee@test' });
+    await Promise.all([W.ship(), X.ship()]);
+    ok('two computers completing it: once between them', W.releaseLeft('R1') === 2 && W.alerts.length + X.alerts.length === 1);
+    const Y = lists({ releases: release(3) });
+    await Y.make(7); await Y.pack(5);
+    Y.answerLost = true; Y.thenDown = '_fbaListsDone';
+    await Y.ship();
+    Y.answerLost = false; Y.down = '';
+    ok('undo completes it first', await Y.ctx.fblUndoShip('L1') === '' && Y.releaseLeft('R1') === 2 && Y.alerts.length === 1 && !Y.open().L1.owed);
+    const Z = lists({ releases: release(3) });
+    await Z.make(2, { id: 'L0', lane: 'air' }); await Z.pack(2, 'L0');
+    await Z.make(5); await Z.pack(4);
+    Z.answerLost = true; Z.thenDown = '_fbaListsDone';
+    await Z.ship();
+    Z.answerLost = false; Z.down = '';
+    await Z.ship({ shipment: 'NEXT' }, 'L0');
+    ok('the next shipment completes one nobody pressed again', !Z.done().L1.owed && Z.alerts.length === 2);
     const A = await packed(4);
     A.ctx.lstAlertFor = async () => { throw new Error('no listing sheet'); };
     ok('a failed listing alert is not a failed shipment', await A.ship() === '' && A.done().L1.status === 'shipped'
@@ -287,7 +321,7 @@ const release = (left, over) => ({ R1: Object.assign({ sku: 'A', pcs: left, left
 
   console.log('== undoing a shipment ==');
   {
-    const S = await packed(4); await S.ship({ qtyBySku: { A: 3 } });
+    const S = await packed(4); await S.pack(3); await S.ship();
     const said = await S.ctx.fblUndoShip('L1');
     const l = S.open().L1;
     ok('movements deleted, list packed again with what was shipped', said === '' && S.movements().length === 0 && S.stock() === 20 && l.status === 'packed'
@@ -312,6 +346,61 @@ const release = (left, over) => ({ R1: Object.assign({ sku: 'A', pcs: left, left
     ok('switch off: the shipment can still be undone', await O.ctx.fblUndoShip('L1') === '' && O.movements().length === 0 && O.open().L1.status === 'packed');
     const N = await packed(4); await N.ship();
     ok('without the tab: refused', /FBA team/.test(await lists({ db: N, tabs: [] }).ctx.fblUndoShip('L1')) && N.movements().length === 1);
+  }
+
+  console.log('== boxes changed after packing ==');
+  {
+    const S = await packed(4);
+    await S.ctx.fblBoxesChanged('L1', { a: 4 });
+    ok('the same boxes: still packed', S.open().L1.status === 'packed' && S.open().L1.lines.A.packed === 4);
+    for (const [name, boxes] of [['fewer', { A: 3 }], ['more', { A: 5 }], ['another SKU', { A: 4, B: 1 }], ['emptied', {}]]) {
+      const T = await packed(4);
+      await T.ctx.fblBoxesChanged('L1', boxes);
+      ok(name + ' in the boxes: not packed, cannot ship', T.open().L1.status === 'open' && T.open().L1.lines.A.packed === 0
+        && /Pack this/.test(await T.ship()) && T.movements().length === 0);
+    }
+    const throws = async f => { try { await f(); return ''; } catch (e) { return e.message; } };
+    const B = await packed(4);
+    Object.assign(B.db._fbaLists.L1, { status: 'shipping', claimBy: 'bee@test', claimAt: iso(Date.now()) });
+    ok('being shipped: the boxes cannot change', /bee is working/.test(await throws(() => B.ctx.fblBoxesChanged('L1', { A: 3 }))) && B.open().L1.status === 'shipping');
+    const M = await packed(4);
+    M.before = () => { M.db._fbaLists.L1.claimBy = 'bee@test'; };
+    ok('changed meanwhile: said', /somebody else/.test(await throws(() => M.ctx.fblBoxesChanged('L1', { A: 3 }))));
+    const H = await packed(4); await H.ship(); await H.ctx.fblUndoShip('L1');
+    await H.ctx.fblBoxesChanged('L1', { A: 3 });
+    ok('after Undo ship: repack fewer and ship', await H.pack(3) === '' && await H.ship({ shipment: 'AGAIN' }) === '' && H.stock() === 17);
+  }
+
+  console.log('== old records ==');
+  {
+    const S = await packed(4);
+    const old = (days, over) => Object.assign({ status: 'shipped', shippedAt: iso(Date.now() - days * 864e5), lines: { A: { sku: 'A', shipped: 1 } } }, over);
+    S.db._fbaListsDone = { OLD: old(61), NEW: old(59), CANC: { status: 'cancelled', cancelledAt: iso(Date.now() - 61 * 864e5) },
+      BUSY: old(61, { claimBy: 'bee@test', claimAt: iso(Date.now()) }) };
+    await S.ship();
+    ok('over 60 days old: removed when a list ships; newer and busy ones stay', Object.keys(S.done()).sort().join() === 'BUSY,L1,NEW', Object.keys(S.done()).join());
+    const T = await packed(4);
+    T.db._fbaListsDone = { OLD: old(61) };
+    const cas = T.ctx.ptCas;
+    T.ctx.ptCas = async (p, expect, next) => { if (next === null) T.db._fbaListsDone.OLD.claimBy = 'bee@test'; return cas(p, expect, next); };
+    ok('changed by another computer meanwhile: kept', await T.ship() === '' && !!T.done().OLD);
+    const U = await packed(4);
+    U.db._fbaListsDone = { OLD: old(61) };
+    U.ctx.ptCas = (real => async (p, e, n) => { if (n === null) throw new Error('no signal'); return real(p, e, n); })(U.ctx.ptCas);
+    ok('a failed tidy is not a failed shipment', await U.ship() === '' && U.warns.some(w => /not tidied/.test(w)));
+    const G = await packed(4); await G.ship();
+    delete G.db._fbaListsDone.L1;
+    ok('undo with the record gone says to use Return', /use Return/.test(await G.ctx.fblUndoShip('L1')) && G.movements().length === 1);
+    await G.ctx.fblReadOne('L1');
+    ok('and the screen knows it is gone', G.run('fblRecordGone({ fbaListId: "L1" })') === true && G.run('fblRecordGone({})') === false);
+  }
+
+  console.log('== list saves give up in time ==');
+  {
+    const S = await packed(4), limits = [], real = S.ctx.ptPatch;
+    S.ctx.ptPatch = async (patch, opts) => { limits.push((opts || {}).timeoutMs); return real(patch); };
+    await S.ship(); await S.ctx.fblUndoShip('L1'); await S.ctx.fblCancel('L1');
+    ok('ship, undo and cancel each carry a 30 second limit', same(limits, [30000, 30000, 30000]), JSON.stringify(limits));
   }
 
   console.log('== deleting on Finished Goods ==');

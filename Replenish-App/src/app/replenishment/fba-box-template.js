@@ -195,6 +195,7 @@ async function pkDelete(id) {
   const p = PK.find(x => x.id === id); if (!p) return;
   if (!confirm(`Delete the packing list \u201c${p.title || id}\u201d? This cannot be undone.`)) return;
   try {
+    if (typeof packFbaKeepInStep === 'function') await packFbaKeepInStep(Object.assign({}, p, { boxes: [] }));
     await deleteDoc(doc(db, 'packlist', id));
     if (typeof fsMirror === 'function') fsMirror('delete', 'packlist/' + id);
     PK = PK.filter(x => x.id !== id);
@@ -266,12 +267,12 @@ function pkRenderPreview() {
         : `Rename the column, or use the Template button for a sheet with the names this reads.`)
       + `</div>`);
   }
-  const part = g.part || [];
-  const partWhy = part.slice(0, 6).map(x => `row ${x.row} · ${x.sku} · ${x.qty}`).join(', ') + (part.length > 6 ? ` and ${part.length - 6} more` : '');
-  if (part.length) bits.push(`<div class="err" style="margin-top:6px">Quantities must be whole pieces. Correct the file and choose it again: ${esc(partWhy)}.</div>`);
+  const wrong = g.wrong || [];
+  const wrongWhy = wrong.slice(0, 6).map(x => `row ${x.row} · ${x.sku} · ${x.why}`).join('; ') + (wrong.length > 6 ? `; and ${wrong.length - 6} more` : '');
+  if (wrong.length) bits.push(`<div class="err" style="margin-top:6px">These rows cannot be packed. Correct the file and choose it again: ${esc(wrongWhy)}.</div>`);
   $('pkMatch').innerHTML = bits.join('');
-  $('pkSave').disabled = missReq.length > 0 || !g.boxes.length || part.length > 0;
-  if (part.length) wpShow('This file cannot be saved', 'Quantities must be whole pieces: ' + partWhy + '. Correct the file and choose it again.');
+  $('pkSave').disabled = missReq.length > 0 || !g.boxes.length || wrong.length > 0;
+  if (wrong.length) wpShow('This file cannot be saved', wrongWhy + '. Correct the file and choose it again.');
 
   const t = pkTotals({ boxes: g.boxes, pkgWt: PK_DEF.pkgWt, volDiv: PK_DEF.volDiv });
   $('pkPreview').innerHTML = '<thead><tr><th>Box</th><th>SKU</th><th>Description</th><th>Size</th>'
@@ -285,6 +286,16 @@ function pkRenderPreview() {
       .join('')
     + `<tr><td colspan="4"><b>${t.boxes} box(es)</b></td><td class="num"><b>${t.qty}</b></td>
         <td></td><td class="num"><b>${t.net.toFixed(2)}</b></td></tr></tbody>`;
+}
+
+/** Asked before a list from a file is saved: the same file with the same invoice already made a list (28 Nov: it went in
+ *  twice without a word), and any very large line. Checked against the lists this screen holds: no second download, so a copy
+ *  saved on another screen since they were opened is not seen. */
+async function pkSaveWanted(p) {
+  const twin = PK.find(x => x.source === p.source && String(x.invoice || '') === p.invoice);
+  if (twin && !confirm(`This file${p.invoice ? ' with invoice ' + p.invoice : ''} is already saved as the list “${twin.title}” of ${twin.date}. Save a second one?`)) return false;
+  const big = p.boxes.flatMap(b => b.items).map(it => ptNumBig(it.qty, it.sku, 'pcs')).filter(Boolean);
+  return !big.length || confirm(big.slice(0, 6).join(' · '));
 }
 
 $('pkCancel').onclick = () => { $('pkModal').classList.add('hide'); PK_STAGED = null; };
@@ -308,6 +319,7 @@ $('pkSave').onclick = async () => {
       by: ME.email || '',
       createdAt: pkToday(),
     };
+    if (!(await pkSaveWanted(p))) { btn.disabled = false; btn.textContent = 'Save packing list'; return; }
     /* THE FIRST FILE TEACHES THE MASTER.
      *
      * Nothing carries a per-piece weight — not the catalogue, not the FBA report — so the master

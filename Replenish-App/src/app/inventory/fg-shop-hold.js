@@ -10,7 +10,10 @@
  * deleting a "returned from FBA" row or undoing a part shipment (those pieces are with the FBA team again).
  *
  * The Shopify tab works out the need after it has read a store's orders (shopify-orders.js) and notes it, per store, at
- * pt_fgiSettings/_shopHold/{SP|CPC} = { at, by, skus: { SKU key: pieces } }. Releases sit beside it, under .../releases/<id>.
+ * pt_fgiSettings/_shopHold/{SP|CPC} = { at, by, skus: { SKU key: pieces }, orders: { SKU key: [{ no, pcs, on, of }] } }.
+ * orders (28 Nov) names the orders behind each SKU's pieces, for the stock list: order number, pieces still needed, order date,
+ * and the pieces asked ("of") when some were already issued. Never a customer's name, phone or address. A figure noted before
+ * it has none. Releases sit beside it, under .../releases/<id>.
  * "_shopHold" can never be a SKU's own settings row: SKU rows are upper case.
  * On the test website live Shopify is off, so the tab counts the need from the shared copy of the orders instead, and "at" is
  * the time that copy last heard from Shopify.
@@ -73,27 +76,48 @@ function shpHoldIssued(ledgerRows) {
   return out;
 }
 
-/** PIECES HELD, per SKU key, for one store. claims: [{ orderNo, sku, sets, perSet }] — what the open orders still need, in sets
- *  of perSet pieces; orderNo is the production number ('SHP-4876'). What was already issued to that order is no longer needed
- *  from the shelf, so it is taken off, once. */
-function shpHoldBuild(claims, ledgerRows) {
+/** What each order still needs of each SKU: [{ orderNo, ref, on, key, asked, pieces }]. claims: [{ orderNo, sku, sets, perSet,
+ *  ref?, on? }] — what the open orders ask for, in sets of perSet pieces; orderNo is the production number ('SHP-4876'), ref the
+ *  Shopify order name (it tells apart orders with no production number), on the order date. What was already issued to that
+ *  order is no longer needed from the shelf, so it is taken off, once. */
+function shpHoldLeft(claims, ledgerRows) {
   const need = new Map();
   (claims || []).forEach(c => {
-    const orderNo = obUC(c.orderNo), key = shpHoldKey(c.sku), id = orderNo + '|' + key;
-    const had = need.get(id) || { key, pieces: 0 };
-    need.set(id, { key, pieces: had.pieces + Math.round(fgiNum(c.sets) * fgiNum(c.perSet)) });
+    const orderNo = obUC(c.orderNo), ref = c.ref || '', key = shpHoldKey(c.sku), id = (orderNo || ref) + '|' + key;
+    const had = need.get(id) || { orderNo, ref, on: c.on || '', key, asked: 0 };
+    need.set(id, Object.assign({}, had, { asked: had.asked + Math.round(fgiNum(c.sets) * fgiNum(c.perSet)) }));
   });
-  const issued = shpHoldIssued(ledgerRows), skus = {};
-  need.forEach((n, id) => {
-    const left = n.pieces - Math.round(issued.get(id) || 0);
-    if (left > 0) skus[n.key] = (skus[n.key] || 0) + left;
-  });
+  const issued = shpHoldIssued(ledgerRows);
+  return [...need.values()]
+    .map(n => Object.assign({}, n, { pieces: n.asked - Math.round(issued.get(n.orderNo + '|' + n.key) || 0) }))
+    .filter(n => n.pieces > 0);
+}
+/** PIECES HELD, per SKU key, for one store. */
+function shpHoldBuild(claims, ledgerRows) {
+  const skus = {};
+  shpHoldLeft(claims, ledgerRows).forEach(n => { skus[n.key] = (skus[n.key] || 0) + n.pieces; });
   return skus;
+}
+/** Orders { no, on } oldest first; one with no date comes last. */
+const shpHoldOldestFirst = (a, b) => String(a.on || '9999').localeCompare(String(b.on || '9999'))
+  || String(a.no).localeCompare(String(b.no), undefined, { numeric: true });
+/** One order behind a SKU's held pieces, as noted. The database keeps no empty values, so none are written. */
+const shpHoldEntry = n => Object.assign({ no: n.orderNo || n.ref, pcs: n.pieces }, n.on ? { on: n.on } : {},
+  n.asked > n.pieces ? { of: n.asked } : {});
+/** What one store's figure says: { skus: the pieces held per SKU key, orders: the orders behind them, oldest first }. */
+function shpHoldNeed(claims, ledgerRows) {
+  const orders = {};
+  shpHoldLeft(claims, ledgerRows).forEach(n => { (orders[n.key] = orders[n.key] || []).push(shpHoldEntry(n)); });
+  Object.values(orders).forEach(list => list.sort(shpHoldOldestFirst));
+  return { skus: shpHoldBuild(claims, ledgerRows), orders };
 }
 
 /* ---- noting it ---- */
 /** Was this noted by a PC whose clock runs ahead? */
 const shpHoldAhead = (at, nowMs) => at > nowMs + SHP_HOLD_CLOCK_SLACK_MS;
+
+/** Do two figures say the same: the pieces per SKU, and the orders behind them? */
+const shpHoldSaysSame = (a, b) => ptSame(a.skus || {}, b.skus || {}) && ptSame(a.orders || {}, b.orders || {});
 
 /** A newer read replaces the noted figure when it says something else, or the noted one is getting old. One noted by a
  *  clock that runs ahead is always replaced, or it would block every later read. */
@@ -101,12 +125,12 @@ function shpHoldShouldWrite(noted, figure, nowMs = Date.now()) {
   if (!noted || !noted.at || shpHoldAhead(noted.at, nowMs)) return true;
   /* The test website notes the shared copy's own sync time: every newer copy is noted, and so is the same copy when the need
    * has changed since (pieces issued to an order, an order marked done). */
-  if (shpOnTestSite()) return figure.at > noted.at || (figure.at === noted.at && !ptSame(noted.skus || {}, figure.skus));
+  if (shpOnTestSite()) return figure.at > noted.at || (figure.at === noted.at && !shpHoldSaysSame(noted, figure));
   if (!(figure.at > noted.at)) return false;
-  return figure.at - noted.at > SHP_HOLD_REWRITE_MS || !ptSame(noted.skus || {}, figure.skus);
+  return figure.at - noted.at > SHP_HOLD_REWRITE_MS || !shpHoldSaysSame(noted, figure);
 }
 
-/** Note one store's figure { at, by, skus }, checked and written in one step. Never throws: '' when noted (or nothing needed
+/** Note one store's figure { at, by, skus, orders }, checked and written in one step. Never throws: '' when noted (or nothing needed
  *  noting), else why not, also said in the console. */
 async function shpHoldPublish(store, figure) {
   const path = SHP_HOLD_PATH + '/' + store;

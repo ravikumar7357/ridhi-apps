@@ -410,6 +410,8 @@ function flowState(r) {
       s.back = allBack ? qty : Math.max(s.back, cap(Math.floor(qty * Math.min(1, total > 0 ? have / total : 0) + 1e-9)));
     }
   }
+  /* the printer was asked for more than the line now orders (28 Nov): PPC is told, on its page */
+  if (p && printed && v && +v.given > qty) s.overPrint = +v.given;
   s.qcRej = p ? flowQcLine(r).rej : 0;
   s.issuedNet = p ? Math.max(0, s.issuedAll - s.qcRej) : s.issued;
   /* what can go on now, while the rest is still on its way (flowInView) */

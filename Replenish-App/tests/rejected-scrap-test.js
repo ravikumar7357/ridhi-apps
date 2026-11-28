@@ -20,7 +20,7 @@ const CODE = [cut('core/history.js', /^function lineHoldOn\(/m), cut('core/histo
   cut(L, /^let BASE_IX/m, ';'), cut(L, /^function obBaseIndex\(/m), cut(L, /^function obRowScrap\(/m), cut(L, /^const obQcRows/m, '\n'),
   cut(L, /^const obQcScrapOf/m, '\n'), cut(L, /^let QCREJ_IX/m, ';'), cut(L, /^function obQcRejIndex\(/m), cut(L, /^function obQcScrapQty\(/m), cut(L, /^function flowRejOf\(/m),
   cut(K, /^const obCutKept/m, ';'), cut(K, /^function cutGuard\(/m),
-  cut(J, /^function obIssueSums\(/m), cut(J, /^function obIssueOfOrder\(/m), cut(J, /^function obIssueOfCut\(/m), cut(J, /^function bdGuard\(/m), cut(J, /^function bdOrdersFor\(/m),
+  cut(J, /^function obIssueSums\(/m), cut(J, /^function obIssueOfOrder\(/m), cut(J, /^function obIssueOfCut\(/m), cut(J, /^function bdPrintedBackErr\(/m), cut(J, /^function bdGuard\(/m), cut(J, /^function bdOrdersFor\(/m),
   cut(F, /^function flowCountScrap\(/m), cut(F, /^function flowReplaceCloth\(/m), cut(F, /^function flowStoreClothPcs\(/m), cut(F, /^function flowState\(/m),
   cut('flow/flow-entries.js', /^const flowIssuable/m, ';')].join('\n');
 

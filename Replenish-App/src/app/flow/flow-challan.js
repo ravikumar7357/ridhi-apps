@@ -472,6 +472,19 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
   if (typeof ptImgFill === 'function') ptImgFill(rows.map(x => obUC(x.r.sku)), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
 
+/** The challan lines taking more cloth than they may (ptClothOver), in words, or ''. The need is the larger of the plan's and
+ *  the master's cloth for those pieces, as the challan windows offer either. Not judged: a ruffle on its own, and cut-to-size
+ *  pieces, whose metres are worked out from the pieces' size. */
+function flowClothOver(lines) {
+  const rows = flowRows();
+  return lines.filter(l => !l.ruffleOnly && !l.cutSize).map(l => {
+    const x = rows.find(y => y.s.key === l.key); if (!x) return '';
+    const o = flowFabOwed(x.r, x.s), planned = o.unit === 'pcs' && l.pcs > 0 && o.left > 0 ? o.metres * l.pcs / o.left : o.metres;
+    let master = 0; try { master = flowShLine(x).perPc * (+l.pcs || 0); } catch (e) { console.warn('[cloth limit] no master figure for ' + l.sku + ':', e.message || e); }
+    return ptClothOver(l.metres, Math.max(planned, master), l.sku);
+  }).filter(Boolean).join(' · ');
+}
+
 /* ONE WAY TO SAVE A CHALLAN (23 Nov): the Demand window and the Inventory's Send to printer card both come here.
  * THE NUMBER IS CLAIMED: the challan is written only where no challan of that number is yet — two people making one at the
  * same moment get two numbers, never one challan written over the other. A line PPC left without a printer gets the one its
@@ -483,6 +496,8 @@ async function flowChallanWrite(ch, v, how) {
   const inCut = !how.fromCut && typeof flowCpActive === 'function' && (ch.lines || []).find(l => !l.ruffleOnly && flowCpActive(l.key));
   if (inCut) return `${inCut.sku} is in Cut to size — send it from the Greige Desk's Cut to size.`;
   if (how.fromCut) ch.fromCut = how.fromCut;
+  const tooMuch = flowClothOver(ch.lines || []);
+  if (tooMuch) return wpRefuse(tooMuch);
   let no = flowChallanNo(ch.date, how.isTest); ch.no = no;
   for (let k = 0, taken = []; ; k++) {
     let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }

@@ -67,6 +67,9 @@ async function fbaShipXlRun(plan) {
   if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can ship a dispatch.';
   const pairs = plan.items.flatMap(it => it.picks.map(r => [fgiRowId(r), it.e]));
   if (!pairs.length) return 'Nothing in the file matches an open dispatch.';
+  /* the typed box's date rule, for the file too (28 Nov): one wrong date refuses the whole file */
+  const dateWhy = plan.items.map(it => it.e).filter(e => e.date).map(e => ptDateErr(ptIsoDate(e.date) || String(e.date), 'Row ' + e.row + ' ship date', ME.admin ? 'fixed' : 'done')).find(Boolean);
+  if (dateWhy) return wpRefuse(dateWhy);
   const fresh = await fbaFresh(pairs.map(p => p[0]));
   const now = new Date().toISOString(), updates = {}, done = [], skipped = [];
   fresh.forEach(({ id, row }, i) => {
@@ -149,6 +152,8 @@ async function fbaShipSave(ids) {
   const v = id => String((($(id) || {}).value) || '').trim();
   const shipment = v('fbsShipment');
   if (!shipment) return 'Put in the shipment id — a shipment nobody can trace is not a shipment.';
+  const dateWhy = ptDateErr(v('fbsDate'), 'Ship date', ME.admin ? 'fixed' : 'done');   // 28 Nov: a date a year back was taken
+  if (dateWhy) return wpRefuse(dateWhy);
   const shipDate = fgiDmy(v('fbsDate')) || fgiDmy(dToday());
   const note = v('fbsRemarks');
   const single = ids.length === 1;
@@ -220,6 +225,12 @@ function fbaReturnOpen(ids) {
   });
 }
 
+/** A shipment an FBA list made whose record has been removed (fba-lists.js), read now: it is returned, as it cannot be undone. */
+async function fbaListRecordRemoved(row) {
+  if (!row.fbaListId || typeof fblReadOne !== 'function') return false;
+  const { open, done } = await fblReadOne(row.fbaListId);
+  return !open && !done;
+}
 async function fbaReturnSave(ids) {
   if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can return a dispatch.';
   const v = id => String((($(id) || {}).value) || '').trim();
@@ -231,7 +242,8 @@ async function fbaReturnSave(ids) {
   for (const { id, row } of fresh) {
     if (!row) { skipped.push({ id, why: 'deleted from the store' }); continue; }
     const s = fbaState(row);
-    if (s.st !== 'waiting' && s.st !== 'accepted') { skipped.push({ id, why: 'already ' + FBA_PILL[s.st][1] }); continue; }
+    const returnable = s.st === 'waiting' || s.st === 'accepted' || (s.st === 'shipped' && await fbaListRecordRemoved(row));
+    if (!returnable) { skipped.push({ id, why: 'already ' + FBA_PILL[s.st][1] }); continue; }
     let q = s.open;
     if (single && v('fbrQty') !== '') {
       q = parseInt(v('fbrQty'), 10);

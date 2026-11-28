@@ -191,6 +191,8 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
     return `Order ${orderNo} · ${obUC(sku)}: ordered ${ordered} pcs, already issued ${used} pcs `
       + `(received or not) — at most ${ordered - used} more allowed. Entry blocked.`;
 
+  const unprinted = bdPrintedBackErr(orderNo, sku, used, want, exclId);
+  if (unprinted) return unprinted;
   const m = cutSkuOf(sku);
   /* PPC SENT IT STRAIGHT TO JOB WORK (Ravi, 15 Oct): the plan's route 'jobwork' skips the cutting table, so pieces are
    * issued without a cutting entry. The ordered cap above still holds. */
@@ -211,6 +213,18 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
     }
   }
   return '';
+}
+
+/** A printed line that skips cutting can go to a karigar only as far as it is back from the printer (28 Nov: 5 were issued
+ *  with 2 printed). Pieces QC rejected may go again. '' when within it, or when the line is not such a line. Where PPC's flow
+ *  is not read on this screen, nothing can be judged: said in the console, and the older limits still apply. */
+function bdPrintedBackErr(orderNo, sku, used, want, exclId) {
+  if (typeof flowRows !== 'function' || typeof FLOW === 'undefined' || !FLOW || !FLOW.ppc) { console.warn('[printed first] the PPC flow is not read: ' + obUC(sku) + ' on ' + orderNo + ' was not checked against the printer'); return ''; }
+  const key = flowKey(orderNo, sku), x = flowRows().find(y => y.s.key === key), s = x && x.s;
+  if (!s || !s.plan || !s.printed || s.cutReq) return '';
+  /* a scrapped reject is already off "used" (obIssueOfOrder): only the other rejects open a place again */
+  const most = Math.max(0, (+s.back || 0) + Math.max(0, (+s.qcRej || 0) - obQcScrapQty(orderNo, sku, exclId)) - used);
+  return want > most ? `Order ${orderNo} · ${obUC(sku)}: ${+s.back || 0} pcs are back from the printer and ${used} already issued — at most ${most} more.` : '';
 }
 
 /** Orders carrying this SKU, with what may still be issued on each. */
