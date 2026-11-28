@@ -250,8 +250,10 @@ function renderSa() {
     const vals = cells.map(valOf);
     const mean = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
     const peak = vals.reduce((a, b) => Math.max(a, b), 0);
-    const ids = idCols.map(([key], i) => `<td${i === 0 ? ' class="frz"' : ''}${SA.view === 'sku' && key === 'name'
-      ? '' : ''}>${esc(row[key] == null ? '' : row[key])}</td>`).join('');
+    // (28 Nov 2026) the catalogue-less group "(unknown)" shown as "No colour in catalog (N SKUs)", its SKUs in the tooltip — to fix them
+    const unk = i => (i === 0 && row.name === '(unknown)' && typeof saiLabel === 'function' && SA.view !== 'sku'
+      ? ` title="${esc('Not in the Catalog tab: ' + (typeof saiUnknownSkus === 'function' ? saiUnknownSkus(data, SA.view).join(', ') : ''))}"` : '');
+    const ids = idCols.map(([key], i) => `<td${i === 0 ? ' class="frz"' : ''}${unk(i)}>${esc(i === 0 && unk(i) ? saiLabel(row, SA.view) : row[key] == null ? '' : row[key])}</td>`).join('');
     const monthCells = cells.map(cell => {
       const value = valOf(cell);
       let cls = '';
