@@ -242,7 +242,7 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     };
     const { S, html } = table({});
     const heads = [...html.split('</thead>')[0].matchAll(/<th[^>]*>(.*?)<\/th>/g)].map(m => m[1]).slice(1);
-    ok('the columns after the article', same(heads, ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', 'FBA Dispatched', 'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', '']), heads.join());
+    ok('the columns after the article', same(heads, ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', 'FBA Packed', 'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', '']), heads.join());
     const figs = [...html.matchAll(/<td class="num"[^>]*>(.*?)<\/td>/g)].map(m => m[1].replace(/<[^>]+>/g, ''));
     ok('the eight figures', same(figs, ['—', '20', '—', '6', '3', '4', '2', '5']), figs.join());
     ok('the buttons stay', ['data-fgrel', 'data-fgentry', 'data-fgskued', 'data-fgskudel'].every(b => html.includes(b)));
@@ -397,7 +397,7 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     ok('+ Stock entry still receives a SKU the list does not hold', saved === '' && E.writes.length === 1, saved);
   }
 
-  console.log('== FBA Dispatched: in FBA Dispatch, not yet shipped ==');
+  console.log('== FBA Packed: in FBA Dispatch, not yet shipped ==');
   {
     const out = (id, qty, over) => sent(id, qty, Object.assign({ sku: 'AB-10' }, over));
     /* AB-10, none in stock: 2 waiting, 3 accepted with 1 back, 5 shipped, 4 all back, 7 sheet history */
@@ -432,17 +432,17 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     ok('a SKU with none in stock but pieces not shipped is listed; one all shipped is not', same(all.skus, ['AB-1', 'AB-10']), all.skus.join());
     const tr = all.html.split('<tbody>')[1].split('</tr>')[1];
     const figs = [...tr.matchAll(/<td class="num"[^>]*>(.*?)<\/td>/g)].map(m => m[1].replace(/<[^>]+>/g, ''));
-    ok('its row: FBA Dispatched, then In Stock 0, and nothing shared out', same(figs, ['4', '0', '—', '—', '—', '—', '—', '—']), figs.join());
-    ok('the column stands just before In Stock, lined up as a figure', /<th class="num">FBA Dispatched<\/th><th class="num">In Stock<\/th>/.test(all.html));
+    ok('its row: FBA Packed, then In Stock 0, and nothing shared out', same(figs, ['4', '0', '—', '—', '—', '—', '—', '—']), figs.join());
+    ok('the column stands just before In Stock, lined up as a figure', /<th class="num">FBA Packed<\/th><th class="num">In Stock<\/th>/.test(all.html));
     ok('the pieces are not part of In Stock or the shares', all.shown.every(r => Object.values(r.alloc).reduce((a, b) => a + b, 0) === r.current)
       && all.shown[0].dispatched === 6 && all.shown[0].current === 5 && /font-weight:700[^>]*>5</.test(all.html));
     ok('the account picker does not narrow it', list({ view: 'SP' }).shown[1].dispatched === 4);
     ok('the count line says which have stock and which do not',
       /^2 SKU\(s\) listed: 1 in stock now, 1 with none in stock but pieces in FBA Dispatch not yet shipped/.test(all.msg), all.msg);
     const phone = list({ phone: true }).html;
-    ok('the phone card lists it with the figure', phone.includes('data-fgmoves="AB-10"') && phone.includes('FBA Dispatched <b>4</b>'));
+    ok('the phone card lists it with the figure', phone.includes('data-fgmoves="AB-10"') && phone.includes('FBA Packed <b>4</b>'));
     const head = [...all.S.run('fgaExportHead()')], lines = [...all.S.run('FGI.shown.map(fgaExportRow)')].map(r => [...r]);
-    ok('the export carries it just before In Stock', head[6] === 'FBA Dispatched' && head[7] === 'In Stock' && same(lines[1].slice(6, 8), [4, 0]), head.join() + ' | ' + lines[1].join());
+    ok('the export carries it just before In Stock', head[6] === 'FBA Packed' && head[7] === 'In Stock' && same(lines[1].slice(6, 8), [4, 0]), head.join() + ' | ' + lines[1].join());
     ok('the brand filter applies to it', same(list({ brand: 'Ridhi' }).skus, ['AB-1']) && same(list({ brand: 'Other' }).skus, ['AB-10']));
     ok('the tag filter applies to it', same(list({ tag: 'Gift' }).skus, ['AB-10']) && same(list({ tag: '_none' }).skus, ['AB-1']));
     const found = list({ q: 'green' });
@@ -450,7 +450,7 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     ok('filtered out, its code is "hidden by the filters"', list({ q: 'ab-10', brand: 'Ridhi' }).msg.startsWith('SKU AB-10 is in the India Store but hidden by the filters.'));
     ok('and so is a word that matches it', list({ q: 'green', brand: 'Ridhi' }).msg.startsWith('Matching products are in the India Store but hidden by the filters.'));
     const off = list({ ls: '0' });
-    ok('switch off: no column, figure or new wording', !off.html.includes('FBA Dispatched') && !/FBA Dispatch/.test(off.msg) && off.shown.every(r => r.dispatched === undefined));
+    ok('switch off: no column, figure or new wording', !off.html.includes('FBA Packed') && !/FBA Dispatch/.test(off.msg) && off.shown.every(r => r.dispatched === undefined));
   }
 
   console.log('== the view list ==');
@@ -495,8 +495,8 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     ok('switch off: a lane on a row is ignored', same(lanes([sent('a', 3, { fbaLane: 'sea' })], { fbaList: '0' }), [0, 4, 2]));
 
     const dispatched = o => Object.fromEntries(withLists(o).run('fgaDispatched(FGI.rows)'));
-    ok('pieces on a list not yet shipped are in stock, not FBA Dispatched', same(dispatched({}), {}));
-    ok('a list shipment is not FBA Dispatched', same(dispatched({ rows: [row('O', 'OPENING', 20), sent('L', 3, { fbaListId: 'L3', fbaAcceptedAt: 'x', fbaShippedAt: 'x' })] }), {}));
+    ok('pieces on a list not yet shipped are in stock, not FBA Packed', same(dispatched({}), {}));
+    ok('a list shipment is not FBA Packed', same(dispatched({ rows: [row('O', 'OPENING', 20), sent('L', 3, { fbaListId: 'L3', fbaAcceptedAt: 'x', fbaShippedAt: 'x' })] }), {}));
     ok('an older dispatch still waiting is, with lists on', dispatched({ rows: [row('O', 'OPENING', 20), sent('w', 2)] }).A === 2);
 
     const T = withLists({ need: { SP: [3, 4, 0] }, rows: [row('O', 'OPENING', 20)] }, {});
