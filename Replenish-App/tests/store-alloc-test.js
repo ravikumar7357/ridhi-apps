@@ -359,7 +359,7 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     const off = list({ ls: '0' });
     ok('switch off: every SKU on record, as before', off.skus.length === 4 && /4 SKU\(s\) on record/.test(off.msg), off.msg);
     ok('switch off: the tick still keeps pieces from press', same(list({ ls: '0', zero: true }).skus, ['AB-1', 'AB-10', 'AB-2']));
-    ok('switch off: a search says nothing new', !/India Store but|does not exist|not in the India Store/.test(list({ ls: '0', q: 'zzz' }).msg));
+    ok('switch off: a search says nothing new', !/India Store but|does not exist|not in the India Store|Nothing in the Master Database/.test(list({ ls: '0', q: 'zzz' }).msg));
     ok('the screen hides the tick with the switch on', appFile('inventory/finished-goods.js')
       .includes("$('fgZeroWrap').classList.toggle('hide', view !== 'stock' || (typeof fgaOn === 'function' && fgaOn()));"));
 

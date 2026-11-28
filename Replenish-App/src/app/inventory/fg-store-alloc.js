@@ -375,7 +375,7 @@ function fgaNoMatchNote(text, stock) {
   if (onRecord.some(found) || master.some(found)) return 'Matching products are not in the India Store.';
   if (!master.length) return `"${text}" could not be checked — the Master Database was not read. Press Refresh to try again.`;
   /* Words are not a SKU code, so they are not called a missing SKU: a code has no space and holds a digit or a dash. */
-  return /^S*[d-]S*$/.test(text) ? `SKU ${obUC(text)} does not exist.` : `Nothing in the Master Database matches "${text}".`;
+  return /^\S*[\d-]\S*$/.test(text) ? `SKU ${obUC(text)} does not exist.` : `Nothing in the Master Database matches "${text}".`;
 }
 
 /** With the switch on, "Waiting to be counted in" is not in the view list (asked 28 Nov). Only the choice is hidden: the

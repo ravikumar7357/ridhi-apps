@@ -11,7 +11,7 @@ const breaks = {
   'the waiting view is still offered': [A, 'opt.hidden = opt.disabled = fgaOn();', 'opt.hidden = opt.disabled = false;'],
   'the waiting view goes for everybody': [A, 'opt.hidden = opt.disabled = fgaOn();', 'opt.hidden = opt.disabled = true;'],
   'an iPhone still offers the waiting view': [A, 'opt.hidden = opt.disabled = fgaOn();', 'opt.hidden = fgaOn();'],
-  'words are called a missing SKU': [A, 'return /^\S*[\d-]\S*$/.test(text) ?', 'return true ?'],
+  'words are called a missing SKU': [A, '.test(text) ?', '.test(text) || true ?'],
   'FBA before Custom': [A, "const custom = take((book.ordered[shpHoldKey(sku)] || 0) + fgiHeld(sku, hold));\n  const air = take(lanes.air), sea = take(lanes.sea), awd = take(lanes.awd);",
     "const air = take(lanes.air), sea = take(lanes.sea), awd = take(lanes.awd);\n  const custom = take((book.ordered[shpHoldKey(sku)] || 0) + fgiHeld(sku, hold));"],
   'shares beyond the stock': [A, 'const n = Math.min(left, Math.max(0, wanted));', 'const n = Math.max(0, wanted);'],
