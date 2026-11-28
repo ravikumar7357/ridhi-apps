@@ -725,6 +725,10 @@ $('bwSave').onclick = async () => {
   if (!name) return bdFormMsg('Enter the employee.', true);
   const emp = ptEmpsOfType(type).find(e => String(e[1]).trim().toLowerCase() === name.toLowerCase());
   if (!emp) return bdFormMsg(`"${name}" is not on the ${type} list.`, true);
+  /* A custom item not filled in on its list leaves these boxes with nothing to pick (28 Nov: B2B-CUST-261128-01 was only told
+   * "Select the article type."). Say what is missing and where it is filled. */
+  const blank = cm ? [['article type', at], ['article subtype', sub], ['colour', col], ['size', sz]].filter(x => !x[1]).map(x => x[0]) : [];
+  if (blank.length) return bdFormMsg(`Not saved — ${obUC(sku)} has no ${blank.join(', ')} on the Custom SKUs list. Fill it in under Master Database → Custom SKUs, then issue.`, true);
   if (!at) return bdFormMsg('Select the article type.', true);
   if (!sub) return bdFormMsg('Select the article subtype.', true);
   if (!col) return bdFormMsg(custom ? 'Type the colour.' : 'Select the colour.', true);
