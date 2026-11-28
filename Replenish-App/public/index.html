@@ -63113,7 +63113,7 @@ function renderFgi() {
   $('fgLstRefresh').disabled = !!LST.busy;
   // The label has its own id rather than being reached through the checkbox's parent — a wrapper
   // that changes shape would otherwise break this silently.
-  /* With stock shared (switch storeAlloc) the list holds only SKUs with stock, so the tick has nothing to choose. */
+  /* With stock shared (switch storeAlloc) the list picks its own SKUs, so the tick has nothing to choose. */
   $('fgZeroWrap').classList.toggle('hide', view !== 'stock' || (typeof fgaOn === 'function' && fgaOn()));
   if ($('fgaView')) $('fgaView').classList.toggle('hide', view !== 'stock' || !(typeof fgaOn === 'function' && fgaOn()));
   $('fgEntry').classList.toggle('hide', !fgiCanEntry());
@@ -63140,7 +63140,7 @@ function renderFgi() {
 
 /** The stock list's columns that line up as figures. */
 const FGI_NUM_COLS = ['Opening', 'Received', 'Issued', 'To FBA', 'In stock', 'Shopify held', 'Rate', 'Value',
-  'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', 'In FBA lists'];
+  'FBA Dispatched', 'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', 'In FBA lists'];
 
 /** The movement and value cells of a stock row (switch storeAlloc off). */
 function fgiMovementCells(r, holds) {
@@ -63167,7 +63167,7 @@ function fgiStockNote(rows, onlyStock, alloc) {
   $('fgMsg').className = neg.length ? 'err' : 'muted';
   const held = rows.filter(r => r.current !== 0 || r.pending > 0).length;
   $('fgMsg').textContent = `${nf(rows.length)} SKU(s)`
-    + (onlyStock ? ' in stock now' : ` on record · ${nf(held)} with pieces left`)
+    + (alloc ? fgaCountWords(rows) : (onlyStock ? ' in stock now' : ` on record · ${nf(held)} with pieces left`))
     + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
     + (val ? ` · ${nf(Math.round(val))} rupees of stock` : '')
     + (noPrice ? ` · ${nf(noPrice)} in stock have no rate, so they are in the pieces and not in the value` : '')
@@ -63186,14 +63186,15 @@ const fgiMatches = (r, q) => [r.sku, r.articleType, r.subtype, r.color, r.size, 
 function fgiRenderStock(stock) {
   const q = $('fgQ').value.trim().toLowerCase();
   /* Switch storeAlloc (27 Nov): the list shows who each SKU's stock is for, in place of its movement and value columns, and
-   * (28 Nov) holds only the SKUs with stock now, a count below nought included so that it is seen. */
+   * (28 Nov) holds only the SKUs with stock now or with FBA Dispatched pieces (fgaListed). */
   const alloc = typeof fgaOn === 'function' && fgaOn();
   /* SWITCH OFF, THE LIST IS THE STORE'S REGISTER, not its shelf. A SKU that came in and went out the
    * same morning still gets its line, with what came in and where it went; ticking the box narrows
    * the list to what is actually left. */
   const onlyStock = alloc || $('fgZero').checked;
   const fBrand = $('fgBrand').value, fStat = $('fgStat').value, fTag = $('fgTag').value;
-  const listed = [...stock.values()].map(b => {
+  const records = alloc ? fgaWithDispatched(stock) : stock;
+  const listed = [...records.values()].map(b => {
     const m = fgiMaster(b.sku);
     const st = fgiStatus(b.sku, b.current);
     const set = (FGI.set || {})[b.sku] || {};
@@ -63207,7 +63208,7 @@ function fgiRenderStock(stock) {
   })
     /* Negative stock is never hidden. The message below warns about it, and a warning about
      * something the filter has just removed from the table is worse than no warning. */
-    .filter(r => !onlyStock || r.current !== 0 || (!alloc && r.pending > 0))
+    .filter(r => !onlyStock || (alloc ? fgaListed(r) : r.current !== 0 || r.pending > 0))
     .filter(r => !fBrand || r.brand === fBrand)
     .filter(r => !fStat || r.status.txt === fStat)
     .filter(r => !fTag || (fTag === '_none' ? !r.remark : r.remark === fTag))
@@ -63216,7 +63217,7 @@ function fgiRenderStock(stock) {
     .sort((a, b) => b.current - a.current || a.sku.localeCompare(b.sku));
   const rows = alloc ? fgaListRows(listed) : listed;
   FGI.shown = rows;
-  const sought = alloc ? fgaSearchNote($('fgQ').value, rows, stock) : '';
+  const sought = alloc ? fgaSearchNote($('fgQ').value, rows, records) : '';
 
   ptFillSelect('fgBrand', [...new Set([...stock.values()].map(b => String(fgiMaster(b.sku).brand || '').trim()).filter(Boolean))]
     .sort().map(b => [b, b]), 'All brands');
@@ -63227,7 +63228,7 @@ function fgiRenderStock(stock) {
   const shownSkus = rows.slice(0, 600).map(r => r.sku);
   const allOn = canTick && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
   const head = '<thead><tr>' + (canTick ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
-    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['In Stock', ...fgaShareCols().map(s => s[1])] : ['Opening', 'Received',
+    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['FBA Dispatched', 'In Stock', ...fgaShareCols().map(s => s[1])] : ['Opening', 'Received',
     'Issued', 'To FBA', 'In stock', ...(holds ? ['Shopify held'] : []), 'Amazon', 'Tag', 'Rate', 'Value']), '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (FGI_NUM_COLS.includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
@@ -70895,7 +70896,11 @@ function fgiReleaseOpen(sku) {
  *             issued to each, plus the Shopify website hold (fg-shop-hold.js).
  *   FBA     = what Replenishment asks to send (SP and CPC together, in pieces), less dispatches already on the way: every
  *             one not yet marked shipped, and any shipped after the Amazon figures were read. Air is reduced first.
- * The stock list holds only SKUs with stock now (28 Nov); a search that finds none of them says why.
+ * The stock list holds the SKUs with stock now, and those with FBA Dispatched pieces even with none in stock (28 Nov); a
+ * search that finds none of them says why. "FBA Dispatched" is what FBA Dispatch holds not yet marked shipped (waiting or
+ * accepted, less returns, both accounts whatever the view picker says; sheet history left out). Those pieces have left the
+ * stock, so they are neither In Stock nor part of the shares. Pieces on an FBA list not yet shipped are still in stock, so
+ * they are not counted in it.
  * On the stock list (28 Nov), a Custom figure opens the orders it is for: the stock is counted against them oldest first.
  * What may leave: FBA only the Air + Sea + AWD pieces the stock covers, plus an admin's release; an issue for an order up to
  * that order's pending pieces within Custom, plus Excess; any other issue Excess only.
@@ -71182,6 +71187,30 @@ function fgaIssueEditWants(was, now) {
 }
 
 /* ---- on the Finished Goods stock list ---- */
+/** Pieces of each SKU in FBA Dispatch not yet marked shipped: Map of SKU (as the stock list names it) → pieces. */
+function fgaDispatched(rows) {
+  const out = new Map();
+  (rows || []).filter(r => r && r.txnType === 'FBA').forEach(r => {
+    const { st, open } = fbaState(r);
+    if (st !== 'waiting' && st !== 'accepted') return;
+    const sku = obUC(r.sku);
+    out.set(sku, (out.get(sku) || 0) + open);
+  });
+  return out;
+}
+/** fgiStock() with each SKU's FBA Dispatched pieces; new records are returned. */
+function fgaWithDispatched(stock) {
+  const sent = fgaDispatched(FGI.rows);
+  return new Map([...stock].map(([sku, b]) => [sku, Object.assign({}, b, { dispatched: sent.get(sku) || 0 })]));
+}
+/** Does the stock list hold this SKU? A count below nought is held too, so that it is seen. */
+const fgaListed = b => b.current !== 0 || b.dispatched > 0;
+/** What the count above the list counts: SKUs in stock, and apart from them those listed only for FBA Dispatched pieces. */
+function fgaCountWords(rows) {
+  const sentOnly = rows.filter(r => r.current === 0).length;
+  if (!sentOnly) return ' in stock now';
+  return ` listed: ${nf(rows.length - sentOnly)} in stock now, ${nf(sentOnly)} with none in stock but pieces in FBA Dispatch not yet shipped`;
+}
 /** Which FBA lanes the list shows: both stores, or the one picked. */
 function fgaViewStores() {
   const picked = ($('fgaView') || {}).value;
@@ -71199,17 +71228,19 @@ const fgaOrdersButton = (sku, inner) => `<button class="ghost" data-fgacustom="$
   + ` style="width:auto;padding:1px 7px;font-size:inherit;text-decoration:underline">${inner}</button>`;
 function fgaCells(r) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
-  return `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
+  return `<td class="num">${fgaNum(r.dispatched)}</td>`
+    + `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
     + fgaShareCols().map(([k]) => `<td class="num">${fgaOpensOrders(k, r.alloc[k]) ? fgaOrdersButton(r.sku, nf(r.alloc[k])) : fgaNum(r.alloc[k])}</td>`).join('');
 }
-const fgaCardFigs = r => fgaShareCols().map(([k, label]) => {
+const fgaCardFigs = r => `<span>FBA Dispatched <b>${nf(r.dispatched)}</b></span>` + fgaShareCols().map(([k, label]) => {
   const figure = `${label} <b>${nf(r.alloc[k])}</b>`;
   return fgaOpensOrders(k, r.alloc[k]) ? fgaOrdersButton(r.sku, figure) : `<span>${figure}</span>`;
 }).join('');
 /** Is some of this stock kept from FBA, so a release would mean something? */
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
-const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'In Stock', ...fgaShareCols().map(s => s[1])];
-const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, Math.max(0, r.current), ...fgaShareCols().map(([k]) => r.alloc[k])];
+const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'FBA Dispatched', 'In Stock', ...fgaShareCols().map(s => s[1])];
+const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.dispatched, Math.max(0, r.current),
+  ...fgaShareCols().map(([k]) => r.alloc[k])];
 
 /* ---- the orders behind a Custom figure ---- */
 const FGA_NO_DETAIL = 'Website orders (details after Shopify Orders is opened again)';
@@ -71267,13 +71298,13 @@ function fgaCustomOpen(sku) {
 }
 
 /* ---- searching the list ---- */
-/** The list holds only SKUs with stock now, so a search it cannot answer says why (28 Nov). '' = nothing to say.
- *  typed: the search box as it is; rows: the rows listed; stock: fgiStock(). A whole SKU code is judged first. */
+/** The list does not hold every SKU, so a search it cannot answer says why (28 Nov). '' = nothing to say.
+ *  typed: the search box as it is; rows: the rows listed; stock: fgaWithDispatched(). A whole SKU code is judged first. */
 function fgaSearchNote(typed, rows, stock) {
   const text = typed.trim(), code = obUC(text);
   if (!code || rows.some(r => r.sku === code)) return '';
   const record = stock.get(code);
-  if (record && record.current !== 0) return `SKU ${code} is in the India Store but hidden by the filters.`;
+  if (record && fgaListed(record)) return `SKU ${code} is in the India Store but hidden by the filters.`;
   if (record || mdbOf(code)) return `SKU ${code} is not in the India Store.`;
   return rows.length ? '' : fgaNoMatchNote(text, stock);
 }
@@ -71281,7 +71312,7 @@ function fgaSearchNote(typed, rows, stock) {
 function fgaNoMatchNote(text, stock) {
   const found = r => fgiMatches(r, text.toLowerCase());
   const onRecord = [...stock.values()].map(b => Object.assign({}, fgiMaster(b.sku), (FGI.set || {})[b.sku], b));
-  if (onRecord.some(r => r.current !== 0 && found(r))) return 'Matching products are in the India Store but hidden by the filters.';
+  if (onRecord.some(r => fgaListed(r) && found(r))) return 'Matching products are in the India Store but hidden by the filters.';
   const master = PTG.mdb || [];
   if (onRecord.some(found) || master.some(found)) return 'Matching products are not in the India Store.';
   if (!master.length) return `"${text}" could not be checked — the Master Database was not read. Press Refresh to try again.`;
