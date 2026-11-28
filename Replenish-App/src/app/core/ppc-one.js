@@ -509,6 +509,14 @@ function p1Do(k, xs) {
 }
 /** The lines of a lot still waiting for PPC's plan, for someone who may plan. */
 function p1ToPlan(lines) { const a = P1_ADD.find(x => x[0] === 'PLAN'); return p1MayTab(a[2]) ? lines.filter(a[3]) : []; }
+/** What to say of lines an outside maker is making (28 Nov: they read "Nothing waiting" until all had come in); '' for none.
+ *  An outsourced line has no stage of its own, so the status says it. */
+function p1Outside(xs) {
+  const out = (xs || []).filter(x => x && x.s.bucket === 'out'); if (!out.length) return '';
+  const who = [...new Set(out.map(x => p1Pr(x.s.plan && x.s.plan.outVendor)).filter(Boolean))];
+  const left = out.reduce((t, x) => t + Math.max(0, (+x.r.qty || 0) - (+x.s.india || 0)), 0);
+  return `With ${who.join(', ') || 'an outside maker'} · ${p1N(left)} to come`;
+}
 /** "Plan" on a lot or an order line, with the pieces waiting for it: the only step button on the Production list (Ravi,
  *  27 Nov: "add the to plan button back"; the other next-step buttons stay off). `line` is '' for the whole lot. */
 function p1PlanBtn(lines, gk, line) {
@@ -739,7 +747,7 @@ function p1DrawInv() {
       + `<span class="bk-n">${!pcs && m ? `${p1N(m)}<small> m</small>` : `${p1N(pcs)}<small> pcs${m ? ' + ' + p1N(m) + ' m' : ''}</small>`}</span>`
       + `<span class="bk-s">${p1N(ls.length)} lot${ls.length === 1 ? '' : 's'}${lt ? ` · <i>${p1N(lt)} late</i>` : ''}</span></button>`; };
   const tab = (v, t, n) => `<button type="button" class="${P1.tab === v ? 'on' : ''}" data-p1tab="${v}">${esc(t)} · ${p1N(n)}</button>`;
-  const status = (at, due, over) => `<b>${esc(at ? P1_NOW[at] : 'Nothing waiting')}</b><span class="rb${over ? ' late' : ''}">${due ? p1Day(due) : 'no date'}${over ? ` · ${over} d late` : ''}</span>`;
+  const status = (at, due, over, outside) => `<b>${esc(at ? P1_NOW[at] : outside || 'Nothing waiting')}</b><span class="rb${over ? ' late' : ''}">${due ? p1Day(due) : 'no date'}${over ? ` · ${over} d late` : ''}</span>`;
   /* no lot: "To plan" only while something of it waits for a plan; a line already in production without a PPC plan (issued
    * from Job Work, or planned before lot numbers began) says "No lot" */
   const lotNo = r => `<a class="p1-lotno${r.lot ? '' : r.notPlanned ? ' new' : ' none'}" data-p1hist="${esc(r.gk)}" title="This lot's history">${r.lot ? esc(p1LotTxt(r.lot)) : r.notPlanned ? 'To plan' : 'No lot'}</a>`;
@@ -749,11 +757,11 @@ function p1DrawInv() {
   const lotRow = r => { const open = P1.inv === r.gk;
     let h = `<tr class="p1r lot${open ? ' open' : ''}${p1Urgent(r) ? ' urgent' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
       <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div>${rejNote(r.wl || [])}${overNote(r.lines)}</td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
-      ${P1_COLS.map(([k]) => p1StageCell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${p1PlanBtn(r.lines, r.gk, '')}</td></tr>`;
+      ${P1_COLS.map(([k]) => p1StageCell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over, p1Outside(r.lines))}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${p1PlanBtn(r.lines, r.gk, '')}</td></tr>`;
     if (open) h += r.ln.map((l, i) => { const od = l.due && l.due < today ? p1Days(l.due) : 0;
       return `<tr class="p1l"><td class="lc"><a class="p1-ord" data-p1hist="${esc(r.gk)}" data-p1ho="${esc(l.x.r.orderNo)}" title="This order's history">${esc(l.x.r.shopOrderNo || l.x.r.orderNo)}</a><span class="ch">${esc(l.chan)}</span></td>
         <td class="it muted sm">${esc(p1Day(p1Iso(l.x.r.orderDate) || l.x.r.openIso || ''))}${rejNote([(r.wl || [])[i]])}${overNote([l.x])}</td><td class="num">${p1N(l.st.q)}</td><td class="pr">${l.printer ? esc(l.printer) : l.st.planned ? '<span class="muted">—</span>' : '<b class="np">not planned</b>'}</td>
-        ${P1_COLS.map(([k]) => p1StageCell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${p1PlanBtn([l.x], r.gk, i)}</td></tr>`; }).join('');
+        ${P1_COLS.map(([k]) => p1StageCell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od, p1Outside([l.x]))}</td><td class="nx">${p1PlanBtn([l.x], r.gk, i)}</td></tr>`; }).join('');
     return h; };
   const shown = rows.slice(0, P1.lim), R0 = gk => all.find(r => r.gk === gk);
   el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<span class="p1-read">${P1.err ? `<b style="color:var(--bad)">Could not read everything: ${esc(P1.err)}</b> · ` : ''}${P1.more ? 'Reading the rest… · ' : ''}${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
