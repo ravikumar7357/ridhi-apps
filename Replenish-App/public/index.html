@@ -26916,11 +26916,14 @@ $('ptmRename').onclick = async () => {
  * Collapsing the last two into an empty box is what makes a working feature look broken.
  */
 let _imgOwnMap = null, _imgOwnFor = null;
+/* ONLY A REAL PICTURE LINK COUNTS (28 Nov: "710" in an article's picture field drew a broken picture, asked from the ERP's
+ * own address). A web or data address that is not a share page; anything else is passed over for the next source. */
+const ptImgIsLink = u => /^(https?:|data:)/i.test(String(u || '').trim()) && !/kommodo\.ai\/i\//i.test(u);
 /** sku -> a link typed on its master row. Rebuilt only when the master database itself changes. */
 function ptImgOwn() {
   if (_imgOwnMap && _imgOwnFor === PTG.mdb) return _imgOwnMap;
   const m = new Map();
-  (PTG.mdb || []).forEach(r => { if (r && r.imageUrl) m.set(obUC(r.sku), r.imageUrl); });
+  (PTG.mdb || []).forEach(r => { if (r && ptImgIsLink(r.imageUrl)) m.set(obUC(r.sku), String(r.imageUrl).trim()); });
   _imgOwnMap = m; _imgOwnFor = PTG.mdb;
   return m;
 }
@@ -26992,9 +26995,8 @@ function ptImgLines() {
   const cust = (typeof MDBX !== 'undefined' && MDBX.custom) || null, ob = (typeof ptPeek === 'function' ? ptPeek('ob') : PTG.ob) || null;
   if (_imgLineMap && _imgLineFor && _imgLineFor[0] === cust && _imgLineFor[1] === ob) return _imgLineMap;
   const m = new Map();
-  const pic = u => /^(https?:|data:)/i.test(u || '') && !/kommodo\.ai\/i\//i.test(u);     // a share page is not a picture
-  (ob || []).forEach(r => { if (r && pic(r.shopImg)) m.set(obUC(r.sku), r.shopImg); });
-  (cust || []).forEach(r => { if (r && pic(r.imageUrl)) m.set(obUC(r.sku), r.imageUrl); });
+  (ob || []).forEach(r => { if (r && ptImgIsLink(r.shopImg)) m.set(obUC(r.sku), r.shopImg); });
+  (cust || []).forEach(r => { if (r && ptImgIsLink(r.imageUrl)) m.set(obUC(r.sku), r.imageUrl); });
   _imgLineMap = m; _imgLineFor = [cust, ob];
   return m;
 }
@@ -27110,7 +27112,7 @@ async function ptImgFill(skus, force, after) {
   b2bImgLoad(skus).catch(() => {});     // B2B pictures from the order sheet — patched into the cells when they land
   if (MDBIMG.busy) return;
   await mdbImgCacheLoad();
-  const own = new Set((PTG.mdb || []).filter(r => r.imageUrl).map(r => obUC(r.sku)));
+  const own = ptImgOwn();
   let want = [...new Set((skus || []).map(obUC)
     .filter(s => s && !own.has(s) && (force || MDBIMG.map[s] === undefined)))];
   if (!want.length) return;
