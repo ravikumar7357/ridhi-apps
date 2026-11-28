@@ -3,7 +3,9 @@
  * The table — rows, cells, the TOTAL row, every sort and filter — is the SAME as before this change (9fdacedd), and Export writes the
  * same file (every row, not only the 15 shown). Then: the top 15 + "Show other N" / "Show fewer", a search over all parents, the cards
  * = the existing plAction names (counts, filter, top 3), the story and KPIs from the rows, the 📅 week picker (= the old page on that
- * week), the side panel (opens on a row click, ✕, Esc, outside click; children, rank, + Task), ✨ off. */
+ * week), the side panel (opens on a row click, ✕, Esc, outside click; children, rank, + Task), ✨ off.
+ * (28 Nov 2026, 2nd) A search looks through EVERY parent (the Action filter and a card set aside); 📉 Sales down also holds the parents
+ * Sales Alerts confirms as a drop that week (its one result, alFor) — never ✅ Healthy; loaded read-only when it is not. */
 const fs = require('fs'), path = require('path'), cp = require('child_process');
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra !== undefined ? ' — ' + String(extra).slice(0, 600) : '')); } };
@@ -84,10 +86,11 @@ function load(srcText, opts) {
     pollReport: async () => ({}), saveStockDoc: async () => {}, stockInMap: () => ({}),
     tkBtnHtml: (o, cls, label) => { tasks.push(o); return `<button type="button" class="tk-new" data-tk-new="x">${label}</button>`; },
     sdcFxSaved: () => opts.fx !== false, sdcLoadCharts: () => Promise.resolve(true),
-    showTab: t => (ctx._tab = t), hFocusOpen() {}, AL: {}, BSX: {},
+    showTab: t => (ctx._tab = t), hFocusOpen() {}, AL: opts.AL || {}, BSX: {},
+    VI: opts.VI, alFor: opts.alFor, alLoad: opts.alLoad, alMay: opts.alMay,
   };
   const tail = '\n;return { renderPlaudit, plRows, ensurePlaudit, R: () => PL_RENDER, setSort: (k, d) => { PL_SORT = { k, dir: d }; }'
-    + (opts.plx ? ', PLX, plxModel, plxLimit, plxPanelOpen, plxPanelClose, plxFx, PLX_CARDS' : '') + ' };';
+    + (opts.plx ? ', PLX, plxModel, plxLimit, plxPanelOpen, plxPanelClose, plxFx, PLX_CARDS, plxCardOf' : '') + ' };';
   const api = new Function(...Object.keys(ctx), srcText + tail)(...Object.values(ctx));
   const fire = (t, e) => (docOn[t] || []).forEach(fn => fn(e));
   return Object.assign(api, { el, els, blobs, docOn, fire, tasks, charts, ctx, F });
@@ -150,13 +153,26 @@ const flush = () => new Promise(r => setImmediate(r));
     N.el('plFilter').value = 'name p00';
     N.renderPlaudit();
     ok('a search with 10 matches shows all 10, no "Show other"', bodyRows(N.el('plTable').innerHTML) === 10 && !/Show other/.test(N.el('plMore').innerHTML));
+    // (28 Nov 2026, 2nd) a search looks through EVERY parent — the Action filter and a card are set aside
     N.el('plAct').value = 'TODO';
     N.el('plFilter').value = 'name p02';
     N.renderPlaudit();
-    ok('a search under "Needs attention": "N more parents match under other actions" + Search all parents', /\d+ more parents? match(es)? under other actions/.test(N.el('plMore').innerHTML) && /data-plx="allact"/.test(N.el('plMore').innerHTML), N.el('plMore').innerHTML);
-    const before = bodyRows(N.el('plTable').innerHTML);
-    N.fire('click', { target: target(['#panePlaudit', '[data-plx]'], { plx: 'allact' }) });
-    ok('…clicking it sets Action = All and shows all 10 matches', N.el('plAct').value === 'ALL' && bodyRows(N.el('plTable').innerHTML) === 10 && before < 10);
+    const p02 = N.R().rows;
+    ok('under "Needs attention", a search still finds all 10 matches — the Steady parents the filter hides included', p02.length === 10 && bodyRows(N.el('plTable').innerHTML) === 10 && p02.some(r => r.action === 'Steady'), p02.map(r => r.action).join());
+    ok('…a line says the filter is set aside; no extra "Search all parents" button', /Searching every parent/.test(N.el('plMore').innerHTML) && !/allact|Search all parents/.test(N.el('plMore').innerHTML) && N.el('plAct').value === 'TODO');
+    N.el('plAct').value = 'Restock — out';
+    N.renderPlaudit();
+    ok('…the same with one action chosen (Restock — out): all 10 matches', N.R().rows.length === 10);
+    N.el('plFilter').value = '';
+    N.fire('click', { target: target(['#panePlaudit', '[data-plx-card]'], { plxCard: 'spend' }) });
+    const spendRows = N.R().rows.length;
+    N.el('plFilter').value = 'name p03';
+    N.renderPlaudit();
+    ok(`with the 💸 card on (${spendRows} parents), a search finds all 10 "P03…" parents — none of them on that card`, spendRows === 3 && N.R().rows.length === 10 && N.R().rows.every(r => N.plxCardOf(r).k !== 'spend'));
+    N.el('plFilter').value = '';
+    N.renderPlaudit();
+    ok('…and clearing the search brings the card back (3 rows)', N.R().rows.length === 3 && N.PLX.card === 'spend');
+    ok('the old "Search all parents" button is gone from the code', !/allact/.test(SRC('plr-insights.js')));
   }
 
   console.log('== 3. the cards: the existing plAction names grouped; counts, a click filters, again = all; top 3 by money ==');
@@ -196,7 +212,7 @@ const flush = () => new Promise(r => setImmediate(r));
     const N = NOW();
     N.renderPlaudit();
     const every = N.PLX.info.every, story = N.el('plxStory').textContent;
-    ok('the story: "Last week (Nov 15–21) 7 parents need stock, 4 lost traffic, 3 spend too much on ads, 2 are selling down…; 24 are healthy."', /^Last week \(Nov 15–21\) 7 parents need stock, 4 lost traffic, 3 spend too much on ads, 2 are selling down with too much stock; 24 are healthy\./.test(story), story);
+    ok('the story: "Last week (Nov 15–21) 7 parents need stock, 4 lost traffic, 3 spend too much on ads, 2 have sales down; 24 are healthy."', /^Last week \(Nov 15–21\) 7 parents need stock, 4 lost traffic, 3 spend too much on ads, 2 have sales down; 24 are healthy\./.test(story), story);
     const worry = every.filter(r => !['Steady', 'New — watch', 'Add budget'].includes(r.action)).sort((a, b) => {
       const st = r => (/^Restock/.test(r.action) ? r.avgSales : ['Cut spend', 'Spend too high'].includes(r.action) ? r.lwSpend : Math.max(0, r.avgSales - r.lwSales));
       return st(b) - st(a);
@@ -303,6 +319,70 @@ const flush = () => new Promise(r => setImmediate(r));
     S.el('plxPanel'); S.els.plIns = S.el('plIns');
     await S.ensurePlaudit();
     ok('the skeletons are drawn first, then replaced by the figures', /plx-kpis/.test(S.el('plIns').innerHTML) && S.el('plxStory').textContent.startsWith('Last week'));
+  }
+
+  console.log('== 8. (28 Nov 2026, 2nd) 📉 Sales down also holds Sales Alerts\' confirmed drops for the week — never ✅ Healthy ==');
+  {
+    // Sales Alerts' ONE result (alFor): P020 (Steady here) confirmed Important −38 % on 14–20 Nov (touches the week shown, 15–21 Nov);
+    // P021 (Steady) a Watch on 22–27 Nov (after that week); P001 (Restock — out) Critical; P023 only "waiting" (not a confirmed drop)
+    const asked = [];
+    const RES = { ok: true, alerts: [
+      { key: 'SP|P020', sev: 'important', drop: 38.4, atRisk: 2500, from: '2026-11-14', to: '2026-11-20' },
+      { key: 'SP|P021', sev: 'watch', drop: 21, atRisk: 400, from: '2026-11-22', to: '2026-11-27' },
+      { key: 'SP|P001', sev: 'critical', drop: 60, atRisk: 4000, from: '2026-11-12', to: '2026-11-21' },
+      { key: 'SP|P023', sev: 'waiting', drop: 30, atRisk: 300, from: '2026-11-20', to: '2026-11-21' }], review: [], waiting: [] };
+    const al = () => ({ AL: { data: {}, v: 1 }, VI: { data: {} }, alFor: b => { asked.push(b); return b === 'SP' ? RES : { ok: true, alerts: [] }; }, alMay: () => true });
+    const N = NOW(al());
+    N.renderPlaudit();
+    const every = N.PLX.info.every, row = p => every.find(r => r.parent === p);
+    ok('read through Sales Alerts\' one result for each brand on screen (alFor SP, CPC)', asked.includes('SP') && asked.includes('CPC'));
+    ok('a Steady parent Sales Alerts confirms as a drop that week (P020) → 📉 Sales down, not ✅ Healthy', N.plxCardOf(row('P020')).k === 'down' && row('P020').action === 'Steady');
+    const m = N.PLX.model;
+    ok('the counts move: 📉 Sales down 3 (2 Overstocked + P020), ✅ Healthy 23', m.cards[3].n === 3 && m.cards[4].n === 23 && !m.cards[4].top3.some(x => x.key === 'SP|P020'), JSON.stringify(m.cards.map(c => [c.k, c.n])));
+    ok('a drop on days after the week shown (P021) does not count for it; a "waiting" one (P023) is not a confirmed drop', N.plxCardOf(row('P021')).k === 'ok' && N.plxCardOf(row('P023')).k === 'ok');
+    ok('a parent already on a problem card keeps it (P001: 📦 Restock), counted once', N.plxCardOf(row('P001')).k === 'stock' && m.cards.reduce((t, c) => t + c.n, 0) === 40);
+    const cards = N.el('plxCards').innerHTML;
+    ok('the 📉 card line shows Sales Alerts\' drop: "Name P020 🟠 Important −38% $2,500" (its $ a week at risk), first by money', /<li><span>Name P020<\/span><em>\$2,500<\/em><i class="plx-al"[^>]*>🟠 Important −38%<\/i><\/li>/.test(cards) && m.cards[3].top3[0].key === 'SP|P020', (cards.match(/is-down[\s\S]*?<\/button>/) || [''])[0]);
+    ok('…and says what it covers: "Overstocked · Sales Alerts drops"', /Overstocked · Sales Alerts drops/.test(cards));
+    ok('the story counts it: "3 have sales down; 23 are healthy"', /3 have sales down; 23 are healthy\./.test(N.el('plxStory').textContent), N.el('plxStory').textContent);
+    N.el('plAct').value = 'ALL';
+    N.fire('click', { target: target(['#panePlaudit', '[data-plx-card]'], { plxCard: 'down' }) });
+    ok('click 📉 → the table shows P020 with the 2 Overstocked; its Action cell still says Steady (the table is unchanged)', N.R().rows.length === 3 && N.R().rows.some(r => r.parent === 'P020') && /data-pl-row="SP\|P020"[\s\S]*?<span class="muted">Steady<\/span><\/td><\/tr>/.test(N.el('plTable').innerHTML));
+    N.fire('click', { target: target(['#panePlaudit', '[data-plx-card]'], { plxCard: 'ok' }) });
+    ok('click ✅ Healthy → 23 rows, P020 not among them', N.R().rows.length === 23 && !N.R().rows.some(r => r.parent === 'P020'));
+    N.plxPanelOpen('SP|P020');
+    ok('its panel says it: "📉 Sales Alerts: 🟠 Important −38% — sales down 38% from 2026-11-14 to 2026-11-20"', /📉 Sales Alerts: <b>🟠 Important −38%<\/b> — sales down 38% from 2026-11-14 to 2026-11-20/.test(N.el('plxPanel').innerHTML));
+    // an earlier week: the alert's days do not touch it → healthy again
+    N.fire('change', { target: { id: 'plWeek', value: WEEKS[6] } });
+    ok('on an earlier week (Oct 25–31) the drop does not apply: P020 is ✅ Healthy there', N.plxCardOf(N.PLX.info.every.find(r => r.parent === 'P020')).k === 'ok');
+    if (OLD) {
+      const O = load(OLD), M = NOW(al());
+      for (const X of [O, M]) { X.el('plAct').value = 'ALL'; }
+      M.PLX.all = true;
+      O.renderPlaudit(); M.renderPlaudit();
+      O.el('plExport').onclick(); M.el('plExport').onclick();
+      ok('with Sales Alerts on, the table and Export are still the same as before', O.el('plTable').innerHTML === noRowAttr(M.el('plTable').innerHTML) && O.blobs[0] === M.blobs[0]);
+    }
+  }
+  {
+    // not loaded yet: its own loader starts once (read-only), the card says so, then the page redraws with the drops
+    let loads = 0;
+    const st = { AL: { data: null, v: 0 }, VI: { data: null }, alMay: () => true };
+    st.alFor = b => (b === 'SP' ? { ok: true, alerts: [{ key: 'SP|P020', sev: 'critical', drop: 50, atRisk: 3000, from: '2026-11-15', to: '2026-11-21' }] } : { ok: true, alerts: [] });
+    st.alLoad = () => { loads++; return new Promise(r => setImmediate(() => { st.AL.data = {}; st.VI.data = {}; r(); })); };
+    const N = NOW(st);
+    N.renderPlaudit();
+    ok('Sales Alerts not loaded → its loader is started (once) and the 📉 card says "Sales Alerts loading…"', loads === 1 && /Sales Alerts loading…/.test(N.el('plxCards').innerHTML));
+    N.renderPlaudit();
+    ok('…a second redraw does not start it again', loads === 1);
+    await flush(); await flush();
+    ok('…when it is in, the page redraws: P020 on 📉 Sales down ("🔴 Critical −50%")', N.plxCardOf(N.PLX.info.every.find(r => r.parent === 'P020')).k === 'down' && /🔴 Critical −50%/.test(N.el('plxCards').innerHTML) && /Sales Alerts drops/.test(N.el('plxCards').innerHTML));
+    const off = NOW({ AL: { data: null }, VI: { data: null }, alFor: () => null, alLoad: () => { loads++; return Promise.resolve(); }, alMay: () => false });
+    off.renderPlaudit();
+    ok('an account without Sales Alerts: nothing is loaded, the card says "Sales Alerts not checked yet"', loads === 1 && /Sales Alerts not checked yet/.test(off.el('plxCards').innerHTML));
+    const none = NOW();
+    none.renderPlaudit();
+    ok('…the same when Sales Alerts\' code is not there at all; the cards still work from the actions', /Sales Alerts not checked yet/.test(none.el('plxCards').innerHTML) && none.PLX.model.cards[3].n === 2);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

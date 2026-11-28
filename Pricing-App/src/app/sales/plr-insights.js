@@ -23,7 +23,7 @@ const PLX_CARDS = [
   { k: 'stock', e: '📦', t: 'Restock', acts: ['Restock — out', 'Restock — low'], say: n => `${n} parent${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} stock` },
   { k: 'traffic', e: '👀', t: 'Low traffic', acts: ['Traffic drop', 'Fix the page'], say: n => `${n} lost traffic` },
   { k: 'spend', e: '💸', t: 'Ad spend high', acts: ['Cut spend', 'Spend too high'], say: n => `${n} spend too much on ads` },
-  { k: 'down', e: '📉', t: 'Sales down', acts: ['Overstocked'], say: n => `${n} ${n === 1 ? 'is' : 'are'} selling down with too much stock` },
+  { k: 'down', e: '📉', t: 'Sales down', acts: ['Overstocked'], say: n => `${n} ${n === 1 ? 'has' : 'have'} sales down` },
   { k: 'ok', e: '✅', t: 'Healthy', acts: ['Steady', 'New — watch', 'Add budget'], say: n => `${n} ${n === 1 ? 'is' : 'are'} healthy` },
 ];
 // The Action Tracker quick pick (TK_PICKS) a "+ Task" starts on, per action.
@@ -33,24 +33,67 @@ const plxEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': 
 const PLX_NUM = new Intl.NumberFormat('en-US');
 const plxMoney = v => (v == null ? '—' : (v < 0 ? '−' : '') + '$' + PLX_NUM.format(Math.round(Math.abs(v))));
 const plxEl = id => (typeof document !== 'undefined' && document.getElementById ? document.getElementById(id) : null);
-const plxCardOf = action => PLX_CARDS.find(c => c.acts.includes(action)) || null;
+/** A parent's card: its action's card — but a parent Sales Alerts confirms as a drop for the week (row.al, plxMark) is 📉 Sales down,
+ *  never ✅ Healthy. (A stock / traffic / spend problem keeps its own card: one card per parent, as plAction asks stock first.) */
+function plxCardOf(row) {
+  const c = PLX_CARDS.find(x => x.acts.includes(row.action)) || PLX_CARDS[4];
+  return c.k === 'ok' && row.al ? PLX_CARDS[3] : c;
+}
 /** Money at stake for a parent, for its card's top 3: a week's average sales for stock, a lost week (average − last week) for traffic
- *  and sales down, last week's ad spend for spend, last week's sales for healthy. */
+ *  and sales down (Sales Alerts' $ a week at risk when it is a confirmed drop), last week's ad spend for spend, last week's sales for healthy. */
 function plxStake(row) {
-  const c = plxCardOf(row.action);
-  const k = c ? c.k : 'ok';
+  const k = plxCardOf(row).k;
   if (k === 'stock') return row.avgSales || row.lwSales || 0;
   if (k === 'spend') return row.lwSpend || 0;
+  if (k === 'down' && row.al && row.al.atRisk > 0) return row.al.atRisk;
   if (k === 'traffic' || k === 'down') return Math.max(0, (row.avgSales || 0) - (row.lwSales || 0));
   return row.lwSales || 0;
 }
+
+/* ----- Sales Alerts: its confirmed drops, from its ONE result (alFor, sales-alerts.js — the page, the Dashboard card, the Forecast and
+ *   the Action Tracker read the same object). Read-only: when it is not loaded yet, its own loader (alLoad) is started once. ----- */
+const PLX_AL_SEV = { critical: '🔴 Critical', important: '🟠 Important', watch: '🟡 Watch' };
+/** Mark each row with the Sales Alerts drop of its parent whose days touch the week shown (row.al = { sev, drop, atRisk, from, to }, else
+ *  null) and say how Sales Alerts stands: PLX.alState 'ok' | 'loading' | 'none' (not loaded / not allowed / failed). */
+function plxMark(rows, week) {
+  rows.forEach(r => { r.al = null; });
+  PLX.alState = 'none';
+  if (typeof AL === 'undefined' || typeof alFor !== 'function') return;
+  if (!AL.data || typeof VI === 'undefined' || !VI.data) {
+    if (!PLX.alAsked && typeof alLoad === 'function' && (typeof alMay !== 'function' || alMay('salert'))) {
+      PLX.alAsked = true;
+      PLX.alBusy = true;
+      let job;
+      try { job = alLoad(); } catch (e) { job = null; }
+      Promise.resolve(job).catch(() => null).then(() => {
+        PLX.alBusy = false;
+        const pane = plxEl('panePlaudit');
+        if (typeof renderPlaudit === 'function' && (!pane || !pane.classList || !pane.classList.contains('hide'))) renderPlaudit();
+      });
+    }
+    if (PLX.alBusy) PLX.alState = 'loading';
+    return;
+  }
+  if (!week) return;
+  const end = typeof sdShift === 'function' ? sdShift(week, 6) : week;
+  const by = {};
+  [...new Set(rows.map(r => r.brand))].forEach(b => {
+    let res = null;
+    try { res = alFor(b); } catch (e) { res = null; }
+    if (!res || !res.ok) return;
+    PLX.alState = 'ok';
+    res.alerts.forEach(a => { if (PLX_AL_SEV[a.sev] && a.from <= end && a.to >= week && !by[a.key]) by[a.key] = a; });
+  });
+  rows.forEach(r => { const a = by[r.brand + '|' + r.parent]; if (a) r.al = { sev: a.sev, drop: a.drop, atRisk: a.atRisk, from: a.from, to: a.to }; });
+}
+const plxAlTxt = al => `${PLX_AL_SEV[al.sev]} −${Math.round(al.drop)}%`;
 const plxDays = row => (row.stock === 0 ? 0 : row.dos == null ? null : row.dos * PLX_M.daysPerMonth);
 /** The insights of a set of rows (plRows' rows for the brand and week): { cards: [{ k, n, top3 }], kpi, story }. Pure. */
 function plxModel(rows, ctx) {
   const c = ctx || {};
   const cards = PLX_CARDS.map(card => {
-    const list = rows.filter(r => card.acts.includes(r.action));
-    return Object.assign({}, card, { n: list.length, top3: list.slice().sort((a, b) => plxStake(b) - plxStake(a)).slice(0, 3).map(r => ({ key: r.brand + '|' + r.parent, title: r.title || r.parent, stake: plxStake(r), action: r.action, why: r.why })) });
+    const list = rows.filter(r => plxCardOf(r).k === card.k);
+    return Object.assign({}, card, { n: list.length, top3: list.slice().sort((a, b) => plxStake(b) - plxStake(a)).slice(0, 3).map(r => ({ key: r.brand + '|' + r.parent, title: r.title || r.parent, stake: plxStake(r), action: r.action, why: r.why, al: r.al || null })) });
   });
   const sum = k => rows.reduce((t, r) => t + (r[k] || 0), 0);
   const kpi = { lwSales: sum('lwSales'), avgSales: sum('avgSales'), lwSpend: c.lwSpend == null ? null : c.lwSpend, avgSpend: c.avgSpend == null ? null : c.avgSpend,
@@ -62,26 +105,26 @@ function plxModel(rows, ctx) {
   const okN = by('ok');
   const head = c.weekLabel ? `Last week (${c.weekLabel})` : 'Last week';
   let story = parts.length ? `${head} ${parts.join(', ')}${okN ? `; ${PLX_CARDS[4].say(okN)}` : ''}.` : `${head} all ${okN} parents are healthy.`;
-  const worry = rows.filter(r => { const k = (plxCardOf(r.action) || {}).k; return k && k !== 'ok'; }).sort((a, b) => plxStake(b) - plxStake(a))[0];
+  const worry = rows.filter(r => plxCardOf(r).k !== 'ok').sort((a, b) => plxStake(b) - plxStake(a))[0];
   if (worry) {
     const bits = [];
     if (worry.diff != null) bits.push(`${worry.diff < 0 ? '−' : '+'}${Math.round(Math.abs(worry.diff) * 100)}% vs 6-week average`);
+    if (worry.al) bits.push(`Sales Alerts ${plxAlTxt(worry.al)}`);
     const d = plxDays(worry);
     if (d != null) bits.push(`${Math.round(d)} day${Math.round(d) === 1 ? '' : 's'} of stock`);
     story += ` Biggest worry: ${worry.title || worry.parent}${bits.length ? ` (${bits.join(', ')})` : ''}.`;
   }
   return { cards, kpi, story };
 }
-/** Which rows the table draws: a card's (all of them); every match of a search; all (Show other N); else the top 15. */
+/** Which rows the table draws: every match of a search; a card's (all of them); all (Show other N); else the top 15. */
 function plxLimit(rows, search) {
   if (PLX.card || search || PLX.all) return { shown: rows, rest: 0, all: !PLX.card && !search && rows.length > PLX_M.top };
   return { shown: rows.slice(0, PLX_M.top), rest: Math.max(0, rows.length - PLX_M.top) };
 }
-/** The card filter, on the table's rows (after its own filters). */
+/** The card filter, on the table's rows (after its own filters; never while searching — a search looks through every parent). */
 function plxFilter(rows) {
   if (!PLX.card) return rows;
-  const card = PLX_CARDS.find(c => c.k === PLX.card);
-  return card ? rows.filter(r => card.acts.includes(r.action)) : rows;
+  return PLX_CARDS.some(c => c.k === PLX.card) ? rows.filter(r => plxCardOf(r).k === PLX.card) : rows;
 }
 
 /* ----- drawing ----- */
@@ -141,22 +184,21 @@ function plxAfter(lim, info) {
     + `<div class="plx-kpi${k.low ? ' is-bad' : ''}"><span>Under ${PLX_M.lowDays} days of stock</span><b>${PLX_NUM.format(k.low)}</b><small>parents (at last week's rate)</small></div>`
     + `<div class="plx-kpi"><span>Ranking worse</span><b>${k.worse == null ? '—' : PLX_NUM.format(k.worse)}</b><small>${k.worse == null ? 'one rank snapshot only' : 'parents (BSR snapshots, week on week)'}</small></div>`;
   const cards = plxEl('plxCards');
-  if (cards) cards.innerHTML = m.cards.map(c => `<button type="button" class="plx-card is-${c.k}${PLX.card === c.k ? ' is-on' : ''}" data-plx-card="${c.k}" aria-pressed="${PLX.card === c.k}" title="${plxEsc(c.acts.join(' · '))}"${c.n ? '' : ' disabled'}>`
-    + `<span class="plx-ct">${c.e} ${plxEsc(c.t)}</span><b>${PLX_NUM.format(c.n)}</b><small class="muted">${plxEsc(c.acts.join(' · '))}</small>`
-    + (c.top3.length ? `<ol>${c.top3.map(x => `<li><span>${plxEsc(x.title)}</span><em>${plxMoney(x.stake)}</em></li>`).join('')}</ol>` : '') + '</button>').join('');
+  // what each card covers; Sales down also says how Sales Alerts stands
+  const covers = c => c.acts.join(' · ') + (c.k !== 'down' ? '' : PLX.alState === 'ok' ? ' · Sales Alerts drops' : PLX.alState === 'loading' ? ' · Sales Alerts loading…' : ' · Sales Alerts not checked yet');
+  if (cards) cards.innerHTML = m.cards.map(c => `<button type="button" class="plx-card is-${c.k}${PLX.card === c.k ? ' is-on' : ''}" data-plx-card="${c.k}" aria-pressed="${PLX.card === c.k}" title="${plxEsc(covers(c))}"${c.n ? '' : ' disabled'}>`
+    + `<span class="plx-ct">${c.e} ${plxEsc(c.t)}</span><b>${PLX_NUM.format(c.n)}</b><small class="muted">${plxEsc(covers(c))}</small>`
+    + (c.top3.length ? `<ol>${c.top3.map(x => `<li><span>${plxEsc(x.title)}</span><em>${plxMoney(x.stake)}</em>${c.k === 'down' && x.al ? `<i class="plx-al" title="Sales Alerts: ${plxEsc(x.al.from)} → ${plxEsc(x.al.to)}">${plxEsc(plxAlTxt(x.al))}</i>` : ''}</li>`).join('')}</ol>` : '') + '</button>').join('');
   // under the table
   const more = plxEl('plMore');
   if (more) {
     const card = PLX.card && PLX_CARDS.find(c => c.k === PLX.card);
-    // a search under an Action filter: say how many more parents match under the other actions
-    const q = plxEl('plFilter') ? String(plxEl('plFilter').value || '').trim().toLowerCase() : '';
+    const q = plxEl('plFilter') ? String(plxEl('plFilter').value || '').trim() : '';
     const act = plxEl('plAct') ? plxEl('plAct').value : 'ALL';
-    const hits = q && !card && act !== 'ALL' ? all.filter(r => (r.parent + ' ' + r.child + ' ' + r.title).toLowerCase().includes(q)).length : 0;
-    const shownN = lim ? lim.shown.length : 0;
-    const hint = hits > shownN ? `<span class="muted">${PLX_NUM.format(hits - shownN)} more parent${hits - shownN === 1 ? ' matches' : 's match'} under other actions</span><button type="button" class="ghost plx-btn" data-plx="allact">Search all parents</button>` : '';
-    more.innerHTML = hint || (card ?`<span class="muted">Showing the ${card.e} ${plxEsc(card.t)} parents</span><button type="button" class="ghost plx-btn" data-plx="clear">Show all ✕</button>`
+    more.innerHTML = q ? (card || act !== 'ALL' ? '<span class="muted">Searching every parent — the Action filter and the card are set aside while you search</span>' : '')
+      : card ? `<span class="muted">Showing the ${card.e} ${plxEsc(card.t)} parents</span><button type="button" class="ghost plx-btn" data-plx="clear">Show all ✕</button>`
       : lim && lim.rest > 0 ? `<button type="button" class="ghost plx-btn" data-plx="more" aria-expanded="false">Show other ${PLX_NUM.format(lim.rest)} parent${lim.rest === 1 ? '' : 's'} ▾</button>`
-      : lim && lim.all ? '<button type="button" class="ghost plx-btn" data-plx="fewer" aria-expanded="true">Show fewer ▴</button>' : '');
+      : lim && lim.all ? '<button type="button" class="ghost plx-btn" data-plx="fewer" aria-expanded="true">Show fewer ▴</button>' : '';
   }
   if (PLX.panel) plxPanelDraw();
 }
@@ -247,12 +289,12 @@ function plxPanelDraw() {
     if (fam && fam.cover && fam.cover.likely != null) cover = `about ${PLX_NUM.format(fam.cover.likely)} days of cover (Forecast)`;
   } catch (e) { cover = ''; }
   if (!cover) { const d = plxDays(row); cover = d == null ? 'days of cover not known (no sales last week)' : `about ${Math.round(d)} days of cover at last week's rate`; }
-  const card = plxCardOf(row.action);
+  const card = plxCardOf(row);
   const task = typeof tkBtnHtml === 'function' ? tkBtnHtml({ src: 'plr', brand: row.brand, key: row.brand + '|' + row.parent, parent: row.parent, name: row.title || row.parent, problem: `${row.action}: ${row.why || ''}`, kind: 'plr', ref: 'plr|' + row.brand + '|' + row.parent, pick: PLX_PICK[row.action] || 'other' }, 'plx-btn', '+ Task') : '';
   box.innerHTML = `<header class="plx-ph">${row.img ? `<img src="${plxEsc(typeof plThumb === 'function' ? plThumb(row.img) : row.img)}" alt="" class="plx-img">` : '<div class="plx-img plx-noimg">no photo</div>'}`
     + `<div class="plx-ph-t"><h2>${plxEsc(row.title || row.parent)}</h2><p>${plxEsc(typeof BRAND_NAME !== 'undefined' ? BRAND_NAME[row.brand] || row.brand : row.brand)} · ${plxEsc(row.parent)}</p></div>`
     + `<button type="button" class="plx-x" data-plx="close" aria-label="Close (Esc)">✕</button></header>`
-    + `<div class="plx-pb"><p class="plx-act">${typeof PL_ACT_TAG !== 'undefined' && PL_ACT_TAG[row.action] ? PL_ACT_TAG[row.action] : plxEsc(row.action)} ${card ? `<span class="muted">${card.e}</span>` : ''} ${plxEsc(row.why || '')}</p>`
+    + `<div class="plx-pb"><p class="plx-act">${typeof PL_ACT_TAG !== 'undefined' && PL_ACT_TAG[row.action] ? PL_ACT_TAG[row.action] : plxEsc(row.action)} ${card ? `<span class="muted">${card.e}</span>` : ''} ${plxEsc(row.why || '')}</p>` + (row.al ? `<p class="plx-act plx-alline">📉 Sales Alerts: <b>${plxEsc(plxAlTxt(row.al))}</b> — sales down ${Math.round(row.al.drop)}% from ${plxEsc(row.al.from)} to ${plxEsc(row.al.to)}</p>` : '')
     + `<div class="plx-btns">${task}<button type="button" class="ghost plx-btn" data-plx="card">All figures</button></div>`
     + `<h3 class="plx-h3">The last 6 weeks</h3><div class="plx-chart" id="plxChart" role="img" aria-label="Weekly sales (bars) and ad spend (line), last week highlighted"></div>`
     + `<div class="plx-grid"><div><h3 class="plx-h3">Stock</h3><p><b>${row.stock == null ? '—' : PLX_NUM.format(row.stock)}</b> at Amazon · ${plxEsc(cover)}</p></div>`
@@ -305,7 +347,6 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (d.plx === 'more') { PLX.all = true; return renderPlaudit(); }
     if (d.plx === 'fewer') { PLX.all = false; return renderPlaudit(); }
     if (d.plx === 'clear') { PLX.card = ''; return renderPlaudit(); }
-    if (d.plx === 'allact') { const a = plxEl('plAct'); if (a) a.value = 'ALL'; return renderPlaudit(); }
     if (d.plx === 'close') return plxPanelClose();
     if (d.plx === 'card') { const row = plxRowOf(PLX.panel); if (row && typeof plCardOpen === 'function') plCardOpen(row.parent); return undefined; }
     if (d.plxCard) { PLX.card = PLX.card === d.plxCard ? '' : d.plxCard; return renderPlaudit(); }

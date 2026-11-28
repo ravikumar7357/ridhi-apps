@@ -3295,6 +3295,8 @@
   #panePlaudit .plx-card li em { float: right; margin-left: 6px; font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
   #panePlaudit .plx-card.is-stock li em, #panePlaudit .plx-card.is-down li em, #panePlaudit .plx-card.is-traffic li em, #panePlaudit .plx-card.is-spend li em { color: var(--bad-ink); }
   #panePlaudit .plx-card.is-ok li em { color: var(--accent-ink); }
+  #panePlaudit .plx-card li .plx-al { display: block; font-style: normal; font-size: 11px; font-weight: 600; color: var(--bad-ink); white-space: nowrap; }
+  #plxPanel .plx-alline { padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--bad-ink) 8%, transparent); }
   #panePlaudit .plx-more { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; padding: 10px; font-size: 13px; }
   #panePlaudit .plx-more:empty { display: none; }
   #panePlaudit .plx-btn, #plxPanel .plx-btn { width: auto; }

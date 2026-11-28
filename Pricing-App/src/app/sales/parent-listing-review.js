@@ -379,13 +379,17 @@ function plRows() {
     row.action = act.a;
     row.why = act.why;
   });
+  // Sales Alerts' confirmed drops for this week (plr-insights.js: they put a parent on the 📉 Sales down card, never ✅ Healthy)
+  if (typeof plxMark === 'function') plxMark(out, lastWeek);
 
   let rows = out;
   if (typeSel !== 'ALL') rows = rows.filter(row => row.type === typeSel);
   const every = rows;   // the brand's parents for the week and type, before the action / card / search filters (the insights read these)
   const actSel = $('plAct').value;
-  // A card (plr-insights.js) picks the actions itself, in place of the Action filter.
-  if (plx && plx.card && typeof plxFilter === 'function') rows = plxFilter(rows);
+  // (28 Nov 2026) A search looks through EVERY parent: the Action filter and a card (plr-insights.js) are set aside while it is typed.
+  // A card picks the actions itself, in place of the Action filter.
+  if (search) { /* every parent */ }
+  else if (plx && plx.card && typeof plxFilter === 'function') rows = plxFilter(rows);
   else if (actSel === 'TODO') rows = rows.filter(row => row.action !== 'Steady' && row.action !== 'New — watch');
   else if (actSel !== 'ALL') rows = rows.filter(row => row.action === actSel);
   if (search) rows = rows.filter(row => (row.parent + ' ' + row.child + ' ' + row.title).toLowerCase().includes(search));
