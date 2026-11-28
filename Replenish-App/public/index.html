@@ -2719,9 +2719,9 @@ html:not(.mob) #paneFgi.fgt-on .toolbar>:is(#fgBrand,#fgaView){order:-1}
   html:not(.mob) #paneFgi.fgt-on .fgt-panel{flex:0 0 320px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
 }
 @media (max-width:760px){
-  #paneFgi .fgt-panel{position:fixed;inset:0;z-index:940;margin:0;border-radius:0;overflow:auto}
+  #paneFgi .fgt-panel{position:fixed;inset:0;z-index:940;margin:0;border-radius:0;overflow:auto;background:var(--card);padding:16px}
 }
-html.mob #paneFgi .fgt-panel{position:fixed;inset:0;z-index:940;margin:0;border-radius:0;overflow:auto;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+html.mob #paneFgi .fgt-panel{position:fixed;inset:0;z-index:940;margin:0;border-radius:0;overflow:auto;background:var(--card);padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
 html.mob .fgt-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
 html.mob .fgt-tab{flex:0 0 auto;min-height:44px}
 html.mob .fgt-p-acts button,html.mob .fgt-views button{flex:1 1 calc(50% - 8px);min-height:44px}

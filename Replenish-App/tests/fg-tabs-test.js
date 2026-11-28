@@ -235,6 +235,9 @@ console.log('== wiring ==');
   ok('the phone\'s Every movement clears the Issue filter', has('core/mobile.js', "$('fgQ').value = v; FGI_KPI = ''; renderFgi();"));
   const page = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
   ok('the new boxes are on the page, hidden', ['fgtSwitch', 'fgtBar', 'fgtViews', 'fgtTiles', 'fgtPanel'].every(id => new RegExp(`id="${id}" class="[^"]*\\bhide"`).test(page)));
+  const css = fs.readFileSync(process.env.FGT_CSS || path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
+  const sheets = css.split(/\r?\n/).filter(l => l.includes('.fgt-panel{position:fixed'));
+  ok('the article panel on a phone has a solid background (28 Nov: it showed the list through it)', sheets.length === 2 && sheets.every(l => l.includes(';background:var(--card)')));
 }
 
 const { pass, fail } = counts();
