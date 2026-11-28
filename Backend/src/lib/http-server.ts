@@ -11,6 +11,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { handle, type Answer, type Deps, type Route } from './router.ts';
 import { erpDoor } from '../erp/door.ts';
+import { readFile } from 'node:fs/promises';
 
 export interface ServerDeps extends Omit<Deps, 'routes'> {
   apiRoutes: Route[];
@@ -53,6 +54,13 @@ export function requestHandler(d: ServerDeps) {
       const path = url.pathname.replace(/\/+$/, '') || '/';
       if (path === '/health') {
         send(res, { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ ok: true, ...(d.health ? d.health() : {}) }) });
+        return;
+      }
+      if (path === '/erp/try' && /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(req.socket.remoteAddress || '')) {
+        // a test page for the door, answered only to this same computer (never on the Droplet's public address)
+        const html = await readFile(new URL('../../tools/erp-door-try.html', import.meta.url), 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(html);
         return;
       }
       const door = path.match(/^\/erp\/(save|read)$/);
