@@ -844,22 +844,18 @@ async function soFormSave(place) {
   if (place) { rec.submittedAt = now; rec.saRemarks = ''; }
   rec.updatedAt = now;
 
-  await ptPut('pt_salesOrders/' + rec._id, rec);
-  if (oldId && oldId !== rec._id) {
-    // The draft renumbered. Its old node has to go, or the same order sits under two numbers.
-    try { await ptDelete('pt_salesOrders/' + oldId); } catch (e) { /* already gone */ }
-    SOX.rows = (SOX.rows || []).filter(s => s._id !== oldId);
-  }
+  /* ONE SAVE (28 Nov, ERP backend E2): the order, the removal of its old number (a renumbered draft) and its lines'
+   * priority tags go in ONE ptPatch, so ERP data saves all of them or none. Before, three saves one after another: a
+   * failure between them left the same order under two numbers, or the tags lost. ptPatch copies the old-numbered
+   * record to the recycle bin first, as ptDelete did. Priority tags are a SKU-wide master, not a property of the line. */
+  const renumbered = !!(oldId && oldId !== rec._id);
+  const one = { ['pt_salesOrders/' + rec._id]: rec };
+  if (renumbered) one['pt_salesOrders/' + oldId] = null;
+  lines.forEach(l => { if (l.priority) one['pt_skuPriority/' + l.sku] = l.priority; });
+  await ptPatch(one);
+  if (renumbered) SOX.rows = (SOX.rows || []).filter(s => s._id !== oldId);
   const i = (SOX.rows || []).findIndex(s => s._id === rec._id);
   if (i >= 0) SOX.rows[i] = rec; else SOX.rows = (SOX.rows || []).concat(rec);
-
-  // Priority tags are a SKU-wide master in this database, not a property of the line.
-  const tags = {};
-  lines.forEach(l => { if (l.priority) tags[l.sku] = l.priority; });
-  if (Object.keys(tags).length) {
-    try { await ptPatch(Object.keys(tags).reduce((m, k) => (m['pt_skuPriority/' + k] = tags[k], m), {})); }
-    catch (e) { /* the order is saved; a tag that did not stick is not worth losing it over */ }
-  }
   SOF.id = rec._id;
   /* NEW B2B ITEMS go on the Custom SKUs list, once each, with what the buyer said about them. One
    * already on the list is left as it is — somebody may have completed it. */
