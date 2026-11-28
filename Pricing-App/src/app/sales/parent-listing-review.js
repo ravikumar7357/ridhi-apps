@@ -163,7 +163,7 @@ function plThumb(url) {
 // Opening the tab: make sure everything the rows are built from is loaded (listings, parent names, launch
 // dates, ranks, photos, weekly figures, last night's merge), then draw.
 async function ensurePlaudit() {
-  if (typeof plxShell === 'function') plxShell();   // the insights' skeletons while the data loads (plr-insights.js)
+  if (typeof plrxShell === 'function') plrxShell();   // the insights' skeletons while the data loads (plr-insights.js)
   if (!H_LOADED) {
     plMsg('Loading listings…');
     await loadHealthCache();
@@ -237,7 +237,7 @@ function plLaunchOf(brand, parent, kids) {
 // cover, launch age, BSR and the suggested action; then filter and sort them as the controls say.
 // → { rows, lastWeek, avgWeeks, bsrWeek, skipped, weekly }.
 function plRows() {
-  const plx = typeof PLX !== 'undefined' ? PLX : null;   // plr-insights.js: the chosen week and the card (28 Nov 2026)
+  const plrx = typeof PLRX !== 'undefined' ? PLRX : null;   // plr-insights.js: the chosen week and the card (28 Nov 2026)
   // --- the controls ---
   const brandSel = $('plBrand').value;
   const brands = adBrands().filter(b => brandSel === 'ALL' || b === brandSel);
@@ -251,7 +251,7 @@ function plRows() {
   const thisWeek = wKeyOfDate(sdToday());
   const doneAll = all.filter(w => w < thisWeek);
   // The 📅 week picker (plr-insights.js): a chosen completed week is "last week", its average the six weeks up to it. None = the latest, as before.
-  const done = plx && plx.week && doneAll.includes(plx.week) ? doneAll.filter(w => w <= plx.week) : doneAll;
+  const done = plrx && plrx.week && doneAll.includes(plrx.week) ? doneAll.filter(w => w <= plrx.week) : doneAll;
   const lastWeek = done[done.length - 1] || '';
   // Last week is last week whatever happened in it — that is the figure you came to look at. Only
   // the AVERAGE skips event weeks, and reaches further back so it still spans six real ones.
@@ -380,7 +380,7 @@ function plRows() {
     row.why = act.why;
   });
   // Sales Alerts' confirmed drops for this week (plr-insights.js: they put a parent on the 📉 Sales down card, never ✅ Healthy)
-  if (typeof plxMark === 'function') plxMark(out, lastWeek);
+  if (typeof plrxMark === 'function') plrxMark(out, lastWeek);
 
   let rows = out;
   if (typeSel !== 'ALL') rows = rows.filter(row => row.type === typeSel);
@@ -389,7 +389,7 @@ function plRows() {
   // (28 Nov 2026) A search looks through EVERY parent: the Action filter and a card (plr-insights.js) are set aside while it is typed.
   // A card picks the actions itself, in place of the Action filter.
   if (search) { /* every parent */ }
-  else if (plx && plx.card && typeof plxFilter === 'function') rows = plxFilter(rows);
+  else if (plrx && plrx.card && typeof plrxFilter === 'function') rows = plrxFilter(rows);
   else if (actSel === 'TODO') rows = rows.filter(row => row.action !== 'Steady' && row.action !== 'New — watch');
   else if (actSel !== 'ALL') rows = rows.filter(row => row.action === actSel);
   if (search) rows = rows.filter(row => (row.parent + ' ' + row.child + ' ' + row.title).toLowerCase().includes(search));
@@ -476,13 +476,13 @@ function renderPlaudit() {
   wRenderCheck();
   const plInfo = plRows();
   const { rows, lastWeek, avgWeeks, bsrWeek, skipped, weekly } = plInfo;
-  if (typeof PLX !== 'undefined') PLX.info = plInfo;
+  if (typeof PLRX !== 'undefined') PLRX.info = plInfo;
 
   if (!lastWeek) {
     $('plTable').innerHTML = '<tbody><tr><td class="ui-empty">'
       + 'No completed week stored yet — open Product Performance once and let it load (or its old view, and Refresh).</td></tr></tbody>';
     plMsg('');
-    if (typeof plxAfter === 'function') plxAfter(null, plInfo);
+    if (typeof plrxAfter === 'function') plrxAfter(null, plInfo);
     return;
   }
 
@@ -571,8 +571,8 @@ function renderPlaudit() {
   };
 
   // --- the body: one row per parent, in the same column order ---
-  // The rows drawn: the top 15 (plr-insights.js plxLimit), every match of a search or a card, or all after "Show other N".
-  const lim = typeof plxLimit === 'function' ? plxLimit(rows, $('plFilter').value.trim()) : { shown: rows, rest: 0 };
+  // The rows drawn: the top 15 (plr-insights.js plrxLimit), every match of a search or a card, or all after "Show other N".
+  const lim = typeof plrxLimit === 'function' ? plrxLimit(rows, $('plFilter').value.trim()) : { shown: rows, rest: 0 };
   const body = lim.shown.map(row => '<tr data-pl-row="' + esc(row.brand + '|' + row.parent) + '">'
     + '<td class="frz"><span class="pl-open" data-pl-parent="' + esc(row.parent) + '" tabindex="0"'
       + ' role="button" title="Open everything known about this parent">' + esc(row.parent) + '</span></td>'
@@ -632,12 +632,12 @@ function renderPlaudit() {
       th.style.top = top + 'px';
     });
   });
-  if (typeof plxAfter === 'function') plxAfter(lim, plInfo);
+  if (typeof plrxAfter === 'function') plrxAfter(lim, plInfo);
 }
 
 // Every control redraws as it changes.
 // A new Action choice replaces a card (plr-insights.js). Added first, so it runs before the redraw.
-$('plAct').addEventListener('input', () => { if (typeof PLX !== 'undefined') PLX.card = ''; });
+$('plAct').addEventListener('input', () => { if (typeof PLRX !== 'undefined') PLRX.card = ''; });
 ['plBrand', 'plType', 'plAct', 'plFilter'].forEach(id => $(id).addEventListener('input', renderPlaudit));
 
 /* ---------- one parent, everything known about it ------------------------------------------
@@ -740,7 +740,7 @@ document.addEventListener('keydown', e => {
 // (28 Nov 2026) A click anywhere on a row opens the side panel (plr-insights.js); the card is one button away inside it.
 $('plTable').addEventListener('click', e => {
   const tr = e.target.closest('tr[data-pl-row]');
-  if (tr && typeof plxPanelOpen === 'function') return plxPanelOpen(tr.dataset.plRow);
+  if (tr && typeof plrxPanelOpen === 'function') return plrxPanelOpen(tr.dataset.plRow);
   const el = e.target.closest('[data-pl-parent]');
   if (el) plCardOpen(el.dataset.plParent);
   return undefined;
@@ -751,7 +751,7 @@ $('plTable').addEventListener('keydown', e => {
   if (el) {
     e.preventDefault();
     const tr = el.closest('tr[data-pl-row]');
-    if (tr && typeof plxPanelOpen === 'function') plxPanelOpen(tr.dataset.plRow);
+    if (tr && typeof plrxPanelOpen === 'function') plrxPanelOpen(tr.dataset.plRow);
     else plCardOpen(el.dataset.plParent);
   }
 });

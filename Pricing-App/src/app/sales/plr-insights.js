@@ -15,11 +15,11 @@
  *     last week highlighted), stock and days of cover (the Forecast's when it is loaded), the rank as Amazon writes it, the children
  *     (sales, stock, ad spend), links to Listing Health · BSR Audit · Sales Alerts, and the existing parent card ("All figures").
  * The insights read the brand's parents for the week (before the type / action / search filters). READ-ONLY. ECharts via the Sales
- *   Dashboard's loader (sdcLoadCharts), a plain bar list without it; ✨ off = no animation. Names plx / PLX. Tests: tests/plr-test.js. */
+ *   Dashboard's loader (sdcLoadCharts), a plain bar list without it; ✨ off = no animation. Names plrx / PLRX. Tests: tests/plr-test.js. */
 
-const PLX_M = { top: 15, lowDays: 30, daysPerMonth: 30.4 };
+const PLRX_M = { top: 15, lowDays: 30, daysPerMonth: 30.4 };
 // The cards: the existing plAction names, grouped (no new rule).
-const PLX_CARDS = [
+const PLRX_CARDS = [
   { k: 'stock', e: '📦', t: 'Restock', acts: ['Restock — out', 'Restock — low'], say: n => `${n} parent${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} stock` },
   { k: 'traffic', e: '👀', t: 'Low traffic', acts: ['Traffic drop', 'Fix the page'], say: n => `${n} lost traffic` },
   { k: 'spend', e: '💸', t: 'Ad spend high', acts: ['Cut spend', 'Spend too high'], say: n => `${n} spend too much on ads` },
@@ -27,22 +27,22 @@ const PLX_CARDS = [
   { k: 'ok', e: '✅', t: 'Healthy', acts: ['Steady', 'New — watch', 'Add budget'], say: n => `${n} ${n === 1 ? 'is' : 'are'} healthy` },
 ];
 // The Action Tracker quick pick (TK_PICKS) a "+ Task" starts on, per action.
-const PLX_PICK = { 'Restock — out': 'stock', 'Restock — low': 'stock', 'Traffic drop': 'ads', 'Fix the page': 'listing', 'Cut spend': 'ads', 'Spend too high': 'ads', 'Add budget': 'ads', Overstocked: 'price' };
-const PLX = { week: '', card: '', all: false, panel: '', chart: null, shell: false };
-const plxEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
-const PLX_NUM = new Intl.NumberFormat('en-US');
-const plxMoney = v => (v == null ? '—' : (v < 0 ? '−' : '') + '$' + PLX_NUM.format(Math.round(Math.abs(v))));
-const plxEl = id => (typeof document !== 'undefined' && document.getElementById ? document.getElementById(id) : null);
-/** A parent's card: its action's card — but a parent Sales Alerts confirms as a drop for the week (row.al, plxMark) is 📉 Sales down,
+const PLRX_PICK = { 'Restock — out': 'stock', 'Restock — low': 'stock', 'Traffic drop': 'ads', 'Fix the page': 'listing', 'Cut spend': 'ads', 'Spend too high': 'ads', 'Add budget': 'ads', Overstocked: 'price' };
+const PLRX = { week: '', card: '', all: false, panel: '', chart: null, shell: false };
+const plrxEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+const PLRX_NUM = new Intl.NumberFormat('en-US');
+const plrxMoney = v => (v == null ? '—' : (v < 0 ? '−' : '') + '$' + PLRX_NUM.format(Math.round(Math.abs(v))));
+const plrxEl = id => (typeof document !== 'undefined' && document.getElementById ? document.getElementById(id) : null);
+/** A parent's card: its action's card — but a parent Sales Alerts confirms as a drop for the week (row.al, plrxMark) is 📉 Sales down,
  *  never ✅ Healthy. (A stock / traffic / spend problem keeps its own card: one card per parent, as plAction asks stock first.) */
-function plxCardOf(row) {
-  const c = PLX_CARDS.find(x => x.acts.includes(row.action)) || PLX_CARDS[4];
-  return c.k === 'ok' && row.al ? PLX_CARDS[3] : c;
+function plrxCardOf(row) {
+  const c = PLRX_CARDS.find(x => x.acts.includes(row.action)) || PLRX_CARDS[4];
+  return c.k === 'ok' && row.al ? PLRX_CARDS[3] : c;
 }
 /** Money at stake for a parent, for its card's top 3: a week's average sales for stock, a lost week (average − last week) for traffic
  *  and sales down (Sales Alerts' $ a week at risk when it is a confirmed drop), last week's ad spend for spend, last week's sales for healthy. */
-function plxStake(row) {
-  const k = plxCardOf(row).k;
+function plrxStake(row) {
+  const k = plrxCardOf(row).k;
   if (k === 'stock') return row.avgSales || row.lwSales || 0;
   if (k === 'spend') return row.lwSpend || 0;
   if (k === 'down' && row.al && row.al.atRisk > 0) return row.al.atRisk;
@@ -52,26 +52,26 @@ function plxStake(row) {
 
 /* ----- Sales Alerts: its confirmed drops, from its ONE result (alFor, sales-alerts.js — the page, the Dashboard card, the Forecast and
  *   the Action Tracker read the same object). Read-only: when it is not loaded yet, its own loader (alLoad) is started once. ----- */
-const PLX_AL_SEV = { critical: '🔴 Critical', important: '🟠 Important', watch: '🟡 Watch' };
+const PLRX_AL_SEV = { critical: '🔴 Critical', important: '🟠 Important', watch: '🟡 Watch' };
 /** Mark each row with the Sales Alerts drop of its parent whose days touch the week shown (row.al = { sev, drop, atRisk, from, to }, else
- *  null) and say how Sales Alerts stands: PLX.alState 'ok' | 'loading' | 'none' (not loaded / not allowed / failed). */
-function plxMark(rows, week) {
+ *  null) and say how Sales Alerts stands: PLRX.alState 'ok' | 'loading' | 'none' (not loaded / not allowed / failed). */
+function plrxMark(rows, week) {
   rows.forEach(r => { r.al = null; });
-  PLX.alState = 'none';
+  PLRX.alState = 'none';
   if (typeof AL === 'undefined' || typeof alFor !== 'function') return;
   if (!AL.data || typeof VI === 'undefined' || !VI.data) {
-    if (!PLX.alAsked && typeof alLoad === 'function' && (typeof alMay !== 'function' || alMay('salert'))) {
-      PLX.alAsked = true;
-      PLX.alBusy = true;
+    if (!PLRX.alAsked && typeof alLoad === 'function' && (typeof alMay !== 'function' || alMay('salert'))) {
+      PLRX.alAsked = true;
+      PLRX.alBusy = true;
       let job;
       try { job = alLoad(); } catch (e) { job = null; }
       Promise.resolve(job).catch(() => null).then(() => {
-        PLX.alBusy = false;
-        const pane = plxEl('panePlaudit');
+        PLRX.alBusy = false;
+        const pane = plrxEl('panePlaudit');
         if (typeof renderPlaudit === 'function' && (!pane || !pane.classList || !pane.classList.contains('hide'))) renderPlaudit();
       });
     }
-    if (PLX.alBusy) PLX.alState = 'loading';
+    if (PLRX.alBusy) PLRX.alState = 'loading';
     return;
   }
   if (!week) return;
@@ -81,60 +81,60 @@ function plxMark(rows, week) {
     let res = null;
     try { res = alFor(b); } catch (e) { res = null; }
     if (!res || !res.ok) return;
-    PLX.alState = 'ok';
-    res.alerts.forEach(a => { if (PLX_AL_SEV[a.sev] && a.from <= end && a.to >= week && !by[a.key]) by[a.key] = a; });
+    PLRX.alState = 'ok';
+    res.alerts.forEach(a => { if (PLRX_AL_SEV[a.sev] && a.from <= end && a.to >= week && !by[a.key]) by[a.key] = a; });
   });
   rows.forEach(r => { const a = by[r.brand + '|' + r.parent]; if (a) r.al = { sev: a.sev, drop: a.drop, atRisk: a.atRisk, from: a.from, to: a.to }; });
 }
-const plxAlTxt = al => `${PLX_AL_SEV[al.sev]} −${Math.round(al.drop)}%`;
-const plxDays = row => (row.stock === 0 ? 0 : row.dos == null ? null : row.dos * PLX_M.daysPerMonth);
+const plrxAlTxt = al => `${PLRX_AL_SEV[al.sev]} −${Math.round(al.drop)}%`;
+const plrxDays = row => (row.stock === 0 ? 0 : row.dos == null ? null : row.dos * PLRX_M.daysPerMonth);
 /** The insights of a set of rows (plRows' rows for the brand and week): { cards: [{ k, n, top3 }], kpi, story }. Pure. */
-function plxModel(rows, ctx) {
+function plrxModel(rows, ctx) {
   const c = ctx || {};
-  const cards = PLX_CARDS.map(card => {
-    const list = rows.filter(r => plxCardOf(r).k === card.k);
-    return Object.assign({}, card, { n: list.length, top3: list.slice().sort((a, b) => plxStake(b) - plxStake(a)).slice(0, 3).map(r => ({ key: r.brand + '|' + r.parent, title: r.title || r.parent, stake: plxStake(r), action: r.action, why: r.why, al: r.al || null })) });
+  const cards = PLRX_CARDS.map(card => {
+    const list = rows.filter(r => plrxCardOf(r).k === card.k);
+    return Object.assign({}, card, { n: list.length, top3: list.slice().sort((a, b) => plrxStake(b) - plrxStake(a)).slice(0, 3).map(r => ({ key: r.brand + '|' + r.parent, title: r.title || r.parent, stake: plrxStake(r), action: r.action, why: r.why, al: r.al || null })) });
   });
   const sum = k => rows.reduce((t, r) => t + (r[k] || 0), 0);
   const kpi = { lwSales: sum('lwSales'), avgSales: sum('avgSales'), lwSpend: c.lwSpend == null ? null : c.lwSpend, avgSpend: c.avgSpend == null ? null : c.avgSpend,
-    low: rows.filter(r => { const d = plxDays(r); return d != null && d < PLX_M.lowDays && (r.lwUnits > 0 || r.stock === 0 && r.lwSales > 0); }).length,
+    low: rows.filter(r => { const d = plrxDays(r); return d != null && d < PLRX_M.lowDays && (r.lwUnits > 0 || r.stock === 0 && r.lwSales > 0); }).length,
     worse: c.worse == null ? null : c.worse, n: rows.length };
   // the story: the counts, then the biggest worry (the problem parent with the most money at stake)
   const by = k => cards.find(x => x.k === k).n;
-  const parts = ['stock', 'traffic', 'spend', 'down'].filter(k => by(k)).map(k => PLX_CARDS.find(x => x.k === k).say(by(k)));
+  const parts = ['stock', 'traffic', 'spend', 'down'].filter(k => by(k)).map(k => PLRX_CARDS.find(x => x.k === k).say(by(k)));
   const okN = by('ok');
   const head = c.weekLabel ? `Last week (${c.weekLabel})` : 'Last week';
-  let story = parts.length ? `${head} ${parts.join(', ')}${okN ? `; ${PLX_CARDS[4].say(okN)}` : ''}.` : `${head} all ${okN} parents are healthy.`;
-  const worry = rows.filter(r => plxCardOf(r).k !== 'ok').sort((a, b) => plxStake(b) - plxStake(a))[0];
+  let story = parts.length ? `${head} ${parts.join(', ')}${okN ? `; ${PLRX_CARDS[4].say(okN)}` : ''}.` : `${head} all ${okN} parents are healthy.`;
+  const worry = rows.filter(r => plrxCardOf(r).k !== 'ok').sort((a, b) => plrxStake(b) - plrxStake(a))[0];
   if (worry) {
     const bits = [];
     if (worry.diff != null) bits.push(`${worry.diff < 0 ? '−' : '+'}${Math.round(Math.abs(worry.diff) * 100)}% vs 6-week average`);
-    if (worry.al) bits.push(`Sales Alerts ${plxAlTxt(worry.al)}`);
-    const d = plxDays(worry);
+    if (worry.al) bits.push(`Sales Alerts ${plrxAlTxt(worry.al)}`);
+    const d = plrxDays(worry);
     if (d != null) bits.push(`${Math.round(d)} day${Math.round(d) === 1 ? '' : 's'} of stock`);
     story += ` Biggest worry: ${worry.title || worry.parent}${bits.length ? ` (${bits.join(', ')})` : ''}.`;
   }
   return { cards, kpi, story };
 }
 /** Which rows the table draws: every match of a search; a card's (all of them); all (Show other N); else the top 15. */
-function plxLimit(rows, search) {
-  if (PLX.card || search || PLX.all) return { shown: rows, rest: 0, all: !PLX.card && !search && rows.length > PLX_M.top };
-  return { shown: rows.slice(0, PLX_M.top), rest: Math.max(0, rows.length - PLX_M.top) };
+function plrxLimit(rows, search) {
+  if (PLRX.card || search || PLRX.all) return { shown: rows, rest: 0, all: !PLRX.card && !search && rows.length > PLRX_M.top };
+  return { shown: rows.slice(0, PLRX_M.top), rest: Math.max(0, rows.length - PLRX_M.top) };
 }
 /** The card filter, on the table's rows (after its own filters; never while searching — a search looks through every parent). */
-function plxFilter(rows) {
-  if (!PLX.card) return rows;
-  return PLX_CARDS.some(c => c.k === PLX.card) ? rows.filter(r => plxCardOf(r).k === PLX.card) : rows;
+function plrxFilter(rows) {
+  if (!PLRX.card) return rows;
+  return PLRX_CARDS.some(c => c.k === PLRX.card) ? rows.filter(r => plrxCardOf(r).k === PLRX.card) : rows;
 }
 
 /* ----- drawing ----- */
-const plxFx = () => {
+const plrxFx = () => {
   let on = typeof sdcFxSaved === 'function' ? sdcFxSaved() : true;
   try { if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) on = false; } catch (e) { /* as saved */ }
   return on;
 };
 // The week picker's choices: every completed week of the weekly store with any sales, newest first.
-function plxWeeks() {
+function plrxWeeks() {
   if (typeof WEEKLY === 'undefined') return [];
   const all = WEEKLY.weeks && WEEKLY.weeks.length ? WEEKLY.weeks : (typeof wWeeksList === 'function' ? wWeeksList(26) : []);
   const thisWeek = typeof wKeyOfDate === 'function' && typeof sdToday === 'function' ? wKeyOfDate(sdToday()) : '';
@@ -145,65 +145,65 @@ function plxWeeks() {
   return done.filter(w => has.has(w) || w === latest).slice().reverse();
 }
 /** The frame above the table (skeletons until the rows are worked out). */
-function plxShell() {
-  const el = plxEl('plIns');
-  if (!el || PLX.shell) return;
-  PLX.shell = true;
-  el.innerHTML = '<p class="plx-story" id="plxStory"><span class="plx-sk plx-sk-line"></span></p><div class="plx-kpis" id="plxKpis"><i class="plx-sk"></i><i class="plx-sk"></i><i class="plx-sk"></i><i class="plx-sk"></i></div>'
-    + '<div class="plx-cards" id="plxCards" role="group" aria-label="What to do — click a card to show only its parents"><i class="plx-sk"></i><i class="plx-sk"></i><i class="plx-sk"></i><i class="plx-sk"></i><i class="plx-sk"></i></div>';
+function plrxShell() {
+  const el = plrxEl('plIns');
+  if (!el || PLRX.shell) return;
+  PLRX.shell = true;
+  el.innerHTML = '<p class="plrx-story" id="plrxStory"><span class="plrx-sk plrx-sk-line"></span></p><div class="plrx-kpis" id="plrxKpis"><i class="plrx-sk"></i><i class="plrx-sk"></i><i class="plrx-sk"></i><i class="plrx-sk"></i></div>'
+    + '<div class="plrx-cards" id="plrxCards" role="group" aria-label="What to do — click a card to show only its parents"><i class="plrx-sk"></i><i class="plrx-sk"></i><i class="plrx-sk"></i><i class="plrx-sk"></i><i class="plrx-sk"></i></div>';
 }
 /** Called by renderPlaudit after the table: the week picker, the story, the KPIs, the cards, "Show other N", the panel. */
-function plxAfter(lim, info) {
-  plxShell();
-  if (!PLX.topped) { PLX.topped = true; if (typeof requestAnimationFrame === 'function') requestAnimationFrame(plxTop); }
+function plrxAfter(lim, info) {
+  plrxShell();
+  if (!PLRX.topped) { PLRX.topped = true; if (typeof requestAnimationFrame === 'function') requestAnimationFrame(plrxTop); }
   // the week picker
-  const sel = plxEl('plWeek');
+  const sel = plrxEl('plWeek');
   if (sel) {
-    const weeks = plxWeeks();
+    const weeks = plrxWeeks();
     const label = w => (typeof wLabel === 'function' ? wLabel(w) : w);
-    sel.innerHTML = weeks.map((w, i) => `<option value="${i ? w : ''}"${(i ? w === PLX.week : !PLX.week) ? ' selected' : ''}>${plxEsc(label(w))}${i ? '' : ' (latest)'}</option>`).join('');
+    sel.innerHTML = weeks.map((w, i) => `<option value="${i ? w : ''}"${(i ? w === PLRX.week : !PLRX.week) ? ' selected' : ''}>${plrxEsc(label(w))}${i ? '' : ' (latest)'}</option>`).join('');
   }
   // the insights: the brand's parents for the week and type, before the action / card / search filters (plRows' `every`)
   const all = (info && info.every) || [];
-  PLX.lastAll = all;
+  PLRX.lastAll = all;
   const W = (info && info.weekly) || {};
   const spendOf = weeks => { let t = 0, seen = false; Object.values(W).forEach(byW => weeks.forEach(w => { const c = byW[w]; if (c && c.spend != null) { t += c.spend; seen = true; } })); return seen ? t : null; };
   const avgW = (info && info.avgWeeks) || [];
   const lwSp = info && info.lastWeek ? spendOf([info.lastWeek]) : null;
   const avgSp = avgW.length ? (s => (s == null ? null : s / avgW.length))(spendOf(avgW)) : null;
-  const worse = plxWorse(all);
-  const m = plxModel(all, { lwSpend: lwSp, avgSpend: avgSp, worse, weekLabel: info && info.lastWeek && typeof wLabel === 'function' ? wLabel(info.lastWeek) : '' });
-  PLX.model = m;
-  const story = plxEl('plxStory');
+  const worse = plrxWorse(all);
+  const m = plrxModel(all, { lwSpend: lwSp, avgSpend: avgSp, worse, weekLabel: info && info.lastWeek && typeof wLabel === 'function' ? wLabel(info.lastWeek) : '' });
+  PLRX.model = m;
+  const story = plrxEl('plrxStory');
   if (story) story.textContent = m.story;
   const k = m.kpi;
-  const ch = (a, b) => (a == null || !(b > 0) ? '' : `<span class="plx-d is-${a >= b ? 'up' : 'down'}">${a >= b ? '▲' : '▼'} ${Math.round(Math.abs(a - b) / b * 100)}%</span>`);
-  const kp = plxEl('plxKpis');
-  if (kp) kp.innerHTML = `<div class="plx-kpi"><span>Sales last week</span><b>${plxMoney(k.lwSales)}</b><small>${ch(k.lwSales, k.avgSales)} vs 6-week avg ${plxMoney(k.avgSales)}</small></div>`
-    + `<div class="plx-kpi"><span>Ad spend last week</span><b>${plxMoney(k.lwSpend)}</b><small>${k.lwSpend == null ? 'no ad report for that week' : `${ch(k.lwSpend, k.avgSpend)} vs 6-week avg ${plxMoney(k.avgSpend)}`}</small></div>`
-    + `<div class="plx-kpi${k.low ? ' is-bad' : ''}"><span>Under ${PLX_M.lowDays} days of stock</span><b>${PLX_NUM.format(k.low)}</b><small>parents (at last week's rate)</small></div>`
-    + `<div class="plx-kpi"><span>Ranking worse</span><b>${k.worse == null ? '—' : PLX_NUM.format(k.worse)}</b><small>${k.worse == null ? 'one rank snapshot only' : 'parents (BSR snapshots, week on week)'}</small></div>`;
-  const cards = plxEl('plxCards');
+  const ch = (a, b) => (a == null || !(b > 0) ? '' : `<span class="plrx-d is-${a >= b ? 'up' : 'down'}">${a >= b ? '▲' : '▼'} ${Math.round(Math.abs(a - b) / b * 100)}%</span>`);
+  const kp = plrxEl('plrxKpis');
+  if (kp) kp.innerHTML = `<div class="plrx-kpi"><span>Sales last week</span><b>${plrxMoney(k.lwSales)}</b><small>${ch(k.lwSales, k.avgSales)} vs 6-week avg ${plrxMoney(k.avgSales)}</small></div>`
+    + `<div class="plrx-kpi"><span>Ad spend last week</span><b>${plrxMoney(k.lwSpend)}</b><small>${k.lwSpend == null ? 'no ad report for that week' : `${ch(k.lwSpend, k.avgSpend)} vs 6-week avg ${plrxMoney(k.avgSpend)}`}</small></div>`
+    + `<div class="plrx-kpi${k.low ? ' is-bad' : ''}"><span>Under ${PLRX_M.lowDays} days of stock</span><b>${PLRX_NUM.format(k.low)}</b><small>parents (at last week's rate)</small></div>`
+    + `<div class="plrx-kpi"><span>Ranking worse</span><b>${k.worse == null ? '—' : PLRX_NUM.format(k.worse)}</b><small>${k.worse == null ? 'one rank snapshot only' : 'parents (BSR snapshots, week on week)'}</small></div>`;
+  const cards = plrxEl('plrxCards');
   // what each card covers; Sales down also says how Sales Alerts stands
-  const covers = c => c.acts.join(' · ') + (c.k !== 'down' ? '' : PLX.alState === 'ok' ? ' · Sales Alerts drops' : PLX.alState === 'loading' ? ' · Sales Alerts loading…' : ' · Sales Alerts not checked yet');
-  if (cards) cards.innerHTML = m.cards.map(c => `<button type="button" class="plx-card is-${c.k}${PLX.card === c.k ? ' is-on' : ''}" data-plx-card="${c.k}" aria-pressed="${PLX.card === c.k}" title="${plxEsc(covers(c))}"${c.n ? '' : ' disabled'}>`
-    + `<span class="plx-ct">${c.e} ${plxEsc(c.t)}</span><b>${PLX_NUM.format(c.n)}</b><small class="muted">${plxEsc(covers(c))}</small>`
-    + (c.top3.length ? `<ol>${c.top3.map(x => `<li><span>${plxEsc(x.title)}</span><em>${plxMoney(x.stake)}</em>${c.k === 'down' && x.al ? `<i class="plx-al" title="Sales Alerts: ${plxEsc(x.al.from)} → ${plxEsc(x.al.to)}">${plxEsc(plxAlTxt(x.al))}</i>` : ''}</li>`).join('')}</ol>` : '') + '</button>').join('');
+  const covers = c => c.acts.join(' · ') + (c.k !== 'down' ? '' : PLRX.alState === 'ok' ? ' · Sales Alerts drops' : PLRX.alState === 'loading' ? ' · Sales Alerts loading…' : ' · Sales Alerts not checked yet');
+  if (cards) cards.innerHTML = m.cards.map(c => `<button type="button" class="plrx-card is-${c.k}${PLRX.card === c.k ? ' is-on' : ''}" data-plrx-card="${c.k}" aria-pressed="${PLRX.card === c.k}" title="${plrxEsc(covers(c))}"${c.n ? '' : ' disabled'}>`
+    + `<span class="plrx-ct">${c.e} ${plrxEsc(c.t)}</span><b>${PLRX_NUM.format(c.n)}</b><small class="muted">${plrxEsc(covers(c))}</small>`
+    + (c.top3.length ? `<ol>${c.top3.map(x => `<li><span>${plrxEsc(x.title)}</span><em>${plrxMoney(x.stake)}</em>${c.k === 'down' && x.al ? `<i class="plrx-al" title="Sales Alerts: ${plrxEsc(x.al.from)} → ${plrxEsc(x.al.to)}">${plrxEsc(plrxAlTxt(x.al))}</i>` : ''}</li>`).join('')}</ol>` : '') + '</button>').join('');
   // under the table
-  const more = plxEl('plMore');
+  const more = plrxEl('plMore');
   if (more) {
-    const card = PLX.card && PLX_CARDS.find(c => c.k === PLX.card);
-    const q = plxEl('plFilter') ? String(plxEl('plFilter').value || '').trim() : '';
-    const act = plxEl('plAct') ? plxEl('plAct').value : 'ALL';
+    const card = PLRX.card && PLRX_CARDS.find(c => c.k === PLRX.card);
+    const q = plrxEl('plFilter') ? String(plrxEl('plFilter').value || '').trim() : '';
+    const act = plrxEl('plAct') ? plrxEl('plAct').value : 'ALL';
     more.innerHTML = q ? (card || act !== 'ALL' ? '<span class="muted">Searching every parent — the Action filter and the card are set aside while you search</span>' : '')
-      : card ? `<span class="muted">Showing the ${card.e} ${plxEsc(card.t)} parents</span><button type="button" class="ghost plx-btn" data-plx="clear">Show all ✕</button>`
-      : lim && lim.rest > 0 ? `<button type="button" class="ghost plx-btn" data-plx="more" aria-expanded="false">Show other ${PLX_NUM.format(lim.rest)} parent${lim.rest === 1 ? '' : 's'} ▾</button>`
-      : lim && lim.all ? '<button type="button" class="ghost plx-btn" data-plx="fewer" aria-expanded="true">Show fewer ▴</button>' : '';
+      : card ? `<span class="muted">Showing the ${card.e} ${plrxEsc(card.t)} parents</span><button type="button" class="ghost plrx-btn" data-plrx="clear">Show all ✕</button>`
+      : lim && lim.rest > 0 ? `<button type="button" class="ghost plrx-btn" data-plrx="more" aria-expanded="false">Show other ${PLRX_NUM.format(lim.rest)} parent${lim.rest === 1 ? '' : 's'} ▾</button>`
+      : lim && lim.all ? '<button type="button" class="ghost plrx-btn" data-plrx="fewer" aria-expanded="true">Show fewer ▴</button>' : '';
   }
-  if (PLX.panel) plxPanelDraw();
+  if (PLRX.panel) plrxPanelDraw();
 }
 // Parents ranking worse: the newest rank snapshot against the stored week before it (bsr-audit.js bsrMove, the noise rule included).
-function plxWorse(rows) {
+function plrxWorse(rows) {
   if (typeof BSR === 'undefined' || typeof bsrMove !== 'function' || typeof allWeeks !== 'function') return null;
   const weeks = allWeeks();
   if (weeks.length < 2) return null;
@@ -220,38 +220,38 @@ function plxWorse(rows) {
 }
 
 /* ----- one parent: the side panel ----- */
-const plxRowOf = key => ((typeof PL_RENDER !== 'undefined' && PL_RENDER.rows) || []).find(r => r.brand + '|' + r.parent === key)
-  || ((PLX.lastAll || []).find(r => r.brand + '|' + r.parent === key)) || null;
+const plrxRowOf = key => ((typeof PL_RENDER !== 'undefined' && PL_RENDER.rows) || []).find(r => r.brand + '|' + r.parent === key)
+  || ((PLRX.lastAll || []).find(r => r.brand + '|' + r.parent === key)) || null;
 // The menu bar's height: the sticky toolbar and the panel start under it.
-function plxTop() {
+function plrxTop() {
   try {
     const side = document.querySelector('.side');
     const top = side && getComputedStyle(side).position === 'sticky' ? Math.round(side.getBoundingClientRect().height) : 0;
-    const pane = plxEl('panePlaudit');
-    if (pane && pane.style) pane.style.setProperty('--plx-top', top + 'px');
+    const pane = plrxEl('panePlaudit');
+    if (pane && pane.style) pane.style.setProperty('--plrx-top', top + 'px');
   } catch (e) { /* no layout */ }
 }
-function plxPanelOpen(key) {
-  PLX.panel = key;
-  plxTop();
+function plrxPanelOpen(key) {
+  PLRX.panel = key;
+  plrxTop();
   document.querySelectorAll('#plTable tr.is-open').forEach(tr => tr.classList.remove('is-open'));
   document.querySelectorAll(`#plTable tr[data-pl-row="${CSS.escape(key)}"]`).forEach(tr => tr.classList.add('is-open'));
-  plxPanelDraw();
-  const x = plxEl('plxPanel') && plxEl('plxPanel').querySelector && plxEl('plxPanel').querySelector('[data-plx="close"]');
+  plrxPanelDraw();
+  const x = plrxEl('plrxPanel') && plrxEl('plrxPanel').querySelector && plrxEl('plrxPanel').querySelector('[data-plrx="close"]');
   if (x && x.focus) x.focus();
 }
-function plxPanelClose() {
-  const was = PLX.panel;
-  PLX.panel = '';
-  if (PLX.chart) { try { PLX.chart.dispose(); } catch (e) { /* gone */ } PLX.chart = null; }
-  const box = plxEl('plxPanel');
+function plrxPanelClose() {
+  const was = PLRX.panel;
+  PLRX.panel = '';
+  if (PLRX.chart) { try { PLRX.chart.dispose(); } catch (e) { /* gone */ } PLRX.chart = null; }
+  const box = plrxEl('plrxPanel');
   if (box) { box.hidden = true; box.innerHTML = ''; }
   document.querySelectorAll('#plTable tr.is-open').forEach(tr => tr.classList.remove('is-open'));
   const tr = was && document.querySelector(`#plTable tr[data-pl-row="${CSS.escape(was)}"]`);
   if (tr && tr.focus) tr.focus();
 }
 // The rank as Amazon writes it, with its move since the stored week before: "#3,100 in Tablecloths ▲".
-function plxRank(brand, parent) {
+function plrxRank(brand, parent) {
   if (typeof BSR === 'undefined' || typeof allWeeks !== 'function') return '';
   const weeks = allWeeks();
   const a = weeks[weeks.length - 1], b = weeks[weeks.length - 2];
@@ -260,73 +260,73 @@ function plxRank(brand, parent) {
   const sub = ea.sub > 0;
   const now = sub ? ea.sub : ea.rank, was = eb ? (sub ? eb.sub : eb.rank) : 0;
   const mv = was > 0 && typeof bsrMove === 'function' ? bsrMove(now, was, sub ? 'sub' : 'main') : null;
-  const arrow = mv === 'better' ? '<span class="plx-d is-up" title="Lower rank number = better on Amazon">▲</span>' : mv === 'worse' ? '<span class="plx-d is-down" title="Lower rank number = better on Amazon">▼</span>' : '';
-  return `<b>#${PLX_NUM.format(now)}</b> in ${plxEsc((sub ? ea.subCat : ea.cat) || 'its category')} ${arrow}`
-    + (sub && ea.rank ? `<small class="muted">#${PLX_NUM.format(ea.rank)} in ${plxEsc(ea.cat || '')}</small>` : '');
+  const arrow = mv === 'better' ? '<span class="plrx-d is-up" title="Lower rank number = better on Amazon">▲</span>' : mv === 'worse' ? '<span class="plrx-d is-down" title="Lower rank number = better on Amazon">▼</span>' : '';
+  return `<b>#${PLRX_NUM.format(now)}</b> in ${plrxEsc((sub ? ea.subCat : ea.cat) || 'its category')} ${arrow}`
+    + (sub && ea.rank ? `<small class="muted">#${PLRX_NUM.format(ea.rank)} in ${plrxEsc(ea.cat || '')}</small>` : '');
 }
 // The weeks of the chart: the 6-week average's weeks (last week is one of them), oldest first: sales and ad spend of the parent.
-function plxChartData(row) {
-  const info = PLX.info || {};
+function plrxChartData(row) {
+  const info = PLRX.info || {};
   const byW = ((info.weekly || {})[row.brand + '|' + row.parent]) || {};
   const weeks = [...new Set((info.avgWeeks || []).concat(info.lastWeek ? [info.lastWeek] : []))].sort();
   return weeks.map(w => ({ w, label: typeof wLabel === 'function' ? wLabel(w) : w, sales: (byW[w] || {}).rev || 0, spend: (byW[w] || {}).spend == null ? null : byW[w].spend, last: w === info.lastWeek }));
 }
-function plxPanelDraw() {
-  const box = plxEl('plxPanel');
-  const row = plxRowOf(PLX.panel);
+function plrxPanelDraw() {
+  const box = plrxEl('plrxPanel');
+  const row = plrxRowOf(PLRX.panel);
   if (!box || !row) return;
-  const info = PLX.info || {};
+  const info = PLRX.info || {};
   const kids = ((typeof HEALTH !== 'undefined' && HEALTH[row.brand] && HEALTH[row.brand].rows) || []).filter(r => (r.parent || r.asin || r.sku) === row.parent);
   const wk = info.lastWeek;
   const cell = asin => (typeof WEEKLY !== 'undefined' && WEEKLY.rows[asin] && WEEKLY.rows[asin].weeks ? WEEKLY.rows[asin].weeks[wk] : null) || {};
-  const kidRows = kids.map(k => { const c = cell(k.asin); return `<tr><td><span class="plx-fn">${plxEsc([k.color, k.size].filter(Boolean).join(' · ') || k.sku)}</span><small>${plxEsc(k.sku || k.asin)}</small></td>`
-    + `<td class="num">${plxMoney(c.rev || 0)}</td><td class="num">${k.qty == null ? '—' : PLX_NUM.format(k.qty)}</td><td class="num">${c.spend == null ? '<span class="muted">—</span>' : plxMoney(c.spend)}</td></tr>`; }).join('');
+  const kidRows = kids.map(k => { const c = cell(k.asin); return `<tr><td><span class="plrx-fn">${plrxEsc([k.color, k.size].filter(Boolean).join(' · ') || k.sku)}</span><small>${plrxEsc(k.sku || k.asin)}</small></td>`
+    + `<td class="num">${plrxMoney(c.rev || 0)}</td><td class="num">${k.qty == null ? '—' : PLRX_NUM.format(k.qty)}</td><td class="num">${c.spend == null ? '<span class="muted">—</span>' : plrxMoney(c.spend)}</td></tr>`; }).join('');
   // stock and days of cover: the Forecast's when it is loaded, else this page's (last week's rate)
   let cover = '';
   try {
     const f = typeof FO !== 'undefined' && FO.data && typeof foFor === 'function' ? foFor(row.brand) : null;
     const fam = f && f.ok ? (f.fams || []).find(x => x.parent === row.parent) : null;
-    if (fam && fam.cover && fam.cover.likely != null) cover = `about ${PLX_NUM.format(fam.cover.likely)} days of cover (Forecast)`;
+    if (fam && fam.cover && fam.cover.likely != null) cover = `about ${PLRX_NUM.format(fam.cover.likely)} days of cover (Forecast)`;
   } catch (e) { cover = ''; }
-  if (!cover) { const d = plxDays(row); cover = d == null ? 'days of cover not known (no sales last week)' : `about ${Math.round(d)} days of cover at last week's rate`; }
-  const card = plxCardOf(row);
-  const task = typeof tkBtnHtml === 'function' ? tkBtnHtml({ src: 'plr', brand: row.brand, key: row.brand + '|' + row.parent, parent: row.parent, name: row.title || row.parent, problem: `${row.action}: ${row.why || ''}`, kind: 'plr', ref: 'plr|' + row.brand + '|' + row.parent, pick: PLX_PICK[row.action] || 'other' }, 'plx-btn', '+ Task') : '';
-  box.innerHTML = `<header class="plx-ph">${row.img ? `<img src="${plxEsc(typeof plThumb === 'function' ? plThumb(row.img) : row.img)}" alt="" class="plx-img">` : '<div class="plx-img plx-noimg">no photo</div>'}`
-    + `<div class="plx-ph-t"><h2>${plxEsc(row.title || row.parent)}</h2><p>${plxEsc(typeof BRAND_NAME !== 'undefined' ? BRAND_NAME[row.brand] || row.brand : row.brand)} · ${plxEsc(row.parent)}</p></div>`
-    + `<button type="button" class="plx-x" data-plx="close" aria-label="Close (Esc)">✕</button></header>`
-    + `<div class="plx-pb"><p class="plx-act">${typeof PL_ACT_TAG !== 'undefined' && PL_ACT_TAG[row.action] ? PL_ACT_TAG[row.action] : plxEsc(row.action)} ${card ? `<span class="muted">${card.e}</span>` : ''} ${plxEsc(row.why || '')}</p>` + (row.al ? `<p class="plx-act plx-alline">📉 Sales Alerts: <b>${plxEsc(plxAlTxt(row.al))}</b> — sales down ${Math.round(row.al.drop)}% from ${plxEsc(row.al.from)} to ${plxEsc(row.al.to)}</p>` : '')
-    + `<div class="plx-btns">${task}<button type="button" class="ghost plx-btn" data-plx="card">All figures</button></div>`
-    + `<h3 class="plx-h3">The last 6 weeks</h3><div class="plx-chart" id="plxChart" role="img" aria-label="Weekly sales (bars) and ad spend (line), last week highlighted"></div>`
-    + `<div class="plx-grid"><div><h3 class="plx-h3">Stock</h3><p><b>${row.stock == null ? '—' : PLX_NUM.format(row.stock)}</b> at Amazon · ${plxEsc(cover)}</p></div>`
-    + `<div><h3 class="plx-h3">Rank</h3><p class="plx-rank">${plxRank(row.brand, row.parent)}</p></div></div>`
-    + `<h3 class="plx-h3">Children — last week</h3>${kids.length ? `<div class="plx-tw"><table class="plx-kids"><thead><tr><th scope="col">Size / SKU</th><th scope="col" class="num">Sales</th><th scope="col" class="num">Stock</th><th scope="col" class="num">Ad spend</th></tr></thead><tbody>${kidRows}</tbody></table></div>` : '<p class="muted">No children in Listing Health.</p>'}`
-    + `<div class="plx-btns"><button type="button" class="ghost plx-btn" data-plx-go="health">Open in Listing Health</button><button type="button" class="ghost plx-btn" data-plx-go="bsr">BSR Audit</button><button type="button" class="ghost plx-btn" data-plx-go="salert">Sales Alerts</button></div></div>`;
+  if (!cover) { const d = plrxDays(row); cover = d == null ? 'days of cover not known (no sales last week)' : `about ${Math.round(d)} days of cover at last week's rate`; }
+  const card = plrxCardOf(row);
+  const task = typeof tkBtnHtml === 'function' ? tkBtnHtml({ src: 'plr', brand: row.brand, key: row.brand + '|' + row.parent, parent: row.parent, name: row.title || row.parent, problem: `${row.action}: ${row.why || ''}`, kind: 'plr', ref: 'plr|' + row.brand + '|' + row.parent, pick: PLRX_PICK[row.action] || 'other' }, 'plrx-btn', '+ Task') : '';
+  box.innerHTML = `<header class="plrx-ph">${row.img ? `<img src="${plrxEsc(typeof plThumb === 'function' ? plThumb(row.img) : row.img)}" alt="" class="plrx-img">` : '<div class="plrx-img plrx-noimg">no photo</div>'}`
+    + `<div class="plrx-ph-t"><h2>${plrxEsc(row.title || row.parent)}</h2><p>${plrxEsc(typeof BRAND_NAME !== 'undefined' ? BRAND_NAME[row.brand] || row.brand : row.brand)} · ${plrxEsc(row.parent)}</p></div>`
+    + `<button type="button" class="plrx-x" data-plrx="close" aria-label="Close (Esc)">✕</button></header>`
+    + `<div class="plrx-pb"><p class="plrx-act">${typeof PL_ACT_TAG !== 'undefined' && PL_ACT_TAG[row.action] ? PL_ACT_TAG[row.action] : plrxEsc(row.action)} ${card ? `<span class="muted">${card.e}</span>` : ''} ${plrxEsc(row.why || '')}</p>` + (row.al ? `<p class="plrx-act plrx-alline">📉 Sales Alerts: <b>${plrxEsc(plrxAlTxt(row.al))}</b> — sales down ${Math.round(row.al.drop)}% from ${plrxEsc(row.al.from)} to ${plrxEsc(row.al.to)}</p>` : '')
+    + `<div class="plrx-btns">${task}<button type="button" class="ghost plrx-btn" data-plrx="card">All figures</button></div>`
+    + `<h3 class="plrx-h3">The last 6 weeks</h3><div class="plrx-chart" id="plrxChart" role="img" aria-label="Weekly sales (bars) and ad spend (line), last week highlighted"></div>`
+    + `<div class="plrx-grid"><div><h3 class="plrx-h3">Stock</h3><p><b>${row.stock == null ? '—' : PLRX_NUM.format(row.stock)}</b> at Amazon · ${plrxEsc(cover)}</p></div>`
+    + `<div><h3 class="plrx-h3">Rank</h3><p class="plrx-rank">${plrxRank(row.brand, row.parent)}</p></div></div>`
+    + `<h3 class="plrx-h3">Children — last week</h3>${kids.length ? `<div class="plrx-tw"><table class="plrx-kids"><thead><tr><th scope="col">Size / SKU</th><th scope="col" class="num">Sales</th><th scope="col" class="num">Stock</th><th scope="col" class="num">Ad spend</th></tr></thead><tbody>${kidRows}</tbody></table></div>` : '<p class="muted">No children in Listing Health.</p>'}`
+    + `<div class="plrx-btns"><button type="button" class="ghost plrx-btn" data-plrx-go="health">Open in Listing Health</button><button type="button" class="ghost plrx-btn" data-plrx-go="bsr">BSR Audit</button><button type="button" class="ghost plrx-btn" data-plrx-go="salert">Sales Alerts</button></div></div>`;
   box.hidden = false;
-  plxChart(row);
+  plrxChart(row);
 }
-function plxChart(row) {
-  const el = plxEl('plxChart');
+function plrxChart(row) {
+  const el = plrxEl('plrxChart');
   if (!el) return;
-  const pts = plxChartData(row);
+  const pts = plrxChartData(row);
   const plain = () => {
     const max = Math.max(1, ...pts.map(p => p.sales));
-    el.innerHTML = `<ol class="plx-plain">${pts.map(p => `<li class="${p.last ? 'is-last' : ''}"><span>${plxEsc(p.label)}</span><i style="width:${Math.round(p.sales / max * 100)}%"></i><b>${plxMoney(p.sales)}</b></li>`).join('')}</ol>`;
+    el.innerHTML = `<ol class="plrx-plain">${pts.map(p => `<li class="${p.last ? 'is-last' : ''}"><span>${plrxEsc(p.label)}</span><i style="width:${Math.round(p.sales / max * 100)}%"></i><b>${plrxMoney(p.sales)}</b></li>`).join('')}</ol>`;
   };
   const load = typeof sdcLoadCharts === 'function' ? sdcLoadCharts() : Promise.resolve(!!(typeof window !== 'undefined' && window.echarts));
   Promise.resolve(load).then(ok => {
-    if (!ok || typeof window === 'undefined' || !window.echarts || !el.isConnected || PLX.panel !== row.brand + '|' + row.parent) { if (el.isConnected !== false && !el.firstChild) plain(); return; }
-    const css = n => getComputedStyle(plxEl('plxPanel') || document.documentElement).getPropertyValue(n).trim();
+    if (!ok || typeof window === 'undefined' || !window.echarts || !el.isConnected || PLRX.panel !== row.brand + '|' + row.parent) { if (el.isConnected !== false && !el.firstChild) plain(); return; }
+    const css = n => getComputedStyle(plrxEl('plrxPanel') || document.documentElement).getPropertyValue(n).trim();
     const c = { ink: css('--ink') || '#1d1d1f', muted: css('--muted') || '#6e6e73', line: css('--card-line') || '#e6e6eb', card: css('--card') || '#fff', brand: css('--brand') || '#2f6fed', warn: css('--warn') || '#e8590c' };
     try {
-      if (PLX.chart) { try { PLX.chart.dispose(); } catch (e) { /* gone */ } }
+      if (PLRX.chart) { try { PLRX.chart.dispose(); } catch (e) { /* gone */ } }
       el.innerHTML = '';
-      const ch = PLX.chart = window.echarts.init(el, null, { renderer: 'svg' });
+      const ch = PLRX.chart = window.echarts.init(el, null, { renderer: 'svg' });
       ch.setOption({
-        animation: plxFx(), grid: { left: 8, right: 8, top: 28, bottom: 4, containLabel: true },
+        animation: plrxFx(), grid: { left: 8, right: 8, top: 28, bottom: 4, containLabel: true },
         legend: { top: 0, data: ['Sales', 'Ad spend'], textStyle: { color: c.muted, fontSize: 11 }, itemWidth: 12, itemHeight: 8 },
-        tooltip: { trigger: 'axis', backgroundColor: c.card, borderColor: c.line, textStyle: { color: c.ink, fontSize: 12 }, valueFormatter: v => (v == null ? '—' : plxMoney(v)) },
+        tooltip: { trigger: 'axis', backgroundColor: c.card, borderColor: c.line, textStyle: { color: c.ink, fontSize: 12 }, valueFormatter: v => (v == null ? '—' : plrxMoney(v)) },
         xAxis: { type: 'category', data: pts.map(p => p.label), axisLabel: { color: c.muted, fontSize: 10 }, axisLine: { lineStyle: { color: c.line } }, axisTick: { show: false } },
-        yAxis: { type: 'value', axisLabel: { color: c.muted, fontSize: 10, formatter: v => plxMoney(v) }, splitLine: { lineStyle: { color: c.line } } },
+        yAxis: { type: 'value', axisLabel: { color: c.muted, fontSize: 10, formatter: v => plrxMoney(v) }, splitLine: { lineStyle: { color: c.line } } },
         series: [
           { type: 'bar', name: 'Sales', data: pts.map(p => ({ value: p.sales, itemStyle: { color: c.brand, opacity: p.last ? 1 : 0.38, borderRadius: [4, 4, 0, 0] } })), barMaxWidth: 26 },
           { type: 'line', name: 'Ad spend', data: pts.map(p => p.spend), connectNulls: false, symbolSize: 6, lineStyle: { color: c.warn, width: 2 }, itemStyle: { color: c.warn } },
@@ -338,23 +338,23 @@ function plxChart(row) {
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('click', e => {
     const on = s => (e.target && e.target.closest ? e.target.closest(s) : null);
-    const panel = plxEl('plxPanel');
-    if (PLX.panel && panel && !panel.hidden && !on('#plxPanel') && !on('#plTable tr[data-pl-row]') && !on('#tkF, .tk-dlg, [data-tk-new], #plCardModal')) plxPanelClose();
+    const panel = plrxEl('plrxPanel');
+    if (PLRX.panel && panel && !panel.hidden && !on('#plrxPanel') && !on('#plTable tr[data-pl-row]') && !on('#tkF, .tk-dlg, [data-tk-new], #plCardModal')) plrxPanelClose();
     if (!on('#panePlaudit')) return;
-    const b = on('[data-plx], [data-plx-card], [data-plx-go]');
+    const b = on('[data-plrx], [data-plrx-card], [data-plrx-go]');
     if (!b || on('[data-tk-new]')) return;
     const d = b.dataset;
-    if (d.plx === 'more') { PLX.all = true; return renderPlaudit(); }
-    if (d.plx === 'fewer') { PLX.all = false; return renderPlaudit(); }
-    if (d.plx === 'clear') { PLX.card = ''; return renderPlaudit(); }
-    if (d.plx === 'close') return plxPanelClose();
-    if (d.plx === 'card') { const row = plxRowOf(PLX.panel); if (row && typeof plCardOpen === 'function') plCardOpen(row.parent); return undefined; }
-    if (d.plxCard) { PLX.card = PLX.card === d.plxCard ? '' : d.plxCard; return renderPlaudit(); }
-    if (d.plxGo) {
-      const row = plxRowOf(PLX.panel);
+    if (d.plrx === 'more') { PLRX.all = true; return renderPlaudit(); }
+    if (d.plrx === 'fewer') { PLRX.all = false; return renderPlaudit(); }
+    if (d.plrx === 'clear') { PLRX.card = ''; return renderPlaudit(); }
+    if (d.plrx === 'close') return plrxPanelClose();
+    if (d.plrx === 'card') { const row = plrxRowOf(PLRX.panel); if (row && typeof plCardOpen === 'function') plCardOpen(row.parent); return undefined; }
+    if (d.plrxCard) { PLRX.card = PLRX.card === d.plrxCard ? '' : d.plrxCard; return renderPlaudit(); }
+    if (d.plrxGo) {
+      const row = plrxRowOf(PLRX.panel);
       if (!row) return undefined;
-      if (d.plxGo === 'salert') { if (typeof AL !== 'undefined') AL.brand = row.brand; if (typeof showTab === 'function') showTab('salert'); return undefined; }
-      if (d.plxGo === 'bsr') { if (typeof BSX !== 'undefined') BSX.q = row.title || row.parent; if (typeof showTab === 'function') showTab('bsr'); return undefined; }
+      if (d.plrxGo === 'salert') { if (typeof AL !== 'undefined') AL.brand = row.brand; if (typeof showTab === 'function') showTab('salert'); return undefined; }
+      if (d.plrxGo === 'bsr') { if (typeof BSX !== 'undefined') BSX.q = row.title || row.parent; if (typeof showTab === 'function') showTab('bsr'); return undefined; }
       if (typeof showTab === 'function') showTab('health');
       setTimeout(() => { if (typeof hFocusOpen === 'function') hFocusOpen(row.brand, row.parent); }, 300);
     }
@@ -362,15 +362,15 @@ if (typeof document !== 'undefined' && document.addEventListener) {
   });
   document.addEventListener('change', e => {
     const el = e.target;
-    if (el && el.id === 'plWeek') { PLX.week = el.value || ''; PLX.card = ''; if (typeof renderPlaudit === 'function') renderPlaudit(); }
+    if (el && el.id === 'plWeek') { PLRX.week = el.value || ''; PLRX.card = ''; if (typeof renderPlaudit === 'function') renderPlaudit(); }
   });
   // Esc closes the panel — unless the parent card or a task form is open over it (that closes first). Capture: before their handlers.
   document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape' || !PLX.panel) return;
-    const card = plxEl('plCardModal');
+    if (e.key !== 'Escape' || !PLRX.panel) return;
+    const card = plrxEl('plCardModal');
     if (card && !card.classList.contains('hide')) return;
     if (typeof TK !== 'undefined' && TK.form) return;
-    plxPanelClose();
+    plrxPanelClose();
   }, true);
-  if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', () => { if (PLX.chart) { try { PLX.chart.resize(); } catch (e) { /* gone */ } } });
+  if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('resize', () => { if (PLRX.chart) { try { PLRX.chart.resize(); } catch (e) { /* gone */ } } });
 }
