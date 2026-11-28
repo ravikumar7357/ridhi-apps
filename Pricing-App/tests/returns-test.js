@@ -33,7 +33,7 @@ function world(opt) {
     STUBS.forEach(n => { if (!(n in base)) base[n] = stub(); });
     const ctx = vm.createContext(base);
     try {
-      vm.runInContext(FILES.map(src).join('\n;\n') + '\n;this.__x = { RS, RS_M, rsParse, rsMerge, rsUpload, rsLoad, rsCompute, rsIsSpike, rsFor, rsData, rsSectionHtml, rsChipHtml, rsBarBtn, rsDetailHtml, rsWeek, returnsCheck, tkVerdict, AL, alBarHtml, alRender: typeof alRender === "function" ? alRender : null, rsWeeks: typeof rsWeeks === "function" ? rsWeeks : null, rsJob: typeof rsJob === "function" ? rsJob : null, rsPeek: typeof rsPeek === "function" ? rsPeek : null, rsSpikeOn, rsChartSvg };', ctx);
+      vm.runInContext(FILES.map(src).join('\n;\n') + '\n;this.__x = { RS, RS_M, rsParse, rsMerge, rsUpload, rsLoad, rsCompute, rsIsSpike, rsFor, rsData, rsSectionHtml, rsChipHtml, rsBarBtn, rsDetailHtml, rsWeek, returnsCheck, tkVerdict, AL, alBarHtml, alRender: typeof alRender === "function" ? alRender : null, rsWeeks: typeof rsWeeks === "function" ? rsWeeks : null, rsJob: typeof rsJob === "function" ? rsJob : null, rsPeek: typeof rsPeek === "function" ? rsPeek : null, rsSpikeOn, rsChartSvg, ensureSalert: typeof ensureSalert === "function" ? ensureSalert : null };', ctx);
       return Object.assign(ctx.__x, { ctx, store, writes });
     } catch (e) {
       const m = /^(\w+) is not defined/.exec(e.message);
@@ -278,6 +278,23 @@ function fileSP(extra) {
     ok('back to Ridhi: Ridhi\'s spikes again', /data-rs-row="rs\|SP\|PA\|2026-11-15"/.test(B.rsSectionHtml('CPC')) && !/rs\|CPC\|/.test(B.rsSectionHtml('CPC')));
     const sa = SRC('app/sales/sales-alerts.js');
     ok('the sales drops are not touched by the switch: Sales Alerts\' maths and its brand never read it (RS.upBrand / rsBrand)', !/RS\.upBrand|rsBrand/.test(sa) && B.AL.brand === 'CPC');
+  }
+
+  console.log('== 9. (28 Nov 2026) when Sales Alerts opens, the returns switch starts on the brand chosen at the top ==');
+  {
+    const O = world({ fams: FAMS });
+    const opened = [['SP', 'CPC', 'SP'], ['CPC', 'SP', 'CPC'], ['ALL', 'CPC', 'SP']].map(([top, was, want]) => {
+      O.AL.brand = top; O.RS.upBrand = was;
+      O.ensureSalert().catch(() => {});                    // the switch is set before the first draw (nothing awaited before it)
+      return O.RS.upBrand === want;
+    });
+    ok('the page opens: Ridhi → Ridhi, CPC → CPC, All → Ridhi', opened.every(Boolean), JSON.stringify(opened));
+    O.AL.brand = 'CPC'; O.ensureSalert().catch(() => {});
+    O.RS.upBrand = 'SP';                                   // the person flips the returns switch to Ridhi
+    const sa = SRC('app/sales/sales-alerts.js');
+    ok('after that the switch works on its own: flipped to Ridhi it stays Ridhi; changing the brand at the top (no new open) never moves it', O.RS.upBrand === 'SP'
+      && /if \(t\.dataset\.alBrand\) \{ AL\.brand = t\.dataset\.alBrand; try \{ localStorage\.setItem\('alBrand', AL\.brand\); \} catch \(err\) \{ \/\* this visit \*\/ \} alRender\(\); return; \}/.test(sa)
+      && (sa.match(/rsStartBrand\(/g) || []).length === 1 && /async function ensureSalert\(\) \{\n  const sales = alLoad\(\);[^\n]*\n  if \(typeof rsStartBrand === 'function'\) rsStartBrand\(AL\.brand\);/.test(sa));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

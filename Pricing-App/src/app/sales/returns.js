@@ -422,6 +422,9 @@ function rsBarBtn() { return `<button type="button" class="al-btn" data-rs-act="
  * chip, Week choices and "returns data up to" line are shown — never the other brand's. The Sales Alerts brand above (the sales drops)
  * does not move it. */
 const rsBrand = () => (RS.upBrand === 'CPC' ? 'CPC' : 'SP');
+/** When Sales Alerts opens: the switch starts on the brand chosen at the top (Ridhi → Ridhi, CPC → CPC, All → Ridhi); after that it works
+ *  on its own. Called by ensureSalert only. */
+function rsStartBrand(viewBrand) { RS.upBrand = viewBrand === 'CPC' ? 'CPC' : 'SP'; RS.msg = ''; }
 const RS_NAME = { SP: 'Ridhi', CPC: 'CPC' };
 // The section's note when the brand picked has no returns data: never the other brand's spikes.
 const rsNoneHtml = b => `<p class="rs-none" role="status">No ${RS_NAME[b]} returns uploaded yet — choose the ${RS_NAME[b]} Customer Returns file above to see ${RS_NAME[b]} return spikes.${RS.open ? '' : ' <button type="button" class="al-btn" data-rs-act="panel">Upload</button>'}</p>`;
