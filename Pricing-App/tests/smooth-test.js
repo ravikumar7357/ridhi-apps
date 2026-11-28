@@ -176,7 +176,7 @@ console.log('== no new calls ==');
   // fix-status.js (the Fix status bell, 24 Nov 2026) is set aside too: it never calls Amazon or the backend, and its database calls are
   // only its own shared /history documents (fixwatch, fixstatus, fixsc = the Seller Central records, fixseen_<user> = seen marks + open arrows)
   // kw-win.js (winning keywords, 27–28 Nov 2026) is set aside too: its backend calls are READS of the nightly caches (?cache=…, one
-  // baCall, kept per visit) — never Amazon; its database calls are only its own uploads (history/kwwin_*, history/kwsqp_*)
+  // baCall, kept per visit) — never Amazon; (28 Nov 2026) no database call (the uploads are gone), the scout's Run now / status — checked below
   // aplus-audit.js and listing-match.js (A+ modules + description, 2 Dec 2026) are set aside too, each with its own check below: their new
   // calls are READS of Amazon a person starts ("Read modules now" = ?lh=aplusdoc, the read Preview A+ makes), the team's A+ standard
   // (listingrules/aplusstd, lsGet / lsSave like the marks) and one more cache read (?cache=lmAplus_Mods_<brand>); (4 Dec 2026) the Product
@@ -200,7 +200,11 @@ console.log('== no new calls ==');
     const kw = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'kw-win.js'), 'utf8');
     const ba = [...kw.matchAll(/\bbaCall\(([^)]*)\)/g)].map(m => m[1]);
     const docs = [...kw.matchAll(/\bdoc\(db, '([^']+)', ([^)]+\))\)/g)].map(m => m[1]);
-    ok(`kw-win.js: no Amazon call; its backend calls only cache reads (${ba.length}), its database calls only history (${docs.length})`, ba.length > 0 && ba.every(a => /^\{ cache: name \}$/.test(a)) && !/\b(lmNet|imPost|fetch)\(/.test(kw) && docs.every(d => d === 'history'), JSON.stringify([ba, docs]));
+    // (28 Nov 2026) the Brand Analytics uploads are gone: no database call at all; the bestseller scout's Run now is one backend call
+    // (?kwscout=run — the BACKEND reads Amazon's catalogue, read-only), then ?kwscout=status while it runs, then a fresh ?cache=kwScout read
+    const net = [...kw.matchAll(/\bkwNet\(\)\(([^)]*\)?)\)/g)].map(m => m[1]);
+    ok(`kw-win.js: no Amazon call; its backend calls only cache reads (${ba.length}) and the scout's Run now / status (${net.length}), no database call (${docs.length})`, ba.length > 0 && ba.every(a => /^\{ cache: name \}$/.test(a))
+      && net.length > 0 && net.every(a => /^\{ cache: name \}$|^\{ kwscout: 'run', types: |^\{ kwscout: 'status' \}$/.test(a)) && !/\b(lmNet|imPost|fetch|getDoc|getDocs|setDoc|deleteDoc)\(/.test(kw) && !docs.length, JSON.stringify([ba, net, docs]));
   }
   const was = mine.reduce((n, f) => n + calls(old[f]), 0);
   const now = mine.reduce((n, f) => n + calls(fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', f), 'utf8')), 0);

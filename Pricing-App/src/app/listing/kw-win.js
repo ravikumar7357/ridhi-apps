@@ -1,45 +1,40 @@
-/* ================= LISTING · WINNING KEYWORDS: the searches other brands win, per product type — for every search-terms suggestion =================
- * Screen: Listing → Listing Rules, the "Winning keywords" card under the rules (kwPanelHtml): the upload; per product type the top
- *   searches, who wins them (brand), click / conversion share, and whether our listings already use their words; a brand filter
- *   (Angry Orange, Etopia, Maison and every brand the data names) and a CSV of what is on screen.
- * DATA (kwLoad) — never made up, never guessed:
- *   1. Brand Analytics → Top search terms, downloaded from Seller Central (search a product word — "tablecloth", "napkin"… — then
- *      Generate download → CSV): per search its Search Frequency Rank and its 3 most clicked products (ASIN, product title, brand when
- *      the file has the "Top Clicked Brand" columns, click share, conversion share). Kept in the shared history collection as
- *      history/kwwin_<n> (kind 'kwwin'), chunked like the Customer Returns uploads; a new upload replaces the searches it shares (a
- *      search is never counted twice). The whole-Amazon report Sellora can ask for by itself (Analytics → Top search terms) keeps
- *      only the 1,000 most searched terms of ALL Amazon (Pricing-API/BrandAnalytics.gs baShape_) — no tablecloth search is in it — so
- *      it is not used here.
- *   2. Brand Analytics → Search Query Performance (Brand view, CSV), per brand: OUR impressions / clicks / purchases per search —
- *      history/kwsqp_<brand>_<n> (kind 'kwsqp'). Shown in the panel ("we sold 4"); the suggestion does not need it.
- *   3. (28 Nov 2026) PROVEN IN OUR ADS — no upload needed: our own Sponsored Products customer search terms from the nightly caches
- *      (stD60 when the backend writes it, else srchTerm: 30 days) with adGroup (which ASINs each ad group advertises). Per listing
- *      FAMILY, the terms with ORDERS >= 2 and an ACoS not over its break-even (when known): their words are added FIRST, by orders,
- *      before the Brand Analytics words (kwWinFor). "PPC: 14 orders from 'farmhouse tablecloth' in 30 days". Panel tab "Proven in our ads".
- *   Nothing uploaded, or the newest week older than KW_OLD_DAYS: "No winning-keyword data (updated <date>)" — every suggestion then
- *   only applies our word rules and the 249-byte limit (listing-rules.js lrSuggestWords), no word is added.
- * A SEARCH OTHER BRANDS WIN: its top-3 products that are not ours hold a conversion share ≥ 3 % (or a click share ≥ 8 %). Its brand:
- *   the file's brand column, else a watched brand in the product title, else the title's first words before a product / colour / shape
- *   word (a guess — used only to name it and to never ADD it; only a real brand column or a watched brand is ever taken OUT).
- *   score = the competitors' conversion share ÷ the search frequency rank (best first).
- * A LISTING'S WINNING WORDS (kwWinFor): the winning searches of ITS product type (tablecloth, napkin, placemat, runner, pillow cover…);
- *   a search that names another shape, colour, size or material than the listing's, a pattern the listing does not say (buffalo plaid,
- *   gingham…), a season (the Season planner adds those, in their window) — or something our cloth is not (waterproof, vinyl,
- *   disposable, a napkin ring…) — is skipped whole; from the rest, every word that is not in the title or the search terms already,
- *   not a brand (ours or anyone's), not a joining / low-value word, not a restricted claim, not an ASIN or a number. (29 Nov 2026) An edge (scalloped, fringe, lace…), a pattern (plaid, striped, floral…), a season or
- *   (when the listing's is not known) a material is only added when its title, attributes or colour say the product is so — else
- *   the search is skipped and said: "skipped: not sure the product is scalloped". Each carries its reason: "wins for Maison on 'farmhouse tablecloth rectangle', search rank 12,400".
+/* ================= LISTING · WINNING KEYWORDS: the words that sell, per product type — for every search-terms suggestion =================
+ * Screen: Listing → Listing Rules, the "Winning keywords" card under the rules (kwPanelHtml), two tabs: "📈 Proven in our ads" (our own
+ *   Sponsored Products search terms with orders, per listing family) and "🔎 Bestseller words" (per product type: the words and phrases
+ *   the top bestsellers use, how many of them, whether we use them, the last run, ↻ Run now). A CSV of each.
+ * DATA — never made up, never guessed. Two sources, in this order:
+ *   1. PROVEN IN OUR ADS (28 Nov 2026) — our own Sponsored Products customer search terms from the nightly caches (stD60 when the backend
+ *      writes it, else srchTerm: 30 days) with adGroup (which ASINs each ad group advertises). Per listing FAMILY, the terms with ORDERS
+ *      >= 2 and an ACoS not over its break-even (when known): their words are added FIRST, by orders, and may take the room of the
+ *      listing's own words with no proof (listing-rules.js lrSuggestWords step 3c). "PPC: 14 orders from 'farmhouse tablecloth' in 30 days".
+ *   2. BESTSELLER WORDS (28 Nov 2026, in place of the Brand Analytics uploads, which are no longer read — what was uploaded stays stored,
+ *      unused) — the Bestseller keyword scout (Pricing-API/KeywordScout.gs): once a week, and on "Run now", the backend searches Amazon's
+ *      catalogue for each of our product types (tablecloth, napkin, placemat, table runner, pillow cover + any other product type of our
+ *      listings), takes the top 25 results by Best Seller Rank that are not ours, and counts the words and 2–3 word phrases of their
+ *      titles and bullet points (brand names, ASINs, numbers, joining words out). Sellora reads it with ?cache=kwScout. A word used by
+ *      >= KW_SCOUT_MIN (30 %) of them, not a brand's name (any bestseller's, ours, the IP & Trademark Guard's, Listing Rules' other brands),
+ *      is offered — only into the ROOM LEFT OVER: it never pushes out the listing's own words (lrSuggestWords step 3b drops it first).
+ *      "used by 14 of the top 20 bestsellers".
+ *   A source with no data is skipped and said: "Bestseller scout hasn't run yet — skipped", "No PPC search-term data … — skipped". With
+ *   neither, every suggestion only applies our word rules and the 249-byte limit (listing-rules.js lrSuggestWords), no word is added.
+ * A LISTING'S WINNING WORDS (kwWinFor): a search term or bestseller phrase that names another shape, colour, size or material than the
+ *   listing's, a pattern the listing does not say (buffalo plaid, gingham…), a season (the Season planner adds those, in their window) —
+ *   or something our cloth is not (waterproof, vinyl, disposable, a napkin ring…) — is skipped whole; from the rest, every word that is
+ *   not in the title or the search terms already, not a brand (ours or anyone's), not a joining / low-value word, not a restricted claim,
+ *   not an ASIN or a number. (29 Nov 2026) An edge (scalloped, fringe, lace…), a pattern (plaid, striped, floral…), a season or (when the
+ *   listing's is not known) a material is only added when its title, attributes or colour say the product is so — else it is skipped
+ *   and said: "skipped: not sure the product is scalloped".
  * Used by: kw-fix.js (Fix all search terms: the Workspace row and the Listing Errors card), listing-content.js lcSuggestKeywords,
  *   listing-ai.js (✨ AI kw: the words are sent, its answer goes through the same rule), create-listing.js. The rule itself — the only
  *   place a word is added or taken out — is listing-rules.js lrSuggestWords.
- * WRITES only the uploaded rows (history/kwwin_*, history/kwsqp_*) — never on the test site (kept in that visit only).
- * Main functions: kwParse, kwParseTerms, kwParseSqp, kwUpload, kwLoad, kwEnsure, kwModel, kwTypeOf, kwTypeOfListing, kwWinFor, kwOthers,
- *   kwStatus, kwWhyLabel, kwPanelHtml, kwPanelDraw, kwCsv, kwReport (console). Names kw / KW. Tests: tests/kw-win-test.js. */
+ * WRITES nothing. Backend calls: cache reads (?cache=kwScout / stD60 / srchTerm / adGroup) and, on "Run now", ?kwscout=run (asks the
+ *   backend's scout to run — read-only catalogue searches on Amazon) then ?kwscout=status until it is done.
+ * Main functions: kwLoad, kwEnsure, kwScoutRead, kwScoutWords, kwScoutRun, kwStatus, kwTypeOf, kwTypeOfListing, kwWinFor, kwOthers,
+ *   kwWhyLabel, kwPanelHtml, kwPanelDraw, kwScoutCsv, kwPpcCsv, kwReport (console). Names kw / KW. Tests: tests/kw-win-test.js,
+ *   tests/kw-scout-test.js. */
 
 const KW_FOCUS = ['Angry Orange', 'Etopia', 'Maison'];       // the brands the team watches (Maison = Maison d' Hermine)
-const KW_CHUNK = 700;                                        // searches per history/kwwin_<n> document
-const KW_OLD_DAYS = 45;                                      // older than this: not used ("No winning-keyword data (updated …)")
-const KW_MIN = { conv: 0.03, click: 0.08 };                  // a search other brands WIN: their conversion share ≥ 3 % or click share ≥ 8 %
+const KW_OLD_DAYS = 45;                                      // a scout run older than this: not used ("Bestseller scout last ran …")
 const KW_MAX_WORDS = 40;                                     // winning words offered per listing, best first
 const KW_TYPES = [
   ['tablecloth', 'Tablecloths', ['tablecloth', 'table cloth', 'table cover']],
@@ -80,13 +75,11 @@ const KW_PLAIN = ['set', 'pack', 'piece', 'pieces', 'pcs', 'premium', 'luxury', 
   'heavy', 'duty', 'soft', 'natural', 'classic', 'french', 'country', 'outdoor', 'indoor', 'kids', 'baby', 'new', 'quality', 'pure', 'handmade', 'woven', 'cloth'];
 const KW_KEEP_ROWS = 60;                                    // rows the panel shows at once (Show more adds as many)
 
-const KW = { terms: null, sqp: { SP: null, CPC: null }, v: 0, loaded: false, busy: null, err: '', msg: '', upBrand: 'SP', type: '', brand: 'ALL', tab: '', ppcBrand: 'ALL', ppc: null, q: '', limit: KW_KEEP_ROWS,
-  model: null, win: new Map(), others: null, ours: null };
-const kwTest = () => typeof sqIsTest === 'function' && sqIsTest();
+const KW = { scout: null, v: 0, loaded: false, busy: null, err: '', type: '', stype: '', tab: '', ppcBrand: 'ALL', ppc: null, q: '', limit: KW_KEEP_ROWS,
+  win: new Map(), others: null, ours: null, running: false, runMsg: '', runErr: false, runPrev: 0, pollT: null };
 const kwEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const KW_NUM = new Intl.NumberFormat('en-US');
 const kwNf = n => KW_NUM.format(Number(n || 0));
-const kwPct = v => (v == null || !isFinite(v) ? '—' : (Math.round(v * 1000) / 10).toFixed(1) + '%');
 const KW_MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const kwDay = k => (k && /^\d{4}-\d{2}-\d{2}/.test(k) ? `${+k.slice(8, 10)} ${KW_MON[+k.slice(5, 7) - 1]} ${k.slice(0, 4)}` : '—');
 const kwIso = t => new Date(t).toISOString().slice(0, 10);
@@ -120,167 +113,34 @@ const KW_FIT = [['card table', 'for a card table'], ['coffee table', 'for a coff
 const KW_FIT_P = KW_FIT.map(([p, what]) => [kwPhrases([p])[0], what]);
 
 /* ============================================================================================
- * 1. READING THE FILES (pure)
+ * 1. THE BESTSELLER SCOUT'S DATA: ?cache=kwScout (Pricing-API/KeywordScout.gs — weekly, and on Run now)
  * ============================================================================================ */
-// A CSV / tab text → rows of cells (quotes as Excel writes them).
-function kwTable(text) {
-  const s = String(text || '').replace(/^﻿/, '');
-  const nl = s.search(/\r?\n/), first = nl < 0 ? s : s.slice(0, nl);
-  const sep = (first.match(/\t/g) || []).length > (first.match(/,/g) || []).length ? '\t' : ',';
-  const rows = [];
-  let row = [], cell = '', q = false;
-  const endRow = () => { row.push(cell); cell = ''; if (row.some(c => String(c).trim() !== '')) rows.push(row); row = []; };
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (q) {
-      if (ch !== '"') cell += ch;
-      else if (s[i + 1] === '"') { cell += '"'; i++; }
-      else q = false;
-    } else if (ch === '"' && cell.trim() === '') { cell = ''; q = true; }
-    else if (ch === sep) { row.push(cell); cell = ''; }
-    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && s[i + 1] === '\n') i++; endRow(); }
-    else cell += ch;
-  }
-  if (cell !== '' || row.length) endRow();
-  return rows.map(r => r.map(c => String(c).trim()));
+const KW_SCOUT_TAB = 'kwScout';
+const KW_SCOUT_MIN = 0.3;            // a bestseller word is used when at least 30 % of the top bestsellers use it
+const KW_SCOUT_POLL_MS = 60000;      // after Run now: the backend is asked where it is every minute…
+const KW_SCOUT_POLL_MAX = 20;        // …at most 20 times (a run takes a few minutes)
+// The search the scout makes for each of our product types (the backend's own list starts with the first five).
+const KW_SCOUT_Q = { tablecloth: 'tablecloth', napkin: 'cloth napkins', placemat: 'placemats', runner: 'table runner', pillow: 'pillow cover', coaster: 'coasters',
+  apron: 'apron', towel: 'kitchen towels', quilt: 'quilt', duvet: 'duvet cover', curtain: 'curtains', bag: 'tote bag', dress: 'dress' };
+// Amazon product types too wide to search by their name.
+const KW_SCOUT_SKIP = new Set(['PRODUCT', 'HOME', 'HOME_BED_AND_BATH', 'HOME_FURNITURE_AND_DECOR', 'KITCHEN', 'ACCESSORY', 'ABIS_HOME', 'ABIS_KITCHEN', 'TEXTILE']);
+// The backend GET, kept per visit (baCall: the browser's copy first) — or, `fresh` (after Run now), straight from the backend.
+const kwNet = () => (typeof baCallNet === 'function' ? baCallNet : baCall);
+async function kwCacheGet(name, fresh) {
+  try { const r = fresh ? await kwNet()({ cache: name }) : typeof baCall === 'function' ? await baCall({ cache: name }) : null; return (r && r.data) || null; } catch (e) { return null; }
 }
-// "1,234" → 1234; "12.5%" → 12.5 (the % is remembered by the caller); '' → null.
-const kwNum = v => { const s = String(v == null ? '' : v).replace(/[,%\s]/g, ''); if (!s || s === '-' || s === '—') return null; const n = Number(s); return isFinite(n) ? n : null; };
-// The newest date written anywhere in a few cells ("Week 46 | 2026-11-08 - 2026-11-14"; "11/14/2026") → 'YYYY-MM-DD' or ''.
-function kwLastDate(cells) {
-  let best = '';
-  (cells || []).forEach(c => {
-    String(c || '').replace(/(\d{4})-(\d{2})-(\d{2})|(\d{1,2})\/(\d{1,2})\/(\d{4})/g, (m, y, mo, d, mo2, d2, y2) => {
-      const k = y ? `${y}-${mo}-${d}` : `${y2}-${('0' + mo2).slice(-2)}-${('0' + d2).slice(-2)}`;
-      if (k > best) best = k;
-      return m;
-    });
-  });
-  return best;
+/** The scout's tab ({ at, ms, top, min, types: { type: { q, pt, n, items, words, err } } }) — null when it has not run (never guessed). */
+async function kwScoutRead(fresh) {
+  const d = await kwCacheGet(KW_SCOUT_TAB, fresh);
+  return d && d.types && typeof d.types === 'object' && Object.keys(d.types).length ? d : null;
 }
-// The header row (within the first 5): the first one that holds every one of `need` (regexes). → { i, head } or null.
-function kwHeadRow(rows, need) {
-  for (let i = 0; i < Math.min(5, rows.length); i++) {
-    const head = rows[i].map(h => h.toLowerCase().replace(/\s+/g, ' '));
-    if (need.every(re => head.some(h => re.test(h)))) return { i, head };
-  }
-  return null;
-}
-/** Brand Analytics → Top search terms (Seller Central download, the 2023+ layout with brands, or the older one): → { ok, kind: 'terms',
- *  rows: [{ q, r, d, p: [{ a, n, b, c, v }] }], to (the report's newest date), skipped } or { ok: false, err }. Shares as fractions. */
-function kwParseTerms(text) {
-  const rows = kwTable(text);
-  const h = kwHeadRow(rows, [/search term/, /frequency rank/]);
-  if (!h) return { ok: false, err: 'not the Top search terms report' };
-  const col = { p: [{}, {}, {}] };
-  h.head.forEach((c, i) => {
-    if (/^search term$/.test(c)) col.q = i;
-    else if (/search frequency rank|^frequency rank/.test(c)) col.r = i;
-    else if (/department/.test(c)) col.d = i;
-    else if (/reporting date|^date$/.test(c)) col.at = i;
-    else {
-      const m = c.match(/#\s*([123])\b/);
-      if (!m) return;
-      const p = col.p[+m[1] - 1];
-      if (/asin/.test(c)) p.a = i;
-      else if (/conversion share|conv\.? share/.test(c)) p.v = i;
-      else if (/click share/.test(c)) p.c = i;
-      else if (/product (title|name)|item name|title/.test(c)) p.n = i;
-      else if (/brand/.test(c)) p.b = i;
-    }
-  });
-  if (col.q == null || col.r == null || !(col.p[0].a != null || col.p[0].n != null) || !(col.p[0].c != null || col.p[0].v != null)) return { ok: false, err: 'not the Top search terms report (no clicked products or shares)' };
-  const body = rows.slice(h.i + 1);
-  // a share column in % (any value over 1, or written with %): the whole file is in %
-  let pct = false;
-  body.slice(0, 400).forEach(r => col.p.forEach(p => [p.c, p.v].forEach(i => { if (i != null) { const s = r[i] || ''; if (/%/.test(s) || (kwNum(s) || 0) > 1) pct = true; } })));
-  const share = v => { const n = kwNum(v); return n == null ? 0 : pct ? n / 100 : n; };
-  const out = new Map();
-  let skipped = 0;
-  body.forEach(r => {
-    const q = String(r[col.q] || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    const rank = kwNum(r[col.r]);
-    if (!q || !rank) { skipped++; return; }
-    const p = col.p.map(c => ({ a: c.a != null ? String(r[c.a] || '').toUpperCase() : '', n: c.n != null ? String(r[c.n] || '').slice(0, 120) : '', b: c.b != null ? String(r[c.b] || '').slice(0, 60) : '',
-      c: c.c != null ? share(r[c.c]) : 0, v: c.v != null ? share(r[c.v]) : 0 })).filter(x => x.a || x.n);
-    if (!p.length) { skipped++; return; }
-    const rec = { q, r: rank, d: col.d != null ? String(r[col.d] || '').slice(0, 40) : '', p };
-    const was = out.get(q);
-    if (!was || rank < was.r) out.set(q, rec);                // one search once (its best rank when a file holds it twice)
-  });
-  const to = kwLastDate([rows.slice(0, h.i).flat().join(' ')].concat(col.at != null ? body.slice(0, 50).map(r => r[col.at]) : []));
-  return { ok: true, kind: 'terms', rows: [...out.values()], to, skipped };
-}
-/** Brand Analytics → Search Query Performance (Brand view or ASIN view CSV): → { ok, kind: 'sqp', rows: [{ q, vol, i, c, o, ct, ot }], to }. */
-function kwParseSqp(text) {
-  const rows = kwTable(text);
-  const h = kwHeadRow(rows, [/^search query$/, /search query volume/]);
-  if (!h) return { ok: false, err: 'not the Search Query Performance report' };
-  const find = re => h.head.findIndex(c => re.test(c));
-  const col = { q: find(/^search query$/), vol: find(/search query volume/), i: find(/^impressions: (brand|asin) count/), c: find(/^clicks: (brand|asin) count/),
-    o: find(/^purchases: (brand|asin) count/), ct: find(/^clicks: total count/), ot: find(/^purchases: total count/), at: find(/reporting date/) };
-  const body = rows.slice(h.i + 1);
-  const n = (r, i) => (i >= 0 ? kwNum(r[i]) || 0 : 0);
-  const out = new Map();
-  body.forEach(r => {
-    const q = String(r[col.q] || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    if (!q) return;
-    const was = out.get(q) || { q, vol: 0, i: 0, c: 0, o: 0, ct: 0, ot: 0 };
-    was.vol = Math.max(was.vol, n(r, col.vol));
-    ['i', 'c', 'o', 'ct', 'ot'].forEach(k => { was[k] += n(r, col[k]); });
-    out.set(q, was);
-  });
-  const to = kwLastDate([rows.slice(0, h.i).flat().join(' ')].concat(col.at >= 0 ? body.slice(0, 50).map(r => r[col.at]) : []));
-  return { ok: true, kind: 'sqp', rows: [...out.values()], to };
-}
-/** Either file: → the parse that reads it, or { ok: false, err } naming both (never guessed). */
-function kwParse(text) {
-  const t = kwParseTerms(text);
-  if (t.ok) return t;
-  const s = kwParseSqp(text);
-  if (s.ok) return s;
-  return { ok: false, err: 'Not read: this file is neither Brand Analytics "Top search terms" (Search Term, Search Frequency Rank, the clicked products) nor "Search Query Performance" (Search Query, Search Query Volume). Download it again from Seller Central → Brands → Brand Analytics.' };
-}
-// A new upload over what is kept: a search in both is the new one (never twice).
-function kwMerge(old, fresh) {
-  const m = new Map((old || []).map(x => [x.q, x]));
-  let replaced = 0;
-  (fresh || []).forEach(x => { if (m.has(x.q)) replaced++; m.set(x.q, x); });
-  return { rows: [...m.values()], added: (fresh || []).length - replaced, replaced };
-}
-
-/* ============================================================================================
- * 2. THE SHARED COPY: history/kwwin_<n> and history/kwsqp_<brand>_<n>
- * ============================================================================================ */
-const kwDocName = (name, i) => `${name}_${i}`;
-async function kwReadStore(kind) {
-  const snap = await getDocs(query(collection(db, 'history'), where('kind', '==', kind)));
-  const by = {};
-  snap.forEach(d => { const v = d.data() || {}; const k = v.brand || '-'; (by[k] = by[k] || []).push(v); });
-  const out = {};
-  Object.keys(by).forEach(k => {
-    const head = by[k].find(p => p.n === 0);
-    if (!head) return;
-    const parts = by[k].filter(p => p.uploadedAt === head.uploadedAt && p.n < head.of).sort((a, z) => a.n - z.n);
-    if (parts.length !== head.of) return;                 // an upload still being written: the last whole one next time
-    out[k] = { uploadedAt: head.uploadedAt, of: head.of, trail: head.trail || [], meta: head.meta || {}, rows: parts.flatMap(p => p.rows || []) };
-  });
-  return out;
-}
-/** Read both stores (once per visit unless forced). Never throws: a failure is said in the panel. */
+/** Read both sources (once per visit unless forced). Never throws: a missing source is said in the panel. */
 async function kwLoad(force) {
   if (KW.busy) return KW.busy;
   if (KW.loaded && !force) return null;
   KW.busy = (async () => {
-    try {
-      if (typeof getDocs === 'function' && typeof db !== 'undefined') {
-        const [t, s] = await Promise.all([kwReadStore('kwwin'), kwReadStore('kwsqp')]);
-        if (!(KW.terms && KW.terms.mem)) KW.terms = t['-'] || null;
-        ['SP', 'CPC'].forEach(b => { if (!(KW.sqp[b] && KW.sqp[b].mem)) KW.sqp[b] = s[b] || null; });
-      }
-      KW.err = '';
-    } catch (e) { KW.err = 'The winning-keyword data could not be read (' + ((e && e.code) || (e && e.message) || 'no access') + ').'; }
-    await kwPpcLoad();                                       // our own ads' search terms (never throws): works with no upload at all
+    const [sc] = await Promise.all([kwScoutRead(!!force), kwPpcLoad()]);   // our own ads' search terms (never throws) too
+    if (sc) KW.scout = sc;
     KW.loaded = true;
     kwChanged();
   })().finally(() => { KW.busy = null; });
@@ -290,55 +150,77 @@ async function kwLoad(force) {
 function kwEnsure() { if (!KW.loaded) { kwLoad(); return false; } return true; }
 function kwChanged() {
   KW.v++;
-  KW.model = null; KW.win.clear(); KW.others = null; KW.ours = null; KW.ppcM = null;
+  KW.win.clear(); KW.others = null; KW.ours = null; KW.ppcM = null; KW.sw = null; KW.sb = null;
   if (typeof kwPanelDraw === 'function') kwPanelDraw();
 }
-/** FOR TESTS and the test site: the data as if uploaded — { terms: rows, to, sqp: { SP: rows } }. */
+/** FOR TESTS and the test site: the scout's tab as the backend writes it — { scout } — or {} for none. */
 function kwUse(o) {
   o = o || {};
-  const at = o.at || Date.now();
-  KW.terms = o.terms ? { uploadedAt: at, of: 1, trail: [{ at, by: 'test', name: 'test' }], meta: { to: o.to || kwIso(at), file: 'test' }, rows: o.terms, mem: true } : null;
-  KW.sqp = { SP: o.sqp && o.sqp.SP ? { uploadedAt: at, rows: o.sqp.SP, meta: { to: o.to || '' }, trail: [], mem: true } : null, CPC: o.sqp && o.sqp.CPC ? { uploadedAt: at, rows: o.sqp.CPC, meta: { to: o.to || '' }, trail: [], mem: true } : null };
+  KW.scout = o.scout && o.scout.types ? o.scout : null;
   KW.loaded = true;
   kwChanged();
 }
-async function kwSave(name, kind, brand, rows, meta) {
-  const prev = kind === 'kwwin' ? KW.terms : KW.sqp[brand];
-  const at = Date.now(), me = (typeof ME !== 'undefined' && ME && ME.email) || '';
-  const trail = ((prev && prev.trail) || []).concat([{ at, by: me, name: typeof sqName === 'function' ? sqName(me) : me, rows: rows.length, file: meta.file || '', added: meta.added, replaced: meta.replaced }]).slice(-20);
-  const of = Math.max(1, Math.ceil(rows.length / KW_CHUNK));
-  const m = { to: meta.to || '', file: meta.file || '' };
-  const rec = { uploadedAt: at, of, trail, meta: m, rows, mem: kwTest() };
-  if (!kwTest()) {
-    for (let i = 0; i < of; i++) {
-      await setDoc(doc(db, 'history', kwDocName(name, i)), Object.assign({ kind, n: i, of, uploadedAt: at, rows: rows.slice(i * KW_CHUNK, (i + 1) * KW_CHUNK) }, brand ? { brand } : {}, i === 0 ? { trail, meta: m } : {}));
-    }
-    for (let i = of; i < ((prev && prev.of) || 0); i++) { try { await deleteDoc(doc(db, 'history', kwDocName(name, i))); } catch (e) { /* chunk 0 says how many */ } }
-  }
-  if (kind === 'kwwin') KW.terms = rec; else KW.sqp[brand] = rec;
-  kwChanged();
-  return rec;
+/** Our listings' product types, for Run now: [[type, search, Amazon's product type]] — Listing Health's rows, their product type from the
+ *  listing cache. A type of ours (KW_PT) is searched by its word ("cloth napkins"); another one by its own name ("BLANKET" → "blanket"). */
+function kwScoutTypeList() {
+  const seen = new Map();
+  ['SP', 'CPC'].forEach(b => ((typeof HEALTH !== 'undefined' && HEALTH[b] && HEALTH[b].rows) || []).forEach(r => {
+    let m = null;
+    try { m = typeof lmGet === 'function' ? lmGet(r.sku, b) : null; } catch (e) { m = null; }
+    const pt = String((m && m.pt) || r.pt || '').toUpperCase().replace(/[\s-]+/g, '_').replace(/[^A-Z0-9_]/g, '');
+    if (!pt || KW_SCOUT_SKIP.has(pt)) return;
+    const t = KW_PT[pt] || pt.toLowerCase();
+    if (!seen.has(t)) seen.set(t, [t, KW_SCOUT_Q[t] || pt.toLowerCase().replace(/_/g, ' '), pt]);
+  }));
+  return [...seen.values()].slice(0, 12);
 }
-/** An upload: read → merge with what is kept → save. Returns the words for the panel. */
-async function kwUpload(text, file, brand) {
-  const p = kwParse(text);
-  if (!p.ok) return p.err;
-  if (!p.rows.length) return 'No searches read from this file.';
-  if (p.kind === 'sqp' && brand !== 'SP' && brand !== 'CPC') return 'Pick the brand of the Search Query Performance file first.';
-  const kept = p.kind === 'terms' ? ((KW.terms && KW.terms.rows) || []) : ((KW.sqp[brand] && KW.sqp[brand].rows) || []);
-  const mg = kwMerge(kept, p.rows);
-  const prevTo = p.kind === 'terms' ? KW.terms && KW.terms.meta && KW.terms.meta.to : KW.sqp[brand] && KW.sqp[brand].meta && KW.sqp[brand].meta.to;
-  const to = [p.to, prevTo].filter(Boolean).sort().pop() || kwIso(Date.now());
-  try {
-    if (p.kind === 'terms') await kwSave('kwwin', 'kwwin', '', mg.rows, { file, added: mg.added, replaced: mg.replaced, to });
-    else await kwSave('kwsqp_' + brand, 'kwsqp', brand, mg.rows, { file, added: mg.added, replaced: mg.replaced, to });
-  } catch (e) { return 'Not saved: ' + ((e && (e.code || e.message)) || e); }
-  const what = p.kind === 'terms' ? 'Top search terms' : `Search Query Performance (${({ SP: 'Ridhi', CPC: 'CPC' })[brand]})`;
-  return `${what}: ${kwNf(p.rows.length)} searches read${p.to ? ` (up to ${kwDay(p.to)})` : ''} · ${kwNf(mg.added)} new, ${kwNf(mg.replaced)} already there${mg.replaced ? ' (replaced, not counted twice)' : ''}${p.skipped ? ` · ${kwNf(p.skipped)} rows without a search or rank skipped` : ''}${kwTest() ? ' · test site: kept in this visit only' : ''}.`;
+/** ↻ Run now: ask the backend's scout to run (it reads Amazon's catalogue — nothing is sent), then ask where it is every minute until done. */
+async function kwScoutRun() {
+  if (KW.running) return null;
+  KW.running = true; KW.runErr = false; KW.runMsg = 'Asking the scout to run…';
+  kwPanelDraw();
+  let r = null;
+  try { r = await kwNet()({ kwscout: 'run', types: kwScoutTypeList().map(x => x.join('~')).join(',') }); }
+  catch (e) {
+    const m = String((e && e.message) || e);
+    KW.running = false; KW.runErr = true;
+    KW.runMsg = /not data|did not return|Unknown|kwsAsk_/i.test(m) ? 'Run now did not start: the backend does not have the scout yet (KeywordScout.gs is waiting to be deployed).' : 'Run now did not start: ' + m;
+    kwPanelDraw();
+    return null;
+  }
+  KW.runPrev = (r && r.last && r.last.ms) || 0;
+  KW.runMsg = 'Running: the scout is reading the top bestsellers of each product type on Amazon (catalogue search only — nothing is sent). It takes a few minutes; this panel updates by itself.';
+  kwPanelDraw();
+  clearTimeout(KW.pollT);
+  KW.pollT = setTimeout(() => kwScoutPoll(0), KW_SCOUT_POLL_MS);
+  return r;
+}
+/** One look at the backend after Run now: done → the new words are read (fresh) and every screen works them out again. */
+async function kwScoutPoll(n) {
+  let st = null;
+  try { st = await kwNet()({ kwscout: 'status' }); } catch (e) { st = null; }
+  if (st && !st.running && st.last && st.last.ms > KW.runPrev) {
+    const sc = await kwScoutRead(true);
+    if (sc) KW.scout = sc;
+    KW.running = false;
+    KW.runMsg = `Done: ${kwNf(st.last.types || 0)} product types read${st.last.fail ? ` · ${kwNf(st.last.fail)} could not be read (their last words kept)` : ''}.`;
+    kwChanged();
+    return true;
+  }
+  if (st && st.progress) KW.runMsg = `Running: ${kwNf(st.progress.done)} of ${kwNf(st.progress.of)} product types read${st.progress.note ? ' — ' + st.progress.note : ''}…`;
+  if (n + 1 >= KW_SCOUT_POLL_MAX) {
+    KW.running = false;
+    KW.runMsg = 'Still running on the backend — the new words show the next time this page is opened.';
+    kwPanelDraw();
+    return false;
+  }
+  kwPanelDraw();
+  KW.pollT = setTimeout(() => kwScoutPoll(n + 1), KW_SCOUT_POLL_MS);
+  return false;
 }
 
 /* ============================================================================================
- * 3. THE MODEL: per product type, the searches and who wins them
+ * 2. PRODUCT TYPES AND BRANDS
  * ============================================================================================ */
 /** The product type a text names: 'tablecloth', 'napkin'… — '' when none, or more than one ("tablecloth and napkin set"). */
 function kwTypeOf(text) {
@@ -352,9 +234,10 @@ function kwTypeOfListing(facts, pt, title) {
   const fromProduct = kwTypeOf((f.product || []).join(' | '));
   if (fromProduct) return fromProduct;
   const p = KW_PT[String(pt || '').toUpperCase().replace(/[\s-]+/g, '_')];
-  return p || kwTypeOf(title);
+  return p || kwTypeOf(title) || kwPtType(pt);
 }
-const kwTypeName = t => (KW_TYPES.find(x => x[0] === t) || [t, t])[1];
+// A product type's name: ours ('Tablecloths'), else an Amazon product type the scout read under its own name ('blanket' → 'Blanket').
+const kwTypeName = t => (KW_TYPES.find(x => x[0] === t) || [t, String(t || '').charAt(0).toUpperCase() + String(t || '').slice(1).replace(/_/g, ' ')])[1];
 // Every word a brand guess stops at: product, shape, colour, material, use, joining, low-value and plain describing words.
 let KW_VOCAB = null;
 function kwVocab() {
@@ -377,54 +260,22 @@ function kwOurPhrases() {
   KW.ours = { key: mine, list: kwPhrases(list) };
   return KW.ours.list;
 }
-const kwFocusOf = text => { const keys = kwKeys(text); return KW_FOCUS.find(b => kwHasSeq(keys, kwKeys(b))) || ''; };
-// The brand of a clicked product: the file's brand column, else a watched brand in its title, else the title's first words (a guess).
-function kwBrandOf(p) {
-  if (p.b) return { b: String(p.b).trim(), sure: true };
-  const focus = kwFocusOf(String(p.n || '').split(/\s+/).slice(0, 4).join(' '));
-  if (focus) return { b: focus, sure: true };
-  const vocab = kwVocab();
-  const out = [];
-  for (const w of String(p.n || '').split(/\s+/).slice(0, 4)) {
-    const clean = w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}']+$/gu, '');
-    const k = kwKey(clean.replace(/'/g, ''));
-    if (!k || vocab.has(k) || /\d/.test(k)) break;
-    out.push(clean);
-    if (/[,:;|–—-]$/.test(w)) break;
-  }
-  return { b: out.slice(0, 3).join(' '), sure: false };
+// An Amazon product type of ours the scout read under its own name ("BLANKET" → 'blanket'), else ''.
+function kwPtType(pt) {
+  const k = String(pt || '').toLowerCase().replace(/[\s-]+/g, '_');
+  return k && KW.scout && KW.scout.types && KW.scout.types[k] ? k : '';
 }
-const kwIsOurs = (brand, title) => { const keys = kwKeys(brand || String(title || '').split(/\s+/).slice(0, 4).join(' ')); return kwOurPhrases().some(p => kwHasSeq(keys, p)); };
-/** { v, types: Map type → [term], brands: Map brand → wins, all: [term] } — term = { q, r, type, words, keys, prods, comp, top, cv, cc, wins,
- *  score, ours, not, sqp }. Worked out once per data version. */
-function kwModel() {
-  if (KW.model && KW.model.v === KW.v) return KW.model;
-  const types = new Map(), brands = new Map(), all = [];
-  const sqpOf = {};
-  ['SP', 'CPC'].forEach(b => { const s = KW.sqp[b]; if (s && s.rows) sqpOf[b] = new Map(s.rows.map(x => [x.q, x])); });
-  ((KW.terms && KW.terms.rows) || []).forEach(r => {
-    const ww = kwWords(r.q);
-    const type = kwTypeOf(ww.keys);
-    if (!type) return;
-    const notP = KW_NOT_P.find(p => kwHasSeq(ww.keys, p));
-    const prods = (r.p || []).map(p => { const br = kwBrandOf(p); return Object.assign({}, p, { brand: br.b, sure: br.sure, ours: kwIsOurs(p.b, p.n) }); });
-    const comp = prods.filter(p => !p.ours);
-    const cv = comp.reduce((s, p) => s + (p.v || 0), 0), cc = comp.reduce((s, p) => s + (p.c || 0), 0);
-    const top = comp.slice().sort((a, b) => (b.v || 0) - (a.v || 0) || (b.c || 0) - (a.c || 0))[0] || null;
-    const wins = !!top && (cv >= KW_MIN.conv || cc >= KW_MIN.click);
-    const t = { q: r.q, r: r.r, d: r.d || '', type, words: ww.words, keys: ww.keys, prods, comp, top, cv, cc, wins, score: (cv || cc / 2) * 1e6 / Math.max(1, r.r),
-      ours: prods.some(p => p.ours), not: notP ? notP.join(' ') : '', sqp: { SP: sqpOf.SP ? sqpOf.SP.get(r.q) || null : null, CPC: sqpOf.CPC ? sqpOf.CPC.get(r.q) || null : null } };
-    if (!types.has(type)) types.set(type, []);
-    types.get(type).push(t);
-    all.push(t);
-    if (wins && top.brand) brands.set(top.brand, (brands.get(top.brand) || 0) + 1);
-  });
-  types.forEach(list => list.sort((a, b) => b.score - a.score || a.r - b.r));
-  KW.model = { v: KW.v, types, brands, all };
-  return KW.model;
+// The brands of the bestsellers the scout read (every product type) — never ours (the scout leaves our items out).
+function kwScoutBrands() {
+  if (KW.sb && KW.sb.v === KW.v) return KW.sb.list;
+  const m = new Map();
+  Object.values((KW.scout && KW.scout.types) || {}).forEach(t => (t.items || []).forEach(it => { const b = String(it.b || '').trim(); if (b) m.set(kwKeys(b).join(' '), b); }));
+  m.delete('');
+  KW.sb = { v: KW.v, list: [...m.values()] };
+  return KW.sb.list;
 }
 /** OTHER BRANDS' NAMES to take out of search terms (listing-rules.js lrSuggestWords `others`): the watched brands, Maison d' Hermine, and
- *  every brand the data's brand column names (one word only when it is not an ordinary word); with no IP & Trademark Guard, also
+ *  every brand of the bestsellers the scout read (one word only when it is not an ordinary word); with no IP & Trademark Guard, also
  *  Listing Rules' "Other brands' names". A guessed brand is never taken out. Never one of ours. */
 function kwOthers(cfg) {
   const ipg = typeof ipgKwRisk === 'function';
@@ -440,7 +291,7 @@ function kwOthers(cfg) {
   };
   KW_FOCUS.forEach(b => add(b, true));
   add("Maison d' Hermine", true);
-  kwModel().all.forEach(t => t.prods.forEach(p => { if (p.b && !p.ours) add(p.b, false); }));
+  kwScoutBrands().forEach(b => add(b, false));
   if (!ipg && cfg && typeof lrAllow === 'function' && typeof lrWords === 'function') lrWords(lrAllow(cfg).otherBrands).forEach(b => add(b, true));
   const list = [...out.values()];
   KW.others = { key, list };
@@ -452,14 +303,14 @@ function kwSeasonPhrases(cfg) {
   ((cfg && cfg.events) || []).forEach(ev => { list.push(String(ev.name || '')); String(ev.words || '').split(',').forEach(w => list.push(w)); });
   return kwPhrases(list.map(s => s.trim()).filter(Boolean));
 }
-// Every brand word (keys): the data's brands (guesses too), the watched ones, ours, Listing Rules' other brands.
+// Every brand word (keys): the scout's bestseller brands, the watched ones, ours, Listing Rules' other brands.
 function kwBrandKeys(cfg) {
   const key = KW.v + '|' + (cfg && cfg.allow ? String(cfg.allow.otherBrands || '') + '|' + String(cfg.allow.ourBrands || '') + '|' + String(cfg.allow.claims || '') + '|' + JSON.stringify(cfg.events || []) : '-');
   if (KW.bk && KW.bk.key === key) return KW.bk.s;
   const s = new Set();
   KW.bk = { key, s };
   const addText = t => kwKeys(t).forEach(k => s.add(k));
-  kwModel().all.forEach(t => t.prods.forEach(p => { if (p.brand) addText(p.brand); }));
+  kwScoutBrands().forEach(addText);
   KW_FOCUS.forEach(addText);
   addText("Maison d' Hermine");
   kwOurPhrases().forEach(p => p.forEach(k => s.add(k)));
@@ -481,28 +332,60 @@ function kwBlocked(cfg) {
 }
 
 /* ============================================================================================
- * 4. ONE LISTING'S WINNING WORDS
+ * 3. ONE LISTING'S WINNING WORDS
  * ============================================================================================ */
-/** Is the data there and fresh? { ok, none, old, to, at, text } — text: what every screen says about it. */
+/** Is the scout's data there and fresh? { ok, none, old, to, at, text } — text: what every screen says about it. */
 function kwStatus() {
-  const t = KW.terms;
-  if (!KW.loaded) return { ok: false, loading: true, text: 'Winning keywords: reading…' };
-  if (!t || !(t.rows || []).length) return { ok: false, none: true, text: 'No winning-keyword data (nothing uploaded yet) — only our word rules and the limit' };
-  const to = (t.meta && t.meta.to) || kwIso(t.uploadedAt || Date.now());
-  const age = (Date.now() - Date.parse(to + 'T00:00:00Z')) / 864e5;
-  const by = (t.trail[t.trail.length - 1] || {}).name || '';
-  if (age > KW_OLD_DAYS) return { ok: false, old: true, to, text: `No winning-keyword data (updated ${kwDay(to)}) — older than ${KW_OLD_DAYS} days: only our word rules and the limit` };
-  return { ok: true, to, at: t.uploadedAt, text: `Winning keywords: Brand Analytics up to ${kwDay(to)}${by ? ` (uploaded by ${by})` : ''}` };
+  const s = KW.scout;
+  if (!KW.loaded) return { ok: false, loading: true, text: 'Bestseller words: reading…' };
+  const types = s && s.types ? Object.values(s.types) : [];
+  const ms = (s && s.ms) || Math.max(0, ...types.map(t => t.ms || 0));
+  if (!types.length || !ms) return { ok: false, none: true, text: "Bestseller scout hasn't run yet — skipped" };
+  const to = kwIso(ms);
+  if ((Date.now() - ms) / 864e5 > KW_OLD_DAYS) return { ok: false, old: true, to, at: ms, text: `Bestseller scout last ran ${kwDay(to)} — older than ${KW_OLD_DAYS} days: skipped` };
+  return { ok: true, to, at: ms, text: `Bestseller words: the top ${(s && s.top) || 25} by Best Seller Rank per product type, scout of ${kwDay(to)}` };
 }
-// A winning word's reason, as every screen shows it.
-const kwWhy = e => `wins for ${e.brand || 'another brand'} on '${e.term}', search rank ${kwNf(e.rank)}`;
+// The brand names a bestseller word may not hold (as key lists): the bestsellers' brands, ours, the watched ones and Listing Rules' other brands.
+function kwScoutBrandP(cfg) {
+  const vocab = kwVocab();
+  const list = kwScoutBrands().concat(kwOthers(cfg));
+  return kwPhrases(list).filter(p => p.length && !(p.length === 1 && (vocab.has(p[0]) || p[0].length < 4))).concat(kwOurPhrases());
+}
+/** A product type's bestseller words: [{ w, keys, words, n, of, share, r }] — used by ≥ KW_SCOUT_MIN of its counted bestsellers, never a
+ *  brand's name (kwScoutBrandP) nor a word the IP & Trademark Guard flags; most used first (then the shorter, then the best rank). */
+function kwScoutWords(type, cfg) {
+  const t = KW.scout && KW.scout.types && KW.scout.types[type];
+  if (!t || !t.n || !(t.words || []).length) return [];
+  if (!KW.sw || KW.sw.v !== KW.v) KW.sw = { v: KW.v, m: new Map() };
+  if (KW.sw.m.has(type)) return KW.sw.m.get(type);
+  cfg = cfg || (typeof LR !== 'undefined' && LR) || (typeof LR_DEFAULT !== 'undefined' ? LR_DEFAULT : null);
+  const brandP = kwScoutBrandP(cfg);
+  // the IP & Trademark Guard's words (other brands' names, restricted claims): every word of one found in any of them is out for this
+  // type — "pottery barn style" takes "pottery" and "barn" out on their own too
+  const ban = new Set();
+  if (typeof ipgFind === 'function' && cfg) t.words.forEach(x => { try { ipgFind(String(x.w), cfg).forEach(h => kwKeys(h.word || h.text).forEach(k => ban.add(k))); } catch (e) { /* the Guard is optional */ } });
+  const min = Math.max(KW_SCOUT_MIN, +KW.scout.min || 0);
+  const out = [];
+  t.words.forEach(x => {
+    const ww = kwWords(x.w);
+    const share = (+x.n || 0) / t.n;
+    if (!ww.keys.length || share + 1e-9 < min || ww.keys.some(k => /\d/.test(k))) return;
+    if (brandP.some(p => kwHasSeq(ww.keys, p)) || ww.keys.some(k => ban.has(k))) return;
+    out.push({ w: ww.words.join(' '), keys: ww.keys, words: ww.words, n: +x.n, of: t.n, share, r: +x.r || 0 });
+  });
+  out.sort((a, z) => z.n - a.n || a.keys.length - z.keys.length || (a.r || 9e9) - (z.r || 9e9));
+  KW.sw.m.set(type, out);
+  return out;
+}
+// A bestseller word's reason, as every screen shows it.
+const kwScoutWhy = e => `${e.phrase ? `'${e.term}' ` : ''}used by ${kwNf(e.n)} of the top ${kwNf(e.of)} bestsellers`;
 /* ---- PROVEN IN OUR ADS (28 Nov 2026): the 2nd source — our own Sponsored Products customer search terms ----
  * Read-only from the nightly caches every Ads screen reads (no Amazon call, no backend change): stD60 (60 days, in stSettled's shape)
  * when the backend writes it, else srchTerm (the nightly 30-day window — the only window there is today), with adGroup (which ASINs
  * each ad group advertises). A search term belongs to a FAMILY when every ASIN its ad group advertises is in that one family (our
  * Listing Health rows: ASIN → parent); a single-ASIN group's terms are that ASIN's. "Proven" = ORDERS ≥ KW_PPC_MIN_ORDERS in the
  * window, and the ACoS not over the break-even ACoS (Search Terms' cpBreakEven) when that is known. Its words go through exactly the
- * same filters as the Brand Analytics words (kwWordFilter), and come FIRST, by orders: when space is short the Brand Analytics words
+ * same filters as the bestseller words (kwWordFilter), and come FIRST, by orders: when space is short the bestseller words
  * (added after them) are the first to go. Reason: "PPC: 14 orders from 'farmhouse tablecloth' in 30 days". */
 const KW_PPC_MIN_ORDERS = 2;
 const KW_PPC_SRC = [['stD60', 60], ['srchTerm', 30]];      // the longest window the backend has written wins
@@ -681,9 +564,10 @@ function kwAiNotThis(item, words) {
 // A proven word's reason, as every screen shows it; and when it took the room of the listing's own unproven words, which ones.
 const kwReplacesText = list => (list && list.length ? ` replaces ${list.join(', ')} (no orders)` : '');
 const kwPpcWhy = e => `PPC: ${kwNf(e.orders)} order${e.orders === 1 ? '' : 's'} from '${e.term}' in ${e.days} days`;
-/** item: { brand, sku, asin, parent, price, title, kw, facts (lrSwFacts), pt, cfg } → { status (Brand Analytics), ppc (its status), type,
- *  words: [{ w, k, why, src: 'ppc' | 'ba', … }] } — the words this listing may take, in the order they are added: the words PROVEN in our
- *  own ads first (by orders), then the Brand Analytics winning words (best first). Each source is skipped when its data is missing. */
+/** item: { brand, sku, asin, parent, price, title, kw, facts (lrSwFacts), pt, cfg } → { status (the scout), ppc (its status), type,
+ *  words: [{ w, k, why, src: 'ppc' | 'scout', … }] } — the words this listing may take, in the order they are added: the words PROVEN in
+ *  our own ads first (by orders), then the bestseller words of its product type (most used first). Each source is skipped when its data
+ *  is missing. */
 function kwWinFor(item) {
   item = item || {};
   const status = kwStatus(), ppc = kwPpcStatus();
@@ -707,8 +591,8 @@ function kwWinFor(item) {
   const skipped = new Map();
   // code: '?what' (not sure the product is so) or '!what' (it is not: "not its colour (salmon)") — each once
   const unsure = (code, term, from) => { if (skipped.has(code)) return; const w = code.slice(1); skipped.set(code, { w, term, from, sure: code[0] === '!', why: code[0] === '?' ? `skipped: not sure the product is ${w}` : `skipped: ${w}` }); };
-  // PROOF (28 Nov 2026): the listing's own words that have evidence — a word of a search with an order in our ads, or of a search other
-  // brands win (Brand Analytics). A proven word never pushes those out (listing-rules.js lrSuggestWords step 3c), only words without.
+  // PROOF (28 Nov 2026): the listing's own words that have evidence — a word of a search with an order in our ads, or a word the top
+  // bestsellers of its type use (the scout). A proven word never pushes those out (listing-rules.js lrSuggestWords step 3c), only words without.
   const proof = new Set();
   // 1 PROVEN IN OUR ADS — by orders
   const proven = new Map();
@@ -725,22 +609,25 @@ function kwWinFor(item) {
       });
     });
   }
-  // 2 BRAND ANALYTICS — the searches other brands win for its product type, best first
+  // 2 BESTSELLER WORDS — the words the top bestsellers of its product type use (the scout), most used first. They only take the room
+  // left over: listing-rules.js drops them before any of the listing's own words (step 3b), and they never replace one.
   const best = new Map();
   if (status.ok && type) {
-    (kwModel().types.get(type) || []).forEach(t => {
-      if (!t.wins || t.not) return;
-      t.keys.forEach(k => proof.add(k));
-      const no = flt.term(t.keys, t.q, t.words);
-      if (no) { if (no[0] === '?' || no[0] === '!') unsure(no, t.q, `wins for ${t.top.brand || 'another brand'}`); return; }
-      t.keys.forEach((k, j) => {
-        if (proven.has(k) || (best.has(k) && best.get(k).score >= t.score) || !flt.word(k, t.words[j])) return;
-        best.set(k, { w: t.words[j], k, src: 'ba', score: t.score, term: t.q, brand: t.top.brand, rank: t.r, conv: t.top.v || 0, click: t.top.c || 0 });
+    const sw = kwScoutWords(type, cfg);
+    // a word of a phrase only when the scout kept it on its own too ("style look": never "look" — a low-value word)
+    const alone = new Set(sw.filter(e => e.keys.length === 1).map(e => e.keys[0]));
+    sw.forEach(e => {
+      e.keys.forEach(k => proof.add(k));
+      const no = flt.term(e.keys, e.w, e.words);
+      if (no) { if (no[0] === '?' || no[0] === '!') unsure(no, e.w, `Bestseller scout: ${kwNf(e.n)} of the top ${kwNf(e.of)}`); return; }
+      e.keys.forEach((k, j) => {
+        if (proven.has(k) || best.has(k) || !alone.has(k) || !flt.word(k, e.words[j])) return;
+        best.set(k, { w: e.words[j], k, src: 'scout', term: e.w, n: e.n, of: e.of, share: e.share, rank: e.r, phrase: e.keys.length > 1 });
       });
     });
   }
   const pw = [...proven.values()].sort((a, z) => z.orders - a.orders).map(e => Object.assign(e, { why: kwPpcWhy(e), proven: true }));
-  const bw = [...best.values()].sort((a, b) => b.score - a.score || a.rank - b.rank).map(e => Object.assign(e, { why: kwWhy(e) }));
+  const bw = [...best.values()].map(e => Object.assign(e, { why: kwScoutWhy(e) }));        // most used first, as the scout listed them
   const words = pw.concat(bw).slice(0, KW_MAX_WORDS);
   if (KW.win.size > 3000) KW.win.clear();
   const pf = [...proof];
@@ -764,7 +651,7 @@ function kwWhyLabel(why) {
 const KW_LOCK = { brand: 'our brand', identity: 'hand block print', product: 'its product', shape: 'its shape', material: 'its material', colour: 'its colour', size: 'its size', uses: 'a use word', keep: 'a season on now' };
 
 /* ============================================================================================
- * 5. THE PANEL: Listing → Listing Rules, "Winning keywords"
+ * 4. THE PANEL: Listing → Listing Rules, "Winning keywords"
  * ============================================================================================ */
 // The words our listings of a type already use (titles and search terms of both brands, Listing Health's rows): Set of keys, or null.
 function kwOurWords(type) {
@@ -783,76 +670,64 @@ function kwOurWords(type) {
   KW.used.m.set(type, s);
   return s;
 }
-// The searches on screen: type, brand filter, search box.
-function kwShown() {
-  const md = kwModel();
-  const types = [...md.types.keys()];
-  const type = KW.type && md.types.has(KW.type) ? KW.type : (types.sort((a, b) => md.types.get(b).length - md.types.get(a).length)[0] || '');
-  let list = (md.types.get(type) || []).filter(t => t.wins);
-  if (KW.brand !== 'ALL') list = list.filter(t => t.comp.some(p => kwKeys(p.brand).join(' ') === kwKeys(KW.brand).join(' ') || (KW_FOCUS.includes(KW.brand) && kwFocusOf(p.brand + ' ' + p.n) === KW.brand)));
-  if (KW.q) list = list.filter(t => t.q.includes(KW.q));
-  return { type, types, list };
-}
 // A word of a search that says something to use: not a joining word, not a number, not a brand's name (never "missing: etopia").
 function kwPlainWord(k, brands) { return !(typeof LR_SW_STOP_SET !== 'undefined' && LR_SW_STOP_SET.has(k)) && !/^\d/.test(k) && !brands.has(k); }
-// One search's words: which ones our listings of this type already use.
-function kwUseOf(t, used) {
-  if (!used) return { all: null, miss: [] };
-  const brands = kwBrandKeys((typeof LR !== 'undefined' && LR) || null);
-  const content = t.keys.map((k, j) => ({ k, w: t.words[j] })).filter(x => kwPlainWord(x.k, brands));
-  const miss = content.filter(x => !used.has(x.k)).map(x => x.w);
-  return { all: !miss.length, miss };
+// The product types the scout read, ours first (in KW_TYPES' order).
+function kwScoutTypes() {
+  const ty = (KW.scout && KW.scout.types) || {};
+  const order = KW_TYPES.map(x => x[0]);
+  const at = t => (order.indexOf(t) + 1) || 99;
+  return Object.keys(ty).sort((a, z) => at(a) - at(z) || (a < z ? -1 : 1));
 }
-function kwSqpText(t) {
-  const parts = ['SP', 'CPC'].filter(b => t.sqp[b]).map(b => `${({ SP: 'Ridhi', CPC: 'CPC' })[b]}: ${kwNf(t.sqp[b].c)} clicks · ${kwNf(t.sqp[b].o)} sold`);
-  return parts.join(' · ');
+// One type's words with "we use it?" (every word of it in our titles / search terms of that type; null when Listing Health is not open).
+function kwScoutRows(type) {
+  const used = kwOurWords(type);
+  return kwScoutWords(type).filter(e => !KW.q || e.w.includes(KW.q)).map(e => Object.assign({}, e, { use: used ? e.keys.every(k => used.has(k)) : null }));
 }
-function kwBaPanelHtml() {
+function kwScoutRunHtml() {
+  const s = KW.scout;
+  const at = s && (s.at || (s.ms ? kwIso(s.ms) : ''));
+  const last = at ? `Last run: ${kwDay(at)}${/\d\d:\d\d/.test(at) ? ' ' + at.slice(11, 16) : ''}${s.by ? ` (${kwEsc(s.by)})` : ''}${s.ms ? ` · next weekly run about ${kwDay(kwIso(s.ms + 7 * 864e5))}` : ''}` : "The scout hasn't run yet";
+  return `<div class="kw-run"><span class="muted">${last}</span><button type="button" class="ghost" data-kw-act="run"${KW.running ? ' disabled' : ''}>${KW.running ? '⏳ Running…' : '↻ Run now'}</button>`
+    + `${KW.runMsg ? `<span class="kw-msg${KW.runErr ? ' kw-none' : ''}" role="status">${kwEsc(KW.runMsg)}</span>` : ''}</div>`;
+}
+function kwScoutPanelHtml() {
   const st = kwStatus();
-  const b = (v, t) => `<button type="button" data-kw-brand="${v}" aria-pressed="${KW.upBrand === v}">${t}</button>`;
-  const trail = KW.terms && KW.terms.trail.length ? KW.terms.trail[KW.terms.trail.length - 1] : null;
-  const sqpLine = ['SP', 'CPC'].map(x => `${({ SP: 'Ridhi', CPC: 'CPC' })[x]}: ${KW.sqp[x] ? `${kwNf(KW.sqp[x].rows.length)} searches, up to ${kwDay(KW.sqp[x].meta && KW.sqp[x].meta.to)}` : 'not uploaded'}`).join(' · ');
-  const up = `<div class="kw-up"><div class="kw-up-t"><b>Upload Brand Analytics</b><span class="muted"> Seller Central → Brands → Brand Analytics → <b>Top search terms</b>: search a product word (tablecloth, napkin, placemat, table runner, pillow cover…) → Generate download → CSV. Optional: <b>Search Query Performance</b> (Brand view) per brand. A new file replaces the searches it shares — never counted twice.</span></div>`
-    + `<div class="kw-up-r"><span class="kw-seg" role="group" aria-label="Brand of a Search Query Performance file">${b('SP', 'Ridhi')}${b('CPC', 'CPC')}</span>`
-    + `<label class="ghost kw-file">Choose a file…<input type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" data-kw-file hidden></label>`
-    + `<span class="muted kw-asof">Top search terms: ${KW.terms ? `${kwNf(KW.terms.rows.length)} searches${trail ? ` · uploaded by ${kwEsc(trail.name || trail.by)} ${kwDay(kwIso(trail.at))}` : ''}` : 'not uploaded'} · SQP ${sqpLine}${kwTest() ? ' · test site: uploads stay in this visit only' : ''}</span></div>`
-    + `${KW.msg ? `<p class="kw-msg" role="status">${kwEsc(KW.msg)}</p>` : ''}${KW.err ? `<p class="kw-msg err">${kwEsc(KW.err)}</p>` : ''}</div>`;
-  const head = `<p class="muted kw-what">The searches other brands win (their products' conversion share ≥ ${Math.round(KW_MIN.conv * 100)} % or click share ≥ ${Math.round(KW_MIN.click * 100)} %), per product type, best first (competitor conversion share ÷ search rank). Fix all search terms, Listing Content, ✨ AI and Create Listing add their words to a listing's search terms when they fit — never another brand's name, never a word the title already says, never a search for another shape, colour, size or material.</p>`;
-  if (!KW.terms || !(KW.terms.rows || []).length) return head + up;
-  const sh = kwShown();
-  const md = kwModel();
-  const typeSel = `<select data-kw-f="type" aria-label="Product type">${sh.types.map(t => `<option value="${kwEsc(t)}"${t === sh.type ? ' selected' : ''}>${kwEsc(kwTypeName(t))} (${kwNf(md.types.get(t).filter(x => x.wins).length)})</option>`).join('')}</select>`;
-  const others = [...md.brands.entries()].filter(([n]) => !KW_FOCUS.some(f => kwKeys(f).join(' ') === kwKeys(n).join(' '))).sort((a, z) => z[1] - a[1]).slice(0, 25);
-  const brandSel = `<select data-kw-f="brand" aria-label="Brand that wins"><option value="ALL">All brands</option>${KW_FOCUS.map(f => `<option value="${kwEsc(f)}"${KW.brand === f ? ' selected' : ''}>${kwEsc(f)}</option>`).join('')}`
-    + `${others.map(([n, c]) => `<option value="${kwEsc(n)}"${KW.brand === n ? ' selected' : ''}>${kwEsc(n)} (${kwNf(c)})</option>`).join('')}</select>`;
-  const tools = `<div class="kw-tools">${typeSel}${brandSel}<input type="search" data-kw-f="q" placeholder="Search a word…" value="${kwEsc(KW.q)}" aria-label="Search the searches"><span style="flex:1"></span>`
-    + `<button type="button" class="ghost" data-kw-act="csv">⬇ CSV (${kwNf(sh.list.length)})</button></div>`;
-  const used = kwOurWords(sh.type);
-  const brandKeys = kwBrandKeys((typeof LR !== 'undefined' && LR) || null);
-  const rows = sh.list.slice(0, KW.limit).map(t => {
-    const u = kwUseOf(t, used);
-    const comp = t.comp.slice(0, 3).map(p => `<span class="kw-b${KW_FOCUS.includes(kwFocusOf(p.brand + ' ' + p.n)) ? ' is-focus' : ''}" title="${kwEsc(p.n)}${p.sure ? '' : ' (brand read from the product title)'}">${kwEsc(p.brand || 'unknown')}${p.sure ? '' : '?'}</span>`).join(' ');
-    const words = t.words.map((w, j) => (used && !used.has(t.keys[j]) && kwPlainWord(t.keys[j], brandKeys) ? `<u title="none of our ${kwEsc(kwTypeName(sh.type).toLowerCase())} uses it">${kwEsc(w)}</u>` : kwEsc(w))).join(' ');
-    return `<tr><td>${words}${t.not ? ` <small class="kw-not">not for our cloth (${kwEsc(t.not)})</small>` : ''}</td><td class="num">${kwNf(t.r)}</td><td>${comp}</td><td class="num">${kwPct(t.top ? t.top.c : 0)}</td><td class="num">${kwPct(t.top ? t.top.v : 0)}</td>`
-      + `<td>${u.all == null ? '<span class="muted">—</span>' : u.all ? '<span class="kw-yes">✓ all words</span>' : `<span class="kw-no">missing: ${kwEsc(u.miss.slice(0, 4).join(', '))}</span>`}</td>`
-      + `<td class="muted">${kwEsc(kwSqpText(t)) || '—'}</td></tr>`;
-  }).join('');
-  const more = sh.list.length > KW.limit ? `<button type="button" class="ghost" data-kw-act="more">Show more (${kwNf(sh.list.length - KW.limit)} left)</button>` : '';
-  const table = `<div class="xlwrap kw-tw"><table class="xl kw-t"><thead><tr><th>Search</th><th class="num">Search rank</th><th>Who wins (top clicked)</th><th class="num">Click share</th><th class="num">Conv. share</th><th>We use the words</th><th>Ours (SQP)</th></tr></thead>`
-    + `<tbody>${rows || `<tr><td colspan="7" class="ui-empty">No winning search for ${kwEsc(kwTypeName(sh.type).toLowerCase())}${KW.brand !== 'ALL' ? ' won by ' + kwEsc(KW.brand) : ''}.</td></tr>`}</tbody></table></div>`
-    + `<p class="muted kw-foot">Showing ${kwNf(Math.min(KW.limit, sh.list.length))} of ${kwNf(sh.list.length)} · underlined: a word none of our ${kwEsc(kwTypeName(sh.type).toLowerCase())} uses yet${used ? '' : ' (open Listing Health to see which words we use)'} · ? = brand read from the product title ${more}</p>`;
-  return head + up + tools + table;
+  const s = KW.scout || {};
+  const pct = Math.round(Math.max(KW_SCOUT_MIN, +s.min || 0) * 100);
+  const what = `<p class="muted kw-what">Each week Sellora searches Amazon's catalogue for each of our product types and reads the titles and bullet points of the top ${kwNf(s.top || 25)} results by Best Seller Rank that are not ours. A word or 2–3 word phrase that ${pct}% or more of them use is shown here — never a brand's name (theirs, ours, the IP &amp; Trademark Guard's), an ASIN, a number or a joining word. Fix all search terms, Listing Errors, Listing Content, ✨ AI and Create Listing add the missing ones to a listing's search terms only in the room left over — after the words proven in our ads, never pushing out the listing's own words, with every word rule.</p>`;
+  const run = kwScoutRunHtml();
+  const types = kwScoutTypes();
+  if (!types.length) return what + run + `<p class="kw-msg kw-none">${kwEsc(st.text)}</p>`;
+  const type = KW.stype && types.includes(KW.stype) ? KW.stype : types[0];
+  const t = s.types[type];
+  const name = kwTypeName(type).toLowerCase();
+  const rows = kwScoutRows(type);
+  const used = kwOurWords(type);
+  const sel = `<select data-kw-f="stype" aria-label="Product type">${types.map(x => `<option value="${kwEsc(x)}"${x === type ? ' selected' : ''}>${kwEsc(kwTypeName(x))} (${kwNf(kwScoutWords(x).length)})</option>`).join('')}</select>`;
+  const tools = `<div class="kw-tools">${sel}<input type="search" data-kw-f="q" placeholder="Search a word…" value="${kwEsc(KW.q)}" aria-label="Search the bestseller words"><span style="flex:1"></span>`
+    + `<button type="button" class="ghost" data-kw-act="csv">⬇ CSV (${kwNf(kwScoutCsvRows().length)})</button></div>`;
+  const body = rows.slice(0, KW.limit).map(e => `<tr><td>${kwEsc(e.w)}</td><td class="num"><b>${Math.round(e.share * 100)}%</b> <small class="muted">${kwNf(e.n)} of ${kwNf(e.of)}</small></td>`
+    + `<td class="num">${e.r ? '#' + kwNf(e.r) : '—'}</td><td>${e.use == null ? '<span class="muted">—</span>' : e.use ? '<span class="kw-yes">✓ yes</span>' : '<span class="kw-no">no</span>'}</td>`
+    + `<td class="muted">${kwEsc(kwDay(t.at || (t.ms ? kwIso(t.ms) : '')))}</td></tr>`).join('');
+  const more = rows.length > KW.limit ? `<button type="button" class="ghost" data-kw-act="more">Show more (${kwNf(rows.length - KW.limit)} left)</button>` : '';
+  const empty = t.err && !t.n ? kwEsc(t.err) : `No word that ${pct}% of the top ${name} bestsellers use${KW.q ? ` with "${kwEsc(KW.q)}"` : ''}.`;
+  const table = `<div class="xlwrap kw-tw"><table class="xl kw-t kw-st"><thead><tr><th>Word / phrase</th><th class="num">Bestsellers using it</th><th class="num">Best rank seen</th><th>We use it?</th><th>Last run</th></tr></thead>`
+    + `<tbody>${body || `<tr><td colspan="5" class="ui-empty">${empty}</td></tr>`}</tbody></table></div>`;
+  const items = (t.items || []).slice(0, 30).map(it => `<li><b>${kwEsc(it.b || '—')}</b> <span class="muted">#${kwNf(it.r)} · ${kwEsc(it.a)}</span> ${kwEsc(it.t)}</li>`).join('');
+  const foot = `<p class="muted kw-foot">"${kwEsc(t.q || name)}": the top ${kwNf(t.n || 0)} bestsellers of ${kwNf(t.scanned || 0)} results${t.ours ? ` · ${kwNf(t.ours)} of ours left out` : ''}${t.other ? ` · ${kwNf(t.other)} of another product type left out` : ''}`
+    + ` · "We use it?" = every word of it is in the titles or search terms of our ${kwEsc(name)}${used ? '' : ' (open Listing Health to see which words we use)'}${t.err && t.n ? ' · ' + kwEsc(t.err) : ''} ${more}</p>`
+    + (items ? `<details class="kw-bs"><summary>The ${kwNf((t.items || []).length)} bestsellers read</summary><ol>${items}</ol></details>` : '');
+  return what + run + (st.ok ? '' : `<p class="kw-msg kw-none">${kwEsc(st.text)}</p>`) + tools + table + foot;
 }
-/* ---- the panel's two tabs (28 Nov 2026): Brand Analytics (the uploads) · 📈 Proven in our ads (the nightly PPC search terms) ---- */
+/* ---- the panel's two tabs: 📈 Proven in our ads (the nightly PPC search terms) · 🔎 Bestseller words (the scout) ---- */
 function kwPanelHtml() {
   const st = kwStatus(), pp = kwPpcStatus();
-  const hasBa = !!(KW.terms && (KW.terms.rows || []).length);
-  const tab = KW.tab || (hasBa || !pp.ok ? 'ba' : 'ppc');
-  const baText = st.text.replace(/^Winning keywords: /, '');
-  const head = `<div class="kw-h"><b>🏆 Winning keywords</b><span class="${st.ok ? 'muted' : 'kw-none'}">${kwEsc(baText)}</span><span class="${pp.ok ? 'muted' : 'kw-none'}">· 📈 ${kwEsc(pp.text)}</span></div>`;
+  const tab = KW.tab === 'scout' || KW.tab === 'ppc' ? KW.tab : (pp.ok ? 'ppc' : 'scout');
+  const head = `<div class="kw-h"><b>🏆 Winning keywords</b><span class="${pp.ok ? 'muted' : 'kw-none'}">📈 ${kwEsc(pp.text)}</span><span class="${st.ok ? 'muted' : 'kw-none'}">· 🔎 ${kwEsc(st.text)}</span></div>`;
   const b = (k, t) => `<button type="button" class="segbtn${tab === k ? ' on' : ''}" data-kw-tab="${k}" aria-pressed="${tab === k}">${t}</button>`;
-  const tabs = `<div class="seg kw-tabs" role="group" aria-label="Which words">${b('ba', '🏆 Brand Analytics (uploads)')}${b('ppc', '📈 Proven in our ads')}</div>`;
-  return head + tabs + (tab === 'ppc' ? kwPpcPanelHtml() : kwBaPanelHtml());
+  const tabs = `<div class="seg kw-tabs" role="group" aria-label="Which words">${b('ppc', '📈 Proven in our ads')}${b('scout', '🔎 Bestseller words')}</div>`;
+  return head + tabs + (tab === 'ppc' ? kwPpcPanelHtml() : kwScoutPanelHtml());
 }
 // One family of ours: { name, asin, price, words (Set of the keys of its titles and search terms) } — from Listing Health's rows.
 function kwFamInfo(brand, fam) {
@@ -897,7 +772,7 @@ function kwPpcPanelHtml() {
   if (!pp.ok) return `<p class="kw-msg kw-none">${kwEsc(pp.text)}</p>`;
   const list = kwPpcRows();
   const sel = `<select data-kw-f="ppcBrand" aria-label="Brand">${[['ALL', 'Both brands'], ['SP', 'Ridhi'], ['CPC', 'CPC']].map(([v, t]) => `<option value="${v}"${KW.ppcBrand === v ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
-  const tools = `<p class="muted kw-what">Customer search terms from our own Sponsored Products ads, per listing family (an ad group's terms count for a family only when every product it advertises is in that family). Proven = ${KW_PPC_MIN_ORDERS}+ orders in ${pp.days} days and the ACoS not over the listing's break-even (when its cost is known). Their missing words are added to that family's search terms FIRST (by orders), before the Brand Analytics words — with the same rules.</p>`
+  const tools = `<p class="muted kw-what">Customer search terms from our own Sponsored Products ads, per listing family (an ad group's terms count for a family only when every product it advertises is in that family). Proven = ${KW_PPC_MIN_ORDERS}+ orders in ${pp.days} days and the ACoS not over the listing's break-even (when its cost is known). Their missing words are added to that family's search terms FIRST (by orders), before the bestseller words — with the same rules.</p>`
     + `<div class="kw-tools">${sel}<input type="search" data-kw-f="q" placeholder="Search a word…" value="${kwEsc(KW.q)}" aria-label="Search the search terms"><span style="flex:1"></span><button type="button" class="ghost" data-kw-act="csv">⬇ CSV (${kwNf(list.length)})</button></div>`;
   const rows = list.slice(0, KW.limit).map(t => `<tr><td>${kwEsc(t.t)}</td><td><span class="kw-fam" title="${kwEsc(t.fam)}">${kwEsc(String(t.name).slice(0, 60))}</span> <small class="muted">${t.brand === 'CPC' ? 'CPC' : 'Ridhi'}</small></td>`
     + `<td class="num">${kwNf(t.c)}</td><td class="num">${kwNf(t.o)}</td><td class="num">${t.acos == null ? '—' : Math.round(t.acos) + '%'}</td>`
@@ -921,55 +796,42 @@ function kwPanelDraw() {
   if (!KW.loaded) kwLoad();
   box.innerHTML = kwPanelHtml();
 }
-const KW_CSV_COLS = ['Product type', 'Search', 'Search frequency rank', 'Wins (brand)', 'Brand from', 'Click share', 'Conversion share', 'Competitors conversion share',
-  '#2 brand', '#3 brand', 'Winning ASIN', 'Winning product', 'We use all words', 'Words we do not use', 'Ridhi SQP clicks', 'Ridhi SQP sold', 'CPC SQP clicks', 'CPC SQP sold', 'Not for our cloth', 'Data up to'];
 const kwCsvQ = v => { const s = String(v == null ? '' : v); return /[",\r\n]/.test(s) || /^[=+\-@]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-/** The sheet: the searches on screen (type, brand, search box), Excel-ready (UTF-8 BOM, CRLF). */
-function kwCsv() {
-  const sh = kwShown();
-  const used = kwOurWords(sh.type);
-  const st = kwStatus();
-  const lines = sh.list.map(t => {
-    const u = kwUseOf(t, used);
-    const top = t.top || {};
-    return [kwTypeName(sh.type), t.q, t.r, top.brand || '', top.sure ? 'brand column / watched brand' : 'product title (guess)', kwPct(top.c), kwPct(top.v), kwPct(t.cv),
-      (t.comp[1] || {}).brand || '', (t.comp[2] || {}).brand || '', top.a || '', top.n || '', u.all == null ? '' : u.all ? 'yes' : 'no', u.miss.join(' '),
-      t.sqp.SP ? t.sqp.SP.c : '', t.sqp.SP ? t.sqp.SP.o : '', t.sqp.CPC ? t.sqp.CPC.c : '', t.sqp.CPC ? t.sqp.CPC.o : '', t.not, st.to || ''].map(kwCsvQ).join(',');
+// Every product type's bestseller words (the search box applied): [type, entry].
+function kwScoutCsvRows() { return kwScoutTypes().flatMap(t => kwScoutRows(t).map(e => [t, e])); }
+const KW_SCOUT_CSV_COLS = ['Product type', 'Search', 'Word / phrase', 'Bestsellers using it', 'Of the top', 'Share', 'Best rank seen', 'We use it', 'Last run'];
+/** The sheet: every product type's bestseller words, Excel-ready (UTF-8 BOM, CRLF). */
+function kwScoutCsv() {
+  const lines = kwScoutCsvRows().map(([t, e]) => {
+    const x = KW.scout.types[t];
+    return [kwTypeName(t), x.q || '', e.w, e.n, e.of, Math.round(e.share * 100) + '%', e.r || '', e.use == null ? '' : e.use ? 'yes' : 'no', x.at || (x.ms ? kwIso(x.ms) : '')].map(kwCsvQ).join(',');
   });
-  return { n: lines.length, text: '﻿' + [KW_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
+  return { n: lines.length, text: '\uFEFF' + [KW_SCOUT_CSV_COLS.join(',')].concat(lines).join('\r\n') + '\r\n' };
 }
 function kwDownload() {
-  const ppc = KW.tab === 'ppc' || (!KW.tab && !(KW.terms && (KW.terms.rows || []).length) && kwPpcStatus().ok);
-  const out = ppc ? kwPpcCsv() : kwCsv();
+  const ppc = KW.tab === 'ppc' || (!KW.tab && kwPpcStatus().ok);
+  const out = ppc ? kwPpcCsv() : kwScoutCsv();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([out.text], { type: 'text/csv;charset=utf-8' }));
-  a.download = ppc ? `Sellora-proven-in-our-ads-${kwIso(Date.now())}.csv` : `Sellora-winning-keywords-${kwShown().type || 'all'}-${kwIso(Date.now())}.csv`;
+  a.download = ppc ? `Sellora-proven-in-our-ads-${kwIso(Date.now())}.csv` : `Sellora-bestseller-words-${kwIso(Date.now())}.csv`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   return out;
 }
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('click', e => {
-    const t = e.target && e.target.closest ? e.target.closest('#kwWin [data-kw-act], #kwWin [data-kw-brand], #kwWin [data-kw-tab]') : null;
+    const t = e.target && e.target.closest ? e.target.closest('#kwWin [data-kw-act], #kwWin [data-kw-tab]') : null;
     if (!t) return;
-    if (t.dataset.kwBrand) { KW.upBrand = t.dataset.kwBrand === 'CPC' ? 'CPC' : 'SP'; return kwPanelDraw(); }
     if (t.dataset.kwAct === 'csv') return kwDownload();
-    if (t.dataset.kwTab) { KW.tab = t.dataset.kwTab === 'ppc' ? 'ppc' : 'ba'; KW.limit = KW_KEEP_ROWS; return kwPanelDraw(); }
+    if (t.dataset.kwAct === 'run') return kwScoutRun();
+    if (t.dataset.kwTab) { KW.tab = t.dataset.kwTab === 'ppc' ? 'ppc' : 'scout'; KW.limit = KW_KEEP_ROWS; return kwPanelDraw(); }
     if (t.dataset.kwAct === 'more') { KW.limit += KW_KEEP_ROWS; return kwPanelDraw(); }
   });
-  document.addEventListener('change', async e => {
+  document.addEventListener('change', e => {
     const el = e.target;
     if (!el || !el.closest || !el.closest('#kwWin')) return;
-    if (el.dataset && el.dataset.kwF === 'type') { KW.type = el.value; KW.limit = KW_KEEP_ROWS; return kwPanelDraw(); }
+    if (el.dataset && el.dataset.kwF === 'stype') { KW.stype = el.value; KW.limit = KW_KEEP_ROWS; return kwPanelDraw(); }
     if (el.dataset && el.dataset.kwF === 'ppcBrand') { KW.ppcBrand = el.value || 'ALL'; KW.limit = KW_KEEP_ROWS; return kwPanelDraw(); }
-    if (el.dataset && el.dataset.kwF === 'brand') { KW.brand = el.value || 'ALL'; KW.limit = KW_KEEP_ROWS; return kwPanelDraw(); }
-    if (el.dataset && el.dataset.kwFile !== undefined && el.files && el.files[0]) {
-      const file = el.files[0];
-      KW.msg = 'Reading ' + file.name + '…';
-      kwPanelDraw();
-      try { KW.msg = await kwUpload(await file.text(), file.name, KW.upBrand); } catch (err) { KW.msg = 'Not read: ' + ((err && err.message) || err); }
-      kwPanelDraw();
-    }
   });
   document.addEventListener('input', e => {
     const el = e.target;
@@ -980,13 +842,14 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     KW.qt = setTimeout(() => { kwPanelDraw(); const box = $('kwWin'); const q = box && box.querySelector('[data-kw-f="q"]'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }, 250);
   });
 }
-
-/** CONSOLE: `kwReport()` — the data, its age, the product types and the searches per type; `kwReport('RTC14-1')` — that listing's
- *  winning words (Listing Health loaded) and its search terms before → after. */
+/** CONSOLE: `kwReport()` — both sources and, per product type, the bestseller words; `kwReport('RTC14-1')` — that listing's winning
+ *  words (Listing Health loaded) and its search terms before → after. */
 function kwReport(sku) {
-  const md = kwModel();
-  const out = { status: kwStatus().text, ppc: kwPpcStatus().text, searches: (KW.terms && KW.terms.rows.length) || 0, types: {} };
-  md.types.forEach((list, t) => { out.types[kwTypeName(t)] = { searches: list.length, won: list.filter(x => x.wins).length, top: list.filter(x => x.wins).slice(0, 3).map(x => `${x.q} (${x.top.brand || '?'}, rank ${x.r})`).join(' · ') }; });
+  const out = { status: kwStatus().text, ppc: kwPpcStatus().text, types: {} };
+  kwScoutTypes().forEach(t => {
+    const x = KW.scout.types[t], w = kwScoutWords(t);
+    out.types[kwTypeName(t)] = { search: x.q, bestsellers: x.n, words: w.length, top: w.slice(0, 6).map(e => `${e.w} ${Math.round(e.share * 100)}%`).join(' · '), err: x.err || '' };
+  });
   console.table(out.types);
   if (sku && typeof kfItemOf === 'function' && typeof hCtx === 'function') {
     const ctx = hCtx();
@@ -994,7 +857,7 @@ function kwReport(sku) {
       const row = ((typeof HEALTH !== 'undefined' && HEALTH[brand] && HEALTH[brand].rows) || []).find(r => r.sku === sku);
       if (!row) continue;
       const it = kfItemOf(brand, row, ctx, null);
-      const s = kfShorten(it.kw, { title: it.title, brands: it.brands, risk: it.risk, facts: it.facts, add: it.win.words, others: it.others });
+      const s = kfShorten(it.kw, { title: it.title, brands: it.brands, risk: it.risk, facts: it.facts, add: it.win.words, proof: it.win.proof, others: it.others });
       out.example = { sku, type: it.win.type, words: it.win.words.slice(0, 10).map(w => `${w.w} (${w.why})`), before: s.before, after: s.after, bytes: `${s.bytesBefore} → ${s.bytesAfter}`,
         added: s.added.map(a => a.w).join(' '), removed: s.removed.map(r => `${r.w} (${kwWhyLabel(r.why)})`).join(', ') };
       console.log(out.example);

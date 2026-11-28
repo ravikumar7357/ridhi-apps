@@ -128,7 +128,8 @@ const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => 
       && /data-kf-key="SP\|K1"[\s\S]*?<span class="err">291<\/span> → <span class="ok" data-kf-n="SP\|K1">241<\/span> bytes/.test(html) && /<span class="err">360<\/span> → <span class="ok" data-kf-n="SP\|K6">243<\/span>/.test(html), strip(html).slice(0, 600));
     ok('the removed words struck through, with the reason after them (duplicate · limit); our brand kept 🔒', /<s class="kf-cut" title="duplicate">dinner<\/s><small class="kf-why">duplicate<\/small>/.test(html) && /<s class="kf-cut" title="limit">word035<\/s>/.test(html)
       && !/<s class="kf-cut"[^>]*>CPC<\/s>/.test(html) && /<span class="kf-lock" title="protected: our brand">🔒CPC<\/span>/.test(html), html.slice(html.indexOf('SP|K1'), html.indexOf('SP|K1') + 600));
-    ok('no winning-keyword data here: the popup says so — nothing is added', /No winning-keyword data/.test(html) && !/kf-add/.test(html), strip(html).slice(0, 400));
+    // (28 Nov 2026) the Brand Analytics uploads are gone: the bestseller scout is the 2nd source — not run here, so it says so
+    ok('no winning-word data here: the popup says so ("Bestseller scout hasn\'t run yet — skipped") — nothing is added', /Bestseller scout hasn't run yet — skipped/.test(html.replace(/&#39;/g, "'")) && !/No winning-keyword data/.test(html) && !/kf-add/.test(html), strip(html).slice(0, 400));
     ok('a search box, Select all (on), a tick per child (on), the new text to edit', /data-kf-q/.test(html) && /data-kf-all checked/.test(html) && (html.match(/data-kf-tick="[^"]+" checked/g) || []).length === 4 && (html.match(/<textarea data-kf-edit=/g) || []).length === 4);
     ok('…and nothing sent yet: no patch at all', !C.calls.some(c => c.lfix === 'patch'));
     // search: the rows that do not match are hidden (in place in the page; drawn hidden here), the ticks stay as they were

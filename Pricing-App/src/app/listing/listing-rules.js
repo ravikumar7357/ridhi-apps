@@ -527,7 +527,7 @@ function lrKwCheck(text, max, bytes) {
  * SEARCH TERMS (27 Nov 2026 — OUR WORD RULES): our brands (Ridhi, Whimsical Corner, CPC, Cotton Print Club — LR_KW_OURS, beside "Our
  *   brand words") are protected like the important words and kept ONE time each; every word said again goes ALWAYS, not only to fit (the
  *   first one stays; case and plural ignored: tablecloth = tablecloths); other brands' names always go (`risk`, and `others`: Angry
- *   Orange, Etopia, Maison and the brands the winning-keyword data names). WINNING WORDS (listing/kw-win.js, `add`) are added at the end,
+ *   Orange, Etopia, Maison and the brands of the bestsellers the scout read). WINNING WORDS (listing/kw-win.js, `add`) are added at the end,
  *   best first, never a word the title or the text already holds; to fit, after the low-value and joining words, the weakest added
  *   word goes first. A text written by someone else (the ✨ AI's: `had` = the search terms before) also loses the title's words it added.
  * RULE 2 — what may go, in this order, stopping as soon as the text fits (`fits`): 0 always: other brands' names and restricted claims
@@ -989,7 +989,7 @@ function lrSuggestWords(text, o) {
   // 3 low-value words and joining words
   const lowSet = kwFix ? LR_KW_LOW_SET : LR_SW_LOW_SET;        // search terms: the longer list (30 Nov 2026) — not the planner's trim
   if (step(t => (isProt(t) || t.added ? false : lowSet.has(t.k) ? 'low-value word' : LR_SW_STOP_SET.has(t.k) ? 'stop word' : false))) return done();
-  // 3b search terms: the Brand Analytics words added (never a proven one here), the weakest (the last added) first — they never
+  // 3b search terms: the bestseller words added (never a proven one here), the weakest (the last added) first — they never
   // push out the listing's own words
   if (step(t => !!t.added && !t.proven, 'limit')) return done();
   // search terms: when the listing's own words had to go too, the room left over takes back the winning words that fit, best first
@@ -1005,10 +1005,10 @@ function lrSuggestWords(text, o) {
     if (o.cutEnd !== false) step(t => !isProt(t) && !t.added, 'cut to fit');
   };
   // 3c search terms (28 Nov 2026): a PROVEN word (o.add[].proven: 2+ orders in our own ads) may push out the listing's own words that
-  // have NO proof (not a word of a search with orders in our ads, not a Brand Analytics winning word — o.proof), never a protected one
+  // have NO proof (not a word of a search with orders in our ads, not a word the top bestsellers use — o.proof), never a protected one
   // (our brands, the important words): the listing's own text is made to fit first (step 4, the proven words set aside); then each
   // proven word, best first, takes the room of the weakest unproven words (one the title already says first, then from the end) — or,
-  // when it still cannot fit, it is not added and nothing goes for it. The Brand Analytics words get only the room left over (refill).
+  // when it still cannot fit, it is not added and nothing goes for it. The bestseller words get only the room left over (refill).
   const proven = mode === 'kw' ? toks.filter(t => t.added && t.proven && !t.out) : [];
   if (proven.length) {
     proven.forEach(t => { t.out = 'limit'; t.n = ++seq; });

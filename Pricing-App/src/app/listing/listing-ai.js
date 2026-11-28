@@ -198,7 +198,7 @@ function aiOurBrands(c, text) {
 }
 const aiTitleLimits = c => (typeof ttLimits === 'function' ? ttLimits(c.cfg) : { min: 60, max: 75 });
 const aiKwMax = c => (typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249);
-// The words this listing may take (kw-win.js): proven in our own ads first (by orders), then Brand Analytics; [] without any data.
+// The words this listing may take (kw-win.js): proven in our own ads first (by orders), then the bestseller words; [] without any data.
 function aiWinWords(c, before) { return aiWinAll(c, before).words; }
 // …the whole answer: { words, proof (the listing's own words with evidence — a proven word never pushes those out) }.
 function aiWinAll(c, before) {
@@ -416,7 +416,7 @@ function aiOptsFor(task, field, c, x, before) {
   }
   if (field === 'kw') {
     o.max = aiKwMax(c);
-    o.win = aiWinWords(c, before).slice(0, 25).map(e => e.w);            // the winning words it may use (Brand Analytics), best first
+    o.win = aiWinWords(c, before).slice(0, 25).map(e => e.w);            // the winning words it may use (our ads, then the bestseller words), best first
   }
   if (task === 'season') { o.season = x.season; o.hlmax = x.hlmax; }
   if (task === 'ip_rewrite') o.word = x.word;
@@ -470,7 +470,7 @@ async function aiOpen(btn) {
   AI.jobs.set(id, job);
   host.innerHTML = '<div class="ai-wait muted">✨ Asking the AI… nothing changes on Amazon.</div>';
   if (btn.disabled !== undefined) btn.disabled = true;
-  // search terms: the winning-keyword data first (read once per visit), so its words go with the question
+  // search terms: the winning-word data first (read once per visit), so its words go with the question
   if (field === 'kw' && typeof kwLoad === 'function' && typeof KW !== 'undefined' && !KW.loaded) { try { await kwLoad(); } catch (e) { /* asked without them */ } }
   const reply = await aiAsk(task, brand, sku, field === 'page' ? aiPageOpts(task, brand, sku, x) : aiOptsFor(task, field, c, x, job.before));
   if (btn.disabled !== undefined) btn.disabled = false;

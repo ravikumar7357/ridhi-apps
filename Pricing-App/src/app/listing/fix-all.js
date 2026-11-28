@@ -323,7 +323,7 @@ function faPlanSig(g, kid, ctx) {
   const own = faLiveKey(kid.brand, kid.sku);
   if (g.kind === 'kw') return base.concat([own, typeof lmGet === 'function' ? lmGet(kid.sku, kid.brand) : null, typeof KF !== 'undefined' ? KF.full.get(faKidKey(kid)) || null : null,
     typeof IPG !== 'undefined' ? IPG.okV + ':' + IPG.wordsV : 0,         // the risky words it takes out: the lists and the "Allowed on purpose" marks (ip-guard.js)
-    typeof KW !== 'undefined' ? KW.v : 0]);                              // the winning words it adds (kw-win.js: the uploaded Brand Analytics data)
+    typeof KW !== 'undefined' ? KW.v : 0]);                              // the winning words it adds (kw-win.js: our ads + the bestseller scout)
   if (g.kind === 'spec') return base.concat([own, faSpecSig(g)]);
   return base.concat([own]);
 }
