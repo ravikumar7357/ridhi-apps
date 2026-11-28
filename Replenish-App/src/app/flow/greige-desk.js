@@ -3956,7 +3956,7 @@ UI.invShow = 'all';
 /* CUSTOM ORDERS: THE SHP BOARD AND THE ONLINE BOARD (Ravi, 28 Nov: "shp/online board ke liye custom orders, jisko dekhkar ham RFD pcs bhej sake"). Beside the fabric table, a list of the
  * made-to-order lines (SHP, ONL, Etsy) waiting on Demand → RFD: the order, the product, the pieces to make, the RFD they need, whether the shelf has it, the printer. The same lines
  * as Demand → RFD (flowShLine), so what is sent from there is what is counted here; "Send to printer" opens Demand → RFD at that fabric. Reads only. */
-UI.invView = 'fab'; UI.invBoard = 'all';
+UI.invView = 'fab'; UI.invBoard = 'all'; UI.cuMode = 'lines';
 var CU_BOARDS = { shp: 'SHP board', onl: 'Online board' };
 function cuBoardOf(r) {
   var pre = String((r && r.orderNo) || '').split('-')[0].trim().toUpperCase(), src = String((r && r.src) || '').trim().toUpperCase();
@@ -3976,6 +3976,31 @@ function cuLines() {
   }).filter(function (c) { return c.ln.pcs > 0; })
     .sort(function (a, b) { return String(a.ln.x.r.orderDate || '').localeCompare(String(b.ln.x.r.orderDate || '')) || String(a.ln.x.r.orderNo).localeCompare(String(b.ln.x.r.orderNo)); });
 }
+/** THE PIVOT (Ravi, 28 Nov: "date wise ya printer wise, total pcs aur total running kitna bhejna hai"): the custom lines grouped by order date or by printer, each with the
+ *  pieces to make and the running cloth (m of RFD) to send, and how much of that the shelf already has. Rows are what the list above shows (the board filter applies). */
+function cuPivotHtml(rows, mode) {
+  var by = {}, order = [];
+  rows.forEach(function (c) {
+    var r = c.ln.x.r, k = mode === 'date' ? String(r.orderDate || 'No date') : (c.ln.printerName || 'Printer not chosen');
+    var g = by[k] || (by[k] = { k: k, lines: 0, pcs: 0, m: 0, ready: 0, short: 0, shp: 0, onl: 0 });
+    var ok = c.cover && c.cover.name && c.cover.short <= 0.05;
+    g.lines++; g.pcs += c.ln.pcs; g.m += c.ln.metres; if (ok) g.ready += c.ln.metres; else g.short += c.ln.metres; g[c.board]++;
+  });
+  order = Object.keys(by).map(function (k) { return by[k]; });
+  order.sort(function (a, b) { return mode === 'date' ? String(a.k).localeCompare(String(b.k)) : b.m - a.m; });
+  var T = { lines: 0, pcs: 0, m: 0, ready: 0, short: 0 };
+  order.forEach(function (g) { T.lines += g.lines; T.pcs += g.pcs; T.m += g.m; T.ready += g.ready; T.short += g.short; });
+  var row = function (g, tot) {
+    return '<tr' + (tot ? ' style="font-weight:700;border-top:2px solid var(--line)"' : '') + '><td class="frz tl b">' + esc(tot ? 'Total' : g.k) + '</td><td class="num">' + nf(g.lines) + '</td>'
+      + '<td class="num">' + (tot ? '' : nf(g.shp) + ' / ' + nf(g.onl)) + '</td><td class="num">' + nf(g.pcs) + '</td><td class="num"><b>' + m1(g.m) + ' m</b></td>'
+      + '<td class="num">' + (g.ready > 0.05 ? m1(g.ready) + ' m' : '<span class="muted">&mdash;</span>') + '</td>'
+      + '<td class="num">' + (g.short > 0.05 ? '<span style="color:var(--bad);font-weight:700">' + m1(g.short) + ' m</span>' : '<span class="muted">&mdash;</span>') + '</td></tr>';
+  };
+  return '<div class="card"><div class="ff-grid"><table class="xl">'
+    + th([mode === 'date' ? 'Order date' : 'Printer', 'Lines', 'SHP / Online', 'Total pcs', 'Total running to send', 'RFD on shelf for it', 'RFD still short'], [1, 2, 3, 4, 5, 6])
+    + '<tbody>' + (order.map(function (g) { return row(g, false); }).join('') + (order.length ? row(T, true) : '') || emptyRow(7, 'No SHP or Online board order is waiting for RFD.')) + '</tbody></table></div></div>'
+    + '<div class="lm-why">Running = metres of RFD cloth the pieces need (pcs × the SKU\'s cloth per piece). "On shelf" is the part the free RFD already covers, oldest order first; "still short" has no RFD yet.</div>';
+}
 function cuHtml() {
   var all = cuLines(), tb = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'
     + '<button type="button" class="ghost" data-invview="fab">← Fabrics</button>';
@@ -3984,8 +4009,12 @@ function cuHtml() {
   tb += '<div class="seg" role="tablist" aria-label="Board">' + ['all', 'shp', 'onl'].map(function (b) {
     return '<button type="button" role="tab" class="segbtn' + (UI.invBoard === b ? ' on' : '') + '" aria-selected="' + (UI.invBoard === b) + '" data-invboard="' + b + '">'
       + (b === 'all' ? 'Both boards' : CU_BOARDS[b]) + ' <span class="n">' + n(b) + '</span></button>';
-  }).join('') + '</div></div>';
+  }).join('') + '</div>'
+    + '<div class="seg" role="tablist" aria-label="Show as">' + [['lines', 'Lines'], ['date', 'Pivot · by date'], ['printer', 'Pivot · by printer']].map(function (m) {
+      return '<button type="button" role="tab" class="segbtn' + (UI.cuMode === m[0] ? ' on' : '') + '" aria-selected="' + (UI.cuMode === m[0]) + '" data-cumode="' + m[0] + '">' + m[1] + '</button>';
+    }).join('') + '</div></div>';
   var rows = all.filter(function (c) { return (UI.invBoard === 'all' || c.board === UI.invBoard) && (lmMatch(c.ln.x.r.orderNo) || lmMatch(c.ln.x.r.sku) || lmMatch(c.fabric)); });
+  if (UI.cuMode === 'date' || UI.cuMode === 'printer') return INV_CSS + tb + cuPivotHtml(rows, UI.cuMode);
   var body = rows.map(function (c) {
     var l = c.ln, r = l.x.r, cv = c.cover, short = cv ? cv.short : l.metres, ready = cv && cv.short <= 0.05 && cv.name;
     return '<tr><td class="frz tl b">' + esc(r.orderNo) + '</td><td class="tl"><span class="pill pill-sea">' + esc(CU_BOARDS[c.board]) + '</span></td>'
@@ -4385,7 +4414,7 @@ function invOpenPo(poNo, chId) {
 }
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow],[data-invview],[data-invboard],[data-invgo]') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow],[data-invview],[data-invboard],[data-cumode],[data-invgo]') : null;
     if (d && d.getAttribute('data-invgo')) { UI.tab = d.getAttribute('data-invgo'); UI.invOpen = ''; render(); return; }
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
     if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
@@ -4396,6 +4425,7 @@ function wireInventory() {
     if (d && d.getAttribute('data-histpo')) { var p = d.getAttribute('data-histpo').split('|'); $('lmHist').classList.add('hide'); invOpenPo(p[0], p[1]); return; }
     if (d && d.id === 'histXlsx') { invHistXlsx(); return; }
     if (d && d.getAttribute('data-invview')) { UI.invView = d.getAttribute('data-invview'); render(); return; }
+    if (d && d.getAttribute('data-cumode')) { UI.cuMode = d.getAttribute('data-cumode'); render(); return; }
     if (d && d.getAttribute('data-invboard')) { UI.invBoard = d.getAttribute('data-invboard'); render(); return; }
     if (d && d.getAttribute('data-invshow')) { UI.invShow = d.getAttribute('data-invshow'); UI.invOpen = ''; render(); return; }
   });

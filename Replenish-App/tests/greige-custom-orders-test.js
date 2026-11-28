@@ -20,3 +20,13 @@ assert(/RFD on shelf/.test(h) && /short 12\.5 m/.test(h)); ok++;
 assert(/data-gdlines="Sheeting 62"/.test(h) && !/AMZ-24112026/.test(h)); ok++;
 assert(/Loading the custom orders/.test(vm.runInContext('cuHtml()', mk([], false)))); ok++;
 console.log(ok + ' passed, 0 failed');
+{ // the pivot
+  const c2 = mk([R('SHP-7862', 'k1', 4), R('ONL-12', 'k2', 3)], true);
+  vm.runInContext("UI.cuMode='printer'", c2);
+  const hp = vm.runInContext('cuHtml()', c2);
+  assert(/Printer not chosen/.test(hp) && /Total/.test(hp) && /14\.0 m/.test(hp)); // (4+3) pcs x 2 m
+  vm.runInContext("UI.cuMode='date'", c2);
+  const hd = vm.runInContext('cuHtml()', c2);
+  assert(/2026-11-21/.test(hd) && /2026-11-22/.test(hd) && /Total/.test(hd));
+  console.log('pivot ok');
+}
