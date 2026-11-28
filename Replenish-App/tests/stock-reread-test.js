@@ -28,6 +28,7 @@ function app(file, name, world, extra) {
   const ctx = Object.assign({
     console: { warn: nothing, log: console.log }, $: box, nf: String, obUC: s => String(s || '').trim().toUpperCase(), ME: { email: 'store@test', admin: true },
     localStorage: { getItem: k => (k === 'lineHold' && world.on ? '1' : null) },
+    shpHoldKey: k => String(k).toUpperCase(),
     ptGet: async () => { if (world.fail) throw new Error('offline'); return world.stale ? SCREEN() : NOW(); },
     ptList: v => v, FGI: { rows: SCREEN() },
     ptPatch: async p => { writes.push(p); }, ptPut: async (p, v) => { writes.push({ [p]: v }); },

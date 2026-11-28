@@ -71,12 +71,12 @@ console.log('== pasted plan and packing file ==');
   const cut = (a, b) => src.slice(src.indexOf(a), src.indexOf(b, src.indexOf(a)) + b.length);
   const ctx = {}; vm.createContext(ctx);
   vm.runInContext("const pkNum = v => Number(String(v == null ? '' : v).replace(/[, ]/g, '')) || 0; const pkLookupSku = () => null;\n"
-    + cut('function pkBuild(', '\n}\n') + 'this.b = pkBuild;', ctx);
+    + cut('function pkRowWrong(', '\n}\n') + cut('function pkBuild(', '\n}\n') + 'this.b = pkBuild;', ctx);
   const m = { row: 0, idx: { box: 0, sku: 1, qty: 2 } };
   const r = ctx.b([['box', 'sku', 'qty'], ['1', 'AAA-1', '2.5'], ['1', 'BBB-2', '1,000']], m, { L: 1, W: 1, H: 1 });
-  ok('a file row with 2.5 is named by its row', r.part.length === 1 && r.part[0].row === 2 && r.part[0].qty === 2.5, JSON.stringify(r.part));
+  ok('a file row with 2.5 is named by its row', r.wrong.length === 1 && r.wrong[0].row === 2 && /2.5/.test(r.wrong[0].why), JSON.stringify(r.wrong));
   const box = read('replenishment/fba-box-template.js');
-  ok('such a file cannot be saved', /\$\('pkSave'\)\.disabled = [^;]*part\.length > 0/.test(box) && /wpShow\('This file cannot be saved'/.test(box)); }
+  ok('such a file cannot be saved', /\$\('pkSave'\)\.disabled = [^;]*wrong\.length > 0/.test(box) && /wpShow\('This file cannot be saved'/.test(box)); }
 
 console.log('== projection file ==');
 { const src = read('replenishment/replenishment.js');
