@@ -6,6 +6,7 @@
  *             issued to each, plus the Shopify website hold (fg-shop-hold.js).
  *   FBA     = what Replenishment asks to send (SP and CPC together, in pieces), less dispatches already on the way: every
  *             one not yet marked shipped, and any shipped after the Amazon figures were read. Air is reduced first.
+ * New development sales orders (28 Nov) are not Custom: their pending pieces are kept for FBA (fg-store-newdev.js).
  * The stock list holds only SKUs with stock now (28 Nov); a search that finds none of them says why.
  * On the stock list (28 Nov), a Custom figure opens the orders it is for: the stock is counted against them oldest first.
  * What may leave: FBA only the Air + Sea + AWD pieces the stock covers, plus an admin's release; an issue for an order up to
@@ -68,6 +69,10 @@ async function fgaNeedReread() {
   fgaNeedKeep(need);
   if (fgaNeedState(need).state === 'stale') fgaAskFresh();
 }
+
+/** Read again what the FBA lanes are worked out from: the noted need (throws when it cannot be read), and the New development
+ *  orders and the Amazon listings (neither throws). */
+async function fgaFiguresReread() { await Promise.all([fgaNeedReread(), fgaSalesRead(), lstLoad()]); }
 
 /* ---- noting it (planners and admins) ---- */
 /** One store's need from its Replenishment rows, in Amazon packs: stopped SKUs ask nothing, hidden ones are left out. */
@@ -159,7 +164,8 @@ async function fgaReread() {
 }
 
 /* ---- sharing the stock ---- */
-const fgaOpenLines = lines => lines.filter(l => ordSrcOf(l.orderNo) !== 'AMZ' && !l.shopDoneAt && !l.handedAt);
+const fgaIsOpen = l => !l.shopDoneAt && !l.handedAt;
+const fgaOpenLines = lines => lines.filter(l => ordSrcOf(l.orderNo) !== 'AMZ' && fgaIsOpen(l));
 const fgaClaim = l => ({ orderNo: l.orderNo, sku: l.sku, sets: l.qty, perSet: 1, on: l.orderDate });
 /** What the open order-book orders claim as Custom: a Shopify order's own line is already in the website figure. */
 const fgaBookClaims = open => open.filter(l => !l.shopOrderId).map(fgaClaim);
@@ -186,13 +192,13 @@ function fgaOnTheWay(rows, need) {
  *  being changed is judged as if it had not been made). */
 function fgaBook(without, need = fgaNeedNode()) {
   const rows = without && without.size ? (FGI.rows || []).filter(r => !without.has(r._id || r.id)) : (FGI.rows || []);
-  const open = fgaOpenLines(ordLines());
+  const lines = fgaSplitNewDev(ordLines()), open = fgaOpenLines(lines.rest);
   return { rows, open, need, onTheWay: fgaOnTheWay(rows, need),
-    ordered: shpHoldBuild(fgaBookClaims(open), rows) };
+    ordered: shpHoldBuild(fgaBookClaims(open), rows), newDev: fgaNewDevOrders(lines.newDev.filter(fgaIsOpen), rows) };
 }
 
-/** The pieces FBA still asks for, per lane, for these stores, less what is on the way (Air first, then Sea, then AWD). */
-function fgaLanes(sku, book, stores) {
+/** The pieces Replenishment still asks for, per lane, for these stores, less what is on the way (Air, then Sea, then AWD). */
+function fgaReplLanes(sku, book, stores) {
   const key = shpHoldKey(sku), pack = fgiPackOf(sku), way = book.onTheWay.get(key) || {};
   const asked = [0, 1, 2].map(i => stores.reduce((n, s) => n + (Number(((((book.need || {})[s] || {}).skus || {})[key] || [])[i]) || 0) * pack, 0));
   let coming = stores.concat('').reduce((n, s) => n + (way[s] || 0), 0);
@@ -205,7 +211,7 @@ function fgaLanes(sku, book, stores) {
 function fgaShares(sku, current, hold, book, stores = SHP_HOLD_STORES) {
   let left = Math.max(0, current);
   const take = wanted => { const n = Math.min(left, Math.max(0, wanted)); left -= n; return n; };
-  const lanes = fgaLanes(sku, book, stores);
+  const lanes = fgaJoinLanes(fgaNewDevLanes(sku, book), fgaReplLanes(sku, book, stores));
   const photo = take(0);                                  // no Photoshoot figures yet
   const custom = take((book.ordered[shpHoldKey(sku)] || 0) + fgiHeld(sku, hold));
   const air = take(lanes.air), sea = take(lanes.sea), awd = take(lanes.awd);
@@ -215,11 +221,15 @@ function fgaShares(sku, current, hold, book, stores = SHP_HOLD_STORES) {
 /* ---- FBA ---- */
 /** Pieces FBA may take without a release. */
 function fgaFbaShare(sku, current, hold, book = fgaBook()) {
-  const s = fgaShares(sku, current, hold, book);
-  return s.air + s.sea + s.awd;
+  const s = fgaShares(sku, current, hold, book), inLanes = s.air + s.sea + s.awd;
+  if (!fgaListingWhy(sku)) return inLanes;
+  return Math.min(inLanes, fgaLaneSum(fgaReplLanes(sku, book, SHP_HOLD_STORES)));   // New development pieces wait for the listing
 }
-const fgaShortWhy = s => `${s.sku} has ${nf(s.free)} piece(s) free for FBA, not ${nf(s.qty)} (the rest is kept for Custom orders, or is more than Replenishment asks to send).`
-  + ' Send fewer, or ask an admin to release pieces on Finished Goods.';
+function fgaShortWhy(s) {
+  const newDev = fgaNewDevWhy(s.sku);
+  return `${s.sku} has ${nf(s.free)} piece(s) free for FBA, not ${nf(s.qty)} (the rest is kept for Custom orders, or is more than Replenishment or New development orders ask to send).`
+    + ' Send fewer, or ask an admin to release pieces on Finished Goods.' + (newDev ? ' ' + newDev : '');
+}
 
 /* ---- issues ---- */
 /** Pieces an order is still waiting for: its open lines of the SKU, less what was issued to it. */
@@ -276,24 +286,33 @@ function fgaViewStores() {
   const picked = ($('fgaView') || {}).value;
   return SHP_HOLD_STORES.includes(picked) ? [picked] : SHP_HOLD_STORES;
 }
-/** The list's rows with their shares; new rows are returned. */
+/** The list's rows with their shares, and the New development pieces by FBA lane; new rows are returned. */
 function fgaListRows(rows) {
   const book = fgaBook(), hold = fgiHoldNode(), stores = fgaViewStores();
-  return rows.map(r => Object.assign({}, r, { alloc: fgaShares(r.sku, r.current, hold, book, stores) }));
+  return rows.map(r => Object.assign({}, r, { alloc: fgaShares(r.sku, r.current, hold, book, stores), newDevLanes: fgaNewDevLanes(r.sku, book) }));
 }
 const fgaNum = n => (n ? nf(n) : '<span class="muted">—</span>');
 /** Does this figure open the orders behind it? Only a Custom figure with pieces in it. */
 const fgaOpensOrders = (share, pieces) => share === 'custom' && pieces > 0;
 const fgaOrdersButton = (sku, inner) => `<button class="ghost" data-fgacustom="${esc(sku)}" title="See the orders these pieces are for"`
   + ` style="width:auto;padding:1px 7px;font-size:inherit;text-decoration:underline">${inner}</button>`;
+/** Does this FBA figure hold New development pieces? */
+const fgaOpensNewDev = (r, share) => r.alloc[share] > 0 && ((r.newDevLanes || {})[share] || 0) > 0;
+const fgaNewDevButton = (sku, lane, inner) => `<button class="ghost" data-fgand="${esc(sku)}" data-fgalane="${lane}" title="See the New development orders"`
+  + ` style="width:auto;padding:1px 7px;font-size:inherit;text-decoration:underline">${inner}</button>`;
+/** The button a figure is shown as when it opens orders, else ''. */
+function fgaFigureButton(r, share, inner) {
+  if (fgaOpensOrders(share, r.alloc[share])) return fgaOrdersButton(r.sku, inner);
+  return fgaOpensNewDev(r, share) ? fgaNewDevButton(r.sku, share, inner) : '';
+}
 function fgaCells(r) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
   return `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
-    + FGA_SHARES.map(([k]) => `<td class="num">${fgaOpensOrders(k, r.alloc[k]) ? fgaOrdersButton(r.sku, nf(r.alloc[k])) : fgaNum(r.alloc[k])}</td>`).join('');
+    + FGA_SHARES.map(([k]) => `<td class="num">${fgaFigureButton(r, k, nf(r.alloc[k])) || fgaNum(r.alloc[k])}</td>`).join('');
 }
 const fgaCardFigs = r => FGA_SHARES.map(([k, label]) => {
   const figure = `${label} <b>${nf(r.alloc[k])}</b>`;
-  return fgaOpensOrders(k, r.alloc[k]) ? fgaOrdersButton(r.sku, figure) : `<span>${figure}</span>`;
+  return fgaFigureButton(r, k, figure) || `<span>${figure}</span>`;
 }).join('');
 /** Is some of this stock kept from FBA, so a release would mean something? */
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
@@ -336,10 +355,11 @@ function fgaOrderRow(o) {
     + `<td class="num">${nf(o.pending)}</td><td class="num" style="font-weight:700">${fgaNum(o.counted)}</td>`
     + `<td class="num">${fgaNum(o.pending - o.counted)}</td></tr>`;
 }
-const fgaOrdersTable = orders => '<div style="max-height:60vh;overflow:auto"><table class="xl" style="font-size:12.5px"><thead><tr>'
+/** A box of orders: order, channel and date, then the number columns named. rows: ready table rows. */
+const fgaOrdersTable = (figures, rows) => '<div style="max-height:60vh;overflow:auto"><table class="xl" style="font-size:12.5px"><thead><tr>'
   + ['Order', 'Channel', 'Order date'].map(h => `<th style="text-align:left">${h}</th>`).join('')
-  + ['Ordered', 'Already issued', 'Pending', 'From stock', 'Not covered'].map(h => `<th class="num">${h}</th>`).join('')
-  + '</tr></thead><tbody>' + orders.map(fgaOrderRow).join('') + '</tbody></table></div>';
+  + figures.map(h => `<th class="num">${h}</th>`).join('')
+  + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
 
 /** The box a Custom figure opens, from the same figures the list was drawn from. */
 function fgaCustomOpen(sku) {
@@ -351,7 +371,7 @@ function fgaCustomOpen(sku) {
     note: `${nf(counted)} piece(s) in stock are counted for these orders, oldest order first. `
       + `${nf(fgaSum(orders, 'pending') - counted)} pending piece(s) are not covered by stock.`,
     wide: true,
-    html: fgaOrdersTable(orders),
+    html: fgaOrdersTable(['Ordered', 'Already issued', 'Pending', 'From stock', 'Not covered'], orders.map(fgaOrderRow)),
   });
 }
 

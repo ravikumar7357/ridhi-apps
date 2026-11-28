@@ -232,12 +232,12 @@ function fgiHoldScanWhy(sku, packed) {
 /* ---- reading it again ---- */
 const fgiHoldKeep = node => { FGI.set = Object.assign({}, FGI.set, { _shopHold: node }); };
 const fgiHoldUnread = e => 'Nothing was saved — the pieces held for website orders could not be checked (' + (e.message || e) + '). Check the connection and save again.';
-/** Read the noted figure and the releases (and the FBA need, when stock is shared) as they are now. '' when read, else the
- *  sentence to show. */
+/** Read the noted figure and the releases (and the other FBA share figures, when stock is shared) as they are now.
+ *  '' when read, else the sentence to show. */
 async function fgiHoldReread() {
   try {
     fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {});
-    if (shpAllocOn()) await fgaNeedReread();
+    if (shpAllocOn()) await fgaFiguresReread();
     return '';
   }
   catch (e) {
@@ -298,7 +298,7 @@ async function fgiReleaseSpend(wants) {
     for (let i = 0; i < SHP_HOLD_TRIES; i++) {
       const hold = (await ptGetFresh(SHP_HOLD_PATH)) || {};
       fgiHoldKeep(hold);
-      if (shpAllocOn()) await fgaNeedReread();
+      if (shpAllocOn()) await fgaFiguresReread();
       const why = fgiHoldRefusal(wants, hold);
       if (why) return { err: 'Nothing was saved — ' + why, used: {} };
       const plan = fgiReleasePlan(hold, wants, { by: ME.email, at: new Date().toISOString() });

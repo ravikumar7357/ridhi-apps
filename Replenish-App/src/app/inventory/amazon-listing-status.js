@@ -206,6 +206,9 @@ function lstRenderAlerts() {
     .filter(a => { const m = fgiMaster(a.sku); return !q || [a.sku, m.color, m.size, m.articleType, m.subtype].join(' ').toLowerCase().includes(q); })
     .sort((a, b) => String(b.lastAt || '').localeCompare(String(a.lastAt || '')));
   FGI.shown = rows;
+  /* New development orders waiting for a SKU are tagged on its row (India store shares, 28 Nov). */
+  const newDevOf = typeof fgaNewDevTagger === 'function' ? fgaNewDevTagger() : () => '';
+  const unread = typeof fgaOn === 'function' && fgaOn() ? fgaSalesWhy() : '';
   const head = '<thead><tr>' + ['SKU', 'Image', 'Item', 'In stock', 'Amazon now', 'First alerted', 'Last entry', '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 3 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   $('fgTable').innerHTML = head + '<tbody>' + (rows.length ? rows.map(a => {
@@ -213,7 +216,7 @@ function lstRenderAlerts() {
     return '<tr>'
       + `<td class="frz" style="font-family:ui-monospace,monospace;text-align:left">${esc(a.sku)}</td>`
       + ptImgCell(a.sku)
-      + `<td style="text-align:left">${esc([m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}</td>`
+      + `<td style="text-align:left">${esc([m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}${newDevOf(a.sku)}</td>`
       + `<td class="num" style="font-weight:700">${nf(fgiOf(a.sku).current)}</td>`
       + `<td><span class="pill ${cls}">${txt}</span></td>`
       + `<td style="font-size:12px">${esc(String(a.firstAt || '').slice(0, 10))}<div class="muted" style="font-size:10.5px">${esc(String(a.by || '').split('@')[0])}</div></td>`
@@ -226,7 +229,8 @@ function lstRenderAlerts() {
   $('fgMsg').textContent = `${nf(rows.length)} SKU(s) had stock entered but are NOT listed on Amazon`
     + (done ? ` · ${nf(done)} alert(s) already closed` : '')
     + (LST.at ? ` · Amazon listings as of ${String(LST.at).slice(0, 16).replace('T', ' ')}` : ' · the Amazon listings have never been fetched')
-    + (lstCanRefresh() ? '' : ' · an alert closes by itself once the listings are refreshed and show the SKU');
+    + (lstCanRefresh() ? '' : ' · an alert closes by itself once the listings are refreshed and show the SKU')
+    + (unread ? ' · ' + unread : '');
   ptImgFill(rows.map(a => a.sku), false, ptImgPatch);
 }
 

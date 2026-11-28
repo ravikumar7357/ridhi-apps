@@ -353,6 +353,8 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     const all = list();
     ok('only SKUs with stock now, a count below nought included; nothing from the master is added', same(all.skus, ['AB-1', 'AB-2']), all.skus.join());
     ok('the count line speaks of what is in stock', /^2 SKU\(s\) in stock now/.test(all.msg) && !/on record/.test(all.msg) && /NEGATIVE/.test(all.msg), all.msg);
+    ok('…says a search covers the whole Master Database', /search covers all [0-9,]+ Master Database SKUs/.test(all.msg), all.msg);
+    ok('…and nothing about rates or rupees', !/rate|rupees/.test(all.msg), all.msg);
     const card = list({ phone: true }).html;
     ok('the table and the card list the same', [all.html, card].every(h => h.includes('AB-2') && !h.includes('AB-10') && !h.includes('OLD-1')));
     ok('the export follows the list', same([...all.S.run('FGI.shown.map(fgaExportRow)')].map(r => r[0]), ['AB-1', 'AB-2']));
