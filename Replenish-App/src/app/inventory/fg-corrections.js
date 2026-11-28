@@ -176,7 +176,7 @@ function fgiCorrOpen(id) {
     html: `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         <label style="grid-column:1/-1">What should happen<select id="fgcKind">
           <option value="edit">Correct this entry</option><option value="delete">Remove this entry — it should not be there</option></select></label>
-        <label>Type<select id="fgcType">${Object.keys(FGI_KINDS).map(t =>
+        <label>Type<select id="fgcType">${fgiPickTypes(r.txnType).map(t =>
           `<option value="${t}"${t === r.txnType ? ' selected' : ''}>${esc(FGI_KINDS[t].label)}</option>`).join('')}</select></label>
         <label>Date<input id="fgcDate" type="date" value="${esc(ptIsoDate(r.date) || String(r.createdAt || '').slice(0, 10))}"></label>
         <label style="grid-column:1/-1">SKU<input id="fgcSku" value="${esc(obUC(r.sku))}" style="font-family:ui-monospace,monospace;text-transform:uppercase"></label>
@@ -210,6 +210,8 @@ async function fgiCorrSave(id) {
     Object.keys(now).forEach(f => { if (String(now[f]) !== String(was[f])) change[f] = now[f]; });
     if (!Object.keys(change).length) return 'Nothing is different from the entry — change what is wrong, or choose "Remove this entry".';
     if (change.qty !== undefined && !(parseInt(change.qty, 10) >= 1)) return 'Pieces must be a whole number, 1 or more.';
+    const byList = typeof fgiCorrByListWhy === 'function' ? fgiCorrByListWhy(r, change) : '';
+    if (byList) return byList;
   }
   const at = new Date().toISOString();
   const snap = Object.assign({}, r); delete snap._key; delete snap.edits;
@@ -223,6 +225,13 @@ async function fgiCorrSave(id) {
   $('fgMsg').className = 'muted';
   $('fgMsg').textContent = `Correction requested for ${obUC(r.sku)} — it is waiting for approval. The entry stays as it is until then.`;
   return '';
+}
+
+/** Why this change may not be asked for: with FBA lists on, no correction sends more to FBA (fg-shop-hold.js). Said when
+ *  asking, as approving it would be refused. */
+function fgiCorrByListWhy(r, change) {
+  const why = typeof fgiFbaByListWhy === 'function' ? fgiFbaByListWhy() : '';
+  return why && fgiFbaEditWants(r, Object.assign({}, r, change)).length ? why : '';
 }
 
 /** The cell a requester sees on their own entry: the button, or where their request stands. */

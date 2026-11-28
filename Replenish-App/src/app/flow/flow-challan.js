@@ -324,6 +324,11 @@ function flowChByFabric(n) {
   const bySize = (a, b) => (typeof flowSizeSort === 'function' ? flowSizeSort(a.size, b.size) : String(a.size).localeCompare(String(b.size)));
   return [...fabs.values()].sort((a, b) => a.fabric.localeCompare(b.fabric)).map(f => Object.assign({}, f, { sizes: [...f.sizes.values()].sort(bySize) }));
 }
+/** A line's shortage in words. "after orders ahead of it" only when something on this shelf was really taken before it. */
+function flowChShortTxt(c, cv) {
+  const shelf = ((cv.fab || {})[flowFabKey(c.name)] || {}).stock || 0;
+  return `short ${nf(c.short)} m${c.avail < shelf ? ' after orders ahead of it' : ''}`;
+}
 /** Whether the RFD on the shelf covers what this challan sends of a fabric: { free, short } (free null when unknown). */
 function flowChStock(fabric, metres) {
   const c = FLOW_CH_COVER.fab[flowFabKey(fabric)]; if (!c) return { free: null, short: 0 };
@@ -403,7 +408,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
         ? `<input data-chp="${i}" type="number" min="1" step="1" max="${flowFabOwed(x.r, x.s).left}" value="${pr ? pr.pcs : flowFabOwed(x.r, x.s).left}" title="Send fewer pieces for now — the rest stays in Demand" style="width:60px;padding:3px 6px;font-size:12px">${flowDoneTxt(x)}`
         : (pr ? `${nf(pr.pcs)} <span class="muted" style="font-size:10px">of ${nf(x.r.qty)}</span>` : nf(x.r.qty))}</td>
       <td class="num" style="white-space:normal"><input data-chm="${i}" type="number" step="0.01" value="${esc((pr ? pr.metres : flowFabOwed(x.r, x.s).metres) || '')}" style="width:72px;padding:3px 6px;font-size:12px">${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10px">${nf(x.s.fabSent)} ${x.s.fabUnit} sent already</div>` : ''}${+(p.fabric && p.fabric.fromPrinted) ? `<div class="muted" style="font-size:10px">${nf(p.fabric.fromPrinted)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock</div>` : ''}</td>
-      <td style="font-size:11px;white-space:normal">${held(i) ? flowChPill(false, 'fix fabric first') : c.short ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#fde8e8;color:#b42318;font-weight:700">short ${nf(c.short)} m</span>` : '<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#e7f5ec;color:#166534;font-weight:700">covered</span>'}</td></tr>`; }).join('') + rufHtml;
+      <td style="font-size:11px;white-space:normal">${held(i) ? flowChPill(false, 'fix fabric first') : c.short ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#fde8e8;color:#b42318;font-weight:700" title="Shopify board lines, then older lines waiting for this fabric, and cloth already set aside for other lines, come first">${flowChShortTxt(c, cv)}</span>` : '<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#e7f5ec;color:#166534;font-weight:700">covered</span>'}</td></tr>`; }).join('') + rufHtml;
   ptOpenDialog({
     title: `RFD challan — ${orderNo}${pcode && pcode !== '?' ? ' → ' + ((vens.find(v => String(v.code) === String(pcode)) || {}).desc || ((rows[0].s.plan.printer || {}).name) || pcode) : ''}`,
     subtitle: (orders.length > 1 ? `${orders.length} orders, one printed fabric, one vendor. ` : 'The fabric of this order, to one vendor. ') + 'Saving numbers the challan, opens it to print, and marks these lines\' fabric as given — they leave Demand by themselves.',
@@ -472,6 +477,19 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
   if (typeof ptImgFill === 'function') ptImgFill(rows.map(x => obUC(x.r.sku)), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
 
+/** The challan lines taking more cloth than they may (ptClothOver), in words, or ''. The need is the larger of the plan's and
+ *  the master's cloth for those pieces, as the challan windows offer either. Not judged: a ruffle on its own, and cut-to-size
+ *  pieces, whose metres are worked out from the pieces' size. */
+function flowClothOver(lines) {
+  const rows = flowRows();
+  return lines.filter(l => !l.ruffleOnly && !l.cutSize).map(l => {
+    const x = rows.find(y => y.s.key === l.key); if (!x) return '';
+    const o = flowFabOwed(x.r, x.s), planned = o.unit === 'pcs' && l.pcs > 0 && o.left > 0 ? o.metres * l.pcs / o.left : o.metres;
+    let master = 0; try { master = flowShLine(x).perPc * (+l.pcs || 0); } catch (e) { console.warn('[cloth limit] no master figure for ' + l.sku + ':', e.message || e); }
+    return ptClothOver(l.metres, Math.max(planned, master), l.sku);
+  }).filter(Boolean).join(' · ');
+}
+
 /* ONE WAY TO SAVE A CHALLAN (23 Nov): the Demand window and the Inventory's Send to printer card both come here.
  * THE NUMBER IS CLAIMED: the challan is written only where no challan of that number is yet — two people making one at the
  * same moment get two numbers, never one challan written over the other. A line PPC left without a printer gets the one its
@@ -483,6 +501,8 @@ async function flowChallanWrite(ch, v, how) {
   const inCut = !how.fromCut && typeof flowCpActive === 'function' && (ch.lines || []).find(l => !l.ruffleOnly && flowCpActive(l.key));
   if (inCut) return `${inCut.sku} is in Cut to size — send it from the Greige Desk's Cut to size.`;
   if (how.fromCut) ch.fromCut = how.fromCut;
+  const tooMuch = flowClothOver(ch.lines || []);
+  if (tooMuch) return wpRefuse(tooMuch);
   let no = flowChallanNo(ch.date, how.isTest); ch.no = no;
   for (let k = 0, taken = []; ; k++) {
     let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
@@ -612,10 +632,10 @@ function flowShLines(fabric) {
     .map(flowShLine).filter(l => l.pcs > 0)
     /* and the lines with no printing: cutting is allotted from this card (flow-cutpiece.js) */
     .concat(typeof flowCpCardSave === 'function' ? flowCpNoPrintLines(fabric) : [])
-    .sort((a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)));
+    .sort((a, b) => flowClothOrder(a.x.r, b.x.r));
   if (typeof flowPriSort !== 'function') return oldest;
   /* most urgent first: P1 → P4 → no priority (Vishesh, 27 Nov) */
-  return flowPriSort(oldest, l => ({ orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority }));
+  return flowShpFirst(flowPriSort(oldest, l => ({ orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority })), l => l.x.r.orderNo);
 }
 
 /** The open card: { fabric, lines, tick: Set of line keys, qty: { key: pcs typed }, prn: { key: printer code chosen }, q: search,

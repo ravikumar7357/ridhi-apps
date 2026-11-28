@@ -161,10 +161,18 @@ function skuInfo(sku, brand) {
 $('pmAddLine').onclick = () => {
   const sku = $('pmAddSku').value.trim();
   const air = Number($('pmAddAir').value) || 0, sea = Number($('pmAddSea').value) || 0;
+  if (air < 0 || sea < 0) { wpShow('This line cannot be added', 'Air and Sea quantities cannot be below 0.'); return; }
   if (!sku || !((air + sea) > 0)) return;
+  if (!poSkuWanted(sku)) return;
   PM_LINES.push({ sku, ...skuInfo(sku, $('pmBrand').value), airQty: air, seaQty: sea, qty: air + sea });
   $('pmAddSku').value = ''; $('pmAddAir').value = ''; $('pmAddSea').value = ''; renderPmLines();
 };
+/** A SKU neither the master nor the replenishment list knows is asked about, not refused: a new product may not be in either yet. */
+function poSkuWanted(sku) {
+  if (!mdbIndex().size) { console.warn('[purchase order] the SKU was not checked: the master is not read yet'); return true; }
+  if (mdbOf(sku) || ((REPL[$('pmBrand').value] || {}).rows || []).some(r => obUC(r.sku) === obUC(sku))) return true;
+  return confirm(`${sku} is not a SKU this app knows. Add it to the order anyway?`);
+}
 $('pmCancel').onclick = () => $('poModal').classList.add('hide');
 $('poModal').onclick = e => { if (e.target === $('poModal')) $('poModal').classList.add('hide'); };
 
@@ -172,6 +180,8 @@ $('pmSave').onclick = async () => {
   const supplier = $('pmSupplier').value.trim();
   if (!supplier) { $('pmErr').textContent = 'Enter a supplier.'; $('pmErr').classList.remove('hide'); return; }
   if (!PM_LINES.length) { $('pmErr').textContent = 'Add at least one line.'; $('pmErr').classList.remove('hide'); return; }
+  const late = ptDateOrderErr([['Order', $('pmOrderDate').value], ['Delivery', $('pmEta').value]]);
+  if (late) { $('pmErr').textContent = late; $('pmErr').classList.remove('hide'); return; }
   const rec = {
     brand: $('pmBrand').value, supplier, mode: $('pmMode').value,
     orderDate: $('pmOrderDate').value, eta: $('pmEta').value,
@@ -181,6 +191,7 @@ $('pmSave').onclick = async () => {
     followups: (PO_EDIT && PO_EDIT.followups) || [],   // full overwrite below — keep the follow-up log
     by: ME.email, at: serverTimestamp(),
   };
+  $('pmSave').disabled = true;   // a second click made a second order (28 Nov)
   try {
     if (PO_EDIT) { await setDoc(doc(db, 'po', PO_EDIT.id), rec); if (typeof fsMirror === 'function') fsMirror('put', 'po/' + PO_EDIT.id, rec); }
     else { const ref = await addDoc(collection(db, 'po'), rec); if (ref && ref.path) if (typeof fsMirror === 'function') fsMirror('put', ref.path, rec); }
@@ -188,6 +199,7 @@ $('pmSave').onclick = async () => {
     PO_LOADED = false; await ensurePo();
     poMsg('Saved.'); setTimeout(() => poMsg(''), 1500);
   } catch (e) { $('pmErr').textContent = 'Could not save: ' + (e.message || e); $('pmErr').classList.remove('hide'); }
+  finally { $('pmSave').disabled = false; }
 };
 $('pmDelete').onclick = async () => {
   if (!PO_EDIT || !confirm('Delete this purchase order?')) return;

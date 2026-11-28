@@ -231,7 +231,8 @@ function shpbFillCell(r, k) {
   return td((f && (f.name || f.code) ? '<b>' + esc(f.name || f.code) + '</b>' : '<span class="muted">not given</span>')
       + (shpbMay('fill') ? '<div><button type="button" class="ghost" data-shpb-act="fill" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">Filler</button></div>' : ''), 'left')
     + td('<b style="font-size:13px">' + nf(iss) + '</b>' + (qc > iss ? '<div style="color:#b45309">' + nf(qc - iss) + ' passed QC, not issued</div>' : ''))
-    + td('<b style="font-size:13px;color:' + (rec < iss ? '#b45309' : '#166534') + '">' + nf(rec) + '</b>' + (iss > rec ? '<div class="muted">' + nf(iss - rec) + ' with filler</div>' : ''));
+    + td('<b style="font-size:13px;color:' + (rec < iss ? '#b45309' : '#166534') + '">' + nf(rec) + '</b>' + (iss > rec ? '<div class="muted">' + nf(iss - rec) + ' with filler</div>' : '')
+      + (iss > rec && shpbMay('fill') ? '<div><button type="button" class="ghost" data-shpb-act="fillrec" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">Receive</button></div>' : ''));
 }
 async function shpbFillSave(r, v) {
   const key = shpbKey(r.orderNo, r.sku), was = shpbFillOf(r) || {}, all = shpbFillers();
@@ -393,7 +394,7 @@ function shpbView() {
   const pend = shown.filter(r => r.open && sOf(r).prsD + sOf(r).stk < (+r.qty || 0));
   const done = shown.filter(r => { if (!r.open) return true; return sOf(r).prsD > 0 || sOf(r).stk > 0; });
   const stg = SHPB_STAGES.find(x => x[0] === SHPB.stage);
-  let list = SHPB.tab === 'done' ? (stg && stg[0] === 'hand' ? done.filter(r => sOf(r)[stg[3]] > 0) : done) : (stg && stg[0] !== 'hand' ? pend.filter(r => sOf(r)[stg[3]] > 0) : pend);
+  let list = SHPB.tab === 'done' ? (stg && stg[0] === 'hand' ? done.filter(r => r.open && sOf(r)[stg[3]] > 0) : done) : (stg && stg[0] !== 'hand' ? pend.filter(r => sOf(r)[stg[3]] > 0) : pend);
   if (SHPB.late && SHPB.tab !== 'done') list = list.filter(r => (shpbLate(r) || {}).tone === 'late');
   return { f, all, pend, done, list };
 }
@@ -416,7 +417,8 @@ function renderShpBoard() {
   const tabBtn = (v, t) => `<button type="button" data-shpb-tab="${v}" style="height:36px;padding:0 16px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
     + (tab === v ? 'background:#15803D;color:#fff;border:1px solid #15803D' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${t}</button>`;
   /* THE BUCKETS: how many orders wait at each stage, and how many pieces. A click shows only those lines; click again for all. */
-  const bucket = x => { const src = x[0] === 'hand' ? done : pend, ls = src.filter(r => shpbStages([r])[x[3]] > 0), pcs = ls.reduce((a, r) => a + shpbStages([r])[x[3]], 0), on = SHPB.stage === x[0];
+  const bucket = x => { const src = x[0] === 'hand' ? done.filter(r => r.open) : pend,   // a closed line waits for nobody (28 Nov: 124 shown, 4 waiting)
+       ls = src.filter(r => shpbStages([r])[x[3]] > 0), pcs = ls.reduce((a, r) => a + shpbStages([r])[x[3]], 0), on = SHPB.stage === x[0];
     return `<button type="button" data-shpb-stage="${x[0]}" title="Show only the lines waiting at ${esc(x[1])}" style="padding:6px 12px;border-radius:12px;font:inherit;cursor:pointer;box-shadow:none;transform:none;text-align:left;line-height:1.25;`
       + (on ? 'background:#b45309;color:#fff;border:1px solid #b45309' : 'background:#fdf0e8;color:#17202B;border:1px solid #f0cdb5') + `"><b>${esc(x[1])}</b> <span style="font-weight:700">(${nf(new Set(ls.map(r => r.orderNo)).size)})</span>`
       + `<div style="font-size:10.5px;opacity:.85">orders · ${nf(pcs)} pcs</div></button>`; };
@@ -518,6 +520,9 @@ async function shpbStockSave(r, v) {
   if (typeof shpReceive !== 'function' || !shpCanReceive()) return 'Handing pieces to shipping needs the Shopify tab.';
   const need = Math.max(0, (+r.qty || 0) - s.stk - s.prsD);
   if (pcs > need) return `Only ${nf(need)} piece(s) of this line still need to be made.`;
+  /* asked before the store gives anything up: the hand-over below refuses more than shipping is still owed */
+  const owed = Math.max(0, (+r.qty || 0) - (Number((spOf(r.orderNo, r.sku) || {}).handedQty) || 0));
+  if (pcs > owed) return `Only ${nf(owed)} piece(s) of this line are still to go to shipping.`;
   const unread = await fgiStockReread(); if (unread) return unread;
   const short = fgiOutCheck(obUC(r.sku), pcs, 'ISSUE', 0); if (short) return short;
   const kept = typeof fgaIssueRefusal === 'function' ? fgaIssueRefusal([{ sku: r.sku, qty: pcs, orders: [{ orderNo: r.orderNo, qty: pcs }] }]) : ''; if (kept) return kept;
@@ -663,6 +668,16 @@ function shpbDialog(act, key) {
       none: () => { $('odMsg').className = 'err'; $('odMsg').textContent = `${r.shopOrderNo || r.orderNo} has nothing still to come from ${fl.printer.name || fl.printer.code || fl.printer} — it is not on that printer's challans.`; },
       after: said => { shpbAfter(); $('odMsg').className = 'muted'; $('odMsg').textContent = said || ''; } });
   }
+  /* RECEIVE UNDER REC (28 Nov): the quilts that came back are entered from the row, pieces already filled in; the Filler button stays as it was. */
+  if (act === 'fillrec') {
+    const f = shpbFillOf(r) || {}, out = shpbFillSum(f, 'iss') - shpbFillSum(f, 'rec');
+    if (!(out > 0)) return ptOpenDialog({ title: 'Receive from filler — ' + who, subtitle: 'Nothing is with the filler on this line.' });
+    return ptOpenDialog({ title: 'Receive from filler — ' + who, subtitle: `${nf(out)} quilt(s) with ${f.name || f.code || 'the filler'}.`,
+      fields: [{ key: 'rec', label: 'Pieces received back', type: 'number', step: 1, min: 1, max: out, value: out }, { key: 'date', label: 'Date', type: 'date', value: shpbToday() }],
+      saveLabel: 'Receive', onSave: async v => {
+        if (!(Math.round(+v.rec || 0) > 0)) return 'Put in the pieces received back.';
+        const err = await shpbFillSave(r, v); if (!err) shpbAfter(); return err; } });
+  }
   if (act === 'fill') {
     const f = shpbFillOf(r) || {}, iss = shpbFillSum(f, 'iss'), rec = shpbFillSum(f, 'rec'), vs = shpbFillers();
     const hist = ['iss', 'rec'].flatMap(k => Object.values(f[k] || {}).map(x => ({ k, x }))).sort((a, b) => String(a.x.at).localeCompare(String(b.x.at)));
@@ -734,7 +749,8 @@ function shpbAcceptOpen(key) {
   ptOpenDialog({
     title: 'Shipping accepts — ' + (r.shopOrderNo || r.orderNo) + ' · ' + r.sku, subtitle: 'Pressed and not accepted yet: ' + nf(s.handW) + '. Type what shipping has received.',
     fields: [{ key: 'q', label: 'Pieces received', type: 'number', step: 1, min: 1, value: s.handW }], saveLabel: 'Accept',
-    onSave: async v => { const q = Math.min(s.handW, Math.round(+v.q || 0)); if (!(q > 0)) return 'Type how many pieces shipping received.';
+    onSave: async v => { const q = +v.q || 0; if (!(q > 0)) return 'Type how many pieces shipping received.';
+      if (q > s.handW) return wpRefuse(`${q} typed, but only ${s.handW} pressed piece(s) are waiting.`);
       const err = await shpReceive([{ orderNo: r.orderNo, sku: r.sku, qty: q }]);
       if (!err && (SHPB.ship || {})[key]) { try { await ptDelete(SHPB_SHIP + '/' + key); } catch (e) { /* the note stays */ } SHPB.ship = Object.assign({}, SHPB.ship); delete SHPB.ship[key]; }
       if (!err) shpbAfter(); return err; },

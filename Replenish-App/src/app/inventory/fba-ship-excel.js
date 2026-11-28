@@ -67,6 +67,9 @@ async function fbaShipXlRun(plan) {
   if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can ship a dispatch.';
   const pairs = plan.items.flatMap(it => it.picks.map(r => [fgiRowId(r), it.e]));
   if (!pairs.length) return 'Nothing in the file matches an open dispatch.';
+  /* the typed box's date rule, for the file too (28 Nov): one wrong date refuses the whole file */
+  const dateWhy = plan.items.map(it => it.e).filter(e => e.date).map(e => ptDateErr(ptIsoDate(e.date) || String(e.date), 'Row ' + e.row + ' ship date', ME.admin ? 'fixed' : 'done')).find(Boolean);
+  if (dateWhy) return wpRefuse(dateWhy);
   const fresh = await fbaFresh(pairs.map(p => p[0]));
   const now = new Date().toISOString(), updates = {}, done = [], skipped = [];
   fresh.forEach(({ id, row }, i) => {
@@ -149,6 +152,8 @@ async function fbaShipSave(ids) {
   const v = id => String((($(id) || {}).value) || '').trim();
   const shipment = v('fbsShipment');
   if (!shipment) return 'Put in the shipment id — a shipment nobody can trace is not a shipment.';
+  const dateWhy = ptDateErr(v('fbsDate'), 'Ship date', ME.admin ? 'fixed' : 'done');   // 28 Nov: a date a year back was taken
+  if (dateWhy) return wpRefuse(dateWhy);
   const shipDate = fgiDmy(v('fbsDate')) || fgiDmy(dToday());
   const note = v('fbsRemarks');
   const single = ids.length === 1;
@@ -220,6 +225,12 @@ function fbaReturnOpen(ids) {
   });
 }
 
+/** A shipment an FBA list made whose record has been removed (fba-lists.js), read now: it is returned, as it cannot be undone. */
+async function fbaListRecordRemoved(row) {
+  if (!row.fbaListId || typeof fblReadOne !== 'function') return false;
+  const { open, done } = await fblReadOne(row.fbaListId);
+  return !open && !done;
+}
 async function fbaReturnSave(ids) {
   if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can return a dispatch.';
   const v = id => String((($(id) || {}).value) || '').trim();
@@ -231,7 +242,8 @@ async function fbaReturnSave(ids) {
   for (const { id, row } of fresh) {
     if (!row) { skipped.push({ id, why: 'deleted from the store' }); continue; }
     const s = fbaState(row);
-    if (s.st !== 'waiting' && s.st !== 'accepted') { skipped.push({ id, why: 'already ' + FBA_PILL[s.st][1] }); continue; }
+    const returnable = s.st === 'waiting' || s.st === 'accepted' || (s.st === 'shipped' && await fbaListRecordRemoved(row));
+    if (!returnable) { skipped.push({ id, why: 'already ' + FBA_PILL[s.st][1] }); continue; }
     let q = s.open;
     if (single && v('fbrQty') !== '') {
       q = parseInt(v('fbrQty'), 10);
@@ -268,6 +280,11 @@ async function fbaUndo(id) {
   const [{ row }] = await fbaFresh([id]);
   if (!row) { fbaForget([{ id, row: null }]); renderFba(); return 'That dispatch was deleted from the store.'; }
   const s = fbaState(row), updates = {};
+  /* a movement an FBA list shipped is undone with its whole list */
+  if (s.st === 'shipped' && row.fbaListId) {
+    await fblvUndoAsk(row.fbaListId);
+    return '';
+  }
   let what = '', backs = [];
   if (s.st === 'shipped') {
     /* A PART-SHIPMENT TAKES ITS LEFTOVER RETURN WITH IT. Shipping fewer pieces than were open wrote a
@@ -311,7 +328,7 @@ $('fbaTable').addEventListener('click', e => {
   if (p) { const id = p.getAttribute('data-fba-pick'); if (p.checked) FBA_PICK.add(id); else FBA_PICK.delete(id); renderFba(); return; }
   const a = e.target.closest('[data-fba-all]');
   if (a) {
-    (FBA.shown || []).slice(0, 600).filter(x => x.s.st === 'waiting' || x.s.st === 'accepted')
+    fbaTickable(FBA.shown || [])
       .forEach(x => { if (a.checked) FBA_PICK.add(fgiRowId(x.r)); else FBA_PICK.delete(fgiRowId(x.r)); });
     renderFba(); return;
   }
@@ -331,13 +348,17 @@ $('fbaGo').onclick = () => { FGI.rows = null; ensureFba(); };
 ptDebounce('fbaQ', renderFba);
 $('fbaExport').onclick = () => {
   const rows = FBA.shown || []; if (!rows.length) return;
+  const on = typeof fbvOn === 'function' && fbvOn();
+  if (on && fbvByArticle()) return fbvExport(rows);
+  const sales = on ? fbvSalesByNo() : null;
   ptDownload('fba-dispatch', [['Sent', 'SKU', 'Item', 'Colour', 'Size', 'Pieces', 'Returned', 'Open', 'FBA account', 'Handover to / reason',
-    'Sent by', 'Status', 'Accepted by', 'Accepted at', 'Shipment', 'Ship date', 'Shipped by', 'Id'].map(csvCell).join(',')]
+    'Sent by', 'Status', 'Accepted by', 'Accepted at', 'Shipment', 'Ship date', 'Shipped by', 'Id', ...(on ? [FBV_LANE_HEAD] : [])].map(csvCell).join(',')]
     .concat(rows.map(({ r, s }) => {
       const m = fgiMaster(r.sku);
       return [r.date || '', obUC(r.sku), m.subtype || m.articleType || '', m.color || '', m.size || '', s.qty, s.returned, s.open,
         r.issuedFor || '', r.handoverTo || r.reason || '', r.createdBy || '', FBA_PILL[s.st][1], r.fbaAcceptedBy || '', r.fbaAcceptedAt || '',
-        r.fbaShipment || '', r.fbaShipDate || '', r.fbaShippedBy || '', fgiRowId(r)].map(csvCell).join(',');
+        r.fbaShipment || '', r.fbaShipDate || '', r.fbaShippedBy || '', fgiRowId(r),
+        ...(on ? [fbvLanesOf(r, sales).join(', ')] : [])].map(csvCell).join(',');
     })));
 };
 

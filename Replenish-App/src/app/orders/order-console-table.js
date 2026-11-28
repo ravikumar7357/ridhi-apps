@@ -101,7 +101,7 @@ function ordStatePillWork(r) {
   if (r.pendingCut > 0) return '<span class="jw-st pend">' + nf(r.pendingCut) + ' to cut</span>';
   if (r.pendingMake > 0) return '<span class="jw-st prog">' + nf(r.pendingMake) + ' to make</span>';
   /* Saying "0 to make" here would be silence in a louder font. */
-  return '<span class="jw-st prog">' + nf(r.madeToPress) + ' to press</span>';
+  return '<span class="jw-st prog">' + nf(r.madeToPress) + ' waiting for QC</span>';
 }
 
 function renderOrdShopify(bySku, done) {
@@ -377,6 +377,9 @@ function renderOrdShopify(bySku, done) {
  * mean doing those eighteen one at a time. Each one that is left behind is named with its reason,
  * and every handover can be undone.
  */
+/** Why one ticked line stayed behind, its item code named once (a "not all done" refusal names it already). */
+const spLeftWhy = (code, err) => (err.indexOf(code + ':') === 0 ? err
+  : code + ': ' + err.replace(/^Nothing has been received[^,]*, so there is nothing to hand over\.$/, 'nothing received yet'));
 async function spHandoverPicked() {
   if (!ptCanEdit()) return PT_NO_EDIT;
   const picked = [...(ORD.pick || new Set())];
@@ -388,7 +391,7 @@ async function spHandoverPicked() {
     /* spHandover redraws on success. The list being walked is ORD.pick, which is state rather than
      * anything on the screen, so the redraw cannot take it away mid-loop. */
     const err = await spHandover(no, sku, true);
-    if (err) left.push((sku || no) + ': ' + err.replace(/^Nothing has been received[^,]*, so there is nothing to hand over\.$/, 'nothing received yet'));
+    if (err) left.push(spLeftWhy(sku || no, err));
     else done.push(k);
   }
   done.forEach(k => ORD.pick.delete(k));

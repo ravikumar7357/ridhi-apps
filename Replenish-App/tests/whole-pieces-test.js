@@ -58,6 +58,24 @@ console.log('== a pieces box ==');
   const e = p.send('keydown', b, { key: 'Enter' });
   ok('Enter does not save a part piece', e.stopped && e.prevented && b.value === ''); }
 
+console.log('== text that is not a number ==');
+{ const p = page(), b = p.box('', 'any');
+  p.send('focusin', b); b.validity = { badInput: true }; p.send('focusout', b);
+  ok('"1-000" is said on leaving the box, on any number box', p.body.length === 1 && /This is not a number/.test(p.words(p.body[0])), p.body.length);
+  p.byId('wpOk').onclick(); b.validity = { badInput: false }; p.send('focusout', b);
+  ok('a readable or blank box is left alone', p.body.length === 0); }
+{ const p = page(), b = p.box('120');
+  p.send('focusin', b); b.value = ''; b.validity = { badInput: true };
+  const e = p.send('keydown', b, { key: 'Enter' });
+  ok('Enter does not save it, and the old figure is back', e.stopped && b.value === '120', b.value); }
+
+{ const p = page(), b = p.box('120');
+  p.send('focusin', b); b.value = ''; b.validity = { badInput: true };
+  const e = p.send('change', b);
+  ok('on change no screen sees the blank: stopped, old figure back, one pop-up', e.stopped && b.value === '120' && p.body.length === 1, b.value);
+  b.validity = { badInput: false }; p.send('focusout', b);
+  ok('leaving it afterwards says nothing more', p.body.length === 1); }
+
 console.log('== pasted plan and packing file ==');
 { const ctx = { module: { exports: {} } }; vm.createContext(ctx);
   const src = read('replenishment/pack-core.js');
@@ -71,12 +89,12 @@ console.log('== pasted plan and packing file ==');
   const cut = (a, b) => src.slice(src.indexOf(a), src.indexOf(b, src.indexOf(a)) + b.length);
   const ctx = {}; vm.createContext(ctx);
   vm.runInContext("const pkNum = v => Number(String(v == null ? '' : v).replace(/[, ]/g, '')) || 0; const pkLookupSku = () => null;\n"
-    + cut('function pkBuild(', '\n}\n') + 'this.b = pkBuild;', ctx);
+    + cut('function pkRowWrong(', '\n}\n') + cut('function pkBuild(', '\n}\n') + 'this.b = pkBuild;', ctx);
   const m = { row: 0, idx: { box: 0, sku: 1, qty: 2 } };
   const r = ctx.b([['box', 'sku', 'qty'], ['1', 'AAA-1', '2.5'], ['1', 'BBB-2', '1,000']], m, { L: 1, W: 1, H: 1 });
-  ok('a file row with 2.5 is named by its row', r.part.length === 1 && r.part[0].row === 2 && r.part[0].qty === 2.5, JSON.stringify(r.part));
+  ok('a file row with 2.5 is named by its row', r.wrong.length === 1 && r.wrong[0].row === 2 && /2.5/.test(r.wrong[0].why), JSON.stringify(r.wrong));
   const box = read('replenishment/fba-box-template.js');
-  ok('such a file cannot be saved', /\$\('pkSave'\)\.disabled = [^;]*part\.length > 0/.test(box) && /wpShow\('This file cannot be saved'/.test(box)); }
+  ok('such a file cannot be saved', /\$\('pkSave'\)\.disabled = [^;]*wrong\.length > 0/.test(box) && /wpShow\('This file cannot be saved'/.test(box)); }
 
 console.log('== projection file ==');
 { const src = read('replenishment/replenishment.js');

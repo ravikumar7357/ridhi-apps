@@ -938,7 +938,7 @@
           <select id="fgView" style="flex:0 0 210px">
             <option value="stock">India Store</option>
             <option value="fbarep" id="fapOpt" hidden disabled>Repeat FBA requests</option>
-            <option value="pending">Waiting to be counted in</option>
+            <option value="pending" id="fgPendOpt">Waiting to be counted in</option>
             <option value="alerts">Needs listing on Amazon</option>
             <option value="corr">Correction requests</option>
             <option value="over">Received more than ordered</option>
@@ -980,6 +980,7 @@
           <button id="fgDelPicked" class="ghost hide" style="color:var(--bad)">Delete ticked</button>
           <button id="fgScan">Scan in / out</button>
           <button id="fgPack" class="hide" title="Scan pieces against Order Console orders or an Amazon shipment plan; a wrong article is blocked; Finish writes the Send to FBA rows and the packing list from the same scans">Pack &amp; verify</button>
+          <button id="fgFbaList" class="hide" title="Make a list of the ticked SKUs for one FBA account and lane — packed and shipped on FBA Dispatch">Make FBA list</button>
           <button id="fgEntry">+ Stock entry</button>
           <!-- Receive / Issue from Excel taken off (Ravi, 2026-09-29: "excel se remove kro bas excel me export kar pay"). -->
           <button id="fgOpening" class="ghost">Opening stock</button>
@@ -1044,6 +1045,10 @@
     <div id="paneFba" class="hide">
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
+          <select id="fbvView" class="hide" style="flex:0 0 180px" aria-label="View">
+            <option value="article">By article</option>
+            <option value="dispatch">Every dispatch</option>
+          </select>
           <select id="fbaStatus" style="flex:0 0 230px">
             <option value="todo">To do — waiting or accepted</option>
             <option value="waiting">Waiting to be accepted</option>
@@ -1053,9 +1058,20 @@
             <option value="sheet">From the Ready Goods sheet</option>
             <option value="">Everything sent to FBA</option>
           </select>
+          <select id="fbvBrand" class="hide" style="flex:0 0 130px" aria-label="Brand"><option value="">All brands</option></select>
+          <select id="fbvAccount" class="hide" style="flex:0 0 150px" aria-label="FBA account">
+            <option value="">FBA: SP + CPC</option>
+            <option value="SP">FBA: SP</option>
+            <option value="CPC">FBA: CPC</option>
+            <option value="none">FBA: not named</option>
+          </select>
           <input id="fbaQ" placeholder="Search SKU / shipment / colour / size" style="flex:1 1 180px;min-width:0">
           <input id="fbaD1" type="date" style="flex:0 0 140px" title="Sent from">
           <input id="fbaD2" type="date" style="flex:0 0 140px" title="Sent to">
+          <span id="fbaBreak" class="fbr-break hide"></span>
+          <button id="fbaAcceptAll" class="hide" title="Accept every waiting dispatch the filters above leave, not only the lines drawn">Accept all waiting</button>
+          <details id="fbrMore" class="fbr-more hide"><summary><span id="fbrMoreLabel">More</span></summary><div id="fbrMoreBody" class="fbr-more-body"></div></details>
+          <button id="fbaPackBtn" class="hide" title="Pack an FBA list">Pack a list</button>
           <button id="fbaAccept" disabled>Accept ticked</button>
           <button id="fbaShip" class="ghost" disabled>Ship ticked</button>
           <button id="fbaShipXl" class="ghost hide" title="Upload the shipment's contents from Seller Central (or our template) — each SKU is matched to its open dispatches and marked shipped with the shipment id">Ship from Excel</button>
@@ -1064,9 +1080,11 @@
           <button id="fbaExport" class="ghost">Export</button>
           <button id="fbaGo" class="ghost">Refresh</button>
         </div>
+        <div id="fbvAges" class="hide" style="margin-top:10px;font-size:12.5px"></div>
         <div id="fbaMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
         <div id="fbaKpis" class="kpis" style="margin-top:10px"></div>
       </div>
+      <div id="fbaLists" class="card hide" style="margin-top:12px;padding:12px 14px"></div>
       <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="fbaTable"></table></div>
     </div>
 

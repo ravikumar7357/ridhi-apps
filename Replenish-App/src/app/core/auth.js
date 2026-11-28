@@ -327,6 +327,8 @@ onAuthStateChanged(auth, async user => {
   /* The screen the address names, when this account may open it — a tab opened from a menu link, or a
    * reload. showTab itself sends anything else to the first screen this account has. A report link to one order
    * ("#ord?q=…") is read first, because showTab rewrites the address to the bare screen. */
+  /* …and it stays there: My work today does not open over a linked screen (28 Nov). */
+  if (navHashTab() && typeof frStayOnLink === 'function') frStayOnLink();
   const linkOrder = navHashOrder(), linkPrinter = navHashPrinter();
   if (linkPrinter && typeof flowVpLinkPrepare === 'function') flowVpLinkPrepare(linkPrinter);
   showTab(navHashTab() || ME.tabs[0]);

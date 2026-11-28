@@ -22986,7 +22986,8 @@ await (async () => {
   /* The third piece is pressed; now all of it comes over. */
   A.setPTG(Object.assign({}, A.PTG(), { press: A.PTG().press.concat([{ id: 'pp2', orderNo: 'SHP-9901', sku: 'RTC1-6060', pieces: 1, entryDate: '2026-09-28' }]) }));
   A.setPT_(Object.assign({}, A.PT(), { base: [Object.assign({}, A.PT().base[0], { receivedPieces: 3 })] }));
-  ok('taking the rest (more than is owed is cut to what is owed) hands the line over', (await A.shpReceive([{ orderNo: 'SHP-9901', sku: 'RTC1-6060', qty: 9 }])) === ''
+  ok('more than is owed is refused', /Nothing was saved/.test(await A.shpReceive([{ orderNo: 'SHP-9901', sku: 'RTC1-6060', qty: 9 }])) && A.shpReadyLines()[0].got === 1);
+  ok('taking the rest hands the line over', (await A.shpReceive([{ orderNo: 'SHP-9901', sku: 'RTC1-6060', qty: 2 }])) === ''
      && !!A.ordLines().find(l => l.orderNo === 'SHP-9901').handedAt && A.shpReadyLines().length === 0);
   const rec = A.PTG().shopProd['SHP-9901__RTC1-6060'] || Object.values(A.PTG().shopProd)[0];
   ok('…with every receipt logged, and who took it', rec && rec.handedQty === 3 && rec.handLog.length === 2 && rec.handLog[1].qty === 2 && rec.handedBy === ME.email, JSON.stringify(rec));

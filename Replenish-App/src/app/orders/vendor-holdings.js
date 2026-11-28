@@ -285,7 +285,7 @@ const ORD_KPI_FIELDS = {
   overRecv: { label: 'Over-received', of: r => r.overRecv, icon: 'alert', tone: 'amber', colour: '#7f6000', sub: () => 'more than the line ordered' },
   pressed: { label: 'Made', of: r => r.pressed, icon: 'press', tone: 'green', colour: '#166534', sub: (v, t) => ordPct(v, t.received) + '% of received · QC passed' },
   pendingMake: { label: 'Still to make', of: r => r.pendingMake, icon: 'clock', tone: 'red', colour: 'var(--bad)', sub: (v, t) => ordPct(v, t.ordered) + '% of ordered' },
-  madeToPress: { label: 'Made, to press', of: r => r.madeToPress, icon: 'box', tone: 'amber', colour: '#7f6000', sub: () => 'made, waiting on the press' },
+  madeToPress: { label: 'Made, waiting for QC', of: r => r.madeToPress, icon: 'box', tone: 'amber', colour: '#7f6000', sub: () => 'received from the karigar, not passed yet' },
   /* SENT WITHOUT A RECORD OF BEING MADE. Not outstanding work — the pieces have gone — but a hole in
    * the registers, and the one number that says how big it is. Clicking it shows exactly those lines. */
   unrecorded: { label: 'Sent, never recorded', of: r => r.unrecorded, icon: 'x', tone: 'amber', colour: '#7f6000', sub: () => 'gone, with no entry behind them' },
@@ -610,8 +610,8 @@ const ordFgOf = (orderNo, sku) => { const e = ordFgAt(orderNo, sku); return e ? 
  * puts on the book does not carry it. So it is read back from the sales order: a line is new development when any line of
  * that SKU on that sales order is (the line's own type first, else the order's). Nothing is written. */
 let ORD_ND = { src: null, n: -1, set: null };
-function ordNewDevSet() {
-  const s = (typeof SOX !== 'undefined' && Array.isArray(SOX.rows)) ? SOX.rows : [];
+function ordNewDevSet(sales) {
+  const s = sales || ((typeof SOX !== 'undefined' && Array.isArray(SOX.rows)) ? SOX.rows : []);
   if (ORD_ND.set && ORD_ND.src === s && ORD_ND.n === s.length) return ORD_ND.set;
   const set = new Set();
   s.forEach(o => {

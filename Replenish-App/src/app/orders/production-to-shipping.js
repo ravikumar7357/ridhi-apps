@@ -38,23 +38,26 @@ function shpReadyLines() {
 }
 /** The shipping team takes the goods: whoever works the Shopify tab, anybody who records production, an admin. */
 const shpCanReceive = () => !spIsVendor() && !!(ME.admin || ptCanEdit() || ME.shpAccOnly || (ME.tabs || []).indexOf('shopify') >= 0);
-/** items: [{ orderNo, sku, qty }] — what arrived. Never more than the line still owes. */
+/** items: [{ orderNo, sku, qty }] — what arrived. More than a line still owes refuses the whole save (28 Nov: 9 of 8 was saved
+ *  as 8 without a word). */
 async function shpReceive(items) {
   if (!shpCanReceive()) return 'Taking goods from production needs the Shopify tab.';
   const now = new Date().toISOString(), upd = {};
-  let n = 0;
+  let n = 0, over = '';
   (items || []).forEach(it => {
     const line = (ordLines() || []).find(l => l.orderNo === obUC(it.orderNo) && l.sku === obUC(it.sku));
     if (!line) return;
     const key = spKey(line.orderNo, line.sku), was = spOf(line.orderNo, line.sku) || { orderNo: line.orderNo, sku: line.sku };
     const have = Number(was.handedQty) || 0;
-    const q = Math.min(Math.round(Number(it.qty) || 0), Math.max(0, line.qty - have));
+    const q = Number(it.qty) || 0, owed = Math.max(0, line.qty - have);
     if (!(q > 0)) return;
+    if (q > owed || !Number.isInteger(q)) { over = over || `${line.sku} on ${line.orderNo}: ${q} typed, ${owed} still to come, in whole pieces. Nothing was saved.`; return; }
     const got = have + q;
     const log = (Array.isArray(was.handLog) ? was.handLog.slice(-19) : []).concat([{ qty: q, at: now, by: ME.email }]);
     upd['pt_shopProd/' + key] = Object.assign({}, was, { handedQty: got, handLog: log }, got >= line.qty ? { handedAt: now, handedBy: ME.email } : {});
     n++;
   });
+  if (over) return wpRefuse(over);
   if (!n) return 'Put in how many arrived.';
   try { await ptPatch(upd); } catch (e) { return 'Not saved: ' + (e.message || e); }
   PTG.shopProd = Object.assign({}, PTG.shopProd || {});
@@ -138,8 +141,20 @@ function shpHandSheetRows(rows) {
   }));
 }
 
+/** A line with pieces still to make is closed only by an admin who says why (28 Nov: "Completed" closed 2 of 3). Returns
+ *  { err } when it stays open, else {} or { short } to keep on the record. */
+function spShortClose(line) {
+  const done = spNum(line && line.pressed), want = spNum(line && line.qty);
+  if (!line || done >= want) return {};
+  const left = `${line.sku}: only ${nf(done)} of ${nf(want)} piece(s) are done`;
+  if (!ME.admin) return { err: left + '. Finish the rest, or ask an admin to close it short.' };
+  const why = String(prompt(left + ' on ' + line.orderNo + '. To close it short, say why:') || '').trim();
+  return why ? { short: { done, of: want, why, by: ME.email, at: new Date().toISOString() } } : { err: left + '. Not closed — no reason was given.' };
+}
+
 async function spHandover(orderNo, sku, on) {
   if (!ptCanEdit()) return PT_NO_EDIT;
+  let short = null;
   const key = spKey(orderNo, sku);
   const was = spOf(orderNo, sku);
   if (on) {
@@ -157,10 +172,13 @@ async function spHandover(orderNo, sku, on) {
     if (pressed < recv) {
       return `${nf(recv - pressed)} piece(s) have not passed QC yet. Record the QC first, or say how many really are going.`;
     }
+    const asked = spShortClose(line);
+    if (asked.err) return asked.err;
+    short = asked.short || null;
   }
   const rec = Object.assign({}, was || { orderNo: obUC(orderNo), sku: obUC(sku) }, on
     ? { handedAt: new Date().toISOString(), handedBy: ME.email }
-    : { handedAt: '', handedBy: '' });
+    : { handedAt: '', handedBy: '' }, short || (was && was.shortClose) ? { shortClose: short } : {});   // an undo or a full hand-over clears an old note
   try { await ptPut('pt_shopProd/' + key, rec); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   PTG.shopProd = PTG.shopProd || {};
@@ -392,7 +410,7 @@ function ordProdRows() {
       supplier: r.orderNo, orderNo: r.orderNo,
       /* Which stage it is sitting at, from the line's own figures - no vendor or finished-goods read,
        * so this stays a cheap screen to open. */
-      stage: r.pendingCut > 0 ? 'to cut' : (r.pendingMake > 0 ? 'to make' : (r.madeToPress > 0 ? 'to press' : 'made')) });
+      stage: r.pendingCut > 0 ? 'to cut' : (r.pendingMake > 0 ? 'to make' : (r.madeToPress > 0 ? 'waiting for QC' : 'made')) });
   });
   return out;
 }

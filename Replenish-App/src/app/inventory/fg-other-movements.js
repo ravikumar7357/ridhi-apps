@@ -33,6 +33,13 @@ const FGI_KINDS = {
   FBA: { label: 'Send to FBA · out', dir: -1, who: 'FBA account', verb: 'Send them' },
 };
 
+/** The types a person can pick. With FBA lists on (28 Nov: stock goes to FBA by a list only, fg-shop-hold.js), Send to FBA is
+ *  offered only on a movement that already is one. current: the type of the movement being changed, if any. */
+const fgiPickTypes = current => Object.keys(FGI_KINDS)
+  .filter(t => t !== 'FBA' || current === 'FBA' || !(typeof shpListsOn === 'function' && shpListsOn()));
+/** Why a new movement of this type may not be entered here, or ''. */
+const fgiNewTypeWhy = type => (type === 'FBA' && typeof fgiFbaByListWhy === 'function' ? fgiFbaByListWhy() : '');
+
 /** The FBA accounts a dispatch can go to. */
 const FGI_FBA_ACCOUNTS = ['Ridhi FBA', 'CPC FBA'];
 /** The account a SKU's brand ships to: CPC → CPC FBA, RBP (Ridhi) → Ridhi FBA; anything else is left to pick. */
@@ -53,9 +60,10 @@ function fgiEntryOpen(type, sku) {
     title: 'Stock entry',
     subtitle: sku ? obUC(sku) + ' · ' + [fgiMaster(sku).articleType, fgiMaster(sku).color, fgiMaster(sku).size].filter(Boolean).join(' · ') : '',
     note: 'Receive adds to the store, issue and FBA take out of it. Nothing here changes a stored '
-      + 'number — the entry itself is the stock, which is why deleting one puts it back.',
+      + 'number — the entry itself is the stock, which is why deleting one puts it back.'
+      + (fgiNewTypeWhy('FBA') ? ' ' + fgiNewTypeWhy('FBA') : ''),
     html: `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
-        <label>Type<select id="fgmType">${Object.keys(FGI_KINDS).map(t =>
+        <label>Type<select id="fgmType">${fgiPickTypes().map(t =>
           `<option value="${t}"${t === type ? ' selected' : ''}>${esc(FGI_KINDS[t].label)}</option>`).join('')}</select></label>
         <label>Date<input id="fgmDate" type="date" value="${esc(dToday())}"></label>
         <label style="grid-column:1/-1"><span>SKU <b style="color:var(--bad)">*</b></span><input id="fgmSku" list="fgmSkuList" value="${esc(sku ? obUC(sku) : '')}"
@@ -305,6 +313,9 @@ async function fgiEntrySave() {
   if (!fgiCanEntry()) return FGI_NO_ENTRY;
   const type = $('fgmType').value;
   const k = FGI_KINDS[type]; if (!k) return 'Pick what kind of movement this is.';
+  /* Said first, so nothing else is asked of an entry that cannot be saved. */
+  const byList = typeof fgiNewTypeWhy === 'function' ? fgiNewTypeWhy(type) : '';
+  if (byList) return byList;
   const sku = obUC(($('fgmSku') || {}).value);
   const qty = parseInt(($('fgmQty') || {}).value, 10);
   /* A drawn form has the account picker; for a dispatch that is where the name comes from. */

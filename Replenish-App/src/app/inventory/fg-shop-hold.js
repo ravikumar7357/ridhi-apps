@@ -4,14 +4,21 @@
  * pieces of one SKU, with a reason: FBA may then take that many more, never more than the stock, even when orders need more
  * than the store holds. An FBA save uses a release up only for pieces beyond what was free without it; it stays on record.
  * With switch storeAlloc also on (fg-store-alloc.js), FBA may take only the Air, Sea and AWD share of the stock instead.
+ * With switch fbaList also on (fba-lists.js, 28 Nov), new pieces go to FBA only by an FBA list: every other way is refused,
+ * except putting back with the FBA team what was returned.
  * Every way to FBA asks here: the entry form, scan out, Pack & verify, Scan to pack, an edit that sends more to FBA, and
  * deleting a "returned from FBA" row or undoing a part shipment (those pieces are with the FBA team again).
  *
  * The Shopify tab works out the need after it has read a store's orders (shopify-orders.js) and notes it, per store, at
- * pt_fgiSettings/_shopHold/{SP|CPC} = { at, by, skus: { SKU key: pieces } }. Releases sit beside it, under .../releases/<id>.
+ * pt_fgiSettings/_shopHold/{SP|CPC} = { at, by, skus: { SKU key: pieces }, orders: { SKU key: [{ no, pcs, on, of }] } }.
+ * orders (28 Nov) names the orders behind each SKU's pieces, for the stock list: order number, pieces still needed, order date,
+ * and the pieces asked ("of") when some were already issued. Never a customer's name, phone or address. A figure noted before
+ * it has none. Releases sit beside it, under .../releases/<id>.
  * "_shopHold" can never be a SKU's own settings row: SKU rows are upper case.
  * On the test website live Shopify is off, so the tab counts the need from the shared copy of the orders instead, and "at" is
- * the time that copy last heard from Shopify.
+ * the time that copy last heard from Shopify. There a missing figure is also noted without the Shopify Orders tab (28 Nov): when
+ * Finished Goods opens, and before every FBA check, shopify-orders.js notes it from the shared copy (shpHoldNoteIfMissing); when it
+ * cannot (UAT mode off, no right to read the copy, stock not readable), the refusal says that reason.
  *
  * WHEN SOMETHING GOES WRONG:
  *   loud, to the user — a release that cannot be saved, used up or given back (it is stock), and a figure that is missing,
@@ -29,6 +36,7 @@ const SHP_HOLD_MAX_AGE_MS = 6 * 60 * 60 * 1000;   // older than this, FBA is ref
 const SHP_HOLD_CLOCK_SLACK_MS = 10 * 60 * 1000;   // noted further ahead than this: that PC's clock is wrong, the figure is not trusted
 const SHP_HOLD_REWRITE_MS = 60 * 60 * 1000;       // an unchanged figure is noted again after this, so it does not look old
 const SHP_HOLD_TRIES = 3;
+const FGI_FBA_BY_LIST = 'FBA lists are on: tick the SKUs on Finished Goods and press Make FBA list — stock goes to FBA only that way.';
 
 /** Is this the test website? */
 const shpOnTestSite = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
@@ -43,6 +51,11 @@ function shpHoldOn() {
 
 /** Is stock also shared between Custom, FBA and Excess (fg-store-alloc.js)? */
 const shpAllocOn = () => typeof fgaOn === 'function' && fgaOn();
+
+/** Do pieces go to FBA by FBA lists (fba-lists.js)? */
+const shpListsOn = () => typeof fblOn === 'function' && fblOn();
+/** What to say to anybody sending stock to FBA some other way while FBA lists are on, or ''. */
+const fgiFbaByListWhy = () => (shpListsOn() ? FGI_FBA_BY_LIST : '');
 
 /* ---- the need of one store ---- */
 /** The name a SKU is held under (the database refuses some characters). */
@@ -67,27 +80,48 @@ function shpHoldIssued(ledgerRows) {
   return out;
 }
 
-/** PIECES HELD, per SKU key, for one store. claims: [{ orderNo, sku, sets, perSet }] — what the open orders still need, in sets
- *  of perSet pieces; orderNo is the production number ('SHP-4876'). What was already issued to that order is no longer needed
- *  from the shelf, so it is taken off, once. */
-function shpHoldBuild(claims, ledgerRows) {
+/** What each order still needs of each SKU: [{ orderNo, ref, on, key, asked, pieces }]. claims: [{ orderNo, sku, sets, perSet,
+ *  ref?, on? }] — what the open orders ask for, in sets of perSet pieces; orderNo is the production number ('SHP-4876'), ref the
+ *  Shopify order name (it tells apart orders with no production number), on the order date. What was already issued to that
+ *  order is no longer needed from the shelf, so it is taken off, once. */
+function shpHoldLeft(claims, ledgerRows) {
   const need = new Map();
   (claims || []).forEach(c => {
-    const orderNo = obUC(c.orderNo), key = shpHoldKey(c.sku), id = orderNo + '|' + key;
-    const had = need.get(id) || { key, pieces: 0 };
-    need.set(id, { key, pieces: had.pieces + Math.round(fgiNum(c.sets) * fgiNum(c.perSet)) });
+    const orderNo = obUC(c.orderNo), ref = c.ref || '', key = shpHoldKey(c.sku), id = (orderNo || ref) + '|' + key;
+    const had = need.get(id) || { orderNo, ref, on: c.on || '', key, asked: 0 };
+    need.set(id, Object.assign({}, had, { asked: had.asked + Math.round(fgiNum(c.sets) * fgiNum(c.perSet)) }));
   });
-  const issued = shpHoldIssued(ledgerRows), skus = {};
-  need.forEach((n, id) => {
-    const left = n.pieces - Math.round(issued.get(id) || 0);
-    if (left > 0) skus[n.key] = (skus[n.key] || 0) + left;
-  });
+  const issued = shpHoldIssued(ledgerRows);
+  return [...need.values()]
+    .map(n => Object.assign({}, n, { pieces: n.asked - Math.round(issued.get(n.orderNo + '|' + n.key) || 0) }))
+    .filter(n => n.pieces > 0);
+}
+/** PIECES HELD, per SKU key, for one store. */
+function shpHoldBuild(claims, ledgerRows) {
+  const skus = {};
+  shpHoldLeft(claims, ledgerRows).forEach(n => { skus[n.key] = (skus[n.key] || 0) + n.pieces; });
   return skus;
+}
+/** Orders { no, on } oldest first; one with no date comes last. */
+const shpHoldOldestFirst = (a, b) => String(a.on || '9999').localeCompare(String(b.on || '9999'))
+  || String(a.no).localeCompare(String(b.no), undefined, { numeric: true });
+/** One order behind a SKU's held pieces, as noted. The database keeps no empty values, so none are written. */
+const shpHoldEntry = n => Object.assign({ no: n.orderNo || n.ref, pcs: n.pieces }, n.on ? { on: n.on } : {},
+  n.asked > n.pieces ? { of: n.asked } : {});
+/** What one store's figure says: { skus: the pieces held per SKU key, orders: the orders behind them, oldest first }. */
+function shpHoldNeed(claims, ledgerRows) {
+  const orders = {};
+  shpHoldLeft(claims, ledgerRows).forEach(n => { (orders[n.key] = orders[n.key] || []).push(shpHoldEntry(n)); });
+  Object.values(orders).forEach(list => list.sort(shpHoldOldestFirst));
+  return { skus: shpHoldBuild(claims, ledgerRows), orders };
 }
 
 /* ---- noting it ---- */
 /** Was this noted by a PC whose clock runs ahead? */
 const shpHoldAhead = (at, nowMs) => at > nowMs + SHP_HOLD_CLOCK_SLACK_MS;
+
+/** Do two figures say the same: the pieces per SKU, and the orders behind them? */
+const shpHoldSaysSame = (a, b) => ptSame(a.skus || {}, b.skus || {}) && ptSame(a.orders || {}, b.orders || {});
 
 /** A newer read replaces the noted figure when it says something else, or the noted one is getting old. One noted by a
  *  clock that runs ahead is always replaced, or it would block every later read. */
@@ -95,12 +129,12 @@ function shpHoldShouldWrite(noted, figure, nowMs = Date.now()) {
   if (!noted || !noted.at || shpHoldAhead(noted.at, nowMs)) return true;
   /* The test website notes the shared copy's own sync time: every newer copy is noted, and so is the same copy when the need
    * has changed since (pieces issued to an order, an order marked done). */
-  if (shpOnTestSite()) return figure.at > noted.at || (figure.at === noted.at && !ptSame(noted.skus || {}, figure.skus));
+  if (shpOnTestSite()) return figure.at > noted.at || (figure.at === noted.at && !shpHoldSaysSame(noted, figure));
   if (!(figure.at > noted.at)) return false;
-  return figure.at - noted.at > SHP_HOLD_REWRITE_MS || !ptSame(noted.skus || {}, figure.skus);
+  return figure.at - noted.at > SHP_HOLD_REWRITE_MS || !shpHoldSaysSame(noted, figure);
 }
 
-/** Note one store's figure { at, by, skus }, checked and written in one step. Never throws: '' when noted (or nothing needed
+/** Note one store's figure { at, by, skus, orders }, checked and written in one step. Never throws: '' when noted (or nothing needed
  *  noting), else why not, also said in the console. */
 async function shpHoldPublish(store, figure) {
   const path = SHP_HOLD_PATH + '/' + store;
@@ -168,12 +202,17 @@ function fgiHoldAgeWhy(hold = fgiHoldNode()) {
     ? 'The pieces held for website orders are not known yet — open the Shopify Orders tab and press Fetch orders, then try again.'
     : 'The pieces held for website orders are over 6 hours old (or were noted by a PC whose clock is ahead) — open the Shopify Orders tab and press Fetch orders, then try again. A release does not help while the figure is old.';
 }
-/** The same on the test website, where the figure comes from the shared copy and can be noted only in UAT mode. */
-const shpHoldTestAgeWhy = state => (state === 'missing' ? 'The pieces held for website orders are not known yet'
-  : 'The pieces held for website orders are over 6 hours old (or carry a time ahead of this PC\'s clock)')
-  + ' — on the test website, turn UAT mode on, open the Shopify Orders tab and press Fetch orders. They are counted from the'
-  + ' shared copy of the orders: the line there says how old it is, or why it could not be noted.'
-  + (state === 'missing' ? '' : ' A release does not help while the figure is old.');
+/** The same on the test website, where the figure comes from the shared copy and can be noted only in UAT mode. A missing figure
+ *  has already been tried from the shared copy (shpHoldNoteIfMissing): what stopped that is said, not a tab to open. */
+function shpHoldTestAgeWhy(state) {
+  if (state === 'missing' && SHP_HOLD_AUTO_WHY) return 'The pieces held for website orders are not known yet, and could not be noted from the shared copy of the orders: '
+    + SHP_HOLD_AUTO_WHY.replace(/^Pieces held for website orders were not noted: /, '') + ' Press Refresh and try again.';
+  return (state === 'missing' ? 'The pieces held for website orders are not known yet'
+    : 'The pieces held for website orders are over 6 hours old (or carry a time ahead of this PC\'s clock)')
+    + ' — on the test website, turn UAT mode on, open the Shopify Orders tab and press Fetch orders. They are counted from the'
+    + ' shared copy of the orders: the line there says how old it is, or why it could not be noted.'
+    + (state === 'missing' ? '' : ' A release does not help while the figure is old.');
+}
 /** Why the noted figures cannot be trusted just now, or '': the website hold, and the FBA need when stock is shared. */
 const fgiFbaAgeWhy = hold => fgiHoldAgeWhy(hold) || (shpAllocOn() ? fgaNeedWhy() : '');
 const fgiShortWhy = (s, hold) => shpAllocOn() ? fgaShortWhy(s) : `${s.sku} has ${nf(s.free)} piece(s) free for FBA, not ${nf(s.qty)} (${nf(fgiHeld(s.sku, hold))} held for website orders).`
@@ -205,15 +244,45 @@ function fgiHoldScanWhy(sku, packed) {
   return free < current && inList >= free ? fgiShortWhy({ sku, free, qty: inList + 1 }, fgiHoldNode()) : '';
 }
 
+/* ---- noting it without the Shopify Orders tab (test website only) ---- */
+/* Why the last try failed ('' when it worked or none was made); read by shpHoldTestAgeWhy. */
+let SHP_HOLD_AUTO_WHY = '';
+/** The test website only: when the figure is missing, note it now from the shared copy of the orders (shopify-orders.js),
+ *  loading what that needs, so nobody has to open Shopify Orders first. Live is never touched. Never throws: '' when there
+ *  is nothing to note or it was noted, else why not (also kept for the refusal sentence, and said in the console). */
+async function shpHoldNoteIfMissing() {
+  if (!shpOnTestSite() || fgiHoldState().state !== 'missing') { SHP_HOLD_AUTO_WHY = ''; return ''; }
+  if (typeof soHoldNoteFromCopy !== 'function') return '';
+  try { SHP_HOLD_AUTO_WHY = await soHoldNoteFromCopy(); }
+  catch (e) { SHP_HOLD_AUTO_WHY = e.message || String(e); }
+  if (SHP_HOLD_AUTO_WHY) console.warn('India store hold: not noted from the shared copy: ' + SHP_HOLD_AUTO_WHY);
+  return SHP_HOLD_AUTO_WHY;
+}
+
+/** Finished Goods has just been read (test website): a missing figure is noted at once, so the stock list and the first FBA list
+ *  find it. Not waited for; never throws. */
+async function fgiHoldNoteOnOpen() {
+  if (!shpHoldOn() || !shpOnTestSite() || fgiHoldState().state !== 'missing') return;
+  if (await shpHoldNoteIfMissing()) return;
+  try {
+    fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {});
+    if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'fgi') renderFgi();
+  } catch (e) { console.warn('India store hold: the figure just noted could not be read back:', e.message || e); }
+}
+
 /* ---- reading it again ---- */
 const fgiHoldKeep = node => { FGI.set = Object.assign({}, FGI.set, { _shopHold: node }); };
 const fgiHoldUnread = e => 'Nothing was saved — the pieces held for website orders could not be checked (' + (e.message || e) + '). Check the connection and save again.';
-/** Read the noted figure and the releases (and the FBA need, when stock is shared) as they are now. '' when read, else the
- *  sentence to show. */
+/** Read the noted figure and the releases (and the other FBA share figures, when stock is shared, and the FBA lists, when on)
+ *  as they are now. '' when read, else the sentence to show. */
 async function fgiHoldReread() {
   try {
     fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {});
-    if (shpAllocOn()) await fgaNeedReread();
+    /* Before any FBA check or save: a figure that is missing is noted now (test website), then read as it is. */
+    const notNoted = await shpHoldNoteIfMissing();
+    if (!notNoted && fgiHoldState().state === 'missing') fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {});
+    if (shpAllocOn()) await fgaFiguresReread();
+    if (shpListsOn()) fblKeepAll((await ptGetFresh(FBL_PATH)) || {});
     return '';
   }
   catch (e) {
@@ -239,8 +308,17 @@ async function fgiReleaseCreate(v) {
   return '';
 }
 
-/** WHAT AN FBA SAVE USES UP. wants: [{ sku, qty, current }] (current = pieces in stock before the save). Only the pieces beyond
- *  what was free without a release are taken from releases, oldest first. Returns { next, used: { id: pieces }, short:
+/** Pieces of a want that FBA may take without a release. A want of an FBA list brings its own figure (share): its lane's. */
+function fgiPlanShare(w, hold, book) {
+  if (w.share !== undefined) return w.share;
+  return book ? fgaFbaShare(w.sku, w.current, hold, book) : Math.max(0, w.current - fgiHeld(w.sku, hold));
+}
+/** Pieces of a want that may go, open releases counted. */
+const fgiPlanFree = (w, hold, book) => (w.share === undefined ? fgiFbaFree(w.sku, w.current, hold, book)
+  : Math.min(Math.max(0, w.current), w.share + fgiReleased(w.sku, hold)));
+
+/** WHAT AN FBA SAVE USES UP. wants: [{ sku, qty, current, share? }] (current = pieces in stock before the save). Only the
+ *  pieces beyond what was free without a release are taken from releases, oldest first. Returns { next, used: { id: pieces }, short:
  *  [{ sku, qty, free }] }; with anything short, next is the releases unchanged. The releases handed in are not changed.
  *  A want's `without` names the movement being changed, left out when the stock is shared. */
 function fgiReleasePlan(hold, wants, stamp) {
@@ -249,13 +327,12 @@ function fgiReleasePlan(hold, wants, stamp) {
   const book = shpAllocOn() ? fgaBook(new Set((wants || []).map(w => w.without).filter(Boolean))) : undefined;
   (wants || []).forEach(w => {
     const key = shpHoldKey(w.sku), had = bySku.get(key);
-    bySku.set(key, { sku: w.sku, current: w.current, qty: fgiNum(w.qty) + (had ? had.qty : 0) });
+    bySku.set(key, { sku: w.sku, current: w.current, share: w.share, qty: fgiNum(w.qty) + (had ? had.qty : 0) });
   });
   bySku.forEach(w => {
-    const free = fgiFbaFree(w.sku, w.current, hold, book);
+    const free = fgiPlanFree(w, hold, book);
     if (w.qty > free) { short.push({ sku: w.sku, qty: w.qty, free }); return; }
-    let owed = w.qty - Math.max(0, w.current - fgiHeld(w.sku, hold));   // only the pieces beyond what was free anyway
-    if (book) owed = w.qty - fgaFbaShare(w.sku, w.current, hold, book);
+    let owed = w.qty - fgiPlanShare(w, hold, book);   // only the pieces beyond what was free anyway
     fgiReleasesOpen(w.sku, releases).forEach(([id, r]) => {
       const take = Math.min(owed, Number(r.left));
       if (take <= 0) return;
@@ -274,7 +351,7 @@ async function fgiReleaseSpend(wants) {
     for (let i = 0; i < SHP_HOLD_TRIES; i++) {
       const hold = (await ptGetFresh(SHP_HOLD_PATH)) || {};
       fgiHoldKeep(hold);
-      if (shpAllocOn()) await fgaNeedReread();
+      if (shpAllocOn()) await fgaFiguresReread();
       const why = fgiHoldRefusal(wants, hold);
       if (why) return { err: 'Nothing was saved — ' + why, used: {} };
       const plan = fgiReleasePlan(hold, wants, { by: ME.email, at: new Date().toISOString() });
@@ -312,14 +389,15 @@ async function fgiReleaseGiveBack(used) {
   return ` The ${nf(pieces)} released piece(s) it had used were NOT given back — ask an admin to release them again.`;
 }
 
-/** SAVE PIECES TO FBA: the releases are used up, then write() saves the ledger; a failed write gives them back. Call it only
- *  after every other check has passed. No wants: nothing new goes to FBA, so it only writes. '' when saved, else the
- *  sentence to show. */
+/** SAVE PIECES TO FBA: the releases are used up, then write(used: { release id: pieces }) saves; a failed write gives them
+ *  back. Call it only after every other check has passed. No wants: nothing new goes to FBA, so it only writes. With FBA lists
+ *  on, every want must be a list's (list) or a return's (back). '' when saved, else the sentence to show. */
 async function fgiFbaWrite(wants, write) {
-  if (!wants.length) { await write(); return ''; }
+  if (!wants.length) { await write({}); return ''; }
+  if (shpListsOn() && wants.some(w => !w.list && !w.back)) return FGI_FBA_BY_LIST;
   const spent = await fgiReleaseSpend(wants);
   if (spent.err) return spent.err;
-  try { await write(); }
+  try { await write(spent.used); }
   catch (e) { return 'Not saved: ' + (e.message || e) + '.' + await fgiReleaseGiveBack(spent.used); }
   return '';
 }
@@ -341,7 +419,7 @@ function fgiFbaEditWants(was, now) {
 function fgiFbaReturnWants(deleted) {
   const gone = new Set(deleted.map(fgiRowId));
   return deleted.filter(r => r.txnType === 'FBA_RETURN' && !gone.has(r.linkedFbaId))
-    .map(r => ({ sku: obUC(r.sku), qty: fgiNum(r.qty), current: fgiOf(r.sku).current }));
+    .map(r => ({ sku: obUC(r.sku), qty: fgiNum(r.qty), current: fgiOf(r.sku).current, back: true }));
 }
 
 /* ---- on the Finished Goods stock list ---- */

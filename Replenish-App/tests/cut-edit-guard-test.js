@@ -79,7 +79,7 @@ function screen(o) {
     ok('a draft or a returned order, Save: a draft, as before', status(false, true, 'draft') === 'draft' && status(false, true, 'returned') === 'draft');
     ok('a new order, Save: a draft', status(false, true, null) === 'draft');
     ok('Place order: submitted', status(true, true, 'approved') === 'submitted');
-    ok('switch off: Save on an approved order makes a draft, as it always did', status(false, false, 'approved') === 'draft'); }
+    ok('a placed order stays placed for everybody, the switch off too (28 Nov)', status(false, false, 'approved') === 'approved'); }
   { const ctx = { obUC: s => String(s || '').trim().toUpperCase(), soLines: o => o.lines };
     vm.createContext(ctx);
     vm.runInContext(cut(SO, /^const soLinesOf/m, ';') + '\n' + cut(SO, /^const soQtyOf/m, ';') + '\n' + cut(SO, /^function soQtyDrift\(/m), ctx);

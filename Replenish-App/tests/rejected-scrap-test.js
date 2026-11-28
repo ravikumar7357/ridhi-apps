@@ -20,7 +20,7 @@ const CODE = [cut('core/history.js', /^function lineHoldOn\(/m), cut('core/histo
   cut(L, /^let BASE_IX/m, ';'), cut(L, /^function obBaseIndex\(/m), cut(L, /^function obRowScrap\(/m), cut(L, /^const obQcRows/m, '\n'),
   cut(L, /^const obQcScrapOf/m, '\n'), cut(L, /^let QCREJ_IX/m, ';'), cut(L, /^function obQcRejIndex\(/m), cut(L, /^function obQcScrapQty\(/m), cut(L, /^function flowRejOf\(/m),
   cut(K, /^const obCutKept/m, ';'), cut(K, /^function cutGuard\(/m),
-  cut(J, /^function obIssueSums\(/m), cut(J, /^function obIssueOfOrder\(/m), cut(J, /^function obIssueOfCut\(/m), cut(J, /^function bdGuard\(/m), cut(J, /^function bdOrdersFor\(/m),
+  cut(J, /^function obIssueSums\(/m), cut(J, /^function obIssueOfOrder\(/m), cut(J, /^function obIssueOfCut\(/m), cut(J, /^function bdPrintedBackErr\(/m), cut(J, /^function bdCutReq\(/m), cut(J, /^function bdGuard\(/m), cut(J, /^function bdOrdersFor\(/m),
   cut(F, /^function flowCountScrap\(/m), cut(F, /^function flowReplaceCloth\(/m), cut(F, /^function flowStoreClothPcs\(/m), cut(F, /^function flowState\(/m),
   cut('flow/flow-entries.js', /^const flowIssuable/m, ';')].join('\n');
 
@@ -94,6 +94,14 @@ console.log('== QC rejects 5 with a reason ==');
 { const c = line({ cut: 110, jobs: [job(50, 0, 0), job(50, 0, 0, 'j2')], checks: [qcRow(45, 5, true, 'j2')] });
   ok('correcting an entry leaves out what QC scrapped from that entry', c.ctx.obIssueOfOrder(NO, SKU, 'j2') === 50 && c.ctx.obIssueOfOrder(NO, SKU, 'j1') === 45,
     c.ctx.obIssueOfOrder(NO, SKU, 'j2') + ' ' + c.ctx.obIssueOfOrder(NO, SKU, 'j1')); }
+
+console.log('== a line PPC planned straight to Job Work ==');
+{ const a = line({ cut: 0 });
+  a.ctx.flowPlanRouteOf = () => 'jobwork';
+  const o = a.ctx.bdOrdersFor(SKU)[0];
+  ok('nothing cut: the form offers all 100, the same as Save accepts', o.left === 100 && o.byCut === o.byOrder && a.mayIssue() === 100 && a.ctx.bdCutReq(NO, SKU) === false, JSON.stringify(o) + ' ' + a.mayIssue()); }
+{ const b = line({ cut: 0 }), o = b.ctx.bdOrdersFor(SKU)[0];
+  ok('any other route, nothing cut: held by cutting on both', o.left === 0 && o.byCut === 0 && b.mayIssue() === 0, JSON.stringify(o)); }
 
 console.log('== rejections without a reason count as before ==');
 const same = (name, o) => { const on = line(o).figures(), off = line(Object.assign({ off: true }, o)).figures(); ok(name, on === off, on + ' vs ' + off); };

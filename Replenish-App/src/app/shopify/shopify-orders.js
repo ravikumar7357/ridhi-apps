@@ -737,7 +737,7 @@ function soHoldOrderNo(o, taken) {
   const base = shpOrderNo(o.no);
   return taken.get(base) ? '' : base;
 }
-/** What one store's open orders need from India, line by line, for shpHoldBuild. copyOrders (test website): the shared
+/** What one store's open orders need from India, line by line, for shpHoldNeed. copyOrders (test website): the shared
  *  copy's orders, counted in place of the ones read from Shopify. */
 function soHoldClaims(store, copyOrders) {
   soIndexNames(copyOrders);
@@ -751,8 +751,9 @@ function soHoldClaims(store, copyOrders) {
       const sku = soIndiaKey(i.sku) || obUC(i.sku);      // never in India yet: held under its own code, for when it arrives
       if (!sku) return;
       const fit = soPackFit(i.sku);
+      /* The Shopify order's name and date go with it (the stock list shows them); nothing about the customer does. */
       claims.push({ orderNo, sku, sets: soSendQty(o.id, i.sku, soIndiaOwed(i)),
-        perSet: fit && fit.ok ? fit.pack : obPcsPerPack(sku) });
+        perSet: fit && fit.ok ? fit.pack : obPcsPerPack(sku), ref: String(o.no || ''), on: String(o.at || '').slice(0, 10) });
     });
   });
   return claims;
@@ -793,7 +794,9 @@ function soHoldSay(whys) {
 /** Is the order book in? Without it an order's production number, and what was issued to it, cannot be known. */
 const soHoldBookIn = () => (prOn() ? ptRegLoaded('ob') : !!PTG.at);
 /** Why the stock a need is judged by is not in yet, or ''. */
-const soHoldStockWhy = () => (!SHOP_STOCK_LOADED || !SHOP_INDIA_AT || SHOP_INDIA_ERR ? 'Amazon or India stock has not been read yet' : '');
+const soHoldStockWhy = () => (SHOP_INDIA_ERR ? 'India stock could not be read: ' + SHOP_INDIA_ERR
+  : SHOP_STOCK_DENIED ? 'this account may not read Amazon stock'
+    : !SHOP_STOCK_LOADED || !SHOP_INDIA_AT ? 'Amazon or India stock has not been read yet' : '');
 /** The store ledger, read once the Master Database (pack sizes) is in. Throws when either cannot be read. */
 async function soHoldLedger() {
   await ptNeed(PTG_ALL, { why: 'shop-hold', has: 'mdb' });
@@ -811,7 +814,8 @@ async function soHoldPublish() {
     const ledger = await soHoldLedger();
     /* Orders and their read time are taken together, after the waits: a newer fetch may have replaced both. */
     const read = SHOP.holdRead || {};
-    const figures = SO_BRANDS.filter(b => read[b]).map(b => [b, { at: read[b], by: ME.email, skus: shpHoldBuild(soHoldClaims(b), ledger) }]);
+    const figures = SO_BRANDS.filter(b => read[b]).map(b => [b,
+      Object.assign({ at: read[b], by: ME.email }, shpHoldNeed(soHoldClaims(b), ledger))]);
     const whys = SO_BRANDS.filter(b => !read[b]).map(b => soAcctName(b) + ': '
       + ((SHOP.holdWhy || {})[b] || 'its orders were not read in full (narrowed dates, or a failed or cut-off answer)'));
     for (const [b, figure] of figures) {
@@ -892,21 +896,43 @@ function soHoldCopySay(text, bad) {
   el.className = bad ? 'err' : 'muted';
   if (bad) console.warn('India store hold: ' + text);
 }
-/** The test website's soHoldPublish. Never throws. */
+/** The test website's soHoldPublish. Never throws. '' when both stores were noted, else why not (as the tab says it). */
 async function soHoldPublishCopy() {
-  if (soHoldStockWhy()) return soHoldCopySay(SO_HOLD_NOT_NOTED + soHoldStockWhy(), true);
+  if (soHoldStockWhy()) return soHoldCopyFail(SO_HOLD_NOT_NOTED + soHoldStockWhy());
   try {
     const ledger = await soHoldLedger();
     if (!soHoldBookIn()) throw new Error('the order book was not loaded yet — press Fetch orders again');
     const read = await soHoldCopyRead(), noted = [], whys = [];
     for (const b of SO_BRANDS) {
       const s = read[b];
-      const why = s.why || await shpHoldPublish(b, { at: s.at, by: ME.email, skus: shpHoldBuild(soHoldClaims(b, s.orders), ledger) });
+      const why = s.why || await shpHoldPublish(b,
+        Object.assign({ at: s.at, by: ME.email }, shpHoldNeed(soHoldClaims(b, s.orders), ledger)));
       if (why) whys.push(soAcctName(b) + ': ' + why); else noted.push(b);
     }
     const notNoted = whys.length ? SO_HOLD_NOT_NOTED + whys.join('; ') : '';
     soHoldCopySay([soHoldCopyNoted(read, noted), notNoted].filter(Boolean).join(' '), !!whys.length);
-  } catch (e) { soHoldCopySay(SO_HOLD_NOT_NOTED + soHoldCopyWhy(e), true); }
+    return notNoted;
+  } catch (e) { return soHoldCopyFail(SO_HOLD_NOT_NOTED + soHoldCopyWhy(e)); }
+}
+function soHoldCopyFail(text) { soHoldCopySay(text, true); return text; }
+
+/* NOTED WITHOUT OPENING THIS TAB (28 Nov): Finished Goods asks for the figure when it opens and before every FBA check
+ * (fg-shop-hold.js, shpHoldNoteIfMissing), and the test website notes it here from the shared copy, loading the Amazon and India
+ * stock and the order book first. Why it was missing before: it was noted only as a side effect of this tab's fetch, and on the
+ * test website that note is kept in UAT mode on this browser only, so a reset, another browser or UAT mode off left nothing.
+ * One at a time. Error strategy: loud to the user (it is said in the refusal), never throws. */
+let SO_HOLD_NOTING = null;
+function soHoldNoteFromCopy() {
+  if (!SO_HOLD_NOTING) SO_HOLD_NOTING = soHoldNoteRun().finally(() => { SO_HOLD_NOTING = null; });
+  return SO_HOLD_NOTING;
+}
+async function soHoldNoteRun() {
+  if (typeof window !== 'undefined' && window.__UAT && !window.__UAT.on)
+    return SO_HOLD_NOT_NOTED + 'UAT mode is off, so the figure cannot be kept on this PC — turn UAT mode on (the switch in the top bar) and try again.';
+  try {
+    await Promise.all([SHOP_STOCK_LOADED ? null : loadShopStock(), loadShopIndia(), ptNeed(PTG_ALL, { why: 'shop-hold', has: 'ob' })]);
+  } catch (e) { return SO_HOLD_NOT_NOTED + (e.message || String(e)); }
+  return soHoldPublishCopy();
 }
 
 function soIndia(order) {

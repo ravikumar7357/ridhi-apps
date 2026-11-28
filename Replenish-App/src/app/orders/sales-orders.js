@@ -97,7 +97,8 @@ function soBrandOf(o) {
 /** What the Buyer column says: the brand on a B2B order that carries one, else who raised it. */
 const soBuyerTxt = o => (soIsB2B(o.channel) && soBrandOf(o)) || o.buyerName || '';
 
-/** Order + SKU → net cut and pressed, built once. Per-SKU lookups would rescan 4,000 rows 1,200 times. */
+/** Order + SKU → net cut and made, built once. Per-SKU lookups would rescan 4,000 rows 1,200 times. Made is the Order
+ *  Console's own figure (28 Nov: this screen showed 0 where the console showed 3): QC passes and pieces from ready stock count. */
 function soWork() {
   const cut = new Map(), press = new Map();
   (PT.cut || []).forEach(r => {
@@ -107,11 +108,7 @@ function soWork() {
     const net = (parseInt(r.pieces, 10) || 0) - (r.rejected === true ? (parseInt(r.rejPieces, 10) || 0) : 0);
     cut.set(k, (cut.get(k) || 0) + net);
   });
-  (PTG.press || []).forEach(r => {
-    if (!r || !r.orderNo) return;
-    const k = obUC(r.orderNo) + '|' + obUC(r.sku);
-    press.set(k, (press.get(k) || 0) + (parseInt(r.pieces, 10) || 0));
-  });
+  (ordLines() || []).forEach(l => press.set(obUC(l.orderNo) + '|' + obUC(l.sku), +l.pressed || 0));
   return { cut, press };
 }
 

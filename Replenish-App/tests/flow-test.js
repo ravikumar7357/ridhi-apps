@@ -28,6 +28,7 @@ function load(opts) {
     $: el, Date: FlowDate, document: { querySelectorAll: () => [], querySelector: () => null }, localStorage: { getItem: k => Object.assign({ flowTests: '1', flowReal: '1', recvFree: '1' }, opts.ls || {})[k] ?? null },
     location: { hostname: opts.host || 'price-research-48ff3--flow-abc.web.app' },
     ME: Object.assign({ email: 'ppc@x', admin: false, tabs: [] }, opts.me || {}),
+    ptClothOver: () => '', wpRefuse: t => t,   // the cloth limit has its own tests (too-much-test)
     obUC, esc: s => String(s == null ? '' : s).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])), nf: v => String(v),
     dToday: () => '2026-10-13', ptIsoDate: v => String(v || '').slice(0, 10),
     ordLines: () => W.lines, ordVendorOf: (o, s) => W.vendor[o + '|' + s] || null, ordQcOf: (o, s) => W.qc[o + '|' + s] || null,
@@ -270,20 +271,20 @@ const K = 'AMZ-1__S1';
     const d = F.flowBySizeData(rows), pr = d.P.find(p => p.pk === 'P1'), g = pr && pr.list[0];
     ok('size challan: three colours, two spellings of 60x60, three orders → ONE line, 30 pcs, 45 m', !!g && pr.list.length === 1 && g.pcs === 30 && Math.abs(g.metres - 45) < 0.01, JSON.stringify({ rows: rows.length, all: F.flowRows().map(x => [x.s.key, x.s.bucket, x.s.needFab, x.s.route]), P: d.P.map(p => [p.pk, p.list.map(q => [q.gk, q.pcs, q.metres])]) }));
     if (!g) throw new Error('no size group');
-    ok('…its orders oldest first: AMZ-5 (11 Oct), SHP-9 (12 Oct), AMZ-7 (13 Oct)', g.lines.map(l => l.x.r.orderNo).join() === 'AMZ-5,SHP-9,AMZ-7', g.lines.map(l => l.x.r.orderNo).join());
+    ok('…Shopify board order first (28 Nov), then oldest: SHP-9 (12 Oct), AMZ-5 (11 Oct), AMZ-7 (13 Oct)', g.lines.map(l => l.x.r.orderNo).join() === 'SHP-9,AMZ-5,AMZ-7', g.lines.map(l => l.x.r.orderNo).join());
     const pre = F.flowSizeFifo(pr.list, { [g.gk]: 15 });
     /* RFD BY LINE IN EXCEL (21 Oct: "need export button here") */
     const sh = F.flowDrfdLineRows(rows), H = sh[0], col = n => H.indexOf(n), r1 = sh.find(r => r[0] === 'AMZ-5') || [];
     ok('RFD by line sheet: a row a line, with printer, fabric, metres to send and covered / short', sh.length === 4 && r1[col('SKU')] === 'T2' && r1[col('Printer')] === 'Sanganer Prints'
       && r1[col('Fabric')] === 'Sheeting 62' && r1[col('To send (m)')] === 15 && r1[col('RFD')] === 'Covered' && r1[col('Qty')] === 10 && r1[col('Route')] === 'Printing', JSON.stringify([H, r1]));
-    ok('FIFO: 15 pcs fill AMZ-5 (10, all), then SHP-9 (5 of 10); AMZ-7 waits', pre.get('AMZ-5__T2').pcs === 10 && pre.get('SHP-9__T1').pcs === 5 && !pre.has('AMZ-7__T3') && pre.get('SHP-9__T1').metres === 7.5, JSON.stringify([...pre]));
+    ok('15 pcs fill SHP-9 (10, all), then AMZ-5 (5 of 10); AMZ-7 waits', pre.get('SHP-9__T1').pcs === 10 && pre.get('AMZ-5__T2').pcs === 5 && !pre.has('AMZ-7__T3') && pre.get('AMZ-5__T2').metres === 7.5, JSON.stringify([...pre]));
     F.flowSizeChallanOpen('P1');
     ok('Make challan asks the pieces per size, with what each order would get', /Challan by size/.test(F.ctx.__dlg.title) && /data-szq=/.test(F.ctx.__dlg.html) && /AMZ-5/.test(F.ctx.__dlg.html), F.ctx.__dlg.title);
     const er = await F.ctx.__dlg.onSave(); await new Promise(r => setTimeout(r, 5));
     ok('…Review challan opens the ordinary challan form with the FIFO lines and figures in it', er === '' && /RFD challan/.test(F.ctx.__dlg.title) && /value="15"/.test(F.ctx.__dlg.html), (F.ctx.__dlg.title || '') + ' ' + (er || ''));
     /* MANY ORDERS, ONE CHALLAN (21 Oct: "bulk me challan bhi bana saku excel se and multiple order ko 1 hi challan me bhej saku") */
     const gr = F.flowChGroups(rows.map(x => x.s.key));
-    ok('lines of three orders, one printer → ONE challan form, oldest order first', gr.groups.length === 1 && gr.groups[0].pcode === 'P1' && gr.groups[0].rows.map(x => x.r.orderNo).join() === 'AMZ-5,SHP-9,AMZ-7', JSON.stringify(gr.groups.map(g => [g.pcode, g.rows.map(x => x.r.orderNo)])));
+    ok('lines of three orders, one printer → ONE challan form, Shopify board order first, then oldest', gr.groups.length === 1 && gr.groups[0].pcode === 'P1' && gr.groups[0].rows.map(x => x.r.orderNo).join() === 'SHP-9,AMZ-5,AMZ-7', JSON.stringify(gr.groups.map(g => [g.pcode, g.rows.map(x => x.r.orderNo)])));
     const shY = F.flowDrfdLineRows(rows), HY = shY[0], cY = n => HY.indexOf(n);
     ok('the sheet has the columns to fill: Send now (pcs), Send now (m), Make challan (yes/no), Line ID', ['Send now (pcs)', 'Send now (m)', 'Make challan (yes/no)', 'Line ID'].every(n => cY(n) >= 0) && shY[1][cY('Line ID')] && shY[1][cY('Send now (m)')] > 0);
     shY.slice(1).forEach(r => { if (r[0] !== 'AMZ-7') r[cY('Make challan (yes/no)')] = 'yes'; if (r[0] === 'SHP-9') r[cY('Send now (m)')] = 9; });
@@ -305,7 +306,7 @@ const K = 'AMZ-1__S1';
     F.ctx.document.querySelector = q => /data-chk/.test(q) ? { checked: true } : /data-chm="(\d+)"/.test(q) ? { value: '15' } : null;
     F.els.flcVen = Object.assign(F.els.flcVen || {}, { value: 'P1' });
     let opened = 0; F.flowChQueue(F.flowChGroups(rdY.keys, rdY.pre).groups, () => { opened++; });
-    ok('…the form opens with the two orders on it', /RFD challan — AMZ-5, SHP-9/.test(F.ctx.__dlg.title), F.ctx.__dlg.title);
+    ok('…the form opens with the two orders on it', /RFD challan — SHP-9, AMZ-5/.test(F.ctx.__dlg.title), F.ctx.__dlg.title);
     /* 22 Oct ("challan ka review kare tab size combine hokar dikhe") */
     const szH = F.flowChSizeLive(2);
     /* 21 Nov: the review is one block per fabric — its total on top, its sizes under it */
@@ -314,7 +315,7 @@ const K = 'AMZ-1__S1';
       && /padding-left:22px" class="muted">60x60<\/td><td class="num">20<\/td><td class="num">2<\/td><td class="num">30 m<\/td>/i.test(szH), szH);
     const erY = await F.ctx.__dlg.onSave(); await new Promise(r => setTimeout(r, 5));
     const chY = Object.values(F.FLOW().ch).find(c => (c.orders || []).length === 2) || {};
-    ok('…saved as ONE challan for both orders, to the one printer', erY === '' && chY.vendor && chY.vendor.code === 'P1' && chY.orders.join() === 'AMZ-5,SHP-9' && chY.lines.length === 2 && opened === 1, (erY || '') + JSON.stringify(Object.values(F.FLOW().ch).map(c => [c.no, c.orders])));
+    ok('…saved as ONE challan for both orders, to the one printer', erY === '' && chY.vendor && chY.vendor.code === 'P1' && chY.orders.join() === 'SHP-9,AMZ-5' && chY.lines.length === 2 && opened === 1, (erY || '') + JSON.stringify(Object.values(F.FLOW().ch).map(c => [c.no, c.orders])));
     { /* 22 Oct, "it's looking very odd": a challan of 20 orders and 20 lines folds them in the history */
       const H = load({ me: { admin: true } }), os = Array.from({ length: 20 }, (_, k) => 'SHP-' + (7000 + k));
       H.setFLOW(Object.assign(H.FLOW(), { ch: { 'RFD-202610-038': { no: 'RFD-202610-038', date: '2026-10-22', orderNo: os.join(', '), orders: os, vendor: { code: 'P1', name: 'RBP-Bagru' },
