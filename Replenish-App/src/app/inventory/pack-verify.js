@@ -20,36 +20,60 @@
  *
  * Rapid scanning: a scan never waits on the network — the screen updates at once and the list is saved 3 s after the
  * last change and on every box close. The same code within 1 s is ignored. Focus returns to the scan box after a click.
+ * FBA LISTS (28 Nov, switch fbaList): a session is the packing list of one FBA list (pack-core.js), opened here or from
+ * FBA Dispatch (pkvOpenFbaList) by the FBA Dispatch tab, and Finish saves what is packed on that list. No stock leaves.
  * Camera: the phone's own reader where it reads code_128, else ZXing from this site (the Scan to pack loader). */
 
 let PKV = { p: null, box: 1, hist: [], last: { code: '', at: 0 }, tab: 'order', cam: { stream: null, det: null, timer: 0, seen: null, busy: false },
   saveT: 0, dirty: false, saving: false, err: '' };
 const PKV_DEBOUNCE_MS = 1000, PKV_SAVE_MS = 3000;
 
-const pkvOpenLists = () => (PK || []).filter(p => p && p.status !== 'done' && p.scan && !(p.scan.ledgerIds || []).length);
+const pkvOpenLists = () => (PK || []).filter(p => p && p.status !== 'done' && p.scan && !(p.scan.ledgerIds || []).length && packFbaStillOpen(p));
 
 /* ---- opening ---- */
-async function pkvOpen() {
-  if (!fgiCanEntry()) { $('fgMsg').className = 'err'; $('fgMsg').textContent = FGI_NO_ENTRY; return; }
-  $('fgMsg').className = 'muted'; $('fgMsg').textContent = 'Opening Pack & verify…';
+/** Why this person may not pack here, or ''. With FBA lists on, packing writes no stock: it is the FBA Dispatch tab's work. */
+const pkvBlocked = () => (packFbaOn() ? fblBlocked() : (fgiCanEntry() ? '' : FGI_NO_ENTRY));
+/** Read what the board needs: '' or why it cannot open. */
+async function pkvReady() {
   try {
     await Promise.all([fnLoad(), loadPkWt().catch(() => {}), PK_LOADED ? null : loadPk(), typeof ptImgShared === 'function' ? ptImgShared().catch(() => {}) : null]);
-  } catch (e) { $('fgMsg').className = 'err'; $('fgMsg').textContent = 'Could not open Pack & verify: ' + (e.message || e); return; }
+  } catch (e) { return 'Could not open Pack & verify: ' + (e.message || e); }
   const why = await packDataReady();
-  if (why) { $('fgMsg').className = 'err'; $('fgMsg').textContent = 'Could not read the ledger: ' + why; return; }
+  if (why) return 'Could not read the ledger: ' + why;
+  return packFbaOn() ? packFbaListsRead() : '';
+}
+async function pkvOpen() {
+  const blocked = pkvBlocked();
+  if (blocked) { $('fgMsg').className = 'err'; $('fgMsg').textContent = blocked; return; }
+  $('fgMsg').className = 'muted'; $('fgMsg').textContent = 'Opening Pack & verify…';
+  const why = await pkvReady();
+  if (why) { $('fgMsg').className = 'err'; $('fgMsg').textContent = why; return; }
   $('fgMsg').textContent = '';
-  const open = pkvOpenLists();
+  pkvDialog();
+}
+/** FBA Dispatch's way in: the board on one FBA list, carrying on where its packing stopped. Problems show in the dialog. */
+async function pkvOpenFbaList(listId) {
+  const why = await pkvReady();
+  const got = why ? { err: why } : await packFbaSession(listId, {});
+  pkvDialog();
+  if (got.err) { $('pkvMsg').textContent = got.err; return; }
+  pkvResume(got.p);
+}
+function pkvDialog() {
+  const open = pkvOpenLists(), fromFba = packFbaOn();
   ptOpenDialog({
     title: 'Pack & verify',
-    subtitle: 'Scan each piece against the orders. A wrong article is blocked. Finish writes the Send to FBA rows and the packing list from the same scans.',
+    subtitle: fromFba ? 'Scan each piece against the FBA list. A wrong article is blocked. Finish saves what is packed; it ships from FBA Dispatch.'
+      : 'Scan each piece against the orders. A wrong article is blocked. Finish writes the Send to FBA rows and the packing list from the same scans.',
     wide: true,
     html: `
       <div class="pkvhead">
-        <label>FBA account<select id="pkvAcc">${FGI_FBA_ACCOUNTS.map(a => `<option>${esc(a)}</option>`).join('')}</select></label>
+        ${fromFba ? `<label>FBA list<select id="pkvList">${packFbaOptions()}</select></label>` : ''}
+        ${fromFba ? '' : `<label>FBA account<select id="pkvAcc">${FGI_FBA_ACCOUNTS.map(a => `<option>${esc(a)}</option>`).join('')}</select></label>`}
         <label>Invoice #<input id="pkvInv" placeholder="optional"></label>
         <label>Handover to<input id="pkvHand" placeholder="name, optional"></label>
-        <label>Order Console orders<input id="pkvOrds" placeholder="order numbers, comma separated" style="min-width:220px"></label>
-        <label>Amazon shipment plan<button type="button" id="pkvPlanBtn" class="ghost">Paste plan…</button></label>
+        ${fromFba ? '' : `<label>Order Console orders<input id="pkvOrds" placeholder="order numbers, comma separated" style="min-width:220px"></label>
+        <label>Amazon shipment plan<button type="button" id="pkvPlanBtn" class="ghost">Paste plan…</button></label>`}
         ${open.length ? `<label>Open sessions<select id="pkvResume"><option value="">— new session —</option>${open.map(s => `<option value="${esc(s.id)}">${esc(s.title || s.id)} · ${esc(s.account || '')} · ${esc(s.date || '')} · ${esc(s.by || s.updatedBy || '')}</option>`).join('')}</select></label>` : ''}
         <button type="button" id="pkvStart" class="primary">Start</button>
       </div>
@@ -75,8 +99,21 @@ async function pkvOpen() {
       <div id="pkvMsg" class="muted" style="margin-top:8px"></div>`,
   });
   $('pkvStart').onclick = () => pkvStart().catch(e => { $('pkvMsg').textContent = 'Could not start: ' + (e.message || e); });
-  $('pkvPlanBtn').onclick = pkvPlanAsk;
-  const r = $('pkvResume'); if (r) r.onchange = () => { const s = open.find(x => x.id === r.value); if (s) pkvResume(s); };
+  if (!fromFba) $('pkvPlanBtn').onclick = pkvPlanAsk;
+  const r = $('pkvResume'); if (r) r.onchange = () => { const s = open.find(x => x.id === r.value); if (s) pkvPick(s); };
+}
+/** An open session picked in the dialog; one of an FBA list is read afresh with its list. */
+function pkvPick(s) {
+  const listId = packFbaOn() && s.scan.fbaListId;
+  if (!listId) return pkvResume(s);
+  pkvStartList(listId).catch(e => { $('pkvMsg').textContent = 'Could not open: ' + (e.message || e); });
+}
+async function pkvStartList(listId) {
+  if (!listId) { $('pkvMsg').textContent = 'Choose an FBA list.'; return; }
+  $('pkvStart').disabled = true;     // one tap, one packing list
+  const got = await packFbaSession(listId, { invoice: $('pkvInv').value.trim(), handoverTo: $('pkvHand').value.trim() });
+  if (got.err) { $('pkvStart').disabled = false; $('pkvMsg').textContent = got.err; return; }
+  pkvResume(got.p);
 }
 function pkvPlanAsk() {
   if ($('pkvPlanTa')) { $('pkvPlanTa').focus(); return; }
@@ -86,6 +123,7 @@ function pkvPlanAsk() {
   ta.focus();
 }
 async function pkvStart() {
+  if (packFbaOn()) return pkvStartList($('pkvList').value);
   const inv = $('pkvInv').value.trim(), account = $('pkvAcc').value;
   const ords = $('pkvOrds').value.split(/[,;\s]+/).map(obUC).filter(Boolean);
   const bad = packOrdersUnknown(ords);
@@ -106,8 +144,10 @@ async function pkvStart() {
   pkvLoad(p);
 }
 function pkvResume(s) {
-  $('pkvAcc').value = s.account || FGI_FBA_ACCOUNTS[0]; $('pkvInv').value = s.invoice || ''; $('pkvHand').value = (s.scan && s.scan.handoverTo) || '';
-  $('pkvOrds').value = ((s.scan && s.scan.orders) || []).join(', ');
+  /* with FBA lists on there is no account or orders box: both come from the list */
+  const fill = (id, v) => { if ($(id)) $(id).value = v; };
+  fill('pkvAcc', s.account || FGI_FBA_ACCOUNTS[0]); fill('pkvInv', s.invoice || ''); fill('pkvHand', (s.scan && s.scan.handoverTo) || '');
+  fill('pkvOrds', ((s.scan && s.scan.orders) || []).join(', ')); fill('pkvList', (s.scan && s.scan.fbaListId) || '');
   pkvLoad(JSON.parse(JSON.stringify(s)));
 }
 function pkvLoad(p) {
@@ -120,7 +160,7 @@ function pkvLoad(p) {
 }
 function pkvShowWork() {
   $('pkvWork').classList.remove('hide'); $('pkvMsg').textContent = '';
-  ['pkvAcc', 'pkvInv', 'pkvHand', 'pkvOrds', 'pkvPlanBtn', 'pkvResume', 'pkvStart'].forEach(id => { if ($(id)) $(id).disabled = true; });
+  ['pkvList', 'pkvAcc', 'pkvInv', 'pkvHand', 'pkvOrds', 'pkvPlanBtn', 'pkvResume', 'pkvStart'].forEach(id => { if ($(id)) $(id).disabled = true; });
   const ta = $('pkvPlanTa'); if (ta) ta.remove();
   const box = $('pkvCode');
   box.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const v = box.value; box.value = ''; pkvOnCode(v, 'typed'); } };
@@ -283,11 +323,12 @@ async function pkvFinish() {
     live.forEach(b => (b.items || []).forEach(it => { const w = packWtOf(it.sku); if (!pkNum(it.perPcsWt) && w.wt) it.perPcsWt = w.wt; if (w.approx && w.wt && !pkNum(PK_WT[obUC(it.sku)])) learn[obUC(it.sku)] = w.wt; }));
     if (Object.keys(learn).length) { try { await savePkWt(learn); } catch (e) { /* the list still saves */ } }
     PKV.dirty = true; await pkvSaveNow();
-    if (PKV.err) { pkvSay('bad', 'The rows are written, but the list did not save: ' + esc(PKV.err), 'Press Finish again — nothing is written twice.'); return; }
+    if (PKV.err) { pkvSay('bad', (res.fbaList ? 'Saved as packed on the FBA list' : 'The rows are written') + ', but the list did not save: ' + esc(PKV.err), 'Press Finish again — nothing is written twice.'); return; }
     pkvCamStop();
-    try { renderFgi(); } catch (e) { /* the list is saved */ }
+    try { renderFgi(); if (res.fbaList) renderFba(); } catch (e) { console.warn('Pack & verify: the packing is saved, but the screen behind did not redraw:', e); }
     if (typeof renderPack === 'function' && PK_LOADED) { try { renderPack(); } catch (e) { /* not on that tab */ } }
-    pkvSay('good', res.already ? 'Packing list saved' : 'Packing list built', `${nf(live.length)} box(es) · ${nf((p.scan.ledgerIds || []).length)} Send to FBA row(s) · pack ${esc(p.id)}. The FBA Dispatch tab has the rows; the Packing List tab has the sheet, labels and the Amazon file.`);
+    if (res.fbaList) pkvSay('good', 'Packed', `${nf(live.length)} box(es) saved on the FBA list · pack ${esc(p.id)}. No stock has left: it ships from FBA Dispatch. The Packing List tab has the sheet, labels and the Amazon file.`);
+    else pkvSay('good', res.already ? 'Packing list saved' : 'Packing list built', `${nf(live.length)} box(es) · ${nf((p.scan.ledgerIds || []).length)} Send to FBA row(s) · pack ${esc(p.id)}. The FBA Dispatch tab has the rows; the Packing List tab has the sheet, labels and the Amazon file.`);
     $('pkvMsg').innerHTML = `Done. <button type="button" id="pkvAgain" class="ghost">Start another session</button>`;
     $('pkvAgain').onclick = () => { PKV.p = null; ptDlgClose(); pkvOpen(); };
   } finally { $('pkvFinish').disabled = false; }

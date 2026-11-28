@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 200 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 202 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -3806,6 +3806,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
           <button id="fgDelPicked" class="ghost hide" style="color:var(--bad)">Delete ticked</button>
           <button id="fgScan">Scan in / out</button>
           <button id="fgPack" class="hide" title="Scan pieces against Order Console orders or an Amazon shipment plan; a wrong article is blocked; Finish writes the Send to FBA rows and the packing list from the same scans">Pack &amp; verify</button>
+          <button id="fgFbaList" class="hide" title="Make a list of the ticked SKUs for one FBA account and lane — packed and shipped on FBA Dispatch">Make FBA list</button>
           <button id="fgEntry">+ Stock entry</button>
           <!-- Receive / Issue from Excel taken off (Ravi, 2026-09-29: "excel se remove kro bas excel me export kar pay"). -->
           <button id="fgOpening" class="ghost">Opening stock</button>
@@ -3882,6 +3883,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
           <input id="fbaQ" placeholder="Search SKU / shipment / colour / size" style="flex:1 1 180px;min-width:0">
           <input id="fbaD1" type="date" style="flex:0 0 140px" title="Sent from">
           <input id="fbaD2" type="date" style="flex:0 0 140px" title="Sent to">
+          <button id="fbaPackBtn" class="hide" title="Pack an FBA list">Pack a list</button>
           <button id="fbaAccept" disabled>Accept ticked</button>
           <button id="fbaShip" class="ghost" disabled>Ship ticked</button>
           <button id="fbaShipXl" class="ghost hide" title="Upload the shipment's contents from Seller Central (or our template) — each SKU is matched to its open dispatches and marked shipped with the shipment id">Ship from Excel</button>
@@ -3893,6 +3895,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
         <div id="fbaMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
         <div id="fbaKpis" class="kpis" style="margin-top:10px"></div>
       </div>
+      <div id="fbaLists" class="card hide" style="margin-top:12px;padding:12px 14px"></div>
       <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="fbaTable"></table></div>
     </div>
 
@@ -13894,9 +13897,97 @@ function packScanNew(orders, plan, planNo, handoverTo) {
     done: false
   };
 }
+/* ---- packing an FBA list (28 Nov, fba-lists.js; switch fbaList) ----
+ * With the switch on, packing never takes stock out: it is saved on an FBA list and the pieces leave on FBA Dispatch.
+ * One packing list per FBA list, found by its id, so two PCs opening the same list carry on in the same one. A list that
+ * cannot be read or a packing that cannot be saved is said to the packer; nothing is written then. */
+const packFbaOn = () => typeof fblOn === "function" && fblOn();
+const PACK_NO_FBA_LIST = "FBA lists are on: stock leaves only through an FBA list. Nothing leaves stock from this packing list — start a new one and choose the FBA list.";
+const packFbaIdOf = (listId) => "PK-" + listId;
+const packFbaPackable = (list) => !!list && ["open", "packed"].includes(list.status);
+/** False only for the packing list of an FBA list that has since been shipped or cancelled. */
+const packFbaStillOpen = (p) => !(packFbaOn() && p.scan && p.scan.fbaListId) || packFbaPackable(fblLists()[p.scan.fbaListId]);
+/** Read the FBA lists as they are now: "" or why not. */
+async function packFbaListsRead() {
+  try {
+    fblKeepAll(await ptGetFresh(FBL_PATH) || {});
+    return "";
+  } catch (e) {
+    return "The FBA lists could not be read (" + (e.message || e) + "). Check the connection and open this again.";
+  }
+}
+/** The FBA lists that can be packed, as drop-down options. */
+function packFbaOptions() {
+  return '<option value="">— choose an FBA list —</option>' + Object.entries(fblLists()).filter(([, l]) => packFbaPackable(l)).map(([id, l]) => {
+    const lines = Object.values(l.lines || {}), pcs = lines.reduce((s, x) => s + fgiNum(x.qty), 0);
+    const label = [fblvTitle(l), "made " + ptDayWords(l.at), lines.length + " SKU(s)", nf(pcs) + " pcs", l.status].join(" · ");
+    return `<option value="${esc(id)}">${esc(label)}</option>`;
+  }).join("");
+}
+/** The packing list of an FBA list, holding the list's SKUs and pieces as they are now: { p } or { err }.
+ * head: { title, invoice, handoverTo }, used when it is made. */
+async function packFbaSession(listId, head) {
+  const blocked = fblBlocked();
+  if (blocked) return { err: blocked };
+  try {
+    const { open } = await fblReadOne(listId);
+    if (!packFbaPackable(open)) return { err: "This FBA list is no longer open for packing — press Refresh." };
+    const id = packFbaIdOf(listId), had = await getDoc(doc(db, "packlist", id));
+    const lines = Object.values(open.lines).map((l) => ({ sku: l.sku, qty: l.qty }));
+    if (had.exists()) {
+      const saved = Object.assign({ id }, had.data());
+      const p = Object.assign({}, saved, { account: open.account, scan: Object.assign({}, saved.scan, { plan: lines }) });
+      PK = [p].concat(PK.filter((x) => x.id !== id));
+      return { p };
+    }
+    const p = {
+      id,
+      date: pkToday(),
+      invoice: head.invoice || "",
+      title: head.title || "Scan " + pkToday() + (head.invoice ? " · " + head.invoice : ""),
+      account: open.account,
+      status: "progress",
+      pkgWt: PK_DEF.pkgWt,
+      volDiv: PK_DEF.volDiv,
+      boxes: [],
+      by: ME.email || "",
+      src: "scan",
+      scan: Object.assign(packScanNew([], lines, listId, head.handoverTo || ""), { fbaListId: listId })
+    };
+    await savePkOne(p);
+    return { p };
+  } catch (e) {
+    return { err: "Could not open the packing list of this FBA list: " + (e.message || e) + " — try again." };
+  }
+}
+/** The pieces in the boxes, per SKU. */
+function packBoxTotals(p) {
+  const out = {};
+  (p.boxes || []).forEach((b) => (b.items || []).forEach((it) => {
+    const sku = obUC(it.sku), q = Number(it.qty) || 0;
+    if (sku && q > 0) out[sku] = (out[sku] || 0) + q;
+  }));
+  return out;
+}
+/** Finish, with FBA lists on: what is in the boxes is saved on the list. No stock moves, so it is safe to do again. */
+async function packFbaFinish(p, handoverTo) {
+  const listId = p.scan.fbaListId;
+  if (!listId) return { err: PACK_NO_FBA_LIST };
+  const packed = packBoxTotals(p);
+  if (!Object.keys(packed).length) return { err: "Nothing packed yet — scan at least one piece." };
+  const why = await fblPackSave(listId, p.id, packed);
+  if (why) return { err: why };
+  if (handoverTo != null) p.scan.handoverTo = String(handoverTo || "").trim();
+  p.scan.done = true;
+  p.scan.doneAt = (/* @__PURE__ */ new Date()).toISOString();
+  p.scan.doneBy = ME.email || "";
+  return { rows: [], fbaList: true };
+}
 function packOrderLines(scan) {
   const out = [];
   if (!scan) return out;
+  /* the pieces of an FBA list are already kept for it: the list's quantity is what may be packed */
+  if (scan.fbaListId) return (scan.plan || []).map((l) => ({ sku: obUC(l.sku), orderNo: scan.planNo, qty: l.qty, store: l.qty, plan: true }));
   (scan.plan || []).forEach((l) => out.push({ sku: obUC(l.sku), orderNo: scan.planNo, qty: l.qty, store: fgiOf(l.sku).current, plan: true }));
   const want = new Set((scan.orders || []).map(obUC).filter(Boolean));
   if (want.size) {
@@ -13935,6 +14026,8 @@ async function packLedgerWrite(p, handoverTo) {
   if (!p) return { err: "No packing list open." };
   p.scan = p.scan || packScanNew([], [], "", "");
   if ((p.scan.ledgerIds || []).length) return { rows: [], already: true };
+  /* the packing list of an FBA list never writes stock-out rows, even on a computer where the switch is off */
+  if (packFbaOn() || p.scan.fbaListId) return packFbaFinish(p, handoverTo);
   if (!fgiCanEntry()) return { err: FGI_NO_ENTRY };
   if (FGI_FBA_ACCOUNTS.indexOf(p.account) < 0) return { err: `Pick the FBA account — ${FGI_FBA_ACCOUNTS.join(" or ")}.` };
   const why = await packDataReady();
@@ -14907,13 +15000,18 @@ async function pksStart(mode) {
   if (pksQcMay()) pksQcReady().then((ok) => { if (ok && PKS.on) { if (PKS.mode === "track") pksTrackDraw(); else if (!PKS.panel) pksDraw(); } });
   if (mode === "track") return pksTrackOpen();
   const byOrder = mode === "order";
+  const fromFba = byOrder && packFbaOn();     // a new list is packed from an FBA list, not from orders or a plan
+  if (fromFba) {
+    const why = await packFbaListsRead();
+    if (why) return pkMsg(why, true);
+  }
   /* Each way offers only its own lists: a box list never turns into an order list half way, nor the other way round. */
-  const open = PK.filter((p) => p.status !== "done" && packGuarded(p) === byOrder);
+  const open = PK.filter((p) => p.status !== "done" && packGuarded(p) === byOrder && packFbaStillOpen(p));
   /* A list with scans only on this phone is said so in the picker, and picked for you. */
   const kept = open.filter((p) => pksBackupOf(p.id));
   ptOpenDialog({
     title: byOrder ? "Pack by order scan" : "Box pack scan",
-    subtitle: byOrder ? "Only what the orders still want counts; a wrong article stops the scanner." : "Every known label counts into the open box.",
+    subtitle: fromFba ? "Only the SKUs and pieces on the FBA list count. No stock leaves here: it ships from FBA Dispatch." : byOrder ? "Only what the orders still want counts; a wrong article stops the scanner." : "Every known label counts into the open box.",
     html: `<div class="ptgrid" style="grid-template-columns:1fr">
       ${kept.length ? `<div class="pks-keptnote">Scans not yet saved are kept on this phone for: <b>${kept.map((p) => esc(p.title || "(untitled)")).join(", ")}</b>. Open the list to save them.</div>` : ""}
       <label>Packing list<select id="pksPick">
@@ -14921,14 +15019,21 @@ async function pksStart(mode) {
         ${open.map((p) => `<option value="${esc(p.id)}"${kept[0] && kept[0].id === p.id ? " selected" : ""}>${esc((p.title || "(untitled)") + " · " + (p.date || "") + " · " + pkTotals(p).boxes + " box(es)" + (byOrder ? " · " + (p.scan.orders || []).join(", ") + (p.scan.planNo ? " + plan" : "") : "") + (pksBackupOf(p.id) ? " · unsaved scans on this phone" : ""))}</option>`).join("")}
       </select></label>
       <label>Title (a new list)<input id="pksTitle" value="Scan ${esc(pkToday())}"></label>
-      <label>FBA account (a new list)<input id="pksAcc" list="pksAccs" placeholder="${esc(FGI_FBA_ACCOUNTS.join(" / "))}"><datalist id="pksAccs">${[...new Set(FGI_FBA_ACCOUNTS.concat(PK.map((p) => p.account).filter(Boolean)))].map((a) => `<option value="${esc(a)}">`).join("")}</datalist></label>
-      ${byOrder ? `<label>Orders (a new list)<input id="pksOrds" placeholder="Order Console order numbers, comma separated"></label>
+      ${fromFba ? `<label>FBA list (a new list)<select id="pksFbaPick">${packFbaOptions()}</select></label>` : `<label>FBA account (a new list)<input id="pksAcc" list="pksAccs" placeholder="${esc(FGI_FBA_ACCOUNTS.join(" / "))}"><datalist id="pksAccs">${[...new Set(FGI_FBA_ACCOUNTS.concat(PK.map((p) => p.account).filter(Boolean)))].map((a) => `<option value="${esc(a)}">`).join("")}</datalist></label>`}
+      ${byOrder && !fromFba ? `<label>Orders (a new list)<input id="pksOrds" placeholder="Order Console order numbers, comma separated"></label>
       <label>Amazon shipment plan (a new list — instead of, or as well as, orders)<textarea id="pksPlan" rows="3" placeholder="Paste the Send to Amazon list — a SKU column and a Quantity column"></textarea></label>` : ""}
       <div class="muted" style="font-size:12px">FNSKU list: ${(FN.map || /* @__PURE__ */ new Map()).size.toLocaleString("en-US")} codes. A label not on it is never counted — refresh it in Finished Goods → FNSKU list.</div>
     </div>`,
     saveLabel: "Start scanning",
     onSave: async () => {
-      const id = $("pksPick").value;
+      let id = $("pksPick").value;
+      const listId = !fromFba ? "" : id ? ((PK.find((p) => p.id === id) || {}).scan || {}).fbaListId : $("pksFbaPick").value;
+      if (fromFba && !id && !listId) return "Choose an FBA list — or use Box pack scan to pack without one.";
+      if (listId) {
+        const got = await packFbaSession(listId, { title: ($("pksTitle").value || "").trim() });
+        if (got.err) return got.err;
+        id = got.p.id;
+      }
       if (!id && byOrder && !($("pksOrds").value.trim() || $("pksPlan").value.trim()))
         return "Enter the order numbers or paste an Amazon plan — or use Box pack scan to pack without orders.";
       PKS.restored = 0;
@@ -14937,6 +15042,7 @@ async function pksStart(mode) {
         /* What this phone holds is newer than what the server has — the server only ever gets it from here. */
         PKS.p = JSON.parse(JSON.stringify(bk && bk.p || server));
         if (bk) PKS.restored = Math.max(0, pksQty(bk.p) - pksQty(server));
+        if (listId) PKS.p.scan.plan = server.scan.plan;     // the FBA list as it is now, not as this phone kept it
         if (packGuarded(PKS.p)) {
           const why = await packDataReady();
           if (why) return "This list packs against orders, and the orders could not be read: " + why;
@@ -15014,7 +15120,7 @@ function pksWhoWants(sku) {
   PK.filter((p) => p.status !== "done" && p.scan && p.scan.planNo).forEach((p) => (p.scan.plan || []).forEach((l) => {
     if (obUC(l.sku) !== k) return;
     const got = packedOf(p.scan.planNo), qty = pkNum(l.qty);
-    out.push({ no: p.title || p.scan.planNo, what: "Amazon plan", qty, got, left: Math.max(0, qty - got) });
+    out.push({ no: p.title || p.scan.planNo, what: p.scan.fbaListId ? "FBA list" : "Amazon plan", qty, got, left: Math.max(0, qty - got) });
   }));
   return out.sort((a, b) => (b.left > 0) - (a.left > 0) || String(a.no).localeCompare(String(b.no)));
 }
@@ -15294,7 +15400,7 @@ function pksDraw() {
       ${PKS.hold ? '<button id="pksAside" class="pks-aside">✓ Kept aside — carry on</button>' : ""}</div>`;
   } else if (PKS.allDone) {
     card.innerHTML = `<div class="pks-donecard"><div class="pks-badicon">✓</div><div class="pks-big">Everything on the orders is packed</div>
-      <div class="pks-sub">${nf(t.qty)} pcs in ${nf(t.boxes)} box(es). Press Finish to write the Send to FBA rows.</div></div>`;
+      <div class="pks-sub">${nf(t.qty)} pcs in ${nf(t.boxes)} box(es). ${p.scan.fbaListId ? "Press Finish to save it as packed; it ships from FBA Dispatch." : "Press Finish to write the Send to FBA rows."}</div></div>`;
   } else if (PKS.last) {
     const sku = PKS.last.sku, it = (b.items || []).find((x) => obUC(x.sku) === sku) || {}, info = pkLookupSku(sku) || {}, img = pksImg(sku);
     card.innerHTML = `<div class="pks-prod">
@@ -15316,7 +15422,8 @@ function pksOrdersHtml(p) {
   if (!packGuarded(p)) return "";
   const rows = PACK_CORE.leftBySku(pksOrderLines(), p.scan.packed);
   const wrong = (p.scan.wrong || []).length;
-  return `<div class="pks-list-h">Orders ${esc((p.scan.orders || []).join(", "))}${p.scan.planNo ? (p.scan.orders.length ? " + " : "") + "Amazon plan" : ""} — left to pack${wrong ? ` · <span class="pks-warn">${nf(wrong)} wrong article scan(s)</span>` : ""}</div>` + (rows.length ? rows.map((r) => `<div class="pks-row pks-row-ord${r.left ? "" : " pks-row-done"}"><div><b>${esc(r.sku)}</b><div class="pks-sub">packed ${nf(r.got)} of ${nf(r.qty)}</div></div><div class="pks-q">${r.left ? nf(r.left) : "✓"}</div></div>`).join("") : '<div class="pks-sub">The orders have no pieces of their SKUs in the India Store — receive them in Finished Goods first.</div>');
+  const against = p.scan.fbaListId ? "FBA list" : `Orders ${esc((p.scan.orders || []).join(", "))}${p.scan.planNo ? (p.scan.orders.length ? " + " : "") + "Amazon plan" : ""}`;
+  return `<div class="pks-list-h">${against} — left to pack${wrong ? ` · <span class="pks-warn">${nf(wrong)} wrong article scan(s)</span>` : ""}</div>` + (rows.length ? rows.map((r) => `<div class="pks-row pks-row-ord${r.left ? "" : " pks-row-done"}"><div><b>${esc(r.sku)}</b><div class="pks-sub">packed ${nf(r.got)} of ${nf(r.qty)}</div></div><div class="pks-q">${r.left ? nf(r.left) : "✓"}</div></div>`).join("") : '<div class="pks-sub">The orders have no pieces of their SKUs in the India Store — receive them in Finished Goods first.</div>');
 }
 /* ---- PIECES STILL WAITING IN QC (Ravi, 19 Oct: "if the product is still in QC according to the site and the scanner is
  * scanning the product, give the function of approving it so that it can be accepted to finished goods") ----
@@ -15444,18 +15551,32 @@ function pksFinishAsk() {
   const done = !!(p.scan && (p.scan.ledgerIds || []).length), accOk = FGI_FBA_ACCOUNTS.indexOf(p.account) >= 0;
   const rows = packGuarded(p) ? PACK_CORE.leftBySku(pksOrderLines(), p.scan.packed) : [], left = rows.reduce((s, r) => s + r.left, 0);
   PKS.panel = "finish";
+  if (!done && (packFbaOn() || (p.scan && p.scan.fbaListId))) return pksFinishFba(card, p, t, left);
   card.innerHTML = `<div class="pks-dims"><div class="pks-big">Finish — ${nf(t.qty)} pcs in ${nf(t.boxes)} box(es)</div>
     ${left ? `<div class="pks-sub pks-warn">The orders still want ${nf(left)} pc(s). Done now sends only what is packed.</div>` : ""}
     ${done ? `<div class="pks-sub">The Send to FBA rows for this list are already written (${nf(p.scan.ledgerIds.length)}). Pause just closes.</div>` : `<div class="pks-sub">Done writes one Send to FBA row per SKU into Finished Goods, so nothing is typed twice; the FBA Dispatch tab then has them. Pause keeps the list to carry on later.</div>
     ${accOk ? "" : `<div class="pks-dimrow"><select id="pksDoneAcc"><option value="">FBA account…</option>${FGI_FBA_ACCOUNTS.map((a) => `<option${a === p.account ? " selected" : ""}>${esc(a)}</option>`).join("")}</select></div>`}
     <div class="pks-dimrow"><input id="pksDoneHand" placeholder="Handed over to (optional)" value="${esc(p.scan && p.scan.handoverTo || "")}"></div>`}
     <div class="pks-dimrow"><button id="pksPause" class="pks-ghost">Pause — carry on later</button>${done ? "" : '<button id="pksDoneBtn">Done — write Send to FBA</button>'}<button id="pksFinNo" class="pks-ghost">Back</button></div></div>`;
+  pksFinishWire(!done);
+}
+/** The Finish panel with FBA lists on: the packing is saved on the list; with no FBA list it can only be paused. */
+function pksFinishFba(card, p, t, left) {
+  const listed = !!(p.scan && p.scan.fbaListId);
+  card.innerHTML = `<div class="pks-dims"><div class="pks-big">Finish — ${nf(t.qty)} pcs in ${nf(t.boxes)} box(es)</div>
+    ${listed && left ? `<div class="pks-sub pks-warn">The FBA list still wants ${nf(left)} pc(s). Done saves only what is packed.</div>` : ""}
+    ${listed ? `<div class="pks-sub">Done saves these pieces as packed on the FBA list. No stock leaves now: it ships from FBA Dispatch. Pause keeps the list to carry on later.</div>
+    <div class="pks-dimrow"><input id="pksDoneHand" placeholder="Handed over to (optional)" value="${esc(p.scan.handoverTo || "")}"></div>` : `<div class="pks-sub pks-warn">${esc(PACK_NO_FBA_LIST)}</div>`}
+    <div class="pks-dimrow"><button id="pksPause" class="pks-ghost">Pause — carry on later</button>${listed ? '<button id="pksDoneBtn">Done — save as packed</button>' : ""}<button id="pksFinNo" class="pks-ghost">Back</button></div></div>`;
+  pksFinishWire(listed);
+}
+function pksFinishWire(canDone) {
   $("pksPause").onclick = () => pksClose();
   $("pksFinNo").onclick = () => {
     PKS.panel = "";
     pksDraw();
   };
-  if (!done) $("pksDoneBtn").onclick = (e) => {
+  if (canDone) $("pksDoneBtn").onclick = (e) => {
     /* ONE TAP, ONE WRITE (21 Oct): a second tap while the first was still writing wrote the Send to FBA rows twice */
     const b = e && e.currentTarget; if (PKS.doneBusy) return;
     if (b) b.disabled = true;
@@ -15476,7 +15597,7 @@ async function pksDoneRun(p) {
   }
   p.account = acc;
   const hand = $("pksDoneHand") ? $("pksDoneHand").value : "";
-  pksSay("Writing the Send to FBA rows…");
+  pksSay(p.scan && p.scan.fbaListId ? "Saving what is packed…" : "Writing the Send to FBA rows…");
   let res;
   try {
     res = await packLedgerWrite(p, hand);
@@ -15485,7 +15606,7 @@ async function pksDoneRun(p) {
   }
   if (res.err) {
     pksSay("Not done — " + res.err, true);
-    pksQcOffer();
+    if (!packFbaOn()) pksQcOffer();     // with FBA lists on, Finish asks nothing of the stock
     return;
   }
   PKS.dirty = true;
@@ -15493,7 +15614,7 @@ async function pksDoneRun(p) {
   pksBackup();
   await pksSaveNow();
   if (PKS.err) {
-    pksSay("The rows are written, but the list did not save — " + PKS.err + " Press Finish → Done again: nothing is written twice.", true);
+    pksSay((res.fbaList ? "Saved as packed on the FBA list" : "The rows are written") + ", but the list did not save — " + PKS.err + " Press Finish → Done again: nothing is written twice.", true);
     return;
   }
   pksHistClear(p.id);     // the list is sent: nothing left to undo
@@ -15504,6 +15625,7 @@ async function pksDoneRun(p) {
     } catch (e) {
     }
   }
+  if (res.fbaList) return pkMsg(`${p.title}: saved as packed on the FBA list — it ships from FBA Dispatch. Open the list for sizes and weights, then Packing list / Labels / FBA file as usual.`);
   pkMsg(res.already ? `${p.title}: the Send to FBA rows were already written — list saved.` : `${nf(res.rows.length)} Send to FBA row(s) written for ${p.title} (pack ${p.id}) — the FBA Dispatch tab has them. Open the list for sizes and weights, then Packing list / Labels / FBA file as usual.`);
 }
 function pksEnd() {
@@ -62695,10 +62817,13 @@ function renderFgi() {
   $('fgEntry').classList.toggle('hide', !fgiCanEntry());
   ['fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge', 'flFgBadge', 'fapBadge'].forEach(id => { const b = $(id); if (b && b.dataset) b.classList.toggle('on', b.dataset.fgview === $('fgView').value); });
   ['fgRecvXl', 'fgIssXl'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', !fgiCanEntry()); });
-  $('fgScan').classList.toggle('hide', !fgiCanEntry());
-  $('fgPack').classList.toggle('hide', !fgiCanEntry());
+  /* FBA lists (28 Nov): stock goes to FBA by a list, packed on FBA Dispatch, so the two scanners leave this screen. */
+  const scanners = fgiCanEntry() && !(typeof fblOn === 'function' && fblOn());
+  $('fgScan').classList.toggle('hide', !scanners);
+  $('fgPack').classList.toggle('hide', !scanners);
   $('fgOpening').classList.toggle('hide', !fgiCanEdit());
   fgiPickCount();
+  if (typeof fblvPickCount === 'function') fblvPickCount();
   /* Cards are drawn by the India Store and the waiting list only; every other view is a table, on a phone too. */
   if ($('fgTable').classList) $('fgTable').classList.remove('fg-cards');
   if (view === 'ledger') return fgiRenderLedger();
@@ -62713,7 +62838,7 @@ function renderFgi() {
 
 /** The stock list's columns that line up as figures. */
 const FGI_NUM_COLS = ['Opening', 'Received', 'Issued', 'To FBA', 'In stock', 'Shopify held', 'Rate', 'Value',
-  'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess'];
+  'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', 'In FBA lists'];
 
 /** The movement and value cells of a stock row (switch storeAlloc off). */
 function fgiMovementCells(r, holds) {
@@ -62790,19 +62915,20 @@ function fgiRenderStock(stock) {
     .sort().map(b => [b, b]), 'All brands');
 
   const canEd = fgiCanEdit();
+  const canTick = canEd || (typeof fblOn === 'function' && fblOn() && fbaCan());   // the FBA team ticks SKUs for a list, without Edit or Delete
   const holds = typeof shpHoldOn === 'function' && shpHoldOn();
   const shownSkus = rows.slice(0, 600).map(r => r.sku);
-  const allOn = canEd && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
-  const head = '<thead><tr>' + (canEd ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
-    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['In Stock', ...FGA_SHARES.map(s => s[1])] : ['Opening', 'Received',
+  const allOn = canTick && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
+  const head = '<thead><tr>' + (canTick ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
+    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['In Stock', ...fgaShareCols().map(s => s[1])] : ['Opening', 'Received',
     'Issued', 'To FBA', 'In stock', ...(holds ? ['Shopify held'] : []), 'Amazon', 'Tag', 'Rate', 'Value']), '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (FGI_NUM_COLS.includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
   if ($('fgTable').classList) $('fgTable').classList.toggle('fg-cards', (typeof mobOn === 'function' && mobOn()));
-  if ((typeof mobOn === 'function' && mobOn())) $('fgTable').innerHTML = '<tbody>' + (rows.length ? rows.slice(0, 600).map(r => fgiCard(r, canEd)).join('')
+  if ((typeof mobOn === 'function' && mobOn())) $('fgTable').innerHTML = '<tbody>' + (rows.length ? rows.slice(0, 600).map(r => fgiCard(r, canEd, canTick)).join('')
     : '<tr><td class="muted" style="padding:14px">No SKU matches these filters.</td></tr>') + '</tbody>';
   else $('fgTable').innerHTML = head + '<tbody>' + rows.slice(0, 600).map(r => '<tr>'
-    + (canEd ? `<td><input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''}></td>` : '')
+    + (canTick ? `<td><input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''}></td>` : '')
     + `<td class="frz" style="text-align:left"><button class="ghost" data-fgmoves="${esc(r.sku)}" title="Every movement of this SKU"
         style="font-family:ui-monospace,monospace;padding:2px 7px;font-size:12.5px">${esc(r.sku)}</button></td>`
     + ptImgCell(r.sku)
@@ -62823,14 +62949,14 @@ function fgiRenderStock(stock) {
  * buttons as the row on a computer (Movements = the SKU itself, Entry, Edit, Delete). The data-* names are the row's
  * own, so the one click handler on #fgTable answers both.
  */
-function fgiCard(r, canEd) {
+function fgiCard(r, canEd, canTick = canEd) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
   const st = lstOf(r.sku);
   const holds = typeof shpHoldOn === 'function' && shpHoldOn();
   const btn = (attr, label, extra) => `<button class="ghost" ${attr}="${esc(r.sku)}"${extra || ''}>${label}</button>`;
   const alloc = typeof fgaOn === 'function' && fgaOn();
   return '<tr><td class="fg-mc">'
-    + (canEd ? `<input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''} aria-label="Tick ${esc(r.sku)}">` : '<span></span>')
+    + (canTick ? `<input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''} aria-label="Tick ${esc(r.sku)}">` : '<span></span>')
     + `<div class="fg-mc-img" data-img="${esc(obUC(r.sku))}" data-imgpx="64">${ptImgInner(r.sku, 64)}</div>`
     + '<div class="fg-mc-main">'
       + `<button class="ghost fg-mc-sku" data-fgmoves="${esc(r.sku)}" title="Every movement of this SKU">${esc(r.sku)}</button>`
@@ -63209,6 +63335,7 @@ $('fgTable').addEventListener('click', e => {
     const k = pk.getAttribute('data-fgpick');
     if (pk.checked) set.add(k); else set.delete(k);
     fgiPickCount();
+    if (typeof fblvPickCount === 'function') fblvPickCount();
     return;
   }
   const al = e.target.closest('[data-fgall]');
@@ -67338,6 +67465,7 @@ async function fgiWipeRun() {
  * single delete would refuse: a transfer takes its markers and gives its pieces back to press; an FBA
  * dispatch takes its returns with it; a return deleted alone takes its pieces back off the dispatch.
  * Everything goes in ONE PATCH — all of it happens or none of it does.
+ * A movement an FBA list shipped is never deleted here: its list would still read shipped. It is undone on FBA Dispatch.
  *
  * DELETING A SKU from the stock view deletes every movement it has. It is the heaviest button on the
  * screen, so the confirmation names the pieces, the movements and anything going back to press.
@@ -67368,6 +67496,9 @@ const fgiDmy = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{
 let FGI_PICK = { stock: new Set(), ledger: new Set() };
 
 /* ---- one plan for every delete ---- */
+const FGI_ON_FBA_LIST = 'this was shipped on an FBA list — undo the shipment on FBA Dispatch';
+const fgiOnFbaList = r => !!(r && r.fbaListId);
+
 function fgiDeletePlan(ids) {
   const rows = FGI.rows || [];
   const byId = new Map(rows.map(r => [fgiRowId(r), r]));
@@ -67381,12 +67512,14 @@ function fgiDeletePlan(ids) {
     const r = byId.get(id);
     if (!r) { refused.push({ id, sku: '', why: 'gone already' }); return; }
     if (gone.has(id)) return;
+    if (fgiOnFbaList(r)) { refused.push({ id, sku: obUC(r.sku), why: FGI_ON_FBA_LIST }); return; }
     if (fgiIsMarker(r)) {
       if (!want.has(r.linkedTransferId)) refused.push({ id, sku: obUC(r.sku),
         why: 'a marker for a transfer, not a movement of its own — delete the transfer itself and this goes with it' });
       return;
     }
-    if (r.txnType === 'FBA_RETURN' && !want.has(r.linkedFbaId)) {
+    /* a return stands alone when its dispatch is staying: not ticked, or shipped on an FBA list */
+    if (r.txnType === 'FBA_RETURN' && (!want.has(r.linkedFbaId) || fgiOnFbaList(byId.get(r.linkedFbaId)))) {
       const parent = byId.get(r.linkedFbaId);
       if (parent && parent.fbaShippedAt) {
         refused.push({ id, sku: obUC(r.sku), why: 'the rest of that FBA dispatch is already shipped — undo the shipment in FBA Dispatch first' });
@@ -67855,6 +67988,7 @@ function fbaRows() {
 }
 
 function renderFba() {
+  if (typeof fblvRender === 'function') fblvRender();
   if (FBA.busy || FGI.busy) { $('fbaMsg').className = 'muted'; $('fbaMsg').textContent = 'Reading what the store has sent to FBA…'; ptEmpty('fbaTable', 'Loading…'); return; }
   if (FGI.err) { $('fbaMsg').className = 'err'; $('fbaMsg').textContent = 'Could not read it: ' + FGI.err; ptEmpty('fbaTable', 'Nothing to show.'); $('fbaKpis').innerHTML = ''; return; }
   const can = fbaCan();
@@ -68249,6 +68383,11 @@ async function fbaUndo(id) {
   const [{ row }] = await fbaFresh([id]);
   if (!row) { fbaForget([{ id, row: null }]); renderFba(); return 'That dispatch was deleted from the store.'; }
   const s = fbaState(row), updates = {};
+  /* a movement an FBA list shipped is undone with its whole list */
+  if (s.st === 'shipped' && row.fbaListId) {
+    await fblvUndoAsk(row.fbaListId);
+    return '';
+  }
   let what = '', backs = [];
   if (s.st === 'shipped') {
     /* A PART-SHIPMENT TAKES ITS LEFTOVER RETURN WITH IT. Shipping fewer pieces than were open wrote a
@@ -70010,6 +70149,8 @@ $('ptDlgBody').addEventListener('change', e => {
  * pieces of one SKU, with a reason: FBA may then take that many more, never more than the stock, even when orders need more
  * than the store holds. An FBA save uses a release up only for pieces beyond what was free without it; it stays on record.
  * With switch storeAlloc also on (fg-store-alloc.js), FBA may take only the Air, Sea and AWD share of the stock instead.
+ * With switch fbaList also on (fba-lists.js, 28 Nov), new pieces go to FBA only by an FBA list: every other way is refused,
+ * except putting back with the FBA team what was returned.
  * Every way to FBA asks here: the entry form, scan out, Pack & verify, Scan to pack, an edit that sends more to FBA, and
  * deleting a "returned from FBA" row or undoing a part shipment (those pieces are with the FBA team again).
  *
@@ -70035,6 +70176,7 @@ const SHP_HOLD_MAX_AGE_MS = 6 * 60 * 60 * 1000;   // older than this, FBA is ref
 const SHP_HOLD_CLOCK_SLACK_MS = 10 * 60 * 1000;   // noted further ahead than this: that PC's clock is wrong, the figure is not trusted
 const SHP_HOLD_REWRITE_MS = 60 * 60 * 1000;       // an unchanged figure is noted again after this, so it does not look old
 const SHP_HOLD_TRIES = 3;
+const FGI_FBA_BY_LIST = 'FBA now goes by FBA lists — make one on Finished Goods.';
 
 /** Is this the test website? */
 const shpOnTestSite = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
@@ -70049,6 +70191,9 @@ function shpHoldOn() {
 
 /** Is stock also shared between Custom, FBA and Excess (fg-store-alloc.js)? */
 const shpAllocOn = () => typeof fgaOn === 'function' && fgaOn();
+
+/** Do pieces go to FBA by FBA lists (fba-lists.js)? */
+const shpListsOn = () => typeof fblOn === 'function' && fblOn();
 
 /* ---- the need of one store ---- */
 /** The name a SKU is held under (the database refuses some characters). */
@@ -70214,12 +70359,13 @@ function fgiHoldScanWhy(sku, packed) {
 /* ---- reading it again ---- */
 const fgiHoldKeep = node => { FGI.set = Object.assign({}, FGI.set, { _shopHold: node }); };
 const fgiHoldUnread = e => 'Nothing was saved — the pieces held for website orders could not be checked (' + (e.message || e) + '). Check the connection and save again.';
-/** Read the noted figure and the releases (and the FBA need, when stock is shared) as they are now. '' when read, else the
- *  sentence to show. */
+/** Read the noted figure and the releases (and the FBA need, when stock is shared, and the FBA lists, when on) as they are
+ *  now. '' when read, else the sentence to show. */
 async function fgiHoldReread() {
   try {
     fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {});
     if (shpAllocOn()) await fgaNeedReread();
+    if (shpListsOn()) fblKeepAll((await ptGetFresh(FBL_PATH)) || {});
     return '';
   }
   catch (e) {
@@ -70245,8 +70391,17 @@ async function fgiReleaseCreate(v) {
   return '';
 }
 
-/** WHAT AN FBA SAVE USES UP. wants: [{ sku, qty, current }] (current = pieces in stock before the save). Only the pieces beyond
- *  what was free without a release are taken from releases, oldest first. Returns { next, used: { id: pieces }, short:
+/** Pieces of a want that FBA may take without a release. A want of an FBA list brings its own figure (share): its lane's. */
+function fgiPlanShare(w, hold, book) {
+  if (w.share !== undefined) return w.share;
+  return book ? fgaFbaShare(w.sku, w.current, hold, book) : Math.max(0, w.current - fgiHeld(w.sku, hold));
+}
+/** Pieces of a want that may go, open releases counted. */
+const fgiPlanFree = (w, hold, book) => (w.share === undefined ? fgiFbaFree(w.sku, w.current, hold, book)
+  : Math.min(Math.max(0, w.current), w.share + fgiReleased(w.sku, hold)));
+
+/** WHAT AN FBA SAVE USES UP. wants: [{ sku, qty, current, share? }] (current = pieces in stock before the save). Only the
+ *  pieces beyond what was free without a release are taken from releases, oldest first. Returns { next, used: { id: pieces }, short:
  *  [{ sku, qty, free }] }; with anything short, next is the releases unchanged. The releases handed in are not changed.
  *  A want's `without` names the movement being changed, left out when the stock is shared. */
 function fgiReleasePlan(hold, wants, stamp) {
@@ -70255,13 +70410,12 @@ function fgiReleasePlan(hold, wants, stamp) {
   const book = shpAllocOn() ? fgaBook(new Set((wants || []).map(w => w.without).filter(Boolean))) : undefined;
   (wants || []).forEach(w => {
     const key = shpHoldKey(w.sku), had = bySku.get(key);
-    bySku.set(key, { sku: w.sku, current: w.current, qty: fgiNum(w.qty) + (had ? had.qty : 0) });
+    bySku.set(key, { sku: w.sku, current: w.current, share: w.share, qty: fgiNum(w.qty) + (had ? had.qty : 0) });
   });
   bySku.forEach(w => {
-    const free = fgiFbaFree(w.sku, w.current, hold, book);
+    const free = fgiPlanFree(w, hold, book);
     if (w.qty > free) { short.push({ sku: w.sku, qty: w.qty, free }); return; }
-    let owed = w.qty - Math.max(0, w.current - fgiHeld(w.sku, hold));   // only the pieces beyond what was free anyway
-    if (book) owed = w.qty - fgaFbaShare(w.sku, w.current, hold, book);
+    let owed = w.qty - fgiPlanShare(w, hold, book);   // only the pieces beyond what was free anyway
     fgiReleasesOpen(w.sku, releases).forEach(([id, r]) => {
       const take = Math.min(owed, Number(r.left));
       if (take <= 0) return;
@@ -70318,14 +70472,15 @@ async function fgiReleaseGiveBack(used) {
   return ` The ${nf(pieces)} released piece(s) it had used were NOT given back — ask an admin to release them again.`;
 }
 
-/** SAVE PIECES TO FBA: the releases are used up, then write() saves the ledger; a failed write gives them back. Call it only
- *  after every other check has passed. No wants: nothing new goes to FBA, so it only writes. '' when saved, else the
- *  sentence to show. */
+/** SAVE PIECES TO FBA: the releases are used up, then write(used: { release id: pieces }) saves; a failed write gives them
+ *  back. Call it only after every other check has passed. No wants: nothing new goes to FBA, so it only writes. With FBA lists
+ *  on, every want must be a list's (list) or a return's (back). '' when saved, else the sentence to show. */
 async function fgiFbaWrite(wants, write) {
-  if (!wants.length) { await write(); return ''; }
+  if (!wants.length) { await write({}); return ''; }
+  if (shpListsOn() && wants.some(w => !w.list && !w.back)) return FGI_FBA_BY_LIST;
   const spent = await fgiReleaseSpend(wants);
   if (spent.err) return spent.err;
-  try { await write(); }
+  try { await write(spent.used); }
   catch (e) { return 'Not saved: ' + (e.message || e) + '.' + await fgiReleaseGiveBack(spent.used); }
   return '';
 }
@@ -70347,7 +70502,7 @@ function fgiFbaEditWants(was, now) {
 function fgiFbaReturnWants(deleted) {
   const gone = new Set(deleted.map(fgiRowId));
   return deleted.filter(r => r.txnType === 'FBA_RETURN' && !gone.has(r.linkedFbaId))
-    .map(r => ({ sku: obUC(r.sku), qty: fgiNum(r.qty), current: fgiOf(r.sku).current }));
+    .map(r => ({ sku: obUC(r.sku), qty: fgiNum(r.qty), current: fgiOf(r.sku).current, back: true }));
 }
 
 /* ---- on the Finished Goods stock list ---- */
@@ -70395,6 +70550,8 @@ function fgiReleaseOpen(sku) {
  *             one not yet marked shipped, and any shipped after the Amazon figures were read. Air is reduced first.
  * What may leave: FBA only the Air + Sea + AWD pieces the stock covers, plus an admin's release; an issue for an order up to
  * that order's pending pieces within Custom, plus Excess; any other issue Excess only.
+ * With switch fbaList also on (fba-lists.js, 28 Nov): pieces on an FBA list not yet shipped come off the stock first, shown as
+ * "In FBA lists", and off that store's need for that lane. A shipped list's dispatch comes off its own lane only.
  *
  * Replenishment's full figures are read only by planners and admins, so their ERP notes the need for the store at
  * pt_fgiSettings/_fbaNeed/{SP|CPC} = { snapAt, at, by, skus: { SKU key: [air, sea, awd] in Amazon packs } } whenever it
@@ -70414,6 +70571,7 @@ const FGA_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const FGA_ASK_EVERY_MS = 60 * 60 * 1000;
 const FGA_ASKED_KEY = 'fbaNeedAskedAt';
 const FGA_TRIES = 3;
+const FGA_LANES = ['air', 'sea', 'awd'];   // the order of a noted need, and the order stock is given out
 /** The share columns of the stock list, in the order stock is given out. */
 const FGA_SHARES = [['photo', 'Photoshoot'], ['custom', 'Custom'], ['air', 'FBA Air'], ['sea', 'FBA Sea'], ['awd', 'FBA AWD'], ['excess', 'Excess']];
 let FGA_ASKED_AT = 0;   // this tab's last ask, for a browser that blocks saved settings
@@ -70424,6 +70582,9 @@ function fgaOn() {
   catch (e) { console.warn('India store shares: this browser blocks saved settings, so the switch uses its default.'); }
   return typeof window !== 'undefined' && !!window.__TEST_ERP;
 }
+
+/** The share columns shown: with FBA lists on, the pieces they keep come first after Photoshoot. */
+const fgaShareCols = () => (shpListsOn() ? [FGA_SHARES[0], ['listed', 'In FBA lists'], ...FGA_SHARES.slice(1)] : FGA_SHARES);
 
 /* ---- the noted FBA need ---- */
 const fgaNeedNode = () => (FGI.set || {})._fbaNeed || {};
@@ -70530,7 +70691,7 @@ async function fgaSignInCheck() {
 }
 
 /* ---- just before a stock-out save ---- */
-/** The ledger, the order book, the hand-overs, the website hold and the FBA need, read again. '' = go ahead, else the
+/** The ledger, the order book, the hand-overs, the website hold, the FBA need and the FBA lists, read again. '' = go ahead, else the
  *  sentence to show: this is stock, so nothing is saved on figures that could not be read. */
 async function fgaReread() {
   try {
@@ -70547,8 +70708,18 @@ async function fgaReread() {
 const fgaOpenLines = lines => lines.filter(l => ordSrcOf(l.orderNo) !== 'AMZ' && !l.shopDoneAt && !l.handedAt);
 const fgaClaim = l => ({ orderNo: l.orderNo, sku: l.sku, sets: l.qty, perSet: 1 });
 
-/** Dispatches still on the way to FBA, in pieces: Map of SKU key → { SP, CPC, '' (account unknown) }. Each dispatch counts
- *  once: not yet marked shipped, or shipped after its store's Amazon figures were read (no shipping time: made after). */
+/** One dispatch added to what is on the way for its SKU. A dispatch of an FBA list names its lane and is kept under
+ *  lanes[store], so it comes off that lane only; any other is spread Air first. A new record is returned. */
+function fgaWayAdd(had, store, lane, pcs) {
+  const i = shpListsOn() && store ? FGA_LANES.indexOf(lane) : -1;
+  if (i < 0) return Object.assign({}, had, { [store]: (had[store] || 0) + pcs });
+  const lanes = ((had.lanes || {})[store] || [0, 0, 0]).slice();
+  lanes[i] += pcs;
+  return Object.assign({}, had, { lanes: Object.assign({}, had.lanes, { [store]: lanes }) });
+}
+
+/** Dispatches still on the way to FBA, in pieces: Map of SKU key → { SP, CPC, '' (account unknown), lanes? }. Each dispatch
+ *  counts once: not yet marked shipped, or shipped after its store's Amazon figures were read (no shipping time: made after). */
 function fgaOnTheWay(rows, need) {
   const snapAtOf = store => Number(((need || {})[store] || {}).snapAt) || Infinity;
   const oldest = Math.min(...SHP_HOLD_STORES.map(snapAtOf));
@@ -70560,7 +70731,7 @@ function fgaOnTheWay(rows, need) {
     const store = FGA_STORE_OF[r.issuedFor] || '';
     if (st === 'shipped' && !(Date.parse(r.fbaShippedAt || r.createdAt) > (store ? snapAtOf(store) : oldest))) return;
     const key = shpHoldKey(r.sku), had = out.get(key) || {};
-    out.set(key, Object.assign({}, had, { [store]: (had[store] || 0) + open }));
+    out.set(key, fgaWayAdd(had, store, r.fbaLane, open));
   });
   return out;
 }
@@ -70570,29 +70741,35 @@ function fgaOnTheWay(rows, need) {
 function fgaBook(without, need = fgaNeedNode()) {
   const rows = without && without.size ? (FGI.rows || []).filter(r => !without.has(r._id || r.id)) : (FGI.rows || []);
   const open = fgaOpenLines(ordLines());
-  return { rows, open, need, onTheWay: fgaOnTheWay(rows, need),
+  return { rows, open, need, onTheWay: fgaOnTheWay(rows, need), allotted: shpListsOn() ? fblAllotted(fblLists()) : {},
     ordered: shpHoldBuild(open.filter(l => !l.shopOrderId).map(fgaClaim), rows) };
 }
 
-/** The pieces FBA still asks for, per lane, for these stores, less what is on the way (Air first, then Sea, then AWD). */
+/** The pieces FBA still asks for, per lane, for these stores. Each store's lane first loses what is on its FBA lists and on
+ *  the way for that lane (a list's pieces leave the lists as they ship, so they count once); the rest on the way then comes
+ *  off Air first, then Sea, then AWD. */
 function fgaLanes(sku, book, stores) {
-  const key = shpHoldKey(sku), pack = fgiPackOf(sku), way = book.onTheWay.get(key) || {};
-  const asked = [0, 1, 2].map(i => stores.reduce((n, s) => n + (Number(((((book.need || {})[s] || {}).skus || {})[key] || [])[i]) || 0) * pack, 0));
+  const key = shpHoldKey(sku), pack = fgiPackOf(sku), way = book.onTheWay.get(key) || {}, listed = book.allotted[key] || {};
+  const met = (s, i) => ((listed[s] || [])[i] || 0) + (((way.lanes || {})[s] || [])[i] || 0);
+  const asked = [0, 1, 2].map(i => stores.reduce((n, s) =>
+    n + Math.max(0, (Number(((((book.need || {})[s] || {}).skus || {})[key] || [])[i]) || 0) * pack - met(s, i)), 0));
   let coming = stores.concat('').reduce((n, s) => n + (way[s] || 0), 0);
   const [air, sea, awd] = asked.map(n => { const met = Math.min(n, coming); coming -= met; return n - met; });
   return { air, sea, awd };
 }
 
-/** A SKU's stock shared out: { photo, custom, air, sea, awd, excess }, adding up to the stock (never below 0).
+/** A SKU's stock shared out: { photo, custom, air, sea, awd, excess }, and with FBA lists on { listed }, the pieces they
+ *  keep, taken first. The shares add up to the stock (never below 0).
  *  stores narrows the FBA lanes for viewing; a save is always judged on both. */
 function fgaShares(sku, current, hold, book, stores = SHP_HOLD_STORES) {
   let left = Math.max(0, current);
   const take = wanted => { const n = Math.min(left, Math.max(0, wanted)); left -= n; return n; };
+  const kept = shpListsOn() ? { listed: take((book.allotted[shpHoldKey(sku)] || {}).total || 0) } : {};
   const lanes = fgaLanes(sku, book, stores);
   const photo = take(0);                                  // no Photoshoot figures yet
   const custom = take((book.ordered[shpHoldKey(sku)] || 0) + fgiHeld(sku, hold));
   const air = take(lanes.air), sea = take(lanes.sea), awd = take(lanes.awd);
-  return { photo, custom, air, sea, awd, excess: left };
+  return Object.assign({ photo, custom, air, sea, awd, excess: left }, kept);
 }
 
 /* ---- FBA ---- */
@@ -70668,13 +70845,13 @@ const fgaNum = n => (n ? nf(n) : '<span class="muted">—</span>');
 function fgaCells(r) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
   return `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
-    + FGA_SHARES.map(([k]) => `<td class="num">${fgaNum(r.alloc[k])}</td>`).join('');
+    + fgaShareCols().map(([k]) => `<td class="num">${fgaNum(r.alloc[k])}</td>`).join('');
 }
-const fgaCardFigs = r => FGA_SHARES.map(([k, label]) => `<span>${label} <b>${nf(r.alloc[k])}</b></span>`).join('');
+const fgaCardFigs = r => fgaShareCols().map(([k, label]) => `<span>${label} <b>${nf(r.alloc[k])}</b></span>`).join('');
 /** Is some of this stock kept from FBA, so a release would mean something? */
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
-const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'In Stock', ...FGA_SHARES.map(s => s[1])];
-const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, Math.max(0, r.current), ...FGA_SHARES.map(([k]) => r.alloc[k])];
+const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'In Stock', ...fgaShareCols().map(s => s[1])];
+const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, Math.max(0, r.current), ...fgaShareCols().map(([k]) => r.alloc[k])];
 /* ============================== FILE: src/app/inventory/fg-fba-repeat.js ============================== */
 /* ================= INDIA STORE: REPEAT FBA DISPATCH NEEDS APPROVAL =================
  * Business rule (27 Nov, agreed): when a SKU already went from the store to FBA in the past 7 days (India dates), a new FBA
@@ -71083,6 +71260,720 @@ function fapRejectOpen(id) {
     saveLabel: 'Reject it',
   });
 }
+/* ============================== FILE: src/app/inventory/fba-lists.js ============================== */
+/* ================= INDIA STORE: FBA LISTS =================
+ * Business rule (28 Nov, approved plan): the FBA team ticks SKUs on Finished Goods and makes one list per lane (Air, Sea or
+ * AWD) and FBA account. Making it keeps those pieces for the list; nothing leaves the store and no ledger row is written
+ * until Ship, on FBA Dispatch. Shipping fewer frees the rest, and gives back an admin's release those pieces had used.
+ * A list may take the lane's share of the stock for that store (fg-store-alloc.js) plus any open release, never more than
+ * the stock that no other list has. A SKU sent to FBA in the past 7 days (fg-fba-repeat.js) goes on a list only when the
+ * FBA repeat approver or an admin makes it, which is their approval.
+ * Whoever holds the FBA Dispatch tab makes, packs, ships and undoes; a list is cancelled by its maker or an admin.
+ * Undoing a shipment puts the list back to packed with the pieces that were shipped: those it left behind stay free.
+ *
+ * Lists sit at pt_fgiSettings/_fbaLists/<id> = { account, store, lane, status: open | packed | shipping, by, at,
+ * lines: { SKU key: { sku, qty, packed } }, packId, released: { release id: pieces }, claimBy, claimAt }. A shipped or
+ * cancelled one moves to .../_fbaListsDone/<id> with { status: shipped | cancelled, shipment, shipDate, shippedAt, ... ,
+ * lines[..].shipped }. <id> is made once per form (fgiNewId('FBL')) and the movements are FBA-<id>-<n>, so a second tap
+ * writes nothing new.
+ *
+ * WHEN SOMETHING GOES WRONG:
+ *   loud, to the user — making, packing, shipping, cancelling and undoing are stock: anything that cannot be read or saved
+ *   is refused with what to do. A claim (a shipment or an undo) that did not finish can be done again after 5 minutes. It
+ *   saves only while the list still carries its own claim, and only within 2 minutes of taking it, so a slow computer cannot
+ *   write over the one that took over. A shipment whose answer was lost is looked up: saved counts as shipped.
+ *   quiet, with a console line — the switch (storage blocked: the default), putting a failed shipment back to packed,
+ *   moving a cancelled list out of the open ones (it keeps no pieces either way), and an Amazon listing alert that could not
+ *   be raised after a shipment.
+ *
+ * BEHIND SWITCH fbaList, which needs storeAlloc on. On by itself on the test website only, OFF everywhere else.
+ * localStorage fbaList = '1' turns it on for one computer, '0' off. The way back is that same '0'; a shipment a list made
+ * can still be undone with it off, from its row on FBA Dispatch. */
+const FBL_PATH = 'pt_fgiSettings/_fbaLists';
+const FBL_DONE_PATH = 'pt_fgiSettings/_fbaListsDone';
+const FBL_LANES = ['air', 'sea', 'awd'];
+const FBL_ALLOTTING = ['open', 'packed', 'shipping'];   // a list in one of these keeps its pieces
+const FBL_CLAIM_MS = 5 * 60 * 1000;
+const FBL_SEND_BY_MS = 2 * 60 * 1000;   // a claim saves only this soon; the rest of its time is for the save to arrive
+const FBL_TRIES = 3;
+const FBL_SOURCE = 'fba list';
+const FBL_NOT_TEAM = 'Only the FBA team (the FBA Dispatch tab) can do this to an FBA list.';
+const FBL_OFF = 'FBA lists are switched off on this computer.';
+const FBL_MOVED = 'The list was changed by somebody else just now — press Refresh and try again.';
+const FBL_CLAIM_LOST = 'this took too long, or somebody else has taken the list over — press Refresh and look before trying again.';
+
+function fblOn() {
+  if (!fgaOn()) return false;
+  try { const v = localStorage.getItem('fbaList'); if (v === '1') return true; if (v === '0') return false; }
+  catch (e) { console.warn('FBA lists: this browser blocks saved settings, so the switch uses its default.'); }
+  return typeof window !== 'undefined' && !!window.__TEST_ERP;
+}
+/** Why this person cannot work on FBA lists here, or ''. */
+const fblBlocked = () => (!fblOn() ? FBL_OFF : (fbaCan() ? '' : FBL_NOT_TEAM));
+
+/* ---- the lists as last read ---- */
+const fblLists = () => (FGI.set || {})._fbaLists || {};
+const fblDone = () => (FGI.set || {})._fbaListsDone || {};
+function fblKeep(node, id, rec) {
+  const next = Object.assign({}, (FGI.set || {})[node]);
+  if (rec) next[id] = rec; else delete next[id];
+  FGI.set = Object.assign({}, FGI.set, { [node]: next });
+}
+const fblKeepAll = lists => { FGI.set = Object.assign({}, FGI.set, { _fbaLists: lists }); };
+
+/** The pieces the lists keep, per SKU key: { total, SP: [air, sea, awd], CPC: [air, sea, awd] }. */
+function fblAllotted(lists) {
+  const out = {};
+  Object.values(lists || {}).filter(l => l && FBL_ALLOTTING.includes(l.status)).forEach(l => {
+    Object.entries(l.lines || {}).forEach(([key, line]) => {
+      const had = out[key] || { total: 0, SP: [0, 0, 0], CPC: [0, 0, 0] };
+      const lanes = had[l.store].slice();
+      lanes[FBL_LANES.indexOf(l.lane)] += fgiNum(line.qty);
+      out[key] = Object.assign({}, had, { total: had.total + fgiNum(line.qty), [l.store]: lanes });
+    });
+  });
+  return out;
+}
+
+/* ---- making ---- */
+/** The pieces of a SKU this lane of this store may still take without a release. */
+const fblShare = (want, book) => fgaShares(want.sku, fgiOf(want.sku).current, fgiHoldNode(), book, [want.store])[want.lane];
+
+/** Why these pieces cannot go on a list, or ''. want: { sku, qty, store, lane }; book: fgaBook(). */
+function fblCapWhy(want, book) {
+  const kept = (fblAllotted(fblLists())[shpHoldKey(want.sku)] || {}).total || 0;
+  const unlisted = Math.max(0, fgiOf(want.sku).current - kept);
+  const cap = Math.min(unlisted, fblShare(want, book) + fgiReleased(want.sku));
+  return want.qty <= cap ? '' : `${want.sku} has ${nf(cap)} piece(s) free for this FBA list, not ${nf(want.qty)}.`
+    + ' Take fewer, or ask an admin to release pieces on Finished Goods.';
+}
+
+/** The form's lines as the list keeps them, one per SKU: { lines } or { err }. */
+function fblLines(entered) {
+  const lines = {};
+  for (const l of entered || []) {
+    const sku = obUC(l.sku), qty = Number(l.qty), key = shpHoldKey(sku);
+    if (!sku || !Number.isInteger(qty) || qty < 1) return { err: `Put in a whole number of pieces for ${sku || 'every SKU'}.` };
+    lines[key] = { sku, qty: qty + (lines[key] ? lines[key].qty : 0), packed: 0 };
+  }
+  return Object.keys(lines).length ? { lines } : { err: 'Tick at least one SKU.' };
+}
+function fblNewList(v) {
+  const store = FGA_STORE_OF[v.account];
+  if (!store) return { err: 'Pick the FBA account — ' + Object.keys(FGA_STORE_OF).join(' or ') + '.' };
+  if (!FBL_LANES.includes(v.lane)) return { err: 'Pick the lane — Air, Sea or AWD.' };
+  const { lines, err } = fblLines(v.lines);
+  return err ? { err } : { rec: { account: v.account, store, lane: v.lane, status: 'open', by: ME.email, at: new Date().toISOString(), lines } };
+}
+const fblAsked = rec => [rec.account, rec.lane, Object.keys(rec.lines).sort().map(k => [k, rec.lines[k].qty])];
+
+/** MAKE A LIST, ONCE. v: { id: fgiNewId('FBL') made once per form, account, lane, lines: [{ sku, qty }] }.
+ *  '' when saved (now or by an earlier press), else the sentence to show. */
+async function fblMake(v) {
+  const blocked = fblBlocked();
+  if (blocked) return blocked;
+  const made = fblNewList(v);
+  if (made.err) return made.err;
+  try {
+    for (let i = 0; i < FBL_TRIES; i++) {
+      const answer = await fblMakeTry(v.id, made.rec);
+      if (answer !== 'changed') return answer;
+    }
+  } catch (e) { return `The list was not saved: ${e.message || e} — check the connection and press Save again.`; }
+  return 'The list was not saved — the FBA lists kept changing. Press Save again.';
+}
+/** One try, on figures read now: '' saved, 'changed' somebody saved a list meanwhile, else the sentence to show. */
+async function fblMakeTry(id, rec) {
+  const unread = await fgiStockReread();
+  if (unread) return unread;
+  const [seen, finished] = await Promise.all([ptGetFresh(FBL_PATH), ptGetFresh(FBL_DONE_PATH + '/' + id)]);
+  fblKeepAll(seen || {});
+  const earlier = (seen || {})[id] || finished;
+  if (earlier) return ptSame(fblAsked(earlier), fblAsked(rec)) ? ''
+    : 'This form has already saved a different list — close it and make a new one.';
+  const checked = fblCheck(rec);
+  if (checked.err) return checked.err;
+  return fblWriteNew(id, checked, seen);
+}
+/** The limits of a new list: { err }, or { rec (repeat approvals noted), wants for the releases }. */
+function fblCheck(rec) {
+  const old = fgiFbaAgeWhy();
+  if (old) return { err: 'Nothing was saved — ' + old };
+  const book = fgaBook(), lines = {}, wants = [];
+  for (const [key, line] of Object.entries(rec.lines)) {
+    const want = { sku: line.sku, qty: line.qty, store: rec.store, lane: rec.lane };
+    const repeat = fapRecent(line.sku).length > 0;
+    if (repeat && !fapMayApprove()) return { err: `Nothing was saved — ${line.sku} went to FBA in the past ${FAP_DAYS} days: `
+      + 'the FBA repeat approver or an admin has to make this list, or take that SKU off it.' };
+    const why = fblCapWhy(want, book);
+    if (why) return { err: 'Nothing was saved — ' + why };
+    lines[key] = repeat ? Object.assign({}, line, { repeatBy: ME.email }) : line;
+    wants.push({ sku: line.sku, qty: line.qty, current: fgiOf(line.sku).current, list: true, share: fblShare(want, book) });
+  }
+  return { rec: Object.assign({}, rec, { lines }), wants };
+}
+/** Releases are used up and the list written only if no list changed since `seen`; otherwise they are given back. */
+async function fblWriteNew(id, checked, seen) {
+  let changed = false;
+  const refused = await fgiFbaWrite(checked.wants, async used => {
+    const rec = Object.keys(used || {}).length ? Object.assign({}, checked.rec, { released: used }) : checked.rec;
+    const next = Object.assign({}, seen, { [id]: rec });
+    changed = !!(await ptCas(FBL_PATH, seen, next));
+    if (changed) throw new Error('the FBA lists changed');
+    fblKeepAll(next);
+  });
+  /* a release that could not be given back is said, never retried over */
+  return changed && !/NOT given back/.test(refused) ? 'changed' : refused;
+}
+
+/* ---- one list ---- */
+const fblClaimLive = l => !!l.claimAt && Date.now() - Date.parse(l.claimAt) <= FBL_CLAIM_MS;
+const fblBusyWhy = l => `${String(l.claimBy || '').split('@')[0]} is working on this list just now — press Refresh in ${FBL_CLAIM_MS / 60000} minutes.`;
+/** Read one list as it is now, from the open ones or the finished ones: { open, done } (null where it is not). */
+async function fblReadOne(id) {
+  const [open, done] = await Promise.all([ptGetFresh(FBL_PATH + '/' + id), ptGetFresh(FBL_DONE_PATH + '/' + id)]);
+  fblKeep('_fbaLists', id, open);
+  fblKeep('_fbaListsDone', id, done);
+  return { open, done };
+}
+
+/** Why this claim may no longer save, or '': asked just before the save, on the list as it is now. */
+async function fblClaimLostWhy(path, claim) {
+  const now = await ptGetFresh(path);
+  return ptSame(now, claim) && Date.now() - Date.parse(claim.claimAt) <= FBL_SEND_BY_MS ? '' : FBL_CLAIM_LOST;
+}
+
+/* ---- packing ---- */
+/** The lines with these packed counts (a SKU not named has none): { lines } or { err }. */
+function fblPackedLines(list, packed) {
+  const counts = {};
+  for (const [sku, n] of Object.entries(packed || {})) {
+    const key = shpHoldKey(sku), line = list.lines[key], pcs = Number(n);
+    if (!line) return { err: `${obUC(sku)} is not on this FBA list — take it out of the boxes.` };
+    counts[key] = (counts[key] || 0) + pcs;
+    if (!Number.isInteger(pcs) || pcs < 0 || counts[key] > line.qty)
+      return { err: `${line.sku}: the list has ${nf(line.qty)} piece(s) — pack no more than that, in whole pieces.` };
+  }
+  const lines = {};
+  Object.entries(list.lines).forEach(([key, line]) => { lines[key] = Object.assign({}, line, { packed: counts[key] || 0 }); });
+  return { lines };
+}
+/** SAVE WHAT IS PACKED. packed: { SKU: pieces }. No stock moves. '' when saved, else the sentence to show. */
+async function fblPackSave(id, packId, packed) {
+  const blocked = fblBlocked();
+  if (blocked) return blocked;
+  try {
+    const { open } = await fblReadOne(id);
+    if (!open || !['open', 'packed'].includes(open.status)) return 'This FBA list is no longer open for packing — press Refresh.';
+    const { lines, err } = fblPackedLines(open, packed);
+    if (err) return err;
+    const status = Object.values(lines).some(l => l.packed > 0) ? 'packed' : 'open';
+    const next = Object.assign({}, open, { lines, status, packId });
+    if (await ptCas(FBL_PATH + '/' + id, open, next)) return FBL_MOVED;
+    fblKeep('_fbaLists', id, next);
+  } catch (e) { return `The packing was not saved: ${e.message || e} — press Save again.`; }
+  return '';
+}
+
+/* ---- shipping ---- */
+/** The pieces of each line that go, by default all that is packed: { qty: { SKU key: pieces } } or { err }. */
+function fblShipQty(list, qtyBySku) {
+  const asked = {};
+  for (const [sku, n] of Object.entries(qtyBySku || {})) {
+    if (!list.lines[shpHoldKey(sku)]) return { err: `${obUC(sku)} is not on this FBA list.` };
+    asked[shpHoldKey(sku)] = Number(n);
+  }
+  const qty = {};
+  for (const [key, line] of Object.entries(list.lines)) {
+    const n = key in asked ? asked[key] : fgiNum(line.packed);
+    if (!Number.isInteger(n) || n < 0 || n > fgiNum(line.packed))
+      return { err: `${line.sku}: ${nf(fgiNum(line.packed))} piece(s) are packed — ship no more than that, in whole pieces.` };
+    qty[key] = n;
+  }
+  return Object.values(qty).some(n => n > 0) ? { qty } : { err: 'Nothing to ship — put in the pieces going.' };
+}
+/** Why the store cannot cover these pieces beside what the other lists keep, or ''. */
+function fblStockWhy(id, list, qty) {
+  const others = fblAllotted(Object.assign({}, fblLists(), { [id]: null }));
+  return Object.entries(qty).map(([key, n]) => {
+    const { sku } = list.lines[key], free = fgiOf(sku).current - ((others[key] || {}).total || 0);
+    return n > 0 && n > free ? `${sku}: the India Store has ${nf(Math.max(0, free))} piece(s) for this list, not ${nf(n)} — ship fewer.` : '';
+  }).filter(Boolean).join(' ');
+}
+/** The movements of a shipment, one per SKU that goes, already accepted and shipped. */
+function fblShipRows(id, list, qty, head) {
+  return Object.keys(list.lines).sort().map((key, n) => {
+    const line = list.lines[key];
+    if (!(qty[key] > 0)) return null;
+    const { orders } = fgiOutAlloc(line.sku, qty[key], 'FBA', '');
+    return Object.assign({ _id: `FBA-${id}-${n + 1}`, txnType: 'FBA', sku: line.sku, qty: qty[key], date: fgiDmy(dTodayIndia()),
+      issuedFor: list.account, reason: '', remarks: FBL_SOURCE, createdAt: head.at, createdBy: ME.email,
+      fbaAcceptedAt: head.at, fbaAcceptedBy: ME.email, fbaShippedAt: head.at, fbaShippedBy: ME.email,
+      fbaShipment: head.shipment, fbaShipDate: head.shipDate, fbaListId: id, fbaLane: list.lane, source: FBL_SOURCE },
+    orders.length ? { orders } : {}, line.repeatBy ? { fbaRepeatBy: line.repeatBy } : {});
+  }).filter(Boolean);
+}
+/** Of the releases a list used, those its unshipped pieces give back: { back, kept } as { release id: pieces }. */
+function fblReleaseSplit(list, qty, releases) {
+  const left = {}, back = {}, kept = {};
+  Object.entries(list.lines).forEach(([key, line]) => { left[key] = line.qty - qty[key]; });
+  Object.entries(list.released || {}).forEach(([relId, pcs]) => {
+    const key = shpHoldKey(((releases || {})[relId] || {}).sku || ''), n = Math.min(pcs, left[key] || 0);
+    if (n > 0) { back[relId] = n; left[key] -= n; }
+    if (pcs > n) kept[relId] = pcs - n;
+  });
+  return { back, kept };
+}
+/** The record of a shipped list, as it is kept among the finished ones. */
+function fblShippedRec(list, qty, head, released) {
+  const lines = {};
+  Object.entries(list.lines).forEach(([key, line]) => { lines[key] = Object.assign({}, line, { shipped: qty[key] }); });
+  const rec = Object.assign({}, list, { status: 'shipped', lines, released, shipment: head.shipment, shipDate: head.shipDate,
+    shippedAt: head.at, shippedBy: ME.email });
+  delete rec.claimBy; delete rec.claimAt;
+  if (!Object.keys(released).length) delete rec.released;
+  return rec;
+}
+/** Give released pieces back to their releases. '' when done, else the sentence to show. */
+async function fblGiveBack(used) {
+  const said = await fgiReleaseGiveBack(used);
+  return said.includes('NOT given back') ? said.trim() : '';
+}
+
+/** SHIP A PACKED LIST, ONCE. v: { shipment, date (YYYY-MM-DD, default today), qtyBySku: { SKU: pieces } }. The list is
+ *  claimed, then the movements and the shipped list are written together. '' when done, else the sentence to show. */
+async function fblShip(id, v) {
+  const blocked = fblBlocked();
+  if (blocked) return blocked;
+  const shipment = String(v.shipment || '').trim();
+  if (!shipment) return 'Put in the shipment id — a shipment nobody can trace is not a shipment.';
+  const taken = await fblShipClaim(id, shipment, v.qtyBySku);
+  if (!taken.claim) return taken.err;
+  const head = { shipment, shipDate: fgiDmy(v.date || dTodayIndia()), at: taken.claim.claimAt };
+  const written = await fblShipWrite(id, taken.claim, taken.qty, head);
+  if (written.err) { await fblUnclaim(id, taken.claim, taken.was); return written.err; }
+  return fblShipAfter(taken.claim, taken.qty, written.back);
+}
+/** Claim a packed list for this shipment: { claim, was, qty }, else { err } ('' when this shipment is already written). */
+async function fblShipClaim(id, shipment, qtyBySku) {
+  try {
+    const { open, done } = await fblReadOne(id);
+    if (!open) {
+      const already = !!done && done.status === 'shipped' && done.shipment === shipment;
+      return { err: already ? '' : 'This FBA list is no longer waiting to ship — press Refresh.' };
+    }
+    if (open.status === 'shipping' && fblClaimLive(open)) return { err: fblBusyWhy(open) };
+    if (!['packed', 'shipping'].includes(open.status)) return { err: 'Pack this FBA list before shipping it.' };
+    const going = fblShipQty(open, qtyBySku);
+    if (going.err) return going;
+    const claim = Object.assign({}, open, { status: 'shipping', claimBy: ME.email, claimAt: new Date().toISOString() });
+    if (await ptCas(FBL_PATH + '/' + id, open, claim)) return { err: FBL_MOVED };
+    return { claim, was: open, qty: going.qty };
+  } catch (e) { return { err: `Not shipped: ${e.message || e} — check the connection and try again.` }; }
+}
+/** Check the stock afresh and write the shipment: { back (release pieces to give back) }, else { err }. */
+async function fblShipWrite(id, claim, qty, head) {
+  try {
+    const unread = await fgiStockReread();
+    if (unread) return { err: unread };
+    fblKeepAll((await ptGetFresh(FBL_PATH)) || {});
+    const short = fblStockWhy(id, claim, qty);
+    if (short) return { err: 'Not shipped — ' + short };
+    const rows = fblShipRows(id, claim, qty, head);
+    const { back, kept } = fblReleaseSplit(claim, qty, fgiHoldNode().releases);
+    const done = fblShippedRec(claim, qty, head, kept);
+    const patch = { [FBL_PATH + '/' + id]: null, [FBL_DONE_PATH + '/' + id]: done };
+    rows.forEach(r => { patch['pt_fgiLedger/' + r._id] = r; });
+    const lost = await fblClaimLostWhy(FBL_PATH + '/' + id, claim);
+    if (lost) return { err: 'Not shipped — ' + lost };
+    const unsure = await fblShipSend(id, patch, head);
+    if (unsure) return { err: unsure };
+    const ids = new Set(rows.map(fgiRowId));
+    FGI.rows = (FGI.rows || []).filter(r => !ids.has(fgiRowId(r))).concat(rows);
+    fblKeep('_fbaLists', id, null);
+    fblKeep('_fbaListsDone', id, done);
+    return { back };
+  } catch (e) { return { err: `Not shipped: ${e.message || e} — check the connection and try again.` }; }
+}
+/** Send the shipment. '' when it is saved, also when only the answer was lost; throws when it was not saved; else the
+ *  sentence to show because that could not be checked. */
+async function fblShipSend(id, patch, head) {
+  try { await ptPatch(patch); return ''; }
+  catch (e) {
+    let done;
+    try { done = await ptGetFresh(FBL_DONE_PATH + '/' + id); }
+    catch (unread) {
+      console.warn('FBA lists: shipment ' + head.shipment + ' could not be looked up after a failed save:', unread.message || unread);
+      return `The shipment may or may not be saved: ${e.message || e} — press Refresh and look before shipping again.`;
+    }
+    if (!done || done.status !== 'shipped' || done.shippedAt !== head.at) throw e;
+    console.warn('FBA lists: shipment ' + head.shipment + ' was saved although its answer was lost:', e.message || e);
+    return '';
+  }
+}
+/** After the shipment is written: unused releases go back, and Amazon listing alerts are raised. */
+async function fblShipAfter(list, qty, back) {
+  const kept = await fblGiveBack(back);
+  fbaBadge();
+  for (const [key, n] of Object.entries(qty)) if (n > 0) await fblListingAlert(list.lines[key].sku, n);
+  return kept && 'Shipped. ' + kept;
+}
+/** The pieces have gone whether or not the alert can be raised, so its failure never reads as a failed shipment. */
+async function fblListingAlert(sku, pieces) {
+  try { await lstAlertFor(sku, 'FBA', pieces); }
+  catch (e) { console.warn('FBA lists: ' + sku + ' shipped, but its Amazon listing alert was not raised:', e.message || e); }
+}
+async function fblUnclaim(id, claim, was) {
+  const back = Object.assign({}, was, { status: 'packed' });
+  delete back.claimBy; delete back.claimAt;
+  try {
+    const path = FBL_PATH + '/' + id, now = await ptGetFresh(path);
+    /* compared field by field, then written against the record as the database gave it (its own field order) */
+    if (ptSame(now, claim) && !(await ptCas(path, now, back))) fblKeep('_fbaLists', id, back);
+  } catch (e) { console.warn('FBA lists: a failed shipment was not put back to packed; it can be shipped again in 5 minutes:', e.message || e); }
+}
+
+/* ---- cancelling ---- */
+/** CANCEL A LIST not yet shipped: its pieces are free again and its releases go back. '' when done, else the sentence. */
+async function fblCancel(id) {
+  if (!fblOn()) return FBL_OFF;
+  let next, used;
+  try {
+    const { open, done } = await fblReadOne(id);
+    const list = open || done;
+    if (list && list.status === 'cancelled') return '';
+    if (!open) return 'This FBA list is no longer open — press Refresh.';
+    if (!(ME.admin || open.by === ME.email)) return 'Only the person who made this FBA list or an admin can cancel it.';
+    if (open.status === 'shipping' && fblClaimLive(open)) return fblBusyWhy(open);
+    used = open.released || {};
+    next = Object.assign({}, open, { status: 'cancelled', cancelledBy: ME.email, cancelledAt: new Date().toISOString() });
+    delete next.released; delete next.claimBy; delete next.claimAt;
+    if (await ptCas(FBL_PATH + '/' + id, open, next)) return FBL_MOVED;
+  } catch (e) { return `Not cancelled: ${e.message || e} — try again.`; }
+  await fblFileCancelled(id, next);
+  const kept = await fblGiveBack(used);
+  return kept && 'Cancelled. ' + kept;
+}
+async function fblFileCancelled(id, list) {
+  fblKeep('_fbaLists', id, list);
+  try {
+    await ptPatch({ [FBL_PATH + '/' + id]: null, [FBL_DONE_PATH + '/' + id]: list });
+    fblKeep('_fbaLists', id, null);
+    fblKeep('_fbaListsDone', id, list);
+  } catch (e) { console.warn('FBA lists: cancelled list ' + id + ' stays among the open ones (it keeps no pieces):', e.message || e); }
+}
+
+/* ---- undoing a shipment ---- */
+/** A shipped list as it goes back to packed: the pieces that were shipped. */
+function fblUnshipped(done) {
+  const lines = {};
+  Object.entries(done.lines).filter(([, l]) => l.shipped > 0).forEach(([key, l]) => {
+    lines[key] = Object.assign({}, l, { qty: l.shipped, packed: l.shipped });
+    delete lines[key].shipped;
+  });
+  const back = Object.assign({}, done, { status: 'packed', lines });
+  ['shipment', 'shipDate', 'shippedAt', 'shippedBy', 'claimBy', 'claimAt'].forEach(f => delete back[f]);
+  return back;
+}
+/** The movements a shipped list wrote, or why they cannot be taken out: { ids } or { err }. */
+function fblShippedMovements(id) {
+  const rows = (FGI.rows || []).filter(r => r && r.txnType === 'FBA' && r.fbaListId === id);
+  const ids = new Set(rows.map(fgiRowId));
+  const returned = rows.find(r => fgiNum(r.fbaReturned) > 0)
+    || (FGI.rows || []).find(r => r && r.txnType === 'FBA_RETURN' && ids.has(r.linkedFbaId));
+  return returned ? { err: `${returned.sku}: pieces of this shipment were returned from FBA — delete that return in Finished Goods first.` }
+    : { ids: [...ids] };
+}
+/** UNDO A SHIPMENT: its movements are deleted and the list is packed again, in one save. Allowed with the switch off, as it
+ *  touches only what that list wrote. '' when done, else the sentence. */
+async function fblUndoShip(id) {
+  if (!fbaCan()) return FBL_NOT_TEAM;
+  try {
+    const { open, done } = await fblReadOne(id);
+    if (!done) return open && open.status === 'packed' ? '' : 'This FBA list is not shipped — press Refresh.';
+    if (done.status !== 'shipped') return 'This FBA list is not shipped — press Refresh.';
+    if (fblClaimLive(done)) return fblBusyWhy(done);
+    const unread = await fgiStockReread();
+    if (unread) return unread;
+    const { ids, err } = fblShippedMovements(id);
+    if (err) return err;
+    const claim = Object.assign({}, done, { claimBy: ME.email, claimAt: new Date().toISOString() });
+    if (await ptCas(FBL_DONE_PATH + '/' + id, done, claim)) return FBL_MOVED;
+    const refused = await fblWriteUndo(id, claim, ids);
+    if (refused) return refused;
+  } catch (e) { return `The shipment was not undone: ${e.message || e} — try again in 5 minutes.`; }
+  fbaBadge();
+  return '';
+}
+async function fblWriteUndo(id, done, ids) {
+  const back = fblUnshipped(done);
+  const patch = { [FBL_DONE_PATH + '/' + id]: null, [FBL_PATH + '/' + id]: back };
+  ids.forEach(rowId => { patch['pt_fgiLedger/' + rowId] = null; });
+  const lost = await fblClaimLostWhy(FBL_DONE_PATH + '/' + id, done);
+  if (lost) return 'The shipment was not undone — ' + lost;
+  await ptPatch(patch);
+  const gone = new Set(ids);
+  FGI.rows = (FGI.rows || []).filter(r => !gone.has(fgiRowId(r)));
+  fblKeep('_fbaListsDone', id, null);
+  fblKeep('_fbaLists', id, back);
+  return '';
+}
+/* ============================== FILE: src/app/inventory/fba-lists-view.js ============================== */
+/* ================= INDIA STORE: FBA LISTS ON SCREEN =================
+ * The screens of the FBA lists (the rules are in fba-lists.js, switch fbaList): ticking SKUs on Finished Goods and making a
+ * list there; packing, shipping, cancelling and undoing a list on FBA Dispatch. Switch off: nothing here is shown.
+ *
+ * WHEN SOMETHING GOES WRONG:
+ *   loud, to the user — a form that cannot read the stock or the lists does not open and says why; a refused save stays on
+ *   the form with the reason; a refusal from a button shows on the screen's message line.
+ *   There is no quiet fallback here. */
+const FBLV_RECENT_DAYS = 30;   // a shipped list is shown, with Undo ship, for this long
+const FBLV_LANE_NAMES = { air: 'Air', sea: 'Sea', awd: 'AWD' };
+
+const fblvMayList = () => fblOn() && fbaCan();
+const fblvTitle = l => `${FBLV_LANE_NAMES[l.lane]} · ${l.account}`;
+const fblvWho = email => String(email || '').split('@')[0];
+function fblvSay(lineId, text, bad) {
+  $(lineId).className = bad ? 'err' : 'muted';
+  $(lineId).textContent = text;
+}
+
+/** Read the stock and the open lists as they are now. '' when read, else the sentence to show. */
+async function fblvReread() {
+  try {
+    const unread = await fgiStockReread();
+    if (unread) return unread;
+    fblKeepAll((await ptGetFresh(FBL_PATH)) || {});
+    return '';
+  } catch (e) { return `The FBA lists could not be read: ${e.message || e} — check the connection and try again.`; }
+}
+
+/* ---- making a list, on Finished Goods ---- */
+/** The "Make FBA list" button follows the ticks on the stock list. */
+function fblvPickCount() {
+  const button = $('fgFbaList'); if (!button) return;
+  const n = FGI_PICK.stock.size;
+  button.classList.toggle('hide', !(fblvMayList() && $('fgView').value === 'stock'));
+  button.disabled = !n;
+  button.textContent = n ? `Make FBA list (${nf(n)})` : 'Make FBA list';
+}
+
+/** The most pieces of a SKU a new list of this account and lane may take: the limit fblCapWhy (fba-lists.js) refuses above. */
+function fblvCap(sku, account, lane, book) {
+  const kept = (fblAllotted(fblLists())[shpHoldKey(sku)] || {}).total || 0;
+  const unlisted = fgiOf(sku).current - kept;
+  const allowed = fblShare({ sku, store: FGA_STORE_OF[account], lane }, book) + fgiReleased(sku);
+  return Math.max(0, Math.min(unlisted, allowed));
+}
+
+/** The notice on a SKU that went to FBA lately, or ''. */
+function fblvRepeatNote(sku) {
+  if (!fapRecent(sku).length) return '';
+  return `Sent to FBA in the past ${FAP_DAYS} days: ${fapSentText(fapRequest({ sku }, '').recent)}. ` + (fapMayApprove()
+    ? 'Making the list counts as your approval, and is recorded.'
+    : 'Only the FBA repeat approver or an admin can list it — put 0 to leave it off.');
+}
+
+function fblvMakeHtml(skus) {
+  const options = list => list.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('');
+  return `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+      <label>FBA account<select id="fblvAccount">${options(Object.keys(FGA_STORE_OF).map(a => [a, a]))}</select></label>
+      <label>Lane<select id="fblvLane">${options(FBL_LANES.map(l => [l, FBLV_LANE_NAMES[l]]))}</select></label>
+    </div>`
+    + skus.map((sku, i) => {
+      const note = fblvRepeatNote(sku);
+      return `<div style="margin-top:10px"><label style="display:block"><b>${esc(sku)}</b> — pieces <span id="fblvMax${i}" class="muted"></span>
+        <input id="fblvQty${i}" type="number" min="0" step="1" inputmode="numeric"></label>
+        ${note ? `<div class="err" style="font-size:12px">${esc(note)}</div>` : ''}</div>`;
+    }).join('');
+}
+
+/** Put each SKU's most for the picked account and lane into its box. */
+function fblvFillCaps(skus) {
+  const book = fgaBook();
+  skus.forEach((sku, i) => {
+    const cap = fblvCap(sku, $('fblvAccount').value, $('fblvLane').value, book);
+    $('fblvQty' + i).value = String(cap);
+    $('fblvQty' + i).max = String(cap);
+    $('fblvMax' + i).textContent = `(up to ${nf(cap)})`;
+  });
+}
+
+async function fblvMakeOpen() {
+  const skus = [...FGI_PICK.stock].sort();
+  if (!fblvMayList() || !skus.length) return;
+  const unread = await fblvReread();
+  if (unread) return fblvSay('fgMsg', unread, true);
+  const id = fgiNewId('FBL');   // once per form, so a second press saves nothing new
+  ptOpenDialog({
+    title: 'Make FBA list',
+    subtitle: `${nf(skus.length)} SKU(s)`,
+    note: 'The pieces are kept for this list. Nothing leaves the store until it is shipped on FBA Dispatch. Put 0 to leave a SKU off.',
+    html: fblvMakeHtml(skus),
+    msg: fgiFbaAgeWhy(),
+    saveLabel: 'Make the list',
+    onSave: () => fblvMakeSave(id, skus),
+  });
+  $('fblvAccount').value = Object.keys(FGA_STORE_OF)[0];
+  $('fblvLane').value = FBL_LANES[0];
+  ['fblvAccount', 'fblvLane'].forEach(box => { $(box).onchange = () => fblvFillCaps(skus); });
+  fblvFillCaps(skus);
+}
+
+async function fblvMakeSave(id, skus) {
+  const lines = skus.map((sku, i) => ({ sku, qty: String($('fblvQty' + i).value).trim() }))
+    .filter(l => l.qty !== '' && Number(l.qty) !== 0);
+  if (!lines.length) return 'Put in the pieces for at least one SKU.';
+  const refused = await fblMake({ id, account: $('fblvAccount').value, lane: $('fblvLane').value, lines });
+  if (refused) return refused;
+  FGI_PICK.stock = new Set();
+  renderFgi();
+  fblvSay('fgMsg', `FBA list made: ${nf(lines.length)} SKU(s). Pack and ship it on FBA Dispatch.`);
+  return '';
+}
+
+/* ---- the lists, on FBA Dispatch ---- */
+const fblvPackable = l => l.status === 'open' || l.status === 'packed';
+const fblvShippable = l => l.status === 'packed' || (l.status === 'shipping' && !fblClaimLive(l));
+const fblvMayCancel = l => !!(ME.admin || l.by === ME.email) && (l.status !== 'shipping' || !fblClaimLive(l));
+/** Lists as [id, list], the newest first by the time named. */
+const fblvNewestFirst = (lists, when) => Object.entries(lists).filter(([, l]) => l)
+  .sort((a, b) => String(b[1][when]).localeCompare(String(a[1][when])));
+const fblvWaiting = () => fblvNewestFirst(fblLists(), 'at').filter(([, l]) => FBL_ALLOTTING.includes(l.status));
+function fblvRecentlyShipped() {
+  const since = Date.now() - FBLV_RECENT_DAYS * 864e5;
+  return fblvNewestFirst(fblDone(), 'shippedAt').filter(([, l]) => l.status === 'shipped' && Date.parse(l.shippedAt) >= since);
+}
+
+function fblvButton(action, id, label) {
+  const tone = action === 'cancel' ? ' style="color:var(--bad)"' : '';
+  return `<button type="button" class="ghost" data-fbl="${action}" data-fbl-id="${esc(id)}"${tone}>${label}</button>`;
+}
+function fblvCard(list, buttons) {
+  const shipped = list.status === 'shipped';
+  const head = shipped
+    ? `shipped as ${list.shipment} on ${list.shipDate} by ${fblvWho(list.shippedBy)}`
+    : `${list.status} · made by ${fblvWho(list.by)} on ${ptDayWords(list.at)}`;
+  const lines = Object.values(list.lines).map(l => `<div><b style="font-family:ui-monospace,monospace">${esc(l.sku)}</b> — ${nf(l.qty)} on the list, `
+    + (shipped ? `${nf(l.shipped)} shipped` : `${nf(l.packed)} packed`) + '</div>').join('');
+  return `<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px">
+    <div><b>${esc(fblvTitle(list))}</b> <span class="muted">${esc(head)}</span></div>
+    <div style="font-size:12.5px;margin:6px 0">${lines}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">${buttons}</div></div>`;
+}
+function fblvWaitingButtons(id, list) {
+  if (!fbaCan()) return '';
+  return (fblvPackable(list) ? fblvButton('pack', id, 'Pack') : '')
+    + (fblvShippable(list) ? fblvButton('ship', id, 'Ship') : '')
+    + (fblvMayCancel(list) ? fblvButton('cancel', id, 'Cancel list') : '');
+}
+function fblvPanelHtml(waiting) {
+  const shipped = fblvRecentlyShipped();
+  return '<h3 style="margin:0">FBA lists</h3>'
+    + (waiting.length ? waiting.map(([id, l]) => fblvCard(l, fblvWaitingButtons(id, l))).join('')
+      : '<div class="muted">No list is waiting. Tick SKUs on Finished Goods and press Make FBA list.</div>')
+    + (shipped.length ? `<h4 style="margin:12px 0 0">Shipped in the past ${FBLV_RECENT_DAYS} days</h4>`
+      + shipped.map(([id, l]) => fblvCard(l, fbaCan() ? fblvButton('undo', id, 'Undo ship') : '')).join('') : '');
+}
+
+/** The "FBA lists" panel, and the "Pack a list" button above it. */
+function fblvRender() {
+  const panel = $('fbaLists'); if (!panel) return;
+  const on = fblOn() && !FGI.busy && !FGI.err, waiting = on ? fblvWaiting() : [];
+  panel.classList.toggle('hide', !on);
+  $('fbaPackBtn').classList.toggle('hide', !(fblvMayList() && waiting.some(([, l]) => fblvPackable(l))));
+  panel.innerHTML = on ? fblvPanelHtml(waiting) : '';
+}
+
+/* ---- pack ---- */
+/** Pack & verify for one list (pack-verify.js). */
+async function fblvPack(id) {
+  try { await pkvOpenFbaList(id); }
+  catch (e) { fblvSay('fbaMsg', 'Pack & verify could not open: ' + (e.message || e), true); }
+}
+/** "Pack a list": straight in when only one list can be packed. */
+function fblvPackPress() {
+  const packable = fblvWaiting().filter(([, l]) => fblvPackable(l));
+  if (packable.length === 1) return fblvPack(packable[0][0]);
+  fblvSay('fbaMsg', packable.length ? 'Press Pack on the FBA list you are packing.' : 'No FBA list is waiting to be packed — press Refresh.', !packable.length);
+}
+
+/* ---- ship, cancel, undo ---- */
+/** After a change to a list. A refusal stays on the form. Success, and "done, but released pieces were not given back"
+ *  (it starts with doneStart), close the form and are said on the screen. */
+function fblvAfter(said, doneStart, success) {
+  if (said && !said.startsWith(doneStart)) return said;
+  renderFba();
+  fblvSay('fbaMsg', said || success, !!said);
+  return '';
+}
+
+/** The list as it is now, or null after saying why it cannot be had. */
+async function fblvFresh(id) {
+  try {
+    const { open, done } = await fblReadOne(id);
+    if (open || done) return open || done;
+    fblvSay('fbaMsg', 'That FBA list is gone — press Refresh.', true);
+  } catch (e) { fblvSay('fbaMsg', `The FBA list could not be read: ${e.message || e} — try again.`, true); }
+  return null;
+}
+
+function fblvShipHtml(lines) {
+  return `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+      <label>Shipment id<input id="fblvShipment" type="text" placeholder="FBA15…" style="font-family:ui-monospace,monospace"></label>
+      <label>Ship date<input id="fblvDate" type="date" value="${esc(dTodayIndia())}"></label>
+      ${lines.map((l, i) => `<label>${esc(l.sku)} — pieces shipped (${nf(l.packed)} packed)<input id="fblvShipQty${i}" type="number" min="0" max="${esc(l.packed)}" step="1" value="${esc(l.packed)}"></label>`).join('')}
+    </div>`;
+}
+async function fblvShipOpen(id) {
+  if (!fblvMayList()) return;
+  const list = await fblvFresh(id);
+  if (!list) return;
+  if (!fblvShippable(list)) {
+    renderFba();
+    return fblvSay('fbaMsg', 'This FBA list cannot be shipped just now — pack it first, or press Refresh.', true);
+  }
+  const lines = Object.values(list.lines);
+  ptOpenDialog({
+    title: 'Ship FBA list',
+    subtitle: fblvTitle(list),
+    note: 'Put in the Amazon shipment id and the pieces going, no more than are packed. Pieces not shipped are freed for the store.',
+    html: fblvShipHtml(lines),
+    saveLabel: 'Ship',
+    onSave: () => fblvShipSave(id, lines),
+  });
+}
+async function fblvShipSave(id, lines) {
+  const qtyBySku = {};
+  for (const [i, line] of lines.entries()) {
+    const typed = String($('fblvShipQty' + i).value).trim();
+    if (typed === '') return `Put in the pieces shipped for ${line.sku} — 0 if none are going.`;
+    qtyBySku[line.sku] = Number(typed);
+  }
+  const said = await fblShip(id, { shipment: $('fblvShipment').value, date: $('fblvDate').value, qtyBySku });
+  return fblvAfter(said, 'Shipped.', 'FBA list shipped.');
+}
+
+/** Ask before cancelling or undoing. ask: { title, note, run }. */
+async function fblvConfirm(id, ask) {
+  const list = await fblvFresh(id);
+  if (!list) return;
+  ptOpenDialog({ title: ask.title, subtitle: fblvTitle(list), note: ask.note, saveLabel: ask.title, onSave: ask.run });
+}
+const fblvCancelAsk = id => fblvConfirm(id, { title: 'Cancel this FBA list',
+  note: 'Its pieces are free for the store again. To keep the list, close this box.',
+  run: async () => fblvAfter(await fblCancel(id), 'Cancelled.', 'FBA list cancelled.') });
+const fblvUndoAsk = id => fblvConfirm(id, { title: 'Undo ship',
+  note: 'The whole shipment is taken back: its movements are deleted and the list is packed again, with the pieces that were shipped.',
+  run: async () => fblvAfter(await fblUndoShip(id), 'Undone.', 'Shipment undone — the list is packed again.') });
+
+const FBLV_ACTIONS = { pack: fblvPack, ship: fblvShipOpen, cancel: fblvCancelAsk, undo: fblvUndoAsk };
+if ($('fbaLists')) $('fbaLists').onclick = e => {
+  const b = e.target.closest('[data-fbl]');
+  if (b) FBLV_ACTIONS[b.getAttribute('data-fbl')](b.getAttribute('data-fbl-id'));
+};
+if ($('fbaPackBtn')) $('fbaPackBtn').onclick = () => fblvPackPress();
+if ($('fgFbaList')) $('fgFbaList').onclick = () => fblvMakeOpen();
 /* ============================== FILE: src/app/inventory/pack-verify.js ============================== */
 /* ================= FINISHED GOODS: PACK & VERIFY (2026-10-12) =================
  *
@@ -71106,36 +71997,60 @@ function fapRejectOpen(id) {
  *
  * Rapid scanning: a scan never waits on the network — the screen updates at once and the list is saved 3 s after the
  * last change and on every box close. The same code within 1 s is ignored. Focus returns to the scan box after a click.
+ * FBA LISTS (28 Nov, switch fbaList): a session is the packing list of one FBA list (pack-core.js), opened here or from
+ * FBA Dispatch (pkvOpenFbaList) by the FBA Dispatch tab, and Finish saves what is packed on that list. No stock leaves.
  * Camera: the phone's own reader where it reads code_128, else ZXing from this site (the Scan to pack loader). */
 
 let PKV = { p: null, box: 1, hist: [], last: { code: '', at: 0 }, tab: 'order', cam: { stream: null, det: null, timer: 0, seen: null, busy: false },
   saveT: 0, dirty: false, saving: false, err: '' };
 const PKV_DEBOUNCE_MS = 1000, PKV_SAVE_MS = 3000;
 
-const pkvOpenLists = () => (PK || []).filter(p => p && p.status !== 'done' && p.scan && !(p.scan.ledgerIds || []).length);
+const pkvOpenLists = () => (PK || []).filter(p => p && p.status !== 'done' && p.scan && !(p.scan.ledgerIds || []).length && packFbaStillOpen(p));
 
 /* ---- opening ---- */
-async function pkvOpen() {
-  if (!fgiCanEntry()) { $('fgMsg').className = 'err'; $('fgMsg').textContent = FGI_NO_ENTRY; return; }
-  $('fgMsg').className = 'muted'; $('fgMsg').textContent = 'Opening Pack & verify…';
+/** Why this person may not pack here, or ''. With FBA lists on, packing writes no stock: it is the FBA Dispatch tab's work. */
+const pkvBlocked = () => (packFbaOn() ? fblBlocked() : (fgiCanEntry() ? '' : FGI_NO_ENTRY));
+/** Read what the board needs: '' or why it cannot open. */
+async function pkvReady() {
   try {
     await Promise.all([fnLoad(), loadPkWt().catch(() => {}), PK_LOADED ? null : loadPk(), typeof ptImgShared === 'function' ? ptImgShared().catch(() => {}) : null]);
-  } catch (e) { $('fgMsg').className = 'err'; $('fgMsg').textContent = 'Could not open Pack & verify: ' + (e.message || e); return; }
+  } catch (e) { return 'Could not open Pack & verify: ' + (e.message || e); }
   const why = await packDataReady();
-  if (why) { $('fgMsg').className = 'err'; $('fgMsg').textContent = 'Could not read the ledger: ' + why; return; }
+  if (why) return 'Could not read the ledger: ' + why;
+  return packFbaOn() ? packFbaListsRead() : '';
+}
+async function pkvOpen() {
+  const blocked = pkvBlocked();
+  if (blocked) { $('fgMsg').className = 'err'; $('fgMsg').textContent = blocked; return; }
+  $('fgMsg').className = 'muted'; $('fgMsg').textContent = 'Opening Pack & verify…';
+  const why = await pkvReady();
+  if (why) { $('fgMsg').className = 'err'; $('fgMsg').textContent = why; return; }
   $('fgMsg').textContent = '';
-  const open = pkvOpenLists();
+  pkvDialog();
+}
+/** FBA Dispatch's way in: the board on one FBA list, carrying on where its packing stopped. Problems show in the dialog. */
+async function pkvOpenFbaList(listId) {
+  const why = await pkvReady();
+  const got = why ? { err: why } : await packFbaSession(listId, {});
+  pkvDialog();
+  if (got.err) { $('pkvMsg').textContent = got.err; return; }
+  pkvResume(got.p);
+}
+function pkvDialog() {
+  const open = pkvOpenLists(), fromFba = packFbaOn();
   ptOpenDialog({
     title: 'Pack & verify',
-    subtitle: 'Scan each piece against the orders. A wrong article is blocked. Finish writes the Send to FBA rows and the packing list from the same scans.',
+    subtitle: fromFba ? 'Scan each piece against the FBA list. A wrong article is blocked. Finish saves what is packed; it ships from FBA Dispatch.'
+      : 'Scan each piece against the orders. A wrong article is blocked. Finish writes the Send to FBA rows and the packing list from the same scans.',
     wide: true,
     html: `
       <div class="pkvhead">
-        <label>FBA account<select id="pkvAcc">${FGI_FBA_ACCOUNTS.map(a => `<option>${esc(a)}</option>`).join('')}</select></label>
+        ${fromFba ? `<label>FBA list<select id="pkvList">${packFbaOptions()}</select></label>` : ''}
+        ${fromFba ? '' : `<label>FBA account<select id="pkvAcc">${FGI_FBA_ACCOUNTS.map(a => `<option>${esc(a)}</option>`).join('')}</select></label>`}
         <label>Invoice #<input id="pkvInv" placeholder="optional"></label>
         <label>Handover to<input id="pkvHand" placeholder="name, optional"></label>
-        <label>Order Console orders<input id="pkvOrds" placeholder="order numbers, comma separated" style="min-width:220px"></label>
-        <label>Amazon shipment plan<button type="button" id="pkvPlanBtn" class="ghost">Paste plan…</button></label>
+        ${fromFba ? '' : `<label>Order Console orders<input id="pkvOrds" placeholder="order numbers, comma separated" style="min-width:220px"></label>
+        <label>Amazon shipment plan<button type="button" id="pkvPlanBtn" class="ghost">Paste plan…</button></label>`}
         ${open.length ? `<label>Open sessions<select id="pkvResume"><option value="">— new session —</option>${open.map(s => `<option value="${esc(s.id)}">${esc(s.title || s.id)} · ${esc(s.account || '')} · ${esc(s.date || '')} · ${esc(s.by || s.updatedBy || '')}</option>`).join('')}</select></label>` : ''}
         <button type="button" id="pkvStart" class="primary">Start</button>
       </div>
@@ -71161,8 +72076,21 @@ async function pkvOpen() {
       <div id="pkvMsg" class="muted" style="margin-top:8px"></div>`,
   });
   $('pkvStart').onclick = () => pkvStart().catch(e => { $('pkvMsg').textContent = 'Could not start: ' + (e.message || e); });
-  $('pkvPlanBtn').onclick = pkvPlanAsk;
-  const r = $('pkvResume'); if (r) r.onchange = () => { const s = open.find(x => x.id === r.value); if (s) pkvResume(s); };
+  if (!fromFba) $('pkvPlanBtn').onclick = pkvPlanAsk;
+  const r = $('pkvResume'); if (r) r.onchange = () => { const s = open.find(x => x.id === r.value); if (s) pkvPick(s); };
+}
+/** An open session picked in the dialog; one of an FBA list is read afresh with its list. */
+function pkvPick(s) {
+  const listId = packFbaOn() && s.scan.fbaListId;
+  if (!listId) return pkvResume(s);
+  pkvStartList(listId).catch(e => { $('pkvMsg').textContent = 'Could not open: ' + (e.message || e); });
+}
+async function pkvStartList(listId) {
+  if (!listId) { $('pkvMsg').textContent = 'Choose an FBA list.'; return; }
+  $('pkvStart').disabled = true;     // one tap, one packing list
+  const got = await packFbaSession(listId, { invoice: $('pkvInv').value.trim(), handoverTo: $('pkvHand').value.trim() });
+  if (got.err) { $('pkvStart').disabled = false; $('pkvMsg').textContent = got.err; return; }
+  pkvResume(got.p);
 }
 function pkvPlanAsk() {
   if ($('pkvPlanTa')) { $('pkvPlanTa').focus(); return; }
@@ -71172,6 +72100,7 @@ function pkvPlanAsk() {
   ta.focus();
 }
 async function pkvStart() {
+  if (packFbaOn()) return pkvStartList($('pkvList').value);
   const inv = $('pkvInv').value.trim(), account = $('pkvAcc').value;
   const ords = $('pkvOrds').value.split(/[,;\s]+/).map(obUC).filter(Boolean);
   const bad = packOrdersUnknown(ords);
@@ -71192,8 +72121,10 @@ async function pkvStart() {
   pkvLoad(p);
 }
 function pkvResume(s) {
-  $('pkvAcc').value = s.account || FGI_FBA_ACCOUNTS[0]; $('pkvInv').value = s.invoice || ''; $('pkvHand').value = (s.scan && s.scan.handoverTo) || '';
-  $('pkvOrds').value = ((s.scan && s.scan.orders) || []).join(', ');
+  /* with FBA lists on there is no account or orders box: both come from the list */
+  const fill = (id, v) => { if ($(id)) $(id).value = v; };
+  fill('pkvAcc', s.account || FGI_FBA_ACCOUNTS[0]); fill('pkvInv', s.invoice || ''); fill('pkvHand', (s.scan && s.scan.handoverTo) || '');
+  fill('pkvOrds', ((s.scan && s.scan.orders) || []).join(', ')); fill('pkvList', (s.scan && s.scan.fbaListId) || '');
   pkvLoad(JSON.parse(JSON.stringify(s)));
 }
 function pkvLoad(p) {
@@ -71206,7 +72137,7 @@ function pkvLoad(p) {
 }
 function pkvShowWork() {
   $('pkvWork').classList.remove('hide'); $('pkvMsg').textContent = '';
-  ['pkvAcc', 'pkvInv', 'pkvHand', 'pkvOrds', 'pkvPlanBtn', 'pkvResume', 'pkvStart'].forEach(id => { if ($(id)) $(id).disabled = true; });
+  ['pkvList', 'pkvAcc', 'pkvInv', 'pkvHand', 'pkvOrds', 'pkvPlanBtn', 'pkvResume', 'pkvStart'].forEach(id => { if ($(id)) $(id).disabled = true; });
   const ta = $('pkvPlanTa'); if (ta) ta.remove();
   const box = $('pkvCode');
   box.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const v = box.value; box.value = ''; pkvOnCode(v, 'typed'); } };
@@ -71369,11 +72300,12 @@ async function pkvFinish() {
     live.forEach(b => (b.items || []).forEach(it => { const w = packWtOf(it.sku); if (!pkNum(it.perPcsWt) && w.wt) it.perPcsWt = w.wt; if (w.approx && w.wt && !pkNum(PK_WT[obUC(it.sku)])) learn[obUC(it.sku)] = w.wt; }));
     if (Object.keys(learn).length) { try { await savePkWt(learn); } catch (e) { /* the list still saves */ } }
     PKV.dirty = true; await pkvSaveNow();
-    if (PKV.err) { pkvSay('bad', 'The rows are written, but the list did not save: ' + esc(PKV.err), 'Press Finish again — nothing is written twice.'); return; }
+    if (PKV.err) { pkvSay('bad', (res.fbaList ? 'Saved as packed on the FBA list' : 'The rows are written') + ', but the list did not save: ' + esc(PKV.err), 'Press Finish again — nothing is written twice.'); return; }
     pkvCamStop();
-    try { renderFgi(); } catch (e) { /* the list is saved */ }
+    try { renderFgi(); if (res.fbaList) renderFba(); } catch (e) { console.warn('Pack & verify: the packing is saved, but the screen behind did not redraw:', e); }
     if (typeof renderPack === 'function' && PK_LOADED) { try { renderPack(); } catch (e) { /* not on that tab */ } }
-    pkvSay('good', res.already ? 'Packing list saved' : 'Packing list built', `${nf(live.length)} box(es) · ${nf((p.scan.ledgerIds || []).length)} Send to FBA row(s) · pack ${esc(p.id)}. The FBA Dispatch tab has the rows; the Packing List tab has the sheet, labels and the Amazon file.`);
+    if (res.fbaList) pkvSay('good', 'Packed', `${nf(live.length)} box(es) saved on the FBA list · pack ${esc(p.id)}. No stock has left: it ships from FBA Dispatch. The Packing List tab has the sheet, labels and the Amazon file.`);
+    else pkvSay('good', res.already ? 'Packing list saved' : 'Packing list built', `${nf(live.length)} box(es) · ${nf((p.scan.ledgerIds || []).length)} Send to FBA row(s) · pack ${esc(p.id)}. The FBA Dispatch tab has the rows; the Packing List tab has the sheet, labels and the Amazon file.`);
     $('pkvMsg').innerHTML = `Done. <button type="button" id="pkvAgain" class="ghost">Start another session</button>`;
     $('pkvAgain').onclick = () => { PKV.p = null; ptDlgClose(); pkvOpen(); };
   } finally { $('pkvFinish').disabled = false; }

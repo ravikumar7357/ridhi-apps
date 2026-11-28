@@ -8,6 +8,8 @@
  *             one not yet marked shipped, and any shipped after the Amazon figures were read. Air is reduced first.
  * What may leave: FBA only the Air + Sea + AWD pieces the stock covers, plus an admin's release; an issue for an order up to
  * that order's pending pieces within Custom, plus Excess; any other issue Excess only.
+ * With switch fbaList also on (fba-lists.js, 28 Nov): pieces on an FBA list not yet shipped come off the stock first, shown as
+ * "In FBA lists", and off that store's need for that lane. A shipped list's dispatch comes off its own lane only.
  *
  * Replenishment's full figures are read only by planners and admins, so their ERP notes the need for the store at
  * pt_fgiSettings/_fbaNeed/{SP|CPC} = { snapAt, at, by, skus: { SKU key: [air, sea, awd] in Amazon packs } } whenever it
@@ -27,6 +29,7 @@ const FGA_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const FGA_ASK_EVERY_MS = 60 * 60 * 1000;
 const FGA_ASKED_KEY = 'fbaNeedAskedAt';
 const FGA_TRIES = 3;
+const FGA_LANES = ['air', 'sea', 'awd'];   // the order of a noted need, and the order stock is given out
 /** The share columns of the stock list, in the order stock is given out. */
 const FGA_SHARES = [['photo', 'Photoshoot'], ['custom', 'Custom'], ['air', 'FBA Air'], ['sea', 'FBA Sea'], ['awd', 'FBA AWD'], ['excess', 'Excess']];
 let FGA_ASKED_AT = 0;   // this tab's last ask, for a browser that blocks saved settings
@@ -37,6 +40,9 @@ function fgaOn() {
   catch (e) { console.warn('India store shares: this browser blocks saved settings, so the switch uses its default.'); }
   return typeof window !== 'undefined' && !!window.__TEST_ERP;
 }
+
+/** The share columns shown: with FBA lists on, the pieces they keep come first after Photoshoot. */
+const fgaShareCols = () => (shpListsOn() ? [FGA_SHARES[0], ['listed', 'In FBA lists'], ...FGA_SHARES.slice(1)] : FGA_SHARES);
 
 /* ---- the noted FBA need ---- */
 const fgaNeedNode = () => (FGI.set || {})._fbaNeed || {};
@@ -143,7 +149,7 @@ async function fgaSignInCheck() {
 }
 
 /* ---- just before a stock-out save ---- */
-/** The ledger, the order book, the hand-overs, the website hold and the FBA need, read again. '' = go ahead, else the
+/** The ledger, the order book, the hand-overs, the website hold, the FBA need and the FBA lists, read again. '' = go ahead, else the
  *  sentence to show: this is stock, so nothing is saved on figures that could not be read. */
 async function fgaReread() {
   try {
@@ -160,8 +166,18 @@ async function fgaReread() {
 const fgaOpenLines = lines => lines.filter(l => ordSrcOf(l.orderNo) !== 'AMZ' && !l.shopDoneAt && !l.handedAt);
 const fgaClaim = l => ({ orderNo: l.orderNo, sku: l.sku, sets: l.qty, perSet: 1 });
 
-/** Dispatches still on the way to FBA, in pieces: Map of SKU key → { SP, CPC, '' (account unknown) }. Each dispatch counts
- *  once: not yet marked shipped, or shipped after its store's Amazon figures were read (no shipping time: made after). */
+/** One dispatch added to what is on the way for its SKU. A dispatch of an FBA list names its lane and is kept under
+ *  lanes[store], so it comes off that lane only; any other is spread Air first. A new record is returned. */
+function fgaWayAdd(had, store, lane, pcs) {
+  const i = shpListsOn() && store ? FGA_LANES.indexOf(lane) : -1;
+  if (i < 0) return Object.assign({}, had, { [store]: (had[store] || 0) + pcs });
+  const lanes = ((had.lanes || {})[store] || [0, 0, 0]).slice();
+  lanes[i] += pcs;
+  return Object.assign({}, had, { lanes: Object.assign({}, had.lanes, { [store]: lanes }) });
+}
+
+/** Dispatches still on the way to FBA, in pieces: Map of SKU key → { SP, CPC, '' (account unknown), lanes? }. Each dispatch
+ *  counts once: not yet marked shipped, or shipped after its store's Amazon figures were read (no shipping time: made after). */
 function fgaOnTheWay(rows, need) {
   const snapAtOf = store => Number(((need || {})[store] || {}).snapAt) || Infinity;
   const oldest = Math.min(...SHP_HOLD_STORES.map(snapAtOf));
@@ -173,7 +189,7 @@ function fgaOnTheWay(rows, need) {
     const store = FGA_STORE_OF[r.issuedFor] || '';
     if (st === 'shipped' && !(Date.parse(r.fbaShippedAt || r.createdAt) > (store ? snapAtOf(store) : oldest))) return;
     const key = shpHoldKey(r.sku), had = out.get(key) || {};
-    out.set(key, Object.assign({}, had, { [store]: (had[store] || 0) + open }));
+    out.set(key, fgaWayAdd(had, store, r.fbaLane, open));
   });
   return out;
 }
@@ -183,29 +199,35 @@ function fgaOnTheWay(rows, need) {
 function fgaBook(without, need = fgaNeedNode()) {
   const rows = without && without.size ? (FGI.rows || []).filter(r => !without.has(r._id || r.id)) : (FGI.rows || []);
   const open = fgaOpenLines(ordLines());
-  return { rows, open, need, onTheWay: fgaOnTheWay(rows, need),
+  return { rows, open, need, onTheWay: fgaOnTheWay(rows, need), allotted: shpListsOn() ? fblAllotted(fblLists()) : {},
     ordered: shpHoldBuild(open.filter(l => !l.shopOrderId).map(fgaClaim), rows) };
 }
 
-/** The pieces FBA still asks for, per lane, for these stores, less what is on the way (Air first, then Sea, then AWD). */
+/** The pieces FBA still asks for, per lane, for these stores. Each store's lane first loses what is on its FBA lists and on
+ *  the way for that lane (a list's pieces leave the lists as they ship, so they count once); the rest on the way then comes
+ *  off Air first, then Sea, then AWD. */
 function fgaLanes(sku, book, stores) {
-  const key = shpHoldKey(sku), pack = fgiPackOf(sku), way = book.onTheWay.get(key) || {};
-  const asked = [0, 1, 2].map(i => stores.reduce((n, s) => n + (Number(((((book.need || {})[s] || {}).skus || {})[key] || [])[i]) || 0) * pack, 0));
+  const key = shpHoldKey(sku), pack = fgiPackOf(sku), way = book.onTheWay.get(key) || {}, listed = book.allotted[key] || {};
+  const met = (s, i) => ((listed[s] || [])[i] || 0) + (((way.lanes || {})[s] || [])[i] || 0);
+  const asked = [0, 1, 2].map(i => stores.reduce((n, s) =>
+    n + Math.max(0, (Number(((((book.need || {})[s] || {}).skus || {})[key] || [])[i]) || 0) * pack - met(s, i)), 0));
   let coming = stores.concat('').reduce((n, s) => n + (way[s] || 0), 0);
   const [air, sea, awd] = asked.map(n => { const met = Math.min(n, coming); coming -= met; return n - met; });
   return { air, sea, awd };
 }
 
-/** A SKU's stock shared out: { photo, custom, air, sea, awd, excess }, adding up to the stock (never below 0).
+/** A SKU's stock shared out: { photo, custom, air, sea, awd, excess }, and with FBA lists on { listed }, the pieces they
+ *  keep, taken first. The shares add up to the stock (never below 0).
  *  stores narrows the FBA lanes for viewing; a save is always judged on both. */
 function fgaShares(sku, current, hold, book, stores = SHP_HOLD_STORES) {
   let left = Math.max(0, current);
   const take = wanted => { const n = Math.min(left, Math.max(0, wanted)); left -= n; return n; };
+  const kept = shpListsOn() ? { listed: take((book.allotted[shpHoldKey(sku)] || {}).total || 0) } : {};
   const lanes = fgaLanes(sku, book, stores);
   const photo = take(0);                                  // no Photoshoot figures yet
   const custom = take((book.ordered[shpHoldKey(sku)] || 0) + fgiHeld(sku, hold));
   const air = take(lanes.air), sea = take(lanes.sea), awd = take(lanes.awd);
-  return { photo, custom, air, sea, awd, excess: left };
+  return Object.assign({ photo, custom, air, sea, awd, excess: left }, kept);
 }
 
 /* ---- FBA ---- */
@@ -281,10 +303,10 @@ const fgaNum = n => (n ? nf(n) : '<span class="muted">—</span>');
 function fgaCells(r) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
   return `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
-    + FGA_SHARES.map(([k]) => `<td class="num">${fgaNum(r.alloc[k])}</td>`).join('');
+    + fgaShareCols().map(([k]) => `<td class="num">${fgaNum(r.alloc[k])}</td>`).join('');
 }
-const fgaCardFigs = r => FGA_SHARES.map(([k, label]) => `<span>${label} <b>${nf(r.alloc[k])}</b></span>`).join('');
+const fgaCardFigs = r => fgaShareCols().map(([k, label]) => `<span>${label} <b>${nf(r.alloc[k])}</b></span>`).join('');
 /** Is some of this stock kept from FBA, so a release would mean something? */
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
-const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'In Stock', ...FGA_SHARES.map(s => s[1])];
-const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, Math.max(0, r.current), ...FGA_SHARES.map(([k]) => r.alloc[k])];
+const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'In Stock', ...fgaShareCols().map(s => s[1])];
+const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, Math.max(0, r.current), ...fgaShareCols().map(([k]) => r.alloc[k])];

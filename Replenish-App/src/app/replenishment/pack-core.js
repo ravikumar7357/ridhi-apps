@@ -184,9 +184,97 @@ function packScanNew(orders, plan, planNo, handoverTo) {
     done: false
   };
 }
+/* ---- packing an FBA list (28 Nov, fba-lists.js; switch fbaList) ----
+ * With the switch on, packing never takes stock out: it is saved on an FBA list and the pieces leave on FBA Dispatch.
+ * One packing list per FBA list, found by its id, so two PCs opening the same list carry on in the same one. A list that
+ * cannot be read or a packing that cannot be saved is said to the packer; nothing is written then. */
+const packFbaOn = () => typeof fblOn === "function" && fblOn();
+const PACK_NO_FBA_LIST = "FBA lists are on: stock leaves only through an FBA list. Nothing leaves stock from this packing list — start a new one and choose the FBA list.";
+const packFbaIdOf = (listId) => "PK-" + listId;
+const packFbaPackable = (list) => !!list && ["open", "packed"].includes(list.status);
+/** False only for the packing list of an FBA list that has since been shipped or cancelled. */
+const packFbaStillOpen = (p) => !(packFbaOn() && p.scan && p.scan.fbaListId) || packFbaPackable(fblLists()[p.scan.fbaListId]);
+/** Read the FBA lists as they are now: "" or why not. */
+async function packFbaListsRead() {
+  try {
+    fblKeepAll(await ptGetFresh(FBL_PATH) || {});
+    return "";
+  } catch (e) {
+    return "The FBA lists could not be read (" + (e.message || e) + "). Check the connection and open this again.";
+  }
+}
+/** The FBA lists that can be packed, as drop-down options. */
+function packFbaOptions() {
+  return '<option value="">— choose an FBA list —</option>' + Object.entries(fblLists()).filter(([, l]) => packFbaPackable(l)).map(([id, l]) => {
+    const lines = Object.values(l.lines || {}), pcs = lines.reduce((s, x) => s + fgiNum(x.qty), 0);
+    const label = [fblvTitle(l), "made " + ptDayWords(l.at), lines.length + " SKU(s)", nf(pcs) + " pcs", l.status].join(" · ");
+    return `<option value="${esc(id)}">${esc(label)}</option>`;
+  }).join("");
+}
+/** The packing list of an FBA list, holding the list's SKUs and pieces as they are now: { p } or { err }.
+ * head: { title, invoice, handoverTo }, used when it is made. */
+async function packFbaSession(listId, head) {
+  const blocked = fblBlocked();
+  if (blocked) return { err: blocked };
+  try {
+    const { open } = await fblReadOne(listId);
+    if (!packFbaPackable(open)) return { err: "This FBA list is no longer open for packing — press Refresh." };
+    const id = packFbaIdOf(listId), had = await getDoc(doc(db, "packlist", id));
+    const lines = Object.values(open.lines).map((l) => ({ sku: l.sku, qty: l.qty }));
+    if (had.exists()) {
+      const saved = Object.assign({ id }, had.data());
+      const p = Object.assign({}, saved, { account: open.account, scan: Object.assign({}, saved.scan, { plan: lines }) });
+      PK = [p].concat(PK.filter((x) => x.id !== id));
+      return { p };
+    }
+    const p = {
+      id,
+      date: pkToday(),
+      invoice: head.invoice || "",
+      title: head.title || "Scan " + pkToday() + (head.invoice ? " · " + head.invoice : ""),
+      account: open.account,
+      status: "progress",
+      pkgWt: PK_DEF.pkgWt,
+      volDiv: PK_DEF.volDiv,
+      boxes: [],
+      by: ME.email || "",
+      src: "scan",
+      scan: Object.assign(packScanNew([], lines, listId, head.handoverTo || ""), { fbaListId: listId })
+    };
+    await savePkOne(p);
+    return { p };
+  } catch (e) {
+    return { err: "Could not open the packing list of this FBA list: " + (e.message || e) + " — try again." };
+  }
+}
+/** The pieces in the boxes, per SKU. */
+function packBoxTotals(p) {
+  const out = {};
+  (p.boxes || []).forEach((b) => (b.items || []).forEach((it) => {
+    const sku = obUC(it.sku), q = Number(it.qty) || 0;
+    if (sku && q > 0) out[sku] = (out[sku] || 0) + q;
+  }));
+  return out;
+}
+/** Finish, with FBA lists on: what is in the boxes is saved on the list. No stock moves, so it is safe to do again. */
+async function packFbaFinish(p, handoverTo) {
+  const listId = p.scan.fbaListId;
+  if (!listId) return { err: PACK_NO_FBA_LIST };
+  const packed = packBoxTotals(p);
+  if (!Object.keys(packed).length) return { err: "Nothing packed yet — scan at least one piece." };
+  const why = await fblPackSave(listId, p.id, packed);
+  if (why) return { err: why };
+  if (handoverTo != null) p.scan.handoverTo = String(handoverTo || "").trim();
+  p.scan.done = true;
+  p.scan.doneAt = (/* @__PURE__ */ new Date()).toISOString();
+  p.scan.doneBy = ME.email || "";
+  return { rows: [], fbaList: true };
+}
 function packOrderLines(scan) {
   const out = [];
   if (!scan) return out;
+  /* the pieces of an FBA list are already kept for it: the list's quantity is what may be packed */
+  if (scan.fbaListId) return (scan.plan || []).map((l) => ({ sku: obUC(l.sku), orderNo: scan.planNo, qty: l.qty, store: l.qty, plan: true }));
   (scan.plan || []).forEach((l) => out.push({ sku: obUC(l.sku), orderNo: scan.planNo, qty: l.qty, store: fgiOf(l.sku).current, plan: true }));
   const want = new Set((scan.orders || []).map(obUC).filter(Boolean));
   if (want.size) {
@@ -225,6 +313,8 @@ async function packLedgerWrite(p, handoverTo) {
   if (!p) return { err: "No packing list open." };
   p.scan = p.scan || packScanNew([], [], "", "");
   if ((p.scan.ledgerIds || []).length) return { rows: [], already: true };
+  /* the packing list of an FBA list never writes stock-out rows, even on a computer where the switch is off */
+  if (packFbaOn() || p.scan.fbaListId) return packFbaFinish(p, handoverTo);
   if (!fgiCanEntry()) return { err: FGI_NO_ENTRY };
   if (FGI_FBA_ACCOUNTS.indexOf(p.account) < 0) return { err: `Pick the FBA account — ${FGI_FBA_ACCOUNTS.join(" or ")}.` };
   const why = await packDataReady();

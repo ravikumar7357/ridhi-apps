@@ -21,7 +21,7 @@ const breaks = {
   'an older read overwrites': [H, 'if (!(figure.at > noted.at)) return false;', ''],
   'an old figure is never refreshed': [H, 'figure.at - noted.at > SHP_HOLD_REWRITE_MS || ', ''],
   'anybody may release': [H, 'if (!(ME && ME.admin))', 'if (false)'],
-  'a release is used when not needed': [H, 'let owed = w.qty - Math.max(0, w.current - fgiHeld(w.sku, hold));', 'let owed = w.qty;'],
+  'a release is used when not needed': [H, 'let owed = w.qty - fgiPlanShare(w, hold, book);', 'let owed = w.qty;'],
   'a failed save keeps the release': [H, 'left: Number(r.left) + pcs,', 'left: Number(r.left),'],
   'a failed give-back is not said': [H, 'were NOT given back', 'were given back'],
   'an edit judges the whole row again': [H, 'const more = fgiNum(now.qty) - fgiNum(was.qty);', 'const more = fgiNum(now.qty);'],

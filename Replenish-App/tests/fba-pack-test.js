@@ -1,0 +1,151 @@
+/* PACKING AN FBA LIST (28 Nov): with FBA lists on, Pack & verify and Scan to pack pack a list, and no stock leaves.
+ * The real list rules (fba-lists.js) and both packing screens, over a made-up database.
+ *   node tests/fba-pack-test.js      (teeth/teeth-fba-pack.js runs it against broken copies) */
+const fs = require('fs'), path = require('path');
+const APP = path.join(__dirname, '..', 'src', 'app');
+const R = (f, env) => fs.readFileSync(process.env[env] || path.join(APP, f), 'utf8');
+const SRC = [R('replenishment/pack-core.js', 'PKC_SRC'), R('replenishment/pack-scan.js', 'PKS_SRC'),
+  R('inventory/fba-lists.js', 'FBL_SRC'), R('inventory/pack-verify.js', 'PKV_SRC')].join('\n');
+let pass = 0, fail = 0;
+const ok = (name, cond, extra) => { if (cond) { pass++; console.log('  PASS ' + name); } else { fail++; console.log('  FAIL ' + name + (extra ? ' — ' + extra : '')); } };
+const copy = v => (v === undefined || v === null ? null : JSON.parse(JSON.stringify(v)));
+const tick = () => new Promise(r => setTimeout(r, 5));
+
+const aList = o => Object.assign({ account: 'CPC FBA', store: 'CPC', lane: 'sea', status: 'open', by: 'team@test', at: '2026-11-28T05:00:00.000Z',
+  lines: { A: { sku: 'A', qty: 2, packed: 0 } } }, o);
+
+/** o: { sw: '1' | '0', tab (false: no FBA Dispatch tab), entry (stock-entry right), lists, docs, readFails, saveFails } */
+function load(o = {}) {
+  const els = {}, dialogs = [], patches = [], writes = [], msgs = [], drawn = { fba: 0 };
+  const lists = copy(o.lists || { L1: aList(), GONE: aList({ status: 'shipping' }) });
+  const docs = copy(o.docs || {});
+  const mk = id => ({ id, value: '', textContent: '', innerHTML: '', className: '', style: {}, disabled: false, classList: { toggle() {}, add() {}, remove() {} },
+    focus() {}, remove() {}, prepend() {}, addEventListener() {}, onclick: null });
+  /* an id is on the page only when the dialog or panel just drawn has it */
+  const FIXED = /^(pkvList|pkvAcc|pkvOrds|pkvPlanBtn|pkvResume|pkvPlanTa|pkvCloseForm|pksDoneAcc|pksDoneHand|pksQcBox)$/;
+  const el = id => {
+    if (FIXED.test(id) && !els[id] && !dialogs.some(d => (d.html || '').includes(`id="${id}"`))) return null;
+    return els[id] || (els[id] = mk(id));
+  };
+  const at = p => (p === 'pt_fgiSettings/_fbaLists' ? lists : p.startsWith('pt_fgiSettings/_fbaLists/') ? lists[p.split('/')[2]] : null);
+  const ctx = {
+    $: el, document: { createElement: () => mk('x'), body: { appendChild() {} }, head: { appendChild() {} }, querySelector: () => null }, window: {}, navigator: {},
+    localStorage: { getItem: k => (k === 'fbaList' ? o.sw || '1' : null), setItem() {}, removeItem() {} }, fgaOn: () => true,
+    ME: { email: 'team@test' }, fbaCan: () => o.tab !== false, fgiCanEntry: () => !!o.entry, FGI_NO_ENTRY: 'no stock right', FGI_FBA_ACCOUNTS: ['Ridhi FBA', 'CPC FBA'],
+    obUC: s => String(s == null ? '' : s).trim().toUpperCase(), shpHoldKey: s => String(s).trim().toUpperCase(), pkNum: v => Number(v) || 0, fgiNum: v => Number(v) || 0,
+    nf: String, esc: String, ptDayWords: d => String(d).slice(0, 10), fblvTitle: l => l.lane + ' · ' + l.account, confirm: () => true,
+    ptGetFresh: async p => { if (o.readFails) throw new Error('no signal'); return copy(at(p)); },
+    ptCas: async (p, expect, next) => { writes.push(p); lists[p.split('/')[2]] = copy(next); return ''; },
+    ptPatch: async patch => { patches.push(patch); }, ptGet: async () => ({}), ptList: v => Object.values(v || {}),
+    db: {}, doc: (_, c, id) => id, getDoc: async id => ({ exists: () => !!docs[id], data: () => copy(docs[id]) }),
+    savePkOne: async p => { if (o.saveFails) throw new Error('offline'); docs[p.id] = copy(p); ctx.PK_ADD(p); },
+    FGI: { rows: [], set: {}, err: '' }, fgiLoad: async () => {}, fgiStockReread: async () => '', fgiOf: () => ({ current: 0 }),
+    fgiOutCheck: () => '', fgiOutAlloc: () => ({ orders: [] }), fgiOutOrders: () => [], ordLines: () => [], fgiOrderKnown: () => true,
+    fgiNewId: p => p + '-X', fbaBadge() {}, fgiOverBadge() {}, lstAlertFor: async () => '', renderFgi() {}, renderFba: () => { drawn.fba++; }, renderPack() {},
+    FN: { map: new Map() }, fnLoad: async () => {}, PTG: { mdb: [{ sku: 'A' }, { sku: 'B' }] }, PK_META: {}, mdbOf: () => null, replRowMap: () => ({}),
+    pkLookupSku: () => ({}), pkTotals: p => ({ boxes: (p.boxes || []).length, qty: 0 }), PK_WT: {}, PK_LOADED: true, loadPk: async () => {}, loadPkWt: async () => {},
+    savePkWt: async () => {}, PK_DEF: { pkgWt: 1.5, volDiv: 5000 }, pkToday: () => '2026-11-28', pkId: () => 'PKNEW', pkMsg: t => msgs.push(t),
+    ptOpenDialog: c => { dialogs.length = 0; Object.keys(els).filter(k => /^(pk[sv])/.test(k)).forEach(k => delete els[k]); dialogs.push(c); }, ptDlgClose() {},
+    setTimeout, clearTimeout,
+  };
+  const body = Object.keys(ctx).filter(k => k !== 'PK_ADD');
+  const api = new Function('PK_START', 'REG', ...body, `let PK = PK_START;
+    REG(p => { PK = [p].concat(PK.filter(x => x.id !== p.id)); });
+    ${SRC}
+    return { PKS, PKV: () => PKV.p, pkvOpen, pkvOpenFbaList, pkvStart, pkvOnCode, pkvFinish, pksStart, pksCount, pksFinishAsk, pksDone,
+      packScanNew, packOrderLines, packLedgerWrite };`)(Object.values(docs).map(copy), f => { ctx.PK_ADD = f; }, ...body.map(k => ctx[k]));
+  return Object.assign(api, { els, el, dialogs, patches, writes, msgs, lists, docs, drawn });
+}
+const boxed = (p, sku, qty) => Object.assign(p, { boxes: [{ n: 1, items: [{ sku, qty }] }] });
+const listSession = qty => boxed({ id: 'PK-L1', account: 'CPC FBA', scan: { orders: [], plan: [{ sku: 'A', qty: 2 }], planNo: 'L1', fbaListId: 'L1', packed: {}, wrong: [], ledgerIds: [] } }, 'A', qty);
+
+(async () => {
+  console.log('== Finish: saved on the list, no stock rows ==');
+  let A = load(), p = listSession(2), r = await A.packLedgerWrite(p, 'Raju');
+  ok('saved as packed on the list, with the pack id', !r.err && r.fbaList && A.lists.L1.status === 'packed' && A.lists.L1.lines.A.packed === 2 && A.lists.L1.packId === 'PK-L1', JSON.stringify(r));
+  ok('no ledger row, no ledger id; marked done with the handover', A.patches.length === 0 && p.scan.ledgerIds.length === 0 && p.scan.done && p.scan.handoverTo === 'Raju');
+  r = await A.packLedgerWrite(p, 'Raju');
+  ok('Finish again is safe', !r.err && A.lists.L1.lines.A.packed === 2 && A.patches.length === 0);
+  r = await A.packLedgerWrite(boxed(p, 'A', 3), '');
+  ok('more than the list is refused', /no more than that/.test(r.err) && A.lists.L1.lines.A.packed === 2);
+  r = await A.packLedgerWrite(boxed(p, 'B', 1), '');
+  ok('a SKU not on the list is refused', /not on this FBA list/.test(r.err));
+  r = await A.packLedgerWrite({ id: 'E', boxes: [], scan: p.scan }, '');
+  ok('empty boxes: nothing packed yet', /Nothing packed/.test(r.err) && A.lists.L1.lines.A.packed === 2);
+  A = load({ entry: true });
+  r = await A.packLedgerWrite(boxed({ id: 'BOX', account: 'Ridhi FBA', scan: null }, 'A', 1), '');
+  ok('a free box list writes no stock-out row', /only through an FBA list/.test(r.err) && A.patches.length === 0 && A.writes.length === 0);
+  A = load({ sw: '0', entry: true });
+  r = await A.packLedgerWrite(listSession(1), '');
+  ok('switch off: a list session still writes no stock rows', /switched off/.test(r.err) && A.patches.length === 0);
+
+  console.log('== only the list counts ==');
+  A = load();
+  const ls = A.packOrderLines(listSession(0).scan);
+  ok('a list line holds its own quantity as the store figure', ls.length === 1 && ls[0].store === 2 && ls[0].qty === 2 && ls[0].orderNo === 'L1', JSON.stringify(ls));
+
+  console.log('== Pack & verify ==');
+  A = load();
+  await A.pkvOpen();
+  const html = A.dialogs[0].html;
+  ok('FBA tab, no stock right: opens, offering open lists only, no orders or plan boxes', /value="L1"/.test(html) && !/value="GONE"/.test(html) && !/pkvOrds|pkvPlanBtn|pkvAcc/.test(html), html);
+  await A.pkvStart();
+  ok('no list chosen: said, nothing made', /Choose an FBA list/.test(A.els.pkvMsg.textContent) && !Object.keys(A.docs).length);
+  A.el('pkvList').value = 'L1'; await A.pkvStart();
+  p = A.PKV();
+  ok('one packing list for the FBA list, account from it', p && p.id === 'PK-L1' && p.account === 'CPC FBA' && p.scan.fbaListId === 'L1' && p.scan.planNo === 'L1' && Object.keys(A.docs).length === 1);
+  A.pkvOnCode('A', 'camera'); A.pkvOnCode('B', 'camera'); A.pkvOnCode('A', 'camera'); A.pkvOnCode('A', 'camera');
+  ok('only listed SKUs and pieces count', p.boxes[0].items.length === 1 && p.boxes[0].items[0].qty === 2 && p.scan.wrong.length === 1);
+  await A.pkvFinish();
+  ok('Finish says it is packed and ships from FBA Dispatch, which is redrawn', A.lists.L1.lines.A.packed === 2 && /ships from FBA Dispatch/.test(A.els.pkvFbSub.innerHTML) && A.drawn.fba === 1 && A.patches.length === 0, A.els.pkvFbSub.innerHTML);
+
+  const had = listSession(1);
+  had.scan.plan = [{ sku: 'A', qty: 9 }];
+  A = load({ docs: { 'PK-L1': had } });
+  await A.pkvOpenFbaList('L1');
+  p = A.PKV();
+  ok('from FBA Dispatch: the saved packing carries on, with the list as it is now', p.id === 'PK-L1' && p.boxes[0].items[0].qty === 1 && p.scan.plan[0].qty === 2 && Object.keys(A.docs).length === 1);
+  A = load();
+  await A.pkvOpenFbaList('GONE');
+  ok('a list no longer open: said in the dialog, nothing made', /no longer open/.test(A.els.pkvMsg.textContent) && !A.PKV() && !Object.keys(A.docs).length);
+  A = load({ tab: false, entry: true });
+  await A.pkvOpenFbaList('L1');
+  ok('without the FBA Dispatch tab: refused', /FBA team/.test(A.els.pkvMsg.textContent) && !Object.keys(A.docs).length);
+  A = load({ saveFails: true });
+  await A.pkvOpenFbaList('L1');
+  ok('the packing list cannot be made: said', /Could not open the packing list/.test(A.els.pkvMsg.textContent) && !A.PKV());
+  A = load({ sw: '0', entry: true });
+  await A.pkvOpen();
+  ok('switch off: orders and plan as before', /pkvOrds/.test(A.dialogs[0].html) && !/pkvList/.test(A.dialogs[0].html));
+
+  console.log('== Scan to pack ==');
+  A = load({ tab: false, entry: true });
+  await A.pksStart('order');
+  A.el('pksFbaPick').value = 'L1';
+  ok('without the FBA Dispatch tab a list cannot be opened here either', /FBA team/.test(await A.dialogs[0].onSave()) && !Object.keys(A.docs).length);
+  const shippedDoc = Object.assign(listSession(1), { id: 'PK-OLD', title: 'old' });
+  shippedDoc.scan.fbaListId = 'OLD';
+  A = load({ docs: { 'PK-OLD': shippedDoc } });
+  await A.pksStart('order');
+  let d = A.dialogs[0];
+  ok('pack by order offers FBA lists, no orders or plan; a shipped list is not offered again', /pksFbaPick/.test(d.html) && !/pksOrds|pksPlan|pksAcc/.test(d.html) && !/PK-OLD/.test(d.html), d.html);
+  ok('no list chosen: asked', /Choose an FBA list/.test(await d.onSave()));
+  A.el('pksFbaPick').value = 'L1';
+  ok('a list chosen: its packing list opens', await d.onSave() === '' && A.PKS.p.id === 'PK-L1' && A.PKS.p.scan.fbaListId === 'L1');
+  await tick();
+  A.pksCount('A'); A.pksCount('A');
+  ok('the third piece and an unlisted SKU do not count', A.pksCount('A').ok === false && A.pksCount('B').kind === 'wrong');
+  A.pksFinishAsk();
+  ok('the finish card: save as packed, ships from FBA Dispatch', /save as packed/.test(A.els.pksCard.innerHTML) && /ships from FBA Dispatch/.test(A.els.pksCard.innerHTML) && !/Send to FBA/.test(A.els.pksCard.innerHTML));
+  await A.pksDone();
+  ok('Done: packed on the list, no stock rows, said so', A.lists.L1.lines.A.packed === 2 && A.patches.length === 0 && /ships from FBA Dispatch/.test(A.msgs.join('|')), A.msgs.join('|'));
+  await A.pksStart('box');
+  d = A.dialogs[0];
+  await d.onSave(); await tick();
+  A.pksCount('A'); A.pksFinishAsk();
+  ok('box pack scan: no Done button, says why', /only through an FBA list/.test(A.els.pksCard.innerHTML) && !/pksDoneBtn/.test(A.els.pksCard.innerHTML));
+  A.PKS.on = false; clearTimeout(A.PKS.saveT);
+
+  console.log(`\n${pass} passed, ${fail} failed`);
+  process.exit(fail ? 1 : 0);
+})().catch(e => { console.error(e); process.exit(1); });

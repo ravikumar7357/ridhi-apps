@@ -2,8 +2,10 @@
  *   node tests/teeth/teeth-fba-repeat.js */
 const fs = require('fs'), os = require('os'), path = require('path'), { spawnSync } = require('child_process');
 const APP = path.join(__dirname, '..', '..', 'src', 'app');
+const HOLD = 'inventory/fg-shop-hold.js';
 const R = 'inventory/fg-fba-repeat.js', FORM = 'inventory/fg-other-movements.js', SCAN = 'inventory/fg-scanning.js', CORE = 'replenishment/pack-core.js', EDIT = 'inventory/fg-corrections.js', LIST = 'inventory/finished-goods.js';
 const breaks = {
+  'FBA lists do not close the other ways': [HOLD, 'return FGI_FBA_BY_LIST;', '{}'],
   'a shorter window': [R, 'const FAP_DAYS = 7;', 'const FAP_DAYS = 6;'],
   'a longer window': [R, 'const FAP_DAYS = 7;', 'const FAP_DAYS = 8;'],
   'UTC dates': [R, 'new Date(ms + 330 * 60000)', 'new Date(ms)'],

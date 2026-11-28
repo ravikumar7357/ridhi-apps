@@ -268,6 +268,11 @@ async function fbaUndo(id) {
   const [{ row }] = await fbaFresh([id]);
   if (!row) { fbaForget([{ id, row: null }]); renderFba(); return 'That dispatch was deleted from the store.'; }
   const s = fbaState(row), updates = {};
+  /* a movement an FBA list shipped is undone with its whole list */
+  if (s.st === 'shipped' && row.fbaListId) {
+    await fblvUndoAsk(row.fbaListId);
+    return '';
+  }
   let what = '', backs = [];
   if (s.st === 'shipped') {
     /* A PART-SHIPMENT TAKES ITS LEFTOVER RETURN WITH IT. Shipping fewer pieces than were open wrote a

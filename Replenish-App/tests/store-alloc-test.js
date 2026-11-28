@@ -256,6 +256,98 @@ const { same, cut, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, store, sp
     ok('switch off: the old columns', off.includes('Shopify held') && off.includes('>Value<') && !off.includes('Excess'));
   }
 
+  console.log('== FBA lists (switch fbaList) ==');
+  {
+    /* 20 of A: 2 on Ridhi's Sea list, 1 on CPC's AWD list; a shipped one keeps nothing */
+    const onList = (store_, lane, qty, status) => ({ store: store_, lane, status: status || 'open', lines: { A: { sku: 'A', qty, packed: 0 } } });
+    const LISTS = { L1: onList('SP', 'sea', 2), L2: onList('CPC', 'awd', 1, 'packed'), L3: onList('SP', 'air', 9, 'shipped') };
+    const withLists = (o, lists = LISTS) => {
+      const S = store(o);
+      S.run(appFile('inventory/fba-lists.js'));
+      S.saved.fbaList = (o && o.fbaList) || '1';
+      S.db._fbaLists = JSON.parse(JSON.stringify(lists));
+      S.ctx.FGI.set._fbaLists = JSON.parse(JSON.stringify(lists));
+      return S;
+    };
+    const kept = (s, listed) => Object.assign(s, { listed });
+    const S = withLists({});
+    ok('listed pieces come off first, and off that lane\'s need', same(S.shares(), kept(split(0, 6, 3, 2, 1, 5), 3)), JSON.stringify(S.shares()));
+    ok('short stock: the lists are served before Custom', same(S.shares(5), kept(split(0, 2, 0, 0, 0, 0), 3)), JSON.stringify(S.shares(5)));
+    ok('a store\'s list lowers only that store\'s need', same(withLists({ need: { SP: [0, 1, 0], CPC: [0, 4, 0] } }).shares(), kept(split(0, 6, 0, 4, 0, 7), 3)));
+    ok('a list beyond its lane\'s need takes nothing from other lanes', withLists({}, { L: onList('SP', 'sea', 9) }).shares().air === 3);
+    ok('FBA without a release: the lanes only', S.free() === 6);
+    ok('an issue not for an order stays within Excess', issueWhy(withLists({}, { L: onList('SP', 'sea', 14) }), 1) !== '' && issueWhy(S, 5) === '');
+    const off = withLists({ fbaList: '0' });
+    ok('switch off: lists change nothing', same(off.shares(), split(0, 6, 3, 4, 2, 5)) && off.free() === 9, JSON.stringify(off.shares()));
+    ok('switch off: no list column', off.run('fgaExportHead()').length === 13);
+
+    const lanes = (rows, o) => { const s = withLists(Object.assign({ web: 0, lines: [], rows: [row('O', 'OPENING', 100)].concat(rows) }, o), {}).shares(100); return [s.air, s.sea, s.awd]; };
+    ok('a list\'s dispatch comes off its own lane', same(lanes([sent('a', 3, { fbaLane: 'sea' })]), [3, 1, 2]));
+    ok('…and no further than that lane', same(lanes([sent('a', 8, { fbaLane: 'sea' })]), [3, 0, 2]));
+    ok('two of them add up', same(lanes([sent('a', 1, { fbaLane: 'awd', issuedFor: 'CPC FBA' }), sent('b', 1, { fbaLane: 'awd', issuedFor: 'CPC FBA' })]), [3, 4, 0]));
+    ok('old rows still spill Air first, after it', same(lanes([sent('a', 3, { fbaLane: 'air' }), sent('b', 2)]), [0, 2, 2]));
+    ok('switch off: a lane on a row is ignored', same(lanes([sent('a', 3, { fbaLane: 'sea' })], { fbaList: '0' }), [0, 4, 2]));
+
+    const T = withLists({ need: { SP: [3, 4, 0] }, rows: [row('O', 'OPENING', 20)] }, {});
+    T.db._fbaLists = { L: onList('SP', 'air', 3) };
+    await T.ctx.fgiStockReread();
+    ok('a stock-out save takes the lists as they are now', T.shares().listed === 3 && T.shares().air === 0);
+    T.db._fbaLists = { L: onList('SP', 'air', 1) };
+    await T.ctx.fgiHoldReread();
+    ok('an FBA check does too', T.shares().listed === 1);
+    const U = withLists({ unread: '_fbaLists' });
+    ok('lists unreadable: refused', /could not be checked/.test(await U.ctx.fgiStockReread()));
+    const V = withLists({ unread: '_fbaLists', fbaList: '0' });
+    ok('switch off: the lists are not read', await V.ctx.fgiStockReread() === '');
+
+    const releases = { r: { sku: 'A', pcs: 5, left: 5, reason: 'x', at: 't' } };
+    const plan = (qty, share, current = 20) => JSON.parse(JSON.stringify(withLists({ releases })
+      .run(`fgiReleasePlan(fgiHoldNode(), [{ sku: "A", qty: ${qty}, current: ${current}, list: true, share: ${share} }], {})`)));
+    ok('a list within its own share uses no release', same(plan(2, 2).used, {}) && plan(2, 2).short.length === 0);
+    ok('beyond it the release pays the rest only', same(plan(6, 2).used, { r: 4 }));
+    ok('share and releases are the limit, not the FBA share', plan(8, 2).short[0].free === 7);
+    ok('never more than the stock', plan(5, 4, 4).short[0].free === 4);
+
+    const save = async (o, want) => {
+      const W = withLists(Object.assign({ releases }, o));
+      Object.assign(W.ctx, { got: null, wrote: 0 });
+      const said = await W.run(`fgiFbaWrite([${want}], async used => { wrote++; got = used; ${o.fails ? 'throw new Error("offline");' : ''} })`);
+      return { W, said, used: JSON.parse(JSON.stringify(W.ctx.got)), wrote: W.ctx.wrote };
+    };
+    const LIST_WANT = '{ sku: "A", qty: 4, current: 20, list: true, share: 1 }';
+    const a = await save({}, LIST_WANT);
+    ok('the save is told what it used', a.said === '' && same(a.used, { r: 3 }) && a.W.db._shopHold.releases.r.left === 2, a.said);
+    const f = await save({ fails: true }, LIST_WANT);
+    ok('a failed save gives them back', /Not saved: offline.*were given back/.test(f.said) && f.W.db._shopHold.releases.r.left === 5, f.said);
+    const plain = await save({}, '{ sku: "A", qty: 1, current: 20 }');
+    ok('any other new FBA is refused, nothing saved or used', plain.said === 'FBA now goes by FBA lists — make one on Finished Goods.'
+      && plain.wrote === 0 && plain.W.db._shopHold.releases.r.left === 5, plain.said);
+    const mixed = await save({}, LIST_WANT + ', { sku: "A", qty: 1, current: 20 }');
+    ok('one such want refuses the whole save', /FBA lists/.test(mixed.said) && mixed.wrote === 0);
+    const b = await save({}, '{ sku: "A", qty: 1, current: 20, back: true }');
+    ok('a return put back with the FBA team goes', b.said === '' && b.wrote === 1, b.said);
+    const bb = await save({ releases: {} }, '{ sku: "A", qty: 7, current: 20, back: true }');
+    ok('…within what FBA may take beside the lists', /free for FBA/.test(bb.said) && bb.wrote === 0, bb.said);
+    ok('switch off: other FBA goes as before', (await save({ fbaList: '0' }, '{ sku: "A", qty: 1, current: 20 }')).said === '');
+    const n = await save({}, '');
+    ok('nothing new to FBA: only written', n.said === '' && n.wrote === 1 && same(n.used, {}));
+    ok('a deleted return is marked as putting back', withLists({}).run('fgiFbaReturnWants([{ _id: "R", txnType: "FBA_RETURN", sku: "A", qty: 2, linkedFbaId: "F" }])[0].back') === true);
+
+    const ed = editStore({ rows: [row('O', 'OPENING', 25), movement('FBA', 5)] });
+    ed.run(appFile('inventory/fba-lists.js'));
+    ed.saved.fbaList = '1';
+    ok('an edit that sends more to FBA is refused', /FBA lists/.test(await ed.ctx.fgiEditApply('F', { qty: 6 })) && ed.writes.length === 0);
+    ok('an old dispatch can still be corrected down', await ed.ctx.fgiEditApply('F', { qty: 4 }) === '' && ed.writes.length === 1);
+
+    const rows = S.run('fgaListRows([{ sku: "A", current: 20 }])');
+    S.ctx.listRow = rows[0];
+    const head = [...S.run('fgaExportHead()')], line = [...S.run('fgaExportRow(listRow)')];
+    ok('the export shows In FBA lists, adding up to stock', head[8] === 'In FBA lists' && head.length === 14 && line.length === 14
+      && line[8] === 3 && line.slice(7).reduce((x, y) => x + y, 0) === line[6], head.join() + ' | ' + line.join());
+    const cells = [...S.run('fgaCells(listRow)').matchAll(/<td class="num"[^>]*>(.*?)<\/td>/g)];
+    ok('the stock list has its cell and the phone card its figure', cells.length === 8 && S.run('fgaCardFigs(listRow)').includes('In FBA lists <b>3'));
+  }
+
   const { pass, fail } = counts();
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

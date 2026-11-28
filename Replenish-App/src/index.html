@@ -980,6 +980,7 @@
           <button id="fgDelPicked" class="ghost hide" style="color:var(--bad)">Delete ticked</button>
           <button id="fgScan">Scan in / out</button>
           <button id="fgPack" class="hide" title="Scan pieces against Order Console orders or an Amazon shipment plan; a wrong article is blocked; Finish writes the Send to FBA rows and the packing list from the same scans">Pack &amp; verify</button>
+          <button id="fgFbaList" class="hide" title="Make a list of the ticked SKUs for one FBA account and lane — packed and shipped on FBA Dispatch">Make FBA list</button>
           <button id="fgEntry">+ Stock entry</button>
           <!-- Receive / Issue from Excel taken off (Ravi, 2026-09-29: "excel se remove kro bas excel me export kar pay"). -->
           <button id="fgOpening" class="ghost">Opening stock</button>
@@ -1056,6 +1057,7 @@
           <input id="fbaQ" placeholder="Search SKU / shipment / colour / size" style="flex:1 1 180px;min-width:0">
           <input id="fbaD1" type="date" style="flex:0 0 140px" title="Sent from">
           <input id="fbaD2" type="date" style="flex:0 0 140px" title="Sent to">
+          <button id="fbaPackBtn" class="hide" title="Pack an FBA list">Pack a list</button>
           <button id="fbaAccept" disabled>Accept ticked</button>
           <button id="fbaShip" class="ghost" disabled>Ship ticked</button>
           <button id="fbaShipXl" class="ghost hide" title="Upload the shipment's contents from Seller Central (or our template) — each SKU is matched to its open dispatches and marked shipped with the shipment id">Ship from Excel</button>
@@ -1067,6 +1069,7 @@
         <div id="fbaMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
         <div id="fbaKpis" class="kpis" style="margin-top:10px"></div>
       </div>
+      <div id="fbaLists" class="card hide" style="margin-top:12px;padding:12px 14px"></div>
       <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="fbaTable"></table></div>
     </div>
 
