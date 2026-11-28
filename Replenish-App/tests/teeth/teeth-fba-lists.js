@@ -81,6 +81,7 @@ const breaks = {
   'alert failure fails the ship': ["try { await lstAlertFor(sku, 'FBA', pieces); }", "await lstAlertFor(sku, 'FBA', pieces); try {}"],
   'a list movement is deleted': [D, 'if (fgiOnFbaList(r)) {', 'if (false) {'],
   'its return goes with it': [D, ' || fgiOnFbaList(byId.get(r.linkedFbaId))', ''],
+  'a list return cannot be deleted': [D, 'parent.fbaShippedAt && !fgiOnFbaList(parent)', 'parent.fbaShippedAt'],
 };
 let survived = 0;
 const tmp = path.join(os.tmpdir(), 'teeth-fba-lists-' + process.pid + '.js');

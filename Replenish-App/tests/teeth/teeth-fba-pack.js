@@ -29,7 +29,7 @@ const breaks = {
   'entry right not enough': [CORE, ' || ME.fgiEntry);', ');'],
   'save not kept in step': [SAVE, 'await packFbaKeepInStep(p);', ';'],
   'delete not kept in step': [DEL, 'await packFbaKeepInStep(Object.assign({}, p, { boxes: [] }));', ';'],
-  'in step when off': [CORE, 'if (packFbaOn() && p.scan && p.scan.fbaListId) await', 'if (p.scan && p.scan.fbaListId) await'],
+  'not in step when off': [CORE, 'if (p.scan && p.scan.fbaListId) await', 'if (packFbaOn() && p.scan && p.scan.fbaListId) await'],
   'changed boxes stay packed': [LISTS, "if (!list || list.status === 'open' || fblBoxesAgree(list, totals)) return;", 'return;'],
   'old scan count kept': [CORE, 'plan: lines, packed: packFbaPackedOf(saved, listId) }', 'plan: lines }'],
   'no take-out button': [PKV, '${takeOut(b.n, it.sku)}', ''],

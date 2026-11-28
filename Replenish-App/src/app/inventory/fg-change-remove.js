@@ -82,10 +82,11 @@ function fgiDeletePlan(ids) {
         why: 'a marker for a transfer, not a movement of its own — delete the transfer itself and this goes with it' });
       return;
     }
-    /* a return stands alone when its dispatch is staying: not ticked, or shipped on an FBA list */
+    /* a return stands alone when its dispatch is staying: not ticked, or shipped on an FBA list. A return of an FBA list's
+       shipment can always be deleted: its record is gone, so it cannot be undone instead */
     if (r.txnType === 'FBA_RETURN' && (!want.has(r.linkedFbaId) || fgiOnFbaList(byId.get(r.linkedFbaId)))) {
       const parent = byId.get(r.linkedFbaId);
-      if (parent && parent.fbaShippedAt) {
+      if (parent && parent.fbaShippedAt && !fgiOnFbaList(parent)) {
         refused.push({ id, sku: obUC(r.sku), why: 'the rest of that FBA dispatch is already shipped — undo the shipment in FBA Dispatch first' });
         return;
       }

@@ -191,7 +191,10 @@ const listSession = qty => boxed({ id: 'PK-L1', account: 'CPC FBA', scan: { orde
   ok('while it ships the boxes are not saved', /working on this list/.test(said) && A.docs['PK-L1'].boxes[0].items[0].qty === 2, said);
   A = load({ sw: '0', lists: packedList(), docs: { 'PK-L1': packedDoc() } });
   await A.savePkOne(copy(edited));
-  ok('switch off: saving a packing list touches no FBA list', A.lists.L1.status === 'packed' && A.writes.length === 0);
+  ok('switch off: changed boxes of an FBA list still unpack it', A.lists.L1.status === 'open');
+  A = load({ sw: '0', lists: packedList() });
+  await A.savePkOne({ id: 'PK-plain', boxes: [] });
+  ok('switch off: an ordinary packing list touches no FBA list', A.lists.L1.status === 'packed' && A.writes.every(w => !/_fbaLists/.test(JSON.stringify(w))));
 
   console.log('== who cannot save packing lists ==');
   A = load({ repl: false });

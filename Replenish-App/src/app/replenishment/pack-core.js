@@ -201,7 +201,8 @@ const PACK_NO_RIGHT = "This account cannot save packing lists, so it cannot pack
 const packFbaBlocked = () => fblBlocked() || (packFbaMayPack() ? "" : PACK_NO_RIGHT);
 /** Before a packing list is saved or deleted: an FBA list packed from other boxes than these is no longer packed. Throws. */
 async function packFbaKeepInStep(p) {
-  if (packFbaOn() && p.scan && p.scan.fbaListId) await fblBoxesChanged(p.scan.fbaListId, packBoxTotals(p));
+  /* even on a computer where the switch is off: Ship must never send counts the boxes no longer hold */
+  if (p.scan && p.scan.fbaListId) await fblBoxesChanged(p.scan.fbaListId, packBoxTotals(p));
 }
 /** What the boxes hold, as the scanner's packed count of an FBA list, so boxes changed on the Packing List tab count too. */
 function packFbaPackedOf(p, listId) {

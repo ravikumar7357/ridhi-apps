@@ -417,7 +417,11 @@ const release = (left, over) => ({ R1: Object.assign({ sku: 'A', pcs: left, left
     ok(`switch ${sw}: nor among many`, same(copy(all.gone), ['O']) && all.refused.length === 1);
     S.ctx.FGI.rows.push(row('BACK', 'FBA_RETURN', 1, { linkedFbaId: 'FBA-L1-1' }));
     const both = plan(['FBA-L1-1', 'BACK']);
-    ok(`switch ${sw}: nor its return along with it`, both.gone.length === 0 && both.refused.length === 2);
+    ok(`switch ${sw}: ticked together, only the return goes`, same(copy(both.gone), ['BACK']) && both.refused.length === 1
+      && both.updates['pt_fgiLedger/FBA-L1-1/fbaReturned'] !== undefined);
+    const back = plan(['BACK']);
+    ok(`switch ${sw}: a return of a list shipment can be deleted`, back.refused.length === 0 && same(copy(back.gone), ['BACK'])
+      && back.updates['pt_fgiLedger/FBA-L1-1/fbaReturned'] !== undefined, JSON.stringify(copy(back)));
   }
 
   const { pass, fail } = counts();
