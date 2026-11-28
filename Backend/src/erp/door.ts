@@ -8,7 +8,7 @@
  * Later: the rules move into this file and the server talks to the database with its own key; then the database is
  * closed to browsers. Nothing here changes the ERP until a page is switched to send through the door (layer.js). */
 
-import { checkMonthLock } from './rules/month-lock.ts';
+import { checkSave } from './rules/check.ts';
 import type { DbLike } from '../lib/db.ts';
 
 export const SUPERUSER = 'ravi@thefabricrush.com';
@@ -24,6 +24,11 @@ export function rulesFromDb(core: DbLike): NonNullable<DoorDeps['rules']> {
       const perm: any = await core.rpc('rt_value', { p_path: 'pt_perms/' + e.replace(/\./g, ',') });
       return perm?.admin === true;
     },
+    isVendor: async email => {
+      const e = String(email || '').trim();
+      if (!e) return false;
+      return (await core.rpc('rt_value', { p_path: 'pt_vendorByEmail/' + e.replace(/\./g, ',') })) != null;
+    },
   };
 }
 
@@ -34,7 +39,7 @@ export const ERP_PUBLISHABLE_KEY = 'sb_publishable_niq2DDjeCaqJl3_ccv0vtQ_BS8bqQ
 export interface DoorDeps {
   verifyIdToken: (token: string) => Promise<string | null>;
   /** The server's own look at ERP data, for the rules (needs the server key). Without it, no rules are checked. */
-  rules?: { getRecord: (path: string) => Promise<unknown>; isAdmin: (email: string) => Promise<boolean> };
+  rules?: { getRecord: (path: string) => Promise<unknown>; isAdmin: (email: string) => Promise<boolean>; isVendor?: (email: string) => Promise<boolean> };
   fetch?: typeof fetch;
   url?: string;
   log?: (line: object) => void;
@@ -79,7 +84,7 @@ export async function erpDoor(d: DoorDeps, action: string, rawBody: string): Pro
       // RULES, NOTES ONLY: look before saving (the old record is needed), at most 2 s, and never stop the save.
       if (d.rules) {
         const rules = d.rules;
-        const check = checkMonthLock(email, p.changes, { ...rules, now: now() })
+        const check = checkSave(email, p.changes, { ...rules, now: now() })
           .then(notes => notes.forEach(n => d.log?.({ ruleNote: n.rule, who: email, path: n.path, detail: n.detail, screen: p.screen })))
           .catch(e => d.log?.({ ruleNote: 'checker_error', who: email, detail: String((e as Error)?.message || e).slice(0, 200) }));
         await Promise.race([check, new Promise(r => setTimeout(r, 2000))]);

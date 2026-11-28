@@ -10,25 +10,11 @@
  *
  * NOTES ONLY for now: the door logs what this rule would have refused and saves anyway. */
 
-/** register → which path segments make one record, and which field holds its date */
-export const MONTH_RULES: Record<string, { depth: number; field: string }> = {
-  pt_extraHours: { depth: 2, field: 'date' },
-  pt_pressInventory: { depth: 2, field: 'entryDate' },
-  pt_baseData: { depth: 2, field: 'receivingDate' },
-  pt_cuttingData: { depth: 2, field: 'date' },
-  pt_qcChecks: { depth: 2, field: 'date' },
-  pt_qcIssuance: { depth: 2, field: 'date' },
-  pt_qcReturns: { depth: 2, field: 'date' },
-  pt_attend: { depth: 2, field: 'day' },
-  pt_fgiLedger: { depth: 2, field: 'date' },
-  pt_accLedger: { depth: 2, field: 'date' },
-  pt_storeLedger: { depth: 2, field: 'date' },
-  pt_fabInvLedger: { depth: 2, field: 'date' },
-  pt_flowChallans: { depth: 2, field: 'date' },
-  pt_salesOrders: { depth: 2, field: 'orderDate' },
-  pt_greigePOs: { depth: 2, field: 'date' },
-  pt_vendorChallans: { depth: 3, field: 'date' },
-};
+import { RULES } from './registers.ts';
+
+/** register → which path segments make one record, and which field holds its date (from the one rule list) */
+export const MONTH_RULES: Record<string, { depth: number; field: string }> = Object.fromEntries(
+  Object.entries(RULES).filter(([, r]) => r.monthField).map(([reg, r]) => [reg, { depth: r.depth, field: r.monthField! }]));
 
 export const CLOSE_DAY = 5;
 const IST_MS = 5.5 * 3600_000;
@@ -62,7 +48,7 @@ export interface Note { rule: 'month_lock' | 'month_lock_admin'; path: string; r
 const isObj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object' && !Array.isArray(x);
 
 /** the record after writing `value` at `sub` inside it (sub = [] means the whole record) */
-function withAt(rec: unknown, sub: string[], value: unknown, kind: string): unknown {
+export function withAt(rec: unknown, sub: string[], value: unknown, kind: string): unknown {
   if (!sub.length) {
     if (kind === 'delete' || value === null || value === undefined) return null;
     if (kind === 'patch' && isObj(value)) return { ...(isObj(rec) ? rec : {}), ...value };
