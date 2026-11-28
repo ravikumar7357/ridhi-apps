@@ -115,7 +115,7 @@ const WAYS = {
   } },
   'SHP board': { types: ['ISSUE'], order: 'B2B-1', go: async (o, q) => {
     const S = store(o);
-    Object.assign(S.ctx, { shpbKey: () => 'k', shpbStages: () => ({ stk: 0, prsD: 0 }), shpReceive: async () => '', shpCanReceive: () => true, SHPB: { ready: {} }, SHPB_NODE: 'pt_x' });
+    Object.assign(S.ctx, { shpbKey: () => 'k', shpbStages: () => ({ stk: 0, prsD: 0 }), shpReceive: async () => '', shpCanReceive: () => true, spOf: () => null, SHPB: { ready: {} }, SHPB_NODE: 'pt_x' });
     S.run(whole('inventory/fg-other-movements.js', 'fgiOutCheck') + whole('orders/shp-board.js', 'shpbStockSave'));
     S.ctx.r = { orderNo: (o.alloc || [{ orderNo: 'NONE' }])[0].orderNo, sku: 'A', qty: 99 };
     return { S, said: await S.run(`shpbStockSave(r, { pcs: ${q} })`) };
