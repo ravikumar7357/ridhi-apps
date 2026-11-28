@@ -1,36 +1,57 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>ERP door test</title>
-<style>body{font:15px system-ui;max-width:560px;margin:40px auto;padding:0 16px}input,button{font:inherit;padding:8px;margin:4px 0;width:100%;box-sizing:border-box}pre{background:#f3f3f3;padding:10px;white-space:pre-wrap}</style>
+<html><head><meta charset="utf-8"><title>ERP server checks</title>
+<style>body{font:15px system-ui;max-width:760px;margin:40px auto;padding:0 16px}input,button{font:inherit;padding:8px;margin:4px 0;width:100%;box-sizing:border-box}
+pre{background:#f3f3f3;padding:10px;white-space:pre-wrap}table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}
+.ok{color:#17703a;font-weight:600}.bad{color:#b42318;font-weight:600}</style>
 </head><body>
-<h2>ERP door test (this PC only)</h2>
-<p>Sign in with your ERP email and password. Then press the buttons. Nothing is saved by "Read".</p>
+<h2>ERP server checks (this PC only)</h2>
+<p>Sign in with your ERP email and password, then press "Run all checks". <b>Every check only reads or is refused before saving — nothing is written.</b></p>
 <input id="em" placeholder="email" autocomplete="username">
 <input id="pw" type="password" placeholder="password" autocomplete="current-password">
 <button id="go">Sign in</button>
-<button id="read" disabled>1. Read a list through the door</button>
-<button id="fake" disabled>2. Try with a fake sign-in (should be refused)</button>
+<button id="all" disabled>Run all checks</button>
 <pre id="out">Not signed in.</pre>
+<table id="tbl"></table>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 const auth = getAuth(initializeApp({ apiKey: 'AIzaSyCBHVKB0bXdawmz2dpAncrWonDZjfRjgqM', authDomain: 'price-research-48ff3.firebaseapp.com', projectId: 'price-research-48ff3' }));
-const out = document.getElementById('out');
-const show = o => { out.textContent = JSON.stringify(o, null, 2); window.__last = o; };
+const out = document.getElementById('out'), tbl = document.getElementById('tbl');
 const post = (p, b) => fetch(p, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(b) }).then(r => r.json());
+const rid = () => 'check-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 document.getElementById('go').onclick = async () => {
-  try {
-    const u = await signInWithEmailAndPassword(auth, em.value.trim(), pw.value); pw.value = '';
-    show({ signedIn: u.user.email }); read.disabled = fake.disabled = false;
-  } catch (e) { show({ signInFailed: e.code || String(e) }); }
+  try { const u = await signInWithEmailAndPassword(auth, em.value.trim(), pw.value); pw.value = '';
+    out.textContent = 'Signed in as ' + u.user.email; all.disabled = false; }
+  catch (e) { out.textContent = 'Sign-in failed: ' + (e.code || e); }
 };
-read.onclick = async () => {
-  const t0 = performance.now();
-  const r = await post('/erp/read', { idToken: await auth.currentUser.getIdToken(), path: 'pt_masters/greigeRfd' });
-  show({ test: 'read', ok: r.ok, error: r.error, itemsInList: r.value && typeof r.value === 'object' ? Object.keys(r.value).length : r.value, ms: Math.round(performance.now() - t0) });
-};
-fake.onclick = async () => {
-  const r = await post('/erp/read', { idToken: 'fake.token.here', path: 'pt_masters/greigeRfd' });
-  show({ test: 'fake sign-in', ok: r.ok, error: r.error });
+all.onclick = async () => {
+  const tok = await auth.currentUser.getIdToken(), rows = [];
+  const check = async (name, expect, fn) => {
+    const t0 = performance.now(); let r; try { r = await fn(); } catch (e) { r = { ok: false, error: 'page error: ' + e }; }
+    const ms = Math.round(performance.now() - t0), pass = expect(r);
+    rows.push({ name, pass, ms, said: r.ok ? JSON.stringify(r).slice(0, 140) : r.error });
+  };
+  await check('1 Read a list through the server (greige RFD)', r => r.ok && r.value && Object.keys(r.value).length > 0,
+    async () => { const r = await post('/erp/read', { idToken: tok, path: 'pt_masters/greigeRfd' }); return r.ok ? { ok: true, items: Object.keys(r.value || {}).length, value: r.value } : r; });
+  await check('2 Fake sign-in is refused', r => !r.ok && /Sign in again/.test(r.error), () => post('/erp/read', { idToken: 'fake.token.x', path: 'pt_masters/greigeRfd' }));
+  await check('3 Save with nothing in it is refused', r => !r.ok && /Nothing to save/.test(r.error), () => post('/erp/save', { idToken: tok, changes: [] }));
+  await check('4 RFD challan: no vendor is refused (before any save)', r => !r.ok && /vendor/.test(r.error),
+    () => post('/erp/action/rfd-challan', { idToken: tok, requestId: rid(), date: '2026-11-28', orderNo: 'CHECK', vendor: { code: '' }, lines: [{ key: 'k', sku: 'X', pcs: 1, metres: 1 }] }));
+  await check('5 RFD challan: half pieces are refused', r => !r.ok && /whole number/.test(r.error),
+    () => post('/erp/action/rfd-challan', { idToken: tok, requestId: rid(), date: '2026-11-28', orderNo: 'CHECK', vendor: { code: 'V', name: 'V' }, lines: [{ key: 'k', sku: 'X', pcs: 1.5, metres: 1 }] }));
+  await check('6 Receive: a challan that does not exist is read fresh and refused', r => !r.ok && /not found/.test(r.error),
+    () => post('/erp/action/receive-challan', { idToken: tok, requestId: rid(), no: 'TRFD-209901-999', date: '2026-11-28', items: { k: 1 } }));
+  await check('7 Approve sales order: your right is read by the server; an order that does not exist is refused',
+    r => !r.ok && (/That order is gone/.test(r.error) || /needs permission/.test(r.error)),
+    () => post('/erp/action/approve-sales-order', { idToken: tok, requestId: rid(), orderId: 'CHECK-NO-SUCH-ORDER', mode: 'complete', date: '2026-12-01' }));
+  await check('8 An unknown action is refused', r => !r.ok && /no "action\/delete-everything"|Not found/.test(r.error || ''),
+    () => fetch('/erp/action/delete-everything', { method: 'POST', body: JSON.stringify({ idToken: tok }) }).then(r => r.json()));
+  const t = []; for (let i = 0; i < 5; i++) { const a = performance.now(); await post('/erp/read', { idToken: tok, path: 'pt_masters/greigeRfd' }); t.push(performance.now() - a); }
+  rows.push({ name: '9 Speed: 5 reads through the server', pass: true, ms: Math.round(t.reduce((a, b) => a + b) / t.length), said: 'average ms per read: ' + t.map(Math.round).join(', ') });
+  tbl.innerHTML = '<tr><th>Check</th><th>Result</th><th>ms</th><th>What the server said</th></tr>' + rows.map(r =>
+    `<tr><td>${r.name}</td><td class="${r.pass ? 'ok' : 'bad'}">${r.pass ? 'PASS' : 'FAIL'}</td><td>${r.ms}</td><td>${String(r.said || '').replace(/</g, '&lt;')}</td></tr>`).join('');
+  window.__checks = rows.map(({ name, pass, ms, said }) => ({ name, pass, ms, said }));
+  out.textContent = `${rows.filter(r => r.pass).length} of ${rows.length} passed.`;
 };
 </script>
 </body></html>
