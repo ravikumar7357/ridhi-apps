@@ -3956,7 +3956,7 @@ UI.invShow = 'all';
 /* CUSTOM ORDERS: THE SHP BOARD AND THE ONLINE BOARD (Ravi, 28 Nov: "shp/online board ke liye custom orders, jisko dekhkar ham RFD pcs bhej sake"). Beside the fabric table, a list of the
  * made-to-order lines (SHP, ONL, Etsy) waiting on Demand → RFD: the order, the product, the pieces to make, the RFD they need, whether the shelf has it, the printer. The same lines
  * as Demand → RFD (flowShLine), so what is sent from there is what is counted here; "Send to printer" opens Demand → RFD at that fabric. Reads only. */
-UI.invView = 'fab'; UI.invBoard = 'all'; UI.cuMode = 'lines';
+UI.invView = 'fab'; UI.invBoard = 'all'; UI.cuFrom = ''; UI.cuTo = ''; UI.cuPrn = ''; UI.cuSel = {};
 var CU_BOARDS = { shp: 'SHP board', onl: 'Online board' };
 function cuBoardOf(r) {
   var pre = String((r && r.orderNo) || '').split('-')[0].trim().toUpperCase(), src = String((r && r.src) || '').trim().toUpperCase();
@@ -3969,53 +3969,36 @@ function cuLines() {
   if (!gdFlowReady()) return null;
   var cov = flowRfdCover().line;
   return flowRows().filter(function (x) {
-    return cuBoardOf(x.r) && flowInView('drfd', x.s) && !(typeof flowCpActive === 'function' && flowCpActive(x.s.key));
+    return cuBoardOf(x.r) && flowInView('drfd', x.s) && x.s.route !== 'stitch' && !(typeof flowCpActive === 'function' && flowCpActive(x.s.key));
   }).map(function (x) {
     var ln = flowShLine(x);
     return { ln: ln, board: cuBoardOf(x.r), fabric: String((((x.s.plan || {}).fabric) || {}).name || ''), cover: cov[x.s.key] || null };
   }).filter(function (c) { return c.ln.pcs > 0; })
     .sort(function (a, b) { return String(a.ln.x.r.orderDate || '').localeCompare(String(b.ln.x.r.orderDate || '')) || String(a.ln.x.r.orderNo).localeCompare(String(b.ln.x.r.orderNo)); });
 }
-/** THE PIVOT (Ravi, 28 Nov: "date wise ya printer wise, total pcs aur total running kitna bhejna hai"): the custom lines grouped by order date or by printer, each with the
- *  pieces to make and the running cloth (m of RFD) to send, and how much of that the shelf already has. Rows are what the list above shows (the board filter applies). */
-function cuPivotHtml(rows, mode) {
-  /* the sheet Ravi drew (28 Nov): the printer's name in bold, then  RFD fabric · Size · Qty · Total Mtr · send  — by date: a block per date, a printer under it */
-  var pr = function (c) { return c.ln.printerName || 'Printer not chosen'; };
-  var dayOf = function (c) { return String(c.ln.x.r.orderDate || 'No date'); };
-  var block = function (title, list, big) {
-    var by = {}, keys = [];
-    list.forEach(function (c) {
-      var size = ctsLineSize(c.ln.x), k = c.fabric + '|' + size;
-      var g = by[k] || (by[k] = { fabric: c.fabric, size: size, pcs: 0, m: 0, short: 0 });
-      g.pcs += c.ln.pcs; g.m += c.ln.metres; if (!(c.cover && c.cover.name && c.cover.short <= 0.05)) g.short += c.ln.metres;
-    });
-    keys = Object.keys(by).sort();
-    var tp = 0, tm = 0;
-    var body = keys.map(function (k) {
-      var g = by[k]; tp += g.pcs; tm += g.m;
-      return '<tr><td class="tl">' + (g.fabric ? esc(g.fabric) : '<span class="muted">no fabric set</span>') + '</td><td class="tl">' + esc(g.size) + '</td><td class="num">' + nf(g.pcs) + '</td>'
-        + '<td class="num"><b>' + m1(g.m) + '</b></td>'
-        + '<td class="tl">' + (g.short > 0.05 ? '<span style="color:var(--bad);font-size:11px">' + m1(g.short) + ' m short</span> ' : '<span class="pill pill-ok">on shelf</span> ')
-        + (g.fabric ? '<button type="button" class="jw-btn jw-primary" data-gdlines="' + esc(g.fabric) + '" style="white-space:nowrap;padding:3px 10px;font-size:12px" title="Open Demand → RFD at ' + esc(g.fabric) + ' and send it to the printer">send</button>' : '') + '</td></tr>';
-    }).join('');
-    return '<div style="margin:' + (big ? '4px 0 14px' : '10px 0 14px') + '"><div style="font-weight:700;font-size:' + (big ? '15' : '14') + 'px;margin:0 0 6px 2px">' + esc(title) + '</div>'
-      + '<div class="card"><div class="ff-grid"><table class="xl">' + th(['RFD fabric', 'Size', 'Qty', 'Total Mtr', 'send'], [2, 3])
-      + '<tbody>' + body + '<tr style="font-weight:700;border-top:2px solid var(--line)"><td class="tl">Total</td><td></td><td class="num">' + nf(tp) + '</td><td class="num">' + m1(tm) + '</td><td></td></tr></tbody></table></div></div></div>';
-  };
-  var group = function (list, fn) { var m = {}, ks = []; list.forEach(function (c) { var k = fn(c); (m[k] = m[k] || []).push(c); }); ks = Object.keys(m).sort(); return ks.map(function (k) { return [k, m[k]]; }); };
-  if (!rows.length) return '<div class="card" style="padding:30px;text-align:center;color:var(--muted)">No SHP or Online board order is waiting for RFD.</div>';
-  var out;
-  if (mode === 'date') {
-    out = group(rows, dayOf).map(function (d) {
-      var pcs = 0, m = 0; d[1].forEach(function (c) { pcs += c.ln.pcs; m += c.ln.metres; });
-      return '<div style="margin:0 0 22px"><div style="font-weight:700;font-size:16px;margin:0 0 2px">' + esc(d[0]) + ' <span class="muted" style="font-weight:400;font-size:12px">· ' + nf(pcs) + ' pcs · ' + m1(m) + ' m</span></div>'
-        + group(d[1], pr).map(function (p) { return block(p[0], p[1], false); }).join('') + '</div>';
-    }).join('');
-  } else {
-    out = group(rows, pr).map(function (p) { return block(p[0], p[1], true); }).join('');
-  }
-  return out + '<div class="lm-why">Qty = pieces to make; Total Mtr = metres of RFD cloth they need (pcs × the SKU\'s cloth per piece). "send" opens Demand → RFD at that fabric. "on shelf" = the free RFD already covers it; "short" = no RFD for it yet.</div>';
+/** WHY A CUSTOM LINE CANNOT BE SENT FROM HERE ('' = it can): the Send-to-printer card's own rule (flowShWhyNot - a master row without cloth per piece, no printer from PPC, a change waiting
+ *  for approval, in Cut to size) plus: cut-piece lines are sent through Demand → RFD (they are cut first), so they are not made into a challan from this list. */
+var CU_S = { lines: [], tick: new Set(), prn: {}, qty: {}, fabric: '', q: '', kind: '', show: '', pri: '' };
+function cuWhyNot(c) {
+  if (typeof flowShWhyNot !== 'function' || typeof flowShKind !== 'function') return 'The challan card is not here.';
+  if (!c.fabric) return 'No RFD fabric set on its plan in PPC';
+  if (flowShKind(c.ln) === 'cut') return 'Cut pieces: send it from Demand → RFD';
+  return flowShWhyNot(CU_S, c.ln);
 }
+/** The lines under the filters on screen: board, date range, printer, search. */
+function cuFiltered(all) {
+  return all.filter(function (c) {
+    var d = String(c.ln.x.r.orderDate || '');
+    if (UI.invBoard !== 'all' && c.board !== UI.invBoard) return false;
+    if (UI.cuFrom && d < UI.cuFrom) return false;
+    if (UI.cuTo && d > UI.cuTo) return false;
+    if (UI.cuPrn && (UI.cuPrn === '-' ? !!c.ln.printer : String(c.ln.printer || '') !== UI.cuPrn)) return false;
+    return lmMatch(c.ln.x.r.orderNo) || lmMatch(c.ln.x.r.sku) || lmMatch(c.fabric);
+  });
+}
+function cuSelText(n, pcs, m) { return n ? nf(n) + ' selected · ' + nf(pcs) + ' pcs · ' + m1(m) + ' m' : 'Nothing ticked'; }
+/** Ravi, 28 Nov: "lines wale me hi date range and printer filter and select option, jis jisko bhejna usko select karu aur challan bana kar bhej du" - the Lines list has a date range, a printer
+ *  filter, a tick on every line that can go, and "Make challan" for the ticked ones: the Send-to-printer card's own review (what goes to which printer) and its own challan writer. */
 function cuHtml() {
   var all = cuLines(), tb = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'
     + '<button type="button" class="ghost" data-invview="fab">← Fabrics</button>';
@@ -4024,28 +4007,71 @@ function cuHtml() {
   tb += '<div class="seg" role="tablist" aria-label="Board">' + ['all', 'shp', 'onl'].map(function (b) {
     return '<button type="button" role="tab" class="segbtn' + (UI.invBoard === b ? ' on' : '') + '" aria-selected="' + (UI.invBoard === b) + '" data-invboard="' + b + '">'
       + (b === 'all' ? 'Both boards' : CU_BOARDS[b]) + ' <span class="n">' + n(b) + '</span></button>';
-  }).join('') + '</div>'
-    + '<div class="seg" role="tablist" aria-label="Show as">' + [['lines', 'Lines'], ['date', 'Pivot · by date'], ['printer', 'Pivot · by printer']].map(function (m) {
-      return '<button type="button" role="tab" class="segbtn' + (UI.cuMode === m[0] ? ' on' : '') + '" aria-selected="' + (UI.cuMode === m[0]) + '" data-cumode="' + m[0] + '">' + m[1] + '</button>';
-    }).join('') + '</div></div>';
-  var rows = all.filter(function (c) { return (UI.invBoard === 'all' || c.board === UI.invBoard) && (lmMatch(c.ln.x.r.orderNo) || lmMatch(c.ln.x.r.sku) || lmMatch(c.fabric)); });
-  if (UI.cuMode === 'date' || UI.cuMode === 'printer') return INV_CSS + tb + cuPivotHtml(rows, UI.cuMode);
+  }).join('') + '</div>';
+  var prs = {}; all.forEach(function (c) { if (c.ln.printer) prs[c.ln.printer] = c.ln.printerName || c.ln.printer; });
+  var nopr = all.filter(function (c) { return !c.ln.printer; }).length;
+  tb += '<label class="muted" style="font-size:12px;display:flex;align-items:center;gap:5px">From <input type="date" data-cuf="cuFrom" value="' + esc(UI.cuFrom) + '" style="width:auto;height:34px"></label>'
+    + '<label class="muted" style="font-size:12px;display:flex;align-items:center;gap:5px">To <input type="date" data-cuf="cuTo" value="' + esc(UI.cuTo) + '" style="width:auto;height:34px"></label>'
+    + '<select data-cuf="cuPrn" aria-label="Printer" style="width:auto;height:34px"><option value="">All printers</option>'
+    + Object.keys(prs).sort(function (a, b) { return prs[a].localeCompare(prs[b]); }).map(function (k) { return '<option value="' + esc(k) + '"' + (UI.cuPrn === k ? ' selected' : '') + '>' + esc(prs[k]) + '</option>'; }).join('')
+    + (nopr ? '<option value="-"' + (UI.cuPrn === '-' ? ' selected' : '') + '>Printer not chosen (' + nopr + ')</option>' : '') + '</select>'
+    + ((UI.cuFrom || UI.cuTo || UI.cuPrn) ? '<button type="button" class="ghost" data-cuclear="1" style="height:34px">Clear filters</button>' : '');
+  var rows = cuFiltered(all);
+  rows.forEach(function (c) { c.why = cuWhyNot(c); });
+  var okKeys = {}; rows.forEach(function (c) { if (!c.why) okKeys[c.ln.key] = 1; });
+  Object.keys(UI.cuSel).forEach(function (k) { if (!okKeys[k]) delete UI.cuSel[k]; });   // a line that cannot go, or is filtered out, is not ticked
+  var sel = rows.filter(function (c) { return UI.cuSel[c.ln.key]; });
+  var spcs = 0, sm = 0; sel.forEach(function (c) { spcs += c.ln.pcs; sm += c.ln.metres; });
+  tb += '<span style="margin-left:auto"></span><span style="font-size:12.5px;font-weight:700">' + cuSelText(sel.length, spcs, sm) + '</span>'
+    + '<button type="button" class="jw-btn jw-primary" data-cumake="1"' + (sel.length ? '' : ' disabled') + ' style="height:34px">Make challan</button></div>';
+  var nOk = Object.keys(okKeys).length;
   var body = rows.map(function (c) {
     var l = c.ln, r = l.x.r, cv = c.cover, short = cv ? cv.short : l.metres, ready = cv && cv.short <= 0.05 && cv.name;
-    return '<tr><td class="frz tl b">' + esc(r.orderNo) + '</td><td class="tl"><span class="pill pill-sea">' + esc(CU_BOARDS[c.board]) + '</span></td>'
+    return '<tr><td class="frz" style="width:30px">' + (c.why ? '<input type="checkbox" disabled title="' + esc(c.why) + '">' : '<input type="checkbox" data-cusel="' + esc(l.key) + '"' + (UI.cuSel[l.key] ? ' checked' : '') + ' aria-label="Send ' + esc(r.orderNo + ' ' + r.sku) + '">') + '</td>'
+      + '<td class="tl b">' + esc(r.orderNo) + '</td><td class="tl"><span class="pill pill-sea">' + esc(CU_BOARDS[c.board]) + '</span></td>'
       + '<td class="tl" style="white-space:nowrap">' + esc(r.orderDate || '') + '</td><td class="tl mono">' + esc(r.sku) + '</td>'
       + '<td class="tl">' + (c.fabric ? esc(c.fabric) : '<span class="muted">no fabric set in PPC</span>') + '</td>'
       + '<td class="num">' + nf(l.pcs) + '</td><td class="num">' + m1(l.metres) + ' m</td>'
       + '<td class="tl">' + (!c.fabric ? '<span class="muted">—</span>' : ready ? '<span class="pill pill-ok">RFD on shelf</span>' : '<span style="color:var(--bad);font-weight:700">short ' + m1(short) + ' m</span>') + '</td>'
-      + '<td class="tl">' + (l.printerName ? esc(l.printerName) : '<span class="muted">not chosen</span>') + '</td>'
-      + '<td>' + (c.fabric ? '<button type="button" class="jw-btn jw-primary" data-gdlines="' + esc(c.fabric) + '" style="white-space:nowrap;padding:4px 10px;font-size:12px" title="Open Demand → RFD at ' + esc(c.fabric) + ' and send the RFD to the printer">Send to printer</button>' : '') + '</td></tr>';
+      + '<td class="tl">' + (l.printerName ? esc(l.printerName) : '<span class="muted">not chosen</span>') + (c.why ? '<div style="font-size:10.5px;color:var(--bad)">' + esc(c.why) + '</div>' : '') + '</td></tr>';
   }).join('');
-  var pcs = 0; rows.forEach(function (c) { pcs += c.ln.pcs; });
-  return INV_CSS + tb + '<div class="card"><div class="ff-grid"><table class="xl">'
-    + th(['Order', 'Board', 'Order date', 'SKU', 'RFD fabric', 'Pcs to make', 'RFD needed', 'RFD for it', 'Printer', ''], [6, 7])
-    + '<tbody>' + (body || emptyRow(10, 'No SHP or Online board order is waiting for RFD.')) + '</tbody></table></div></div>'
-    + '<div class="lm-why">' + plural(rows.length, 'line') + ' · ' + nf(pcs) + ' pcs. The lines of Demand → RFD that came from the SHP board or the Online board (SHP-, ONL-, Etsy- orders). "RFD for it" is read against the free RFD on the shelf, oldest order first.</div>';
+  var head = th(['', 'Order', 'Board', 'Order date', 'SKU', 'RFD fabric', 'Pcs to make', 'RFD needed', 'RFD for it', 'Printer'], [6, 7])
+    .replace('<th class="frz"></th>', '<th class="frz"><input type="checkbox" data-cuall="1" aria-label="Select all that can be sent"' + (nOk && sel.length === nOk ? ' checked' : '') + (nOk ? '' : ' disabled') + '></th>');
+  var tp = 0, tm = 0; rows.forEach(function (c) { tp += c.ln.pcs; tm += c.ln.metres; });
+  return INV_CSS + tb + '<div class="card"><div class="ff-grid"><table class="xl">' + head
+    + '<tbody>' + (body || emptyRow(10, 'No SHP or Online board order matches.')) + '</tbody></table></div></div>'
+    + '<div class="lm-why">' + plural(rows.length, 'line') + ' · ' + nf(tp) + ' pcs · ' + m1(tm) + ' m. Tick the lines to send (only lines that can go have a tick) and press Make challan: it shows what goes to which printer, and nothing is saved until you press Yes. A line without a tick says why (no cloth per piece on its master row, no printer from PPC, cut pieces go from Demand → RFD).</div>';
 }
+/** Make challan for the ticked lines: the Send-to-printer card's review (flowShReviewOpen) and writer (flowShCommit), with these lines in it. Several fabrics may go in one go. */
+function cuMake() {
+  var all = cuLines(); if (!all) return;
+  var sel = cuFiltered(all).filter(function (c) { return UI.cuSel[c.ln.key] && !cuWhyNot(c); });
+  if (!sel.length) { alert('Tick at least one line that can go.'); return; }
+  if (typeof flowShReviewOpen !== 'function' || typeof flowShCommit !== 'function') { alert('The challan card is not in this app.'); return; }
+  if (typeof flowScreenAllowed === 'function' && !flowScreenAllowed().some(function (b) { return b[0] === 'drfd'; })) { alert('Making an RFD challan needs Demand → RFD access.'); return; }
+  var fabs = uniq(sel.map(function (c) { return c.fabric; }));
+  FLOW_SH = { fabric: fabs[0], lines: sel.map(function (c) { return c.ln; }), tick: new Set(sel.map(function (c) { return c.ln.key; })), prn: {}, qty: {}, q: '', kind: '', show: '', pri: '', note: '',
+    review: { note: '' }, after: function () { UI.cuSel = {}; if (UI.tab === 'inv') render(); } };
+  flowShReviewOpen();
+}
+/* the filters and ticks of the custom list */
+document.addEventListener('change', function (ev) {
+  var t = ev.target; if (!t || !t.getAttribute || UI.invView !== 'custom') return;
+  var f = t.getAttribute('data-cuf');
+  if (f) { UI[f] = t.value; render(); return; }
+  var one = t.getAttribute('data-cusel');
+  if (one) { if (t.checked) UI.cuSel[one] = true; else delete UI.cuSel[one]; render(); return; }
+  if (t.getAttribute('data-cuall')) {
+    var all = cuLines(); if (!all) return;
+    cuFiltered(all).forEach(function (c) { if (!cuWhyNot(c)) { if (t.checked) UI.cuSel[c.ln.key] = true; else delete UI.cuSel[c.ln.key]; } });
+    render();
+  }
+});
+document.addEventListener('click', function (ev) {
+  var t = ev.target && ev.target.closest ? ev.target.closest('[data-cumake],[data-cuclear]') : null; if (!t || UI.invView !== 'custom') return;
+  if (t.getAttribute('data-cuclear')) { UI.cuFrom = ''; UI.cuTo = ''; UI.cuPrn = ''; render(); return; }
+  cuMake();
+});
 /** What PPC's demand asks of this fabric: 'short' (greige to order), 'ok' (covered, or covered by what is on its way),
  *  or 'none' (PPC does not need it). */
 function invNeedState(r) {
@@ -4429,7 +4455,7 @@ function invOpenPo(poNo, chId) {
 }
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow],[data-invview],[data-invboard],[data-cumode],[data-invgo]') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow],[data-invview],[data-invboard],[data-invgo]') : null;
     if (d && d.getAttribute('data-invgo')) { UI.tab = d.getAttribute('data-invgo'); UI.invOpen = ''; render(); return; }
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
     if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
@@ -4440,7 +4466,6 @@ function wireInventory() {
     if (d && d.getAttribute('data-histpo')) { var p = d.getAttribute('data-histpo').split('|'); $('lmHist').classList.add('hide'); invOpenPo(p[0], p[1]); return; }
     if (d && d.id === 'histXlsx') { invHistXlsx(); return; }
     if (d && d.getAttribute('data-invview')) { UI.invView = d.getAttribute('data-invview'); render(); return; }
-    if (d && d.getAttribute('data-cumode')) { UI.cuMode = d.getAttribute('data-cumode'); render(); return; }
     if (d && d.getAttribute('data-invboard')) { UI.invBoard = d.getAttribute('data-invboard'); render(); return; }
     if (d && d.getAttribute('data-invshow')) { UI.invShow = d.getAttribute('data-invshow'); UI.invOpen = ''; render(); return; }
   });
