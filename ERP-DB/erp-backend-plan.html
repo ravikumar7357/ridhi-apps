@@ -91,10 +91,9 @@ ol.steps{padding-left:1.2em} ol.steps li{margin:.3em 0}
 
   <h3 style="margin-top:22px">Phase 0 · Safety first (this week, no Droplet needed)</h3>
   <div class="box">
-    <div class="item"><span class="id">P0.1</span><div><div class="head"><b>Backups we can trust</b><span class="chip now">next</span></div>
-      Turn on daily database backups in Supabase (or a nightly dump) and test one restore. Firebase is no longer a way back since the mirror was paused on 28 Nov.
-      <p class="donewhen">Done when: a backup from last night exists and one table was restored from it on the test project.</p></div></div>
-    <div class="item"><span class="id">P0.2</span><div><div class="head"><b>Close the open database functions (E0)</b><span class="chip risk">needs care</span></div>
+    <div class="item"><span class="id">P0.1</span><div><div class="head"><b>Backups we can trust</b><span class="chip done">checked 28 Nov</span></div>
+      Supabase daily backups are on (about 1 AM IST, 7 days kept); point-in-time is off (≈ ₹8,500/month, not needed now). Storage files (board reports) are NOT in these backups. Restore test moved to the Droplet (P1.4) to avoid extra cost.</div></div>
+    <div class="item"><span class="id">P0.2</span><div><div class="head"><b>Close the open database functions (E0)</b><span class="chip done">done 28 Nov · changes 008 + 009</span></div>
       <ul><li>List the ~180 internal functions the public key can run today (e.g. <code>sync_run</code>, <code>fs_docs_put</code>).</li>
       <li>Search every ERP and Sellora page for which ones they really call. Keep those open; close the rest.</li>
       <li>One change file with its undo at the top. Test project first, then live outside work hours, with Ravi's yes.</li></ul>
@@ -112,6 +111,8 @@ ol.steps{padding-left:1.2em} ol.steps li{margin:.3em 0}
       <p class="donewhen">Done when: <code>/health</code> answers on HTTPS, the server restarts by itself after a crash, and a push deploys it.</p></div></div>
     <div class="item"><span class="id">P1.3</span><div><div class="head"><b>Saves through the server</b><span class="chip wait"></span></div>
       Switch on in one browser → test link → 10% → everyone. Month-lock notes start coming in; compare with the database checker.</div></div>
+    <div class="item"><span class="id">P1.4</span><div><div class="head"><b>Our own backups + restore test</b><span class="chip wait"></span></div>
+      Nightly copy of the database and the storage files (board reports) onto the Droplet; restore one copy there to prove it works. No extra monthly cost.</div></div>
   </div>
 
   <h3 style="margin-top:22px">Phase 2 · Make the slow screens fast (E2 + E7)</h3>
