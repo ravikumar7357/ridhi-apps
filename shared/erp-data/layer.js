@@ -277,8 +277,19 @@
     R1.memo = {};
     paths.forEach(function (p) { var reg = String(p).split('/')[0]; if (reg) SBSTALE[SB.url + '|' + (reg.indexOf('fs') === 0 ? 'fs' : reg)] = 1; });
   }
+  /* THE SERVER DOOR SWITCH (28 Nov) — OFF unless set. When set, saves go to the R-one server (/erp/save), which checks
+   * the sign-in and then saves; when not set, saves go straight to ERP data as before. Set by the build (window.__R1_DATA.door)
+   * or, to try it on one browser, localStorage 'r1.door' = the server's address. Reads still go straight to ERP data for now. */
+  var DOOR = String(C.door || (function () { try { return localStorage.getItem('r1.door') || ''; } catch (e) { return ''; } })()).replace(/\/+$/, '');
+  R1.door = DOOR || null;
+  function doorSave(changes, screen, tok, of) {
+    return of(DOOR + '/erp/save', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ idToken: tok, changes: changes, screen: screen }) })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { if (!j || !j.ok) throw new Error('ERP server: ' + ((j && j.error) || 'no answer')); return j.saved; });
+  }
   R1.sbSave = function (changes, screen, tok, of) {
-    return sbRpc('rt_save', { p_changes: changes, p_screen: screen || (C.app + ' ' + String(location.hash || '').slice(1, 30)) }, tok, of || R1.origFetch)
+    screen = screen || (C.app + ' ' + String(location.hash || '').slice(1, 30));
+    return (DOOR ? doorSave(changes, screen, tok, of || R1.origFetch) : sbRpc('rt_save', { p_changes: changes, p_screen: screen }, tok, of || R1.origFetch))
       .then(function (n) { touched(changes.map(function (c) { return c.p; })); R1.saves += changes.length; return n; });
   };
   function sbWrite(url, method, init, of) {
