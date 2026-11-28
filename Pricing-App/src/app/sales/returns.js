@@ -1,6 +1,7 @@
 /* ================= SALES · RETURN SPIKES: inside Sales Alerts (Sales card #3 add-on, 25 Nov 2026) =================
  * Screen: Sales → Sales Alerts — the "↩ Returns data" button (upload), the chip "↩ Return spikes N", the section "↩ Return spikes"
- *   (28 Nov 2026: the card's [Ridhi | CPC] switch decides the whole section — rsBrand; the Sales Alerts brand only moves the sales drops)
+ *   (28 Nov 2026: the whole section follows the brand chosen at the TOP of Sales Alerts — rsBrand: Ridhi, CPC, or All = both brands;
+ *   the card has no brand switch: a file is uploaded as the top brand, and with All "Choose the file…" first asks which brand it is for)
  *   (cards for the critical ones, a row per spike that opens to its details). No page of its own.
  * Data, in this order (rsLoad): 1. the backend cache "returns" (Pricing-API/Returns.gs — written, NOT deployed yet: once it runs
  *   nightly Sellora reads it on its own); 2. the uploads: Amazon's "FBA Customer Returns" report (Seller Central → Reports →
@@ -37,7 +38,7 @@ const RS_REASON = { NOT_AS_DESCRIBED: 'Not as described', DEFECTIVE: 'Defective'
   APPAREL_TOO_LARGE: 'Too large', APPAREL_TOO_SMALL: 'Too small', APPAREL_STYLE: 'Style not as expected', NO_REASON_GIVEN: 'No reason given', UNAUTHORIZED_PURCHASE: 'Unauthorised purchase' };
 // open: the upload card shows at once when the page opens (28 Nov 2026; "↩ Returns data" still folds it away). week: the week picked
 // in "Week" ('' = each family's latest complete week) — this visit only. kept: read from this browser's copy (IndexedDB) so far.
-const RS = { uploads: { SP: null, CPC: null }, cache: null, src: '', loaded: false, busy: null, err: '', open: true, upBrand: 'SP', msg: '', memo: {}, week: '', kept: false, warm: null, foP: null };
+const RS = { uploads: { SP: null, CPC: null }, cache: null, src: '', loaded: false, busy: null, err: '', open: true, ask: false, msg: '', memo: {}, week: '', kept: false, warm: null, foP: null };
 const rsTest = () => typeof sqIsTest === 'function' && sqIsTest();
 const rsEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const RS_PT = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -418,17 +419,15 @@ function rsSpikeOn(brand, key) {
 const RS_SEV = { critical: ['🔴', 'Critical'], watch: ['🟡', 'Watch'] };
 function rsBarBtn() { return `<button type="button" class="al-btn" data-rs-act="panel" aria-expanded="${RS.open}">↩ Returns data</button>`; }
 // The chip follows the week picked; while it is being worked out it shows "…" (never worked out in the middle of a draw).
-/* THE CARD'S [Ridhi | CPC] SWITCH (28 Nov 2026) decides the WHOLE returns section: the brand a file is uploaded as AND whose spikes,
- * chip, Week choices and "returns data up to" line are shown — never the other brand's. The Sales Alerts brand above (the sales drops)
- * does not move it. */
-const rsBrand = () => (RS.upBrand === 'CPC' ? 'CPC' : 'SP');
-/** When Sales Alerts opens: the switch starts on the brand chosen at the top (Ridhi → Ridhi, CPC → CPC, All → Ridhi); after that it works
- *  on its own. Called by ensureSalert only. */
-function rsStartBrand(viewBrand) { RS.upBrand = viewBrand === 'CPC' ? 'CPC' : 'SP'; RS.msg = ''; }
+/* THE BRAND CHOSEN AT THE TOP of Sales Alerts decides the WHOLE returns section (28 Nov 2026), live as it changes: the brand a file is
+ * uploaded as, the upload line, the spikes, the chip, the Week choices and the "returns data up to" line. All = both brands together
+ * (each card / row says its brand; "Choose the file…" asks which brand the file is for). Never the other brand's spikes. */
+const rsBrand = () => (typeof AL !== 'undefined' && (AL.brand === 'CPC' || AL.brand === 'ALL') ? AL.brand : 'SP');
 const RS_NAME = { SP: 'Ridhi', CPC: 'CPC' };
-// The section's note when the brand picked has no returns data: never the other brand's spikes.
-const rsNoneHtml = b => `<p class="rs-none" role="status">No ${RS_NAME[b]} returns uploaded yet — choose the ${RS_NAME[b]} Customer Returns file above to see ${RS_NAME[b]} return spikes.${RS.open ? '' : ' <button type="button" class="al-btn" data-rs-act="panel">Upload</button>'}</p>`;
-// brand: the Sales Alerts view (not used — the switch decides; kept so every caller stays as it is)
+const rsBrandsOf = b => (b === 'ALL' ? ['SP', 'CPC'] : [b]);
+// The section's note when the brand on view has no returns data: never the other brand's spikes.
+const rsNoneHtml = b => `<p class="rs-none" role="status">${b === 'ALL' ? 'No returns uploaded yet — choose the Customer Returns file above.' : `No ${RS_NAME[b]} returns uploaded yet — choose the ${RS_NAME[b]} Customer Returns file above.`}${RS.open ? '' : ' <button type="button" class="al-btn" data-rs-act="panel">Upload</button>'}</p>`;
+// brand: the Sales Alerts view — the same as rsBrand() (read from AL, so a repaint of the box alone follows it too)
 function rsChipHtml(brand) {
   brand = rsBrand();
   const wk = RS.loaded ? rsWeekOf(brand, RS.week) : '';
@@ -443,12 +442,16 @@ function rsUpTo(r) {
   return r.brands.filter(b => c[b]).map(b => `${({ SP: 'Ridhi', CPC: 'CPC' })[b]} returns data up to ${rsDay(c[b].to)}${RS.cache ? ' (nightly)' : c[b].by ? ` (uploaded by ${c[b].by})` : ''}`).join(' · ');
 }
 function rsPanelHtml() {
-  const b = (v, t) => `<button type="button" data-rs-brand="${v}" aria-pressed="${RS.upBrand === v}">${t}</button>`;
-  const last = [rsBrand()].map(x => { const u = RS.uploads[x], t = u && u.trail[u.trail.length - 1]; return `${({ SP: 'Ridhi', CPC: 'CPC' })[x]}: ${u ? `${u.rows.length} returns, ${rsDay(u.meta.from)}–${rsDay(u.meta.to)}${t ? ` · uploaded by ${rsEsc(t.name || t.by)} ${new Date(t.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}` : RS.loaded ? 'nothing uploaded' : 'reading…'}`; }).join(' · ')
+  const vb = rsBrand();
+  const file = (b, t) => `<label class="al-btn rs-file">${t}<input type="file" accept=".txt,.csv,.tsv,text/plain,text/csv" data-rs-file data-brand="${b}" hidden></label>`;
+  // All: "Choose the file…" first asks which brand the file is for; each answer opens the file picker for that brand
+  const pick = vb !== 'ALL' ? file(vb, 'Choose the file…') : RS.ask
+    ? `<span class="rs-ask" role="group" aria-label="Which brand is this file for?"><b>Which brand is this file for?</b> ${file('SP', 'Ridhi')} ${file('CPC', 'CPC')} <button type="button" class="rs-back" data-rs-act="ask-no">Cancel</button></span>`
+    : '<button type="button" class="al-btn" data-rs-act="ask">Choose the file…</button>';
+  const last = rsBrandsOf(vb).map(x => { const u = RS.uploads[x], t = u && u.trail[u.trail.length - 1]; return `${({ SP: 'Ridhi', CPC: 'CPC' })[x]}: ${u ? `${u.rows.length} returns, ${rsDay(u.meta.from)}–${rsDay(u.meta.to)}${t ? ` · uploaded by ${rsEsc(t.name || t.by)} ${new Date(t.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}` : RS.loaded ? 'nothing uploaded' : 'reading…'}`; }).join(' · ')
     + (RS.kept && RS.busy ? ' · checking for a newer upload…' : '');
   return `<div class="rs-up" id="rsUp"><div class="rs-up-h"><b>Customer Returns report</b><span class="muted">Seller Central → Reports → Fulfillment → Customer Returns → download (.txt). One file per brand; a new upload replaces the rows it shares, never counts them twice.</span></div>`
-    + `<div class="rs-up-r"><span class="al-seg" role="group" aria-label="Brand of the file">${b('SP', 'Ridhi')}${b('CPC', 'CPC')}</span>`
-    + `<label class="al-btn rs-file">Choose the file…<input type="file" accept=".txt,.csv,.tsv,text/plain,text/csv" data-rs-file hidden></label>`
+    + `<div class="rs-up-r">${pick}`
     + `${RS.cache ? '<span class="muted">The nightly returns cache is on: uploads are kept but not used.</span>' : ''}</div>`
     + `${RS.msg ? `<p class="rs-msg" role="status">${rsEsc(RS.msg)}</p>` : ''}<p class="al-asof">${last}${rsTest() ? ' · test site: uploads stay in this visit only' : ''}</p></div>`;
 }
@@ -490,7 +493,7 @@ function rsCardHtml(it) {
 }
 function rsRowHtml(it, open) {
   return `<details class="al-row is-${it.sev} rs-row" data-rs-row="${rsEsc(it.id)}"${open ? ' open' : ''}><summary><i class="al-dot is-${it.sev}" aria-hidden="true"></i>`
-    + `<span class="al-row-n">${rsEsc(it.name)}<small>${rsEsc(it.head)} · ${rsEsc(it.parent)}</small></span><span class="al-row-c">↩ Return spike</span>`
+    + `<span class="al-row-n">${rsEsc(it.name)}<small>${rsEsc(it.head)} · ${rsEsc(it.parent)}</small></span><span class="al-row-c">↩ Return spike${rsBrand() === 'ALL' ? ' · ' + RS_NAME[it.brand] : ''}</span>`
     + `<span class="al-row-p num">+${Math.round((it.now - (it.base || 0)) * 100)} pts</span><span class="al-row-m num">${it.q} units</span><span class="al-row-s">${RS_SEV[it.sev][1]}</span></summary><div class="al-det">${rsDetailHtml(it)}</div></details>`;
 }
 /** The "Week" dropdown beside the heading (its choices: rsWeeks), and "Back to latest week" when an older one is picked. */
@@ -508,13 +511,13 @@ function rsWeekPickHtml(brand) {
 /** The section on Sales Alerts: the upload card (open at first), then the spikes. Drawn at once: while the returns or the sales are being
  *  read, or the spikes worked out, its heading shows with a small skeleton ("Checking returns…") and the spikes fill in after. */
 function rsSectionHtml(brand, only) {
-  brand = rsBrand();                                         // the card's switch, not the Sales Alerts view
+  brand = rsBrand();                                         // the brand chosen at the top (All = both)
   const panel = RS.open ? rsPanelHtml() : '';
   const skel = (pick, upTo) => `<section class="al-sec rs-sec" aria-busy="true"><div class="al-sec-h"><div class="rs-hl"><h3>↩ Return spikes</h3>${pick || ''}</div><span class="muted">${upTo || ''}</span></div>`
     + `<div class="rs-skel"><p class="muted">Checking returns…</p><i></i><i></i><i></i></div></section>`;
   if (!RS.loaded) return panel + skel();
   const d = rsData();
-  if (!(d.d[brand] || []).length) return panel + rsNoneHtml(brand);
+  if (!rsBrandsOf(brand).some(b => (d.d[b] || []).length)) return panel + rsNoneHtml(brand);
   const pick = rsWeekPickHtml(brand);
   const wk = rsWeekOf(brand, RS.week);
   const r = rsPeek(brand, wk);
@@ -534,11 +537,11 @@ function rsSectionHtml(brand, only) {
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('click', async e => {
     const on = s => (e.target && e.target.closest ? e.target.closest(s) : null);
-    const t = on('#paneSalert [data-rs-act], #paneSalert [data-rs-brand], #paneSalert [data-rs-open], #paneSalert [data-rs-card]');
+    const t = on('#paneSalert [data-rs-act], #paneSalert [data-rs-open], #paneSalert [data-rs-card]');
     if (!t) return;
     if (t.dataset.rsAct === 'panel') { RS.open = !RS.open; RS.msg = ''; if (typeof alRender === 'function') alRender(); return; }
     if (t.dataset.rsAct === 'latest') { RS.week = ''; rsRepaint(); return; }
-    if (t.dataset.rsBrand) { RS.upBrand = t.dataset.rsBrand === 'CPC' ? 'CPC' : 'SP'; RS.msg = ''; rsRepaint(); return; }
+    if (t.dataset.rsAct === 'ask' || t.dataset.rsAct === 'ask-no') { RS.ask = t.dataset.rsAct === 'ask'; RS.msg = ''; rsRepaint(); return; }
     if (t.dataset.rsOpen != null) {
       const [b, sku, parent] = t.dataset.rsOpen.split('|');
       if (sku && typeof fsOpenListing === 'function') return fsOpenListing(b, sku);
@@ -555,10 +558,13 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     const inp = e.target && e.target.matches && e.target.matches('#paneSalert [data-rs-file]') ? e.target : null;
     if (!inp || !inp.files || !inp.files[0]) return;
     const f = inp.files[0];
+    const brand = inp.dataset.brand === 'CPC' ? 'CPC' : inp.dataset.brand === 'SP' ? 'SP' : '';   // the top brand, or the answer to "Which brand?"
+    if (!brand) return;
+    RS.ask = false;
     RS.msg = `Reading ${f.name}…`;
     if (typeof alRender === 'function') alRender();
     const text = await f.text();
-    RS.msg = await rsUpload(RS.upBrand, text, f.name);
+    RS.msg = await rsUpload(brand, text, f.name);
     RS.memo = {};
     rsKeptSave();
     if (typeof alRender === 'function') alRender();

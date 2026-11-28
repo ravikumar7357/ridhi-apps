@@ -1060,7 +1060,6 @@ function alRepaintElsewhere() {
 /** The tab opened (core/nav.js showTab). */
 async function ensureSalert() {
   const sales = alLoad();                          // started first, so the first draw says "Reading…" (not "Not read yet.")
-  if (typeof rsStartBrand === 'function') rsStartBrand(AL.brand);   // the returns switch starts on the brand chosen at the top
   alRender();
   // the returns are read in parallel with the sales (this browser's copy first): each time there is more, only their box is repainted
   const rs = typeof rsLoad === 'function' ? rsLoad(false, () => { if (alShown() && typeof rsRepaint === 'function') rsRepaint(); }).catch(() => {}) : null;
