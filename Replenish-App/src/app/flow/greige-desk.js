@@ -3979,27 +3979,42 @@ function cuLines() {
 /** THE PIVOT (Ravi, 28 Nov: "date wise ya printer wise, total pcs aur total running kitna bhejna hai"): the custom lines grouped by order date or by printer, each with the
  *  pieces to make and the running cloth (m of RFD) to send, and how much of that the shelf already has. Rows are what the list above shows (the board filter applies). */
 function cuPivotHtml(rows, mode) {
-  var by = {}, order = [];
-  rows.forEach(function (c) {
-    var r = c.ln.x.r, k = mode === 'date' ? String(r.orderDate || 'No date') : (c.ln.printerName || 'Printer not chosen');
-    var g = by[k] || (by[k] = { k: k, lines: 0, pcs: 0, m: 0, ready: 0, short: 0, shp: 0, onl: 0 });
-    var ok = c.cover && c.cover.name && c.cover.short <= 0.05;
-    g.lines++; g.pcs += c.ln.pcs; g.m += c.ln.metres; if (ok) g.ready += c.ln.metres; else g.short += c.ln.metres; g[c.board]++;
-  });
-  order = Object.keys(by).map(function (k) { return by[k]; });
-  order.sort(function (a, b) { return mode === 'date' ? String(a.k).localeCompare(String(b.k)) : b.m - a.m; });
-  var T = { lines: 0, pcs: 0, m: 0, ready: 0, short: 0 };
-  order.forEach(function (g) { T.lines += g.lines; T.pcs += g.pcs; T.m += g.m; T.ready += g.ready; T.short += g.short; });
-  var row = function (g, tot) {
-    return '<tr' + (tot ? ' style="font-weight:700;border-top:2px solid var(--line)"' : '') + '><td class="frz tl b">' + esc(tot ? 'Total' : g.k) + '</td><td class="num">' + nf(g.lines) + '</td>'
-      + '<td class="num">' + (tot ? '' : nf(g.shp) + ' / ' + nf(g.onl)) + '</td><td class="num">' + nf(g.pcs) + '</td><td class="num"><b>' + m1(g.m) + ' m</b></td>'
-      + '<td class="num">' + (g.ready > 0.05 ? m1(g.ready) + ' m' : '<span class="muted">&mdash;</span>') + '</td>'
-      + '<td class="num">' + (g.short > 0.05 ? '<span style="color:var(--bad);font-weight:700">' + m1(g.short) + ' m</span>' : '<span class="muted">&mdash;</span>') + '</td></tr>';
+  /* the sheet Ravi drew (28 Nov): the printer's name in bold, then  RFD fabric · Size · Qty · Total Mtr · send  — by date: a block per date, a printer under it */
+  var pr = function (c) { return c.ln.printerName || 'Printer not chosen'; };
+  var dayOf = function (c) { return String(c.ln.x.r.orderDate || 'No date'); };
+  var block = function (title, list, big) {
+    var by = {}, keys = [];
+    list.forEach(function (c) {
+      var size = ctsLineSize(c.ln.x), k = c.fabric + '|' + size;
+      var g = by[k] || (by[k] = { fabric: c.fabric, size: size, pcs: 0, m: 0, short: 0 });
+      g.pcs += c.ln.pcs; g.m += c.ln.metres; if (!(c.cover && c.cover.name && c.cover.short <= 0.05)) g.short += c.ln.metres;
+    });
+    keys = Object.keys(by).sort();
+    var tp = 0, tm = 0;
+    var body = keys.map(function (k) {
+      var g = by[k]; tp += g.pcs; tm += g.m;
+      return '<tr><td class="tl">' + (g.fabric ? esc(g.fabric) : '<span class="muted">no fabric set</span>') + '</td><td class="tl">' + esc(g.size) + '</td><td class="num">' + nf(g.pcs) + '</td>'
+        + '<td class="num"><b>' + m1(g.m) + '</b></td>'
+        + '<td class="tl">' + (g.short > 0.05 ? '<span style="color:var(--bad);font-size:11px">' + m1(g.short) + ' m short</span> ' : '<span class="pill pill-ok">on shelf</span> ')
+        + (g.fabric ? '<button type="button" class="jw-btn jw-primary" data-gdlines="' + esc(g.fabric) + '" style="white-space:nowrap;padding:3px 10px;font-size:12px" title="Open Demand → RFD at ' + esc(g.fabric) + ' and send it to the printer">send</button>' : '') + '</td></tr>';
+    }).join('');
+    return '<div style="margin:' + (big ? '4px 0 14px' : '10px 0 14px') + '"><div style="font-weight:700;font-size:' + (big ? '15' : '14') + 'px;margin:0 0 6px 2px">' + esc(title) + '</div>'
+      + '<div class="card"><div class="ff-grid"><table class="xl">' + th(['RFD fabric', 'Size', 'Qty', 'Total Mtr', 'send'], [2, 3])
+      + '<tbody>' + body + '<tr style="font-weight:700;border-top:2px solid var(--line)"><td class="tl">Total</td><td></td><td class="num">' + nf(tp) + '</td><td class="num">' + m1(tm) + '</td><td></td></tr></tbody></table></div></div></div>';
   };
-  return '<div class="card"><div class="ff-grid"><table class="xl">'
-    + th([mode === 'date' ? 'Order date' : 'Printer', 'Lines', 'SHP / Online', 'Total pcs', 'Total running to send', 'RFD on shelf for it', 'RFD still short'], [1, 2, 3, 4, 5, 6])
-    + '<tbody>' + (order.map(function (g) { return row(g, false); }).join('') + (order.length ? row(T, true) : '') || emptyRow(7, 'No SHP or Online board order is waiting for RFD.')) + '</tbody></table></div></div>'
-    + '<div class="lm-why">Running = metres of RFD cloth the pieces need (pcs × the SKU\'s cloth per piece). "On shelf" is the part the free RFD already covers, oldest order first; "still short" has no RFD yet.</div>';
+  var group = function (list, fn) { var m = {}, ks = []; list.forEach(function (c) { var k = fn(c); (m[k] = m[k] || []).push(c); }); ks = Object.keys(m).sort(); return ks.map(function (k) { return [k, m[k]]; }); };
+  if (!rows.length) return '<div class="card" style="padding:30px;text-align:center;color:var(--muted)">No SHP or Online board order is waiting for RFD.</div>';
+  var out;
+  if (mode === 'date') {
+    out = group(rows, dayOf).map(function (d) {
+      var pcs = 0, m = 0; d[1].forEach(function (c) { pcs += c.ln.pcs; m += c.ln.metres; });
+      return '<div style="margin:0 0 22px"><div style="font-weight:700;font-size:16px;margin:0 0 2px">' + esc(d[0]) + ' <span class="muted" style="font-weight:400;font-size:12px">· ' + nf(pcs) + ' pcs · ' + m1(m) + ' m</span></div>'
+        + group(d[1], pr).map(function (p) { return block(p[0], p[1], false); }).join('') + '</div>';
+    }).join('');
+  } else {
+    out = group(rows, pr).map(function (p) { return block(p[0], p[1], true); }).join('');
+  }
+  return out + '<div class="lm-why">Qty = pieces to make; Total Mtr = metres of RFD cloth they need (pcs × the SKU\'s cloth per piece). "send" opens Demand → RFD at that fabric. "on shelf" = the free RFD already covers it; "short" = no RFD for it yet.</div>';
 }
 function cuHtml() {
   var all = cuLines(), tb = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'

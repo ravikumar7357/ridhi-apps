@@ -4,7 +4,7 @@ const src = fs.readFileSync(__dirname + '/../src/app/flow/greige-desk.js', 'utf8
 const a = src.indexOf('UI.invView = '), b = src.indexOf("/** What PPC's demand asks of this fabric");
 const mk = (rows, ready) => {
   const ctx = { UI: { invBoard: 'all' }, INV_CSS: '', esc: x => String(x == null ? '' : x), nf: x => String(x), m1: x => (+x).toFixed(1), plural: (n, o) => n + ' ' + o + (n === 1 ? '' : 's'),
-    lmMatch: () => true, th: l => '<thead>' + l.join('|') + '</thead>', emptyRow: (c, w) => '<tr>' + w + '</tr>', gdFlowReady: () => ready,
+    lmMatch: () => true, ctsLineSize: x => x.r.size || '', ctsLineSize: x => x.r.size || '', th: l => '<thead>' + l.join('|') + '</thead>', emptyRow: (c, w) => '<tr>' + w + '</tr>', gdFlowReady: () => ready,
     flowRows: () => rows, flowInView: () => true, flowCpActive: () => false, flowRfdCover: () => ({ line: { k1: { name: 'Sheeting 62', short: 0 }, k2: { name: 'Sheeting 62', short: 12.5 } } }),
     flowShLine: x => ({ x, key: x.s.key, pcs: x.r.qty, metres: x.r.qty * 2, printerName: '' }) };
   vm.createContext(ctx); vm.runInContext(src.slice(src.indexOf("var CU_BOARDS"), b), ctx); return ctx;
@@ -20,13 +20,13 @@ assert(/RFD on shelf/.test(h) && /short 12\.5 m/.test(h)); ok++;
 assert(/data-gdlines="Sheeting 62"/.test(h) && !/AMZ-24112026/.test(h)); ok++;
 assert(/Loading the custom orders/.test(vm.runInContext('cuHtml()', mk([], false)))); ok++;
 console.log(ok + ' passed, 0 failed');
-{ // the pivot
+{ // the pivot, in the sheet Ravi drew: printer in bold, then RFD fabric · Size · Qty · Total Mtr · send
   const c2 = mk([R('SHP-7862', 'k1', 4), R('ONL-12', 'k2', 3)], true);
   vm.runInContext("UI.cuMode='printer'", c2);
   const hp = vm.runInContext('cuHtml()', c2);
-  assert(/Printer not chosen/.test(hp) && /Total/.test(hp) && /14\.0 m/.test(hp)); // (4+3) pcs x 2 m
+  assert(/Printer not chosen/.test(hp) && /RFD fabric/.test(hp) && /Total Mtr/.test(hp) && />14\.0</.test(hp) && /data-gdlines="Sheeting 62"/.test(hp) && />7</.test(hp)); // 4+3 pcs, x 2 m
   vm.runInContext("UI.cuMode='date'", c2);
   const hd = vm.runInContext('cuHtml()', c2);
-  assert(/2026-11-21/.test(hd) && /2026-11-22/.test(hd) && /Total/.test(hd));
+  assert(/2026-11-21/.test(hd) && /2026-11-22/.test(hd) && /Total Mtr/.test(hd));
   console.log('pivot ok');
 }
