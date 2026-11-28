@@ -3263,6 +3263,92 @@
   @keyframes saiSk { from { background-position: 100% 0; } to { background-position: -100% 0; } }
   @media (max-width: 900px) { #paneSa .sai-charts, #paneSa .sai-cards { grid-template-columns: minmax(0, 1fr); } #paneSa .sai-cv { height: 260px; } }
   @media (prefers-reduced-motion: reduce) { #paneSa .sai-sk { animation: none; } #paneSa #saTable tr.sai-flash td { animation: none; background-color: color-mix(in srgb, var(--brand) 18%, transparent); } }
+  /* ================= PARENT LISTING REVIEW — interactive (28 Nov 2026, sales/plr-insights.js). The table keeps its look; added: a
+     sticky toolbar, the story, the KPI strip, the action cards, "Show other N", and the side panel #plxPanel. Scoped to #panePlaudit. ================= */
+  #panePlaudit > .sa-toolcard { position: sticky; top: var(--plx-top, 0px); z-index: 20; }
+  #panePlaudit .plx-wk { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: 15px; }
+  #panePlaudit .plx-ins { margin-top: 12px; }
+  #panePlaudit .plx-ins:empty { display: none; }
+  #panePlaudit .plx-story { margin: 4px 2px 12px; font-size: 17px; font-weight: 600; line-height: 1.4; color: var(--ink); }
+  #panePlaudit .plx-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  #panePlaudit .plx-kpi { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 12px 14px; background: var(--card); border: 1px solid var(--card-line); border-radius: 14px; }
+  #panePlaudit .plx-kpi > span { font-size: 12.5px; color: var(--muted); }
+  #panePlaudit .plx-kpi > b { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+  #panePlaudit .plx-kpi > small { font-size: 12px; color: var(--muted); }
+  #panePlaudit .plx-kpi.is-bad > b { color: var(--bad-ink); }
+  #panePlaudit .plx-d { font-weight: 600; font-variant-numeric: tabular-nums; }
+  #panePlaudit .plx-d.is-up, #plxPanel .plx-d.is-up { color: var(--accent-ink); }
+  #panePlaudit .plx-d.is-down, #plxPanel .plx-d.is-down { color: var(--bad-ink); }
+  #panePlaudit .plx-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+  #panePlaudit .plx-card { display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: auto; height: auto; min-height: 0; min-width: 0; margin: 0; padding: 12px 14px; text-align: left;
+    background: var(--card); color: var(--ink); border: 1px solid var(--card-line); border-radius: 14px; box-shadow: none; cursor: pointer; font: inherit; }
+  #panePlaudit .plx-card:hover:not(:disabled) { border-color: color-mix(in srgb, var(--brand) 40%, var(--card-line)); }
+  #panePlaudit .plx-card:disabled { cursor: default; opacity: .7; }
+  #panePlaudit .plx-card.is-on { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); }
+  #panePlaudit .plx-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  #panePlaudit .plx-ct { font-size: 14px; font-weight: 700; }
+  #panePlaudit .plx-card > b { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  #panePlaudit .plx-card > small { font-size: 11.5px; }
+  #panePlaudit .plx-card ol { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; }
+  #panePlaudit .plx-card li { margin: 2px 0; }
+  #panePlaudit .plx-card li span { display: inline-block; max-width: calc(100% - 70px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+  #panePlaudit .plx-card li em { float: right; margin-left: 6px; font-style: normal; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
+  #panePlaudit .plx-card.is-stock li em, #panePlaudit .plx-card.is-down li em, #panePlaudit .plx-card.is-traffic li em, #panePlaudit .plx-card.is-spend li em { color: var(--bad-ink); }
+  #panePlaudit .plx-card.is-ok li em { color: var(--accent-ink); }
+  #panePlaudit .plx-more { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; padding: 10px; font-size: 13px; }
+  #panePlaudit .plx-more:empty { display: none; }
+  #panePlaudit .plx-btn, #plxPanel .plx-btn { width: auto; }
+  #panePlaudit #plTable tbody tr[data-pl-row] { cursor: pointer; }
+  #panePlaudit #plTable tbody tr[data-pl-row]:hover td { background-color: color-mix(in srgb, var(--brand) 6%, var(--card)); }
+  #panePlaudit #plTable tbody tr.is-open td { background-color: color-mix(in srgb, var(--brand) 12%, var(--card)); }
+  #panePlaudit #plTable tbody tr.is-open td:first-child { box-shadow: inset 3px 0 0 var(--brand); }
+  #panePlaudit .plx-sk { display: block; min-height: 72px; border-radius: 14px; background: linear-gradient(90deg, var(--card-line) 25%, color-mix(in srgb, var(--card-line) 45%, var(--card)) 50%, var(--card-line) 75%);
+    background-size: 200% 100%; animation: plxSk 1.4s ease-in-out infinite; opacity: .6; }
+  #panePlaudit .plx-cards > .plx-sk { min-height: 130px; }
+  #panePlaudit .plx-sk-line { height: 22px; min-height: 0; width: min(720px, 100%); border-radius: 8px; }
+  @keyframes plxSk { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+  #plxPanel { position: fixed; top: var(--plx-top, 0px); right: 0; bottom: 0; z-index: 60; width: min(560px, 100vw); overflow-y: auto; overscroll-behavior: contain;
+    background: var(--card); color: var(--ink); border-left: 1px solid var(--card-line); box-shadow: -12px 0 48px rgba(0, 0, 0, .14); }
+  #plxPanel[hidden] { display: none; }
+  #plxPanel .plx-ph { position: sticky; top: 0; z-index: 2; display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px 12px; background: var(--card); border-bottom: 1px solid var(--card-line); }
+  #plxPanel .plx-img { flex: none; width: 64px; height: 64px; object-fit: contain; border-radius: 10px; background: #fff; border: 1px solid var(--card-line); }
+  #plxPanel .plx-noimg { display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); background: var(--card); }
+  #plxPanel .plx-ph-t { flex: 1; min-width: 0; }
+  #plxPanel .plx-ph h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+  #plxPanel .plx-ph p { margin: 0; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+  #plxPanel .plx-x { flex: none; width: 36px; height: 36px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--card-line); color: var(--ink); font-size: 16px; cursor: pointer; box-shadow: none; }
+  #plxPanel .plx-x:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  #plxPanel .plx-pb { padding: 12px 18px 24px; }
+  #plxPanel .plx-act { margin: 0 0 10px; font-size: 14px; line-height: 1.45; }
+  #plxPanel .plx-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  #plxPanel .plx-h3 { margin: 16px 0 6px; font-size: 13px; font-weight: 700; color: var(--ink); }
+  #plxPanel .plx-chart { height: 220px; min-width: 0; }
+  #plxPanel .plx-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  #plxPanel .plx-grid p { margin: 0; font-size: 13px; line-height: 1.45; }
+  #plxPanel .plx-rank small { display: block; margin-top: 2px; }
+  #plxPanel .plx-tw { overflow-x: auto; }
+  #plxPanel .plx-kids { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  #plxPanel .plx-kids th, #plxPanel .plx-kids td { padding: 5px 6px; border-bottom: 1px solid var(--card-line); text-align: left; }
+  #plxPanel .plx-kids th { font-weight: 600; color: var(--muted); }
+  #plxPanel .plx-kids .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #plxPanel .plx-kids small { display: block; color: var(--muted); font-size: 11px; }
+  #plxPanel .plx-fn { font-weight: 600; }
+  #plxPanel .plx-plain { margin: 0; padding: 0; list-style: none; }
+  #plxPanel .plx-plain li { display: grid; grid-template-columns: minmax(0, 110px) 1fr auto; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
+  #plxPanel .plx-plain span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #plxPanel .plx-plain i { display: block; height: 10px; border-radius: 4px; background: color-mix(in srgb, var(--brand) 35%, transparent); }
+  #plxPanel .plx-plain li.is-last i { background: var(--brand); }
+  #plxPanel .plx-plain b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  @media (max-width: 1100px) { #panePlaudit .plx-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 900px) { #panePlaudit .plx-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } #panePlaudit .plx-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 700px) {
+    #panePlaudit > .sa-toolcard { position: static; }
+    #panePlaudit .plx-story { font-size: 15px; }
+    #panePlaudit .plx-cards { grid-template-columns: minmax(0, 1fr); }
+    #plxPanel { top: auto; left: 0; width: 100%; max-height: 88vh; border-left: 0; border-radius: 20px 20px 0 0; box-shadow: 0 -12px 48px rgba(0, 0, 0, .25); }
+    #plxPanel .plx-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (prefers-reduced-motion: reduce) { #panePlaudit .plx-sk { animation: none; } }
   /* ================= BSR AUDIT — THE DECISION PAGE (28 Nov 2026, listing/bsr-decide.js) — the Sales pages' look (Sales Alerts): calm
      cards, tabular numbers, red / amber / green only for status. Scoped to #paneBsr #bsxPane and the panel #bsxPanel. ================= */
   #bsxPane, #bsxPanel, #bsxCal {
