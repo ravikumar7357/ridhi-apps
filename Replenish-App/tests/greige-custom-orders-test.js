@@ -14,7 +14,11 @@ const mk = (rows, ready) => {
     flowShLine: x => ({ x, key: x.s.key, pcs: x.r.qty, metres: x.r.qty * 2, printer: x.r.prn || '', printerName: x.r.prnName || '', perPc: x.r.noCloth ? 0 : 2 }),
     flowShKind: l => (l.x.r.cut ? 'cut' : 'run'), flowShWhyNot: (S, l) => (l.perPc > 0 ? (l.printer ? '' : 'PPC has not given it a printer yet — PPC sets it first') : 'No cloth per piece on its master row — add it there first'),
     flowShReviewOpen() { calls.review++; }, flowShCommit() {}, FLOW_SH: null, calls, listeners };
-  vm.createContext(ctx); vm.runInContext("var UI_ = UI; function render() { calls.rendered = (calls.rendered || 0) + 1; }", ctx);
+  vm.createContext(ctx);
+  /* the real order cloth goes in (flow-demand.js): Shopify board first, then oldest */
+  const dm = fs.readFileSync(__dirname + '/../src/app/flow/flow-demand.js', 'utf8');
+  vm.runInContext(dm.slice(dm.indexOf('const flowIsShpOrder'), dm.indexOf('function flowRfdCover(')), ctx);
+  vm.runInContext("var UI_ = UI; function render() { calls.rendered = (calls.rendered || 0) + 1; }", ctx);
   vm.runInContext(src.slice(src.indexOf('var CU_BOARDS'), b), ctx); return ctx;
 };
 const R = (no, key, qty, o) => ({ r: Object.assign({ orderNo: no, sku: 'S-' + key, qty, orderDate: '2026-11-2' + key.slice(1), prn: 'p1', prnName: 'RBP-Bagru' }, o || {}), s: { key, route: 'print', plan: { fabric: { name: key === 'k5' ? 'Percale' : 'Sheeting 62' } } } });
@@ -22,7 +26,7 @@ let ok = 0; const t = (c, m) => { assert(c, m); ok++; };
 const rows = [R('SHP-7862', 'k1', 4), R('AMZ-24112026-01-AIR', 'k3', 9), R('ONL-12', 'k2', 3, { prn: 'p2', prnName: 'Bhavya' }), R('ETSY-5', 'k4', 0), R('SHP-9', 'k5', 2, { noCloth: true })];
 const c = mk(rows, true);
 const L = vm.runInContext('cuLines()', c);
-t(L.length === 3 && L.map(x => x.board).join() === 'shp,onl,shp', 'Amazon and the 0-pcs line are out');
+t(L.length === 3 && L.map(x => x.board).join() === 'shp,shp,onl', 'Amazon and the 0-pcs line are out; Shopify board first, then oldest');
 let h = vm.runInContext('cuHtml()', c);
 t(/data-cusel="k1"/.test(h) && /data-cusel="k2"/.test(h), 'lines that can go have a tick');
 t(!/data-cusel="k5"/.test(h) && /No cloth per piece/.test(h), 'a line with no cloth per piece has none, and says why');

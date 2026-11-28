@@ -145,6 +145,15 @@ function flowLedgerAfter(name, day) {
     return d > day ? a + fabMove(r) : a;
   }, 0);
 }
+/** WHO GETS FREE CLOTH FIRST (owner, 28 Nov 2026): Shopify board orders (SHP-…) before every other order, then the oldest.
+ *  Only cloth nobody holds is shared this way: what is marked ready or on a challan stays with its line.
+ *  By order number only, not obIsShop: a TEST copy (TEST-SHP-…) must not take free cloth ahead of real orders. All SHP- orders
+ *  count, older ones too, not only the board's (flowBoardOwns). */
+const flowIsShpOrder = orderNo => /^SHP-/i.test(String(orderNo || '').trim());
+const flowClothOrder = (a, b) => (flowIsShpOrder(b.orderNo) - flowIsShpOrder(a.orderNo))
+  || String(a.orderDate || '').localeCompare(String(b.orderDate || '')) || String(a.orderNo).localeCompare(String(b.orderNo));
+/** A list already in its own order, with the Shopify board lines moved ahead (a stable sort keeps the rest as it was). */
+const flowShpFirst = (list, noOf) => list.slice().sort((a, b) => flowIsShpOrder(noOf(b)) - flowIsShpOrder(noOf(a)));
 function flowRfdCover() {
   const rows = flowRows(), fab = {}, line = {};
   const F = name => { const k = flowFabKey(name); return fab[k] || (fab[k] = { name: String(name || '').trim(), stock: flowRfdStock(name), held: 0, need: 0, lines: 0 }); };
@@ -159,7 +168,7 @@ function flowRfdCover() {
   });
   /* a line in Cut to size has its cloth off the shelf already: it needs no more */
   rows.filter(x => flowInView('drfd', x.s) && !(typeof flowCpActive === 'function' && flowCpActive(x.s.key)))
-    .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)))
+    .sort((a, b) => flowClothOrder(a.r, b.r))
     .forEach(({ s }) => {
       const p = s.plan || {}, name = p.fabric && p.fabric.name;
       const need = flowPrinted(s.route) ? flowFabOwed({ qty: p.qty || 0 }, s).metres : flowR2(flowToPrint({ qty: p.qty || 0 }, p).metres * flowRemFrac({ qty: p.qty || 0 }, s));
@@ -174,7 +183,7 @@ function flowRfdCover() {
 /* ---- SEND TO CUTTING FROM THE GREIGE DESK, LINKED TO THE LINES (Ravi, 21 Nov: "Link it to the lines") ----
  * The no-printing lines of one RFD fabric that cloth off the shelf may go for: still waiting on Demand → RFD, or marked
  * ready by hand and not cut yet (their cloth is held on the shelf). Printed lines go by printer challan, never here.
- * metres = what a waiting line still needs, or what was made ready for a held one. Oldest order first. */
+ * metres = what a waiting line still needs, or what was made ready for a held one. Shopify board orders first, then oldest. */
 function flowCutLines(fabric) {
   const k = flowFabKey(fabric), cover = flowRfdCover().line;
   return flowRows().map(({ r, s }) => {
@@ -185,7 +194,7 @@ function flowCutLines(fabric) {
     if (!waiting && !held) return null;
     return { key: s.key, orderNo: r.orderNo, orderDate: r.orderDate || '', sku: obUC(r.sku), pcs: +r.qty || 0,
       metres: flowR2(waiting ? ((cover[s.key] || {}).need || 0) : (+fr.metres || 0)), ready: !waiting, was: fr || null };
-  }).filter(Boolean).sort((a, b) => a.orderDate.localeCompare(b.orderDate) || String(a.orderNo).localeCompare(String(b.orderNo)));
+  }).filter(Boolean).sort(flowClothOrder);
 }
 /** Accessories the same way, for the Accessories department: on the shelf, held, and what the lines waiting need. */
 function flowAccCover() {

@@ -33,6 +33,10 @@ function desk() {
     + ', setDB: function (v) { DB = v; GD_STATE = "ok"; GD_SNAP = gdSnap(); }, setCUT: function (v) { CUT = v; }, getCUT: function () { return CUT; }, getDB: function () { return DB; }, FAB_LABEL: FAB_LABEL, FAB_SIGN: FAB_SIGN, ui: UI };\n' + anchor);
   const ctx = { console, window: { document: {} }, __ROOT: root, ptPatch: async p => { wrote.push(p); }, ptPut: async () => {}, setTimeout: () => 0, clearTimeout: () => {} };
   vm.createContext(ctx);
+  /* the real order cloth goes in (flow-demand.js), so a broken one shows here too */
+  const dm = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'flow', 'flow-demand.js'), 'utf8').replace(/\r\n/g, '\n');
+  const from = dm.indexOf('const flowIsShpOrder'), to = dm.indexOf('function flowRfdCover(');
+  vm.runInContext(dm.slice(from, to), ctx);
   vm.runInContext(opened, ctx);
   ctx.__GDT.ctx = ctx;
   return ctx.__GDT;
@@ -182,7 +186,10 @@ FLOWROWS[1].s.plan.printer = { code: 'P2', name: 'Printer P2' };
 const planP = G.ctsSendPlan(SP, 'P1');
 ok('a line PPC planned for another printer is skipped, with a note', planP.picks.map(p => p.line.key).join() === 'B' && planP.skipped.length === 1 && /Planned for Printer P2/.test(planP.skipped[0].why));
 FLOWROWS[1].s.plan.printer = null;
-const before = JSON.stringify(G.fabFlowRows(G.getDB().fab)), lotsBefore = JSON.stringify(G.fabLots(G.getDB().fab).map(figures)), shelfBefore = G.fabShelfLedger(G.getDB().fab, 'Sheeting 72', 'rfd', '', '').closing;
+FLOWROWS = [orderLine('OLD', 'AMZ-1', '2026-10-01', 'Sheeting 72', '60x60', 30), orderLine('NEW', 'SHP-9', '2026-11-20', 'Sheeting 72', '60x60', 30)];
+ok('a newer Shopify board line takes the pieces ahead of an older Amazon one (28 Nov)', G.ctsSendPlan(SP, 'P1').picks.map(p => p.line.key + ':' + p.pcs).join() === 'NEW:30,OLD:20', G.ctsSendPlan(SP, 'P1').picks.map(p => p.line.key + ':' + p.pcs).join());
+sendSetup();
+const before =JSON.stringify(G.fabFlowRows(G.getDB().fab)), lotsBefore = JSON.stringify(G.fabLots(G.getDB().fab).map(figures)), shelfBefore = G.fabShelfLedger(G.getDB().fab, 'Sheeting 72', 'rfd', '', '').closing;
 (async () => {
   const made = await G.ctsSendWrite({ code: 'P1', desc: 'Printer P1' }, 'Sheeting 72', plan, 'by tempo');
   const ch = challans[0] && challans[0].ch;

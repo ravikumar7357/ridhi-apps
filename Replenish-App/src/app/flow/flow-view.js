@@ -105,7 +105,9 @@ function renderFlow() {
   $('flBuckets').innerHTML = bar.map(([k, l, , tip]) => `<button class="fl-b${k === FLOW_VIEW || (k === 'demand' && FLOW_DEMAND.includes(FLOW_VIEW)) ? ' on' : ''}" data-flb="${k}" title="${esc(tip)}">
       <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
-  rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
+  /* cloth is given out on Demand → RFD, so that list stands in the order the cloth goes (flowClothOrder) */
+  rows.sort((a, b) => (FLOW_VIEW === 'drfd' ? flowClothOrder(a.r, b.r)
+    : String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo))));
   FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = ''; FLOW.bysize = '';
   // The Accessories tab also lists what is reserved and not issued, so a reservation can be let go (flowTable, 'dacc').
   FLOW.held = FLOW_VIEW === 'dacc' ? shown.filter(x => x.s.res && !x.s.issued && x.s.bucket !== 'done') : [];
@@ -248,7 +250,7 @@ const flowSizeSort = (a, b) => { const n = s => (String(s).match(/\d+(\.\d+)?/g)
  * first, and opens the ordinary challan form with those lines and figures in it: the challan is saved the one way it always
  * is. Lines on the Cutting route (no printer) and lines with no printer chosen are listed apart, with no challan button. */
 let FLOW_SIZE_PIVOT = null;
-const flowFifoSort = (a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)) || String(a.x.s.key).localeCompare(String(b.x.s.key));
+const flowFifoSort = (a, b) => flowClothOrder(a.x.r, b.x.r) || String(a.x.s.key).localeCompare(String(b.x.s.key));
 /** What one line still owes, in pieces and metres, and metres per piece. */
 function flowSizeOwed(x) {
   const p = x.s.plan || {}, o = flowFabOwed(x.r, x.s);
@@ -343,7 +345,7 @@ function flowChGroups(keys, pre) {
     const pc = (to && String(to.code)) || flowPlanPrinter(x.s) || '?', g = out.get(pc) || { pcode: pc, rows: [] }; g.rows.push(x); out.set(pc, g);
   });
   const groups = [...out.values()].map(g => Object.assign(g, { pre: pre || null,
-    rows: g.rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo))) }));
+    rows: g.rows.sort((a, b) => flowClothOrder(a.r, b.r)) }));
   return { groups, skipped };
 }
 /** Open the challan forms one after another. */
@@ -756,7 +758,7 @@ function flowTable(view, rows) {
       const e = x.r.__t ? null : flowEarlierOf(x);
       return `<tr${c.short ? ' style="background:#fef2f2"' : ''}>
         <td class="frz" style="${T};white-space:nowrap;font-size:12px">${esc(dmy)}${age != null ? `<div style="${SB}">${nf(age)} days</div>` : ''}</td>
-        <td style="${T};min-width:100px">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}" title="${esc(flowDocsOf(x).map(d => d.kind + ' ' + d.no + (d.who ? ' → ' + d.who : '')).join(' · '))}" style="color:inherit;font-weight:700;text-decoration:underline dotted;font-size:13.5px">${esc(x.r.orderNo)}</a>`}${buyer ? `<div style="font-size:11.5px;font-weight:600">${esc(buyer)}</div>` : ''}</td>
+        <td style="${T};min-width:100px">${flowIsShpOrder(x.r.orderNo) ? '<span class="jw-st" style="background:#dbeafe;color:#1e40af;font-weight:700" title="Shopify board order: free cloth goes to it first">Priority</span><br>' : ''}${x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}" title="${esc(flowDocsOf(x).map(d => d.kind + ' ' + d.no + (d.who ? ' → ' + d.who : '')).join(' · '))}" style="color:inherit;font-weight:700;text-decoration:underline dotted;font-size:13.5px">${esc(x.r.orderNo)}</a>`}${buyer ? `<div style="font-size:11.5px;font-weight:600">${esc(buyer)}</div>` : ''}</td>
         <td style="${T};min-width:230px"><div style="display:flex;gap:8px;align-items:center">${pic(x.r.sku)}<div style="line-height:1.3"><div style="font-weight:600;font-size:12.5px">${esc(x.r.articleSubtype || x.r.articleType || x.r.itemName || '—')}</div>
           <div style="${SB}">${esc([x.r.color, x.r.size].filter(Boolean).join(' · '))} · <span style="font-family:ui-monospace,monospace">${esc(x.r.sku)}</span></div></div></div></td>
         <td class="num" style="vertical-align:top"><b style="font-size:14px">${nf(x.r.qty)}</b></td>
