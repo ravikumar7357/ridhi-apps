@@ -84,7 +84,7 @@ function flowFgAcceptOpen(key) {
   ptOpenDialog({
     title: `Accept into Finished Goods — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`,
     subtitle: `${nf(can)} passed QC and are not in India stock yet.${x.r.__t ? ' TEST order: it goes into the India store as a TEST entry, and "delete test" takes it out again.' : ''}`,
-    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces counted in<input id="flfP" type="number" min="1" value="${can}"></label><label>Note<input id="flfN"></label></div>`,
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces counted in<input id="flfP" type="number" step="1" min="1" value="${can}"></label><label>Note<input id="flfN"></label></div>`,
     memory: 'fgAccept',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Accept',
     onSave: async () => {
@@ -128,7 +128,7 @@ function flowFgRejectOpen(key) {
   if (!can) return flowFgSay('Nothing of that line is waiting any more — press Refresh.', true);
   ptOpenDialog({
     title: `Reject — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`, subtitle: `${nf(can)} waiting. Rejected pieces go back to Quality Control (Waiting for QC) to be checked again.`,
-    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces<input id="flfrP" type="number" min="1" value="${can}"></label><label>Why (stain, wrong size, stitching, packing…)<input id="flfrW"></label></div>`,
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces<input id="flfrP" type="number" step="1" min="1" value="${can}"></label><label>Why (stain, wrong size, stitching, packing…)<input id="flfrW"></label></div>`,
     memory: 'fgReject',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Reject',
     onSave: async () => {

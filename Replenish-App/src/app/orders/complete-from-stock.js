@@ -45,7 +45,7 @@ async function ordStockOpen(key) {
   const have = Math.max(0, Math.floor(fgiOf(l.sku).current)), owed = ordStockOwed(l), top = Math.min(have, owed), who = l.orderNo + ' · ' + l.sku;
   if (!(top > 0)) return ptOpenDialog({ title: 'From stock — ' + who, subtitle: have > 0 ? 'Nothing more of this line is owed.' : `${l.sku} has no pieces in the India store, so nothing can be completed from stock.` });
   ptOpenDialog({ title: 'Complete from ready stock — ' + who, subtitle: `${nf(have)} piece(s) of ${l.sku} in the India store · this line is still owed ${nf(owed)}. The store gives the pieces up and the line counts them as made.`,
-    fields: [{ key: 'pcs', label: 'Pieces from stock', type: 'number', min: 1, max: top, value: top }, { key: 'note', label: 'Note (optional)', value: '' }],
+    fields: [{ key: 'pcs', label: 'Pieces from stock', type: 'number', step: 1, min: 1, max: top, value: top }, { key: 'note', label: 'Note (optional)', value: '' }],
     saveLabel: 'Complete from stock', onSave: v => ordStockSave(l, v) });
 }
 if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {

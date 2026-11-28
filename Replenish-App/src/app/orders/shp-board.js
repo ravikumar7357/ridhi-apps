@@ -649,7 +649,7 @@ function shpbDialog(act, key) {
       const have = Math.max(0, Math.floor(fgiOf(r.sku).current)), s2 = shpbStages([r]), need = Math.max(0, (+r.qty || 0) - s2.stk - s2.prsD), top = Math.min(have, need);
       if (!(top > 0)) return ptOpenDialog({ title: 'From stock — ' + who, subtitle: have > 0 ? 'Nothing more of this line needs to be made.' : `${r.sku} has no pieces in the India store, so nothing can be completed from stock.` });
       ptOpenDialog({ title: 'Complete from ready stock — ' + who, subtitle: `${nf(have)} piece(s) of ${r.sku} in the India store · this line still needs ${nf(need)}. The store gives the pieces up and shipping is handed them.`,
-        fields: [{ key: 'pcs', label: 'Pieces from stock', type: 'number', min: 1, max: top, value: top }, { key: 'note', label: 'Note (optional)', value: '' }],
+        fields: [{ key: 'pcs', label: 'Pieces from stock', type: 'number', step: 1, min: 1, max: top, value: top }, { key: 'note', label: 'Note (optional)', value: '' }],
         saveLabel: 'Complete from stock', onSave: v => shpbStockSave(r, v) });
     })();
   }
@@ -670,8 +670,8 @@ function shpbDialog(act, key) {
       html: hist.length ? '<div style="font-size:12px;margin:-4px 0 8px">' + hist.map(h => `<div class="muted">${esc(shpbDmy(h.x.date))} · ${h.k === 'iss' ? 'issued' : 'received'} <b>${nf(h.x.qty)}</b> · ${esc(String(h.x.by || '').split('@')[0])}</div>`).join('') + '</div>' : '',
       fields: [{ key: 'ven', label: 'Filler vendor', type: 'select', options: [['', vs.length ? '— pick —' : 'no vendor with category Filling in the vendor master']].concat(vs.map(v => [String(v.code), String(v.desc || v.name || v.code)])), value: f.code || '' },
         { key: 'venTxt', label: 'Not in the list? Type the filler vendor', value: f.code ? '' : (f.name || '') },
-        { key: 'iss', label: 'Issue now (pieces)', type: 'number', min: 0, value: '' },
-        { key: 'rec', label: 'Received back now (pieces)', type: 'number', min: 0, value: '' },
+        { key: 'iss', label: 'Issue now (pieces)', type: 'number', step: 1, min: 0, value: '' },
+        { key: 'rec', label: 'Received back now (pieces)', type: 'number', step: 1, min: 0, value: '' },
         { key: 'date', label: 'Date', type: 'date', value: shpbToday() }],
       saveLabel: 'Save', onSave: async v => { const err = await shpbFillSave(r, v); if (!err) shpbAfter(); return err; } });
   }
@@ -679,7 +679,7 @@ function shpbDialog(act, key) {
   if (act === 'press') {
     return ptOpenDialog({ title: 'Press — ' + who, subtitle: nf(s.prsW) + ' passed QC and not pressed yet. After this entry the line is in Complete, for shipping to accept.',
       fields: [{ key: 'man', label: 'Pressman', type: 'select', options: [['', '— pick —']].concat(SHPB_PRESSMEN.map(x => [x, x])), value: '' },
-        { key: 'pcs', label: 'Pieces pressed', type: 'number', min: 1, value: s.prsW || '' }, { key: 'date', label: 'Press date', type: 'date', value: shpbToday() }],
+        { key: 'pcs', label: 'Pieces pressed', type: 'number', step: 1, min: 1, value: s.prsW || '' }, { key: 'date', label: 'Press date', type: 'date', value: shpbToday() }],
       saveLabel: 'Save press entry', onSave: async v => { const err = await shpbPressSave(r, v); if (!err) shpbAfter(); return err; } });
   }
   if (act === 'cut') {
@@ -689,7 +689,7 @@ function shpbDialog(act, key) {
     const opts = (ownIn ? [[ownIn, ownIn + ' — this SKU\'s fabric']] : []).concat(Object.values(CUT_OTHER_CLOTH).map(x => [x, x + ' (not from the SKU\'s fabric)']), fabs.filter(x => String(x).toLowerCase() !== ownIn.toLowerCase()).map(x => [x, x]));
     const def = ownIn;
     return ptOpenDialog({ title: 'Cut — ' + who, subtitle: nf(s.cutW) + ' can be cut now (of ' + nf(r.qty) + '). Saved in Cutting Data, against this order.',
-      fields: [{ key: 'pcs', label: 'Pieces cut', type: 'number', min: 1, value: s.cutW || '' },
+      fields: [{ key: 'pcs', label: 'Pieces cut', type: 'number', step: 1, min: 1, value: s.cutW || '' },
         { key: 'fabric', label: 'Cloth it is cut from', type: 'select', options: ownIn ? opts : [['', '— pick —']].concat(opts), value: def },
         { key: 'date', label: 'Cutting date', type: 'date', value: shpbToday() }],
       saveLabel: 'Save cutting', onSave: async v => { const err = await shpbCutSave(r, v); if (!err) shpbAfter(); return err; } });
@@ -701,7 +701,7 @@ function shpbDialog(act, key) {
       fields: (emb ? [{ key: 'to', label: 'Issue to', type: 'select', options: [['karigar', 'Karigar'], ['vendor', 'Embroidery vendor (outside)']], value: 'karigar' },
           { key: 'ven', label: 'Embroidery vendor (if vendor) — pick or type', list: [...new Set(shpbEmbVendors().map(shpbEmbName))], value: '' }] : [])
         .concat([{ key: 'emp', label: emb ? 'Karigar / contractor (if karigar)' : 'Karigar / contractor', list: (PTE.emp || []).map(e => String(e[1]).trim()).filter(Boolean), value: '' },
-        { key: 'pcs', label: 'Pieces issued', type: 'number', min: 1, value: s.issW || '' }, { key: 'date', label: 'Issue date', type: 'date', value: shpbToday() }]),
+        { key: 'pcs', label: 'Pieces issued', type: 'number', step: 1, min: 1, value: s.issW || '' }, { key: 'date', label: 'Issue date', type: 'date', value: shpbToday() }]),
       saveLabel: 'Issue', onSave: async v => { const err = await shpbIssueSave(r, v); if (!err) shpbAfter(); return err; } });
     if (PTE.emp) return go();
     return ptLoadEmp().then(go).catch(e => { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not read the employee list: ' + (e.message || e); });
@@ -716,7 +716,7 @@ function shpbDialog(act, key) {
     return Promise.resolve(typeof ensureQc === 'function' ? ensureQc() : null).then(() => {
       const rows = qcInboxRows().filter(x => obUC(x.r.orderNo) === r.orderNo && obUC(x.r.sku) === r.sku);
       ptOpenDialog({ title: 'QC pass — ' + who, subtitle: rows.length ? 'Pieces received and waiting for QC. Type what passes now.' : 'Nothing is waiting for QC on this line.',
-        fields: rows.map((x, i) => ({ key: 'q' + i, label: `${x.r.empName || ''} · ${nf(x.wait)} waiting`, type: 'number', min: 0, value: x.wait })),
+        fields: rows.map((x, i) => ({ key: 'q' + i, label: `${x.r.empName || ''} · ${nf(x.wait)} waiting`, type: 'number', step: 1, min: 0, value: x.wait })),
         saveLabel: 'QC pass',
         onSave: rows.length ? async v => {
           let n = 0;
@@ -733,7 +733,7 @@ function shpbAcceptOpen(key) {
   if (!(s.handW > 0)) return;
   ptOpenDialog({
     title: 'Shipping accepts — ' + (r.shopOrderNo || r.orderNo) + ' · ' + r.sku, subtitle: 'Pressed and not accepted yet: ' + nf(s.handW) + '. Type what shipping has received.',
-    fields: [{ key: 'q', label: 'Pieces received', type: 'number', min: 1, value: s.handW }], saveLabel: 'Accept',
+    fields: [{ key: 'q', label: 'Pieces received', type: 'number', step: 1, min: 1, value: s.handW }], saveLabel: 'Accept',
     onSave: async v => { const q = Math.min(s.handW, Math.round(+v.q || 0)); if (!(q > 0)) return 'Type how many pieces shipping received.';
       const err = await shpReceive([{ orderNo: r.orderNo, sku: r.sku, qty: q }]);
       if (!err && (SHPB.ship || {})[key]) { try { await ptDelete(SHPB_SHIP + '/' + key); } catch (e) { /* the note stays */ } SHPB.ship = Object.assign({}, SHPB.ship); delete SHPB.ship[key]; }

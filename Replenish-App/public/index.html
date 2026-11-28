@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 199 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 200 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -3237,7 +3237,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
         </div>
         <div class="toolbar" style="margin-top:10px;align-items:center">
           <span class="muted" style="font-size:12.5px;flex:0 0 auto">Month target&nbsp;$</span>
-          <input id="tgTotal" type="number" min="0" step="1" inputmode="numeric" style="flex:0 0 150px"
+          <input id="tgTotal" type="number" min="0" step="any" inputmode="numeric" style="flex:0 0 150px"
                  placeholder="whole month">
           <span id="tgTotSum" class="muted" style="font-size:12.5px"></span>
         </div>
@@ -5395,8 +5395,8 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
       <tbody id="pmLines"></tbody></table>
     <div class="row" style="gap:8px;margin-top:6px">
       <input id="pmAddSku" placeholder="Add SKU" style="flex:2">
-      <input id="pmAddAir" type="number" placeholder="Air qty" style="flex:0 0 90px">
-      <input id="pmAddSea" type="number" placeholder="Sea qty" style="flex:0 0 90px">
+      <input id="pmAddAir" type="number" step="1" placeholder="Air qty" style="flex:0 0 90px">
+      <input id="pmAddSea" type="number" step="1" placeholder="Sea qty" style="flex:0 0 90px">
       <button id="pmAddLine" class="ghost" style="flex:0 0 80px">Add</button>
     </div>
     <label style="margin-top:12px">Note</label>
@@ -7470,6 +7470,57 @@ function ptNumBig(n, label, kind) {
   const u = kind === 'pcs' ? 'pcs' : 'm';
   return `${label}: ${Number(n).toLocaleString('en-IN')} ${u} is more than ${cap.toLocaleString('en-IN')} ${u}. Is that right?`;
 }
+/* ============================== FILE: src/app/core/whole-pieces.js ============================== */
+/* ==== WHOLE PIECES POP-UP ==== */
+/* Ravi's team, 28 Nov 2026 (order-to-shipping test): "2.5" typed for pieces was saved as 2 or 3 without a word, on screen after
+ * screen. Now every box that takes whole numbers (a number box with step="1") stops it as it is typed: a pop-up says what cannot
+ * be saved, the box goes back to what it held before, and Okay puts the cursor in it. Money, metres, kg and cm have other steps
+ * and take decimals.
+ * Errors: this fails loudly to the person, and nothing is saved: the screen never hears the stopped change, and nothing under the
+ * pop-up can be pressed or left while it is open (a tap on Save, or a box that saves when you leave it). Pasted plans and files
+ * with part pieces are refused whole by their own imports, never partly saved. A new pieces box only needs step="1". */
+
+/** Is this typed text something other than a whole number? Blank is not: each form says for itself what a blank means.
+ *  "2.0" is whole; "2.5" and "1e3" are not. A minus is left to the form's own check. */
+const wpBad = v => { const t = String(v == null ? '' : v).trim(); return !!t && !/^-?\d+(\.0+)?$/.test(t); };
+const wpBox = el => !!el && el.tagName === 'INPUT' && el.type === 'number' && el.getAttribute('step') === '1';
+const WP_WAS = new WeakMap();   // what each box held when the cursor went in
+
+/** The pop-up itself. `back` is where the cursor goes after Okay. One at a time. */
+function wpShow(title, text, back) {
+  if (document.getElementById('wpPop')) return;
+  const make = (tag, cls, words) => { const e = document.createElement(tag); if (cls) e.className = cls; if (words) e.textContent = words; return e; };
+  const pop = make('div', 'ptmodal'), box = make('div', 'ptmodal-box'), head = make('div', 'ptmodal-head'), body = make('div', 'ptmodal-body');
+  pop.id = 'wpPop'; pop.setAttribute('role', 'alertdialog'); pop.setAttribute('aria-modal', 'true'); pop.setAttribute('aria-label', title);
+  pop.style.zIndex = '100000'; box.style.maxWidth = '420px';
+  const ok = make('button', '', 'Okay'); ok.type = 'button'; ok.id = 'wpOk'; ok.style.marginTop = '14px';
+  ok.onclick = () => { pop.remove(); if (back && back.isConnected) back.focus(); };
+  head.appendChild(make('b', '', title));
+  body.appendChild(make('div', '', text)); body.appendChild(ok);
+  box.appendChild(head); box.appendChild(body); pop.appendChild(box);
+  document.body.appendChild(pop);
+  ok.focus();
+}
+
+/** Stops a part number in a whole-number box: puts the old figure back, lets the screen's totals catch up, and says why.
+ *  The old figure, not a blank: several screens read a blank as 0 or as "remove it". True when stopped. */
+function wpStop(el) {
+  if (!wpBox(el) || !wpBad(el.value)) return false;
+  const typed = el.value, was = WP_WAS.get(el);
+  el.value = was === undefined || wpBad(was) ? '' : was;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  wpShow(`${typed} cannot be saved`, 'Pieces and counts must be a whole number, with no decimal point. Please type it again.', el);
+  return true;
+}
+
+/* All caught on the way down, before any screen's own handler. The guard for the open pop-up comes first. */
+['click', 'focusout', 'blur', 'change'].forEach(type => document.addEventListener(type, e => {
+  const pop = document.getElementById('wpPop');
+  if (pop && !pop.contains(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true));
+document.addEventListener('focusin', e => { if (wpBox(e.target)) WP_WAS.set(e.target, e.target.value); }, true);
+document.addEventListener('change', e => { if (wpStop(e.target)) e.stopImmediatePropagation(); }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && wpStop(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 /* ============================== FILE: src/app/core/form-memory.js ============================== */
 /* ==== FORM MEMORY: MY PREVIOUS ENTRY IN GREY ====
  *
@@ -8315,14 +8366,19 @@ $('pjFile').onchange = async e => {
     const iSku = colIdx(head, ['sku']);
     const iQty = colIdx(head, ['qty', 'quantity', 'projection', 'proj', 'units', 'forecast']);
     if (iSku < 0 || iQty < 0) { pjErr('The file needs a "SKU" column and a "QTY" column.'); return; }
-    const patch = {}; let n = 0, bad = 0;
+    const patch = {}, part = []; let n = 0, bad = 0;   // part: rows asking for part of a piece (28 Nov)
     for (let i = 1; i < rows.length; i++) {
       const sku = cellAt(rows[i], iSku); if (!sku) continue;
       const raw = String(cellAt(rows[i], iQty)).replace(/[, ]/g, '');
       const q = Number(raw);
       if (raw === '' || !isFinite(q)) { bad++; continue; }
+      if (!Number.isInteger(q)) { part.push(`row ${i + 1} · ${sku} · ${raw}`); continue; }
       patch[sku.trim().toUpperCase() + '|' + mk] = Math.max(0, Math.round(q));
       n++;
+    }
+    if (part.length) {   // the whole file is refused, never partly saved
+      const why = 'Quantities must be whole pieces. Correct the file and choose it again: ' + part.slice(0, 6).join(', ') + (part.length > 6 ? ' and ' + (part.length - 6) + ' more' : '') + '.';
+      pjErr(why); wpShow('This file cannot be saved', why); return;
     }
     if (!n) { pjErr('No usable SKU/QTY rows found.'); return; }
     if (!confirm(`Set the ${mLabel} projection for ${n} SKU(s)?${bad ? `\n(${bad} row(s) had no usable QTY and will be skipped.)` : ''}\n\nSKUs not in this file keep whatever they already have.`)) return;
@@ -9633,7 +9689,7 @@ function renderTarget() {
       + `<td class="num">${x.asp == null ? '<span class="muted">—</span>' : '$' + x.asp.toFixed(2)}</td>`
       + `<td class="num muted">${(x.share * 100).toFixed(1)}%</td>`
       + `<td class="num muted">${x.auto == null ? '—' : tgMoney(x.auto)}</td>`
-      + `<td class="num"><input class="tgIn" type="number" min="0" step="1" inputmode="numeric"`
+      + `<td class="num"><input class="tgIn" type="number" min="0" step="any" inputmode="numeric"`
         + ` data-key="${esc(key)}" placeholder="${x.auto == null ? '' : x.auto}"`
         + ` value="${x.ovr == null ? '' : x.ovr}"></td>`
       + `<td class="num" style="font-weight:700">${x.split.units ? nf(x.split.units)
@@ -12693,6 +12749,7 @@ function pkBuild(rows, m, defaults) {
   const get = (row, key) => (m.idx[key] == null ? '' : String(row[m.idx[key]] == null ? '' : row[m.idx[key]]).trim());
   const boxes = [], byNo = new Map();
   let dropped = 0, unknown = new Set();
+  const part = [];   // rows asking for part of a piece: the file is not saved until they are corrected (28 Nov)
   // Weights the FILE supplied, kept apart from those that came out of the master. Only these are
   // worth writing back — storing the master's own values again would be a no-op that still counts
   // as an edit.
@@ -12704,6 +12761,7 @@ function pkBuild(rows, m, defaults) {
     const boxNo = get(row, 'box');
     // A row with no SKU or nothing in it is a spacer, a subtotal or a stray note. Counted, not kept.
     if (!sku || !qty) { if (row.some(c => String(c || '').trim())) dropped++; continue; }
+    if (!Number.isInteger(qty)) part.push({ row: r + 1, sku, qty });
     const key = boxNo || '1';
     if (!byNo.has(key)) {
       byNo.set(key, { n: byNo.size + 1, label: key, items: [],
@@ -12736,7 +12794,7 @@ function pkBuild(rows, m, defaults) {
       })(),
     });
   }
-  return { boxes, dropped, unknown: [...unknown], fileWt };
+  return { boxes, dropped, unknown: [...unknown], fileWt, part };
 }
 
 /* ---------- storing ---------- */
@@ -13148,8 +13206,12 @@ function pkRenderPreview() {
         : `Rename the column, or use the Template button for a sheet with the names this reads.`)
       + `</div>`);
   }
+  const part = g.part || [];
+  const partWhy = part.slice(0, 6).map(x => `row ${x.row} · ${x.sku} · ${x.qty}`).join(', ') + (part.length > 6 ? ` and ${part.length - 6} more` : '');
+  if (part.length) bits.push(`<div class="err" style="margin-top:6px">Quantities must be whole pieces. Correct the file and choose it again: ${esc(partWhy)}.</div>`);
   $('pkMatch').innerHTML = bits.join('');
-  $('pkSave').disabled = missReq.length > 0 || !g.boxes.length;
+  $('pkSave').disabled = missReq.length > 0 || !g.boxes.length || part.length > 0;
+  if (part.length) wpShow('This file cannot be saved', 'Quantities must be whole pieces: ' + partWhy + '. Correct the file and choose it again.');
 
   const t = pkTotals({ boxes: g.boxes, pkgWt: PK_DEF.pkgWt, volDiv: PK_DEF.volDiv });
   $('pkPreview').innerHTML = '<thead><tr><th>Box</th><th>SKU</th><th>Description</th><th>Size</th>'
@@ -13763,6 +13825,9 @@ const PACK_CORE = /* @__PURE__ */ (() => {
     const si = head.findIndex((h) => /^(merchant[- ]?sku|seller[- ]?sku|sku|msku)$/.test(h));
     const qi = head.findIndex((h) => /^(quantity|qty|expected quantity|units|shipped|quantity to ship)$/.test(h));
     if (si < 0 || qi < 0) return { lines: [], why: "Could not find a SKU column and a Quantity column in the first row." };
+    /* part pieces were cut down to whole ones without a word (28 Nov): the paste is refused instead */
+    const part = rows.slice(1).map((r) => r[qi]).find((q) => String(q || "").trim() && !Number.isInteger(Number(q)) && isFinite(Number(q)));
+    if (part) return { lines: [], part, why: part + " cannot be saved: quantities must be whole pieces. Correct the pasted plan." };
     const byS = /* @__PURE__ */ new Map();
     rows.slice(1).forEach((r) => {
       const s = up(r[si]), q = parseInt(r[qi], 10) || 0;
@@ -14888,6 +14953,7 @@ async function pksStart(mode) {
           let plan = [], planNo = "";
           if (planTxt) {
             const pp = PACK_CORE.planParse(planTxt);
+            if (pp.part) wpShow(pp.part + " cannot be saved", pp.why);
             if (!pp.lines.length) return pp.why;
             const unk = pp.lines.filter((l) => !pksResolve(l.sku).sku).map((l) => l.sku);
             if (unk.length) return "Not a SKU this app knows: " + unk.join(", ");
@@ -22062,8 +22128,8 @@ function jwRecvOpen(id) {
     subtitle: `${obUC(row.sku)} · ${row.empName}`,
     note: `${nf(iss)} issued · ${nf(rec)} received · ${nf(rej)} rejected · ${nf(pend)} still out`,
     fields: [
-      { key: 'recv', label: 'Pieces received now (added)', type: 'number', min: 0, value: '' },
-      { key: 'rej', label: 'Rejected on this row (total)', type: 'number', min: 0, value: rej || '' },
+      { key: 'recv', label: 'Pieces received now (added)', type: 'number', step: 1, min: 0, value: '' },
+      { key: 'rej', label: 'Rejected on this row (total)', type: 'number', step: 1, min: 0, value: rej || '' },
       ...rejWhyFields(),
     ],
     memory: 'jobWorkReceive',  // my previous entry in grey (core/form-memory.js)
@@ -22427,9 +22493,9 @@ function jwCorrAskOpen(rowId) {
       + 'and size come from it. Somebody who may edit production entries approves it; a change of SKU or date needs an admin.',
     fields: [
       { key: 'empName', label: 'Karigar', value: r.empName || '' },
-      { key: 'issuePieces', label: 'Issued', type: 'number', value: ptNum(r.issuePieces) },
-      { key: 'receivedPieces', label: 'Received', type: 'number', value: ptNum(r.receivedPieces) },
-      { key: 'rejectionPieces', label: 'Rejected', type: 'number', value: ptNum(r.rejectionPieces) },
+      { key: 'issuePieces', label: 'Issued', type: 'number', step: 1, value: ptNum(r.issuePieces) },
+      { key: 'receivedPieces', label: 'Received', type: 'number', step: 1, value: ptNum(r.receivedPieces) },
+      { key: 'rejectionPieces', label: 'Rejected', type: 'number', step: 1, value: ptNum(r.rejectionPieces) },
       ...rejWhyFields(),
       { key: 'sku', label: 'SKU', value: r.sku || '' },
       { key: 'issueDate', label: 'Issue date', type: 'date', value: ptIsoDate(r.issueDate) },
@@ -24785,7 +24851,7 @@ function renderQcDept() {
     + `<td class="num">${nf(x.sent)}</td><td class="num" style="color:#166534">${x.pass ? nf(x.pass) : '<span class="muted">—</span>'}</td>`
     + `<td class="num" style="color:var(--bad)">${x.rej ? nf(x.rej) : '<span class="muted">—</span>'}</td>`
     + `<td class="num" style="font-weight:700;color:#b45309">${nf(x.left)}</td>`
-    + `<td>${can ? `<input type="number" min="1" max="${x.left}" value="${x.left}" data-qcd-qty="${esc(x.c.id)}" style="width:80px">` : ''}</td>`
+    + `<td>${can ? `<input type="number" step="1" min="1" max="${x.left}" value="${x.left}" data-qcd-qty="${esc(x.c.id)}" style="width:80px">` : ''}</td>`
     + `<td style="white-space:nowrap">${can ? `<button data-qcd-go="${esc(x.c.id)}" style="padding:3px 10px;font-size:12px;margin-right:4px">Back — QC pass</button>`
       + `<button data-qcd-go="${esc(x.c.id)}" data-rej="1" class="ghost" style="padding:3px 10px;font-size:12px;color:var(--bad)">Reject</button>` : '<span class="muted">—</span>'}</td>`
     + '</tr>').join('') || '<tr><td colspan="13" class="muted" style="padding:14px">Nothing in spotting or touching.</td></tr>') + '</tbody>';
@@ -29361,7 +29427,7 @@ async function ordStockOpen(key) {
   const have = Math.max(0, Math.floor(fgiOf(l.sku).current)), owed = ordStockOwed(l), top = Math.min(have, owed), who = l.orderNo + ' · ' + l.sku;
   if (!(top > 0)) return ptOpenDialog({ title: 'From stock — ' + who, subtitle: have > 0 ? 'Nothing more of this line is owed.' : `${l.sku} has no pieces in the India store, so nothing can be completed from stock.` });
   ptOpenDialog({ title: 'Complete from ready stock — ' + who, subtitle: `${nf(have)} piece(s) of ${l.sku} in the India store · this line is still owed ${nf(owed)}. The store gives the pieces up and the line counts them as made.`,
-    fields: [{ key: 'pcs', label: 'Pieces from stock', type: 'number', min: 1, max: top, value: top }, { key: 'note', label: 'Note (optional)', value: '' }],
+    fields: [{ key: 'pcs', label: 'Pieces from stock', type: 'number', step: 1, min: 1, max: top, value: top }, { key: 'note', label: 'Note (optional)', value: '' }],
     saveLabel: 'Complete from stock', onSave: v => ordStockSave(l, v) });
 }
 if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('click', e => {
@@ -30071,9 +30137,9 @@ function spOpenQuilt(orderNo, sku, line) {
     note: 'A quilt goes to the quilt team as a job, not to a karigar by the piece, so it is counted here '
       + 'rather than issued in Job Work Register. Each figure is bounded by the one before it.',
     fields: [
-      { key: 'cut', label: 'Cut', type: 'number', value: sp.cut == null ? '' : sp.cut },
-      { key: 'issued', label: 'Issued', type: 'number', value: sp.issued == null ? '' : sp.issued },
-      { key: 'received', label: 'Received', type: 'number', value: sp.received == null ? '' : sp.received },
+      { key: 'cut', label: 'Cut', type: 'number', step: 1, value: sp.cut == null ? '' : sp.cut },
+      { key: 'issued', label: 'Issued', type: 'number', step: 1, value: sp.issued == null ? '' : sp.issued },
+      { key: 'received', label: 'Received', type: 'number', step: 1, value: sp.received == null ? '' : sp.received },
       { key: 'remarks', label: 'Remarks', value: sp.remarks || '', span: true },
     ],
     onSave: v => spSave(orderNo, sku, Object.assign({}, v, { pressed: sp.pressed || 0 })),
@@ -30231,7 +30297,7 @@ function spPrintOpen(orderNo, sku) {
     subtitle: `${line.sku}  ·  ${[line.articleType, line.articleSubtype, line.color, line.size].filter(Boolean).join(' · ')}  ·  ${nf(line.qty)} piece(s)${line.pcsPer > 1 ? ` (${nf(line.packs)} × pack of ${nf(line.pcsPer)})` : ''}`,
     note: 'How many pieces of this have been printed. Nothing else on the line is yours to change, '
       + 'and nothing can be cut from it until this is recorded.',
-    fields: [{ key: 'printed', label: 'Printed', type: 'number', value: line.printed || '' }],
+    fields: [{ key: 'printed', label: 'Printed', type: 'number', step: 1, value: line.printed || '' }],
     onSave: v => spPrint(orderNo, sku, v.printed),
     saveLabel: 'Save',
   });
@@ -31911,7 +31977,7 @@ function shpbDialog(act, key) {
       const have = Math.max(0, Math.floor(fgiOf(r.sku).current)), s2 = shpbStages([r]), need = Math.max(0, (+r.qty || 0) - s2.stk - s2.prsD), top = Math.min(have, need);
       if (!(top > 0)) return ptOpenDialog({ title: 'From stock — ' + who, subtitle: have > 0 ? 'Nothing more of this line needs to be made.' : `${r.sku} has no pieces in the India store, so nothing can be completed from stock.` });
       ptOpenDialog({ title: 'Complete from ready stock — ' + who, subtitle: `${nf(have)} piece(s) of ${r.sku} in the India store · this line still needs ${nf(need)}. The store gives the pieces up and shipping is handed them.`,
-        fields: [{ key: 'pcs', label: 'Pieces from stock', type: 'number', min: 1, max: top, value: top }, { key: 'note', label: 'Note (optional)', value: '' }],
+        fields: [{ key: 'pcs', label: 'Pieces from stock', type: 'number', step: 1, min: 1, max: top, value: top }, { key: 'note', label: 'Note (optional)', value: '' }],
         saveLabel: 'Complete from stock', onSave: v => shpbStockSave(r, v) });
     })();
   }
@@ -31932,8 +31998,8 @@ function shpbDialog(act, key) {
       html: hist.length ? '<div style="font-size:12px;margin:-4px 0 8px">' + hist.map(h => `<div class="muted">${esc(shpbDmy(h.x.date))} · ${h.k === 'iss' ? 'issued' : 'received'} <b>${nf(h.x.qty)}</b> · ${esc(String(h.x.by || '').split('@')[0])}</div>`).join('') + '</div>' : '',
       fields: [{ key: 'ven', label: 'Filler vendor', type: 'select', options: [['', vs.length ? '— pick —' : 'no vendor with category Filling in the vendor master']].concat(vs.map(v => [String(v.code), String(v.desc || v.name || v.code)])), value: f.code || '' },
         { key: 'venTxt', label: 'Not in the list? Type the filler vendor', value: f.code ? '' : (f.name || '') },
-        { key: 'iss', label: 'Issue now (pieces)', type: 'number', min: 0, value: '' },
-        { key: 'rec', label: 'Received back now (pieces)', type: 'number', min: 0, value: '' },
+        { key: 'iss', label: 'Issue now (pieces)', type: 'number', step: 1, min: 0, value: '' },
+        { key: 'rec', label: 'Received back now (pieces)', type: 'number', step: 1, min: 0, value: '' },
         { key: 'date', label: 'Date', type: 'date', value: shpbToday() }],
       saveLabel: 'Save', onSave: async v => { const err = await shpbFillSave(r, v); if (!err) shpbAfter(); return err; } });
   }
@@ -31941,7 +32007,7 @@ function shpbDialog(act, key) {
   if (act === 'press') {
     return ptOpenDialog({ title: 'Press — ' + who, subtitle: nf(s.prsW) + ' passed QC and not pressed yet. After this entry the line is in Complete, for shipping to accept.',
       fields: [{ key: 'man', label: 'Pressman', type: 'select', options: [['', '— pick —']].concat(SHPB_PRESSMEN.map(x => [x, x])), value: '' },
-        { key: 'pcs', label: 'Pieces pressed', type: 'number', min: 1, value: s.prsW || '' }, { key: 'date', label: 'Press date', type: 'date', value: shpbToday() }],
+        { key: 'pcs', label: 'Pieces pressed', type: 'number', step: 1, min: 1, value: s.prsW || '' }, { key: 'date', label: 'Press date', type: 'date', value: shpbToday() }],
       saveLabel: 'Save press entry', onSave: async v => { const err = await shpbPressSave(r, v); if (!err) shpbAfter(); return err; } });
   }
   if (act === 'cut') {
@@ -31951,7 +32017,7 @@ function shpbDialog(act, key) {
     const opts = (ownIn ? [[ownIn, ownIn + ' — this SKU\'s fabric']] : []).concat(Object.values(CUT_OTHER_CLOTH).map(x => [x, x + ' (not from the SKU\'s fabric)']), fabs.filter(x => String(x).toLowerCase() !== ownIn.toLowerCase()).map(x => [x, x]));
     const def = ownIn;
     return ptOpenDialog({ title: 'Cut — ' + who, subtitle: nf(s.cutW) + ' can be cut now (of ' + nf(r.qty) + '). Saved in Cutting Data, against this order.',
-      fields: [{ key: 'pcs', label: 'Pieces cut', type: 'number', min: 1, value: s.cutW || '' },
+      fields: [{ key: 'pcs', label: 'Pieces cut', type: 'number', step: 1, min: 1, value: s.cutW || '' },
         { key: 'fabric', label: 'Cloth it is cut from', type: 'select', options: ownIn ? opts : [['', '— pick —']].concat(opts), value: def },
         { key: 'date', label: 'Cutting date', type: 'date', value: shpbToday() }],
       saveLabel: 'Save cutting', onSave: async v => { const err = await shpbCutSave(r, v); if (!err) shpbAfter(); return err; } });
@@ -31963,7 +32029,7 @@ function shpbDialog(act, key) {
       fields: (emb ? [{ key: 'to', label: 'Issue to', type: 'select', options: [['karigar', 'Karigar'], ['vendor', 'Embroidery vendor (outside)']], value: 'karigar' },
           { key: 'ven', label: 'Embroidery vendor (if vendor) — pick or type', list: [...new Set(shpbEmbVendors().map(shpbEmbName))], value: '' }] : [])
         .concat([{ key: 'emp', label: emb ? 'Karigar / contractor (if karigar)' : 'Karigar / contractor', list: (PTE.emp || []).map(e => String(e[1]).trim()).filter(Boolean), value: '' },
-        { key: 'pcs', label: 'Pieces issued', type: 'number', min: 1, value: s.issW || '' }, { key: 'date', label: 'Issue date', type: 'date', value: shpbToday() }]),
+        { key: 'pcs', label: 'Pieces issued', type: 'number', step: 1, min: 1, value: s.issW || '' }, { key: 'date', label: 'Issue date', type: 'date', value: shpbToday() }]),
       saveLabel: 'Issue', onSave: async v => { const err = await shpbIssueSave(r, v); if (!err) shpbAfter(); return err; } });
     if (PTE.emp) return go();
     return ptLoadEmp().then(go).catch(e => { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not read the employee list: ' + (e.message || e); });
@@ -31978,7 +32044,7 @@ function shpbDialog(act, key) {
     return Promise.resolve(typeof ensureQc === 'function' ? ensureQc() : null).then(() => {
       const rows = qcInboxRows().filter(x => obUC(x.r.orderNo) === r.orderNo && obUC(x.r.sku) === r.sku);
       ptOpenDialog({ title: 'QC pass — ' + who, subtitle: rows.length ? 'Pieces received and waiting for QC. Type what passes now.' : 'Nothing is waiting for QC on this line.',
-        fields: rows.map((x, i) => ({ key: 'q' + i, label: `${x.r.empName || ''} · ${nf(x.wait)} waiting`, type: 'number', min: 0, value: x.wait })),
+        fields: rows.map((x, i) => ({ key: 'q' + i, label: `${x.r.empName || ''} · ${nf(x.wait)} waiting`, type: 'number', step: 1, min: 0, value: x.wait })),
         saveLabel: 'QC pass',
         onSave: rows.length ? async v => {
           let n = 0;
@@ -31995,7 +32061,7 @@ function shpbAcceptOpen(key) {
   if (!(s.handW > 0)) return;
   ptOpenDialog({
     title: 'Shipping accepts — ' + (r.shopOrderNo || r.orderNo) + ' · ' + r.sku, subtitle: 'Pressed and not accepted yet: ' + nf(s.handW) + '. Type what shipping has received.',
-    fields: [{ key: 'q', label: 'Pieces received', type: 'number', min: 1, value: s.handW }], saveLabel: 'Accept',
+    fields: [{ key: 'q', label: 'Pieces received', type: 'number', step: 1, min: 1, value: s.handW }], saveLabel: 'Accept',
     onSave: async v => { const q = Math.min(s.handW, Math.round(+v.q || 0)); if (!(q > 0)) return 'Type how many pieces shipping received.';
       const err = await shpReceive([{ orderNo: r.orderNo, sku: r.sku, qty: q }]);
       if (!err && (SHPB.ship || {})[key]) { try { await ptDelete(SHPB_SHIP + '/' + key); } catch (e) { /* the note stays */ } SHPB.ship = Object.assign({}, SHPB.ship); delete SHPB.ship[key]; }
@@ -36844,7 +36910,7 @@ function flowSoChoices() {
 }
 function flowTestOpen() {
   const plats = [['AMZ', 'Amazon'], ['SHP', 'Shopify'], ['ONL', 'Online'], ['B2B', 'B2B']];
-  const row = i => `<div style="display:flex;gap:8px;margin-top:6px"><input data-tsku="${i}" placeholder="SKU ${i + 1}" style="flex:2"><input data-tqty="${i}" type="number" min="1" placeholder="Qty" style="flex:1"></div>`;
+  const row = i => `<div style="display:flex;gap:8px;margin-top:6px"><input data-tsku="${i}" placeholder="SKU ${i + 1}" style="flex:2"><input data-tqty="${i}" type="number" step="1" min="1" placeholder="Qty" style="flex:1"></div>`;
   const sos = flowSoChoices();
   ptOpenDialog({
     title: 'Test order — walk it through the flow',
@@ -36973,7 +37039,7 @@ function flowTestCutOpen(no, sku) {
   ptOpenDialog({
     title: `Cutting entry (TEST) — ${no} · ${sku}`, subtitle: `${nf(left)} of ${nf(x.t.qty)} pieces to cut now${upto < (+x.t.qty || 0) ? ` (printed fabric back for ${nf(upto)} so far)` : ''}. Saved as a TEST entry in Cutting Data too — "delete test" removes it.`,
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
-      <label>Pieces<input id="fltcP" type="number" min="1" value="${left}"></label>
+      <label>Pieces<input id="fltcP" type="number" step="1" min="1" value="${left}"></label>
       ${fixed ? `<label>Printed fabric <small class="muted">printed for this order</small><div style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(124,58,237,.06)"><b>${esc(pf.code)}</b><div class="muted" style="font-size:11px">${esc(pf.label || want)}</div></div></label>`
         : `<label>Fabric<select id="fltcF"><option value="">— Fabric —</option>${fabs.map(f => `<option${f === want ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select></label>`}
       <label>Fabric used (m)<input id="fltcU" type="number" step="0.01" value="${per ? flowR2(per * left) : ''}"></label>
@@ -37014,7 +37080,7 @@ async function flowTestIssueOpen(no, sku) {
     html: `<div class="ptgrid" style="grid-template-columns:repeat(2,1fr)">
       <label>Employment type<select id="fltiT"><option value="">Employment type…</option>${types.map(t => `<option>${esc(t)}</option>`).join('')}</select></label>
       <label>Karigar<input id="fltiK" list="fltiKL" placeholder="name"><datalist id="fltiKL"></datalist></label>
-      <label>Pieces<input id="fltiP" type="number" min="1" value="${can}"></label>
+      <label>Pieces<input id="fltiP" type="number" step="1" min="1" value="${can}"></label>
       <label>Issue date<input id="fltiD" type="date" value="${esc(dToday())}"></label>
       <label style="grid-column:1/-1">Remarks (optional)<input id="fltiR"></label></div>`,
     saveLabel: 'Issue',
@@ -37051,7 +37117,7 @@ function flowTestRecvOpen(no, sku) {
     title: `Receive from karigar (TEST) — ${no} · ${sku}`, subtitle: 'Updates its TEST row in the Job Work Register — "delete test" removes it.',
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
       <label style="grid-column:1/-1">Issue<select id="fltrI">${open.map(([id, e]) => `<option value="${esc(id)}">${esc(e.karigar)} · issued ${nf(e.pcs)} on ${esc(e.date)} · ${nf(e.pcs - (e.received || 0) - (e.rejected || 0))} out</option>`).join('')}</select></label>
-      <label>Received now<input id="fltrP" type="number" min="0"></label><label>Rejected<input id="fltrX" type="number" min="0" value="0"></label>
+      <label>Received now<input id="fltrP" type="number" step="1" min="0"></label><label>Rejected<input id="fltrX" type="number" step="1" min="0" value="0"></label>
       <label>Date<input id="fltrD" type="date" value="${esc(dToday())}"></label>${rejWhyHtml('fltr')}</div>`,
     saveLabel: 'Received',
     onSave: async () => {
@@ -39261,7 +39327,7 @@ function flowFgAcceptOpen(key) {
   ptOpenDialog({
     title: `Accept into Finished Goods — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`,
     subtitle: `${nf(can)} passed QC and are not in India stock yet.${x.r.__t ? ' TEST order: it goes into the India store as a TEST entry, and "delete test" takes it out again.' : ''}`,
-    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces counted in<input id="flfP" type="number" min="1" value="${can}"></label><label>Note<input id="flfN"></label></div>`,
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces counted in<input id="flfP" type="number" step="1" min="1" value="${can}"></label><label>Note<input id="flfN"></label></div>`,
     memory: 'fgAccept',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Accept',
     onSave: async () => {
@@ -39305,7 +39371,7 @@ function flowFgRejectOpen(key) {
   if (!can) return flowFgSay('Nothing of that line is waiting any more — press Refresh.', true);
   ptOpenDialog({
     title: `Reject — ${x.r.orderNo} · ${obUC(x.r.sku)}${x.r.__t ? ' (TEST)' : ''}`, subtitle: `${nf(can)} waiting. Rejected pieces go back to Quality Control (Waiting for QC) to be checked again.`,
-    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces<input id="flfrP" type="number" min="1" value="${can}"></label><label>Why (stain, wrong size, stitching, packing…)<input id="flfrW"></label></div>`,
+    html: `<div class="ptgrid" style="grid-template-columns:1fr 2fr"><label>Pieces<input id="flfrP" type="number" step="1" min="1" value="${can}"></label><label>Why (stain, wrong size, stitching, packing…)<input id="flfrW"></label></div>`,
     memory: 'fgReject',  // my previous entry in grey (core/form-memory.js)
     saveLabel: 'Reject',
     onSave: async () => {
@@ -52657,7 +52723,7 @@ $('acNewItem').onclick = () => {
     { key: 'name', label: 'Name', value: '' },
     { key: 'category', label: 'Kind', type: 'select', options: ACC_CATS, value: 'Other' },
     { key: 'unit', label: 'Unit', value: 'pcs' },
-    { key: 'reorderLevel', label: 'Re-order level', type: 'number', step: '1', value: '' },
+    { key: 'reorderLevel', label: 'Re-order level', type: 'number', step: 'any', value: '' },
     { key: 'returnable', label: 'Comes back?', type: 'select', options: ['follow the kind', 'yes — it is lent', 'no — it is used up'], value: 'follow the kind', span: true },
   ],
   onSave: async v => {
@@ -52729,7 +52795,7 @@ function accEditItem(code) {
       { key: 'name', label: 'Name', value: it.name || '' },
       { key: 'category', label: 'Kind', type: 'select', options: ACC_CATS, value: accCat(it) },
       { key: 'unit', label: 'Unit', value: accUnit(it) },
-      { key: 'reorderLevel', label: 'Re-order level', type: 'number', step: '1', value: it.reorderLevel == null ? '' : it.reorderLevel },
+      { key: 'reorderLevel', label: 'Re-order level', type: 'number', step: 'any', value: it.reorderLevel == null ? '' : it.reorderLevel },
       { key: 'returnable', label: 'Comes back?', type: 'select', options: ['follow the kind', 'yes — it is lent', 'no — it is used up'],
         value: it.returnable === true ? 'yes — it is lent' : (it.returnable === false ? 'no — it is used up' : 'follow the kind'), span: true },
     ],
@@ -52762,7 +52828,7 @@ function accTxnFields(r) {
   return [
     { key: 'txnType', label: 'Movement', type: 'select', value: r ? r.txnType : 'IN', options: ACC_TYPES },
     { key: 'itemCode', label: 'Item', type: 'select', value: r ? r.itemCode : '', options: [''].concat([...new Set([(r || {}).itemCode].filter(Boolean).concat(codes))]) },
-    { key: 'qty', label: 'Quantity', type: 'number', step: '1', value: r ? accQty(r) : '' },
+    { key: 'qty', label: 'Quantity', type: 'number', step: 'any', value: r ? accQty(r) : '' },
     { key: 'date', label: 'Date', type: 'date', value: r ? (r.date || '') : dToday() },
     /* WHO IT WENT TO. Typed, not picked: a cutter goes to a karigar, a reel of thread goes to a
      * department, and a label goes to packing — no one list has all three. */

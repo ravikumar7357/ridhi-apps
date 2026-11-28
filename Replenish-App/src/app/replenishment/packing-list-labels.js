@@ -419,6 +419,7 @@ function pkBuild(rows, m, defaults) {
   const get = (row, key) => (m.idx[key] == null ? '' : String(row[m.idx[key]] == null ? '' : row[m.idx[key]]).trim());
   const boxes = [], byNo = new Map();
   let dropped = 0, unknown = new Set();
+  const part = [];   // rows asking for part of a piece: the file is not saved until they are corrected (28 Nov)
   // Weights the FILE supplied, kept apart from those that came out of the master. Only these are
   // worth writing back — storing the master's own values again would be a no-op that still counts
   // as an edit.
@@ -430,6 +431,7 @@ function pkBuild(rows, m, defaults) {
     const boxNo = get(row, 'box');
     // A row with no SKU or nothing in it is a spacer, a subtotal or a stray note. Counted, not kept.
     if (!sku || !qty) { if (row.some(c => String(c || '').trim())) dropped++; continue; }
+    if (!Number.isInteger(qty)) part.push({ row: r + 1, sku, qty });
     const key = boxNo || '1';
     if (!byNo.has(key)) {
       byNo.set(key, { n: byNo.size + 1, label: key, items: [],
@@ -462,7 +464,7 @@ function pkBuild(rows, m, defaults) {
       })(),
     });
   }
-  return { boxes, dropped, unknown: [...unknown], fileWt };
+  return { boxes, dropped, unknown: [...unknown], fileWt, part };
 }
 
 /* ---------- storing ---------- */

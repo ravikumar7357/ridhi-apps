@@ -411,7 +411,7 @@
         </div>
         <div class="toolbar" style="margin-top:10px;align-items:center">
           <span class="muted" style="font-size:12.5px;flex:0 0 auto">Month target&nbsp;$</span>
-          <input id="tgTotal" type="number" min="0" step="1" inputmode="numeric" style="flex:0 0 150px"
+          <input id="tgTotal" type="number" min="0" step="any" inputmode="numeric" style="flex:0 0 150px"
                  placeholder="whole month">
           <span id="tgTotSum" class="muted" style="font-size:12.5px"></span>
         </div>
@@ -2569,8 +2569,8 @@
       <tbody id="pmLines"></tbody></table>
     <div class="row" style="gap:8px;margin-top:6px">
       <input id="pmAddSku" placeholder="Add SKU" style="flex:2">
-      <input id="pmAddAir" type="number" placeholder="Air qty" style="flex:0 0 90px">
-      <input id="pmAddSea" type="number" placeholder="Sea qty" style="flex:0 0 90px">
+      <input id="pmAddAir" type="number" step="1" placeholder="Air qty" style="flex:0 0 90px">
+      <input id="pmAddSea" type="number" step="1" placeholder="Sea qty" style="flex:0 0 90px">
       <button id="pmAddLine" class="ghost" style="flex:0 0 80px">Add</button>
     </div>
     <label style="margin-top:12px">Note</label>

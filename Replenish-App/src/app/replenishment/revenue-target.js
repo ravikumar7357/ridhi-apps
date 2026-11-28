@@ -179,7 +179,7 @@ function renderTarget() {
       + `<td class="num">${x.asp == null ? '<span class="muted">—</span>' : '$' + x.asp.toFixed(2)}</td>`
       + `<td class="num muted">${(x.share * 100).toFixed(1)}%</td>`
       + `<td class="num muted">${x.auto == null ? '—' : tgMoney(x.auto)}</td>`
-      + `<td class="num"><input class="tgIn" type="number" min="0" step="1" inputmode="numeric"`
+      + `<td class="num"><input class="tgIn" type="number" min="0" step="any" inputmode="numeric"`
         + ` data-key="${esc(key)}" placeholder="${x.auto == null ? '' : x.auto}"`
         + ` value="${x.ovr == null ? '' : x.ovr}"></td>`
       + `<td class="num" style="font-weight:700">${x.split.units ? nf(x.split.units)
