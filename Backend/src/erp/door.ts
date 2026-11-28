@@ -11,6 +11,18 @@
 import { checkSave } from './rules/check.ts';
 import { makeRfdChallan, RepeatGuard } from './actions/rfd-challan.ts';
 import { receiveOnChallan } from './actions/receive-challan.ts';
+import { approveSalesOrder } from './actions/approve-sales-order.ts';
+
+/** A person's rights, read by the server with its own key — never taken from the page. null = cannot tell. */
+async function permsOf(d: DoorDeps, email: string): Promise<{ admin?: boolean; soApprove?: boolean; vendor?: boolean } | null> {
+  if (!d.rules) return null;
+  const e = String(email || '').toLowerCase();
+  if (e === SUPERUSER) return { admin: true };
+  // the same document the ERP page reads at sign-in (core/auth.js: Firestore perms/<email>, now in ERP data)
+  const p: any = d.rules.fsDoc ? await d.rules.fsDoc('perms', e) : null;
+  const vendor = d.rules.isVendor ? await d.rules.isVendor(e) : false;
+  return { admin: p?.admin === true, soApprove: p?.soApprove === true, vendor };
+}
 import type { DbLike } from '../lib/db.ts';
 
 export const SUPERUSER = 'ravi@thefabricrush.com';
@@ -26,6 +38,7 @@ export function rulesFromDb(core: DbLike): NonNullable<DoorDeps['rules']> {
       const perm: any = await core.rpc('rt_value', { p_path: 'pt_perms/' + e.replace(/\./g, ',') });
       return perm?.admin === true;
     },
+    fsDoc: (coll, id) => core.rpc('fs_get', { p_coll: coll, p_id: id }),
     isVendor: async email => {
       const e = String(email || '').trim();
       if (!e) return false;
@@ -41,7 +54,9 @@ export const ERP_PUBLISHABLE_KEY = 'sb_publishable_niq2DDjeCaqJl3_ccv0vtQ_BS8bqQ
 export interface DoorDeps {
   verifyIdToken: (token: string) => Promise<string | null>;
   /** The server's own look at ERP data, for the rules (needs the server key). Without it, no rules are checked. */
-  rules?: { getRecord: (path: string) => Promise<unknown>; isAdmin: (email: string) => Promise<boolean>; isVendor?: (email: string) => Promise<boolean> };
+  rules?: { getRecord: (path: string) => Promise<unknown>; isAdmin: (email: string) => Promise<boolean>; isVendor?: (email: string) => Promise<boolean>;
+    /** one Firestore-style document as ERP data holds it (perms/<email>), read with the server key */
+    fsDoc?: (coll: string, id: string) => Promise<unknown> };
   fetch?: typeof fetch;
   /** remembers action answers by requestId so a repeated request writes nothing twice */
   repeat?: RepeatGuard;
@@ -97,6 +112,7 @@ export async function erpDoor(d: DoorDeps, action: string, rawBody: string): Pro
       const deps = { asPerson: (fn: string, args: object) => asPerson(d, token, fn, args), now, beforeSave: (ch: any[]) => noteRules(ch, 'server · ' + name) };
       const go = name === 'rfd-challan' ? () => makeRfdChallan(email, p, deps).then(r => ({ ok: true as const, no: r.no, lines: r.lines }))
         : name === 'receive-challan' ? () => receiveOnChallan(email, p, deps)
+        : name === 'approve-sales-order' ? () => approveSalesOrder(email, p, { ...deps, perms: e => permsOf(d, e) })
         : null;
       if (!go) return { ok: false, error: `The door has no "${action}".` };
       const id = `${email}|${name}|${String(p.requestId || '')}`;
