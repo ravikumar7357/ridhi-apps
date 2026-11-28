@@ -8,8 +8,10 @@ const A = 'inventory/fg-store-alloc.js', H = 'inventory/fg-shop-hold.js', FORM =
 const breaks = {
   'on for everybody': [A, "return typeof window !== 'undefined' && !!window.__TEST_ERP;", 'return true;'],
   'on without the website hold': [A, 'if (!shpHoldOn()) return false;', ''],
-  'the waiting view is still offered': [A, "if ($('fgPendOpt')) $('fgPendOpt').hidden = fgaOn();", "if ($('fgPendOpt')) $('fgPendOpt').hidden = false;"],
-  'the waiting view goes for everybody': [A, "if ($('fgPendOpt')) $('fgPendOpt').hidden = fgaOn();", "if ($('fgPendOpt')) $('fgPendOpt').hidden = true;"],
+  'the waiting view is still offered': [A, 'opt.hidden = opt.disabled = fgaOn();', 'opt.hidden = opt.disabled = false;'],
+  'the waiting view goes for everybody': [A, 'opt.hidden = opt.disabled = fgaOn();', 'opt.hidden = opt.disabled = true;'],
+  'an iPhone still offers the waiting view': [A, 'opt.hidden = opt.disabled = fgaOn();', 'opt.hidden = fgaOn();'],
+  'words are called a missing SKU': [A, 'return /^\S*[\d-]\S*$/.test(text) ?', 'return true ?'],
   'FBA before Custom': [A, "const custom = take((book.ordered[shpHoldKey(sku)] || 0) + fgiHeld(sku, hold));\n  const air = take(lanes.air), sea = take(lanes.sea), awd = take(lanes.awd);",
     "const air = take(lanes.air), sea = take(lanes.sea), awd = take(lanes.awd);\n  const custom = take((book.ordered[shpHoldKey(sku)] || 0) + fgiHeld(sku, hold));"],
   'shares beyond the stock': [A, 'const n = Math.min(left, Math.max(0, wanted));', 'const n = Math.max(0, wanted);'],

@@ -374,11 +374,13 @@ function fgaNoMatchNote(text, stock) {
   const master = PTG.mdb || [];
   if (onRecord.some(found) || master.some(found)) return 'Matching products are not in the India Store.';
   if (!master.length) return `"${text}" could not be checked — the Master Database was not read. Press Refresh to try again.`;
-  return `SKU ${obUC(text)} does not exist.`;
+  /* Words are not a SKU code, so they are not called a missing SKU: a code has no space and holds a digit or a dash. */
+  return /^S*[d-]S*$/.test(text) ? `SKU ${obUC(text)} does not exist.` : `Nothing in the Master Database matches "${text}".`;
 }
 
 /** With the switch on, "Waiting to be counted in" is not in the view list (asked 28 Nov). Only the choice is hidden: the
  *  "Sent from press, not counted in" tile still opens it, so pieces on their way from press can still be counted in. */
 function fgaTrimViews() {
-  if ($('fgPendOpt')) $('fgPendOpt').hidden = fgaOn();
+  const opt = $('fgPendOpt');
+  if (opt) opt.hidden = opt.disabled = fgaOn();   // disabled too: an iPhone still shows a hidden choice
 }

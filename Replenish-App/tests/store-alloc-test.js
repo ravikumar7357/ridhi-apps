@@ -382,7 +382,9 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     is('no Master Database: never "does not exist"', 'zz-7', '"zz-7" could not be checked — the Master Database was not read. Press Refresh to try again.', none);
     is('no Master Database: history still answers', 'old-1', 'SKU OLD-1 is not in the India Store.', none);
     const typed = list({ q: '<img src=x>', phone: true });
-    ok('typed text is shown as text', !/<img src=x/i.test(typed.html) && /&lt;IMG SRC=X&gt; does not exist/.test(typed.html), typed.html);
+    ok('typed text is shown as text', !/<img src=x/i.test(typed.html) && /matches (&quot;|")&lt;img src=x&gt;/.test(typed.html), typed.html);
+    is('words that match nothing are not called a missing SKU', 'blue kurta', 'Nothing in the Master Database matches "blue kurta".');
+    is('one plain word neither', 'kurta', 'Nothing in the Master Database matches "kurta".');
     ok('no search and nothing listed keeps the old words', list({ phone: true, brand: 'Other' }).html.includes('No SKU matches these filters.'));
     const E = store({ rows: [] });
     Object.assign(E.ctx, { FGI_KINDS: KINDS, fgiRecvOrderCheck: () => ({}) });
@@ -395,7 +397,7 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
 
   console.log('== the view list ==');
   {
-    const hidden = o => { const S = store(o); S.run(whole('inventory/fg-store-alloc.js', 'fgaTrimViews') + 'fgaTrimViews()'); return S.box('fgPendOpt').hidden; };
+    const hidden = o => { const S = store(o); S.run(whole('inventory/fg-store-alloc.js', 'fgaTrimViews') + 'fgaTrimViews()'); const b = S.box('fgPendOpt'); return b.hidden === b.disabled ? b.hidden : 'half'; };
     ok('switch on: "Waiting to be counted in" is not offered', hidden({}) === true);
     ok('switch off: it is offered as before', hidden({ ls: '0' }) === false);
     ok('the screen asks for it, and the choice carries the name it hides', appFile('inventory/finished-goods.js').includes('fgaTrimViews();')
