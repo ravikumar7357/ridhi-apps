@@ -7,7 +7,11 @@
  *   FBA     = what Replenishment asks to send (SP and CPC together, in pieces), less dispatches already on the way: every
  *             one not yet marked shipped, and any shipped after the Amazon figures were read. Air is reduced first.
  * New development sales orders (28 Nov) are not Custom: their pending pieces are kept for FBA (fg-store-newdev.js).
- * The stock list holds only SKUs with stock now (28 Nov); a search that finds none of them says why.
+ * The stock list holds the SKUs with stock now, and those with FBA Dispatched pieces even with none in stock (28 Nov); a
+ * search that finds none of them says why. "FBA Dispatched" is what FBA Dispatch holds not yet marked shipped (waiting or
+ * accepted, less returns, both accounts whatever the view picker says; sheet history left out). Those pieces have left the
+ * stock, so they are neither In Stock nor part of the shares. Pieces on an FBA list not yet shipped are still in stock, so
+ * they are not counted in it.
  * On the stock list (28 Nov), a Custom figure opens the orders it is for: the stock is counted against them oldest first.
  * What may leave: FBA only the Air + Sea + AWD pieces the stock covers, plus an admin's release; an issue for an order up to
  * that order's pending pieces within Custom, plus Excess; any other issue Excess only.
@@ -312,6 +316,30 @@ function fgaIssueEditWants(was, now) {
 }
 
 /* ---- on the Finished Goods stock list ---- */
+/** Pieces of each SKU in FBA Dispatch not yet marked shipped: Map of SKU (as the stock list names it) → pieces. */
+function fgaDispatched(rows) {
+  const out = new Map();
+  (rows || []).filter(r => r && r.txnType === 'FBA').forEach(r => {
+    const { st, open } = fbaState(r);
+    if (st !== 'waiting' && st !== 'accepted') return;
+    const sku = obUC(r.sku);
+    out.set(sku, (out.get(sku) || 0) + open);
+  });
+  return out;
+}
+/** fgiStock() with each SKU's FBA Dispatched pieces; new records are returned. */
+function fgaWithDispatched(stock) {
+  const sent = fgaDispatched(FGI.rows);
+  return new Map([...stock].map(([sku, b]) => [sku, Object.assign({}, b, { dispatched: sent.get(sku) || 0 })]));
+}
+/** Does the stock list hold this SKU? A count below nought is held too, so that it is seen. */
+const fgaListed = b => b.current !== 0 || b.dispatched > 0;
+/** What the count above the list counts: SKUs in stock, and apart from them those listed only for FBA Dispatched pieces. */
+function fgaCountWords(rows) {
+  const sentOnly = rows.filter(r => r.current === 0).length;
+  if (!sentOnly) return ' in stock now';
+  return ` listed: ${nf(rows.length - sentOnly)} in stock now, ${nf(sentOnly)} with none in stock but pieces in FBA Dispatch not yet shipped`;
+}
 /** Which FBA lanes the list shows: both stores, or the one picked. */
 function fgaViewStores() {
   const picked = ($('fgaView') || {}).value;
@@ -338,17 +366,19 @@ function fgaFigureButton(r, share, inner) {
 }
 function fgaCells(r) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
-  return `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
+  return `<td class="num">${fgaNum(r.dispatched)}</td>`
+    + `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
     + fgaShareCols().map(([k]) => `<td class="num">${fgaFigureButton(r, k, nf(r.alloc[k])) || fgaNum(r.alloc[k])}</td>`).join('');
 }
-const fgaCardFigs = r => fgaShareCols().map(([k, label]) => {
+const fgaCardFigs = r => `<span>FBA Dispatched <b>${nf(r.dispatched)}</b></span>` + fgaShareCols().map(([k, label]) => {
   const figure = `${label} <b>${nf(r.alloc[k])}</b>`;
   return fgaFigureButton(r, k, figure) || `<span>${figure}</span>`;
 }).join('');
 /** Is some of this stock kept from FBA, so a release would mean something? */
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
-const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'In Stock', ...fgaShareCols().map(s => s[1])];
-const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, Math.max(0, r.current), ...fgaShareCols().map(([k]) => r.alloc[k])];
+const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'FBA Dispatched', 'In Stock', ...fgaShareCols().map(s => s[1])];
+const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.dispatched, Math.max(0, r.current),
+  ...fgaShareCols().map(([k]) => r.alloc[k])];
 
 /* ---- the orders behind a Custom figure ---- */
 const FGA_NO_DETAIL = 'Website orders (details after Shopify Orders is opened again)';
@@ -407,13 +437,13 @@ function fgaCustomOpen(sku) {
 }
 
 /* ---- searching the list ---- */
-/** The list holds only SKUs with stock now, so a search it cannot answer says why (28 Nov). '' = nothing to say.
- *  typed: the search box as it is; rows: the rows listed; stock: fgiStock(). A whole SKU code is judged first. */
+/** The list does not hold every SKU, so a search it cannot answer says why (28 Nov). '' = nothing to say.
+ *  typed: the search box as it is; rows: the rows listed; stock: fgaWithDispatched(). A whole SKU code is judged first. */
 function fgaSearchNote(typed, rows, stock) {
   const text = typed.trim(), code = obUC(text);
   if (!code || rows.some(r => r.sku === code)) return '';
   const record = stock.get(code);
-  if (record && record.current !== 0) return `SKU ${code} is in the India Store but hidden by the filters.`;
+  if (record && fgaListed(record)) return `SKU ${code} is in the India Store but hidden by the filters.`;
   if (record || mdbOf(code)) return `SKU ${code} is not in the India Store.`;
   return rows.length ? '' : fgaNoMatchNote(text, stock);
 }
@@ -421,7 +451,7 @@ function fgaSearchNote(typed, rows, stock) {
 function fgaNoMatchNote(text, stock) {
   const found = r => fgiMatches(r, text.toLowerCase());
   const onRecord = [...stock.values()].map(b => Object.assign({}, fgiMaster(b.sku), (FGI.set || {})[b.sku], b));
-  if (onRecord.some(r => r.current !== 0 && found(r))) return 'Matching products are in the India Store but hidden by the filters.';
+  if (onRecord.some(r => fgaListed(r) && found(r))) return 'Matching products are in the India Store but hidden by the filters.';
   const master = PTG.mdb || [];
   if (onRecord.some(found) || master.some(found)) return 'Matching products are not in the India Store.';
   if (!master.length) return `"${text}" could not be checked — the Master Database was not read. Press Refresh to try again.`;

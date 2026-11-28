@@ -189,7 +189,7 @@ function flowFgRender() {
     (flowQcLine(r).rows || []).forEach(c => { if (!(+c.ok > 0)) return; const d = ptIsoDate(c.date) || String(c.addedAt || '').slice(0, 10); if (d) m.set(d, (m.get(d) || 0) + (+c.ok || 0)); });
     return [...m.entries()].sort((a, b) => b[0].localeCompare(a[0])); };
   const dmy = iso => { const p = String(iso).split('-'); return p.length === 3 ? p[2] + '-' + p[1] + '-' + p[0] : iso; };
-  const head = ['Order', 'Sent on', 'SKU', 'Image', 'Qty', 'QC passed', 'In India stock', 'To accept', 'Earlier', ''];
+  const head = ['Order', 'Sent on', 'SKU', 'Image', 'Qty', 'QC passed', 'Accepted so far', 'To accept', 'Earlier', ''];
   $('fgTable').innerHTML = '<thead><tr>' + head.map((h, i) => `<th${i === 0 ? ' class="frz"' : i >= 4 && i <= 7 ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
     + (rows.map(x => { const n = flowFgToAccept(x.r, x.s), log = flowFgOf(x.r).sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
       const so = sentOn(x.r);

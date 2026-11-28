@@ -3085,7 +3085,7 @@ function ctsLineSize(x) {
   if (own) return own;
   try { return String(((typeof cutSkuOf === 'function' && cutSkuOf(x.r.sku)) || {}).size || ''); } catch (e) { return ''; }
 }
-/** The lines on Demand → RFD waiting for this fabric in this size, oldest order first, each with the pieces it still owes (the card's own flowShLine). */
+/** The lines on Demand → RFD waiting for this fabric in this size, Shopify board orders first then oldest, each with the pieces it still owes (the card's own flowShLine). */
 function ctsLinesFor(fabric, w, l) {
   if (typeof flowRows !== 'function' || typeof flowShLine !== 'function') return [];
   var F = flowFabKey(fabric);
@@ -3093,9 +3093,9 @@ function ctsLinesFor(fabric, w, l) {
     if (typeof flowCpActive === 'function' && flowCpActive(x.s.key)) return false;
     return flowInView('drfd', x.s) && x.s.route !== 'stitch' && flowFabKey(((x.s.plan || {}).fabric || {}).name) === F && ctsSizeMatches(ctsLineSize(x), w, l);
   }).map(flowShLine).filter(function (ln) { return ln.pcs > 0; })
-    .sort(function (a, b) { return String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)); });
+    .sort(function (a, b) { return flowClothOrder(a.x.r, b.x.r); });
   if (typeof flowPriSort !== 'function') return list;
-  return flowPriSort(list, function (l) { return { orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority }; });
+  return flowShpFirst(flowPriSort(list, function (l) { return { orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority }; }), function (l) { return l.x.r.orderNo; });
 }
 /** What would go for this printer: { size, lines, picks: [{ line, pcs, metres }], skipped: [{ line, why }], pcs, metres }. Reads only. */
 function ctsSendPlan(S, code) {
@@ -3963,7 +3963,7 @@ function cuBoardOf(r) {
   var f = function (x) { return x === 'SHP' ? 'shp' : (x === 'ONL' || x === 'ETSY') ? 'onl' : ''; };
   return f(pre) || (pre === 'AMZ' || pre === 'B2B' ? '' : f(src));
 }
-/** null while the flow is loading; else [{ ln (flowShLine), board, fabric, cover }] oldest first. */
+/** null while the flow is loading; else [{ ln (flowShLine), board, fabric, cover }] Shopify board first, then oldest. */
 function cuLines() {
   if (typeof flowRows !== 'function' || typeof flowShLine !== 'function' || typeof flowRfdCover !== 'function') return null;
   if (!gdFlowReady()) return null;
@@ -3974,7 +3974,7 @@ function cuLines() {
     var ln = flowShLine(x);
     return { ln: ln, board: cuBoardOf(x.r), fabric: String((((x.s.plan || {}).fabric) || {}).name || ''), cover: cov[x.s.key] || null };
   }).filter(function (c) { return c.ln.pcs > 0; })
-    .sort(function (a, b) { return String(a.ln.x.r.orderDate || '').localeCompare(String(b.ln.x.r.orderDate || '')) || String(a.ln.x.r.orderNo).localeCompare(String(b.ln.x.r.orderNo)); });
+    .sort(function (a, b) { return flowClothOrder(a.ln.x.r, b.ln.x.r); });
 }
 /** WHY A CUSTOM LINE CANNOT BE SENT FROM HERE ('' = it can): the Send-to-printer card's own rule (flowShWhyNot - a master row without cloth per piece, no printer from PPC, a change waiting
  *  for approval, in Cut to size) plus: cut-piece lines are sent through Demand → RFD (they are cut first), so they are not made into a challan from this list. */
@@ -4098,9 +4098,9 @@ function invNeedCell(r, loading) {
   var words = p.short > 0.05
     ? pct + '% covered · <span style="color:var(--bad);font-weight:700">' + nf(p.short) + ' short</span>' + (p.greigeM ? '' : ' · covered by what is on its way')
     : 'fully covered';
-  /* the lines open Demand → RFD with only this fabric's lines (Ravi, 21 Nov) */
+  /* the lines open this fabric's Send to printer card, here on the desk (21 Nov; the card in place of Demand → RFD, 28 Nov) */
   return '<td class="tl" title="' + esc(tip) + '"><div><b>' + nf(p.need) + ' m</b> <span class="muted" style="font-size:11px">· </span>'
-    + '<button type="button" class="link" data-gdlines="' + esc(p.name) + '" style="font-size:11px;padding:0" title="See these lines on Demand → RFD">' + plural(p.lines, 'line') + '</button></div>'
+    + '<button type="button" class="link" data-gdlines="' + esc(p.name) + '" style="font-size:11px;padding:0" title="See these lines, and send them to their printers">' + plural(p.lines, 'line') + '</button></div>'
     + '<div style="height:6px;border-radius:3px;background:var(--soft);overflow:hidden;margin:5px 0 3px" role="img" aria-label="' + pct + '% covered">'
     + '<div style="height:100%;width:' + pct + '%;background:' + col + '"></div></div>'
     + '<div class="muted" style="font-size:11px">' + nf(p.free) + ' m RFD free · ' + words + '</div></td>';
@@ -6312,7 +6312,9 @@ function wireGd() {
     var t = ev.target.closest ? ev.target.closest('[data-ppcpo],[data-gdflow],[data-gdlines],[data-gdsend]') : null; if (!t) return;
     if (t.getAttribute('data-ppcpo')) { var p = t.getAttribute('data-ppcpo').split('|'); gdPoFor(p[0], +p[1]); return; }
     if (t.getAttribute('data-gdflow')) { gdToFlow(t.getAttribute('data-gdflow'), ''); return; }   // the whole list: no fabric left in the search
-    if (t.getAttribute('data-gdlines')) { gdToFlow('drfd', t.getAttribute('data-gdlines')); return; }
+    /* the fabric's lines open on its Send to printer card, here on the desk (28 Nov: no jump to the old flow page). The card
+     * shows only the lines that can be sent or allotted, so its count can be lower than the link's. */
+    if (t.getAttribute('data-gdlines')) { gdSendToPrinter(t.getAttribute('data-gdlines')); return; }
     if (t.getAttribute('data-gdsend')) { gdSendToPrinter(t.getAttribute('data-gdsend')); return; }
   });
 }

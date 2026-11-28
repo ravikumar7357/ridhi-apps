@@ -28,7 +28,7 @@ ok('pieces back from the karigar are "waiting for QC"', /nf\(r\.madeToPress\) \+
 { const src = read('flow/flow-challan.js');
   const w = load({ nf: String, flowFabKey: x => x }, cut(src, 'function flowChShortTxt(', '\n}\n') + 'this.f = flowChShortTxt;').f, cv = { fab: { C: { stock: 10 } } };
   ok('with nothing taken first it is simply short', w({ name: 'C', avail: 10, short: 5 }, cv) === 'short 5 m' && w({ name: 'C', avail: 0, short: 5 }, { fab: {} }) === 'short 5 m');
-  ok('after an older line took cloth it says so, and the table uses it', w({ name: 'C', avail: 4, short: 5 }, cv) === 'short 5 m after older orders' && /\$\{flowChShortTxt\(c, cv\)\}<\/span>/.test(src)); }
+  ok('after an older line took cloth it says so, and the table uses it', w({ name: 'C', avail: 4, short: 5 }, cv) === 'short 5 m after orders ahead of it' && /\$\{flowChShortTxt\(c, cv\)\}<\/span>/.test(src)); }
 { const p = read('replenishment/pack-scan.js');
   ok('the scanner says "no free stock" when stock is the reason', /r\.store \? "Not counted — no free stock for it"/.test(p) && /PKS\.bad\.store \? "Not counted — no free stock"/.test(p) && !/only \$\{r\.n\} of \$\{PKS\.per\}: the orders want no more/.test(p)); }
 

@@ -42,7 +42,7 @@ ROWS = [
 ];
 const listed = flow.flowCutLines('duck 64');
 const keys = listed.map(l => l.key).join(',');
-ok('only the no-printing lines of that fabric, waiting or held, oldest order first', keys === 'L5,L1,L3', keys);
+ok('only the no-printing lines of that fabric, waiting or held, Shopify board orders first (28 Nov), then oldest', keys === 'L5,L3,L1', keys);
 ok('a waiting line asks for what it still needs; a held one for what was made ready', listed.find(l => l.key === 'L1').metres === 20 && listed.find(l => l.key === 'L5').metres === 18);
 ok('a held line is marked ready and remembers its old mark (for the undo)', listed.find(l => l.key === 'L5').ready === true && listed.find(l => l.key === 'L5').was.metres === 18 && listed.find(l => l.key === 'L1').was === null);
 ok('each line carries its order, SKU and pieces', (l => l.orderNo === 'B2B-1' && l.sku === 'CUSH-L1' && l.pcs === 10)(listed.find(l => l.key === 'L1')));

@@ -29206,6 +29206,9 @@ function renderOrdShopify(bySku, done) {
  * mean doing those eighteen one at a time. Each one that is left behind is named with its reason,
  * and every handover can be undone.
  */
+/** Why one ticked line stayed behind, its item code named once (a "not all done" refusal names it already). */
+const spLeftWhy = (code, err) => (err.indexOf(code + ':') === 0 ? err
+  : code + ': ' + err.replace(/^Nothing has been received[^,]*, so there is nothing to hand over\.$/, 'nothing received yet'));
 async function spHandoverPicked() {
   if (!ptCanEdit()) return PT_NO_EDIT;
   const picked = [...(ORD.pick || new Set())];
@@ -29217,7 +29220,7 @@ async function spHandoverPicked() {
     /* spHandover redraws on success. The list being walked is ORD.pick, which is state rather than
      * anything on the screen, so the redraw cannot take it away mid-loop. */
     const err = await spHandover(no, sku, true);
-    if (err) left.push((sku || no) + ': ' + err.replace(/^Nothing has been received[^,]*, so there is nothing to hand over\.$/, 'nothing received yet'));
+    if (err) left.push(spLeftWhy(sku || no, err));
     else done.push(k);
   }
   done.forEach(k => ORD.pick.delete(k));
@@ -31855,7 +31858,8 @@ function shpbFillCell(r, k) {
   return td((f && (f.name || f.code) ? '<b>' + esc(f.name || f.code) + '</b>' : '<span class="muted">not given</span>')
       + (shpbMay('fill') ? '<div><button type="button" class="ghost" data-shpb-act="fill" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">Filler</button></div>' : ''), 'left')
     + td('<b style="font-size:13px">' + nf(iss) + '</b>' + (qc > iss ? '<div style="color:#b45309">' + nf(qc - iss) + ' passed QC, not issued</div>' : ''))
-    + td('<b style="font-size:13px;color:' + (rec < iss ? '#b45309' : '#166534') + '">' + nf(rec) + '</b>' + (iss > rec ? '<div class="muted">' + nf(iss - rec) + ' with filler</div>' : ''));
+    + td('<b style="font-size:13px;color:' + (rec < iss ? '#b45309' : '#166534') + '">' + nf(rec) + '</b>' + (iss > rec ? '<div class="muted">' + nf(iss - rec) + ' with filler</div>' : '')
+      + (iss > rec && shpbMay('fill') ? '<div><button type="button" class="ghost" data-shpb-act="fillrec" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">Receive</button></div>' : ''));
 }
 async function shpbFillSave(r, v) {
   const key = shpbKey(r.orderNo, r.sku), was = shpbFillOf(r) || {}, all = shpbFillers();
@@ -32290,6 +32294,16 @@ function shpbDialog(act, key) {
     return flowDueRecvOpen(fl.printer, { orderNo: r.orderNo, sku: r.sku,
       none: () => { $('odMsg').className = 'err'; $('odMsg').textContent = `${r.shopOrderNo || r.orderNo} has nothing still to come from ${fl.printer.name || fl.printer.code || fl.printer} — it is not on that printer's challans.`; },
       after: said => { shpbAfter(); $('odMsg').className = 'muted'; $('odMsg').textContent = said || ''; } });
+  }
+  /* RECEIVE UNDER REC (28 Nov): the quilts that came back are entered from the row, pieces already filled in; the Filler button stays as it was. */
+  if (act === 'fillrec') {
+    const f = shpbFillOf(r) || {}, out = shpbFillSum(f, 'iss') - shpbFillSum(f, 'rec');
+    if (!(out > 0)) return ptOpenDialog({ title: 'Receive from filler — ' + who, subtitle: 'Nothing is with the filler on this line.' });
+    return ptOpenDialog({ title: 'Receive from filler — ' + who, subtitle: `${nf(out)} quilt(s) with ${f.name || f.code || 'the filler'}.`,
+      fields: [{ key: 'rec', label: 'Pieces received back', type: 'number', step: 1, min: 1, max: out, value: out }, { key: 'date', label: 'Date', type: 'date', value: shpbToday() }],
+      saveLabel: 'Receive', onSave: async v => {
+        if (!(Math.round(+v.rec || 0) > 0)) return 'Put in the pieces received back.';
+        const err = await shpbFillSave(r, v); if (!err) shpbAfter(); return err; } });
   }
   if (act === 'fill') {
     const f = shpbFillOf(r) || {}, iss = shpbFillSum(f, 'iss'), rec = shpbFillSum(f, 'rec'), vs = shpbFillers();
@@ -35464,6 +35478,15 @@ function flowLedgerAfter(name, day) {
     return d > day ? a + fabMove(r) : a;
   }, 0);
 }
+/** WHO GETS FREE CLOTH FIRST (owner, 28 Nov 2026): Shopify board orders (SHP-…) before every other order, then the oldest.
+ *  Only cloth nobody holds is shared this way: what is marked ready or on a challan stays with its line.
+ *  By order number only, not obIsShop: a TEST copy (TEST-SHP-…) must not take free cloth ahead of real orders. All SHP- orders
+ *  count, older ones too, not only the board's (flowBoardOwns). */
+const flowIsShpOrder = orderNo => /^SHP-/i.test(String(orderNo || '').trim());
+const flowClothOrder = (a, b) => (flowIsShpOrder(b.orderNo) - flowIsShpOrder(a.orderNo))
+  || String(a.orderDate || '').localeCompare(String(b.orderDate || '')) || String(a.orderNo).localeCompare(String(b.orderNo));
+/** A list already in its own order, with the Shopify board lines moved ahead (a stable sort keeps the rest as it was). */
+const flowShpFirst = (list, noOf) => list.slice().sort((a, b) => flowIsShpOrder(noOf(b)) - flowIsShpOrder(noOf(a)));
 function flowRfdCover() {
   const rows = flowRows(), fab = {}, line = {};
   const F = name => { const k = flowFabKey(name); return fab[k] || (fab[k] = { name: String(name || '').trim(), stock: flowRfdStock(name), held: 0, need: 0, lines: 0 }); };
@@ -35478,7 +35501,7 @@ function flowRfdCover() {
   });
   /* a line in Cut to size has its cloth off the shelf already: it needs no more */
   rows.filter(x => flowInView('drfd', x.s) && !(typeof flowCpActive === 'function' && flowCpActive(x.s.key)))
-    .sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)))
+    .sort((a, b) => flowClothOrder(a.r, b.r))
     .forEach(({ s }) => {
       const p = s.plan || {}, name = p.fabric && p.fabric.name;
       const need = flowPrinted(s.route) ? flowFabOwed({ qty: p.qty || 0 }, s).metres : flowR2(flowToPrint({ qty: p.qty || 0 }, p).metres * flowRemFrac({ qty: p.qty || 0 }, s));
@@ -35493,7 +35516,7 @@ function flowRfdCover() {
 /* ---- SEND TO CUTTING FROM THE GREIGE DESK, LINKED TO THE LINES (Ravi, 21 Nov: "Link it to the lines") ----
  * The no-printing lines of one RFD fabric that cloth off the shelf may go for: still waiting on Demand → RFD, or marked
  * ready by hand and not cut yet (their cloth is held on the shelf). Printed lines go by printer challan, never here.
- * metres = what a waiting line still needs, or what was made ready for a held one. Oldest order first. */
+ * metres = what a waiting line still needs, or what was made ready for a held one. Shopify board orders first, then oldest. */
 function flowCutLines(fabric) {
   const k = flowFabKey(fabric), cover = flowRfdCover().line;
   return flowRows().map(({ r, s }) => {
@@ -35504,7 +35527,7 @@ function flowCutLines(fabric) {
     if (!waiting && !held) return null;
     return { key: s.key, orderNo: r.orderNo, orderDate: r.orderDate || '', sku: obUC(r.sku), pcs: +r.qty || 0,
       metres: flowR2(waiting ? ((cover[s.key] || {}).need || 0) : (+fr.metres || 0)), ready: !waiting, was: fr || null };
-  }).filter(Boolean).sort((a, b) => a.orderDate.localeCompare(b.orderDate) || String(a.orderNo).localeCompare(String(b.orderNo)));
+  }).filter(Boolean).sort(flowClothOrder);
 }
 /** Accessories the same way, for the Accessories department: on the shelf, held, and what the lines waiting need. */
 function flowAccCover() {
@@ -35843,10 +35866,10 @@ function flowChByFabric(n) {
   const bySize = (a, b) => (typeof flowSizeSort === 'function' ? flowSizeSort(a.size, b.size) : String(a.size).localeCompare(String(b.size)));
   return [...fabs.values()].sort((a, b) => a.fabric.localeCompare(b.fabric)).map(f => Object.assign({}, f, { sizes: [...f.sizes.values()].sort(bySize) }));
 }
-/** A line's shortage in words. "after older orders" only when something on this shelf was really taken before it. */
+/** A line's shortage in words. "after orders ahead of it" only when something on this shelf was really taken before it. */
 function flowChShortTxt(c, cv) {
   const shelf = ((cv.fab || {})[flowFabKey(c.name)] || {}).stock || 0;
-  return `short ${nf(c.short)} m${c.avail < shelf ? ' after older orders' : ''}`;
+  return `short ${nf(c.short)} m${c.avail < shelf ? ' after orders ahead of it' : ''}`;
 }
 /** Whether the RFD on the shelf covers what this challan sends of a fabric: { free, short } (free null when unknown). */
 function flowChStock(fabric, metres) {
@@ -35927,7 +35950,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
         ? `<input data-chp="${i}" type="number" min="1" step="1" max="${flowFabOwed(x.r, x.s).left}" value="${pr ? pr.pcs : flowFabOwed(x.r, x.s).left}" title="Send fewer pieces for now — the rest stays in Demand" style="width:60px;padding:3px 6px;font-size:12px">${flowDoneTxt(x)}`
         : (pr ? `${nf(pr.pcs)} <span class="muted" style="font-size:10px">of ${nf(x.r.qty)}</span>` : nf(x.r.qty))}</td>
       <td class="num" style="white-space:normal"><input data-chm="${i}" type="number" step="0.01" value="${esc((pr ? pr.metres : flowFabOwed(x.r, x.s).metres) || '')}" style="width:72px;padding:3px 6px;font-size:12px">${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10px">${nf(x.s.fabSent)} ${x.s.fabUnit} sent already</div>` : ''}${+(p.fabric && p.fabric.fromPrinted) ? `<div class="muted" style="font-size:10px">${nf(p.fabric.fromPrinted)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock</div>` : ''}</td>
-      <td style="font-size:11px;white-space:normal">${held(i) ? flowChPill(false, 'fix fabric first') : c.short ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#fde8e8;color:#b42318;font-weight:700" title="Older lines waiting for this fabric, and cloth already set aside for other lines, come first">${flowChShortTxt(c, cv)}</span>` : '<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#e7f5ec;color:#166534;font-weight:700">covered</span>'}</td></tr>`; }).join('') + rufHtml;
+      <td style="font-size:11px;white-space:normal">${held(i) ? flowChPill(false, 'fix fabric first') : c.short ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#fde8e8;color:#b42318;font-weight:700" title="Shopify board lines, then older lines waiting for this fabric, and cloth already set aside for other lines, come first">${flowChShortTxt(c, cv)}</span>` : '<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#e7f5ec;color:#166534;font-weight:700">covered</span>'}</td></tr>`; }).join('') + rufHtml;
   ptOpenDialog({
     title: `RFD challan — ${orderNo}${pcode && pcode !== '?' ? ' → ' + ((vens.find(v => String(v.code) === String(pcode)) || {}).desc || ((rows[0].s.plan.printer || {}).name) || pcode) : ''}`,
     subtitle: (orders.length > 1 ? `${orders.length} orders, one printed fabric, one vendor. ` : 'The fabric of this order, to one vendor. ') + 'Saving numbers the challan, opens it to print, and marks these lines\' fabric as given — they leave Demand by themselves.',
@@ -36151,10 +36174,10 @@ function flowShLines(fabric) {
     .map(flowShLine).filter(l => l.pcs > 0)
     /* and the lines with no printing: cutting is allotted from this card (flow-cutpiece.js) */
     .concat(typeof flowCpCardSave === 'function' ? flowCpNoPrintLines(fabric) : [])
-    .sort((a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)));
+    .sort((a, b) => flowClothOrder(a.x.r, b.x.r));
   if (typeof flowPriSort !== 'function') return oldest;
   /* most urgent first: P1 → P4 → no priority (Vishesh, 27 Nov) */
-  return flowPriSort(oldest, l => ({ orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority }));
+  return flowShpFirst(flowPriSort(oldest, l => ({ orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority })), l => l.x.r.orderNo);
 }
 
 /** The open card: { fabric, lines, tick: Set of line keys, qty: { key: pcs typed }, prn: { key: printer code chosen }, q: search,
@@ -39757,7 +39780,7 @@ function flowFgRender() {
     (flowQcLine(r).rows || []).forEach(c => { if (!(+c.ok > 0)) return; const d = ptIsoDate(c.date) || String(c.addedAt || '').slice(0, 10); if (d) m.set(d, (m.get(d) || 0) + (+c.ok || 0)); });
     return [...m.entries()].sort((a, b) => b[0].localeCompare(a[0])); };
   const dmy = iso => { const p = String(iso).split('-'); return p.length === 3 ? p[2] + '-' + p[1] + '-' + p[0] : iso; };
-  const head = ['Order', 'Sent on', 'SKU', 'Image', 'Qty', 'QC passed', 'In India stock', 'To accept', 'Earlier', ''];
+  const head = ['Order', 'Sent on', 'SKU', 'Image', 'Qty', 'QC passed', 'Accepted so far', 'To accept', 'Earlier', ''];
   $('fgTable').innerHTML = '<thead><tr>' + head.map((h, i) => `<th${i === 0 ? ' class="frz"' : i >= 4 && i <= 7 ? ' class="num"' : ''}>${h}</th>`).join('') + '</tr></thead><tbody>'
     + (rows.map(x => { const n = flowFgToAccept(x.r, x.s), log = flowFgOf(x.r).sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
       const so = sentOn(x.r);
@@ -40154,7 +40177,9 @@ function renderFlow() {
   $('flBuckets').innerHTML = bar.map(([k, l, , tip]) => `<button class="fl-b${k === FLOW_VIEW || (k === 'demand' && FLOW_DEMAND.includes(FLOW_VIEW)) ? ' on' : ''}" data-flb="${k}" title="${esc(tip)}">
       <span class="fl-n">${nf(n[k] || 0)}</span><span>${esc(l)}</span></button>`).join('<span class="fl-arrow">›</span>');
   const rows = FLOW_VIEW === 'new' ? shown.filter(x => x.recent) : shown.filter(x => flowInView(FLOW_VIEW, x.s));
-  rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo)));
+  /* cloth is given out on Demand → RFD, so that list stands in the order the cloth goes (flowClothOrder) */
+  rows.sort((a, b) => (FLOW_VIEW === 'drfd' ? flowClothOrder(a.r, b.r)
+    : String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo))));
   FLOW.panel = ''; FLOW.stock = ''; FLOW.byprint = ''; FLOW.bysize = '';
   // The Accessories tab also lists what is reserved and not issued, so a reservation can be let go (flowTable, 'dacc').
   FLOW.held = FLOW_VIEW === 'dacc' ? shown.filter(x => x.s.res && !x.s.issued && x.s.bucket !== 'done') : [];
@@ -40297,7 +40322,7 @@ const flowSizeSort = (a, b) => { const n = s => (String(s).match(/\d+(\.\d+)?/g)
  * first, and opens the ordinary challan form with those lines and figures in it: the challan is saved the one way it always
  * is. Lines on the Cutting route (no printer) and lines with no printer chosen are listed apart, with no challan button. */
 let FLOW_SIZE_PIVOT = null;
-const flowFifoSort = (a, b) => String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)) || String(a.x.s.key).localeCompare(String(b.x.s.key));
+const flowFifoSort = (a, b) => flowClothOrder(a.x.r, b.x.r) || String(a.x.s.key).localeCompare(String(b.x.s.key));
 /** What one line still owes, in pieces and metres, and metres per piece. */
 function flowSizeOwed(x) {
   const p = x.s.plan || {}, o = flowFabOwed(x.r, x.s);
@@ -40392,7 +40417,7 @@ function flowChGroups(keys, pre) {
     const pc = (to && String(to.code)) || flowPlanPrinter(x.s) || '?', g = out.get(pc) || { pcode: pc, rows: [] }; g.rows.push(x); out.set(pc, g);
   });
   const groups = [...out.values()].map(g => Object.assign(g, { pre: pre || null,
-    rows: g.rows.sort((a, b) => String(a.r.orderDate || '').localeCompare(String(b.r.orderDate || '')) || String(a.r.orderNo).localeCompare(String(b.r.orderNo))) }));
+    rows: g.rows.sort((a, b) => flowClothOrder(a.r, b.r)) }));
   return { groups, skipped };
 }
 /** Open the challan forms one after another. */
@@ -40805,7 +40830,7 @@ function flowTable(view, rows) {
       const e = x.r.__t ? null : flowEarlierOf(x);
       return `<tr${c.short ? ' style="background:#fef2f2"' : ''}>
         <td class="frz" style="${T};white-space:nowrap;font-size:12px">${esc(dmy)}${age != null ? `<div style="${SB}">${nf(age)} days</div>` : ''}</td>
-        <td style="${T};min-width:100px">${x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}" title="${esc(flowDocsOf(x).map(d => d.kind + ' ' + d.no + (d.who ? ' → ' + d.who : '')).join(' · '))}" style="color:inherit;font-weight:700;text-decoration:underline dotted;font-size:13.5px">${esc(x.r.orderNo)}</a>`}${buyer ? `<div style="font-size:11.5px;font-weight:600">${esc(buyer)}</div>` : ''}</td>
+        <td style="${T};min-width:100px">${flowIsShpOrder(x.r.orderNo) ? '<span class="jw-st" style="background:#dbeafe;color:#1e40af;font-weight:700" title="Shopify board order: free cloth goes to it first">Priority</span><br>' : ''}${x.r.__t ? `<b>${esc(x.r.orderNo)}</b> <span class="navbadge" style="background:#7c3aed;position:static">TEST</span>` : `<a href="#" data-ordj="${esc(x.r.orderNo)}" title="${esc(flowDocsOf(x).map(d => d.kind + ' ' + d.no + (d.who ? ' → ' + d.who : '')).join(' · '))}" style="color:inherit;font-weight:700;text-decoration:underline dotted;font-size:13.5px">${esc(x.r.orderNo)}</a>`}${buyer ? `<div style="font-size:11.5px;font-weight:600">${esc(buyer)}</div>` : ''}</td>
         <td style="${T};min-width:230px"><div style="display:flex;gap:8px;align-items:center">${pic(x.r.sku)}<div style="line-height:1.3"><div style="font-weight:600;font-size:12.5px">${esc(x.r.articleSubtype || x.r.articleType || x.r.itemName || '—')}</div>
           <div style="${SB}">${esc([x.r.color, x.r.size].filter(Boolean).join(' · '))} · <span style="font-family:ui-monospace,monospace">${esc(x.r.sku)}</span></div></div></div></td>
         <td class="num" style="vertical-align:top"><b style="font-size:14px">${nf(x.r.qty)}</b></td>
@@ -44885,7 +44910,7 @@ function ctsLineSize(x) {
   if (own) return own;
   try { return String(((typeof cutSkuOf === 'function' && cutSkuOf(x.r.sku)) || {}).size || ''); } catch (e) { return ''; }
 }
-/** The lines on Demand → RFD waiting for this fabric in this size, oldest order first, each with the pieces it still owes (the card's own flowShLine). */
+/** The lines on Demand → RFD waiting for this fabric in this size, Shopify board orders first then oldest, each with the pieces it still owes (the card's own flowShLine). */
 function ctsLinesFor(fabric, w, l) {
   if (typeof flowRows !== 'function' || typeof flowShLine !== 'function') return [];
   var F = flowFabKey(fabric);
@@ -44893,9 +44918,9 @@ function ctsLinesFor(fabric, w, l) {
     if (typeof flowCpActive === 'function' && flowCpActive(x.s.key)) return false;
     return flowInView('drfd', x.s) && x.s.route !== 'stitch' && flowFabKey(((x.s.plan || {}).fabric || {}).name) === F && ctsSizeMatches(ctsLineSize(x), w, l);
   }).map(flowShLine).filter(function (ln) { return ln.pcs > 0; })
-    .sort(function (a, b) { return String(a.x.r.orderDate || '').localeCompare(String(b.x.r.orderDate || '')) || String(a.x.r.orderNo).localeCompare(String(b.x.r.orderNo)); });
+    .sort(function (a, b) { return flowClothOrder(a.x.r, b.x.r); });
   if (typeof flowPriSort !== 'function') return list;
-  return flowPriSort(list, function (l) { return { orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority }; });
+  return flowShpFirst(flowPriSort(list, function (l) { return { orderNo: l.x.r.orderNo, orderDate: l.x.r.orderDate, priority: l.priority }; }), function (l) { return l.x.r.orderNo; });
 }
 /** What would go for this printer: { size, lines, picks: [{ line, pcs, metres }], skipped: [{ line, why }], pcs, metres }. Reads only. */
 function ctsSendPlan(S, code) {
@@ -45763,7 +45788,7 @@ function cuBoardOf(r) {
   var f = function (x) { return x === 'SHP' ? 'shp' : (x === 'ONL' || x === 'ETSY') ? 'onl' : ''; };
   return f(pre) || (pre === 'AMZ' || pre === 'B2B' ? '' : f(src));
 }
-/** null while the flow is loading; else [{ ln (flowShLine), board, fabric, cover }] oldest first. */
+/** null while the flow is loading; else [{ ln (flowShLine), board, fabric, cover }] Shopify board first, then oldest. */
 function cuLines() {
   if (typeof flowRows !== 'function' || typeof flowShLine !== 'function' || typeof flowRfdCover !== 'function') return null;
   if (!gdFlowReady()) return null;
@@ -45774,7 +45799,7 @@ function cuLines() {
     var ln = flowShLine(x);
     return { ln: ln, board: cuBoardOf(x.r), fabric: String((((x.s.plan || {}).fabric) || {}).name || ''), cover: cov[x.s.key] || null };
   }).filter(function (c) { return c.ln.pcs > 0; })
-    .sort(function (a, b) { return String(a.ln.x.r.orderDate || '').localeCompare(String(b.ln.x.r.orderDate || '')) || String(a.ln.x.r.orderNo).localeCompare(String(b.ln.x.r.orderNo)); });
+    .sort(function (a, b) { return flowClothOrder(a.ln.x.r, b.ln.x.r); });
 }
 /** WHY A CUSTOM LINE CANNOT BE SENT FROM HERE ('' = it can): the Send-to-printer card's own rule (flowShWhyNot - a master row without cloth per piece, no printer from PPC, a change waiting
  *  for approval, in Cut to size) plus: cut-piece lines are sent through Demand → RFD (they are cut first), so they are not made into a challan from this list. */
@@ -45898,9 +45923,9 @@ function invNeedCell(r, loading) {
   var words = p.short > 0.05
     ? pct + '% covered · <span style="color:var(--bad);font-weight:700">' + nf(p.short) + ' short</span>' + (p.greigeM ? '' : ' · covered by what is on its way')
     : 'fully covered';
-  /* the lines open Demand → RFD with only this fabric's lines (Ravi, 21 Nov) */
+  /* the lines open this fabric's Send to printer card, here on the desk (21 Nov; the card in place of Demand → RFD, 28 Nov) */
   return '<td class="tl" title="' + esc(tip) + '"><div><b>' + nf(p.need) + ' m</b> <span class="muted" style="font-size:11px">· </span>'
-    + '<button type="button" class="link" data-gdlines="' + esc(p.name) + '" style="font-size:11px;padding:0" title="See these lines on Demand → RFD">' + plural(p.lines, 'line') + '</button></div>'
+    + '<button type="button" class="link" data-gdlines="' + esc(p.name) + '" style="font-size:11px;padding:0" title="See these lines, and send them to their printers">' + plural(p.lines, 'line') + '</button></div>'
     + '<div style="height:6px;border-radius:3px;background:var(--soft);overflow:hidden;margin:5px 0 3px" role="img" aria-label="' + pct + '% covered">'
     + '<div style="height:100%;width:' + pct + '%;background:' + col + '"></div></div>'
     + '<div class="muted" style="font-size:11px">' + nf(p.free) + ' m RFD free · ' + words + '</div></td>';
@@ -48112,7 +48137,9 @@ function wireGd() {
     var t = ev.target.closest ? ev.target.closest('[data-ppcpo],[data-gdflow],[data-gdlines],[data-gdsend]') : null; if (!t) return;
     if (t.getAttribute('data-ppcpo')) { var p = t.getAttribute('data-ppcpo').split('|'); gdPoFor(p[0], +p[1]); return; }
     if (t.getAttribute('data-gdflow')) { gdToFlow(t.getAttribute('data-gdflow'), ''); return; }   // the whole list: no fabric left in the search
-    if (t.getAttribute('data-gdlines')) { gdToFlow('drfd', t.getAttribute('data-gdlines')); return; }
+    /* the fabric's lines open on its Send to printer card, here on the desk (28 Nov: no jump to the old flow page). The card
+     * shows only the lines that can be sent or allotted, so its count can be lower than the link's. */
+    if (t.getAttribute('data-gdlines')) { gdSendToPrinter(t.getAttribute('data-gdlines')); return; }
     if (t.getAttribute('data-gdsend')) { gdSendToPrinter(t.getAttribute('data-gdsend')); return; }
   });
 }
@@ -63102,7 +63129,7 @@ function renderFgi() {
   $('fgLstRefresh').disabled = !!LST.busy;
   // The label has its own id rather than being reached through the checkbox's parent — a wrapper
   // that changes shape would otherwise break this silently.
-  /* With stock shared (switch storeAlloc) the list holds only SKUs with stock, so the tick has nothing to choose. */
+  /* With stock shared (switch storeAlloc) the list picks its own SKUs, so the tick has nothing to choose. */
   $('fgZeroWrap').classList.toggle('hide', view !== 'stock' || (typeof fgaOn === 'function' && fgaOn()));
   if ($('fgaView')) $('fgaView').classList.toggle('hide', view !== 'stock' || !(typeof fgaOn === 'function' && fgaOn()));
   $('fgEntry').classList.toggle('hide', !fgiCanEntry());
@@ -63129,7 +63156,7 @@ function renderFgi() {
 
 /** The stock list's columns that line up as figures. */
 const FGI_NUM_COLS = ['Opening', 'Received', 'Issued', 'To FBA', 'In stock', 'Shopify held', 'Rate', 'Value',
-  'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', 'In FBA lists'];
+  'FBA Dispatched', 'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', 'In FBA lists'];
 
 /** The movement and value cells of a stock row (switch storeAlloc off). */
 function fgiMovementCells(r, holds) {
@@ -63156,7 +63183,7 @@ function fgiStockNote(rows, onlyStock, alloc) {
   $('fgMsg').className = neg.length ? 'err' : 'muted';
   const held = rows.filter(r => r.current !== 0 || r.pending > 0).length;
   $('fgMsg').textContent = `${nf(rows.length)} SKU(s)`
-    + (onlyStock ? ' in stock now' : ` on record · ${nf(held)} with pieces left`)
+    + (alloc ? fgaCountWords(rows) : (onlyStock ? ' in stock now' : ` on record · ${nf(held)} with pieces left`))
     + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
     /* Switch storeAlloc (asked 28 Nov): the list says nothing about rates or value; it says how wide a search reaches. */
     + (alloc && (PTG.mdb || []).length ? ` · search covers all ${nf(PTG.mdb.length)} Master Database SKUs` : '')
@@ -63179,14 +63206,15 @@ const fgiMatches = (r, q) => [r.sku, r.articleType, r.subtype, r.color, r.size, 
 function fgiRenderStock(stock) {
   const q = $('fgQ').value.trim().toLowerCase();
   /* Switch storeAlloc (27 Nov): the list shows who each SKU's stock is for, in place of its movement and value columns, and
-   * (28 Nov) holds only the SKUs with stock now, a count below nought included so that it is seen. */
+   * (28 Nov) holds only the SKUs with stock now or with FBA Dispatched pieces (fgaListed). */
   const alloc = typeof fgaOn === 'function' && fgaOn();
   /* SWITCH OFF, THE LIST IS THE STORE'S REGISTER, not its shelf. A SKU that came in and went out the
    * same morning still gets its line, with what came in and where it went; ticking the box narrows
    * the list to what is actually left. */
   const onlyStock = alloc || $('fgZero').checked;
   const fBrand = $('fgBrand').value, fStat = $('fgStat').value, fTag = $('fgTag').value;
-  const listed = [...stock.values()].map(b => {
+  const records = alloc ? fgaWithDispatched(stock) : stock;
+  const listed = [...records.values()].map(b => {
     const m = fgiMaster(b.sku);
     const st = fgiStatus(b.sku, b.current);
     const set = (FGI.set || {})[b.sku] || {};
@@ -63200,7 +63228,7 @@ function fgiRenderStock(stock) {
   })
     /* Negative stock is never hidden. The message below warns about it, and a warning about
      * something the filter has just removed from the table is worse than no warning. */
-    .filter(r => !onlyStock || r.current !== 0 || (!alloc && r.pending > 0))
+    .filter(r => !onlyStock || (alloc ? fgaListed(r) : r.current !== 0 || r.pending > 0))
     .filter(r => !fBrand || r.brand === fBrand)
     .filter(r => !fStat || r.status.txt === fStat)
     .filter(r => !fTag || (fTag === '_none' ? !r.remark : r.remark === fTag))
@@ -63209,7 +63237,7 @@ function fgiRenderStock(stock) {
     .sort((a, b) => b.current - a.current || a.sku.localeCompare(b.sku));
   const rows = alloc ? fgaListRows(listed) : listed;
   FGI.shown = rows;
-  const sought = alloc ? fgaSearchNote($('fgQ').value, rows, stock) : '';
+  const sought = alloc ? fgaSearchNote($('fgQ').value, rows, records) : '';
 
   ptFillSelect('fgBrand', [...new Set([...stock.values()].map(b => String(fgiMaster(b.sku).brand || '').trim()).filter(Boolean))]
     .sort().map(b => [b, b]), 'All brands');
@@ -63220,7 +63248,7 @@ function fgiRenderStock(stock) {
   const shownSkus = rows.slice(0, 600).map(r => r.sku);
   const allOn = canTick && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
   const head = '<thead><tr>' + (canTick ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
-    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['In Stock', ...fgaShareCols().map(s => s[1])] : ['Opening', 'Received',
+    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['FBA Dispatched', 'In Stock', ...fgaShareCols().map(s => s[1])] : ['Opening', 'Received',
     'Issued', 'To FBA', 'In stock', ...(holds ? ['Shopify held'] : []), 'Amazon', 'Tag', 'Rate', 'Value']), '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (FGI_NUM_COLS.includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
@@ -70894,7 +70922,11 @@ function fgiReleaseOpen(sku) {
  *   FBA     = what Replenishment asks to send (SP and CPC together, in pieces), less dispatches already on the way: every
  *             one not yet marked shipped, and any shipped after the Amazon figures were read. Air is reduced first.
  * New development sales orders (28 Nov) are not Custom: their pending pieces are kept for FBA (fg-store-newdev.js).
- * The stock list holds only SKUs with stock now (28 Nov); a search that finds none of them says why.
+ * The stock list holds the SKUs with stock now, and those with FBA Dispatched pieces even with none in stock (28 Nov); a
+ * search that finds none of them says why. "FBA Dispatched" is what FBA Dispatch holds not yet marked shipped (waiting or
+ * accepted, less returns, both accounts whatever the view picker says; sheet history left out). Those pieces have left the
+ * stock, so they are neither In Stock nor part of the shares. Pieces on an FBA list not yet shipped are still in stock, so
+ * they are not counted in it.
  * On the stock list (28 Nov), a Custom figure opens the orders it is for: the stock is counted against them oldest first.
  * What may leave: FBA only the Air + Sea + AWD pieces the stock covers, plus an admin's release; an issue for an order up to
  * that order's pending pieces within Custom, plus Excess; any other issue Excess only.
@@ -71199,6 +71231,30 @@ function fgaIssueEditWants(was, now) {
 }
 
 /* ---- on the Finished Goods stock list ---- */
+/** Pieces of each SKU in FBA Dispatch not yet marked shipped: Map of SKU (as the stock list names it) → pieces. */
+function fgaDispatched(rows) {
+  const out = new Map();
+  (rows || []).filter(r => r && r.txnType === 'FBA').forEach(r => {
+    const { st, open } = fbaState(r);
+    if (st !== 'waiting' && st !== 'accepted') return;
+    const sku = obUC(r.sku);
+    out.set(sku, (out.get(sku) || 0) + open);
+  });
+  return out;
+}
+/** fgiStock() with each SKU's FBA Dispatched pieces; new records are returned. */
+function fgaWithDispatched(stock) {
+  const sent = fgaDispatched(FGI.rows);
+  return new Map([...stock].map(([sku, b]) => [sku, Object.assign({}, b, { dispatched: sent.get(sku) || 0 })]));
+}
+/** Does the stock list hold this SKU? A count below nought is held too, so that it is seen. */
+const fgaListed = b => b.current !== 0 || b.dispatched > 0;
+/** What the count above the list counts: SKUs in stock, and apart from them those listed only for FBA Dispatched pieces. */
+function fgaCountWords(rows) {
+  const sentOnly = rows.filter(r => r.current === 0).length;
+  if (!sentOnly) return ' in stock now';
+  return ` listed: ${nf(rows.length - sentOnly)} in stock now, ${nf(sentOnly)} with none in stock but pieces in FBA Dispatch not yet shipped`;
+}
 /** Which FBA lanes the list shows: both stores, or the one picked. */
 function fgaViewStores() {
   const picked = ($('fgaView') || {}).value;
@@ -71225,17 +71281,19 @@ function fgaFigureButton(r, share, inner) {
 }
 function fgaCells(r) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
-  return `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
+  return `<td class="num">${fgaNum(r.dispatched)}</td>`
+    + `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
     + fgaShareCols().map(([k]) => `<td class="num">${fgaFigureButton(r, k, nf(r.alloc[k])) || fgaNum(r.alloc[k])}</td>`).join('');
 }
-const fgaCardFigs = r => fgaShareCols().map(([k, label]) => {
+const fgaCardFigs = r => `<span>FBA Dispatched <b>${nf(r.dispatched)}</b></span>` + fgaShareCols().map(([k, label]) => {
   const figure = `${label} <b>${nf(r.alloc[k])}</b>`;
   return fgaFigureButton(r, k, figure) || `<span>${figure}</span>`;
 }).join('');
 /** Is some of this stock kept from FBA, so a release would mean something? */
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
-const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'In Stock', ...fgaShareCols().map(s => s[1])];
-const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, Math.max(0, r.current), ...fgaShareCols().map(([k]) => r.alloc[k])];
+const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'FBA Dispatched', 'In Stock', ...fgaShareCols().map(s => s[1])];
+const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.dispatched, Math.max(0, r.current),
+  ...fgaShareCols().map(([k]) => r.alloc[k])];
 
 /* ---- the orders behind a Custom figure ---- */
 const FGA_NO_DETAIL = 'Website orders (details after Shopify Orders is opened again)';
@@ -71294,13 +71352,13 @@ function fgaCustomOpen(sku) {
 }
 
 /* ---- searching the list ---- */
-/** The list holds only SKUs with stock now, so a search it cannot answer says why (28 Nov). '' = nothing to say.
- *  typed: the search box as it is; rows: the rows listed; stock: fgiStock(). A whole SKU code is judged first. */
+/** The list does not hold every SKU, so a search it cannot answer says why (28 Nov). '' = nothing to say.
+ *  typed: the search box as it is; rows: the rows listed; stock: fgaWithDispatched(). A whole SKU code is judged first. */
 function fgaSearchNote(typed, rows, stock) {
   const text = typed.trim(), code = obUC(text);
   if (!code || rows.some(r => r.sku === code)) return '';
   const record = stock.get(code);
-  if (record && record.current !== 0) return `SKU ${code} is in the India Store but hidden by the filters.`;
+  if (record && fgaListed(record)) return `SKU ${code} is in the India Store but hidden by the filters.`;
   if (record || mdbOf(code)) return `SKU ${code} is not in the India Store.`;
   return rows.length ? '' : fgaNoMatchNote(text, stock);
 }
@@ -71308,7 +71366,7 @@ function fgaSearchNote(typed, rows, stock) {
 function fgaNoMatchNote(text, stock) {
   const found = r => fgiMatches(r, text.toLowerCase());
   const onRecord = [...stock.values()].map(b => Object.assign({}, fgiMaster(b.sku), (FGI.set || {})[b.sku], b));
-  if (onRecord.some(r => r.current !== 0 && found(r))) return 'Matching products are in the India Store but hidden by the filters.';
+  if (onRecord.some(r => fgaListed(r) && found(r))) return 'Matching products are in the India Store but hidden by the filters.';
   const master = PTG.mdb || [];
   if (onRecord.some(found) || master.some(found)) return 'Matching products are not in the India Store.';
   if (!master.length) return `"${text}" could not be checked — the Master Database was not read. Press Refresh to try again.`;
@@ -101691,9 +101749,18 @@ function p1Pcs(k, x) {
   return +x.r.qty || 0;
 }
 const P1_DO = { PLAN: 'Plan', RFD: 'Make challan', PRN: 'Receive', CUT: 'Enter cutting', ISS: 'Issue', REC: 'Receive', QC: 'Check in QC', FG: 'Accept', SHIP: 'Hand over' };
+/** Printed goods back, where the person is (28 Nov: "Receive" left for the old flow page). The same box the SHP board uses
+ *  (flowDueRecvOpen), so the Printer's view rules hold: open challans first, goods that came with no challan, RFD stock.
+ *  It covers the line's own printer; ruffle cloth sent separately is received against its own challan. */
+function p1RecvPrinted(x) {
+  const say = t => { if (typeof frToast === 'function') frToast(t, null, 6000); };
+  const pr = x.s.plan && x.s.plan.printer, who = pr && (pr.code || pr.name);
+  if (!who) return say('This line has no printer on its PPC plan. PPC sets one first; old vendor orders are received on Vendors → Printer\'s view.');
+  flowDueRecvOpen(who, { orderNo: x.r.orderNo, sku: x.r.sku, none: () => say(`${x.r.orderNo} ${obUC(x.r.sku)}: nothing is still to come from ${pr.name || who}.`) });
+}
 /** The real entry form for one waiting group. */
 function p1Do(k, xs) {
-  if (P1.more && (k === 'PLAN' || k === 'RFD')) { if (typeof frToast === 'function') frToast('Reading the fabric and printer registers — a moment…', null, 3000); P1.more.then(() => p1Do(k, xs)); return; }
+  if (P1.more && (k === 'PLAN' || k === 'RFD' || k === 'PRN')) { if (typeof frToast === 'function') frToast('Reading the fabric and printer registers — a moment…', null, 3000); P1.more.then(() => p1Do(k, xs)); return; }
   const x = xs[0], leave = fn => { p1Hide(); setTimeout(fn, 30); };
   /* the plan form and the challan return without a word when the lines no longer qualify: say so here (review, 26 Oct) */
   const said = what => setTimeout(() => { const d = $('ptDlg'); if ((!d || d.classList.contains('hide')) && typeof frToast === 'function') frToast(what, null, 6000); }, 400);
@@ -101704,7 +101771,7 @@ function p1Do(k, xs) {
   else if (k === 'REC') flowRecvEntry(x.r);
   else if (k === 'QC') leave(() => showTab('qc'));
   else if (k === 'FG') leave(() => { if (typeof frFgView === 'function') frFgView('pending'); else showTab('fgi'); });
-  else if (k === 'PRN') leave(() => { FLOW_VIEW = 'dhist'; showTab('flow'); });
+  else if (k === 'PRN') p1RecvPrinted(x);
   else if (k === 'SHIP') leave(() => showTab('ord'));   // the Order Console's Production to shipping, where the shipping team takes it
 }
 /** The lines of a lot still waiting for PPC's plan, for someone who may plan. */

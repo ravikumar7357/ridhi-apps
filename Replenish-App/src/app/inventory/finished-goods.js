@@ -238,7 +238,7 @@ function renderFgi() {
   $('fgLstRefresh').disabled = !!LST.busy;
   // The label has its own id rather than being reached through the checkbox's parent — a wrapper
   // that changes shape would otherwise break this silently.
-  /* With stock shared (switch storeAlloc) the list holds only SKUs with stock, so the tick has nothing to choose. */
+  /* With stock shared (switch storeAlloc) the list picks its own SKUs, so the tick has nothing to choose. */
   $('fgZeroWrap').classList.toggle('hide', view !== 'stock' || (typeof fgaOn === 'function' && fgaOn()));
   if ($('fgaView')) $('fgaView').classList.toggle('hide', view !== 'stock' || !(typeof fgaOn === 'function' && fgaOn()));
   $('fgEntry').classList.toggle('hide', !fgiCanEntry());
@@ -265,7 +265,7 @@ function renderFgi() {
 
 /** The stock list's columns that line up as figures. */
 const FGI_NUM_COLS = ['Opening', 'Received', 'Issued', 'To FBA', 'In stock', 'Shopify held', 'Rate', 'Value',
-  'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', 'In FBA lists'];
+  'FBA Dispatched', 'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', 'In FBA lists'];
 
 /** The movement and value cells of a stock row (switch storeAlloc off). */
 function fgiMovementCells(r, holds) {
@@ -292,7 +292,7 @@ function fgiStockNote(rows, onlyStock, alloc) {
   $('fgMsg').className = neg.length ? 'err' : 'muted';
   const held = rows.filter(r => r.current !== 0 || r.pending > 0).length;
   $('fgMsg').textContent = `${nf(rows.length)} SKU(s)`
-    + (onlyStock ? ' in stock now' : ` on record · ${nf(held)} with pieces left`)
+    + (alloc ? fgaCountWords(rows) : (onlyStock ? ' in stock now' : ` on record · ${nf(held)} with pieces left`))
     + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
     /* Switch storeAlloc (asked 28 Nov): the list says nothing about rates or value; it says how wide a search reaches. */
     + (alloc && (PTG.mdb || []).length ? ` · search covers all ${nf(PTG.mdb.length)} Master Database SKUs` : '')
@@ -315,14 +315,15 @@ const fgiMatches = (r, q) => [r.sku, r.articleType, r.subtype, r.color, r.size, 
 function fgiRenderStock(stock) {
   const q = $('fgQ').value.trim().toLowerCase();
   /* Switch storeAlloc (27 Nov): the list shows who each SKU's stock is for, in place of its movement and value columns, and
-   * (28 Nov) holds only the SKUs with stock now, a count below nought included so that it is seen. */
+   * (28 Nov) holds only the SKUs with stock now or with FBA Dispatched pieces (fgaListed). */
   const alloc = typeof fgaOn === 'function' && fgaOn();
   /* SWITCH OFF, THE LIST IS THE STORE'S REGISTER, not its shelf. A SKU that came in and went out the
    * same morning still gets its line, with what came in and where it went; ticking the box narrows
    * the list to what is actually left. */
   const onlyStock = alloc || $('fgZero').checked;
   const fBrand = $('fgBrand').value, fStat = $('fgStat').value, fTag = $('fgTag').value;
-  const listed = [...stock.values()].map(b => {
+  const records = alloc ? fgaWithDispatched(stock) : stock;
+  const listed = [...records.values()].map(b => {
     const m = fgiMaster(b.sku);
     const st = fgiStatus(b.sku, b.current);
     const set = (FGI.set || {})[b.sku] || {};
@@ -336,7 +337,7 @@ function fgiRenderStock(stock) {
   })
     /* Negative stock is never hidden. The message below warns about it, and a warning about
      * something the filter has just removed from the table is worse than no warning. */
-    .filter(r => !onlyStock || r.current !== 0 || (!alloc && r.pending > 0))
+    .filter(r => !onlyStock || (alloc ? fgaListed(r) : r.current !== 0 || r.pending > 0))
     .filter(r => !fBrand || r.brand === fBrand)
     .filter(r => !fStat || r.status.txt === fStat)
     .filter(r => !fTag || (fTag === '_none' ? !r.remark : r.remark === fTag))
@@ -345,7 +346,7 @@ function fgiRenderStock(stock) {
     .sort((a, b) => b.current - a.current || a.sku.localeCompare(b.sku));
   const rows = alloc ? fgaListRows(listed) : listed;
   FGI.shown = rows;
-  const sought = alloc ? fgaSearchNote($('fgQ').value, rows, stock) : '';
+  const sought = alloc ? fgaSearchNote($('fgQ').value, rows, records) : '';
 
   ptFillSelect('fgBrand', [...new Set([...stock.values()].map(b => String(fgiMaster(b.sku).brand || '').trim()).filter(Boolean))]
     .sort().map(b => [b, b]), 'All brands');
@@ -356,7 +357,7 @@ function fgiRenderStock(stock) {
   const shownSkus = rows.slice(0, 600).map(r => r.sku);
   const allOn = canTick && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
   const head = '<thead><tr>' + (canTick ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
-    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['In Stock', ...fgaShareCols().map(s => s[1])] : ['Opening', 'Received',
+    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['FBA Dispatched', 'In Stock', ...fgaShareCols().map(s => s[1])] : ['Opening', 'Received',
     'Issued', 'To FBA', 'In stock', ...(holds ? ['Shopify held'] : []), 'Amazon', 'Tag', 'Rate', 'Value']), '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (FGI_NUM_COLS.includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
