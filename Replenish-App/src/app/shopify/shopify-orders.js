@@ -737,7 +737,7 @@ function soHoldOrderNo(o, taken) {
   const base = shpOrderNo(o.no);
   return taken.get(base) ? '' : base;
 }
-/** What one store's open orders need from India, line by line, for shpHoldBuild. copyOrders (test website): the shared
+/** What one store's open orders need from India, line by line, for shpHoldNeed. copyOrders (test website): the shared
  *  copy's orders, counted in place of the ones read from Shopify. */
 function soHoldClaims(store, copyOrders) {
   soIndexNames(copyOrders);
@@ -751,8 +751,9 @@ function soHoldClaims(store, copyOrders) {
       const sku = soIndiaKey(i.sku) || obUC(i.sku);      // never in India yet: held under its own code, for when it arrives
       if (!sku) return;
       const fit = soPackFit(i.sku);
+      /* The Shopify order's name and date go with it (the stock list shows them); nothing about the customer does. */
       claims.push({ orderNo, sku, sets: soSendQty(o.id, i.sku, soIndiaOwed(i)),
-        perSet: fit && fit.ok ? fit.pack : obPcsPerPack(sku) });
+        perSet: fit && fit.ok ? fit.pack : obPcsPerPack(sku), ref: String(o.no || ''), on: String(o.at || '').slice(0, 10) });
     });
   });
   return claims;
@@ -811,7 +812,8 @@ async function soHoldPublish() {
     const ledger = await soHoldLedger();
     /* Orders and their read time are taken together, after the waits: a newer fetch may have replaced both. */
     const read = SHOP.holdRead || {};
-    const figures = SO_BRANDS.filter(b => read[b]).map(b => [b, { at: read[b], by: ME.email, skus: shpHoldBuild(soHoldClaims(b), ledger) }]);
+    const figures = SO_BRANDS.filter(b => read[b]).map(b => [b,
+      Object.assign({ at: read[b], by: ME.email }, shpHoldNeed(soHoldClaims(b), ledger))]);
     const whys = SO_BRANDS.filter(b => !read[b]).map(b => soAcctName(b) + ': '
       + ((SHOP.holdWhy || {})[b] || 'its orders were not read in full (narrowed dates, or a failed or cut-off answer)'));
     for (const [b, figure] of figures) {
@@ -901,7 +903,8 @@ async function soHoldPublishCopy() {
     const read = await soHoldCopyRead(), noted = [], whys = [];
     for (const b of SO_BRANDS) {
       const s = read[b];
-      const why = s.why || await shpHoldPublish(b, { at: s.at, by: ME.email, skus: shpHoldBuild(soHoldClaims(b, s.orders), ledger) });
+      const why = s.why || await shpHoldPublish(b,
+        Object.assign({ at: s.at, by: ME.email }, shpHoldNeed(soHoldClaims(b, s.orders), ledger)));
       if (why) whys.push(soAcctName(b) + ': ' + why); else noted.push(b);
     }
     const notNoted = whys.length ? SO_HOLD_NOT_NOTED + whys.join('; ') : '';

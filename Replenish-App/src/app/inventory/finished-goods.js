@@ -238,7 +238,8 @@ function renderFgi() {
   $('fgLstRefresh').disabled = !!LST.busy;
   // The label has its own id rather than being reached through the checkbox's parent — a wrapper
   // that changes shape would otherwise break this silently.
-  $('fgZeroWrap').classList.toggle('hide', view !== 'stock');
+  /* With stock shared (switch storeAlloc) the list holds only SKUs with stock, so the tick has nothing to choose. */
+  $('fgZeroWrap').classList.toggle('hide', view !== 'stock' || (typeof fgaOn === 'function' && fgaOn()));
   if ($('fgaView')) $('fgaView').classList.toggle('hide', view !== 'stock' || !(typeof fgaOn === 'function' && fgaOn()));
   $('fgEntry').classList.toggle('hide', !fgiCanEntry());
   ['fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge', 'flFgBadge', 'fapBadge'].forEach(id => { const b = $(id); if (b && b.dataset) b.classList.toggle('on', b.dataset.fgview === $('fgView').value); });
@@ -301,12 +302,18 @@ function fgiStockNote(rows, onlyStock, alloc) {
   if (copy) { $('fgMsg').className = 'err'; $('fgMsg').textContent += ' · ' + copy; }
 }
 
+/** Does a stock row, or a Master Database row, carry the searched text (in lower case)? */
+const fgiMatches = (r, q) => [r.sku, r.articleType, r.subtype, r.color, r.size, r.remark].join(' ').toLowerCase().includes(q);
+
 function fgiRenderStock(stock) {
   const q = $('fgQ').value.trim().toLowerCase();
-  /* THE LIST IS THE STORE'S REGISTER, not its shelf. A SKU that came in and went out the same
-   * morning still gets its line, with what came in and where it went; ticking the box narrows the
-   * list to what is actually left. */
-  const onlyStock = $('fgZero').checked;
+  /* Switch storeAlloc (27 Nov): the list shows who each SKU's stock is for, in place of its movement and value columns, and
+   * (28 Nov) holds only the SKUs with stock now, a count below nought included so that it is seen. */
+  const alloc = typeof fgaOn === 'function' && fgaOn();
+  /* SWITCH OFF, THE LIST IS THE STORE'S REGISTER, not its shelf. A SKU that came in and went out the
+   * same morning still gets its line, with what came in and where it went; ticking the box narrows
+   * the list to what is actually left. */
+  const onlyStock = alloc || $('fgZero').checked;
   const fBrand = $('fgBrand').value, fStat = $('fgStat').value, fTag = $('fgTag').value;
   const listed = [...stock.values()].map(b => {
     const m = fgiMaster(b.sku);
@@ -322,17 +329,16 @@ function fgiRenderStock(stock) {
   })
     /* Negative stock is never hidden. The message below warns about it, and a warning about
      * something the filter has just removed from the table is worse than no warning. */
-    .filter(r => !onlyStock || r.current !== 0 || r.pending > 0)
+    .filter(r => !onlyStock || r.current !== 0 || (!alloc && r.pending > 0))
     .filter(r => !fBrand || r.brand === fBrand)
     .filter(r => !fStat || r.status.txt === fStat)
     .filter(r => !fTag || (fTag === '_none' ? !r.remark : r.remark === fTag))
     .filter(r => !$('fgAmz').value || lstOf(r.sku).st === $('fgAmz').value)
-    .filter(r => !q || [r.sku, r.articleType, r.subtype, r.color, r.size, r.remark].join(' ').toLowerCase().includes(q))
+    .filter(r => !q || fgiMatches(r, q))
     .sort((a, b) => b.current - a.current || a.sku.localeCompare(b.sku));
-  /* Switch storeAlloc (27 Nov): the list shows who each SKU's stock is for, in place of its movement and value columns. */
-  const alloc = typeof fgaOn === 'function' && fgaOn();
   const rows = alloc ? fgaListRows(listed) : listed;
   FGI.shown = rows;
+  const sought = alloc ? fgaSearchNote($('fgQ').value, rows, stock) : '';
 
   ptFillSelect('fgBrand', [...new Set([...stock.values()].map(b => String(fgiMaster(b.sku).brand || '').trim()).filter(Boolean))]
     .sort().map(b => [b, b]), 'All brands');
@@ -348,7 +354,7 @@ function fgiRenderStock(stock) {
   /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
   if ($('fgTable').classList) $('fgTable').classList.toggle('fg-cards', (typeof mobOn === 'function' && mobOn()));
   if ((typeof mobOn === 'function' && mobOn())) $('fgTable').innerHTML = '<tbody>' + (rows.length ? rows.slice(0, 600).map(r => fgiCard(r, canEd)).join('')
-    : '<tr><td class="muted" style="padding:14px">No SKU matches these filters.</td></tr>') + '</tbody>';
+    : `<tr><td class="muted" style="padding:14px">${sought ? esc(sought) : 'No SKU matches these filters.'}</td></tr>`) + '</tbody>';
   else $('fgTable').innerHTML = head + '<tbody>' + rows.slice(0, 600).map(r => '<tr>'
     + (canEd ? `<td><input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''}></td>` : '')
     + `<td class="frz" style="text-align:left"><button class="ghost" data-fgmoves="${esc(r.sku)}" title="Every movement of this SKU"
@@ -363,6 +369,7 @@ function fgiRenderStock(stock) {
         + ` <button class="ghost" data-fgskudel="${esc(r.sku)}" style="padding:3px 9px;font-size:12px;color:var(--bad)" title="Delete every movement of this SKU">Delete</button>` : ''}</td>`
     + '</tr>').join('') + '</tbody>';
   fgiStockNote(rows, onlyStock, alloc);
+  if (sought) $('fgMsg').textContent = sought + ' · ' + $('fgMsg').textContent;
   ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptImgPatch);
 }
 
@@ -790,6 +797,7 @@ $('fgTable').addEventListener('click', e => {
     return renderFgi();
   }
   const rel = e.target.closest('[data-fgrel]'); if (rel) return fgiReleaseOpen(rel.getAttribute('data-fgrel'));
+  const cu = e.target.closest('[data-fgacustom]'); if (cu) return fgaCustomOpen(cu.getAttribute('data-fgacustom'));
   const apOk = e.target.closest('[data-fapok]'); if (apOk) return fapApprovePress(apOk);
   const apNo = e.target.closest('[data-fapno]'); if (apNo) return fapRejectOpen(apNo.getAttribute('data-fapno'));
   const n = e.target.closest('[data-fgentry]'); if (n) return fgiEntryOpen('ISSUE', n.getAttribute('data-fgentry'));

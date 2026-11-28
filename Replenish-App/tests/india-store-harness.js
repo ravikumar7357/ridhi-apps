@@ -16,7 +16,9 @@ const HELPERS = () => line('inventory/amazon-listing-status.js', 'const lstKey')
   + line('core/gates.js', 'const obUC') + whole('orders/vendor-holdings.js', 'fgiOutParts') + whole('orders/vendor-holdings.js', 'ordSrcOf')
   + whole('core/history.js', 'ptSame') + line('inventory/fba-dispatch.js', 'const fbaLegacy') + whole('inventory/fba-dispatch.js', 'fbaState')
   + whole('replenishment/replenishment.js', 'applyStatus') + whole('replenishment/replenishment.js', 'replReq')
-  + cut(appFile('inventory/finished-goods.js'), '/** The pack the Master Database records', 'const fgiMaster');
+  + cut(appFile('inventory/finished-goods.js'), '/** The pack the Master Database records', 'const fgiMaster')
+  + line('orders/shopify-pipeline-team.js', 'const ORD_PLAT_SRC') + whole('orders/production-to-shipping.js', 'pdIso')
+  + line('shopify/shopify-orders.js', 'const soAcctName');
 
 const NOW = Date.now(), HOUR = 3600000, iso = ms => new Date(ms).toISOString();
 const row = (id, txnType, qty, over) => Object.assign({ _id: id, txnType, sku: 'A', qty, createdAt: iso(NOW - 5 * HOUR) }, over);

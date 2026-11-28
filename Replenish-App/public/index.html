@@ -62826,7 +62826,8 @@ function renderFgi() {
   $('fgLstRefresh').disabled = !!LST.busy;
   // The label has its own id rather than being reached through the checkbox's parent — a wrapper
   // that changes shape would otherwise break this silently.
-  $('fgZeroWrap').classList.toggle('hide', view !== 'stock');
+  /* With stock shared (switch storeAlloc) the list holds only SKUs with stock, so the tick has nothing to choose. */
+  $('fgZeroWrap').classList.toggle('hide', view !== 'stock' || (typeof fgaOn === 'function' && fgaOn()));
   if ($('fgaView')) $('fgaView').classList.toggle('hide', view !== 'stock' || !(typeof fgaOn === 'function' && fgaOn()));
   $('fgEntry').classList.toggle('hide', !fgiCanEntry());
   ['fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge', 'flFgBadge', 'fapBadge'].forEach(id => { const b = $(id); if (b && b.dataset) b.classList.toggle('on', b.dataset.fgview === $('fgView').value); });
@@ -62889,12 +62890,18 @@ function fgiStockNote(rows, onlyStock, alloc) {
   if (copy) { $('fgMsg').className = 'err'; $('fgMsg').textContent += ' · ' + copy; }
 }
 
+/** Does a stock row, or a Master Database row, carry the searched text (in lower case)? */
+const fgiMatches = (r, q) => [r.sku, r.articleType, r.subtype, r.color, r.size, r.remark].join(' ').toLowerCase().includes(q);
+
 function fgiRenderStock(stock) {
   const q = $('fgQ').value.trim().toLowerCase();
-  /* THE LIST IS THE STORE'S REGISTER, not its shelf. A SKU that came in and went out the same
-   * morning still gets its line, with what came in and where it went; ticking the box narrows the
-   * list to what is actually left. */
-  const onlyStock = $('fgZero').checked;
+  /* Switch storeAlloc (27 Nov): the list shows who each SKU's stock is for, in place of its movement and value columns, and
+   * (28 Nov) holds only the SKUs with stock now, a count below nought included so that it is seen. */
+  const alloc = typeof fgaOn === 'function' && fgaOn();
+  /* SWITCH OFF, THE LIST IS THE STORE'S REGISTER, not its shelf. A SKU that came in and went out the
+   * same morning still gets its line, with what came in and where it went; ticking the box narrows
+   * the list to what is actually left. */
+  const onlyStock = alloc || $('fgZero').checked;
   const fBrand = $('fgBrand').value, fStat = $('fgStat').value, fTag = $('fgTag').value;
   const listed = [...stock.values()].map(b => {
     const m = fgiMaster(b.sku);
@@ -62910,17 +62917,16 @@ function fgiRenderStock(stock) {
   })
     /* Negative stock is never hidden. The message below warns about it, and a warning about
      * something the filter has just removed from the table is worse than no warning. */
-    .filter(r => !onlyStock || r.current !== 0 || r.pending > 0)
+    .filter(r => !onlyStock || r.current !== 0 || (!alloc && r.pending > 0))
     .filter(r => !fBrand || r.brand === fBrand)
     .filter(r => !fStat || r.status.txt === fStat)
     .filter(r => !fTag || (fTag === '_none' ? !r.remark : r.remark === fTag))
     .filter(r => !$('fgAmz').value || lstOf(r.sku).st === $('fgAmz').value)
-    .filter(r => !q || [r.sku, r.articleType, r.subtype, r.color, r.size, r.remark].join(' ').toLowerCase().includes(q))
+    .filter(r => !q || fgiMatches(r, q))
     .sort((a, b) => b.current - a.current || a.sku.localeCompare(b.sku));
-  /* Switch storeAlloc (27 Nov): the list shows who each SKU's stock is for, in place of its movement and value columns. */
-  const alloc = typeof fgaOn === 'function' && fgaOn();
   const rows = alloc ? fgaListRows(listed) : listed;
   FGI.shown = rows;
+  const sought = alloc ? fgaSearchNote($('fgQ').value, rows, stock) : '';
 
   ptFillSelect('fgBrand', [...new Set([...stock.values()].map(b => String(fgiMaster(b.sku).brand || '').trim()).filter(Boolean))]
     .sort().map(b => [b, b]), 'All brands');
@@ -62936,7 +62942,7 @@ function fgiRenderStock(stock) {
   /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
   if ($('fgTable').classList) $('fgTable').classList.toggle('fg-cards', (typeof mobOn === 'function' && mobOn()));
   if ((typeof mobOn === 'function' && mobOn())) $('fgTable').innerHTML = '<tbody>' + (rows.length ? rows.slice(0, 600).map(r => fgiCard(r, canEd)).join('')
-    : '<tr><td class="muted" style="padding:14px">No SKU matches these filters.</td></tr>') + '</tbody>';
+    : `<tr><td class="muted" style="padding:14px">${sought ? esc(sought) : 'No SKU matches these filters.'}</td></tr>`) + '</tbody>';
   else $('fgTable').innerHTML = head + '<tbody>' + rows.slice(0, 600).map(r => '<tr>'
     + (canEd ? `<td><input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''}></td>` : '')
     + `<td class="frz" style="text-align:left"><button class="ghost" data-fgmoves="${esc(r.sku)}" title="Every movement of this SKU"
@@ -62951,6 +62957,7 @@ function fgiRenderStock(stock) {
         + ` <button class="ghost" data-fgskudel="${esc(r.sku)}" style="padding:3px 9px;font-size:12px;color:var(--bad)" title="Delete every movement of this SKU">Delete</button>` : ''}</td>`
     + '</tr>').join('') + '</tbody>';
   fgiStockNote(rows, onlyStock, alloc);
+  if (sought) $('fgMsg').textContent = sought + ' · ' + $('fgMsg').textContent;
   ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptImgPatch);
 }
 
@@ -63378,6 +63385,7 @@ $('fgTable').addEventListener('click', e => {
     return renderFgi();
   }
   const rel = e.target.closest('[data-fgrel]'); if (rel) return fgiReleaseOpen(rel.getAttribute('data-fgrel'));
+  const cu = e.target.closest('[data-fgacustom]'); if (cu) return fgaCustomOpen(cu.getAttribute('data-fgacustom'));
   const apOk = e.target.closest('[data-fapok]'); if (apOk) return fapApprovePress(apOk);
   const apNo = e.target.closest('[data-fapno]'); if (apNo) return fapRejectOpen(apNo.getAttribute('data-fapno'));
   const n = e.target.closest('[data-fgentry]'); if (n) return fgiEntryOpen('ISSUE', n.getAttribute('data-fgentry'));
@@ -70155,7 +70163,10 @@ $('ptDlgBody').addEventListener('change', e => {
  * deleting a "returned from FBA" row or undoing a part shipment (those pieces are with the FBA team again).
  *
  * The Shopify tab works out the need after it has read a store's orders (shopify-orders.js) and notes it, per store, at
- * pt_fgiSettings/_shopHold/{SP|CPC} = { at, by, skus: { SKU key: pieces } }. Releases sit beside it, under .../releases/<id>.
+ * pt_fgiSettings/_shopHold/{SP|CPC} = { at, by, skus: { SKU key: pieces }, orders: { SKU key: [{ no, pcs, on, of }] } }.
+ * orders (28 Nov) names the orders behind each SKU's pieces, for the stock list: order number, pieces still needed, order date,
+ * and the pieces asked ("of") when some were already issued. Never a customer's name, phone or address. A figure noted before
+ * it has none. Releases sit beside it, under .../releases/<id>.
  * "_shopHold" can never be a SKU's own settings row: SKU rows are upper case.
  * On the test website live Shopify is off, so the tab counts the need from the shared copy of the orders instead, and "at" is
  * the time that copy last heard from Shopify.
@@ -70214,27 +70225,48 @@ function shpHoldIssued(ledgerRows) {
   return out;
 }
 
-/** PIECES HELD, per SKU key, for one store. claims: [{ orderNo, sku, sets, perSet }] — what the open orders still need, in sets
- *  of perSet pieces; orderNo is the production number ('SHP-4876'). What was already issued to that order is no longer needed
- *  from the shelf, so it is taken off, once. */
-function shpHoldBuild(claims, ledgerRows) {
+/** What each order still needs of each SKU: [{ orderNo, ref, on, key, asked, pieces }]. claims: [{ orderNo, sku, sets, perSet,
+ *  ref?, on? }] — what the open orders ask for, in sets of perSet pieces; orderNo is the production number ('SHP-4876'), ref the
+ *  Shopify order name (it tells apart orders with no production number), on the order date. What was already issued to that
+ *  order is no longer needed from the shelf, so it is taken off, once. */
+function shpHoldLeft(claims, ledgerRows) {
   const need = new Map();
   (claims || []).forEach(c => {
-    const orderNo = obUC(c.orderNo), key = shpHoldKey(c.sku), id = orderNo + '|' + key;
-    const had = need.get(id) || { key, pieces: 0 };
-    need.set(id, { key, pieces: had.pieces + Math.round(fgiNum(c.sets) * fgiNum(c.perSet)) });
+    const orderNo = obUC(c.orderNo), ref = c.ref || '', key = shpHoldKey(c.sku), id = (orderNo || ref) + '|' + key;
+    const had = need.get(id) || { orderNo, ref, on: c.on || '', key, asked: 0 };
+    need.set(id, Object.assign({}, had, { asked: had.asked + Math.round(fgiNum(c.sets) * fgiNum(c.perSet)) }));
   });
-  const issued = shpHoldIssued(ledgerRows), skus = {};
-  need.forEach((n, id) => {
-    const left = n.pieces - Math.round(issued.get(id) || 0);
-    if (left > 0) skus[n.key] = (skus[n.key] || 0) + left;
-  });
+  const issued = shpHoldIssued(ledgerRows);
+  return [...need.values()]
+    .map(n => Object.assign({}, n, { pieces: n.asked - Math.round(issued.get(n.orderNo + '|' + n.key) || 0) }))
+    .filter(n => n.pieces > 0);
+}
+/** PIECES HELD, per SKU key, for one store. */
+function shpHoldBuild(claims, ledgerRows) {
+  const skus = {};
+  shpHoldLeft(claims, ledgerRows).forEach(n => { skus[n.key] = (skus[n.key] || 0) + n.pieces; });
   return skus;
+}
+/** Orders { no, on } oldest first; one with no date comes last. */
+const shpHoldOldestFirst = (a, b) => String(a.on || '9999').localeCompare(String(b.on || '9999'))
+  || String(a.no).localeCompare(String(b.no), undefined, { numeric: true });
+/** One order behind a SKU's held pieces, as noted. The database keeps no empty values, so none are written. */
+const shpHoldEntry = n => Object.assign({ no: n.orderNo || n.ref, pcs: n.pieces }, n.on ? { on: n.on } : {},
+  n.asked > n.pieces ? { of: n.asked } : {});
+/** What one store's figure says: { skus: the pieces held per SKU key, orders: the orders behind them, oldest first }. */
+function shpHoldNeed(claims, ledgerRows) {
+  const orders = {};
+  shpHoldLeft(claims, ledgerRows).forEach(n => { (orders[n.key] = orders[n.key] || []).push(shpHoldEntry(n)); });
+  Object.values(orders).forEach(list => list.sort(shpHoldOldestFirst));
+  return { skus: shpHoldBuild(claims, ledgerRows), orders };
 }
 
 /* ---- noting it ---- */
 /** Was this noted by a PC whose clock runs ahead? */
 const shpHoldAhead = (at, nowMs) => at > nowMs + SHP_HOLD_CLOCK_SLACK_MS;
+
+/** Do two figures say the same: the pieces per SKU, and the orders behind them? */
+const shpHoldSaysSame = (a, b) => ptSame(a.skus || {}, b.skus || {}) && ptSame(a.orders || {}, b.orders || {});
 
 /** A newer read replaces the noted figure when it says something else, or the noted one is getting old. One noted by a
  *  clock that runs ahead is always replaced, or it would block every later read. */
@@ -70242,12 +70274,12 @@ function shpHoldShouldWrite(noted, figure, nowMs = Date.now()) {
   if (!noted || !noted.at || shpHoldAhead(noted.at, nowMs)) return true;
   /* The test website notes the shared copy's own sync time: every newer copy is noted, and so is the same copy when the need
    * has changed since (pieces issued to an order, an order marked done). */
-  if (shpOnTestSite()) return figure.at > noted.at || (figure.at === noted.at && !ptSame(noted.skus || {}, figure.skus));
+  if (shpOnTestSite()) return figure.at > noted.at || (figure.at === noted.at && !shpHoldSaysSame(noted, figure));
   if (!(figure.at > noted.at)) return false;
-  return figure.at - noted.at > SHP_HOLD_REWRITE_MS || !ptSame(noted.skus || {}, figure.skus);
+  return figure.at - noted.at > SHP_HOLD_REWRITE_MS || !shpHoldSaysSame(noted, figure);
 }
 
-/** Note one store's figure { at, by, skus }, checked and written in one step. Never throws: '' when noted (or nothing needed
+/** Note one store's figure { at, by, skus, orders }, checked and written in one step. Never throws: '' when noted (or nothing needed
  *  noting), else why not, also said in the console. */
 async function shpHoldPublish(store, figure) {
   const path = SHP_HOLD_PATH + '/' + store;
@@ -70534,6 +70566,8 @@ function fgiReleaseOpen(sku) {
  *             issued to each, plus the Shopify website hold (fg-shop-hold.js).
  *   FBA     = what Replenishment asks to send (SP and CPC together, in pieces), less dispatches already on the way: every
  *             one not yet marked shipped, and any shipped after the Amazon figures were read. Air is reduced first.
+ * The stock list holds only SKUs with stock now (28 Nov); a search that finds none of them says why.
+ * On the stock list (28 Nov), a Custom figure opens the orders it is for: the stock is counted against them oldest first.
  * What may leave: FBA only the Air + Sea + AWD pieces the stock covers, plus an admin's release; an issue for an order up to
  * that order's pending pieces within Custom, plus Excess; any other issue Excess only.
  *
@@ -70686,7 +70720,9 @@ async function fgaReread() {
 
 /* ---- sharing the stock ---- */
 const fgaOpenLines = lines => lines.filter(l => ordSrcOf(l.orderNo) !== 'AMZ' && !l.shopDoneAt && !l.handedAt);
-const fgaClaim = l => ({ orderNo: l.orderNo, sku: l.sku, sets: l.qty, perSet: 1 });
+const fgaClaim = l => ({ orderNo: l.orderNo, sku: l.sku, sets: l.qty, perSet: 1, on: l.orderDate });
+/** What the open order-book orders claim as Custom: a Shopify order's own line is already in the website figure. */
+const fgaBookClaims = open => open.filter(l => !l.shopOrderId).map(fgaClaim);
 
 /** Dispatches still on the way to FBA, in pieces: Map of SKU key → { SP, CPC, '' (account unknown) }. Each dispatch counts
  *  once: not yet marked shipped, or shipped after its store's Amazon figures were read (no shipping time: made after). */
@@ -70712,7 +70748,7 @@ function fgaBook(without, need = fgaNeedNode()) {
   const rows = without && without.size ? (FGI.rows || []).filter(r => !without.has(r._id || r.id)) : (FGI.rows || []);
   const open = fgaOpenLines(ordLines());
   return { rows, open, need, onTheWay: fgaOnTheWay(rows, need),
-    ordered: shpHoldBuild(open.filter(l => !l.shopOrderId).map(fgaClaim), rows) };
+    ordered: shpHoldBuild(fgaBookClaims(open), rows) };
 }
 
 /** The pieces FBA still asks for, per lane, for these stores, less what is on the way (Air first, then Sea, then AWD). */
@@ -70806,21 +70842,107 @@ function fgaListRows(rows) {
   return rows.map(r => Object.assign({}, r, { alloc: fgaShares(r.sku, r.current, hold, book, stores) }));
 }
 const fgaNum = n => (n ? nf(n) : '<span class="muted">—</span>');
+/** Does this figure open the orders behind it? Only a Custom figure with pieces in it. */
+const fgaOpensOrders = (share, pieces) => share === 'custom' && pieces > 0;
+const fgaOrdersButton = (sku, inner) => `<button class="ghost" data-fgacustom="${esc(sku)}" title="See the orders these pieces are for"`
+  + ` style="width:auto;padding:1px 7px;font-size:inherit;text-decoration:underline">${inner}</button>`;
 function fgaCells(r) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
   return `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
-    + FGA_SHARES.map(([k]) => `<td class="num">${fgaNum(r.alloc[k])}</td>`).join('');
+    + FGA_SHARES.map(([k]) => `<td class="num">${fgaOpensOrders(k, r.alloc[k]) ? fgaOrdersButton(r.sku, nf(r.alloc[k])) : fgaNum(r.alloc[k])}</td>`).join('');
 }
-const fgaCardFigs = r => FGA_SHARES.map(([k, label]) => `<span>${label} <b>${nf(r.alloc[k])}</b></span>`).join('');
+const fgaCardFigs = r => FGA_SHARES.map(([k, label]) => {
+  const figure = `${label} <b>${nf(r.alloc[k])}</b>`;
+  return fgaOpensOrders(k, r.alloc[k]) ? fgaOrdersButton(r.sku, figure) : `<span>${figure}</span>`;
+}).join('');
 /** Is some of this stock kept from FBA, so a release would mean something? */
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
 const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'In Stock', ...FGA_SHARES.map(s => s[1])];
 const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, Math.max(0, r.current), ...FGA_SHARES.map(([k]) => r.alloc[k])];
 
+/* ---- the orders behind a Custom figure ---- */
+const FGA_NO_DETAIL = 'Website orders (details after Shopify Orders is opened again)';
+const fgaSum = (orders, field) => orders.reduce((n, o) => n + o[field], 0);
+
+/** The open order-book orders waiting for a SKU: [{ no, channel, on, ordered, pending }]. */
+function fgaBookOrders(key, book) {
+  const claims = fgaBookClaims(book.open).filter(c => shpHoldKey(c.sku) === key);
+  return shpHoldLeft(claims, book.rows).map(n => ({ no: n.orderNo, channel: ORD_PLAT_SRC[n.orderNo.split('-')[0]] || 'Other',
+    on: pdIso(n.on), ordered: n.asked, pending: n.pieces }));
+}
+/** One store's website orders waiting for a SKU, as noted with its figure. A figure whose orders are not noted, or do not
+ *  add up to it, is one line with no order details, so the pieces still match the figure. */
+function fgaWebOrders(key, store, hold) {
+  const figure = (hold || {})[store] || {}, total = Number((figure.skus || {})[key]) || 0;
+  if (!total) return [];
+  const channel = 'Shopify ' + soAcctName(store);
+  const noted = Object.values((figure.orders || {})[key] || {})
+    .map(o => ({ no: o.no, channel, on: o.on || '', ordered: Number(o.of || o.pcs), pending: Number(o.pcs) }));
+  return fgaSum(noted, 'pending') === total ? noted : [{ no: FGA_NO_DETAIL, channel, on: '', ordered: null, pending: total }];
+}
+/** The orders behind a SKU's Custom figure, oldest first, each with the pieces of today's stock counted for it. */
+function fgaCustomOrders(sku, current, hold = fgiHoldNode(), book = fgaBook()) {
+  const key = shpHoldKey(sku);
+  let left = fgaShares(sku, current, hold, book).custom;
+  return fgaBookOrders(key, book).concat(...SHP_HOLD_STORES.map(s => fgaWebOrders(key, s, hold)))
+    .sort(shpHoldOldestFirst)
+    .map(o => { const counted = Math.min(left, o.pending); left -= counted; return Object.assign({}, o, { counted }); });
+}
+function fgaOrderRow(o) {
+  const known = o.ordered !== null;
+  return `<tr><td style="text-align:left">${esc(o.no)}</td><td style="text-align:left">${esc(o.channel)}</td>`
+    + `<td style="text-align:left;white-space:nowrap">${esc(fgiDmy(o.on) || '—')}</td>`
+    + `<td class="num">${known ? nf(o.ordered) : '—'}</td><td class="num">${known ? fgaNum(o.ordered - o.pending) : '—'}</td>`
+    + `<td class="num">${nf(o.pending)}</td><td class="num" style="font-weight:700">${fgaNum(o.counted)}</td>`
+    + `<td class="num">${fgaNum(o.pending - o.counted)}</td></tr>`;
+}
+const fgaOrdersTable = orders => '<div style="max-height:60vh;overflow:auto"><table class="xl" style="font-size:12.5px"><thead><tr>'
+  + ['Order', 'Channel', 'Order date'].map(h => `<th style="text-align:left">${h}</th>`).join('')
+  + ['Ordered', 'Already issued', 'Pending', 'From stock', 'Not covered'].map(h => `<th class="num">${h}</th>`).join('')
+  + '</tr></thead><tbody>' + orders.map(fgaOrderRow).join('') + '</tbody></table></div>';
+
+/** The box a Custom figure opens, from the same figures the list was drawn from. */
+function fgaCustomOpen(sku) {
+  const s = obUC(sku), m = fgiMaster(s), orders = fgaCustomOrders(s, fgiOf(s).current);
+  const counted = fgaSum(orders, 'counted');
+  ptOpenDialog({
+    title: 'Orders for the Custom pieces',
+    subtitle: [s, m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · '),
+    note: `${nf(counted)} piece(s) in stock are counted for these orders, oldest order first. `
+      + `${nf(fgaSum(orders, 'pending') - counted)} pending piece(s) are not covered by stock.`,
+    wide: true,
+    html: fgaOrdersTable(orders),
+  });
+}
+
+/* ---- searching the list ---- */
+/** The list holds only SKUs with stock now, so a search it cannot answer says why (28 Nov). '' = nothing to say.
+ *  typed: the search box as it is; rows: the rows listed; stock: fgiStock(). A whole SKU code is judged first. */
+function fgaSearchNote(typed, rows, stock) {
+  const text = typed.trim(), code = obUC(text);
+  if (!code || rows.some(r => r.sku === code)) return '';
+  const record = stock.get(code);
+  if (record && record.current !== 0) return `SKU ${code} is in the India Store but hidden by the filters.`;
+  if (record || mdbOf(code)) return `SKU ${code} is not in the India Store.`;
+  return rows.length ? '' : fgaNoMatchNote(text, stock);
+}
+/** Why a search that is no SKU's code lists nothing. "Does not exist" is said only when the Master Database was read. */
+function fgaNoMatchNote(text, stock) {
+  const found = r => fgiMatches(r, text.toLowerCase());
+  const onRecord = [...stock.values()].map(b => Object.assign({}, fgiMaster(b.sku), (FGI.set || {})[b.sku], b));
+  if (onRecord.some(r => r.current !== 0 && found(r))) return 'Matching products are in the India Store but hidden by the filters.';
+  const master = PTG.mdb || [];
+  if (onRecord.some(found) || master.some(found)) return 'Matching products are not in the India Store.';
+  if (!master.length) return `"${text}" could not be checked — the Master Database was not read. Press Refresh to try again.`;
+  /* Words are not a SKU code, so they are not called a missing SKU: a code has no space and holds a digit or a dash. */
+  return /^\S*[\d-]\S*$/.test(text) ? `SKU ${obUC(text)} does not exist.` : `Nothing in the Master Database matches "${text}".`;
+}
+
 /** With the switch on, "Waiting to be counted in" is not in the view list (asked 28 Nov). Only the choice is hidden: the
  *  "Sent from press, not counted in" tile still opens it, so pieces on their way from press can still be counted in. */
 function fgaTrimViews() {
-  if ($('fgPendOpt')) $('fgPendOpt').hidden = fgaOn();
+  const opt = $('fgPendOpt');
+  if (opt) opt.hidden = opt.disabled = fgaOn();   // disabled too: an iPhone still shows a hidden choice
 }
 /* ============================== FILE: src/app/inventory/fg-fba-repeat.js ============================== */
 /* ================= INDIA STORE: REPEAT FBA DISPATCH NEEDS APPROVAL =================
@@ -81295,7 +81417,7 @@ function soHoldOrderNo(o, taken) {
   const base = shpOrderNo(o.no);
   return taken.get(base) ? '' : base;
 }
-/** What one store's open orders need from India, line by line, for shpHoldBuild. copyOrders (test website): the shared
+/** What one store's open orders need from India, line by line, for shpHoldNeed. copyOrders (test website): the shared
  *  copy's orders, counted in place of the ones read from Shopify. */
 function soHoldClaims(store, copyOrders) {
   soIndexNames(copyOrders);
@@ -81309,8 +81431,9 @@ function soHoldClaims(store, copyOrders) {
       const sku = soIndiaKey(i.sku) || obUC(i.sku);      // never in India yet: held under its own code, for when it arrives
       if (!sku) return;
       const fit = soPackFit(i.sku);
+      /* The Shopify order's name and date go with it (the stock list shows them); nothing about the customer does. */
       claims.push({ orderNo, sku, sets: soSendQty(o.id, i.sku, soIndiaOwed(i)),
-        perSet: fit && fit.ok ? fit.pack : obPcsPerPack(sku) });
+        perSet: fit && fit.ok ? fit.pack : obPcsPerPack(sku), ref: String(o.no || ''), on: String(o.at || '').slice(0, 10) });
     });
   });
   return claims;
@@ -81369,7 +81492,8 @@ async function soHoldPublish() {
     const ledger = await soHoldLedger();
     /* Orders and their read time are taken together, after the waits: a newer fetch may have replaced both. */
     const read = SHOP.holdRead || {};
-    const figures = SO_BRANDS.filter(b => read[b]).map(b => [b, { at: read[b], by: ME.email, skus: shpHoldBuild(soHoldClaims(b), ledger) }]);
+    const figures = SO_BRANDS.filter(b => read[b]).map(b => [b,
+      Object.assign({ at: read[b], by: ME.email }, shpHoldNeed(soHoldClaims(b), ledger))]);
     const whys = SO_BRANDS.filter(b => !read[b]).map(b => soAcctName(b) + ': '
       + ((SHOP.holdWhy || {})[b] || 'its orders were not read in full (narrowed dates, or a failed or cut-off answer)'));
     for (const [b, figure] of figures) {
@@ -81459,7 +81583,8 @@ async function soHoldPublishCopy() {
     const read = await soHoldCopyRead(), noted = [], whys = [];
     for (const b of SO_BRANDS) {
       const s = read[b];
-      const why = s.why || await shpHoldPublish(b, { at: s.at, by: ME.email, skus: shpHoldBuild(soHoldClaims(b, s.orders), ledger) });
+      const why = s.why || await shpHoldPublish(b,
+        Object.assign({ at: s.at, by: ME.email }, shpHoldNeed(soHoldClaims(b, s.orders), ledger)));
       if (why) whys.push(soAcctName(b) + ': ' + why); else noted.push(b);
     }
     const notNoted = whys.length ? SO_HOLD_NOT_NOTED + whys.join('; ') : '';
