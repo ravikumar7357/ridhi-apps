@@ -6624,6 +6624,8 @@ onAuthStateChanged(auth, async user => {
   /* The screen the address names, when this account may open it — a tab opened from a menu link, or a
    * reload. showTab itself sends anything else to the first screen this account has. A report link to one order
    * ("#ord?q=…") is read first, because showTab rewrites the address to the bare screen. */
+  /* …and it stays there: My work today does not open over a linked screen (28 Nov). */
+  if (navHashTab() && typeof frStayOnLink === 'function') frStayOnLink();
   const linkOrder = navHashOrder(), linkPrinter = navHashPrinter();
   if (linkPrinter && typeof flowVpLinkPrepare === 'function') flowVpLinkPrepare(linkPrinter);
   showTab(navHashTab() || ME.tabs[0]);
@@ -6855,7 +6857,7 @@ function navHashPrinter() {
   return /^[A-Za-z0-9_-]{1,20}$/.test(code) ? { code, late: q.get('late') === '1' } : null;
 }
 /* Every screen key with a menu link — the same list showTab keys its table on. */
-const TAB_NAV_IDS = ["repl","article","target","follow","top","india","shopify","prod","pack","att","pmdb","mst","pbase","pcut","ppress","qc","ord","so","vord","vreq","rfd","vend","vlog","cx","palloc","fgi","fba","fab","acc","rep","pa","ka","hr","shop","adj"];
+const TAB_NAV_IDS = ["repl","article","target","follow","top","india","shopify","prod","pack","att","pmdb","mst","pbase","pcut","ppress","qc","ord","so","vord","vreq","rfd","vend","vlog","cx","palloc","fgi","fba","fab","acc","rep","pa","ka","hr","shop","adj","flow","gdesk","dash","access"];
 
 /* A Ctrl/Cmd/Shift click opens the link in a new tab or window; it must not ALSO switch this one. The
  * item's own click handler is on the link, so it is stopped here, on the way down. */
@@ -100944,6 +100946,9 @@ function frBellOpen() {
     alt: { label: 'Open My work today', run: () => { frHomeShow(); return ''; } } });
   document.querySelectorAll('[data-fr-bell]').forEach(b => b.onclick = () => { ptDlgClose(); fresh[+b.dataset.frBell].open(); });
 }
+/** A link or a reload that names a screen (core/auth.js, at sign-in) stays on that screen: My work today does not open over
+ *  it (28 Nov: report-mail order links and bookmarks showed My work today instead). The menu still brings it back. */
+function frStayOnLink() { FR.touched = true; }
 function frHomeShow() {
   FR.shown = true;
   document.querySelector('main.main').classList.add('fr-home-on');

@@ -61,6 +61,31 @@ console.log('\n== opening the order ==');
   ok('a link followed while the app is open opens the order', /if \(no\) \{ ordOpenOrder\(no\); return; \}/.test(NAV));
 }
 
+console.log('\n== a linked screen stays: My work today does not open over it (28 Nov) ==');
+{
+  const FRIENDLY = rd(path.join(APP, 'core', 'friendly.js'));
+  const step = (AUTH.match(/\n  (if \(navHashTab\(\) && typeof frStayOnLink === 'function'\) frStayOnLink\(\);)\n/) || [])[1] || '';
+  const atSignIn = (FRIENDLY.match(/\n    (if \(!FR\.touched\) frHomeShow\(\);)\n/) || [])[1] || '';
+  const keeps = (FRIENDLY.match(/\nfunction frStayOnLink\(\) \{[^\n]*\}\n/) || [])[0] || '';
+  /* sign-in on a fake page: is My work today opened? */
+  const homeOpens = hash => {
+    const ctx = linkRules(hash);
+    let opened = false;
+    ctx.FR = { touched: false }; ctx.frHomeShow = () => { opened = true; };
+    vm.runInContext(keeps + step + atSignIn, ctx);
+    return opened;
+  };
+  ok('the app opened with no screen named starts on My work today', atSignIn && homeOpens('') && homeOpens('#'));
+  ok('a screen link or reload stays on its screen', !homeOpens('#fab') && !homeOpens('#ord?q=AMZ-1') && !homeOpens('#vend?printer=VND004'));
+  ok('an address that is no screen starts on My work today', homeOpens('#xyz'));
+  ok('the linked screen is read before showTab rewrites the address', AUTH.indexOf(step) > 0 && AUTH.indexOf(step) < AUTH.indexOf('showTab(navHashTab() || ME.tabs[0]);'));
+  const ids = JSON.parse((NAV.match(/const TAB_NAV_IDS = (\[[^\]]*\]);/) || [])[1] || '[]');
+  const menu = [...new Set((rd(path.join(APP, '..', 'index.html')).match(/<a [^>]*class="nav[^"]*"[^>]*>|<a [^>]*>/g) || [])
+    .map(a => (a.match(/href="#([a-z]+)"/) || [])[1]).filter(Boolean))];
+  const lost = ['flow', 'gdesk', 'dash', 'access', 'fab', 'ord', 'pbase'].filter(k => menu.includes(k) && !ids.includes(k));
+  ok('a link to PPC, Greige Desk, Dashboard and Access names its screen too', menu.includes('flow') && !lost.length, 'not recognised: ' + lost.join(' '));
+}
+
 console.log('\n== a printer from a link (the printer delay mail) ==');
 {
   const p = linkRules('#vend?printer=VND004&late=1');
