@@ -847,7 +847,7 @@ function pksHit(code, via) {
     PKS.hold = r.kind !== "none" && !(r.kind === "unknown" && via === "camera");
     pksBeep(false);
     pksFlash(false);
-    pksSay(r.kind === "wrong" ? "Wrong article — not counted" : r.kind === "full" ? "Not counted — the orders want no more of it" : "Not counted — unknown label", true);
+    pksSay(r.kind === "wrong" ? "Wrong article — not counted" : r.kind === "full" ? (r.store ? "Not counted — no free stock for it" : "Not counted — the orders want no more of it") : "Not counted — unknown label", true);
     pksDraw();
     return;
   }
@@ -860,7 +860,7 @@ function pksHit(code, via) {
     pksSay("Everything on the orders is packed — press Finish");
   } else {
     pksBeep(true);
-    pksSay(`+${r.n} ${r.sku}${r.short ? ` — only ${r.n} of ${PKS.per}: the orders want no more` : ""}${r.left != null ? ` · ${nf(r.left)} left on the orders` : ""}`);
+    pksSay(`+${r.n} ${r.sku}${r.short ? ` — only ${r.n} of ${PKS.per}: no more could be counted for these orders` : ""}${r.left != null ? ` · ${nf(r.left)} left on the orders` : ""}`);
   }
   pksDraw();
 }
@@ -1287,7 +1287,7 @@ function pksDraw() {
   if (PKS.panel) {
     /* the Box done / Finish panel stays as it is */
   } else if (PKS.bad) {
-    const k = PKS.bad.kind, title = k === "wrong" ? "Wrong article" : k === "full" ? "Not counted — orders want no more" : "Not counted — unknown label";
+    const k = PKS.bad.kind, title = k === "wrong" ? "Wrong article" : k === "full" ? (PKS.bad.store ? "Not counted — no free stock" : "Not counted — orders want no more") : "Not counted — unknown label";
     const img = k === "wrong" || k === "full" ? pksImg(PKS.bad.sku) : "";
     card.innerHTML = `<div class="pks-badcard${k === "full" ? " pks-fullcard" : ""}"><div class="pks-badicon">${k === "full" ? "■" : "✕"}</div><div class="pks-big">${title}</div><div class="pks-code">${esc(PKS.bad.sku || PKS.bad.code)}</div>
       ${img ? `<img class="pks-img pks-img-sm" src="${esc(img)}" alt="">` : ""}

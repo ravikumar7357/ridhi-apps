@@ -410,7 +410,7 @@ function ordProdRows() {
       supplier: r.orderNo, orderNo: r.orderNo,
       /* Which stage it is sitting at, from the line's own figures - no vendor or finished-goods read,
        * so this stays a cheap screen to open. */
-      stage: r.pendingCut > 0 ? 'to cut' : (r.pendingMake > 0 ? 'to make' : (r.madeToPress > 0 ? 'to press' : 'made')) });
+      stage: r.pendingCut > 0 ? 'to cut' : (r.pendingMake > 0 ? 'to make' : (r.madeToPress > 0 ? 'waiting for QC' : 'made')) });
   });
   return out;
 }
