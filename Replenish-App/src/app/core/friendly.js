@@ -474,6 +474,9 @@ function frBellOpen() {
     alt: { label: 'Open My work today', run: () => { frHomeShow(); return ''; } } });
   document.querySelectorAll('[data-fr-bell]').forEach(b => b.onclick = () => { ptDlgClose(); fresh[+b.dataset.frBell].open(); });
 }
+/** A link or a reload that names a screen (core/auth.js, at sign-in) stays on that screen: My work today does not open over
+ *  it (28 Nov: report-mail order links and bookmarks showed My work today instead). The menu still brings it back. */
+function frStayOnLink() { FR.touched = true; }
 function frHomeShow() {
   FR.shown = true;
   document.querySelector('main.main').classList.add('fr-home-on');

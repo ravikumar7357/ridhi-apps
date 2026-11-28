@@ -203,7 +203,7 @@ function navHashPrinter() {
   return /^[A-Za-z0-9_-]{1,20}$/.test(code) ? { code, late: q.get('late') === '1' } : null;
 }
 /* Every screen key with a menu link — the same list showTab keys its table on. */
-const TAB_NAV_IDS = ["repl","article","target","follow","top","india","shopify","prod","pack","att","pmdb","mst","pbase","pcut","ppress","qc","ord","so","vord","vreq","rfd","vend","vlog","cx","palloc","fgi","fba","fab","acc","rep","pa","ka","hr","shop","adj"];
+const TAB_NAV_IDS = ["repl","article","target","follow","top","india","shopify","prod","pack","att","pmdb","mst","pbase","pcut","ppress","qc","ord","so","vord","vreq","rfd","vend","vlog","cx","palloc","fgi","fba","fab","acc","rep","pa","ka","hr","shop","adj","flow","gdesk","dash","access"];
 
 /* A Ctrl/Cmd/Shift click opens the link in a new tab or window; it must not ALSO switch this one. The
  * item's own click handler is on the link, so it is stopped here, on the way down. */

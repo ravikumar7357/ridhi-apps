@@ -7,8 +7,8 @@
  *   FBA     = what Replenishment asks to send (SP and CPC together, in pieces), less dispatches already on the way: every
  *             one not yet marked shipped, and any shipped after the Amazon figures were read. Air is reduced first.
  * New development sales orders (28 Nov) are not Custom: their pending pieces are kept for FBA (fg-store-newdev.js).
- * The stock list holds the SKUs with stock now, and those with FBA Dispatched pieces even with none in stock (28 Nov); a
- * search that finds none of them says why. "FBA Dispatched" is what FBA Dispatch holds not yet marked shipped (waiting or
+ * The stock list holds the SKUs with stock now, and those with FBA Packed pieces even with none in stock (28 Nov); a
+ * search that finds none of them says why. "FBA Packed" (named so 28 Nov; was "FBA Dispatched") is what FBA Dispatch holds not yet marked shipped (waiting or
  * accepted, less returns, both accounts whatever the view picker says; sheet history left out). Those pieces have left the
  * stock, so they are neither In Stock nor part of the shares. Pieces on an FBA list not yet shipped are still in stock, so
  * they are not counted in it.
@@ -327,14 +327,14 @@ function fgaDispatched(rows) {
   });
   return out;
 }
-/** fgiStock() with each SKU's FBA Dispatched pieces; new records are returned. */
+/** fgiStock() with each SKU's FBA Packed pieces; new records are returned. */
 function fgaWithDispatched(stock) {
   const sent = fgaDispatched(FGI.rows);
   return new Map([...stock].map(([sku, b]) => [sku, Object.assign({}, b, { dispatched: sent.get(sku) || 0 })]));
 }
 /** Does the stock list hold this SKU? A count below nought is held too, so that it is seen. */
 const fgaListed = b => b.current !== 0 || b.dispatched > 0;
-/** What the count above the list counts: SKUs in stock, and apart from them those listed only for FBA Dispatched pieces. */
+/** What the count above the list counts: SKUs in stock, and apart from them those listed only for FBA Packed pieces. */
 function fgaCountWords(rows) {
   const sentOnly = rows.filter(r => r.current === 0).length;
   if (!sentOnly) return ' in stock now';
@@ -370,13 +370,13 @@ function fgaCells(r) {
     + `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
     + fgaShareCols().map(([k]) => `<td class="num">${fgaFigureButton(r, k, nf(r.alloc[k])) || fgaNum(r.alloc[k])}</td>`).join('');
 }
-const fgaCardFigs = r => `<span>FBA Dispatched <b>${nf(r.dispatched)}</b></span>` + fgaShareCols().map(([k, label]) => {
+const fgaCardFigs = r => `<span>FBA Packed <b>${nf(r.dispatched)}</b></span>` + fgaShareCols().map(([k, label]) => {
   const figure = `${label} <b>${nf(r.alloc[k])}</b>`;
   return fgaFigureButton(r, k, figure) || `<span>${figure}</span>`;
 }).join('');
 /** Is some of this stock kept from FBA, so a release would mean something? */
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
-const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'FBA Dispatched', 'In Stock', ...fgaShareCols().map(s => s[1])];
+const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'FBA Packed', 'In Stock', ...fgaShareCols().map(s => s[1])];
 const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.dispatched, Math.max(0, r.current),
   ...fgaShareCols().map(([k]) => r.alloc[k])];
 
