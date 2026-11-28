@@ -10645,10 +10645,18 @@ function skuInfo(sku, brand) {
 $('pmAddLine').onclick = () => {
   const sku = $('pmAddSku').value.trim();
   const air = Number($('pmAddAir').value) || 0, sea = Number($('pmAddSea').value) || 0;
+  if (air < 0 || sea < 0) { wpShow('This line cannot be added', 'Air and Sea quantities cannot be below 0.'); return; }
   if (!sku || !((air + sea) > 0)) return;
+  if (!poSkuWanted(sku)) return;
   PM_LINES.push({ sku, ...skuInfo(sku, $('pmBrand').value), airQty: air, seaQty: sea, qty: air + sea });
   $('pmAddSku').value = ''; $('pmAddAir').value = ''; $('pmAddSea').value = ''; renderPmLines();
 };
+/** A SKU neither the master nor the replenishment list knows is asked about, not refused: a new product may not be in either yet. */
+function poSkuWanted(sku) {
+  if (!mdbIndex().size) { console.warn('[purchase order] the SKU was not checked: the master is not read yet'); return true; }
+  if (mdbOf(sku) || ((REPL[$('pmBrand').value] || {}).rows || []).some(r => obUC(r.sku) === obUC(sku))) return true;
+  return confirm(`${sku} is not a SKU this app knows. Add it to the order anyway?`);
+}
 $('pmCancel').onclick = () => $('poModal').classList.add('hide');
 $('poModal').onclick = e => { if (e.target === $('poModal')) $('poModal').classList.add('hide'); };
 
@@ -10656,6 +10664,8 @@ $('pmSave').onclick = async () => {
   const supplier = $('pmSupplier').value.trim();
   if (!supplier) { $('pmErr').textContent = 'Enter a supplier.'; $('pmErr').classList.remove('hide'); return; }
   if (!PM_LINES.length) { $('pmErr').textContent = 'Add at least one line.'; $('pmErr').classList.remove('hide'); return; }
+  const late = ptDateOrderErr([['Order', $('pmOrderDate').value], ['Delivery', $('pmEta').value]]);
+  if (late) { $('pmErr').textContent = late; $('pmErr').classList.remove('hide'); return; }
   const rec = {
     brand: $('pmBrand').value, supplier, mode: $('pmMode').value,
     orderDate: $('pmOrderDate').value, eta: $('pmEta').value,
@@ -10665,6 +10675,7 @@ $('pmSave').onclick = async () => {
     followups: (PO_EDIT && PO_EDIT.followups) || [],   // full overwrite below — keep the follow-up log
     by: ME.email, at: serverTimestamp(),
   };
+  $('pmSave').disabled = true;   // a second click made a second order (28 Nov)
   try {
     if (PO_EDIT) { await setDoc(doc(db, 'po', PO_EDIT.id), rec); if (typeof fsMirror === 'function') fsMirror('put', 'po/' + PO_EDIT.id, rec); }
     else { const ref = await addDoc(collection(db, 'po'), rec); if (ref && ref.path) if (typeof fsMirror === 'function') fsMirror('put', ref.path, rec); }
@@ -10672,6 +10683,7 @@ $('pmSave').onclick = async () => {
     PO_LOADED = false; await ensurePo();
     poMsg('Saved.'); setTimeout(() => poMsg(''), 1500);
   } catch (e) { $('pmErr').textContent = 'Could not save: ' + (e.message || e); $('pmErr').classList.remove('hide'); }
+  finally { $('pmSave').disabled = false; }
 };
 $('pmDelete').onclick = async () => {
   if (!PO_EDIT || !confirm('Delete this purchase order?')) return;
@@ -12739,6 +12751,14 @@ function pkMatch(rows) {
   return best || { row: 0, idx: {}, need: ['box', 'sku', 'qty'], head: [] };
 }
 
+/** What is impossible about one row of a packing file, or ''. A blank box number used to join box 1 without a word. */
+function pkRowWrong(qty, boxNo, below) {
+  if (qty < 0) return `quantity ${qty} is below 0`;
+  if (!Number.isInteger(qty)) return `quantity ${qty} is not whole pieces`;
+  if (!boxNo) return 'no box number';
+  return below.length ? `${below.join(', ')} below 0` : '';
+}
+
 /* File rows into BOXES. The file is one row per (box, sku) \u2014 the shape every packing sheet already
  * has \u2014 so the grouping is the box number and nothing else needs a rule.
  *
@@ -12749,7 +12769,7 @@ function pkBuild(rows, m, defaults) {
   const get = (row, key) => (m.idx[key] == null ? '' : String(row[m.idx[key]] == null ? '' : row[m.idx[key]]).trim());
   const boxes = [], byNo = new Map();
   let dropped = 0, unknown = new Set();
-  const part = [];   // rows asking for part of a piece: the file is not saved until they are corrected (28 Nov)
+  const wrong = [];   // rows that cannot be packed as written: the file is not saved until they are corrected (28 Nov)
   // Weights the FILE supplied, kept apart from those that came out of the master. Only these are
   // worth writing back — storing the master's own values again would be a no-op that still counts
   // as an edit.
@@ -12761,8 +12781,9 @@ function pkBuild(rows, m, defaults) {
     const boxNo = get(row, 'box');
     // A row with no SKU or nothing in it is a spacer, a subtotal or a stray note. Counted, not kept.
     if (!sku || !qty) { if (row.some(c => String(c || '').trim())) dropped++; continue; }
-    if (!Number.isInteger(qty)) part.push({ row: r + 1, sku, qty });
-    const key = boxNo || '1';
+    const why = pkRowWrong(qty, boxNo, ['L', 'W', 'H', 'gross', 'wt', 'net'].filter(k => pkNum(get(row, k)) < 0));
+    if (why) wrong.push({ row: r + 1, sku, why });
+    const key = boxNo || '1';   // a blank is listed above and the file refused; this only keeps the preview drawable
     if (!byNo.has(key)) {
       byNo.set(key, { n: byNo.size + 1, label: key, items: [],
         L: defaults.L, W: defaults.W, H: defaults.H });
@@ -12794,7 +12815,7 @@ function pkBuild(rows, m, defaults) {
       })(),
     });
   }
-  return { boxes, dropped, unknown: [...unknown], fileWt, part };
+  return { boxes, dropped, unknown: [...unknown], fileWt, wrong };
 }
 
 /* ---------- storing ---------- */
@@ -13206,12 +13227,12 @@ function pkRenderPreview() {
         : `Rename the column, or use the Template button for a sheet with the names this reads.`)
       + `</div>`);
   }
-  const part = g.part || [];
-  const partWhy = part.slice(0, 6).map(x => `row ${x.row} · ${x.sku} · ${x.qty}`).join(', ') + (part.length > 6 ? ` and ${part.length - 6} more` : '');
-  if (part.length) bits.push(`<div class="err" style="margin-top:6px">Quantities must be whole pieces. Correct the file and choose it again: ${esc(partWhy)}.</div>`);
+  const wrong = g.wrong || [];
+  const wrongWhy = wrong.slice(0, 6).map(x => `row ${x.row} · ${x.sku} · ${x.why}`).join('; ') + (wrong.length > 6 ? `; and ${wrong.length - 6} more` : '');
+  if (wrong.length) bits.push(`<div class="err" style="margin-top:6px">These rows cannot be packed. Correct the file and choose it again: ${esc(wrongWhy)}.</div>`);
   $('pkMatch').innerHTML = bits.join('');
-  $('pkSave').disabled = missReq.length > 0 || !g.boxes.length || part.length > 0;
-  if (part.length) wpShow('This file cannot be saved', 'Quantities must be whole pieces: ' + partWhy + '. Correct the file and choose it again.');
+  $('pkSave').disabled = missReq.length > 0 || !g.boxes.length || wrong.length > 0;
+  if (wrong.length) wpShow('This file cannot be saved', wrongWhy + '. Correct the file and choose it again.');
 
   const t = pkTotals({ boxes: g.boxes, pkgWt: PK_DEF.pkgWt, volDiv: PK_DEF.volDiv });
   $('pkPreview').innerHTML = '<thead><tr><th>Box</th><th>SKU</th><th>Description</th><th>Size</th>'
@@ -13225,6 +13246,16 @@ function pkRenderPreview() {
       .join('')
     + `<tr><td colspan="4"><b>${t.boxes} box(es)</b></td><td class="num"><b>${t.qty}</b></td>
         <td></td><td class="num"><b>${t.net.toFixed(2)}</b></td></tr></tbody>`;
+}
+
+/** Asked before a list from a file is saved: the same file with the same invoice already made a list (28 Nov: it went in
+ *  twice without a word), and any very large line. Checked against the lists this screen holds: no second download, so a copy
+ *  saved on another screen since they were opened is not seen. */
+async function pkSaveWanted(p) {
+  const twin = PK.find(x => x.source === p.source && String(x.invoice || '') === p.invoice);
+  if (twin && !confirm(`This file${p.invoice ? ' with invoice ' + p.invoice : ''} is already saved as the list “${twin.title}” of ${twin.date}. Save a second one?`)) return false;
+  const big = p.boxes.flatMap(b => b.items).map(it => ptNumBig(it.qty, it.sku, 'pcs')).filter(Boolean);
+  return !big.length || confirm(big.slice(0, 6).join(' · '));
 }
 
 $('pkCancel').onclick = () => { $('pkModal').classList.add('hide'); PK_STAGED = null; };
@@ -13248,6 +13279,7 @@ $('pkSave').onclick = async () => {
       by: ME.email || '',
       createdAt: pkToday(),
     };
+    if (!(await pkSaveWanted(p))) { btn.disabled = false; btn.textContent = 'Save packing list'; return; }
     /* THE FIRST FILE TEACHES THE MASTER.
      *
      * Nothing carries a per-piece weight — not the catalogue, not the FBA report — so the master
@@ -13864,7 +13896,7 @@ const PACK_CORE = /* @__PURE__ */ (() => {
       }
       const orders = [...parts.entries()].map(([orderNo, qty]) => ({ orderNo, qty }));
       return Object.assign(
-        { _id: o.newId(), txnType: "FBA", sku: r.sku, qty: r.qty, date, reason: "", scanned: true },
+        { _id: o.newId(r.sku), txnType: "FBA", sku: r.sku, qty: r.qty, date, reason: "", scanned: true },
         orders.length ? { orders } : {},
         { issuedFor: p.account || "" },
         o.handoverTo || sc.handoverTo ? { handoverTo: o.handoverTo || sc.handoverTo } : {},
@@ -13931,6 +13963,38 @@ function packWtOf(sku) {
   });
   return PACK_CORE.weightOf(sku, PK_WT || {}, meta, all);
 }
+function packMarkDone(p, ids) {
+  p.scan.ledgerIds = ids;
+  p.scan.done = true;
+  p.scan.doneAt = (/* @__PURE__ */ new Date()).toISOString();
+  p.scan.doneBy = ME.email || "";
+}
+/* ONE ROW PER LIST AND SKU (28 Nov): the same list finished on two screens wrote the stock out twice. The row's name is made
+ * from the list and the SKU, so a later Finish meets the first one's rows. Two presses at the very same moment still land on
+ * one row each, but the later one's figures stay and a website-order release may be used twice. Errors: loud: nothing is
+ * written when the rows or the saved list cannot be read, or when another screen finished the list. */
+const packRowId = (packId, sku) => "FBA-" + packId + "-" + shpHoldKey(sku);
+/** { done } when exactly these rows are written already (the list only has to be marked finished), { err }, or {} to write. */
+async function packWrittenBefore(rows) {
+  let was;
+  try { was = await Promise.all(rows.map((r) => ptGet("pt_fgiLedger/" + r._id))); }
+  catch (e) { return { err: "Nothing was saved — could not check whether this list was finished already (" + (e.message || e) + "). Check the connection and press Finish again." }; }
+  const found = was.filter((x, i) => x && x._id === rows[i]._id);
+  if (!found.length) return {};
+  if (found.length === rows.length && rows.every((r, i) => Number(was[i].qty) === Number(r.qty))) return { done: true };
+  return { err: "Nothing was saved — this list was already finished" + (found[0].createdBy ? " by " + found[0].createdBy : "") + " on another screen, with other quantities. Close it and open it again." };
+}
+/** The rows are there already. '' when this screen may mark the list finished (they were written, the list was not saved);
+ *  else why not: saving this screen's copy would cover the finished list. */
+async function packFinishedElsewhere(packId) {
+  try {
+    const saved = await getDoc(doc(db, "packlist", packId));
+    const scan = saved.exists() && saved.data().scan || {};
+    return (scan.ledgerIds || []).length ? "Nothing was saved — this list is already finished on another screen. Close it and open it again." : "";
+  } catch (e) {
+    return "Nothing was saved — could not check the saved list (" + (e.message || e) + "). Check the connection and press Finish again.";
+  }
+}
 async function packLedgerWrite(p, handoverTo) {
   if (!p) return { err: "No packing list open." };
   p.scan = p.scan || packScanNew([], [], "", "");
@@ -13943,7 +14007,7 @@ async function packLedgerWrite(p, handoverTo) {
   if (unread) return { err: unread };
   if (handoverTo != null) p.scan.handoverTo = String(handoverTo || "").trim();
   const rows = PACK_CORE.ledgerRows(p, {
-    newId: () => fgiNewId("FBA"),
+    newId: (sku) => packRowId(p.id, sku),
     nowIso: (/* @__PURE__ */ new Date()).toISOString(),
     by: ME.email || "",
     handoverTo: p.scan.handoverTo,
@@ -13953,6 +14017,16 @@ async function packLedgerWrite(p, handoverTo) {
   if (typeof fapOn === "function" && fapOn()) {
     const unseen = await fapReread();
     if (unseen) return { err: unseen };
+  }
+  /* an approved repeat SKU already left the store under its approval's own row (FBAR-…), so it is not looked for here */
+  const mine = rows.filter((r) => !(typeof fapApproved === "function" && fapApproved(p.id, r.sku)));
+  const before = await packWrittenBefore(mine);
+  if (before.err) return { err: before.err };
+  if (before.done) {
+    const elsewhere = await packFinishedElsewhere(p.id);
+    if (elsewhere) return { err: elsewhere };
+    packMarkDone(p, rows.map((r) => mine.includes(r) ? r._id : fapIdOf(p.id, r.sku)));
+    return { rows: [], already: true };
   }
   for (const r of rows) {
     /* an approved repeat SKU has already left the store (fg-fba-repeat.js): it is not asked of the stock again */
@@ -13978,10 +14052,7 @@ async function packLedgerWrite(p, handoverTo) {
     if (refused) return { err: refused };
   } else await write();
   FGI.rows = (FGI.rows || []).concat(sent);
-  p.scan.ledgerIds = sent.concat(gate.written).map((r) => r._id);
-  p.scan.done = true;
-  p.scan.doneAt = (/* @__PURE__ */ new Date()).toISOString();
-  p.scan.doneBy = ME.email || "";
+  packMarkDone(p, sent.concat(gate.written).map((r) => r._id));
   try {
     fbaBadge();
     fgiOverBadge();

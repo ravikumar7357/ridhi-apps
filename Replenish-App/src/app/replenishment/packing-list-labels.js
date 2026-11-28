@@ -409,6 +409,14 @@ function pkMatch(rows) {
   return best || { row: 0, idx: {}, need: ['box', 'sku', 'qty'], head: [] };
 }
 
+/** What is impossible about one row of a packing file, or ''. A blank box number used to join box 1 without a word. */
+function pkRowWrong(qty, boxNo, below) {
+  if (qty < 0) return `quantity ${qty} is below 0`;
+  if (!Number.isInteger(qty)) return `quantity ${qty} is not whole pieces`;
+  if (!boxNo) return 'no box number';
+  return below.length ? `${below.join(', ')} below 0` : '';
+}
+
 /* File rows into BOXES. The file is one row per (box, sku) \u2014 the shape every packing sheet already
  * has \u2014 so the grouping is the box number and nothing else needs a rule.
  *
@@ -419,7 +427,7 @@ function pkBuild(rows, m, defaults) {
   const get = (row, key) => (m.idx[key] == null ? '' : String(row[m.idx[key]] == null ? '' : row[m.idx[key]]).trim());
   const boxes = [], byNo = new Map();
   let dropped = 0, unknown = new Set();
-  const part = [];   // rows asking for part of a piece: the file is not saved until they are corrected (28 Nov)
+  const wrong = [];   // rows that cannot be packed as written: the file is not saved until they are corrected (28 Nov)
   // Weights the FILE supplied, kept apart from those that came out of the master. Only these are
   // worth writing back — storing the master's own values again would be a no-op that still counts
   // as an edit.
@@ -431,8 +439,9 @@ function pkBuild(rows, m, defaults) {
     const boxNo = get(row, 'box');
     // A row with no SKU or nothing in it is a spacer, a subtotal or a stray note. Counted, not kept.
     if (!sku || !qty) { if (row.some(c => String(c || '').trim())) dropped++; continue; }
-    if (!Number.isInteger(qty)) part.push({ row: r + 1, sku, qty });
-    const key = boxNo || '1';
+    const why = pkRowWrong(qty, boxNo, ['L', 'W', 'H', 'gross', 'wt', 'net'].filter(k => pkNum(get(row, k)) < 0));
+    if (why) wrong.push({ row: r + 1, sku, why });
+    const key = boxNo || '1';   // a blank is listed above and the file refused; this only keeps the preview drawable
     if (!byNo.has(key)) {
       byNo.set(key, { n: byNo.size + 1, label: key, items: [],
         L: defaults.L, W: defaults.W, H: defaults.H });
@@ -464,7 +473,7 @@ function pkBuild(rows, m, defaults) {
       })(),
     });
   }
-  return { boxes, dropped, unknown: [...unknown], fileWt, part };
+  return { boxes, dropped, unknown: [...unknown], fileWt, wrong };
 }
 
 /* ---------- storing ---------- */
