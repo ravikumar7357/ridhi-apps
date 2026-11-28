@@ -61,7 +61,7 @@ const breaks = {
   'no reason needed': [R, "if (!why) return 'Say why it is rejected", "if (false) return 'Say why it is rejected"],
   'edits are free': [EDIT, "typeof fapEditRefusal === 'function' ?", 'false ?'],
   'the edited dispatch is not counted': [R, 'wants.find(x => fapRecent(x.sku, x.without).length)', 'wants.find(x => fapRecent(x.sku, x.without).length > 1)'],
-  'the approver cannot edit': [R, 'if (!fapOn() || fapMayApprove()) return', 'if (!fapOn()) return'],
+  'the approver cannot edit': [R, 'if (!fapOn() || fapMayApprove() || shpListsOn()) return', 'if (!fapOn() || shpListsOn()) return'],
   'the reason is put in as HTML': [R, '${esc(q.reason)}', '${q.reason}'],
   'everybody sees Approve': [R, 'fapMayApprove() && fapOpen(q) ?', 'fapOpen(q) ?'],
   'old rejections stay on the badge': [R, ' && Date.parse(q.decidedAt) > since', ''],

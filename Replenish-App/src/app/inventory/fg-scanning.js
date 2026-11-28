@@ -105,7 +105,7 @@ function fgiScanOpen() {
     note: 'Scan the FNSKU label on the piece (or type a SKU). Each scan adds pieces to that SKU. Nothing is '
       + 'saved until "Save all" — then one entry per SKU, with the same checks as the entry form.',
     html: `<div class="ptgrid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
-        <label><span>Type <b style="color:var(--bad)">*</b></span><select id="fgsType">${Object.keys(FGI_KINDS).map(t =>
+        <label><span>Type <b style="color:var(--bad)">*</b></span><select id="fgsType">${fgiPickTypes().map(t =>
           `<option value="${t}"${t === 'RECEIVE' ? ' selected' : ''}>${esc(FGI_KINDS[t].label)}</option>`).join('')}</select></label>
         <label>Date<input id="fgsDate" type="date" value="${esc(dToday())}"></label>
         <label><span>Pieces per scan</span><input id="fgsPer" type="number" min="1" step="1" value="1"></label>
@@ -194,6 +194,8 @@ function fgiScanHead() {
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const h = { t, k, err: '', date: m ? `${m[3]}/${m[2]}/${m[1]}` : iso, who: '', hand: '', orderNo: '', orderSource: '', extFrom: '' };
   if (t === 'FBA') {
+    const byList = typeof fgiNewTypeWhy === 'function' ? fgiNewTypeWhy(t) : '';
+    if (byList) return { err: byList };
     h.who = String(($('fgsAcct') || {}).value || '').trim();
     if (FGI_FBA_ACCOUNTS.indexOf(h.who) < 0) return { err: `Pick the FBA account — ${FGI_FBA_ACCOUNTS.join(' or ')}.` };
     h.hand = String(($('fgsHand') || {}).value || '').trim();

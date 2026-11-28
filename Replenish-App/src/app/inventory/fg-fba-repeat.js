@@ -23,11 +23,15 @@
  *   2 minutes.
  *   quiet, with a console line — reading the requests to draw the list, and putting a failed approval back to waiting.
  *
+ * With switch fbaList also on (fba-lists.js, 28 Nov: stock goes to FBA by a list only), nothing new is asked or approved here:
+ * a request made earlier can only be rejected, and the SKU is then ticked on Finished Goods and put on a list.
+ *
  * BEHIND SWITCH storeAlloc (fg-store-alloc.js). Off, every save behaves as before. */
 const FAP_PATH = 'pt_fgiSettings/_fbaRepeat';
 const FAP_DAYS = 7;
 const FAP_CLAIM_MS = 2 * 60 * 1000;   // an approval that has not finished by now never will
 const FAP_NOT_APPROVER = 'Only the FBA repeat approver or an admin can decide a repeat FBA request.';
+const FAP_REJECT_INSTEAD = 'A request made earlier cannot be approved: reject it.';
 
 const fapOn = () => fgaOn();
 const fapMayApprove = () => !spIsVendor() && !!(ME.admin || ME.fbaRepeatApprove);
@@ -184,6 +188,7 @@ async function fapSaveRequest(request) {
  *  approval has already written }. */
 async function fapGate(rows, stem) {
   if (!fapOn()) return { send: rows, extra: {}, held: [], written: [] };
+  if (shpListsOn()) return { stop: FGI_FBA_BY_LIST };
   const unread = await fgiStockReread() || await fapReread();
   if (unread) return { stop: unread };
   const earlier = fapEarlier(rows, stem);
@@ -274,7 +279,7 @@ async function fapWrite(gate) {
 /* ---- edits ---- */
 /** Why an edit may not send more of these SKUs, or ''. wants: as fgiFbaEditWants gives them. */
 function fapEditRefusal(wants) {
-  if (!fapOn() || fapMayApprove()) return '';
+  if (!fapOn() || fapMayApprove() || shpListsOn()) return '';   // with FBA lists, the save itself refuses (fg-shop-hold.js)
   const w = wants.find(x => fapRecent(x.sku, x.without).length);
   return w ? `${w.sku} went to FBA in the past ${FAP_DAYS} days, so an edit cannot send more of it. Send the extra as a new FBA entry `
     + '(it goes to the FBA repeat approver), or ask the approver to make this edit.' : '';
@@ -297,6 +302,7 @@ function fapRowFor(id, request, at) {
  *  '' when done, else the sentence to show. */
 async function fapApprove(id) {
   if (!fapMayApprove()) return FAP_NOT_APPROVER;
+  if (shpListsOn()) return `${FGI_FBA_BY_LIST} ${FAP_REJECT_INSTEAD}`;
   const unread = await fgiStockReread();
   if (unread) return unread;
   const path = FAP_PATH + '/' + id, at = new Date().toISOString();
@@ -370,6 +376,7 @@ function fapRender() {
   const list = Object.entries(fapAll()).sort((a, b) => fapOpen(b[1]) - fapOpen(a[1]) || String(b[1].askedAt).localeCompare(String(a[1].askedAt)));
   const head = '<thead><tr>' + ['Asked', 'SKU', 'Pieces', 'FBA account', 'Doing the FBA', 'Sent in the 7 days before', 'State', '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 2 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+  const byList = shpListsOn();   // nothing is approved then, only rejected
   const button = (attr, id, label) => `<button class="ghost" ${attr}="${esc(id)}" style="padding:3px 9px;font-size:12px">${label}</button>`;
   $('fgTable').innerHTML = head + '<tbody>' + (list.length ? list.slice(0, 600).map(([id, q]) => '<tr>'
     + `<td class="frz">${esc(String(q.askedAt).slice(0, 16).replace('T', ' '))}</td>`
@@ -377,10 +384,12 @@ function fapRender() {
     + `<td>${esc(q.row.issuedFor)}</td>`
     + `<td>${esc(fapWho(q.askedBy))}${q.row.handoverTo ? `<div class="muted" style="font-size:11px">handed to ${esc(q.row.handoverTo)}</div>` : ''}</td>`
     + `<td style="text-align:left;font-size:12px">${esc(fapSentText(q.recent || []))}</td><td style="text-align:left">${fapStateCell(q)}</td>`
-    + `<td style="white-space:nowrap">${fapMayApprove() && fapOpen(q) ? button('data-fapok', id, 'Approve') + ' ' + button('data-fapno', id, 'Reject') : ''}</td></tr>`).join('')
+    + `<td style="white-space:nowrap">${fapMayApprove() && fapOpen(q) ? (byList ? '' : button('data-fapok', id, 'Approve') + ' ')
+      + button('data-fapno', id, 'Reject') : ''}</td></tr>`).join('')
     : '<tr><td colspan="8" class="muted" style="padding:16px">No repeat FBA requests.</td></tr>') + '</tbody>';
   $('fgMsg').className = 'muted';
-  $('fgMsg').textContent = `${nf(list.filter(([, q]) => fapOpen(q)).length)} request(s) waiting. Nothing of a waiting or rejected request has left the store. Times are UTC.`;
+  $('fgMsg').textContent = `${nf(list.filter(([, q]) => fapOpen(q)).length)} request(s) waiting. Nothing of a waiting or rejected request has left the store. Times are UTC.`
+    + (byList ? ` ${FGI_FBA_BY_LIST} ${FAP_REJECT_INSTEAD}` : '');
 }
 /** The list was opened: read the requests as they are now and draw them. */
 async function fapViewOpened() {

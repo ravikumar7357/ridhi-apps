@@ -60,7 +60,7 @@ function shop(o) {
   o = o || {};
   const published = [], warns = [], said = [], asked = [], msg = { textContent: o.msg || '' };
   const ctx = Object.assign({
-    SHOP: { orders: o.orders || [], holdRead: o.holdRead }, SHOP_META: o.meta || {}, SHOP_STOCK_LOADED: o.stock !== false,
+    SHOP: { orders: o.orders || [], holdRead: o.holdRead }, SHOP_META: o.meta || {}, SHOP_STOCK_LOADED: o.stock !== false, SHOP_STOCK_DENIED: false,
     SHOP_INDIA_AT: o.indiaAt === undefined ? 'now' : o.indiaAt, SHOP_INDIA_ERR: '', PTG: { ob: o.ob || [], mdb: [{}] }, PTG_ALL: [],
     SO_BRANDS: ['SP', 'CPC'], SO_COPY: { windowDays: 14 }, ME: { email: 'a@example.com' }, console: { warn: (...a) => warns.push(a.join(' ')) },
     sdToday: () => '2026-11-27', sdShift: (iso, d) => new Date(Date.parse(iso + 'T00:00:00Z') + d * 86400000).toISOString().slice(0, 10),
@@ -334,7 +334,7 @@ function testSite(o) {
   const db = database(o.db || {}, o);
   const ctx = {
     window: { __TEST_ERP: {} }, localStorage: { getItem: () => null }, console: { warn: (...a) => warns.push(a.join(' ')) },
-    SHOP: { orders: o.screen || [] }, SHOP_META: o.meta || {}, SHOP_STOCK_LOADED: o.stock !== false, SHOP_INDIA_AT: 'now', SHOP_INDIA_ERR: '',
+    SHOP: { orders: o.screen || [] }, SHOP_META: o.meta || {}, SHOP_STOCK_LOADED: o.stock !== false, SHOP_STOCK_DENIED: false, SHOP_INDIA_AT: 'now', SHOP_INDIA_ERR: '',
     PTG: { ob: [], mdb: [{}], at: 1 }, PTG_ALL: [], prOn: () => true, ptRegLoaded: () => !o.noBook, SO_BRANDS: ['SP', 'CPC'], SHP_REACH_MAX_DAYS: 150,
     ME: { email: 'a@example.com', admin: true }, FGI: { set: {} }, db: {},
     doc: (_, coll, id) => coll + '/' + id,

@@ -110,6 +110,7 @@ async function fgiLoadRun(quiet) {
   /* Reads that do not wait on each other, read together; a failed one does not stop the rest. */
   await Promise.all([lstLoad(), fgiCorrLoad(), fnLoad(), typeof fgaSalesRead === 'function' ? fgaSalesRead() : null]);
   fgiOverBadge();
+  if (typeof fgiHoldNoteOnOpen === 'function') fgiHoldNoteOnOpen();   // test website: note a missing website-hold figure (not waited for)
   if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowFgBadgeLoad === 'function') { if (fgLiteOn() && typeof flowFgBadgeLite === 'function') flowFgBadgeLite(); else flowFgBadgeLoad(); }
   lstMaybeRefresh();
 }

@@ -16,7 +16,9 @@
  * it has none. Releases sit beside it, under .../releases/<id>.
  * "_shopHold" can never be a SKU's own settings row: SKU rows are upper case.
  * On the test website live Shopify is off, so the tab counts the need from the shared copy of the orders instead, and "at" is
- * the time that copy last heard from Shopify.
+ * the time that copy last heard from Shopify. There a missing figure is also noted without the Shopify Orders tab (28 Nov): when
+ * Finished Goods opens, and before every FBA check, shopify-orders.js notes it from the shared copy (shpHoldNoteIfMissing); when it
+ * cannot (UAT mode off, no right to read the copy, stock not readable), the refusal says that reason.
  *
  * WHEN SOMETHING GOES WRONG:
  *   loud, to the user — a release that cannot be saved, used up or given back (it is stock), and a figure that is missing,
@@ -34,7 +36,7 @@ const SHP_HOLD_MAX_AGE_MS = 6 * 60 * 60 * 1000;   // older than this, FBA is ref
 const SHP_HOLD_CLOCK_SLACK_MS = 10 * 60 * 1000;   // noted further ahead than this: that PC's clock is wrong, the figure is not trusted
 const SHP_HOLD_REWRITE_MS = 60 * 60 * 1000;       // an unchanged figure is noted again after this, so it does not look old
 const SHP_HOLD_TRIES = 3;
-const FGI_FBA_BY_LIST = 'FBA now goes by FBA lists — make one on Finished Goods.';
+const FGI_FBA_BY_LIST = 'FBA lists are on: tick the SKUs on Finished Goods and press Make FBA list — stock goes to FBA only that way.';
 
 /** Is this the test website? */
 const shpOnTestSite = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
@@ -52,6 +54,8 @@ const shpAllocOn = () => typeof fgaOn === 'function' && fgaOn();
 
 /** Do pieces go to FBA by FBA lists (fba-lists.js)? */
 const shpListsOn = () => typeof fblOn === 'function' && fblOn();
+/** What to say to anybody sending stock to FBA some other way while FBA lists are on, or ''. */
+const fgiFbaByListWhy = () => (shpListsOn() ? FGI_FBA_BY_LIST : '');
 
 /* ---- the need of one store ---- */
 /** The name a SKU is held under (the database refuses some characters). */
@@ -198,12 +202,17 @@ function fgiHoldAgeWhy(hold = fgiHoldNode()) {
     ? 'The pieces held for website orders are not known yet — open the Shopify Orders tab and press Fetch orders, then try again.'
     : 'The pieces held for website orders are over 6 hours old (or were noted by a PC whose clock is ahead) — open the Shopify Orders tab and press Fetch orders, then try again. A release does not help while the figure is old.';
 }
-/** The same on the test website, where the figure comes from the shared copy and can be noted only in UAT mode. */
-const shpHoldTestAgeWhy = state => (state === 'missing' ? 'The pieces held for website orders are not known yet'
-  : 'The pieces held for website orders are over 6 hours old (or carry a time ahead of this PC\'s clock)')
-  + ' — on the test website, turn UAT mode on, open the Shopify Orders tab and press Fetch orders. They are counted from the'
-  + ' shared copy of the orders: the line there says how old it is, or why it could not be noted.'
-  + (state === 'missing' ? '' : ' A release does not help while the figure is old.');
+/** The same on the test website, where the figure comes from the shared copy and can be noted only in UAT mode. A missing figure
+ *  has already been tried from the shared copy (shpHoldNoteIfMissing): what stopped that is said, not a tab to open. */
+function shpHoldTestAgeWhy(state) {
+  if (state === 'missing' && SHP_HOLD_AUTO_WHY) return 'The pieces held for website orders are not known yet, and could not be noted from the shared copy of the orders: '
+    + SHP_HOLD_AUTO_WHY.replace(/^Pieces held for website orders were not noted: /, '') + ' Press Refresh and try again.';
+  return (state === 'missing' ? 'The pieces held for website orders are not known yet'
+    : 'The pieces held for website orders are over 6 hours old (or carry a time ahead of this PC\'s clock)')
+    + ' — on the test website, turn UAT mode on, open the Shopify Orders tab and press Fetch orders. They are counted from the'
+    + ' shared copy of the orders: the line there says how old it is, or why it could not be noted.'
+    + (state === 'missing' ? '' : ' A release does not help while the figure is old.');
+}
 /** Why the noted figures cannot be trusted just now, or '': the website hold, and the FBA need when stock is shared. */
 const fgiFbaAgeWhy = hold => fgiHoldAgeWhy(hold) || (shpAllocOn() ? fgaNeedWhy() : '');
 const fgiShortWhy = (s, hold) => shpAllocOn() ? fgaShortWhy(s) : `${s.sku} has ${nf(s.free)} piece(s) free for FBA, not ${nf(s.qty)} (${nf(fgiHeld(s.sku, hold))} held for website orders).`
@@ -235,6 +244,32 @@ function fgiHoldScanWhy(sku, packed) {
   return free < current && inList >= free ? fgiShortWhy({ sku, free, qty: inList + 1 }, fgiHoldNode()) : '';
 }
 
+/* ---- noting it without the Shopify Orders tab (test website only) ---- */
+/* Why the last try failed ('' when it worked or none was made); read by shpHoldTestAgeWhy. */
+let SHP_HOLD_AUTO_WHY = '';
+/** The test website only: when the figure is missing, note it now from the shared copy of the orders (shopify-orders.js),
+ *  loading what that needs, so nobody has to open Shopify Orders first. Live is never touched. Never throws: '' when there
+ *  is nothing to note or it was noted, else why not (also kept for the refusal sentence, and said in the console). */
+async function shpHoldNoteIfMissing() {
+  if (!shpOnTestSite() || fgiHoldState().state !== 'missing') { SHP_HOLD_AUTO_WHY = ''; return ''; }
+  if (typeof soHoldNoteFromCopy !== 'function') return '';
+  try { SHP_HOLD_AUTO_WHY = await soHoldNoteFromCopy(); }
+  catch (e) { SHP_HOLD_AUTO_WHY = e.message || String(e); }
+  if (SHP_HOLD_AUTO_WHY) console.warn('India store hold: not noted from the shared copy: ' + SHP_HOLD_AUTO_WHY);
+  return SHP_HOLD_AUTO_WHY;
+}
+
+/** Finished Goods has just been read (test website): a missing figure is noted at once, so the stock list and the first FBA list
+ *  find it. Not waited for; never throws. */
+async function fgiHoldNoteOnOpen() {
+  if (!shpHoldOn() || !shpOnTestSite() || fgiHoldState().state !== 'missing') return;
+  if (await shpHoldNoteIfMissing()) return;
+  try {
+    fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {});
+    if (typeof TAB_NOW === 'undefined' || TAB_NOW === 'fgi') renderFgi();
+  } catch (e) { console.warn('India store hold: the figure just noted could not be read back:', e.message || e); }
+}
+
 /* ---- reading it again ---- */
 const fgiHoldKeep = node => { FGI.set = Object.assign({}, FGI.set, { _shopHold: node }); };
 const fgiHoldUnread = e => 'Nothing was saved — the pieces held for website orders could not be checked (' + (e.message || e) + '). Check the connection and save again.';
@@ -243,6 +278,9 @@ const fgiHoldUnread = e => 'Nothing was saved — the pieces held for website or
 async function fgiHoldReread() {
   try {
     fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {});
+    /* Before any FBA check or save: a figure that is missing is noted now (test website), then read as it is. */
+    const notNoted = await shpHoldNoteIfMissing();
+    if (!notNoted && fgiHoldState().state === 'missing') fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {});
     if (shpAllocOn()) await fgaFiguresReread();
     if (shpListsOn()) fblKeepAll((await ptGetFresh(FBL_PATH)) || {});
     return '';

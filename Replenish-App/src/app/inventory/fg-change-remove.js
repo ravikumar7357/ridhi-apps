@@ -189,7 +189,7 @@ function fgiEditOpen(id) {
   }
   const locked = fgiEditLocked(r);
   const full = !locked;
-  const types = r.txnType === 'OPENING' ? ['OPENING'] : Object.keys(FGI_KINDS);
+  const types = r.txnType === 'OPENING' ? ['OPENING'] : fgiPickTypes(r.txnType);
   const lbl = t => t === 'OPENING' ? (r.adjust ? 'Count correction' : 'Opening stock') : FGI_KINDS[t].label;
   const who = r.issuedFor || r.receivedFrom || '';
   const k = FGI_KINDS[r.txnType];

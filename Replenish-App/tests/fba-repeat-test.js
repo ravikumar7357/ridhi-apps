@@ -348,7 +348,7 @@ async function asked(o) {
     const { H, id, request } = await asked();
     lists(H);
     const said = await H.ctx.fapApprove(id);
-    ok('approving is refused with where to go', /FBA now goes by FBA lists/.test(said), said);
+    ok('approving is refused with where to go', /press Make FBA list.*reject it/.test(said), said);
     ok('…the request waits again and nothing leaves', request().status === 'waiting' && H.ledger().length === 0);
     const F = lists(repeatStore({ rows: [row('O', 'OPENING', 20)] }));
     ok('the entry form cannot send to FBA', /FBA lists/.test(await entry(F, 3)) && F.ledger().length === 0);

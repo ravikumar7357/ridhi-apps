@@ -1316,7 +1316,7 @@ function pksDraw() {
       ${PKS.hold ? '<button id="pksAside" class="pks-aside">✓ Kept aside — carry on</button>' : ""}</div>`;
   } else if (PKS.allDone) {
     card.innerHTML = `<div class="pks-donecard"><div class="pks-badicon">✓</div><div class="pks-big">Everything on ${pksAgainstTxt()} is packed</div>
-      <div class="pks-sub">${nf(t.qty)} pcs in ${nf(t.boxes)} box(es). ${p.scan.fbaListId ? "Press Finish to save it as packed; it ships from FBA Dispatch." : "Press Finish to write the Send to FBA rows."}</div></div>`;
+      <div class="pks-sub">${nf(t.qty)} pcs in ${nf(t.boxes)} box(es). ${p.scan.fbaListId ? "Press Finish to save it as packed; it ships from FBA Dispatch." : packFbaOn() ? esc(PACK_NO_FBA_LIST) : "Press Finish to write the Send to FBA rows."}</div></div>`;
   } else if (PKS.last) {
     const sku = PKS.last.sku, it = (b.items || []).find((x) => obUC(x.sku) === sku) || {}, info = pkLookupSku(sku) || {}, img = pksImg(sku);
     card.innerHTML = `<div class="pks-prod">

@@ -531,7 +531,7 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     const f = await save({ fails: true }, LIST_WANT);
     ok('a failed save gives them back', /Not saved: offline.*were given back/.test(f.said) && f.W.db._shopHold.releases.r.left === 5, f.said);
     const plain = await save({}, '{ sku: "A", qty: 1, current: 20 }');
-    ok('any other new FBA is refused, nothing saved or used', plain.said === 'FBA now goes by FBA lists — make one on Finished Goods.'
+    ok('any other new FBA is refused, nothing saved or used', /tick the SKUs on Finished Goods and press Make FBA list/.test(plain.said)
       && plain.wrote === 0 && plain.W.db._shopHold.releases.r.left === 5, plain.said);
     const mixed = await save({}, LIST_WANT + ', { sku: "A", qty: 1, current: 20 }');
     ok('one such want refuses the whole save', /FBA lists/.test(mixed.said) && mixed.wrote === 0);

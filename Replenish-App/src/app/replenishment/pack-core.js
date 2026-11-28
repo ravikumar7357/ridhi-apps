@@ -189,7 +189,7 @@ function packScanNew(orders, plan, planNo, handoverTo) {
  * One packing list per FBA list, found by its id, so two PCs opening the same list carry on in the same one. A list that
  * cannot be read or a packing that cannot be saved is said to the packer; nothing is written then. */
 const packFbaOn = () => typeof fblOn === "function" && fblOn();
-const PACK_NO_FBA_LIST = "FBA lists are on: stock leaves only through an FBA list. Nothing leaves stock from this packing list — start a new one and choose the FBA list.";
+const PACK_NO_FBA_LIST = "FBA lists are on: stock leaves only through an FBA list, so nothing leaves from this packing list. Tick the SKUs on Finished Goods and press Make FBA list, then start a new packing list and choose that FBA list.";
 const packFbaIdOf = (listId) => "PK-" + listId;
 const packFbaPackable = (list) => !!list && ["open", "packed"].includes(list.status);
 /** False only for the packing list of an FBA list that has since been shipped or cancelled. */
