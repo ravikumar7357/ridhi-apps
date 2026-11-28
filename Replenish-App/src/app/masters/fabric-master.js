@@ -251,8 +251,17 @@ function fmAddFabric() {
         addedBy: ME.email || '', addedAt: new Date().toISOString() };
       ['count', 'constr', 'gsm'].forEach(k => { rec[k] = String(v[k] || '').trim(); });
       ['gw', 'rw', 'gr', 'rr'].forEach(k => { const s = String(v[k] || '').trim(); rec[k] = s === '' ? '' : +s; });
-      const id = fmNextId('greigeRfd', 'g');
-      try { await ptPatch({ [`pt_masters/greigeRfd/${id}`]: rec }); } catch (e) { return 'Not saved: ' + (e.message || e); }
+      /* written only where no fabric is yet (28 Nov): two people adding at once no longer overwrite each other's g<NN> */
+      let id = fmNextId('greigeRfd', 'g');
+      try {
+        let ok = false;
+        for (let i = 0; i < 12 && !ok; i++) {
+          if (typeof ptCas !== 'function') { await ptPatch({ [`pt_masters/greigeRfd/${id}`]: rec }); ok = true; break; }
+          if (!(await ptCas(`pt_masters/greigeRfd/${id}`, null, rec))) ok = true;
+          else id = 'g' + String((+id.slice(1) || 0) + 1).padStart(2, '0');
+        }
+        if (!ok) return 'Could not find a free code for the new fabric — press Refresh and try again.';
+      } catch (e) { return 'Not saved: ' + (e.message || e); }
       PTG.masters = Object.assign({}, PTG.masters || {}, { greigeRfd: Object.assign({}, (PTG.masters || {}).greigeRfd || {}, { [id]: rec }) });
       ptDlgClose(); fmRender(); return '';
     } });

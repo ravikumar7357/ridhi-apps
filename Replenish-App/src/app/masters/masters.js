@@ -94,6 +94,19 @@ function mstNextKey(key) {
   return 'm_' + Date.now().toString(36);
 }
 
+/* A NEW ROW NEVER OVERWRITES ANOTHER (28 Nov, ERP backend E3). The next key is a guess from this page's copy; two people
+ * adding to the same list at once guessed the same r<N>, and the second save replaced the first person's row. Now the row
+ * is written only where nothing is yet (compare-and-set, the same as challan numbers); a key taken meanwhile → the next. */
+async function mstClaimNew(list, k, row) {
+  const base = 'pt_masters/' + list + '/';
+  for (let i = 0; i < 12; i++) {
+    if (typeof ptCas !== 'function') { await ptPut(base + k, row); return k; }
+    if (!(await ptCas(base + k, null, row))) return k;                       // written: nothing was there
+    k = /^r\d+$/.test(k) ? 'r' + (+k.slice(1) + 1) : 'm_' + Date.now().toString(36) + i;
+  }
+  throw new Error('Could not find a free place for the new row — press Refresh and try again.');
+}
+
 /** How many records would keep saying the old text if this row were renamed. */
 /* COUNTED ONCE, not once per row: the colour list walked the master, Base Data, Cutting and Press for each of its
  * 300 rows — 542 ms a draw (measured 2026-09-26). The index lives until one of the four lists is replaced. */
@@ -482,7 +495,7 @@ async function mstSave(rkey, v) {
   }
 
   const now = new Date().toISOString();
-  const k = rkey || mstNextKey(key);
+  let k = rkey || mstNextKey(key);
   const row = Object.assign({}, existing || { createdAt: now, createdBy: ME.email }, {
     code, desc, active: v.active !== 'retired', modifiedAt: now, modifiedBy: ME.email,
   });
@@ -495,7 +508,8 @@ async function mstSave(rkey, v) {
     FABW_IX = { src: null, map: null };
   }
   delete row._key;
-  await ptPut('pt_masters/' + key + '/' + k, row);
+  if (rkey) await ptPut('pt_masters/' + key + '/' + k, row);
+  else k = await mstClaimNew(key, k, row);
   PTG.masters[key] = PTG.masters[key] || {};
   PTG.masters[key][k] = row;
   renderMst();
