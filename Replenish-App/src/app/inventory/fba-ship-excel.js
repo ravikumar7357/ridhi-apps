@@ -328,7 +328,7 @@ $('fbaTable').addEventListener('click', e => {
   if (p) { const id = p.getAttribute('data-fba-pick'); if (p.checked) FBA_PICK.add(id); else FBA_PICK.delete(id); renderFba(); return; }
   const a = e.target.closest('[data-fba-all]');
   if (a) {
-    (FBA.shown || []).slice(0, 600).filter(x => x.s.st === 'waiting' || x.s.st === 'accepted')
+    fbaTickable(FBA.shown || [])
       .forEach(x => { if (a.checked) FBA_PICK.add(fgiRowId(x.r)); else FBA_PICK.delete(fgiRowId(x.r)); });
     renderFba(); return;
   }
@@ -348,13 +348,17 @@ $('fbaGo').onclick = () => { FGI.rows = null; ensureFba(); };
 ptDebounce('fbaQ', renderFba);
 $('fbaExport').onclick = () => {
   const rows = FBA.shown || []; if (!rows.length) return;
+  const on = typeof fbvOn === 'function' && fbvOn();
+  if (on && fbvByArticle()) return fbvExport(rows);
+  const sales = on ? fbvSalesByNo() : null;
   ptDownload('fba-dispatch', [['Sent', 'SKU', 'Item', 'Colour', 'Size', 'Pieces', 'Returned', 'Open', 'FBA account', 'Handover to / reason',
-    'Sent by', 'Status', 'Accepted by', 'Accepted at', 'Shipment', 'Ship date', 'Shipped by', 'Id'].map(csvCell).join(',')]
+    'Sent by', 'Status', 'Accepted by', 'Accepted at', 'Shipment', 'Ship date', 'Shipped by', 'Id', ...(on ? [FBV_LANE_HEAD] : [])].map(csvCell).join(',')]
     .concat(rows.map(({ r, s }) => {
       const m = fgiMaster(r.sku);
       return [r.date || '', obUC(r.sku), m.subtype || m.articleType || '', m.color || '', m.size || '', s.qty, s.returned, s.open,
         r.issuedFor || '', r.handoverTo || r.reason || '', r.createdBy || '', FBA_PILL[s.st][1], r.fbaAcceptedBy || '', r.fbaAcceptedAt || '',
-        r.fbaShipment || '', r.fbaShipDate || '', r.fbaShippedBy || '', fgiRowId(r)].map(csvCell).join(',');
+        r.fbaShipment || '', r.fbaShipDate || '', r.fbaShippedBy || '', fgiRowId(r),
+        ...(on ? [fbvLanesOf(r, sales).join(', ')] : [])].map(csvCell).join(',');
     })));
 };
 

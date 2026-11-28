@@ -1045,6 +1045,10 @@
     <div id="paneFba" class="hide">
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
+          <select id="fbvView" class="hide" style="flex:0 0 180px" aria-label="View">
+            <option value="article">By article</option>
+            <option value="dispatch">Every dispatch</option>
+          </select>
           <select id="fbaStatus" style="flex:0 0 230px">
             <option value="todo">To do — waiting or accepted</option>
             <option value="waiting">Waiting to be accepted</option>
@@ -1053,6 +1057,13 @@
             <option value="returned">Returned to the store</option>
             <option value="sheet">From the Ready Goods sheet</option>
             <option value="">Everything sent to FBA</option>
+          </select>
+          <select id="fbvBrand" class="hide" style="flex:0 0 130px" aria-label="Brand"><option value="">All brands</option></select>
+          <select id="fbvAccount" class="hide" style="flex:0 0 150px" aria-label="FBA account">
+            <option value="">FBA: SP + CPC</option>
+            <option value="SP">FBA: SP</option>
+            <option value="CPC">FBA: CPC</option>
+            <option value="none">FBA: not named</option>
           </select>
           <input id="fbaQ" placeholder="Search SKU / shipment / colour / size" style="flex:1 1 180px;min-width:0">
           <input id="fbaD1" type="date" style="flex:0 0 140px" title="Sent from">
@@ -1066,6 +1077,7 @@
           <button id="fbaExport" class="ghost">Export</button>
           <button id="fbaGo" class="ghost">Refresh</button>
         </div>
+        <div id="fbvAges" class="hide" style="margin-top:10px;font-size:12.5px"></div>
         <div id="fbaMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
         <div id="fbaKpis" class="kpis" style="margin-top:10px"></div>
       </div>

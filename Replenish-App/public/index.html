@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 203 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 204 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -758,6 +758,8 @@
   table.xl tbody tr:hover td.frz,table.xl tbody tr:hover td.frz2{background:var(--soft)}
   table.xl tfoot td{position:sticky;bottom:0;z-index:5;background:var(--soft);font-weight:800}
   table.xl tfoot td.frz{z-index:7}
+  /* FBA Dispatch by article: an opened article's dispatches are a table of their own, whose headings do not float. */
+  table.xl table.fbv-sub thead th,table.xl table.fbv-sub .frz{position:static}
   /* line-height, so a pill beside a figure does not push its own row taller than its neighbours. */
   .pill{display:inline-block;padding:3px 11px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;vertical-align:1px}
   .pill-air{background:#E7EBFC;color:#3D47B8}
@@ -3871,6 +3873,10 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
     <div id="paneFba" class="hide">
       <div class="card" style="padding:12px 14px">
         <div class="toolbar">
+          <select id="fbvView" class="hide" style="flex:0 0 180px" aria-label="View">
+            <option value="article">By article</option>
+            <option value="dispatch">Every dispatch</option>
+          </select>
           <select id="fbaStatus" style="flex:0 0 230px">
             <option value="todo">To do — waiting or accepted</option>
             <option value="waiting">Waiting to be accepted</option>
@@ -3879,6 +3885,13 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
             <option value="returned">Returned to the store</option>
             <option value="sheet">From the Ready Goods sheet</option>
             <option value="">Everything sent to FBA</option>
+          </select>
+          <select id="fbvBrand" class="hide" style="flex:0 0 130px" aria-label="Brand"><option value="">All brands</option></select>
+          <select id="fbvAccount" class="hide" style="flex:0 0 150px" aria-label="FBA account">
+            <option value="">FBA: SP + CPC</option>
+            <option value="SP">FBA: SP</option>
+            <option value="CPC">FBA: CPC</option>
+            <option value="none">FBA: not named</option>
           </select>
           <input id="fbaQ" placeholder="Search SKU / shipment / colour / size" style="flex:1 1 180px;min-width:0">
           <input id="fbaD1" type="date" style="flex:0 0 140px" title="Sent from">
@@ -3892,6 +3905,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
           <button id="fbaExport" class="ghost">Export</button>
           <button id="fbaGo" class="ghost">Refresh</button>
         </div>
+        <div id="fbvAges" class="hide" style="margin-top:10px;font-size:12.5px"></div>
         <div id="fbaMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
         <div id="fbaKpis" class="kpis" style="margin-top:10px"></div>
       </div>
@@ -68287,6 +68301,9 @@ function fgiSkuDeleteAsk(skus) {
  * put in front of the FBA team as work.
  *
  * WHO: the FBA Dispatch tab is the right. The person who packs a shipment needs nothing else.
+ *
+ * With switch storeAlloc on, the screen also has a line per article, brand and account filters and the Air / Sea / AWD of
+ * each dispatch (fba-dispatch-view.js).
  */
 const fbaCan = () => !spIsVendor() && !!(ME.admin || (ME.tabs || []).indexOf('fba') >= 0);
 const fbaLegacy = r => /^sheet/i.test(String((r && r.source) || '')) && !(r.fbaAcceptedAt || r.fbaShippedAt || fgiNum(r.fbaReturned));
@@ -68321,28 +68338,118 @@ function fbaBadge() {
   el.classList.toggle('hide', !n);
 }
 
-function fbaRows() {
-  const f = $('fbaStatus').value, q = $('fbaQ').value.trim().toLowerCase();
+/** Does a dispatch carry the searched text (in lower case)? */
+function fbaMatches(r, q) {
+  const m = fgiMaster(r.sku);
+  return [r.sku, r.issuedFor, r.reason, r.remarks, r.fbaShipment, m.color, m.size, m.articleType, m.subtype]
+    .join(' ').toLowerCase().includes(q);
+}
+
+/** The dispatches the filters leave, newest first. over: filter values to count with in place of the screen's. */
+function fbaRows(over = {}) {
+  const f = over.status !== undefined ? over.status : $('fbaStatus').value, q = $('fbaQ').value.trim().toLowerCase();
   const d1 = $('fbaD1').value, d2 = $('fbaD2').value;
   const from = d1 ? new Date(d1 + 'T00:00:00').getTime() : 0;
   const to = d2 ? new Date(d2 + 'T23:59:59').getTime() : Infinity;
+  const more = typeof fbvOn === 'function' && fbvOn();
   return fbaAll().map(r => Object.assign({ s: fbaState(r) }, { r }))
     .filter(x => f === 'todo' ? (x.s.st === 'waiting' || x.s.st === 'accepted') : (!f || x.s.st === f))
     .filter(x => { const m = ptDtMs(x.r.date) || ptDtMs(x.r.createdAt); return !m || (m >= from && m <= to); })
-    .filter(x => {
-      if (!q) return true;
-      const m = fgiMaster(x.r.sku);
-      return [x.r.sku, x.r.issuedFor, x.r.reason, x.r.remarks, x.r.fbaShipment, m.color, m.size, m.articleType, m.subtype]
-        .join(' ').toLowerCase().includes(q);
-    })
+    .filter(x => !q || fbaMatches(x.r, q))
+    .filter(x => !more || fbvKeeps(x.r, over))
     .sort((a, b) => String(b.r.createdAt || '').localeCompare(String(a.r.createdAt || '')));
+}
+
+const FBA_LIST_LIMIT = 600;   // the most lines a table draws; Export covers them all
+const fbaActionable = x => x.s.st === 'waiting' || x.s.st === 'accepted';
+const fbaWho = e => esc(String(e || '').split('@')[0]);
+/** The dispatches the tick-all box covers: the ones the table holds that can still be acted on. */
+function fbaTickable(rows) {
+  const held = typeof fbvByArticle === 'function' && fbvByArticle() ? fbvHeld(rows) : rows.slice(0, FBA_LIST_LIMIT);
+  return held.filter(fbaActionable);
+}
+function fbaTickAll(rows) {
+  const can = fbaTickable(rows);
+  const all = can.length > 0 && can.every(x => FBA_PICK.has(fgiRowId(x.r)));
+  return `<input type="checkbox" data-fba-all${all ? ' checked' : ''} title="Tick every row that can still be accepted, shipped or returned">`;
+}
+
+/** The headings of the dispatch table. view: { can, on (switch storeAlloc) }; tick: what heads the tick column. */
+function fbaDispatchCols(view) {
+  const cols = ['Sent', 'SKU', 'Image', 'Item', 'Pieces', 'FBA account', 'Sent by', 'Status', 'Accepted', 'Shipped', 'Returned', ''];
+  if (view.on) cols.splice(cols.indexOf('Pieces') + 1, 0, FBV_LANE_HEAD);
+  return cols;
+}
+function fbaDispatchHead(view, tick) {
+  return '<thead><tr>'
+    + (view.can ? `<th>${tick}</th>` : '')
+    + fbaDispatchCols(view)
+      .map((h, i) => `<th${i === 0 ? ' class="frz"' : (h === 'Pieces' || h === 'Returned' ? ' class="num"' : '')}>${h}</th>`).join('')
+    + '</tr></thead>';
+}
+
+/** One dispatch's line. */
+function fbaDispatchRow({ r, s }, view) {
+  const id = fgiRowId(r), m = fgiMaster(r.sku), [cls, txt] = FBA_PILL[s.st];
+  const pieces = (kind, n) => (view.on ? fbvDispatchFigure(kind, id, n) : nf(n));
+  return '<tr>'
+    + (view.can ? `<td>${fbaActionable({ s }) ? `<input type="checkbox" data-fba-pick="${esc(id)}"${FBA_PICK.has(id) ? ' checked' : ''}>` : ''}</td>` : '')
+    + `<td class="frz">${esc(r.date || String(r.createdAt || '').slice(0, 10))}</td>`
+    + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(obUC(r.sku))}</td>`
+    + ptImgCell(r.sku)
+    + `<td style="text-align:left">${esc([m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}`
+    + (fgiOutParts(r).length ? `<div class="muted" style="font-size:10.5px">for ${esc(fgiOutTxt(fgiOutParts(r)))}</div>`
+      : (r.noOrderWhy ? `<div class="muted" style="font-size:10.5px">no order · ${esc(r.noOrderWhy)}</div>` : '')) + '</td>'
+    + `<td class="num" style="font-weight:700">${pieces('sent', s.qty)}${s.returned && s.st !== 'returned' ? `<div class="muted" style="font-size:10.5px;font-weight:400">${nf(s.open)} open</div>` : ''}</td>`
+    + (view.on ? `<td>${esc(fbvLanesOf(r, view.sales).join(', '))}</td>` : '')
+    + `<td style="text-align:left">${esc(r.issuedFor || '')}${(r.handoverTo || r.reason) ? `<div class="muted" style="font-size:10.5px">${r.handoverTo ? 'handed to ' + esc(r.handoverTo) : esc(r.reason)}</div>` : ''}</td>`
+    + `<td>${fbaWho(r.createdBy)}</td>`
+    + `<td><span class="pill ${cls}">${txt}</span>${fbaStale(r) >= FBA_STALE_DAYS ? `<div style="font-size:10.5px;color:var(--bad)">${nf(fbaStale(r))} days, not shipped</div>` : ''}</td>`
+    + `<td style="font-size:12px">${r.fbaAcceptedAt ? `${fbaWho(r.fbaAcceptedBy)}<div class="muted" style="font-size:10.5px">${esc(String(r.fbaAcceptedAt).slice(0, 10))}</div>` : '<span class="muted">—</span>'}</td>`
+    + `<td style="font-size:12px;text-align:left">${r.fbaShippedAt ? `<b>${esc(r.fbaShipment || '')}</b><div class="muted" style="font-size:10.5px">${esc(r.fbaShipDate || String(r.fbaShippedAt).slice(0, 10))} · ${fbaWho(r.fbaShippedBy)}</div>` : '<span class="muted">—</span>'}</td>`
+    + `<td class="num">${s.returned ? `<span style="font-weight:700;color:var(--bad)">${pieces('returned', s.returned)}</span>` : '<span class="muted">—</span>'}</td>`
+    + `<td style="white-space:nowrap">${view.can ? fbaRowActions(r, s, id) : ''}</td>`
+    + '</tr>';
+}
+/** The buttons of a dispatch's line, by where it stands. */
+function fbaRowActions(r, s, id) {
+  const btn = (attr, id, label, bad) => `<button class="ghost" ${attr}="${esc(id)}" style="padding:2px 9px;font-size:12px${bad ? ';color:var(--bad)' : ''}">${label}</button>`;
+  return s.st === 'waiting'
+    ? btn('data-fba-ok', id, 'Accept') + ' ' + btn('data-fba-ship', id, 'Ship') + ' ' + btn('data-fba-ret', id, 'Return', true)
+    : s.st === 'accepted'
+      ? btn('data-fba-ship', id, 'Ship') + ' ' + btn('data-fba-ret', id, 'Return', true) + ' ' + btn('data-fba-undo', id, 'Undo accept')
+      : s.st === 'shipped' ? (typeof fblRecordGone === 'function' && fblRecordGone(r)
+        ? btn('data-fba-ret', id, 'Return', true) : btn('data-fba-undo', id, 'Undo ship')) : '';
+}
+
+/** The line a table shows when the filters leave nothing. sought: why a search found nothing, or ''. */
+function fbaNothingRow(cols, sought) {
+  const done = $('fbaStatus').value === 'todo' ? ' Everything the store has sent to FBA has been shipped or returned.' : '';
+  return `<tr><td colspan="${cols}" class="muted" style="padding:16px">${sought ? esc(sought) : 'Nothing here.' + done}</td></tr>`;
+}
+/** What every view says after its own count. history: dispatches that came in with the sheet. */
+const fbaNoteEnd = history => (history ? ` · ${nf(history)} older dispatch(es) came in with the Ready Goods sheet and are history, not work` : '')
+  + ' · the store took these pieces out when it sent them; a return puts them back';
+
+/** The table with every dispatch. Answers { note: the line above it, skus: whose pictures it shows }. */
+function fbaDrawDispatches(rows, view) {
+  const shown = rows.slice(0, FBA_LIST_LIMIT);
+  $('fbaTable').innerHTML = fbaDispatchHead(view, view.can ? fbaTickAll(rows) : '') + '<tbody>'
+    + (shown.length ? shown.map(x => fbaDispatchRow(x, view)).join('')
+      : fbaNothingRow(fbaDispatchCols(view).length + (view.can ? 1 : 0), view.sought)) + '</tbody>';
+  const note = `${nf(rows.length)} dispatch(es), newest first`
+    + ` · ${nf(rows.reduce((t, x) => t + x.s.open, 0))} piece(s) not returned`
+    + (rows.length > FBA_LIST_LIMIT ? ` · showing the first ${FBA_LIST_LIMIT}` : '')
+    + fbaNoteEnd(view.history);
+  return { note, skus: shown.map(x => x.r.sku) };
 }
 
 function renderFba() {
   if (typeof fblvRender === 'function') fblvRender();
+  if (typeof fbvToolbar === 'function') fbvToolbar();
   if (FBA.busy || FGI.busy) { $('fbaMsg').className = 'muted'; $('fbaMsg').textContent = 'Reading what the store has sent to FBA…'; ptEmpty('fbaTable', 'Loading…'); return; }
   if (FGI.err) { $('fbaMsg').className = 'err'; $('fbaMsg').textContent = 'Could not read it: ' + FGI.err; ptEmpty('fbaTable', 'Nothing to show.'); $('fbaKpis').innerHTML = ''; return; }
-  const can = fbaCan();
+  const can = fbaCan(), on = typeof fbvOn === 'function' && fbvOn();
   const all = fbaAll().map(r => fbaState(r));
   const sum = (st, f) => all.filter(s => s.st === st).reduce((t, s) => t + f(s), 0);
   const cnt = st => all.filter(s => s.st === st).length;
@@ -68358,46 +68465,13 @@ function renderFba() {
       <div class="metric"><div class="v">${nf(all.filter(s => s.st !== 'sheet').reduce((t, s) => t + s.returned, 0))}</div><div class="l">Returned to the store</div></div>
     </div></div>`;
 
+  if (on) fbvFillBrands();
   const rows = fbaRows();
   FBA.shown = rows;
   const live = new Set(rows.map(x => fgiRowId(x.r)));
   [...FBA_PICK].forEach(id => { if (!live.has(id)) FBA_PICK.delete(id); });
-  const actionable = x => x.s.st === 'waiting' || x.s.st === 'accepted';
-  const shownRows = rows.slice(0, 600);
-  const allTicked = shownRows.some(actionable) && shownRows.filter(actionable).every(x => FBA_PICK.has(fgiRowId(x.r)));
-  const head = '<thead><tr>'
-    + (can ? `<th><input type="checkbox" data-fba-all${allTicked ? ' checked' : ''} title="Tick every row that can still be accepted, shipped or returned"></th>` : '')
-    + ['Sent', 'SKU', 'Image', 'Item', 'Pieces', 'FBA account', 'Sent by', 'Status', 'Accepted', 'Shipped', 'Returned', '']
-      .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 4 || i === 10 ? ' class="num"' : '')}>${h}</th>`).join('')
-    + '</tr></thead>';
-  const who = e => esc(String(e || '').split('@')[0]);
-  const btn = (attr, id, label, bad) => `<button class="ghost" ${attr}="${esc(id)}" style="padding:2px 9px;font-size:12px${bad ? ';color:var(--bad)' : ''}">${label}</button>`;
-  $('fbaTable').innerHTML = head + '<tbody>' + (shownRows.length ? shownRows.map(({ r, s }) => {
-    const id = fgiRowId(r), m = fgiMaster(r.sku), [cls, txt] = FBA_PILL[s.st];
-    return '<tr>'
-      + (can ? `<td>${actionable({ s }) ? `<input type="checkbox" data-fba-pick="${esc(id)}"${FBA_PICK.has(id) ? ' checked' : ''}>` : ''}</td>` : '')
-      + `<td class="frz">${esc(r.date || String(r.createdAt || '').slice(0, 10))}</td>`
-      + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(obUC(r.sku))}</td>`
-      + ptImgCell(r.sku)
-      + `<td style="text-align:left">${esc([m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}`
-      + (fgiOutParts(r).length ? `<div class="muted" style="font-size:10.5px">for ${esc(fgiOutTxt(fgiOutParts(r)))}</div>`
-        : (r.noOrderWhy ? `<div class="muted" style="font-size:10.5px">no order · ${esc(r.noOrderWhy)}</div>` : '')) + '</td>'
-      + `<td class="num" style="font-weight:700">${nf(s.qty)}${s.returned && s.st !== 'returned' ? `<div class="muted" style="font-size:10.5px;font-weight:400">${nf(s.open)} open</div>` : ''}</td>`
-      + `<td style="text-align:left">${esc(r.issuedFor || '')}${(r.handoverTo || r.reason) ? `<div class="muted" style="font-size:10.5px">${r.handoverTo ? 'handed to ' + esc(r.handoverTo) : esc(r.reason)}</div>` : ''}</td>`
-      + `<td>${who(r.createdBy)}</td>`
-      + `<td><span class="pill ${cls}">${txt}</span>${fbaStale(r) >= FBA_STALE_DAYS ? `<div style="font-size:10.5px;color:var(--bad)">${nf(fbaStale(r))} days, not shipped</div>` : ''}</td>`
-      + `<td style="font-size:12px">${r.fbaAcceptedAt ? `${who(r.fbaAcceptedBy)}<div class="muted" style="font-size:10.5px">${esc(String(r.fbaAcceptedAt).slice(0, 10))}</div>` : '<span class="muted">—</span>'}</td>`
-      + `<td style="font-size:12px;text-align:left">${r.fbaShippedAt ? `<b>${esc(r.fbaShipment || '')}</b><div class="muted" style="font-size:10.5px">${esc(r.fbaShipDate || String(r.fbaShippedAt).slice(0, 10))} · ${who(r.fbaShippedBy)}</div>` : '<span class="muted">—</span>'}</td>`
-      + `<td class="num">${s.returned ? `<span style="font-weight:700;color:var(--bad)">${nf(s.returned)}</span>` : '<span class="muted">—</span>'}</td>`
-      + `<td style="white-space:nowrap">${!can ? '' : (s.st === 'waiting'
-          ? btn('data-fba-ok', id, 'Accept') + ' ' + btn('data-fba-ship', id, 'Ship') + ' ' + btn('data-fba-ret', id, 'Return', true)
-          : s.st === 'accepted'
-            ? btn('data-fba-ship', id, 'Ship') + ' ' + btn('data-fba-ret', id, 'Return', true) + ' ' + btn('data-fba-undo', id, 'Undo accept')
-            : s.st === 'shipped' ? (typeof fblRecordGone === 'function' && fblRecordGone(r)
-              ? btn('data-fba-ret', id, 'Return', true) : btn('data-fba-undo', id, 'Undo ship')) : '')}</td>`
-      + '</tr>';
-  }).join('') : `<tr><td colspan="${can ? 13 : 12}" class="muted" style="padding:16px">Nothing here.`
-    + `${$('fbaStatus').value === 'todo' ? ' Everything the store has sent to FBA has been shipped or returned.' : ''}</td></tr>`) + '</tbody>';
+  const view = { can, on, history: sheet, sought: on ? fbvSearchNote($('fbaQ').value, rows) : '', sales: on ? fbvSalesByNo() : null };
+  const drawn = on && fbvByArticle() ? fbvDrawArticles(rows, view) : fbaDrawDispatches(rows, view);
 
   const n = FBA_PICK.size;
   ['fbaAccept', 'fbaShip', 'fbaReturn'].forEach(b => { $(b).classList.toggle('hide', !can); $(b).disabled = !n; });
@@ -68406,13 +68480,10 @@ function renderFba() {
   $('fbaShip').textContent = n ? `Ship ${nf(n)}` : 'Ship ticked';
   $('fbaReturn').textContent = n ? `Return ${nf(n)}` : 'Return ticked';
   $('fbaMsg').className = 'muted';
-  $('fbaMsg').textContent = `${nf(rows.length)} dispatch(es), newest first`
-    + ` · ${nf(rows.reduce((t, x) => t + x.s.open, 0))} piece(s) not returned`
-    + (rows.length > 600 ? ' · showing the first 600' : '')
-    + (sheet ? ` · ${nf(sheet)} older dispatch(es) came in with the Ready Goods sheet and are history, not work` : '')
-    + ' · the store took these pieces out when it sent them; a return puts them back';
+  $('fbaMsg').textContent = (view.sought ? view.sought + ' · ' : '') + drawn.note + (on ? fbvSalesNote() : '');
+  if (on) fbvDrawAges();
   fbaBadge();
-  ptImgFill(shownRows.map(x => x.r.sku), false, ptImgPatch);
+  ptImgFill(drawn.skus, false, ptImgPatch);
 }
 
 /** The dispatches, read again from the database — somebody on the team may have acted on them since. */
@@ -68795,7 +68866,7 @@ $('fbaTable').addEventListener('click', e => {
   if (p) { const id = p.getAttribute('data-fba-pick'); if (p.checked) FBA_PICK.add(id); else FBA_PICK.delete(id); renderFba(); return; }
   const a = e.target.closest('[data-fba-all]');
   if (a) {
-    (FBA.shown || []).slice(0, 600).filter(x => x.s.st === 'waiting' || x.s.st === 'accepted')
+    fbaTickable(FBA.shown || [])
       .forEach(x => { if (a.checked) FBA_PICK.add(fgiRowId(x.r)); else FBA_PICK.delete(fgiRowId(x.r)); });
     renderFba(); return;
   }
@@ -68815,16 +68886,326 @@ $('fbaGo').onclick = () => { FGI.rows = null; ensureFba(); };
 ptDebounce('fbaQ', renderFba);
 $('fbaExport').onclick = () => {
   const rows = FBA.shown || []; if (!rows.length) return;
+  const on = typeof fbvOn === 'function' && fbvOn();
+  if (on && fbvByArticle()) return fbvExport(rows);
+  const sales = on ? fbvSalesByNo() : null;
   ptDownload('fba-dispatch', [['Sent', 'SKU', 'Item', 'Colour', 'Size', 'Pieces', 'Returned', 'Open', 'FBA account', 'Handover to / reason',
-    'Sent by', 'Status', 'Accepted by', 'Accepted at', 'Shipment', 'Ship date', 'Shipped by', 'Id'].map(csvCell).join(',')]
+    'Sent by', 'Status', 'Accepted by', 'Accepted at', 'Shipment', 'Ship date', 'Shipped by', 'Id', ...(on ? [FBV_LANE_HEAD] : [])].map(csvCell).join(',')]
     .concat(rows.map(({ r, s }) => {
       const m = fgiMaster(r.sku);
       return [r.date || '', obUC(r.sku), m.subtype || m.articleType || '', m.color || '', m.size || '', s.qty, s.returned, s.open,
         r.issuedFor || '', r.handoverTo || r.reason || '', r.createdBy || '', FBA_PILL[s.st][1], r.fbaAcceptedBy || '', r.fbaAcceptedAt || '',
-        r.fbaShipment || '', r.fbaShipDate || '', r.fbaShippedBy || '', fgiRowId(r)].map(csvCell).join(',');
+        r.fbaShipment || '', r.fbaShipDate || '', r.fbaShippedBy || '', fgiRowId(r),
+        ...(on ? [fbvLanesOf(r, sales).join(', ')] : [])].map(csvCell).join(',');
     })));
 };
 
+/* ============================== FILE: src/app/inventory/fba-dispatch-view.js ============================== */
+/* ================= FBA DISPATCH: ONE LINE PER ARTICLE =================
+ * Business rule (28 Nov, agreed): FBA Dispatch reads like the India Store. The FBA team sees one line per article, with the
+ * pieces waiting, accepted and not shipped, shipped and returned, most still to do first; a line opens into its dispatches,
+ * with the same columns and buttons as the "Every dispatch" view. Brand and FBA account filters, a search that says why it
+ * found nothing, Air / Sea / AWD on each dispatch, the orders behind a figure, and how long accepted pieces have waited.
+ * Nothing here changes a record.
+ *
+ *   Air / Sea / AWD = the lane of the FBA list that shipped it, else the mode of each order it names (the end of the order
+ *   number, else the sales order). Not known: — (never taken as Air).
+ *   The orders behind a figure = the orders the dispatch names, in the order named; pieces beyond them name no order. A
+ *   return names no order, so the pieces still out are counted for the first orders named and the returned ones for the last.
+ *
+ * WHEN SOMETHING GOES WRONG:
+ *   loud, to the user — a ledger that cannot be read (fba-dispatch.js); sales orders that cannot be read are said on the
+ *   screen's message line, as Air / Sea then comes from the order number alone.
+ *   There is no quiet fallback here.
+ *
+ * BEHIND SWITCH storeAlloc (fg-store-alloc.js). Off: the screen is as it was. */
+const FBV_LANE_HEAD = 'Air / Sea / AWD';
+const FBV_NO_LANE = '—';
+const FBV_NO_ACCOUNT = 'none';   // the account filter's value for a dispatch naming neither account
+const FBV_NO_ORDER = 'No order named';
+/** The figures of an article's line, in column order. */
+const FBV_FIGURES = [['waiting', 'Waiting'], ['accepted', 'Accepted, not shipped'], ['shipped', 'Shipped'], ['returned', 'Returned'],
+  ['sheet', 'From the sheet']];
+/** How long ago accepted pieces were sent, youngest first. */
+const FBV_AGES = [{ key: '0-7', label: '0–7 days', upTo: 7 }, { key: '8-30', label: '8–30 days', upTo: 30 },
+  { key: '31-90', label: '31–90 days', upTo: 90 }, { key: 'over90', label: 'over 90 days', upTo: Infinity }];
+const FBV_AGE_UNKNOWN = { key: 'unknown', label: 'sent date not known' };
+let FBV = { open: new Set(), age: '' };   // the articles opened, and the age picked on the accepted line
+
+const fbvOn = () => typeof fgaOn === 'function' && fgaOn();
+const fbvByArticle = () => fbvOn() && $('fbvView').value !== 'dispatch';
+const fbvSum = (list, of) => list.reduce((n, x) => n + of(x), 0);
+const fbvWhat = m => [m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ');
+
+/* ---- the filters ---- */
+const fbvBrandOf = sku => String(fgiMaster(sku).brand || '').trim();
+const fbvAccountOf = r => FGA_STORE_OF[r.issuedFor] || FBV_NO_ACCOUNT;
+function fbvAgeOf(r) {
+  const sent = pdIso(r.date) || fapDayOf(r);
+  if (!sent) return FBV_AGE_UNKNOWN.key;
+  const days = dDiff(sent, dTodayIndia());
+  return FBV_AGES.find(a => days <= a.upTo).key;
+}
+/** Do the brand, account and age filters keep a dispatch? The picked age counts only while the screen lists accepted ones.
+ *  over: { account, age } to count with in place of the screen's. */
+function fbvKeeps(r, over) {
+  const brand = $('fbvBrand').value;
+  const account = over.account !== undefined ? over.account : $('fbvAccount').value;
+  const age = over.age !== undefined ? over.age : ($('fbaStatus').value === 'accepted' ? FBV.age : '');
+  return (!brand || fbvBrandOf(r.sku) === brand) && (!account || fbvAccountOf(r) === account) && (!age || fbvAgeOf(r) === age);
+}
+function fbvToolbar() {
+  const off = !fbvOn();
+  ['fbvView', 'fbvBrand', 'fbvAccount'].forEach(id => $(id).classList.toggle('hide', off));
+  $('fbvAges').classList.add('hide');   // drawn again once the dispatches are in hand
+}
+function fbvFillBrands() {
+  ptFillSelect('fbvBrand', [...new Set(fbaAll().map(r => fbvBrandOf(r.sku)).filter(Boolean))].sort().map(b => [b, b]), 'All brands');
+}
+
+/* ---- the orders a dispatch names, and its lane ---- */
+const fbvSalesByNo = () => new Map(FGA_SALES.rows.map(o => [obUC(o._id), o]));
+const fbvSalesNote = () => (FGA_SALES.err ? ' · The sales orders could not be read, so Air / Sea comes from the order number alone — press Refresh.' : '');
+/** A dispatch's pieces by the order they name: [{ no, pcs }]; no = '' for the pieces that name none. */
+function fbvParts(r) {
+  let left = fgiNum(r.qty);
+  const parts = fgiOutParts(r).map(p => { const pcs = Math.min(left, p.qty); left -= pcs; return { no: p.orderNo, pcs }; });
+  return parts.concat({ no: '', pcs: left }).filter(p => p.pcs > 0);
+}
+function fbvOrderLane(orderNo, sales) {
+  const mode = soShipMode(sales.get(orderNo) || { _id: orderNo });
+  return FBLV_LANE_NAMES[mode.toLowerCase()] || FBV_NO_LANE;
+}
+/** The lanes of one dispatch, each once. */
+function fbvLanesOf(r, sales) {
+  if (FBLV_LANE_NAMES[r.fbaLane]) return [FBLV_LANE_NAMES[r.fbaLane]];
+  const lanes = fbvParts(r).map(p => fbvOrderLane(p.no, sales));
+  return lanes.length ? [...new Set(lanes)] : [FBV_NO_LANE];
+}
+
+/* ---- the figures ---- */
+/** The pieces of a dispatch that one figure counts, as the tiles count them. 'sent' is all it was sent with. */
+function fbvPiecesOf({ s }, figure) {
+  if (figure === 'sent') return s.qty;
+  if (figure === 'returned') return s.st === 'sheet' ? 0 : s.returned;
+  return s.st === figure ? s.open : 0;
+}
+/** The dispatches added up by article, most pieces still to do first. */
+function fbvArticles(rows) {
+  const bySku = new Map();
+  rows.forEach(x => { const sku = obUC(x.r.sku); if (!bySku.has(sku)) bySku.set(sku, []); bySku.get(sku).push(x); });
+  const todo = a => a.waiting + a.accepted;
+  return [...bySku].map(([sku, items]) => Object.assign({ sku, items },
+    Object.fromEntries(FBV_FIGURES.map(([k]) => [k, fbvSum(items, x => fbvPiecesOf(x, k))]))))
+    .sort((a, b) => todo(b) - todo(a) || a.sku.localeCompare(b.sku));
+}
+/** The dispatches of one article its opened line holds. */
+const fbvInside = article => article.items.slice(0, FBA_LIST_LIMIT);
+/** The dispatches the article table holds, opened or not. */
+const fbvHeld = rows => fbvArticles(rows).slice(0, FBA_LIST_LIMIT).flatMap(fbvInside);
+function fbvArticleLanes(article, sales) {
+  const found = new Set(article.items.flatMap(x => fbvLanesOf(x.r, sales)));
+  return Object.values(FBLV_LANE_NAMES).concat(FBV_NO_LANE).filter(lane => found.has(lane));
+}
+/** The figure columns shown: the sheet's history only when the list holds some. */
+const fbvColumns = articles => FBV_FIGURES.filter(([k]) => k !== 'sheet' || articles.some(a => a.sheet));
+
+/* ---- the article table ---- */
+/** A figure that opens the orders behind it. of: the data attribute saying whose it is. */
+const fbvFigureButton = (figure, of, pieces) => `<button class="ghost" data-fbv-fig="${figure}" ${of} title="See the orders these pieces are for"`
+  + ` style="width:auto;padding:1px 7px;font-size:inherit;font-weight:inherit;color:inherit;text-decoration:underline">${nf(pieces)}</button>`;
+const fbvDispatchFigure = (figure, id, pieces) => (pieces ? fbvFigureButton(figure, `data-fbv-id="${esc(id)}"`, pieces) : nf(pieces));
+function fbvTickBox(article) {
+  const can = fbvInside(article).filter(fbaActionable);
+  if (!can.length) return '';
+  const ticked = can.filter(x => FBA_PICK.has(fgiRowId(x.r))).length;
+  return `<input type="checkbox" data-fbv-pick="${esc(article.sku)}"${ticked === can.length ? ' checked' : ''}`
+    + ` aria-label="Tick every dispatch of ${esc(article.sku)} that can still be acted on">`
+    + (ticked && ticked < can.length ? `<div class="muted" style="font-size:10.5px">${nf(ticked)} of ${nf(can.length)}</div>` : '');
+}
+function fbvInsideRow(article, view, span) {
+  const shown = fbvInside(article);
+  return `<tr><td colspan="${span}" style="text-align:left;padding:6px 10px 12px 34px"><table class="xl fbv-sub">`
+    + fbaDispatchHead(view, '') + '<tbody>' + shown.map(x => fbaDispatchRow(x, view)).join('') + '</tbody></table>'
+    + (article.items.length > shown.length ? `<div class="muted">Showing the first ${FBA_LIST_LIMIT} dispatches · Export in Every dispatch covers all of them</div>` : '')
+    + '</td></tr>';
+}
+function fbvArticleRow(article, view, columns) {
+  const { sku } = article, m = fgiMaster(sku), open = FBV.open.has(sku);
+  const text = v => `<td style="text-align:left">${esc(v || '')}</td>`;
+  const row = '<tr>'
+    + (view.can ? `<td>${fbvTickBox(article)}</td>` : '')
+    + `<td class="frz" style="text-align:left"><button class="ghost" data-fbv-open="${esc(sku)}" aria-expanded="${open}" title="Show or hide its dispatches"`
+    + ` style="font-family:ui-monospace,monospace;padding:2px 7px;font-size:12.5px">${open ? '▾' : '▸'} ${esc(sku)}</button></td>`
+    + ptImgCell(sku)
+    + text(m.brand)
+    + `<td style="text-align:left">${esc(m.subtype || m.articleType || '') || '<span class="muted">not in the master DB</span>'}</td>`
+    + text(m.color) + text(m.size)
+    + columns.map(([k]) => `<td class="num">${article[k] ? fbvFigureButton(k, `data-fbv-sku="${esc(sku)}"`, article[k]) : '<span class="muted">—</span>'}</td>`).join('')
+    + `<td>${esc(fbvArticleLanes(article, view.sales).join(', '))}</td></tr>`;
+  return open ? row + fbvInsideRow(article, view, fbvSpan(view, columns)) : row;
+}
+const FBV_NAME_COLS = ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size'];
+const fbvSpan = (view, columns) => (view.can ? 1 : 0) + FBV_NAME_COLS.length + columns.length + 1;
+function fbvHead(view, columns, tick) {
+  return '<thead><tr>' + (view.can ? `<th>${tick}</th>` : '')
+    + FBV_NAME_COLS.map((h, i) => `<th${i === 0 ? ' class="frz"' : ''}>${h}</th>`).join('')
+    + columns.map(([, label]) => `<th class="num">${label}</th>`).join('') + `<th>${FBV_LANE_HEAD}</th></tr></thead>`;
+}
+/** The totals of every article listed, those beyond the first lines too. */
+function fbvTotals(articles, view, columns) {
+  return '<tfoot><tr>' + (view.can ? '<td></td>' : '') + '<td class="frz" style="text-align:left">Total</td>'
+    + `<td colspan="${FBV_NAME_COLS.length - 1}" style="text-align:left">${nf(articles.length)} article(s)</td>`
+    + columns.map(([k]) => `<td class="num">${nf(fbvSum(articles, a => a[k]))}</td>`).join('') + '<td></td></tr></tfoot>';
+}
+/** The table with a line per article. Answers { note: the line above it, skus: whose pictures it shows }. */
+function fbvDrawArticles(rows, view) {
+  const articles = fbvArticles(rows), shown = articles.slice(0, FBA_LIST_LIMIT), columns = fbvColumns(articles);
+  $('fbaTable').innerHTML = fbvHead(view, columns, view.can ? fbaTickAll(rows) : '') + '<tbody>'
+    + (shown.length ? shown.map(a => fbvArticleRow(a, view, columns)).join('') : fbaNothingRow(fbvSpan(view, columns), view.sought))
+    + '</tbody>' + (shown.length ? fbvTotals(articles, view, columns) : '');
+  const note = `${nf(articles.length)} article(s), most pieces to do first · ${nf(rows.length)} dispatch(es)`
+    + ` · ${nf(fbvSum(rows, x => x.s.open))} piece(s) not returned`
+    + (articles.length > FBA_LIST_LIMIT ? ` · showing the first ${FBA_LIST_LIMIT} articles · Export covers all of them` : '')
+    + fbaNoteEnd(view.history);
+  return { note, skus: shown.map(a => a.sku) };
+}
+function fbvExport(rows) {
+  const articles = fbvArticles(rows), columns = fbvColumns(articles), sales = fbvSalesByNo();
+  const head = ['SKU', 'Brand', 'Item', 'Colour', 'Size', ...columns.map(c => c[1]), FBV_LANE_HEAD];
+  ptDownload('fba-dispatch-by-article', [head].concat(articles.map(a => {
+    const m = fgiMaster(a.sku);
+    return [a.sku, m.brand || '', m.subtype || m.articleType || '', m.color || '', m.size || '', ...columns.map(([k]) => a[k]),
+      fbvArticleLanes(a, sales).join(', ')];
+  })).map(line => line.map(csvCell).join(',')));
+}
+
+/* ---- the orders behind a figure ---- */
+/** Which of a dispatch's pieces a figure counts, by order: returned ones are the last named, all others the first. */
+function fbvFigureParts(x, figure) {
+  let skip = figure === 'returned' ? x.s.open : 0, take = fbvPiecesOf(x, figure);
+  return fbvParts(x.r).map(p => {
+    const passed = Math.min(skip, p.pcs), pcs = Math.min(take, p.pcs - passed);
+    skip -= passed; take -= pcs;
+    return { no: p.no, pcs };
+  }).filter(p => p.pcs > 0);
+}
+/** The orders behind a figure of these dispatches: [{ no, channel, on, pcs }], oldest order first, no order last. */
+function fbvOrders(items, figure) {
+  const pieces = new Map();
+  items.flatMap(x => fbvFigureParts(x, figure)).forEach(p => pieces.set(p.no, (pieces.get(p.no) || 0) + p.pcs));
+  const days = new Map([...fbvSalesByNo()].map(([no, o]) => [no, pdIso(o.orderDate)]));
+  ordLines().forEach(l => { if (pieces.has(l.orderNo)) days.set(l.orderNo, pdIso(l.orderDate)); });
+  const rank = o => (o.no ? o.on || '9999' : '99999');
+  return [...pieces].map(([no, pcs]) => ({ no, pcs, on: days.get(no) || '',
+    channel: no ? ORD_PLAT_SRC[no.split('-')[0]] || 'Other' : '' }))
+    .sort((a, b) => rank(a).localeCompare(rank(b)) || a.no.localeCompare(b.no));
+}
+function fbvOrderRow(o) {
+  const cell = v => `<td style="text-align:left;white-space:nowrap">${esc(v || '—')}</td>`;
+  return '<tr>' + cell(o.no || FBV_NO_ORDER) + cell(o.channel) + cell(fgiDmy(o.on)) + `<td class="num">${nf(o.pcs)}</td></tr>`;
+}
+/** The read-only box a figure opens, from the dispatches the screen is showing. whose: { sku } or { id }. */
+function fbvOrdersOpen(figure, whose) {
+  const items = (FBA.shown || []).filter(x => (whose.id ? fgiRowId(x.r) === whose.id : obUC(x.r.sku) === whose.sku))
+    .filter(x => fbvPiecesOf(x, figure) > 0);
+  if (!items.length) return;
+  const sku = obUC(items[0].r.sku), found = FBV_FIGURES.find(f => f[0] === figure);
+  ptOpenDialog({
+    title: found ? `Orders for the pieces: ${found[1]}` : 'Orders for the pieces sent',
+    subtitle: [sku, fbvWhat(fgiMaster(sku))].filter(Boolean).join(' · '),
+    note: `${nf(fbvSum(items, x => fbvPiecesOf(x, figure)))} piece(s) in ${nf(items.length)} dispatch(es).`
+      + (items.some(x => x.s.returned) ? ' A return names no order, so returned pieces are counted for the last orders a dispatch names.' : ''),
+    wide: true,
+    html: fgaOrdersTable(['Pieces'], fbvOrders(items, figure).map(fbvOrderRow)),
+  });
+}
+
+/* ---- a search that finds nothing ---- */
+/** Why a search does not list what was typed, or ''. A whole SKU code is judged first. rows: the dispatches listed. */
+function fbvSearchNote(typed, rows) {
+  const text = typed.trim(), code = obUC(text);
+  if (!code || rows.some(x => obUC(x.r.sku) === code)) return '';
+  if (fbaAll().some(r => obUC(r.sku) === code)) return `SKU ${code} is in FBA Dispatch but hidden by the filters.`;
+  if (mdbOf(code)) return `SKU ${code} is not in FBA Dispatch.`;
+  return rows.length ? '' : fbvNoMatchNote(text);
+}
+/** Why a search that is no SKU's code lists nothing. "Does not exist" is said only when the Master Database was read. */
+function fbvNoMatchNote(text) {
+  const q = text.toLowerCase(), master = PTG.mdb || [];
+  if (fbaAll().some(r => fbaMatches(r, q))) return 'Matching dispatches are in FBA Dispatch but hidden by the filters.';
+  if (master.some(m => fgiMatches(m, q))) return 'Matching products are not in FBA Dispatch.';
+  if (!master.length) return `"${text}" could not be checked — the Master Database was not read. Press Refresh to try again.`;
+  if (/^FBA[0-9A-Z]{6,}$/i.test(text)) return `No dispatch carries the shipment id ${obUC(text)}.`;
+  /* Words are not a SKU code, so they are not called a missing SKU: a code has no space and holds a digit or a dash. */
+  return /^\S*[\d-]\S*$/.test(text) ? `SKU ${obUC(text)} does not exist.` : `Nothing in the Master Database matches "${text}".`;
+}
+
+/* ---- accepted and not shipped: how long, and whose ---- */
+function fbvChip(attr, key, label, pieces, picked) {
+  return `<button class="ghost" ${attr}="${esc(key)}" aria-pressed="${picked}" style="width:auto;padding:2px 10px;margin:0 6px 4px 0;font-size:12px`
+    + `${picked ? ';background:var(--accent-bg);color:var(--accent);font-weight:700' : ''}">${esc(label)}: <b>${nf(pieces)}</b></button>`;
+}
+function fbvAgeChips(rows, status) {
+  return FBV_AGES.concat(FBV_AGE_UNKNOWN).map(a => {
+    const pieces = fbvSum(rows.filter(x => fbvAgeOf(x.r) === a.key), x => x.s.open), picked = status === 'accepted' && FBV.age === a.key;
+    return pieces || picked || a !== FBV_AGE_UNKNOWN ? fbvChip('data-fbv-age', a.key, a.label, pieces, picked) : '';
+  }).join('');
+}
+function fbvAccountChips(rows, status) {
+  return Object.values(FGA_STORE_OF).map(s => [s, s]).concat([[FBV_NO_ACCOUNT, 'not named']]).map(([key, label]) => {
+    const pieces = fbvSum(rows.filter(x => fbvAccountOf(x.r) === key), x => x.s.open);
+    const picked = status === 'accepted' && $('fbvAccount').value === key;
+    return pieces || picked || key !== FBV_NO_ACCOUNT ? fbvChip('data-fbv-acct', key, label, pieces, picked) : '';
+  }).join('');
+}
+/** Each count follows the search, brand and dates, and the other pick, so a press lists exactly the pieces it says. */
+function fbvDrawAges() {
+  const byAge = fbaRows({ status: 'accepted', age: '' }), byAccount = fbaRows({ status: 'accepted', account: '' });
+  const status = $('fbaStatus').value;
+  $('fbvAges').classList.toggle('hide', !byAge.length && !byAccount.length);
+  $('fbvAges').innerHTML = '<b>Accepted, not shipped</b> <span class="muted">— press a figure to list those pieces, then Export or Ship them. Pressing changes nothing.</span>'
+    + `<div style="margin-top:6px"><span class="muted">Days since sent </span>${fbvAgeChips(byAge, status)}</div>`
+    + `<div><span class="muted">FBA account </span>${fbvAccountChips(byAccount, status)}</div>`;
+}
+/** A press on the accepted line: list those pieces, or take the pick off again. */
+function fbvAgesClick(e) {
+  const age = e.target.closest('[data-fbv-age]'), account = e.target.closest('[data-fbv-acct]');
+  if (!age && !account) return;
+  const accepted = $('fbaStatus').value === 'accepted';
+  if (age) {
+    const key = age.getAttribute('data-fbv-age');
+    FBV.age = accepted && FBV.age === key ? '' : key;
+  } else {
+    const key = account.getAttribute('data-fbv-acct');
+    $('fbvAccount').value = accepted && $('fbvAccount').value === key ? '' : key;
+    if (!accepted) FBV.age = '';
+  }
+  $('fbaStatus').value = 'accepted';
+  renderFba();
+}
+
+/* ---- presses on the table ---- */
+function fbvTickArticle(sku, on) {
+  const article = fbvArticles(FBA.shown || []).find(a => a.sku === sku);
+  if (!article) return;
+  fbvInside(article).filter(fbaActionable).forEach(x => { if (on) FBA_PICK.add(fgiRowId(x.r)); else FBA_PICK.delete(fgiRowId(x.r)); });
+}
+function fbvTableClick(e) {
+  const open = e.target.closest('[data-fbv-open]');
+  if (open) {
+    const sku = open.getAttribute('data-fbv-open');
+    if (!FBV.open.delete(sku)) FBV.open.add(sku);
+    return renderFba();
+  }
+  const pick = e.target.closest('[data-fbv-pick]');
+  if (pick) { fbvTickArticle(pick.getAttribute('data-fbv-pick'), pick.checked); return renderFba(); }
+  const fig = e.target.closest('[data-fbv-fig]');
+  if (fig) fbvOrdersOpen(fig.getAttribute('data-fbv-fig'), { sku: fig.getAttribute('data-fbv-sku'), id: fig.getAttribute('data-fbv-id') });
+}
+$('fbaTable').addEventListener('click', fbvTableClick);
+$('fbvAges').addEventListener('click', fbvAgesClick);
+['fbvView', 'fbvBrand', 'fbvAccount'].forEach(id => $(id).addEventListener('change', renderFba));
 
 /* ####################################################################################################
  * GROUP: src/app/orders/

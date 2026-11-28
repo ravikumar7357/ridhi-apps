@@ -703,6 +703,8 @@
   table.xl tbody tr:hover td.frz,table.xl tbody tr:hover td.frz2{background:var(--soft)}
   table.xl tfoot td{position:sticky;bottom:0;z-index:5;background:var(--soft);font-weight:800}
   table.xl tfoot td.frz{z-index:7}
+  /* FBA Dispatch by article: an opened article's dispatches are a table of their own, whose headings do not float. */
+  table.xl table.fbv-sub thead th,table.xl table.fbv-sub .frz{position:static}
   /* line-height, so a pill beside a figure does not push its own row taller than its neighbours. */
   .pill{display:inline-block;padding:3px 11px;border-radius:var(--r-pill);font-size:11.5px;font-weight:700;line-height:17px;vertical-align:1px}
   .pill-air{background:#E7EBFC;color:#3D47B8}

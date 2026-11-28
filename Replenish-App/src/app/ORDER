@@ -132,6 +132,7 @@ inventory/fg-receive-excel.js
 inventory/fg-change-remove.js
 inventory/fba-dispatch.js
 inventory/fba-ship-excel.js
+inventory/fba-dispatch-view.js
 orders/delete-requests.js
 inventory/amazon-listing-status.js
 inventory/fg-entry-access.js
