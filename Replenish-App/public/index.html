@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 205 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 206 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -2681,6 +2681,50 @@ button.fbr-sku{padding:0;min-height:0;border:0;background:none;box-shadow:none;t
   #paneFba.fbr-on .toolbar>select,#paneFba.fbr-on .toolbar>input{flex:1 1 100%!important}
   .fbr-more-body{right:0;left:auto}
 }
+
+/* Finished Goods, the new page (fg-tabs.js, switch fgTabs): tabs by job, store tiles, the article panel (a full sheet on a phone). */
+#paneFgi .fgt-off{display:none!important}
+.fgt-switch{display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px}
+.fgt-switch button{height:30px;padding:0 12px;font-size:12.5px}
+.fgt-switch button.on,.fgt-views button.on{background:var(--brand-bg);color:var(--brand-ink);font-weight:700}
+.fgt-tabs{display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.fgt-tab{height:auto;padding:9px 16px;background:none;border:0;border-bottom:3px solid transparent;border-radius:0;box-shadow:none;color:var(--muted);font-weight:600;font-size:14px;width:auto}
+.fgt-tab:hover{background:var(--hover);color:var(--ink)}
+.fgt-tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.fgt-count{display:inline-block;min-width:18px;margin-left:4px;padding:0 6px;border-radius:9px;background:var(--bad);color:#fff;font-size:11px;line-height:18px}
+.fgt-views{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+#paneFgi.fgt-on .toolbar>#fgBrand{flex:0 0 150px;width:auto!important}
+html:not(.mob) #paneFgi.fgt-on .toolbar>#fgQ{order:-2}
+html:not(.mob) #paneFgi.fgt-on .toolbar>:is(#fgBrand,#fgaView){order:-1}
+.fgt-tiles{display:flex;flex-wrap:wrap;gap:14px 40px;margin-top:14px}
+.fgt-tiles .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.fgt-tiles .l{font-size:12px;color:var(--muted)}
+.fgt-sku{font-family:ui-monospace,monospace;font-size:12.5px;padding:2px 7px}
+.fgt-art{display:block;height:auto;width:auto;padding:0;background:none;border:0;box-shadow:none;color:var(--ink);font-weight:600;text-align:left;line-height:1.35}
+.fgt-art:hover{background:none;color:var(--brand-ink);text-decoration:underline}
+.fgt-art span{display:block;font-weight:400;font-size:11.5px}
+#paneFgi tr.fgt-sel td{background:var(--brand-bg)}
+.fgt-panel{margin-top:12px;padding:14px;font-size:13px}
+.fgt-panel h4{margin:14px 0 6px}
+.fgt-p-head{display:flex;justify-content:space-between;align-items:center;gap:10px;font-family:ui-monospace,monospace;font-size:15px}
+.fgt-p-art{display:flex;gap:10px;align-items:center;margin-top:8px}
+.fgt-p-figs{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;color:var(--muted)}
+.fgt-p-figs b{color:var(--ink)}
+.fgt-panel table.fgt-moves{width:100%}
+.fgt-tag{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.fgt-p-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+@media (min-width:761px){
+  html:not(.mob) #paneFgi.fgt-on .fgt-split{display:flex;align-items:flex-start;gap:12px}
+  html:not(.mob) #paneFgi.fgt-on .fgt-split>.xlwrap{flex:1 1 0;min-width:0}
+  html:not(.mob) #paneFgi.fgt-on .fgt-panel{flex:0 0 320px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+}
+@media (max-width:760px){
+  #paneFgi .fgt-panel{position:fixed;inset:0;z-index:940;margin:0;border-radius:0;overflow:auto}
+}
+html.mob #paneFgi .fgt-panel{position:fixed;inset:0;z-index:940;margin:0;border-radius:0;overflow:auto;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+html.mob .fgt-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+html.mob .fgt-tab{flex:0 0 auto;min-height:44px}
+html.mob .fgt-p-acts button,html.mob .fgt-views button{flex:1 1 calc(50% - 8px);min-height:44px}
 /* ================= THE GUIDE CHARACTER (guide.js, 2026-10-21) =================
    Above everything, the scanner included (9999): the dim, the lit box, the arrow, Master ji and his bubble. */
 #gdRoot{position:fixed;inset:0;z-index:10050;pointer-events:none}
@@ -3823,7 +3867,14 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
 
     <!-- ============ FINISHED GOODS ============ -->
     <div id="paneFgi" class="hide">
+      <!-- The new page (switch fgTabs, inventory/fg-tabs.js). All of these stay hidden on the old page. -->
+      <div id="fgtSwitch" class="fgt-switch hide" role="group" aria-label="Which Finished Goods page">
+        <button type="button" class="ghost" data-fgtpage="0">Old page</button>
+        <button type="button" class="ghost" data-fgtpage="1">New page</button>
+      </div>
+      <div id="fgtBar" class="fgt-tabs hide" role="tablist" aria-label="Finished Goods jobs"></div>
       <div class="card" style="padding:12px 14px">
+        <div id="fgtViews" class="fgt-views hide"></div>
         <div class="toolbar">
           <select id="fgView" style="flex:0 0 210px">
             <option value="stock">India Store</option>
@@ -3888,8 +3939,12 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
         </div>
         <div id="fgMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
         <div id="fgKpis" class="kpis" style="margin-top:10px"></div>
+        <div id="fgtTiles" class="fgt-tiles hide"></div>
       </div>
-      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="fgTable"></table></div>
+      <div class="fgt-split">
+        <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="fgTable"></table></div>
+        <aside id="fgtPanel" class="card fgt-panel hide" aria-label="Article"></aside>
+      </div>
     </div>
 
     <!-- ============ PRINTER ALLOCATION ============ -->
@@ -63190,6 +63245,8 @@ const fgiPressLeft = r => Math.max(0, (parseInt(r.pieces, 10) || 0) - fgiNum(r.t
 const fgiPending = () => (FGI.rows || []).filter(r => r && r.txnType === 'TRANSFER_IN' && r.confirmed !== true && r.reversed !== true);
 
 function renderFgi() {
+  /* The new page (switch fgTabs, fg-tabs.js) follows every redraw, a read in progress or failed included. */
+  if ((FGI.busy || FGI.err) && typeof fgtSync === 'function') fgtSync();
   if (FGI.busy) { $('fgMsg').className = 'muted'; $('fgMsg').textContent = 'Reading the finished-goods ledger…'; ptEmpty('fgTable', 'Loading…'); return; }
   if (FGI.err) { $('fgMsg').className = 'err'; $('fgMsg').textContent = 'Could not read it: ' + FGI.err + (typeof lineHoldOn === 'function' && lineHoldOn() ? ' Press Refresh to try again.' : ''); ptEmpty('fgTable', 'Nothing to show.'); $('fgKpis').innerHTML = ''; return; }
 
@@ -63233,6 +63290,7 @@ function renderFgi() {
   if (typeof fapOfferView === 'function') { fapOfferView(); fapDrawBadge(); }
   if (typeof fgaTrimViews === 'function') fgaTrimViews();
   const view = $('fgView').value;
+  if (typeof fgtSync === 'function') fgtSync(stock);
   ['fgD1', 'fgD2'].forEach(i => $(i).classList.toggle('hide', view !== 'ledger'));
   ['fgBrand', 'fgTag', 'fgAmz'].forEach(i => $(i).classList.toggle('hide', view !== 'stock'));
   // Status also narrows Every movement: the movements of the SKUs that are in stock, low or out now.
@@ -63315,6 +63373,70 @@ function fgiStockNote(rows, onlyStock, alloc) {
 /** Does a stock row, or a Master Database row, carry the searched text (in lower case)? */
 const fgiMatches = (r, q) => [r.sku, r.articleType, r.subtype, r.color, r.size, r.remark].join(' ').toLowerCase().includes(q);
 
+/** The headings of the stock list, after the cell that heads the tick column (when there is one). */
+const fgiStockHead = (labels, lead = '') => '<thead><tr>' + lead
+  + labels.map((h, i) => `<th${i === 0 ? ' class="frz"' : (FGI_NUM_COLS.includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
+
+/** Put the stock list on the screen: a table on a computer, a card per SKU on a phone, the first 600 either way.
+ *  list: { head, row, card, sought } — sought is what a search that found nothing says. */
+function fgiDrawRows(rows, list) {
+  /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
+  const phone = typeof mobOn === 'function' && mobOn();
+  if ($('fgTable').classList) $('fgTable').classList.toggle('fg-cards', phone);
+  const shown = rows.slice(0, 600);
+  if (!phone) $('fgTable').innerHTML = list.head + '<tbody>' + shown.map(list.row).join('') + '</tbody>';
+  else $('fgTable').innerHTML = '<tbody>' + (rows.length ? shown.map(list.card).join('')
+    : `<tr><td class="muted" style="padding:14px">${list.sought ? esc(list.sought) : 'No SKU matches these filters.'}</td></tr>`) + '</tbody>';
+}
+
+/** A card without its buttons: what leads it (a tick box or a blank), the picture, the SKU as a button, what it is and
+ *  its figures. opens: { attr, title } — what pressing the SKU does. */
+function fgiCardTop(r, lead, opens) {
+  const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
+  const st = lstOf(r.sku);
+  const holds = typeof shpHoldOn === 'function' && shpHoldOn();
+  const alloc = typeof fgaOn === 'function' && fgaOn();
+  return lead
+    + `<div class="fg-mc-img" data-img="${esc(obUC(r.sku))}" data-imgpx="64">${ptImgInner(r.sku, 64)}</div>`
+    + '<div class="fg-mc-main">'
+      + `<button class="ghost fg-mc-sku" ${opens.attr}="${esc(r.sku)}" title="${opens.title}">${esc(r.sku)}</button>`
+      + `<div class="fg-mc-what">${esc([r.subtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}</div>`
+      + `<div class="fg-mc-tags">${st.st === 'unknown' ? '' : `<span class="pill ${LST_PILL[st.st][0]}">${LST_PILL[st.st][1]}</span>`}`
+        + (r.brand ? `<span class="muted">${esc(r.brand)}</span>` : '')
+        + (r.remark ? `<span class="pill">${esc(r.remark)}</span>` : '')
+        + (r.pending > 0 ? `<span class="pill pill-low">${nf(r.pending)} from press</span>` : '') + '</div>'
+    + '</div>'
+    + `<div class="fg-mc-qty" style="color:${tone}">${nf(alloc ? Math.max(0, r.current) : r.current)}<small>in stock</small></div>`
+    + (alloc ? `<div class="fg-mc-figs">${fgaCardFigs(r)}</div>` : `<div class="fg-mc-figs"><span>In <b>${nf(r.opening + r.received)}</b></span><span>Out <b>${nf(r.issued)}</b></span>`
+      + `<span>FBA <b>${nf(r.fba)}</b></span>${holds ? `<span>Shopify held <b>${fgiHeldCell(r.sku)}</b></span>` : ''}${r.value === null ? '' : `<span>₹ <b>${nf(Math.round(r.value))}</b></span>`}</div>`);
+}
+
+/** The stock list with its ticks and the buttons on every row. alloc: stock is shared (switch storeAlloc). */
+function fgiDrawList(rows, alloc, sought) {
+  const canEd = fgiCanEdit();
+  const canTick = canEd || (typeof fblOn === 'function' && fblOn() && fbaCan());   // the FBA team ticks SKUs for a list, without Edit or Delete
+  const holds = typeof shpHoldOn === 'function' && shpHoldOn();
+  const shownSkus = rows.slice(0, 600).map(r => r.sku);
+  const allOn = canTick && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
+  const head = fgiStockHead(['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['FBA Packed', 'In Stock', ...FGA_SHARES.map(s => s[1])] : ['Opening', 'Received',
+    'Issued', 'To FBA', 'In stock', ...(holds ? ['Shopify held'] : []), 'Amazon', 'Tag', 'Rate', 'Value']), ''],
+    canTick ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '');
+  const row = r => '<tr>'
+    + (canTick ? `<td><input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''}></td>` : '')
+    + `<td class="frz" style="text-align:left"><button class="ghost" data-fgmoves="${esc(r.sku)}" title="Every movement of this SKU"
+        style="font-family:ui-monospace,monospace;padding:2px 7px;font-size:12.5px">${esc(r.sku)}</button></td>`
+    + ptImgCell(r.sku)
+    + `<td>${esc(r.brand)}</td>`
+    + `<td>${esc(r.subtype || r.articleType) || '<span class="muted">not in the master DB</span>'}</td>`
+    + `<td>${esc(r.color)}</td><td>${esc(r.size)}</td>`
+    + (alloc ? fgaCells(r) : fgiMovementCells(r, holds))
+    + `<td style="white-space:nowrap">${holds && fgiMayRelease(r.sku, r.alloc) ? `<button class="ghost" data-fgrel="${esc(r.sku)}" style="padding:3px 9px;font-size:12px">Release held pieces</button> ` : ''}${fgiCanEntry() ? `<button class="ghost" data-fgentry="${esc(r.sku)}" style="padding:3px 9px;font-size:12px">Entry</button>` : ''}${canEd
+      ? ` <button class="ghost" data-fgskued="${esc(r.sku)}" style="padding:3px 9px;font-size:12px" title="Correct the count, re-order level and tag">Edit</button>`
+        + ` <button class="ghost" data-fgskudel="${esc(r.sku)}" style="padding:3px 9px;font-size:12px;color:var(--bad)" title="Delete every movement of this SKU">Delete</button>` : ''}</td>`
+    + '</tr>';
+  fgiDrawRows(rows, { head, row, card: r => fgiCard(r, canEd, canTick), sought });
+}
+
 function fgiRenderStock(stock) {
   const q = $('fgQ').value.trim().toLowerCase();
   /* Switch storeAlloc (27 Nov): the list shows who each SKU's stock is for, in place of its movement and value columns, and
@@ -63355,32 +63477,8 @@ function fgiRenderStock(stock) {
   ptFillSelect('fgBrand', [...new Set([...stock.values()].map(b => String(fgiMaster(b.sku).brand || '').trim()).filter(Boolean))]
     .sort().map(b => [b, b]), 'All brands');
 
-  const canEd = fgiCanEdit();
-  const canTick = canEd || (typeof fblOn === 'function' && fblOn() && fbaCan());   // the FBA team ticks SKUs for a list, without Edit or Delete
-  const holds = typeof shpHoldOn === 'function' && shpHoldOn();
-  const shownSkus = rows.slice(0, 600).map(r => r.sku);
-  const allOn = canTick && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
-  const head = '<thead><tr>' + (canTick ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
-    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['FBA Packed', 'In Stock', ...FGA_SHARES.map(s => s[1])] : ['Opening', 'Received',
-    'Issued', 'To FBA', 'In stock', ...(holds ? ['Shopify held'] : []), 'Amazon', 'Tag', 'Rate', 'Value']), '']
-    .map((h, i) => `<th${i === 0 ? ' class="frz"' : (FGI_NUM_COLS.includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
-  /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
-  if ($('fgTable').classList) $('fgTable').classList.toggle('fg-cards', (typeof mobOn === 'function' && mobOn()));
-  if ((typeof mobOn === 'function' && mobOn())) $('fgTable').innerHTML = '<tbody>' + (rows.length ? rows.slice(0, 600).map(r => fgiCard(r, canEd, canTick)).join('')
-    : `<tr><td class="muted" style="padding:14px">${sought ? esc(sought) : 'No SKU matches these filters.'}</td></tr>`) + '</tbody>';
-  else $('fgTable').innerHTML = head + '<tbody>' + rows.slice(0, 600).map(r => '<tr>'
-    + (canTick ? `<td><input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''}></td>` : '')
-    + `<td class="frz" style="text-align:left"><button class="ghost" data-fgmoves="${esc(r.sku)}" title="Every movement of this SKU"
-        style="font-family:ui-monospace,monospace;padding:2px 7px;font-size:12.5px">${esc(r.sku)}</button></td>`
-    + ptImgCell(r.sku)
-    + `<td>${esc(r.brand)}</td>`
-    + `<td>${esc(r.subtype || r.articleType) || '<span class="muted">not in the master DB</span>'}</td>`
-    + `<td>${esc(r.color)}</td><td>${esc(r.size)}</td>`
-    + (alloc ? fgaCells(r) : fgiMovementCells(r, holds))
-    + `<td style="white-space:nowrap">${holds && fgiMayRelease(r.sku, r.alloc) ? `<button class="ghost" data-fgrel="${esc(r.sku)}" style="padding:3px 9px;font-size:12px">Release held pieces</button> ` : ''}${fgiCanEntry() ? `<button class="ghost" data-fgentry="${esc(r.sku)}" style="padding:3px 9px;font-size:12px">Entry</button>` : ''}${canEd
-      ? ` <button class="ghost" data-fgskued="${esc(r.sku)}" style="padding:3px 9px;font-size:12px" title="Correct the count, re-order level and tag">Edit</button>`
-        + ` <button class="ghost" data-fgskudel="${esc(r.sku)}" style="padding:3px 9px;font-size:12px;color:var(--bad)" title="Delete every movement of this SKU">Delete</button>` : ''}</td>`
-    + '</tr>').join('') + '</tbody>';
+  if (typeof fgtStockTab === 'function' && fgtStockTab()) fgtDrawList(rows, sought);
+  else fgiDrawList(rows, alloc, sought);
   fgiStockNote(rows, onlyStock, alloc);
   if (sought) $('fgMsg').textContent = sought + ' · ' + $('fgMsg').textContent;
   ptImgFill(rows.slice(0, 600).map(r => r.sku), false, ptImgPatch);
@@ -63392,25 +63490,10 @@ function fgiRenderStock(stock) {
  * own, so the one click handler on #fgTable answers both.
  */
 function fgiCard(r, canEd, canTick = canEd) {
-  const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
-  const st = lstOf(r.sku);
   const holds = typeof shpHoldOn === 'function' && shpHoldOn();
   const btn = (attr, label, extra) => `<button class="ghost" ${attr}="${esc(r.sku)}"${extra || ''}>${label}</button>`;
-  const alloc = typeof fgaOn === 'function' && fgaOn();
-  return '<tr><td class="fg-mc">'
-    + (canTick ? `<input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''} aria-label="Tick ${esc(r.sku)}">` : '<span></span>')
-    + `<div class="fg-mc-img" data-img="${esc(obUC(r.sku))}" data-imgpx="64">${ptImgInner(r.sku, 64)}</div>`
-    + '<div class="fg-mc-main">'
-      + `<button class="ghost fg-mc-sku" data-fgmoves="${esc(r.sku)}" title="Every movement of this SKU">${esc(r.sku)}</button>`
-      + `<div class="fg-mc-what">${esc([r.subtype || r.articleType, r.color, r.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}</div>`
-      + `<div class="fg-mc-tags">${st.st === 'unknown' ? '' : `<span class="pill ${LST_PILL[st.st][0]}">${LST_PILL[st.st][1]}</span>`}`
-        + (r.brand ? `<span class="muted">${esc(r.brand)}</span>` : '')
-        + (r.remark ? `<span class="pill">${esc(r.remark)}</span>` : '')
-        + (r.pending > 0 ? `<span class="pill pill-low">${nf(r.pending)} from press</span>` : '') + '</div>'
-    + '</div>'
-    + `<div class="fg-mc-qty" style="color:${tone}">${nf(alloc ? Math.max(0, r.current) : r.current)}<small>in stock</small></div>`
-    + (alloc ? `<div class="fg-mc-figs">${fgaCardFigs(r)}</div>` : `<div class="fg-mc-figs"><span>In <b>${nf(r.opening + r.received)}</b></span><span>Out <b>${nf(r.issued)}</b></span>`
-      + `<span>FBA <b>${nf(r.fba)}</b></span>${holds ? `<span>Shopify held <b>${fgiHeldCell(r.sku)}</b></span>` : ''}${r.value === null ? '' : `<span>₹ <b>${nf(Math.round(r.value))}</b></span>`}</div>`)
+  const tick = canTick ? `<input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''} aria-label="Tick ${esc(r.sku)}">` : '<span></span>';
+  return '<tr><td class="fg-mc">' + fgiCardTop(r, tick, { attr: 'data-fgmoves', title: 'Every movement of this SKU' })
     + ((fgiCanEntry() || canEd) ? '<div class="fg-mc-acts">'
       + (holds && fgiMayRelease(r.sku, r.alloc) ? btn('data-fgrel', 'Release held pieces') : '')
       + (fgiCanEntry() ? btn('data-fgentry', 'Entry') : '')
@@ -63431,6 +63514,10 @@ const FGI_KPI_ROWS = {
   out: { label: 'what went out', is: r => r.txnType === 'ISSUE' || r.txnType === 'FBA' || r.txnType === 'FBA_RETURN' },
   fba: { label: 'what went to FBA', is: r => r.txnType === 'FBA' || r.txnType === 'FBA_RETURN' },
 };
+
+/** What a movement is called on screen. */
+const fgiMoveWord = r => (r.txnType === 'OPENING' && r.adjust ? 'count correction'
+  : (r.txnType === 'FBA_RETURN' ? 'back from FBA' : String(r.txnType || '').replace(/_/g, ' ').toLowerCase()));
 
 function fgiRenderLedger() {
   const q = $('fgQ').value.trim().toLowerCase();
@@ -63456,12 +63543,10 @@ function fgiRenderLedger() {
   const head = '<thead><tr>' + (canEd ? `<th><input type="checkbox" data-fgall="ledger"${allOn ? ' checked' : ''} title="Tick every movement shown"></th>` : '')
     + ['When', 'What', 'SKU', 'Image', 'Qty', 'For / from', 'Reason', 'By', 'Remarks', 'State', '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 4 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
-  const what = r => r.txnType === 'OPENING' && r.adjust ? 'count correction'
-    : (r.txnType === 'FBA_RETURN' ? 'back from FBA' : String(r.txnType || '').replace(/_/g, ' ').toLowerCase());
   $('fgTable').innerHTML = head + '<tbody>' + rows.slice(0, 600).map(r => '<tr>'
     + (canEd ? `<td>${fgiIsMarker(r) ? '' : `<input type="checkbox" data-fgpick="${esc(fgiRowId(r))}"${FGI_PICK.ledger.has(fgiRowId(r)) ? ' checked' : ''}>`}</td>` : '')
     + `<td class="frz">${esc(String(r.createdAt || '').slice(0, 16).replace('T', ' '))}</td>`
-    + `<td><span class="pill ${pill[r.txnType] || ''}">${esc(what(r))}</span>${(r.edits && r.edits.length) ? `<div class="muted" style="font-size:10px">edited</div>` : ''}</td>`
+    + `<td><span class="pill ${pill[r.txnType] || ''}">${esc(fgiMoveWord(r))}</span>${(r.edits && r.edits.length) ? `<div class="muted" style="font-size:10px">edited</div>` : ''}</td>`
     + `<td style="font-family:ui-monospace,monospace;text-align:left">${esc(r.sku)}</td>`
     + ptImgCell(r.sku)
     + `<td class="num" style="font-weight:700">${nf(fgiNum(r.qty))}</td>`
@@ -63485,7 +63570,7 @@ function fgiRenderLedger() {
     .reduce((s, r) => s + fgiNum(r.qty), 0);
   const out = rows.filter(r => FGI_KINDS[r.txnType] && FGI_KINDS[r.txnType].dir < 0).reduce((s, r) => s + fgiNum(r.qty), 0);
   $('fgMsg').textContent = `${nf(rows.length)} movement(s), newest first`
-    + (kpi ? ` · ${kpi.label} only — press the same tile again for everything` : '')
+    + (kpi ? ` · ${kpi.label} only${FGI_KPI_ON ? ' — press the same tile again for everything' : ''}` : '')
     + ` · ${nf(inn)} in, ${nf(out)} out`
     + ((d1 || d2) ? ' · in the dates chosen' : '')
     + (rows.length > 600 ? ' · showing the first 600' : '')
@@ -63770,7 +63855,8 @@ async function fgiOpeningSave() {
 }
 
 /* ---- wiring ---- */
-$('fgTable').addEventListener('click', e => {
+/** Every button of the stock, movement and review lists (and of the article panel, fg-tabs.js). */
+function fgiTableClick(e) {
   const pk = e.target.closest('[data-fgpick]');
   if (pk) {
     const set = $('fgView').value === 'stock' ? FGI_PICK.stock : FGI_PICK.ledger;
@@ -63819,8 +63905,10 @@ $('fgTable').addEventListener('click', e => {
   const s = e.target.closest('[data-fgset]'); if (s) return fgiSetOpen(s.getAttribute('data-fgset'));
   const r = e.target.closest('[data-fgrcv]'); if (r) return fgiReceiveOpen(r.getAttribute('data-fgrcv'));
   const d = e.target.closest('[data-fgdel]'); if (d) return fgiDeleteAsk(d.getAttribute('data-fgdel'));
-});
-$('fgEntry').onclick = () => fgiEntryOpen('RECEIVE', '');
+}
+$('fgTable').addEventListener('click', fgiTableClick);
+/* On the new page the form opens on the kind of entry its tab is for (fg-tabs.js). */
+$('fgEntry').onclick = () => fgiEntryOpen(typeof fgtEntryType === 'function' ? fgtEntryType() : 'RECEIVE', '');
 if ($('fgRecvXl')) $('fgRecvXl').onclick = () => fgiRecvXlOpen();
 if ($('fgIssXl')) $('fgIssXl').onclick = () => fgiXlOpen('ISSUE');
 $('fgScan').onclick = () => fgiScanOpen();
@@ -73644,6 +73732,300 @@ document.addEventListener('click', e => { if (!e.target.closest('#fbrMore')) $('
 if (typeof window.matchMedia === 'function') window.matchMedia(FBR_PHONE_QUERY).addEventListener('change', () => {
   if (FGI.rows && !$('paneFba').classList.contains('hide')) renderFba();
 });
+/* ============================== FILE: src/app/inventory/fg-tabs.js ============================== */
+/* ================= FINISHED GOODS: THE NEW PAGE, TABS BY JOB =================
+ * Approved redesign (28 Nov), stage 1: Finished Goods is laid out by job: Stock, Receive, Issue, Send to FBA, To do and
+ * History. Stock is new: four tiles for the whole store, the India Store list with one Article cell, and a panel for the
+ * article pressed. The other tabs show the lists and buttons of the old page that serve their job, so nothing is lost
+ * while they are redesigned. This file only decides what is shown: every figure, right, hold, limit and save is the
+ * screen's own (finished-goods.js, fg-store-alloc.js and the rest). A control is only ever hidden here (class fgt-off),
+ * never shown against the old page's own rules. An account that only accepts from QC keeps its one list.
+ *
+ * WHEN SOMETHING GOES WRONG:
+ *   loud, to the user — saves are made by the old page's own forms, which say why a save was refused.
+ *   quiet, with a console line — the switch (storage blocked: the default; the choice of page cannot be kept).
+ *
+ * BEHIND SWITCH fgTabs, which needs storeAlloc on. On by itself on the test website only, OFF everywhere else.
+ * localStorage fgTabs = '1' turns it on for one computer, '0' off. The test website shows an "Old page / New page"
+ * choice that sets it. The way back is that same '0'. */
+const FGT_MOVES = 10;   // the article panel shows this many of the latest movements
+
+/** The tabs. views: the old page's views (the fgView choices) a tab holds. controls: the ids of the old page's controls it
+ *  keeps. kpi: the movements it narrows to (FGI_KPI_ROWS). entry: the kind of stock entry its entry button opens on. */
+const FGT_TABS = [
+  { key: 'stock', label: 'Stock', views: ['stock'], controls: ['fgQ', 'fgBrand', 'fgFilters', 'fgaView', 'fgExport', 'fgRefresh'] },
+  { key: 'receive', label: 'Receive', views: ['flow', 'pending'], controls: ['fgQ', 'fgEntry', 'fgScan', 'fgOpening', 'fgExport', 'fgRefresh'] },
+  { key: 'issue', label: 'Issue', views: ['ledger'], kpi: 'out', entry: 'ISSUE',
+    controls: ['fgQ', 'fgFilters', 'fgD1', 'fgD2', 'fgEntry', 'fgScan', 'fgPack', 'fgEditPicked', 'fgDelPicked', 'fgExport', 'fgRefresh'] },
+  { key: 'send', label: 'Send to FBA', views: ['stock'], entry: 'FBA',
+    controls: ['fgQ', 'fgBrand', 'fgFilters', 'fgaView', 'fgFbaList', 'fgEntry', 'fgScan', 'fgPack', 'fgEditPicked', 'fgDelPicked', 'fgExport', 'fgRefresh'] },
+  { key: 'todo', label: 'To do', views: ['alerts', 'corr', 'fbarep', 'over'], controls: ['fgQ', 'fgLstRefresh', 'fgExport', 'fgRefresh'] },
+  { key: 'history', label: 'History', views: ['ledger'],
+    controls: ['fgQ', 'fgFilters', 'fgD1', 'fgD2', 'fgKpis', 'fgEditPicked', 'fgDelPicked', 'fgExport', 'fgRefresh'] },
+];
+/** Every control a tab may keep or leave out. fgFilters stands for the Filters button (core/filter-by.js). */
+const FGT_CONTROLS = ['fgView', 'fgPendBadge', 'fgAlerts', 'fgKpis', ...new Set(FGT_TABS.flatMap(t => t.controls))];
+/** The old page's count badge of each view that has work waiting. */
+const FGT_BADGES = { flow: 'flFgBadge', pending: 'fgPendBadge', alerts: 'fgiLstBadge', corr: 'fgiCorrBadge', fbarep: 'fapBadge', over: 'fgiOverBadge' };
+
+/** The tab on screen, the SKU whose panel is open, and where the brand box sits on the old page. */
+let FGTAB = { tab: 'stock', open: '', brandHome: null };
+
+/* ---- the switch ---- */
+function fgtOn() {
+  if (!fgaOn()) return false;
+  try { const v = localStorage.getItem('fgTabs'); if (v === '1') return true; if (v === '0') return false; }
+  catch (e) { console.warn('Finished Goods tabs: this browser blocks saved settings, so the switch uses its default.'); }
+  return typeof window !== 'undefined' && !!window.__TEST_ERP;
+}
+const fgtShown = () => fgtOn() && !ME.fgAccOnly;
+const fgtStockTab = () => fgtShown() && FGTAB.tab === 'stock';
+const fgtTab = () => FGT_TABS.find(t => t.key === FGTAB.tab);
+const fgtEntryType = () => (fgtShown() && fgtTab().entry) || 'RECEIVE';
+
+/* ---- drawing, on every redraw of the screen ---- */
+/** Bring the new page's parts in line with the view on screen; with the switch off, take them all away. Called by
+ *  renderFgi. stock: fgiStock(), when the ledger is read — without it the tiles and the panel are not drawn. */
+function fgtSync(stock) {
+  const on = fgtShown();
+  if (on) FGTAB.tab = fgtTabFor($('fgView').value).key;
+  $('paneFgi').classList.toggle('fgt-on', on);
+  fgtDrawSwitch();
+  fgtShowControls(on);
+  fgtPlaceBrand(on);
+  fgtDrawBar();
+  const records = on && stock && FGTAB.tab === 'stock' ? fgaWithDispatched(stock) : null;
+  fgtDrawTiles(records);
+  fgtDrawPanel(records);
+}
+
+/** The tab a view belongs to: the one on screen when it holds the view, else the view's own (Every movement: History). */
+function fgtTabFor(view) {
+  const holds = t => t.views.includes(view);
+  const now = fgtTab();
+  if (holds(now) && (!now.kpi || now.kpi === FGI_KPI)) return now;
+  return FGT_TABS.find(t => !t.kpi && holds(t)) || FGT_TABS[0];
+}
+
+function fgtDrawSwitch() {
+  const box = $('fgtSwitch'); if (!box) return;
+  const offered = typeof window !== 'undefined' && !!window.__TEST_ERP && fgaOn() && !ME.fgAccOnly;
+  box.classList.toggle('hide', !offered);
+  const page = fgtOn() ? '1' : '0';
+  box.querySelectorAll('[data-fgtpage]').forEach(b => {
+    const picked = b.getAttribute('data-fgtpage') === page;
+    b.classList.toggle('on', picked);
+    b.setAttribute('aria-pressed', String(picked));
+  });
+}
+
+/** Does this tab keep this control? With FBA lists on, pieces go to FBA by a list, so Send to FBA has no stock entry. */
+function fgtKeeps(tab, id) {
+  if (id === 'fgEntry' && tab.key === 'send' && fblOn()) return false;
+  return tab.controls.includes(id);
+}
+const fgtFiltersButton = () => ($('paneFgi').querySelector ? $('paneFgi').querySelector('.ftwrap') : null);
+function fgtShowControls(on) {
+  const tab = fgtTab();
+  FGT_CONTROLS.forEach(id => {
+    const el = id === 'fgFilters' ? fgtFiltersButton() : $(id);
+    if (el) el.classList.toggle('fgt-off', on && !fgtKeeps(tab, id));
+  });
+  fgtNameFilters(on);
+}
+/** On the new page the brand box stands by itself, so the Filters button holds the rest and says "More filters". */
+function fgtNameFilters(on) {
+  const button = fgtFiltersButton(), word = button && button.querySelector('.ftbtn').childNodes[1];
+  if (word) word.textContent = on ? ' More filters ' : ' Filters ';
+}
+/** Move the brand box out beside the search on the new page, and back among the filters on the old one. */
+function fgtPlaceBrand(on) {
+  const brand = $('fgBrand'), parent = brand && brand.parentNode;
+  if (on && parent && parent.classList && parent.classList.contains('ftlab')) {
+    FGTAB.brandHome = parent;
+    const filters = fgtFiltersButton();
+    filters.parentNode.insertBefore(brand, filters);
+    parent.classList.add('fgt-off');
+  } else if (!on && FGTAB.brandHome) {
+    FGTAB.brandHome.appendChild(brand);
+    FGTAB.brandHome.classList.remove('fgt-off');
+    FGTAB.brandHome = null;
+  }
+}
+
+/* ---- the tab bar and its counts ---- */
+/** The count an old page badge shows: '' when it shows none. */
+const fgtBadgeText = id => { const el = $(id); return el && !el.classList.contains('hide') ? String(el.textContent).trim() : ''; };
+/** What a tab has waiting: its views' badges added up; "…" while one is still being counted; '' for nothing. */
+function fgtCount(tab) {
+  const texts = tab.views.map(v => fgtBadgeText(FGT_BADGES[v])).filter(Boolean);
+  if (texts.includes('…')) return '…';
+  const n = texts.reduce((sum, t) => sum + Number(t.replace(/,/g, '')), 0);
+  return n ? nf(n) : '';
+}
+/** The views of a tab this screen offers now: "From QC" with the production flow only, repeat requests with their switch. */
+const fgtViewsOf = tab => tab.views.filter(v => (v !== 'flow' || (typeof FLOW_ON !== 'undefined' && FLOW_ON))
+  && (v !== 'fbarep' || (typeof fapOn === 'function' && fapOn())));
+const fgtViewName = view => $('fgView').querySelector(`option[value="${view}"]`).textContent;
+const fgtCountTag = count => (count ? ` <b class="fgt-count">${esc(count)}</b>` : '');
+
+/** The tabs, and under them the choice of list for a tab that holds more than one. */
+function fgtDrawBar() {
+  const bar = $('fgtBar'), choice = $('fgtViews'); if (!bar || !choice) return;
+  const on = fgtShown();
+  bar.classList.toggle('hide', !on);
+  bar.innerHTML = on ? FGT_TABS.map(t => `<button type="button" role="tab" aria-selected="${t.key === FGTAB.tab}" class="fgt-tab${t.key === FGTAB.tab ? ' on' : ''}" data-fgttab="${t.key}">`
+    + `${t.label}${['receive', 'todo'].includes(t.key) ? fgtCountTag(fgtCount(t)) : ''}</button>`).join('') : '';
+  const views = on ? fgtViewsOf(fgtTab()) : [];
+  choice.classList.toggle('hide', views.length < 2);
+  choice.innerHTML = views.length < 2 ? '' : views.map(v => `<button type="button" class="ghost${v === $('fgView').value ? ' on' : ''}" aria-pressed="${v === $('fgView').value}" data-fgtview="${v}">`
+    + `${esc(fgtViewName(v))}${fgtCountTag(fgtBadgeText(FGT_BADGES[v]))}</button>`).join('');
+}
+
+/* ---- moving between tabs ---- */
+function fgtShowView(view) {
+  $('fgView').value = view;
+  FGI_KPI = fgtTab().kpi || '';
+  FGI_KPI_ON = '';
+  renderFgi();
+  if (typeof fapViewOpened === 'function') fapViewOpened();
+}
+/** Open a tab, on its first list with something waiting. */
+function fgtOpenTab(key) {
+  FGTAB = Object.assign({}, FGTAB, { tab: key, open: '' });
+  const views = fgtViewsOf(fgtTab());
+  fgtShowView(views.find(v => fgtBadgeText(FGT_BADGES[v])) || views[0]);
+}
+/** The test website's "Old page / New page" choice, kept on this computer. page: '1' new, '0' old. */
+function fgtPickPage(page) {
+  try { localStorage.setItem('fgTabs', page); }
+  catch (e) { console.warn('Finished Goods tabs: this browser blocks saved settings, so the page cannot be changed here.'); }
+  FGI_KPI = '';
+  renderFgi();
+}
+
+/* ---- the Stock tab: tiles ---- */
+/** The whole store in four figures, whatever the search and filters show, adding up the same columns as the list. */
+function fgtTotals(records) {
+  const rows = fgaListRows([...records.values()].filter(fgaListed));
+  const sum = f => rows.reduce((n, r) => n + f(r), 0);
+  return [['Pieces in store', sum(r => Math.max(0, r.current))], ['Articles in stock', rows.filter(r => r.current > 0).length],
+    ['FBA packed', sum(r => r.dispatched)], ['Free (excess)', sum(r => r.alloc.excess)]];
+}
+/** records: fgaWithDispatched() on the Stock tab, else null. */
+function fgtDrawTiles(records) {
+  const box = $('fgtTiles'); if (!box) return;
+  box.classList.toggle('hide', !records);
+  box.innerHTML = records ? fgtTotals(records).map(([label, n]) => `<div><div class="v">${nf(n)}</div><div class="l">${label}</div></div>`).join('') : '';
+}
+
+/* ---- the Stock tab: the list ---- */
+const fgtItemName = r => esc(r.subtype || r.articleType) || '<span class="muted">not in the master DB</span>';
+const fgtItemWhat = r => esc([r.brand, r.color, r.size].filter(Boolean).join(' · '));
+
+/** The India Store list of the Stock tab: the same rows and figures, one Article cell, no buttons on the row. */
+function fgtDrawList(rows, sought) {
+  const head = fgiStockHead(['SKU', 'Image', 'Article', 'FBA Packed', 'In Stock', ...FGA_SHARES.map(s => s[1])]);
+  fgiDrawRows(rows, { head, row: fgtRow, card: fgtCard, sought });
+}
+function fgtRow(r) {
+  const open = `data-fgtopen="${esc(r.sku)}" title="Open this article"`;
+  return `<tr${r.sku === FGTAB.open ? ' class="fgt-sel"' : ''}>`
+    + `<td class="frz" style="text-align:left"><button type="button" class="ghost fgt-sku" ${open}>${esc(r.sku)}</button></td>`
+    + ptImgCell(r.sku)
+    + `<td style="text-align:left"><button type="button" class="fgt-art" ${open}>${fgtItemName(r)}<span class="muted">${fgtItemWhat(r)}</span></button></td>`
+    + fgaCells(r) + '</tr>';
+}
+const fgtCard = r => '<tr><td class="fg-mc">' + fgiCardTop(r, '<span></span>', { attr: 'data-fgtopen', title: 'Open this article' }) + '</td></tr>';
+
+/* ---- the Stock tab: the article panel ---- */
+/** One SKU as the stock list shows it. */
+function fgtRowOf(record) {
+  const m = fgiMaster(record.sku);
+  return fgaListRows([Object.assign({ brand: String(m.brand || '').trim(), articleType: m.articleType || '', subtype: m.subtype || '',
+    color: m.color || '', size: m.size || '' }, record)])[0];
+}
+/** The orders stock is counted against (the Custom figure's box), then the New development orders waiting. */
+function fgtOrdersHtml(sku) {
+  const line = (no, tag, text) => `<div><b>${esc(no)}</b>${tag} <span class="muted">${esc(text)}</span></div>`;
+  const custom = fgaCustomOrders(sku, fgiOf(sku).current)
+    .map(o => line(o.no, '', `${o.channel} · ${nf(o.counted)} from stock of ${nf(o.pending)} pending`));
+  const newDev = (fgaBook().newDev.get(shpHoldKey(sku)) || [])
+    .map(o => line(o.no, ' ' + FGA_NEW_DEV_TAG, `${o.channel} · ${nf(o.pending)} pending for ${FBLV_LANE_NAMES[o.lane]}`));
+  return custom.concat(newDev).join('') || '<div class="muted">No open order is waiting for this article.</div>';
+}
+function fgtMoveRow(r) {
+  const change = fgiEffect(r);
+  const pieces = change ? (change > 0 ? '+' : '−') + nf(Math.abs(change)) : `<span class="muted">${nf(fgiNum(r.qty))}</span>`;
+  return `<tr><td>${esc(ptDayWords(fapDayOf(r)))}</td><td>${esc(fgiMoveWord(r))}${r.orderNo ? ` <span class="muted">${esc(r.orderNo)}</span>` : ''}</td>`
+    + `<td class="num">${pieces}</td></tr>`;
+}
+function fgtMovesHtml(sku) {
+  const rows = (FGI.rows || []).filter(r => r && obUC(r.sku) === sku)
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+    .slice(0, FGT_MOVES);
+  return rows.length ? `<table class="xl fgt-moves"><tbody>${rows.map(fgtMoveRow).join('')}</tbody></table>`
+    : '<div class="muted">No movement on record.</div>';
+}
+/** The panel's buttons, by the same rights as the old page's row buttons. */
+function fgtActionsHtml(row) {
+  const button = (attr, label, extra = '') => `<button type="button" class="ghost" ${attr}="${esc(row.sku)}"${extra}>${label}</button>`;
+  const holds = typeof shpHoldOn === 'function' && shpHoldOn();
+  return (fgiCanEntry() ? button('data-fgtadd', 'Add stock') + button('data-fgentry', 'Issue stock') : '')
+    + button('data-fgmoves', 'Every movement')
+    + (holds && fgiMayRelease(row.sku, row.alloc) ? button('data-fgrel', 'Release held pieces') : '')
+    + (fgiCanEdit() ? button('data-fgskudel', 'Delete', ' style="color:var(--bad)"') : '');
+}
+function fgtTagHtml(sku) {
+  const set = (FGI.set || {})[sku] || {};
+  const text = `${set.remark || 'No tag'} · re-order level ${set.reorder ? nf(set.reorder) : 'not set'}`;
+  return `<div class="fgt-tag"><span>${esc(text)}</span>`
+    + (fgiCanEdit() ? `<button type="button" class="ghost" data-fgskued="${esc(sku)}" title="Correct the count, re-order level and tag">Edit</button>` : '') + '</div>';
+}
+function fgtPanelHtml(row) {
+  return `<div class="fgt-p-head"><b>${esc(row.sku)}</b><button type="button" class="ghost" data-fgtclose aria-label="Close the article">✕</button></div>`
+    + `<div class="fgt-p-art"><div data-img="${esc(row.sku)}" data-imgpx="64">${ptImgInner(row.sku, 64)}</div>`
+    + `<div><div>${fgtItemName(row)}</div><div class="muted">${fgtItemWhat(row)}</div></div></div>`
+    + `<div class="fgt-p-figs"><span>In Stock <b>${nf(Math.max(0, row.current))}</b></span>${fgaCardFigs(row)}</div>`
+    + `<h4>Orders counted against it</h4>${fgtOrdersHtml(row.sku)}`
+    + `<h4>Recent movements</h4>${fgtMovesHtml(row.sku)}`
+    + `<h4>Tag and re-order level</h4>${fgtTagHtml(row.sku)}`
+    + `<div class="fgt-p-acts">${fgtActionsHtml(row)}</div>`;
+}
+/** Draw the open article, or put the panel away: off the Stock tab, or its SKU has no movement left. */
+function fgtDrawPanel(records) {
+  const panel = $('fgtPanel'); if (!panel) return;
+  const record = records && records.get(FGTAB.open);
+  panel.classList.toggle('hide', !record);
+  panel.innerHTML = record ? fgtPanelHtml(fgtRowOf(record)) : '';
+}
+function fgtOpenArticle(sku) {
+  FGTAB = Object.assign({}, FGTAB, { open: sku });
+  renderFgi();
+}
+
+/* ---- wiring ---- */
+/** A press inside the panel: close it, add stock for its SKU, or any button the list itself answers. */
+function fgtPanelClick(e) {
+  if (e.target.closest('[data-fgtclose]')) return fgtOpenArticle('');
+  const add = e.target.closest('[data-fgtadd]');
+  if (add) return fgiEntryOpen('RECEIVE', add.getAttribute('data-fgtadd'));
+  return fgiTableClick(e);
+}
+/** A press on one of the new page's own buttons, told by its data- name. */
+function fgtPress(attr, run) {
+  return e => { const b = e.target.closest(`[${attr}]`); if (b) run(b.getAttribute(attr)); };
+}
+if ($('fgtSwitch')) $('fgtSwitch').onclick = fgtPress('data-fgtpage', fgtPickPage);
+if ($('fgtBar')) $('fgtBar').onclick = fgtPress('data-fgttab', fgtOpenTab);
+if ($('fgtViews')) $('fgtViews').onclick = fgtPress('data-fgtview', fgtShowView);
+if ($('fgtPanel')) $('fgtPanel').onclick = fgtPanelClick;
+if ($('fgTable') && $('fgTable').addEventListener) $('fgTable').addEventListener('click', fgtPress('data-fgtopen', fgtOpenArticle));
+/* Some badges are counted after the screen is drawn (From QC, for one): the tab counts follow them. */
+if (typeof MutationObserver === 'function' && $('fgAlerts') && $('fgAlerts').nodeType) {
+  new MutationObserver(() => { if (fgtShown()) fgtDrawBar(); })
+    .observe($('fgAlerts'), { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['class'] });
+}
 /* ============================== FILE: src/app/inventory/pack-verify.js ============================== */
 /* ================= FINISHED GOODS: PACK & VERIFY (2026-10-12) =================
  *
@@ -93189,7 +93571,7 @@ function mobSheet(title, sub, html, same) {
       const sz = e.target.closest('[data-mob-size]');
       if (sz) return mobSizeDraw(sz.dataset.mobSize, true);
       const fg = e.target.closest('[data-sku-fgi]');
-      if (fg) { const v = fg.dataset.skuFgi; s.classList.add('hide'); showTab('fgi'); setTimeout(() => { if ($('fgView')) { $('fgView').value = 'ledger'; $('fgQ').value = v; renderFgi(); } }, 150); return; }
+      if (fg) { const v = fg.dataset.skuFgi; s.classList.add('hide'); showTab('fgi'); setTimeout(() => { if ($('fgView')) { $('fgView').value = 'ledger'; $('fgQ').value = v; FGI_KPI = ''; renderFgi(); } }, 150); return; }
       const md = e.target.closest('[data-sku-mdb]');
       if (md) { const v = md.dataset.skuMdb; s.classList.add('hide'); if (TAB_NOW !== 'pmdb') showTab('pmdb'); setTimeout(() => { try { fmToTable(v); } catch (err) { /* the Master Database is open */ } }, 150); }
     });

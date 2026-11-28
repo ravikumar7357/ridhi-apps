@@ -147,6 +147,7 @@ inventory/fg-fba-repeat.js
 inventory/fba-lists.js
 inventory/fba-lists-view.js
 inventory/fba-dispatch-redesign.js
+inventory/fg-tabs.js
 inventory/pack-verify.js
 vendors/printing/printer-allocation.js
 vendors/printing/printer-capacity.js

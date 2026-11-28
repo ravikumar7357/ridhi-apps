@@ -2626,3 +2626,47 @@ button.fbr-sku{padding:0;min-height:0;border:0;background:none;box-shadow:none;t
   #paneFba.fbr-on .toolbar>select,#paneFba.fbr-on .toolbar>input{flex:1 1 100%!important}
   .fbr-more-body{right:0;left:auto}
 }
+
+/* Finished Goods, the new page (fg-tabs.js, switch fgTabs): tabs by job, store tiles, the article panel (a full sheet on a phone). */
+#paneFgi .fgt-off{display:none!important}
+.fgt-switch{display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px}
+.fgt-switch button{height:30px;padding:0 12px;font-size:12.5px}
+.fgt-switch button.on,.fgt-views button.on{background:var(--brand-bg);color:var(--brand-ink);font-weight:700}
+.fgt-tabs{display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.fgt-tab{height:auto;padding:9px 16px;background:none;border:0;border-bottom:3px solid transparent;border-radius:0;box-shadow:none;color:var(--muted);font-weight:600;font-size:14px;width:auto}
+.fgt-tab:hover{background:var(--hover);color:var(--ink)}
+.fgt-tab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.fgt-count{display:inline-block;min-width:18px;margin-left:4px;padding:0 6px;border-radius:9px;background:var(--bad);color:#fff;font-size:11px;line-height:18px}
+.fgt-views{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+#paneFgi.fgt-on .toolbar>#fgBrand{flex:0 0 150px;width:auto!important}
+html:not(.mob) #paneFgi.fgt-on .toolbar>#fgQ{order:-2}
+html:not(.mob) #paneFgi.fgt-on .toolbar>:is(#fgBrand,#fgaView){order:-1}
+.fgt-tiles{display:flex;flex-wrap:wrap;gap:14px 40px;margin-top:14px}
+.fgt-tiles .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.fgt-tiles .l{font-size:12px;color:var(--muted)}
+.fgt-sku{font-family:ui-monospace,monospace;font-size:12.5px;padding:2px 7px}
+.fgt-art{display:block;height:auto;width:auto;padding:0;background:none;border:0;box-shadow:none;color:var(--ink);font-weight:600;text-align:left;line-height:1.35}
+.fgt-art:hover{background:none;color:var(--brand-ink);text-decoration:underline}
+.fgt-art span{display:block;font-weight:400;font-size:11.5px}
+#paneFgi tr.fgt-sel td{background:var(--brand-bg)}
+.fgt-panel{margin-top:12px;padding:14px;font-size:13px}
+.fgt-panel h4{margin:14px 0 6px}
+.fgt-p-head{display:flex;justify-content:space-between;align-items:center;gap:10px;font-family:ui-monospace,monospace;font-size:15px}
+.fgt-p-art{display:flex;gap:10px;align-items:center;margin-top:8px}
+.fgt-p-figs{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;color:var(--muted)}
+.fgt-p-figs b{color:var(--ink)}
+.fgt-panel table.fgt-moves{width:100%}
+.fgt-tag{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.fgt-p-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+@media (min-width:761px){
+  html:not(.mob) #paneFgi.fgt-on .fgt-split{display:flex;align-items:flex-start;gap:12px}
+  html:not(.mob) #paneFgi.fgt-on .fgt-split>.xlwrap{flex:1 1 0;min-width:0}
+  html:not(.mob) #paneFgi.fgt-on .fgt-panel{flex:0 0 320px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+}
+@media (max-width:760px){
+  #paneFgi .fgt-panel{position:fixed;inset:0;z-index:940;margin:0;border-radius:0;overflow:auto}
+}
+html.mob #paneFgi .fgt-panel{position:fixed;inset:0;z-index:940;margin:0;border-radius:0;overflow:auto;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+html.mob .fgt-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+html.mob .fgt-tab{flex:0 0 auto;min-height:44px}
+html.mob .fgt-p-acts button,html.mob .fgt-views button{flex:1 1 calc(50% - 8px);min-height:44px}

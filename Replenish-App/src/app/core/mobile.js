@@ -650,7 +650,7 @@ function mobSheet(title, sub, html, same) {
       const sz = e.target.closest('[data-mob-size]');
       if (sz) return mobSizeDraw(sz.dataset.mobSize, true);
       const fg = e.target.closest('[data-sku-fgi]');
-      if (fg) { const v = fg.dataset.skuFgi; s.classList.add('hide'); showTab('fgi'); setTimeout(() => { if ($('fgView')) { $('fgView').value = 'ledger'; $('fgQ').value = v; renderFgi(); } }, 150); return; }
+      if (fg) { const v = fg.dataset.skuFgi; s.classList.add('hide'); showTab('fgi'); setTimeout(() => { if ($('fgView')) { $('fgView').value = 'ledger'; $('fgQ').value = v; FGI_KPI = ''; renderFgi(); } }, 150); return; }
       const md = e.target.closest('[data-sku-mdb]');
       if (md) { const v = md.dataset.skuMdb; s.classList.add('hide'); if (TAB_NOW !== 'pmdb') showTab('pmdb'); setTimeout(() => { try { fmToTable(v); } catch (err) { /* the Master Database is open */ } }, 150); }
     });

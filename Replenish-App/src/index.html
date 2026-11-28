@@ -933,7 +933,14 @@
 
     <!-- ============ FINISHED GOODS ============ -->
     <div id="paneFgi" class="hide">
+      <!-- The new page (switch fgTabs, inventory/fg-tabs.js). All of these stay hidden on the old page. -->
+      <div id="fgtSwitch" class="fgt-switch hide" role="group" aria-label="Which Finished Goods page">
+        <button type="button" class="ghost" data-fgtpage="0">Old page</button>
+        <button type="button" class="ghost" data-fgtpage="1">New page</button>
+      </div>
+      <div id="fgtBar" class="fgt-tabs hide" role="tablist" aria-label="Finished Goods jobs"></div>
       <div class="card" style="padding:12px 14px">
+        <div id="fgtViews" class="fgt-views hide"></div>
         <div class="toolbar">
           <select id="fgView" style="flex:0 0 210px">
             <option value="stock">India Store</option>
@@ -998,8 +1005,12 @@
         </div>
         <div id="fgMsg" class="muted" style="margin-top:8px;font-size:12.5px"></div>
         <div id="fgKpis" class="kpis" style="margin-top:10px"></div>
+        <div id="fgtTiles" class="fgt-tiles hide"></div>
       </div>
-      <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="fgTable"></table></div>
+      <div class="fgt-split">
+        <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="fgTable"></table></div>
+        <aside id="fgtPanel" class="card fgt-panel hide" aria-label="Article"></aside>
+      </div>
     </div>
 
     <!-- ============ PRINTER ALLOCATION ============ -->

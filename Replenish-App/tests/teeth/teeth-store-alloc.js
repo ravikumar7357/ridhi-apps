@@ -128,7 +128,7 @@ const breaks = {
   'filtered matches are called absent': [A, 'if (onRecord.some(r => fgaListed(r) && found(r))) return', 'if (false) return'],
   'master matches do not exist': [A, ' || master.some(found)) return', ') return'],
   'an unread master says does not exist': [A, 'if (!master.length) return', 'if (false) return'],
-  'typed text goes in as HTML': [LIST, "sought ? esc(sought) : 'No SKU", "sought ? sought : 'No SKU"],
+  'typed text goes in as HTML': [LIST, "list.sought ? esc(list.sought) : 'No SKU", "list.sought ? list.sought : 'No SKU"],
   'old figures not said on the list': [LIST, "const old = alloc ? fgiFbaAgeWhy() : '';", "const old = '';"],
   'shipped pieces count as FBA Packed': [A, "if (st !== 'waiting' && st !== 'accepted') return;", "if (st === 'returned' || st === 'sheet') return;"],
   'sheet history counts as FBA Packed': [A, "if (st !== 'waiting' && st !== 'accepted') return;", "if (st !== 'waiting' && st !== 'accepted' && st !== 'sheet') return;"],

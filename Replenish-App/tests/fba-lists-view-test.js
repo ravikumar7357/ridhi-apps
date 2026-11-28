@@ -18,7 +18,7 @@ function screen(o = {}) {
   S.run(line('core/helpers.js', 'const dTodayIndia') + line('core/helpers.js', 'const dAdd') + line('core/helpers.js', 'const ptDayWords')
     + line('inventory/fg-change-remove.js', 'const fgiDmy') + line('inventory/fba-dispatch.js', 'const fbaCan')
     + ['const packFbaMayPack', 'const PACK_NO_RIGHT'].map(start => line('replenishment/pack-core.js', start)).join('')
-    + whole('inventory/finished-goods.js', 'fgiCard') + 'const ptIsoDate = d => String(d || "").split("/").reverse().join("-");\n'
+    + whole('inventory/finished-goods.js', 'fgiCard') + whole('inventory/finished-goods.js', 'fgiCardTop') + 'const ptIsoDate = d => String(d || "").split("/").reverse().join("-");\n'
     + appFile('inventory/fg-fba-repeat.js') + appFile('inventory/fba-lists.js') + appFile('inventory/fba-lists-view.js'));
   S.saved.fbaList = o.switch || '1';
   Object.assign(S.ctx, {
