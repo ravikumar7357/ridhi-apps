@@ -146,11 +146,16 @@ function fblvWaitingButtons(id, list) {
     + (fblvShippable(list) ? fblvButton('ship', id, 'Ship') : '')
     + (fblvMayCancel(list) ? fblvButton('cancel', id, 'Cancel list') : '');
 }
-function fblvPanelHtml(waiting) {
-  const shipped = fblvRecentlyShipped();
+/** The line telling a person without the packing right why Pack is missing, or ''. */
+function fblvNoRightHtml(waiting) {
   const noRight = fbaCan() && !packFbaMayPack() && waiting.some(([, l]) => fblvPackable(l));
+  return noRight ? `<div class="err" style="margin-top:6px">${esc(PACK_NO_RIGHT)}</div>` : '';
+}
+function fblvPanelHtml(waiting) {
+  if (typeof fbrListsPanel === 'function' && typeof fbvOn === 'function' && fbvOn()) return fbrListsPanel(waiting);
+  const shipped = fblvRecentlyShipped();
   return '<h3 style="margin:0">FBA lists</h3>'
-    + (noRight ? `<div class="err" style="margin-top:6px">${esc(PACK_NO_RIGHT)}</div>` : '')
+    + fblvNoRightHtml(waiting)
     + (waiting.length ? waiting.map(([id, l]) => fblvCard(l, fblvWaitingButtons(id, l))).join('')
       : '<div class="muted">No list is waiting. Tick SKUs on Finished Goods and press Make FBA list.</div>')
     + (shipped.length ? `<h4 style="margin:12px 0 0">Shipped in the past ${FBLV_RECENT_DAYS} days</h4>`

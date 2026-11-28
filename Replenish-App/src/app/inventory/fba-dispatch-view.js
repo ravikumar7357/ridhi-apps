@@ -155,17 +155,18 @@ function fbvTotals(articles, view, columns) {
     + `<td colspan="${FBV_NAME_COLS.length - 1}" style="text-align:left">${nf(articles.length)} article(s)</td>`
     + columns.map(([k]) => `<td class="num">${nf(fbvSum(articles, a => a[k]))}</td>`).join('') + '<td></td></tr></tfoot>';
 }
+/** The line above the article table. */
+const fbvArticleNote = (articles, rows, view) => `${nf(articles.length)} article(s), most pieces to do first · ${nf(rows.length)} dispatch(es)`
+  + ` · ${nf(fbvSum(rows, x => x.s.open))} piece(s) not returned`
+  + (articles.length > FBA_LIST_LIMIT ? ` · showing the first ${FBA_LIST_LIMIT} articles · Export covers all of them` : '')
+  + fbaNoteEnd(view.history);
 /** The table with a line per article. Answers { note: the line above it, skus: whose pictures it shows }. */
 function fbvDrawArticles(rows, view) {
   const articles = fbvArticles(rows), shown = articles.slice(0, FBA_LIST_LIMIT), columns = fbvColumns(articles);
   $('fbaTable').innerHTML = fbvHead(view, columns, view.can ? fbaTickAll(rows) : '') + '<tbody>'
     + (shown.length ? shown.map(a => fbvArticleRow(a, view, columns)).join('') : fbaNothingRow(fbvSpan(view, columns), view.sought))
     + '</tbody>' + (shown.length ? fbvTotals(articles, view, columns) : '');
-  const note = `${nf(articles.length)} article(s), most pieces to do first · ${nf(rows.length)} dispatch(es)`
-    + ` · ${nf(fbvSum(rows, x => x.s.open))} piece(s) not returned`
-    + (articles.length > FBA_LIST_LIMIT ? ` · showing the first ${FBA_LIST_LIMIT} articles · Export covers all of them` : '')
-    + fbaNoteEnd(view.history);
-  return { note, skus: shown.map(a => a.sku) };
+  return { note: fbvArticleNote(articles, rows, view), skus: shown.map(a => a.sku) };
 }
 function fbvExport(rows) {
   const articles = fbvArticles(rows), columns = fbvColumns(articles), sales = fbvSalesByNo();

@@ -221,7 +221,7 @@ function teeth() {
     [view, ".filter(l => l.qty !== '' && Number(l.qty) !== 0)", ''],
     [view, 'lines.forEach(l => { packed[l.sku] = l.packed; });', ''],
     [view, "fblvPackable(list) && packFbaMayPack() ?", 'fblvPackable(list) ?'],
-    [view, "(noRight ? ", '(false ? '],
+    [view, "return noRight ? ", 'return false ? '],
     [view, "+ (packFbaMayPack() ? '' : ' ' + PACK_NO_RIGHT);", ';'],
     [view, "const fblvUndoAsk = id => fblvConfirm(id, { title: 'Undo ship', gone: FBL_RECORD_GONE,", "const fblvUndoAsk = id => fblvConfirm(id, { title: 'Undo ship',"],
     ['inventory/fba-ship-excel.js', 'return !open && !done;', 'return true;'],

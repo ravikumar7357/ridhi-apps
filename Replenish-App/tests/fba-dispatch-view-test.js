@@ -307,7 +307,7 @@ function teeth() {
     [SHIP, 'if (on && fbvByArticle()) return fbvExport(rows);', ''],
     [DISPATCH, '.filter(x => !more || fbvKeeps(x.r, over))', ''],
     [DISPATCH, "if (view.on) cols.splice", 'if (true) cols.splice'],
-    [DISPATCH, "const drawn = on && fbvByArticle() ?", 'const drawn = false ?'],
+    [DISPATCH, "return view.on && fbvByArticle() ?", 'return false ?'],
     [DISPATCH, "${sought ? esc(sought) :", '${sought ? sought :'],
     [DISPATCH, 'held.filter(fbaActionable)', 'held'],
     [SHIP, "...(on ? [FBV_LANE_HEAD] : [])", ''],

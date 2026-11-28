@@ -712,6 +712,9 @@
   .pill-ok{background:var(--accent-bg);color:var(--accent)}
   .pill-low{background:var(--warn-bg);color:var(--warn-ink)}
   .pill-out{background:var(--bad-bg);color:var(--bad)}
+  /* FBA Dispatch redesign (switch storeAlloc): blue accepted, grey returned */
+  .pill.fbr-acc{background:var(--brand-bg);color:var(--brand-ink)}
+  .pill.fbr-grey{background:var(--hover);color:var(--muted)}
   /* ARTICLE REVIEW IS A READING TABLE, not a picture board. A 210px remark box wrapped a normal
      sentence over six lines and every row grew to match it, so a screen held four SKUs. Widening
      the remark is what SHRINKS the row — the text simply has somewhere to go. */
@@ -2564,3 +2567,62 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
  * WIP in the Job Work Register). The rule was lost with the phone layout on 16 Oct, so both lists showed, one under the other
  * (Ravi, 25 Nov: "why is cutting entries showing below cutting desk"). */
 .fl-embhide{display:none!important}
+
+/* FBA Dispatch with switch storeAlloc on (fba-dispatch-redesign.js): FBA lists first, one main button, a More menu, cards on a phone. */
+#paneFba .fbr-break{flex-basis:100%;height:0}
+.fbr-more{position:relative}
+.fbr-more>summary{list-style:none;cursor:pointer;height:var(--ctl);display:inline-flex;align-items:center;padding:0 18px;border-radius:var(--r-ctl);
+  background:var(--card);color:var(--muted);font-weight:600;box-shadow:var(--sh-1)}
+.fbr-more>summary::-webkit-details-marker{display:none}
+.fbr-more>summary::after{content:"\25BE";margin-left:8px;font-size:11px}
+.fbr-more[open]>summary{color:var(--ink);box-shadow:var(--sh-2)}
+.fbr-more-body{position:absolute;left:0;top:calc(100% + 6px);z-index:30;min-width:210px;display:flex;flex-direction:column;gap:4px;padding:8px;
+  background:var(--card);border-radius:var(--r-sm);box-shadow:var(--sh-2)}
+.fbr-more-body button{width:100%;justify-content:flex-start;text-align:left;box-shadow:none;border:1px solid var(--line)}
+#fbaAcceptAll{font-size:15px;padding:0 22px}
+
+/* the FBA lists, as cards */
+.fbr-h{display:flex;align-items:center;gap:10px}
+.fbr-h h3{margin:0;font-size:17px}
+.fbr-lists{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;margin-top:10px}
+.fbr-list{display:flex;flex-direction:column;gap:9px;padding:14px 16px;background:var(--soft);border:1px solid var(--line);border-radius:14px}
+.fbr-list-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.fbr-acct{font-size:16px}
+.fbr-list-top .pill:last-child{margin-left:auto}
+.fbr-list-figs{display:flex;gap:26px}
+.fbr-list-figs b{display:block;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+.fbr-list-figs small{color:var(--muted);font-size:11.5px;font-weight:600}
+.fbr-list-skus{font-size:12.5px;color:var(--ink);font-family:ui-monospace,monospace;word-break:break-word}
+.fbr-list-who{font-size:12px}
+.fbr-list-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+.fbr-done{margin-top:14px}
+.fbr-done>button{padding:6px 14px}
+
+/* the dispatches as cards (a phone, or any window under 760px) */
+.card.xlwrap:has(> table.fbr-cards){max-height:none!important;overflow:visible!important;background:none;box-shadow:none;padding:0!important}
+table.fbr-cards,table.fbr-cards tbody,table.fbr-cards thead{display:block;width:100%;border:0;background:none}
+table.fbr-cards tr{display:block;margin:0 0 8px}
+table.fbr-cards th,table.fbr-cards td{display:block;padding:0;border:0;white-space:normal;text-align:left}
+table.fbr-cards th{font-size:12.5px;font-weight:600;color:var(--muted);padding:2px 4px 8px}
+table.fbr-cards td.fbr-dc{display:grid;grid-template-columns:auto 56px minmax(0,1fr) auto;gap:6px 10px;align-items:start;
+  background:var(--card);border-radius:14px;box-shadow:var(--sh-1);padding:12px}
+table.fbr-cards tr.fbr-sub td.fbr-dc{margin-left:14px;background:var(--soft)}
+.fbr-dc>input[type=checkbox]{width:22px;height:22px;margin:2px 0 0}
+.fbr-img{width:56px;height:56px;border-radius:10px;overflow:hidden;background:var(--soft)}
+.fbr-img img{width:56px!important;height:56px!important;object-fit:cover}
+.fbr-main{min-width:0}
+.fbr-sku{font-family:ui-monospace,monospace;font-size:14px;font-weight:700;color:var(--brand-ink);word-break:break-all}
+button.fbr-sku{padding:0;min-height:0;border:0;background:none;box-shadow:none;text-align:left;width:auto}
+.fbr-what{font-size:13px;color:var(--muted);margin-top:2px}
+.fbr-tags{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-top:6px;font-size:12px}
+.fbr-qty{font-size:24px;font-weight:800;line-height:1;text-align:right;font-variant-numeric:tabular-nums}
+.fbr-qty small{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-top:3px}
+.fbr-figs{grid-column:3/5;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.fbr-acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.fbr-acts button{flex:1 1 0;min-height:42px;padding:0 10px!important;font-size:13.5px!important;width:auto}
+@media (max-width:760px){
+  .fbr-lists{grid-template-columns:1fr}
+  .fbr-list-acts button{flex:1 1 0;min-height:44px}
+  #paneFba.fbr-on .toolbar>select,#paneFba.fbr-on .toolbar>input{flex:1 1 100%!important}
+  .fbr-more-body{right:0;left:auto}
+}

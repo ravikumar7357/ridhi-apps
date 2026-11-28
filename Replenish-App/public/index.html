@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 204 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 205 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -767,6 +767,9 @@
   .pill-ok{background:var(--accent-bg);color:var(--accent)}
   .pill-low{background:var(--warn-bg);color:var(--warn-ink)}
   .pill-out{background:var(--bad-bg);color:var(--bad)}
+  /* FBA Dispatch redesign (switch storeAlloc): blue accepted, grey returned */
+  .pill.fbr-acc{background:var(--brand-bg);color:var(--brand-ink)}
+  .pill.fbr-grey{background:var(--hover);color:var(--muted)}
   /* ARTICLE REVIEW IS A READING TABLE, not a picture board. A 210px remark box wrapped a normal
      sentence over six lines and every row grew to match it, so a screen held four SKUs. Widening
      the remark is what SHRINKS the row — the text simply has somewhere to go. */
@@ -2619,6 +2622,65 @@ html.mob #frMeeraMenu{right:14px;bottom:144px}
  * WIP in the Job Work Register). The rule was lost with the phone layout on 16 Oct, so both lists showed, one under the other
  * (Ravi, 25 Nov: "why is cutting entries showing below cutting desk"). */
 .fl-embhide{display:none!important}
+
+/* FBA Dispatch with switch storeAlloc on (fba-dispatch-redesign.js): FBA lists first, one main button, a More menu, cards on a phone. */
+#paneFba .fbr-break{flex-basis:100%;height:0}
+.fbr-more{position:relative}
+.fbr-more>summary{list-style:none;cursor:pointer;height:var(--ctl);display:inline-flex;align-items:center;padding:0 18px;border-radius:var(--r-ctl);
+  background:var(--card);color:var(--muted);font-weight:600;box-shadow:var(--sh-1)}
+.fbr-more>summary::-webkit-details-marker{display:none}
+.fbr-more>summary::after{content:"\25BE";margin-left:8px;font-size:11px}
+.fbr-more[open]>summary{color:var(--ink);box-shadow:var(--sh-2)}
+.fbr-more-body{position:absolute;left:0;top:calc(100% + 6px);z-index:30;min-width:210px;display:flex;flex-direction:column;gap:4px;padding:8px;
+  background:var(--card);border-radius:var(--r-sm);box-shadow:var(--sh-2)}
+.fbr-more-body button{width:100%;justify-content:flex-start;text-align:left;box-shadow:none;border:1px solid var(--line)}
+#fbaAcceptAll{font-size:15px;padding:0 22px}
+
+/* the FBA lists, as cards */
+.fbr-h{display:flex;align-items:center;gap:10px}
+.fbr-h h3{margin:0;font-size:17px}
+.fbr-lists{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;margin-top:10px}
+.fbr-list{display:flex;flex-direction:column;gap:9px;padding:14px 16px;background:var(--soft);border:1px solid var(--line);border-radius:14px}
+.fbr-list-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.fbr-acct{font-size:16px}
+.fbr-list-top .pill:last-child{margin-left:auto}
+.fbr-list-figs{display:flex;gap:26px}
+.fbr-list-figs b{display:block;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+.fbr-list-figs small{color:var(--muted);font-size:11.5px;font-weight:600}
+.fbr-list-skus{font-size:12.5px;color:var(--ink);font-family:ui-monospace,monospace;word-break:break-word}
+.fbr-list-who{font-size:12px}
+.fbr-list-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+.fbr-done{margin-top:14px}
+.fbr-done>button{padding:6px 14px}
+
+/* the dispatches as cards (a phone, or any window under 760px) */
+.card.xlwrap:has(> table.fbr-cards){max-height:none!important;overflow:visible!important;background:none;box-shadow:none;padding:0!important}
+table.fbr-cards,table.fbr-cards tbody,table.fbr-cards thead{display:block;width:100%;border:0;background:none}
+table.fbr-cards tr{display:block;margin:0 0 8px}
+table.fbr-cards th,table.fbr-cards td{display:block;padding:0;border:0;white-space:normal;text-align:left}
+table.fbr-cards th{font-size:12.5px;font-weight:600;color:var(--muted);padding:2px 4px 8px}
+table.fbr-cards td.fbr-dc{display:grid;grid-template-columns:auto 56px minmax(0,1fr) auto;gap:6px 10px;align-items:start;
+  background:var(--card);border-radius:14px;box-shadow:var(--sh-1);padding:12px}
+table.fbr-cards tr.fbr-sub td.fbr-dc{margin-left:14px;background:var(--soft)}
+.fbr-dc>input[type=checkbox]{width:22px;height:22px;margin:2px 0 0}
+.fbr-img{width:56px;height:56px;border-radius:10px;overflow:hidden;background:var(--soft)}
+.fbr-img img{width:56px!important;height:56px!important;object-fit:cover}
+.fbr-main{min-width:0}
+.fbr-sku{font-family:ui-monospace,monospace;font-size:14px;font-weight:700;color:var(--brand-ink);word-break:break-all}
+button.fbr-sku{padding:0;min-height:0;border:0;background:none;box-shadow:none;text-align:left;width:auto}
+.fbr-what{font-size:13px;color:var(--muted);margin-top:2px}
+.fbr-tags{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-top:6px;font-size:12px}
+.fbr-qty{font-size:24px;font-weight:800;line-height:1;text-align:right;font-variant-numeric:tabular-nums}
+.fbr-qty small{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-top:3px}
+.fbr-figs{grid-column:3/5;display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.fbr-acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.fbr-acts button{flex:1 1 0;min-height:42px;padding:0 10px!important;font-size:13.5px!important;width:auto}
+@media (max-width:760px){
+  .fbr-lists{grid-template-columns:1fr}
+  .fbr-list-acts button{flex:1 1 0;min-height:44px}
+  #paneFba.fbr-on .toolbar>select,#paneFba.fbr-on .toolbar>input{flex:1 1 100%!important}
+  .fbr-more-body{right:0;left:auto}
+}
 /* ================= THE GUIDE CHARACTER (guide.js, 2026-10-21) =================
    Above everything, the scanner included (9999): the dim, the lit box, the arrow, Master ji and his bubble. */
 #gdRoot{position:fixed;inset:0;z-index:10050;pointer-events:none}
@@ -3896,6 +3958,9 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
           <input id="fbaQ" placeholder="Search SKU / shipment / colour / size" style="flex:1 1 180px;min-width:0">
           <input id="fbaD1" type="date" style="flex:0 0 140px" title="Sent from">
           <input id="fbaD2" type="date" style="flex:0 0 140px" title="Sent to">
+          <span id="fbaBreak" class="fbr-break hide"></span>
+          <button id="fbaAcceptAll" class="hide" title="Accept every waiting dispatch the filters above leave, not only the lines drawn">Accept all waiting</button>
+          <details id="fbrMore" class="fbr-more hide"><summary><span id="fbrMoreLabel">More</span></summary><div id="fbrMoreBody" class="fbr-more-body"></div></details>
           <button id="fbaPackBtn" class="hide" title="Pack an FBA list">Pack a list</button>
           <button id="fbaAccept" disabled>Accept ticked</button>
           <button id="fbaShip" class="ghost" disabled>Ship ticked</button>
@@ -68303,12 +68368,18 @@ function fgiSkuDeleteAsk(skus) {
  * WHO: the FBA Dispatch tab is the right. The person who packs a shipment needs nothing else.
  *
  * With switch storeAlloc on, the screen also has a line per article, brand and account filters and the Air / Sea / AWD of
- * each dispatch (fba-dispatch-view.js).
+ * each dispatch (fba-dispatch-view.js), coloured status badges, and the FBA lists on top, one button to accept every
+ * waiting dispatch, and cards on a phone (fba-dispatch-redesign.js).
  */
 const fbaCan = () => !spIsVendor() && !!(ME.admin || (ME.tabs || []).indexOf('fba') >= 0);
 const fbaLegacy = r => /^sheet/i.test(String((r && r.source) || '')) && !(r.fbaAcceptedAt || r.fbaShippedAt || fgiNum(r.fbaReturned));
 const FBA_PILL = { waiting: ['pill-low', 'waiting'], accepted: ['', 'accepted'], shipped: ['pill-ok', 'shipped'],
   returned: ['pill-out', 'returned'], sheet: ['', 'from the sheet'] };
+/* With switch storeAlloc on the badges are coloured by where a dispatch stands: waiting amber, accepted blue, shipped green,
+ * returned grey, and "old" red = accepted this many days ago or more and still not shipped (the FBA team's chase list). */
+const FBA_OLD_DAYS = 30;
+const FBA_PILL_ON = { waiting: ['pill-low', 'waiting'], accepted: ['fbr-acc', 'accepted'], shipped: ['pill-ok', 'shipped'],
+  returned: ['fbr-grey', 'returned'], sheet: ['fbr-grey', 'from the sheet'], old: ['pill-out', 'old'] };
 
 let FBA = { busy: false, shown: [] };
 let FBA_PICK = new Set();
@@ -68329,6 +68400,14 @@ function fbaAll() { return (FGI.rows || []).filter(r => r && r.txnType === 'FBA'
 async function ensureFba() {
   if (FGI.rows === null) { FBA.busy = true; renderFba(); await fgiLoad(); FBA.busy = false; }
   renderFba();
+}
+
+/** The coloured badge of a dispatch's status. s: its fbaState. An accepted one that has waited FBA_OLD_DAYS is "old". */
+function fbaStatusPill(r, s) {
+  const days = fbaStale(r), key = s.st === 'accepted' && days >= FBA_OLD_DAYS ? 'old' : s.st;
+  const [cls, txt] = FBA_PILL_ON[key];
+  const why = key === 'old' ? ` title="Accepted ${nf(days)} days ago and still not shipped"` : '';
+  return `<span class="pill ${cls}"${why}>${txt}</span>`;
 }
 
 function fbaBadge() {
@@ -68391,6 +68470,7 @@ function fbaDispatchHead(view, tick) {
 /** One dispatch's line. */
 function fbaDispatchRow({ r, s }, view) {
   const id = fgiRowId(r), m = fgiMaster(r.sku), [cls, txt] = FBA_PILL[s.st];
+  const pill = view.on ? fbaStatusPill(r, s) : `<span class="pill ${cls}">${txt}</span>`;
   const pieces = (kind, n) => (view.on ? fbvDispatchFigure(kind, id, n) : nf(n));
   return '<tr>'
     + (view.can ? `<td>${fbaActionable({ s }) ? `<input type="checkbox" data-fba-pick="${esc(id)}"${FBA_PICK.has(id) ? ' checked' : ''}>` : ''}</td>` : '')
@@ -68404,7 +68484,7 @@ function fbaDispatchRow({ r, s }, view) {
     + (view.on ? `<td>${esc(fbvLanesOf(r, view.sales).join(', '))}</td>` : '')
     + `<td style="text-align:left">${esc(r.issuedFor || '')}${(r.handoverTo || r.reason) ? `<div class="muted" style="font-size:10.5px">${r.handoverTo ? 'handed to ' + esc(r.handoverTo) : esc(r.reason)}</div>` : ''}</td>`
     + `<td>${fbaWho(r.createdBy)}</td>`
-    + `<td><span class="pill ${cls}">${txt}</span>${fbaStale(r) >= FBA_STALE_DAYS ? `<div style="font-size:10.5px;color:var(--bad)">${nf(fbaStale(r))} days, not shipped</div>` : ''}</td>`
+    + `<td>${pill}${fbaStale(r) >= FBA_STALE_DAYS ? `<div style="font-size:10.5px;color:var(--bad)">${nf(fbaStale(r))} days, not shipped</div>` : ''}</td>`
     + `<td style="font-size:12px">${r.fbaAcceptedAt ? `${fbaWho(r.fbaAcceptedBy)}<div class="muted" style="font-size:10.5px">${esc(String(r.fbaAcceptedAt).slice(0, 10))}</div>` : '<span class="muted">—</span>'}</td>`
     + `<td style="font-size:12px;text-align:left">${r.fbaShippedAt ? `<b>${esc(r.fbaShipment || '')}</b><div class="muted" style="font-size:10.5px">${esc(r.fbaShipDate || String(r.fbaShippedAt).slice(0, 10))} · ${fbaWho(r.fbaShippedBy)}</div>` : '<span class="muted">—</span>'}</td>`
     + `<td class="num">${s.returned ? `<span style="font-weight:700;color:var(--bad)">${pieces('returned', s.returned)}</span>` : '<span class="muted">—</span>'}</td>`
@@ -68431,17 +68511,27 @@ function fbaNothingRow(cols, sought) {
 const fbaNoteEnd = history => (history ? ` · ${nf(history)} older dispatch(es) came in with the Ready Goods sheet and are history, not work` : '')
   + ' · the store took these pieces out when it sent them; a return puts them back';
 
+/** The line above the table of every dispatch. */
+const fbaDispatchNote = (rows, view) => `${nf(rows.length)} dispatch(es), newest first`
+  + ` · ${nf(rows.reduce((t, x) => t + x.s.open, 0))} piece(s) not returned`
+  + (rows.length > FBA_LIST_LIMIT ? ` · showing the first ${FBA_LIST_LIMIT}` : '')
+  + fbaNoteEnd(view.history);
+
 /** The table with every dispatch. Answers { note: the line above it, skus: whose pictures it shows }. */
 function fbaDrawDispatches(rows, view) {
   const shown = rows.slice(0, FBA_LIST_LIMIT);
   $('fbaTable').innerHTML = fbaDispatchHead(view, view.can ? fbaTickAll(rows) : '') + '<tbody>'
     + (shown.length ? shown.map(x => fbaDispatchRow(x, view)).join('')
       : fbaNothingRow(fbaDispatchCols(view).length + (view.can ? 1 : 0), view.sought)) + '</tbody>';
-  const note = `${nf(rows.length)} dispatch(es), newest first`
-    + ` · ${nf(rows.reduce((t, x) => t + x.s.open, 0))} piece(s) not returned`
-    + (rows.length > FBA_LIST_LIMIT ? ` · showing the first ${FBA_LIST_LIMIT}` : '')
-    + fbaNoteEnd(view.history);
-  return { note, skus: shown.map(x => x.r.sku) };
+  return { note: fbaDispatchNote(rows, view), skus: shown.map(x => x.r.sku) };
+}
+
+/** Draw the dispatches the way the screen is set: cards on a phone, a line per article, or every dispatch. */
+function fbaDrawRows(rows, view) {
+  const phone = view.on && typeof fbrNarrow === 'function' && fbrNarrow();
+  if (view.on) $('fbaTable').className = phone ? 'fbr-cards' : 'xl';
+  if (phone) return fbrDrawCards(rows, view);
+  return view.on && fbvByArticle() ? fbvDrawArticles(rows, view) : fbaDrawDispatches(rows, view);
 }
 
 function renderFba() {
@@ -68471,7 +68561,7 @@ function renderFba() {
   const live = new Set(rows.map(x => fgiRowId(x.r)));
   [...FBA_PICK].forEach(id => { if (!live.has(id)) FBA_PICK.delete(id); });
   const view = { can, on, history: sheet, sought: on ? fbvSearchNote($('fbaQ').value, rows) : '', sales: on ? fbvSalesByNo() : null };
-  const drawn = on && fbvByArticle() ? fbvDrawArticles(rows, view) : fbaDrawDispatches(rows, view);
+  const drawn = fbaDrawRows(rows, view);
 
   const n = FBA_PICK.size;
   ['fbaAccept', 'fbaShip', 'fbaReturn'].forEach(b => { $(b).classList.toggle('hide', !can); $(b).disabled = !n; });
@@ -68482,6 +68572,7 @@ function renderFba() {
   $('fbaMsg').className = 'muted';
   $('fbaMsg').textContent = (view.sought ? view.sought + ' · ' : '') + drawn.note + (on ? fbvSalesNote() : '');
   if (on) fbvDrawAges();
+  if (on && typeof fbrToolbar === 'function') fbrToolbar(view);
   fbaBadge();
   ptImgFill(drawn.skus, false, ptImgPatch);
 }
@@ -68511,9 +68602,8 @@ function fbaForget(fresh) {
   if (goneIds.size) FGI.rows = (FGI.rows || []).filter(x => !goneIds.has(fgiRowId(x)));
 }
 
-async function fbaAccept(ids) {
-  if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can accept a dispatch.';
-  if (!ids.length) return 'Tick at least one dispatch.';
+/** Accept these dispatches, each read again first. Answers { done: the rows accepted, skipped: [{ id, why }] }. Draws nothing. */
+async function fbaAcceptStep(ids) {
   const fresh = await fbaFresh(ids);
   const now = new Date().toISOString(), updates = {}, done = [], skipped = [];
   fresh.forEach(({ id, row }) => {
@@ -68528,6 +68618,13 @@ async function fbaAccept(ids) {
   if (done.length) await ptPatch(updates);
   done.forEach(r => { r.fbaAcceptedAt = now; r.fbaAcceptedBy = ME.email; });
   ids.forEach(id => FBA_PICK.delete(id));
+  return { done, skipped };
+}
+
+async function fbaAccept(ids) {
+  if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can accept a dispatch.';
+  if (!ids.length) return 'Tick at least one dispatch.';
+  const { done, skipped } = await fbaAcceptStep(ids);
   renderFba();
   $('fbaMsg').className = done.length ? 'muted' : 'err';
   $('fbaMsg').textContent = `${nf(done.length)} dispatch(es) accepted · ${nf(done.reduce((t, r) => t + fbaState(r).open, 0))} piece(s)`
@@ -69058,17 +69155,18 @@ function fbvTotals(articles, view, columns) {
     + `<td colspan="${FBV_NAME_COLS.length - 1}" style="text-align:left">${nf(articles.length)} article(s)</td>`
     + columns.map(([k]) => `<td class="num">${nf(fbvSum(articles, a => a[k]))}</td>`).join('') + '<td></td></tr></tfoot>';
 }
+/** The line above the article table. */
+const fbvArticleNote = (articles, rows, view) => `${nf(articles.length)} article(s), most pieces to do first · ${nf(rows.length)} dispatch(es)`
+  + ` · ${nf(fbvSum(rows, x => x.s.open))} piece(s) not returned`
+  + (articles.length > FBA_LIST_LIMIT ? ` · showing the first ${FBA_LIST_LIMIT} articles · Export covers all of them` : '')
+  + fbaNoteEnd(view.history);
 /** The table with a line per article. Answers { note: the line above it, skus: whose pictures it shows }. */
 function fbvDrawArticles(rows, view) {
   const articles = fbvArticles(rows), shown = articles.slice(0, FBA_LIST_LIMIT), columns = fbvColumns(articles);
   $('fbaTable').innerHTML = fbvHead(view, columns, view.can ? fbaTickAll(rows) : '') + '<tbody>'
     + (shown.length ? shown.map(a => fbvArticleRow(a, view, columns)).join('') : fbaNothingRow(fbvSpan(view, columns), view.sought))
     + '</tbody>' + (shown.length ? fbvTotals(articles, view, columns) : '');
-  const note = `${nf(articles.length)} article(s), most pieces to do first · ${nf(rows.length)} dispatch(es)`
-    + ` · ${nf(fbvSum(rows, x => x.s.open))} piece(s) not returned`
-    + (articles.length > FBA_LIST_LIMIT ? ` · showing the first ${FBA_LIST_LIMIT} articles · Export covers all of them` : '')
-    + fbaNoteEnd(view.history);
-  return { note, skus: shown.map(a => a.sku) };
+  return { note: fbvArticleNote(articles, rows, view), skus: shown.map(a => a.sku) };
 }
 function fbvExport(rows) {
   const articles = fbvArticles(rows), columns = fbvColumns(articles), sales = fbvSalesByNo();
@@ -73110,11 +73208,16 @@ function fblvWaitingButtons(id, list) {
     + (fblvShippable(list) ? fblvButton('ship', id, 'Ship') : '')
     + (fblvMayCancel(list) ? fblvButton('cancel', id, 'Cancel list') : '');
 }
-function fblvPanelHtml(waiting) {
-  const shipped = fblvRecentlyShipped();
+/** The line telling a person without the packing right why Pack is missing, or ''. */
+function fblvNoRightHtml(waiting) {
   const noRight = fbaCan() && !packFbaMayPack() && waiting.some(([, l]) => fblvPackable(l));
+  return noRight ? `<div class="err" style="margin-top:6px">${esc(PACK_NO_RIGHT)}</div>` : '';
+}
+function fblvPanelHtml(waiting) {
+  if (typeof fbrListsPanel === 'function' && typeof fbvOn === 'function' && fbvOn()) return fbrListsPanel(waiting);
+  const shipped = fblvRecentlyShipped();
   return '<h3 style="margin:0">FBA lists</h3>'
-    + (noRight ? `<div class="err" style="margin-top:6px">${esc(PACK_NO_RIGHT)}</div>` : '')
+    + fblvNoRightHtml(waiting)
     + (waiting.length ? waiting.map(([id, l]) => fblvCard(l, fblvWaitingButtons(id, l))).join('')
       : '<div class="muted">No list is waiting. Tick SKUs on Finished Goods and press Make FBA list.</div>')
     + (shipped.length ? `<h4 style="margin:12px 0 0">Shipped in the past ${FBLV_RECENT_DAYS} days</h4>`
@@ -73220,6 +73323,235 @@ if ($('fbaLists')) $('fbaLists').onclick = e => {
 };
 if ($('fbaPackBtn')) $('fbaPackBtn').onclick = () => fblvPackPress();
 if ($('fgFbaList')) $('fgFbaList').onclick = () => fblvMakeOpen();
+/* ============================== FILE: src/app/inventory/fba-dispatch-redesign.js ============================== */
+/* ================= FBA DISPATCH: LISTS FIRST, ACCEPT ALL, PHONE CARDS =================
+ * Business rule (28 Nov, Ravi): on FBA Dispatch the FBA team starts with the FBA lists waiting to be packed and shipped, as big
+ * cards; the older dispatches (thousands accepted and never marked shipped) sit below them.
+ *   - Waiting lists: account, Air / Sea / AWD, SKUs, pieces, how much is packed, who made it and when, with Scan to pack, Ship
+ *     and Cancel. Lists shipped in the past 30 days are folded below, each with Undo ship.
+ *   - One main button, "Accept all N waiting": every waiting dispatch the filters leave (status, dates, search, brand, account,
+ *     age), not only the lines the table draws. Accept ticked, Ship ticked, Ship from Excel, Return ticked, Pack a list and
+ *     Export sit under "More"; Refresh stays beside it.
+ *   - Under 760px (a phone) the dispatches are cards, not the wide table.
+ *
+ * ACCEPT ALL SAVES IN BATCHES of FBR_ACCEPT_BATCH, each through the ordinary accept (fbaAcceptStep): every dispatch is read
+ * again first and one already accepted, shipped or returned is left alone, so pressing twice, or again after a dropped
+ * connection, never accepts anything twice.
+ *
+ * WHEN SOMETHING GOES WRONG:
+ *   loud, to the user — a batch that cannot be saved stops the run; the box says how many were accepted before it stopped and that
+ *   the rest are still waiting; the same button carries on. The reason is also written to the console.
+ *   There is no quiet fallback here.
+ *
+ * BEHIND SWITCH storeAlloc (fg-store-alloc.js). Off: none of this shows and the screen is as it was. */
+const FBR_ACCEPT_BATCH = 100;   // dispatches read and saved at a time by Accept all
+const FBR_PHONE_QUERY = '(max-width:760px)';
+const FBR_SKUS_SHOWN = 6;       // SKU codes named on a list's card; the rest are counted
+const FBR_LANE_PILL = { air: 'pill-air', sea: 'pill-sea', awd: 'pill-low' };
+/** The buttons that sit under "More" while the redesign is on. Refresh stays out. */
+const FBR_MOVED = ['fbaPackBtn', 'fbaAccept', 'fbaShip', 'fbaShipXl', 'fbaShipFile', 'fbaReturn', 'fbaExport'];
+
+let FBR = { shippedOpen: false, accepting: false, under: false };
+
+const fbrNarrow = () => (typeof mobOn === 'function' && mobOn())
+  || (typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(FBR_PHONE_QUERY).matches);
+
+/* ---- the FBA lists, as cards ---- */
+const fbrPieces = (list, of) => Object.values(list.lines || {}).reduce((t, l) => t + fgiNum(l[of]), 0);
+const fbrLanePill = lane => `<span class="pill ${FBR_LANE_PILL[lane] || ''}">${esc(FBLV_LANE_NAMES[lane] || lane)}</span>`;
+const fbrMain = (action, id, label) => `<button type="button" data-fbl="${action}" data-fbl-id="${esc(id)}">${label}</button>`;
+
+/** How far a waiting list is packed: { cls: the badge colour, text }. */
+function fbrPackState(list) {
+  const qty = fbrPieces(list, 'qty'), packed = fbrPieces(list, 'packed');
+  if (list.status === 'shipping') return { cls: 'fbr-acc', text: 'Being shipped now' };
+  if (list.status === 'packed') return { cls: 'pill-ok', text: `Packed · ${nf(packed)} of ${nf(qty)}` };
+  if (packed > 0) return { cls: 'pill-low', text: `Packing · ${nf(packed)} of ${nf(qty)}` };
+  return { cls: 'fbr-grey', text: 'Not packed yet' };
+}
+
+/** The SKU codes of a list, the first few with their pieces and a count of the rest. */
+function fbrSkuText(lines) {
+  const named = lines.slice(0, FBR_SKUS_SHOWN).map(l => `${esc(l.sku)} ×${nf(l.qty)}`).join(', ');
+  return named + (lines.length > FBR_SKUS_SHOWN ? ` … +${nf(lines.length - FBR_SKUS_SHOWN)} more` : '');
+}
+
+/** Scan to pack is the main button until the list is packed, then Ship is. */
+function fbrWaitingButtons(id, list) {
+  if (!fbaCan()) return '';
+  const pack = fblvPackable(list) && packFbaMayPack(), ship = fblvShippable(list);
+  return (pack ? (ship ? fblvButton('pack', id, 'Scan to pack') : fbrMain('pack', id, 'Scan to pack')) : '')
+    + (ship ? fbrMain('ship', id, 'Ship') : '')
+    + (fblvMayCancel(list) ? fblvButton('cancel', id, 'Cancel list') : '');
+}
+
+function fbrWaitingCard(id, list) {
+  const lines = Object.values(list.lines || {}), pack = fbrPackState(list);
+  return `<div class="fbr-list">
+    <div class="fbr-list-top">${fbrLanePill(list.lane)}<b class="fbr-acct">${esc(list.account)}</b><span class="pill ${pack.cls}">${esc(pack.text)}</span></div>
+    <div class="fbr-list-figs"><div><b>${nf(fbrPieces(list, 'qty'))}</b><small>pieces</small></div><div><b>${nf(lines.length)}</b><small>SKU(s)</small></div></div>
+    <div class="fbr-list-skus">${fbrSkuText(lines)}</div>
+    <div class="fbr-list-who muted">Made by ${esc(fblvWho(list.by))} · ${esc(ptDayWords(list.at))}</div>
+    <div class="fbr-list-acts">${fbrWaitingButtons(id, list)}</div></div>`;
+}
+
+function fbrShippedCard(id, list) {
+  const lines = Object.values(list.lines || {});
+  return `<div class="fbr-list">
+    <div class="fbr-list-top">${fbrLanePill(list.lane)}<b class="fbr-acct">${esc(list.account)}</b><span class="pill pill-ok">Shipped · ${esc(list.shipment)}</span></div>
+    <div class="fbr-list-figs"><div><b>${nf(fbrPieces(list, 'shipped'))}</b><small>pieces shipped</small></div><div><b>${nf(lines.length)}</b><small>SKU(s)</small></div></div>
+    <div class="fbr-list-who muted">Shipped ${esc(list.shipDate)} by ${esc(fblvWho(list.shippedBy))}</div>
+    <div class="fbr-list-acts">${fbaCan() ? fblvButton('undo', id, 'Undo ship') : ''}</div></div>`;
+}
+
+function fbrShippedSection(shipped) {
+  const open = FBR.shippedOpen;
+  return `<div class="fbr-done"><button type="button" class="ghost" data-fbr-fold aria-expanded="${open}">${open ? '▾' : '▸'} `
+    + `Shipped in the past ${FBLV_RECENT_DAYS} days (${nf(shipped.length)})</button>`
+    + (open ? `<div class="fbr-lists">${shipped.map(([id, l]) => fbrShippedCard(id, l)).join('')}</div>` : '') + '</div>';
+}
+
+/** The whole "FBA lists" panel: waiting lists first, shipped ones folded below. waiting: [id, list] pairs. */
+function fbrListsPanel(waiting) {
+  const shipped = fblvRecentlyShipped();
+  return `<div class="fbr-h"><h3>FBA lists waiting</h3><span class="pill ${waiting.length ? 'pill-low' : 'fbr-grey'}">${nf(waiting.length)}</span></div>`
+    + fblvNoRightHtml(waiting)
+    + (waiting.length ? `<div class="fbr-lists">${waiting.map(([id, l]) => fbrWaitingCard(id, l)).join('')}</div>`
+      : '<div class="muted" style="margin-top:8px">No list is waiting. Tick SKUs on Finished Goods and press Make FBA list.</div>')
+    + (shipped.length ? fbrShippedSection(shipped) : '');
+}
+
+function fbrListsClick(e) {
+  if (!e.target.closest('[data-fbr-fold]')) return;
+  FBR.shippedOpen = !FBR.shippedOpen;
+  fblvRender();
+}
+
+/* ---- the top of the screen ---- */
+/** The waiting dispatches the filters leave: all of them, not only the lines the table draws. */
+const fbrWaiting = () => (FBA.shown || []).filter(x => x.s.st === 'waiting');
+
+/** Called by renderFba while the redesign is on: the buttons under More, and the main button. view: { can }. */
+function fbrToolbar(view) {
+  $('paneFba').classList.add('fbr-on');
+  if (!FBR.under) { FBR_MOVED.forEach(id => $('fbrMoreBody').appendChild($(id))); FBR.under = true; }
+  const waiting = fbrWaiting();
+  $('fbaBreak').classList.remove('hide');
+  $('fbrMore').classList.remove('hide');
+  $('fbrMoreLabel').textContent = FBA_PICK.size ? `More · ${nf(FBA_PICK.size)} ticked` : 'More';
+  $('fbaAcceptAll').classList.toggle('hide', !(view.can && waiting.length));
+  $('fbaAcceptAll').disabled = FBR.accepting;
+  $('fbaAcceptAll').textContent = `Accept all ${nf(waiting.length)} waiting`;
+}
+
+/* ---- accept all ---- */
+function fbrAcceptAllAsk() {
+  if (!fbaCan()) return fblvSay('fbaMsg', 'Only the FBA team (the FBA Dispatch tab) can accept a dispatch.', true);
+  const rows = fbrWaiting().map(x => x.r);
+  if (!rows.length) return fblvSay('fbaMsg', 'No waiting dispatch matches the filters.', true);
+  ptOpenDialog({
+    title: 'Accept all waiting',
+    subtitle: `${nf(rows.length)} dispatch(es) · ${nf(fbvSum(rows, r => fbaState(r).open))} piece(s)`,
+    note: 'Every waiting dispatch the filters on the screen leave is accepted, including those below the lines drawn. Each is read again first; '
+      + 'one somebody else has already accepted, shipped or returned is left alone. It is safe to press again if the connection drops.',
+    saveLabel: `Accept ${nf(rows.length)}`,
+    onSave: () => fbrAcceptRun(rows),
+  });
+}
+
+/** The sentence after a run that stopped part-way. */
+const fbrStoppedText = (saved, total, e) => `Accepted ${nf(saved)} of ${nf(total)} dispatch(es) before it stopped: ${e.message || e}. `
+  + 'The rest are still waiting — press Accept again to carry on.';
+
+/** Accept the dispatches in batches. Answers '' when done, else the sentence the box shows. */
+async function fbrAcceptRun(rows) {
+  if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can accept a dispatch.';
+  if (FBR.accepting) return 'Accepting is already running — wait for it to finish.';
+  const waiting = rows.filter(r => fbaState(r).st === 'waiting');   // a second press leaves out what the first one saved
+  const total = { saved: 0, pieces: 0, skipped: [] };
+  let stopped = '';
+  FBR.accepting = true;
+  $('fbaAcceptAll').disabled = true;
+  try {
+    for (let i = 0; i < waiting.length; i += FBR_ACCEPT_BATCH) {
+      const { done, skipped } = await fbaAcceptStep(waiting.slice(i, i + FBR_ACCEPT_BATCH).map(fgiRowId));
+      total.saved += done.length;
+      total.pieces += fbvSum(done, r => fbaState(r).open);
+      total.skipped.push(...skipped);
+      ptDlgMsg(`Accepting… ${nf(total.saved)} of ${nf(waiting.length)} done`);
+    }
+  } catch (e) {
+    console.error('FBA Dispatch, Accept all stopped after ' + total.saved + ' of ' + waiting.length, e);
+    stopped = fbrStoppedText(total.saved, waiting.length, e);
+  }
+  FBR.accepting = false;
+  renderFba();
+  if (stopped) return stopped;
+  fblvSay('fbaMsg', `${nf(total.saved)} dispatch(es) accepted · ${nf(total.pieces)} piece(s)` + fbaSkipText(total.skipped) + '.', !total.saved);
+  return '';
+}
+
+/* ---- the dispatches as cards ---- */
+/** The small facts under a dispatch card's name, as spans. */
+function fbrDispatchFacts(r, s) {
+  const id = fgiRowId(r), days = fbaStale(r);
+  return [
+    `Sent ${esc(r.date || String(r.createdAt || '').slice(0, 10))} by ${fbaWho(r.createdBy)}`,
+    r.issuedFor ? esc(r.issuedFor) : '',
+    r.fbaAcceptedAt ? `Accepted ${esc(String(r.fbaAcceptedAt).slice(0, 10))} by ${fbaWho(r.fbaAcceptedBy)}` : '',
+    r.fbaShippedAt ? `Shipped as <b>${esc(r.fbaShipment || '')}</b>` : '',
+    s.returned ? `Returned ${fbvDispatchFigure('returned', id, s.returned)}` : '',
+    days >= FBA_STALE_DAYS ? `<span style="color:var(--bad)">${nf(days)} days, not shipped</span>` : '',
+  ].filter(Boolean).map(t => `<span>${t}</span>`).join('');
+}
+
+function fbrDispatchCard({ r, s }, view, sub) {
+  const id = fgiRowId(r), m = fgiMaster(r.sku), lane = view.on ? fbvLanesOf(r, view.sales).join(', ') : '';
+  const tick = view.can && fbaActionable({ s }) ? `<input type="checkbox" data-fba-pick="${esc(id)}"${FBA_PICK.has(id) ? ' checked' : ''} aria-label="Tick ${esc(obUC(r.sku))}">` : '<span></span>';
+  return `<tr${sub ? ' class="fbr-sub"' : ''}><td class="fbr-dc">${tick}`
+    + `<div class="fbr-img" data-img="${esc(obUC(r.sku))}" data-imgpx="56">${ptImgInner(r.sku, 56)}</div>`
+    + `<div class="fbr-main"><div class="fbr-sku">${esc(obUC(r.sku))}</div>`
+    + `<div class="fbr-what">${esc([m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}</div>`
+    + `<div class="fbr-tags">${fbaStatusPill(r, s)}${lane ? `<span class="pill">${esc(lane)}</span>` : ''}</div></div>`
+    + `<div class="fbr-qty">${fbvDispatchFigure('sent', id, s.qty)}<small>pieces</small></div>`
+    + `<div class="fbr-figs">${fbrDispatchFacts(r, s)}</div>`
+    + (view.can ? `<div class="fbr-acts">${fbaRowActions(r, s, id)}</div>` : '') + '</td></tr>';
+}
+
+/** One article's card; opened, its dispatches follow as cards. */
+function fbrArticleCard(article, view, columns) {
+  const { sku } = article, m = fgiMaster(sku), open = FBV.open.has(sku);
+  const figs = columns.filter(([k]) => article[k])
+    .map(([k, label]) => `<span>${esc(label)} ${fbvFigureButton(k, `data-fbv-sku="${esc(sku)}"`, article[k])}</span>`).join('');
+  const card = '<tr><td class="fbr-dc">' + (view.can ? `<div>${fbvTickBox(article)}</div>` : '<span></span>')
+    + `<div class="fbr-img" data-img="${esc(sku)}" data-imgpx="56">${ptImgInner(sku, 56)}</div>`
+    + `<div class="fbr-main"><button class="ghost fbr-sku" data-fbv-open="${esc(sku)}" aria-expanded="${open}" title="Show or hide its dispatches">${open ? '▾' : '▸'} ${esc(sku)}</button>`
+    + `<div class="fbr-what">${esc([m.brand, m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}</div>`
+    + `<div class="fbr-tags">${esc(fbvArticleLanes(article, view.sales).join(', '))}</div></div><span></span>`
+    + `<div class="fbr-figs">${figs}</div></td></tr>`;
+  return open ? card + fbvInside(article).map(x => fbrDispatchCard(x, view, true)).join('') : card;
+}
+
+/** The dispatches as cards in place of the table. Answers { note: the line above it, skus: whose pictures it shows }. */
+function fbrDrawCards(rows, view) {
+  const byArticle = fbvByArticle(), articles = byArticle ? fbvArticles(rows) : [], columns = fbvColumns(articles);
+  const shown = (byArticle ? articles : rows).slice(0, FBA_LIST_LIMIT);
+  const card = x => (byArticle ? fbrArticleCard(x, view, columns) : fbrDispatchCard(x, view, false));
+  $('fbaTable').innerHTML = (view.can ? `<thead><tr><th>${fbaTickAll(rows)} Tick every dispatch that can still be acted on</th></tr></thead>` : '')
+    + '<tbody>' + (shown.length ? shown.map(card).join('') : fbaNothingRow(1, view.sought)) + '</tbody>';
+  return { note: byArticle ? fbvArticleNote(articles, rows, view) : fbaDispatchNote(rows, view),
+    skus: shown.map(x => (byArticle ? x.sku : x.r.sku)) };
+}
+
+/* ---- wiring ---- */
+$('fbaAcceptAll').onclick = () => fbrAcceptAllAsk();
+$('fbaLists').addEventListener('click', fbrListsClick);
+$('fbrMoreBody').addEventListener('click', e => { if (e.target.closest('button')) $('fbrMore').open = false; });
+document.addEventListener('click', e => { if (!e.target.closest('#fbrMore')) $('fbrMore').open = false; });
+/* A window dragged across 760px redraws the dispatches as cards or as the table (only once they are read, only while shown). */
+if (typeof window.matchMedia === 'function') window.matchMedia(FBR_PHONE_QUERY).addEventListener('change', () => {
+  if (FGI.rows && !$('paneFba').classList.contains('hide')) renderFba();
+});
 /* ============================== FILE: src/app/inventory/pack-verify.js ============================== */
 /* ================= FINISHED GOODS: PACK & VERIFY (2026-10-12) =================
  *
