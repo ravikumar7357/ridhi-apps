@@ -101,7 +101,7 @@ function ordStatePillWork(r) {
   if (r.pendingCut > 0) return '<span class="jw-st pend">' + nf(r.pendingCut) + ' to cut</span>';
   if (r.pendingMake > 0) return '<span class="jw-st prog">' + nf(r.pendingMake) + ' to make</span>';
   /* Saying "0 to make" here would be silence in a louder font. */
-  return '<span class="jw-st prog">' + nf(r.madeToPress) + ' to press</span>';
+  return '<span class="jw-st prog">' + nf(r.madeToPress) + ' waiting for QC</span>';
 }
 
 function renderOrdShopify(bySku, done) {

@@ -14942,7 +14942,7 @@ function pksHit(code, via) {
     PKS.hold = r.kind !== "none" && !(r.kind === "unknown" && via === "camera");
     pksBeep(false);
     pksFlash(false);
-    pksSay(r.kind === "wrong" ? "Wrong article — not counted" : r.kind === "full" ? "Not counted — the orders want no more of it" : "Not counted — unknown label", true);
+    pksSay(r.kind === "wrong" ? "Wrong article — not counted" : r.kind === "full" ? (r.store ? "Not counted — no free stock for it" : "Not counted — the orders want no more of it") : "Not counted — unknown label", true);
     pksDraw();
     return;
   }
@@ -14955,7 +14955,7 @@ function pksHit(code, via) {
     pksSay("Everything on the orders is packed — press Finish");
   } else {
     pksBeep(true);
-    pksSay(`+${r.n} ${r.sku}${r.short ? ` — only ${r.n} of ${PKS.per}: the orders want no more` : ""}${r.left != null ? ` · ${nf(r.left)} left on the orders` : ""}`);
+    pksSay(`+${r.n} ${r.sku}${r.short ? ` — only ${r.n} of ${PKS.per}: no more could be counted for these orders` : ""}${r.left != null ? ` · ${nf(r.left)} left on the orders` : ""}`);
   }
   pksDraw();
 }
@@ -15382,7 +15382,7 @@ function pksDraw() {
   if (PKS.panel) {
     /* the Box done / Finish panel stays as it is */
   } else if (PKS.bad) {
-    const k = PKS.bad.kind, title = k === "wrong" ? "Wrong article" : k === "full" ? "Not counted — orders want no more" : "Not counted — unknown label";
+    const k = PKS.bad.kind, title = k === "wrong" ? "Wrong article" : k === "full" ? (PKS.bad.store ? "Not counted — no free stock" : "Not counted — orders want no more") : "Not counted — unknown label";
     const img = k === "wrong" || k === "full" ? pksImg(PKS.bad.sku) : "";
     card.innerHTML = `<div class="pks-badcard${k === "full" ? " pks-fullcard" : ""}"><div class="pks-badicon">${k === "full" ? "■" : "✕"}</div><div class="pks-big">${title}</div><div class="pks-code">${esc(PKS.bad.sku || PKS.bad.code)}</div>
       ${img ? `<img class="pks-img pks-img-sm" src="${esc(img)}" alt="">` : ""}
@@ -27726,7 +27726,7 @@ function ordProdRows() {
       supplier: r.orderNo, orderNo: r.orderNo,
       /* Which stage it is sitting at, from the line's own figures - no vendor or finished-goods read,
        * so this stays a cheap screen to open. */
-      stage: r.pendingCut > 0 ? 'to cut' : (r.pendingMake > 0 ? 'to make' : (r.madeToPress > 0 ? 'to press' : 'made')) });
+      stage: r.pendingCut > 0 ? 'to cut' : (r.pendingMake > 0 ? 'to make' : (r.madeToPress > 0 ? 'waiting for QC' : 'made')) });
   });
   return out;
 }
@@ -28169,7 +28169,7 @@ const ORD_KPI_FIELDS = {
   overRecv: { label: 'Over-received', of: r => r.overRecv, icon: 'alert', tone: 'amber', colour: '#7f6000', sub: () => 'more than the line ordered' },
   pressed: { label: 'Made', of: r => r.pressed, icon: 'press', tone: 'green', colour: '#166534', sub: (v, t) => ordPct(v, t.received) + '% of received · QC passed' },
   pendingMake: { label: 'Still to make', of: r => r.pendingMake, icon: 'clock', tone: 'red', colour: 'var(--bad)', sub: (v, t) => ordPct(v, t.ordered) + '% of ordered' },
-  madeToPress: { label: 'Made, to press', of: r => r.madeToPress, icon: 'box', tone: 'amber', colour: '#7f6000', sub: () => 'made, waiting on the press' },
+  madeToPress: { label: 'Made, waiting for QC', of: r => r.madeToPress, icon: 'box', tone: 'amber', colour: '#7f6000', sub: () => 'received from the karigar, not passed yet' },
   /* SENT WITHOUT A RECORD OF BEING MADE. Not outstanding work — the pieces have gone — but a hole in
    * the registers, and the one number that says how big it is. Clicking it shows exactly those lines. */
   unrecorded: { label: 'Sent, never recorded', of: r => r.unrecorded, icon: 'x', tone: 'amber', colour: '#7f6000', sub: () => 'gone, with no entry behind them' },
@@ -28775,7 +28775,7 @@ function ordStatePillWork(r) {
   if (r.pendingCut > 0) return '<span class="jw-st pend">' + nf(r.pendingCut) + ' to cut</span>';
   if (r.pendingMake > 0) return '<span class="jw-st prog">' + nf(r.pendingMake) + ' to make</span>';
   /* Saying "0 to make" here would be silence in a louder font. */
-  return '<span class="jw-st prog">' + nf(r.madeToPress) + ' to press</span>';
+  return '<span class="jw-st prog">' + nf(r.madeToPress) + ' waiting for QC</span>';
 }
 
 function renderOrdShopify(bySku, done) {
@@ -31862,7 +31862,7 @@ function shpbView() {
   const pend = shown.filter(r => r.open && sOf(r).prsD + sOf(r).stk < (+r.qty || 0));
   const done = shown.filter(r => { if (!r.open) return true; return sOf(r).prsD > 0 || sOf(r).stk > 0; });
   const stg = SHPB_STAGES.find(x => x[0] === SHPB.stage);
-  let list = SHPB.tab === 'done' ? (stg && stg[0] === 'hand' ? done.filter(r => sOf(r)[stg[3]] > 0) : done) : (stg && stg[0] !== 'hand' ? pend.filter(r => sOf(r)[stg[3]] > 0) : pend);
+  let list = SHPB.tab === 'done' ? (stg && stg[0] === 'hand' ? done.filter(r => r.open && sOf(r)[stg[3]] > 0) : done) : (stg && stg[0] !== 'hand' ? pend.filter(r => sOf(r)[stg[3]] > 0) : pend);
   if (SHPB.late && SHPB.tab !== 'done') list = list.filter(r => (shpbLate(r) || {}).tone === 'late');
   return { f, all, pend, done, list };
 }
@@ -31885,7 +31885,8 @@ function renderShpBoard() {
   const tabBtn = (v, t) => `<button type="button" data-shpb-tab="${v}" style="height:36px;padding:0 16px;border-radius:999px;font:inherit;font-weight:700;cursor:pointer;box-shadow:none;transform:none;`
     + (tab === v ? 'background:#15803D;color:#fff;border:1px solid #15803D' : 'background:#fff;color:#17202B;border:1px solid #D5DCE5') + `">${t}</button>`;
   /* THE BUCKETS: how many orders wait at each stage, and how many pieces. A click shows only those lines; click again for all. */
-  const bucket = x => { const src = x[0] === 'hand' ? done : pend, ls = src.filter(r => shpbStages([r])[x[3]] > 0), pcs = ls.reduce((a, r) => a + shpbStages([r])[x[3]], 0), on = SHPB.stage === x[0];
+  const bucket = x => { const src = x[0] === 'hand' ? done.filter(r => r.open) : pend,   // a closed line waits for nobody (28 Nov: 124 shown, 4 waiting)
+       ls = src.filter(r => shpbStages([r])[x[3]] > 0), pcs = ls.reduce((a, r) => a + shpbStages([r])[x[3]], 0), on = SHPB.stage === x[0];
     return `<button type="button" data-shpb-stage="${x[0]}" title="Show only the lines waiting at ${esc(x[1])}" style="padding:6px 12px;border-radius:12px;font:inherit;cursor:pointer;box-shadow:none;transform:none;text-align:left;line-height:1.25;`
       + (on ? 'background:#b45309;color:#fff;border:1px solid #b45309' : 'background:#fdf0e8;color:#17202B;border:1px solid #f0cdb5') + `"><b>${esc(x[1])}</b> <span style="font-weight:700">(${nf(new Set(ls.map(r => r.orderNo)).size)})</span>`
       + `<div style="font-size:10.5px;opacity:.85">orders · ${nf(pcs)} pcs</div></button>`; };
@@ -35687,6 +35688,11 @@ function flowChByFabric(n) {
   const bySize = (a, b) => (typeof flowSizeSort === 'function' ? flowSizeSort(a.size, b.size) : String(a.size).localeCompare(String(b.size)));
   return [...fabs.values()].sort((a, b) => a.fabric.localeCompare(b.fabric)).map(f => Object.assign({}, f, { sizes: [...f.sizes.values()].sort(bySize) }));
 }
+/** A line's shortage in words. "after older orders" only when something on this shelf was really taken before it. */
+function flowChShortTxt(c, cv) {
+  const shelf = ((cv.fab || {})[flowFabKey(c.name)] || {}).stock || 0;
+  return `short ${nf(c.short)} m${c.avail < shelf ? ' after older orders' : ''}`;
+}
 /** Whether the RFD on the shelf covers what this challan sends of a fabric: { free, short } (free null when unknown). */
 function flowChStock(fabric, metres) {
   const c = FLOW_CH_COVER.fab[flowFabKey(fabric)]; if (!c) return { free: null, short: 0 };
@@ -35766,7 +35772,7 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
         ? `<input data-chp="${i}" type="number" min="1" step="1" max="${flowFabOwed(x.r, x.s).left}" value="${pr ? pr.pcs : flowFabOwed(x.r, x.s).left}" title="Send fewer pieces for now — the rest stays in Demand" style="width:60px;padding:3px 6px;font-size:12px">${flowDoneTxt(x)}`
         : (pr ? `${nf(pr.pcs)} <span class="muted" style="font-size:10px">of ${nf(x.r.qty)}</span>` : nf(x.r.qty))}</td>
       <td class="num" style="white-space:normal"><input data-chm="${i}" type="number" step="0.01" value="${esc((pr ? pr.metres : flowFabOwed(x.r, x.s).metres) || '')}" style="width:72px;padding:3px 6px;font-size:12px">${x.s.fabSent > 0 ? `<div class="muted" style="font-size:10px">${nf(x.s.fabSent)} ${x.s.fabUnit} sent already</div>` : ''}${+(p.fabric && p.fabric.fromPrinted) ? `<div class="muted" style="font-size:10px">${nf(p.fabric.fromPrinted)} ${p.fabric.printedUnit === 'pcs' ? 'pcs' : 'm'} from printed stock</div>` : ''}</td>
-      <td style="font-size:11px;white-space:normal">${held(i) ? flowChPill(false, 'fix fabric first') : c.short ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#fde8e8;color:#b42318;font-weight:700">short ${nf(c.short)} m</span>` : '<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#e7f5ec;color:#166534;font-weight:700">covered</span>'}</td></tr>`; }).join('') + rufHtml;
+      <td style="font-size:11px;white-space:normal">${held(i) ? flowChPill(false, 'fix fabric first') : c.short ? `<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#fde8e8;color:#b42318;font-weight:700" title="Older lines waiting for this fabric, and cloth already set aside for other lines, come first">${flowChShortTxt(c, cv)}</span>` : '<span style="display:inline-block;padding:2px 9px;border-radius:999px;background:#e7f5ec;color:#166534;font-weight:700">covered</span>'}</td></tr>`; }).join('') + rufHtml;
   ptOpenDialog({
     title: `RFD challan — ${orderNo}${pcode && pcode !== '?' ? ' → ' + ((vens.find(v => String(v.code) === String(pcode)) || {}).desc || ((rows[0].s.plan.printer || {}).name) || pcode) : ''}`,
     subtitle: (orders.length > 1 ? `${orders.length} orders, one printed fabric, one vendor. ` : 'The fabric of this order, to one vendor. ') + 'Saving numbers the challan, opens it to print, and marks these lines\' fabric as given — they leave Demand by themselves.',
@@ -53483,7 +53489,8 @@ function soBrandOf(o) {
 /** What the Buyer column says: the brand on a B2B order that carries one, else who raised it. */
 const soBuyerTxt = o => (soIsB2B(o.channel) && soBrandOf(o)) || o.buyerName || '';
 
-/** Order + SKU → net cut and pressed, built once. Per-SKU lookups would rescan 4,000 rows 1,200 times. */
+/** Order + SKU → net cut and made, built once. Per-SKU lookups would rescan 4,000 rows 1,200 times. Made is the Order
+ *  Console's own figure (28 Nov: this screen showed 0 where the console showed 3): QC passes and pieces from ready stock count. */
 function soWork() {
   const cut = new Map(), press = new Map();
   (PT.cut || []).forEach(r => {
@@ -53493,11 +53500,7 @@ function soWork() {
     const net = (parseInt(r.pieces, 10) || 0) - (r.rejected === true ? (parseInt(r.rejPieces, 10) || 0) : 0);
     cut.set(k, (cut.get(k) || 0) + net);
   });
-  (PTG.press || []).forEach(r => {
-    if (!r || !r.orderNo) return;
-    const k = obUC(r.orderNo) + '|' + obUC(r.sku);
-    press.set(k, (press.get(k) || 0) + (parseInt(r.pieces, 10) || 0));
-  });
+  (ordLines() || []).forEach(l => press.set(obUC(l.orderNo) + '|' + obUC(l.sku), +l.pressed || 0));
   return { cut, press };
 }
 
@@ -100413,6 +100416,14 @@ function p1Do(k, xs) {
 }
 /** The lines of a lot still waiting for PPC's plan, for someone who may plan. */
 function p1ToPlan(lines) { const a = P1_ADD.find(x => x[0] === 'PLAN'); return p1MayTab(a[2]) ? lines.filter(a[3]) : []; }
+/** What to say of lines an outside maker is making (28 Nov: they read "Nothing waiting" until all had come in); '' for none.
+ *  An outsourced line has no stage of its own, so the status says it. */
+function p1Outside(xs) {
+  const out = (xs || []).filter(x => x && x.s.bucket === 'out'); if (!out.length) return '';
+  const who = [...new Set(out.map(x => p1Pr(x.s.plan && x.s.plan.outVendor)).filter(Boolean))];
+  const left = out.reduce((t, x) => t + Math.max(0, (+x.r.qty || 0) - (+x.s.india || 0)), 0);
+  return `With ${who.join(', ') || 'an outside maker'} · ${p1N(left)} to come`;
+}
 /** "Plan" on a lot or an order line, with the pieces waiting for it: the only step button on the Production list (Ravi,
  *  27 Nov: "add the to plan button back"; the other next-step buttons stay off). `line` is '' for the whole lot. */
 function p1PlanBtn(lines, gk, line) {
@@ -100643,7 +100654,7 @@ function p1DrawInv() {
       + `<span class="bk-n">${!pcs && m ? `${p1N(m)}<small> m</small>` : `${p1N(pcs)}<small> pcs${m ? ' + ' + p1N(m) + ' m' : ''}</small>`}</span>`
       + `<span class="bk-s">${p1N(ls.length)} lot${ls.length === 1 ? '' : 's'}${lt ? ` · <i>${p1N(lt)} late</i>` : ''}</span></button>`; };
   const tab = (v, t, n) => `<button type="button" class="${P1.tab === v ? 'on' : ''}" data-p1tab="${v}">${esc(t)} · ${p1N(n)}</button>`;
-  const status = (at, due, over) => `<b>${esc(at ? P1_NOW[at] : 'Nothing waiting')}</b><span class="rb${over ? ' late' : ''}">${due ? p1Day(due) : 'no date'}${over ? ` · ${over} d late` : ''}</span>`;
+  const status = (at, due, over, outside) => `<b>${esc(at ? P1_NOW[at] : outside || 'Nothing waiting')}</b><span class="rb${over ? ' late' : ''}">${due ? p1Day(due) : 'no date'}${over ? ` · ${over} d late` : ''}</span>`;
   /* no lot: "To plan" only while something of it waits for a plan; a line already in production without a PPC plan (issued
    * from Job Work, or planned before lot numbers began) says "No lot" */
   const lotNo = r => `<a class="p1-lotno${r.lot ? '' : r.notPlanned ? ' new' : ' none'}" data-p1hist="${esc(r.gk)}" title="This lot's history">${r.lot ? esc(p1LotTxt(r.lot)) : r.notPlanned ? 'To plan' : 'No lot'}</a>`;
@@ -100653,11 +100664,11 @@ function p1DrawInv() {
   const lotRow = r => { const open = P1.inv === r.gk;
     let h = `<tr class="p1r lot${open ? ' open' : ''}${p1Urgent(r) ? ' urgent' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
       <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div>${rejNote(r.wl || [])}${overNote(r.lines)}</td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
-      ${P1_COLS.map(([k]) => p1StageCell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${p1PlanBtn(r.lines, r.gk, '')}</td></tr>`;
+      ${P1_COLS.map(([k]) => p1StageCell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over, p1Outside(r.lines))}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${p1PlanBtn(r.lines, r.gk, '')}</td></tr>`;
     if (open) h += r.ln.map((l, i) => { const od = l.due && l.due < today ? p1Days(l.due) : 0;
       return `<tr class="p1l"><td class="lc"><a class="p1-ord" data-p1hist="${esc(r.gk)}" data-p1ho="${esc(l.x.r.orderNo)}" title="This order's history">${esc(l.x.r.shopOrderNo || l.x.r.orderNo)}</a><span class="ch">${esc(l.chan)}</span></td>
         <td class="it muted sm">${esc(p1Day(p1Iso(l.x.r.orderDate) || l.x.r.openIso || ''))}${rejNote([(r.wl || [])[i]])}${overNote([l.x])}</td><td class="num">${p1N(l.st.q)}</td><td class="pr">${l.printer ? esc(l.printer) : l.st.planned ? '<span class="muted">—</span>' : '<b class="np">not planned</b>'}</td>
-        ${P1_COLS.map(([k]) => p1StageCell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${p1PlanBtn([l.x], r.gk, i)}</td></tr>`; }).join('');
+        ${P1_COLS.map(([k]) => p1StageCell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od, p1Outside([l.x]))}</td><td class="nx">${p1PlanBtn([l.x], r.gk, i)}</td></tr>`; }).join('');
     return h; };
   const shown = rows.slice(0, P1.lim), R0 = gk => all.find(r => r.gk === gk);
   el.innerHTML = `<div class="p1-head"><h1 class="lm-h">PPC</h1>${p1ViewSeg()}<span class="p1-read">${P1.err ? `<b style="color:var(--bad)">Could not read everything: ${esc(P1.err)}</b> · ` : ''}${P1.more ? 'Reading the rest… · ' : ''}${P1.loading ? 'Reading…' : 'Read ' + (P1.at || '—')} · <a data-p1r>↻ Refresh</a></span></div>
