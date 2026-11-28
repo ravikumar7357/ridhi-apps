@@ -2,7 +2,7 @@
  *   node tests/teeth/teeth-fba-lists.js */
 const fs = require('fs'), os = require('os'), path = require('path'), { spawnSync } = require('child_process');
 const APP = path.join(__dirname, '..', '..', 'src', 'app');
-const L = 'inventory/fba-lists.js', D = 'inventory/fg-change-remove.js';
+const L = 'inventory/fba-lists.js', D = 'inventory/fg-change-remove.js', A = 'inventory/fg-store-alloc.js', N = 'inventory/fg-store-newdev.js';
 const breaks = {
   'on everywhere': ["return typeof window !== 'undefined' && !!window.__TEST_ERP;", 'return true;'],
   'no store shares needed': ['if (!fgaOn()) return false;', ''],
@@ -11,10 +11,10 @@ const breaks = {
   'anybody may': ["(fbaCan() ? '' : FBL_NOT_TEAM)", "''"],
   'shipped lists keep pieces': ["['open', 'packed', 'shipping'];", "['open', 'packed', 'shipping', 'shipped'];"],
   'packed lists keep nothing': ["['open', 'packed', 'shipping'];", "['open'];"],
-  'no cap': ["return want.qty <= cap ? ''", "return true ? ''"],
+  'no cap': ["if (want.qty <= cap) return '';", "return '';"],
   'releases do not count': ['fblShare(want, book) + fgiReleased(want.sku)', 'fblShare(want, book)'],
   'other lists do not limit': ['Math.max(0, fgiOf(want.sku).current - kept)', 'fgiOf(want.sku).current'],
-  'any store share': ['fgiHoldNode(), book, [want.store])', 'fgiHoldNode(), book, SHP_HOLD_STORES)'],
+  'any store share': [A, 'fgaShares(want.sku, current, hold, book, [want.store])', 'fgaShares(want.sku, current, hold, book, SHP_HOLD_STORES)'],
   'old figures pass': ["if (old) return { err: 'Nothing was saved — ' + old };", ''],
   'part pieces listed': ['!Number.isInteger(qty) || qty < 1', 'qty < 1'],
   'a second tap saves again': ['if (earlier) return', 'if (false) return'],
@@ -82,6 +82,24 @@ const breaks = {
   'a list movement is deleted': [D, 'if (fgiOnFbaList(r)) {', 'if (false) {'],
   'its return goes with it': [D, ' || fgiOnFbaList(byId.get(r.linkedFbaId))', ''],
   'a list return cannot be deleted': [D, 'parent.fbaShippedAt && !fgiOnFbaList(parent)', 'parent.fbaShippedAt'],
+  /* New development pieces on FBA lists */
+  'listed pieces stay pending': [N, 'Object.entries(allotted || {}).forEach', 'Object.entries({}).forEach'],
+  'order numbers dealt at Ship count': [N, '(r.fbaListId ? [] : fgiOutParts(r))', 'fgiOutParts(r)'],
+  'Replenishment is added on top': [A, ' + Math.max(0, (book.fromLists.get(key) || 0) - inOwnLane);', ';'],
+  'the own lane is taken off twice': [A, '(book.fromLists.get(key) || 0) - inOwnLane', '(book.fromLists.get(key) || 0)'],
+  'the own lane is judged on the viewed store': [A, 'const inOwnLane = SHP_HOLD_STORES.reduce', 'const inOwnLane = stores.reduce'],
+  'seen shipments still come off': [N, '!(r && r.fbaListId && fgaOnTheWay([r], now.need).size)', '!(r && r.fbaListId)'],
+  'shipments on the way are forgotten': [N, '!(r && r.fbaListId && fgaOnTheWay([r], now.need).size)', 'true'],
+  'an unlisted article goes on a list': [A, 'if (!fgaListingWhy(want.sku)) return inLane;', 'return inLane;'],
+  'the list refusal says nothing of New development': [L, "+ (newDev ? ' ' + newDev : '');", ';'],
+  'Ship does not ask the listing': [L, "if (unlisted) return 'Not shipped", "if (false) return 'Not shipped"],
+  'Ship counts the list against itself': [L, 'const book = fgaBook(null, Object.assign({}, fblLists(), { [id]: null })), unread', 'const book = fgaBook(), unread'],
+  'other lists hide the New development pieces': [L, '!(unread || unsent.has(key))', '!(unread || book.newDev.has(key))'],
+  'no release at Ship': [L, ' + fblReleasedFor(list, key, fgiHoldNode().releases)', ''],
+  'every unlisted SKU is held at Ship': [L, 'if (!why || !(unread || unsent.has(key))) return', 'if (!why) return'],
+  'unread sales orders ship': [L, '!(unread || unsent.has(key))', '!unsent.has(key)'],
+  'a listed article is held at Ship': [L, 'if (!why || !(unread', 'if (!(unread'],
+  'the orders box hides the lists': [N, "shpListsOn() ? 'Issued or on FBA lists' : 'Already issued'", "'Already issued'"],
 };
 let survived = 0;
 const tmp = path.join(os.tmpdir(), 'teeth-fba-lists-' + process.pid + '.js');

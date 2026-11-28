@@ -60,10 +60,10 @@ function fblvMakeHtml(skus) {
       <label>Lane<select id="fblvLane">${options(FBL_LANES.map(l => [l, FBLV_LANE_NAMES[l]]))}</select></label>
     </div>`
     + skus.map((sku, i) => {
-      const note = fblvRepeatNote(sku);
+      const notes = [fblvRepeatNote(sku), fgaNewDevWhy(sku)].filter(Boolean);
       return `<div style="margin-top:10px"><label style="display:block"><b>${esc(sku)}</b> — pieces <span id="fblvMax${i}" class="muted"></span>
         <input id="fblvQty${i}" type="number" min="0" step="1" inputmode="numeric"></label>
-        ${note ? `<div class="err" style="font-size:12px">${esc(note)}</div>` : ''}</div>`;
+        ${notes.map(note => `<div class="err" style="font-size:12px">${esc(note)}</div>`).join('')}</div>`;
     }).join('');
 }
 

@@ -97,6 +97,12 @@ const actions = html => (html.match(/data-fbl="\w+"/g) || []).map(m => m.slice(1
     const R = screen({ picked: ['A'], says: 'Nothing was saved — short.' }); await R.ctx.fblvMakeOpen();
     ok('a refusal stays on the form and keeps the ticks', /short/.test(await R.dialogs[0].onSave()) && R.ctx.FGI_PICK.stock.size === 1);
   }
+  {
+    const sales = [{ _id: 'AMZ-1', orderTypeKey: 'newdev', lines: [{ sku: 'A', qty: 2 }] }];
+    const S = screen({ picked: ['A'], sales, lines: [{ orderNo: 'AMZ-1', sku: 'A', qty: 2, orderDate: '2026-11-01' }] });
+    await S.ctx.fblvMakeOpen();
+    ok('a New development article whose listing cannot be checked says so on the form', /listing of A could not be checked/.test(S.dialogs[0].html), S.dialogs[0].html);
+  }
   console.log('== the panel ==');
   {
     const off = panel({ switch: '0', lists: { L: list('packed') } });
@@ -222,6 +228,7 @@ function teeth() {
     [view, 'if (said && !said.startsWith(doneStart)) return said;', 'if (said) return said;'],
     [view, '<b style="font-family:ui-monospace,monospace">${esc(l.sku)}</b>', '<b>${l.sku}</b>'],
     [view, 'if (!fbaCan()) return \'\';', ''],
+    [view, ', fgaNewDevWhy(sku)].filter', '].filter'],
     ['inventory/fba-dispatch.js', "? btn('data-fba-ret', id, 'Return', true) : btn(", "? '' : btn("],
     ['inventory/fba-ship-excel.js', 'await fblvUndoAsk(row.fbaListId);', ''],
   ];

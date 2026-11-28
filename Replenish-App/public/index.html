@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <!-- ================================================================================================
-     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 202 files of src/ joined into one page.
+     GENERATED FILE. DO NOT READ OR EDIT THE CODE HERE — it is the 203 files of src/ joined into one page.
      The real, grouped source: Replenish-App/src/   (map and workflow: src/README.md)
        src/index.html   page markup        src/styles.css   stylesheet        src/app/ORDER   join order
        src/app/<group>/ the code, by group: core, replenishment, masters, production, vendors, orders, shopify, flow, dashboard, people-pay, inventory, reports, shared, meera
@@ -28649,8 +28649,8 @@ const ordFgOf = (orderNo, sku) => { const e = ordFgAt(orderNo, sku); return e ? 
  * puts on the book does not carry it. So it is read back from the sales order: a line is new development when any line of
  * that SKU on that sales order is (the line's own type first, else the order's). Nothing is written. */
 let ORD_ND = { src: null, n: -1, set: null };
-function ordNewDevSet() {
-  const s = (typeof SOX !== 'undefined' && Array.isArray(SOX.rows)) ? SOX.rows : [];
+function ordNewDevSet(sales) {
+  const s = sales || ((typeof SOX !== 'undefined' && Array.isArray(SOX.rows)) ? SOX.rows : []);
   if (ORD_ND.set && ORD_ND.src === s && ORD_ND.n === s.length) return ORD_ND.set;
   const set = new Set();
   s.forEach(o => {
@@ -62998,8 +62998,8 @@ async function fgiLoadRun(quiet) {
   /* A tick on a row that has just been read again may point at nothing now. */
   FGI_PICK = { stock: new Set(), ledger: new Set() };
   fbaBadge();
-  /* Three reads that do not wait on each other, read together; each keeps what it had when its own read fails. */
-  await Promise.all([lstLoad(), fgiCorrLoad(), fnLoad()]);
+  /* Reads that do not wait on each other, read together; a failed one does not stop the rest. */
+  await Promise.all([lstLoad(), fgiCorrLoad(), fnLoad(), typeof fgaSalesRead === 'function' ? fgaSalesRead() : null]);
   fgiOverBadge();
   if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowFgBadgeLoad === 'function') { if (fgLiteOn() && typeof flowFgBadgeLite === 'function') flowFgBadgeLite(); else flowFgBadgeLoad(); }
   lstMaybeRefresh();
@@ -63185,13 +63185,17 @@ function fgiStockNote(rows, onlyStock, alloc) {
   $('fgMsg').textContent = `${nf(rows.length)} SKU(s)`
     + (alloc ? fgaCountWords(rows) : (onlyStock ? ' in stock now' : ` on record · ${nf(held)} with pieces left`))
     + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
-    + (val ? ` · ${nf(Math.round(val))} rupees of stock` : '')
-    + (noPrice ? ` · ${nf(noPrice)} in stock have no rate, so they are in the pieces and not in the value` : '')
+    /* Switch storeAlloc (asked 28 Nov): the list says nothing about rates or value; it says how wide a search reaches. */
+    + (alloc && (PTG.mdb || []).length ? ` · search covers all ${nf(PTG.mdb.length)} Master Database SKUs` : '')
+    + (val && !alloc ? ` · ${nf(Math.round(val))} rupees of stock` : '')
+    + (noPrice && !alloc ? ` · ${nf(noPrice)} in stock have no rate, so they are in the pieces and not in the value` : '')
     + (low ? ` · ${nf(low)} at or below their re-order level` : '')
     + (neg.length ? ` · ${nf(neg.length)} SKU(s) are NEGATIVE, meaning more has gone out than ever came in` : '')
     + ' · stock is opening plus what came in, less what went out — pieces still in transit from press are not stock';
   const old = alloc ? fgiFbaAgeWhy() : '';
   if (old) { $('fgMsg').className = 'err'; $('fgMsg').textContent += ' · The FBA and Excess figures cannot be relied on: ' + old; }
+  const unread = alloc ? fgaSalesWhy() : '';
+  if (unread) { $('fgMsg').className = 'err'; $('fgMsg').textContent += ' · ' + unread; }
   const copy = typeof shpHoldOn === 'function' && shpHoldOn() ? fgiHoldOldWarning() : '';
   if (copy) { $('fgMsg').className = 'err'; $('fgMsg').textContent += ' · ' + copy; }
 }
@@ -63695,6 +63699,7 @@ $('fgTable').addEventListener('click', e => {
   }
   const rel = e.target.closest('[data-fgrel]'); if (rel) return fgiReleaseOpen(rel.getAttribute('data-fgrel'));
   const cu = e.target.closest('[data-fgacustom]'); if (cu) return fgaCustomOpen(cu.getAttribute('data-fgacustom'));
+  const nd = e.target.closest('[data-fgand]'); if (nd) return fgaNewDevOpen(nd.getAttribute('data-fgand'), nd.getAttribute('data-fgalane'));
   const apOk = e.target.closest('[data-fapok]'); if (apOk) return fapApprovePress(apOk);
   const apNo = e.target.closest('[data-fapno]'); if (apNo) return fapRejectOpen(apNo.getAttribute('data-fapno'));
   const n = e.target.closest('[data-fgentry]'); if (n) return fgiEntryOpen('ISSUE', n.getAttribute('data-fgentry'));
@@ -69354,6 +69359,9 @@ function lstRenderAlerts() {
     .filter(a => { const m = fgiMaster(a.sku); return !q || [a.sku, m.color, m.size, m.articleType, m.subtype].join(' ').toLowerCase().includes(q); })
     .sort((a, b) => String(b.lastAt || '').localeCompare(String(a.lastAt || '')));
   FGI.shown = rows;
+  /* New development orders waiting for a SKU are tagged on its row (India store shares, 28 Nov). */
+  const newDevOf = typeof fgaNewDevTagger === 'function' ? fgaNewDevTagger() : () => '';
+  const unread = typeof fgaOn === 'function' && fgaOn() ? fgaSalesWhy() : '';
   const head = '<thead><tr>' + ['SKU', 'Image', 'Item', 'In stock', 'Amazon now', 'First alerted', 'Last entry', '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (i === 3 ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   $('fgTable').innerHTML = head + '<tbody>' + (rows.length ? rows.map(a => {
@@ -69361,7 +69369,7 @@ function lstRenderAlerts() {
     return '<tr>'
       + `<td class="frz" style="font-family:ui-monospace,monospace;text-align:left">${esc(a.sku)}</td>`
       + ptImgCell(a.sku)
-      + `<td style="text-align:left">${esc([m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}</td>`
+      + `<td style="text-align:left">${esc([m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · ')) || '<span class="muted">not in the master DB</span>'}${newDevOf(a.sku)}</td>`
       + `<td class="num" style="font-weight:700">${nf(fgiOf(a.sku).current)}</td>`
       + `<td><span class="pill ${cls}">${txt}</span></td>`
       + `<td style="font-size:12px">${esc(String(a.firstAt || '').slice(0, 10))}<div class="muted" style="font-size:10.5px">${esc(String(a.by || '').split('@')[0])}</div></td>`
@@ -69374,7 +69382,8 @@ function lstRenderAlerts() {
   $('fgMsg').textContent = `${nf(rows.length)} SKU(s) had stock entered but are NOT listed on Amazon`
     + (done ? ` · ${nf(done)} alert(s) already closed` : '')
     + (LST.at ? ` · Amazon listings as of ${String(LST.at).slice(0, 16).replace('T', ' ')}` : ' · the Amazon listings have never been fetched')
-    + (lstCanRefresh() ? '' : ' · an alert closes by itself once the listings are refreshed and show the SKU');
+    + (lstCanRefresh() ? '' : ' · an alert closes by itself once the listings are refreshed and show the SKU')
+    + (unread ? ' · ' + unread : '');
   ptImgFill(rows.map(a => a.sku), false, ptImgPatch);
 }
 
@@ -70723,12 +70732,12 @@ function fgiHoldScanWhy(sku, packed) {
 /* ---- reading it again ---- */
 const fgiHoldKeep = node => { FGI.set = Object.assign({}, FGI.set, { _shopHold: node }); };
 const fgiHoldUnread = e => 'Nothing was saved — the pieces held for website orders could not be checked (' + (e.message || e) + '). Check the connection and save again.';
-/** Read the noted figure and the releases (and the FBA need, when stock is shared, and the FBA lists, when on) as they are
- *  now. '' when read, else the sentence to show. */
+/** Read the noted figure and the releases (and the other FBA share figures, when stock is shared, and the FBA lists, when on)
+ *  as they are now. '' when read, else the sentence to show. */
 async function fgiHoldReread() {
   try {
     fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {});
-    if (shpAllocOn()) await fgaNeedReread();
+    if (shpAllocOn()) await fgaFiguresReread();
     if (shpListsOn()) fblKeepAll((await ptGetFresh(FBL_PATH)) || {});
     return '';
   }
@@ -70798,7 +70807,7 @@ async function fgiReleaseSpend(wants) {
     for (let i = 0; i < SHP_HOLD_TRIES; i++) {
       const hold = (await ptGetFresh(SHP_HOLD_PATH)) || {};
       fgiHoldKeep(hold);
-      if (shpAllocOn()) await fgaNeedReread();
+      if (shpAllocOn()) await fgaFiguresReread();
       const why = fgiHoldRefusal(wants, hold);
       if (why) return { err: 'Nothing was saved — ' + why, used: {} };
       const plan = fgiReleasePlan(hold, wants, { by: ME.email, at: new Date().toISOString() });
@@ -70912,6 +70921,7 @@ function fgiReleaseOpen(sku) {
  *             issued to each, plus the Shopify website hold (fg-shop-hold.js).
  *   FBA     = what Replenishment asks to send (SP and CPC together, in pieces), less dispatches already on the way: every
  *             one not yet marked shipped, and any shipped after the Amazon figures were read. Air is reduced first.
+ * New development sales orders (28 Nov) are not Custom: their pending pieces are kept for FBA (fg-store-newdev.js).
  * The stock list holds the SKUs with stock now, and those with FBA Dispatched pieces even with none in stock (28 Nov); a
  * search that finds none of them says why. "FBA Dispatched" is what FBA Dispatch holds not yet marked shipped (waiting or
  * accepted, less returns, both accounts whatever the view picker says; sheet history left out). Those pieces have left the
@@ -70984,6 +70994,10 @@ async function fgaNeedReread() {
   fgaNeedKeep(need);
   if (fgaNeedState(need).state === 'stale') fgaAskFresh();
 }
+
+/** Read again what the FBA lanes are worked out from: the noted need (throws when it cannot be read), and the New development
+ *  orders and the Amazon listings (neither throws). */
+async function fgaFiguresReread() { await Promise.all([fgaNeedReread(), fgaSalesRead(), lstLoad()]); }
 
 /* ---- noting it (planners and admins) ---- */
 /** One store's need from its Replenishment rows, in Amazon packs: stopped SKUs ask nothing, hidden ones are left out. */
@@ -71075,7 +71089,8 @@ async function fgaReread() {
 }
 
 /* ---- sharing the stock ---- */
-const fgaOpenLines = lines => lines.filter(l => ordSrcOf(l.orderNo) !== 'AMZ' && !l.shopDoneAt && !l.handedAt);
+const fgaIsOpen = l => !l.shopDoneAt && !l.handedAt;
+const fgaOpenLines = lines => lines.filter(l => ordSrcOf(l.orderNo) !== 'AMZ' && fgaIsOpen(l));
 const fgaClaim = l => ({ orderNo: l.orderNo, sku: l.sku, sets: l.qty, perSet: 1, on: l.orderDate });
 /** What the open order-book orders claim as Custom: a Shopify order's own line is already in the website figure. */
 const fgaBookClaims = open => open.filter(l => !l.shopOrderId).map(fgaClaim);
@@ -71109,23 +71124,26 @@ function fgaOnTheWay(rows, need) {
 }
 
 /** What the shares are worked out from, built once for a whole list or save. without: ids of movements to leave out (a row
- *  being changed is judged as if it had not been made). */
-function fgaBook(without, need = fgaNeedNode()) {
+ *  being changed is judged as if it had not been made). lists: the FBA lists counted, all of them unless said. */
+function fgaBook(without, lists = shpListsOn() ? fblLists() : {}) {
+  const need = fgaNeedNode();
   const rows = without && without.size ? (FGI.rows || []).filter(r => !without.has(r._id || r.id)) : (FGI.rows || []);
-  const open = fgaOpenLines(ordLines());
-  return { rows, open, need, onTheWay: fgaOnTheWay(rows, need), allotted: shpListsOn() ? fblAllotted(fblLists()) : {},
-    ordered: shpHoldBuild(fgaBookClaims(open), rows) };
+  const lines = fgaSplitNewDev(ordLines()), open = fgaOpenLines(lines.rest), newDevLines = lines.newDev.filter(fgaIsOpen);
+  const allotted = shpListsOn() ? fblAllotted(lists) : {}, newDev = fgaNewDevOrders(newDevLines, rows, allotted);
+  return { rows, open, need, onTheWay: fgaOnTheWay(rows, need), allotted,
+    ordered: shpHoldBuild(fgaBookClaims(open), rows), newDev, fromLists: fgaListMet(newDevLines, { rows, need, newDev }) };
 }
 
-/** The pieces FBA still asks for, per lane, for these stores. Each store's lane first loses what is on its FBA lists and on
- *  the way for that lane (a list's pieces leave the lists as they ship, so they count once); the rest on the way then comes
- *  off Air first, then Sea, then AWD. */
-function fgaLanes(sku, book, stores) {
+/** The pieces Replenishment still asks for, per lane, for these stores. Each store's lane first loses what is on its FBA lists
+ *  and on the way for that lane (a list's pieces leave the lists as they ship, so they count once). The rest on the way, and
+ *  list pieces that met New development beyond what their own lane asked, then come off Air first, then Sea, then AWD. */
+function fgaReplLanes(sku, book, stores) {
   const key = shpHoldKey(sku), pack = fgiPackOf(sku), way = book.onTheWay.get(key) || {}, listed = book.allotted[key] || {};
   const met = (s, i) => ((listed[s] || [])[i] || 0) + (((way.lanes || {})[s] || [])[i] || 0);
-  const asked = [0, 1, 2].map(i => stores.reduce((n, s) =>
-    n + Math.max(0, (Number(((((book.need || {})[s] || {}).skus || {})[key] || [])[i]) || 0) * pack - met(s, i)), 0));
-  let coming = stores.concat('').reduce((n, s) => n + (way[s] || 0), 0);
+  const wanted = (s, i) => (Number(((((book.need || {})[s] || {}).skus || {})[key] || [])[i]) || 0) * pack;
+  const asked = [0, 1, 2].map(i => stores.reduce((n, s) => n + Math.max(0, wanted(s, i) - met(s, i)), 0));
+  const inOwnLane = SHP_HOLD_STORES.reduce((n, s) => n + [0, 1, 2].reduce((m, i) => m + Math.min(wanted(s, i), met(s, i)), 0), 0);
+  let coming = stores.concat('').reduce((n, s) => n + (way[s] || 0), 0) + Math.max(0, (book.fromLists.get(key) || 0) - inOwnLane);
   const [air, sea, awd] = asked.map(n => { const met = Math.min(n, coming); coming -= met; return n - met; });
   return { air, sea, awd };
 }
@@ -71137,7 +71155,7 @@ function fgaShares(sku, current, hold, book, stores = SHP_HOLD_STORES) {
   let left = Math.max(0, current);
   const take = wanted => { const n = Math.min(left, Math.max(0, wanted)); left -= n; return n; };
   const kept = shpListsOn() ? { listed: take((book.allotted[shpHoldKey(sku)] || {}).total || 0) } : {};
-  const lanes = fgaLanes(sku, book, stores);
+  const lanes = fgaJoinLanes(fgaNewDevLanes(sku, book), fgaReplLanes(sku, book, stores));
   const photo = take(0);                                  // no Photoshoot figures yet
   const custom = take((book.ordered[shpHoldKey(sku)] || 0) + fgiHeld(sku, hold));
   const air = take(lanes.air), sea = take(lanes.sea), awd = take(lanes.awd);
@@ -71147,11 +71165,21 @@ function fgaShares(sku, current, hold, book, stores = SHP_HOLD_STORES) {
 /* ---- FBA ---- */
 /** Pieces FBA may take without a release. */
 function fgaFbaShare(sku, current, hold, book = fgaBook()) {
-  const s = fgaShares(sku, current, hold, book);
-  return s.air + s.sea + s.awd;
+  const s = fgaShares(sku, current, hold, book), inLanes = s.air + s.sea + s.awd;
+  if (!fgaListingWhy(sku)) return inLanes;
+  return Math.min(inLanes, fgaLaneSum(fgaReplLanes(sku, book, SHP_HOLD_STORES)));   // New development pieces wait for the listing
 }
-const fgaShortWhy = s => `${s.sku} has ${nf(s.free)} piece(s) free for FBA, not ${nf(s.qty)} (the rest is kept for Custom orders, or is more than Replenishment asks to send).`
-  + ' Send fewer, or ask an admin to release pieces on Finished Goods.';
+/** Pieces a new FBA list may take of one store's lane without a release. want: { sku, store, lane }. */
+function fgaListShare(want, current, hold, book) {
+  const inLane = fgaShares(want.sku, current, hold, book, [want.store])[want.lane];
+  if (!fgaListingWhy(want.sku)) return inLane;
+  return Math.min(inLane, fgaReplLanes(want.sku, book, [want.store])[want.lane]);   // New development pieces wait for the listing
+}
+function fgaShortWhy(s) {
+  const newDev = fgaNewDevWhy(s.sku);
+  return `${s.sku} has ${nf(s.free)} piece(s) free for FBA, not ${nf(s.qty)} (the rest is kept for Custom orders, or is more than Replenishment or New development orders ask to send).`
+    + ' Send fewer, or ask an admin to release pieces on Finished Goods.' + (newDev ? ' ' + newDev : '');
+}
 
 /* ---- issues ---- */
 /** Pieces an order is still waiting for: its open lines of the SKU, less what was issued to it. */
@@ -71232,25 +71260,34 @@ function fgaViewStores() {
   const picked = ($('fgaView') || {}).value;
   return SHP_HOLD_STORES.includes(picked) ? [picked] : SHP_HOLD_STORES;
 }
-/** The list's rows with their shares; new rows are returned. */
+/** The list's rows with their shares, and the New development pieces by FBA lane; new rows are returned. */
 function fgaListRows(rows) {
   const book = fgaBook(), hold = fgiHoldNode(), stores = fgaViewStores();
-  return rows.map(r => Object.assign({}, r, { alloc: fgaShares(r.sku, r.current, hold, book, stores) }));
+  return rows.map(r => Object.assign({}, r, { alloc: fgaShares(r.sku, r.current, hold, book, stores), newDevLanes: fgaNewDevLanes(r.sku, book) }));
 }
 const fgaNum = n => (n ? nf(n) : '<span class="muted">—</span>');
 /** Does this figure open the orders behind it? Only a Custom figure with pieces in it. */
 const fgaOpensOrders = (share, pieces) => share === 'custom' && pieces > 0;
 const fgaOrdersButton = (sku, inner) => `<button class="ghost" data-fgacustom="${esc(sku)}" title="See the orders these pieces are for"`
   + ` style="width:auto;padding:1px 7px;font-size:inherit;text-decoration:underline">${inner}</button>`;
+/** Does this FBA figure hold New development pieces? */
+const fgaOpensNewDev = (r, share) => r.alloc[share] > 0 && ((r.newDevLanes || {})[share] || 0) > 0;
+const fgaNewDevButton = (sku, lane, inner) => `<button class="ghost" data-fgand="${esc(sku)}" data-fgalane="${lane}" title="See the New development orders"`
+  + ` style="width:auto;padding:1px 7px;font-size:inherit;text-decoration:underline">${inner}</button>`;
+/** The button a figure is shown as when it opens orders, else ''. */
+function fgaFigureButton(r, share, inner) {
+  if (fgaOpensOrders(share, r.alloc[share])) return fgaOrdersButton(r.sku, inner);
+  return fgaOpensNewDev(r, share) ? fgaNewDevButton(r.sku, share, inner) : '';
+}
 function fgaCells(r) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
   return `<td class="num">${fgaNum(r.dispatched)}</td>`
     + `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
-    + fgaShareCols().map(([k]) => `<td class="num">${fgaOpensOrders(k, r.alloc[k]) ? fgaOrdersButton(r.sku, nf(r.alloc[k])) : fgaNum(r.alloc[k])}</td>`).join('');
+    + fgaShareCols().map(([k]) => `<td class="num">${fgaFigureButton(r, k, nf(r.alloc[k])) || fgaNum(r.alloc[k])}</td>`).join('');
 }
 const fgaCardFigs = r => `<span>FBA Dispatched <b>${nf(r.dispatched)}</b></span>` + fgaShareCols().map(([k, label]) => {
   const figure = `${label} <b>${nf(r.alloc[k])}</b>`;
-  return fgaOpensOrders(k, r.alloc[k]) ? fgaOrdersButton(r.sku, figure) : `<span>${figure}</span>`;
+  return fgaFigureButton(r, k, figure) || `<span>${figure}</span>`;
 }).join('');
 /** Is some of this stock kept from FBA, so a release would mean something? */
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
@@ -71294,10 +71331,11 @@ function fgaOrderRow(o) {
     + `<td class="num">${nf(o.pending)}</td><td class="num" style="font-weight:700">${fgaNum(o.counted)}</td>`
     + `<td class="num">${fgaNum(o.pending - o.counted)}</td></tr>`;
 }
-const fgaOrdersTable = orders => '<div style="max-height:60vh;overflow:auto"><table class="xl" style="font-size:12.5px"><thead><tr>'
+/** A box of orders: order, channel and date, then the number columns named. rows: ready table rows. */
+const fgaOrdersTable = (figures, rows) => '<div style="max-height:60vh;overflow:auto"><table class="xl" style="font-size:12.5px"><thead><tr>'
   + ['Order', 'Channel', 'Order date'].map(h => `<th style="text-align:left">${h}</th>`).join('')
-  + ['Ordered', 'Already issued', 'Pending', 'From stock', 'Not covered'].map(h => `<th class="num">${h}</th>`).join('')
-  + '</tr></thead><tbody>' + orders.map(fgaOrderRow).join('') + '</tbody></table></div>';
+  + figures.map(h => `<th class="num">${h}</th>`).join('')
+  + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
 
 /** The box a Custom figure opens, from the same figures the list was drawn from. */
 function fgaCustomOpen(sku) {
@@ -71309,7 +71347,7 @@ function fgaCustomOpen(sku) {
     note: `${nf(counted)} piece(s) in stock are counted for these orders, oldest order first. `
       + `${nf(fgaSum(orders, 'pending') - counted)} pending piece(s) are not covered by stock.`,
     wide: true,
-    html: fgaOrdersTable(orders),
+    html: fgaOrdersTable(['Ordered', 'Already issued', 'Pending', 'From stock', 'Not covered'], orders.map(fgaOrderRow)),
   });
 }
 
@@ -71341,6 +71379,169 @@ function fgaNoMatchNote(text, stock) {
 function fgaTrimViews() {
   const opt = $('fgPendOpt');
   if (opt) opt.hidden = opt.disabled = fgaOn();   // disabled too: an iPhone still shows a hidden choice
+}
+/* ============================== FILE: src/app/inventory/fg-store-newdev.js ============================== */
+/* ================= INDIA STORE: NEW DEVELOPMENT PIECES FOR FBA =================
+ * Business rule (28 Nov, agreed): the pending pieces of a sales order of type New development are never Custom, whatever
+ * the channel. They are kept for FBA, even for a SKU Replenishment does not ask for, in the Air, Sea or AWD column by the
+ * order's shipping mode (none, or not one of these: Air).
+ *   Pending = ordered, less issues naming the order and less pieces sent to FBA that did not come back: those naming the
+ *             order, then those naming no order and sent on or after its date (oldest order first).
+ *             With FBA lists (fba-lists.js): pieces on a list not yet shipped count as sent already. A list's pieces, before
+ *             and after Ship, count as naming no order (the order numbers on its movements are dealt by the store, not
+ *             chosen), so shipping never frees them again. Those that met New development also come off what Replenishment
+ *             asks, in another lane when their own asks less, until the Amazon figures have seen them.
+ *   A SKU's FBA total is the LARGER of its New development pending and what Replenishment still asks, never both added:
+ *             New development fills its own columns first, then Replenishment's extra goes to Air, then Sea, then AWD.
+ *   FBA may take the New development part only when Amazon lists the SKU (live or inactive). Otherwise the pieces stay in
+ *   their column and only Replenishment's own quantity may leave. An admin's release works as for any SKU. An FBA list is
+ *   held to the same when it is made and again when it is shipped.
+ *
+ * WHEN SOMETHING GOES WRONG:
+ *   loud, to the user — the sales orders cannot be read (some accounts may not read them): no line counts as New
+ *   development, which is how the store worked before; the stock list and a refused FBA entry say so. A listing that is
+ *   not there or cannot be read: the New development part may not go, with what to do.
+ *   quiet, with a console line — the failed read of the sales orders itself.
+ *
+ * BEHIND SWITCH storeAlloc (fg-store-alloc.js). */
+const FGA_MODE_LANE = { SEA: 'sea', AWD: 'awd' };
+const FGA_NOT_SHIPPED = '9999-12-31';   // the day of pieces still on an FBA list: they go after every order's date
+let FGA_SALES = { rows: [], err: '' };
+
+/** Read the sales orders, which say what is New development. Never throws. */
+async function fgaSalesRead() {
+  if (!fgaOn()) return;
+  try { FGA_SALES = { rows: ptList(await ptGet('pt_salesOrders')), err: '' }; }
+  catch (e) {
+    console.warn('India store shares: the sales orders could not be read, so no order counts as New development:', e.message || e);
+    FGA_SALES = { rows: [], err: e.message || String(e) };
+  }
+}
+/** Why New development orders are not counted at all, or ''. */
+const fgaSalesWhy = () => (FGA_SALES.err ? 'The sales orders could not be read, so New development orders are not counted or marked'
+  + ' and nothing goes to FBA for them — press Refresh; if this stays, ask an admin to let this account see Sales Orders.' : '');
+
+/* ---- the orders ---- */
+/** Order book lines parted into { newDev, rest } by the type on their sales order. */
+function fgaSplitNewDev(lines) {
+  const set = ordNewDevSet(FGA_SALES.rows), out = { newDev: [], rest: [] };
+  lines.forEach(l => out[set.has(obUC(l.orderNo) + '|' + obUC(l.sku)) ? 'newDev' : 'rest'].push(l));
+  return out;
+}
+/** What dispatches to FBA took, less returns, and what FBA lists keep: { named: pieces by 'ORDER|SKU key',
+ *  loose: [{ key, day, pieces }] for the pieces that name no order, and every FBA list's, oldest first }.
+ *  allotted: the pieces on lists not yet shipped (fblAllotted). */
+function fgaSentToFba(ledgerRows, allotted) {
+  const named = new Map(), loose = [];
+  (ledgerRows || []).forEach(r => {
+    if (!r || r.txnType !== 'FBA') return;
+    const key = shpHoldKey(r.sku);
+    let left = fbaState(r).open;
+    (r.fbaListId ? [] : fgiOutParts(r)).forEach(p => {
+      const pieces = Math.min(left, p.qty), id = p.orderNo + '|' + key;
+      left -= pieces;
+      named.set(id, (named.get(id) || 0) + pieces);
+    });
+    if (left > 0) loose.push({ key, day: fapDayOf(r), pieces: left });
+  });
+  Object.entries(allotted || {}).forEach(([key, a]) => loose.push({ key, day: FGA_NOT_SHIPPED, pieces: a.total }));
+  return { named, loose: loose.sort((a, b) => a.day.localeCompare(b.day)) };
+}
+/** The orders less what went to FBA for them, each dispatched piece counted once. orders: oldest first; new ones returned. */
+function fgaLessFba(orders, sent) {
+  const left = orders.map(o => Object.assign({}, o, { pending: o.pending - Math.min(o.pending, sent.named.get(o.no + '|' + o.key) || 0) }));
+  sent.loose.forEach(d => {
+    let pieces = d.pieces;
+    left.filter(o => o.key === d.key && o.on <= d.day).forEach(o => {
+      const met = Math.min(pieces, o.pending);
+      pieces -= met; o.pending -= met;
+    });
+  });
+  return left.filter(o => o.pending > 0);
+}
+/** The New development orders still waiting, per SKU key, oldest first: [{ no, key, channel, on, lane, ordered, pending }].
+ *  lines: their open order book lines; allotted: the pieces on FBA lists not yet shipped. */
+function fgaNewDevOrders(lines, ledgerRows, allotted) {
+  const laneOf = new Map(FGA_SALES.rows.map(o => [obUC(o._id), FGA_MODE_LANE[soShipMode(o)] || 'air']));
+  const waiting = shpHoldLeft(lines.map(fgaClaim), ledgerRows).map(n => ({ no: n.orderNo, key: n.key,
+    channel: ORD_PLAT_SRC[n.orderNo.split('-')[0]] || 'Other', on: pdIso(n.on), lane: laneOf.get(n.orderNo) || 'air',
+    ordered: n.asked, pending: n.pieces })).sort(shpHoldOldestFirst);
+  const out = new Map();
+  fgaLessFba(waiting, fgaSentToFba(ledgerRows, allotted))
+    .forEach(o => out.set(o.key, (out.get(o.key) || []).concat(o)));
+  return out;
+}
+
+/** Pieces per SKU key that New development orders got from FBA lists the Amazon figures do not know yet: lists not
+ *  shipped, and shipments still on the way. now: { rows, need, newDev: the orders still waiting with every list counted }. */
+function fgaListMet(lines, now) {
+  if (!shpListsOn()) return new Map();
+  const others = now.rows.filter(r => !(r && r.fbaListId && fgaOnTheWay([r], now.need).size));
+  return new Map([...fgaNewDevOrders(lines, others)].map(([key, orders]) =>
+    [key, fgaSum(orders, 'pending') - fgaSum(now.newDev.get(key) || [], 'pending')]));
+}
+
+/* ---- the FBA columns ---- */
+const fgaLaneSum = lanes => FGA_LANES.reduce((n, k) => n + lanes[k], 0);
+/** A SKU's pending New development pieces per column. */
+function fgaNewDevLanes(sku, book) {
+  const lanes = { air: 0, sea: 0, awd: 0 };
+  (book.newDev.get(shpHoldKey(sku)) || []).forEach(o => { lanes[o.lane] += o.pending; });
+  return lanes;
+}
+/** New development and Replenishment together, adding up to the larger of the two totals. */
+function fgaJoinLanes(newDev, repl) {
+  let extra = Math.max(0, fgaLaneSum(repl) - fgaLaneSum(newDev));
+  const out = {};
+  FGA_LANES.forEach(k => {
+    const more = Math.min(extra, Math.max(0, repl[k] - newDev[k]));
+    extra -= more;
+    out[k] = newDev[k] + more;
+  });
+  return out;
+}
+
+/* ---- only what Amazon lists ---- */
+/** Why a SKU's New development pieces may not go to FBA, or '' when Amazon lists it. */
+function fgaListingWhy(sku) {
+  const st = LST.err ? 'unknown' : lstOf(sku).st;
+  if (st === 'listed' || st === 'inactive') return '';
+  if (st === 'not') return `${obUC(sku)} is a New development article that is not listed on Amazon, so its New development pieces cannot go to FBA`
+    + ' — ask the listing team to list it ("Needs listing on Amazon"), refresh the Amazon listings, then try again.';
+  return `The Amazon listing of ${obUC(sku)} could not be checked, so its New development pieces cannot go to FBA`
+    + ' — press Refresh on Finished Goods; if this stays, ask someone with Replenishment access to refresh the Amazon listings.';
+}
+/** What to add when FBA is refused: why New development pieces are not counted or may not go; '' when neither. */
+function fgaNewDevWhy(sku) {
+  return fgaSalesWhy() || (fgaBook().newDev.has(shpHoldKey(sku)) ? fgaListingWhy(sku) : '');
+}
+
+/* ---- on screen ---- */
+const FGA_NEW_DEV_TAG = '<span class="pill pill-low">New dev</span>';
+/** For "Needs listing on Amazon": answers a SKU's New development orders as tagged lines, '' for none. */
+function fgaNewDevTagger() {
+  if (!fgaOn()) return () => '';
+  const { newDev } = fgaBook();
+  return sku => (newDev.get(shpHoldKey(sku)) || [])
+    .map(o => `<div style="font-size:11.5px">${FGA_NEW_DEV_TAG} ${esc(o.no)} · ${nf(o.pending)} pending</div>`).join('');
+}
+function fgaNewDevRow(o) {
+  return `<tr><td style="text-align:left">${esc(o.no)} ${FGA_NEW_DEV_TAG}</td><td style="text-align:left">${esc(o.channel)}</td>`
+    + `<td style="text-align:left;white-space:nowrap">${esc(fgiDmy(o.on) || '—')}</td>`
+    + `<td class="num">${nf(o.ordered)}</td><td class="num">${fgaNum(o.ordered - o.pending)}</td><td class="num">${nf(o.pending)}</td></tr>`;
+}
+/** The box an FBA figure with New development pieces opens: that column's orders. */
+function fgaNewDevOpen(sku, lane) {
+  const s = obUC(sku), m = fgiMaster(s), label = FGA_SHARES.find(x => x[0] === lane)[1];
+  const orders = (fgaBook().newDev.get(shpHoldKey(s)) || []).filter(o => o.lane === lane);
+  ptOpenDialog({
+    title: `New development orders in ${label}`,
+    subtitle: [s, m.subtype || m.articleType, m.color, m.size].filter(Boolean).join(' · '),
+    note: `${nf(fgaSum(orders, 'pending'))} pending New development piece(s) ship by ${label}. The column shows what stock covers,`
+      + ` and may also hold pieces Replenishment asks for. ${fgaListingWhy(s)}`,
+    wide: true,
+    html: fgaOrdersTable(['Ordered', shpListsOn() ? 'Issued or on FBA lists' : 'Already issued', 'Pending'], orders.map(fgaNewDevRow)),
+  });
 }
 /* ============================== FILE: src/app/inventory/fg-fba-repeat.js ============================== */
 /* ================= INDIA STORE: REPEAT FBA DISPATCH NEEDS APPROVAL =================
@@ -71758,6 +71959,8 @@ function fapRejectOpen(id) {
  * A list may take the lane's share of the stock for that store (fg-store-alloc.js) plus any open release, never more than
  * the stock that no other list has. A SKU sent to FBA in the past 7 days (fg-fba-repeat.js) goes on a list only when the
  * FBA repeat approver or an admin makes it, which is their approval.
+ * A New development article Amazon does not list (fg-store-newdev.js) goes on a list only as far as Replenishment itself
+ * asks for that lane, plus releases; Ship checks that again, so a list made before the listing was lost does not send them.
  * Whoever holds the FBA Dispatch tab makes, ships and undoes; packing also needs the right to save packing lists
  * (pack-core.js). A list is cancelled by its maker or an admin.
  * Ship sends exactly the packed pieces, so the packing list, its labels and the Amazon file agree with what went. To send
@@ -71842,15 +72045,17 @@ function fblAllotted(lists) {
 
 /* ---- making ---- */
 /** The pieces of a SKU this lane of this store may still take without a release. */
-const fblShare = (want, book) => fgaShares(want.sku, fgiOf(want.sku).current, fgiHoldNode(), book, [want.store])[want.lane];
+const fblShare = (want, book) => fgaListShare(want, fgiOf(want.sku).current, fgiHoldNode(), book);
 
 /** Why these pieces cannot go on a list, or ''. want: { sku, qty, store, lane }; book: fgaBook(). */
 function fblCapWhy(want, book) {
   const kept = (fblAllotted(fblLists())[shpHoldKey(want.sku)] || {}).total || 0;
   const unlisted = Math.max(0, fgiOf(want.sku).current - kept);
   const cap = Math.min(unlisted, fblShare(want, book) + fgiReleased(want.sku));
-  return want.qty <= cap ? '' : `${want.sku} has ${nf(cap)} piece(s) free for this FBA list, not ${nf(want.qty)}.`
-    + ' Take fewer, or ask an admin to release pieces on Finished Goods.';
+  if (want.qty <= cap) return '';
+  const newDev = fgaNewDevWhy(want.sku);
+  return `${want.sku} has ${nf(cap)} piece(s) free for this FBA list, not ${nf(want.qty)}.`
+    + ' Take fewer, or ask an admin to release pieces on Finished Goods.' + (newDev ? ' ' + newDev : '');
 }
 
 /** The form's lines as the list keeps them, one per SKU: { lines } or { err }. */
@@ -72023,6 +72228,23 @@ function fblStockWhy(id, list, qty) {
     return n > 0 && n > free ? `${sku}: the India Store has ${nf(Math.max(0, free))} piece(s) for this list, not ${nf(n)} — take the extra out of the boxes in Pack, press Finish, then Ship.` : '';
   }).filter(Boolean).join(' ');
 }
+/** Pieces of one SKU a list took from admin releases. */
+const fblReleasedFor = (list, key, releases) => Object.entries(list.released || {})
+  .filter(([relId]) => shpHoldKey(((releases || {})[relId] || {}).sku || '') === key).reduce((n, [, pcs]) => n + pcs, 0);
+/** Why pieces of this list may not ship for want of an Amazon listing, or ''. Asked of a SKU that Amazon does not list, or
+ *  that cannot be checked, with New development pieces not yet sent, on a list or not (or sales orders that cannot be read):
+ *  only what Replenishment asks beside the other lists, plus the list's releases, may go. */
+function fblListingShipWhy(id, list, qty) {
+  const book = fgaBook(null, Object.assign({}, fblLists(), { [id]: null })), unread = fgaSalesWhy();
+  const unsent = fgaBook(null, {}).newDev;   // other lists must not hide that this one holds New development pieces
+  return Object.entries(qty).map(([key, n]) => {
+    const { sku } = list.lines[key], why = fgaListingWhy(sku);
+    if (!why || !(unread || unsent.has(key))) return '';
+    const may = fgaReplLanes(sku, book, [list.store])[list.lane] + fblReleasedFor(list, key, fgiHoldNode().releases);
+    return n <= may ? '' : `${unread || why} Only ${nf(may)} piece(s) of ${sku} may ship on this list, not ${nf(n)} — take the extra `
+      + 'out of the boxes in Pack, press Finish, then Ship.';
+  }).filter(Boolean).join(' ');
+}
 /** The movements of a shipment, one per SKU that goes, already accepted and shipped. */
 function fblShipRows(id, list, qty, head) {
   return Object.keys(list.lines).sort().map((key, n) => {
@@ -72106,6 +72328,8 @@ async function fblShipWrite(id, claim, qty, head) {
     fblKeepAll((await ptGetFresh(FBL_PATH)) || {});
     const short = fblStockWhy(id, claim, qty);
     if (short) return 'Not shipped — ' + short;
+    const unlisted = fblListingShipWhy(id, claim, qty);
+    if (unlisted) return 'Not shipped — ' + unlisted;
     const rows = fblShipRows(id, claim, qty, head);
     const done = fblShippedRec(claim, qty, head, fblReleaseSplit(claim, qty, fgiHoldNode().releases));
     const patch = { [FBL_PATH + '/' + id]: null, [FBL_DONE_PATH + '/' + id]: done };
@@ -72342,10 +72566,10 @@ function fblvMakeHtml(skus) {
       <label>Lane<select id="fblvLane">${options(FBL_LANES.map(l => [l, FBLV_LANE_NAMES[l]]))}</select></label>
     </div>`
     + skus.map((sku, i) => {
-      const note = fblvRepeatNote(sku);
+      const notes = [fblvRepeatNote(sku), fgaNewDevWhy(sku)].filter(Boolean);
       return `<div style="margin-top:10px"><label style="display:block"><b>${esc(sku)}</b> — pieces <span id="fblvMax${i}" class="muted"></span>
         <input id="fblvQty${i}" type="number" min="0" step="1" inputmode="numeric"></label>
-        ${note ? `<div class="err" style="font-size:12px">${esc(note)}</div>` : ''}</div>`;
+        ${notes.map(note => `<div class="err" style="font-size:12px">${esc(note)}</div>`).join('')}</div>`;
     }).join('');
 }
 

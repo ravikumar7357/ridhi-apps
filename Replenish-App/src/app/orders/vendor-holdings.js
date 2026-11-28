@@ -610,8 +610,8 @@ const ordFgOf = (orderNo, sku) => { const e = ordFgAt(orderNo, sku); return e ? 
  * puts on the book does not carry it. So it is read back from the sales order: a line is new development when any line of
  * that SKU on that sales order is (the line's own type first, else the order's). Nothing is written. */
 let ORD_ND = { src: null, n: -1, set: null };
-function ordNewDevSet() {
-  const s = (typeof SOX !== 'undefined' && Array.isArray(SOX.rows)) ? SOX.rows : [];
+function ordNewDevSet(sales) {
+  const s = sales || ((typeof SOX !== 'undefined' && Array.isArray(SOX.rows)) ? SOX.rows : []);
   if (ORD_ND.set && ORD_ND.src === s && ORD_ND.n === s.length) return ORD_ND.set;
   const set = new Set();
   s.forEach(o => {

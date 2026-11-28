@@ -18,7 +18,13 @@ const HELPERS = () => line('inventory/amazon-listing-status.js', 'const lstKey')
   + whole('replenishment/replenishment.js', 'applyStatus') + whole('replenishment/replenishment.js', 'replReq')
   + cut(appFile('inventory/finished-goods.js'), '/** The pack the Master Database records', 'const fgiMaster')
   + line('orders/shopify-pipeline-team.js', 'const ORD_PLAT_SRC') + whole('orders/production-to-shipping.js', 'pdIso')
-  + line('shopify/shopify-orders.js', 'const soAcctName');
+  + line('shopify/shopify-orders.js', 'const soAcctName') + whole('inventory/amazon-listing-status.js', 'lstOf')
+  + cut(appFile('orders/vendor-holdings.js'), 'let ORD_ND', 'function ordFilters') + line('orders/raise-sales-order.js', 'const soModeOf')
+  + line('orders/sales-orders.js', 'const soShipMode') + whole('inventory/fg-fba-repeat.js', 'fapDayOf');
+
+/* What Amazon says about A: 'listed' (default), 'inactive', 'not', 'unknown' (never fetched) or 'unread' (the read failed). */
+const listing = st => ({ err: st === 'unread' ? 'no signal' : '', map: new Map(st === 'unknown' ? [] : st === 'not' ? [['OTHER', { active: true }]]
+  : [['A', { active: st !== 'inactive' }]]) });
 
 const NOW = Date.now(), HOUR = 3600000, iso = ms => new Date(ms).toISOString();
 const row = (id, txnType, qty, over) => Object.assign({ _id: id, txnType, sku: 'A', qty, createdAt: iso(NOW - 5 * HOUR) }, over);
@@ -28,7 +34,8 @@ const ordLine = (orderNo, qty, over) => Object.assign({ orderNo, sku: 'A', qty }
 const needNode = (need, age) => Object.fromEntries(['SP', 'CPC'].map(s => [s, { snapAt: NOW - (age || 1) * HOUR, at: NOW, by: 'p', skus: need[s] ? { A: need[s] } : {} }]));
 
 /* A store: by default 20 of A; a sales order needs 4 (Custom 4), the website 2; FBA asks Air 3, Sea 4 (SP) and AWD 2 (CPC).
- * So: Custom 6, Air 3, Sea 4, AWD 2, Excess 5, FBA free 9. */
+ * So: Custom 6, Air 3, Sea 4, AWD 2, Excess 5, FBA free 9.
+ * sales: the sales orders as read; none by default, so no line is New development. */
 function store(o) {
   o = o || {};
   const writes = [], patches = [], boxes = {}, nothing = () => {}, warns = [], asked = [], reads = [];
@@ -54,7 +61,9 @@ function store(o) {
     ordLines: () => lines, fgiRowId: r => r._id,
     ptGetFresh: async p => { if (o.unread && p.includes(o.unread)) throw new Error('no signal'); return copy(at(p)); },
     ptCas: async (p, expect, next) => { if (o.refused) return 'refused'; if (o.before) { const b = o.before; o.before = null; b(set); } if (!same(copy(at(p)), copy(expect))) return 'changed'; set(p, copy(next)); writes.push({ p }); return ''; },
-    ptGet: async p => { reads.push(p); if (o.ledgerDown) throw new Error('no signal'); return p === 'pt_fgiLedger' ? (o.fresh || ledger) : ledger.find(r => p.endsWith('/' + r._id)); },
+    ptGet: async p => { reads.push(p); if (p === 'pt_salesOrders') { if (o.salesDown) throw new Error('permission denied'); return copy(o.sales); }
+      if (o.ledgerDown) throw new Error('no signal'); return p === 'pt_fgiLedger' ? (o.fresh || ledger) : ledger.find(r => p.endsWith('/' + r._id)); },
+    LST: listing(o.listing), lstLoad: async () => { reads.push('listings'); },
     ptList: v => Object.values(v || {}), ptReadReg: async r => { reads.push(r); if (o.bookDown) throw new Error('no book'); },
     ptPatch: write, ptPut: async (p, v) => write({ [p]: v }),
     prGet: async p => { asked.push(p); if (o.askFails) throw new Error('backend down'); }, replFull: () => o.planner !== false,
@@ -67,8 +76,9 @@ function store(o) {
   ctx.fgiOf = sku => ctx.fgiStock().get(String(sku).trim().toUpperCase()) || { current: 0 };
   vm.createContext(ctx);
   vm.runInContext(HELPERS() + appFile('inventory/fg-shop-hold.js') + appFile('inventory/fg-store-alloc.js')
-    + whole('inventory/finished-goods.js', 'fgiStockReread'), ctx);
+    + appFile('inventory/fg-store-newdev.js') + whole('inventory/finished-goods.js', 'fgiStockReread'), ctx);
   const run = code => vm.runInContext(code, ctx);
+  if (o.sales) run(`FGA_SALES = { rows: ${JSON.stringify(o.sales)}, err: '' }`);
   const shares = (current, view) => copy(run(`fgaShares("A", ${current === undefined ? 'fgiOf("A").current' : current}, fgiHoldNode(), fgaBook()${view ? ', ' + JSON.stringify(view) : ''})`));
   return { ctx, run, writes, patches, box, db, warns, asked, reads, saved, shares, free: () => run('fgiFbaFree("A")') };
 }

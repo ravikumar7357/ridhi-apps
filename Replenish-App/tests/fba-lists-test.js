@@ -29,11 +29,12 @@ function lists(o = {}) {
     if (v === null) delete n[last]; else n[last] = copy(v);
   };
   Object.assign(S, { db, ledger, wants: [], alerts: [], patched: [] });
+  const readSales = S.ctx.ptGet;
   S.ctx.ME = { email: o.email || 'team@test', admin: !!o.admin, fbaRepeatApprove: !!o.approver, tabs: o.tabs || ['fba'] };
   Object.assign(S.ctx, {
     spIsVendor: () => !!o.vendor, ptDtMs: () => 0, wpShow() {}, wpRefuse: why => why,
     ptGetFresh: async p => { if (S.down && p.includes(S.down)) throw new Error('no signal'); return asRead(copy(at(p))); },
-    ptGet: async p => (p === 'pt_fgiLedger' ? copy(Object.fromEntries(ledger)) : copy(ledger.get(p.split('/')[1]))),
+    ptGet: async p => (p === 'pt_salesOrders' ? readSales(p) : p === 'pt_fgiLedger' ? copy(Object.fromEntries(ledger)) : copy(ledger.get(p.split('/')[1]))),
     ptCas: async (p, expect, next) => {
       if (S.before) { const b = S.before; S.before = null; await b(); }
       if (!same(asRead(copy(at(p))), copy(expect))) return 'changed';
@@ -75,6 +76,12 @@ async function packed(qty, o) {
   await S.pack(qty);
   return S;
 }
+const SEA = 'AMZ-01112026-01-SEA', AIR = 'AMZ-01112026-02-AIR';
+/* A store with one New development order of `pcs` pieces of A (Sea unless said), no website orders. */
+const newDev = (pcs, o = {}) => Object.assign({ web: 0, lines: [{ orderNo: o.no || SEA, sku: 'A', qty: pcs, orderDate: '2026-11-01' }],
+  sales: [{ _id: o.no || SEA, orderTypeKey: 'newdev', shipMode: (o.no || SEA).split('-').pop(), lines: [{ sku: 'A', qty: pcs }] }] }, o);
+const notListed = () => ({ err: '', map: new Map([['OTHER', { active: true }]]) });
+const pending = S => S.run('[...fgaBook().newDev.values()].flat().reduce((n, o) => n + o.pending, 0)');
 const release = (left, over) => ({ R1: Object.assign({ sku: 'A', pcs: left, left, at: iso(NOW), by: 'admin' }, over) });
 
 (async () => {
@@ -422,6 +429,77 @@ const release = (left, over) => ({ R1: Object.assign({ sku: 'A', pcs: left, left
     const back = plan(['BACK']);
     ok(`switch ${sw}: a return of a list shipment can be deleted`, back.refused.length === 0 && same(copy(back.gone), ['BACK'])
       && back.updates['pt_fgiLedger/FBA-L1-1/fbaReturned'] !== undefined, JSON.stringify(copy(back)));
+  }
+
+  console.log('== New development pieces on FBA lists (the larger of New development and Replenishment, never both) ==');
+  {
+    const airOnly = { SP: [3, 0, 0] };
+    const S = lists(newDev(12, { need: airOnly }));
+    ok('before any list: the New development pieces are free', S.free() === 12);
+    ok('a part list takes them off the pending pieces and the allowance', await S.make(2) === '' && pending(S) === 10 && S.free() === 10, pending(S) + ' / ' + S.free());
+    const T = lists(newDev(12, { need: airOnly }));
+    ok('all listed: nothing left, and Replenishment in another lane is not added on top', await T.make(12) === '' && pending(T) === 0 && T.free() === 0, String(T.free()));
+    ok('so no second list', /0 piece\(s\) free/.test(await T.make(1, { id: 'L2', lane: 'air' })) && !T.open().L2);
+    await T.pack(12);
+    ok('shipped: still nothing more', await T.ship() === '' && pending(T) === 0 && T.free() === 0, pending(T) + ' / ' + T.free());
+    ok('undone: held again, still nothing more', await T.ctx.fblUndoShip('L1') === '' && pending(T) === 0 && T.free() === 0);
+    ok('cancelled: free again', await T.ctx.fblCancel('L1') === '' && pending(T) === 12 && T.free() === 12);
+    const N = await packed(12, newDev(12, { need: airOnly }));
+    await N.ship();
+    N.ctx.FGI.set._fbaNeed.SP.snapAt = N.ctx.FGI.set._fbaNeed.CPC.snapAt = Date.now() + 1000;
+    ok('newer Amazon figures have seen the shipment: what they ask is asked again', N.free() === 3 && pending(N) === 0, String(N.free()));
+    const B = lists(newDev(12, { need: airOnly }));
+    await B.make(2);
+    Object.assign(B.ctx, { fgiMaster: () => ({}), ptOpenDialog: cfg => { B.dialog = cfg; } });
+    B.run('fgaNewDevOpen("A", "sea")');
+    ok('the orders box says pieces on lists are counted', /<th class="num">Issued or on FBA lists<\/th>/.test(B.dialog.html), B.dialog.html);
+    const own = lists(newDev(4, { no: AIR }));
+    ok('pieces that met their own lane come off once', await own.make(3, { lane: 'air' }) === '' && own.free() === 6, String(own.free()));
+    const cpc = lists(newDev(2, { no: 'AMZ-01112026-03-AWD' }));
+    const made = await cpc.make(2, { account: 'CPC FBA', lane: 'awd' });
+    ok('one store viewed: a list of the other store is not taken off it twice', made === '' && cpc.shares(20, ['SP']).air === 3 && cpc.shares(20, ['SP']).sea === 4, made + JSON.stringify(cpc.shares(20, ['SP'])));
+    const named = await packed(5, newDev(12, { need: airOnly, alloc: [{ orderNo: 'B2B-9', qty: 5 }] }));
+    const before = [pending(named), named.free()];
+    ok('order numbers dealt at Ship do not free the pieces again', await named.ship() === '' && named.movements()[0].orders[0].orderNo === 'B2B-9'
+      && same([pending(named), named.free()], before) && same(before, [7, 7]), [pending(named), named.free()].join() + ' from ' + before.join());
+  }
+
+  console.log('== New development pieces on FBA lists: only what Amazon lists ==');
+  {
+    const o = () => newDev(12, { no: AIR, need: { SP: [3, 0, 0] } });
+    const S = lists(Object.assign(o(), { listing: 'not' }));
+    ok('not listed: a list takes only what Replenishment asks, and says why', /3 piece\(s\) free.*not listed on Amazon.*listing team/.test(await S.make(4, { lane: 'air' })) && !S.open().L1);
+    ok('…which it may', await S.make(3, { lane: 'air' }) === '');
+    await S.pack(3);
+    ok('…and ship', await S.ship() === '' && S.stock() === 17);
+    const R = lists(Object.assign(o(), { listing: 'not', releases: release(2) }));
+    await R.make(5, { lane: 'air' }); await R.pack(5);
+    ok('a release adds to it, at making and at Ship', await R.ship() === '' && R.stock() === 15);
+    for (const [name, spoil, words] of [['the listing is gone', S => { S.ctx.LST = notListed(); }, /not listed on Amazon/],
+      ['the listings cannot be read', S => { S.ctx.LST = { err: 'no signal', map: new Map() }; }, /could not be checked/],
+      ['the sales orders cannot be read', S => { S.ctx.LST = notListed(); S.ctx.ptGet = (real => async p => { if (p === 'pt_salesOrders') throw new Error('permission denied'); return real(p); })(S.ctx.ptGet); }, /sales orders could not be read/]]) {
+      const L = await packed(0, o());
+      await L.make(8, { lane: 'air' }); await L.pack(8);
+      spoil(L);
+      const said = await L.ship();
+      ok(name + ' after packing: Ship is refused with what to do, nothing leaves', words.test(said) && /Only 3 piece\(s\) of A may ship.*not 8.*press Finish/.test(said)
+        && L.movements().length === 0 && L.open().L1.status === 'packed', said);
+      await L.pack(3);
+      ok(name + ': the pieces Replenishment asks still ship', await L.ship() === '' && L.stock() === 17);
+    }
+    const Q = await packed(0, newDev(8, { no: AIR, need: {} }));
+    await Q.make(4, { lane: 'air' }); await Q.make(4, { id: 'L2', lane: 'air' }); await Q.pack(4);
+    Q.ctx.LST = notListed();
+    ok('a second list does not hide that this one holds New development pieces', /Only 0 piece/.test(await Q.ship()) && Q.movements().length === 0);
+    const two = await packed(0, newDev(4, { no: AIR, need: { SP: [8, 0, 0] } }));
+    await two.make(4, { lane: 'air' }); await two.make(4, { id: 'L2', lane: 'air' }); await two.pack(4);
+    two.ctx.LST = notListed();
+    two.db._fbaNeed.SP.skus = {};
+    ok('two lists cannot each pass as the one without New development pieces', /Only 0 piece/.test(await two.ship()) && two.movements().length === 0);
+    const P = await packed(4);
+    P.ctx.LST = notListed();
+    P.db._fbaNeed.SP.skus = {};
+    ok('a SKU with no New development order ships as before', await P.ship() === '' && P.stock() === 16);
   }
 
   const { pass, fail } = counts();

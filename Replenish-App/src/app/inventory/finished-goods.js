@@ -107,8 +107,8 @@ async function fgiLoadRun(quiet) {
   /* A tick on a row that has just been read again may point at nothing now. */
   FGI_PICK = { stock: new Set(), ledger: new Set() };
   fbaBadge();
-  /* Three reads that do not wait on each other, read together; each keeps what it had when its own read fails. */
-  await Promise.all([lstLoad(), fgiCorrLoad(), fnLoad()]);
+  /* Reads that do not wait on each other, read together; a failed one does not stop the rest. */
+  await Promise.all([lstLoad(), fgiCorrLoad(), fnLoad(), typeof fgaSalesRead === 'function' ? fgaSalesRead() : null]);
   fgiOverBadge();
   if (typeof FLOW_ON !== 'undefined' && FLOW_ON && typeof flowFgBadgeLoad === 'function') { if (fgLiteOn() && typeof flowFgBadgeLite === 'function') flowFgBadgeLite(); else flowFgBadgeLoad(); }
   lstMaybeRefresh();
@@ -294,13 +294,17 @@ function fgiStockNote(rows, onlyStock, alloc) {
   $('fgMsg').textContent = `${nf(rows.length)} SKU(s)`
     + (alloc ? fgaCountWords(rows) : (onlyStock ? ' in stock now' : ` on record · ${nf(held)} with pieces left`))
     + (rows.length > 600 ? ' · showing the first 600 · Export covers all of them' : '')
-    + (val ? ` · ${nf(Math.round(val))} rupees of stock` : '')
-    + (noPrice ? ` · ${nf(noPrice)} in stock have no rate, so they are in the pieces and not in the value` : '')
+    /* Switch storeAlloc (asked 28 Nov): the list says nothing about rates or value; it says how wide a search reaches. */
+    + (alloc && (PTG.mdb || []).length ? ` · search covers all ${nf(PTG.mdb.length)} Master Database SKUs` : '')
+    + (val && !alloc ? ` · ${nf(Math.round(val))} rupees of stock` : '')
+    + (noPrice && !alloc ? ` · ${nf(noPrice)} in stock have no rate, so they are in the pieces and not in the value` : '')
     + (low ? ` · ${nf(low)} at or below their re-order level` : '')
     + (neg.length ? ` · ${nf(neg.length)} SKU(s) are NEGATIVE, meaning more has gone out than ever came in` : '')
     + ' · stock is opening plus what came in, less what went out — pieces still in transit from press are not stock';
   const old = alloc ? fgiFbaAgeWhy() : '';
   if (old) { $('fgMsg').className = 'err'; $('fgMsg').textContent += ' · The FBA and Excess figures cannot be relied on: ' + old; }
+  const unread = alloc ? fgaSalesWhy() : '';
+  if (unread) { $('fgMsg').className = 'err'; $('fgMsg').textContent += ' · ' + unread; }
   const copy = typeof shpHoldOn === 'function' && shpHoldOn() ? fgiHoldOldWarning() : '';
   if (copy) { $('fgMsg').className = 'err'; $('fgMsg').textContent += ' · ' + copy; }
 }
@@ -804,6 +808,7 @@ $('fgTable').addEventListener('click', e => {
   }
   const rel = e.target.closest('[data-fgrel]'); if (rel) return fgiReleaseOpen(rel.getAttribute('data-fgrel'));
   const cu = e.target.closest('[data-fgacustom]'); if (cu) return fgaCustomOpen(cu.getAttribute('data-fgacustom'));
+  const nd = e.target.closest('[data-fgand]'); if (nd) return fgaNewDevOpen(nd.getAttribute('data-fgand'), nd.getAttribute('data-fgalane'));
   const apOk = e.target.closest('[data-fapok]'); if (apOk) return fapApprovePress(apOk);
   const apNo = e.target.closest('[data-fapno]'); if (apNo) return fapRejectOpen(apNo.getAttribute('data-fapno'));
   const n = e.target.closest('[data-fgentry]'); if (n) return fgiEntryOpen('ISSUE', n.getAttribute('data-fgentry'));

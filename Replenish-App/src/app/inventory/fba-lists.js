@@ -5,6 +5,8 @@
  * A list may take the lane's share of the stock for that store (fg-store-alloc.js) plus any open release, never more than
  * the stock that no other list has. A SKU sent to FBA in the past 7 days (fg-fba-repeat.js) goes on a list only when the
  * FBA repeat approver or an admin makes it, which is their approval.
+ * A New development article Amazon does not list (fg-store-newdev.js) goes on a list only as far as Replenishment itself
+ * asks for that lane, plus releases; Ship checks that again, so a list made before the listing was lost does not send them.
  * Whoever holds the FBA Dispatch tab makes, ships and undoes; packing also needs the right to save packing lists
  * (pack-core.js). A list is cancelled by its maker or an admin.
  * Ship sends exactly the packed pieces, so the packing list, its labels and the Amazon file agree with what went. To send
@@ -89,15 +91,17 @@ function fblAllotted(lists) {
 
 /* ---- making ---- */
 /** The pieces of a SKU this lane of this store may still take without a release. */
-const fblShare = (want, book) => fgaShares(want.sku, fgiOf(want.sku).current, fgiHoldNode(), book, [want.store])[want.lane];
+const fblShare = (want, book) => fgaListShare(want, fgiOf(want.sku).current, fgiHoldNode(), book);
 
 /** Why these pieces cannot go on a list, or ''. want: { sku, qty, store, lane }; book: fgaBook(). */
 function fblCapWhy(want, book) {
   const kept = (fblAllotted(fblLists())[shpHoldKey(want.sku)] || {}).total || 0;
   const unlisted = Math.max(0, fgiOf(want.sku).current - kept);
   const cap = Math.min(unlisted, fblShare(want, book) + fgiReleased(want.sku));
-  return want.qty <= cap ? '' : `${want.sku} has ${nf(cap)} piece(s) free for this FBA list, not ${nf(want.qty)}.`
-    + ' Take fewer, or ask an admin to release pieces on Finished Goods.';
+  if (want.qty <= cap) return '';
+  const newDev = fgaNewDevWhy(want.sku);
+  return `${want.sku} has ${nf(cap)} piece(s) free for this FBA list, not ${nf(want.qty)}.`
+    + ' Take fewer, or ask an admin to release pieces on Finished Goods.' + (newDev ? ' ' + newDev : '');
 }
 
 /** The form's lines as the list keeps them, one per SKU: { lines } or { err }. */
@@ -270,6 +274,23 @@ function fblStockWhy(id, list, qty) {
     return n > 0 && n > free ? `${sku}: the India Store has ${nf(Math.max(0, free))} piece(s) for this list, not ${nf(n)} — take the extra out of the boxes in Pack, press Finish, then Ship.` : '';
   }).filter(Boolean).join(' ');
 }
+/** Pieces of one SKU a list took from admin releases. */
+const fblReleasedFor = (list, key, releases) => Object.entries(list.released || {})
+  .filter(([relId]) => shpHoldKey(((releases || {})[relId] || {}).sku || '') === key).reduce((n, [, pcs]) => n + pcs, 0);
+/** Why pieces of this list may not ship for want of an Amazon listing, or ''. Asked of a SKU that Amazon does not list, or
+ *  that cannot be checked, with New development pieces not yet sent, on a list or not (or sales orders that cannot be read):
+ *  only what Replenishment asks beside the other lists, plus the list's releases, may go. */
+function fblListingShipWhy(id, list, qty) {
+  const book = fgaBook(null, Object.assign({}, fblLists(), { [id]: null })), unread = fgaSalesWhy();
+  const unsent = fgaBook(null, {}).newDev;   // other lists must not hide that this one holds New development pieces
+  return Object.entries(qty).map(([key, n]) => {
+    const { sku } = list.lines[key], why = fgaListingWhy(sku);
+    if (!why || !(unread || unsent.has(key))) return '';
+    const may = fgaReplLanes(sku, book, [list.store])[list.lane] + fblReleasedFor(list, key, fgiHoldNode().releases);
+    return n <= may ? '' : `${unread || why} Only ${nf(may)} piece(s) of ${sku} may ship on this list, not ${nf(n)} — take the extra `
+      + 'out of the boxes in Pack, press Finish, then Ship.';
+  }).filter(Boolean).join(' ');
+}
 /** The movements of a shipment, one per SKU that goes, already accepted and shipped. */
 function fblShipRows(id, list, qty, head) {
   return Object.keys(list.lines).sort().map((key, n) => {
@@ -353,6 +374,8 @@ async function fblShipWrite(id, claim, qty, head) {
     fblKeepAll((await ptGetFresh(FBL_PATH)) || {});
     const short = fblStockWhy(id, claim, qty);
     if (short) return 'Not shipped — ' + short;
+    const unlisted = fblListingShipWhy(id, claim, qty);
+    if (unlisted) return 'Not shipped — ' + unlisted;
     const rows = fblShipRows(id, claim, qty, head);
     const done = fblShippedRec(claim, qty, head, fblReleaseSplit(claim, qty, fgiHoldNode().releases));
     const patch = { [FBL_PATH + '/' + id]: null, [FBL_DONE_PATH + '/' + id]: done };
