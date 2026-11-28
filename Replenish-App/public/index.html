@@ -84755,6 +84755,15 @@ function shpOrderOf(shopId) {
   return null;
 }
 
+/** The day an opened order is dated. A stored date is never copied unchecked (28 Nov: 11 orders opened dated 2026-25-10, from
+ *  order files read month first before 26 Oct): the one date reader (soImpDate) reads day-first back, and what is no date at
+ *  all, like a blank, becomes today. Said in the console when the stored text was changed. */
+function shpOrderDay(o) {
+  const raw = String(o.at || '').slice(0, 10), day = soImpDate(raw) || soStoreDay(0);
+  if (raw && day !== raw) console.warn(`Shopify order ${o.no || o.id}: stored date "${raw}" read as ${day}.`);
+  return day;
+}
+
 /** How much production has already happened against one order line. */
 function shpWorkDone(orderNo, sku) {
   let n = 0;
@@ -85124,7 +85133,7 @@ function shpPlanOrder(o, full, assigned, opts) {
 
   const keep = new Set(good.map(g => g.sku));
   const now = new Date().toISOString();
-  const date = String(o.at || '').slice(0, 10) || soStoreDay(0);
+  const date = shpOrderDay(o);
   /* ONE ROW PER ORDER AND SKU, ENFORCED.
    *
    * ordLines() adds rows together by order and SKU, so a second row for the same pair does not
