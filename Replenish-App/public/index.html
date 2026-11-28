@@ -31858,7 +31858,8 @@ function shpbFillCell(r, k) {
   return td((f && (f.name || f.code) ? '<b>' + esc(f.name || f.code) + '</b>' : '<span class="muted">not given</span>')
       + (shpbMay('fill') ? '<div><button type="button" class="ghost" data-shpb-act="fill" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">Filler</button></div>' : ''), 'left')
     + td('<b style="font-size:13px">' + nf(iss) + '</b>' + (qc > iss ? '<div style="color:#b45309">' + nf(qc - iss) + ' passed QC, not issued</div>' : ''))
-    + td('<b style="font-size:13px;color:' + (rec < iss ? '#b45309' : '#166534') + '">' + nf(rec) + '</b>' + (iss > rec ? '<div class="muted">' + nf(iss - rec) + ' with filler</div>' : ''));
+    + td('<b style="font-size:13px;color:' + (rec < iss ? '#b45309' : '#166534') + '">' + nf(rec) + '</b>' + (iss > rec ? '<div class="muted">' + nf(iss - rec) + ' with filler</div>' : '')
+      + (iss > rec && shpbMay('fill') ? '<div><button type="button" class="ghost" data-shpb-act="fillrec" data-key="' + esc(k) + '" style="width:auto;padding:0 7px;font-size:10.5px;line-height:18px">Receive</button></div>' : ''));
 }
 async function shpbFillSave(r, v) {
   const key = shpbKey(r.orderNo, r.sku), was = shpbFillOf(r) || {}, all = shpbFillers();
@@ -32293,6 +32294,16 @@ function shpbDialog(act, key) {
     return flowDueRecvOpen(fl.printer, { orderNo: r.orderNo, sku: r.sku,
       none: () => { $('odMsg').className = 'err'; $('odMsg').textContent = `${r.shopOrderNo || r.orderNo} has nothing still to come from ${fl.printer.name || fl.printer.code || fl.printer} — it is not on that printer's challans.`; },
       after: said => { shpbAfter(); $('odMsg').className = 'muted'; $('odMsg').textContent = said || ''; } });
+  }
+  /* RECEIVE UNDER REC (28 Nov): the quilts that came back are entered from the row, pieces already filled in; the Filler button stays as it was. */
+  if (act === 'fillrec') {
+    const f = shpbFillOf(r) || {}, out = shpbFillSum(f, 'iss') - shpbFillSum(f, 'rec');
+    if (!(out > 0)) return ptOpenDialog({ title: 'Receive from filler — ' + who, subtitle: 'Nothing is with the filler on this line.' });
+    return ptOpenDialog({ title: 'Receive from filler — ' + who, subtitle: `${nf(out)} quilt(s) with ${f.name || f.code || 'the filler'}.`,
+      fields: [{ key: 'rec', label: 'Pieces received back', type: 'number', step: 1, min: 1, max: out, value: out }, { key: 'date', label: 'Date', type: 'date', value: shpbToday() }],
+      saveLabel: 'Receive', onSave: async v => {
+        if (!(Math.round(+v.rec || 0) > 0)) return 'Put in the pieces received back.';
+        const err = await shpbFillSave(r, v); if (!err) shpbAfter(); return err; } });
   }
   if (act === 'fill') {
     const f = shpbFillOf(r) || {}, iss = shpbFillSum(f, 'iss'), rec = shpbFillSum(f, 'rec'), vs = shpbFillers();
