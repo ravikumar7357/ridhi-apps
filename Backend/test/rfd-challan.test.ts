@@ -123,7 +123,7 @@ test('through the door: a failed try can be sent again (it was not remembered)',
   const deps = { verifyIdToken: async () => 'a@x.com', fetch: fakeFetch(db), repeat, now: () => NOW };
   const body = JSON.stringify({ idToken: 't', ...good() });
   assert.equal((await erpDoor(deps, 'action/rfd-challan', body)).ok, false);
-  assert.equal(repeat.get('a@x.com|req-0001-abcd', NOW), null);
+  assert.equal(repeat.get('a@x.com|rfd-challan|req-0001-abcd', NOW), null);
 });
 
 test('through the door: no sign-in, no challan', async () => {

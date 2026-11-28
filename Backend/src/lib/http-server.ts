@@ -68,7 +68,7 @@ export function requestHandler(d: ServerDeps) {
         res.end(html);
         return;
       }
-      const door = path.match(/^\/erp\/(save|read|action\/rfd-challan)$/);
+      const door = path.match(/^\/erp\/(save|read|action\/rfd-challan|action\/receive-challan)$/);
       if (door) {
         if (req.method === 'OPTIONS') { send(res, { status: 204, headers: { ...JSON_HEADERS, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' }); return; }
         if (req.method !== 'POST' || !d.verifyIdToken) { send(res, { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ ok: false, error: 'The ERP door takes POST only.' }) }); return; }

@@ -10,6 +10,7 @@
 
 import { checkSave } from './rules/check.ts';
 import { makeRfdChallan, RepeatGuard } from './actions/rfd-challan.ts';
+import { receiveOnChallan } from './actions/receive-challan.ts';
 import type { DbLike } from '../lib/db.ts';
 
 export const SUPERUSER = 'ravi@thefabricrush.com';
@@ -91,12 +92,17 @@ export async function erpDoor(d: DoorDeps, action: string, rawBody: string): Pro
 
   try {
     let out: Out;
-    if (action === 'action/rfd-challan') {
-      const id = `${email}|${String(p.requestId || '')}`;
+    if (action.startsWith('action/')) {
+      const name = action.slice(7);
+      const deps = { asPerson: (fn: string, args: object) => asPerson(d, token, fn, args), now, beforeSave: (ch: any[]) => noteRules(ch, 'server · ' + name) };
+      const go = name === 'rfd-challan' ? () => makeRfdChallan(email, p, deps).then(r => ({ ok: true as const, no: r.no, lines: r.lines }))
+        : name === 'receive-challan' ? () => receiveOnChallan(email, p, deps)
+        : null;
+      if (!go) return { ok: false, error: `The door has no "${action}".` };
+      const id = `${email}|${name}|${String(p.requestId || '')}`;
       const first = d.repeat?.get(id, now());
       if (first) { d.log?.({ door: action, who: email, repeat: true }); return (await first) as Out; }
-      const run = makeRfdChallan(email, p, { asPerson: (fn, args) => asPerson(d, token, fn, args), now, beforeSave: ch => noteRules(ch, 'server · rfd challan') })
-        .then(r => ({ ok: true as const, no: r.no, lines: r.lines }));
+      const run = go();
       if (p.requestId) d.repeat?.set(id, now(), run);
       try { out = await run; } catch (e) { d.repeat?.forget(id); throw e; }   // a failed try may be sent again
     } else if (action === 'save') {
