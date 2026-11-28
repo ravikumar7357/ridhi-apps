@@ -78947,7 +78947,9 @@ function croMcfPayload(o, speed) {
     brand: p.acct, shop: '', items: p.lines.map(x => ({ sku: x.amz, qty: x.need })), speed: speed || 'Standard',
     comment: 'A gift from ' + (croAcct(o) === 'CPC' ? 'Cotton Print Club' : 'Ridhi Home & Living') + '. Enjoy!' };
 }
-const croTestErp = () => !!(typeof window !== 'undefined' && window.__TEST_ERP && !window.__TEST_ERP.hubMcfWrites);
+/* A TEST copy only. The R1 data layer (shared/erp-data/layer.js) sets window.__TEST_ERP on the REAL site too since the 22 Nov Supabase switch — with mode 'live' —
+ * so that flag alone made every real "Send to Amazon" say "not sent from the test ERP" (27 Nov, Ravi, order CGE-0983CANYGP on fabricrush-replenish.web.app). */
+const croTestErp = () => !!(typeof window !== 'undefined' && window.__TEST_ERP && window.__TEST_ERP.mode !== 'live' && !window.__TEST_ERP.hubMcfWrites);
 async function croPreview(ref) {
   const o = croOf(ref); if (!o) return;
   const btn = $('croMcfPreview'), box = $('croMcfPrev'); if (!btn || !box) return;
