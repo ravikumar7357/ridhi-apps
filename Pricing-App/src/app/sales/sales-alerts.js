@@ -925,11 +925,14 @@ function alRender() {
   Object.values(AL.charts).forEach(c => { try { c.dispose(); } catch (e) { /* gone */ } });
   AL.charts = {};
   const r = alFor(AL.brand);
-  if (!r) { root.innerHTML = `<div class="al">${alBarHtml()}<section class="al-hero"><h2 class="al-hl">${AL.busy ? 'Reading the per-product days…' : 'Not read yet.'}</h2></section></div>`; return; }
-  if (!r.ok) { root.innerHTML = `<div class="al">${alBarHtml()}<section class="al-hero"><h2 class="al-hl">${alEsc(r.why)}</h2></section></div>`; return; }
+  // ↩ Return spikes (sales/returns.js) in its own box, drawn at once whatever the sales are doing (28 Nov 2026): the upload card, and its
+  // heading with a skeleton until its spikes are worked out — it repaints that box alone (rsRepaint)
+  const rsBox = () => `<div id="rsBox">${typeof rsSectionHtml === 'function' ? rsSectionHtml(AL.brand, AL.filter === 'returns') : ''}</div>`;
+  if (!r) { root.innerHTML = `<div class="al">${alBarHtml()}<section class="al-hero"><h2 class="al-hl">${AL.busy ? 'Reading the per-product days…' : 'Not read yet.'}</h2></section>${rsBox()}</div>`; return; }
+  if (!r.ok) { root.innerHTML = `<div class="al">${alBarHtml()}<section class="al-hero"><h2 class="al-hl">${alEsc(r.why)}</h2></section>${rsBox()}</div>`; return; }
   const top = AL.filter ? [] : r.alerts.slice(0, 3);
   // ↩ Return spikes (sales/returns.js): their own section after "Fix these first"; the chip shows them alone
-  const rs = typeof rsSectionHtml === 'function' ? rsSectionHtml(AL.brand, AL.filter === 'returns') : '';
+  const rs = rsBox();
   root.innerHTML = `<div class="al">${alBarHtml()}${alHeroHtml(r)}`
     + (top.length ? `<section class="al-sec"><div class="al-sec-h"><h3>Fix these first</h3><span class="muted">biggest money first</span></div><div class="al-top">${top.map(alCardHtml).join('')}</div></section>` : '')
     + (AL.filter === 'returns' ? rs : rs + alListHtml(r) + (AL.filter ? '' : alWinsHtml(r))) + alHowHtml(r) + alFootHtml(r) + '</div>';
@@ -1056,9 +1059,11 @@ function alRepaintElsewhere() {
 }
 /** The tab opened (core/nav.js showTab). */
 async function ensureSalert() {
+  const sales = alLoad();                          // started first, so the first draw says "Reading…" (not "Not read yet.")
   alRender();
-  const rs = typeof rsLoad === 'function' ? rsLoad().then(() => { if (alShown()) alRender(); }).catch(() => {}) : null;
-  await alLoad();
+  // the returns are read in parallel with the sales (this browser's copy first): each time there is more, only their box is repainted
+  const rs = typeof rsLoad === 'function' ? rsLoad(false, () => { if (alShown() && typeof rsRepaint === 'function') rsRepaint(); }).catch(() => {}) : null;
+  await sales;
   if (alShown()) alRender();
   void rs;
   alRepaintElsewhere();

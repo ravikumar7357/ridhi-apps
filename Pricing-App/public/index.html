@@ -1177,6 +1177,22 @@
   #paneSalert .rs-kids tr.is-spike td { font-weight: 600; }
   #paneSalert .rs-flag { display: inline-block; padding: 0 6px; border-radius: 999px; background: var(--al-red-bg); color: var(--al-red); font-size: 11px; font-weight: 700; }
   @media (max-width: 760px) { #paneSalert .rs-det { grid-template-columns: minmax(0, 1fr); } }
+  /* the Week dropdown, Back to latest week, the skeleton while the spikes are worked out, the week judged on the chart (28 Nov 2026) */
+  #paneSalert .rs-sec .al-sec-h { flex-wrap: wrap; row-gap: 6px; }
+  #paneSalert .rs-hl { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; }
+  #paneSalert .rs-wk { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--al-muted); }
+  #paneSalert .rs-wk select { width: auto; min-height: 30px; padding: 3px 26px 3px 10px; border-radius: 10px; font-size: 13px; }
+  #paneSalert .rs-back { width: auto; padding: 0; border: 0; background: none; box-shadow: none; color: var(--al-blue); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  #paneSalert .rs-chip-wk { font-weight: 500; opacity: .8; }
+  #paneSalert .rs-skel { display: grid; gap: 10px; margin: 2px 0 36px; }
+  #paneSalert .rs-skel p { margin: 0; font-size: 13px; }
+  #paneSalert .rs-skel i { display: block; height: 46px; border-radius: 16px; background: linear-gradient(90deg, var(--al-grey-bg) 25%, color-mix(in srgb, var(--al-grey-bg) 55%, var(--al-card)) 50%, var(--al-grey-bg) 75%); background-size: 200% 100%; animation: rsSkel 1.4s ease-in-out infinite; }
+  #paneSalert .rs-skel i:nth-of-type(2) { width: 82%; } #paneSalert .rs-skel i:nth-of-type(3) { width: 64%; }
+  @keyframes rsSkel { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+  @media (prefers-reduced-motion: reduce) { #paneSalert .rs-skel i { animation: none; } }
+  #paneSalert .rs-cj { stroke: var(--al-blue); stroke-width: 1.2; stroke-dasharray: 3 3; }
+  #paneSalert .rs-cjt { fill: var(--al-blue); font-weight: 600; }
+  #paneSalert .rs-ca { stroke: var(--al-muted); }
   /* ================= FORECAST (25 Nov 2026, sales/forecast.js) — the Sales Alerts look: calm cards, tabular numbers, every number right-aligned.
      ONLY the status wears colour (⛔ deep red, 🔴 red, 🟡 amber, 🟢 green; the rest grey); bars, lines and buttons are neutral. Scoped to
      #paneFcast (and the page behind it while it is open). Motion only under .fo-mo (✨ on, no reduced motion): chips / cards rise once,
@@ -71591,11 +71607,14 @@ function alRender() {
   Object.values(AL.charts).forEach(c => { try { c.dispose(); } catch (e) { /* gone */ } });
   AL.charts = {};
   const r = alFor(AL.brand);
-  if (!r) { root.innerHTML = `<div class="al">${alBarHtml()}<section class="al-hero"><h2 class="al-hl">${AL.busy ? 'Reading the per-product days…' : 'Not read yet.'}</h2></section></div>`; return; }
-  if (!r.ok) { root.innerHTML = `<div class="al">${alBarHtml()}<section class="al-hero"><h2 class="al-hl">${alEsc(r.why)}</h2></section></div>`; return; }
+  // ↩ Return spikes (sales/returns.js) in its own box, drawn at once whatever the sales are doing (28 Nov 2026): the upload card, and its
+  // heading with a skeleton until its spikes are worked out — it repaints that box alone (rsRepaint)
+  const rsBox = () => `<div id="rsBox">${typeof rsSectionHtml === 'function' ? rsSectionHtml(AL.brand, AL.filter === 'returns') : ''}</div>`;
+  if (!r) { root.innerHTML = `<div class="al">${alBarHtml()}<section class="al-hero"><h2 class="al-hl">${AL.busy ? 'Reading the per-product days…' : 'Not read yet.'}</h2></section>${rsBox()}</div>`; return; }
+  if (!r.ok) { root.innerHTML = `<div class="al">${alBarHtml()}<section class="al-hero"><h2 class="al-hl">${alEsc(r.why)}</h2></section>${rsBox()}</div>`; return; }
   const top = AL.filter ? [] : r.alerts.slice(0, 3);
   // ↩ Return spikes (sales/returns.js): their own section after "Fix these first"; the chip shows them alone
-  const rs = typeof rsSectionHtml === 'function' ? rsSectionHtml(AL.brand, AL.filter === 'returns') : '';
+  const rs = rsBox();
   root.innerHTML = `<div class="al">${alBarHtml()}${alHeroHtml(r)}`
     + (top.length ? `<section class="al-sec"><div class="al-sec-h"><h3>Fix these first</h3><span class="muted">biggest money first</span></div><div class="al-top">${top.map(alCardHtml).join('')}</div></section>` : '')
     + (AL.filter === 'returns' ? rs : rs + alListHtml(r) + (AL.filter ? '' : alWinsHtml(r))) + alHowHtml(r) + alFootHtml(r) + '</div>';
@@ -71722,9 +71741,11 @@ function alRepaintElsewhere() {
 }
 /** The tab opened (core/nav.js showTab). */
 async function ensureSalert() {
+  const sales = alLoad();                          // started first, so the first draw says "Reading…" (not "Not read yet.")
   alRender();
-  const rs = typeof rsLoad === 'function' ? rsLoad().then(() => { if (alShown()) alRender(); }).catch(() => {}) : null;
-  await alLoad();
+  // the returns are read in parallel with the sales (this browser's copy first): each time there is more, only their box is repainted
+  const rs = typeof rsLoad === 'function' ? rsLoad(false, () => { if (alShown() && typeof rsRepaint === 'function') rsRepaint(); }).catch(() => {}) : null;
+  await sales;
   if (alShown()) alRender();
   void rs;
   alRepaintElsewhere();
@@ -73976,6 +73997,14 @@ if (typeof window !== 'undefined') window.taskCheck = taskCheck;
  *   severity     = 🔴 Critical when ≥ 3 × baseline or ≥ 15 %; else 🟡 Watch
  *   each spike   "Returns 3% → 11% in 15–21 Nov (9 units) · top reason: Not as described (6)"; its weekly rate (12 weeks), its reasons,
  *                the latest customer comments (5), the SKUs / sizes it hit, "+ Task" (Action Tracker), "Open listing", Amazon ↗.
+ * WEEK (28 Nov 2026): a "Week" dropdown beside the heading — every complete week of the returns data with at least 4 complete weeks
+ *   before it, newest first, the latest by default; a week picked is judged with the same rules against ITS 8 weeks before (rsWeeks,
+ *   rsCompute week); the chip, cards, rows and drawer follow it (the chart marks it); "Back to latest week"; this visit only (RS.week).
+ *   The sales drops are not touched by it; the Action Tracker always asks about the latest week.
+ * SPEED (28 Nov 2026): the upload card and the section's heading are drawn at once (alRender's #rsBox, whatever the sales are doing),
+ *   with a skeleton "Checking returns…"; the returns are read in parallel with the sales (this browser's copy first — rsKeptLoad —
+ *   then the shared copy behind it); the spikes are worked out in idle time, a few ms at a time (rsJob / rsWarm), and only #rsBox
+ *   and the chip are repainted (rsRepaint).
  * WRITES only the uploaded rows (history/returns_*) — never on the test site. Reads the sales through the Forecast's loader.
  * Main functions: rsParse, rsMerge, rsCompute (pure), rsLoad, rsSave, rsFor, rsSectionHtml, returnsCheck (console). Names rs / RS.
  * Tests: tests/returns-test.js. */
@@ -73988,7 +74017,9 @@ const RS_REASON = { NOT_AS_DESCRIBED: 'Not as described', DEFECTIVE: 'Defective'
   DAMAGED_BY_FC: 'Damaged at Amazon', UNWANTED_ITEM: 'No longer wanted', ORDERED_WRONG_ITEM: 'Ordered the wrong item', SWITCHEROO: 'Wrong item returned', MISSED_ESTIMATED_DELIVERY: 'Arrived late',
   FOUND_BETTER_PRICE: 'Found a better price', NOT_COMPATIBLE: 'Not compatible', MISSING_PARTS: 'Missing parts', EXTRA_ITEM: 'Extra item', UNDELIVERABLE_UNKNOWN: 'Undeliverable',
   APPAREL_TOO_LARGE: 'Too large', APPAREL_TOO_SMALL: 'Too small', APPAREL_STYLE: 'Style not as expected', NO_REASON_GIVEN: 'No reason given', UNAUTHORIZED_PURCHASE: 'Unauthorised purchase' };
-const RS = { uploads: { SP: null, CPC: null }, cache: null, src: '', loaded: false, busy: null, err: '', open: false, upBrand: 'SP', msg: '', memo: {} };
+// open: the upload card shows at once when the page opens (28 Nov 2026; "↩ Returns data" still folds it away). week: the week picked
+// in "Week" ('' = each family's latest complete week) — this visit only. kept: read from this browser's copy (IndexedDB) so far.
+const RS = { uploads: { SP: null, CPC: null }, cache: null, src: '', loaded: false, busy: null, err: '', open: true, upBrand: 'SP', msg: '', memo: {}, week: '', kept: false, warm: null, foP: null };
 const rsTest = () => typeof sqIsTest === 'function' && sqIsTest();
 const rsEsc = s => String(s == null ? '' : s).replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
 const RS_PT = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -74043,7 +74074,8 @@ function rsMerge(old, fresh) {
 
 /* ----- the shared copy: history/returns_<brand>_<n> ----- */
 async function rsUploadsLoad() {
-  RS.uploads = { SP: RS.uploads.SP && RS.uploads.SP.mem ? RS.uploads.SP : null, CPC: RS.uploads.CPC && RS.uploads.CPC.mem ? RS.uploads.CPC : null };
+  // filled aside and put in place at the end: until then this browser's copy stays on screen (and stays when the read fails)
+  const next = { SP: RS.uploads.SP && RS.uploads.SP.mem ? RS.uploads.SP : null, CPC: RS.uploads.CPC && RS.uploads.CPC.mem ? RS.uploads.CPC : null };
   try {
     const snap = await getDocs(query(collection(db, 'history'), where('kind', '==', 'returns')));
     const by = { SP: [], CPC: [] };
@@ -74052,9 +74084,10 @@ async function rsUploadsLoad() {
       const head = by[b].find(p => p.n === 0);
       if (!head) return;
       const parts = by[b].filter(p => p.uploadedAt === head.uploadedAt && p.n < head.of).sort((a, z) => a.n - z.n);
-      if (parts.length !== head.of) return;               // an upload still being written: the last whole one next time
-      RS.uploads[b] = { brand: b, uploadedAt: head.uploadedAt, of: head.of, trail: head.trail || [], meta: head.meta || {}, rows: parts.flatMap(p => p.rows || []) };
+      if (parts.length !== head.of) { if (RS.uploads[b] && !next[b]) next[b] = RS.uploads[b]; return; }   // an upload still being written: the last whole one
+      next[b] = { brand: b, uploadedAt: head.uploadedAt, of: head.of, trail: head.trail || [], meta: head.meta || {}, rows: parts.flatMap(p => p.rows || []) };
     });
+    RS.uploads = next;
     RS.err = '';
   } catch (e) { RS.err = 'The uploaded returns could not be read (' + ((e && e.code) || (e && e.message) || 'no access') + ').'; }
 }
@@ -74093,10 +74126,44 @@ function rsData() {
   ['SP', 'CPC'].forEach(b => { const u = RS.uploads[b]; if (u && u.rows.length) { out.d[b] = u.rows; out.cover[b] = { from: u.meta.from || u.rows[0].d, to: u.meta.to || u.rows[u.rows.length - 1].d, at: u.uploadedAt, by: (u.trail[u.trail.length - 1] || {}).name || '' }; } });
   return out;
 }
-async function rsLoad(force) {
+/* THIS BROWSER'S COPY of the uploads (28 Nov 2026): the second visit draws the "uploaded by" line and the spikes at once, then the shared
+ * copy is read behind it and replaces it. The Analytics cache store (sales/brand-analytics.js baIdbDo, per signed-in person; signing
+ * out deletes it). Never on the test site (its uploads stay in that visit only). */
+const rsKeptKey = () => (typeof baKeyOf === 'function' ? baKeyOf('rs-uploads') : 'rs-uploads');
+async function rsKeptLoad() {
+  if (typeof baIdbDo !== 'function' || rsTest()) return false;
+  try {
+    const v = await baIdbDo('readonly', s => s.get(rsKeptKey()));
+    if (!v || !v.u || RS.loaded) return false;
+    ['SP', 'CPC'].forEach(b => { if (v.u[b] && Array.isArray(v.u[b].rows)) RS.uploads[b] = v.u[b]; });
+    RS.kept = true;
+    RS.loaded = true;
+    RS.memo = {};
+    return true;
+  } catch (e) { return false; }
+}
+function rsKeptSave() {
+  if (typeof baIdbDo !== 'function' || rsTest()) return;
+  const u = {};
+  ['SP', 'CPC'].forEach(b => { const x = RS.uploads[b]; if (x && !x.mem) u[b] = x; });
+  try { baIdbDo('readwrite', s => s.put({ t: Date.now(), u }, rsKeptKey())); } catch (e) { /* the next visit reads the shared copy */ }
+}
+/** The sales weeks the spikes need (the Forecast's loader): started here, in parallel — never waited for by the returns themselves. */
+function rsSalesLoad() {
+  if (!RS.foP && typeof foLoad === 'function') {
+    RS.foP = foLoad().catch(() => {}).finally(() => { RS.foP = null; });
+    RS.foP.then(() => { if (typeof alShown === 'function' && alShown()) rsRepaint(); });   // the sales are read: the spikes can be worked out
+  }
+  return RS.foP || Promise.resolve();
+}
+/** Read the returns (this browser's copy first, then the shared copy and the nightly cache, in parallel with the sales).
+ *  onChange: called each time there is more to draw (the kept copy, then the fresh read). */
+async function rsLoad(force, onChange) {
   if (RS.busy) return RS.busy;
-  if (RS.loaded && !force) return null;
+  if (RS.loaded && !force && !RS.kept) return null;
   RS.busy = (async () => {
+    rsSalesLoad();
+    if (!RS.loaded && await rsKeptLoad() && onChange) onChange();
     const jobs = [rsUploadsLoad()];
     jobs.push((async () => {                                 // 1. the backend cache "returns" (not written until Returns.gs runs)
       try {
@@ -74114,54 +74181,75 @@ async function rsLoad(force) {
         } else RS.cache = null;
       } catch (e) { RS.cache = null; }
     })());
-    if (typeof foLoad === 'function') jobs.push(foLoad().catch(() => {}));   // the weekly units per family / SKU (the Forecast's weeks)
     await Promise.all(jobs);
     RS.loaded = true;
+    RS.kept = false;
     RS.memo = {};
+    rsKeptSave();
+    if (onChange) onChange();
   })().finally(() => { RS.busy = null; });
   return RS.busy;
 }
 
 /* ----- THE MATHS (pure) ----- */
-/** o = { fams: [{ key, brand, parent, name, kids: [{ asin, skus, label, s: [{ wk, u }] }] }], data: { d: brand→rows, cover: brand→{from, to} }, brand }.
+/** o = { fams: [{ key, brand, parent, name, kids: [{ asin, skus, label, s: [{ wk, u }] }] }], data: { d: brand→rows, cover: brand→{from, to} }, brand,
+ *  week (optional, 'YYYY-MM-DD' Sunday: judge THAT week — the "Week" dropdown; '' = each family's last complete week) }.
  *  → { ok, items (spikes, worst first), rows (every family judged), noData, upTo, week } */
 function rsCompute(o) {
+  const j = rsJob(o);
+  while (!j.step(Infinity)) { /* all at once */ }
+  return j.out;
+}
+// Sold a week per child, by week (a Map, kept per child object): the same numbers as k.s.find(), without searching every time.
+const RS_SOLD = new WeakMap();
+const rsSoldOf = k => { let m = RS_SOLD.get(k); if (!m) { m = new Map((k.s || []).map(x => [x.wk, x.u || 0])); RS_SOLD.set(k, m); } return m; };
+// A complete week of the returns data: within [from, to], the first one only when the data starts on its Sunday.
+const rsCovered = (cv, wk) => wk >= rsSun(cv.from) && rsAdd(wk, 6) <= cv.to && (wk > rsSun(cv.from) || cv.from === wk);
+/** THE SAME WORK IN PIECES (28 Nov 2026): step(ms) works for about `ms` and says whether it is done; out is the result (rsCompute's).
+ *  The page runs it in idle time, a few milliseconds at a time, so scrolling never waits for it. */
+function rsJob(o) {
+  const now = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
   const brands = o.brand === 'ALL' ? ['SP', 'CPC'] : [o.brand];
   const data = o.data || { d: {}, cover: {} };
   const has = brands.filter(b => (data.d[b] || []).length);
-  if (!has.length) return { ok: true, noData: true, items: [], rows: [], brands };
-  const out = { ok: true, noData: false, items: [], rows: [], brands, upTo: {}, week: {} };
+  const pick = o.week || '';
+  if (!has.length) return { out: { ok: true, noData: true, items: [], rows: [], brands }, step: () => true };
+  const out = { ok: true, noData: false, items: [], rows: [], brands, upTo: {}, week: {}, picked: pick, salesTo: '' };
   has.forEach(b => { out.upTo[b] = data.cover[b].to; });
   // returns by brand → asin (a SKU → its ASIN through the families' children) → week
   const famsB = (o.fams || []).filter(f => has.includes(f.brand));
   const skuAsin = {};
   famsB.forEach(f => f.kids.forEach(k => (k.skus || []).forEach(s => { skuAsin[f.brand + '|' + s] = k.asin; })));
   const ret = {};                                            // brand|asin → wk → { q, rows: [] }
-  has.forEach(b => (data.d[b] || []).forEach(x => {
+  const rowsAll = has.map(b => [b, data.d[b] || []]);
+  let bi = 0, ri = 0, fi = 0, phase = 0;
+  const index = (b, x) => {
     const a = (x.a || skuAsin[b + '|' + x.s] || '').toUpperCase();
     if (!a) return;
     const wk = rsSun(x.d), c = ((ret[b + '|' + a] || (ret[b + '|' + a] = {}))[wk] || (ret[b + '|' + a][wk] = { q: 0, rows: [] }));
     c.q += x.q; c.rows.push(x);
-  }));
-  famsB.forEach(f => {
+  };
+  const family = f => {
     const cv = data.cover[f.brand];
     const weeks = (f.kids[0] && f.kids[0].s ? f.kids[0].s.map(x => x.wk) : []);
     if (!weeks.length) return;
-    const covered = wk => wk >= rsSun(cv.from) && rsAdd(wk, 6) <= cv.to && (wk > rsSun(cv.from) || cv.from === wk);
-    // the week judged: the last week both the sales and the returns data hold whole
-    const J = weeks.filter(covered).pop();
+    if (weeks[weeks.length - 1] > out.salesTo) out.salesTo = weeks[weeks.length - 1];
+    const covered = wk => rsCovered(cv, wk);
+    // the week judged: the one picked (when the sales and the returns data both hold it whole), else the last week both hold whole
+    const J = pick ? (weeks.includes(pick) && covered(pick) ? pick : null) : weeks.filter(covered).pop();
     if (!J) return;
     out.week[f.brand] = out.week[f.brand] && out.week[f.brand] > J ? out.week[f.brand] : J;
     const one = kids => {
-      const sold = wk => kids.reduce((s, k) => s + ((k.s.find(x => x.wk === wk) || {}).u || 0), 0);
+      const sold = wk => kids.reduce((s, k) => s + (rsSoldOf(k).get(wk) || 0), 0);
       const back = wk => kids.reduce((s, k) => s + ((ret[f.brand + '|' + k.asin] || {})[wk] || { q: 0 }).q, 0);
       const den = wk => (sold(wk) + sold(rsAdd(wk, -7))) / 2;
-      const series = weeks.filter(wk => wk <= J && covered(wk)).map(wk => ({ wk, sold: sold(wk), den: den(wk), q: back(wk), rate: den(wk) > 0 ? back(wk) / den(wk) : null }));
-      const now = series[series.length - 1];
+      const point = wk => ({ wk, sold: sold(wk), den: den(wk), q: back(wk), rate: den(wk) > 0 ? back(wk) / den(wk) : null });
+      const series = weeks.filter(wk => wk <= J && covered(wk)).map(point);
+      const nowW = series[series.length - 1];
       const baseW = series.slice(0, -1).slice(-RS_M.base).filter(w => w.den > 0);
       const bq = baseW.reduce((s, w) => s + w.q, 0), bd = baseW.reduce((s, w) => s + w.den, 0);
       const base = baseW.length >= RS_M.minBase && bd > 0 ? bq / bd : null;
-      return { series, now, base, baseWeeks: baseW.length };
+      return { series, now: nowW, base, baseWeeks: baseW.length, point };
     };
     const fam = one(f.kids);
     if (!fam.now) return;
@@ -74170,54 +74258,155 @@ function rsCompute(o) {
     rowsJ.forEach(x => { const r = rsReason(x.r); reasons[r] = (reasons[r] || 0) + x.q; });
     const rs = Object.entries(reasons).map(([t, n]) => ({ t, n })).sort((a, b) => b.n - a.n || a.t.localeCompare(b.t));
     const allRows = f.kids.flatMap(k => Object.values(ret[f.brand + '|' + k.asin] || {}).flatMap(c => c.rows));
-    const comments = allRows.filter(x => x.c && x.d <= cv.to).sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0)).slice(0, RS_M.comments).map(x => ({ d: x.d, s: x.s, t: x.c, r: rsReason(x.r) }));
+    // the latest comments up to the end of the week judged (an older week: the comments of that time)
+    const until = pick ? rsAdd(J, 6) : cv.to;
+    const comments = allRows.filter(x => x.c && x.d <= until).sort((a, b) => (a.d < b.d ? 1 : a.d > b.d ? -1 : 0)).slice(0, RS_M.comments).map(x => ({ d: x.d, s: x.s, t: x.c, r: rsReason(x.r) }));
     const kidsOut = f.kids.map(k => { const r = one([k]); return { asin: k.asin, sku: (k.skus || [])[0] || k.asin, label: k.label || (k.skus || [])[0] || k.asin, q: r.now ? r.now.q : 0, rate: r.now ? r.now.rate : null, base: r.base,
       spike: rsIsSpike(r.now, r.base) }; }).filter(k => k.q > 0).sort((a, b) => b.q - a.q);
     const spike = rsIsSpike(fam.now, fam.base);
+    // the weeks after the one judged (an older week picked), for the chart: it marks the week judged among them
+    const after = pick ? weeks.filter(wk => wk > J && covered(wk)).slice(0, 4).map(fam.point) : [];
     const row = { key: f.key, brand: f.brand, parent: f.parent, name: f.name, week: J, now: fam.now.rate, q: fam.now.q, sold: fam.now.den, base: fam.base, baseWeeks: fam.baseWeeks, series: fam.series.slice(-RS_M.chart),
-      reasons: rs, comments, kids: kidsOut, spike, why: fam.base == null ? `fewer than ${RS_M.minBase} weeks of returns data before ${rsWeek(J)}` : '' };
+      after, reasons: rs, comments, kids: kidsOut, spike, why: fam.base == null ? `fewer than ${RS_M.minBase} weeks of returns data before ${rsWeek(J)}` : '' };
     out.rows.push(row);
     if (!spike) return;
     row.sev = fam.now.rate >= RS_M.critRate || (fam.base > 0 && fam.now.rate >= RS_M.critTimes * fam.base) ? 'critical' : 'watch';
     row.id = `rs|${f.key}|${J}`;
     row.head = `Returns ${rsPct(fam.base)} → ${rsPct(fam.now.rate)} in ${rsWeek(J)} (${fam.now.q} unit${fam.now.q === 1 ? '' : 's'})${rs[0] ? ` · top reason: ${rs[0].t} (${rs[0].n})` : ''}`;
     out.items.push(row);
+  };
+  const step = ms => {
+    const t0 = now();
+    const left = () => ms === Infinity || now() - t0 < ms;
+    while (phase === 0) {                                    // 1. the return rows, 2,000 at a time
+      if (bi >= rowsAll.length) { phase = 1; break; }
+      const [b, list] = rowsAll[bi];
+      const end = Math.min(list.length, ri + 2000);
+      for (; ri < end; ri++) index(b, list[ri]);
+      if (ri >= list.length) { bi++; ri = 0; }
+      if (!left()) return false;
+    }
+    while (phase === 1) {                                    // 2. the families, one at a time
+      if (fi >= famsB.length) { phase = 2; break; }
+      family(famsB[fi++]);
+      if (!left()) return false;
+    }
+    if (phase === 2) {
+      out.items.sort((a, b) => (a.sev === b.sev ? 0 : a.sev === 'critical' ? -1 : 1) || (b.now - b.base) - (a.now - a.base) || b.q - a.q);
+      out.rows.sort((a, b) => b.q - a.q);
+      phase = 3;
+    }
+    return true;
+  };
+  return { out, step };
+}
+/** The "Week" dropdown's choices for a view: every COMPLETE Sunday–Saturday week (US Pacific) of the returns data that has at least
+ *  RS_M.minBase complete weeks before it (a baseline), newest first — and, once the sales weeks are read, not after the last of them. */
+function rsWeeks(brand, data, salesTo) {
+  const d = data || rsData();
+  const set = new Set();
+  (brand === 'ALL' ? ['SP', 'CPC'] : [brand]).forEach(b => {
+    const cv = d.cover && d.cover[b];
+    if (!cv || !cv.from || !cv.to || !(d.d[b] || []).length) return;
+    const list = [];
+    for (let wk = rsSun(cv.from); rsAdd(wk, 6) <= cv.to; wk = rsAdd(wk, 7)) if (rsCovered(cv, wk)) list.push(wk);
+    list.forEach((wk, i) => { if (i >= RS_M.minBase && (!salesTo || wk <= salesTo)) set.add(wk); });
   });
-  out.items.sort((a, b) => (a.sev === b.sev ? 0 : a.sev === 'critical' ? -1 : 1) || (b.now - b.base) - (a.now - a.base) || b.q - a.q);
-  out.rows.sort((a, b) => b.q - a.q);
-  return out;
+  return [...set].sort().reverse();
 }
 /** A spike: ≥ 2 × the baseline, ≥ 3 points above it, ≥ 5 units returned (and a baseline to judge against). */
 function rsIsSpike(now, base) {
   return !!now && base != null && now.rate != null && now.q >= RS_M.units && now.rate >= RS_M.times * base && now.rate - base >= RS_M.pts;
 }
-/** The result for a view (SP, CPC, ALL), worked out once per data version. */
-function rsFor(brand) {
+// Are the sales read (the Forecast's loader done)? A cheap look — the families themselves are worked out only in idle time (rsWarm).
+const rsSalesReady = () => typeof foFor === 'function' && typeof FO !== 'undefined' && !!FO.data && typeof VI !== 'undefined' && !!VI && !!VI.data;
+/** The families of a view (the Forecast's weeks), or null while the sales are not read yet. */
+function rsFams(brand) {
+  const fams = [];
+  for (const b of (brand === 'ALL' ? ['SP', 'CPC'] : [brand])) {
+    const f = typeof foFor === 'function' ? foFor(b) : null;
+    if (!f) return null;                                     // the sales are still being read
+    if (f.ok) fams.push(...f.fams);
+  }
+  return fams;
+}
+// The week a view judges: the one picked when it is one of the view's choices, else '' (each family's latest complete week).
+const rsWeekOf = (brand, week) => (week && rsWeeks(brand).includes(week) ? week : '');
+const rsMemoKey = (brand, week) => brand + '|' + week + '@' + (typeof FO !== 'undefined' ? FO.v : '') + '@' + (RS.cache ? 'c' : 'u') + '@' + ['SP', 'CPC'].map(b => (RS.uploads[b] || {}).uploadedAt || 0).join(',');
+/** The result for a view (SP, CPC, ALL) and a week ('' = the latest), worked out once per data version — all at once (the console, the
+ *  Action Tracker, the tests). The page uses rsPeek + rsWarm instead, so it never waits for it. */
+function rsFor(brand, week) {
   if (!RS.loaded) return null;
-  const k = brand + '@' + (typeof FO !== 'undefined' ? FO.v : '') + '@' + (RS.cache ? 'c' : 'u') + '@' + ['SP', 'CPC'].map(b => (RS.uploads[b] || {}).uploadedAt || 0).join(',');
-  if (RS.memo[brand] && RS.memo[brand].k === k) return RS.memo[brand].r;
+  const wk = week == null ? '' : week;
+  const k = rsMemoKey(brand, wk);
+  const m = RS.memo[brand + '|' + wk];
+  if (m && m.k === k) return m.r;
   let r;
   try {
-    const fams = [];
-    (brand === 'ALL' ? ['SP', 'CPC'] : [brand]).forEach(b => { const f = typeof foFor === 'function' ? foFor(b) : null; if (f && f.ok) fams.push(...f.fams); });
-    r = rsCompute({ fams, data: rsData(), brand });
+    const fams = rsFams(brand);
+    if (!fams) return null;
+    r = rsCompute({ fams, data: rsData(), brand, week: wk });
   } catch (e) { r = { ok: false, why: 'Return spikes could not be worked out: ' + ((e && e.message) || e), items: [] }; }
-  RS.memo[brand] = { k, r };
+  RS.memo[brand + '|' + wk] = { k, r };
   return r;
 }
-/** For the Action Tracker: is the family still a return spike? (null when the returns are not read) */
+/** Worked out already? The result, else null (nothing is worked out here). */
+function rsPeek(brand, week) {
+  const m = RS.memo[brand + '|' + week];
+  return m && m.k === rsMemoKey(brand, week) ? m.r : null;
+}
+// Idle time (or the next turn when the browser has none): the page's slices of work run there. → how long this slice may work (ms):
+// the idle time the browser offers, 4–20 ms — always under the 50 ms that makes a scroll or a click wait.
+const rsIdle = () => new Promise(res => (typeof requestIdleCallback === 'function' ? requestIdleCallback(d => res(Math.max(4, Math.min(20, ((d && d.timeRemaining && d.timeRemaining()) || 0) - 2))), { timeout: 120 }) : setTimeout(() => res(8), 0)));
+/** Work out a view's spikes in idle time, a few milliseconds at a time, then repaint the section alone. */
+function rsWarm(brand, week) {
+  const k = rsMemoKey(brand, week);
+  if (RS.warm && RS.warm.k === k) return;
+  const job = RS.warm = { k };
+  (async () => {
+    let ms = await rsIdle();
+    if (RS.warm !== job) return;
+    let r;
+    try {
+      const fams = rsFams(brand);
+      if (!fams) { RS.warm = null; return; }
+      const j = rsJob({ fams, data: rsData(), brand, week });
+      while (!j.step(ms)) { ms = await rsIdle(); if (RS.warm !== job) return; }
+      r = j.out;
+    } catch (e) { r = { ok: false, why: 'Return spikes could not be worked out: ' + ((e && e.message) || e), items: [] }; }
+    if (RS.warm !== job || rsMemoKey(brand, week) !== k) return;
+    RS.memo[brand + '|' + week] = { k, r };
+    RS.warm = null;
+    rsRepaint();
+  })();
+}
+/** Repaint only what Return spikes shows on Sales Alerts (its box and its chip) — the rest of the page stays as it is. */
+function rsRepaint() {
+  if (typeof document === 'undefined' || !document.getElementById) return;
+  const box = document.getElementById('rsBox');
+  if (!box) { if (typeof alShown === 'function' && alShown() && typeof alRender === 'function') alRender(); return; }
+  const brand = typeof AL !== 'undefined' ? AL.brand : 'SP';
+  box.innerHTML = rsSectionHtml(brand, typeof AL !== 'undefined' && AL.filter === 'returns');
+  const chip = document.querySelector('#paneSalert [data-al-filter="returns"]');
+  if (chip) chip.outerHTML = rsChipHtml(brand);
+}
+/** For the Action Tracker: is the family still a return spike? (null when the returns are not read) — the latest week, whatever is picked. */
 function rsSpikeOn(brand, key) {
-  const r = rsFor(brand);
+  const r = rsFor(brand, '');
   return r && r.ok && !r.noData ? r.items.some(x => x.key === key) : null;
 }
 
 /* ----- on Sales Alerts ----- */
 const RS_SEV = { critical: ['🔴', 'Critical'], watch: ['🟡', 'Watch'] };
 function rsBarBtn() { return `<button type="button" class="al-btn" data-rs-act="panel" aria-expanded="${RS.open}">↩ Returns data</button>`; }
+// The chip follows the week picked; while it is being worked out it shows "…" (never worked out in the middle of a draw).
 function rsChipHtml(brand) {
-  const r = rsFor(brand);
-  const n = r && r.ok ? r.items.length : 0;
-  return `<button type="button" class="al-chip is-returns" data-al-filter="returns" aria-pressed="${typeof AL !== 'undefined' && AL.filter === 'returns'}"><span aria-hidden="true">↩</span> Return spikes <b>${n}</b></button>`;
+  const wk = RS.loaded ? rsWeekOf(brand, RS.week) : '';
+  const r = RS.loaded ? rsPeek(brand, wk) : null;
+  if (RS.loaded && !r && rsSalesReady()) rsWarm(brand, wk);
+  const none = RS.loaded && !(brand === 'ALL' ? ['SP', 'CPC'] : [brand]).some(b => (rsData().d[b] || []).length);   // no returns data: 0, never a guess
+  const n = r && r.ok ? String(r.items.length) : none ? '0' : '…';
+  return `<button type="button" class="al-chip is-returns" data-al-filter="returns" aria-pressed="${typeof AL !== 'undefined' && AL.filter === 'returns'}"><span aria-hidden="true">↩</span> Return spikes <b>${n}</b>${wk ? `<small class="rs-chip-wk"> · ${rsWeek(wk)}</small>` : ''}</button>`;
 }
 function rsUpTo(r) {
   const c = rsData().cover;
@@ -74225,7 +74414,8 @@ function rsUpTo(r) {
 }
 function rsPanelHtml() {
   const b = (v, t) => `<button type="button" data-rs-brand="${v}" aria-pressed="${RS.upBrand === v}">${t}</button>`;
-  const last = ['SP', 'CPC'].map(x => { const u = RS.uploads[x], t = u && u.trail[u.trail.length - 1]; return `${({ SP: 'Ridhi', CPC: 'CPC' })[x]}: ${u ? `${u.rows.length} returns, ${rsDay(u.meta.from)}–${rsDay(u.meta.to)}${t ? ` · uploaded by ${rsEsc(t.name || t.by)} ${new Date(t.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}` : 'nothing uploaded'}`; }).join(' · ');
+  const last = ['SP', 'CPC'].map(x => { const u = RS.uploads[x], t = u && u.trail[u.trail.length - 1]; return `${({ SP: 'Ridhi', CPC: 'CPC' })[x]}: ${u ? `${u.rows.length} returns, ${rsDay(u.meta.from)}–${rsDay(u.meta.to)}${t ? ` · uploaded by ${rsEsc(t.name || t.by)} ${new Date(t.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}` : RS.loaded ? 'nothing uploaded' : 'reading…'}`; }).join(' · ')
+    + (RS.kept && RS.busy ? ' · checking for a newer upload…' : '');
   return `<div class="rs-up" id="rsUp"><div class="rs-up-h"><b>Customer Returns report</b><span class="muted">Seller Central → Reports → Fulfillment → Customer Returns → download (.txt). One file per brand; a new upload replaces the rows it shares, never counts them twice.</span></div>`
     + `<div class="rs-up-r"><span class="al-seg" role="group" aria-label="Brand of the file">${b('SP', 'Ridhi')}${b('CPC', 'CPC')}</span>`
     + `<label class="al-btn rs-file">Choose the file…<input type="file" accept=".txt,.csv,.tsv,text/plain,text/csv" data-rs-file hidden></label>`
@@ -74234,15 +74424,19 @@ function rsPanelHtml() {
 }
 /** The weekly return rate, 8–12 weeks, against the baseline (plain SVG). */
 function rsChartSvg(it) {
-  const pts = it.series.filter(w => w.rate != null);
+  // the weeks up to the one judged, and (an older week picked) up to 4 after it — the week judged is marked
+  const pts = it.series.concat(it.after || []).filter(w => w.rate != null);
   if (pts.length < 2) return '<p class="muted al-empty">Not enough weeks to draw yet.</p>';
   const W = 520, H = 150, l = 36, r = 8, t = 12, b = 22, max = Math.max(0.02, ...pts.map(w => w.rate), it.base || 0) * 1.15;
   const X = i => l + i / (pts.length - 1) * (W - l - r), Y = v => H - b - v / max * (H - t - b);
+  const ji = Math.max(0, pts.findIndex(w => w.wk === it.week));
+  const jx = X(ji), jEnd = ji === pts.length - 1;
   const line = pts.map((w, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(w.rate).toFixed(1)}`).join('');
-  return `<svg class="rs-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Return rate a week, the last ${pts.length} weeks, against the normal ${rsPct(it.base)}">`
+  return `<svg class="rs-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Return rate a week, ${pts.length} weeks, against the normal ${rsPct(it.base)}; the week judged, ${rsWeek(it.week)}, is marked">`
     + `<line x1="${l}" x2="${W - r}" y1="${H - b}" y2="${H - b}" class="rs-cg"/><text x="2" y="${t + 4}" class="rs-cx">${rsPct(max)}</text>`
+    + `<line x1="${jx.toFixed(1)}" x2="${jx.toFixed(1)}" y1="${t}" y2="${H - b}" class="rs-cj"/><text x="${(jEnd ? jx - 4 : jx + 4).toFixed(1)}" y="${t + 4}"${jEnd ? ' text-anchor="end"' : ''} class="rs-cx rs-cjt">${rsWeek(it.week)}</text>`
     + (it.base != null ? `<line x1="${l}" x2="${W - r}" y1="${Y(it.base).toFixed(1)}" y2="${Y(it.base).toFixed(1)}" class="rs-cb"/><text x="${W - r}" y="${(Y(it.base) - 4).toFixed(1)}" text-anchor="end" class="rs-cx">normal ${rsPct(it.base)}</text>` : '')
-    + `<path d="${line}" class="rs-cl"/>${pts.map((w, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(w.rate).toFixed(1)}" r="${i === pts.length - 1 ? 4.5 : 2.5}" class="${i === pts.length - 1 ? 'rs-cn' : 'rs-cp'}"><title>${rsWeek(w.wk)}: ${w.q} returned of ~${Math.round(w.den)} sold a week · ${rsPct(w.rate)}</title></circle>`).join('')}`
+    + `<path d="${line}" class="rs-cl"/>${pts.map((w, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(w.rate).toFixed(1)}" r="${i === ji ? 4.5 : 2.5}" class="${i === ji ? 'rs-cn' : i > ji ? 'rs-cp rs-ca' : 'rs-cp'}"><title>${rsWeek(w.wk)}: ${w.q} returned of ~${Math.round(w.den)} sold a week · ${rsPct(w.rate)}${i === ji ? ' (the week judged)' : ''}</title></circle>`).join('')}`
     + `<text x="${l}" y="${H - 6}" class="rs-cx">${rsDay(pts[0].wk)}</text><text x="${W - r}" y="${H - 6}" text-anchor="end" class="rs-cx">${rsDay(pts[pts.length - 1].wk)}</text></svg>`;
 }
 function rsDetailHtml(it) {
@@ -74269,16 +74463,40 @@ function rsRowHtml(it, open) {
     + `<span class="al-row-n">${rsEsc(it.name)}<small>${rsEsc(it.head)} · ${rsEsc(it.parent)}</small></span><span class="al-row-c">↩ Return spike</span>`
     + `<span class="al-row-p num">+${Math.round((it.now - (it.base || 0)) * 100)} pts</span><span class="al-row-m num">${it.q} units</span><span class="al-row-s">${RS_SEV[it.sev][1]}</span></summary><div class="al-det">${rsDetailHtml(it)}</div></details>`;
 }
-/** The section on Sales Alerts: the upload panel (when open), then the spikes — or the note when no returns are read. */
+/** The "Week" dropdown beside the heading (its choices: rsWeeks), and "Back to latest week" when an older one is picked. */
+function rsWeekPickHtml(brand) {
+  // not after the last sales week (known once a result is worked out — never worked out here)
+  const done = rsPeek(brand, '') || rsPeek(brand, rsWeekOf(brand, RS.week));
+  const salesTo = (done && done.salesTo) || '';
+  const list = rsWeeks(brand, null, salesTo);
+  if (!list.length) return '';
+  const wk = list.includes(RS.week) ? RS.week : '';
+  const opts = list.map((w, i) => `<option value="${i ? w : ''}"${(i ? w === wk : !wk) ? ' selected' : ''}>${rsWeek(w)}${i ? '' : ' (latest)'}</option>`).join('');
+  return `<label class="rs-wk"><span>Week</span><select data-rs-week aria-label="Week to judge the return spikes">${opts}</select></label>`
+    + (wk ? `<button type="button" class="rs-back" data-rs-act="latest">Back to latest week</button>` : '');
+}
+/** The section on Sales Alerts: the upload card (open at first), then the spikes. Drawn at once: while the returns or the sales are being
+ *  read, or the spikes worked out, its heading shows with a small skeleton ("Checking returns…") and the spikes fill in after. */
 function rsSectionHtml(brand, only) {
   const panel = RS.open ? rsPanelHtml() : '';
-  if (!RS.loaded) return panel + (only ? '<section class="al-sec"><p class="muted al-empty">Reading the returns…</p></section>' : '');
-  const r = rsFor(brand);
-  if (!r || !r.ok) return panel + (r ? `<p class="al-note">${rsEsc(r.why)}</p>` : '');
+  const skel = (pick, upTo) => `<section class="al-sec rs-sec" aria-busy="true"><div class="al-sec-h"><div class="rs-hl"><h3>↩ Return spikes</h3>${pick || ''}</div><span class="muted">${upTo || ''}</span></div>`
+    + `<div class="rs-skel"><p class="muted">Checking returns…</p><i></i><i></i><i></i></div></section>`;
+  if (!RS.loaded) return panel + skel();
+  const d = rsData();
+  if (!(brand === 'ALL' ? ['SP', 'CPC'] : [brand]).some(b => (d.d[b] || []).length)) return panel + `<p class="rs-none">↩ Upload the Customer Returns report to see return spikes <button type="button" class="al-btn" data-rs-act="panel">Upload</button></p>`;
+  const pick = rsWeekPickHtml(brand);
+  const wk = rsWeekOf(brand, RS.week);
+  const r = rsPeek(brand, wk);
+  if (!r) {
+    if (rsSalesReady()) rsWarm(brand, wk);                  // the sales are read: work the spikes out in idle time, then fill in
+    return panel + skel(pick, rsEsc(rsUpTo({ brands: brand === 'ALL' ? ['SP', 'CPC'] : [brand] })));
+  }
+  if (!r.ok) return panel + `<p class="al-note">${rsEsc(r.why)}</p>`;
   if (r.noData) return panel + `<p class="rs-none">↩ Upload the Customer Returns report to see return spikes <button type="button" class="al-btn" data-rs-act="panel">Upload</button></p>`;
   const top = r.items.filter(it => it.sev === 'critical').slice(0, 3);
-  const head = `<div class="al-sec-h"><h3>↩ Return spikes <span class="muted">${r.items.length}</span></h3><span class="muted">${rsEsc(rsUpTo(r))}</span></div>`;
-  if (!r.items.length) return panel + `<section class="al-sec rs-sec">${head}<p class="muted al-empty">No return spikes — every family's returns are within 2× its normal (or under 5 units).</p></section>`;
+  const head = `<div class="al-sec-h"><div class="rs-hl"><h3>↩ Return spikes <span class="muted">${r.items.length}</span></h3>${pick}</div><span class="muted">${rsEsc(rsUpTo(r))}</span></div>`;
+  const when = wk ? ` in ${rsWeek(wk)}` : '';
+  if (!r.items.length) return panel + `<section class="al-sec rs-sec">${head}<p class="muted al-empty">No return spikes${when} — every family's returns are within 2× its normal (or under 5 units).</p></section>`;
   return panel + `<section class="al-sec rs-sec" id="rsList">${head}${top.length ? `<div class="al-top">${top.map(rsCardHtml).join('')}</div>` : ''}`
     + `<div class="al-rows">${r.items.map(it => rsRowHtml(it, false)).join('')}</div></section>`;
 }
@@ -74288,6 +74506,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     const t = on('#paneSalert [data-rs-act], #paneSalert [data-rs-brand], #paneSalert [data-rs-open], #paneSalert [data-rs-card]');
     if (!t) return;
     if (t.dataset.rsAct === 'panel') { RS.open = !RS.open; RS.msg = ''; if (typeof alRender === 'function') alRender(); return; }
+    if (t.dataset.rsAct === 'latest') { RS.week = ''; rsRepaint(); return; }
     if (t.dataset.rsBrand) { RS.upBrand = t.dataset.rsBrand; if (typeof alRender === 'function') alRender(); return; }
     if (t.dataset.rsOpen != null) {
       const [b, sku, parent] = t.dataset.rsOpen.split('|');
@@ -74299,6 +74518,9 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     return undefined;
   });
   document.addEventListener('change', async e => {
+    // the Week dropdown: the spikes of that week, judged against its own 8 weeks before — only this section (and its chip) changes
+    const sel = e.target && e.target.matches && e.target.matches('#paneSalert [data-rs-week]') ? e.target : null;
+    if (sel) { RS.week = sel.value || ''; rsRepaint(); return; }
     const inp = e.target && e.target.matches && e.target.matches('#paneSalert [data-rs-file]') ? e.target : null;
     if (!inp || !inp.files || !inp.files[0]) return;
     const f = inp.files[0];
@@ -74307,6 +74529,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     const text = await f.text();
     RS.msg = await rsUpload(RS.upBrand, text, f.name);
     RS.memo = {};
+    rsKeptSave();
     if (typeof alRender === 'function') alRender();
   });
 }
@@ -74314,6 +74537,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 /* ----- the console: returnsCheck('<family or SKU>') — every week's sold, returned and rate ----- */
 async function returnsCheck(query, brand) {
   await rsLoad();
+  await rsSalesLoad();                                      // the sales weeks (read in parallel; the console waits for them)
   const q = String(query == null ? '' : query).toLowerCase();
   const out = [];
   (brand ? [brand] : ['SP', 'CPC']).forEach(b => {

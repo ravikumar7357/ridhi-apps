@@ -1152,6 +1152,22 @@
   #paneSalert .rs-kids tr.is-spike td { font-weight: 600; }
   #paneSalert .rs-flag { display: inline-block; padding: 0 6px; border-radius: 999px; background: var(--al-red-bg); color: var(--al-red); font-size: 11px; font-weight: 700; }
   @media (max-width: 760px) { #paneSalert .rs-det { grid-template-columns: minmax(0, 1fr); } }
+  /* the Week dropdown, Back to latest week, the skeleton while the spikes are worked out, the week judged on the chart (28 Nov 2026) */
+  #paneSalert .rs-sec .al-sec-h { flex-wrap: wrap; row-gap: 6px; }
+  #paneSalert .rs-hl { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; }
+  #paneSalert .rs-wk { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--al-muted); }
+  #paneSalert .rs-wk select { width: auto; min-height: 30px; padding: 3px 26px 3px 10px; border-radius: 10px; font-size: 13px; }
+  #paneSalert .rs-back { width: auto; padding: 0; border: 0; background: none; box-shadow: none; color: var(--al-blue); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  #paneSalert .rs-chip-wk { font-weight: 500; opacity: .8; }
+  #paneSalert .rs-skel { display: grid; gap: 10px; margin: 2px 0 36px; }
+  #paneSalert .rs-skel p { margin: 0; font-size: 13px; }
+  #paneSalert .rs-skel i { display: block; height: 46px; border-radius: 16px; background: linear-gradient(90deg, var(--al-grey-bg) 25%, color-mix(in srgb, var(--al-grey-bg) 55%, var(--al-card)) 50%, var(--al-grey-bg) 75%); background-size: 200% 100%; animation: rsSkel 1.4s ease-in-out infinite; }
+  #paneSalert .rs-skel i:nth-of-type(2) { width: 82%; } #paneSalert .rs-skel i:nth-of-type(3) { width: 64%; }
+  @keyframes rsSkel { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+  @media (prefers-reduced-motion: reduce) { #paneSalert .rs-skel i { animation: none; } }
+  #paneSalert .rs-cj { stroke: var(--al-blue); stroke-width: 1.2; stroke-dasharray: 3 3; }
+  #paneSalert .rs-cjt { fill: var(--al-blue); font-weight: 600; }
+  #paneSalert .rs-ca { stroke: var(--al-muted); }
   /* ================= FORECAST (25 Nov 2026, sales/forecast.js) — the Sales Alerts look: calm cards, tabular numbers, every number right-aligned.
      ONLY the status wears colour (⛔ deep red, 🔴 red, 🟡 amber, 🟢 green; the rest grey); bars, lines and buttons are neutral. Scoped to
      #paneFcast (and the page behind it while it is open). Motion only under .fo-mo (✨ on, no reduced motion): chips / cards rise once,

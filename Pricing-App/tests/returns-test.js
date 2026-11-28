@@ -14,6 +14,7 @@ function world(opt) {
   opt = opt || {};
   for (let tries = 0; tries < 200; tries++) {
     const store = {}, writes = [], clone = x => JSON.parse(JSON.stringify(x));
+    const src = p => (opt.files && opt.files[p] != null ? opt.files[p] : SRC(p));   // opt.files: a file as an earlier commit had it
     const el = () => ({ addEventListener() {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false }, style: { setProperty() {} }, appendChild() {}, querySelector: () => null, setAttribute() {} });
     const base = {
       console: { log() {}, table() {}, warn() {}, error() {}, info() {} }, Intl, Math, JSON, Number, String, Object, Array, Set, Map, WeakMap, Promise, Date, isFinite, Error, RegExp, Symbol, Proxy, parseFloat, parseInt,
@@ -32,7 +33,7 @@ function world(opt) {
     STUBS.forEach(n => { if (!(n in base)) base[n] = stub(); });
     const ctx = vm.createContext(base);
     try {
-      vm.runInContext(FILES.map(SRC).join('\n;\n') + '\n;this.__x = { RS, RS_M, rsParse, rsMerge, rsUpload, rsLoad, rsCompute, rsIsSpike, rsFor, rsData, rsSectionHtml, rsChipHtml, rsBarBtn, rsDetailHtml, rsWeek, returnsCheck, tkVerdict, AL, alBarHtml };', ctx);
+      vm.runInContext(FILES.map(src).join('\n;\n') + '\n;this.__x = { RS, RS_M, rsParse, rsMerge, rsUpload, rsLoad, rsCompute, rsIsSpike, rsFor, rsData, rsSectionHtml, rsChipHtml, rsBarBtn, rsDetailHtml, rsWeek, returnsCheck, tkVerdict, AL, alBarHtml, alRender: typeof alRender === "function" ? alRender : null, rsWeeks: typeof rsWeeks === "function" ? rsWeeks : null, rsJob: typeof rsJob === "function" ? rsJob : null, rsPeek: typeof rsPeek === "function" ? rsPeek : null, rsSpikeOn, rsChartSvg };', ctx);
       return Object.assign(ctx.__x, { ctx, store, writes });
     } catch (e) {
       const m = /^(\w+) is not defined/.exec(e.message);
@@ -165,6 +166,82 @@ function fileSP(extra) {
     const gs = fs.readFileSync(path.join(__dirname, '..', '..', 'Pricing-API', 'Returns.gs'), 'utf8');
     ok('the backend for later: Returns.gs asks GET_FBA_FULFILLMENT_CUSTOMER_RETURNS_DATA and writes the cache "returns" (not deployed)', /GET_FBA_FULFILLMENT_CUSTOMER_RETURNS_DATA/.test(gs) && /cacheWrite_\('returns'/.test(gs) && /NOT DEPLOYED/.test(gs));
     ok('writes only history/returns_* (no sales, listing or stock document); no Amazon call from the page', !/setDoc\(doc\(db, '(stock|health|age|perms|reimbData)'/.test(SRC('app/sales/returns.js')) && !/spCall|adsPost/.test(SRC('app/sales/returns.js')) && /ORDER/.test('ORDER') && /sales\/tasks\.js\r?\nsales\/returns\.js/.test(SRC('app/ORDER')));
+  }
+
+  console.log('== 7. (28 Nov 2026) at once: the upload card and the heading — the spikes fill in after; the Week dropdown ==');
+  {
+    const tick = async n => { for (let i = 0; i < (n || 30); i++) await new Promise(r => setImmediate(r)); };
+    // the sales are still being read (the Forecast's loader not done: foFor null)
+    const S = world({ fams: FAMS });
+    S.ctx.foFor = () => null;
+    const first = S.rsSectionHtml('SP');
+    ok('before anything is read: the upload card (Ridhi / CPC, "Choose the file…", its line) and the heading with "Checking returns…"', S.RS.open === true && /id="rsUp"/.test(first) && /data-rs-brand="SP"/.test(first) && /data-rs-brand="CPC"/.test(first)
+      && /Choose the file…<input type="file"/.test(first) && /Ridhi: reading…/.test(first) && /<h3>↩ Return spikes<\/h3>/.test(first) && /Checking returns…/.test(first), first.slice(0, 600));
+    const root = { innerHTML: '' };
+    S.ctx.document.getElementById = id => (id === 'alPane' ? root : null);
+    S.alRender();
+    ok('Sales Alerts while its sales are read: the bar, "Reading…" — and the returns box with the card and the heading, at once', /<div id="rsBox">/.test(root.innerHTML) && /id="rsUp"/.test(root.innerHTML) && /↩ Return spikes/.test(root.innerHTML) && /data-al-brand="SP"/.test(root.innerHTML), root.innerHTML.slice(0, 400));
+    await S.rsLoad();
+    lpn = 0; await S.rsUpload('SP', fileSP(), 'f.txt');
+    const mid = S.rsSectionHtml('SP');
+    ok('the returns read, the sales not yet: "uploaded by Asha", the Week dropdown — the spikes still a skeleton, nothing worked out', /uploaded by Asha/.test(mid) && /data-rs-week/.test(mid) && /Checking returns…/.test(mid) && !/rs-row/.test(mid) && !S.RS.warm && /Return spikes <b>…<\/b>/.test(S.rsChipHtml('SP')), mid.slice(0, 900));
+    // the sales arrive
+    S.ctx.FO = { v: 2, data: {} }; S.ctx.VI = { data: {} }; S.ctx.foFor = b => ({ ok: true, fams: FAMS.filter(f => f.brand === b) });
+    S.ctx.setTimeout = fn => { Promise.resolve().then(fn); return 0; };
+    const sk = S.rsSectionHtml('SP');
+    ok('the sales read: this moment still the skeleton — the spikes are worked out in idle time …', /Checking returns…/.test(sk) && !!S.RS.warm);
+    await tick();
+    const full = S.rsSectionHtml('SP');
+    ok('… then filled in: the Tablecloth spike, the chip "1"', !S.RS.warm && /data-rs-row="rs\|SP\|PA\|2026-11-15"/.test(full) && /Return spikes <b>1<\/b>/.test(S.rsChipHtml('SP')), full.slice(0, 300));
+    const famsSP = FAMS.filter(f => f.brand === 'SP');
+    const j = S.rsJob({ fams: famsSP, data: S.rsData(), brand: 'SP', week: '' });
+    let n = 0; while (!j.step(0)) n++;
+    ok('worked out in small pieces = all at once, to the number', n > 2 && JSON.stringify(j.out) === JSON.stringify(S.rsCompute({ fams: famsSP, data: S.rsData(), brand: 'SP' })), n);
+    // the latest week, exactly as before this change (dc67ba4e)
+    let old = null;
+    try { old = require('child_process').execSync('git show dc67ba4e:Pricing-App/src/app/sales/returns.js', { cwd: path.join(__dirname, '..', '..'), stdio: ['ignore', 'pipe', 'ignore'] }).toString('utf8'); } catch (e) { old = null; }
+    if (!old) ok('(the returns file before this change is not in this checkout — skipped)', true);
+    else {
+      const O = world({ fams: FAMS, files: { 'app/sales/returns.js': old } });
+      await O.rsLoad(); lpn = 0; await O.rsUpload('SP', fileSP(), 'f.txt'); await O.rsUpload('CPC', [HEAD, line('2026-11-17', 'WCI-1818', 'B0WWWWWWW1', 2, 'DEFECTIVE')].join('\n'), 'c.txt');
+      await S.rsUpload('CPC', [HEAD, line('2026-11-17', 'WCI-1818', 'B0WWWWWWW1', 2, 'DEFECTIVE')].join('\n'), 'c.txt');
+      const strip = r => JSON.stringify(r, (k, v) => (['after', 'picked', 'salesTo'].includes(k) ? undefined : v));
+      ok('the latest week (the default): every family, rate, baseline, spike, reason and comment the same as before this change', ['SP', 'CPC', 'ALL'].every(b => strip(S.rsFor(b)) === strip(O.rsFor(b))));
+    }
+  }
+  {
+    const D = world({ fams: FAMS });
+    await D.rsLoad();
+    lpn = 0;
+    // an older spike: Napkins 18–24 Oct, 12 more units (not as described) — 4 % → 16 %
+    await D.rsUpload('SP', fileSP([line('2026-10-20', 'NP-RED', 'B0BBBBBBB1', 12, 'NOT_AS_DESCRIBED', 'Faded after one wash')]), 'f.txt');
+    ok('the Week choices: every complete week with at least 4 complete weeks before it, newest first — 13 Sep – 4 Oct are not offered', D.rsWeeks('SP').join() === '2026-11-15,2026-11-08,2026-11-01,2026-10-25,2026-10-18,2026-10-11', D.rsWeeks('SP').join());
+    const latest = D.rsFor('SP');
+    const pick0 = D.rsSectionHtml('SP');
+    ok('default = the latest complete week: "15–21 Nov (latest)" selected, no "Back to latest week"; the Tablecloth judged in 15–21 Nov', /<option value="" selected>15–21 Nov \(latest\)<\/option>/.test(pick0) && !/Back to latest week/.test(pick0)
+      && latest.rows.every(x => x.week === '2026-11-15') && latest.items.map(x => x.key).join() === 'SP|PA', pick0.match(/<select[\s\S]*?<\/select>/));
+    const o = D.rsFor('SP', '2026-10-18');
+    const nb = o.items.find(x => x.key === 'SP|PB'), tc = o.rows.find(x => x.key === 'SP|PA');
+    ok('an older week (18–24 Oct) judged with ITS OWN baseline — the weeks before it only: Napkins 4 % → 16 %, 🔴 Critical', nb && nb.week === '2026-10-18' && nb.series.every(w => w.wk <= '2026-10-18') && nb.baseWeeks === 5 && Math.abs(nb.base - 0.04) < 1e-9 && Math.abs(nb.now - 0.16) < 1e-9 && nb.sev === 'critical'
+      && nb.head === 'Returns 4% → 16% in 18–24 Oct (16 units) · top reason: Not as described (12)' && tc && !tc.spike && tc.week === '2026-10-18', nb && JSON.stringify([nb.head, nb.base, nb.baseWeeks]));
+    ok('…the same rules: in 15–21 Nov the Napkins are no spike (5 %), and that week\'s normal now holds the 18–24 Oct week', !latest.items.some(x => x.key === 'SP|PB') && latest.rows.find(x => x.key === 'SP|PB').base > 0.04);
+    ok('…its comments are those of that time (up to 24 Oct)', nb.comments[0].t === 'Faded after one wash' && nb.comments.every(c => c.d <= '2026-10-24'));
+    D.RS.week = '2026-10-18';
+    D.ctx.FO.data = {}; D.ctx.VI = { data: {} };
+    const sec = D.rsSectionHtml('SP');
+    ok('picked: the dropdown shows it, "Back to latest week", the card and the row of THAT week (rs|SP|PB|2026-10-18)', /<option value="2026-10-18" selected>18–24 Oct<\/option>/.test(sec) && /data-rs-act="latest">Back to latest week/.test(sec)
+      && /data-rs-card="rs\|SP\|PB\|2026-10-18"/.test(sec) && /data-rs-row="rs\|SP\|PB\|2026-10-18"/.test(sec) && !/rs\|SP\|PA\|/.test(sec), sec.slice(0, 200));
+    ok('…the chip follows: "↩ Return spikes 1 · 18–24 Oct"', /Return spikes <b>1<\/b><small class="rs-chip-wk"> · 18–24 Oct<\/small>/.test(D.rsChipHtml('SP')), D.rsChipHtml('SP'));
+    const det = D.rsDetailHtml(nb);
+    ok('…the drawer: reasons and sizes of 18–24 Oct; its chart marks 18–24 Oct (with the 4 weeks after it drawn)', /Reasons, 18–24 Oct/.test(det) && /Sizes \/ SKUs returned, 18–24 Oct/.test(det) && /class="rs-cj"/.test(det) && /class="rs-cx rs-cjt">18–24 Oct</.test(det) && nb.after.length === 4 && /\(the week judged\)/.test(det));
+    ok('the Action Tracker still asks about the latest week, whatever is picked', D.rsSpikeOn('SP', 'SP|PB') === false && D.rsSpikeOn('SP', 'SP|PA') === true);
+    D.RS.week = '';
+    ok('"Back to latest week": the latest again (chip 1, no week shown)', /Return spikes <b>1<\/b><\/button>/.test(D.rsChipHtml('SP')) && !/Back to latest week/.test(D.rsSectionHtml('SP')));
+    D.RS.week = '2026-10-04';
+    ok('a week that is not a choice (fewer than 4 weeks before it) is never judged: the latest is shown', /Return spikes <b>1<\/b><\/button>/.test(D.rsChipHtml('SP')) && /<option value="" selected>/.test(D.rsSectionHtml('SP')));
+    D.RS.week = '';
+    const sa = SRC('app/sales/sales-alerts.js');
+    ok('the sales drops are not touched by the dropdown: Sales Alerts\' maths never reads RS.week', !/RS\.week/.test(sa) && !/rsWeek/.test(sa));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
