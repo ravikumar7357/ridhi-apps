@@ -74,6 +74,7 @@ ads/ppc-organic.js
 sales/parent-listing-review.js
 sales/profit-margin.js
 sales/sales-analysis.js
+sales/sales-analysis-insights.js
 listing/listing-optimiser.js
 listing/image-quality.js
 listing/image-manager.js
