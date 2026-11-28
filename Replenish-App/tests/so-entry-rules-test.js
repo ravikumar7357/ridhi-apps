@@ -1,5 +1,6 @@
 /* THE NUMBER AND DATE RULES ON SALES ORDERS (Ravi, 27 Nov 2026: a draft saved with order date 0008, delivery 2099 and 2.5
- * pieces). Pins soEntryErr / soBigAsk and that save, approval and Change quantity ask them behind switch lineHold.
+ * pieces). Pins soEntryErr / soBigAsk and that save, approval and Change quantity ask them, for everybody since 28 Nov, with
+ * the checks added that day: half-filled lines, sale month, taking off, the same line twice, and the upload file's cells.
  *   node tests/so-entry-rules-test.js      (SO_FILE=<a broken copy> for the teeth check) */
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const APP = path.join(__dirname, '..', 'src', 'app');
@@ -32,10 +33,40 @@ ok('a changed one is checked', /before today/.test(err([L('6', '2026-09-20')], o
 console.log('== big quantities ==');
 ok('1,500 is not asked about; 1,600 is', big([{ sku: 'A', qty: 1500 }]) === '' && /A: 1,600 pcs is more than 1,500 pcs/.test(big([{ sku: 'A', qty: 1600 }])));
 ok('one question for the whole order', /1 more line/.test(big([{ sku: 'A', qty: 1600 }, { sku: 'B', qty: -2000 }])));
-console.log('== asked behind switch lineHold ==');
-ok('save', /if \(lineHoldOn\(\)\) \{\n    const entryErr = soEntryErr\(SOF\.lines, existing, orderDate, \$\('sof_delivery'\)\.value \|\| ''\);\n    if \(entryErr\) return entryErr;\n    const big = soBigAsk\(lines\);\n    if \(big && !confirm\(big\)\) return/.test(SO));
-ok('Change quantity', /const big = lineHoldOn\(\) \? ptNumBig\(plan\.to, plan\.sku, 'pcs'\) : '';\n  if \(big && !confirm\(big\)\) return/.test(SO));
-ok('approval', /const dateErr = lineHoldOn\(\) \? ptDateErr\(d, 'Delivery date', 'plan', o\.deliveryDate\) : '';\n    if \(dateErr\) return dateErr;/.test(SO));
+console.log('== asked of everybody (28 Nov) ==');
+ok('save', /\n  const entryErr = soEntryErr\([\s\S]*?\|\| soSaleMonthErr\([\s\S]*?\|\| soTakeErr\(lines, existing && existing\._id\);\n  if \(entryErr\) return entryErr;\n  const ask = \[soBigAsk\(lines\), soTwiceAsk\(lines\)\][\s\S]*?await ptPut\(/.test(SO));
+ok('no half-filled line is dropped: asked before the lines are filtered', /const halfDone = soHalfLineErr\(SOF\.lines, b2b, existing\);\n  if \(halfDone\) return halfDone;\n  const lines = SOF\.lines\.map/.test(SO));
+ok('Change quantity', /\n  const big = ptNumBig\(plan\.to, plan\.sku, 'pcs'\);\n  if \(big && !confirm\(big\)\) return/.test(SO));
+ok('approval', /\n    const dateErr = ptDateErr\(d, 'Delivery date', 'plan', o\.deliveryDate\);\n    if \(dateErr\) return dateErr;/.test(SO));
+ok('a placed order stays placed on Save', /const keepPlaced = !place && existing &&/.test(SO));
+console.log('== half-filled lines, sale month, taking off, twice ==');
+{ const one = re => { const i = SO.search(re); return SO.slice(i, SO.indexOf(';\n', i) + 2); };
+  const c2 = { obUC: ctx.obUC, soLines: ctx.soLines, nf: v => Number(v).toLocaleString('en-US'),
+    SOX: { rows: [{ _id: 'X', status: 'approved', lines: [{ sku: 'A', qty: -10 }] }, { _id: 'Y', status: 'approved', lines: [{ sku: 'A', qty: 15 }] }] },
+    spBulkDate: v => (String(v) === '46356' ? '2026-11-30' : '') };
+  vm.createContext(c2);
+  vm.runInContext([/^function soCurrentNetQty\(/m, /^function soFilePriority\(/m, /^function soHalfLineErr\(/m, /^function soSaleMonthErr\(/m, /^function soTakeErr\(/m, /^function soTwiceAsk\(/m, /^function soParseDMY\(/m].map(cut).join('\n') + '\n'
+    + cut(/^function soFileQty\(/m) + '\n' + one(/^const soFileDate/m) + 'this.t = { soCurrentNetQty, soFilePriority, soFileDate, soHalfLineErr, soSaleMonthErr, soTakeErr, soTwiceAsk, soFileQty, soParseDMY };', c2);
+  const T = c2.t, good = { sku: 'A', qty: '5' };
+  ok('a SKU with no quantity, and 0, are named', /Line 2 \(B\): type a quantity/.test(T.soHalfLineErr([good, { sku: 'B', qty: '' }])) && /Line 2 \(B\)/.test(T.soHalfLineErr([good, { sku: 'B', qty: '0' }])));
+  ok('a quantity with no SKU is named', /Line 2: the quantity 50 has no SKU/.test(T.soHalfLineErr([good, { sku: '', qty: '50' }])));
+  ok('empty rows, minus lines and a B2B name line pass', T.soHalfLineErr([good, { sku: '', qty: '' }, { sku: 'A', qty: '-2' }]) === '' && T.soHalfLineErr([{ sku: '', itemName: 'Mat', qty: '3' }], true) === '');
+  ok('a sale month before the order month is refused', /Sale month 01-2026 is before/.test(T.soSaleMonthErr('2026-01', '2026-11-28')));
+  ok('the same month, a later one, none, and one already saved pass', ['2026-11', '2027-02', ''].every(m => T.soSaleMonthErr(m, '2026-11-28') === '') && T.soSaleMonthErr('2026-01', '2026-11-28', { saleMonth: '2026-01' }) === '');
+  const minus = (...q) => q.map(n => ({ sku: 'A', qty: n, orderTypeKey: 'regular' }));
+  ok('no more than is on approved orders may be taken off, over all lines', /only 5 are on/.test(T.soTakeErr(minus(-999999))) && /999,999 pieces/.test(T.soTakeErr(minus(-999999))) && /6 pieces cannot/.test(T.soTakeErr(minus(-3, -3))) && T.soTakeErr(minus(-3, -2)) === '');
+  ok('an approved minus order saved again does not count itself', T.soTakeErr(minus(-10), 'X') === '' && T.soTakeErr(minus(-10)) !== '');
+  ok('a 0 the order already holds passes; a new 0 and a blank do not', T.soHalfLineErr([{ sku: 'A', qty: 0 }], false, { lines: [{ sku: 'A', qty: 0 }] }) === ''
+    && T.soHalfLineErr([{ sku: 'B', qty: '0' }], false, { lines: [{ sku: 'A', qty: 0 }] }) !== '' && T.soHalfLineErr([{ sku: 'A', qty: '' }], false, { lines: [{ sku: 'A', qty: 0 }] }) !== '');
+  ok('a B2B name line with a minus is named, not dropped', /quantity to make/.test(T.soHalfLineErr([{ sku: '', itemName: 'Mat', qty: '-3' }], true)));
+  ok('an Excel day count is read as its date', T.soFileDate('46356') === '2026-11-30' && T.soFileDate('30-11-2026') === '2026-11-30' && T.soFileDate('46') === null);
+  ok('the same SKU twice asks; another delivery date does not', /Save both lines/.test(T.soTwiceAsk([{ sku: 'A' }, { sku: 'A' }])) && T.soTwiceAsk([{ sku: 'A', deliveryDate: '1' }, { sku: 'A', deliveryDate: '2' }]) === '');
+  console.log('== the file ==');
+  ok('1,000 and 1,00,000 are read whole', T.soFileQty('1,000') === 1000 && T.soFileQty('1,00,000') === 100000 && T.soFileQty('-25') === -25 && T.soFileQty('') === 0);
+  ok('100abc, 1-000, 2.5, 1e3 and 1,00 are refused', ['100abc', '1-000', '2.5', '1e3', '1,00'].every(v => T.soFileQty(v) === null));
+  ok('an impossible date is refused in either order', T.soParseDMY('2026-13-45') === null && T.soParseDMY('2026-02-31') === null && T.soParseDMY('2026-02-28') === '2026-02-28' && T.soParseDMY('28-02-2026') === '2026-02-28');
+  ok('priority is blank or P1 to P4', T.soFilePriority('p2') === 'P2' && T.soFilePriority('') === '' && T.soFilePriority('P9') === null);
+  ok('a wrong priority refuses the file', /if \(pr === null\) \{ errors\.push\(/.test(SO)); }
 ok('the B2B line details box', read('SD_FILE', 'orders/sales-orders.js').includes("const dateErr = lineHoldOn() && moved.some(f => f.k === 'deliveryDate') ? ptDateErr(want.deliveryDate, obUC(sku) + ' · Delivery date', 'plan', was.deliveryDate) : '';"));
 
 console.log(`\n${pass} passed, ${fail} failed`);

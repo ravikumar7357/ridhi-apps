@@ -58,6 +58,24 @@ console.log('== a pieces box ==');
   const e = p.send('keydown', b, { key: 'Enter' });
   ok('Enter does not save a part piece', e.stopped && e.prevented && b.value === ''); }
 
+console.log('== text that is not a number ==');
+{ const p = page(), b = p.box('', 'any');
+  p.send('focusin', b); b.validity = { badInput: true }; p.send('focusout', b);
+  ok('"1-000" is said on leaving the box, on any number box', p.body.length === 1 && /This is not a number/.test(p.words(p.body[0])), p.body.length);
+  p.byId('wpOk').onclick(); b.validity = { badInput: false }; p.send('focusout', b);
+  ok('a readable or blank box is left alone', p.body.length === 0); }
+{ const p = page(), b = p.box('120');
+  p.send('focusin', b); b.value = ''; b.validity = { badInput: true };
+  const e = p.send('keydown', b, { key: 'Enter' });
+  ok('Enter does not save it, and the old figure is back', e.stopped && b.value === '120', b.value); }
+
+{ const p = page(), b = p.box('120');
+  p.send('focusin', b); b.value = ''; b.validity = { badInput: true };
+  const e = p.send('change', b);
+  ok('on change no screen sees the blank: stopped, old figure back, one pop-up', e.stopped && b.value === '120' && p.body.length === 1, b.value);
+  b.validity = { badInput: false }; p.send('focusout', b);
+  ok('leaving it afterwards says nothing more', p.body.length === 1); }
+
 console.log('== pasted plan and packing file ==');
 { const ctx = { module: { exports: {} } }; vm.createContext(ctx);
   const src = read('replenishment/pack-core.js');
