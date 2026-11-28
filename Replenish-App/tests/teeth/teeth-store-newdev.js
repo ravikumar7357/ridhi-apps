@@ -19,7 +19,7 @@ const breaks = {
   'a column ignores its own New development': [N, 'Math.max(0, repl[k] - newDev[k])', 'repl[k]'],
   'New development is not in the columns': [A, 'fgaJoinLanes(fgaNewDevLanes(sku, book), fgaReplLanes(sku, book, stores))', 'fgaReplLanes(sku, book, stores)'],
   'issues are not taken off': [N, 'shpHoldLeft(lines.map(fgaClaim), ledgerRows)', 'shpHoldLeft(lines.map(fgaClaim), [])'],
-  'dispatches are not taken off': [N, 'fgaLessFba(waiting, fgaSentToFba(ledgerRows))', 'waiting'],
+  'dispatches are not taken off': [N, 'fgaLessFba(waiting, fgaSentToFba(ledgerRows, allotted))', 'waiting'],
   'returned pieces stay sent': [N, 'let left = fbaState(r).open;', 'let left = fgiNum(r.qty);'],
   'named pieces are taken twice': [N, 'left -= pieces;\n      named', 'named'],
   'unnamed pieces are forgotten': [N, 'if (left > 0) loose.push', 'if (false) loose.push'],

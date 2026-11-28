@@ -263,7 +263,7 @@ async function waysToFba() {
     phone: async (o, packed) => {
       const S = await packing(o);
       S.ctx.PKS = { p: { scan: { orders: ['OC-1', 'OC-2'], packed: { A: packed }, wrong: [] } }, per: 1 };
-      S.run('const pksOrderLines = () => packOrderLines(PKS.p.scan);\n' + whole('replenishment/pack-scan.js', 'pksCount'));
+      S.run('const pksOrderLines = () => packOrderLines(PKS.p.scan);\n' + line('replenishment/pack-scan.js', 'const pksOfFbaList') + whole('replenishment/pack-scan.js', 'pksCount'));
       return S.run('pksCount("A").why');
     },
     desk: async (o, packed) => {

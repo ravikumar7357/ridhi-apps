@@ -342,6 +342,26 @@ async function asked(o) {
     ok('both buttons are there; the words are set as text', yes.html.includes('>Continue<') && yes.html.includes('>Cancel<') && yes.text === '<i>hello' && !yes.html.includes('hello'));
   }
 
+  console.log('== with FBA lists on ==');
+  {
+    const lists = S => { S.run(appFile('inventory/fba-lists.js')); S.saved.fbaList = '1'; return S; };
+    const { H, id, request } = await asked();
+    lists(H);
+    const said = await H.ctx.fapApprove(id);
+    ok('approving is refused with where to go', /FBA now goes by FBA lists/.test(said), said);
+    ok('…the request waits again and nothing leaves', request().status === 'waiting' && H.ledger().length === 0);
+    const F = lists(repeatStore({ rows: [row('O', 'OPENING', 20)] }));
+    ok('the entry form cannot send to FBA', /FBA lists/.test(await entry(F, 3)) && F.ledger().length === 0);
+    const A = lists(repeatStore({ approver: true }));
+    ok('nor can an approver\'s own repeat', /FBA lists/.test(await entry(A, 3)) && A.ledger().length === 0 && A.requests().length === 0);
+    const I = lists(repeatStore({}));
+    ok('an issue still goes', await entry(I, 1, 'ISSUE') === '' && I.ledger().length === 1);
+    const S = lists(scanner({}, { B: 2 }, false));
+    ok('FG Scanning cannot send to FBA', /FBA lists/.test(await S.ctx.fgiScanSave()) && S.ledger().length === 0);
+    const P = lists(await packer({}, { B: 2 }));
+    ok('nor can a packing list', /FBA lists/.test((await P.finish()).err || '') && P.ledger().length === 0);
+  }
+
   const { pass, fail } = counts();
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

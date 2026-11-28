@@ -488,6 +488,7 @@ async function loadPk() {
   PK_LOADED = true;
 }
 async function savePkOne(p) {
+  if (typeof packFbaKeepInStep === 'function') await packFbaKeepInStep(p);   // the boxes of an FBA list (pack-core.js)
   p.updatedAt = pkToday() + ' ' + new Date().toTimeString().slice(0, 5);
   p.updatedBy = ME.email || '';
   await setDoc(doc(db, 'packlist', p.id), p);

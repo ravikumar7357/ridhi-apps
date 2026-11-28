@@ -4,10 +4,15 @@
  * order's shipping mode (none, or not one of these: Air).
  *   Pending = ordered, less issues naming the order and less pieces sent to FBA that did not come back: those naming the
  *             order, then those naming no order and sent on or after its date (oldest order first).
+ *             With FBA lists (fba-lists.js): pieces on a list not yet shipped count as sent already. A list's pieces, before
+ *             and after Ship, count as naming no order (the order numbers on its movements are dealt by the store, not
+ *             chosen), so shipping never frees them again. Those that met New development also come off what Replenishment
+ *             asks, in another lane when their own asks less, until the Amazon figures have seen them.
  *   A SKU's FBA total is the LARGER of its New development pending and what Replenishment still asks, never both added:
  *             New development fills its own columns first, then Replenishment's extra goes to Air, then Sea, then AWD.
  *   FBA may take the New development part only when Amazon lists the SKU (live or inactive). Otherwise the pieces stay in
- *   their column and only Replenishment's own quantity may leave. An admin's release works as for any SKU.
+ *   their column and only Replenishment's own quantity may leave. An admin's release works as for any SKU. An FBA list is
+ *   held to the same when it is made and again when it is shipped.
  *
  * WHEN SOMETHING GOES WRONG:
  *   loud, to the user — the sales orders cannot be read (some accounts may not read them): no line counts as New
@@ -16,8 +21,8 @@
  *   quiet, with a console line — the failed read of the sales orders itself.
  *
  * BEHIND SWITCH storeAlloc (fg-store-alloc.js). */
-const FGA_LANES = ['air', 'sea', 'awd'];
 const FGA_MODE_LANE = { SEA: 'sea', AWD: 'awd' };
+const FGA_NOT_SHIPPED = '9999-12-31';   // the day of pieces still on an FBA list: they go after every order's date
 let FGA_SALES = { rows: [], err: '' };
 
 /** Read the sales orders, which say what is New development. Never throws. */
@@ -40,21 +45,23 @@ function fgaSplitNewDev(lines) {
   lines.forEach(l => out[set.has(obUC(l.orderNo) + '|' + obUC(l.sku)) ? 'newDev' : 'rest'].push(l));
   return out;
 }
-/** What dispatches to FBA took, less returns: { named: pieces by 'ORDER|SKU key', loose: [{ key, day, pieces }]
- *  for the pieces that name no order, oldest first }. */
-function fgaSentToFba(ledgerRows) {
+/** What dispatches to FBA took, less returns, and what FBA lists keep: { named: pieces by 'ORDER|SKU key',
+ *  loose: [{ key, day, pieces }] for the pieces that name no order, and every FBA list's, oldest first }.
+ *  allotted: the pieces on lists not yet shipped (fblAllotted). */
+function fgaSentToFba(ledgerRows, allotted) {
   const named = new Map(), loose = [];
   (ledgerRows || []).forEach(r => {
     if (!r || r.txnType !== 'FBA') return;
     const key = shpHoldKey(r.sku);
     let left = fbaState(r).open;
-    fgiOutParts(r).forEach(p => {
+    (r.fbaListId ? [] : fgiOutParts(r)).forEach(p => {
       const pieces = Math.min(left, p.qty), id = p.orderNo + '|' + key;
       left -= pieces;
       named.set(id, (named.get(id) || 0) + pieces);
     });
     if (left > 0) loose.push({ key, day: fapDayOf(r), pieces: left });
   });
+  Object.entries(allotted || {}).forEach(([key, a]) => loose.push({ key, day: FGA_NOT_SHIPPED, pieces: a.total }));
   return { named, loose: loose.sort((a, b) => a.day.localeCompare(b.day)) };
 }
 /** The orders less what went to FBA for them, each dispatched piece counted once. orders: oldest first; new ones returned. */
@@ -70,16 +77,25 @@ function fgaLessFba(orders, sent) {
   return left.filter(o => o.pending > 0);
 }
 /** The New development orders still waiting, per SKU key, oldest first: [{ no, key, channel, on, lane, ordered, pending }].
- *  lines: their open order book lines. */
-function fgaNewDevOrders(lines, ledgerRows) {
+ *  lines: their open order book lines; allotted: the pieces on FBA lists not yet shipped. */
+function fgaNewDevOrders(lines, ledgerRows, allotted) {
   const laneOf = new Map(FGA_SALES.rows.map(o => [obUC(o._id), FGA_MODE_LANE[soShipMode(o)] || 'air']));
   const waiting = shpHoldLeft(lines.map(fgaClaim), ledgerRows).map(n => ({ no: n.orderNo, key: n.key,
     channel: ORD_PLAT_SRC[n.orderNo.split('-')[0]] || 'Other', on: pdIso(n.on), lane: laneOf.get(n.orderNo) || 'air',
     ordered: n.asked, pending: n.pieces })).sort(shpHoldOldestFirst);
   const out = new Map();
-  fgaLessFba(waiting, fgaSentToFba(ledgerRows))
+  fgaLessFba(waiting, fgaSentToFba(ledgerRows, allotted))
     .forEach(o => out.set(o.key, (out.get(o.key) || []).concat(o)));
   return out;
+}
+
+/** Pieces per SKU key that New development orders got from FBA lists the Amazon figures do not know yet: lists not
+ *  shipped, and shipments still on the way. now: { rows, need, newDev: the orders still waiting with every list counted }. */
+function fgaListMet(lines, now) {
+  if (!shpListsOn()) return new Map();
+  const others = now.rows.filter(r => !(r && r.fbaListId && fgaOnTheWay([r], now.need).size));
+  return new Map([...fgaNewDevOrders(lines, others)].map(([key, orders]) =>
+    [key, fgaSum(orders, 'pending') - fgaSum(now.newDev.get(key) || [], 'pending')]));
 }
 
 /* ---- the FBA columns ---- */
@@ -141,6 +157,6 @@ function fgaNewDevOpen(sku, lane) {
     note: `${nf(fgaSum(orders, 'pending'))} pending New development piece(s) ship by ${label}. The column shows what stock covers,`
       + ` and may also hold pieces Replenishment asks for. ${fgaListingWhy(s)}`,
     wide: true,
-    html: fgaOrdersTable(['Ordered', 'Already issued', 'Pending'], orders.map(fgaNewDevRow)),
+    html: fgaOrdersTable(['Ordered', shpListsOn() ? 'Issued or on FBA lists' : 'Already issued', 'Pending'], orders.map(fgaNewDevRow)),
   });
 }

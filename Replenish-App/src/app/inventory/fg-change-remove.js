@@ -29,6 +29,7 @@
  * single delete would refuse: a transfer takes its markers and gives its pieces back to press; an FBA
  * dispatch takes its returns with it; a return deleted alone takes its pieces back off the dispatch.
  * Everything goes in ONE PATCH — all of it happens or none of it does.
+ * A movement an FBA list shipped is never deleted here: its list would still read shipped. It is undone on FBA Dispatch.
  *
  * DELETING A SKU from the stock view deletes every movement it has. It is the heaviest button on the
  * screen, so the confirmation names the pieces, the movements and anything going back to press.
@@ -59,6 +60,9 @@ const fgiDmy = iso => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{
 let FGI_PICK = { stock: new Set(), ledger: new Set() };
 
 /* ---- one plan for every delete ---- */
+const FGI_ON_FBA_LIST = 'this was shipped on an FBA list — undo the shipment on FBA Dispatch';
+const fgiOnFbaList = r => !!(r && r.fbaListId);
+
 function fgiDeletePlan(ids) {
   const rows = FGI.rows || [];
   const byId = new Map(rows.map(r => [fgiRowId(r), r]));
@@ -72,14 +76,17 @@ function fgiDeletePlan(ids) {
     const r = byId.get(id);
     if (!r) { refused.push({ id, sku: '', why: 'gone already' }); return; }
     if (gone.has(id)) return;
+    if (fgiOnFbaList(r)) { refused.push({ id, sku: obUC(r.sku), why: FGI_ON_FBA_LIST }); return; }
     if (fgiIsMarker(r)) {
       if (!want.has(r.linkedTransferId)) refused.push({ id, sku: obUC(r.sku),
         why: 'a marker for a transfer, not a movement of its own — delete the transfer itself and this goes with it' });
       return;
     }
-    if (r.txnType === 'FBA_RETURN' && !want.has(r.linkedFbaId)) {
+    /* a return stands alone when its dispatch is staying: not ticked, or shipped on an FBA list. A return of an FBA list's
+       shipment can always be deleted: its record is gone, so it cannot be undone instead */
+    if (r.txnType === 'FBA_RETURN' && (!want.has(r.linkedFbaId) || fgiOnFbaList(byId.get(r.linkedFbaId)))) {
       const parent = byId.get(r.linkedFbaId);
-      if (parent && parent.fbaShippedAt) {
+      if (parent && parent.fbaShippedAt && !fgiOnFbaList(parent)) {
         refused.push({ id, sku: obUC(r.sku), why: 'the rest of that FBA dispatch is already shipped — undo the shipment in FBA Dispatch first' });
         return;
       }

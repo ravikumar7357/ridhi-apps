@@ -195,6 +195,7 @@ async function pkDelete(id) {
   const p = PK.find(x => x.id === id); if (!p) return;
   if (!confirm(`Delete the packing list \u201c${p.title || id}\u201d? This cannot be undone.`)) return;
   try {
+    if (typeof packFbaKeepInStep === 'function') await packFbaKeepInStep(Object.assign({}, p, { boxes: [] }));
     await deleteDoc(doc(db, 'packlist', id));
     if (typeof fsMirror === 'function') fsMirror('delete', 'packlist/' + id);
     PK = PK.filter(x => x.id !== id);

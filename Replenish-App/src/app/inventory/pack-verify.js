@@ -20,36 +20,61 @@
  *
  * Rapid scanning: a scan never waits on the network — the screen updates at once and the list is saved 3 s after the
  * last change and on every box close. The same code within 1 s is ignored. Focus returns to the scan box after a click.
+ * FBA LISTS (28 Nov, switch fbaList): a session is the packing list of one FBA list (pack-core.js), opened here or from
+ * FBA Dispatch (pkvOpenFbaList) by the FBA Dispatch tab, and Finish saves what is packed on that list. No stock leaves.
+ * A piece of such a session is taken out of any box with its −1, so that fewer can be shipped.
  * Camera: the phone's own reader where it reads code_128, else ZXing from this site (the Scan to pack loader). */
 
 let PKV = { p: null, box: 1, hist: [], last: { code: '', at: 0 }, tab: 'order', cam: { stream: null, det: null, timer: 0, seen: null, busy: false },
   saveT: 0, dirty: false, saving: false, err: '' };
 const PKV_DEBOUNCE_MS = 1000, PKV_SAVE_MS = 3000;
 
-const pkvOpenLists = () => (PK || []).filter(p => p && p.status !== 'done' && p.scan && !(p.scan.ledgerIds || []).length);
+const pkvOpenLists = () => (PK || []).filter(p => p && p.status !== 'done' && p.scan && !(p.scan.ledgerIds || []).length && packFbaStillOpen(p));
 
 /* ---- opening ---- */
-async function pkvOpen() {
-  if (!fgiCanEntry()) { $('fgMsg').className = 'err'; $('fgMsg').textContent = FGI_NO_ENTRY; return; }
-  $('fgMsg').className = 'muted'; $('fgMsg').textContent = 'Opening Pack & verify…';
+/** Why this person may not pack here, or ''. With FBA lists on, packing writes no stock: it is the FBA Dispatch tab's work. */
+const pkvBlocked = () => (packFbaOn() ? packFbaBlocked() : (fgiCanEntry() ? '' : FGI_NO_ENTRY));
+/** Read what the board needs: '' or why it cannot open. */
+async function pkvReady() {
   try {
     await Promise.all([fnLoad(), loadPkWt().catch(() => {}), PK_LOADED ? null : loadPk(), typeof ptImgShared === 'function' ? ptImgShared().catch(() => {}) : null]);
-  } catch (e) { $('fgMsg').className = 'err'; $('fgMsg').textContent = 'Could not open Pack & verify: ' + (e.message || e); return; }
+  } catch (e) { return 'Could not open Pack & verify: ' + (e.message || e); }
   const why = await packDataReady();
-  if (why) { $('fgMsg').className = 'err'; $('fgMsg').textContent = 'Could not read the ledger: ' + why; return; }
+  if (why) return 'Could not read the ledger: ' + why;
+  return packFbaOn() ? packFbaListsRead() : '';
+}
+async function pkvOpen() {
+  const blocked = pkvBlocked();
+  if (blocked) { $('fgMsg').className = 'err'; $('fgMsg').textContent = blocked; return; }
+  $('fgMsg').className = 'muted'; $('fgMsg').textContent = 'Opening Pack & verify…';
+  const why = await pkvReady();
+  if (why) { $('fgMsg').className = 'err'; $('fgMsg').textContent = why; return; }
   $('fgMsg').textContent = '';
-  const open = pkvOpenLists();
+  pkvDialog();
+}
+/** FBA Dispatch's way in: the board on one FBA list, carrying on where its packing stopped. Problems show in the dialog. */
+async function pkvOpenFbaList(listId) {
+  const why = packFbaBlocked() || await pkvReady();
+  const got = why ? { err: why } : await packFbaSession(listId, {});
+  pkvDialog();
+  if (got.err) { $('pkvMsg').textContent = got.err; return; }
+  pkvResume(got.p);
+}
+function pkvDialog() {
+  const open = pkvOpenLists(), fromFba = packFbaOn();
   ptOpenDialog({
     title: 'Pack & verify',
-    subtitle: 'Scan each piece against the orders. A wrong article is blocked. Finish writes the Send to FBA rows and the packing list from the same scans.',
+    subtitle: fromFba ? 'Scan each piece against the FBA list. A wrong article is blocked. Finish saves what is packed; it ships from FBA Dispatch.'
+      : 'Scan each piece against the orders. A wrong article is blocked. Finish writes the Send to FBA rows and the packing list from the same scans.',
     wide: true,
     html: `
       <div class="pkvhead">
-        <label>FBA account<select id="pkvAcc">${FGI_FBA_ACCOUNTS.map(a => `<option>${esc(a)}</option>`).join('')}</select></label>
+        ${fromFba ? `<label>FBA list<select id="pkvList">${packFbaOptions()}</select></label>` : ''}
+        ${fromFba ? '' : `<label>FBA account<select id="pkvAcc">${FGI_FBA_ACCOUNTS.map(a => `<option>${esc(a)}</option>`).join('')}</select></label>`}
         <label>Invoice #<input id="pkvInv" placeholder="optional"></label>
         <label>Handover to<input id="pkvHand" placeholder="name, optional"></label>
-        <label>Order Console orders<input id="pkvOrds" placeholder="order numbers, comma separated" style="min-width:220px"></label>
-        <label>Amazon shipment plan<button type="button" id="pkvPlanBtn" class="ghost">Paste plan…</button></label>
+        ${fromFba ? '' : `<label>Order Console orders<input id="pkvOrds" placeholder="order numbers, comma separated" style="min-width:220px"></label>
+        <label>Amazon shipment plan<button type="button" id="pkvPlanBtn" class="ghost">Paste plan…</button></label>`}
         ${open.length ? `<label>Open sessions<select id="pkvResume"><option value="">— new session —</option>${open.map(s => `<option value="${esc(s.id)}">${esc(s.title || s.id)} · ${esc(s.account || '')} · ${esc(s.date || '')} · ${esc(s.by || s.updatedBy || '')}</option>`).join('')}</select></label>` : ''}
         <button type="button" id="pkvStart" class="primary">Start</button>
       </div>
@@ -63,7 +88,7 @@ async function pkvOpen() {
         <div class="pkvfb" id="pkvFb"><div class="img" id="pkvFbImg"></div><div><div class="msg" id="pkvFbMsg">Waiting for a scan…</div><div class="sub" id="pkvFbSub">Each scan is one piece.</div></div></div>
         <div class="pkvtabs"><button type="button" id="pkvTabOrder" class="on">Scan against order</button><button type="button" id="pkvTabPiece">Scan a piece (F3)</button></div>
         <div id="pkvPaneOrder" class="pkvgrid">
-          <div><table class="pkvlines"><thead><tr><th>Article</th><th>Orders</th><th class="num">Ordered</th><th class="num">Packed</th><th class="num">Left</th></tr></thead><tbody id="pkvLines"></tbody></table></div>
+          <div><table class="pkvlines"><thead><tr><th>Article</th><th>${fromFba ? 'FBA list' : 'Orders'}</th><th class="num">${fromFba ? 'On list' : 'Ordered'}</th><th class="num">Packed</th><th class="num">Left</th></tr></thead><tbody id="pkvLines"></tbody></table></div>
           <div>
             <div id="pkvBoxes"></div>
             <div class="row" style="gap:8px;margin-top:8px"><button type="button" id="pkvCloseBox" class="ghost">Close box (F2)</button><button type="button" id="pkvUndo" class="ghost">Undo last scan</button><button type="button" id="pkvFinish" class="primary">Finish</button></div>
@@ -75,8 +100,21 @@ async function pkvOpen() {
       <div id="pkvMsg" class="muted" style="margin-top:8px"></div>`,
   });
   $('pkvStart').onclick = () => pkvStart().catch(e => { $('pkvMsg').textContent = 'Could not start: ' + (e.message || e); });
-  $('pkvPlanBtn').onclick = pkvPlanAsk;
-  const r = $('pkvResume'); if (r) r.onchange = () => { const s = open.find(x => x.id === r.value); if (s) pkvResume(s); };
+  if (!fromFba) $('pkvPlanBtn').onclick = pkvPlanAsk;
+  const r = $('pkvResume'); if (r) r.onchange = () => { const s = open.find(x => x.id === r.value); if (s) pkvPick(s); };
+}
+/** An open session picked in the dialog; one of an FBA list is read afresh with its list. */
+function pkvPick(s) {
+  const listId = packFbaOn() && s.scan.fbaListId;
+  if (!listId) return pkvResume(s);
+  pkvStartList(listId).catch(e => { $('pkvMsg').textContent = 'Could not open: ' + (e.message || e); });
+}
+async function pkvStartList(listId) {
+  if (!listId) { $('pkvMsg').textContent = 'Choose an FBA list.'; return; }
+  $('pkvStart').disabled = true;     // one tap, one packing list
+  const got = await packFbaSession(listId, { invoice: $('pkvInv').value.trim(), handoverTo: $('pkvHand').value.trim() });
+  if (got.err) { $('pkvStart').disabled = false; $('pkvMsg').textContent = got.err; return; }
+  pkvResume(got.p);
 }
 function pkvPlanAsk() {
   if ($('pkvPlanTa')) { $('pkvPlanTa').focus(); return; }
@@ -86,6 +124,7 @@ function pkvPlanAsk() {
   ta.focus();
 }
 async function pkvStart() {
+  if (packFbaOn()) return pkvStartList($('pkvList').value);
   const inv = $('pkvInv').value.trim(), account = $('pkvAcc').value;
   const ords = $('pkvOrds').value.split(/[,;\s]+/).map(obUC).filter(Boolean);
   const bad = packOrdersUnknown(ords);
@@ -106,8 +145,10 @@ async function pkvStart() {
   pkvLoad(p);
 }
 function pkvResume(s) {
-  $('pkvAcc').value = s.account || FGI_FBA_ACCOUNTS[0]; $('pkvInv').value = s.invoice || ''; $('pkvHand').value = (s.scan && s.scan.handoverTo) || '';
-  $('pkvOrds').value = ((s.scan && s.scan.orders) || []).join(', ');
+  /* with FBA lists on there is no account or orders box: both come from the list */
+  const fill = (id, v) => { if ($(id)) $(id).value = v; };
+  fill('pkvAcc', s.account || FGI_FBA_ACCOUNTS[0]); fill('pkvInv', s.invoice || ''); fill('pkvHand', (s.scan && s.scan.handoverTo) || '');
+  fill('pkvOrds', ((s.scan && s.scan.orders) || []).join(', ')); fill('pkvList', (s.scan && s.scan.fbaListId) || '');
   pkvLoad(JSON.parse(JSON.stringify(s)));
 }
 function pkvLoad(p) {
@@ -120,7 +161,7 @@ function pkvLoad(p) {
 }
 function pkvShowWork() {
   $('pkvWork').classList.remove('hide'); $('pkvMsg').textContent = '';
-  ['pkvAcc', 'pkvInv', 'pkvHand', 'pkvOrds', 'pkvPlanBtn', 'pkvResume', 'pkvStart'].forEach(id => { if ($(id)) $(id).disabled = true; });
+  ['pkvList', 'pkvAcc', 'pkvInv', 'pkvHand', 'pkvOrds', 'pkvPlanBtn', 'pkvResume', 'pkvStart'].forEach(id => { if ($(id)) $(id).disabled = true; });
   const ta = $('pkvPlanTa'); if (ta) ta.remove();
   const box = $('pkvCode');
   box.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const v = box.value; box.value = ''; pkvOnCode(v, 'typed'); } };
@@ -130,7 +171,11 @@ function pkvShowWork() {
   $('pkvFinish').onclick = pkvFinish;
   $('pkvTabOrder').onclick = () => pkvTab('order');
   $('pkvTabPiece').onclick = () => pkvTab('piece');
-  $('pkvBoxes').onclick = e => { const r = e.target && e.target.closest ? e.target.closest('[data-pkvreopen]') : null; if (!r) return; pkvReopen(+r.getAttribute('data-pkvreopen')); };
+  $('pkvBoxes').onclick = e => {
+    const hit = attr => (e.target && e.target.closest ? e.target.closest(`[${attr}]`) : null);
+    const out = hit('data-pkvout'); if (out) return pkvTakeOut(+out.getAttribute('data-pkvbox'), out.getAttribute('data-pkvout'));
+    const again = hit('data-pkvreopen'); if (again) pkvReopen(+again.getAttribute('data-pkvreopen'));
+  };
   const body = $('ptDlgBody');
   body.onclick = e => { if (!(e.target && e.target.closest && e.target.closest('input,select,textarea,button,a'))) box.focus({ preventScroll: true }); };
   body.onkeydown = e => { if (e.key === 'F2') { e.preventDefault(); pkvCloseBox(); } if (e.key === 'F3') { e.preventDefault(); pkvTab(PKV.tab === 'order' ? 'piece' : 'order'); } };
@@ -172,16 +217,18 @@ function pkvOnCode(raw, via) {
   const m = hit.sku ? (mdbOf(hit.sku) || {}) : {};
   const what = hit.sku ? `${esc(m.subcat || m.articleType || '')} · ${esc(m.color || '')} · ${esc(m.size || '')}` : '';
   if (res.kind === 'unknown') pkvSay('bad', `NOT KNOWN: ${esc(code)}`, 'Not a SKU and not an FNSKU in the list. Nothing added.');
-  else if (res.kind === 'wrong') { p.scan.wrong.push({ at: new Date().toISOString(), code, sku: hit.sku, by: ME.email || '' }); pkvSay('bad', `WRONG ARTICLE: ${esc(hit.sku)}`, `${what} — not on any order of this list. Blocked.`, hit.sku); }
+  else if (res.kind === 'wrong') { p.scan.wrong.push({ at: new Date().toISOString(), code, sku: hit.sku, by: ME.email || '' }); pkvSay('bad', `WRONG ARTICLE: ${esc(hit.sku)}`, `${what} — ${p.scan.fbaListId ? 'not on this FBA list' : 'not on any order of this list'}. Blocked.`, hit.sku); }
   else if (res.kind === 'full') {
     const held = res.why === 'store' && typeof shpHoldOn === 'function' && shpHoldOn() ? fgiHoldScanWhy(res.sku, p.scan.packed[res.sku]) : '';
-    pkvSay('full', `${res.why === 'store' ? 'NO STOCK LEFT' : 'ORDER FULL'}: ${esc(hit.sku)}`, held ? esc(held) : res.why === 'store' ? 'The India Store holds no more of it for these orders — receive it in Finished Goods first.' : 'Every order line for this SKU is already packed.', hit.sku);
+    if (p.scan.fbaListId) pkvSay('full', `FBA LIST FULL: ${esc(hit.sku)}`, 'Every piece of this SKU on the FBA list is already packed.', hit.sku);
+    else pkvSay('full', `${res.why === 'store' ? 'NO STOCK LEFT' : 'ORDER FULL'}: ${esc(hit.sku)}`, held ? esc(held) : res.why === 'store' ? 'The India Store holds no more of it for these orders — receive it in Finished Goods first.' : 'Every order line for this SKU is already packed.', hit.sku);
   }
   else {
     const b = pksBoxOf(p, PKV.box);
     PACK_CORE.addToBox(b, hit.sku, 1, pkLookupSku(hit.sku) || {});
     PKV.hist.push({ box: b.n, sku: hit.sku, n: 1, parts: res.parts, code, at: now });
-    pkvSay('good', `${esc(hit.sku)} +1 → box ${b.n}`, `${what} · for ${esc(res.orderNo)} · ${nf(res.left)} left on the orders${hit.how === 'fnsku' ? ' · from FNSKU ' + esc(code) : ''}`, hit.sku);
+    const against = p.scan.fbaListId ? `${nf(res.left)} left on the FBA list` : `for ${esc(res.orderNo)} · ${nf(res.left)} left on the orders`;
+    pkvSay('good', `${esc(hit.sku)} +1 → box ${b.n}`, `${what} · ${against}${hit.how === 'fnsku' ? ' · from FNSKU ' + esc(code) : ''}`, hit.sku);
   }
   pksBeep(res.kind === 'good');
   pkvMark(); pkvRender();
@@ -192,6 +239,18 @@ function pkvUndo() {
   PACK_CORE.untake(p.scan.packed, h.sku, h.parts);
   pkvSay('full', `Undone: −${h.n} ${esc(h.sku)} (box ${h.box})`, '', h.sku);
   pkvMark(); pkvRender(); $('pkvCode').focus();
+}
+/** One piece out of a box of an FBA list's packing. It leaves the Undo history too, so Undo never takes it twice. */
+function pkvTakeOut(n, sku) {
+  const p = PKV.p; if (!p || !p.scan.fbaListId) return;
+  const box = (p.boxes || []).find(b => +b.n === n);
+  if (!box || !PACK_CORE.itemOf(box, sku)) return;
+  PACK_CORE.takeFromBox(box, sku, 1);
+  PACK_CORE.untake(p.scan.packed, sku, [{ orderNo: p.scan.planNo, qty: 1 }]);
+  const last = PKV.hist.map(h => h.box === n && h.sku === sku).lastIndexOf(true);
+  if (last >= 0) PKV.hist.splice(last, 1);
+  pkvMark(); pkvRender(); pkvSay('full', `Taken out: 1 × ${esc(sku)} (box ${n})`, 'Press Finish to save what is now packed.', sku);
+  $('pkvCode').focus();
 }
 function pkvSay(kind, msg, sub, sku) {
   const fb = $('pkvFb'); if (!fb) return;
@@ -208,15 +267,17 @@ function pkvArt(sku) {
 }
 function pkvRender() {
   const p = PKV.p; if (!p || !$('pkvLines')) return;
+  const listed = !!p.scan.fbaListId;
+  const takeOut = (n, sku) => (listed ? ` <button type="button" class="ghost" data-pkvbox="${n}" data-pkvout="${esc(sku)}" aria-label="Take one ${esc(sku)} out of box ${n}" style="padding:1px 7px;font-size:12px">−1</button>` : '');
   $('pkvN').textContent = nf(p.scan.scans || 0);
   const ls = PACK_CORE.lines(packOrderLines(p.scan), p.scan.packed);
   const rows = [...ls.entries()].map(([sku, l]) => ({ sku, l, qty: l.reduce((s, x) => s + x.qty, 0), got: l.reduce((s, x) => s + x.got, 0), left: l.reduce((s, x) => s + x.left, 0) })).sort((a, b) => (b.left > 0) - (a.left > 0));
-  $('pkvLines').innerHTML = rows.length ? rows.map(r => `<tr class="${r.left ? '' : 'done'}"><td>${pkvArt(r.sku)}</td><td class="mono">${r.l.map(x => `${esc(x.orderNo)} ${nf(x.got)}/${nf(x.qty)}${x.store < x.qty ? ` <span class="muted" title="pieces of this order in the India Store">(${nf(x.store)} in store)</span>` : ''}`).join('<br>')}</td><td class="num">${nf(r.qty)}</td><td class="num">${nf(r.got)}</td><td class="num"><b>${nf(r.left)}</b></td></tr>`).join('')
+  $('pkvLines').innerHTML = rows.length ? rows.map(r => `<tr class="${r.left ? '' : 'done'}"><td>${pkvArt(r.sku)}</td><td class="mono">${r.l.map(x => `${listed ? 'FBA list' : esc(x.orderNo)} ${nf(x.got)}/${nf(x.qty)}${x.store < x.qty ? ` <span class="muted" title="pieces of this order in the India Store">(${nf(x.store)} in store)</span>` : ''}`).join('<br>')}</td><td class="num">${nf(r.qty)}</td><td class="num">${nf(r.got)}</td><td class="num"><b>${nf(r.left)}</b></td></tr>`).join('')
     : '<tr><td colspan="5" class="muted">No open lines — the orders have no pieces of their SKUs in the India Store. Receive them in Finished Goods first.</td></tr>';
   const boxes = (p.boxes || []).filter(b => (b.items || []).length || +b.n === PKV.box);
   $('pkvBoxes').innerHTML = boxes.map(b => {
     const open = +b.n === PKV.box, w = PACK_CORE.boxWeights(b, s => packWtOf(s).wt, p.pkgWt || PK_DEF.pkgWt, p.volDiv || PK_DEF.volDiv), n = PACK_CORE.boxQty(b);
-    return `<div class="pkvbox ${open ? 'open' : ''}"><div class="bh"><b>Box ${b.n}</b> <span class="pill ${open ? 'pill-ok' : 'muted'}">${open ? 'open' : 'closed'}</span><span class="muted">${nf(n)} pcs · net ${w.net.toFixed(2)} kg · gross ${w.gross.toFixed(2)} kg${pkNum(b.grossWtOverride) > 0 ? ' (scale)' : ''}${b.L ? ` · ${b.L}×${b.W}×${b.H} cm` : ''}</span>${open ? '' : `<button type="button" class="ghost" data-pkvreopen="${b.n}" style="padding:2px 8px;font-size:12px">Reopen</button>`}</div><ul>${(b.items || []).length ? b.items.map(it => { const wt = packWtOf(it.sku); return `<li><span>${esc(it.sku)}${wt.approx ? ` <span class="pill pill-low" title="${esc(wt.how)}">${wt.wt ? 'approx' : 'no weight'}</span>` : ''}</span><span>${nf(it.qty)}</span></li>`; }).join('') : '<li class="muted">empty</li>'}</ul></div>`;
+    return `<div class="pkvbox ${open ? 'open' : ''}"><div class="bh"><b>Box ${b.n}</b> <span class="pill ${open ? 'pill-ok' : 'muted'}">${open ? 'open' : 'closed'}</span><span class="muted">${nf(n)} pcs · net ${w.net.toFixed(2)} kg · gross ${w.gross.toFixed(2)} kg${pkNum(b.grossWtOverride) > 0 ? ' (scale)' : ''}${b.L ? ` · ${b.L}×${b.W}×${b.H} cm` : ''}</span>${open ? '' : `<button type="button" class="ghost" data-pkvreopen="${b.n}" style="padding:2px 8px;font-size:12px">Reopen</button>`}</div><ul>${(b.items || []).length ? b.items.map(it => { const wt = packWtOf(it.sku); return `<li><span>${esc(it.sku)}${wt.approx ? ` <span class="pill pill-low" title="${esc(wt.how)}">${wt.wt ? 'approx' : 'no weight'}</span>` : ''}</span><span>${nf(it.qty)}${takeOut(b.n, it.sku)}</span></li>`; }).join('') : '<li class="muted">empty</li>'}</ul></div>`;
   }).join('');
   $('pkvWrongN').textContent = nf((p.scan.wrong || []).length);
   $('pkvWrong').innerHTML = (p.scan.wrong || []).length ? p.scan.wrong.slice().reverse().map(w => { const m = mdbOf(w.sku) || {}; return `<li><span><b>${esc(w.sku)}</b> <span class="muted">${esc(m.subcat || '')} ${esc(m.color || '')} ${esc(m.size || '')}</span></span><span class="muted">${esc(String(w.at).slice(11, 19))}</span></li>`; }).join('') : '<li class="muted">Nothing blocked yet.</li>';
@@ -283,11 +344,12 @@ async function pkvFinish() {
     live.forEach(b => (b.items || []).forEach(it => { const w = packWtOf(it.sku); if (!pkNum(it.perPcsWt) && w.wt) it.perPcsWt = w.wt; if (w.approx && w.wt && !pkNum(PK_WT[obUC(it.sku)])) learn[obUC(it.sku)] = w.wt; }));
     if (Object.keys(learn).length) { try { await savePkWt(learn); } catch (e) { /* the list still saves */ } }
     PKV.dirty = true; await pkvSaveNow();
-    if (PKV.err) { pkvSay('bad', 'The rows are written, but the list did not save: ' + esc(PKV.err), 'Press Finish again — nothing is written twice.'); return; }
+    if (PKV.err) { pkvSay('bad', (res.fbaList ? 'Saved as packed on the FBA list' : 'The rows are written') + ', but the list did not save: ' + esc(PKV.err), 'Press Finish again — nothing is written twice.'); return; }
     pkvCamStop();
-    try { renderFgi(); } catch (e) { /* the list is saved */ }
+    try { renderFgi(); if (res.fbaList) renderFba(); } catch (e) { console.warn('Pack & verify: the packing is saved, but the screen behind did not redraw:', e); }
     if (typeof renderPack === 'function' && PK_LOADED) { try { renderPack(); } catch (e) { /* not on that tab */ } }
-    pkvSay('good', res.already ? 'Packing list saved' : 'Packing list built', `${nf(live.length)} box(es) · ${nf((p.scan.ledgerIds || []).length)} Send to FBA row(s) · pack ${esc(p.id)}. The FBA Dispatch tab has the rows; the Packing List tab has the sheet, labels and the Amazon file.`);
+    if (res.fbaList) pkvSay('good', 'Packed', `${nf(live.length)} box(es) saved on the FBA list · pack ${esc(p.id)}. No stock has left: it ships from FBA Dispatch. The Packing List tab has the sheet, labels and the Amazon file.`);
+    else pkvSay('good', res.already ? 'Packing list saved' : 'Packing list built', `${nf(live.length)} box(es) · ${nf((p.scan.ledgerIds || []).length)} Send to FBA row(s) · pack ${esc(p.id)}. The FBA Dispatch tab has the rows; the Packing List tab has the sheet, labels and the Amazon file.`);
     $('pkvMsg').innerHTML = `Done. <button type="button" id="pkvAgain" class="ghost">Start another session</button>`;
     $('pkvAgain').onclick = () => { PKV.p = null; ptDlgClose(); pkvOpen(); };
   } finally { $('pkvFinish').disabled = false; }
