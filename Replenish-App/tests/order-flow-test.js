@@ -50,6 +50,10 @@ const load = (ctx, code) => { vm.createContext(ctx); vm.runInContext(code, ctx);
     const full = await run(3);
     ok('all of it closes as before, with no question', full.err === '' && full.saved.handedAt && !full.saved.shortClose && !full.asked); }
 
+  { const why = load({}, cut(read('orders/order-console-table.js'), 'const spLeftWhy', ';\n') + 'this.f = spLeftWhy;').f;
+    ok('the item code is named once', why('A-1', 'A-1: only 1 of 2 piece(s) are done.') === 'A-1: only 1 of 2 piece(s) are done.' && why('A-1', 'Not saved: x') === 'A-1: Not saved: x'
+      && why('A-1', 'Nothing has been received against this line yet, so there is nothing to hand over.') === 'A-1: nothing received yet'); }
+
   console.log('== an order cut below what the printer holds ==');
   { const src = read('orders/raise-sales-order.js');
     const run = given => load({ ordVendorOf: () => (given == null ? null : { given }), nf: String, console: { warn() {} } }, cut(src, 'function soPrinterAsk(', '\n}\n') + "this.q = soPrinterAsk('O', 'A', 5);").q;
