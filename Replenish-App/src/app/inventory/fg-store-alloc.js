@@ -288,3 +288,9 @@ const fgaCardFigs = r => FGA_SHARES.map(([k, label]) => `<span>${label} <b>${nf(
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
 const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'In Stock', ...FGA_SHARES.map(s => s[1])];
 const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, Math.max(0, r.current), ...FGA_SHARES.map(([k]) => r.alloc[k])];
+
+/** With the switch on, "Waiting to be counted in" is not in the view list (asked 28 Nov). Only the choice is hidden: the
+ *  "Sent from press, not counted in" tile still opens it, so pieces on their way from press can still be counted in. */
+function fgaTrimViews() {
+  if ($('fgPendOpt')) $('fgPendOpt').hidden = fgaOn();
+}
