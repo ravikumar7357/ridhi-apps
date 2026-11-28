@@ -296,6 +296,8 @@ function fgiStockNote(rows, onlyStock, alloc) {
     + ' · stock is opening plus what came in, less what went out — pieces still in transit from press are not stock';
   const old = alloc ? fgiFbaAgeWhy() : '';
   if (old) { $('fgMsg').className = 'err'; $('fgMsg').textContent += ' · The FBA and Excess figures cannot be relied on: ' + old; }
+  const copy = typeof shpHoldOn === 'function' && shpHoldOn() ? fgiHoldOldWarning() : '';
+  if (copy) { $('fgMsg').className = 'err'; $('fgMsg').textContent += ' · ' + copy; }
 }
 
 function fgiRenderStock(stock) {

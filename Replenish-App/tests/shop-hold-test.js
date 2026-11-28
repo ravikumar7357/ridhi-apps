@@ -45,7 +45,7 @@ function load(o) {
     ME: { email: 'admin@example.com', admin: o.admin !== false }, FGI: { set: o.set || {} }, fgiOf: () => ({ current: 10 }),
     window: o.testSite ? { __TEST_ERP: {} } : {}, location: { hostname: 'localhost' }, nf: String };
   const keys = Object.keys(ctx);
-  const api = new Function(...keys, HELPERS + HOLD + '\n;return { shpHoldOn, shpHoldBuild, shpHoldPublish, fgiHoldState, fgiHeld, fgiFbaFree, fgiReleaseCreate, fgiReleasePlan, fgiReleaseSpend, fgiHoldAgeWhy };')(...keys.map(k => ctx[k]));
+  const api = new Function(...keys, HELPERS + HOLD + '\n;return { shpHoldOn, shpHoldBuild, shpHoldPublish, fgiHoldState, fgiHeld, fgiFbaFree, fgiReleaseCreate, fgiReleasePlan, fgiReleaseSpend, fgiHoldAgeWhy, fgiHoldOldWarning };')(...keys.map(k => ctx[k]));
   return Object.assign(api, { db, warns });
 }
 
@@ -430,8 +430,8 @@ async function testWebsite() {
 
   console.log('== how old the copy is, and noting it again ==');
   const old = await published({ copy: usual({ at: Date.now() - 7 * HOUR }) });
-  ok('an old copy is noted at its own age, so FBA stays refused', old.noted('SP').at === old.copy.at && old.fgiHoldState(old.db.data).state === 'stale');
-  ok('…and the tab says so', /over 6 hours old/.test(old.box.textContent), old.box.textContent);
+  ok('an old copy is noted at its own age, and the test website accepts it', old.noted('SP').at === old.copy.at && old.fgiHoldState(old.db.data).state === 'ok');
+  ok('…and the tab warns', /TEST ONLY.*over 6 hours old/.test(old.box.textContent), old.box.textContent);
   const at = Date.now() - HOUR, held = (t, n) => ({ at: t, by: 'x', skus: { A: n } });
   const rewrite = async (stored) => (await published({ copy: usual({ at }), db: { SP: stored } })).db.writes.filter(w => /SP$/.test(w.p)).length;
   ok('the same copy with a changed need is noted again', await rewrite(held(at, 9)) === 1);
@@ -441,7 +441,12 @@ async function testWebsite() {
 
   console.log('== the refusal on the test website ==');
   const words = (testSiteOn, hold) => load({ testSite: testSiteOn }).fgiHoldAgeWhy(hold);
-  for (const [name, hold] of [['not known', {}], ['old', noted(1, 0, {}, Date.now() - 7 * HOUR)]]) {
+  const aged = h => noted(1, 0, {}, Date.now() - h * HOUR), warn = (testSiteOn, hold) => load({ testSite: testSiteOn }).fgiHoldOldWarning(hold);
+  ok('test website, old: accepted', words(true, aged(7)) === '', words(true, aged(7)));
+  ok('…with a warning', /TEST ONLY.*over 6 hours old/.test(warn(true, aged(7))), warn(true, aged(7)));
+  ok('…and none while the figure is fresh', warn(true, aged(1)) === '');
+  ok('live, old: still refused, no test warning', /6 hours/.test(words(false, aged(7))) && warn(false, aged(7)) === '');
+  for (const [name, hold] of [['not known', {}], ['clock ahead', noted(1, 0, {}, Date.now() + HOUR)]]) {
     ok('test website, ' + name + ': says UAT mode and the shared copy', /UAT mode on.*Shopify Orders.*shared copy/.test(words(true, hold)), words(true, hold));
     ok('live, ' + name + ': the words as before', /open the Shopify Orders tab and press Fetch orders, then try again/.test(words(false, hold)) && !/UAT|shared copy/.test(words(false, hold)));
   }

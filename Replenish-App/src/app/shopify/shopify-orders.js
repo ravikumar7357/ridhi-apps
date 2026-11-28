@@ -883,7 +883,7 @@ function soHoldCopyNoted(read, brands) {
   const old = brands.some(b => Date.now() - read[b].at > SHP_HOLD_MAX_AGE_MS);
   return 'Test website: pieces held for website orders were noted from the shared copy of the orders — ' + parts.join('; ') + '.'
     + (short ? ' The copy does not reach back ' + SHP_REACH_MAX_DAYS + ' days, so an older unshipped order may be missing.' : '')
-    + (old ? ' A copy is over 6 hours old: FBA stays refused until the copy is newer.' : '');
+    + (old ? ' TEST ONLY: a copy is over 6 hours old, so newer orders are missing; the test website still allows FBA.' : '');
 }
 /** Its own line on the tab, because the order list redraws the other one. */
 function soHoldCopySay(text, bad) {
