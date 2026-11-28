@@ -696,9 +696,9 @@ function spOpenQuilt(orderNo, sku, line) {
     note: 'A quilt goes to the quilt team as a job, not to a karigar by the piece, so it is counted here '
       + 'rather than issued in Job Work Register. Each figure is bounded by the one before it.',
     fields: [
-      { key: 'cut', label: 'Cut', type: 'number', value: sp.cut == null ? '' : sp.cut },
-      { key: 'issued', label: 'Issued', type: 'number', value: sp.issued == null ? '' : sp.issued },
-      { key: 'received', label: 'Received', type: 'number', value: sp.received == null ? '' : sp.received },
+      { key: 'cut', label: 'Cut', type: 'number', step: 1, value: sp.cut == null ? '' : sp.cut },
+      { key: 'issued', label: 'Issued', type: 'number', step: 1, value: sp.issued == null ? '' : sp.issued },
+      { key: 'received', label: 'Received', type: 'number', step: 1, value: sp.received == null ? '' : sp.received },
       { key: 'remarks', label: 'Remarks', value: sp.remarks || '', span: true },
     ],
     onSave: v => spSave(orderNo, sku, Object.assign({}, v, { pressed: sp.pressed || 0 })),
@@ -856,7 +856,7 @@ function spPrintOpen(orderNo, sku) {
     subtitle: `${line.sku}  ·  ${[line.articleType, line.articleSubtype, line.color, line.size].filter(Boolean).join(' · ')}  ·  ${nf(line.qty)} piece(s)${line.pcsPer > 1 ? ` (${nf(line.packs)} × pack of ${nf(line.pcsPer)})` : ''}`,
     note: 'How many pieces of this have been printed. Nothing else on the line is yours to change, '
       + 'and nothing can be cut from it until this is recorded.',
-    fields: [{ key: 'printed', label: 'Printed', type: 'number', value: line.printed || '' }],
+    fields: [{ key: 'printed', label: 'Printed', type: 'number', step: 1, value: line.printed || '' }],
     onSave: v => spPrint(orderNo, sku, v.printed),
     saveLabel: 'Save',
   });

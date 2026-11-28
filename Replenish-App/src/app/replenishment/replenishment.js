@@ -505,14 +505,19 @@ $('pjFile').onchange = async e => {
     const iSku = colIdx(head, ['sku']);
     const iQty = colIdx(head, ['qty', 'quantity', 'projection', 'proj', 'units', 'forecast']);
     if (iSku < 0 || iQty < 0) { pjErr('The file needs a "SKU" column and a "QTY" column.'); return; }
-    const patch = {}; let n = 0, bad = 0;
+    const patch = {}, part = []; let n = 0, bad = 0;   // part: rows asking for part of a piece (28 Nov)
     for (let i = 1; i < rows.length; i++) {
       const sku = cellAt(rows[i], iSku); if (!sku) continue;
       const raw = String(cellAt(rows[i], iQty)).replace(/[, ]/g, '');
       const q = Number(raw);
       if (raw === '' || !isFinite(q)) { bad++; continue; }
+      if (!Number.isInteger(q)) { part.push(`row ${i + 1} · ${sku} · ${raw}`); continue; }
       patch[sku.trim().toUpperCase() + '|' + mk] = Math.max(0, Math.round(q));
       n++;
+    }
+    if (part.length) {   // the whole file is refused, never partly saved
+      const why = 'Quantities must be whole pieces. Correct the file and choose it again: ' + part.slice(0, 6).join(', ') + (part.length > 6 ? ' and ' + (part.length - 6) + ' more' : '') + '.';
+      pjErr(why); wpShow('This file cannot be saved', why); return;
     }
     if (!n) { pjErr('No usable SKU/QTY rows found.'); return; }
     if (!confirm(`Set the ${mLabel} projection for ${n} SKU(s)?${bad ? `\n(${bad} row(s) had no usable QTY and will be skipped.)` : ''}\n\nSKUs not in this file keep whatever they already have.`)) return;

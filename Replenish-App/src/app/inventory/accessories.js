@@ -431,7 +431,7 @@ $('acNewItem').onclick = () => {
     { key: 'name', label: 'Name', value: '' },
     { key: 'category', label: 'Kind', type: 'select', options: ACC_CATS, value: 'Other' },
     { key: 'unit', label: 'Unit', value: 'pcs' },
-    { key: 'reorderLevel', label: 'Re-order level', type: 'number', step: '1', value: '' },
+    { key: 'reorderLevel', label: 'Re-order level', type: 'number', step: 'any', value: '' },
     { key: 'returnable', label: 'Comes back?', type: 'select', options: ['follow the kind', 'yes — it is lent', 'no — it is used up'], value: 'follow the kind', span: true },
   ],
   onSave: async v => {
@@ -503,7 +503,7 @@ function accEditItem(code) {
       { key: 'name', label: 'Name', value: it.name || '' },
       { key: 'category', label: 'Kind', type: 'select', options: ACC_CATS, value: accCat(it) },
       { key: 'unit', label: 'Unit', value: accUnit(it) },
-      { key: 'reorderLevel', label: 'Re-order level', type: 'number', step: '1', value: it.reorderLevel == null ? '' : it.reorderLevel },
+      { key: 'reorderLevel', label: 'Re-order level', type: 'number', step: 'any', value: it.reorderLevel == null ? '' : it.reorderLevel },
       { key: 'returnable', label: 'Comes back?', type: 'select', options: ['follow the kind', 'yes — it is lent', 'no — it is used up'],
         value: it.returnable === true ? 'yes — it is lent' : (it.returnable === false ? 'no — it is used up' : 'follow the kind'), span: true },
     ],
@@ -536,7 +536,7 @@ function accTxnFields(r) {
   return [
     { key: 'txnType', label: 'Movement', type: 'select', value: r ? r.txnType : 'IN', options: ACC_TYPES },
     { key: 'itemCode', label: 'Item', type: 'select', value: r ? r.itemCode : '', options: [''].concat([...new Set([(r || {}).itemCode].filter(Boolean).concat(codes))]) },
-    { key: 'qty', label: 'Quantity', type: 'number', step: '1', value: r ? accQty(r) : '' },
+    { key: 'qty', label: 'Quantity', type: 'number', step: 'any', value: r ? accQty(r) : '' },
     { key: 'date', label: 'Date', type: 'date', value: r ? (r.date || '') : dToday() },
     /* WHO IT WENT TO. Typed, not picked: a cutter goes to a karigar, a reel of thread goes to a
      * department, and a label goes to packing — no one list has all three. */

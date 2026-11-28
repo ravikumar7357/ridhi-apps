@@ -115,6 +115,9 @@ const PACK_CORE = /* @__PURE__ */ (() => {
     const si = head.findIndex((h) => /^(merchant[- ]?sku|seller[- ]?sku|sku|msku)$/.test(h));
     const qi = head.findIndex((h) => /^(quantity|qty|expected quantity|units|shipped|quantity to ship)$/.test(h));
     if (si < 0 || qi < 0) return { lines: [], why: "Could not find a SKU column and a Quantity column in the first row." };
+    /* part pieces were cut down to whole ones without a word (28 Nov): the paste is refused instead */
+    const part = rows.slice(1).map((r) => r[qi]).find((q) => String(q || "").trim() && !Number.isInteger(Number(q)) && isFinite(Number(q)));
+    if (part) return { lines: [], part, why: part + " cannot be saved: quantities must be whole pieces. Correct the pasted plan." };
     const byS = /* @__PURE__ */ new Map();
     rows.slice(1).forEach((r) => {
       const s = up(r[si]), q = parseInt(r[qi], 10) || 0;

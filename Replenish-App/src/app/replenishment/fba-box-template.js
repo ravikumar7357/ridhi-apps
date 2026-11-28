@@ -266,8 +266,12 @@ function pkRenderPreview() {
         : `Rename the column, or use the Template button for a sheet with the names this reads.`)
       + `</div>`);
   }
+  const part = g.part || [];
+  const partWhy = part.slice(0, 6).map(x => `row ${x.row} · ${x.sku} · ${x.qty}`).join(', ') + (part.length > 6 ? ` and ${part.length - 6} more` : '');
+  if (part.length) bits.push(`<div class="err" style="margin-top:6px">Quantities must be whole pieces. Correct the file and choose it again: ${esc(partWhy)}.</div>`);
   $('pkMatch').innerHTML = bits.join('');
-  $('pkSave').disabled = missReq.length > 0 || !g.boxes.length;
+  $('pkSave').disabled = missReq.length > 0 || !g.boxes.length || part.length > 0;
+  if (part.length) wpShow('This file cannot be saved', 'Quantities must be whole pieces: ' + partWhy + '. Correct the file and choose it again.');
 
   const t = pkTotals({ boxes: g.boxes, pkgWt: PK_DEF.pkgWt, volDiv: PK_DEF.volDiv });
   $('pkPreview').innerHTML = '<thead><tr><th>Box</th><th>SKU</th><th>Description</th><th>Size</th>'

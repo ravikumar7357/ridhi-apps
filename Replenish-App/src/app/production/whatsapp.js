@@ -571,8 +571,8 @@ function jwRecvOpen(id) {
     subtitle: `${obUC(row.sku)} · ${row.empName}`,
     note: `${nf(iss)} issued · ${nf(rec)} received · ${nf(rej)} rejected · ${nf(pend)} still out`,
     fields: [
-      { key: 'recv', label: 'Pieces received now (added)', type: 'number', min: 0, value: '' },
-      { key: 'rej', label: 'Rejected on this row (total)', type: 'number', min: 0, value: rej || '' },
+      { key: 'recv', label: 'Pieces received now (added)', type: 'number', step: 1, min: 0, value: '' },
+      { key: 'rej', label: 'Rejected on this row (total)', type: 'number', step: 1, min: 0, value: rej || '' },
       ...rejWhyFields(),
     ],
     memory: 'jobWorkReceive',  // my previous entry in grey (core/form-memory.js)

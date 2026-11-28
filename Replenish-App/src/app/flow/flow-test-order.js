@@ -74,7 +74,7 @@ function flowSoChoices() {
 }
 function flowTestOpen() {
   const plats = [['AMZ', 'Amazon'], ['SHP', 'Shopify'], ['ONL', 'Online'], ['B2B', 'B2B']];
-  const row = i => `<div style="display:flex;gap:8px;margin-top:6px"><input data-tsku="${i}" placeholder="SKU ${i + 1}" style="flex:2"><input data-tqty="${i}" type="number" min="1" placeholder="Qty" style="flex:1"></div>`;
+  const row = i => `<div style="display:flex;gap:8px;margin-top:6px"><input data-tsku="${i}" placeholder="SKU ${i + 1}" style="flex:2"><input data-tqty="${i}" type="number" step="1" min="1" placeholder="Qty" style="flex:1"></div>`;
   const sos = flowSoChoices();
   ptOpenDialog({
     title: 'Test order — walk it through the flow',
@@ -203,7 +203,7 @@ function flowTestCutOpen(no, sku) {
   ptOpenDialog({
     title: `Cutting entry (TEST) — ${no} · ${sku}`, subtitle: `${nf(left)} of ${nf(x.t.qty)} pieces to cut now${upto < (+x.t.qty || 0) ? ` (printed fabric back for ${nf(upto)} so far)` : ''}. Saved as a TEST entry in Cutting Data too — "delete test" removes it.`,
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
-      <label>Pieces<input id="fltcP" type="number" min="1" value="${left}"></label>
+      <label>Pieces<input id="fltcP" type="number" step="1" min="1" value="${left}"></label>
       ${fixed ? `<label>Printed fabric <small class="muted">printed for this order</small><div style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(124,58,237,.06)"><b>${esc(pf.code)}</b><div class="muted" style="font-size:11px">${esc(pf.label || want)}</div></div></label>`
         : `<label>Fabric<select id="fltcF"><option value="">— Fabric —</option>${fabs.map(f => `<option${f === want ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select></label>`}
       <label>Fabric used (m)<input id="fltcU" type="number" step="0.01" value="${per ? flowR2(per * left) : ''}"></label>
@@ -244,7 +244,7 @@ async function flowTestIssueOpen(no, sku) {
     html: `<div class="ptgrid" style="grid-template-columns:repeat(2,1fr)">
       <label>Employment type<select id="fltiT"><option value="">Employment type…</option>${types.map(t => `<option>${esc(t)}</option>`).join('')}</select></label>
       <label>Karigar<input id="fltiK" list="fltiKL" placeholder="name"><datalist id="fltiKL"></datalist></label>
-      <label>Pieces<input id="fltiP" type="number" min="1" value="${can}"></label>
+      <label>Pieces<input id="fltiP" type="number" step="1" min="1" value="${can}"></label>
       <label>Issue date<input id="fltiD" type="date" value="${esc(dToday())}"></label>
       <label style="grid-column:1/-1">Remarks (optional)<input id="fltiR"></label></div>`,
     saveLabel: 'Issue',
@@ -281,7 +281,7 @@ function flowTestRecvOpen(no, sku) {
     title: `Receive from karigar (TEST) — ${no} · ${sku}`, subtitle: 'Updates its TEST row in the Job Work Register — "delete test" removes it.',
     html: `<div class="ptgrid" style="grid-template-columns:repeat(3,1fr)">
       <label style="grid-column:1/-1">Issue<select id="fltrI">${open.map(([id, e]) => `<option value="${esc(id)}">${esc(e.karigar)} · issued ${nf(e.pcs)} on ${esc(e.date)} · ${nf(e.pcs - (e.received || 0) - (e.rejected || 0))} out</option>`).join('')}</select></label>
-      <label>Received now<input id="fltrP" type="number" min="0"></label><label>Rejected<input id="fltrX" type="number" min="0" value="0"></label>
+      <label>Received now<input id="fltrP" type="number" step="1" min="0"></label><label>Rejected<input id="fltrX" type="number" step="1" min="0" value="0"></label>
       <label>Date<input id="fltrD" type="date" value="${esc(dToday())}"></label>${rejWhyHtml('fltr')}</div>`,
     saveLabel: 'Received',
     onSave: async () => {
