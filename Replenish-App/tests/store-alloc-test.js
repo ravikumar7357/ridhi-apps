@@ -242,11 +242,11 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     };
     const { S, html } = table({});
     const heads = [...html.split('</thead>')[0].matchAll(/<th[^>]*>(.*?)<\/th>/g)].map(m => m[1]).slice(1);
-    ok('the columns after the article', same(heads, ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', 'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', '']), heads.join());
+    ok('the columns after the article', same(heads, ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', 'FBA Dispatched', 'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', '']), heads.join());
     const figs = [...html.matchAll(/<td class="num"[^>]*>(.*?)<\/td>/g)].map(m => m[1].replace(/<[^>]+>/g, ''));
-    ok('the seven figures', same(figs, ['20', '—', '6', '3', '4', '2', '5']), figs.join());
+    ok('the eight figures', same(figs, ['—', '20', '—', '6', '3', '4', '2', '5']), figs.join());
     ok('the buttons stay', ['data-fgrel', 'data-fgentry', 'data-fgskued', 'data-fgskudel'].every(b => html.includes(b)));
-    ok('the export follows them', same([...S.run('fgaExportRow(FGI.shown[0])')].slice(6), [20, 0, 6, 3, 4, 2, 5]) && S.run('fgaExportHead()').length === 13);
+    ok('the export follows them', same([...S.run('fgaExportRow(FGI.shown[0])')].slice(6), [0, 20, 0, 6, 3, 4, 2, 5]) && S.run('fgaExportHead()').length === 14);
     S.box('fgaView').value = 'CPC'; S.run('fgiRenderStock(new Map([["A", { sku: "A", current: 20, pending: 0 }]]))');
     ok('the view picker changes the FBA columns', S.ctx.FGI.shown[0].alloc.air === 0 && S.ctx.FGI.shown[0].alloc.awd === 2);
     ok('old figures are said above the list', /cannot be relied on.*24 hours/.test(table({ age: 25 }).S.box('fgMsg').textContent));
@@ -395,6 +395,62 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     ok('+ Stock entry still receives a SKU the list does not hold', saved === '' && E.writes.length === 1, saved);
   }
 
+  console.log('== FBA Dispatched: in FBA Dispatch, not yet shipped ==');
+  {
+    const out = (id, qty, over) => sent(id, qty, Object.assign({ sku: 'AB-10' }, over));
+    /* AB-10, none in stock: 2 waiting, 3 accepted with 1 back, 5 shipped, 4 all back, 7 sheet history */
+    const waiting = out('w', 2), accepted = out('a', 3, { sku: 'ab-10', fbaAcceptedAt: 'x', fbaReturned: 1, issuedFor: 'CPC FBA' });
+    const gone = [out('s', 5, { fbaShippedAt: 'x' }), out('r', 4, { fbaReturned: 4 }), out('h', 7, { source: 'sheet: x' }),
+      row('i', 'ISSUE', 9, { sku: 'AB-10' }), row('b', 'FBA_RETURN', 1, { sku: 'AB-10', linkedFbaId: 'a' })];
+    const rows = [waiting, accepted, ...gone, sent('x', 6, { sku: 'AB-1' }), sent('o', 8, { sku: 'OLD-1', fbaShippedAt: 'x' })];
+    const STOCK = [['AB-1', 5], ['AB-10', 0], ['OLD-1', 0]].map(([sku, current]) => ({ sku, current, pending: 0 }));
+    const MASTER = [{ sku: 'AB-1', brand: 'Ridhi' }, { sku: 'AB-10', brand: 'Other', color: 'Green' }, { sku: 'OLD-1' }];
+    const sentOf = ledger => Object.fromEntries(store({ rows: ledger }).run('fgaDispatched(FGI.rows)'));
+    ok('waiting and accepted, less returns, both accounts, whatever the spelling', same(sentOf([waiting, accepted]), { 'AB-10': 4 }), JSON.stringify(sentOf([waiting, accepted])));
+    ok('shipped, returned, sheet history and other movements are left out', same(sentOf(gone), {}), JSON.stringify(sentOf(gone)));
+    ok('sheet history the FBA team has since taken is counted, as FBA Dispatch does', sentOf([out('h', 7, { source: 'sheet: x', fbaAcceptedAt: 'x' })])['AB-10'] === 7);
+    const list = (o = {}) => {
+      const S = store(Object.assign({ rows }, o));
+      Object.assign(S.ctx, { fgiStatus: () => ({ txt: 'ok' }), lstOf: () => ({ st: 'unknown' }), LST_PILL: { unknown: ['', ''] }, ptFillSelect: () => {},
+        FGI_PICK: { stock: new Set() }, ptImgCell: () => '<td></td>', ptImgInner: () => '', ptImgFill: () => {}, ptImgPatch: null, mobOn: () => !!o.phone,
+        PTG: { mdb: MASTER }, mdbOf: sku => MASTER.find(m => m.sku === String(sku).trim().toUpperCase()) });
+      S.run('const fgiMaster = sku => mdbOf(sku) || {};' + cut(appFile('inventory/finished-goods.js'), 'const FGI_NUM_COLS', 'function fgiRenderStock(')
+        + whole('inventory/finished-goods.js', 'fgiRenderStock') + whole('inventory/finished-goods.js', 'fgiCard'));
+      S.box('fgQ').value = o.q || '';
+      S.box('fgBrand').value = o.brand || '';
+      S.box('fgTag').value = o.tag || '';
+      S.box('fgaView').value = o.view || '';
+      S.ctx.FGI.set['AB-10'] = { remark: 'Gift' };
+      S.ctx.stock = new Map(STOCK.map(b => [b.sku, b]));
+      S.run('fgiRenderStock(stock)');
+      const shown = [...S.ctx.FGI.shown];
+      return { S, shown, skus: shown.map(r => r.sku), msg: S.box('fgMsg').textContent, html: S.box('fgTable').innerHTML };
+    };
+    const all = list();
+    ok('a SKU with none in stock but pieces not shipped is listed; one all shipped is not', same(all.skus, ['AB-1', 'AB-10']), all.skus.join());
+    const tr = all.html.split('<tbody>')[1].split('</tr>')[1];
+    const figs = [...tr.matchAll(/<td class="num"[^>]*>(.*?)<\/td>/g)].map(m => m[1].replace(/<[^>]+>/g, ''));
+    ok('its row: FBA Dispatched, then In Stock 0, and nothing shared out', same(figs, ['4', '0', '—', '—', '—', '—', '—', '—']), figs.join());
+    ok('the column stands just before In Stock, lined up as a figure', /<th class="num">FBA Dispatched<\/th><th class="num">In Stock<\/th>/.test(all.html));
+    ok('the pieces are not part of In Stock or the shares', all.shown.every(r => Object.values(r.alloc).reduce((a, b) => a + b, 0) === r.current)
+      && all.shown[0].dispatched === 6 && all.shown[0].current === 5 && /font-weight:700[^>]*>5</.test(all.html));
+    ok('the account picker does not narrow it', list({ view: 'SP' }).shown[1].dispatched === 4);
+    ok('the count line says which have stock and which do not',
+      /^2 SKU\(s\) listed: 1 in stock now, 1 with none in stock but pieces in FBA Dispatch not yet shipped/.test(all.msg), all.msg);
+    const phone = list({ phone: true }).html;
+    ok('the phone card lists it with the figure', phone.includes('data-fgmoves="AB-10"') && phone.includes('FBA Dispatched <b>4</b>'));
+    const head = [...all.S.run('fgaExportHead()')], lines = [...all.S.run('FGI.shown.map(fgaExportRow)')].map(r => [...r]);
+    ok('the export carries it just before In Stock', head[6] === 'FBA Dispatched' && head[7] === 'In Stock' && same(lines[1].slice(6, 8), [4, 0]), head.join() + ' | ' + lines[1].join());
+    ok('the brand filter applies to it', same(list({ brand: 'Ridhi' }).skus, ['AB-1']) && same(list({ brand: 'Other' }).skus, ['AB-10']));
+    ok('the tag filter applies to it', same(list({ tag: 'Gift' }).skus, ['AB-10']) && same(list({ tag: '_none' }).skus, ['AB-1']));
+    const found = list({ q: 'green' });
+    ok('searching it finds it, with nothing to explain', same(found.skus, ['AB-10']) && /^1 SKU/.test(found.msg), found.msg);
+    ok('filtered out, its code is "hidden by the filters"', list({ q: 'ab-10', brand: 'Ridhi' }).msg.startsWith('SKU AB-10 is in the India Store but hidden by the filters.'));
+    ok('and so is a word that matches it', list({ q: 'green', brand: 'Ridhi' }).msg.startsWith('Matching products are in the India Store but hidden by the filters.'));
+    const off = list({ ls: '0' });
+    ok('switch off: no column, figure or new wording', !off.html.includes('FBA Dispatched') && !/FBA Dispatch/.test(off.msg) && off.shown.every(r => r.dispatched === undefined));
+  }
+
   console.log('== the view list ==');
   {
     const hidden = o => { const S = store(o); S.run(whole('inventory/fg-store-alloc.js', 'fgaTrimViews') + 'fgaTrimViews()'); const b = S.box('fgPendOpt'); return b.hidden === b.disabled ? b.hidden : 'half'; };
@@ -427,7 +483,7 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     ok('an issue not for an order stays within Excess', issueWhy(withLists({}, { L: onList('SP', 'sea', 14) }), 1) !== '' && issueWhy(S, 5) === '');
     const off = withLists({ fbaList: '0' });
     ok('switch off: lists change nothing', same(off.shares(), split(0, 6, 3, 4, 2, 5)) && off.free() === 9, JSON.stringify(off.shares()));
-    ok('switch off: no list column', off.run('fgaExportHead()').length === 13);
+    ok('switch off: no list column', off.run('fgaExportHead()').length === 14);
 
     const lanes = (rows, o) => { const s = withLists(Object.assign({ web: 0, lines: [], rows: [row('O', 'OPENING', 100)].concat(rows) }, o), {}).shares(100); return [s.air, s.sea, s.awd]; };
     ok('a list\'s dispatch comes off its own lane', same(lanes([sent('a', 3, { fbaLane: 'sea' })]), [3, 1, 2]));
@@ -435,6 +491,11 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     ok('two of them add up', same(lanes([sent('a', 1, { fbaLane: 'awd', issuedFor: 'CPC FBA' }), sent('b', 1, { fbaLane: 'awd', issuedFor: 'CPC FBA' })]), [3, 4, 0]));
     ok('old rows still spill Air first, after it', same(lanes([sent('a', 3, { fbaLane: 'air' }), sent('b', 2)]), [0, 2, 2]));
     ok('switch off: a lane on a row is ignored', same(lanes([sent('a', 3, { fbaLane: 'sea' })], { fbaList: '0' }), [0, 4, 2]));
+
+    const dispatched = o => Object.fromEntries(withLists(o).run('fgaDispatched(FGI.rows)'));
+    ok('pieces on a list not yet shipped are in stock, not FBA Dispatched', same(dispatched({}), {}));
+    ok('a list shipment is not FBA Dispatched', same(dispatched({ rows: [row('O', 'OPENING', 20), sent('L', 3, { fbaListId: 'L3', fbaAcceptedAt: 'x', fbaShippedAt: 'x' })] }), {}));
+    ok('an older dispatch still waiting is, with lists on', dispatched({ rows: [row('O', 'OPENING', 20), sent('w', 2)] }).A === 2);
 
     const T = withLists({ need: { SP: [3, 4, 0] }, rows: [row('O', 'OPENING', 20)] }, {});
     T.db._fbaLists = { L: onList('SP', 'air', 3) };
@@ -487,13 +548,13 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     ok('an edit that sends more to FBA is refused', /FBA lists/.test(await ed.ctx.fgiEditApply('F', { qty: 6 })) && ed.writes.length === 0);
     ok('an old dispatch can still be corrected down', await ed.ctx.fgiEditApply('F', { qty: 4 }) === '' && ed.writes.length === 1);
 
-    const rows = S.run('fgaListRows([{ sku: "A", current: 20 }])');
+    const rows = S.run('fgaListRows([{ sku: "A", current: 20, dispatched: 0 }])');
     S.ctx.listRow = rows[0];
     const head = [...S.run('fgaExportHead()')], line = [...S.run('fgaExportRow(listRow)')];
-    ok('the export shows In FBA lists, adding up to stock', head[8] === 'In FBA lists' && head.length === 14 && line.length === 14
-      && line[8] === 3 && line.slice(7).reduce((x, y) => x + y, 0) === line[6], head.join() + ' | ' + line.join());
+    ok('the export shows In FBA lists, adding up to stock', head[9] === 'In FBA lists' && head.length === 15 && line.length === 15
+      && line[9] === 3 && line.slice(8).reduce((x, y) => x + y, 0) === line[7], head.join() + ' | ' + line.join());
     const cells = [...S.run('fgaCells(listRow)').matchAll(/<td class="num"[^>]*>(.*?)<\/td>/g)];
-    ok('the stock list has its cell and the phone card its figure', cells.length === 8 && S.run('fgaCardFigs(listRow)').includes('In FBA lists <b>3'));
+    ok('the stock list has its cell and the phone card its figure', cells.length === 9 && S.run('fgaCardFigs(listRow)').includes('In FBA lists <b>3'));
   }
 
   const { pass, fail } = counts();
