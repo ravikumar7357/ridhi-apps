@@ -67,6 +67,9 @@ async function fbaShipXlRun(plan) {
   if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can ship a dispatch.';
   const pairs = plan.items.flatMap(it => it.picks.map(r => [fgiRowId(r), it.e]));
   if (!pairs.length) return 'Nothing in the file matches an open dispatch.';
+  /* the typed box's date rule, for the file too (28 Nov): one wrong date refuses the whole file */
+  const dateWhy = plan.items.map(it => it.e).filter(e => e.date).map(e => ptDateErr(ptIsoDate(e.date) || String(e.date), 'Row ' + e.row + ' ship date', ME.admin ? 'fixed' : 'done')).find(Boolean);
+  if (dateWhy) return wpRefuse(dateWhy);
   const fresh = await fbaFresh(pairs.map(p => p[0]));
   const now = new Date().toISOString(), updates = {}, done = [], skipped = [];
   fresh.forEach(({ id, row }, i) => {
@@ -149,6 +152,8 @@ async function fbaShipSave(ids) {
   const v = id => String((($(id) || {}).value) || '').trim();
   const shipment = v('fbsShipment');
   if (!shipment) return 'Put in the shipment id — a shipment nobody can trace is not a shipment.';
+  const dateWhy = ptDateErr(v('fbsDate'), 'Ship date', ME.admin ? 'fixed' : 'done');   // 28 Nov: a date a year back was taken
+  if (dateWhy) return wpRefuse(dateWhy);
   const shipDate = fgiDmy(v('fbsDate')) || fgiDmy(dToday());
   const note = v('fbsRemarks');
   const single = ids.length === 1;

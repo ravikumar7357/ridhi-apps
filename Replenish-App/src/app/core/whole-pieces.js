@@ -29,6 +29,9 @@ function wpShow(title, text, back) {
   ok.focus();
 }
 
+/** A save refused for what was typed: the same pop-up, and the sentence goes back for the form to show too. */
+function wpRefuse(why) { wpShow('This cannot be saved', why); return why; }
+
 /** Stops a part number in a whole-number box: puts the old figure back, lets the screen's totals catch up, and says why.
  *  The old figure, not a blank: several screens read a blank as 0 or as "remove it". True when stopped. */
 function wpStop(el) {

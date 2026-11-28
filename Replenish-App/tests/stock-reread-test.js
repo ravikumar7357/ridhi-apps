@@ -87,7 +87,7 @@ const SAVES = [
   } },
   { title: 'SHP board — from ready stock', run: async w => {
     const a = app('orders/shp-board.js', 'shpbStockSave', w, { shpbKey: () => 'k', shpbStages: () => ({ stk: 0, prsD: 0 }), SHPB: { ready: {} }, SHPB_NODE: 'pt_made_up',
-      shpReceive: async () => '', shpCanReceive: () => true, shpbAfter: () => {} });
+      shpReceive: async () => '', shpCanReceive: () => true, shpbAfter: () => {}, spOf: () => null });
     return { a, said: await a.ctx.shpbStockSave({ orderNo: 'SH-1', sku: SKU, qty: 4 }, { pcs: '4' }) };
   } },
 ];

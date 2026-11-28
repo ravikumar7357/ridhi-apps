@@ -23,6 +23,7 @@ const CODE = [src('core/line-hold.js'),
   cut('core/look-alike-skus.js', /^const CUT_DRAFT_LIFE_MS/m, ';'), cut('core/look-alike-skus.js', /^const CUT_DRAFTS/m, ';'), cut('core/look-alike-skus.js', /^function cutEntryId\(/m),
   cut('core/look-alike-skus.js', /^async function cutWrite\(/m), cut('orders/order-console-table.js', /^async function spCutReal\(/m),
   cut('core/look-alike-skus.js', /^function cutSaveHeld\(/m), cut('core/look-alike-skus.js', /^function cutFormMsg\(/m, '\n'),
+  cut('core/look-alike-skus.js', /^const cutWasteWhy/m, '\n};'), 'const cutFabPlan = () => null, wpRefuse = t => t;   // the cloth limit has its own tests (too-much-test)',
   cut('core/look-alike-skus.js', /^\$\('cwSave'\)\.onclick/m, '\n};')].join('\n');
 
 /* the one date rule the forms ask before saving (fix 7, 26 Nov) */

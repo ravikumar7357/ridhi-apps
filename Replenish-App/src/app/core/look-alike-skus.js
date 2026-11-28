@@ -459,6 +459,14 @@ function cutSaveHeld(entry) {
   });
 }
 
+/** Waste is part of the cloth used (28 Nov: 5,00,000 m of waste was taken), so waste needs the cloth used and cannot be more. */
+const cutWasteWhy = (used, waste) => {
+  const u = String(used || '').trim(), w = +waste || 0;
+  if (!(w > 0)) return '';
+  if (!u) return 'Type the cloth used too: the waste back is checked against it.';
+  return w > +u ? `Waste back (${w} m) cannot be more than the cloth used (${+u} m).` : '';
+};
+
 $('cwSave').onclick = async () => {
   const sku = $('cwSku').value.trim();
   const m = cutSkuOf(sku);
@@ -483,6 +491,10 @@ $('cwSave').onclick = async () => {
    * has agreed exists. */
   if (!CUT_FROM && !(CUT_OWN_OK && fabric === CUT_OWN_OK) && cutFabrics().indexOf(fabric) < 0)
     return cutFormMsg(`"${fabric}" is not in the Fabric Type master. Add it there first.`, true);
+  const wasteWhy = cutWasteWhy($('cwUsed') && $('cwUsed').value, $('cwWaste') && $('cwWaste').value);
+  if (wasteWhy) return cutFormMsg(wpRefuse(wasteWhy), true);
+  const plan = cutFabPlan(), clothWhy = plan && !plan.why ? ptClothOver($('cwUsed') && $('cwUsed').value, plan.should, 'Cloth used') : '';
+  if (clothWhy) return cutFormMsg(wpRefuse(clothWhy), true);
   if (!date) return cutFormMsg('Enter the cutting date.', true);
   /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): today or up to 60 days back, never ahead. */
   if (lineHoldOn()) { const dateErr = ptDateErr(date, 'Cutting date', 'done'); if (dateErr) return cutFormMsg(dateErr, true); }

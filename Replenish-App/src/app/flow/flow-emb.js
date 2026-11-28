@@ -89,7 +89,7 @@ function flowEmbSendOpen(orderNo) {
     return `<tr><td><input type="checkbox" data-emk="${i}" checked style="width:auto"></td>
       <td style="text-align:left;white-space:normal"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b><div class="muted" style="font-size:11px">${esc(flowChItem(x.r))}</div>${w && w.code ? `<div style="font-size:11px;color:#4338ca">${esc(w.code)}</div>` : ''}</td>
       <td class="num"><input data-emm="${i}" type="number" step="0.01" min="0" value="${esc(x.s.embCanSend)}" style="width:80px;padding:3px 6px;font-size:12px"></td>
-      <td class="num"><input data-emp="${i}" type="number" step="1" min="0" value="${esc(Math.max(0, (+x.r.qty || 0) - (x.s.embBack || 0)))}" style="width:70px;padding:3px 6px;font-size:12px"></td></tr>`; }).join('');
+      <td class="num"><input data-emp="${i}" type="number" step="1" min="0" value="${esc(flowEmbPcsLeft(x))}" style="width:70px;padding:3px 6px;font-size:12px"></td></tr>`; }).join('');
   ptOpenDialog({
     title: `Embroidery challan — ${orderNo}`,
     subtitle: 'The printed cloth of this order, to the embroiderer. Saving numbers the challan and opens it to print; the pieces are received against it.',
@@ -107,7 +107,11 @@ function flowEmbSendOpen(orderNo) {
       const noM = picked.filter(y => !(y.m > 0)).map(y => obUC(y.x.r.sku));
       if (noM.length) return `How many metres? Type them for ${noM.join(', ')}.`;
       const over = picked.filter(y => y.m > y.x.s.embCanSend + 0.01);
-      if (over.length) return over.map(y => `${obUC(y.x.r.sku)}: only ${nf(y.x.s.embCanSend)} m of its printed cloth is back and not sent`).join(' · ');
+      if (over.length) return wpRefuse(over.map(y => `${obUC(y.x.r.sku)}: only ${nf(y.x.s.embCanSend)} m of its printed cloth is back and not sent`).join(' · '));
+      const noPc = picked.filter(y => !(y.pc > 0)).map(y => obUC(y.x.r.sku));   // a challan of 0 pieces could never be received
+      if (noPc.length) return `How many pieces to make? Type them for ${noPc.join(', ')}.`;
+      const tooMany = flowEmbTooMany(picked.map(y => ({ sku: obUC(y.x.r.sku), typed: y.pc, most: flowEmbPcsLeft(y.x) })));
+      if (tooMany) return wpRefuse(tooMany);
       const now = new Date().toISOString();
       let no = flowEmbNo(date, isTest);
       const ch = { no, kind: 'emb', date, orderNo: obUC(orderNo), vendor: who, note: $('flemNote').value.trim(), at: now, by: ME.email || '',
@@ -129,6 +133,18 @@ function flowEmbSendOpen(orderNo) {
   });
 }
 
+/** Pieces of a line that may still be sent: its pieces less those back and passed (a QC reject goes again) and those still out on
+ *  open embroidery challans. */
+function flowEmbPcsLeft(x) {
+  const out = Object.values((typeof FLOW !== 'undefined' && FLOW.emb) || {}).filter(c => c && !c.cancelled && !c.closed).reduce((t, c) => {
+    const back = flowEmbRecv(c)[x.s.key] || 0;
+    return t + Math.max(0, (c.lines || []).filter(l => l.key === x.s.key).reduce((n, l) => n + (+l.pcs || 0), 0) - back);
+  }, 0);
+  return Math.max(0, (+x.r.qty || 0) - (x.s.embOk != null ? x.s.embOk : x.s.embBack || 0) - out);
+}
+/** The lines asking for more pieces than they can take, in words, or '' (28 Nov: 10 came in on a challan of 3). */
+const flowEmbTooMany = rows => rows.filter(r => r.typed > r.most).map(r => `${r.sku}: ${r.typed} pieces typed, at most ${r.most}`).join(' · ');
+
 /* ---- receiving: the embroidered pieces, against the challan ---- */
 function flowEmbRecvOpen(no) {
   if (!flowMay('flchl')) return flowSay('Embroidery is the fabric team\'s — this account has no "Printed fabric in" right.', true);
@@ -148,6 +164,8 @@ function flowEmbRecvOpen(no) {
     onSave: async () => {
       const items = {};
       lines.forEach((l, i) => { const n = Math.round(+((document.querySelector(`[data-emr="${i}"]`) || {}).value || 0)); if (n > 0) items[l.key] = (items[l.key] || 0) + n; });
+      const tooMany = flowEmbTooMany(lines.map(l => ({ sku: l.sku, typed: items[l.key] || 0, most: left(l) })));
+      if (tooMany) return wpRefuse(tooMany);
       const closeIt = !!($('flerClose') && $('flerClose').checked);
       if (!Object.keys(items).length && !closeIt) return 'Type the pieces that came back.';
       const date = $('flerDate').value || dToday(), now = new Date().toISOString(), patch = {};

@@ -153,6 +153,7 @@ const rec = key => ((ctx.FLOW.dem[key] || {}).cutPc) || null;
   console.log('== no other way to the printer ==');
   const challan = fs.readFileSync(path.join(APP, 'flow-challan.js'), 'utf8').replace(/\r\n/g, '\n');
   const w = { flowCpActive: () => ({ no: 'CP-1' }) };
+  w.flowClothOver = () => "";   /* the cloth limit has its own tests (too-much-test) */
   vm.createContext(w);
   vm.runInContext(slice(challan, 'async function flowChallanWrite(', '  let no = flowChallanNo(') + "return 'went';\n}\nglobalThis.W = flowChallanWrite;", w);
   const line1 = { at: '', vendor: { name: 'V' }, lines: [{ key: 'k1', sku: 'MAT1' }] };

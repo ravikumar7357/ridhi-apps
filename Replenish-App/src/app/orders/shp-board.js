@@ -518,6 +518,9 @@ async function shpbStockSave(r, v) {
   if (typeof shpReceive !== 'function' || !shpCanReceive()) return 'Handing pieces to shipping needs the Shopify tab.';
   const need = Math.max(0, (+r.qty || 0) - s.stk - s.prsD);
   if (pcs > need) return `Only ${nf(need)} piece(s) of this line still need to be made.`;
+  /* asked before the store gives anything up: the hand-over below refuses more than shipping is still owed */
+  const owed = Math.max(0, (+r.qty || 0) - (Number((spOf(r.orderNo, r.sku) || {}).handedQty) || 0));
+  if (pcs > owed) return `Only ${nf(owed)} piece(s) of this line are still to go to shipping.`;
   const unread = await fgiStockReread(); if (unread) return unread;
   const short = fgiOutCheck(obUC(r.sku), pcs, 'ISSUE', 0); if (short) return short;
   const kept = typeof fgaIssueRefusal === 'function' ? fgaIssueRefusal([{ sku: r.sku, qty: pcs, orders: [{ orderNo: r.orderNo, qty: pcs }] }]) : ''; if (kept) return kept;
@@ -734,7 +737,8 @@ function shpbAcceptOpen(key) {
   ptOpenDialog({
     title: 'Shipping accepts — ' + (r.shopOrderNo || r.orderNo) + ' · ' + r.sku, subtitle: 'Pressed and not accepted yet: ' + nf(s.handW) + '. Type what shipping has received.',
     fields: [{ key: 'q', label: 'Pieces received', type: 'number', step: 1, min: 1, value: s.handW }], saveLabel: 'Accept',
-    onSave: async v => { const q = Math.min(s.handW, Math.round(+v.q || 0)); if (!(q > 0)) return 'Type how many pieces shipping received.';
+    onSave: async v => { const q = +v.q || 0; if (!(q > 0)) return 'Type how many pieces shipping received.';
+      if (q > s.handW) return wpRefuse(`${q} typed, but only ${s.handW} pressed piece(s) are waiting.`);
       const err = await shpReceive([{ orderNo: r.orderNo, sku: r.sku, qty: q }]);
       if (!err && (SHPB.ship || {})[key]) { try { await ptDelete(SHPB_SHIP + '/' + key); } catch (e) { /* the note stays */ } SHPB.ship = Object.assign({}, SHPB.ship); delete SHPB.ship[key]; }
       if (!err) shpbAfter(); return err; },

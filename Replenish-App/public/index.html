@@ -7463,6 +7463,15 @@ function ptNumErr(raw, label, kind, zeroOk) {
   if (n === 0 && !zeroOk && kind !== 'rs') return `${label} must be more than 0.`;
   return '';
 }
+/* CLOTH ABOVE THE NEED (28 Nov 2026, order-to-shipping test: 5,000 m went on a challan for a 5.2 m line): a challan or a cutting
+ * entry may take up to a tenth more than the worked-out need. Where no need can be worked out, nothing is refused. */
+const PT_CLOTH_EXTRA = 0.10;
+function ptClothOver(typed, need, label) {
+  const m = Number(typed), n = Number(need);
+  if (!(n > 0) || !(m > n * (1 + PT_CLOTH_EXTRA) + 0.05)) return '';   // 0.05 m: figures are rounded on screen
+  const most = Math.round(n * (1 + PT_CLOTH_EXTRA) * 100) / 100;
+  return `${label}: ${m} m typed, but the need is ${Math.round(n * 100) / 100} m — at most ${most} m (10% extra).`;
+}
 /** The "is that right?" question for a big figure, or '' when it is not big. Rupees are never asked about. */
 function ptNumBig(n, label, kind) {
   const cap = PT_NUM_BIG[kind];
@@ -7501,6 +7510,9 @@ function wpShow(title, text, back) {
   document.body.appendChild(pop);
   ok.focus();
 }
+
+/** A save refused for what was typed: the same pop-up, and the sentence goes back for the form to show too. */
+function wpRefuse(why) { wpShow('This cannot be saved', why); return why; }
 
 /** Stops a part number in a whole-number box: puts the old figure back, lets the screen's totals catch up, and says why.
  *  The old figure, not a blank: several screens read a blank as 0 or as "remove it". True when stopped. */
@@ -20534,6 +20546,14 @@ function cutSaveHeld(entry) {
   });
 }
 
+/** Waste is part of the cloth used (28 Nov: 5,00,000 m of waste was taken), so waste needs the cloth used and cannot be more. */
+const cutWasteWhy = (used, waste) => {
+  const u = String(used || '').trim(), w = +waste || 0;
+  if (!(w > 0)) return '';
+  if (!u) return 'Type the cloth used too: the waste back is checked against it.';
+  return w > +u ? `Waste back (${w} m) cannot be more than the cloth used (${+u} m).` : '';
+};
+
 $('cwSave').onclick = async () => {
   const sku = $('cwSku').value.trim();
   const m = cutSkuOf(sku);
@@ -20558,6 +20578,10 @@ $('cwSave').onclick = async () => {
    * has agreed exists. */
   if (!CUT_FROM && !(CUT_OWN_OK && fabric === CUT_OWN_OK) && cutFabrics().indexOf(fabric) < 0)
     return cutFormMsg(`"${fabric}" is not in the Fabric Type master. Add it there first.`, true);
+  const wasteWhy = cutWasteWhy($('cwUsed') && $('cwUsed').value, $('cwWaste') && $('cwWaste').value);
+  if (wasteWhy) return cutFormMsg(wpRefuse(wasteWhy), true);
+  const plan = cutFabPlan(), clothWhy = plan && !plan.why ? ptClothOver($('cwUsed') && $('cwUsed').value, plan.should, 'Cloth used') : '';
+  if (clothWhy) return cutFormMsg(wpRefuse(clothWhy), true);
   if (!date) return cutFormMsg('Enter the cutting date.', true);
   /* ONE DATE RULE (fix 7, 26 Nov; switch lineHold): today or up to 60 days back, never ahead. */
   if (lineHoldOn()) { const dateErr = ptDateErr(date, 'Cutting date', 'done'); if (dateErr) return cutFormMsg(dateErr, true); }
@@ -27302,23 +27326,26 @@ function shpReadyLines() {
 }
 /** The shipping team takes the goods: whoever works the Shopify tab, anybody who records production, an admin. */
 const shpCanReceive = () => !spIsVendor() && !!(ME.admin || ptCanEdit() || ME.shpAccOnly || (ME.tabs || []).indexOf('shopify') >= 0);
-/** items: [{ orderNo, sku, qty }] — what arrived. Never more than the line still owes. */
+/** items: [{ orderNo, sku, qty }] — what arrived. More than a line still owes refuses the whole save (28 Nov: 9 of 8 was saved
+ *  as 8 without a word). */
 async function shpReceive(items) {
   if (!shpCanReceive()) return 'Taking goods from production needs the Shopify tab.';
   const now = new Date().toISOString(), upd = {};
-  let n = 0;
+  let n = 0, over = '';
   (items || []).forEach(it => {
     const line = (ordLines() || []).find(l => l.orderNo === obUC(it.orderNo) && l.sku === obUC(it.sku));
     if (!line) return;
     const key = spKey(line.orderNo, line.sku), was = spOf(line.orderNo, line.sku) || { orderNo: line.orderNo, sku: line.sku };
     const have = Number(was.handedQty) || 0;
-    const q = Math.min(Math.round(Number(it.qty) || 0), Math.max(0, line.qty - have));
+    const q = Number(it.qty) || 0, owed = Math.max(0, line.qty - have);
     if (!(q > 0)) return;
+    if (q > owed || !Number.isInteger(q)) { over = over || `${line.sku} on ${line.orderNo}: ${q} typed, ${owed} still to come, in whole pieces. Nothing was saved.`; return; }
     const got = have + q;
     const log = (Array.isArray(was.handLog) ? was.handLog.slice(-19) : []).concat([{ qty: q, at: now, by: ME.email }]);
     upd['pt_shopProd/' + key] = Object.assign({}, was, { handedQty: got, handLog: log }, got >= line.qty ? { handedAt: now, handedBy: ME.email } : {});
     n++;
   });
+  if (over) return wpRefuse(over);
   if (!n) return 'Put in how many arrived.';
   try { await ptPatch(upd); } catch (e) { return 'Not saved: ' + (e.message || e); }
   PTG.shopProd = Object.assign({}, PTG.shopProd || {});
@@ -31917,6 +31944,9 @@ async function shpbStockSave(r, v) {
   if (typeof shpReceive !== 'function' || !shpCanReceive()) return 'Handing pieces to shipping needs the Shopify tab.';
   const need = Math.max(0, (+r.qty || 0) - s.stk - s.prsD);
   if (pcs > need) return `Only ${nf(need)} piece(s) of this line still need to be made.`;
+  /* asked before the store gives anything up: the hand-over below refuses more than shipping is still owed */
+  const owed = Math.max(0, (+r.qty || 0) - (Number((spOf(r.orderNo, r.sku) || {}).handedQty) || 0));
+  if (pcs > owed) return `Only ${nf(owed)} piece(s) of this line are still to go to shipping.`;
   const unread = await fgiStockReread(); if (unread) return unread;
   const short = fgiOutCheck(obUC(r.sku), pcs, 'ISSUE', 0); if (short) return short;
   const kept = typeof fgaIssueRefusal === 'function' ? fgaIssueRefusal([{ sku: r.sku, qty: pcs, orders: [{ orderNo: r.orderNo, qty: pcs }] }]) : ''; if (kept) return kept;
@@ -32133,7 +32163,8 @@ function shpbAcceptOpen(key) {
   ptOpenDialog({
     title: 'Shipping accepts — ' + (r.shopOrderNo || r.orderNo) + ' · ' + r.sku, subtitle: 'Pressed and not accepted yet: ' + nf(s.handW) + '. Type what shipping has received.',
     fields: [{ key: 'q', label: 'Pieces received', type: 'number', step: 1, min: 1, value: s.handW }], saveLabel: 'Accept',
-    onSave: async v => { const q = Math.min(s.handW, Math.round(+v.q || 0)); if (!(q > 0)) return 'Type how many pieces shipping received.';
+    onSave: async v => { const q = +v.q || 0; if (!(q > 0)) return 'Type how many pieces shipping received.';
+      if (q > s.handW) return wpRefuse(`${q} typed, but only ${s.handW} pressed piece(s) are waiting.`);
       const err = await shpReceive([{ orderNo: r.orderNo, sku: r.sku, qty: q }]);
       if (!err && (SHPB.ship || {})[key]) { try { await ptDelete(SHPB_SHIP + '/' + key); } catch (e) { /* the note stays */ } SHPB.ship = Object.assign({}, SHPB.ship); delete SHPB.ship[key]; }
       if (!err) shpbAfter(); return err; },
@@ -35759,6 +35790,19 @@ function flowChallanDialog(rows, pcode, rufRows, pre, after) {
   if (typeof ptImgFill === 'function') ptImgFill(rows.map(x => obUC(x.r.sku)), false, typeof ptImgPatch === 'function' ? ptImgPatch : null);
 }
 
+/** The challan lines taking more cloth than they may (ptClothOver), in words, or ''. The need is the larger of the plan's and
+ *  the master's cloth for those pieces, as the challan windows offer either. Not judged: a ruffle on its own, and cut-to-size
+ *  pieces, whose metres are worked out from the pieces' size. */
+function flowClothOver(lines) {
+  const rows = flowRows();
+  return lines.filter(l => !l.ruffleOnly && !l.cutSize).map(l => {
+    const x = rows.find(y => y.s.key === l.key); if (!x) return '';
+    const o = flowFabOwed(x.r, x.s), planned = o.unit === 'pcs' && l.pcs > 0 && o.left > 0 ? o.metres * l.pcs / o.left : o.metres;
+    let master = 0; try { master = flowShLine(x).perPc * (+l.pcs || 0); } catch (e) { console.warn('[cloth limit] no master figure for ' + l.sku + ':', e.message || e); }
+    return ptClothOver(l.metres, Math.max(planned, master), l.sku);
+  }).filter(Boolean).join(' · ');
+}
+
 /* ONE WAY TO SAVE A CHALLAN (23 Nov): the Demand window and the Inventory's Send to printer card both come here.
  * THE NUMBER IS CLAIMED: the challan is written only where no challan of that number is yet — two people making one at the
  * same moment get two numbers, never one challan written over the other. A line PPC left without a printer gets the one its
@@ -35770,6 +35814,8 @@ async function flowChallanWrite(ch, v, how) {
   const inCut = !how.fromCut && typeof flowCpActive === 'function' && (ch.lines || []).find(l => !l.ruffleOnly && flowCpActive(l.key));
   if (inCut) return `${inCut.sku} is in Cut to size — send it from the Greige Desk's Cut to size.`;
   if (how.fromCut) ch.fromCut = how.fromCut;
+  const tooMuch = flowClothOver(ch.lines || []);
+  if (tooMuch) return wpRefuse(tooMuch);
   let no = flowChallanNo(ch.date, how.isTest); ch.no = no;
   for (let k = 0, taken = []; ; k++) {
     let er = ''; try { er = await flowClaim('pt_flowChallans/' + no, ch); } catch (e) { return 'Could not save: ' + (e.message || e); }
@@ -39641,7 +39687,7 @@ function flowEmbSendOpen(orderNo) {
     return `<tr><td><input type="checkbox" data-emk="${i}" checked style="width:auto"></td>
       <td style="text-align:left;white-space:normal"><b style="font-family:ui-monospace,monospace">${esc(obUC(x.r.sku))}</b><div class="muted" style="font-size:11px">${esc(flowChItem(x.r))}</div>${w && w.code ? `<div style="font-size:11px;color:#4338ca">${esc(w.code)}</div>` : ''}</td>
       <td class="num"><input data-emm="${i}" type="number" step="0.01" min="0" value="${esc(x.s.embCanSend)}" style="width:80px;padding:3px 6px;font-size:12px"></td>
-      <td class="num"><input data-emp="${i}" type="number" step="1" min="0" value="${esc(Math.max(0, (+x.r.qty || 0) - (x.s.embBack || 0)))}" style="width:70px;padding:3px 6px;font-size:12px"></td></tr>`; }).join('');
+      <td class="num"><input data-emp="${i}" type="number" step="1" min="0" value="${esc(flowEmbPcsLeft(x))}" style="width:70px;padding:3px 6px;font-size:12px"></td></tr>`; }).join('');
   ptOpenDialog({
     title: `Embroidery challan — ${orderNo}`,
     subtitle: 'The printed cloth of this order, to the embroiderer. Saving numbers the challan and opens it to print; the pieces are received against it.',
@@ -39659,7 +39705,11 @@ function flowEmbSendOpen(orderNo) {
       const noM = picked.filter(y => !(y.m > 0)).map(y => obUC(y.x.r.sku));
       if (noM.length) return `How many metres? Type them for ${noM.join(', ')}.`;
       const over = picked.filter(y => y.m > y.x.s.embCanSend + 0.01);
-      if (over.length) return over.map(y => `${obUC(y.x.r.sku)}: only ${nf(y.x.s.embCanSend)} m of its printed cloth is back and not sent`).join(' · ');
+      if (over.length) return wpRefuse(over.map(y => `${obUC(y.x.r.sku)}: only ${nf(y.x.s.embCanSend)} m of its printed cloth is back and not sent`).join(' · '));
+      const noPc = picked.filter(y => !(y.pc > 0)).map(y => obUC(y.x.r.sku));   // a challan of 0 pieces could never be received
+      if (noPc.length) return `How many pieces to make? Type them for ${noPc.join(', ')}.`;
+      const tooMany = flowEmbTooMany(picked.map(y => ({ sku: obUC(y.x.r.sku), typed: y.pc, most: flowEmbPcsLeft(y.x) })));
+      if (tooMany) return wpRefuse(tooMany);
       const now = new Date().toISOString();
       let no = flowEmbNo(date, isTest);
       const ch = { no, kind: 'emb', date, orderNo: obUC(orderNo), vendor: who, note: $('flemNote').value.trim(), at: now, by: ME.email || '',
@@ -39681,6 +39731,18 @@ function flowEmbSendOpen(orderNo) {
   });
 }
 
+/** Pieces of a line that may still be sent: its pieces less those back and passed (a QC reject goes again) and those still out on
+ *  open embroidery challans. */
+function flowEmbPcsLeft(x) {
+  const out = Object.values((typeof FLOW !== 'undefined' && FLOW.emb) || {}).filter(c => c && !c.cancelled && !c.closed).reduce((t, c) => {
+    const back = flowEmbRecv(c)[x.s.key] || 0;
+    return t + Math.max(0, (c.lines || []).filter(l => l.key === x.s.key).reduce((n, l) => n + (+l.pcs || 0), 0) - back);
+  }, 0);
+  return Math.max(0, (+x.r.qty || 0) - (x.s.embOk != null ? x.s.embOk : x.s.embBack || 0) - out);
+}
+/** The lines asking for more pieces than they can take, in words, or '' (28 Nov: 10 came in on a challan of 3). */
+const flowEmbTooMany = rows => rows.filter(r => r.typed > r.most).map(r => `${r.sku}: ${r.typed} pieces typed, at most ${r.most}`).join(' · ');
+
 /* ---- receiving: the embroidered pieces, against the challan ---- */
 function flowEmbRecvOpen(no) {
   if (!flowMay('flchl')) return flowSay('Embroidery is the fabric team\'s — this account has no "Printed fabric in" right.', true);
@@ -39700,6 +39762,8 @@ function flowEmbRecvOpen(no) {
     onSave: async () => {
       const items = {};
       lines.forEach((l, i) => { const n = Math.round(+((document.querySelector(`[data-emr="${i}"]`) || {}).value || 0)); if (n > 0) items[l.key] = (items[l.key] || 0) + n; });
+      const tooMany = flowEmbTooMany(lines.map(l => ({ sku: l.sku, typed: items[l.key] || 0, most: left(l) })));
+      if (tooMany) return wpRefuse(tooMany);
       const closeIt = !!($('flerClose') && $('flerClose').checked);
       if (!Object.keys(items).length && !closeIt) return 'Type the pieces that came back.';
       const date = $('flerDate').value || dToday(), now = new Date().toISOString(), patch = {};
@@ -68119,6 +68183,9 @@ async function fbaShipXlRun(plan) {
   if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can ship a dispatch.';
   const pairs = plan.items.flatMap(it => it.picks.map(r => [fgiRowId(r), it.e]));
   if (!pairs.length) return 'Nothing in the file matches an open dispatch.';
+  /* the typed box's date rule, for the file too (28 Nov): one wrong date refuses the whole file */
+  const dateWhy = plan.items.map(it => it.e).filter(e => e.date).map(e => ptDateErr(ptIsoDate(e.date) || String(e.date), 'Row ' + e.row + ' ship date', ME.admin ? 'fixed' : 'done')).find(Boolean);
+  if (dateWhy) return wpRefuse(dateWhy);
   const fresh = await fbaFresh(pairs.map(p => p[0]));
   const now = new Date().toISOString(), updates = {}, done = [], skipped = [];
   fresh.forEach(({ id, row }, i) => {
@@ -68201,6 +68268,8 @@ async function fbaShipSave(ids) {
   const v = id => String((($(id) || {}).value) || '').trim();
   const shipment = v('fbsShipment');
   if (!shipment) return 'Put in the shipment id — a shipment nobody can trace is not a shipment.';
+  const dateWhy = ptDateErr(v('fbsDate'), 'Ship date', ME.admin ? 'fixed' : 'done');   // 28 Nov: a date a year back was taken
+  if (dateWhy) return wpRefuse(dateWhy);
   const shipDate = fgiDmy(v('fbsDate')) || fgiDmy(dToday());
   const note = v('fbsRemarks');
   const single = ids.length === 1;
