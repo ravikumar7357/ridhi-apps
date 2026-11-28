@@ -3937,7 +3937,7 @@ function invAll() {
     /* The cloth cut to size and not yet sent to a printer is still ours: it is in the total though it left the RFD shelf. */
     return { fabric: n, type: invType(n), greige: fabGreigeOf(n), onOrder: o ? o.m : 0,
       inStoreGreige: g, atProcessor: p, inStoreRfd: r, rfdToPrinters: chOut, transit: transit, cut: cut, cutCh: cutCh, owned: g + p + r + cut.leftM + cutCh.reduce(function (a, x) { return a + x.metres; }, 0),
-      ppc: ppc && !ppc.__loading ? invChanPpc(ppc[n.toUpperCase()] || null, UI.invChan) : null };
+      ppc: ppc && !ppc.__loading ? (ppc[n.toUpperCase()] || null) : null };
   }).filter(invWorthShowing)
     .sort(function (a, b) { return a.type.localeCompare(b.type) || a.fabric.localeCompare(b.fabric, undefined, { numeric: true }); });
 }
@@ -3970,21 +3970,6 @@ function invWorthShowing(r) {
 }
 /** How much of the PPC need the RFD free covers, in whole percent (0–100). */
 function invCoverPct(p) { return p && p.need > 0.05 ? Math.min(100, Math.round((p.free || 0) / p.need * 100)) : 0; }
-/* ORDER BUCKETS (Ravi, 27 Nov: "Greige Desk me bucket ho SHP board / Online board"): the same PPC need, split by the board the order came from.
- * 'all' shows every order; 'shp' / 'onl' / 'oth' show only the fabrics that board's orders need, with that board's metres in the need column. */
-UI.invChan = 'shp';
-/* 27 Nov, Ravi: "I need only SHP board / Online board as a custom order request, or nothing" — the desk shows only these two boards' needs. Free RFD is shared, so
- * each board's short and greige-to-order are worked out from that board's own metres (invChanPpc). */
-var INV_CHAN = ['shp', 'onl'];
-function invChanLabel(k) { return (typeof FLOW_BOARDS !== 'undefined' && FLOW_BOARDS[k]) || k; }
-function invChanOf(p, k) { var c = p && p.chan && p.chan[k]; return c || { need: 0, lines: 0 }; }
-/** The PPC figure of a fabric for one board: its own need and lines, short after the free RFD, greige to order after what is on its way. */
-function invChanPpc(p, k) {
-  if (!p) return null;
-  var c = invChanOf(p, k); if (!(c.need > 0.05)) return null;
-  var short = Math.max(0, Math.round((c.need - Math.max(0, p.free)) * 100) / 100), toOrder = Math.max(0, short - p.onWay);
-  return Object.assign({}, p, { need: c.need, lines: c.lines, short: short, greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0 });
-}
 function invNeedCell(r, loading) {
   if (loading) return '<td class="tl muted">…</td>';
   var p = r.ppc;
@@ -4125,8 +4110,7 @@ function renderInv() {
     }).join('') + '</select>';
   /* PPC DEMAND FIRST (Ravi, 15 Oct): what PPC needs, and the greige PO for what is short, from here. Only in the app. */
   var ppcMap = typeof gdPpcMap === 'function' ? gdPpcMap() : null, withPpc = !!ppcMap, loading = !!(ppcMap && ppcMap.__loading);
-  var inView = all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type)) && (!withPpc || loading || !!x.ppc); });
-  var chanN = function (k) { return ppcMap && !loading ? Object.keys(ppcMap).filter(function (n) { return invChanOf(ppcMap[n], k).need > 0.05; }).length : 0; };
+  var inView = all.filter(function (x) { return (UI.inv === 'all' || x.type === UI.inv) && (lmMatch(x.fabric) || lmMatch(x.greige) || lmMatch(x.type)); });
   if ((!withPpc || loading) && !INV_ACT[UI.invShow]) UI.invShow = 'all';
   var shown = function (k) { return inView.filter(function (x) { return invShows(x, k); }); };
   /* short first, then late, then covered, then those PPC does not need */
@@ -4136,10 +4120,6 @@ function renderInv() {
   var byCut = invTransitColumn();
   UI.invCols = (withPpc ? 9 : 8) + (byCut ? 1 : 0);
   var tools = '<div class="row" style="margin:0 0 10px;align-items:center;flex-wrap:wrap;gap:8px">'
-    + (withPpc && !loading ? '<div class="seg" role="tablist" aria-label="Orders from">' + INV_CHAN.map(function (k) {
-        return '<button type="button" role="tab" class="segbtn' + (UI.invChan === k ? ' on' : '') + '" aria-selected="' + (UI.invChan === k) + '" data-invchan="' + k + '" title="Only the cloth the ' + esc(invChanLabel(k)) + ' needs">'
-          + esc(invChanLabel(k)) + ' <span class="n">' + chanN(k) + '</span></button>';
-      }).join('') + '</div>' : '')
     + (withPpc && !loading ? '<div class="seg" role="tablist" aria-label="Show">' + ['all', 'short', 'ok', 'none'].map(function (k) {
         return '<button type="button" role="tab" class="segbtn' + (UI.invShow === k ? ' on' : '') + '" aria-selected="' + (UI.invShow === k) + '" data-invshow="' + k + '">'
           + INV_SHOW_LABEL[k] + ' <span class="n">' + shown(k).length + '</span></button>';
@@ -4354,7 +4334,7 @@ function invOpenPo(poNo, chId) {
 }
 function wireInventory() {
   document.addEventListener('click', function (ev) {
-    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow],[data-invchan],[data-invgo]') : null;
+    var d = ev.target.closest ? ev.target.closest('[data-invd],[data-openpo],[data-invh],[data-histshelf],[data-histday],[data-histpo],#histAll,#histXlsx,[data-invshow],[data-invgo]') : null;
     if (d && d.getAttribute('data-invgo')) { UI.tab = d.getAttribute('data-invgo'); UI.invOpen = ''; render(); return; }
     if (d && d.getAttribute('data-invd')) { var k = d.getAttribute('data-invd'); UI.invOpen = UI.invOpen === k ? '' : k; render(); return; }
     if (d && d.getAttribute('data-openpo')) { invOpenPo(d.getAttribute('data-openpo')); return; }
@@ -4364,7 +4344,6 @@ function wireInventory() {
     if (d && d.id === 'histAll') { invHistOpenAll(); return; }
     if (d && d.getAttribute('data-histpo')) { var p = d.getAttribute('data-histpo').split('|'); $('lmHist').classList.add('hide'); invOpenPo(p[0], p[1]); return; }
     if (d && d.id === 'histXlsx') { invHistXlsx(); return; }
-    if (d && d.getAttribute('data-invchan')) { UI.invChan = d.getAttribute('data-invchan'); UI.invOpen = ''; render(); return; }
     if (d && d.getAttribute('data-invshow')) { UI.invShow = d.getAttribute('data-invshow'); UI.invOpen = ''; render(); return; }
   });
   document.addEventListener('click', function (ev) {
@@ -6085,7 +6064,7 @@ function gdPpcMap() {
   Object.keys(cov.fab).forEach(function (k) {
     var f = cov.fab[k]; if (!(f.need > 0.05)) return;
     var pipe = gdPipeline(f.name), toOrder = Math.max(0, f.short - (pipe.order + pipe.greige + pipe.proc));
-    out[String(f.name).toUpperCase()] = { name: f.name, need: f.need, lines: f.lines, free: Math.max(0, f.free), short: f.short, chan: f.chan,
+    out[String(f.name).toUpperCase()] = { name: f.name, need: f.need, lines: f.lines, free: Math.max(0, f.free), short: f.short,
       desk: gdRfdShelf(f.name), onWay: pipe.order + pipe.greige + pipe.proc, greigeM: toOrder > 0.05 ? Math.ceil(toOrder / (1 - GD_LOSS)) : 0, greige: fabGreigeOf(f.name) };
   });
   return out;
