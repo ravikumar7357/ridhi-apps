@@ -7,7 +7,9 @@
  * (saRebuild, loadSaCache). renderSa draws the chosen view as a month-by-month table, heat-mapped against
  * each row's own average; Export writes the view as CSV.
  * Main functions: ensureSa, loadSaCache, saRebuild, renderSa, saMsg; the handlers of the pickers, the filter
- * box, Rebuild from orders and Export. */
+ * box, Rebuild from orders and Export.
+ * (28 Nov 2026) Insights above the table and the top-15 rows: sales/sales-analysis-insights.js (sai*) — the table's cells, colours and
+ * maths and Export are unchanged. */
 
 /* ================= SALES ANALYSIS =================
  *
@@ -39,6 +41,7 @@ function saMsg(text, bad) {
 
 // Opening the tab: read the saved matrix for the brand if it is not here yet, then draw.
 async function ensureSa() {
+  if (typeof saiShell === 'function') saiShell();         // (28 Nov 2026) the insights' frame at once, skeletons in it
   if (!SA.data) await loadSaCache();
   renderSa();
 }
@@ -54,11 +57,10 @@ async function loadSaCache() {
       return;
     }
     const data = meta.data();
+    // the SKU rows' chunks read together (28 Nov 2026: one after the other before), kept in their order
+    const parts = await Promise.all(Array.from({ length: data.skuChunks || 0 }, (x, i) => getDoc(doc(db, 'sarows', `${SA.brand}_${i}`))));
     let sku = [];
-    for (let i = 0; i < (data.skuChunks || 0); i++) {
-      const chunk = await getDoc(doc(db, 'sarows', `${SA.brand}_${i}`));
-      if (chunk.exists()) sku = sku.concat(chunk.data().r || []);
-    }
+    parts.forEach(chunk => { if (chunk.exists()) sku = sku.concat(chunk.data().r || []); });
     SA.data = {
       months: data.months || [], labels: data.labels || [], at: data.at || '',
       color: data.color || [], article: data.article || [], sku,
@@ -199,6 +201,9 @@ function renderSa() {
     .replace(/[<>&"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
   const nf = value => Math.round(Number(value) || 0).toLocaleString('en-US');
   // --- nothing to draw yet ---
+  // (28 Nov 2026) the insights above the table (sales/sales-analysis-insights.js) follow the brand / view / metric
+  if (typeof saiRender === 'function') saiRender();
+  if (!SA.data && typeof saiAfterTable === 'function') saiAfterTable({ shown: [], rest: 0 }, SA.view);
   if (SA.err && !SA.data) {
     $('saTable').innerHTML = '<tbody><tr><td class="ui-empty">Nothing to show.'
       + '</td></tr></tbody>';
@@ -238,13 +243,17 @@ function renderSa() {
     + idCols.map((col, i) => `<th${i === 0 ? ' class="frz"' : ''}>${esc(col[1])}</th>`).join('')
     + data.labels.map(label => `<th class="num">${esc(label)}</th>`).join('') + '</tr></thead>';
 
-  const body = rows.slice(0, 400).map(row => {
+  // (28 Nov 2026) the TOP 15 rows by default (the table's own order); a search, "Show other N", an insight card or a bar shows the others
+  const lim = typeof saiLimit === 'function' ? saiLimit(rows, search) : { shown: rows.slice(0, 400), rest: 0 };
+  const body = lim.shown.map(row => {
     const cells = row.m || [];
     const vals = cells.map(valOf);
     const mean = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
     const peak = vals.reduce((a, b) => Math.max(a, b), 0);
-    const ids = idCols.map(([key], i) => `<td${i === 0 ? ' class="frz"' : ''}${SA.view === 'sku' && key === 'name'
-      ? '' : ''}>${esc(row[key] == null ? '' : row[key])}</td>`).join('');
+    // (28 Nov 2026) the catalogue-less group "(unknown)" shown as "No colour in catalog (N SKUs)", its SKUs in the tooltip — to fix them
+    const unk = i => (i === 0 && row.name === '(unknown)' && typeof saiLabel === 'function' && SA.view !== 'sku'
+      ? ` title="${esc('Not in the Catalog tab: ' + (typeof saiUnknownSkus === 'function' ? saiUnknownSkus(data, SA.view).join(', ') : ''))}"` : '');
+    const ids = idCols.map(([key], i) => `<td${i === 0 ? ' class="frz"' : ''}${unk(i)}>${esc(i === 0 && unk(i) ? saiLabel(row, SA.view) : row[key] == null ? '' : row[key])}</td>`).join('');
     const monthCells = cells.map(cell => {
       const value = valOf(cell);
       let cls = '';
@@ -258,12 +267,13 @@ function renderSa() {
       }
       return `<td class="num${cls}">${fmt(cell)}</td>`;
     }).join('');
-    return `<tr>${ids}${monthCells}</tr>`;
+    return `<tr data-sa-row="${esc(row.name)}">${ids}${monthCells}</tr>`;
   }).join('');
 
   $('saTable').innerHTML = head + '<tbody>' + (body
     || '<tr><td colspan="9" class="ui-empty">Nothing matches that search.</td></tr>')
     + '</tbody>';
+  if (typeof saiAfterTable === 'function') saiAfterTable(lim, SA.view);
   // --- the message line ---
   saMsg(`${nf(rows.length)} row(s)${rows.length > 400 ? ' · showing the first 400 · Export covers all of them' : ''}`
     + ` · ${data.months.length} month(s) · built ${esc(data.at)}`

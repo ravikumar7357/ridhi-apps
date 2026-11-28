@@ -1,8 +1,8 @@
-/* SEARCH KEYWORDS — winning keywords + our house style (27 Nov 2026): listing/kw-win.js and the one suggestion-words rule
- * (listing-rules.js lrSuggestWords, search-terms mode) over the real Fix all search terms popup, Listing Content, ✨ AI and Create Listing.
+/* SEARCH KEYWORDS — winning words + our house style: listing/kw-win.js and the one suggestion-words rule (listing-rules.js lrSuggestWords,
+ * search-terms mode) over the real Fix all search terms popup, Listing Content, ✨ AI and Create Listing.
  *   node tests/kw-win-test.js
- * The data is SAMPLE rows in Amazon's real download layouts (Brand Analytics → Top search terms with the "Top Clicked Brand" columns, the
- * older layout without them, Search Query Performance Brand view) — this machine cannot reach Seller Central, so no real report is here.
+ * (28 Nov 2026) The 2nd source is the Bestseller keyword scout (Pricing-API/KeywordScout.gs), in place of the Brand Analytics uploads: its
+ * tab here is what the real backend file writes for SAMPLE bestsellers (tests/kw-scout-sample.js — this machine cannot reach Amazon).
  * Two listings in our real title format: a Ridhi tablecloth and a Whimsical Corner (CPC) napkin set; their before → after is printed. */
 const cp = require('child_process');
 const path = require('path');
@@ -13,41 +13,12 @@ const strip = html => String(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
 const bytes = s => Buffer.byteLength(String(s).replace(/[\s;,.]+/g, ''), 'utf8');
 const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(r => setTimeout(r, 1)); };
 
-// ---- Amazon's Top search terms download (2023+ layout: brands and categories, then the 3 clicked products) ----
-const HEAD = 'Search Frequency Rank,Search Term,Top Clicked Brand #1,Top Clicked Brands #2,Top Clicked Brands #3,Top Clicked Category #1,Top Clicked Category #2,Top Clicked Category #3,'
-  + [1, 2, 3].map(n => `Top Clicked Product #${n}: ASIN,Top Clicked Product #${n}: Product Title,Top Clicked Product #${n}: Click Share,Top Clicked Product #${n}: Conversion Share`).join(',') + ',Reporting Date';
-const row = (rank, term, prods) => [rank, term, ...[0, 1, 2].map(i => (prods[i] ? `"${prods[i][0]}"` : '')), 'Home & Kitchen', prods[1] ? 'Home & Kitchen' : '', prods[2] ? 'Home & Kitchen' : '',
-  ...[0, 1, 2].flatMap(i => (prods[i] ? [prods[i][1], `"${prods[i][2]}"`, prods[i][3], prods[i][4]] : ['', '', '', ''])), '11/21/2026'].join(',');
-const MAISON = "Maison d' Hermine";
-const TERMS_CSV = ['Reporting Range=["Weekly"],Select week=["Week 47 | 2026-11-15 - 2026-11-21 2026"]', HEAD,
-  row(12400, 'farmhouse tablecloth rectangle', [[MAISON, 'B0MAISON01', "Maison d' Hermine Colmar 100% Cotton Tablecloth 60 x 90 Inch", 18.2, 22.1], ['Etopia', 'B0ETOPIA01', 'Etopia Rectangle Tablecloth Farmhouse', 9.1, 8.0], ['Angry Orange', 'B0ANGRY001', 'Angry Orange Tablecloth', 5.0, 4.1]]),
-  row(3100, 'boho tablecloth', [['Etopia', 'B0ETOPIA02', 'Etopia Boho Tablecloth', 20.0, 15.0]]),
-  row(5200, 'round tablecloth floral', [['Angry Orange', 'B0ANGRY002', 'Angry Orange Round Floral Tablecloth', 30, 25]]),
-  row(8800, 'white tablecloth', [['Lahome', 'B0LAHOME01', 'Lahome White Tablecloth', 30, 25]]),
-  row(9900, 'waterproof tablecloth', [['Lahome', 'B0LAHOME02', 'Lahome Waterproof Tablecloth', 30, 25]]),
-  row(13000, 'linen tablecloth', [['Lahome', 'B0LAHOME03', 'Lahome Linen Tablecloth', 30, 25]]),
-  row(14000, 'tablecloth 70 x 120', [['Lahome', 'B0LAHOME04', 'Lahome Tablecloth 70x120', 30, 25]]),
-  row(16000, 'christmas tablecloth buffalo plaid', [['Angry Orange', 'B0ANGRY003', 'Angry Orange Christmas Tablecloth', 30, 25]]),
-  row(18000, 'thanksgiving tablecloth vintage', [['Etopia', 'B0ETOPIA05', 'Etopia Vintage Tablecloth', 1.0, 0.5]]),      // nobody wins it (shares too small)
-  row(20000, 'block print tablecloth', [['Ridhi', 'B0RIDHI001', 'Ridhi Hand Block Print Tablecloth', 40, 35]]),           // we win it: not a competitor's win
-  row(22000, 'etopia tablecloth', [['Etopia', 'B0ETOPIA03', 'Etopia Tablecloth', 40, 35]]),
-  row(7400, 'cloth napkins farmhouse wedding', [['Etopia', 'B0ETOPIA04', 'Etopia Cloth Napkins Set of 6', 14, 12], [MAISON, 'B0MAISON02', "Maison d' Hermine Napkins", 9, 7]]),
-  row(15000, 'cotton napkins cloth washable', [['Etopia', 'B0ETOPIA06', 'Etopia Cotton Napkins', 14, 12]]),
-  row(21000, 'linen napkins', [['Etopia', 'B0ETOPIA07', 'Etopia Linen Napkins', 14, 12]]),
-  row(17000, 'thanksgiving napkins fall', [['Angry Orange', 'B0ANGRY004', 'Angry Orange Fall Napkins', 14, 12]]),
-  row(19000, 'napkin rings set', [['Angry Orange', 'B0ANGRY005', 'Angry Orange Napkin Rings', 14, 12]]),
-  row(25000, 'organic cotton napkins', [['Etopia', 'B0ETOPIA08', 'Etopia Organic Napkins', 14, 12]]),
-  row(27000, 'napkins boho green', [['Angry Orange', 'B0ANGRY006', 'Angry Orange Boho Napkins Green', 14, 12]]),
-].join('\n');
-// the older layout: "#1 Clicked ASIN", "#1 Product Title", shares with %, no brand column
-const OLD_CSV = 'Department,Search Term,Search Frequency Rank,#1 Clicked ASIN,#1 Product Title,#1 Click Share,#1 Conversion Share,#2 Clicked ASIN,#2 Product Title,#2 Click Share,#2 Conversion Share,#3 Clicked ASIN,#3 Product Title,#3 Click Share,#3 Conversion Share\n'
-  + 'Amazon.com,placemats set of 4 boho,9100,B0ANGRY009,"Angry Orange Boho Placemats",12.50%,10.00%,B0XX000001,"Bohemian Home Placemats",5.00%,3.00%,,,,\n'
-  + 'Amazon.com,table runner farmhouse,9300,B0ETOPIA09,"Etopia Farmhouse Table Runner",11.00%,9.00%,,,,,,,,\n';
-// Search Query Performance, Brand view
-const SQP_CSV = 'Brand=["Ridhi"],Reporting Range=["Weekly"],Select week=["Week 47 | 2026-11-15 - 2026-11-21 2026"]\n'
-  + 'Search Query,Search Query Score,Search Query Volume,Impressions: Total Count,Impressions: Brand Count,Impressions: Brand Share %,Clicks: Total Count,Clicks: Click Rate %,Clicks: Brand Count,Clicks: Brand Share %,Purchases: Total Count,Purchases: Purchase Rate %,Purchases: Brand Count,Purchases: Brand Share %,Reporting Date\n'
-  + 'farmhouse tablecloth rectangle,1,48210,900000,1876,0.21,10420,1.2,13,0.12,610,0.07,2,0.33,11/21/2026\n'
-  + 'boho tablecloth,2,120400,2100000,940,0.04,30100,1.4,4,0.01,1800,0.09,0,0,11/21/2026\n';
+// ---- the bestseller scout's tab, as Pricing-API/KeywordScout.gs writes it for the sample bestsellers (one Run now) ----
+const fs = require('fs');
+const { scoutTab } = require('./kw-scout-sample.js');
+const SCOUT = scoutTab();
+// …as if it had run at `ms` (a day ago by default) — the words stay the sample's
+const scoutAt = ms => { const t = JSON.parse(JSON.stringify(SCOUT)); t.ms = ms || Date.now() - 864e5; t.at = new Date(t.ms).toISOString().slice(0, 16).replace('T', ' '); return t; };
 
 // ---- the two listings, in our real title format ----
 const T1 = { brand: 'SP', sku: 'RTC6090-IND', asin: 'B0RTCIND01', parent: 'P-RTC', pt: 'TABLECLOTH', color: 'Indigo Blue', size: '60x90', subcat: 'Rectangle Tablecloth',
@@ -89,10 +60,8 @@ function setup(o) {
   });
   C.LI_WS.liveV++;
   C.reset();
-  if (o.data !== false) {
-    const p = C.kwParse(TERMS_CSV), q = C.kwParse(OLD_CSV);
-    C.kwUse({ terms: C.kwMerge(p.rows, q.rows).rows, to: o.to || p.to, sqp: { SP: C.kwParse(SQP_CSV).rows } });
-  } else C.kwUse({});
+  if (o.data !== false) C.kwUse({ scout: scoutAt(o.ranAt) });
+  else C.kwUse({});
   if (o.ppc === true) C.kwUsePpc({ terms: PPC, groups: AG, days: 30, src: 'srchTerm' });
   else if (o.ppc === 'none') C.kwUsePpc(null);
   return C;
@@ -105,39 +74,38 @@ const suggest = (C, L, text, extra) => C.lrSuggestWords(text, Object.assign({ mo
 const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
 
 (async () => {
-  console.log('== the files: Amazon\'s download layouts are read, never guessed ==');
-  {
-    const C = setup({ data: false });
-    const p = C.kwParse(TERMS_CSV);
-    const f = p.rows.find(r => r.q === 'farmhouse tablecloth rectangle');
-    ok('Top search terms (2023+ layout): every search, its rank, the 3 clicked products with brand, click share and conversion share as fractions; the report\'s week end',
-      p.ok && p.kind === 'terms' && p.rows.length === 18 && f.r === 12400 && f.p.length === 3 && f.p[0].b === MAISON && f.p[0].a === 'B0MAISON01' && Math.abs(f.p[0].c - 0.182) < 1e-9 && Math.abs(f.p[0].v - 0.221) < 1e-9 && p.to === '2026-11-21',
-      JSON.stringify([p.ok, p.rows.length, f && f.p[0], p.to]));
-    const q = C.kwParse(OLD_CSV);
-    ok('…the older layout (#1 Clicked ASIN, shares with %, no brand column) too', q.ok && q.kind === 'terms' && q.rows.length === 2 && q.rows[0].p[0].b === '' && Math.abs(q.rows[0].p[0].v - 0.10) < 1e-9, JSON.stringify(q.rows[0]));
-    const s = C.kwParse(SQP_CSV);
-    ok('Search Query Performance (Brand view): our clicks and purchases per search', s.ok && s.kind === 'sqp' && s.rows[0].q === 'farmhouse tablecloth rectangle' && s.rows[0].c === 13 && s.rows[0].o === 2 && s.rows[0].vol === 48210, JSON.stringify(s.rows[0]));
-    const bad = C.kwParse('Order ID,SKU,Quantity\n1,2,3');
-    ok('another file is refused, naming what it is not', !bad.ok && /neither Brand Analytics "Top search terms"/.test(bad.err));
-    const m = C.kwMerge(p.rows, [{ q: 'boho tablecloth', r: 2000, p: [] }, { q: 'new search', r: 1, p: [] }]);
-    ok('a new upload replaces the searches it shares — never counted twice', m.rows.length === 19 && m.replaced === 1 && m.added === 1 && m.rows.find(r => r.q === 'boho tablecloth').r === 2000);
-    const msg = await C.kwUpload(TERMS_CSV, 'tablecloth.csv', 'SP');
-    ok('an upload says what it read (on the test site: kept in this visit only)', /Top search terms: 18 searches read \(up to 21 Nov 2026\) · 18 new, 0 already there/.test(msg) && C.KW.terms.rows.length === 18, msg);
-  }
-
-  console.log('== who wins, per product type ==');
+  console.log('== the bestseller scout\'s words in Sellora: ≥ 30 %, brand names out, never invented ==');
   const C = setup();
   {
-    const md = C.kwModel();
-    const tc = md.types.get('tablecloth').map(t => t.q);
-    ok('searches grouped by product type (tablecloth, napkin, placemat, runner) — "napkin rings" are read as napkins too, then skipped as not a napkin', md.types.has('tablecloth') && md.types.has('napkin') && md.types.has('placemat') && md.types.has('runner'), [...md.types.keys()].join());
-    const fh = md.types.get('tablecloth').find(t => t.q === 'farmhouse tablecloth rectangle');
-    ok('"farmhouse tablecloth rectangle": won by Maison d\' Hermine (the brand column), competitors\' conversion share 34 %', fh.wins && fh.top.brand === MAISON && Math.abs(fh.cv - 0.342) < 1e-9, JSON.stringify([fh.top.brand, fh.cv]));
-    ok('a search we win ourselves ("block print tablecloth", Ridhi) is not a competitor\'s win; one with tiny shares is not a win either', !md.types.get('tablecloth').find(t => t.q === 'block print tablecloth').wins && !md.types.get('tablecloth').find(t => t.q === 'thanksgiving tablecloth vintage').wins);
-    const pl = md.types.get('placemat')[0];
-    ok('no brand column: the brand is a watched brand in the title (Angry Orange), else the title\'s first words — marked as a guess', pl.top.brand === 'Angry Orange' && pl.top.sure && pl.comp[1].brand === 'Bohemian' && !pl.comp[1].sure, JSON.stringify(pl.comp.map(p => [p.brand, p.sure])));
-    ok('best first: competitors\' conversion share ÷ search rank ("boho tablecloth" rank 3,100 before "farmhouse…" rank 12,400)', tc.indexOf('boho tablecloth') < tc.indexOf('farmhouse tablecloth rectangle'), tc.join(' | '));
-    ok('SQP: our own clicks / purchases sit on the search', fh.sqp.SP && fh.sqp.SP.o === 2);
+    const st = C.kwStatus();
+    ok('its line: "Bestseller words: the top 25 by Best Seller Rank per product type, scout of …"', st.ok && /^Bestseller words: the top 25 by Best Seller Rank per product type, scout of \d+ \w{3} \d{4}$/.test(st.text), st.text);
+    const tw = C.kwScoutWords('tablecloth');
+    const tws = tw.map(e => e.w);
+    ok('tablecloth: the words ≥ 30 % of the top 25 use — farmhouse 12 (48 %), wrinkle free 10, boho 9 …; never rustic (6 = 24 %)', tw.length > 0 && tw.every(e => e.share >= 0.3) && tw.find(e => e.w === 'farmhouse').n === 12 && tw.find(e => e.w === 'wrinkle free').n === 10 && tw.find(e => e.w === 'boho').n === 9 && !tws.includes('rustic'), tws.join(' | '));
+    ok('brand names out: every bestseller brand (Lahome, Utopia Home, Etopia, Maison, Angry Orange), ours, and the IP & Trademark Guard\'s — "pottery barn" (in the backend\'s list) and "pottery", "barn" alone',
+      !tws.some(w => /lahome|utopia|etopia|maison|hermine|angry|orange|ridhi|pottery|barn/.test(w)) && SCOUT.types.tablecloth.words.some(x => x.w === 'pottery barn') && SCOUT.types.tablecloth.words.some(x => x.w === 'pottery'), tws.join(' | '));
+    ok('…most used first', tw.every((e, i, a) => !i || a[i - 1].n >= e.n));
+    ok('the bestseller brands go into "other brands" — taken out of our search terms (Lahome, Utopia Home)', ['Lahome', 'Utopia Home'].every(b => C.kwOthers(C.getLR()).includes(b)), C.kwOthers(C.getLR()).join());
+    const nw = C.kwScoutWords('napkin').map(e => e.w);
+    ok('napkins: farmhouse, wedding, boho, linen, fall … — never "organic" (a restricted claim on the Guard\'s list)', ['farmhouse', 'wedding', 'boho', 'linen', 'fall'].every(w => nw.includes(w)) && !nw.some(w => /organic/.test(w)), nw.join(' | '));
+    ok('a product type with no results (placemats) has no words — none are made up', C.kwScoutWords('placemat').length === 0 && C.kwWinFor({ brand: 'SP', sku: 'X', title: 'Ridhi Floral Placemats Set of 4', kw: '', facts: {}, pt: 'PLACEMAT' }).words.length === 0);
+    const D = setup({ data: false });
+    D.kwUse({ scout: Object.assign(scoutAt(), { types: Object.assign({}, SCOUT.types, { blanket: Object.assign({}, SCOUT.types.tablecloth, { q: 'blanket', pt: 'BLANKET' }) }) }) });
+    ok('ANY product type in our listings: an Amazon type the scout read under its own name is the listing\'s type ("BLANKET" → blanket); unknown without it', D.kwTypeOfListing(null, 'BLANKET', 'Ridhi Throw') === 'blanket' && C.kwTypeOfListing(null, 'BLANKET', 'Ridhi Throw') === '');
+    D.HEALTH.SP.rows.push({ brand: 'SP', sku: 'BL-1', pt: 'BLANKET' }, { brand: 'SP', sku: 'NP-9', pt: 'NAPKIN' }, { brand: 'SP', sku: 'HM-1', pt: 'HOME' });
+    const tl = D.kwScoutTypeList();
+    ok('…Run now sends our listings\' product types: ours by their word (napkin → "cloth napkins"), another by its own name (blanket); too-wide ones (HOME) not', tl.some(x => x.join('~') === 'blanket~blanket~BLANKET') && tl.some(x => x.join('~') === 'napkin~cloth napkins~NAPKIN') && !tl.some(x => x[2] === 'HOME'), JSON.stringify(tl));
+    const calls = [];
+    const R = setup({ baCall: async q => { calls.push(q); if (q.kwscout === 'run') return { ok: true, running: false, last: { ms: 100 } }; if (q.kwscout === 'status') return { ok: true, running: false, last: { ms: 200, types: 6, fail: 0 } }; if (q.cache === 'kwScout') return { ok: true, data: scoutAt() }; return {}; } });
+    R.KW.tab = 'scout';
+    await R.kwScoutRun();
+    ok('↻ Run now asks the backend (?kwscout=run, with our product types) — the page itself calls no Amazon and sends nothing', calls.some(q => q.kwscout === 'run' && typeof q.types === 'string') && R.KW.running && /^Running: the scout is reading/.test(R.KW.runMsg), JSON.stringify(calls));
+    const done = await R.kwScoutPoll(0);
+    clearTimeout(R.KW.pollT);
+    ok('…then where it is (?kwscout=status): done → the new words read again from the backend (?cache=kwScout), every screen works them out again', done && calls.some(q => q.kwscout === 'status') && calls.some(q => q.cache === 'kwScout') && !R.KW.running && /^Done: 6 product types read/.test(R.KW.runMsg), R.KW.runMsg);
+    const U = setup({ data: false, baCall: async q => { if (q.kwscout) throw new Error('The backend sent something that is not data: <html>'); return {}; } });
+    await U.kwScoutRun();
+    ok('the backend not deployed yet: Run now says so — nothing else happens', !U.KW.running && /does not have the scout yet \(KeywordScout\.gs is waiting to be deployed\)/.test(U.KW.runMsg), U.KW.runMsg);
   }
 
   console.log('== rule 0: our brands, important words, duplicates (search terms only) ==');
@@ -164,10 +132,10 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
   {
     const w = C.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(C, T1), pt: T1.pt });
     const words = w.words.map(x => x.w);
-    ok('the tablecloth (indigo blue rectangle cotton 60x90): "boho" and "farmhouse" — each with why (not "buffalo plaid": a Christmas search, and a pattern it is not)', w.type === 'tablecloth' && words.join() === 'boho,farmhouse'
-      && w.words[1].why === "wins for Maison d' Hermine on 'farmhouse tablecloth rectangle', search rank 12,400", JSON.stringify(w.words.map(x => x.w + ': ' + x.why)));
-    ok('skipped whole: a search for another shape (round), colour (white), material (linen), size (70 x 120), what it is not (waterproof)', !words.some(x => /round|floral|white|linen|waterproof|70|120/.test(x)), words.join());
-    ok('never a season search (christmas … — the Season planner adds those), never a brand (etopia, lahome…), never a product word', !words.some(x => /christmas|buffalo|plaid|vintage|etopia|lahome|maison|tablecloth|table/.test(x)), words.join());
+    ok('the tablecloth (indigo blue rectangle cotton 60x90): "farmhouse" and "boho" (the most used first) — each with why (not "buffalo plaid": a Christmas word, and a pattern it is not)', w.type === 'tablecloth' && words.join() === 'farmhouse,boho'
+      && w.words[0].why === 'used by 12 of the top 25 bestsellers' && w.words[1].why === 'used by 9 of the top 25 bestsellers' && w.words.every(x => x.src === 'scout'), JSON.stringify(w.words.map(x => x.w + ': ' + x.why)));
+    ok('skipped: another shape (round), colour (white), material (linen), what it is not (waterproof), a low-value word (elegant), a word under 30 % (rustic), the listing\'s own words (wrinkle free)', !words.some(x => /round|floral|white|linen|waterproof|elegant|rustic|wrinkle|free|70|120/.test(x)), words.join());
+    ok('never a season word (christmas … — the Season planner adds those), never a brand (etopia, lahome, utopia home, pottery barn — the IP & Trademark Guard\'s), never a product word', !words.some(x => /christmas|buffalo|plaid|vintage|etopia|lahome|utopia|home|maison|pottery|barn|tablecloth|table/.test(x)), words.join());
     const plaid = C.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: 'plaid', facts: facts(C, T1), pt: T1.pt });
     ok('…a season search stays out even when the listing says its pattern ("plaid" in its search terms)', !plaid.words.some(x => /buffalo/.test(x.w)), plaid.words.map(x => x.w).join());
     const n = C.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: N1.kw, facts: facts(C, N1), pt: N1.pt });
@@ -194,10 +162,10 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     const firstCut = order.findIndex(x => x.why === 'cut to fit' || x.why === 'in the title');
     const lastLow = Math.max(order.map(x => x.why).lastIndexOf('low-value word'), order.map(x => x.why).lastIndexOf('leftover'));
     const addCut = order.filter(x => x.why === 'limit');
-    ok('…then the ADDED words, the weakest first ("farmhouse", then "boho"), before any of the listing\'s own words is cut', lastLow < firstCut
-      && r.toks.filter(t => t.added).sort((a, b) => a.n - b.n).map(t => t.w).join() === 'farmhouse,boho' && order.findIndex(x => x.why === 'cut to fit') > -1, JSON.stringify([r.notAdded, addCut]));
+    ok('…then the ADDED words, the weakest first ("boho", then "farmhouse"), before any of the listing\'s own words is cut — a bestseller word only takes room left over', lastLow < firstCut
+      && r.toks.filter(t => t.added).sort((a, b) => a.n - b.n).map(t => t.w).join() === 'boho,farmhouse' && order.findIndex(x => x.why === 'cut to fit') > -1, JSON.stringify([r.notAdded, addCut]));
     // (1 Dec 2026) low value and the leftovers (style, for, her, the, a) go first — so only 4 of its own words are cut to fit, and the
-    // Brand Analytics words (they never push its own words out) find no room left
+    // bestseller words (they never push its own words out) find no room left
     ok('…the listing\'s own words keep their place: only 4 cut to fit (bridal, shower, anniversary, festive); boho and farmhouse not added (no room)', r.removed.filter(x => x.why === 'cut to fit').map(x => x.w).join() === 'bridal,shower,anniversary,festive' && r.notAdded.map(a => a.w).sort().join() === 'boho,farmhouse' && !r.added.length && fits(r.after) && r.removed.filter(x => x.why === 'leftover').map(x => x.w).join() === 'style,for,her,the,a', JSON.stringify([r.after, r.removed.filter(x => /leftover|cut/.test(x.why)).map(x => x.w)]));
     ok('…and only then the listing\'s own ordinary words, from the end — never our brand or an important word', !r.removed.some(x => x.why === 'cut to fit' && /^(ridhi|hand|block|print|tablecloth|cotton|indigo|blue|rectangular|dining|kitchen)$/.test(x.w)), JSON.stringify(r.removed.filter(x => x.why === 'cut to fit').map(x => x.w)));
     let kwNS = 'ridhi cpc whimsical corner hand block print blockprint handmade napkins cotton sage green dinner kitchen dining washable reusable wrinkle free';
@@ -213,7 +181,7 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     const it = C2.kfItemOf('SP', C2.HEALTH.SP.rows.find(x => x.sku === T1.sku), C2.hCtx(), null);
     const plan = C2.kfPlan(it);
     ok('Fix all search terms (kfPlan) sends only generic_keyword — the title, bullets and description are never in the patch', plan.ok && plan.patches.length === 1 && plan.patches[0].path === '/attributes/generic_keyword' && plan.b1 <= 249, JSON.stringify([plan.ok, plan.why, plan.patches]));
-    ok('its plan of the over-limit tablecloth: "Shorten to 248 bytes" (no room left for a Brand Analytics word)', /^Shorten to 248 bytes$/.test(plan.what) && !plan.added.length, plan.what);
+    ok('its plan of the over-limit tablecloth: "Shorten to 248 bytes" (no room left for a bestseller word)', /^Shorten to 248 bytes$/.test(plan.what) && !plan.added.length, plan.what);
   }
 
   console.log('== the preview (Fix all search terms popup): + added with why, struck words with their reason, 🔒 protected, bytes ==');
@@ -229,10 +197,10 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     await settle();
     const html = C3.el('spModalBox').innerHTML;
     const s = strip(html);
-    ok('the data line: "🏆 Winning keywords: Brand Analytics up to 21 Nov 2026 … · N winning words added"', /🏆 Winning keywords: Brand Analytics up to 21 Nov 2026/.test(s) && /words? added/.test(s), s.slice(0, 600));
+    ok('the data line: "🔎 Bestseller words: the top 25 by Best Seller Rank per product type, scout of … · N words added" — no Brand Analytics', /🔎 Bestseller words: the top 25 by Best Seller Rank per product type, scout of \d+ \w{3} \d{4} · \d+ words? added/.test(s) && !/Brand Analytics|🏆 Winning keywords/.test(s), s.slice(0, 600));
     ok('a removed word struck through with its reason: duplicate, other brand, limit', /<s class="kf-cut" title="duplicate">napkin<\/s><small class="kf-why">duplicate<\/small>/.test(html) && /<s class="kf-cut" title="other brand">angry<\/s>/.test(html) && /title="limit">z{200}<\/s>/.test(html), (html.match(/<div class="kf-text">[\s\S]*?<\/div>/) || [''])[0].slice(0, 1500));
     ok('our brands and important words shown protected 🔒 (with what they are on hover)', /<span class="kf-lock" title="protected: our brand">🔒cpc<\/span>/.test(html) && /title="protected: its product">🔒napkins/.test(html) && /title="protected: its colour">🔒sage/.test(html), html.match(/kf-lock[^<]*<\/span>/g) && html.match(/kf-lock[^<]*<\/span>/g).slice(0, 6).join(' '));
-    ok('each added word marked "+ farmhouse (wins for … on \'cloth napkins farmhouse wedding\', search rank 7,400)"', /<ins class="kf-add">\+ farmhouse<\/ins> <span class="muted">\(wins for Etopia on 'cloth napkins farmhouse wedding', search rank 7,400\)<\/span>/.test(html.replace(/&#39;/g, "'")), (html.match(/kf-adds[\s\S]{0,400}/) || [''])[0]);
+    ok('each added word marked "+ farmhouse (used by 10 of the top 20 bestsellers)"', /<ins class="kf-add">\+ farmhouse<\/ins> <span class="muted">\(used by 10 of the top 20 bestsellers\)<\/span>/.test(html), (html.match(/kf-adds[\s\S]{0,400}/) || [''])[0]);
     ok('bytes before → after, within the limit', /<span class="err">\d+<\/span> → <span class="ok" data-kf-n="CPC\|CPN18-SAGE6">\d+<\/span> bytes/.test(html));
     C3.kfClick({ dataset: { kf: 'cancel' } });
   }
@@ -252,35 +220,35 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     ok('…and the cleaned answer passes our checks (no "our brand name" fail any more)', !chk.fails.some(f => /our brand|said twice|already in the title|bytes/.test(f)), chk.fails.join(' | '));
   }
 
-  console.log('== no data / old data: only rule 0 + the limit — never a made-up keyword ==');
+  console.log('== no scout data / old data: that source is skipped — never a made-up keyword ==');
   {
     const N = setup({ data: false });
     const st = N.kwStatus();
-    ok('nothing uploaded: "No winning-keyword data (nothing uploaded yet)"', !st.ok && /^No winning-keyword data \(nothing uploaded yet\)/.test(st.text), st.text);
+    ok('the scout has not run: "Bestseller scout hasn\'t run yet — skipped"', !st.ok && st.text === "Bestseller scout hasn't run yet — skipped", st.text);
     const r = suggest(N, N1, N1.kw);
     ok('…the suggestion only takes out (duplicates, other brands) — nothing is added', r.added.length === 0 && !r.removed.some(x => x.why === 'limit') && r.removed.some(x => x.why === 'repeated') && r.removed.some(x => x.why === 'other brand'), r.after);
-    const O = setup({ to: '2026-09-01' });
+    const O = setup({ ranAt: Date.parse('2026-09-01T06:10:00Z') });
     const so = O.kwStatus();
-    ok('older than 45 days: "No winning-keyword data (updated 1 Sep 2026)" — and nothing added', !so.ok && /No winning-keyword data \(updated 1 Sep 2026\)/.test(so.text) && suggest(O, N1, N1.kw).added.length === 0, so.text);
+    ok('older than 45 days: "Bestseller scout last ran 1 Sep 2026 — older than 45 days: skipped" — and nothing added', !so.ok && /^Bestseller scout last ran 1 Sep 2026 — older than 45 days: skipped$/.test(so.text) && suggest(O, N1, N1.kw).added.length === 0, so.text);
     ok('…the Workspace / Listing Errors plan says nothing is added either', N.kfPlan(N.kfItemOf('SP', N.HEALTH.SP.rows.find(x => x.sku === T1.sku), N.hCtx(), null)).added.length === 0);
   }
 
-  console.log('== the panel (Listing → Listing Rules · Winning keywords) and its CSV ==');
+  console.log('== the panel (Listing → Listing Rules · Winning keywords): 📈 Proven in our ads · 🔎 Bestseller words, and the CSV ==');
   {
-    C.KW.type = 'tablecloth'; C.KW.brand = 'ALL';
-    let html = C.kwPanelHtml();
-    const s = strip(html);
-    ok('per product type: the searches other brands win, who wins (brand), click / conversion share, whether we use the words, our SQP', /🏆 Winning keywords/.test(s) && /boho tablecloth/.test(s) && /Maison d' Hermine/.test(s.replace(/&#39;/g, "'")) && /18\.2%/.test(s) && /22\.1%/.test(s) && /Ridhi: 13 clicks · 2 sold/.test(s), s.slice(0, 900));
-    ok('…a word none of our tablecloths uses is underlined ("boho", "farmhouse"); a word we use is not ("tablecloth")', /<u [^>]*>boho<\/u>/.test(html) && /<u [^>]*>farmhouse<\/u>/.test(html) && !/<u [^>]*>tablecloth<\/u>/.test(html));
-    ok('…the brand filter offers Angry Orange, Etopia, Maison and every brand that wins', ['Angry Orange', 'Etopia', 'Maison', 'Lahome'].every(b => html.includes(`<option value="${b}"`)));
-    C.KW.brand = 'Maison';
-    html = C.kwPanelHtml();
-    ok('…filtered to Maison: only the searches Maison d\' Hermine is in', /farmhouse/.test(strip(html)) && !/boho tablecloth/.test(strip(html)));
-    const csv = C.kwCsv();
-    ok('the CSV: the rows on screen, Excel-ready (BOM, CRLF), the brand and where it was read from', csv.n === 1 && /^﻿Product type,Search,Search frequency rank,Wins \(brand\)/.test(csv.text) && /Tablecloths,farmhouse tablecloth rectangle,12400,Maison d' Hermine,brand column \/ watched brand,18\.2%,22\.1%/.test(csv.text) && /\r\n/.test(csv.text), csv.text.slice(0, 400));
-    C.KW.brand = 'ALL';
-    const none = setup({ data: false }).kwPanelHtml();
-    ok('no data: the panel says so and shows where to download it', /No winning-keyword data/.test(none) && /Top search terms/.test(none) && /Choose a file/.test(none));
+    C.KW.tab = 'scout'; C.KW.stype = 'tablecloth'; C.KW.q = '';
+    const html = C.kwPanelHtml(), s = strip(html);
+    ok('two tabs: "📈 Proven in our ads" and "🔎 Bestseller words" — the "🏆 Brand Analytics" tab is gone', /data-kw-tab="ppc"[^>]*>📈 Proven in our ads/.test(html) && /data-kw-tab="scout"[^>]*>🔎 Bestseller words/.test(html) && !/Brand Analytics/.test(html) && !/data-kw-tab="ba"/.test(html), s.slice(0, 300));
+    ok('no upload: no file input, no "Upload Brand Analytics", no "No winning-keyword data (nothing uploaded yet)"', !/type="file"|data-kw-file|Upload Brand Analytics|Choose a file|nothing uploaded yet|No winning-keyword data/.test(html));
+    ok('per product type: word, % of bestsellers using it, best rank, we use it? yes / no, last run', /Word \/ phrase Bestsellers using it Best rank seen We use it\? Last run/.test(s) && /farmhouse 48% 12 of 25 #120 no 28 Nov 2026/.test(s) && /tablecloth 100% 25 of 25 #120 ✓ yes 28 Nov 2026/.test(s), s.slice(0, 1400));
+    ok('the product type picker (with each type\'s word count), ↻ Run now and the last run', /<select data-kw-f="stype"/.test(html) && /Tablecloths \(\d+\)/.test(s) && /Napkins \(\d+\)/.test(s) && /data-kw-act="run"[^>]*>↻ Run now/.test(html) && /Last run: \d+ \w{3} \d{4} \d\d:\d\d \(run now\) · next weekly run about/.test(s), s.slice(0, 900));
+    const csv = C.kwScoutCsv();
+    ok('the CSV: every product type\'s words, Excel-ready (BOM, CRLF)', /^\uFEFFProduct type,Search,Word \/ phrase,Bestsellers using it,Of the top,Share,Best rank seen,We use it,Last run\r\n/.test(csv.text)
+      && /\r\nTablecloths,tablecloth,farmhouse,12,25,48%,120,no,2026-11-28 06:10\r\n/.test(csv.text) && /\r\nNapkins,cloth napkins,farmhouse,10,20,50%,/.test(csv.text), csv.text.slice(0, 400));
+    C.KW.tab = '';
+    const none = setup({ data: false });
+    none.KW.tab = 'scout';
+    const nh = strip(none.kwPanelHtml()).replace(/&#39;/g, "'");
+    ok('no scout data: the tab says "Bestseller scout hasn\'t run yet — skipped" and offers ↻ Run now', /Bestseller scout hasn't run yet — skipped/.test(nh) && /↻ Run now/.test(nh), nh.slice(0, 400));
   }
 
   console.log('== titles, bullets and descriptions unchanged ==');
@@ -312,17 +280,17 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     ok('low-order terms ignored: "vintage tablecloth" (1 order) gives nothing', !byW.has('vintage'));
     ok('the same filters: not another shape (round), colour (red), brand (etopia), an ASIN target, a word of the title (indigo), a season (christmas)', !['round', 'red', 'etopia', 'b0abcdefgh', 'indigo', 'christmas', 'gnome'].some(x => byW.has(x)), [...byW.keys()].join());
     ok('a term from an ad group that advertises two families (tablecloth + napkins) belongs to neither: "harvest" not offered', !byW.has('harvest') && !P.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: N1.kw, facts: facts(P, N1), pt: N1.pt }).words.some(x => x.w === 'harvest'));
-    ok('PRIORITY: the proven words first, by orders (farmhouse 14, bistro 3), then the Brand Analytics words (boho)', w.words.map(x => x.w).join() === 'farmhouse,bistro,boho' && w.proven === 2, w.words.map(x => x.w + '/' + x.src).join());
+    ok('PRIORITY: the proven words first, by orders (farmhouse 14, bistro 3), then the bestseller words (boho — "farmhouse" once, from our ads)', w.words.map(x => x.w).join() === 'farmhouse,bistro,boho' && w.proven === 2, w.words.map(x => x.w + '/' + x.src).join());
     const n = P.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: N1.kw, facts: facts(P, N1), pt: N1.pt });
-    ok('the napkins: "rustic" and "wedding" proven in our ads (7 orders) — Brand Analytics then adds only what is still missing (farmhouse, boho): "wedding" once, from our ads', n.words.map(x => x.w + '/' + x.src).join() === 'rustic/ppc,wedding/ppc,farmhouse/ba,boho/ba', n.words.map(x => x.w + '/' + x.src).join());
-    // space short: a napkin text with room for about one word — the proven word stays, the Brand Analytics ones go first
+    ok('the napkins: "rustic" and "wedding" proven in our ads (7 orders) — the bestseller words then add only what is still missing (farmhouse, boho): "wedding" once, from our ads', n.words.map(x => x.w + '/' + x.src).join() === 'rustic/ppc,wedding/ppc,farmhouse/scout,boho/scout', n.words.map(x => x.w + '/' + x.src).join());
+    // space short: a napkin text with room for about one word — the proven word stays, the bestseller ones go first
     let tight = N1.kw.replace(' angry orange maison', '');
     const PAD = 'tea brunch picnic bridal baby kitchen everyday buffet banquet catering hotel cafe linen cocktail luncheon dinnerware gathering restaurant patio garden backyard porch lunch supper feast meal family friends hosting entertaining cottage chalet cabin lodge'.split(' ');
     const base = t => P.lrSuggestWords(t, { mode: 'kw', facts: facts(P, N1), title: N1.title, brands: P.lrBrandWords({ brand: 'CPC' }, P.getLR()), others: P.kwOthers(P.getLR()), fits }).after;
     for (let i = 0; bytes(base(tight)) < 241 && i < PAD.length; i++) tight += ' ' + PAD[i];
     const r = P.lrSuggestWords(tight, { mode: 'kw', facts: facts(P, N1), title: N1.title, brands: P.lrBrandWords({ brand: 'CPC' }, P.getLR()), others: P.kwOthers(P.getLR()), fits,
       add: P.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: tight, facts: facts(P, N1), pt: N1.pt }).words });
-    ok('space short: the PROVEN words (rustic, wedding) get in — "wedding" takes the room of one of the listing\'s own words with no orders — the Brand Analytics words (farmhouse, boho) do not push anything out; ≤ 249 bytes',
+    ok('space short: the PROVEN words (rustic, wedding) get in — "wedding" takes the room of one of the listing\'s own words with no orders — the bestseller words (farmhouse, boho) do not push anything out; ≤ 249 bytes',
       r.added.map(a => a.w).join() === 'rustic,wedding' && r.notAdded.map(a => a.w).sort().join() === 'boho,farmhouse' && fits(r.after) && !r.removed.some(x => x.why === 'cut to fit')
       && r.removed.filter(x => x.why === 'replaced').every(x => x.by === 'rustic' || x.by === 'wedding'), JSON.stringify([bytes(tight), r.added, r.notAdded.map(a => a.w), r.removed.filter(x => x.why === 'replaced'), bytes(r.after)]));
     // (28 Nov 2026 later) PROVEN words may push out the listing's own UNPROVEN, unprotected words — never 🔒 words, never words with proof
@@ -339,8 +307,8 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     for (let i = 10; bytes(prot) < 246; i++) prot += ` ${i}x${i}`;                          // sizes: protected too
     const onlyProt = P.lrSuggestWords(prot, { mode: 'kw', facts: Object.assign({}, N1f, { size: '' }), title: N1.title, brands: ['cpc'], fits, add: [{ w: 'farmhouse', why: 'x', proven: true }] });
     ok('…with only 🔒 words left there is no room: the proven word is not added and nothing is replaced', !onlyProt.added.length && !onlyProt.removed.some(x => x.why === 'replaced') && onlyProt.notAdded.map(a => a.w).join() === 'farmhouse', JSON.stringify([onlyProt.added, onlyProt.removed.slice(0, 4)]));
-    const ba = P.lrSuggestWords(near, { mode: 'kw', facts: N1f, title: N1.title, brands: ['cpc'], fits, proof: proofOf, add: [{ w: 'farmhouse', why: 'wins for Etopia on …' }] });
-    ok('a Brand Analytics word does NOT push out the listing\'s own words: not added, nothing taken out, the text as it was', !ba.added.length && !ba.removed.length && ba.after === near && ba.notAdded.map(a => a.w).join() === 'farmhouse', JSON.stringify([ba.added, ba.removed.map(x => x.w + ':' + x.why)]));
+    const ba = P.lrSuggestWords(near, { mode: 'kw', facts: N1f, title: N1.title, brands: ['cpc'], fits, proof: proofOf, add: [{ w: 'farmhouse', why: 'used by 10 of the top 20 bestsellers' }] });
+    ok('a BESTSELLER word does NOT push out the listing\'s own words: not added, nothing taken out, the text as it was', !ba.added.length && !ba.removed.length && ba.after === near && ba.notAdded.map(a => a.w).join() === 'farmhouse', JSON.stringify([ba.added, ba.removed.map(x => x.w + ':' + x.why)]));
 
     // ACoS: with a break-even known (Search Terms' cpBreakEven), a term over it is not proven
     const A = setup({ ppc: true, ctx: { cpBreakEven: () => 30 } });
@@ -368,14 +336,14 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     ok('…and its CSV (Excel-ready)', /^\uFEFFBrand,Listing family,Family name,Search term,Clicks,Orders/.test(csv.text) && /Ridhi,P-RTC,.*,farmhouse tablecloth,120,14,60,400,15%,,yes,,no,farmhouse,30/.test(csv.text), csv.text.slice(0, 400));
     P.KW.ppcBrand = 'CPC';
     ok('…brand filter: CPC shows only the napkins\' terms', !/farmhouse tablecloth/.test(strip(P.kwPanelHtml())) && /napkins rustic wedding/.test(strip(P.kwPanelHtml())));
-    // works with NO upload
+    // works with NO scout data
     const U = setup({ data: false, ppc: true });
     const wu = U.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(U, T1), pt: T1.pt });
-    ok('works with NO Brand Analytics upload: the proven words alone (farmhouse, bistro); the panel opens on "Proven in our ads"', wu.words.map(x => x.w).join() === 'farmhouse,bistro' && /class="segbtn on" data-kw-tab="ppc"/.test(U.kwPanelHtml()), wu.words.map(x => x.w).join());
+    ok('works with NO scout data: the proven words alone (farmhouse, bistro) — the scout skipped; the panel opens on "Proven in our ads"', wu.words.map(x => x.w).join() === 'farmhouse,bistro' && /class="segbtn on" data-kw-tab="ppc"/.test(U.kwPanelHtml()), wu.words.map(x => x.w).join());
     // no PPC data → skipped
     const NP = setup({ ppc: 'none' });
     const wn = NP.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(NP, T1), pt: T1.pt });
-    ok('no PPC data: that source is skipped ("No PPC search-term data") — the Brand Analytics words only', !NP.kwPpcStatus().ok && /^No PPC search-term data/.test(NP.kwPpcStatus().text) && wn.words.map(x => x.w).join() === 'boho,farmhouse' && wn.words.every(x => x.src === 'ba'), wn.words.map(x => x.w + '/' + x.src).join());
+    ok('no PPC data: that source is skipped ("No PPC search-term data") — the bestseller words only', !NP.kwPpcStatus().ok && /^No PPC search-term data/.test(NP.kwPpcStatus().text) && wn.words.map(x => x.w).join() === 'farmhouse,boho' && wn.words.every(x => x.src === 'scout'), wn.words.map(x => x.w + '/' + x.src).join());
     // reading: stD60 when the backend writes it, else the nightly 30-day srchTerm
     const R = setup({ data: false, baCall: async q => (q.cache === 'stD60' ? { data: { at: 'x', d: { SP: { rows: PPC.SP.rows, to: '2026-11-25' } } } } : q.cache === 'srchTerm' ? { data: { d: PPC } } : q.cache === 'adGroup' ? { data: { d: AG } } : {}) });
     R.KW.ppc = null;
@@ -408,7 +376,7 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
     const w = L.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(L, T1), pt: T1.pt });
     const sk = w.skipped.map(x => x.why + ' | ' + x.from + ' | ' + x.term);
     ok('an EDGE it is not said to have: "scalloped" (PPC, 3 orders) is not added — "skipped: not sure the product is scalloped"', !w.words.some(x => x.w === 'scalloped') && sk.includes("skipped: not sure the product is scalloped | PPC: 3 orders | scalloped tablecloth"), sk.join(' ; '));
-    ok('…a PATTERN and a SEASON it is not said to be: "christmas tablecloth buffalo plaid" skipped and said; a Christmas search too', w.skipped.some(x => x.term === 'christmas tablecloth buffalo plaid') && w.skipped.some(x => /christmas/.test(x.term)), sk.join(' ; '));
+    ok('…a PATTERN and a SEASON it is not said to be: "buffalo" / "plaid" (9 of the top 25 bestsellers) skipped and said; "christmas" too', w.skipped.some(x => x.why === 'skipped: not sure the product is buffalo' && /^Bestseller scout: 9 of the top 25$/.test(x.from)) && w.skipped.some(x => x.why === 'skipped: not sure the product is plaid') && w.skipped.some(x => /christmas/.test(x.term)), sk.join(' ; '));
     const wa = L.kwWinFor({ brand: T1.brand, sku: T1.sku, title: T1.title, kw: T1.kw, facts: facts(L, T1), pt: T1.pt, va: { edge_style: [{ value: 'Scalloped' }] } });
     ok('…when its attributes say it (edge style "Scalloped") the word is added', wa.words.some(x => x.w === 'scalloped') && !wa.skipped.some(x => x.w === 'scalloped'), wa.words.map(x => x.w).join());
     const wt = L.kwWinFor({ brand: T1.brand, sku: T1.sku, title: 'Ridhi Indigo Blue Christmas Hand Block Print Rectangle Tablecloth 60x90 Inch', kw: T1.kw, facts: facts(L, T1), pt: T1.pt });
@@ -425,7 +393,7 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
       /<li class="kf-skip muted">skipped: not sure the product is scalloped \(PPC: 3 orders from 'scalloped tablecloth'\)<\/li>/.test(html) && /<s class="kf-cut" title="leftover">her<\/s>/.test(html) && /<s class="kf-cut" title="leftover">style<\/s>/.test(html), (html.match(/kf-adds[\s\S]{0,900}/) || [''])[0]);
     L.kfClick({ dataset: { kf: 'cancel' } });
   }
-  console.log('== before → after (two listings in our real title format; our ads\' proven words + the Brand Analytics sample above) ==');
+  console.log('== before → after (two listings in our real title format; our ads\' proven words + the sample bestsellers) ==');
   {
     const PB = setup({ ppc: true });
     [T1, N1].forEach(L => {
@@ -436,6 +404,44 @@ const keysOf = t => String(t).toLowerCase().split(/\s+/).filter(Boolean);
       console.log(`    added: ${r.added.map(a => `+ ${a.w} (${a.why})${a.replaces && a.replaces.length ? ' replaces ' + a.replaces.join(', ') + ' (no orders)' : ''}`).join('; ') || '—'}${r.notAdded.length ? ` · not added (no room): ${r.notAdded.map(a => a.w).join(', ')}` : ''}`);
       console.log(`    removed: ${r.removed.map(x => `${x.w} (${x.why === 'replaced' ? 'replaced by ' + x.by + ', no orders' : C.kwWhyLabel(x.why)})`).join(', ') || '—'}`);
     });
+  }
+
+  console.log('== the search-keyword rules themselves are unchanged; the upload code is gone ==');
+  {
+    const ROOT = path.join(__dirname, '..', '..');
+    let before = null;
+    try { before = cp.execSync('git show dae39d46:Pricing-App/src/app/listing/listing-rules.js', { cwd: ROOT, maxBuffer: 64 << 20, stdio: ['ignore', 'pipe', 'ignore'] }).toString('utf8'); } catch (e) { before = null; }
+    if (!before) ok('(the rules before this change, dae39d46, are not in this checkout — skipped)', true);
+    else {
+      const A = load({ src: before }), B = load({});
+      const texts = [T1.kw, N1.kw, 'ridhi ridhi napkins etopia style dinner gift for her washable', 'napkins sage green cotton hot pink light blue fun cute rhidi 18x18 20x20', 'cpc cotton print club whimsical corner napkins pottery barn style organic'];
+      const add = [{ w: 'farmhouse', why: "PPC: 14 orders from 'farmhouse tablecloth' in 30 days", proven: true }, { w: 'boho', why: 'used by 9 of the top 25 bestsellers' }, { w: 'wedding', why: 'used by 8 of the top 20 bestsellers' }];
+      const run = (X, t, L) => { const r = X.lrSuggestWords(t, { mode: 'kw', facts: X.lrSwFacts({ brand: L.brand, sku: L.sku }, null, null, { title: L.title, pt: L.pt }), title: L.title, brands: ['ridhi', 'cpc', 'whimsical corner', 'cotton print club'], others: ['Etopia', 'Angry Orange', 'Maison'], add, proof: ['picnic'], fits });
+        return JSON.stringify([r.after, r.removed.map(x => [x.w, x.why, x.by]), r.added, r.notAdded, r.important]); };
+      ok('every search-terms answer is the same as before this change (dae39d46), word for word — our brands once, 🔒 words, duplicates, other brands, low value, leftovers, colours, sizes, 249 bytes, proven words before bestseller words',
+        texts.every(t => [T1, N1].every(L => run(A, t, L) === run(B, t, L))));
+    }
+    const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'kw-win.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    ok('kw-win.js: the upload code is gone (no file reading, no history/kwwin_* or kwsqp_* reads or writes) — what was uploaded stays stored, unused', !/kwUpload|kwParse|kwwin|kwsqp|getDocs|setDoc|deleteDoc|type="file"|file\.text\(/.test(src));
+    const fix = fs.readFileSync(path.join(__dirname, '..', 'src', 'app', 'listing', 'kw-fix.js'), 'utf8');
+    ok('Fix search terms: no Brand Analytics line or upload either — its sources are 📈 our ads and 🔎 the bestseller words', !/Brand Analytics|🏆|kwUpload|type="file"/.test(fix) && /line\(pp, nP, '📈'\) \+ line\(st, nB, '🔎'\)/.test(fix));
+  }
+
+  console.log('== priority: PPC proven words > bestseller words; a bestseller word never replaces the listing\'s own words ==');
+  {
+    const P = setup({ ppc: true });
+    const N1f = facts(P, N1);
+    const fill = (start, pad, to) => { let t = start; for (let i = 0; bytes(t) < to; i++) t += ' ' + pad + String.fromCharCode(97 + (i % 26)) + String.fromCharCode(97 + Math.floor(i / 26)); return t; };
+    const near = fill('napkins sage green cotton cpc dinner washable reusable', 'w', 246);
+    const w = P.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: near, facts: N1f, pt: N1.pt });
+    const r = P.lrSuggestWords(near, { mode: 'kw', facts: N1f, title: N1.title, brands: ['cpc'], fits, add: w.words, proof: w.proof });
+    const own = keysOf(near);
+    ok('a nearly full text: the proven words (rustic, wedding) take room of its own words with no orders; the bestseller words (farmhouse, boho) are NOT added and take nothing', r.added.every(a => a.proven) && r.added.length >= 1 && r.notAdded.filter(a => !a.proven).map(a => a.w).sort().join() === 'boho,farmhouse'
+      && r.removed.filter(x => x.why === 'replaced').every(x => ['rustic', 'wedding'].includes(x.by)), JSON.stringify([r.added, r.notAdded, r.removed.map(x => x.w + ':' + x.why + ':' + (x.by || ''))]));
+    const room = 'napkins sage green cotton cpc dinner washable reusable';
+    const r2 = P.lrSuggestWords(room, { mode: 'kw', facts: N1f, title: N1.title, brands: ['cpc'], fits, add: P.kwWinFor({ brand: N1.brand, sku: N1.sku, title: N1.title, kw: room, facts: N1f, pt: N1.pt }).words });
+    ok('with room: every word — proven first, then the bestseller words — added at the end, the listing\'s own words all kept', r2.added.map(a => a.w).join() === 'rustic,wedding,farmhouse,boho' && own.slice(0, 8).every(k => keysOf(r2.after).includes(k)) && !r2.removed.length, r2.after);
+    ok('…the reason on a bestseller word: "used by 10 of the top 20 bestsellers"', r2.added.find(a => a.w === 'farmhouse').why === 'used by 10 of the top 20 bestsellers');
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

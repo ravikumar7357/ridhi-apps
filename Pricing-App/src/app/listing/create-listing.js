@@ -332,7 +332,7 @@ async function clAiWrite() {
   try { const t = typeof lrTemplateFor === 'function' ? lrTemplateFor(Object.assign({}, c.row, { sku: CL.src }), c.cfg) : null; tpl = t && t.template ? t.template : ''; } catch (e) { tpl = ''; }
   CL.ai = {};
   for (const [task, field] of [['title', 'title'], ['bullets', 'bullets'], ['description', 'desc'], ['kw', 'kw']]) {
-    // search terms: the winning words of its product type go with the question (kw-win.js — none without fresh Brand Analytics data)
+    // search terms: the winning words of its product type go with the question (kw-win.js — our ads, the bestseller scout; none without data)
     if (task === 'kw' && typeof kwLoad === 'function' && typeof KW !== 'undefined' && !KW.loaded) { try { await kwLoad(); } catch (e) { /* asked without them */ } }
     const extra = task === 'title' ? { max: 75, tpl } : task === 'kw' ? { max: typeof lrKwMax === 'function' ? lrKwMax(c.cfg) : 249, win: typeof aiWinWords === 'function' ? aiWinWords(c, CL.kw).slice(0, 25).map(e => e.w) : [] } : {};
     const r = await aiAsk(task, CL.brand, CL.src, Object.assign({}, base, extra));
@@ -467,7 +467,7 @@ function clInput(el) {
 }
 /** SEARCH TERMS SUGGESTED (27 Nov 2026): THE ONE SUGGESTION-WORDS RULE (listing-rules.js lrSuggestWords) on the search terms in the box —
  *  our brands and important words kept once, every repeat and other brands' names out, the winning words of its product type added
- *  (kw-win.js: Brand Analytics, never a title word, never another brand), the 249-byte limit. Put in the box; the checks run on it. */
+ *  (kw-win.js: our ads, the bestseller scout — never a title word, never another brand), the 249-byte limit. Put in the box; the checks run on it. */
 function clKwSuggest() {
   if (typeof lrSuggestWords !== 'function') return null;
   const r = clWithCat(() => {

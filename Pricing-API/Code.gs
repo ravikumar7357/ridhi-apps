@@ -204,6 +204,10 @@ function doGet(e) {
     }
     /* One store's per-SKU sales + stock built now, rather than waiting for the night. */
     if (p.shopSkuBuild) return json_(shopSkuBuild_(String(p.shop || ''), Date.now() + 300000));
+    // Bestseller keyword scout (KeywordScout.gs, 28 Nov 2026): "Run now" in Sellora asks for a run (read-only catalogue searches); its words
+    // are read with ?cache=kwScout below.
+    if (p.kwscout === 'run') return json_(kwsAsk_(p.types));
+    if (p.kwscout === 'status') return json_(kwsStatus_());
     // The Ads caches (AdsEntities.gs / AdsDecide.gs, listed in ADS_TABS) live in their own spreadsheet, "Sellora Ads Cache".
     if (p.cache && typeof ADS_TABS !== 'undefined' && ADS_TABS.indexOf(String(p.cache)) >= 0) {
       var ac = adsCacheRead_(String(p.cache));

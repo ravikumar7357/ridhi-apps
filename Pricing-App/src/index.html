@@ -854,7 +854,7 @@
     <!-- "What people may write": the allowances (not errors), drawn by listing/listing-rules-tab.js in the Issues view. -->
     <div id="lrAllow" class="card lr-allow hide"></div>
     <div class="card xlwrap" style="margin-top:12px"><table class="xl" id="lrTable"></table></div>
-    <!-- Winning keywords: the searches other brands win, per product type (Brand Analytics uploads) — listing/kw-win.js draws it. -->
+    <!-- Winning keywords: 📈 proven in our ads · 🔎 bestseller words (the weekly Bestseller keyword scout) — listing/kw-win.js draws it. -->
     <div id="kwWin" class="card kw-win"></div>
     <!-- History: each "Save rules" keeps the version it replaces (listing/listing-rules-tab.js draws it). -->
     <div id="lrHistory" class="card lr-hist"></div>
@@ -902,10 +902,14 @@
 
   <!-- ============ PANE: BSR audit ============ -->
   <div id="paneBsr" class="hide">
+    <!-- (28 Nov 2026) The decision page: how are we doing, what needs action, why, what to do (listing/bsr-decide.js draws it). -->
+    <div id="bsxPane"></div>
+    <!-- Full history (and Take snapshot): the existing view, shown when "Full history" is picked (listing/bsr-audit.js). -->
+    <div id="bsxOld" class="hide">
     <div class="card" style="padding:12px 14px">
       <div class="toolbar">
         <div class="seg">
-          <button id="bModeCompare" class="segbtn on">Compare 2 weeks</button>
+          <button id="bModeCompare" class="segbtn on">← Decision page</button>
           <button id="bModeHistory" class="segbtn">Full history</button>
         </div>
         <select id="bBrandView" style="flex:0 0 140px">
@@ -927,6 +931,9 @@
           <option value="20">Last 20 weeks</option>
           <option value="999">All weeks</option>
         </select>
+        <!-- 📅 a date range: only the weeks inside it (listing/bsr-decide.js bsxCalOpen) -->
+        <button type="button" id="bHistCal" class="ghost histOnly hide bsx-calbtn" data-bsx-act="hcal" aria-label="Pick dates" title="Pick dates" style="flex:0 0 auto;width:auto">📅</button>
+        <span id="bHistChip" class="histOnly hide"></span>
         <div id="bHistKind" class="seg histOnly hide" role="group" aria-label="Which rank Full history shows">
           <button type="button" class="segbtn on" data-kind="sub" aria-pressed="true">Sub category</button>
           <button type="button" class="segbtn" data-kind="main" aria-pressed="false">Main category</button>
@@ -952,6 +959,9 @@
     </div>
     <!-- One parent: its children, its rank by week, the facts behind the action (listing/bsr-audit.js bsrPanelOpen). -->
     <aside id="bPanel" class="bs-panel" role="dialog" aria-label="Parent details" hidden></aside>
+    </div><!-- /bsxOld -->
+    <!-- One family on the decision page: chart, why it moved, what to do, its sizes (listing/bsr-decide.js bsxPanelOpen). -->
+    <aside id="bsxPanel" class="bsx-panel" role="dialog" aria-label="Family details" hidden></aside>
   </div><!-- /paneBsr -->
 
   <!-- Listing History: every change sent to Amazon (listing/listing-history.js draws it) -->
@@ -1762,6 +1772,8 @@
       <div class="toolbar">
         <select id="plBrand" class="sa-fix-150"><option value="ALL">Both brands</option>
           <option value="SP">Ridhi</option><option value="CPC">CPC</option></select>
+        <label class="plrx-wk" title="Which completed week is &quot;last week&quot;. Its 6-week average is the six weeks up to and including it (as before).">📅
+          <select id="plWeek" class="sa-fix-190" aria-label="Week"><option value="">Latest week</option></select></label>
         <select id="plType" class="sa-fix-190" title="New means the listing went live inside the last 120 days.">
           <option value="ALL">All listings</option>
           <option value="New">New only</option>
@@ -1790,9 +1802,13 @@
       <div id="plMsg" class="muted"></div>
     </div>
 
+    <!-- (28 Nov 2026) The story, the KPIs and the action cards (plr-insights.js) — above the unchanged table. -->
+    <section id="plIns" class="plrx-ins" aria-label="This week at a glance"></section>
     <div class="card xlwrap sa-h74">
       <table id="plTable" class="xl"></table>
     </div>
+    <div id="plMore" class="plrx-more"></div>
+    <aside id="plrxPanel" class="plrx-panel" hidden aria-label="One parent"></aside>
   </div><!-- /panePlaudit -->
 
   <!-- ============ Shopify Orders: what has to ship, whether Amazon can ship it, and where it
@@ -2246,9 +2262,12 @@
       </div>
       <div id="saMsg" class="muted"></div>
     </div>
+    <!-- (28 Nov 2026) Insights: the story, the top 10 and the trend, Rising / Falling / Seasonal (sales/sales-analysis-insights.js) -->
+    <section id="saIns" class="sai" aria-label="Insights"></section>
     <div class="card xlwrap mt-12">
       <table id="saTable" class="xl"></table>
     </div>
+    <div id="saMore" class="sai-more"></div>
   </div>
 
   <!-- ============ Deal Calendar: what is planned and running, per parent ============ -->
