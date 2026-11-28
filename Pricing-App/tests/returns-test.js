@@ -133,7 +133,7 @@ function fileSP(extra) {
     ok('the details: the weekly rate chart, reasons as bars, comments, SKUs, "+ Task" and "Open listing"', /<svg class="rs-chart"/.test(det) && /<ul class="rs-rs">/.test(det) && /<ul class="rs-com">/.test(det) && /<table class="rs-kids">/.test(det)
       && /data-tk-new=/.test(det) && /&quot;kind&quot;:&quot;returns&quot;/.test(det) && /data-rs-open="SP\|\|B0PARENTAA">Open listing/.test(det));
     const E = world({ fams: FAMS }); await E.rsLoad();
-    ok('no returns data: the note, never a number', /Upload the Customer Returns report to see return spikes/.test(E.rsSectionHtml('SP')) && /Return spikes <b>0<\/b>/.test(E.rsChipHtml('SP')));
+    ok('no returns data: the note, never a number', /No Ridhi returns uploaded yet — choose the Ridhi Customer Returns file above to see Ridhi return spikes\./.test(E.rsSectionHtml('SP')) && /Return spikes <b>0<\/b>/.test(E.rsChipHtml('SP')));
     ok('Sales Alerts draws the section after "Fix these first"; the chip shows it alone', /rsSectionHtml\(AL\.brand, AL\.filter === 'returns'\)/.test(SRC('app/sales/sales-alerts.js')) && /\(AL\.filter === 'returns' \? rs : rs \+ alListHtml\(r\)/.test(SRC('app/sales/sales-alerts.js')));
   }
 
@@ -242,6 +242,42 @@ function fileSP(extra) {
     D.RS.week = '';
     const sa = SRC('app/sales/sales-alerts.js');
     ok('the sales drops are not touched by the dropdown: Sales Alerts\' maths never reads RS.week', !/RS\.week/.test(sa) && !/rsWeek/.test(sa));
+  }
+
+  console.log('== 8. (28 Nov 2026) the card\'s [Ridhi | CPC] switch decides the whole returns section ==');
+  {
+    const B = world({ fams: FAMS });
+    await B.rsLoad();
+    lpn = 0; await B.rsUpload('SP', fileSP(), 'f.txt');
+    B.rsFor('SP');
+    B.AL.brand = 'CPC';                                     // the Sales Alerts view: CPC — the switch still says Ridhi
+    const sp = B.rsSectionHtml(B.AL.brand);
+    ok('Ridhi picked: Ridhi\'s upload line and Ridhi\'s spikes (the Tablecloth), the chip "1" — whatever the Sales Alerts brand', B.RS.upBrand === 'SP' && /Ridhi: 27 returns/.test(sp) && !/CPC: /.test(sp)
+      && /data-rs-row="rs\|SP\|PA\|2026-11-15"/.test(sp) && /Ridhi returns data up to 21 Nov/.test(sp) && /Return spikes <b>1<\/b>/.test(B.rsChipHtml(B.AL.brand)), sp.slice(0, 900));
+    B.RS.upBrand = 'CPC';
+    const none = B.rsSectionHtml(B.AL.brand);
+    ok('CPC picked, no CPC file: one clear message — no spike card or row, no Ridhi data, no Week dropdown; the chip "0"', none.includes('No CPC returns uploaded yet — choose the CPC Customer Returns file above to see CPC return spikes.')
+      && /CPC: nothing uploaded/.test(none) && !/Ridhi: /.test(none) && !/rs-row|rs-card|data-rs-week|Ridhi returns data|B0PARENTAA|Tablecloth/.test(none) && /Return spikes <b>0<\/b><\/button>/.test(B.rsChipHtml('SP')), none);
+    B.RS.open = false;
+    ok('…the card folded away: the same message with an "Upload" button that opens it', /No CPC returns uploaded yet/.test(B.rsSectionHtml('SP')) && /data-rs-act="panel">Upload</.test(B.rsSectionHtml('SP')));
+    B.RS.open = true;
+    // (a row on 21 Nov: the data covers the week 15–21 Nov whole)
+    const cpcFile = [HEAD].concat(WEEKS.slice(1).map(wk => line(add(wk, 1), 'WCI-1818', 'B0WWWWWWW1', wk < '2026-11-15' ? 2 : 12, 'NOT_AS_DESCRIBED')), [line('2026-11-21', 'ZZ-CPC', 'B0ZZZZZZZ2', 1, 'DEFECTIVE')]).join('\n');
+    await B.rsUpload('CPC', cpcFile, 'cpc.txt');
+    B.rsFor('CPC');
+    const cpc = B.rsSectionHtml('SP');
+    ok('CPC picked, with a CPC file: CPC\'s upload line and CPC\'s spike (the Pillow Insert) — never Ridhi\'s', /CPC: \d+ returns/.test(cpc) && !/Ridhi: /.test(cpc) && /data-rs-row="rs\|CPC\|PW\|2026-11-15"/.test(cpc)
+      && !/rs\|SP\|/.test(cpc) && /CPC returns data up to 21 Nov/.test(cpc) && !/Ridhi returns data/.test(cpc), cpc.slice(0, 900));
+    ok('…the chip follows it ("↩ Return spikes 1" = CPC\'s), and the Week choices are CPC\'s', /Return spikes <b>1<\/b>/.test(B.rsChipHtml('SP')) && /data-rs-week/.test(cpc) && B.rsWeeks('CPC').length > 0);
+    B.RS.week = '2026-10-18';
+    B.rsFor('CPC', '2026-10-18');
+    const cw = B.rsSectionHtml('SP');
+    ok('…a week picked: CPC\'s spikes of that week (none — its normal 2 a week), the chip "0 · 18–24 Oct"', /<option value="2026-10-18" selected>18–24 Oct<\/option>/.test(cw) && /No return spikes in 18–24 Oct/.test(cw) && /Return spikes <b>0<\/b><small class="rs-chip-wk"> · 18–24 Oct/.test(B.rsChipHtml('SP')));
+    B.RS.week = ''; B.RS.upBrand = 'SP';
+    B.rsFor('SP');                                         // (the CPC upload changed the data: on the page this is worked out in idle time)
+    ok('back to Ridhi: Ridhi\'s spikes again', /data-rs-row="rs\|SP\|PA\|2026-11-15"/.test(B.rsSectionHtml('CPC')) && !/rs\|CPC\|/.test(B.rsSectionHtml('CPC')));
+    const sa = SRC('app/sales/sales-alerts.js');
+    ok('the sales drops are not touched by the switch: Sales Alerts\' maths and its brand never read it (RS.upBrand / rsBrand)', !/RS\.upBrand|rsBrand/.test(sa) && B.AL.brand === 'CPC');
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
