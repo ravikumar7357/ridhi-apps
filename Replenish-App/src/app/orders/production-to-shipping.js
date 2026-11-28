@@ -38,23 +38,26 @@ function shpReadyLines() {
 }
 /** The shipping team takes the goods: whoever works the Shopify tab, anybody who records production, an admin. */
 const shpCanReceive = () => !spIsVendor() && !!(ME.admin || ptCanEdit() || ME.shpAccOnly || (ME.tabs || []).indexOf('shopify') >= 0);
-/** items: [{ orderNo, sku, qty }] — what arrived. Never more than the line still owes. */
+/** items: [{ orderNo, sku, qty }] — what arrived. More than a line still owes refuses the whole save (28 Nov: 9 of 8 was saved
+ *  as 8 without a word). */
 async function shpReceive(items) {
   if (!shpCanReceive()) return 'Taking goods from production needs the Shopify tab.';
   const now = new Date().toISOString(), upd = {};
-  let n = 0;
+  let n = 0, over = '';
   (items || []).forEach(it => {
     const line = (ordLines() || []).find(l => l.orderNo === obUC(it.orderNo) && l.sku === obUC(it.sku));
     if (!line) return;
     const key = spKey(line.orderNo, line.sku), was = spOf(line.orderNo, line.sku) || { orderNo: line.orderNo, sku: line.sku };
     const have = Number(was.handedQty) || 0;
-    const q = Math.min(Math.round(Number(it.qty) || 0), Math.max(0, line.qty - have));
+    const q = Number(it.qty) || 0, owed = Math.max(0, line.qty - have);
     if (!(q > 0)) return;
+    if (q > owed || !Number.isInteger(q)) { over = over || `${line.sku} on ${line.orderNo}: ${q} typed, ${owed} still to come, in whole pieces. Nothing was saved.`; return; }
     const got = have + q;
     const log = (Array.isArray(was.handLog) ? was.handLog.slice(-19) : []).concat([{ qty: q, at: now, by: ME.email }]);
     upd['pt_shopProd/' + key] = Object.assign({}, was, { handedQty: got, handLog: log }, got >= line.qty ? { handedAt: now, handedBy: ME.email } : {});
     n++;
   });
+  if (over) return wpRefuse(over);
   if (!n) return 'Put in how many arrived.';
   try { await ptPatch(upd); } catch (e) { return 'Not saved: ' + (e.message || e); }
   PTG.shopProd = Object.assign({}, PTG.shopProd || {});
