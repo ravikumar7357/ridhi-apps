@@ -141,8 +141,20 @@ function shpHandSheetRows(rows) {
   }));
 }
 
+/** A line with pieces still to make is closed only by an admin who says why (28 Nov: "Completed" closed 2 of 3). Returns
+ *  { err } when it stays open, else {} or { short } to keep on the record. */
+function spShortClose(line) {
+  const done = spNum(line && line.pressed), want = spNum(line && line.qty);
+  if (!line || done >= want) return {};
+  const left = `${line.sku}: only ${nf(done)} of ${nf(want)} piece(s) are done`;
+  if (!ME.admin) return { err: left + '. Finish the rest, or ask an admin to close it short.' };
+  const why = String(prompt(left + ' on ' + line.orderNo + '. To close it short, say why:') || '').trim();
+  return why ? { short: { done, of: want, why, by: ME.email, at: new Date().toISOString() } } : { err: left + '. Not closed — no reason was given.' };
+}
+
 async function spHandover(orderNo, sku, on) {
   if (!ptCanEdit()) return PT_NO_EDIT;
+  let short = null;
   const key = spKey(orderNo, sku);
   const was = spOf(orderNo, sku);
   if (on) {
@@ -160,10 +172,13 @@ async function spHandover(orderNo, sku, on) {
     if (pressed < recv) {
       return `${nf(recv - pressed)} piece(s) have not passed QC yet. Record the QC first, or say how many really are going.`;
     }
+    const asked = spShortClose(line);
+    if (asked.err) return asked.err;
+    short = asked.short || null;
   }
   const rec = Object.assign({}, was || { orderNo: obUC(orderNo), sku: obUC(sku) }, on
     ? { handedAt: new Date().toISOString(), handedBy: ME.email }
-    : { handedAt: '', handedBy: '' });
+    : { handedAt: '', handedBy: '' }, short || (was && was.shortClose) ? { shortClose: short } : {});   // an undo or a full hand-over clears an old note
   try { await ptPut('pt_shopProd/' + key, rec); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   PTG.shopProd = PTG.shopProd || {};

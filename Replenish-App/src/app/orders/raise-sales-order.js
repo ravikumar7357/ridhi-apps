@@ -226,6 +226,12 @@ async function soQtyRun(o, sku, want, why) {
   /* A big new quantity is asked about (the number rule, Ravi 27 Nov; for everybody since 28 Nov). */
   const big = ptNumBig(plan.to, plan.sku, 'pcs');
   if (big && !confirm(big)) return 'Not asked — change the quantity.';
+  if (typeof VO !== 'undefined' && VO.rows == null && typeof ensureVo === 'function') {
+    try { await ensureVo(); }
+    catch (e) { console.warn('[printer holds more] the printers\' orders could not be read; the quantity is changed without the question:', e); }
+  }
+  const held = soPrinterAsk(o._id, plan.sku, plan.to);
+  if (held && !confirm(held)) return 'Not asked — the quantity stays as it is.';
   const now = new Date().toISOString();
   /* PADDED SO IT SORTS AS A NUMBER, and strictly after everything the order already holds. Two asks
    * in one millisecond tie on `at`, and then five random characters decide which reads as the later
@@ -841,6 +847,14 @@ function soTwiceAsk(lines) {
   const seen = new Set(), twice = new Set();
   lines.forEach(l => { const k = [l.sku, l.orderTypeKey, l.deliveryDate].join('|'); if (seen.has(k)) twice.add(l.sku); seen.add(k); });
   return twice.size ? `${[...twice].slice(0, 5).join(', ')} is on more than one line with the same delivery date. Save both lines?` : '';
+}
+
+/** The question before an order is cut below what a printer was already asked for (28 Nov: cut to 5, the printer's order
+ *  stayed at 998). Nothing is changed at the printer: PPC does that. '' when no printer holds more. */
+function soPrinterAsk(orderNo, sku, to) {
+  const v = typeof ordVendorOf === 'function' ? ordVendorOf(orderNo, sku) : null;
+  if (!v && (typeof VO === 'undefined' || VO.rows == null)) console.warn('[printer holds more] no printer figures read for ' + sku + ' on ' + orderNo);
+  return v && v.given > to ? `The printer already has an order for ${nf(v.given)} pcs of ${sku}, and this makes the order ${nf(to)}. The printer's order does not change by itself: tell PPC. Go on?` : '';
 }
 
 /* THE NUMBER AND DATE RULES, WHERE AN ORDER STARTS (Ravi, 27 Nov 2026: a draft saved with the year 0008, delivery in 2099 and

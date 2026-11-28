@@ -744,14 +744,15 @@ function p1DrawInv() {
    * from Job Work, or planned before lot numbers began) says "No lot" */
   const lotNo = r => `<a class="p1-lotno${r.lot ? '' : r.notPlanned ? ' new' : ' none'}" data-p1hist="${esc(r.gk)}" title="This lot's history">${r.lot ? esc(p1LotTxt(r.lot)) : r.notPlanned ? 'To plan' : 'No lot'}</a>`;
   const prnCell = r => r.notPlanned && r.notPlanned >= r.ordered ? '<b class="np">not planned</b>' : r.printers.length ? esc(r.printers.join(', ')) : '<span class="muted">no printer</span>';
+  const overNote = xs => { const o = xs.filter(x => x && x.s.overPrint); return o.length ? `<div class="sm" style="color:var(--bad);font-weight:700">Printer has ${p1N(o.reduce((t, x) => t + x.s.overPrint, 0))}, order is ${p1N(o.reduce((t, x) => t + (+x.r.qty || 0), 0))}</div>` : ''; };
   const rejNote = ws => { const n = ws.reduce((t, w) => t + ((w && w.rej) || 0), 0); return n ? `<div class="sm" style="color:var(--bad)">${p1N(n)} rejected</div>` : ''; };
   const lotRow = r => { const open = P1.inv === r.gk;
     let h = `<tr class="p1r lot${open ? ' open' : ''}${p1Urgent(r) ? ' urgent' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
-      <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div>${rejNote(r.wl || [])}</td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
+      <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div>${rejNote(r.wl || [])}${overNote(r.lines)}</td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
       ${P1_COLS.map(([k]) => p1StageCell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${p1PlanBtn(r.lines, r.gk, '')}</td></tr>`;
     if (open) h += r.ln.map((l, i) => { const od = l.due && l.due < today ? p1Days(l.due) : 0;
       return `<tr class="p1l"><td class="lc"><a class="p1-ord" data-p1hist="${esc(r.gk)}" data-p1ho="${esc(l.x.r.orderNo)}" title="This order's history">${esc(l.x.r.shopOrderNo || l.x.r.orderNo)}</a><span class="ch">${esc(l.chan)}</span></td>
-        <td class="it muted sm">${esc(p1Day(p1Iso(l.x.r.orderDate) || l.x.r.openIso || ''))}${rejNote([(r.wl || [])[i]])}</td><td class="num">${p1N(l.st.q)}</td><td class="pr">${l.printer ? esc(l.printer) : l.st.planned ? '<span class="muted">—</span>' : '<b class="np">not planned</b>'}</td>
+        <td class="it muted sm">${esc(p1Day(p1Iso(l.x.r.orderDate) || l.x.r.openIso || ''))}${rejNote([(r.wl || [])[i]])}${overNote([l.x])}</td><td class="num">${p1N(l.st.q)}</td><td class="pr">${l.printer ? esc(l.printer) : l.st.planned ? '<span class="muted">—</span>' : '<b class="np">not planned</b>'}</td>
         ${P1_COLS.map(([k]) => p1StageCell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${p1PlanBtn([l.x], r.gk, i)}</td></tr>`; }).join('');
     return h; };
   const shown = rows.slice(0, P1.lim), R0 = gk => all.find(r => r.gk === gk);

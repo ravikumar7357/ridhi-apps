@@ -51,7 +51,9 @@ async function flowIssueEntry(r, s) {
 }
 /** What can go to a karigar now: what is cut (or back from the printer as pieces) less what is issued. A line with scrapped
  *  pieces is already counted by flowState (flowCountScrap), so both give the same figure. */
-const flowIssuable = (r, s) => s.recounted ? s.canIssue : Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));
+/*  Whether cutting comes first is the line's state to say (s.cutReq): PPC's "Job Work" route skips it even for an item whose
+ *  master says cut (28 Nov: such a custom item showed 0 to issue while PPC showed it in store). */
+const flowIssuable = (r, s) => s.recounted ? s.canIssue : Math.max(0, ((s.cutReq != null ? s.cutReq : r.cutReq) ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));
 /** The Job Work rows of this line still out with a karigar. */
 const flowOpenIssues = r => (PT.base || []).filter(b => b && obUC(b.sku) === obUC(r.sku) && obUC(b.orderNo) === obUC(r.orderNo) && !b.frozen
   && (+b.issuePieces || 0) - (+b.receivedPieces || 0) - (+b.rejectionPieces || 0) > 0);

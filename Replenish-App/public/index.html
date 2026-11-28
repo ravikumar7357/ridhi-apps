@@ -21053,6 +21053,8 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
     return `Order ${orderNo} · ${obUC(sku)}: ordered ${ordered} pcs, already issued ${used} pcs `
       + `(received or not) — at most ${ordered - used} more allowed. Entry blocked.`;
 
+  const unprinted = bdPrintedBackErr(orderNo, sku, used, want, exclId);
+  if (unprinted) return unprinted;
   const m = cutSkuOf(sku);
   /* PPC SENT IT STRAIGHT TO JOB WORK (Ravi, 15 Oct): the plan's route 'jobwork' skips the cutting table, so pieces are
    * issued without a cutting entry. The ordered cap above still holds. */
@@ -21073,6 +21075,18 @@ function bdGuard(orderNo, sku, qty, exclId, allowExtra) {
     }
   }
   return '';
+}
+
+/** A printed line that skips cutting can go to a karigar only as far as it is back from the printer (28 Nov: 5 were issued
+ *  with 2 printed). Pieces QC rejected may go again. '' when within it, or when the line is not such a line. Where PPC's flow
+ *  is not read on this screen, nothing can be judged: said in the console, and the older limits still apply. */
+function bdPrintedBackErr(orderNo, sku, used, want, exclId) {
+  if (typeof flowRows !== 'function' || typeof FLOW === 'undefined' || !FLOW || !FLOW.ppc) { console.warn('[printed first] the PPC flow is not read: ' + obUC(sku) + ' on ' + orderNo + ' was not checked against the printer'); return ''; }
+  const key = flowKey(orderNo, sku), x = flowRows().find(y => y.s.key === key), s = x && x.s;
+  if (!s || !s.plan || !s.printed || s.cutReq) return '';
+  /* a scrapped reject is already off "used" (obIssueOfOrder): only the other rejects open a place again */
+  const most = Math.max(0, (+s.back || 0) + Math.max(0, (+s.qcRej || 0) - obQcScrapQty(orderNo, sku, exclId)) - used);
+  return want > most ? `Order ${orderNo} · ${obUC(sku)}: ${+s.back || 0} pcs are back from the printer and ${used} already issued — at most ${most} more.` : '';
 }
 
 /** Orders carrying this SKU, with what may still be issued on each. */
@@ -27443,8 +27457,20 @@ function shpHandSheetRows(rows) {
   }));
 }
 
+/** A line with pieces still to make is closed only by an admin who says why (28 Nov: "Completed" closed 2 of 3). Returns
+ *  { err } when it stays open, else {} or { short } to keep on the record. */
+function spShortClose(line) {
+  const done = spNum(line && line.pressed), want = spNum(line && line.qty);
+  if (!line || done >= want) return {};
+  const left = `${line.sku}: only ${nf(done)} of ${nf(want)} piece(s) are done`;
+  if (!ME.admin) return { err: left + '. Finish the rest, or ask an admin to close it short.' };
+  const why = String(prompt(left + ' on ' + line.orderNo + '. To close it short, say why:') || '').trim();
+  return why ? { short: { done, of: want, why, by: ME.email, at: new Date().toISOString() } } : { err: left + '. Not closed — no reason was given.' };
+}
+
 async function spHandover(orderNo, sku, on) {
   if (!ptCanEdit()) return PT_NO_EDIT;
+  let short = null;
   const key = spKey(orderNo, sku);
   const was = spOf(orderNo, sku);
   if (on) {
@@ -27462,10 +27488,13 @@ async function spHandover(orderNo, sku, on) {
     if (pressed < recv) {
       return `${nf(recv - pressed)} piece(s) have not passed QC yet. Record the QC first, or say how many really are going.`;
     }
+    const asked = spShortClose(line);
+    if (asked.err) return asked.err;
+    short = asked.short || null;
   }
   const rec = Object.assign({}, was || { orderNo: obUC(orderNo), sku: obUC(sku) }, on
     ? { handedAt: new Date().toISOString(), handedBy: ME.email }
-    : { handedAt: '', handedBy: '' });
+    : { handedAt: '', handedBy: '' }, short || (was && was.shortClose) ? { shortClose: short } : {});   // an undo or a full hand-over clears an old note
   try { await ptPut('pt_shopProd/' + key, rec); }
   catch (e) { return 'Not saved: ' + (e.message || e); }
   PTG.shopProd = PTG.shopProd || {};
@@ -34097,6 +34126,8 @@ function flowState(r) {
       s.back = allBack ? qty : Math.max(s.back, cap(Math.floor(qty * Math.min(1, total > 0 ? have / total : 0) + 1e-9)));
     }
   }
+  /* the printer was asked for more than the line now orders (28 Nov): PPC is told, on its page */
+  if (p && printed && v && +v.given > qty) s.overPrint = +v.given;
   s.qcRej = p ? flowQcLine(r).rej : 0;
   s.issuedNet = p ? Math.max(0, s.issuedAll - s.qcRej) : s.issued;
   /* what can go on now, while the rest is still on its way (flowInView) */
@@ -39345,7 +39376,9 @@ async function flowIssueEntry(r, s) {
 }
 /** What can go to a karigar now: what is cut (or back from the printer as pieces) less what is issued. A line with scrapped
  *  pieces is already counted by flowState (flowCountScrap), so both give the same figure. */
-const flowIssuable = (r, s) => s.recounted ? s.canIssue : Math.max(0, (r.cutReq ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));
+/*  Whether cutting comes first is the line's state to say (s.cutReq): PPC's "Job Work" route skips it even for an item whose
+ *  master says cut (28 Nov: such a custom item showed 0 to issue while PPC showed it in store). */
+const flowIssuable = (r, s) => s.recounted ? s.canIssue : Math.max(0, ((s.cutReq != null ? s.cutReq : r.cutReq) ? s.cut : (s.printed ? s.back : +r.qty || 0)) - (s.issuedNet != null ? s.issuedNet : (s.issued || 0)));
 /** The Job Work rows of this line still out with a karigar. */
 const flowOpenIssues = r => (PT.base || []).filter(b => b && obUC(b.sku) === obUC(r.sku) && obUC(b.orderNo) === obUC(r.orderNo) && !b.frozen
   && (+b.issuePieces || 0) - (+b.receivedPieces || 0) - (+b.rejectionPieces || 0) > 0);
@@ -56196,6 +56229,12 @@ async function soQtyRun(o, sku, want, why) {
   /* A big new quantity is asked about (the number rule, Ravi 27 Nov; for everybody since 28 Nov). */
   const big = ptNumBig(plan.to, plan.sku, 'pcs');
   if (big && !confirm(big)) return 'Not asked — change the quantity.';
+  if (typeof VO !== 'undefined' && VO.rows == null && typeof ensureVo === 'function') {
+    try { await ensureVo(); }
+    catch (e) { console.warn('[printer holds more] the printers\' orders could not be read; the quantity is changed without the question:', e); }
+  }
+  const held = soPrinterAsk(o._id, plan.sku, plan.to);
+  if (held && !confirm(held)) return 'Not asked — the quantity stays as it is.';
   const now = new Date().toISOString();
   /* PADDED SO IT SORTS AS A NUMBER, and strictly after everything the order already holds. Two asks
    * in one millisecond tie on `at`, and then five random characters decide which reads as the later
@@ -56811,6 +56850,14 @@ function soTwiceAsk(lines) {
   const seen = new Set(), twice = new Set();
   lines.forEach(l => { const k = [l.sku, l.orderTypeKey, l.deliveryDate].join('|'); if (seen.has(k)) twice.add(l.sku); seen.add(k); });
   return twice.size ? `${[...twice].slice(0, 5).join(', ')} is on more than one line with the same delivery date. Save both lines?` : '';
+}
+
+/** The question before an order is cut below what a printer was already asked for (28 Nov: cut to 5, the printer's order
+ *  stayed at 998). Nothing is changed at the printer: PPC does that. '' when no printer holds more. */
+function soPrinterAsk(orderNo, sku, to) {
+  const v = typeof ordVendorOf === 'function' ? ordVendorOf(orderNo, sku) : null;
+  if (!v && (typeof VO === 'undefined' || VO.rows == null)) console.warn('[printer holds more] no printer figures read for ' + sku + ' on ' + orderNo);
+  return v && v.given > to ? `The printer already has an order for ${nf(v.given)} pcs of ${sku}, and this makes the order ${nf(to)}. The printer's order does not change by itself: tell PPC. Go on?` : '';
 }
 
 /* THE NUMBER AND DATE RULES, WHERE AN ORDER STARTS (Ravi, 27 Nov 2026: a draft saved with the year 0008, delivery in 2099 and
@@ -100601,14 +100648,15 @@ function p1DrawInv() {
    * from Job Work, or planned before lot numbers began) says "No lot" */
   const lotNo = r => `<a class="p1-lotno${r.lot ? '' : r.notPlanned ? ' new' : ' none'}" data-p1hist="${esc(r.gk)}" title="This lot's history">${r.lot ? esc(p1LotTxt(r.lot)) : r.notPlanned ? 'To plan' : 'No lot'}</a>`;
   const prnCell = r => r.notPlanned && r.notPlanned >= r.ordered ? '<b class="np">not planned</b>' : r.printers.length ? esc(r.printers.join(', ')) : '<span class="muted">no printer</span>';
+  const overNote = xs => { const o = xs.filter(x => x && x.s.overPrint); return o.length ? `<div class="sm" style="color:var(--bad);font-weight:700">Printer has ${p1N(o.reduce((t, x) => t + x.s.overPrint, 0))}, order is ${p1N(o.reduce((t, x) => t + (+x.r.qty || 0), 0))}</div>` : ''; };
   const rejNote = ws => { const n = ws.reduce((t, w) => t + ((w && w.rej) || 0), 0); return n ? `<div class="sm" style="color:var(--bad)">${p1N(n)} rejected</div>` : ''; };
   const lotRow = r => { const open = P1.inv === r.gk;
     let h = `<tr class="p1r lot${open ? ' open' : ''}${p1Urgent(r) ? ' urgent' : ''}" data-p1row="${esc(r.gk)}"><td class="lc"><span class="caret">${r.lines.length > 0 ? (open ? '▾' : '▸') : ''}</span>${lotNo(r)}${r.lot ? `<div class="muted sm">from ${esc(P1_LOT_FROM[r.lot.end] || '')} · ${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>` : `<div class="muted sm">${r.orders.size} order${r.orders.size > 1 ? 's' : ''}</div>`}</td>
-      <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div>${rejNote(r.wl || [])}</td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
+      <td class="it"><b>${esc(r.sku)}</b>${r.isNew ? ' <span class="pill-new">NEW</span>' : ''}<div class="muted sm">${esc(r.what)}</div>${rejNote(r.wl || [])}${overNote(r.lines)}</td><td class="num"><b>${p1N(r.ordered)}</b></td><td class="pr">${prnCell(r)}</td>
       ${P1_COLS.map(([k]) => p1StageCell(r.stg[k], r.D[k], k)).join('')}<td class="stc">${status(r.at, r.due, r.over)}</td><td class="nx"><button type="button" class="p1-hbtn" data-p1hist="${esc(r.gk)}" title="Every step of this lot — by whom and when">History</button>${p1PlanBtn(r.lines, r.gk, '')}</td></tr>`;
     if (open) h += r.ln.map((l, i) => { const od = l.due && l.due < today ? p1Days(l.due) : 0;
       return `<tr class="p1l"><td class="lc"><a class="p1-ord" data-p1hist="${esc(r.gk)}" data-p1ho="${esc(l.x.r.orderNo)}" title="This order's history">${esc(l.x.r.shopOrderNo || l.x.r.orderNo)}</a><span class="ch">${esc(l.chan)}</span></td>
-        <td class="it muted sm">${esc(p1Day(p1Iso(l.x.r.orderDate) || l.x.r.openIso || ''))}${rejNote([(r.wl || [])[i]])}</td><td class="num">${p1N(l.st.q)}</td><td class="pr">${l.printer ? esc(l.printer) : l.st.planned ? '<span class="muted">—</span>' : '<b class="np">not planned</b>'}</td>
+        <td class="it muted sm">${esc(p1Day(p1Iso(l.x.r.orderDate) || l.x.r.openIso || ''))}${rejNote([(r.wl || [])[i]])}${overNote([l.x])}</td><td class="num">${p1N(l.st.q)}</td><td class="pr">${l.printer ? esc(l.printer) : l.st.planned ? '<span class="muted">—</span>' : '<b class="np">not planned</b>'}</td>
         ${P1_COLS.map(([k]) => p1StageCell(l.st[k], l.D[k], k)).join('')}<td class="stc sm">${status(l.at, l.due, od)}</td><td class="nx">${p1PlanBtn([l.x], r.gk, i)}</td></tr>`; }).join('');
     return h; };
   const shown = rows.slice(0, P1.lim), R0 = gk => all.find(r => r.gk === gk);
