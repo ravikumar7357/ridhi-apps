@@ -1,0 +1,187 @@
+<title>R-one ERP Backend Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; phases as stacked sections with a status chip per work item; tables scroll on their own. */
+:root{
+  --bg:#f6f7f5; --panel:#ffffff; --fg:#1d2420; --muted:#5d6862; --line:#dde2de;
+  --accent:#1f6f5c; --accent-soft:#e2f0eb;
+  --done:#1f7a3f; --done-bg:#e3f3e8; --now:#8a5a00; --now-bg:#fbefd6; --wait:#5d6862; --wait-bg:#eceeec; --risk:#a33a2b; --risk-bg:#f8e4e0;
+  --display:'Space Grotesk',system-ui,sans-serif; --body:'Inter',system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141917; --panel:#1b2220; --fg:#e4ebe7; --muted:#9aa7a0; --line:#2c3632;
+  --accent:#5fc3a6; --accent-soft:#1d3530;
+  --done:#6fd394; --done-bg:#1b3325; --now:#f0c060; --now-bg:#3a2f15; --wait:#a5b0aa; --wait-bg:#262e2b; --risk:#f08a78; --risk-bg:#3d211c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141917; --panel:#1b2220; --fg:#e4ebe7; --muted:#9aa7a0; --line:#2c3632;
+  --accent:#5fc3a6; --accent-soft:#1d3530;
+  --done:#6fd394; --done-bg:#1b3325; --now:#f0c060; --now-bg:#3a2f15; --wait:#a5b0aa; --wait-bg:#262e2b; --risk:#f08a78; --risk-bg:#3d211c; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--body)}
+.wrap{max-width:860px;margin:0 auto;padding-block:40px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;line-height:1.2;margin:0}
+h1{font-size:2rem}
+h2{font-size:1.35rem;margin-top:44px;padding-top:20px;border-top:1px solid var(--line)}
+h3{font-size:1.05rem}
+p{margin:.5em 0}
+.lead{color:var(--muted);max-width:65ch}
+.eyebrow{font:500 .75rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.chip{display:inline-block;font:500 .72rem var(--mono);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.done{color:var(--done);background:var(--done-bg)} .now{color:var(--now);background:var(--now-bg)} .wait{color:var(--wait);background:var(--wait-bg)} .risk{color:var(--risk);background:var(--risk-bg)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-top:14px}
+.item{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:12px 0;border-top:1px solid var(--line)}
+.item:first-of-type{border-top:0}
+.item .id{font:600 .85rem var(--mono);color:var(--accent);padding-top:2px}
+.item > div{min-width:0}
+.item .head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.item ul{margin:.3em 0 0;padding-left:1.1em}
+.item li{margin:.15em 0}
+.donewhen{font-size:.88rem;color:var(--muted)}
+code{font:.86em var(--mono);background:var(--accent-soft);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+.tbl{overflow-x:auto;margin-top:12px}
+table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:560px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 .75rem var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+ol.steps{padding-left:1.2em} ol.steps li{margin:.3em 0}
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">Ridhi Home &amp; Living · ERP · 28 Nov 2026</div>
+  <h1>R-one ERP Backend Plan</h1>
+  <p class="lead">One plan, built from the team's review (“ideal vs now”, 28 Nov) and the work already done this week. Everything the ERP does goes through our own server; the browser only asks and shows. This is the plan we work on.</p>
+  <div class="legend"><span class="chip done">done</span><span class="chip now">next / in progress</span><span class="chip wait">waiting</span><span class="chip risk">needs care</span></div>
+
+  <h2>The goal in four lines</h2>
+  <div class="box">
+    <ol class="steps">
+      <li><b>Fast:</b> a screen asks a question and gets a small answer (kilobytes, under 1 second), not whole registers (11–23 MB).</li>
+      <li><b>Safe saves:</b> one business action = one server call = all or nothing. No half-finished challans or approvals.</li>
+      <li><b>Rules in one place:</b> rights, locks, numbers and calculations live in server code with tests. The browser only hides buttons for comfort.</li>
+      <li><b>Closed database:</b> in the end only the server can touch the database. Nothing important can be done from a browser by hand.</li>
+    </ol>
+  </div>
+
+  <h2>Decisions (what we merged)</h2>
+  <div class="tbl"><table>
+    <tr><th>Topic</th><th>Decision</th><th>Why</th></tr>
+    <tr><td>Where it runs</td><td>One Node 24 + TypeScript service in <code>Backend/</code>, on the DigitalOcean Droplet (BLR1, $18/month ≈ ₹1,550)</td><td>Already built for a plain server (<code>standalone.ts</code>), 109 tests</td></tr>
+    <tr><td>Web server</td><td>Keep the current built-in Node server; no Fastify for now</td><td>It is working and tested. Switching adds work with no gain today; revisit only if we need it</td></tr>
+    <tr><td>Talking to the database</td><td>Add a direct Postgres connection (pool) for actions; keep REST for simple reads</td><td>Only a real transaction gives all-or-nothing saves. Needs the database password in <code>.env</code> (you put it there)</td></tr>
+    <tr><td>Old path while moving</td><td>The door <code>/erp/save</code>, <code>/erp/read</code> + switch in <code>layer.js</code></td><td>Screens not yet moved keep working through the server, so we can close the database early</td></tr>
+    <tr><td>New saves</td><td>One endpoint per business action (make challan, approve sales order…)</td><td>From the review: 16 multi-step saves today can leave half data</td></tr>
+    <tr><td>Rules</td><td>Shadow first (notes only), compare with the database checker, then refuse — one rule at a time</td><td>Nobody gets blocked by a rule we have not watched</td></tr>
+    <tr><td>Jobs and schedules</td><td>pg-boss (queue kept in Postgres)</td><td>A restart loses nothing; only one worker runs each schedule</td></tr>
+    <tr><td>Address</td><td><code>143-244-134-189.sslip.io</code> with HTTPS (Caddy) first; own domain later</td><td>Free and works today; a domain can be added without code changes</td></tr>
+    <tr><td>Sign-in</td><td>Stays Firebase sign-in; the server checks the token on every call</td><td>Moving sign-in is the very last step, not now</td></tr>
+  </table></div>
+
+  <h2>Already done this week</h2>
+  <div class="box">
+    <div class="item"><span class="id">✓</span><div><div class="head"><b>Rule checker in the database (shadow)</b><span class="chip done">live</span></div>Notes rule breaks in <code>erp.rule_notes</code>; 5,353 saves a day checked, self-test PASS.</div></div>
+    <div class="item"><span class="id">✓</span><div><div class="head"><b>Safe numbers</b><span class="chip done">live</span></div><code>erp.next_no</code> for challan, EMB and receive numbers; no two people get the same number.</div></div>
+    <div class="item"><span class="id">✓</span><div><div class="head"><b>One-save fixes</b><span class="chip done">live</span></div>Job-work delete approval, sales-order save and masters “add new” are now one save each.</div></div>
+    <div class="item"><span class="id">✓</span><div><div class="head"><b>Faster live updates</b><span class="chip done">live</span></div>Only lists that changed are refreshed (<code>rt_live_lists</code>); copy kept 7 days.</div></div>
+    <div class="item"><span class="id">✓</span><div><div class="head"><b>The server door</b><span class="chip done">branch erp-door</span></div><code>/erp/save</code> and <code>/erp/read</code>: sign-in checked on the server. Tested with a real sign-in (read: 18 items, 0.3 s; fake sign-in refused).</div></div>
+    <div class="item"><span class="id">✓</span><div><div class="head"><b>Switch in layer.js</b><span class="chip done">branch erp-door, off</span></div>Saves go through the server only when switched on.</div></div>
+    <div class="item"><span class="id">✓</span><div><div class="head"><b>Month lock in the server (notes only)</b><span class="chip done">branch erp-door</span></div>Closes a month after the 5th of the next month; admins noted as allowed; never stops a save.</div></div>
+  </div>
+
+  <h2>The plan, phase by phase</h2>
+
+  <h3 style="margin-top:22px">Phase 0 · Safety first (this week, no Droplet needed)</h3>
+  <div class="box">
+    <div class="item"><span class="id">P0.1</span><div><div class="head"><b>Backups we can trust</b><span class="chip now">next</span></div>
+      Turn on daily database backups in Supabase (or a nightly dump) and test one restore. Firebase is no longer a way back since the mirror was paused on 28 Nov.
+      <p class="donewhen">Done when: a backup from last night exists and one table was restored from it on the test project.</p></div></div>
+    <div class="item"><span class="id">P0.2</span><div><div class="head"><b>Close the open database functions (E0)</b><span class="chip risk">needs care</span></div>
+      <ul><li>List the ~180 internal functions the public key can run today (e.g. <code>sync_run</code>, <code>fs_docs_put</code>).</li>
+      <li>Search every ERP and Sellora page for which ones they really call. Keep those open; close the rest.</li>
+      <li>One change file with its undo at the top. Test project first, then live outside work hours, with Ravi's yes.</li></ul>
+      <p class="donewhen">Done when: <code>sync_run</code> with the public key is refused, and saving an order, a challan and a QC check still works.</p></div></div>
+    <div class="item"><span class="id">P0.3</span><div><div class="head"><b>Merge the erp-door branch</b><span class="chip wait">after review</span></div>
+      Nothing changes for users (switch is off). Keeps our work on main.</div></div>
+  </div>
+
+  <h3 style="margin-top:22px">Phase 1 · The server goes live (needs Droplet access)</h3>
+  <div class="box">
+    <div class="item"><span class="id">P1.1</span><div><div class="head"><b>Droplet set-up</b><span class="chip wait">waiting on access</span></div>
+      Log in, Node 24 and git, deploy key, download <code>Backend/</code>, secrets in <code>.env</code> (you type them), always-on service, firewall, HTTPS on sslip.io.</div></div>
+    <div class="item"><span class="id">P1.2</span><div><div class="head"><b>Foundation pieces</b><span class="chip wait"></span></div>
+      Postgres pool, pg-boss queue, request id in every log line, per-person speed limit, CORS only for our sites, deploy from GitHub only after tests pass.
+      <p class="donewhen">Done when: <code>/health</code> answers on HTTPS, the server restarts by itself after a crash, and a push deploys it.</p></div></div>
+    <div class="item"><span class="id">P1.3</span><div><div class="head"><b>Saves through the server</b><span class="chip wait"></span></div>
+      Switch on in one browser → test link → 10% → everyone. Month-lock notes start coming in; compare with the database checker.</div></div>
+  </div>
+
+  <h3 style="margin-top:22px">Phase 2 · Make the slow screens fast (E2 + E7)</h3>
+  <div class="box">
+    <div class="item"><span class="id">P2.1</span><div><div class="head"><b>Read endpoints for the 2–3 slowest screens</b><span class="chip wait">Ravi names the screens</span></div>
+      Likely first: Order Console / PPC order lines, vendor orders, finished-goods stock by SKU. Each filters and pages in SQL on the typed tables and returns only what the screen draws.
+      <p class="donewhen">Done when: the screen opens with under 500 KB in under 1 second, and gives the same rows as the old browser code.</p></div></div>
+    <div class="item"><span class="id">P2.2</span><div><div class="head"><b>Database clean-up</b><span class="chip wait"></span></div>
+      Missing indexes (shipment, job_work_receipts, order_book, job_work), skip rewrites when nothing changed, keep <code>updated_at</code> filled, slim <code>sync_inbox</code> (314 MB).</div></div>
+  </div>
+
+  <h3 style="margin-top:22px">Phase 3 · All-or-nothing actions and server rights (E3 + E4)</h3>
+  <div class="box">
+    <div class="item"><span class="id">P3.1</span><div><div class="head"><b>First five actions</b><span class="chip wait"></span></div>
+      Make RFD challan, receive on challan, due-receive, approve sales order, approve vendor order. Each: check right → check lock → take number → check version → write → audit → commit. Repeat-safe (idempotency key).</div></div>
+    <div class="item"><span class="id">P3.2</span><div><div class="head"><b>Rights only the browser checks today</b><span class="chip wait"></span></div>
+      soApprove, vlogAccept, fgiEntry, fgiEdit, rfdApprove, rfdSend, shopAssign, b2bAssign, attendMark, accEntry — checked on the server.</div></div>
+    <div class="item"><span class="id">P3.3</span><div><div class="head"><b>Every number from the server</b><span class="chip wait"></span></div>
+      Print order, vendor PO, greige PO, delivery challan, sales order, fabric code → <code>erp.next_no</code>.</div></div>
+    <div class="item"><span class="id">P3.4</span><div><div class="head"><b>Rules from notes to refusals</b><span class="chip wait">from ~5 Dec</span></div>
+      Month lock first, then admin-only, ranges, required fields, vendor fields — one at a time, after the notes are clean.</div></div>
+    <div class="item"><span class="id">P3.5</span><div><div class="head"><b>Remaining actions</b><span class="chip wait"></span></div>
+      PPC plan save, accept printer delivery, QC pass (no over-pass), job-work correction, payout freeze, delete order line — until all 16 multi-step saves are single calls.</div></div>
+  </div>
+
+  <h3 style="margin-top:22px">Phase 4 · Calculations and jobs on the server (E5 + E6)</h3>
+  <div class="box">
+    <div class="item"><span class="id">P4.1</span><div><div class="head"><b>Rules package</b><span class="chip wait"></span></div>
+      Projection and season, RFD cover, FG stock, vendor holdings, payout rate matcher, printer capacity — ported with golden tests (e.g. RPC327-1818 Feb 50 / Mar 92).</div></div>
+    <div class="item"><span class="id">P4.2</span><div><div class="head"><b>Background jobs</b><span class="chip wait"></span></div>
+      Order alerts built by the server (not a browser), view refreshes, audit archive, mails and Amazon jobs on the same server. Every job logs a line; failures send a message.</div></div>
+  </div>
+
+  <h3 style="margin-top:22px">Phase 5 · Switch every screen, close the database (E8)</h3>
+  <div class="box">
+    <div class="item"><span class="id">P5.1</span><div><div class="head"><b>One screen at a time</b><span class="chip wait"></span></div>
+      A setting per screen: old path or new. Two quiet weeks per screen, both answers compared.</div></div>
+    <div class="item"><span class="id">P5.2</span><div><div class="head"><b>Close the database to browsers</b><span class="chip wait"></span></div>
+      When all saves go through the server: browsers lose every database right. Then retire the old list plumbing.</div></div>
+  </div>
+
+  <h2>Order and rough time</h2>
+  <div class="tbl"><table>
+    <tr><th>When</th><th>Work</th><th>Needs</th></tr>
+    <tr><td>Now – 5 Dec</td><td>P0 backups, close open functions, merge erp-door</td><td>Ravi's yes; test project</td></tr>
+    <tr><td>When access is ready (~1 week)</td><td>P1 server live, saves through it</td><td>Droplet access</td></tr>
+    <tr><td>Next 2 weeks</td><td>P2 slow screens fast, indexes</td><td>Names of the slowest screens</td></tr>
+    <tr><td>Next 3 weeks</td><td>P3 actions, rights, numbers, rules on</td><td>Golden data, tests</td></tr>
+    <tr><td>Next 3 weeks</td><td>P4 calculations, jobs</td><td>P2 and P3 done</td></tr>
+    <tr><td>Ongoing</td><td>P5 switch screens, close database</td><td>Two quiet weeks per screen</td></tr>
+  </table></div>
+
+  <h2>How we work</h2>
+  <div class="box">
+    <ol class="steps">
+      <li>Every endpoint: read the old browser code → record a real input and answer → build → test against it → run both side by side → switch with a setting → remove the old path after two quiet weeks.</li>
+      <li>Tests that must exist: same numbers as today, same rows as today, stop-halfway leaves nothing, repeat-a-call doubles nothing, each right allowed and refused.</li>
+      <li>Database changes are numbered files in <code>ERP-DB/changes/</code>, each with its undo. Test project first. Nothing live in work hours without a yes.</li>
+      <li>Secrets only in <code>.env</code> on the server, typed by Ravi; never in the code (the repository is public) or in chat.</li>
+      <li>Anything that costs money is asked first, with ₹ per month.</li>
+    </ol>
+  </div>
+
+  <h2>Open questions for Ravi</h2>
+  <div class="box">
+    <ol class="steps">
+      <li>Which 2–3 ERP screens are slowest for people today?</li>
+      <li>Droplet access: who created it, and can the password be reset?</li>
+      <li>Supabase daily backups: is the plan's backup on, and for how many days?</li>
+      <li>Own domain for the server (e.g. <code>api.ridhihome.com</code>), or sslip.io for now?</li>
+    </ol>
+  </div>
+</div>
