@@ -203,8 +203,26 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     ordOpenOrder(b.dataset.otkno);
   });
 }
-/** The Order Console searched to one order — a click on the strip, and a report link "#ord?q=…" (core/nav.js). */
+/** The Order Console searched to one order — a click on the strip, and a report link "#ord?q=…" (core/nav.js). It shows the
+ *  order whatever was selected before (28 Nov: a B2B link opened on Shopify and showed nothing): every filter is cleared and
+ *  the order book is opened, on the side the order is on (ordLinkView). A Shopify-only account has no order book: its own
+ *  view stays. */
 function ordOpenOrder(no) {
   showTab('ord');
-  setTimeout(() => { const q = $('odQ'); if (q) { q.value = no; q.dispatchEvent(new Event('input', { bubbles: true })); } }, 300);
+  setTimeout(() => {
+    const q = $('odQ'); if (!q) return;
+    ordClearFilters();
+    if (!SHOP_ONLY() && $('odView')) { $('odView').value = 'book'; ORD.linkNo = no; }
+    q.value = no; q.dispatchEvent(new Event('input', { bubbles: true }));
+  }, 300);
+}
+/** The first time the order book is read after a link: pending, or complete & handed over when nothing of the linked order is
+ *  still open. Decided once, so the person's own choice of view stands afterwards. A number the book does not have stays on
+ *  pending, where the search shows that nothing matches. */
+function ordLinkView() {
+  if (!ORD.linkNo || ORD.busy) return;
+  const all = ordLines(); if (!all.length) return;
+  const no = obUC(ORD.linkNo), lines = all.filter(r => r.orderNo === no || obUC(r.shopOrderNo) === no);
+  if (lines.length && $('odView') && /^book(done)?$/.test($('odView').value)) $('odView').value = lines.some(r => r.open) ? 'book' : 'bookdone';
+  ORD.linkNo = '';
 }

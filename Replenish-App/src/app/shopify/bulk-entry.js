@@ -981,6 +981,7 @@ function renderOrd() {
   if (ORD.busy) { $('odMsg').className = 'muted'; $('odMsg').textContent = 'Reading the order book…'; ptEmpty('odTable', 'Loading…'); return; }
   if (PTG.err) { $('odMsg').className = 'err'; $('odMsg').textContent = 'Could not read it: ' + PTG.err; ptEmpty('odTable', 'Nothing to show.'); $('odKpis').innerHTML = ''; return; }
 
+  ordLinkView();   // a linked order picks its view, before the view is read (orders/order-ticker.js)
   /* The order dropdown lists every order in the book — six hundred of them are Shopify — and it
    * means nothing at all once rows are combined by SKU. Hidden on the Shopify views rather than
    * left there filtering something the reader cannot see. */
@@ -1223,7 +1224,11 @@ if ($('odSort')) $('odSort').addEventListener('change', () => { ORD_CAP = 600; r
 ptDebounce('odQ', renderOrd);
 /* Clear means clear. Source and brand were added later and never joined this list, so Clear left two
  * of its own filters set and the screen kept hiding rows somebody had just asked to see. */
-$('odClear').onclick = () => { ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odType', 'odQ', 'odD1', 'odD2'].forEach(id => { if ($(id)) $(id).value = ''; }); ORD_KPI = ''; renderOrd(); };
+function ordClearFilters() {
+  ['odOrd', 'odArt', 'odSub', 'odCol', 'odSz', 'odStatus', 'odSrc', 'odBrand', 'odType', 'odQ', 'odD1', 'odD2'].forEach(id => { if ($(id)) $(id).value = ''; });
+  ORD_KPI = '';
+}
+$('odClear').onclick = () => { ordClearFilters(); renderOrd(); };
 function ordKpiClick(e) {
   const t = e.target.closest('[data-odkpi]');
   if (!t) return;

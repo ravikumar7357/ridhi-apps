@@ -48,7 +48,7 @@ console.log('\n== opening the order ==');
   const tabs = [], fired = [];
   const box = { value: '', dispatchEvent: e => fired.push(e.type) };
   const ctx = { showTab: t => tabs.push(t), $: id => (id === 'odQ' ? box : null), setTimeout: f => f(),
-    Event: function (type) { this.type = type; } };
+    Event: function (type) { this.type = type; }, ordClearFilters: () => {}, SHOP_ONLY: () => false, ORD: {} };
   vm.createContext(ctx);
   vm.runInContext(fnSrc(TICKER, 'ordOpenOrder'), ctx);
   ctx.ordOpenOrder('B2B-26082026-01');
@@ -59,6 +59,38 @@ console.log('\n== opening the order ==');
   ok('sign-in reads the order before showTab rewrites the address',
      /const linkOrder = navHashOrder\(\), linkPrinter = navHashPrinter\(\);\s*if \(linkPrinter && typeof flowVpLinkPrepare === 'function'\) flowVpLinkPrepare\(linkPrinter\);\s*showTab\(navHashTab\(\) \|\| ME\.tabs\[0\]\);\s*if \(linkOrder\) ordOpenOrder\(linkOrder\);/.test(AUTH));
   ok('a link followed while the app is open opens the order', /if \(no\) \{ ordOpenOrder\(no\); return; \}/.test(NAV));
+}
+
+console.log('\n== the linked order shows whatever was selected before (28 Nov) ==');
+{
+  const BULK = rd(path.join(APP, 'shopify', 'bulk-entry.js'));
+  /* a console left on Shopify with filters set, and a made-up order book */
+  const console_ = (lines, o) => {
+    o = o || {};
+    const boxes = { odView: 'shopsku', odSrc: 'SHP', odStatus: 'open', odOrd: 'SHP-1', odD1: '2026-11-01', odQ: 'old' };
+    const els = {};
+    const ctx = { showTab: () => {}, setTimeout: f => f(), Event: function (type) { this.type = type; }, SHOP_ONLY: () => !!o.shopOnly, ORD: {}, ORD_KPI: 'cut',
+      obUC: s => String(s || '').trim().toUpperCase(), ordLines: () => lines,
+      $: id => els[id] || (els[id] = { value: boxes[id] || '', dispatchEvent: () => {} }) };
+    vm.createContext(ctx);
+    const clear = BULK.slice(BULK.indexOf('\nfunction ordClearFilters('), BULK.indexOf('\n}\n', BULK.indexOf('\nfunction ordClearFilters(')) + 3);
+    vm.runInContext(clear + fnSrc(TICKER, 'ordOpenOrder') + fnSrc(TICKER, 'ordLinkView'), ctx);
+    ctx.ordOpenOrder(o.no || 'B2B-1'); ctx.ordLinkView();
+    return { ctx, v: id => ctx.$(id).value };
+  };
+  const open = [{ orderNo: 'B2B-1', open: true }, { orderNo: 'B2B-1', open: false }, { orderNo: 'AMZ-2', open: false, shopOrderNo: '#77' }];
+  const a = console_(open);
+  ok('the order book opens, searched to the order', a.v('odView') === 'book' && a.v('odQ') === 'B2B-1', a.v('odView') + ' ' + a.v('odQ'));
+  ok('…with every filter and tile cleared', ['odSrc', 'odStatus', 'odOrd', 'odD1'].every(id => !a.v(id)) && a.ctx.ORD_KPI === '');
+  a.ctx.$('odView').value = 'shopsku'; a.ctx.ordLinkView();
+  ok('…and the next choice of view is the person\'s own', a.v('odView') === 'shopsku' && !a.ctx.ORD.linkNo);
+  ok('an order with nothing open is shown under complete & handed over', console_(open, { no: 'AMZ-2' }).v('odView') === 'bookdone');
+  ok('…also when the link carries the shop\'s own number', console_(open, { no: '#77' }).v('odView') === 'bookdone');
+  const early = console_([]);
+  ok('the book not read yet: the choice waits for it', early.v('odView') === 'book' && early.ctx.ORD.linkNo === 'B2B-1');
+  ok('a Shopify-only account keeps its own view', console_(open, { shopOnly: true }).v('odView') === 'shopsku');
+  const asks = BULK.indexOf('\n  ordLinkView();'), reads = BULK.indexOf('\n  let v = ordView();');
+  ok('the console asks on every draw, before it reads the view', asks > 0 && asks < reads);
 }
 
 console.log('\n== a linked screen stays: My work today does not open over it (28 Nov) ==');
