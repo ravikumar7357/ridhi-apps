@@ -10,7 +10,7 @@
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { handle, type Answer, type Deps, type Route } from './router.ts';
-import { erpDoor } from '../erp/door.ts';
+import { erpDoor, type DoorDeps } from '../erp/door.ts';
 import { readFile } from 'node:fs/promises';
 
 export interface ServerDeps extends Omit<Deps, 'routes'> {
@@ -20,6 +20,8 @@ export interface ServerDeps extends Omit<Deps, 'routes'> {
   health?: () => object;
   /** Tests only: stands in for the database behind the ERP door. */
   erpFetch?: typeof fetch;
+  /** The ERP rules' look at ERP data (server key). Without it the door saves with no rule notes. */
+  erpRules?: DoorDeps['rules'];
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
@@ -68,7 +70,7 @@ export function requestHandler(d: ServerDeps) {
         if (req.method === 'OPTIONS') { send(res, { status: 204, headers: { ...JSON_HEADERS, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' }); return; }
         if (req.method !== 'POST' || !d.verifyIdToken) { send(res, { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ ok: false, error: 'The ERP door takes POST only.' }) }); return; }
         const raw = await readBody(req, MAX_ERP_BODY);
-        const out = await erpDoor({ verifyIdToken: d.verifyIdToken, log: d.log, now: d.now, fetch: d.erpFetch }, door[1], raw);
+        const out = await erpDoor({ verifyIdToken: d.verifyIdToken, rules: d.erpRules, log: d.log, now: d.now, fetch: d.erpFetch }, door[1], raw);
         send(res, { status: 200, headers: JSON_HEADERS, body: JSON.stringify(out) });
         return;
       }

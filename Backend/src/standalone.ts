@@ -22,6 +22,7 @@ import { LocalQueue, startTimers } from './lib/local-queue.ts';
 import { startServer } from './lib/http-server.ts';
 import { verifyFirebaseIdToken } from './lib/firebase-token.ts';
 import { ROUTES } from './routes/index.ts';
+import { rulesFromDb } from './erp/door.ts';
 import { SAVE_ROUTES } from './saves/index.ts';
 import { JOBS } from './jobs/index.ts';
 import { TIMERS } from './jobs/timers.ts';
@@ -50,6 +51,7 @@ const host = env('HOST') || '127.0.0.1';
 await startServer({
   env, db, gateway, log,
   verifyIdToken: t => verifyFirebaseIdToken(t, projectId),
+  erpRules: rulesFromDb(new Db(SUPABASE_URL, env('SUPABASE_SERVICE_KEY'), 'core')),
   apiRoutes: ROUTES,
   saveRoutes: SAVE_ROUTES,
   health: () => ({ startedAt, timers, queue: queue.stats() }),
