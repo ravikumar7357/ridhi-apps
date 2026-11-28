@@ -256,6 +256,15 @@ const { same, cut, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, store, sp
     ok('switch off: the old columns', off.includes('Shopify held') && off.includes('>Value<') && !off.includes('Excess'));
   }
 
+  console.log('== the view list ==');
+  {
+    const hidden = o => { const S = store(o); S.run(whole('inventory/fg-store-alloc.js', 'fgaTrimViews') + 'fgaTrimViews()'); return S.box('fgPendOpt').hidden; };
+    ok('switch on: "Waiting to be counted in" is not offered', hidden({}) === true);
+    ok('switch off: it is offered as before', hidden({ ls: '0' }) === false);
+    ok('the screen asks for it, and the choice carries the name it hides', appFile('inventory/finished-goods.js').includes('fgaTrimViews();')
+      && require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'index.html'), 'utf8').includes('value="pending" id="fgPendOpt"'));
+  }
+
   const { pass, fail } = counts();
   console.log('\n' + pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);

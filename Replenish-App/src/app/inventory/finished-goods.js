@@ -228,6 +228,7 @@ function renderFgi() {
   }
 
   if (typeof fapOfferView === 'function') { fapOfferView(); fapDrawBadge(); }
+  if (typeof fgaTrimViews === 'function') fgaTrimViews();
   const view = $('fgView').value;
   ['fgD1', 'fgD2'].forEach(i => $(i).classList.toggle('hide', view !== 'ledger'));
   ['fgBrand', 'fgTag', 'fgAmz'].forEach(i => $(i).classList.toggle('hide', view !== 'stock'));

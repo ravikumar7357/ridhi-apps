@@ -3764,7 +3764,7 @@ html.mob #gdNudge{right:14px;left:14px;max-width:none;bottom:144px}
           <select id="fgView" style="flex:0 0 210px">
             <option value="stock">India Store</option>
             <option value="fbarep" id="fapOpt" hidden disabled>Repeat FBA requests</option>
-            <option value="pending">Waiting to be counted in</option>
+            <option value="pending" id="fgPendOpt">Waiting to be counted in</option>
             <option value="alerts">Needs listing on Amazon</option>
             <option value="corr">Correction requests</option>
             <option value="over">Received more than ordered</option>
@@ -62752,6 +62752,7 @@ function renderFgi() {
   }
 
   if (typeof fapOfferView === 'function') { fapOfferView(); fapDrawBadge(); }
+  if (typeof fgaTrimViews === 'function') fgaTrimViews();
   const view = $('fgView').value;
   ['fgD1', 'fgD2'].forEach(i => $(i).classList.toggle('hide', view !== 'ledger'));
   ['fgBrand', 'fgTag', 'fgAmz'].forEach(i => $(i).classList.toggle('hide', view !== 'stock'));
@@ -70746,6 +70747,12 @@ const fgaCardFigs = r => FGA_SHARES.map(([k, label]) => `<span>${label} <b>${nf(
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
 const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'In Stock', ...FGA_SHARES.map(s => s[1])];
 const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, Math.max(0, r.current), ...FGA_SHARES.map(([k]) => r.alloc[k])];
+
+/** With the switch on, "Waiting to be counted in" is not in the view list (asked 28 Nov). Only the choice is hidden: the
+ *  "Sent from press, not counted in" tile still opens it, so pieces on their way from press can still be counted in. */
+function fgaTrimViews() {
+  if ($('fgPendOpt')) $('fgPendOpt').hidden = fgaOn();
+}
 /* ============================== FILE: src/app/inventory/fg-fba-repeat.js ============================== */
 /* ================= INDIA STORE: REPEAT FBA DISPATCH NEEDS APPROVAL =================
  * Business rule (27 Nov, agreed): when a SKU already went from the store to FBA in the past 7 days (India dates), a new FBA
