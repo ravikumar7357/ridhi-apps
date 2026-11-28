@@ -12,16 +12,17 @@ import { checkSave } from './rules/check.ts';
 import { makeRfdChallan, RepeatGuard } from './actions/rfd-challan.ts';
 import { receiveOnChallan } from './actions/receive-challan.ts';
 import { approveSalesOrder } from './actions/approve-sales-order.ts';
+import { approveVendorOrder } from './actions/approve-vendor-order.ts';
 
 /** A person's rights, read by the server with its own key — never taken from the page. null = cannot tell. */
-async function permsOf(d: DoorDeps, email: string): Promise<{ admin?: boolean; soApprove?: boolean; vendor?: boolean } | null> {
+async function permsOf(d: DoorDeps, email: string): Promise<{ admin?: boolean; soApprove?: boolean; vreqApprove?: boolean; vendor?: boolean } | null> {
   if (!d.rules) return null;
   const e = String(email || '').toLowerCase();
   if (e === SUPERUSER) return { admin: true };
   // the same document the ERP page reads at sign-in (core/auth.js: Firestore perms/<email>, now in ERP data)
   const p: any = d.rules.fsDoc ? await d.rules.fsDoc('perms', e) : null;
   const vendor = d.rules.isVendor ? await d.rules.isVendor(e) : false;
-  return { admin: p?.admin === true, soApprove: p?.soApprove === true, vendor };
+  return { admin: p?.admin === true, soApprove: p?.soApprove === true, vreqApprove: p?.vreqApprove === true, vendor };
 }
 import type { DbLike } from '../lib/db.ts';
 
@@ -113,6 +114,7 @@ export async function erpDoor(d: DoorDeps, action: string, rawBody: string): Pro
       const go = name === 'rfd-challan' ? () => makeRfdChallan(email, p, deps).then(r => ({ ok: true as const, no: r.no, lines: r.lines }))
         : name === 'receive-challan' ? () => receiveOnChallan(email, p, deps)
         : name === 'approve-sales-order' ? () => approveSalesOrder(email, p, { ...deps, perms: e => permsOf(d, e) })
+        : name === 'approve-vendor-order' ? () => approveVendorOrder(email, p, { ...deps, perms: e => permsOf(d, e) })
         : null;
       if (!go) return { ok: false, error: `The door has no "${action}".` };
       const id = `${email}|${name}|${String(p.requestId || '')}`;
