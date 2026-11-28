@@ -15,7 +15,8 @@
  *
  * WHEN SOMETHING GOES WRONG:
  *   loud, to the user — a release that cannot be saved, used up or given back (it is stock), and a figure that is missing,
- *   unreadable or over 6 hours old: FBA is refused. The sentence shown says what to do.
+ *   unreadable or over 6 hours old: FBA is refused. The sentence shown says what to do. On the test website only (asked
+ *   28 Nov: its shared copy of the orders is not kept up to date) an old figure is accepted, with a warning on the screens.
  *   quiet, with a console line — the switch (storage blocked: off), noting the figure after the Shopify tab reads orders, and
  *   reading it when a packing screen opens or the store list refreshes (every save reads it again, loudly).
  *
@@ -128,7 +129,7 @@ function fgiHoldState(hold = fgiHoldNode(), nowMs = Date.now()) {
   const times = SHP_HOLD_STORES.map(s => Number(((hold || {})[s] || {}).at) || 0);
   if (times.some(t => !t)) return { state: 'missing', at: 0, ageMs: 0 };
   const at = Math.min(...times), ageMs = Math.max(0, nowMs - at);
-  const stale = ageMs > SHP_HOLD_MAX_AGE_MS || times.some(t => shpHoldAhead(t, nowMs));
+  const stale = (ageMs > SHP_HOLD_MAX_AGE_MS && !shpOnTestSite()) || times.some(t => shpHoldAhead(t, nowMs));
   return { state: stale ? 'stale' : 'ok', at, ageMs };
 }
 
@@ -148,6 +149,13 @@ function fgiFbaFree(sku, current = fgiOf(sku).current, hold = fgiHoldNode(), boo
   const have = Math.max(0, current);
   if (shpAllocOn()) return Math.min(have, fgaFbaShare(sku, have, hold, book) + fgiReleased(sku, hold));
   return Math.min(have, Math.max(0, have - fgiHeld(sku, hold)) + fgiReleased(sku, hold));
+}
+
+/** The warning the test website shows while it works from a figure the live ERP would refuse, or ''. */
+function fgiHoldOldWarning(hold = fgiHoldNode(), nowMs = Date.now()) {
+  const { state, ageMs } = fgiHoldState(hold, nowMs);
+  return shpOnTestSite() && state === 'ok' && ageMs > SHP_HOLD_MAX_AGE_MS
+    ? 'TEST ONLY: website orders are counted from a copy over 6 hours old, so newer orders are missing.' : '';
 }
 
 /* ---- refusing ---- */
