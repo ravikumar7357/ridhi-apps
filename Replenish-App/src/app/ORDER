@@ -142,6 +142,8 @@ inventory/fg-scanning.js
 inventory/fg-shop-hold.js
 inventory/fg-store-alloc.js
 inventory/fg-fba-repeat.js
+inventory/fba-lists.js
+inventory/fba-lists-view.js
 inventory/pack-verify.js
 vendors/printing/printer-allocation.js
 vendors/printing/printer-capacity.js

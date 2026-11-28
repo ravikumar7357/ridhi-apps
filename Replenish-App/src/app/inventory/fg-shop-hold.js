@@ -4,6 +4,8 @@
  * pieces of one SKU, with a reason: FBA may then take that many more, never more than the stock, even when orders need more
  * than the store holds. An FBA save uses a release up only for pieces beyond what was free without it; it stays on record.
  * With switch storeAlloc also on (fg-store-alloc.js), FBA may take only the Air, Sea and AWD share of the stock instead.
+ * With switch fbaList also on (fba-lists.js, 28 Nov), new pieces go to FBA only by an FBA list: every other way is refused,
+ * except putting back with the FBA team what was returned.
  * Every way to FBA asks here: the entry form, scan out, Pack & verify, Scan to pack, an edit that sends more to FBA, and
  * deleting a "returned from FBA" row or undoing a part shipment (those pieces are with the FBA team again).
  *
@@ -32,6 +34,7 @@ const SHP_HOLD_MAX_AGE_MS = 6 * 60 * 60 * 1000;   // older than this, FBA is ref
 const SHP_HOLD_CLOCK_SLACK_MS = 10 * 60 * 1000;   // noted further ahead than this: that PC's clock is wrong, the figure is not trusted
 const SHP_HOLD_REWRITE_MS = 60 * 60 * 1000;       // an unchanged figure is noted again after this, so it does not look old
 const SHP_HOLD_TRIES = 3;
+const FGI_FBA_BY_LIST = 'FBA now goes by FBA lists — make one on Finished Goods.';
 
 /** Is this the test website? */
 const shpOnTestSite = () => typeof window !== 'undefined' && !!window.__TEST_ERP;
@@ -46,6 +49,9 @@ function shpHoldOn() {
 
 /** Is stock also shared between Custom, FBA and Excess (fg-store-alloc.js)? */
 const shpAllocOn = () => typeof fgaOn === 'function' && fgaOn();
+
+/** Do pieces go to FBA by FBA lists (fba-lists.js)? */
+const shpListsOn = () => typeof fblOn === 'function' && fblOn();
 
 /* ---- the need of one store ---- */
 /** The name a SKU is held under (the database refuses some characters). */
@@ -232,12 +238,13 @@ function fgiHoldScanWhy(sku, packed) {
 /* ---- reading it again ---- */
 const fgiHoldKeep = node => { FGI.set = Object.assign({}, FGI.set, { _shopHold: node }); };
 const fgiHoldUnread = e => 'Nothing was saved — the pieces held for website orders could not be checked (' + (e.message || e) + '). Check the connection and save again.';
-/** Read the noted figure and the releases (and the FBA need, when stock is shared) as they are now. '' when read, else the
- *  sentence to show. */
+/** Read the noted figure and the releases (and the FBA need, when stock is shared, and the FBA lists, when on) as they are
+ *  now. '' when read, else the sentence to show. */
 async function fgiHoldReread() {
   try {
     fgiHoldKeep((await ptGetFresh(SHP_HOLD_PATH)) || {});
     if (shpAllocOn()) await fgaNeedReread();
+    if (shpListsOn()) fblKeepAll((await ptGetFresh(FBL_PATH)) || {});
     return '';
   }
   catch (e) {
@@ -263,8 +270,17 @@ async function fgiReleaseCreate(v) {
   return '';
 }
 
-/** WHAT AN FBA SAVE USES UP. wants: [{ sku, qty, current }] (current = pieces in stock before the save). Only the pieces beyond
- *  what was free without a release are taken from releases, oldest first. Returns { next, used: { id: pieces }, short:
+/** Pieces of a want that FBA may take without a release. A want of an FBA list brings its own figure (share): its lane's. */
+function fgiPlanShare(w, hold, book) {
+  if (w.share !== undefined) return w.share;
+  return book ? fgaFbaShare(w.sku, w.current, hold, book) : Math.max(0, w.current - fgiHeld(w.sku, hold));
+}
+/** Pieces of a want that may go, open releases counted. */
+const fgiPlanFree = (w, hold, book) => (w.share === undefined ? fgiFbaFree(w.sku, w.current, hold, book)
+  : Math.min(Math.max(0, w.current), w.share + fgiReleased(w.sku, hold)));
+
+/** WHAT AN FBA SAVE USES UP. wants: [{ sku, qty, current, share? }] (current = pieces in stock before the save). Only the
+ *  pieces beyond what was free without a release are taken from releases, oldest first. Returns { next, used: { id: pieces }, short:
  *  [{ sku, qty, free }] }; with anything short, next is the releases unchanged. The releases handed in are not changed.
  *  A want's `without` names the movement being changed, left out when the stock is shared. */
 function fgiReleasePlan(hold, wants, stamp) {
@@ -273,13 +289,12 @@ function fgiReleasePlan(hold, wants, stamp) {
   const book = shpAllocOn() ? fgaBook(new Set((wants || []).map(w => w.without).filter(Boolean))) : undefined;
   (wants || []).forEach(w => {
     const key = shpHoldKey(w.sku), had = bySku.get(key);
-    bySku.set(key, { sku: w.sku, current: w.current, qty: fgiNum(w.qty) + (had ? had.qty : 0) });
+    bySku.set(key, { sku: w.sku, current: w.current, share: w.share, qty: fgiNum(w.qty) + (had ? had.qty : 0) });
   });
   bySku.forEach(w => {
-    const free = fgiFbaFree(w.sku, w.current, hold, book);
+    const free = fgiPlanFree(w, hold, book);
     if (w.qty > free) { short.push({ sku: w.sku, qty: w.qty, free }); return; }
-    let owed = w.qty - Math.max(0, w.current - fgiHeld(w.sku, hold));   // only the pieces beyond what was free anyway
-    if (book) owed = w.qty - fgaFbaShare(w.sku, w.current, hold, book);
+    let owed = w.qty - fgiPlanShare(w, hold, book);   // only the pieces beyond what was free anyway
     fgiReleasesOpen(w.sku, releases).forEach(([id, r]) => {
       const take = Math.min(owed, Number(r.left));
       if (take <= 0) return;
@@ -336,14 +351,15 @@ async function fgiReleaseGiveBack(used) {
   return ` The ${nf(pieces)} released piece(s) it had used were NOT given back — ask an admin to release them again.`;
 }
 
-/** SAVE PIECES TO FBA: the releases are used up, then write() saves the ledger; a failed write gives them back. Call it only
- *  after every other check has passed. No wants: nothing new goes to FBA, so it only writes. '' when saved, else the
- *  sentence to show. */
+/** SAVE PIECES TO FBA: the releases are used up, then write(used: { release id: pieces }) saves; a failed write gives them
+ *  back. Call it only after every other check has passed. No wants: nothing new goes to FBA, so it only writes. With FBA lists
+ *  on, every want must be a list's (list) or a return's (back). '' when saved, else the sentence to show. */
 async function fgiFbaWrite(wants, write) {
-  if (!wants.length) { await write(); return ''; }
+  if (!wants.length) { await write({}); return ''; }
+  if (shpListsOn() && wants.some(w => !w.list && !w.back)) return FGI_FBA_BY_LIST;
   const spent = await fgiReleaseSpend(wants);
   if (spent.err) return spent.err;
-  try { await write(); }
+  try { await write(spent.used); }
   catch (e) { return 'Not saved: ' + (e.message || e) + '.' + await fgiReleaseGiveBack(spent.used); }
   return '';
 }
@@ -365,7 +381,7 @@ function fgiFbaEditWants(was, now) {
 function fgiFbaReturnWants(deleted) {
   const gone = new Set(deleted.map(fgiRowId));
   return deleted.filter(r => r.txnType === 'FBA_RETURN' && !gone.has(r.linkedFbaId))
-    .map(r => ({ sku: obUC(r.sku), qty: fgiNum(r.qty), current: fgiOf(r.sku).current }));
+    .map(r => ({ sku: obUC(r.sku), qty: fgiNum(r.qty), current: fgiOf(r.sku).current, back: true }));
 }
 
 /* ---- on the Finished Goods stock list ---- */

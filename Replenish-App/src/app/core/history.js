@@ -352,7 +352,9 @@ async function ptSaveIfUnchanged(path, seen, next) {
   return (await ptCas(path, fresh, next)) ? 'changed' : '';
 }
 
-/** A single update touching many paths at once. RTDB applies it all or not at all. */
+/** A single update touching many paths at once. RTDB applies it all or not at all.
+ *  opts.timeoutMs (28 Nov, FBA lists): give up on a save with no answer after this long. It may still have reached the
+ *  database, so a caller that sets it looks before saving again. */
 async function ptPatch(updates, opts) {
   opts = opts || {};
   /* Completed Job Work entries are written where they now live, and their month's _ver moves (core/job-work-split.js). */
@@ -379,6 +381,7 @@ async function ptPatch(updates, opts) {
     }
     if (!r) r = await fetch(`${PT_URL}/.json` + await ptAuthQuery(), {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates),
+      signal: opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined,
     });
     ptLiveWrote(Object.keys(updates || {}));
     if (!r.ok) ptSaveFailed('patch', Object.keys(updates || {}), r.status);
@@ -386,7 +389,11 @@ async function ptPatch(updates, opts) {
       throw new Error('The production database refused the change — this account does not hold the right '
         + 'it needs. If the right was only just given, sign out and in again; otherwise ask an admin.');
     if (!r.ok) throw new Error(`The production database answered ${r.status} ${r.statusText || ''}`.trim());
-  } catch (e) { if (early) ptMirrorFix(early); throw e; }
+  } catch (e) {
+    if (early) ptMirrorFix(early);
+    if (e && e.name === 'TimeoutError') throw new Error(`The production database did not answer within ${Math.round(opts.timeoutMs / 1000)} seconds.`);
+    throw e;
+  }
   const out = await r.json();
   auditLog('patch', updates || {});
   if (!early && typeof ptMirror === 'function') ptMirror('patch', updates || {});

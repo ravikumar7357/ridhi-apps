@@ -225,6 +225,12 @@ function fbaReturnOpen(ids) {
   });
 }
 
+/** A shipment an FBA list made whose record has been removed (fba-lists.js), read now: it is returned, as it cannot be undone. */
+async function fbaListRecordRemoved(row) {
+  if (!row.fbaListId || typeof fblReadOne !== 'function') return false;
+  const { open, done } = await fblReadOne(row.fbaListId);
+  return !open && !done;
+}
 async function fbaReturnSave(ids) {
   if (!fbaCan()) return 'Only the FBA team (the FBA Dispatch tab) can return a dispatch.';
   const v = id => String((($(id) || {}).value) || '').trim();
@@ -236,7 +242,8 @@ async function fbaReturnSave(ids) {
   for (const { id, row } of fresh) {
     if (!row) { skipped.push({ id, why: 'deleted from the store' }); continue; }
     const s = fbaState(row);
-    if (s.st !== 'waiting' && s.st !== 'accepted') { skipped.push({ id, why: 'already ' + FBA_PILL[s.st][1] }); continue; }
+    const returnable = s.st === 'waiting' || s.st === 'accepted' || (s.st === 'shipped' && await fbaListRecordRemoved(row));
+    if (!returnable) { skipped.push({ id, why: 'already ' + FBA_PILL[s.st][1] }); continue; }
     let q = s.open;
     if (single && v('fbrQty') !== '') {
       q = parseInt(v('fbrQty'), 10);
@@ -273,6 +280,11 @@ async function fbaUndo(id) {
   const [{ row }] = await fbaFresh([id]);
   if (!row) { fbaForget([{ id, row: null }]); renderFba(); return 'That dispatch was deleted from the store.'; }
   const s = fbaState(row), updates = {};
+  /* a movement an FBA list shipped is undone with its whole list */
+  if (s.st === 'shipped' && row.fbaListId) {
+    await fblvUndoAsk(row.fbaListId);
+    return '';
+  }
   let what = '', backs = [];
   if (s.st === 'shipped') {
     /* A PART-SHIPMENT TAKES ITS LEFTOVER RETURN WITH IT. Shipping fewer pieces than were open wrote a

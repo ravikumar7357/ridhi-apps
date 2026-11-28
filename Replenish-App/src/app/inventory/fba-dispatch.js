@@ -80,6 +80,7 @@ function fbaRows() {
 }
 
 function renderFba() {
+  if (typeof fblvRender === 'function') fblvRender();
   if (FBA.busy || FGI.busy) { $('fbaMsg').className = 'muted'; $('fbaMsg').textContent = 'Reading what the store has sent to FBA…'; ptEmpty('fbaTable', 'Loading…'); return; }
   if (FGI.err) { $('fbaMsg').className = 'err'; $('fbaMsg').textContent = 'Could not read it: ' + FGI.err; ptEmpty('fbaTable', 'Nothing to show.'); $('fbaKpis').innerHTML = ''; return; }
   const can = fbaCan();
@@ -133,7 +134,8 @@ function renderFba() {
           ? btn('data-fba-ok', id, 'Accept') + ' ' + btn('data-fba-ship', id, 'Ship') + ' ' + btn('data-fba-ret', id, 'Return', true)
           : s.st === 'accepted'
             ? btn('data-fba-ship', id, 'Ship') + ' ' + btn('data-fba-ret', id, 'Return', true) + ' ' + btn('data-fba-undo', id, 'Undo accept')
-            : s.st === 'shipped' ? btn('data-fba-undo', id, 'Undo ship') : '')}</td>`
+            : s.st === 'shipped' ? (typeof fblRecordGone === 'function' && fblRecordGone(r)
+              ? btn('data-fba-ret', id, 'Return', true) : btn('data-fba-undo', id, 'Undo ship')) : '')}</td>`
       + '</tr>';
   }).join('') : `<tr><td colspan="${can ? 13 : 12}" class="muted" style="padding:16px">Nothing here.`
     + `${$('fbaStatus').value === 'todo' ? ' Everything the store has sent to FBA has been shipped or returned.' : ''}</td></tr>`) + '</tbody>';

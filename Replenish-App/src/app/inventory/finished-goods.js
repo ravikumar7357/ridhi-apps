@@ -244,10 +244,13 @@ function renderFgi() {
   $('fgEntry').classList.toggle('hide', !fgiCanEntry());
   ['fgiLstBadge', 'fgiCorrBadge', 'fgiOverBadge', 'flFgBadge', 'fapBadge'].forEach(id => { const b = $(id); if (b && b.dataset) b.classList.toggle('on', b.dataset.fgview === $('fgView').value); });
   ['fgRecvXl', 'fgIssXl'].forEach(id => { if ($(id)) $(id).classList.toggle('hide', !fgiCanEntry()); });
-  $('fgScan').classList.toggle('hide', !fgiCanEntry());
-  $('fgPack').classList.toggle('hide', !fgiCanEntry());
+  /* FBA lists (28 Nov): stock goes to FBA by a list, packed on FBA Dispatch, so the two scanners leave this screen. */
+  const scanners = fgiCanEntry() && !(typeof fblOn === 'function' && fblOn());
+  $('fgScan').classList.toggle('hide', !scanners);
+  $('fgPack').classList.toggle('hide', !scanners);
   $('fgOpening').classList.toggle('hide', !fgiCanEdit());
   fgiPickCount();
+  if (typeof fblvPickCount === 'function') fblvPickCount();
   /* Cards are drawn by the India Store and the waiting list only; every other view is a table, on a phone too. */
   if ($('fgTable').classList) $('fgTable').classList.remove('fg-cards');
   if (view === 'ledger') return fgiRenderLedger();
@@ -262,7 +265,7 @@ function renderFgi() {
 
 /** The stock list's columns that line up as figures. */
 const FGI_NUM_COLS = ['Opening', 'Received', 'Issued', 'To FBA', 'In stock', 'Shopify held', 'Rate', 'Value',
-  'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess'];
+  'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', 'In FBA lists'];
 
 /** The movement and value cells of a stock row (switch storeAlloc off). */
 function fgiMovementCells(r, holds) {
@@ -344,19 +347,20 @@ function fgiRenderStock(stock) {
     .sort().map(b => [b, b]), 'All brands');
 
   const canEd = fgiCanEdit();
+  const canTick = canEd || (typeof fblOn === 'function' && fblOn() && fbaCan());   // the FBA team ticks SKUs for a list, without Edit or Delete
   const holds = typeof shpHoldOn === 'function' && shpHoldOn();
   const shownSkus = rows.slice(0, 600).map(r => r.sku);
-  const allOn = canEd && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
-  const head = '<thead><tr>' + (canEd ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
-    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['In Stock', ...FGA_SHARES.map(s => s[1])] : ['Opening', 'Received',
+  const allOn = canTick && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
+  const head = '<thead><tr>' + (canTick ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
+    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['In Stock', ...fgaShareCols().map(s => s[1])] : ['Opening', 'Received',
     'Issued', 'To FBA', 'In stock', ...(holds ? ['Shopify held'] : []), 'Amazon', 'Tag', 'Rate', 'Value']), '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (FGI_NUM_COLS.includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */
   if ($('fgTable').classList) $('fgTable').classList.toggle('fg-cards', (typeof mobOn === 'function' && mobOn()));
-  if ((typeof mobOn === 'function' && mobOn())) $('fgTable').innerHTML = '<tbody>' + (rows.length ? rows.slice(0, 600).map(r => fgiCard(r, canEd)).join('')
+  if ((typeof mobOn === 'function' && mobOn())) $('fgTable').innerHTML = '<tbody>' + (rows.length ? rows.slice(0, 600).map(r => fgiCard(r, canEd, canTick)).join('')
     : `<tr><td class="muted" style="padding:14px">${sought ? esc(sought) : 'No SKU matches these filters.'}</td></tr>`) + '</tbody>';
   else $('fgTable').innerHTML = head + '<tbody>' + rows.slice(0, 600).map(r => '<tr>'
-    + (canEd ? `<td><input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''}></td>` : '')
+    + (canTick ? `<td><input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''}></td>` : '')
     + `<td class="frz" style="text-align:left"><button class="ghost" data-fgmoves="${esc(r.sku)}" title="Every movement of this SKU"
         style="font-family:ui-monospace,monospace;padding:2px 7px;font-size:12.5px">${esc(r.sku)}</button></td>`
     + ptImgCell(r.sku)
@@ -378,14 +382,14 @@ function fgiRenderStock(stock) {
  * buttons as the row on a computer (Movements = the SKU itself, Entry, Edit, Delete). The data-* names are the row's
  * own, so the one click handler on #fgTable answers both.
  */
-function fgiCard(r, canEd) {
+function fgiCard(r, canEd, canTick = canEd) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
   const st = lstOf(r.sku);
   const holds = typeof shpHoldOn === 'function' && shpHoldOn();
   const btn = (attr, label, extra) => `<button class="ghost" ${attr}="${esc(r.sku)}"${extra || ''}>${label}</button>`;
   const alloc = typeof fgaOn === 'function' && fgaOn();
   return '<tr><td class="fg-mc">'
-    + (canEd ? `<input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''} aria-label="Tick ${esc(r.sku)}">` : '<span></span>')
+    + (canTick ? `<input type="checkbox" data-fgpick="${esc(r.sku)}"${FGI_PICK.stock.has(r.sku) ? ' checked' : ''} aria-label="Tick ${esc(r.sku)}">` : '<span></span>')
     + `<div class="fg-mc-img" data-img="${esc(obUC(r.sku))}" data-imgpx="64">${ptImgInner(r.sku, 64)}</div>`
     + '<div class="fg-mc-main">'
       + `<button class="ghost fg-mc-sku" data-fgmoves="${esc(r.sku)}" title="Every movement of this SKU">${esc(r.sku)}</button>`
@@ -764,6 +768,7 @@ $('fgTable').addEventListener('click', e => {
     const k = pk.getAttribute('data-fgpick');
     if (pk.checked) set.add(k); else set.delete(k);
     fgiPickCount();
+    if (typeof fblvPickCount === 'function') fblvPickCount();
     return;
   }
   const al = e.target.closest('[data-fgall]');
