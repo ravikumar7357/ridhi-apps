@@ -3213,6 +3213,177 @@
   .modalbox.sa-plcard{width:min(660px,100%);max-height:88vh;overflow:auto}
 
   /* ===== MODULE: LISTING ===== */
+  /* ================= BSR AUDIT — THE DECISION PAGE (28 Nov 2026, listing/bsr-decide.js) — the Sales pages' look (Sales Alerts): calm
+     cards, tabular numbers, red / amber / green only for status. Scoped to #paneBsr #bsxPane and the panel #bsxPanel. ================= */
+  #bsxPane, #bsxPanel {
+    --bx-page: #f5f5f7; --bx-card: #ffffff; --bx-line: #e6e6eb; --bx-ink: #1d1d1f; --bx-muted: #6e6e73; --bx-chip: #ececf0;
+    --bx-blue: #0071e3; --bx-bar: rgba(0, 113, 227, .18); --bx-red: #c8102e; --bx-red-bg: #fde8ea; --bx-amber: #b45309; --bx-amber-bg: #ffedd5;
+    --bx-yellow: #8a5a00; --bx-yellow-bg: #fef3c7; --bx-green: #15803d; --bx-green-bg: #e4f5eb; --bx-grey-bg: #f0f0f3;
+    --bx-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 12px 40px rgba(0, 0, 0, .06); --bx-r: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, "Segoe UI", system-ui, sans-serif;
+    color: var(--bx-ink); font-size: 15px; line-height: 1.47; -webkit-font-smoothing: antialiased;
+  }
+  :root[data-theme="dark"] #bsxPane, :root[data-theme="dark"] #bsxPanel {
+    --bx-page: #0a0f1e; --bx-card: #111a2e; --bx-line: #1e2a44; --bx-ink: #f2f4f8; --bx-muted: #9aa4b8; --bx-chip: #1a2440;
+    --bx-blue: #5aa6ff; --bx-bar: rgba(90, 166, 255, .24); --bx-red: #ff7b7b; --bx-red-bg: rgba(255, 107, 107, .14); --bx-amber: #fb9a4b; --bx-amber-bg: rgba(251, 146, 60, .14);
+    --bx-yellow: #facc15; --bx-yellow-bg: rgba(250, 204, 21, .12); --bx-green: #4ade80; --bx-green-bg: rgba(61, 220, 132, .14); --bx-grey-bg: #16203a;
+    --bx-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 48px rgba(0, 0, 0, .35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) #bsxPane, :root:not([data-theme="light"]) #bsxPanel {
+      --bx-page: #0a0f1e; --bx-card: #111a2e; --bx-line: #1e2a44; --bx-ink: #f2f4f8; --bx-muted: #9aa4b8; --bx-chip: #1a2440;
+      --bx-blue: #5aa6ff; --bx-bar: rgba(90, 166, 255, .24); --bx-red: #ff7b7b; --bx-red-bg: rgba(255, 107, 107, .14); --bx-amber: #fb9a4b; --bx-amber-bg: rgba(251, 146, 60, .14);
+      --bx-yellow: #facc15; --bx-yellow-bg: rgba(250, 204, 21, .12); --bx-green: #4ade80; --bx-green-bg: rgba(61, 220, 132, .14); --bx-grey-bg: #16203a;
+      --bx-shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 16px 48px rgba(0, 0, 0, .35);
+    }
+  }
+  body:has(#paneBsr:not(.hide) #bsxPane:not(.hide)) { background-color: #f5f5f7; }
+  :root[data-theme="dark"] body:has(#paneBsr:not(.hide) #bsxPane:not(.hide)) { background-color: #0a0f1e; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body:has(#paneBsr:not(.hide) #bsxPane:not(.hide)) { background-color: #0a0f1e; } }
+  #bsxPane .bsx { max-width: 1160px; margin: 0 auto; padding-bottom: 64px; min-width: 0; }
+  #bsxPane .num, #bsxPanel .num, #bsxPane .bsx-kpi b, #bsxPane .bsx-chip b { font-variant-numeric: tabular-nums; }
+  #bsxPane button, #bsxPane select, #bsxPane input, #bsxPanel button { font-family: inherit; }
+  #bsxPane .muted, #bsxPanel .muted { color: var(--bx-muted); }
+  #bsxPane .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  #bsxPane :focus-visible, #bsxPanel :focus-visible { outline: 2px solid var(--bx-blue); outline-offset: 2px; }
+  /* the toolbar: sticky under the menu bar */
+  #bsxPane .bsx-bar { position: sticky; top: var(--bsx-top, 0px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0 -12px 18px; padding: 12px;
+    background: color-mix(in srgb, var(--bx-page) 86%, transparent); backdrop-filter: saturate(1.6) blur(14px); -webkit-backdrop-filter: saturate(1.6) blur(14px); border-bottom: 1px solid var(--bx-line); }
+  #bsxPane .bsx-h { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+  #bsxPane .bsx-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+  #bsxPane .bsx-ctl select, #bsxPane .bsx-ctl input { width: auto; height: 36px; min-height: 0; margin: 0; padding: 0 14px; border-radius: 999px; border: 1px solid var(--bx-line); background: var(--bx-card); color: var(--bx-ink); font-size: 13px; }
+  #bsxPane .bsx-ctl input { width: 200px; }
+  #bsxPane .bsx-seg { display: inline-flex; height: 36px; padding: 3px; border-radius: 999px; background: var(--bx-chip); gap: 2px; }
+  #bsxPane .bsx-seg button { width: auto; border: 0; background: transparent; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--bx-muted); cursor: pointer; min-height: 0; margin: 0; box-shadow: none; }
+  #bsxPane .bsx-seg button[aria-pressed="true"] { background: var(--bx-card); color: var(--bx-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+  #bsxPane .bsx-btn, #bsxPanel .bsx-btn, #bsxPanel .tk-new.bsx-btn, #bsxPane .tk-new.bsx-btn { display: inline-flex; align-items: center; gap: 6px; width: auto; height: 34px; min-height: 0; margin: 0; padding: 0 14px; border: 0;
+    border-radius: 999px; background: var(--bx-chip); color: var(--bx-ink); font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: none; }
+  #bsxPane .bsx-btn:hover, #bsxPanel .bsx-btn:hover { background: color-mix(in srgb, var(--bx-chip) 70%, var(--bx-line)); }
+  #bsxPane .bsx-link { width: auto; min-height: 0; margin: 0; padding: 0 4px; border: 0; background: none; box-shadow: none; color: var(--bx-blue); font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  #bsxPane .bsx-asof { flex: 1 1 100%; margin: 0; font-size: 12.5px; color: var(--bx-muted); }
+  #bsxPane .bsx-asof b { color: var(--bx-ink); font-weight: 600; }
+  /* the story, the numbers */
+  #bsxPane .bsx-story { margin: 6px 0 22px; font-size: 22px; font-weight: 600; line-height: 1.35; letter-spacing: -.01em; max-width: 980px; }
+  #bsxPane .bsx-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 26px; }
+  #bsxPane .bsx-kpi { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: auto; height: auto; min-height: 0; margin: 0; padding: 16px 18px; border: 1px solid transparent; border-radius: var(--bx-r);
+    background: var(--bx-card); color: var(--bx-ink); box-shadow: var(--bx-shadow); cursor: pointer; text-align: left; transition: transform .15s ease, border-color .15s ease; }
+  #bsxPane .bsx-kpi:hover { transform: translateY(-2px); }
+  #bsxPane .bsx-kpi.is-on { border-color: var(--bx-blue); }
+  #bsxPane .bsx-kn { font-size: 12.5px; font-weight: 600; color: var(--bx-muted); }
+  #bsxPane .bsx-kpi b { font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
+  #bsxPane .bsx-kpi.is-bad b { color: var(--bx-red); }
+  #bsxPane .bsx-ks { font-size: 12.5px; color: var(--bx-muted); }
+  #bsxPane .bsx-kd { font-weight: 700; } #bsxPane .bsx-kd.is-up { color: var(--bx-green); } #bsxPane .bsx-kd.is-down { color: var(--bx-red); }
+  /* the two decision columns */
+  #bsxPane .bsx-dec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 26px; }
+  #bsxPane .bsx-col { display: grid; gap: 12px; align-content: start; min-width: 0; }
+  #bsxPane .bsx-ch2 { margin: 0 0 2px; font-size: 17px; font-weight: 700; }
+  #bsxPane .bsx-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 16px 18px 14px; border-radius: var(--bx-r); background: var(--bx-card); box-shadow: var(--bx-shadow); cursor: pointer; min-width: 0; }
+  #bsxPane .bsx-card::before { content: ""; position: absolute; left: 0; top: 16px; bottom: 16px; width: 4px; border-radius: 0 4px 4px 0; background: var(--bx-red); }
+  #bsxPane .bsx-card.is-win::before { background: var(--bx-green); }
+  #bsxPane .bsx-card-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  #bsxPane .bsx-card-h h3 { margin: 0; font-size: 16px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #bsxPane .bsx-brand { flex: none; font-size: 12px; color: var(--bx-muted); }
+  #bsxPane .bsx-card-m { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13.5px; }
+  #bsxPane .bsx-card-m b { font-size: 15px; }
+  #bsxPane .bsx-why { margin: 0; font-size: 13.5px; }
+  #bsxPane .bsx-card-a { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #bsxPane .bsx-do, #bsxPanel .bsx-do { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--bx-red-bg); color: var(--bx-red); }
+  #bsxPane .bsx-do.is-win, #bsxPanel .bsx-do.is-win { background: var(--bx-green-bg); color: var(--bx-green); }
+  #bsxPane .bsx-empty, #bsxPanel .bsx-empty { margin: 0; padding: 18px; border-radius: var(--bx-r); background: var(--bx-grey-bg); color: var(--bx-muted); font-size: 14px; }
+  /* the chips */
+  #bsxPane .bsx-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+  #bsxPane .bsx-chip { width: auto; height: 34px; min-height: 0; margin: 0; padding: 0 14px; border: 1px solid var(--bx-line); border-radius: 999px; background: var(--bx-card); color: var(--bx-ink); font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: none; }
+  #bsxPane .bsx-chip b { margin-left: 4px; color: var(--bx-muted); font-weight: 600; }
+  #bsxPane .bsx-chip.is-on { border-color: var(--bx-ink); background: var(--bx-ink); color: var(--bx-card); }
+  #bsxPane .bsx-chip.is-on b { color: inherit; opacity: .8; }
+  #bsxPane .bsx-fnote { font-size: 13px; color: var(--bx-muted); }
+  /* the table: Family pinned, the rest scrolls inside the card */
+  #bsxPane .bsx-tcard { border-radius: var(--bx-r); background: var(--bx-card); box-shadow: var(--bx-shadow); overflow: hidden; }
+  #bsxPane .bsx-tw, #bsxPanel .bsx-tw { overflow-x: auto; }
+  #bsxPane .bsx-t { width: 100%; min-width: 900px; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+  #bsxPane .bsx-t th { position: sticky; top: 0; z-index: 1; padding: 0; background: var(--bx-card); border-bottom: 1px solid var(--bx-line); text-align: left; font-size: 12px; color: var(--bx-muted); font-weight: 600; }
+  #bsxPane .bsx-t th.num { text-align: right; }
+  #bsxPane .bsx-th { width: 100%; height: auto; min-height: 0; margin: 0; padding: 12px 14px; border: 0; background: none; box-shadow: none; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
+  #bsxPane .bsx-t td { padding: 12px 14px; border-bottom: 1px solid var(--bx-line); vertical-align: top; }
+  #bsxPane .bsx-t td.num { text-align: right; }
+  #bsxPane .bsx-t tbody tr { cursor: pointer; }
+  #bsxPane .bsx-t tbody tr:hover td, #bsxPane .bsx-t tbody tr.is-open td { background: var(--bx-grey-bg); }
+  #bsxPane .bsx-t tbody tr:focus-visible { outline: 2px solid var(--bx-blue); outline-offset: -2px; }
+  #bsxPane .bsx-fz { position: sticky; left: 0; z-index: 2; background: var(--bx-card); min-width: 230px; max-width: 300px; box-shadow: 1px 0 0 var(--bx-line); }
+  #bsxPane .bsx-t th.bsx-fz { z-index: 3; }
+  #bsxPane .bsx-fn, #bsxPanel .bsx-fn { display: block; font-weight: 600; }
+  #bsxPane .bsx-t small, #bsxPanel .bsx-kids small { display: block; font-size: 12px; color: var(--bx-muted); }
+  #bsxPane .bsx-t td.num b { display: block; }
+  #bsxPane .bsx-vl { margin-top: 4px; max-width: 280px; }
+  #bsxPane .bsx-more { display: flex; justify-content: center; padding: 14px; font-size: 13px; }
+  #bsxPane .bsx-more:empty { display: none; }
+  #bsxPane .bsx-skrow td { padding: 14px; }
+  /* the rank, Amazon's way; the changes */
+  #bsxPane .bsx-rk, #bsxPanel .bsx-rk { display: block; white-space: nowrap; }
+  #bsxPane .bsx-rk b, #bsxPanel .bsx-rk b { font-size: 15px; }
+  #bsxPanel .bsx-rk.is-big b { font-size: 20px; }
+  #bsxPane .bsx-main, #bsxPanel .bsx-main { display: block; font-size: 12px; color: var(--bx-muted); }
+  #bsxPane .bsx-rch, #bsxPanel .bsx-rch, #bsxPane .bsx-ch, #bsxPanel .bsx-ch { display: block; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  #bsxPane .bsx-card-m .bsx-ch { display: inline; margin-left: 4px; }
+  #bsxPane .bsx-card .bsx-rk, #bsxPane .bsx-card .bsx-rch { white-space: normal; }
+  #bsxPane .is-up, #bsxPanel .is-up { color: var(--bx-green); }
+  #bsxPane .is-down, #bsxPanel .is-down { color: var(--bx-red); }
+  #bsxPane .is-flat, #bsxPanel .is-flat { color: var(--bx-muted); font-weight: 500; }
+  #bsxPane .is-amber, #bsxPanel .is-amber { color: var(--bx-amber); }
+  #bsxPane .bsx-pill, #bsxPanel .bsx-pill { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap;
+    background: var(--bx-grey-bg); color: var(--bx-muted); }
+  #bsxPane .bsx-pill.is-ok, #bsxPanel .bsx-pill.is-ok { background: var(--bx-green-bg); color: var(--bx-green); }
+  #bsxPane .bsx-pill.is-warn, #bsxPanel .bsx-pill.is-warn { background: var(--bx-yellow-bg); color: var(--bx-yellow); }
+  #bsxPane .bsx-pill.is-bad, #bsxPanel .bsx-pill.is-bad { background: var(--bx-red-bg); color: var(--bx-red); }
+  #bsxPane .bsx-pill.is-amber, #bsxPanel .bsx-pill.is-amber { background: var(--bx-amber-bg); color: var(--bx-amber); }
+  #bsxPane .bsx-foot { margin: 18px 0 0; font-size: 12.5px; color: var(--bx-muted); max-width: 980px; }
+  /* skeletons: no empty flash */
+  #bsxPane .bsx-sk { display: block; min-height: 96px; border-radius: var(--bx-r); background: linear-gradient(90deg, var(--bx-grey-bg) 25%, color-mix(in srgb, var(--bx-grey-bg) 50%, var(--bx-card)) 50%, var(--bx-grey-bg) 75%);
+    background-size: 200% 100%; animation: bsxSk 1.4s ease-in-out infinite; }
+  #bsxPane .bsx-sk-line { min-height: 30px; width: min(760px, 100%); border-radius: 10px; }
+  #bsxPane .bsx-skrow .bsx-sk { min-height: 22px; border-radius: 8px; }
+  @keyframes bsxSk { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+  /* the side panel: below the menu bar; the ✕ always on screen */
+  #bsxPanel { position: fixed; top: var(--bsx-top, 0px); right: 0; bottom: 0; z-index: 60; width: min(620px, 100vw); overflow-y: auto; overscroll-behavior: contain; background: var(--bx-card);
+    box-shadow: -12px 0 48px rgba(0, 0, 0, .18); border-left: 1px solid var(--bx-line); }
+  #bsxPanel[hidden] { display: none; }
+  #bsxPanel .bsx-ph { position: sticky; top: 0; z-index: 2; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px 14px; background: var(--bx-card); border-bottom: 1px solid var(--bx-line); }
+  #bsxPanel .bsx-ph > div { min-width: 0; }
+  #bsxPanel .bsx-ph h2 { margin: 0 0 4px; font-size: 19px; font-weight: 700; overflow-wrap: anywhere; }
+  #bsxPanel .bsx-ph p { margin: 0 0 8px; font-size: 13px; color: var(--bx-muted); }
+  #bsxPanel .bsx-x { flex: none; width: 36px; height: 36px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--bx-chip); color: var(--bx-ink); font-size: 16px; cursor: pointer; box-shadow: none; }
+  #bsxPanel .bsx-pb { padding: 6px 20px 28px; }
+  #bsxPanel .bsx-pline { margin: 12px 0 4px; font-size: 14.5px; font-weight: 600; }
+  #bsxPanel .bsx-h3 { margin: 20px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--bx-muted); }
+  #bsxPanel .bsx-chart { width: 100%; height: 260px; }
+  #bsxPanel .bsx-chart svg.bs-chart { width: 100%; height: auto; }
+  #bsxPanel .bsx-facts, #bsxPanel .bsx-todo { margin: 0; padding-left: 18px; font-size: 14px; }
+  #bsxPanel .bsx-facts li, #bsxPanel .bsx-todo li { margin: 4px 0; }
+  #bsxPanel .bsx-todo { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  #bsxPanel .bsx-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  #bsxPanel .bsx-kids { width: 100%; min-width: 480px; border-collapse: collapse; font-size: 13.5px; }
+  #bsxPanel .bsx-kids th, #bsxPanel .bsx-kids td { padding: 8px 8px; border-bottom: 1px solid var(--bx-line); text-align: left; vertical-align: top; }
+  #bsxPanel .bsx-kids th { font-size: 12px; color: var(--bx-muted); font-weight: 600; }
+  #bsxPanel .bsx-kids .num { text-align: right; }
+  #bsxPanel .bsx-kids tr.is-best td:first-child { box-shadow: inset 3px 0 0 var(--bx-green); }
+  #bsxPanel .bsx-kids tr.is-worst td:first-child { box-shadow: inset 3px 0 0 var(--bx-red); }
+  /* phones: one column; the panel is a bottom sheet */
+  @media (max-width: 900px) {
+    #bsxPane .bsx-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #bsxPane .bsx-kpis .bsx-kpi:last-child { grid-column: 1 / -1; }
+    #bsxPane .bsx-dec { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 700px) {
+    #bsxPane .bsx-bar { position: static; }
+    #bsxPane .bsx-ctl { margin-left: 0; }
+    #bsxPane .bsx-ctl input { width: 100%; flex: 1 1 100%; }
+    #bsxPane .bsx-story { font-size: 18px; }
+    #bsxPane .bsx-kpi b { font-size: 24px; }
+    #bsxPane .bsx-fz { min-width: 170px; }
+    #bsxPanel { top: auto; left: 0; width: 100%; max-height: 88vh; border-left: 0; border-radius: 20px 20px 0 0; box-shadow: 0 -12px 48px rgba(0, 0, 0, .25); }
+  }
+  @media (prefers-reduced-motion: reduce) { #bsxPane .bsx-sk { animation: none; } #bsxPane .bsx-kpi { transition: none; } #bsxPane .bsx-kpi:hover { transform: none; } }
   /* ----- BSR Audit (listing/bsr-audit.js): number cards as filters, the table, the parent side panel with its chart. Scoped to #paneBsr. ----- */
   #paneBsr #bKpis{display:block}
   #paneBsr .bs-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:0 0 10px}

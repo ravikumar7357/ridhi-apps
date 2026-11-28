@@ -902,10 +902,14 @@
 
   <!-- ============ PANE: BSR audit ============ -->
   <div id="paneBsr" class="hide">
+    <!-- (28 Nov 2026) The decision page: how are we doing, what needs action, why, what to do (listing/bsr-decide.js draws it). -->
+    <div id="bsxPane"></div>
+    <!-- Full history (and Take snapshot): the existing view, shown when "Full history" is picked (listing/bsr-audit.js). -->
+    <div id="bsxOld" class="hide">
     <div class="card" style="padding:12px 14px">
       <div class="toolbar">
         <div class="seg">
-          <button id="bModeCompare" class="segbtn on">Compare 2 weeks</button>
+          <button id="bModeCompare" class="segbtn on">← Decision page</button>
           <button id="bModeHistory" class="segbtn">Full history</button>
         </div>
         <select id="bBrandView" style="flex:0 0 140px">
@@ -952,6 +956,9 @@
     </div>
     <!-- One parent: its children, its rank by week, the facts behind the action (listing/bsr-audit.js bsrPanelOpen). -->
     <aside id="bPanel" class="bs-panel" role="dialog" aria-label="Parent details" hidden></aside>
+    </div><!-- /bsxOld -->
+    <!-- One family on the decision page: chart, why it moved, what to do, its sizes (listing/bsr-decide.js bsxPanelOpen). -->
+    <aside id="bsxPanel" class="bsx-panel" role="dialog" aria-label="Family details" hidden></aside>
   </div><!-- /paneBsr -->
 
   <!-- Listing History: every change sent to Amazon (listing/listing-history.js draws it) -->

@@ -88,6 +88,7 @@ async function loadBsrWeek(brand, week) {
 // First visit to the tab: parent names, the listings snapshot, the stored weeks, the remembered actions, then draw; the other screens'
 // data (units, deals, ad spend, status, our changes) is read in the background and the table is drawn again when it lands.
 async function ensureBsr() {
+  if (typeof bsxOpen === 'function') bsxOpen();          // the decision page: its shell at once, its data read in parallel
   await loadParentNames();
   if (!H_LOADED) await loadHealthCache();
   if (!BSR_LOADED) {
@@ -779,6 +780,7 @@ $('bModeHistory').onclick = () => setBsrMode('history');
 // Switch between Compare and History: the mode buttons, the controls each mode uses, then redraw.
 function setBsrMode(mode) {
   BSR_MODE = mode;
+  if (typeof bsxMode === 'function') bsxMode(mode);        // the decision page (Compare) or the existing Full history view
   if (mode !== 'compare') bsrPanelClose();      // the side panel belongs to Compare
   $('bModeCompare').classList.toggle('on', mode === 'compare');
   $('bModeHistory').classList.toggle('on', mode === 'history');
@@ -839,24 +841,10 @@ const BSR_CARDS = [
   { k: 'stable', t: 'Stable', cls: 'is-off', f: row => row.move === 'stable', tip: 'Under 10%, or under the minimum distance' },
 ];
 
-// Draw the Compare table: week A against week B per parent — the rank used (sub-category), the change, priority, action, short reason.
-function renderBsr() {
-  if (BSR_MODE === 'history') return renderBsrHistory();
-  $('bRules').closest('.card').classList.remove('hide');
-  const pick = $('bBrandView').value;
-  const brands = (pick === 'ALL' ? ['SP', 'CPC'] : [pick]);
-  const wA = $('bWeekA').value;
-  const wB = $('bWeekB').value;
-
-  if (!allWeeks().length) {
-    $('bKpis').innerHTML = '<div class="kpi"><div class="kpiname">No snapshots yet</div>'
-      + '<div class="muted" style="margin-top:6px">Hit “Take this week’s snapshot”. Run it every weekend — each week is stored separately and nothing is ever overwritten.</div></div>';
-    $('bTable').innerHTML = '';
-    if (typeof lsLaterRows === 'function') lsLaterRows('bTable', []);
-    $('bRules').innerHTML = '';
-    return;
-  }
-
+/** THE ROWS of a comparison: one per parent present in either week, with the rank used, the facts, the decision, the category trend,
+ *  the money at stake, the priority, the follow-up — and this week's actions remembered. The Compare table and the decision page
+ *  (bsr-decide.js) both build their rows here. → { all, avgDays } */
+function bsrBuildRows(brands, wA, wB) {
   // --- content gaps per parent (Listing Health's own rules: the catalogue's main picture, A+), now ---
   const gapsBy = {};
   const hc = hCtx();
@@ -913,7 +901,33 @@ function renderBsr() {
     row.whyTxt = row.decision.facts.map(x => x.txt).join(' · ');
   });
   if (BSR_ACTS) bsrActsRemember(rows, wA);
-  const all = rows.slice();
+  return { all: rows.slice(), avgDays };
+}
+// Draw the Compare table: week A against week B per parent — the rank used (sub-category), the change, priority, action, short reason.
+// (28 Nov 2026) The Compare mode is now the decision page (bsr-decide.js bsxRender) when that file is loaded; this table stays for the
+// tests and as the engine underneath (bsrBuildRows).
+function renderBsr() {
+  if (BSR_MODE === 'compare' && typeof bsxRender === 'function') return bsxRender();
+  if (BSR_MODE === 'history') return renderBsrHistory();
+  $('bRules').closest('.card').classList.remove('hide');
+  const pick = $('bBrandView').value;
+  const brands = (pick === 'ALL' ? ['SP', 'CPC'] : [pick]);
+  const wA = $('bWeekA').value;
+  const wB = $('bWeekB').value;
+
+  if (!allWeeks().length) {
+    $('bKpis').innerHTML = '<div class="kpi"><div class="kpiname">No snapshots yet</div>'
+      + '<div class="muted" style="margin-top:6px">Hit “Take this week’s snapshot”. Run it every weekend — each week is stored separately and nothing is ever overwritten.</div></div>';
+    $('bTable').innerHTML = '';
+    if (typeof lsLaterRows === 'function') lsLaterRows('bTable', []);
+    $('bRules').innerHTML = '';
+    return;
+  }
+
+  const built = bsrBuildRows(brands, wA, wB);
+  let rows = built.all.slice();
+  const all = built.all;
+  const avgDays = built.avgDays;
 
   // --- the number card filter, the movement picker, the search box ---
   const card = BSR_CARDS.find(c => c.k === BSR_CARD);
