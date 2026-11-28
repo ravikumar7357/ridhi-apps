@@ -11,12 +11,16 @@
  * search that finds none of them says why. "FBA Packed" (named so 28 Nov; was "FBA Dispatched") is what FBA Dispatch holds not yet marked shipped (waiting or
  * accepted, less returns, both accounts whatever the view picker says; sheet history left out). Those pieces have left the
  * stock, so they are neither In Stock nor part of the shares. Pieces on an FBA list not yet shipped are still in stock, so
- * they are not counted in it.
+ * they are not counted in it. With FBA lists on, the stock list has no column of its own for them (28 Nov, Ravi's rule: "the
+ * FBA column first, moved to make list, and when they are packed then they are shown in FBA Packed"): pieces on a list not
+ * yet packed stay in the FBA Air, Sea or AWD column of that list's lane, still In Stock; the pieces packed on a list are
+ * added to FBA Packed and leave In Stock, so the shares still add up to the In Stock shown (fgaShowLists).
  * On the stock list (28 Nov), a Custom figure opens the orders it is for: the stock is counted against them oldest first.
  * What may leave: FBA only the Air + Sea + AWD pieces the stock covers, plus an admin's release; an issue for an order up to
  * that order's pending pieces within Custom, plus Excess; any other issue Excess only.
- * With switch fbaList also on (fba-lists.js, 28 Nov): pieces on an FBA list not yet shipped come off the stock first, shown as
- * "In FBA lists", and off that store's need for that lane. A shipped list's dispatch comes off its own lane only.
+ * With switch fbaList also on (fba-lists.js, 28 Nov): pieces on an FBA list not yet shipped come off the stock first, and off
+ * that store's need for that lane, so a lane's need is never covered twice. A shipped list's dispatch comes off its own lane
+ * only. This only changes what the stock list SHOWS: every check, hold, limit and save is judged on fgaShares, the true figures.
  *
  * Replenishment's full figures are read only by planners and admins, so their ERP notes the need for the store at
  * pt_fgiSettings/_fbaNeed/{SP|CPC} = { snapAt, at, by, skus: { SKU key: [air, sea, awd] in Amazon packs } } whenever it
@@ -48,8 +52,7 @@ function fgaOn() {
   return typeof window !== 'undefined' && !!window.__TEST_ERP;
 }
 
-/** The share columns shown: with FBA lists on, the pieces they keep come first after Photoshoot. */
-const fgaShareCols = () => (shpListsOn() ? [FGA_SHARES[0], ['listed', 'In FBA lists'], ...FGA_SHARES.slice(1)] : FGA_SHARES);
+const FGA_NO_LIST = { packed: 0, lanes: [0, 0, 0] };   // a SKU on no FBA list
 
 /* ---- the noted FBA need ---- */
 const fgaNeedNode = () => (FGI.set || {})._fbaNeed || {};
@@ -234,7 +237,7 @@ function fgaReplLanes(sku, book, stores) {
 }
 
 /** A SKU's stock shared out: { photo, custom, air, sea, awd, excess }, and with FBA lists on { listed }, the pieces they
- *  keep, taken first. The shares add up to the stock (never below 0).
+ *  keep, taken first (the stock list shows them in their lanes, fgaShowLists). The shares add up to the stock (never below 0).
  *  stores narrows the FBA lanes for viewing; a save is always judged on both. */
 function fgaShares(sku, current, hold, book, stores = SHP_HOLD_STORES) {
   let left = Math.max(0, current);
@@ -345,10 +348,28 @@ function fgaViewStores() {
   const picked = ($('fgaView') || {}).value;
   return SHP_HOLD_STORES.includes(picked) ? [picked] : SHP_HOLD_STORES;
 }
-/** The list's rows with their shares, and the New development pieces by FBA lane; new rows are returned. */
+/** How a SKU's row is shown with FBA lists on: its true shares with the pieces the lists keep put where the lists are.
+ *  Pieces on lists not yet packed join their lane's column (still In Stock); pieces packed leave In Stock and join FBA Packed.
+ *  The shares then add up to the In Stock shown. The pieces taken are those fgaShares really gave the lists (never more than
+ *  the stock), packed first. showing: fblShowing()'s figure for the SKU. A new row is returned: { current, dispatched, alloc }. */
+function fgaShowLists(row, shares, showing = FGA_NO_LIST) {
+  const { listed, ...rest } = shares;
+  let left = listed;
+  const take = wanted => { const n = Math.min(left, Math.max(0, wanted)); left -= n; return n; };
+  const packed = take(showing.packed);
+  const [air, sea, awd] = FGA_LANES.map((lane, i) => rest[lane] + take(showing.lanes[i]));
+  return { current: row.current - packed, dispatched: row.dispatched + packed, alloc: Object.assign({}, rest, { air, sea, awd }) };
+}
+/** The list's rows with their shares, and the New development pieces by FBA lane; new rows are returned. With FBA lists on,
+ *  current is In Stock as shown (less pieces packed on lists) and dispatched is FBA Packed as shown. */
 function fgaListRows(rows) {
   const book = fgaBook(), hold = fgiHoldNode(), stores = fgaViewStores();
-  return rows.map(r => Object.assign({}, r, { alloc: fgaShares(r.sku, r.current, hold, book, stores), newDevLanes: fgaNewDevLanes(r.sku, book) }));
+  const showing = shpListsOn() ? fblShowing(fblLists()) : null;
+  return rows.map(r => {
+    const shares = fgaShares(r.sku, r.current, hold, book, stores);
+    const shown = showing ? fgaShowLists(r, shares, showing[shpHoldKey(r.sku)]) : { alloc: shares };
+    return Object.assign({}, r, shown, { newDevLanes: fgaNewDevLanes(r.sku, book) });
+  });
 }
 const fgaNum = n => (n ? nf(n) : '<span class="muted">—</span>');
 /** Does this figure open the orders behind it? Only a Custom figure with pieces in it. */
@@ -368,17 +389,17 @@ function fgaCells(r) {
   const tone = r.current > 0 ? 'var(--accent)' : (r.current < 0 ? 'var(--bad)' : 'var(--muted)');
   return `<td class="num">${fgaNum(r.dispatched)}</td>`
     + `<td class="num" style="font-weight:700;color:${tone}">${nf(Math.max(0, r.current))}</td>`
-    + fgaShareCols().map(([k]) => `<td class="num">${fgaFigureButton(r, k, nf(r.alloc[k])) || fgaNum(r.alloc[k])}</td>`).join('');
+    + FGA_SHARES.map(([k]) => `<td class="num">${fgaFigureButton(r, k, nf(r.alloc[k])) || fgaNum(r.alloc[k])}</td>`).join('');
 }
-const fgaCardFigs = r => `<span>FBA Packed <b>${nf(r.dispatched)}</b></span>` + fgaShareCols().map(([k, label]) => {
+const fgaCardFigs = r => `<span>FBA Packed <b>${nf(r.dispatched)}</b></span>` + FGA_SHARES.map(([k, label]) => {
   const figure = `${label} <b>${nf(r.alloc[k])}</b>`;
   return fgaFigureButton(r, k, figure) || `<span>${figure}</span>`;
 }).join('');
 /** Is some of this stock kept from FBA, so a release would mean something? */
 const fgaKeptBack = shares => !!shares && shares.photo + shares.custom + shares.excess > 0;
-const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'FBA Packed', 'In Stock', ...fgaShareCols().map(s => s[1])];
+const fgaExportHead = () => ['SKU', 'Brand', 'Item', 'Subtype', 'Colour', 'Size', 'FBA Packed', 'In Stock', ...FGA_SHARES.map(s => s[1])];
 const fgaExportRow = r => [r.sku, r.brand, r.articleType, r.subtype, r.color, r.size, r.dispatched, Math.max(0, r.current),
-  ...fgaShareCols().map(([k]) => r.alloc[k])];
+  ...FGA_SHARES.map(([k]) => r.alloc[k])];
 
 /* ---- the orders behind a Custom figure ---- */
 const FGA_NO_DETAIL = 'Website orders (details after Shopify Orders is opened again)';

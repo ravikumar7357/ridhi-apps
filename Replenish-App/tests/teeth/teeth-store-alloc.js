@@ -8,7 +8,20 @@ const A = 'inventory/fg-store-alloc.js', H = 'inventory/fg-shop-hold.js', FORM =
 const breaks = {
   'listed pieces are not taken off the stock': [A, 'listed: take((book.allotted[shpHoldKey(sku)] || {}).total || 0)', 'listed: 0'],
   'lists show with the switch off': [H, "const shpListsOn = () => typeof fblOn === 'function' && fblOn();", "const shpListsOn = () => typeof fblOn === 'function';"],
-  'no list column': [A, "(shpListsOn() ? [FGA_SHARES[0], ['listed', 'In FBA lists'], ...FGA_SHARES.slice(1)] : FGA_SHARES)", 'FGA_SHARES'],
+  'list pieces stay out of the lanes': [A, 'rest[lane] + take(showing.lanes[i])', 'rest[lane]'],
+  'packed pieces stay In Stock': [A, 'current: row.current - packed', 'current: row.current'],
+  'packed pieces are not FBA Packed': [A, 'dispatched: row.dispatched + packed', 'dispatched: row.dispatched'],
+  'the lists are not looked at': [A, 'const showing = shpListsOn() ? fblShowing(fblLists()) : null;', 'const showing = null;'],
+  'lists shown with the switch off': [A, 'const showing = shpListsOn() ?', 'const showing = true ?'],
+  'more pieces shown than the stock holds': [A, 'const n = Math.min(left, Math.max(0, wanted));', 'const n = Math.max(0, wanted);'],
+  'an open list counts as packed': ['inventory/fba-lists.js', 'Math.min(fgiNum(line.packed), fgiNum(line.qty))', 'fgiNum(line.qty)'],
+  'a list being shipped is not packed': ['inventory/fba-lists.js', "l.status === 'open' ? 0 :", "l.status !== 'packed' ? 0 :"],
+  'a packed list loses its unpacked pieces': ['inventory/fba-lists.js', 'fgiNum(line.qty) - packed;', 'fgiNum(line.qty);'],
+  'a shipped list still shows': ['inventory/fba-lists.js', `filter(l => l && FBL_ALLOTTING.includes(l.status)).forEach(l => {
+    Object.entries(l.lines || {}).forEach(([key, line]) => {
+      const had = out[key] || { packed`, `filter(l => l).forEach(l => {
+    Object.entries(l.lines || {}).forEach(([key, line]) => {
+      const had = out[key] || { packed`],
   'listed pieces are still asked for': [A, '((listed[s] || [])[i] || 0) + ', ''],
   'a list dispatch spills Air first': [A, 'const i = shpListsOn() && store ? FGA_LANES.indexOf(lane) : -1;', 'const i = -1;'],
   'a list dispatch is not on the way': [A, ' + (((way.lanes || {})[s] || [])[i] || 0);', ';'],
@@ -84,7 +97,7 @@ const breaks = {
   'the slim copy is noted': [A, "snap.mode !== 'full' || ", ''],
   'asks every time': [A, ' || Date.now() - fgaAskedAt() < FGA_ASK_EVERY_MS) return;', ') return;'],
   'the test website asks': [A, "if (typeof window !== 'undefined' && window.__TEST_ERP) return console.warn", "if (false) return console.warn"],
-  'the old columns stay': [LIST, "...(alloc ? ['FBA Packed', 'In Stock', ...fgaShareCols().map(s => s[1])] :", '...(false ? [] :'],
+  'the old columns stay': [LIST, "...(alloc ? ['FBA Packed', 'In Stock', ...FGA_SHARES.map(s => s[1])] :", '...(false ? [] :'],
   'the old card figures stay': [LIST, '(alloc ? `<div class="fg-mc-figs">', '(false ? `<div class="fg-mc-figs">'],
   'the view picker is ignored': [A, 'return SHP_HOLD_STORES.includes(picked) ? [picked] : SHP_HOLD_STORES;', 'return SHP_HOLD_STORES;'],
   'the figure cannot be pressed': [A, "share === 'custom' && pieces > 0", 'false'],
@@ -126,7 +139,7 @@ const breaks = {
   'a dispatched SKU with no stock is not listed': [A, 'b.current !== 0 || b.dispatched > 0;', 'b.current !== 0;'],
   'no FBA Packed cell': [A, 'return `<td class="num">${fgaNum(r.dispatched)}</td>`\n    + ', 'return '],
   'FBA Packed is added to In Stock': [A, 'nf(Math.max(0, r.current))}</td>', 'nf(Math.max(0, r.current + r.dispatched))}</td>'],
-  'FBA Packed heads the wrong column': [LIST, "'FBA Packed', 'In Stock', ...fgaShareCols()", "'In Stock', 'FBA Packed', ...fgaShareCols()"],
+  'FBA Packed heads the wrong column': [LIST, "'FBA Packed', 'In Stock', ...FGA_SHARES", "'In Stock', 'FBA Packed', ...FGA_SHARES"],
   'FBA Packed is not lined up as a figure': [LIST, "'FBA Packed', 'In Stock', 'Photoshoot',", "'In Stock', 'Photoshoot',"],
   'the card has no FBA Packed': [A, '`<span>FBA Packed <b>${nf(r.dispatched)}</b></span>` + ', ''],
   'the export has no FBA Packed': [A, 'r.size, r.dispatched, Math.max', 'r.size, Math.max'],

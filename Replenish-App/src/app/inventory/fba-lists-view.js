@@ -1,6 +1,9 @@
 /* ================= INDIA STORE: FBA LISTS ON SCREEN =================
  * The screens of the FBA lists (the rules are in fba-lists.js, switch fbaList): ticking SKUs on Finished Goods and making a
  * list there; packing, shipping, cancelling and undoing a list on FBA Dispatch. Switch off: nothing here is shown.
+ * The Make FBA list box opens on the account and lane where the ticked SKUs have pieces to send, and says so (28 Nov): the first
+ * lane (Air, Sea, AWD) a SKU can go with; if the SKUs disagree, the lane with most pieces allowed; if none, Air. The account is
+ * changed from Ridhi FBA only when it alone has pieces.
  *
  * WHEN SOMETHING GOES WRONG:
  *   loud, to the user — a form that cannot read the stock or the lists does not open and says why; a refused save stays on
@@ -45,6 +48,29 @@ function fblvCap(sku, account, lane, book) {
   return Math.max(0, Math.min(unlisted, allowed));
 }
 
+/** The lane the box opens on for this account: the one lane the ticked SKUs agree on as their first with pieces to send, else the
+ *  lane with most pieces allowed, and Air when no lane has any. */
+function fblvStartLane(skus, account, book) {
+  const cap = (sku, lane) => fblvCap(sku, account, lane, book);
+  const firsts = new Set(skus.map(sku => FBL_LANES.find(lane => cap(sku, lane) > 0)).filter(Boolean));
+  if (firsts.size === 1) return [...firsts][0];
+  const total = lane => skus.reduce((n, sku) => n + cap(sku, lane), 0);
+  return FBL_LANES.reduce((best, lane) => (total(lane) > total(best) ? lane : best), FBL_LANES[0]);
+}
+/** The account and lane the box opens on: the account that alone has pieces for these SKUs, else the first account. */
+function fblvStart(skus, book) {
+  const accounts = Object.keys(FGA_STORE_OF);
+  const hasRoom = account => FBL_LANES.some(lane => skus.some(sku => fblvCap(sku, account, lane, book) > 0));
+  const withRoom = accounts.filter(hasRoom);
+  const account = withRoom.length === 1 ? withRoom[0] : accounts[0];
+  return { account, lane: fblvStartLane(skus, account, book) };
+}
+/** The sentence saying the box did not open on its usual account and lane, or ''. */
+function fblvStartNote(start) {
+  if (start.account === Object.keys(FGA_STORE_OF)[0] && start.lane === FBL_LANES[0]) return '';
+  return ` It opened on ${FBLV_LANE_NAMES[start.lane]} for ${start.account}, where the ticked SKUs have pieces to send; change it if you wish.`;
+}
+
 /** The notice on a SKU that went to FBA lately, or ''. */
 function fblvRepeatNote(sku) {
   if (!fapRecent(sku).length) return '';
@@ -84,17 +110,18 @@ async function fblvMakeOpen() {
   const unread = await fblvReread();
   if (unread) return fblvSay('fgMsg', unread, true);
   const id = fgiNewId('FBL');   // once per form, so a second press saves nothing new
+  const start = fblvStart(skus, fgaBook());
   ptOpenDialog({
     title: 'Make FBA list',
     subtitle: `${nf(skus.length)} SKU(s)`,
-    note: 'The pieces are kept for this list. Nothing leaves the store until it is shipped on FBA Dispatch. Put 0 to leave a SKU off.',
+    note: 'The pieces are kept for this list. Nothing leaves the store until it is shipped on FBA Dispatch. Put 0 to leave a SKU off.' + fblvStartNote(start),
     html: fblvMakeHtml(skus),
     msg: fgiFbaAgeWhy(),
     saveLabel: 'Make the list',
     onSave: () => fblvMakeSave(id, skus),
   });
-  $('fblvAccount').value = Object.keys(FGA_STORE_OF)[0];
-  $('fblvLane').value = FBL_LANES[0];
+  $('fblvAccount').value = start.account;
+  $('fblvLane').value = start.lane;
   ['fblvAccount', 'fblvLane'].forEach(box => { $(box).onchange = () => fblvFillCaps(skus); });
   fblvFillCaps(skus);
 }

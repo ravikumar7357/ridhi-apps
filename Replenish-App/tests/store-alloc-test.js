@@ -553,10 +553,46 @@ const { same, cut, line, whole, appFile, NOW, HOUR, iso, row, sent, ordLine, sto
     const rows = S.run('fgaListRows([{ sku: "A", current: 20, dispatched: 0 }])');
     S.ctx.listRow = rows[0];
     const head = [...S.run('fgaExportHead()')], line = [...S.run('fgaExportRow(listRow)')];
-    ok('the export shows In FBA lists, adding up to stock', head[9] === 'In FBA lists' && head.length === 15 && line.length === 15
-      && line[9] === 3 && line.slice(8).reduce((x, y) => x + y, 0) === line[7], head.join() + ' | ' + line.join());
+    const sum = r => r.slice(8).reduce((x, y) => x + y, 0);
+    ok('no column of their own: the export keeps its 14 columns', head.length === 14 && !head.includes('In FBA lists') && line.length === 14, head.join());
+    ok('lists not packed: the pieces stay In Stock, in their lane\'s column (Sea 2+2, AWD 1+1), and the shares add up',
+      same(line.slice(6), [0, 20, 0, 6, 3, 4, 2, 5]) && sum(line) === line[7], line.join());
     const cells = [...S.run('fgaCells(listRow)').matchAll(/<td class="num"[^>]*>(.*?)<\/td>/g)];
-    ok('the stock list has its cell and the phone card its figure', cells.length === 9 && S.run('fgaCardFigs(listRow)').includes('In FBA lists <b>3'));
+    ok('the stock list has no cell and the phone card no figure for them', cells.length === 8 && !S.run('fgaCardFigs(listRow)').includes('In FBA lists')
+      && S.run('fgaCardFigs(listRow)').includes('FBA Sea <b>4'));
+    ok('what every check uses is not changed: the lists still hold 3 and Sea has 2 free', S.shares().listed === 3 && S.run('fblShare({ sku: "A", store: "SP", lane: "sea" }, fgaBook())') === 2);
+
+    const inList = (store_, lane, qty, status, packed) => Object.assign(onList(store_, lane, qty, status), { lines: { A: { sku: 'A', qty, packed } } });
+    const shown = (lists, current = 20) => { const R = withLists({}, lists); const r = R.run(`fgaListRows([{ sku: "A", current: ${current}, dispatched: 2 }])`)[0]; return { R, r, alloc: Object.assign({}, r.alloc) }; };
+    const total = r => Object.values(r.alloc).reduce((x, y) => x + y, 0);
+    const packedAll = shown({ L1: onList('SP', 'sea', 2), L2: inList('CPC', 'awd', 1, 'packed', 1) });
+    ok('a packed list: its pieces are FBA Packed (with the 2 waiting), not In Stock or a lane, and the shares add up',
+      packedAll.r.dispatched === 3 && packedAll.r.current === 19 && packedAll.alloc.awd === 1 && packedAll.alloc.sea === 4 && total(packedAll) === 19, JSON.stringify(packedAll.alloc));
+    const part = shown({ L1: inList('SP', 'sea', 2, 'packed', 1) });
+    ok('packed part of a list: the packed piece moves, the rest stays in its lane', part.r.dispatched === 3 && part.r.current === 19 && part.alloc.sea === 3 && total(part) === 19, JSON.stringify(part.alloc));
+    const twoLanes = shown({ L1: inList('SP', 'sea', 2, 'packed', 1), L2: onList('CPC', 'awd', 1) });
+    ok('the unpacked rest of a packed list stays in its own lane, beside another list\'s lane', twoLanes.alloc.sea === 3 && twoLanes.alloc.awd === 2 && twoLanes.r.current === 19, JSON.stringify(twoLanes.alloc));
+    const going = shown({ L1: inList('SP', 'sea', 2, 'shipping', 2) });
+    ok('a list being shipped is packed', going.r.dispatched === 4 && going.r.current === 18 && total(going) === 18);
+    const shippedList = shown({ L1: inList('SP', 'sea', 2, 'shipped', 2), L2: inList('SP', 'air', 2, 'cancelled', 0) });
+    ok('a shipped or cancelled list shows nothing', shippedList.r.dispatched === 2 && shippedList.r.current === 20 && total(shippedList) === 20);
+    ok('a packed list changes no true figure', packedAll.R.shares().listed === 3 && packedAll.R.shares().sea === 2 && packedAll.R.free() === 6);
+    const gone = shown({ L1: inList('SP', 'sea', 20, 'packed', 20) });
+    ok('everything packed: In Stock 0, FBA Packed shows it, the count line says so', gone.r.current === 0 && gone.r.dispatched === 22 && total(gone) === 0
+      && / with none in stock but pieces in FBA Dispatch/.test(gone.R.run('fgaCountWords([{ current: 0 }, { current: 5 }])')));
+    ok('the SKU stays listed: it has stock and FBA Packed', gone.R.run('fgaListed({ current: 20, dispatched: 0 })') === true);
+    const short = shown({ L1: inList('SP', 'sea', 5, 'packed', 4) }, 3);
+    ok('stock short of the lists: packed first, never below nought, the shares still add up', short.r.current === 0 && short.r.dispatched === 5 && total(short) === 0, JSON.stringify(short.alloc));
+    ok('a negative count stays as it is', shown({ L1: inList('SP', 'sea', 5, 'packed', 4) }, -2).r.current === -2);
+    const both = shown({ L1: inList('SP', 'sea', 2, 'packed', 2), L2: inList('CPC', 'sea', 3, 'open', 0) });
+    ok('both accounts add up in the lane: Sea 2 free + the open CPC list 3, the packed one is FBA Packed',
+      both.r.dispatched === 4 && both.r.current === 18 && both.alloc.sea === 5 && total(both) === 18, JSON.stringify(both.alloc));
+    const viewed = withLists({});
+    viewed.box('fgaView').value = 'SP';
+    const one = viewed.run('fgaListRows([{ sku: "A", current: 20, dispatched: 0 }])')[0];
+    ok('the account picker does not lose the pieces of a list: the CPC AWD list still shows in AWD', one.alloc.awd === 1 && one.alloc.sea === 4 && total(one) === 20, JSON.stringify(one.alloc));
+    const offRow = withLists({ fbaList: '0' }).run('fgaListRows([{ sku: "A", current: 20, dispatched: 0 }])')[0];
+    ok('switch off: the row is the shares as before', offRow.current === 20 && offRow.dispatched === 0 && offRow.alloc.listed === undefined);
   }
 
   const { pass, fail } = counts();

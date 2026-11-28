@@ -103,6 +103,32 @@ const actions = html => (html.match(/data-fbl="\w+"/g) || []).map(m => m.slice(1
     await S.ctx.fblvMakeOpen();
     ok('a New development article whose listing cannot be checked says so on the form', /listing of A could not be checked/.test(S.dialogs[0].html), S.dialogs[0].html);
   }
+  console.log('== the lane the form opens on ==');
+  {
+    const opened = async o => { const S = screen(Object.assign({ picked: ['A'] }, o)); await S.ctx.fblvMakeOpen(); return { S, note: S.dialogs[0].note }; };
+    const usual = await opened({});
+    ok('Air has pieces: it opens on Air for Ridhi, with nothing to explain', usual.S.box('fblvLane').value === 'air'
+      && usual.S.box('fblvAccount').value === 'Ridhi FBA' && !/It opened on/.test(usual.note), usual.note);
+    const sea = await opened({ need: { SP: [0, 5, 0], CPC: [0, 0, 2] } });
+    ok('only Sea has pieces: it opens on Sea, fills its pieces and says so', sea.S.box('fblvLane').value === 'sea' && sea.S.box('fblvQty0').value === '5'
+      && /It opened on Sea for Ridhi FBA/.test(sea.note), sea.note);
+    const cpc = await opened({ need: { SP: [0, 0, 0], CPC: [0, 0, 2] } });
+    ok('only the other account has pieces: it opens on that account and its lane, and says so', cpc.S.box('fblvAccount').value === 'CPC FBA'
+      && cpc.S.box('fblvLane').value === 'awd' && cpc.S.box('fblvQty0').value === '2' && /AWD for CPC FBA/.test(cpc.note), cpc.note);
+    const none = await opened({ need: { SP: [0, 0, 0], CPC: [0, 0, 0] } });
+    ok('no lane has pieces: Air for Ridhi as before', none.S.box('fblvLane').value === 'air' && none.S.box('fblvAccount').value === 'Ridhi FBA' && !/It opened on/.test(none.note));
+    const pick = (caps, fn = 'fblvStartLane(["X", "Y"], "Ridhi FBA", null)') => {
+      const S = screen();
+      S.ctx.fblvCap = (sku, account, lane) => (account === 'Ridhi FBA' || caps.both ? caps[sku][lane] : 0);
+      return S.run(fn);
+    };
+    ok('SKUs that agree on their first lane open on it, whatever a later lane holds',
+      pick({ X: { air: 0, sea: 2, awd: 9 }, Y: { air: 0, sea: 3, awd: 0 } }) === 'sea');
+    ok('SKUs that disagree: the lane with most pieces', pick({ X: { air: 1, sea: 0, awd: 0 }, Y: { air: 0, sea: 9, awd: 0 } }) === 'sea');
+    ok('a tie goes to the earlier lane', pick({ X: { air: 4, sea: 0, awd: 0 }, Y: { air: 0, sea: 0, awd: 4 } }) === 'air');
+    ok('a SKU with nothing does not hold the others back', pick({ X: { air: 0, sea: 0, awd: 0 }, Y: { air: 0, sea: 0, awd: 3 } }) === 'awd');
+    ok('both accounts have pieces: the first account', pick({ both: true, X: { air: 1, sea: 1, awd: 1 } }, 'fblvStart(["X"], null).account') === 'Ridhi FBA');
+  }
   console.log('== the panel ==');
   {
     const off = panel({ switch: '0', lists: { L: list('packed') } });
@@ -229,6 +255,15 @@ function teeth() {
     [view, '<b style="font-family:ui-monospace,monospace">${esc(l.sku)}</b>', '<b>${l.sku}</b>'],
     [view, 'if (!fbaCan()) return \'\';', ''],
     [view, ', fgaNewDevWhy(sku)].filter', '].filter'],
+    [view, 'FBL_LANES.find(lane => cap(sku, lane) > 0)', 'FBL_LANES.find(lane => cap(sku, lane) >= 0)'],
+    [view, 'if (firsts.size === 1) return [...firsts][0];', ''],
+    [view, '(total(lane) > total(best) ? lane : best)', '(total(lane) < total(best) ? lane : best)'],
+    [view, '(total(lane) > total(best) ? lane : best)', '(total(lane) >= total(best) ? lane : best)'],
+    [view, 'withRoom.length === 1 ? withRoom[0] : accounts[0]', 'accounts[0]'],
+    [view, "$('fblvLane').value = start.lane;", "$('fblvLane').value = FBL_LANES[0];"],
+    [view, "$('fblvAccount').value = start.account;", "$('fblvAccount').value = Object.keys(FGA_STORE_OF)[0];"],
+    [view, "Put 0 to leave a SKU off.' + fblvStartNote(start),", "Put 0 to leave a SKU off.',"],
+    [view, "if (start.account === Object.keys(FGA_STORE_OF)[0] && start.lane === FBL_LANES[0]) return '';", ''],
     ['inventory/fba-dispatch.js', "? btn('data-fba-ret', id, 'Return', true) : btn(", "? '' : btn("],
     ['inventory/fba-ship-excel.js', 'await fblvUndoAsk(row.fbaListId);', ''],
   ];

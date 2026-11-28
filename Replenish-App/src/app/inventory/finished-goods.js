@@ -266,7 +266,7 @@ function renderFgi() {
 
 /** The stock list's columns that line up as figures. */
 const FGI_NUM_COLS = ['Opening', 'Received', 'Issued', 'To FBA', 'In stock', 'Shopify held', 'Rate', 'Value',
-  'FBA Packed', 'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess', 'In FBA lists'];
+  'FBA Packed', 'In Stock', 'Photoshoot', 'Custom', 'FBA Air', 'FBA Sea', 'FBA AWD', 'Excess'];
 
 /** The movement and value cells of a stock row (switch storeAlloc off). */
 function fgiMovementCells(r, holds) {
@@ -316,7 +316,8 @@ const fgiMatches = (r, q) => [r.sku, r.articleType, r.subtype, r.color, r.size, 
 function fgiRenderStock(stock) {
   const q = $('fgQ').value.trim().toLowerCase();
   /* Switch storeAlloc (27 Nov): the list shows who each SKU's stock is for, in place of its movement and value columns, and
-   * (28 Nov) holds only the SKUs with stock now or with FBA Packed pieces (fgaListed). */
+   * (28 Nov) holds only the SKUs with stock now or with FBA Packed pieces (fgaListed). With FBA lists on, In Stock and FBA Packed
+   * also follow the lists (fgaListRows): pieces packed on a list are FBA Packed, not In Stock. */
   const alloc = typeof fgaOn === 'function' && fgaOn();
   /* SWITCH OFF, THE LIST IS THE STORE'S REGISTER, not its shelf. A SKU that came in and went out the
    * same morning still gets its line, with what came in and where it went; ticking the box narrows
@@ -358,7 +359,7 @@ function fgiRenderStock(stock) {
   const shownSkus = rows.slice(0, 600).map(r => r.sku);
   const allOn = canTick && shownSkus.length > 0 && shownSkus.every(s => FGI_PICK.stock.has(s));
   const head = '<thead><tr>' + (canTick ? `<th><input type="checkbox" data-fgall="stock"${allOn ? ' checked' : ''} title="Tick every SKU shown"></th>` : '')
-    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['FBA Packed', 'In Stock', ...fgaShareCols().map(s => s[1])] : ['Opening', 'Received',
+    + ['SKU', 'Image', 'Brand', 'Item', 'Colour', 'Size', ...(alloc ? ['FBA Packed', 'In Stock', ...FGA_SHARES.map(s => s[1])] : ['Opening', 'Received',
     'Issued', 'To FBA', 'In stock', ...(holds ? ['Shopify held'] : []), 'Amazon', 'Tag', 'Rate', 'Value']), '']
     .map((h, i) => `<th${i === 0 ? ' class="frz"' : (FGI_NUM_COLS.includes(h) ? ' class="num"' : '')}>${h}</th>`).join('') + '</tr></thead>';
   /* ON A PHONE, A CARD PER SKU (core/mobile.js, 2026-10-16): the same rows and the same buttons, read top to bottom. */

@@ -7,6 +7,8 @@
  * FBA repeat approver or an admin makes it, which is their approval.
  * A New development article Amazon does not list (fg-store-newdev.js) goes on a list only as far as Replenishment itself
  * asks for that lane, plus releases; Ship checks that again, so a list made before the listing was lost does not send them.
+ * On the Finished Goods stock list a list's pieces stay In Stock, in the column of the list's lane, until the list is packed;
+ * the pieces packed then show in FBA Packed instead (fblShowing). That is display only; every limit uses the true stock.
  * Whoever holds the FBA Dispatch tab makes, ships and undoes; packing also needs the right to save packing lists
  * (pack-core.js). A list is cancelled by its maker or an admin.
  * Ship sends exactly the packed pieces, so the packing list, its labels and the Amazon file agree with what went. To send
@@ -84,6 +86,22 @@ function fblAllotted(lists) {
       const lanes = had[l.store].slice();
       lanes[FBL_LANES.indexOf(l.lane)] += fgiNum(line.qty);
       out[key] = Object.assign({}, had, { total: had.total + fgiNum(line.qty), [l.store]: lanes });
+    });
+  });
+  return out;
+}
+
+/** What the stock list shows of the lists, per SKU key: { packed, lanes: [air, sea, awd] }. packed = pieces packed on lists
+ *  (packed or being shipped), shown as FBA Packed; lanes = the rest of the lists' pieces by the list's lane, still In Stock.
+ *  Both accounts together. Display only: fblAllotted stays what every limit uses. */
+function fblShowing(lists) {
+  const out = {};
+  Object.values(lists || {}).filter(l => l && FBL_ALLOTTING.includes(l.status)).forEach(l => {
+    Object.entries(l.lines || {}).forEach(([key, line]) => {
+      const had = out[key] || { packed: 0, lanes: [0, 0, 0] }, lanes = had.lanes.slice();
+      const packed = l.status === 'open' ? 0 : Math.min(fgiNum(line.packed), fgiNum(line.qty));
+      lanes[FBL_LANES.indexOf(l.lane)] += fgiNum(line.qty) - packed;
+      out[key] = { packed: had.packed + packed, lanes };
     });
   });
   return out;
