@@ -4098,9 +4098,9 @@ function invNeedCell(r, loading) {
   var words = p.short > 0.05
     ? pct + '% covered · <span style="color:var(--bad);font-weight:700">' + nf(p.short) + ' short</span>' + (p.greigeM ? '' : ' · covered by what is on its way')
     : 'fully covered';
-  /* the lines open Demand → RFD with only this fabric's lines (Ravi, 21 Nov) */
+  /* the lines open this fabric's Send to printer card, here on the desk (21 Nov; the card in place of Demand → RFD, 28 Nov) */
   return '<td class="tl" title="' + esc(tip) + '"><div><b>' + nf(p.need) + ' m</b> <span class="muted" style="font-size:11px">· </span>'
-    + '<button type="button" class="link" data-gdlines="' + esc(p.name) + '" style="font-size:11px;padding:0" title="See these lines on Demand → RFD">' + plural(p.lines, 'line') + '</button></div>'
+    + '<button type="button" class="link" data-gdlines="' + esc(p.name) + '" style="font-size:11px;padding:0" title="See these lines, and send them to their printers">' + plural(p.lines, 'line') + '</button></div>'
     + '<div style="height:6px;border-radius:3px;background:var(--soft);overflow:hidden;margin:5px 0 3px" role="img" aria-label="' + pct + '% covered">'
     + '<div style="height:100%;width:' + pct + '%;background:' + col + '"></div></div>'
     + '<div class="muted" style="font-size:11px">' + nf(p.free) + ' m RFD free · ' + words + '</div></td>';
@@ -6312,7 +6312,9 @@ function wireGd() {
     var t = ev.target.closest ? ev.target.closest('[data-ppcpo],[data-gdflow],[data-gdlines],[data-gdsend]') : null; if (!t) return;
     if (t.getAttribute('data-ppcpo')) { var p = t.getAttribute('data-ppcpo').split('|'); gdPoFor(p[0], +p[1]); return; }
     if (t.getAttribute('data-gdflow')) { gdToFlow(t.getAttribute('data-gdflow'), ''); return; }   // the whole list: no fabric left in the search
-    if (t.getAttribute('data-gdlines')) { gdToFlow('drfd', t.getAttribute('data-gdlines')); return; }
+    /* the fabric's lines open on its Send to printer card, here on the desk (28 Nov: no jump to the old flow page). The card
+     * shows only the lines that can be sent or allotted, so its count can be lower than the link's. */
+    if (t.getAttribute('data-gdlines')) { gdSendToPrinter(t.getAttribute('data-gdlines')); return; }
     if (t.getAttribute('data-gdsend')) { gdSendToPrinter(t.getAttribute('data-gdsend')); return; }
   });
 }

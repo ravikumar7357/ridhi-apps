@@ -173,7 +173,7 @@ console.log('== the Inventory, laid out to act on (Ravi, 21 Nov) ==');
   ok('the stock columns sit under "Where the cloth is now →"', /Where the cloth is now (→|\\u2192)/.test(code));
   ok('the long note is gone from the toolbar', !/PPC demand is what the production plans need in RFD; short is after the RFD free today/.test(code));
   ok('no Total row under the Inventory (metres of different cloths added together)', !/<tfoot><tr><td class="frz" style="text-align:left">Total/.test(code));
-  ok('"18 lines" is a link to Demand → RFD for that fabric', /data-gdlines="Canvas"[^>]*>39 lines</.test(need) && /if \(t\.getAttribute\('data-gdlines'\)\) \{ gdToFlow\('drfd', t\.getAttribute\('data-gdlines'\)\)/.test(code));
+  ok('"18 lines" opens that fabric\'s Send to printer card, here on the desk (28 Nov)', /data-gdlines="Canvas"[^>]*>39 lines</.test(need) && /if \(t\.getAttribute\('data-gdlines'\)\) \{ gdSendToPrinter\(t\.getAttribute\('data-gdlines'\)\); return; \}/.test(code));
 }
 
 console.log('== the Inventory and the ledger, laid out to act on (Vishesh, 23 Nov) ==');

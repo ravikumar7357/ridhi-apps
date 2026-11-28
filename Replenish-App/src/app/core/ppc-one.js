@@ -491,9 +491,18 @@ function p1Pcs(k, x) {
   return +x.r.qty || 0;
 }
 const P1_DO = { PLAN: 'Plan', RFD: 'Make challan', PRN: 'Receive', CUT: 'Enter cutting', ISS: 'Issue', REC: 'Receive', QC: 'Check in QC', FG: 'Accept', SHIP: 'Hand over' };
+/** Printed goods back, where the person is (28 Nov: "Receive" left for the old flow page). The same box the SHP board uses
+ *  (flowDueRecvOpen), so the Printer's view rules hold: open challans first, goods that came with no challan, RFD stock.
+ *  It covers the line's own printer; ruffle cloth sent separately is received against its own challan. */
+function p1RecvPrinted(x) {
+  const say = t => { if (typeof frToast === 'function') frToast(t, null, 6000); };
+  const pr = x.s.plan && x.s.plan.printer, who = pr && (pr.code || pr.name);
+  if (!who) return say('This line has no printer on its PPC plan. PPC sets one first; old vendor orders are received on Vendors → Printer\'s view.');
+  flowDueRecvOpen(who, { orderNo: x.r.orderNo, sku: x.r.sku, none: () => say(`${x.r.orderNo} ${obUC(x.r.sku)}: nothing is still to come from ${pr.name || who}.`) });
+}
 /** The real entry form for one waiting group. */
 function p1Do(k, xs) {
-  if (P1.more && (k === 'PLAN' || k === 'RFD')) { if (typeof frToast === 'function') frToast('Reading the fabric and printer registers — a moment…', null, 3000); P1.more.then(() => p1Do(k, xs)); return; }
+  if (P1.more && (k === 'PLAN' || k === 'RFD' || k === 'PRN')) { if (typeof frToast === 'function') frToast('Reading the fabric and printer registers — a moment…', null, 3000); P1.more.then(() => p1Do(k, xs)); return; }
   const x = xs[0], leave = fn => { p1Hide(); setTimeout(fn, 30); };
   /* the plan form and the challan return without a word when the lines no longer qualify: say so here (review, 26 Oct) */
   const said = what => setTimeout(() => { const d = $('ptDlg'); if ((!d || d.classList.contains('hide')) && typeof frToast === 'function') frToast(what, null, 6000); }, 400);
@@ -504,7 +513,7 @@ function p1Do(k, xs) {
   else if (k === 'REC') flowRecvEntry(x.r);
   else if (k === 'QC') leave(() => showTab('qc'));
   else if (k === 'FG') leave(() => { if (typeof frFgView === 'function') frFgView('pending'); else showTab('fgi'); });
-  else if (k === 'PRN') leave(() => { FLOW_VIEW = 'dhist'; showTab('flow'); });
+  else if (k === 'PRN') p1RecvPrinted(x);
   else if (k === 'SHIP') leave(() => showTab('ord'));   // the Order Console's Production to shipping, where the shipping team takes it
 }
 /** The lines of a lot still waiting for PPC's plan, for someone who may plan. */
