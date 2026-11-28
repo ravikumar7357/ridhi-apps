@@ -3,6 +3,7 @@
  *
  *   /  or /api   the Apps Script routes (src/routes)
  *   /save        saves that must reach an outside service (src/saves)
+ *   /erp/action/rfd-challan   make an RFD challan in one step (src/erp/actions)
  *   /erp/save, /erp/read   the ERP door (src/erp/door.ts): sign-in checked here, then the database
  *   /health      is it up, and how is the queue doing (no key needed; says nothing private)
  *
@@ -11,6 +12,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { handle, type Answer, type Deps, type Route } from './router.ts';
 import { erpDoor, type DoorDeps } from '../erp/door.ts';
+import { RepeatGuard } from '../erp/actions/rfd-challan.ts';
 import { readFile } from 'node:fs/promises';
 
 export interface ServerDeps extends Omit<Deps, 'routes'> {
@@ -50,6 +52,7 @@ function readBody(req: IncomingMessage, max = MAX_BODY): Promise<string> {
 }
 
 export function requestHandler(d: ServerDeps) {
+  const repeat = new RepeatGuard();   // one per running server: a repeated action request writes nothing twice
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     try {
       const url = new URL(req.url || '/', 'http://localhost');
@@ -65,12 +68,12 @@ export function requestHandler(d: ServerDeps) {
         res.end(html);
         return;
       }
-      const door = path.match(/^\/erp\/(save|read)$/);
+      const door = path.match(/^\/erp\/(save|read|action\/rfd-challan)$/);
       if (door) {
         if (req.method === 'OPTIONS') { send(res, { status: 204, headers: { ...JSON_HEADERS, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' }); return; }
         if (req.method !== 'POST' || !d.verifyIdToken) { send(res, { status: 200, headers: JSON_HEADERS, body: JSON.stringify({ ok: false, error: 'The ERP door takes POST only.' }) }); return; }
         const raw = await readBody(req, MAX_ERP_BODY);
-        const out = await erpDoor({ verifyIdToken: d.verifyIdToken, rules: d.erpRules, log: d.log, now: d.now, fetch: d.erpFetch }, door[1], raw);
+        const out = await erpDoor({ verifyIdToken: d.verifyIdToken, rules: d.erpRules, repeat, log: d.log, now: d.now, fetch: d.erpFetch }, door[1], raw);
         send(res, { status: 200, headers: JSON_HEADERS, body: JSON.stringify(out) });
         return;
       }

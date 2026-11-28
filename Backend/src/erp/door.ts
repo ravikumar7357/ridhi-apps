@@ -9,6 +9,7 @@
  * closed to browsers. Nothing here changes the ERP until a page is switched to send through the door (layer.js). */
 
 import { checkSave } from './rules/check.ts';
+import { makeRfdChallan, RepeatGuard } from './actions/rfd-challan.ts';
 import type { DbLike } from '../lib/db.ts';
 
 export const SUPERUSER = 'ravi@thefabricrush.com';
@@ -41,6 +42,8 @@ export interface DoorDeps {
   /** The server's own look at ERP data, for the rules (needs the server key). Without it, no rules are checked. */
   rules?: { getRecord: (path: string) => Promise<unknown>; isAdmin: (email: string) => Promise<boolean>; isVendor?: (email: string) => Promise<boolean> };
   fetch?: typeof fetch;
+  /** remembers action answers by requestId so a repeated request writes nothing twice */
+  repeat?: RepeatGuard;
   url?: string;
   log?: (line: object) => void;
   now?: () => number;
@@ -77,18 +80,28 @@ export async function erpDoor(d: DoorDeps, action: string, rawBody: string): Pro
   const email = token ? await d.verifyIdToken(token).catch(() => null) : null;
   if (!email) return { ok: false, error: 'Sign in again — the server could not confirm who you are.' };
 
+  // RULES, NOTES ONLY: look before saving (the old record is needed), at most 2 s, and never stop the save.
+  const noteRules = async (changes: any[], screen: unknown) => {
+    if (!d.rules) return;
+    const check = checkSave(email, changes, { ...d.rules, now: now() })
+      .then(notes => notes.forEach(n => d.log?.({ ruleNote: n.rule, who: email, path: n.path, detail: n.detail, screen })))
+      .catch(e => d.log?.({ ruleNote: 'checker_error', who: email, detail: String((e as Error)?.message || e).slice(0, 200) }));
+    await Promise.race([check, new Promise(r => setTimeout(r, 2000))]);
+  };
+
   try {
     let out: Out;
-    if (action === 'save') {
+    if (action === 'action/rfd-challan') {
+      const id = `${email}|${String(p.requestId || '')}`;
+      const first = d.repeat?.get(id, now());
+      if (first) { d.log?.({ door: action, who: email, repeat: true }); return (await first) as Out; }
+      const run = makeRfdChallan(email, p, { asPerson: (fn, args) => asPerson(d, token, fn, args), now, beforeSave: ch => noteRules(ch, 'server · rfd challan') })
+        .then(r => ({ ok: true as const, no: r.no, lines: r.lines }));
+      if (p.requestId) d.repeat?.set(id, now(), run);
+      try { out = await run; } catch (e) { d.repeat?.forget(id); throw e; }   // a failed try may be sent again
+    } else if (action === 'save') {
       if (!Array.isArray(p.changes) || !p.changes.length) return { ok: false, error: 'Nothing to save (changes must be a list).' };
-      // RULES, NOTES ONLY: look before saving (the old record is needed), at most 2 s, and never stop the save.
-      if (d.rules) {
-        const rules = d.rules;
-        const check = checkSave(email, p.changes, { ...rules, now: now() })
-          .then(notes => notes.forEach(n => d.log?.({ ruleNote: n.rule, who: email, path: n.path, detail: n.detail, screen: p.screen })))
-          .catch(e => d.log?.({ ruleNote: 'checker_error', who: email, detail: String((e as Error)?.message || e).slice(0, 200) }));
-        await Promise.race([check, new Promise(r => setTimeout(r, 2000))]);
-      }
+      await noteRules(p.changes, p.screen);
       const saved = await asPerson(d, token, 'rt_save', { p_changes: p.changes, p_screen: p.screen ? String(p.screen).slice(0, 60) : null });
       out = { ok: true, saved };
     } else if (action === 'read') {
